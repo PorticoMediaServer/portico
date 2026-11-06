@@ -38,6 +38,9 @@ streams := []workload.Stream{
     }},
     {Name: "browse", Every: 50*time.Millisecond, Pattern: []workload.Step{
         {Name: "browse-ready", Run: workload.Browse(reader, g, authority, snapshots, nextBrowse)},
+        {Name: "detail-ready", Run: workload.Detail(foregroundReader, g, authority, snapshots, nextDetail)},
+        {Name: "playback-lookup", Run: workload.PlaybackLookup(foregroundReader, g, authority, snapshots, nextPlayback)},
+        {Name: "continue-ready", Run: workload.ContinueWatching(foregroundReader, g, authority, snapshots, nextContinue)},
     }},
     {Name: "checkpoint", Every: 250*time.Millisecond, Pattern: []workload.Step{
         {Name: "passive", Run: workload.Passive(checkpointer, nextCheckpoint)},
@@ -84,15 +87,17 @@ The observation is advisory and can race; QL must join/deduplicate events and
 retain unknown/stale states. CP completion/allocation/token changes do not prove
 a reset. Creation is not reset. Only owning composition may attest freshness.
 
-`Browse` calls RD's real two-window facade and retains both snapshot results.
+`Browse`, `Detail`, `PlaybackLookup` and `ContinueWatching` call the real public
+readers through one shared adapter and retain every lookup/publication window.
 Its trusted `prepare` callback supplies the ORIGINAL foreground/read deadlines,
 the separate output request and trusted request-entry clock; it does not allocate
 a payload or output grant. The adapter calls `read.ConsumeForeground` to admit
-LIVE before output/draft allocation. `Consume` is required and runs after Window
-even on read failure; it joins encoding/IO and drops all page references before
-returning. The driver then retires output and LIVE. Raw read and full-consumption
-evidence remain separate. The measured wall interval includes preparation,
-admission, both windows, consumer work and cleanup. `ReadyNS`
+LIVE before output/draft allocation. Each typed `Consume(context.Context, Page)`
+is required and runs only after successful read publication, using the protected
+context. It joins encoding/IO and drops all page references before returning.
+The driver then retires output and LIVE, also on read/consumer failure. The
+measured wall interval includes preparation, admission, every window, consumer
+work and cleanup. `ReadyNS`
 adds scheduling delay from the original offer; it is not HTTP/network latency.
 The result retains the original ready budget and deadline. Compare paired
 foreground-only/ingest cohorts against B-READS at the declared library size:
@@ -100,8 +105,25 @@ for sorted browse40 at 1M the proposed p95/p99 ready budgets are 50/150 ms;
 background delta p95 ≤10 ms/p99 ≤25 ms. The ≤1 s snapshot protection ceiling is
 not a ready budget. This package computes no gate verdict.
 
-RD2 read adapters and WC progress/security adapters are not supplied here.
-`StubCadence` records missing capability at the declared cadence,
+`ForegroundResult[Summary]` retains original ready/protected/read deadlines,
+budget, separate read/consumer/scope errors, read evidence and full-consumption
+timing. Unobserved phases, absent summaries and missing native window facts are
+null; an observed zero interval stays numeric zero. Read failure never
+becomes a successful empty page. A successful read followed by consumer failure
+keeps its summary and remains a failed operation. Each summary contains bounded
+counts/flags only, with no page, title, path, token, user state or cursor. Emission
+runs after the shared scope cleanup; it carries no writer HOLD/COMMIT evidence.
+The scheduler/reducer envelope is unchanged; phase-specific `Result` now uses
+this named shape, including browse. Browse consumers now receive their context.
+
+`PlaybackLookup` is file/stream resolution, not a playback session or first frame.
+Continue watching uses the B-R02 Home-row budget. All whole-operation counts,
+windows and permitted attempts remain visible; these adapters establish no ready,
+VM, coexistence or memory qualification. Live/output remains held for a slow or
+cancelled consumer, even after all native windows close.
+
+WC progress/security adapters are not supplied here. `StubCadence` records
+missing capability at the declared cadence,
 performs NO write and has null HOLD/COMMIT/ready fields. A stub prevents schedule
 completion and whole-run reduction. The `Action` contract accommodates future
 typed adapters without expanding the writer registry or inventing a command.
@@ -181,5 +203,10 @@ remain bounded scheduler/reducer controls only.
 NOT native cleanup proof. After it returns, owning composition still closes and
 proves writer/reader/output/checkpointer/helper retirement, preserves raw evidence
 and removes only its own scratch. QL owns cooperative/hard watchdogs and treats
-a hard-killed prefix as incomplete. All local tests use fabricated values and
-small timing controls; they establish driver behavior, not database performance.
+a hard-killed prefix as incomplete. Scheduler/reducer controls use fabricated
+values. Separate read-package tests reuse its existing actual-Capture/LIVE fixture
+to exercise all four adapters, consumer custody and cancellation. Their blocked
+writer action performs no native write: it proves scheduler overlap/join behavior,
+not real scan/enrichment coexistence. Native paired execution still requires W's
+reviewed single-database legal issuance/diagnostic composition. No database
+performance is established.

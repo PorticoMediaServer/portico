@@ -211,7 +211,7 @@ func TestWorkloadStubAndInvalidComposition(t *testing.T) {
 	if final(t, sink).ScheduleComplete {
 		t.Fatal("stub became complete")
 	}
-	for _, action := range []Action{Inventory(nil, nil, nil), Effective(nil, nil, nil), Browse(nil, nil, nil, nil, nil), Passive(nil, nil), WAL("", nil)} {
+	for _, action := range []Action{Inventory(nil, nil, nil), Effective(nil, nil, nil), Browse(nil, nil, nil, nil, nil), Detail(nil, nil, nil, nil, nil), PlaybackLookup(nil, nil, nil, nil, nil), ContinueWatching(nil, nil, nil, nil, nil), Passive(nil, nil), WAL("", nil)} {
 		sink = &memorySink{}
 		if err := Run(t.Context(), config, stream(action), sink); err == nil {
 			t.Fatal("unavailable composition ran")
