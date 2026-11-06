@@ -3,7 +3,8 @@
 This is a bounded, constant-memory harness collector for **one declared fresh N1
 target**. It records a successful original Applied observation, then the first
 actual current-authority browse page showing that retained subject in the same
-library. Commit return, traversal discovery/EOF, historical replay and errors do
+library AND database incarnation. The report retains the original reference and
+matched IDs for joining raw evidence. Commit return, traversal discovery/EOF, historical replay and errors do
 not substitute for a serving observation. The collector uses existing merged
 writer/read value types; it opens no database and issues no authority or command.
 

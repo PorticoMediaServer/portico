@@ -16,7 +16,7 @@ import (
 func control(t *testing.T) (*Clock, time.Time, writer.ScanReceiptRequest, writer.InventoryResult, read.BrowseInput) {
 	t.Helper()
 	start := time.Now()
-	c, err := New(start, Manifest{Run: "run", ClockDomain: "test-process", FixtureSHA256: strings.Repeat("a", 64), SourceSHA: strings.Repeat("b", 40), BinarySHA256: strings.Repeat("c", 64), HostEpoch: "fabricated", MediaProfile: "control"})
+	c, err := New(start, Manifest{Run: "run", Database: "database", ClockDomain: "test-process", FixtureSHA256: strings.Repeat("a", 64), SourceSHA: strings.Repeat("b", 40), BinarySHA256: strings.Repeat("c", 64), HostEpoch: "fabricated", MediaProfile: "control"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,6 +108,11 @@ func TestScanClockRejectsWrongBrowseAndMissingClockOrigin(t *testing.T) {
 		t.Fatal("cross-library row accepted")
 	}
 	input.Library--
+	input.Database = "other-database"
+	if err := c.Browse(start.Add(2*time.Millisecond), input, page, nil); err == nil {
+		t.Fatal("cross-database row accepted")
+	}
+	input.Database = "database"
 	if err := c.Browse(start.Add(2*time.Millisecond), input, page, errors.New("read failed")); err == nil {
 		t.Fatal("error plus rows accepted")
 	}
