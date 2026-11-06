@@ -54,6 +54,9 @@ type browseFence struct {
 	profileRestricted                                                                           bool
 	libraryID, kind, dataRevision, orderRevision, metadataRevision, ageRevision, viewerRevision int64
 	descending, keepArticles                                                                    bool
+	root, bridgeRoot                                                                            string
+	originIncarnation                                                                           [16]byte
+	originRevision                                                                              int64
 }
 
 type BrowseItem struct {
@@ -185,6 +188,15 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	f := browseFence{database: strings.Clone(in.Database), token: strings.Clone(in.TokenHash), account: r[0].(string), profile: r[1].(string), membership: r[2].(string), lifetime: r[3].(string), library: lib,
 		epoch: r[4].(int64), authority: r[10].(int64), membershipRevision: r[11].(int64), profileRevision: r[16].(int64), restrictionRevision: r[17].(int64),
 		libraryID: in.Library, kind: in.Kind, dataRevision: lr[1].(int64), orderRevision: lr[2].(int64), metadataRevision: lr[3].(int64), viewerRevision: lr[4].(int64), ageRevision: lr[5].(int64), maximumAge: maximum, allowUnrated: unrated, container: k[0][0].(int64), role: r[5].(string), memberLibraries: r[6].(string), profileLabels: r[14].(string), expiresAt: r[8].(string), horizon: r[9].(string), profileRestricted: r[7] != nil, descending: in.Descending, keepArticles: in.KeepArticles}
+
+	f.root = lr[8].(string)
+	f.bridgeRoot = bridge[0][1].(string)
+	origin, ok := lr[9].([]byte)
+	if !ok || len(origin) != 16 {
+		return browseFence{}, ErrUnqualified
+	}
+	copy(f.originIncarnation[:], origin)
+	f.originRevision = lr[10].(int64)
 	if r[7] != nil {
 		f.profileLibraries = r[7].(string)
 	}
@@ -196,7 +208,6 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 
 // A draft is private until BrowseReader.Window completes fresh validation.
 func readBrowsePage(ctx context.Context, query browseQuery, in BrowseInput, f browseFence) (page BrowsePage, err error) {
-	maximum, unrated := f.maximumAge, f.allowUnrated
 	// Each statement limits RAW positions before live/age rejection. Retired
 	// subjects consume this same budget and advance the raw continuation.
 	name := "title."
@@ -232,23 +243,14 @@ func readBrowsePage(ctx context.Context, query browseQuery, in BrowseInput, f br
 		}
 		page.RawPositions++
 		page.Next = &BrowseCursor{fence: f, key: v[1].(string), id: v[0].(int64)}
-		if v[4].(int64) != 0 {
+		if !admittedItem(v, f) {
 			continue
 		}
-		if v[6] == nil {
-			if unrated == 0 {
-				continue
-			}
-		} else if maximum >= 0 && v[6].(int64) > maximum {
-			continue
+		item, e := itemValue(v)
+		if e != nil {
+			return BrowsePage{}, e
 		}
-		var public [16]byte
-		id, ok := v[2].([]byte)
-		if !ok || len(id) != 16 {
-			return BrowsePage{}, fmt.Errorf("invalid public identity")
-		}
-		copy(public[:], id)
-		page.Items = append(page.Items, BrowseItem{ID: v[0].(int64), PublicID: public, Title: v[3].(string), Revision: v[5].(int64)})
+		page.Items = append(page.Items, item)
 		if len(page.Items) == in.Limit {
 			break
 		}
@@ -259,4 +261,24 @@ func readBrowsePage(ctx context.Context, query browseQuery, in BrowseInput, f br
 	}
 	page.LookupElapsed = time.Since(lookupStarted)
 	return page, nil
+}
+
+// admittedItem and itemValue consume the common seven-column item shape.
+func admittedItem(row []any, f browseFence) bool {
+	if row[4].(int64) != 0 {
+		return false
+	}
+	if row[6] == nil {
+		return f.allowUnrated != 0
+	}
+	return f.maximumAge < 0 || row[6].(int64) <= f.maximumAge
+}
+func itemValue(row []any) (BrowseItem, error) {
+	id, ok := row[2].([]byte)
+	if !ok || len(id) != 16 {
+		return BrowseItem{}, fmt.Errorf("invalid public identity")
+	}
+	var public [16]byte
+	copy(public[:], id)
+	return BrowseItem{ID: row[0].(int64), PublicID: public, Title: row[3].(string), Revision: row[5].(int64)}, nil
 }

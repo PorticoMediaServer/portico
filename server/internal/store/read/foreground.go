@@ -29,9 +29,9 @@ type TitleInput struct {
 	After       *TitleCursor
 }
 type TitleCursor struct {
-	fence               browseFence
-	item, child, credit int64
-	source              []any
+	fence                   browseFence
+	item, child, cast, crew int64
+	source                  []any
 }
 type UserState struct {
 	Revision, ResumePosition, ResumeUnit, PlayCount int64
@@ -93,24 +93,6 @@ type TitleDetail struct {
 func validTitle(in TitleInput) bool {
 	return in.Item > 0 && in.Asset >= 0 && in.View.After == nil && !in.View.Descending && !in.View.KeepArticles
 }
-func admittedItem(row []any, f browseFence) bool {
-	if row[4].(int64) != 0 {
-		return false
-	}
-	if row[6] == nil {
-		return f.allowUnrated != 0
-	}
-	return f.maximumAge < 0 || row[6].(int64) <= f.maximumAge
-}
-func itemValue(row []any) (BrowseItem, error) {
-	id, ok := row[2].([]byte)
-	if !ok || len(id) != 16 {
-		return BrowseItem{}, ErrUnqualified
-	}
-	var public [16]byte
-	copy(public[:], id)
-	return BrowseItem{ID: row[0].(int64), PublicID: public, Title: row[3].(string), Revision: row[5].(int64)}, nil
-}
 func stateValue(row []any) UserState {
 	if row[0] == nil {
 		return UserState{}
@@ -125,18 +107,18 @@ func (r *ForegroundReader) Detail(ctx context.Context, request governor.Request,
 	if r == nil || !validTitle(in) {
 		return TitleDetail{}, BrowseReadResult{}, ErrInput
 	}
-	child, credit := int64(0), int64(-1)
+	child, cast, crew := int64(0), int64(-1), int64(-1)
 	image := int64(0)
 	if in.After != nil {
-		child, credit = in.After.child, in.After.credit
+		child, cast, crew = in.After.child, in.After.cast, in.After.crew
 	}
 	var token string
 	var source []any
 	steps := []readStep[TitleDetail]{
 		func(ctx context.Context, q browseQuery, f browseFence, d *TitleDetail) error {
-			child, credit = 0, -1
+			child, cast, crew = 0, -1, -1
 			if in.After != nil {
-				child, credit = in.After.child, in.After.credit
+				child, cast, crew = in.After.child, in.After.cast, in.After.crew
 			}
 			image = 0
 			if in.After != nil && (in.After.fence != f || in.After.item != in.Item) {
@@ -212,30 +194,54 @@ func (r *ForegroundReader) Detail(ctx context.Context, request governor.Request,
 				}
 				d.Images = append(d.Images, Image{Role: role, Digest: v[2].(string), Provider: v[3].(string), Origin: v[4].(string), Revision: v[5].(int64)})
 			}
-			rows, e = q("foreground.credits", in.Item, image, credit, int64(160))
+
+			rows, e = q("foreground.credits.class", "Acting")
 			if e != nil {
 				return e
 			}
 			d.RawRows += len(rows)
-			n = 0
-			for _, v := range rows {
-				cast := v[4].(string) == "Acting"
-				if cast && len(d.Cast) == 100 || !cast && len(d.Crew) == 50 {
-					break
-				}
-				credit = v[0].(int64)
-				n++
-				c := Credit{Ord: credit, Name: v[2].(string), Role: v[3].(string), Department: v[4].(string)}
-				if v[1] != nil {
-					c.Person = v[1].(int64)
-				}
-				if cast {
-					d.Cast = append(d.Cast, c)
+			var department any
+			if len(rows) == 1 {
+				department = rows[0][0]
+			}
+			d.CreditsExhausted = true
+			for _, class := range []struct {
+				name   string
+				after  *int64
+				limit  int
+				values *[]Credit
+			}{
+				{"cast", &cast, 100, &d.Cast}, {"crew", &crew, 50, &d.Crew},
+			} {
+
+				args := []any{in.Item, image, *class.after}
+				name := "foreground.credits." + class.name
+				if department == nil {
+					if class.name == "cast" {
+						continue
+					}
+					name += ".all"
 				} else {
-					d.Crew = append(d.Crew, c)
+					args = append(args, department)
+				}
+				rows, e = q(name, args...)
+				if e != nil {
+					return e
+				}
+				d.RawRows += len(rows)
+				if len(rows) == class.limit {
+					d.CreditsExhausted = false
+				}
+				for _, v := range rows {
+					c := Credit{Ord: v[0].(int64), Name: v[2].(string), Role: v[3].(string), Department: v[4].(string)}
+					if v[1] != nil {
+						c.Person = v[1].(int64)
+					}
+					*class.values = append(*class.values, c)
+					*class.after = c.Ord
 				}
 			}
-			d.CreditsExhausted = n == len(rows) && len(rows) < 160
+
 			rows, e = q("foreground.versions", in.Item, int64(17))
 			if e != nil {
 				return e
@@ -248,7 +254,7 @@ func (r *ForegroundReader) Detail(ctx context.Context, request governor.Request,
 				d.Versions = append(d.Versions, Version{Asset: v[0].(int64), Part: v[1].(int64), Edition: v[2].(string), Available: v[3].(int64) != 0})
 			}
 			if !d.ChildrenExhausted || !d.CreditsExhausted {
-				d.Next = &TitleCursor{fence: f, item: in.Item, child: child, credit: credit, source: source}
+				d.Next = &TitleCursor{fence: f, item: in.Item, child: child, cast: cast, crew: crew, source: source}
 			}
 			return ctx.Err()
 		},

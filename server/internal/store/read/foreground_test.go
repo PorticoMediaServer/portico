@@ -77,7 +77,7 @@ func TestForegroundDetailAndPlayback(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if d.Item.ID != 1 || d.State.ResumePosition != 500 || len(d.Cast) != 100 || len(d.Crew) != 50 || len(d.Children) != 40 || d.ChildrenExhausted || !d.CreditsExhausted || len(d.Images) != 1 || d.Images[0].Provider != "owner" || len(d.Versions) != 1 || d.File == nil || len(d.File.Streams) != 2 || len(d.File.Chapters) != 2 || len(result.LookupWindows) != 3 || result.LookupStatements != 16 || result.PublicationStatements != 8 {
+	if d.Item.ID != 1 || d.State.ResumePosition != 500 || len(d.Cast) != 100 || len(d.Crew) != 50 || len(d.Children) != 40 || d.ChildrenExhausted || d.CreditsExhausted || len(d.Images) != 1 || d.Images[0].Provider != "owner" || len(d.Versions) != 1 || d.File == nil || len(d.File.Streams) != 2 || len(d.File.Chapters) != 2 || len(result.LookupWindows) != 3 || result.LookupStatements != 18 || result.PublicationStatements != 8 {
 		t.Fatalf("detail counts children%d cast%d crew%d windows%d SQL%d+%d", len(d.Children), len(d.Cast), len(d.Crew), len(result.LookupWindows), result.LookupStatements, result.PublicationStatements)
 	}
 	if d.Next == nil {
