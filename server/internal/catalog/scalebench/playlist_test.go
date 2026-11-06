@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 )
 
@@ -40,7 +42,53 @@ func TestPlaylistPagesSortsFiltersTiesAndReorder(t *testing.T) {
 
 	dir, db, service := tinyPlaylistFixture(t)
 	playlistExercise = playlistOptions{entries: 100, limit: 7, pageBudget: 0, reorders: 6, readers: 2}
-	report, err := exercisePlaylist(context.Background(), db, service, dir)
+	// A writer can otherwise finish before either reader is scheduled. Wait
+	// for a successful real page and hold its snapshot through all six writes.
+	pageRead, writesDone := make(chan error, 1), make(chan struct{})
+	var firstPage, releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(writesDone) }) }
+	playlistExercise.reorderTest = &playlistReorderTestHooks{
+		pageRead: func(ctx context.Context, err error) error {
+			first := false
+			firstPage.Do(func() { first = true })
+			if !first {
+				return err
+			}
+			if dbwork.Snapshot(ctx) == nil {
+				t.Error("reorder reader has no real snapshot")
+			}
+			pageRead <- err
+			if err != nil {
+				return err
+			}
+			select {
+			case <-writesDone:
+				return nil
+			case <-ctx.Done():
+				// stopReaders cancels immediately after releasing us. Only a
+				// cancellation before that release breaks the required overlap.
+				select {
+				case <-writesDone:
+					return nil
+				default:
+					t.Errorf("reader snapshot ended before reorders: %v", ctx.Err())
+				}
+				return ctx.Err()
+			}
+		},
+		beforeWrites: func(ctx context.Context) (func(), error) {
+			select {
+			case err := <-pageRead:
+				return release, err
+			case <-ctx.Done():
+				return release, ctx.Err()
+			}
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	defer release()
+	report, err := exercisePlaylist(ctx, db, service, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
