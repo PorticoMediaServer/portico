@@ -128,10 +128,23 @@ func publishMediaInstance(ledger, instance string) error {
 		_ = f.Close()
 		return err
 	}
+	if err = f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
 	if err = f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), ledger+".instance")
+	if err = os.Rename(f.Name(), ledger+".instance"); err != nil {
+		return err
+	}
+	// Both the bytes and the replacement name must be synced before Configure
+	// starts its scan. Propagate failure rather than claiming publication.
+	directory, err := os.Open(filepath.Dir(ledger))
+	if err != nil {
+		return err
+	}
+	return errors.Join(directory.Sync(), directory.Close())
 }
 
 func configuredLibraries() []string {

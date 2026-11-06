@@ -5,12 +5,58 @@ package mediaexec
 import (
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 )
+
+func TestShimInstancePublicationReplacesWholeFile(t *testing.T) {
+	parent := t.TempDir()
+	ledger := filepath.Join(parent, "media-processes")
+	if err := os.Mkdir(ledger, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := publishMediaInstance(ledger, "previous"); err != nil {
+		t.Fatal(err)
+	}
+	previous, err := os.Open(ledger + ".instance")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer previous.Close()
+	if err = publishMediaInstance(ledger, "replacement"); err != nil {
+		t.Fatal(err)
+	}
+	// A reader already holding the old file keeps a whole old incarnation;
+	// opening the name after rename gets a whole new one. No in-place rewrite.
+	old, err := io.ReadAll(previous)
+	if err != nil || string(old) != "previous" {
+		t.Fatalf("previous open file changed: %q %v", old, err)
+	}
+	current, err := os.ReadFile(ledger + ".instance")
+	if err != nil || string(current) != "replacement" {
+		t.Fatalf("replacement not published: %q %v", current, err)
+	}
+	info, err := os.Stat(ledger + ".instance")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("fence permissions: %v", info.Mode())
+	}
+	entries, err := os.ReadDir(ledger)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("fence entered PID namespace: %v %v", entries, err)
+	}
+	entries, err = os.ReadDir(parent)
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("publication left temporary files: %v %v", entries, err)
+	}
+}
 
 func TestShimInstanceFencePolicy(t *testing.T) {
 	resetForTest(t)
