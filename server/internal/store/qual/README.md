@@ -35,3 +35,24 @@ policy. Positive reader limits record the asserted native values. Zero reader
 limits mean preserve-existing/unasserted, not observed defaults. Observer
 elapsed time is neither usable-open latency nor writer custody, and these
 receipts supply no workload, RAM, or snapshot-admission qualification.
+
+`SummarizeRestarts` reduces a single manifest-bound host/database/cold-or-warm
+and realistic-or-accelerated evidence cell. It consumes joined physical writer
+attempts classified by an external collector from actual WAL generation/frame
+evidence. It does not infer a restart from checkpoint completion or unchanged
+allocation, collect native evidence, select a reset policy, or issue a pass.
+Keep the raw ledger and manifest; strings/references do not prove provenance.
+
+The report retains complete holds and COMMIT durations overall and by
+recipe/actual grant class/durability. First-after-restart holds remain in those
+overall distributions. Conditional first/rest/unknown and failed-attempt strata
+are additional views; initial creation/recreation is counted separately from
+restart. Failed first writes keep their restart event/cost. Events retain actual
+versus intended class and evidence references. Unknown generation position or
+commit outcome withholds the cadence ratio instead of becoming zero or warm
+append. Empty populations and p99.9 below 10,000 observations are null. Counts,
+refusals, fences and slow samples remain visible. Unit fixtures are fabricated
+reporting controls, never measurements or evidence of actual restart frequency.
+The planned sustained-workload cadence target is approximately one restart per
+200 commits (0.005 per commit, five per 1,000). Report the actual ratio and raw
+counts; this descriptive reducer does not turn that target into a gate verdict.
