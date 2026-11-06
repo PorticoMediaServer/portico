@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -42,6 +42,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || strings.HasPrefix(fn.Name.Name, "checkSearchImage") || fn.Name.Name == "requireSearchImageMemory" ||
 			fn.Name.Name == "searchImageTimeMS" || fn.Name.Name == "commandTimeMS" || fn.Name.Name == "requireCommandMemory"
 		needs = needs || fn.Name.Name == "acknowledgeSearchPublisher" || fn.Name.Name == "searchImageStageFreshFacts"
+		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle"
 		if !needs {
 			continue
 		}
@@ -238,6 +239,8 @@ func TestEveryCommandReleaseUsesSharedFinish(t *testing.T) {
 }
 func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 	for _, body := range []string{
+		`func lookupScanRunLifecycle(ctx context.Context)(value scanLifecycleReceiptLookup,err error){return scanLifecycleReceiptLookup{},nil}`,
+		`func acknowledgeScanRunLifecycle(ctx context.Context)(value int64,err error){return 1,nil}`,
 		`func searchImageEngine(ctx context.Context)(out searchpolicy.Engine,err error){return searchpolicy.Engine{Version:"saved"},nil}`,
 		`func acknowledgeSearchPublisher(ctx context.Context,turn *commandTurn,q PublisherReceiptRequest,lookup publisherReceiptLookup)(out int64,err error){return 1,nil}`,
 		`func searchImageStageFreshFacts(ctx context.Context,turn *commandTurn,want searchImageStageRequest)(out searchImageStageRequest,err error){return want,nil}`,
