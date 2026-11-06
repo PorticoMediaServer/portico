@@ -2,15 +2,112 @@ package writer
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
+	"io"
 	"math"
 	"reflect"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
+
+type inventoryCancelReadConn struct {
+	writerDriverConn
+	target, point string
+	cancel        func()
+}
+
+func (c *inventoryCancelReadConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
+	rows, err := c.writerDriverConn.QueryContext(ctx, q, args)
+	if err == nil && strings.Contains(q, c.target) {
+		return &inventoryCancelReadRows{Rows: rows, point: c.point, cancel: c.cancel}, nil
+	}
+	return rows, err
+}
+
+type inventoryCancelReadRows struct {
+	driver.Rows
+	point  string
+	cancel func()
+	once   sync.Once
+}
+
+func (r *inventoryCancelReadRows) Next(dest []driver.Value) error {
+	err := r.Rows.Next(dest)
+	if r.point == "next" || r.point == "eof" && errors.Is(err, io.EOF) {
+		r.once.Do(r.cancel)
+	}
+	return err
+}
+
+func (r *inventoryCancelReadRows) Close() error {
+	err := r.Rows.Close()
+	if r.point == "close" {
+		r.once.Do(r.cancel)
+	}
+	return err
+}
+
+func TestInventoryLookupLateCancellationReturnsZero(t *testing.T) {
+	w, requests := inventoryLookupFixture(t)
+	var sequence int64
+	var name, path string
+	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
+		t.Fatal(err)
+	}
+	for _, population := range []string{"missing", "floor", "hit"} {
+		for _, point := range []string{"next", "eof", "close"} {
+			// A present header's single-row Scan closes without requesting
+			// native EOF. Test only cancellation boundaries actually reached.
+			if population == "floor" && point == "eof" {
+				continue
+			}
+			for _, lifetime := range []string{"caller", "turn", "same"} {
+				t.Run(population+"/"+point+"/"+lifetime, func(t *testing.T) {
+					if err := w.db.Close(); err != nil {
+						t.Fatal(err)
+					}
+					connector, err := sqliteconn.Connector(path, w.config)
+					if err != nil {
+						t.Fatal(err)
+					}
+					caller, cancel := context.WithCancel(t.Context())
+					defer cancel()
+					cancelRead := cancel
+					target := "FROM scan_command_receipts"
+					if population == "hit" {
+						target = "FROM scan_command_results"
+					}
+					w.openPool(connector, func(conn driver.Conn) driver.Conn {
+						return &inventoryCancelReadConn{writerDriverConn: conn.(writerDriverConn), target: target, point: point, cancel: func() { cancelRead() }}
+					})
+					turn, tx := inventoryLookupTurn(t, w)
+					var callCtx context.Context = caller
+					if lifetime == "turn" || lifetime == "same" {
+						cancelRead = tx.cancel
+					}
+					if lifetime == "same" {
+						callCtx = tx.ctx
+					}
+					got, err := lookupInventoryAccept(callCtx, turn, requests[population])
+					if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(got, inventoryReceiptLookup{}) {
+						t.Fatal("late cancellation returned fresh/history/floor proof", got, err)
+					}
+					tx.rollback(err)
+					if w.db.Stats().InUse != 0 {
+						t.Fatal("cancelled lookup stranded a connection")
+					}
+				})
+			}
+		}
+	}
+}
 
 func inventoryLookupFixture(t *testing.T) (*executor, map[string]ScanReceiptRequest) {
 	t.Helper()
