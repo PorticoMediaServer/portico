@@ -124,7 +124,18 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
+	parents := map[string][]string{}
+	for _, p := range in.Packages {
+		names, err := discover(p)
+		if err != nil {
+			panic(err)
+		}
+		parents[p.ImportPath] = names
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(struct {
+		Units   []laneTest
+		Parents map[string][]string
+	}{out, parents}); err != nil {
 		panic(err)
 	}
 }

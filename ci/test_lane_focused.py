@@ -31,6 +31,19 @@ class LaneTests(unittest.TestCase):
         self.assertEqual(len(lane.split_units(units, 64)), 64)
         self.assertEqual(len(lane.split_units(units[:2], 64)), 2)
 
+    def test_exact_list_reaches_argv_without_running_other_package_tests(self):
+        cfg = self.config(tests='TestA')
+        unit = dict(Name='TestA', Package='pkg', run='.', flags=[])
+        p = dict(config=cfg, tags='', parents={'pkg': ['TestA', 'TestB']}, shards=[[unit]])
+        argv = lane.test_command(p, 'pkg', [unit])
+        self.assertIn('-run=^(TestA)$', argv)
+        self.assertIn('-skip=^(TestB)$', argv)
+        # The subtest matcher is unchanged, but the exact parent restriction
+        # still excludes unselected roots on the SAME shard.
+        unit['run'] = './child'
+        self.assertIn('-run=./child', lane.test_command(p, 'pkg', [unit]))
+        self.assertIn('-skip=^(TestB)$', lane.test_command(p, 'pkg', [unit]))
+
     def events(self, path, names, end='pass'):
         values = [dict(Action='run', Test=n) for n in names]
         values += [dict(Action='pass', Test=n) for n in names]
@@ -56,7 +69,7 @@ class LaneTests(unittest.TestCase):
             root = Path(d); plan = root / 'plan.json'; results = root / 'results'; results.mkdir()
             p = dict(source_sha='a' * 40, config={'mode': 'tests'}, shards=[[{'Name': 'TestA'}], [{'Name': 'TestB'}]], run_url='https://example/run')
             lane.write(plan, p)
-            r = dict(index=0, source_sha=p['source_sha'], ok=True, complete=True,
+            r = dict(index=0, source_sha=p['source_sha'], plan_sha256=lane.digest(plan.read_bytes()), ok=True, complete=True,
                      packages=[dict(root_events=1, passed=1, skipped=0)], evidence=[])
             lane.write(results / '0/result.json', r)
             self.assertEqual(lane.summarize(root / 'summary', plan, results), 1)
@@ -64,6 +77,17 @@ class LaneTests(unittest.TestCase):
             self.assertEqual(lane.summarize(root / 'summary', plan, results), 0)
             r['complete'] = False; lane.write(results / '1/result.json', r)
             self.assertEqual(lane.summarize(root / 'summary', plan, results), 1)
+
+    def test_owned_readonly_module_scratch_is_removed_without_following_links(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); scratch = root / 'home'; cache = scratch / 'go/pkg/mod/example'
+            cache.mkdir(parents=True); (cache / 'file').write_text('cache')
+            outside = root / 'preserve'; outside.mkdir(); (outside / 'file').write_text('original')
+            (scratch / 'link').symlink_to(outside, target_is_directory=True)
+            cache.chmod(0o555)
+            lane.remove_disposable(scratch)
+            self.assertFalse(scratch.exists())
+            self.assertEqual((outside / 'file').read_text(), 'original')
 
     def test_auth_and_workflow_command_channels_not_forwarded(self):
         with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, {'GITHUB_TOKEN': 'fake', 'GH_TOKEN': 'fake', 'GITHUB_OUTPUT': 'fake', 'ACTIONS_RUNTIME_TOKEN': 'fake', 'GOFLAGS': '-exec=evil'}):
