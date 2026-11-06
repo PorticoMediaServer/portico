@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from client_api_census import ROOT, production, native_sites, classify, compare, base_guard, scan, counts, main, transport_rehash_budgets, BASELINE, ALLOWLIST, APPROVALS, DETECTIONS
+from client_api_census import ROOT, production, native_sites, classify, compare, base_guard, scan, counts, main, transport_rehash_budgets, bind_frozen_sites, BASELINE, ALLOWLIST, APPROVALS, DETECTIONS
 
 
 def swift_string_examples(call):
@@ -55,6 +55,30 @@ class ClientApiCensus(unittest.TestCase):
                 self.assertIn(row['callText'],files[row['file']])
                 budgets[row['binding']]+=row['occurrences']
         for binding,count in budgets.items():self.assertLessEqual(count,approvals[binding]['occurrences'])
+
+    def test_frozen_legacy_id_and_budget_do_not_expand_with_current_pins(self):
+        packet=json.loads((ROOT/'ci/client-api-legacy-forwarders.json').read_text())
+        row=next(r for r in packet['sites'] if r['occurrences']==2 and '@' not in r['binding'])
+        site={'file':row['file'],'line':row['line'],'id':row['binding'],'guardHash':row['guardHash'],
+              'forwardingGrammar':'frozen-legacy','forwardedRequest':True,
+              'frozenBinding':row['binding'],'frozenOccurrences':row['occurrences']}
+        sites=[dict(site) for _ in range(3)]
+        bind_frozen_sites(sites)
+        self.assertEqual([s['forwardedRequest'] for s in sites],[True,True,False])
+        # Even a freshly widened current pin cannot spend a third legacy call.
+        widened={row['file']:{'category':'platform-transport','reason':'Widened current budget',
+                            'sites':[row['binding']]*3,'guardHashes':{row['binding']:row['guardHash']}}}
+        self.assertEqual(len(classify(sites[:2],widened)[1]),2)
+        with self.assertRaisesRegex(ValueError,'closed forwarder grammar'):
+            classify(sites,widened)
+        drift=dict(site,id=row['binding']+'changed')
+        bind_frozen_sites([drift]);self.assertFalse(drift['forwardedRequest'])
+        for budget in [None,0,-1,True,'2']:
+            drift=dict(site,frozenOccurrences=budget)
+            bind_frozen_sites([drift]);self.assertFalse(drift['forwardedRequest'])
+        pair=next(r for r in packet['sites'] if '@' in r['binding'])
+        drift=dict(site,id=pair['binding'].split('@',1)[0],frozenBinding=pair['binding'],guardHash='0'*64)
+        bind_frozen_sites([drift]);self.assertFalse(drift['forwardedRequest'])
 
     def test_all_platform_languages_and_writes_are_in_scope(self):
         for p in ['web/src/request.tsx','apps/native/platform/request.ts','apps/native/Native/Transport.swift',

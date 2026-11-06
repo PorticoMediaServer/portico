@@ -6,7 +6,7 @@ const packet=JSON.parse(readFileSync(new URL('./client-api-legacy-forwarders.jso
 const hash=text=>createHash('sha256').update(text).digest('hex');
 if(packet.sourceCommit!=='71a01131dad6460ea5bdfd095b635d6eaa898fea'||!Array.isArray(packet.sites))
   throw Error('Invalid frozen forwarder provenance');
-const identities=new Set();
+const identities=new Map();
 for(const s of packet.sites) {
   if(!s||typeof s.binding!=='string'||typeof s.file!=='string'||typeof s.owner!=='string'||typeof s.shape!=='string'
       ||!s.binding.startsWith(s.file+'#')||!Number.isSafeInteger(s.occurrences)||s.occurrences<1
@@ -15,8 +15,11 @@ for(const s of packet.sites) {
     throw Error('Invalid frozen forwarder binding');
   const identity=JSON.stringify([s.file,s.guardHash,s.forwardingHash??null,s.callHash,s.shape,s.owner]);
   if(identities.has(identity))throw Error('Duplicate frozen forwarder binding');
-  identities.add(identity);
+  identities.set(identity,Object.freeze(s));
 }
-export function legacyForwarder({file,guardHash,forwardingHash,callText,shape,owner}) {
-  return identities.has(JSON.stringify([file,guardHash,forwardingHash??null,hash(callText),shape,owner]));
+export function legacyForwarderPin({file,guardHash,forwardingHash,callText,shape,owner}) {
+  return identities.get(JSON.stringify([file,guardHash,forwardingHash??null,hash(callText),shape,owner]));
+}
+export function legacyForwarder(input) {
+  return legacyForwarderPin(input)!==undefined;
 }

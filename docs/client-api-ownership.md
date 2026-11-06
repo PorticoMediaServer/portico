@@ -163,6 +163,12 @@ extending the grammar for future wrappers. Any changed identity misses the
 frozen case; refreshing only a pin or ruling cannot admit that new shape.
 Removing a frozen case is allowed. Adding a future case requires an explicit
 new decision and a reviewed change to the frozen provenance check.
+Recognition also binds the resulting canonical ID and spends the original
+frozen occurrence budget independently of the current ledger. Increasing a
+current allowance cannot give another occurrence legacy recognition. The closed
+grammar governs all new pins; an edited legacy span must fit it or return for
+an explicit new ruling and legacy-list update. No app refactoring is required
+to preserve the existing approved spans.
 
 Recognition reports `forwardingGrammar: "closed"` or `"frozen-legacy"`, and a
 `grammarRejection` reason for spans outside the grammar. These fields do not

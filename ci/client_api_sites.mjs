@@ -13,7 +13,7 @@ const literal = n => n?.kind === K.StringLiteral || n?.kind === K.NoSubstitution
 const requestNames = new Set(['request', 'requestRaw', 'requestConsole', 'requestDirect', 'send', 'fetch', 'fetcher', 'nativeNetworkFetch', 'nativeSignInFetch', 'networkFetch', 'nativeRequest', 'exchange', 'readJson', 'readJSON']);
 const builders = new Set(['routePath', 'encodedRoutePath', 'hostedRoutePath', 'hostedEncodedRoutePath']);
 import {parseForwarder, containsArguments} from './client_api_forwarder_grammar.mjs';
-import {legacyForwarder} from './client_api_legacy_forwarders.mjs';
+import {legacyForwarderPin} from './client_api_legacy_forwarders.mjs';
 export const censusProjectConfig = (root,files) => ({compilerOptions: {target:'ES2022', module:'ESNext', moduleResolution:'bundler', jsx:'react-jsx', allowJs:true, noEmit:true, skipLibCheck:true, types:[], paths:{'@core/*':[resolve(root,'packages/client-core/src/*')], '@core':[resolve(root,'packages/client-core/src/index.ts')]}}, files:files.map(f=>resolve(root,f))});
 
 // The scan body is shared unchanged by one-shot checks and the incremental
@@ -202,10 +202,10 @@ export function analyseCensus({root,files},runtime={}) {
       if (chapterGuard && builders.has(callName) && literal(args[0])==='get_playback_sessions_id_chapters') forwardingShape='chapter-capability';
       const guardHash = guard ? createHash('sha256').update(guardText).digest('hex') : undefined;
       const grammar=forwardingShape ? parseForwarder({contract,call:c,shape:forwardingShape}) : {accepted:false,reason:'arguments are not a forwarding shape'};
-      const frozen=legacyForwarder({file:path,guardHash,forwardingHash,callText:text(c),shape:forwardingShape,owner:owner?text(owner.name):'<module>'});
-      const forwardedRequest=forwardingShape!==undefined && !containsArguments(guard ?? contract ?? c) && (grammar.accepted || frozen);
+      const frozen=legacyForwarderPin({file:path,guardHash,forwardingHash,callText:text(c),shape:forwardingShape,owner:owner?text(owner.name):'<module>'});
+      const forwardedRequest=forwardingShape!==undefined && !containsArguments(guard ?? contract ?? c) && (grammar.accepted || frozen!==undefined);
       const forwardingGrammar=forwardedRequest ? grammar.accepted ? 'closed' : 'frozen-legacy' : undefined;
-      sites.push({forwardingGrammar,grammarRejection:grammar.reason,file:path,line,kind,forwardedRequest,forwardingShape,guardHash,forwardingHash,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),callText:text(c),expression:text(c).replace(/\s+/g,' ')});
+      sites.push({forwardingGrammar,...(forwardingGrammar==='frozen-legacy'?{frozenBinding:frozen.binding,frozenOccurrences:frozen.occurrences}:{}),grammarRejection:grammar.reason,file:path,line,kind,forwardedRequest,forwardingShape,guardHash,forwardingHash,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),callText:text(c),expression:text(c).replace(/\s+/g,' ')});
     }
   }
  } finally {if(api)api.close();if(scratch)rmSync(scratch,{recursive:true,force:true});}

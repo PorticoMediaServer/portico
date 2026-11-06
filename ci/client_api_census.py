@@ -621,7 +621,33 @@ def identify_sites(sites):
             identity.append(site['guardHash'])
         identity = json.dumps(identity, separators=(',',':'))
         site['id'] = site['file']+'#'+hashlib.sha256(identity.encode()).hexdigest()[:16]
+    bind_frozen_sites(sites)
     return sorted(sites,key=lambda s:(s['file'],s['line'],s['id']))
+
+
+def bind_frozen_sites(sites):
+    """A legacy parse cannot spend a new pin's ID or occurrence budget.
+
+    Node checks the exact original source fingerprint. Bind that result to the
+    canonical ID here, after identity construction, and cap it independently of
+    current approvals. A cloned span or a raised ledger budget cannot silently
+    turn another occurrence into an old legacy exception.
+    """
+    used=Counter()
+    for site in sites:
+        if site.get('forwardingGrammar')!='frozen-legacy':continue
+        binding=site.get('frozenBinding')
+        limit=site.get('frozenOccurrences')
+        if (not isinstance(binding,str) or binding.split('@',1)[0]!=site['id']
+                or '@' in binding and binding.rsplit('@',1)[1]!=site.get('guardHash')
+                or type(limit) is not int or limit<1):
+            site['forwardedRequest']=False
+            site['grammarRejection']='frozen legacy ID or budget is unbound'
+            continue
+        used[binding]+=1
+        if used[binding]>limit:
+            site['forwardedRequest']=False
+            site['grammarRejection']='original frozen legacy occurrence budget exhausted'
 
 
 def scan_snapshot(root, ref, files=None):
