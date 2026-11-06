@@ -447,7 +447,7 @@ func (s *Service) CompletePorticoOwnerClaim(ctx context.Context, bearer string, 
 		if previous == "admin" {
 			tier = TierAdmin
 		}
-		if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET role=?,disabled=?,revision=revision+1 WHERE account_id=?`, tier, previous == "remove", c.account.ID); e != nil {
+		if _, e = ExecMembershipTx(ctx, tx, c.account.ID, `UPDATE direct_memberships SET role=?,disabled=?,revision=revision+1 WHERE account_id=?`, tier, previous == "remove", c.account.ID); e != nil {
 			return e
 		}
 		if previous == "remove" {
@@ -464,7 +464,7 @@ func (s *Service) CompletePorticoOwnerClaim(ctx context.Context, bearer string, 
 		if _, e = tx.ExecContext(ctx, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES(?,?,X'',?)`, aid, localUsername, pid); e != nil {
 			return e
 		}
-		if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET role='owner',revision=revision+1 WHERE account_id=?`, aid); e != nil {
+		if _, e = ExecMembershipTx(ctx, tx, aid, `UPDATE direct_memberships SET role='owner',revision=revision+1 WHERE account_id=?`, aid); e != nil {
 			return e
 		}
 		if _, e = tx.ExecContext(ctx, `INSERT INTO account_portico_links(account_id,hosted_account_id,consent) VALUES(?,?,?)`, aid, who.AccountID, who.Consent); e != nil {

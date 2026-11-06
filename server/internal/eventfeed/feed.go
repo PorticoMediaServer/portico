@@ -337,6 +337,21 @@ func (h *Hub) Read(ctx context.Context, p identity.Principal, administrative boo
 		return out, gate.Commit()
 	}
 	after, opened := h.keys.open(cursor, bound)
+	if !opened {
+		// A tier change invalidates history, but must not swallow the own-account
+		// hint that tells this reader to retire its privileged client state.
+		prior, own := h.keys.open(cursor, cursorBinding(p, deviceID, !administrative))
+		if own {
+			event, found, e := h.authoritySinceTx(ctx, tx, p, prior, maximum, out.NextAfter)
+			if e != nil {
+				return out, e
+			}
+			if found {
+				out.Events = []Event{{ID: h.keys.seal(maximum, bound), Type: "stream.resync", At: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), Resource: Resource{Kind: "stream", ID: "all"}}, event}
+				return out, gate.Commit()
+			}
+		}
+	}
 	if !opened || after > maximum || minimum > 0 && after < minimum-1 || minimum == 0 && after < maximum {
 		return resync()
 	}
@@ -349,6 +364,7 @@ func (h *Hub) Read(ctx context.Context, p identity.Principal, administrative boo
 	}
 	adminInbox := administrative && p.Role == "owner" && p.Authority == "local"
 	audience := apievents.ProfileAudience(p.Authority, p.AccountID, p.ProfileID)
+	authorityAudience := apievents.AuthorityAudience(p.Authority, p.AccountID)
 	deviceAudience := ""
 	if deviceID != "" {
 		deviceAudience = apievents.DeviceAudience(deviceID)
@@ -365,7 +381,7 @@ func (h *Hub) Read(ctx context.Context, p identity.Principal, administrative boo
 		if row == "server" || strings.HasPrefix(row, "library:") {
 			return true
 		}
-		return row != "" && (row == audience || row == deviceAudience || row == adminAudience || row == operationAudience || row == capacityAudience)
+		return row != "" && (row == audience || row == authorityAudience || row == deviceAudience || row == adminAudience || row == operationAudience || row == capacityAudience)
 	}
 	// The envelope bound is checked in SQL so an oversized payload is never
 	// copied out of the database to be measured.
@@ -398,6 +414,15 @@ func (h *Hub) Read(ctx context.Context, p identity.Principal, administrative boo
 			return Page{}, err
 		}
 		if !addressed(rowAudience) {
+			consumed = id
+			continue
+		}
+		if kind == "authority.changed" {
+			if rowAudience != authorityAudience || resourceKind != "account" || resource != "self" || revision == "" || data != "" {
+				consumed = id
+				continue
+			}
+		} else if rowAudience == authorityAudience {
 			consumed = id
 			continue
 		}
@@ -479,7 +504,7 @@ func (h *Hub) SubscribeFor(p identity.Principal, administrative bool) (<-chan st
 }
 func (h *Hub) subscribeFor(p identity.Principal, administrative, capacity bool) (<-chan struct{}, func()) {
 	ch := make(chan struct{}, 1)
-	audiences := map[string]bool{apievents.ProfileAudience(p.Authority, p.AccountID, p.ProfileID): true, "server": true}
+	audiences := map[string]bool{apievents.ProfileAudience(p.Authority, p.AccountID, p.ProfileID): true, apievents.AuthorityAudience(p.Authority, p.AccountID): true, "server": true}
 	if p.DeviceID != "" {
 		audiences[apievents.DeviceAudience(p.DeviceID)] = true
 	}
