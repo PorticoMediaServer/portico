@@ -24,6 +24,8 @@ var openingConstraints = map[string]string{
 	"qual/scanbench/fixture_dir_other.go":        "//go:build !linux && !darwin",
 	"qual/scanbench/fixture_dir_test.go":         "//go:build linux || darwin",
 	"qual/namespace_linux.go":                    "", // implicit _linux filename constraint
+	"writer/crash_oracle_linux_test.go":          "", // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
+	"writer/crash_replay_linux_test.go":          "", // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
 	"qual/namespace_other.go":                    "//go:build !linux",
 	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
 	"governor/snapshot_binding_counters_test.go": "//go:build memory.counters && !libc.memgrind",
