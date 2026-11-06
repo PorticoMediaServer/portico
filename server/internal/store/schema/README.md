@@ -28,7 +28,7 @@ legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
 repair or seed. It does not inspect user data, prove its integrity or authorize
 access; those are separate startup responsibilities.
 
-The adopted007 file header is explicitly `application_id=0`, `user_version=0`
+The adopted010a file header is explicitly `application_id=0`, `user_version=0`
 and `encoding=UTF-8`. The zeros preserve the reviewed bootstrap; they are not
 layout identity markers. Verification checks them without rewriting them.
 Fresh bootstrap refuses incompatible headers rather than adopting them.
@@ -117,3 +117,27 @@ complete budgets, crash/runtime/physical/2GB and security-cadence qualification
 remain open. No read policy is enabled, no seed/migration runs and no runtime
 cutover is included by this embed. Existing005 files fail the changed layout pin;
 test-server cutover creates a fresh file under the approved no-conversion rule.
+
+
+INT-CHANGE-010a is adopted at14acdcd7 after R agreement207. It adds immutable
+original run scope and stable creation identity/digest, typed zero-member
+create/claim receipts and two run indexes, reusing the existing native lease,
+generation, revision, nonce and last/ACK fields. Lifecycle source_revision is
+SQL NULL; existing kinds retain required TEXT. The actual root directory
+cursor is its named scalar result, never an object-revision/copy-slot alias.
+FIRST includes V2 fenced same-owner LIVE renewal under exact current ownership,
+settled proof, physical old-work exclusion and whole old/new deadline coverage.
+Expiry monotonicity is a writer-code rule, with no DDL constraint preventing a
+lower replacement expiry under separately reviewed epoch recovery.
+
+This embed opens the storage gate only after merge; it does not issue a driver,
+enable fresh commands, seed/migrate existing files or authorize startup cutover.
+Creation-only absence/current issuer/same-file/no-GC proof, separate closed
+wire and kind/NULL-before-string decoder, physical old-work exclusion and full
+resource/time/Capture/profile/terminal/crash/runtime qualification remain open.
+ACK's zero-member lifecycle cleanup is bounded/floor-only with no refund;
+historical lease echoes and stable create fields cannot reconstruct Applied or
+fresh authority. Directory/EOF/frontier/refusal/Basic and006/009 remain separate.
+The native layout fingerprint moves with these exact six artifacts. Existing007
+files fail the new layout assertion and remain untouched; approved test-server
+cutover uses a fresh file, with no conversion or compatibility shim.

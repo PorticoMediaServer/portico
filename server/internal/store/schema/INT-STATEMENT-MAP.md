@@ -559,3 +559,16 @@ SEPARATE accepting-protocol gap remains: access_limits has no command incarnatio
 
 
 Normalization/source/admission semantics and exact caps: INT-CHANGE-007.md. No runtime or accepting authority.
+
+
+## CHANGE-010a proposed lifecycle access (no execution grant)
+
+inventory_runs original scope is write-once. Only its declared native lease/revision/sequence/counters are mutable by the corresponding closed writer.
+- Original-create identity: SELECT job_id FROM inventory_runs INDEXED BY inventory_runs_create_operation WHERE create_operation_id=:operation; LIMIT is unnecessary for UNIQUE.
+- Library retention: SELECT job_id FROM inventory_runs INDEXED BY inventory_runs_original_library WHERE original_library_id=:library AND job_id>:after ORDER BY job_id LIMIT :admitted_limit.
+- Exact original result: scan_command_receipts PRIMARY KEY(run_id,command_incarnation,command_sequence); immutable operation/digest and all11 scalar fields, same-run ORIGINAL scope; do not consult current source first.
+- Native claim CAS uses inventory_runs job_id PK and repeats SC's full15 native input vector plus original scope/counters. Actual pending root read uses inventory_directories(job_id,relative_path='.') PK. Source-active is exact source_id/job_id, never an original result carrier.
+- Cleanup only after separately qualified inactivity/lifetime: full-key result→receipt, actual root/jobs children, active/operation mapping, run→jobs. No cascade or per-user fanout.
+- New partial predicates: NONE. Existing INDEX-POLICY/contributions/type-table lists remain byte-identical007. Complete plans/counts are in010a RESULTS/FK; no actual W/SC command or runtime qualification follows.
+
+Lifecycle source_revision is SQLNULL iff inventory_create/inventory_claim; original kinds remain nonNULL. Separate lifecycle decoder must bind this absence by kind; no Inventory object-revision alias. Conditional same-owner live renewal must repeat exact owner/generation, exclude unresolved/old-generation work and advance generation/runR/sequence; other-owner live lease refuses.
