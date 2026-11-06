@@ -46,7 +46,7 @@ func TestScanInventoryStatementPlans(t *testing.T) {
 			t.Fatalf("scan %s must be hot with no waivers", d.ID)
 		}
 	}
-	registry, err := stmt.New(definitions)
+	registry, err := stmt.Describe(definitions)
 	if err != nil {
 		t.Fatal(err)
 	}

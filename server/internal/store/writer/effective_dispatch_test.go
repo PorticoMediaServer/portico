@@ -15,6 +15,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 // Protocol fixtures only: virtual time and deliberately synthetic complete
@@ -281,6 +282,7 @@ func TestEffectivePlanOwnsFiniteRecipe(t *testing.T) {
 	w, _, _, _, _ := effectiveFacadeFixture(t)
 	r := w.effective
 	for _, mutate := range []func(*effectivePlan){
+		func(p *effectivePlan) { p.registration = nil },
 		func(p *effectivePlan) { p.steps = p.steps[:len(p.steps)-1] },
 		func(p *effectivePlan) { p.steps[0].id = stmt.ID("foreign") },
 		func(p *effectivePlan) { p.steps[0].work.Hold = 25 * time.Millisecond },
@@ -437,7 +439,7 @@ func TestEffectiveDispatchNativeCohortsAndPlans(t *testing.T) {
 			t.Fatal(def.ID, issues)
 		}
 	}
-	registry, err := stmt.New(defs)
+	registry, err := stmt.Describe(defs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,6 +472,10 @@ func TestEffectiveDispatchNativeCohortsAndPlans(t *testing.T) {
 	}
 	if len(golden.Plans) != 6 || len(golden.Manifest) != 3 {
 		t.Fatal("incomplete exact-cohort plans", len(golden.Plans), len(golden.Manifest))
+	}
+	registry, err = stmt.New(defs, golden.Receipt())
+	if err != nil {
+		t.Fatal(err)
 	}
 	// Assert cohort populations, not names alone: two actual hits/misses and
 	// stale/pending scalar CAS in one rolled-back private component turn.

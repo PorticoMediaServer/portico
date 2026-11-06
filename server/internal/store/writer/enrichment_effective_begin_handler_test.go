@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func effectiveBeginWholeTurn(t *testing.T, w *executor) (*commandTurn, map[stmt.ID]statementStep) {
@@ -22,7 +23,7 @@ func effectiveBeginWholeTurn(t *testing.T, w *executor) (*commandTurn, map[stmt.
 	}
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
-	registry, err := stmt.New(defs)
+	registry, err := stmttest.New(t, defs)
 	if err != nil {
 		t.Fatal(err)
 	}

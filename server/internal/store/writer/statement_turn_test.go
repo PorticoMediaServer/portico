@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func turnStatements(t *testing.T) (*stmt.Registry, []statementStep) {
@@ -24,7 +25,7 @@ func turnStatements(t *testing.T) (*stmt.Registry, []statementStep) {
 		definitions[i].Owner, definitions[i].CallSites = "writer-test", []string{"statement_turn_test.go"}
 		steps = append(steps, statementStep{definitions[i].ID, Work{1, 100, 1, 4096, time.Millisecond}})
 	}
-	registry, err := stmt.New(definitions)
+	registry, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func TestStatementTurnRejectsMissingDuplicateAndDDLSteps(t *testing.T) {
 			t.Fatal("accepted missing/duplicate/unqualified step", invalid)
 		}
 	}
-	ddl, err := stmt.New([]stmt.Definition{{ID: "writer.test.ddl", SQL: "CREATE TABLE forbidden(id INTEGER)", Kind: stmt.DDL, Owner: "writer-test", CallSites: []string{"statement_turn_test.go"}, Cohorts: []stmt.Cohort{{Name: "empty"}}}})
+	ddl, err := stmttest.New(t, []stmt.Definition{{ID: "writer.test.ddl", SQL: "CREATE TABLE forbidden(id INTEGER)", Kind: stmt.DDL, Owner: "writer-test", CallSites: []string{"statement_turn_test.go"}, Cohorts: []stmt.Cohort{{Name: "empty"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +209,7 @@ func TestStatementTurnCannotExtendFrameCancellation(t *testing.T) {
 	}
 	defer tx.rollback(nil)
 	definition := stmt.Definition{ID: "writer.test.cancel", SQL: `WITH RECURSIVE seq(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM seq) SELECT sum(x) FROM seq`, Kind: stmt.Read, Owner: "writer-test", CallSites: []string{"statement_turn_test.go"}, Cohorts: []stmt.Cohort{{Name: "cancel"}}}
-	registry, err := stmt.New([]stmt.Definition{definition})
+	registry, err := stmttest.New(t, []stmt.Definition{definition})
 	if err != nil {
 		t.Fatal(err)
 	}

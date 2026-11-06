@@ -38,7 +38,7 @@ func TestSearchInputStatementPlans(t *testing.T) {
 	}
 	seed = seed[start:end]
 	seedHash := sha256.Sum256(seed)
-	if hex.EncodeToString(seedHash[:]) != "90c57c337cd24834b5897be7b0ae8b5b5d26455b0d410a52e4a45b48cdf9daee" {
+	if hex.EncodeToString(seedHash[:]) != "d0e1a5a8fe1fb6efbf9fa0ac4b3c50ec13e6ab6b0ffbb77661e7f379eaddbff9" {
 		t.Fatal("search input fixture changed; review populations before recording")
 	}
 	// Exact existing metadata-only BuildingClockCAS fixture. This is not a
@@ -109,7 +109,7 @@ VALUES(2,'clock_fixture_only','fixture_recipe','fixture_engine','fixture_unicode
 					selected = append(selected, d)
 				}
 			}
-			registry, err := stmt.New(selected)
+			registry, err := stmt.Describe(selected)
 			if err != nil {
 				t.Fatal(err)
 			}
