@@ -52,8 +52,22 @@ def clean_env(output):
     return env
 
 
+def remove_disposable(path):
+    # Go's module cache contains read-only directories. Only change our own
+    # scratch directories, never follow links into a source/shared cache.
+    if path.is_symlink():
+        path.unlink()
+    elif path.exists():
+        for current, _, _ in os.walk(path, followlinks=False):
+            os.chmod(current, Path(current).stat().st_mode | 0o700)
+        shutil.rmtree(path)
+
+
 def command(args, cwd, timeout=180, env=None):
-    return subprocess.check_output(args, cwd=cwd, env=env, text=True, stderr=subprocess.PIPE, timeout=timeout)
+    try:
+        return subprocess.check_output(args, cwd=cwd, env=env, text=True, stderr=subprocess.PIPE, timeout=timeout)
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(str(error) + '\n' + error.stderr[-65536:]) from error
 
 
 def integer(value, low, high, label):
@@ -139,7 +153,7 @@ def plan(source, output):
     if not (module / 'go.mod').is_file() or not module.resolve().is_relative_to(source.resolve()):
         raise ValueError('module is absent or escapes source')
     tags = command([sys.executable, str(TOOLS.parent / 'scripts/release-build-tags.py'), '--capability'], TOOLS.parent).strip()
-    units = []
+    units, parents = [], {}
     if cfg['mode'] == 'capture':
         for target in cfg['targets']:
             package, test, flag, paths = CAPTURES[target]
@@ -160,14 +174,16 @@ def plan(source, output):
                                     cwd=module, env=env, text=True, capture_output=True, timeout=180)
             if result.returncode:
                 raise ValueError('test inventory: ' + result.stderr)
-            for unit in json.loads(result.stdout):
+            found = json.loads(result.stdout)
+            parents.update(found['Parents'])
+            for unit in found['Units']:
                 unit.update(run=pattern, exact_coverage='/' not in pattern, flags=[], evidence=[])
                 units.append(unit)
     units = sorted({(u['Package'], u['Name']): u for u in units}.values(), key=lambda u: (u['Package'], u['Name']))
     if not units:
         raise ValueError('empty test/capture plan')
     bins = split_units(units, cfg['shards'])
-    result = dict(config=cfg, source_sha=sha, tags=tags, shards=bins, qualification=False,
+    result = dict(config=cfg, source_sha=sha, tags=tags, parents=parents, shards=bins, qualification=False,
                   run_url=f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
     write(output / 'plan.json', result)
     with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
@@ -199,6 +215,25 @@ def collect_events(path, expected, strict, returncode):
                 skipped=sum(a == 'skip' for v in terminals.values() for a in v))
 
 
+def test_command(p, package, units):
+    cfg = p['config']
+    names = sorted(u['Name'] for u in units if u['Name'])
+    known = p.get('parents', {}).get(package, [u['Name'] for shard in p['shards'] for u in shard if u['Package'] == package])
+    others = sorted(set(known) - set(names) - {''})
+    pattern = units[0].get('run', '^(' + '|'.join(re.escape(n) for n in names) + ')$')
+    if cfg.get('tests') and '/' not in pattern:
+        pattern = '^(' + '|'.join(re.escape(n) for n in names) + ')$'
+    # Slash filters stay untouched. The COMPLETE package inventory excludes
+    # unselected parents too, including names removed by an exact test list.
+    args = ['go', 'test', '-json', '-mod=readonly', '-tags=' + p['tags'], '-p=2', '-parallel=2',
+            '-count=' + str(cfg['count']), '-timeout=25m', '-run=' + (pattern if names else '^$')]
+    if others:
+        args.append('-skip=^(' + '|'.join(re.escape(n) for n in others) + ')$')
+    if cfg['race']:
+        args.append('-race')
+    return args + [package] + sorted({flag for u in units for flag in u['flags']})
+
+
 def worker(source, output, plan_path, index):
     p = json.loads(plan_path.read_text())
     cfg = p['config']
@@ -208,25 +243,14 @@ def worker(source, output, plan_path, index):
     groups = {}
     for u in p['shards'][index]:
         groups.setdefault((u['Package'], u.get('run')), []).append(u)
-    receipt = dict(index=index, source_sha=p['source_sha'], mode=cfg['mode'], qualification=False,
+    receipt = dict(index=index, source_sha=p['source_sha'], plan_sha256=digest(plan_path.read_bytes()), mode=cfg['mode'], qualification=False,
                    complete=False, packages=[], evidence=[], run_url=p['run_url'])
     report = output / 'result.json'
     write(report, receipt)
     try:
         for number, ((package, _), units) in enumerate(sorted(groups.items())):
             names = sorted(u['Name'] for u in units if u['Name'])
-            # Keep the original slash/subtest matcher. Exclude unassigned
-            # ROOTS with -skip rather than rewriting a user's nested filter.
-            others = sorted({u['Name'] for shard in p['shards'] for u in shard if u['Package'] == package and u['Name'] and u['Name'] not in names})
-            pattern = units[0].get('run', '^(' + '|'.join(re.escape(n) for n in names) + ')$')
-            args = ['go', 'test', '-json', '-mod=readonly', '-tags=' + p['tags'], '-p=2', '-parallel=2',
-                    '-count=' + str(cfg['count']), '-timeout=25m', '-run=' + (pattern if names else '^$')]
-            if others:
-                args.append('-skip=^(' + '|'.join(re.escape(n) for n in others) + ')$')
-            if cfg['race']:
-                args.append('-race')
-            args.append(package)
-            args.extend(sorted({flag for u in units for flag in u['flags']}))
+            args = test_command(p, package, units)
             paths = sorted({path for u in units for path in u['evidence']})
             baseline = {path: digest((source / path).read_bytes()) if (source / path).is_file() else None for path in paths}
             log, errlog = output / f'{number:03d}.jsonl', output / f'{number:03d}.stderr'
@@ -258,7 +282,7 @@ def worker(source, output, plan_path, index):
     finally:
         # Only owned, disposable tool caches; evidence/logs survive failures.
         for name in ('tmp', 'home'):
-            shutil.rmtree(output / name, ignore_errors=True)
+            remove_disposable(output / name)
         receipt['ok'] = receipt['complete'] and all(x['ok'] for x in receipt['packages'])
         write(report, receipt)
         manifest = [{'path': str(f.relative_to(output)), 'sha256': digest(f.read_bytes()), 'bytes': f.stat().st_size}
@@ -271,7 +295,7 @@ def summarize(output, plan_path, results):
     p = json.loads(plan_path.read_text()); reports = {}
     for path in results.rglob('result.json'):
         r = json.loads(path.read_text()); index = r.get('index')
-        if type(index) is not int or index in reports or not 0 <= index < len(p['shards']) or r.get('source_sha') != p['source_sha']:
+        if type(index) is not int or index in reports or not 0 <= index < len(p['shards']) or r.get('source_sha') != p['source_sha'] or r.get('plan_sha256') != digest(plan_path.read_bytes()):
             raise ValueError('duplicate, invalid or mismatched shard receipt')
         reports[index] = r
     missing = sorted(set(range(len(p['shards']))) - set(reports))
