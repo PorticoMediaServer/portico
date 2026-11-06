@@ -1,17 +1,3 @@
 {
-  "apps/native/Native/PorticoPlayer.m#3eb0d343200c7dfc": 1,
-  "apps/native/Native/PorticoPlayer.m#d956248af6e5129b": 1,
-  "apps/native/Native/PorticoReadingByteStream.swift#6883b41f25750372": 1,
-  "apps/native/Native/PorticoSubtitleSelection.m#0609aff755d74562": 1,
-  "apps/native/Native/PorticoSubtitleSelection.m#57d901ace2691c8d": 1,
-  "apps/native/Native/PorticoSubtitleSelection.m#9898da05db456db5": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt#3c7814ac4e79a05a": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt#4f3b5ea598301e41": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt#9935348faec9b5dd": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt#da0b2d2a3391e0b7": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt#44733a7897e5cdb9": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt#c109c699f8043aa7": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#6a531b3128e3200c": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#9de26b425c43db83": 1,
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#c0df30247dbbcb7d": 1
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#6a531b3128e3200c": 1
 }
