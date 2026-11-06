@@ -107,6 +107,8 @@ type n1Clock struct {
 
 type n1Settings struct {
 	Actual         *sqliteconn.Settings `json:"actual"`
+	DQSDDL         *int                 `json:"dqs_ddl"`
+	DQSDML         *int                 `json:"dqs_dml"`
 	PolicyVerified *bool                `json:"policy_verified"`
 	AssertError    string               `json:"assert_error"`
 	ConnectionID   *uint64              `json:"connection_id"`
@@ -456,6 +458,7 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 			if verified {
 				actual := tx.settings
 				record.Settings.Actual = &actual
+				record.Settings.DQSDDL, record.Settings.DQSDML = &actual.DQSDDL, &actual.DQSDML
 			}
 			if c, ok := tx.custody.(*governedTurn); ok {
 				request, limit := c.expected, tx.workLimit
