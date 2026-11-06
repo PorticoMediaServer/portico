@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
+	"runtime"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 )
 
 func TestMain(m *testing.M) {
@@ -109,6 +111,17 @@ func TestDefaultMediaCompositionAddsScansAndBrowsesWithoutRootsEnv(t *testing.T)
 		}
 		select {
 		case <-deadline:
+			t.Logf("empty-source timeout: GOOS=%s GOARCH=%s CPU=%d GOMAXPROCS=%d helper=%+v DB=%+v", runtime.GOOS, runtime.GOARCH, runtime.NumCPU(), runtime.GOMAXPROCS(0), store.Supervisor.Stats(), db.Stats())
+			inspect, stop := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			var health, rootIdentity, directoryState, cursor, revision sql.NullString
+			inspectErr := db.QueryRowContext(inspect, `SELECT s.health,r.root_identity,d.state,d.cursor,d.revision
+ FROM inventory_runs r JOIN library_sources s ON s.id=r.source_id
+ LEFT JOIN inventory_directories d ON d.job_id=r.job_id AND d.relative_path='.' WHERE r.job_id=?`, job.ID).Scan(&health, &rootIdentity, &directoryState, &cursor, &revision)
+			stop()
+			t.Logf("empty-source durable root: health=%+v identity=%+v state=%+v cursor=%+v revision=%+v error=%v", health, rootIdentity, directoryState, cursor, revision, inspectErr)
+			stacks := make([]byte, 1<<20)
+			n := runtime.Stack(stacks, true)
+			t.Logf("empty-source goroutines (%d/%d bytes):\n%s", n, len(stacks), stacks[:n])
 			t.Fatalf("source scan did not finish: %+v", current)
 		case <-time.After(25 * time.Millisecond):
 		}
