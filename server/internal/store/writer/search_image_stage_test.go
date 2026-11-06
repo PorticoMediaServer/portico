@@ -6,9 +6,7 @@ import (
 	"math"
 	"reflect"
 	"testing"
-	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchmanifest"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -78,45 +76,7 @@ func searchImageStageNativeCommand(t *testing.T, job int64) *searchImageStageCom
 
 func searchImageStageTurn(t *testing.T, w *executor, r *stmt.Registry) *commandTurn {
 	t.Helper()
-	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, time.Millisecond}}
-	// Real SAME governor/GV-WAL binder/frame; resource numbers are synthetic
-	// component controls, never a production complete profile.
-	g, a, wal, request := governedFixture(t, w.now, governedFixtureProfile{recipe, 8 << 20})
-	request.Key = governor.JobKey{Domain: uint16(SearchImageStage), ID: "component/image-stage"}
-	request.Class = governor.Background
-	request.Footprint = []governor.Scope{{Library: 3, Domain: uint16(SearchImageStage)}}
-	var seq int64
-	var name, path string
-	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&seq, &name, &path); err != nil {
-		t.Fatal(err)
-	}
-	if err := refreshWriterWAL(path, wal, w.now); err != nil {
-		t.Fatal(err)
-	}
-	decision := g.Try(request)
-	if decision.Grant == nil {
-		t.Fatal(decision.Refusal)
-	}
-	c, err := bindGovernedTurn(SearchImageStage, recipe.limit, g, a, wal, decision.Grant, request)
-	if err != nil {
-		_ = a.Retired(decision.Grant)
-		t.Fatal(err)
-	}
-	c.searchImageMemory = searchImageMemoryBudget{4 << 20, 4 << 20}
-	tx, err := w.begin(t.Context(), SearchImageStage, recipe, c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _, _ = tx.rollback(nil) })
-	var steps []statementStep
-	for _, d := range append(searchPublisherReceiptDefinitions(), searchImageBeginDefinitions()...) {
-		steps = append(steps, statementStep{d.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
-	}
-	turn, err := newCommandTurn(tx, r, steps)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return turn
+	return searchPublisherFixtureTurn(t, w, r, searchImageMemoryBudget{4 << 20, 4 << 20})
 }
 
 func TestSearchImageStageNativeAllocationAndOriginalReplay(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchmanifest"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -85,20 +86,28 @@ func searchPublisherReference(job int64) PublisherReceiptRequest {
 
 func searchPublisherHistoryTurn(t *testing.T, w *executor, r *stmt.Registry) *commandTurn {
 	t.Helper()
-	// Component protocol controls only: synthetic forecast/clock/custody. Real
-	// registration does not qualify source, disclosure, physical cost or a plan.
-	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond},
-		setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, time.Millisecond}}
-	tx, err := w.begin(t.Context(), SearchImageStage, recipe, &testCustody{})
-	if err != nil {
+	return searchPublisherFixtureTurn(t, w, r, searchImageMemoryBudget{})
+}
+
+// Registration is complete BEFORE W's ONE helper admits/begins. This adapter
+// installs only the finite domain steps on its SAME transaction; no local
+// recipe, governor, grant binder, alternate pool or writer constructor exists.
+func searchPublisherFixtureTurn(t *testing.T, w *executor, r *stmt.Registry, budget searchImageMemoryBudget) *commandTurn {
+	t.Helper()
+	var seq int64
+	var name, path string
+	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&seq, &name, &path); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _, _ = tx.rollback(nil) })
+	frame, _ := searchResourcesFixture(t, w, path, budget, searchImageStatementFixture)
+	if frame.transaction.settings.Synchronous != int(sqliteconn.Normal) {
+		t.Fatal("actual command is not NORMAL", frame.transaction.settings)
+	}
 	var steps []statementStep
-	for _, d := range searchPublisherReceiptDefinitions() {
+	for _, d := range r.Manifest() {
 		steps = append(steps, statementStep{d.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
 	}
-	turn, err := newCommandTurn(tx, r, steps)
+	turn, err := newCommandTurn(frame.transaction, r, steps)
 	if err != nil {
 		t.Fatal(err)
 	}
