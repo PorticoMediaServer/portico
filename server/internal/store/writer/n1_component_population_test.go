@@ -16,7 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
-var n1PopulationFlag = flag.String("n1-component-population", "first-use-reopen", "first-use-reopen, setup-retained-first-use or steady (retained progressive fixture)")
+var n1PopulationFlag = flag.String("n1-component-population", "first-use-reopen", "first-use-reopen, setup-retained-first-use, steady, full-prefix, or owner-window (closed separate cells)")
 var n1WarmupFlag = flag.Int("n1-component-warmup", 0, "0 for first-use; 1..64 actual fresh originals before steady measured originals")
 
 var errN1ProgressiveFixture = errors.New("N1 first-use population is not warmed steady state; positive warmup requires steady mode")
@@ -26,7 +26,7 @@ func validateN1Population(mode string, warmup int) error {
 	if warmup < 0 || warmup > 64 {
 		return ErrInvalid
 	}
-	if mode != "first-use-reopen" && mode != "setup-retained-first-use" && mode != "steady" {
+	if mode != "first-use-reopen" && mode != "setup-retained-first-use" && mode != "steady" && mode != "full-prefix" && mode != "owner-window" {
 		return ErrInvalid
 	}
 	if mode == "steady" {
@@ -43,6 +43,7 @@ func validateN1Population(mode string, warmup int) error {
 
 type n1AttemptOptions struct {
 	population string
+	ownerCell  string
 	clock      func() time.Time
 } // clock is internal protocol-control only, never a flag/config input
 

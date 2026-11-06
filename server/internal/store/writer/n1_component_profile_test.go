@@ -9,7 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
-const n1ProfileMethod = "n1-profile-observations-v1" // never pool with Wave1/2 methods
+const n1ProfileMethod = "n1-owner-max-observations-v1" // never pool with Wave1/2 methods
 
 type n1MetricMax struct {
 	Value       *int64 `json:"value"`
@@ -67,7 +67,7 @@ func n1InputProfile(command *inventoryAcceptCommand, cell n1Case) *n1ProfileInpu
 	if command == nil {
 		return nil
 	}
-	out := &n1ProfileInput{DeclaredCase: cell, TextBytes: map[string]int{}, TextRunes: map[string]int{}, Escaping: map[string]int{}, RootBytes: len(command.request.source.resolvedRoot), FileCount: len(command.request.files), CanonicalLimitBytes: maxCanonicalRequestBytes, TitleLimitCodepoints: MaxTitleCharacters, MissingReason: "owner confirms no complete legal-MIN/MAX fixture; declared fixture/escaped input is a partial matrix, not a MAX proof"}
+	out := &n1ProfileInput{DeclaredCase: cell, TextBytes: map[string]int{}, TextRunes: map[string]int{}, Escaping: map[string]int{}, RootBytes: len(command.request.source.resolvedRoot), FileCount: len(command.request.files), CanonicalLimitBytes: maxCanonicalRequestBytes, TitleLimitCodepoints: MaxTitleCharacters, MissingReason: "named constructor/domain caps are source-bound cells, not the complete legal-MIN/MAX input envelope"}
 	for i, text := range inventoryRequestTexts(&command.request) {
 		key := stringIndex(i)
 		out.TextBytes[key], out.TextRunes[key] = len(*text), utf8.RuneCountInString(*text)
@@ -218,7 +218,20 @@ func n1IDProfile(id string, registered bool, units []*n1Unit) n1IDFacts {
 }
 
 func n1BuildProfile(record *n1Attempt, trace *n1Trace) *n1ProfileFacts {
-	out := &n1ProfileFacts{Reference: record.Reference, FullPrefixReason: "synthetic fixture/warmup has no owner-approved complete full-prefix selection; actual WAL frames/bytes remain raw, never assumed full", Method: n1ProfileMethod, OriginalID: record.OriginalID, TurnID: record.ID, Cohort: record.Cohort, ConnectionID: record.Settings.ConnectionID, GenerationReason: "before/after salts bracket this call only; equality is not atomicity/reset proof or a per-statement generation hook", Input: record.InputProfile, ForecastBytes: record.RequiredBytes, Boundaries: map[string]n1Interval{}, LivePeaks: map[string]n1Counter{}, Missing: []string{"complete legal-MIN/MAX envelope and full branch matrix", "complete full-prefix fixture", "named complete owner Setup/Terminal/header-sync hooks", "examined rows/native pages/complete IO", "incremental LIVE peak and final-release ownership"}}
+	out := &n1ProfileFacts{Reference: record.Reference, FullPrefixReason: "no completed domain-cap chain proof in this physical record; consult actual ACK/final chain facts, never WAL length", Method: n1ProfileMethod, OriginalID: record.OriginalID, TurnID: record.ID, Cohort: record.Cohort, ConnectionID: record.Settings.ConnectionID, GenerationReason: "before/after salts bracket this call only; equality is not atomicity/reset proof or a per-statement generation hook", Input: record.InputProfile, ForecastBytes: record.RequiredBytes, Boundaries: map[string]n1Interval{}, LivePeaks: map[string]n1Counter{}, Missing: []string{"complete legal-MIN/MAX envelope and full branch matrix", "complete full-prefix fixture", "named complete owner Setup/Terminal/header-sync hooks", "examined rows/native pages/complete IO", "incremental LIVE peak and final-release ownership"}}
+	if record.FullPrefix != nil {
+		out.FullPrefix = record.FullPrefix
+		if *record.FullPrefix {
+			kept := out.Missing[:0]
+			for _, reason := range out.Missing {
+				if reason != "complete full-prefix fixture" {
+					kept = append(kept, reason)
+				}
+			}
+			out.Missing = kept
+		}
+		out.FullPrefixReason = "actual one escaped/domain-cap original BEGIN→same-reference Resolve→ACK→joined snapshot; not canonical32MiB or dirty-WAL proof"
+	}
 	if record.WALBefore != nil && record.WALBefore.State != nil {
 		salt := record.WALBefore.State.Salt
 		out.SaltBefore = &salt
@@ -295,6 +308,19 @@ func n1BuildProfile(record *n1Attempt, trace *n1Trace) *n1ProfileFacts {
 	}
 	out.Boundaries["Setup"] = n1MissingInterval("W confirms no complete named owner Setup hook; observer bracket is separate")
 	out.Boundaries["Terminal"] = n1MissingInterval("W confirms no complete named owner Terminal hook; observer post-domain bracket is separate")
+	if record.OwnerWindow != nil {
+		window := record.OwnerWindow
+		for i, reason := range out.Missing {
+			if reason == "named complete owner Setup/Terminal/header-sync hooks" {
+				out.Missing[i] = "isolated header-sync hook; partial owner ends remain explicit"
+			}
+		}
+		out.Boundaries["Setup"] = window.Setup
+		out.Boundaries["Terminal"] = window.Terminal
+		out.Boundaries["terminal_through_native_return"] = window.TerminalThroughNative
+		out.Boundaries["owner_rollback"] = window.Rollback
+		out.Boundaries["quarantine_pool_close"] = window.PoolClose
+	}
 	out.Boundaries["acquired"] = n1MissingInterval("private sql.Conn checkout boundaries are not exposed by native Connect/policy calls")
 	out.Boundaries["assert"] = n1MissingInterval("full Assert entry/return not exposed; native DQS-through-last-policy-read bracket is separate")
 	out.Boundaries["assert_native_bracket"] = n1IntervalBetween(assertStart, assertEnd, "actual DQS native call through last assertion query; excludes final Go comparisons, not complete Assert")
@@ -311,6 +337,9 @@ func n1BuildProfile(record *n1Attempt, trace *n1Trace) *n1ProfileFacts {
 	out.Boundaries["physical_return_and_retirement"] = n1IntervalBetween(record.Clock.HoldStartedNS, record.Clock.PhysicalReturnedNS, "actual complete owner HOLD through physical return/retirement")
 	for _, name := range []string{"grant_retirement", "discard", "header_sync", "xsync", "wal_reset"} {
 		out.Boundaries[name] = n1MissingInterval("no isolated owner/native interval hook; close, header count, salt change or allocation is not this proof")
+	}
+	if record.OwnerWindow != nil {
+		out.Boundaries["grant_retirement"] = record.OwnerWindow.Retirement
 	}
 	if record.BoundRequest != nil && len(record.BoundRequest.IO) > 0 {
 		out.GVIOMapping = append([]governor.DeviceIO(nil), record.BoundRequest.IO...)

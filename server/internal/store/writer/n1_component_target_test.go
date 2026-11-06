@@ -31,6 +31,8 @@ import (
 
 var n1EnabledFlag = flag.Bool("n1-component", false, "opt in to test-only N1 component measurement/controls")
 var n1CaseFlag = flag.String("n1-component-case", "active/current/present/fixture", "closed N1 component banks/age/bucket/input cell")
+var n1OwnerCellFlag = flag.String("n1-component-owner-cell", "", "owner-window only: commit, rollback, discard, startup, reset or restart")
+
 var n1CohortFlag = flag.String("n1-component-cohort", "timing", "timing or native-counters; never pool the two")
 
 type n1Case struct {
@@ -45,7 +47,7 @@ func parseN1Case(value string) (n1Case, error) {
 	if len(p) != 4 {
 		return n1Case{}, ErrInvalid
 	}
-	if (p[0] != "active" && p[0] != "dual") || (p[1] != "current" && p[1] != "dirty") || (p[2] != "present" && p[2] != "absent") || (p[3] != "fixture" && p[3] != "escaped") {
+	if (p[0] != "active" && p[0] != "dual") || (p[1] != "current" && p[1] != "dirty") || (p[2] != "present" && p[2] != "absent") || (p[3] != "fixture" && p[3] != "escaped" && p[3] != "domain-cap" && p[3] != "canonical-max") {
 		return n1Case{}, ErrInvalid
 	}
 	return n1Case{p[0], p[1], p[2], p[3]}, nil
@@ -270,6 +272,10 @@ func n1ReadWAL(origin time.Time, path string, gates ...*governor.WALGate) *n1WAL
 }
 
 type n1Attempt struct {
+	DeliberateFailure      string                     `json:"observed_deliberate_failure,omitempty"`
+	OwnerCell              string                     `json:"owner_cell,omitempty"`
+	OwnerWindow            *n1OwnerWindow             `json:"owner_window"`
+	FullPrefix             *bool                      `json:"complete_escaped_domain_cap_full_prefix"`
 	InputProfile           *n1ProfileInput            `json:"input_profile"`
 	Profile                *n1ProfileFacts            `json:"profile_facts"`
 	OriginalID             string                     `json:"original_id,omitempty"`
@@ -402,6 +408,13 @@ func n1SeedCase(t *testing.T, e *executor, c *inventoryAcceptCommand, cell n1Cas
 			}
 		}
 	}
+	if cell.Input == "domain-cap" {
+		var err error
+		c, err = n1DomainCapCommand(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	if cell.Input == "escaped" {
 		r := c.request
 		r.files = append([]inventoryFile(nil), r.files...)
@@ -518,6 +531,12 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 	}
 	record = &n1Attempt{Ordinal: ordinal, ID: fmt.Sprintf("%s/%d", stream.base["process_epoch"], ordinal), Case: cell, Cohort: cohort, Phase: "fixture_setup", Outcome: "unobserved", Memory: map[string]*n1MemorySample{}, Unavailable: n1Missing}
 	record.Continuity = n1ConnectionContinuity{Population: population, WarmupOriginals: []ReceiptReference{}, UnavailableReason: errN1ProgressiveFixture.Error(), DeliberateErrorControl: failQuery != ""}
+	if len(options) == 1 {
+		record.OwnerCell = options[0].ownerCell
+		if record.OwnerCell == "discard" {
+			record.Continuity.DeliberateErrorControl = true
+		}
+	}
 	*observed = record // also survives a helper's Fatal/Goexit before return
 	record.Unavailable = make(map[string]string, len(n1Missing)+1)
 	for key, reason := range n1Missing {
@@ -527,6 +546,7 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 	var turn *commandTurn
 	var authority *governor.Authority
 	var path string
+	var ownerStarted time.Time
 	trace := newN1Trace(stream.origin, cohort == "native-counters")
 	trace.failQuery = failQuery
 	// Registered first, so canonical fixture cleanup joins/closes its pool before
@@ -565,9 +585,13 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 			}
 			n1ObserveOwner(record, turn, stream.origin)
 		}
+		if trace.discardInjected {
+			record.DeliberateFailure = "rollback_before_native"
+		}
+		n1ObserveOwnerWindow(record, e, stream.origin, ownerStarted)
 		trace.armed = false
 		record.Continuity.observeAfter(trace)
-		if population == "setup-retained-first-use" && record.Continuity.Same != nil && !*record.Continuity.Same {
+		if population == "setup-retained-first-use" && record.OwnerCell != "discard" && record.Continuity.Same != nil && !*record.Continuity.Same {
 			record.Error = n1Join(record.Error, errors.New("physical connection lifetime interrupted in retained-setup population"))
 		}
 		record.Units, record.LedgerOverflow = trace.units[:trace.used], trace.overflow
@@ -666,7 +690,7 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 	record.Continuity.BeforeID, record.Continuity.ConnectionsBefore = &id, &connections
 	record.Continuity.NativeClosesBefore = &closes
 	record.Phase = "prepared"
-	if err := stream.append("attempt_start", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "database_id": record.DatabaseID, "database_path": path, "original_reference": record.Reference, "case": cell, "cohort": cohort, "fixture_cardinalities": record.Cardinalities, "input_lengths": record.InputLengths, "cache_state": population, "declared_warmup": 0}); err != nil {
+	if err := stream.append("attempt_start", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "database_id": record.DatabaseID, "database_path": path, "original_reference": record.Reference, "case": cell, "cohort": cohort, "fixture_cardinalities": record.Cardinalities, "input_lengths": record.InputLengths, "cache_state": population, "declared_warmup": 0, "owner_cell": record.OwnerCell}); err != nil {
 		t.Fatal(err)
 	}
 	record.Memory["before_turn"] = n1Memory(stream.origin)
@@ -677,6 +701,7 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 	trace.armed = true
 	record.Phase = "turn_setup"
 	setup := time.Now()
+	ownerStarted = setup
 	record.Clock.TurnSetupStartedNS = n1NS(stream.origin, setup)
 	turn, authority = inventoryMemoryFixtureTurn(t, e, registry, command, inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20})
 	returned := time.Now()
@@ -693,7 +718,13 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 	if err == nil {
 		err = turn.closeRows()
 	}
-	if err == nil {
+	if err == nil && len(options) == 1 && (options[0].ownerCell == "rollback" || options[0].ownerCell == "discard") {
+		record.Phase = "rollback"
+		if options[0].ownerCell == "discard" {
+			trace.failExec = "ROLLBACK"
+		}
+		_, err = turn.transaction.rollback(nil)
+	} else if err == nil {
 		record.Phase = "commit"
 		_, err = turn.transaction.commit()
 	} else {
@@ -742,6 +773,22 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	if err := validateN1Population(*n1PopulationFlag, *n1WarmupFlag); err != nil {
 		t.Fatal(err)
 	}
+	if *n1PopulationFlag == "owner-window" {
+		if validateN1OwnerCell(*n1OwnerCellFlag) != nil || config.Fixtures != 1 || cell != (n1Case{"active", "current", "present", "fixture"}) {
+			t.Fatal("owner-window requires one closed owner-cell and active/current/present/fixture")
+		}
+	} else if *n1OwnerCellFlag != "" {
+		t.Fatal("owner-cell requires owner-window population")
+	}
+	if cell.Input == "canonical-max" && (*n1PopulationFlag != "first-use-reopen" || config.Fixtures != 1) {
+		t.Fatal("canonical-max is one pure constructor cell, not a physical population")
+	}
+	if *n1PopulationFlag == "full-prefix" && (cell != n1FullPrefixCase || config.Fixtures != 1) {
+		t.Fatal("full-prefix requires one dual/current/absent/domain-cap original")
+	}
+	if cell.Input == "domain-cap" && *n1PopulationFlag != "full-prefix" {
+		t.Fatal("domain-cap requires full-prefix population")
+	}
 	if *n1PopulationFlag == "steady" {
 		if err := validateN1SteadyCase(cell); err != nil {
 			t.Fatal(err)
@@ -760,7 +807,7 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	configHash := sha256.Sum256(data)
 	stream := &n1Stream{file: file, origin: origin, base: map[string]any{"schema": "portico-n1-component-v1", "label": "N1 COMPONENT DIRECTIONAL", "qualification": false, "run_id": config.RunID, "process_epoch": fmt.Sprintf("%s/%d/%d", config.RunID, os.Getpid(), origin.UnixNano())}}
 	sources := map[string]string{}
-	for _, path := range []string{"scan_fresh_test.go", "inventory_memory_test.go", "governor_turn_test.go", "schema_fixture_test.go", "transaction_test.go", "n1_component_population_test.go", "n1_component_profile_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "scan_fresh.go", "scan_fresh_observation.go", "transaction.go", "n1_component_target_test.go", "n1_component_native_test.go", "testdata/scan-inventory-fresh.json"} {
+	for _, path := range []string{"scan_fresh_test.go", "inventory_memory_test.go", "governor_turn_test.go", "schema_fixture_test.go", "transaction_test.go", "n1_component_population_test.go", "n1_component_profile_test.go", "n1_component_max_test.go", "n1_component_owner_test.go", "n1_component_restart_test.go", "owner_intervals.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "scan_fresh.go", "scan_fresh_observation.go", "transaction.go", "n1_component_target_test.go", "n1_component_native_test.go", "testdata/scan-inventory-fresh.json"} {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal("component source pin", err)
@@ -786,7 +833,7 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	boot, bootErr := os.ReadFile("/proc/sys/kernel/random/boot_id")
 	sqlHashes := map[stmt.ID]string{}
 	definitions := scanInventoryFreshDefinitions()
-	if *n1PopulationFlag == "steady" {
+	if *n1PopulationFlag == "steady" || *n1PopulationFlag == "full-prefix" || (*n1PopulationFlag == "owner-window" && *n1OwnerCellFlag == "restart") {
 		definitions = inventoryCommandDefinitions()
 	}
 	for _, d := range definitions {
@@ -797,7 +844,19 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	start["observation_method"] = n1ProfileMethod
 	start["timing_observers"] = "both cohorts record bounded native-request/row-close clocks and counts; only native-counters samples native diagnostic getters inside HOLD; all observer costs included"
 	start["qualified_profile_ready"] = false
-	start["population_layout"] = "n1-first-use-v1"
+	start["physical_execution_planned"] = cell.Input != "canonical-max" && !(*n1PopulationFlag == "owner-window" && *n1OwnerCellFlag == "reset")
+	if *n1PopulationFlag == "full-prefix" {
+		start["population_layout"] = "n1-escaped-domain-cap-full-prefix-v1"
+		start["requested_originals"] = 1
+		start["requested_physical_roles"] = []string{"fresh_begin", "resolve", "ack"}
+	}
+	if *n1PopulationFlag == "owner-window" {
+		start["owner_cell"] = *n1OwnerCellFlag
+		start["population_layout"] = "n1-owner-window-v1"
+	}
+	if _, ok := start["population_layout"]; !ok {
+		start["population_layout"] = "n1-first-use-v1"
+	}
 	if *n1PopulationFlag == "steady" {
 		start["population_layout"], start["steady_supported"], start["steady_unavailable_reason"] = "n1-progressive-steady-v1", true, ""
 		start["requested_databases"], start["requested_measured_originals"], start["requested_warmup_originals"] = 1, config.Fixtures, *n1WarmupFlag
@@ -817,6 +876,43 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
+	if *n1PopulationFlag == "owner-window" {
+		summary := &n1OwnerCellSummary{}
+		runN1OwnerCell(t, ctx, stream, *n1OwnerCellFlag, *n1CohortFlag, nil, summary)
+		if err := stream.append("final", map[string]any{"population": "owner-window", "owner_cell": summary, "complete": summary.Complete}); err != nil {
+			t.Error(err)
+		}
+		if !summary.Complete {
+			t.Error("requested owner cell incomplete/unavailable; retain raw records")
+		}
+		return
+	}
+	if cell.Input == "canonical-max" {
+		proof := n1ConstructorMAX(t, origin)
+		if err := stream.append("constructor_cell", map[string]any{"constructor": proof}); err != nil {
+			t.Fatal(err)
+		}
+		if err := stream.append("final", map[string]any{"complete": proof.Complete, "physical_execution": false, "constructor_cells": 1, "physical_calls": 0}); err != nil {
+			t.Fatal(err)
+		}
+		if !proof.Complete {
+			t.Fatal("constructor proof incomplete", proof.Error)
+		}
+		return
+	}
+	if *n1PopulationFlag == "full-prefix" {
+		summary := &n1SteadySummary{}
+		t.Run("full_prefix", func(t *testing.T) {
+			runN1Steady(t, ctx, stream, 1, 0, *n1CohortFlag, n1SteadyControls{clock: time.Now, fullPrefix: true}, summary)
+		})
+		if err := stream.append("final", map[string]any{"population": "full-prefix", "population_layout": "n1-escaped-domain-cap-full-prefix-v1", "case": cell, "cohort": *n1CohortFlag, "full_prefix": summary, "complete": summary.Complete, "consumer": "not exercised"}); err != nil {
+			t.Error(err)
+		}
+		if !summary.Complete {
+			t.Error("full-prefix component incomplete; retain all physical records")
+		}
+		return
+	}
 	if *n1PopulationFlag == "steady" {
 		summary := &n1SteadySummary{}
 		t.Run("steady", func(t *testing.T) {
