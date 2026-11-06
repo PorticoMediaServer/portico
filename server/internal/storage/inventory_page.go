@@ -90,6 +90,9 @@ func (c *Client) nativeInventoryOwned(ctx context.Context, owner *OperationScope
 	// Keep the exact bounded validation witnesses owned by the physical work.
 	r.Root = bytes.Clone(r.Root)
 	r.RelativePath = bytes.Clone(r.RelativePath)
+	r.RootIdentity = strings.Clone(r.RootIdentity)
+	r.DirectoryRevision = strings.Clone(r.DirectoryRevision)
+	r.Cursor = strings.Clone(r.Cursor)
 	root := string(r.Root)
 	if c.IsRemote(root) {
 		return empty, ErrRemoteCursor
@@ -130,7 +133,16 @@ func (c *Client) nativeInventoryOwned(ctx context.Context, owner *OperationScope
 	}
 	var page NativeInventoryPage
 	err = c.inventoryRequest(ctx, key, "inventory-page-native-v1", InventoryRequest{}, &page, &ownedInventoryWire{
-		input: data, request: r, retired: func() { done(); retirement.retire() },
+		input: data, request: r, retired: func() {
+			retirement.mu.Lock()
+			if retirement.finishLocked() {
+				// Publish metric removal before releasing the shared scope, and
+				// publish this call's barrier only after its owner release.
+				done()
+				close(retirement.done)
+			}
+			retirement.mu.Unlock()
+		},
 	})
 	// Per-operation barrier, NOT shared owner shutdown or cancellation as proof.
 	err = retirement.wait(err)

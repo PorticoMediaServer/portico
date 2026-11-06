@@ -4,14 +4,46 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
+
+func TestScanbenchPendingRetirementDoesNotJoinForeverOrRefundCustody(t *testing.T) {
+	scope := storage.NewOperationScope()
+	release, err := scope.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	done := make(chan error, 1)
+	go func() {
+		done <- closeTraversalOwner(scope, errors.Join(storage.ErrHelperRetirementPending, context.Canceled))
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("shared owner join undid the native caller grace")
+	}
+	if scope.Active() != 1 {
+		t.Fatal("pending custody was refunded")
+	}
+	release()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	if err := scope.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestScanbenchTraversalKeepsAvailabilityUnknown(t *testing.T) {
 	if runtime.GOOS != "linux" {
