@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "f83d526e0552f053cbb4c11af33d389841fdda4a734e2b00cb54eee8666ac10c",
+  "ddl_sha256": "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
     {
@@ -10409,6 +10409,31 @@
       "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
       "complete_release_indexes": [
         {
+          "name": "scan_receipt_refusal_kind",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "refused_entry_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX scan_receipt_refusal_kind ON scan_command_receipts(run_id,operation_id,refused_entry_kind)",
+          "access": "Complete native release index/FK custody; exact forced-query goldens in010 controls."
+        },
+        {
           "name": "sqlite_autoindex_scan_command_receipts_1",
           "unique": true,
           "origin": "pk",
@@ -10431,7 +10456,7 @@
             }
           ],
           "sql": null,
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Complete native release index/FK custody; exact forced-query goldens in010 controls."
         },
         {
           "name": "sqlite_autoindex_scan_command_receipts_2",
@@ -10446,7 +10471,7 @@
             }
           ],
           "sql": null,
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Complete native release index/FK custody; exact forced-query goldens in010 controls."
         }
       ]
     },
@@ -11777,5 +11802,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "CHANGE-009 over008: zero new tables; closed seal kinds, operation source construction, native independent source ordinals/Billing, typed proof DAG and eleven full child/due indexes. No new partial predicates, no type-policy or contribution change. Future populated10M+ index evolution remains online new-table only."
+  "change_control": "CHANGE-010 over adopted009/currentcanonicalmain34067408; same3table/2index delta. All adopted009 release-index entries preserved; issue child index declared in fullDDL/sourceaudit."
 }
