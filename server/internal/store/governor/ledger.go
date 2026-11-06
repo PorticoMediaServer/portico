@@ -91,7 +91,7 @@ func (g *ledger) try(r Request, checkpoint bool, ticket *checkpointTicket) Decis
 	refuse := func(code RefusalCode) Decision {
 		return Decision{Refusal: &Refusal{Code: code, RetryAt: now.Add(100 * time.Millisecond)}}
 	}
-	if !validRequest(r) {
+	if !validRequest(r) || (r.RestartRisk != (WALRestartRisk{}) && (!r.Writer || g.config.WAL == nil)) {
 		return refuse(Invalid)
 	}
 	if !r.Deadline.After(now) {
@@ -217,7 +217,7 @@ func (a *Authority) Check(p *Grant, expected Request) error {
 
 func sameRequest(x, y Request) bool {
 	return x.Key == y.Key && x.Owner == y.Owner && x.Class == y.Class && x.Need == y.Need &&
-		x.Writer == y.Writer && x.Budget == y.Budget && x.MaxHold == y.MaxHold &&
+		x.RestartRisk == y.RestartRisk && x.Writer == y.Writer && x.Budget == y.Budget && x.MaxHold == y.MaxHold &&
 		x.Deadline.Equal(y.Deadline) && slices.Equal(x.IO, y.IO) && slices.Equal(x.Footprint, y.Footprint)
 }
 

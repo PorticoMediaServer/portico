@@ -165,7 +165,13 @@ type WALGate struct {
 	state             WALState
 	at                time.Time
 	previous          WALState
+	havePrevious      bool
 	resets            uint64
+	writerClass       Class
+	writerForecast    WALRestartObservation
+	awaitWriterSample bool
+	lastRestart       WALRestartObservation
+	restartSequence   uint64
 }
 
 func NewWALGate(p WALPolicy) (*WALGate, error) {
@@ -194,6 +200,23 @@ func (w *WALGate) Publish(token uint64, s WALState, at time.Time) error {
 	if w.previous.Frames != 0 && (s.Salt != w.previous.Salt || s.Frames < w.previous.Frames) {
 		w.resets++
 	}
+	initial := w.havePrevious && w.previous.Frames == 0 && s.Frames > 0
+	reset := w.previous.Frames != 0 && (s.Salt != w.previous.Salt || s.Frames < w.previous.Frames)
+	if initial || reset {
+		w.restartSequence++
+		receipt := WALRestartObservation{Sequence: w.restartSequence, ObservedAt: at, InitialHeader: initial, Before: w.previous, After: s}
+		if w.awaitWriterSample && s.Frames > 0 {
+			receipt.WriterKnown = true
+			receipt.Class = w.writerClass
+			receipt.ForecastHold = w.writerForecast.ForecastHold
+			receipt.ForecastIOBytes = w.writerForecast.ForecastIOBytes
+			receipt.ForecastWALBytes = w.writerForecast.ForecastWALBytes
+			receipt.Risk = w.writerForecast.Risk
+		}
+		w.lastRestart = receipt
+	}
+	w.awaitWriterSample = false
+	w.havePrevious = true
 	w.previous = s
 	w.state = s
 	w.at = at
@@ -220,7 +243,10 @@ func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
 	if w.writer || w.checkpoint || w.pendingCheckpoint != nil {
 		return Capacity
 	}
-	if !w.valid || now.Before(w.at) || now.Sub(w.at) > w.policy.MaxSampleAge {
+	if !w.fresh(now) {
+		return FailSafe
+	}
+	if r.RestartRisk != (WALRestartRisk{}) && r.RestartRisk != w.restartRisk() {
 		return FailSafe
 	}
 	s := w.state
@@ -242,6 +268,9 @@ func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
 	if r.Need[WALBytes] <= 0 || header > limit-s.ActiveBytes || r.Need[WALBytes] > limit-s.ActiveBytes-header {
 		return Capacity
 	}
+	w.writerClass = r.Class
+	w.writerForecast = WALRestartObservation{ForecastHold: r.MaxHold, ForecastIOBytes: r.Need[IOBytes], ForecastWALBytes: r.Need[WALBytes], Risk: r.RestartRisk}
+	w.awaitWriterSample = false
 	w.writer = true
 	w.valid = false
 	w.version++
@@ -252,6 +281,7 @@ func (w *WALGate) returned() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.writer = false
+	w.awaitWriterSample = true
 	w.valid = false
 	w.version++
 	w.signalCheckpointTicket()
@@ -279,6 +309,7 @@ func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now time.Time) Ref
 		return Deadline
 	}
 	w.pendingCheckpoint = nil
+	w.awaitWriterSample = false // a CP boundary cannot attest the preceding writer
 	w.checkpoint = true
 	w.valid = false
 	w.version++

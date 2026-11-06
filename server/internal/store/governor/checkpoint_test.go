@@ -2,18 +2,43 @@ package governor
 
 import (
 	"context"
+	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
+var checkpointClocks sync.Map // test-only clock custody; removed with each fixture
+
+// Native SQL remains real; only elapsed time and deadline delivery are virtual.
+// Parent cancellation is still real and drives the native cleanup controls.
+func functionalCheckpointer(connector driver.Connector, cfg sqliteconn.Config, g Governor, a *Authority, policy CheckpointPolicy) (*Checkpointer, error) {
+	cp, err := NewCheckpointer(connector, cfg, g, a, policy)
+	if err == nil {
+		cp.deadlineContext = func(parent context.Context, _ time.Time) (context.Context, context.CancelFunc) {
+			return context.WithCancel(parent)
+		}
+	}
+	return cp, err
+}
+
+func checkpointClockAdvance(g Governor, d time.Duration) {
+	// Every functional governor below owns this test clock through Config.Now.
+	// Store its pointer separately from the implementation's clock seam.
+	clock, _ := checkpointClocks.Load(g)
+	clock.(*testClock).ms.Add(d.Milliseconds())
+}
+
 func nativeCheckpointGovernor(t *testing.T) (Governor, *Authority, *WALGate) {
 	t.Helper()
 	wal := gate(t)
-	cfg := Config{Now: time.Now, MaxGrantsPerClass: 8, WAL: wal}
+	clock := &testClock{}
+	clock.ms.Store(time.Now().UnixMilli())
+	cfg := Config{Now: clock.now, MaxGrantsPerClass: 8, WAL: wal}
 	for i := range cfg.Partitions {
 		cfg.Partitions[i] = Amounts{Reader: 2, MemoryBytes: 4 << 20, CPUMilli: 1000, IOBytes: 4 << 20, WALBytes: 4 << 20}
 	}
@@ -21,10 +46,12 @@ func nativeCheckpointGovernor(t *testing.T) (Governor, *Authority, *WALGate) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	checkpointClocks.Store(g, clock)
+	t.Cleanup(func() { checkpointClocks.Delete(g) })
 	return g, a, wal
 }
-func nativeCheckpointRequest() Request {
-	return Request{Key: JobKey{Domain: 1, ID: "native-checkpoint"}, Owner: 1, Class: Recovery, Need: Amounts{Reader: 1, MemoryBytes: 64 << 10, CPUMilli: 1000, IOBytes: 2 << 20}, Budget: UnitBudget{RawRows: 1, VMOps: 10000, Pages: 512}, MaxHold: 25 * time.Millisecond, Deadline: time.Now().Add(time.Second)}
+func nativeCheckpointRequest(g Governor) Request {
+	return Request{Key: JobKey{Domain: 1, ID: "native-checkpoint"}, Owner: 1, Class: Recovery, Need: Amounts{Reader: 1, MemoryBytes: 64 << 10, CPUMilli: 1000, IOBytes: 2 << 20}, Budget: UnitBudget{RawRows: 1, VMOps: 10000, Pages: 512}, MaxHold: 25 * time.Millisecond, Deadline: g.(*ledger).config.Now().Add(time.Second)}
 }
 func nativeCheckpointer(t *testing.T, path string, g Governor, a *Authority) *Checkpointer {
 	t.Helper()
@@ -33,7 +60,7 @@ func nativeCheckpointer(t *testing.T, path string, g Governor, a *Authority) *Ch
 	if err != nil {
 		t.Fatal(err)
 	}
-	cp, err := NewCheckpointer(connector, cfg, g, a, CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond, MaxWait: 50 * time.Millisecond})
+	cp, err := functionalCheckpointer(connector, cfg, g, a, CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond, MaxWait: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,14 +106,14 @@ func TestNativePassiveBoundedReaderAndObservedFixtureReuse(t *testing.T) {
 		t.Fatal(err)
 	}
 	cp := nativeCheckpointer(t, path, g, a)
-	first, err := cp.Step(t.Context(), nativeCheckpointRequest())
+	first, err := cp.Step(t.Context(), nativeCheckpointRequest(g))
 	if err != nil || first.Refusal != nil || first.Busy != 0 || first.Frames <= first.Backfilled || !first.DatabaseMatched || !first.PhysicalSafe {
 		t.Fatal("pinned PASSIVE", first, err)
 	}
 	if first.Settings.Engine != "3.53.4" || first.Settings.TempStore != 1 || first.NativeStarted.IsZero() || first.NativeEnded.Before(first.NativeStarted) || first.PhysicalReturned.Before(first.NativeEnded) || first.RetiredAt.Before(first.PhysicalReturned) || first.SampleStarted.Before(first.RetiredAt) {
 		t.Fatal("physical/native/sample evidence", first)
 	}
-	if _, err := cp.Step(t.Context(), nativeCheckpointRequest()); !errors.Is(err, ErrCheckpointCadence) {
+	if _, err := cp.Step(t.Context(), nativeCheckpointRequest(g)); !errors.Is(err, ErrCheckpointCadence) {
 		t.Fatal("pressure bypassed shared start spacing", err)
 	}
 	close(release)
@@ -94,9 +121,9 @@ func TestNativePassiveBoundedReaderAndObservedFixtureReuse(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(max(0, time.Until(first.Requested.Add(first.EligibleInterval))))
-	second, err := cp.Step(t.Context(), nativeCheckpointRequest())
-	if err != nil || second.Frames != second.Backfilled || second.NativeStarted.Sub(first.NativeStarted) < 50*time.Millisecond {
+	checkpointClockAdvance(g, first.EligibleInterval)
+	second, err := cp.Step(t.Context(), nativeCheckpointRequest(g))
+	if err != nil || second.Frames != second.Backfilled || second.NativeStarted.Sub(first.NativeStarted) != first.EligibleInterval {
 		t.Fatal("unpinned PASSIVE", second, err)
 	}
 	if wal.ResetCount() != 0 {
@@ -104,7 +131,7 @@ func TestNativePassiveBoundedReaderAndObservedFixtureReuse(t *testing.T) {
 	}
 	// A governed real fixture mutation, NOT a production maintenance command.
 	// No scheduled-reset experiment or borrowed domain effect is implied.
-	r := nativeCheckpointRequest()
+	r := nativeCheckpointRequest(g)
 	r.Class = Foreground
 	r.Writer = true
 	r.Need[WALBytes] = 32 << 10
@@ -124,7 +151,7 @@ func TestNativePassiveBoundedReaderAndObservedFixtureReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = wal.Publish(token, after, time.Now()); err != nil {
+	if err = wal.Publish(token, after, g.(*ledger).config.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if after.Salt == second.After.Salt || after.Frames >= second.After.Frames || wal.ResetCount() != 1 {
@@ -141,7 +168,7 @@ func TestNativePassiveRejectsWrongFileAndIncompleteForecast(t *testing.T) {
 	g, a, wal := nativeCheckpointGovernor(t)
 	cp := nativeCheckpointer(t, path, g, a)
 	for _, pages := range []bool{false, true} {
-		small := nativeCheckpointRequest()
+		small := nativeCheckpointRequest(g)
 		budgetG, budgetA, _ := nativeCheckpointGovernor(t)
 		budgetCP := nativeCheckpointer(t, path, budgetG, budgetA)
 		if pages {
@@ -159,16 +186,16 @@ func TestNativePassiveRejectsWrongFileAndIncompleteForecast(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wrong, err := NewCheckpointer(connector, cfg, g, a, cp.policy)
+	wrong, err := functionalCheckpointer(connector, cfg, g, a, cp.policy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer wrong.Close()
-	out, err := wrong.Step(t.Context(), nativeCheckpointRequest())
+	out, err := wrong.Step(t.Context(), nativeCheckpointRequest(g))
 	if !errors.Is(err, sqliteconn.ErrPolicy) || out.DatabaseMatched || !out.SampleStarted.IsZero() || !out.NativeStarted.IsZero() {
 		t.Fatal("other DB qualified this WAL prefix", out, err)
 	}
-	r := nativeCheckpointRequest()
+	r := nativeCheckpointRequest(g)
 	r.Class = Foreground
 	r.Writer = true
 	r.Need[WALBytes] = 32
@@ -223,18 +250,18 @@ func TestNativePassivePanicFailedDiscardRetainsTurn(t *testing.T) {
 	counted := &snapshotConnector{Connector: connector}
 	counted.checkpointPanic.Store(true)
 	counted.failClose.Store(true)
-	cp, err := NewCheckpointer(counted, cfg, g, a, CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond, MaxWait: 50 * time.Millisecond})
+	cp, err := functionalCheckpointer(counted, cfg, g, a, CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond, MaxWait: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { counted.failClose.Store(false); cp.Close() }()
-	r := nativeCheckpointRequest()
+	r := nativeCheckpointRequest(g)
 	var caught any
 	func() { defer func() { caught = recover() }(); _, _ = cp.Step(t.Context(), r) }()
 	if caught != checkpointInjectedPanic || cp.pending == nil || a.Usage()[Recovery] != r.Need {
 		t.Fatal("panic lost native custody", caught, cp.pending, a.Usage())
 	}
-	writer := nativeCheckpointRequest()
+	writer := nativeCheckpointRequest(g)
 	writer.Class = Foreground
 	writer.Writer = true
 	writer.Need[WALBytes] = 32
@@ -253,13 +280,19 @@ func TestNativePassiveOverrunFencesAndRefusesReuse(t *testing.T) {
 	path, _ := snapshotFixture(t)
 	g, a, _ := nativeCheckpointGovernor(t)
 	cp := nativeCheckpointer(t, path, g, a)
-	r := nativeCheckpointRequest()
-	r.MaxHold = time.Nanosecond
+	r := nativeCheckpointRequest(g)
+	// Connection acquisition is part of the physical hold; inject its duration.
+	acquire := cp.pool.acquire
+	cp.pool.acquire = func(ctx context.Context) (*sql.Conn, error) {
+		conn, err := acquire(ctx)
+		checkpointClockAdvance(g, 26*time.Millisecond)
+		return conn, err
+	}
 	out, err := cp.Step(t.Context(), r)
-	if !errors.Is(err, ErrCheckpointOverrun) || !out.PhysicalSafe || out.PhysicalReturned.IsZero() || !out.NativeStarted.IsZero() || a.Usage() != [4]Amounts{} {
+	if !errors.Is(err, ErrCheckpointOverrun) || !out.PhysicalSafe || out.PhysicalReturned.IsZero() || out.NativeStarted.IsZero() || a.Usage() != [4]Amounts{} {
 		t.Fatal("over-budget physical attempt was hidden/refunded without return", out, err, a.Usage())
 	}
-	if _, err = cp.Step(t.Context(), nativeCheckpointRequest()); !errors.Is(err, ErrCheckpointOverrun) {
+	if _, err = cp.Step(t.Context(), nativeCheckpointRequest(g)); !errors.Is(err, ErrCheckpointOverrun) {
 		t.Fatal("unqualified checkpoint reused", err)
 	}
 	if g.(*ledger).state.Load()&1 == 0 {
@@ -285,7 +318,7 @@ func TestNativePassiveErrorAndCancelCleanup(t *testing.T) {
 			} else {
 				counted.checkpointError.Store(true)
 			}
-			cp, err := NewCheckpointer(counted, cfg, g, a, CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond, MaxWait: 50 * time.Millisecond})
+			cp, err := functionalCheckpointer(counted, cfg, g, a, CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond, MaxWait: 50 * time.Millisecond})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -298,7 +331,7 @@ func TestNativePassiveErrorAndCancelCleanup(t *testing.T) {
 				}
 				cp.Close()
 			}()
-			r := nativeCheckpointRequest()
+			r := nativeCheckpointRequest(g)
 			type result struct {
 				out CheckpointResult
 				err error
@@ -320,7 +353,7 @@ func TestNativePassiveErrorAndCancelCleanup(t *testing.T) {
 				if a.Usage()[Recovery] != r.Need {
 					t.Fatal("cancel refunded CP before physical close", a.Usage())
 				}
-				writer := nativeCheckpointRequest()
+				writer := nativeCheckpointRequest(g)
 				writer.Class = Foreground
 				writer.Writer = true
 				writer.Need[WALBytes] = 32
