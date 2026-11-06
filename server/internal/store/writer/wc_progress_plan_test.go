@@ -113,7 +113,7 @@ func TestWCProgressStatementPlans(t *testing.T) {
 			if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 				t.Fatal("exact full-set Capture receipt", err)
 			}
-			if len(golden.Manifest) != 37 || len(golden.Plans) != cohorts || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 661 {
+			if len(golden.Manifest) != 37 || len(golden.Plans) != cohorts || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 670 {
 				t.Fatal("incomplete statement/destination/FK capture")
 			}
 			vm, search, inserts := 0, 0, 0
@@ -182,7 +182,7 @@ func TestWCProgressStatementPlans(t *testing.T) {
 			if err := plan.CompareExactJSON(expectedFK, fkJSON); err != nil {
 				t.Fatal(err)
 			}
-			t.Logf("37IDs/%dcohorts/%dVM/%dEQP SEARCH rows/%dINSERT destinations/661FK1983probes; exact receipt; no production profile", cohorts, vm, search, inserts)
+			t.Logf("37IDs/%dcohorts/%dVM/%dEQP SEARCH rows/%dINSERT destinations/670FK2010probes; exact receipt; no production profile", cohorts, vm, search, inserts)
 		})
 	}
 }
