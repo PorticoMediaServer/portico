@@ -510,6 +510,9 @@ func (p *lintParser) selectTable() error {
 		return p.fail("schema-qualified sources are outside the grammar")
 	}
 	source := selectSource{name: p.tokens[start].text}
+	if sqliteInternalSource(source.name) {
+		return p.fail("SQLite internal sources are outside the grammar")
+	}
 	if p.take("AS") {
 		if err := p.unquotedName(); err != nil {
 			return err

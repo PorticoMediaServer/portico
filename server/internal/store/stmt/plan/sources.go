@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
-// LintSQLOn adds live source resolution to LintSQL's closed syntax checks.
+// LintSQLOn adds live source/destination resolution to closed syntax checks.
 // LintSQL alone is lexical: it has no database catalog and cannot certify a
 // source. Capture always uses this connection-aware lint before EXPLAIN.
 func LintSQLOn(ctx context.Context, conn *sql.Conn, text string) []LintIssue {
@@ -24,6 +25,11 @@ func LintSQLOn(ctx context.Context, conn *sql.Conn, text string) []LintIssue {
 	if err := p.statement(); err != nil {
 		return []LintIssue{{"sql:source", err.Error()}}
 	}
+	if p.dml != nil {
+		if err := mainBaseTable(ctx, conn, nameKey(p.dml.table)); err != nil {
+			return []LintIssue{{"sql:source", err.Error()}}
+		}
+	}
 	for _, source := range p.sources {
 		if err := mainBaseTable(ctx, conn, source.name); err != nil {
 			return []LintIssue{{"sql:source", err.Error()}}
@@ -33,6 +39,9 @@ func LintSQLOn(ctx context.Context, conn *sql.Conn, text string) []LintIssue {
 }
 
 func mainBaseTable(ctx context.Context, conn *sql.Conn, name string) error {
+	if sqliteInternalSource(name) {
+		return fmt.Errorf("SQLite internal source %s is not an approved MAIN base table", name)
+	}
 	// An unqualified SQLite name resolves TEMP before MAIN. A valid main table
 	// does not authorize a shadowing TEMP table or view with the same name.
 	var shadows int
@@ -63,4 +72,8 @@ WHERE schema='main' AND name=? COLLATE NOCASE`, name).Scan(&kind); err != nil {
 		return fmt.Errorf("source %s is a MAIN %s, not an ordinary base table", name, kind)
 	}
 	return nil
+}
+
+func sqliteInternalSource(name string) bool {
+	return strings.HasPrefix(strings.ToLower(name), "sqlite_")
 }
