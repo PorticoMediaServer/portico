@@ -78,6 +78,12 @@ enables public fresh execution. The body must leave Outcome zero. Its fixed
 2100 clock would be expired input for this fixture. Forecasts/time remain
 synthetic, with no physical or production permission claim.
 
+Every surviving private body return, including the child's `api_return` path,
+is compared in full against independently validated raw receipt/cohort columns
+and original input before it is discarded. This includes the complete scalar
+payload, result digest, allocated member identities and all-zero private Outcome
+(including Evidence); SQL recovery correctness alone cannot qualify the return.
+
 Raw SQL independently checks the whole cohort's row counts, filename/source
 facts, identity/asset/link mapping, scalar/physical contributions, unrated
 counts, library/run/directory/job clocks, source progress and RAW publisher
