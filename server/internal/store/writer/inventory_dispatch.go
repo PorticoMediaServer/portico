@@ -23,7 +23,8 @@ func inventoryFreshLibraryDefinition() stmt.Definition {
 		}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_libraries"}, Seeks: []string{"rowid=?"}}}
 }
 
-func checkInventoryFreshLibrary(ctx context.Context, turn *commandTurn, q ScanReceiptRequest) error {
+func checkInventoryFreshLibrary(ctx context.Context, turn *commandTurn, q ScanReceiptRequest) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	rows, err := turn.query(ctx, turn.steps[inventoryFreshLibrary].statementStep, q.LibraryID, q.LibraryKey)
 	if err != nil {
 		return err
@@ -102,7 +103,8 @@ func inventoryHistoricalResult(q ScanReceiptRequest, lookup inventoryReceiptLook
 	return out
 }
 
-func acknowledgeInventory(ctx context.Context, turn *commandTurn, q ScanReceiptRequest, lookup inventoryReceiptLookup) (int64, error) {
+func acknowledgeInventory(ctx context.Context, turn *commandTurn, q ScanReceiptRequest, lookup inventoryReceiptLookup) (value int64, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
 	owner := lookup.owner
 	if err := turn.checkLifetimes(ctx); err != nil {
 		return 0, err

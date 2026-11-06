@@ -141,9 +141,10 @@ func TestFirstLightStreamRetainsCommittedErrorAndRejectsStub(t *testing.T) {
 				if record.Evidence != nil || record.HoldNS != nil || !strings.Contains(record.Error, ErrNotImplemented.Error()) {
 					t.Fatal("stub fabricated evidence", record)
 				}
-			} else if record.Result == nil || record.Result.Outcome.State != Applied || record.Evidence == nil || record.Evidence.Commit != CommitSucceeded || record.HoldNS == nil || *record.HoldNS != int64(30*time.Millisecond) || record.FrameFenced == nil || !*record.FrameFenced {
-				t.Fatal("committed error/tail/fence erased", record)
+			} else if record.Result == nil || *record.Result != (EffectiveStageResult{}) || record.Evidence != nil || record.HoldNS != nil || record.CommitNS != nil || record.FrameFenced == nil || !*record.FrameFenced || !strings.Contains(record.Error, ErrOverrun.Error()) {
+				t.Fatal("error release leaked a result/proof or lost private fence", record)
 			}
+
 			if _, err := closeEffectiveFirstLightFixture(fixture); err != nil {
 				t.Fatal(err)
 			}

@@ -44,7 +44,8 @@ func inventoryDisclosureDefinitions() []stmt.Definition {
 // nil error proves ONLY these two native relationships; it confers no command,
 // principal or receipt authority. The sole dispatcher still owns opaque current
 // permission, original owner/receipt resolution and final revocation checking.
-func checkInventoryNativeScope(ctx context.Context, turn *commandTurn, request ScanReceiptRequest) error {
+func checkInventoryNativeScope(ctx context.Context, turn *commandTurn, request ScanReceiptRequest) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	if ctx == nil || turn == nil || turn.transaction == nil {
 		return ErrInvalid
 	}

@@ -105,7 +105,8 @@ func (r *effectiveRuntime) currentDisclosure(w *Writer, cap *EnrichmentDisclosur
 	return nil
 }
 
-func (r *effectiveRuntime) disclose(ctx context.Context, turn *commandTurn, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest) error {
+func (r *effectiveRuntime) disclose(ctx context.Context, turn *commandTurn, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	for _, point := range []struct {
 		id       stmt.ID
 		args     []any
@@ -139,19 +140,30 @@ func (r *effectiveRuntime) disclose(ctx context.Context, turn *commandTurn, cap 
 	return nil // missing owner goes to the resolver, never an implicit fresh owner
 }
 
-func (r *effectiveRuntime) execute(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand) (EffectiveStageResult, error) {
+func (r *effectiveRuntime) execute(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand) (released EffectiveStageResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
 	result, _, err := r.run(ctx, w, cap, request, input, false)
 	return result, err
 }
 
-func (r *effectiveRuntime) ack(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest) (AckResult, error) {
+func (r *effectiveRuntime) ack(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest) (released AckResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
 	_, result, err := r.run(ctx, w, cap, request, nil, true)
 	return result, err
 }
 
-func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool) (EffectiveStageResult, AckResult, error) {
+func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool) (released EffectiveStageResult, releasedAck AckResult, releaseErr error) {
+	defer func() {
+		v, err := finishCommand(ctx, ctx, commandCompletion{output: commandOutput{effective: released}, ack: releasedAck}, releaseErr)
+		released, releasedAck, releaseErr = v.output.effective, v.ack, err
+	}()
 	out, acknowledged, err := r.runCommand(ctx, w, cap, request, input, ack, nil)
 	return out.effective, acknowledged, err
+}
+
+type commandCompletion struct {
+	output commandOutput
+	ack    AckResult
 }
 
 type commandOutput struct {
@@ -160,6 +172,22 @@ type commandOutput struct {
 }
 
 func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation) (out commandOutput, acknowledged AckResult, err error) {
+	// Installed before EVERY return, including admission/binding failures. It
+	// executes after rollback/retirement defers and the final WAL sample.
+	lifetime := ctx
+	var stopLifetime context.CancelFunc
+	var tx *transaction
+	defer func() {
+		if stopLifetime != nil {
+			defer stopLifetime()
+		}
+		err = errors.Join(err, r.currentRunDisclosure(w, cap, request, scan))
+		if tx != nil {
+			err = errors.Join(err, tx.lifetimeErr)
+		}
+		result, finalErr := finishCommand(ctx, lifetime, commandCompletion{out, acknowledged}, err)
+		out, acknowledged, err = result.output, result.ack, finalErr
+	}()
 	if ctx == nil {
 		return out, acknowledged, ErrInvalid
 	}
@@ -255,7 +283,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		r.fenced = true
 		return out, acknowledged, err
 	}
-	tx, err := r.executor.begin(ctx, purpose, plan.recipe, custody)
+	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
 		transferred = true
 	}
@@ -270,6 +298,14 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		return out, acknowledged, err
 	}
 	defer tx.rollback(nil) // preserves the PRIMARY panic through frame cleanup
+	// The frame cancels its SQL context during retirement. Keep the EXACT same
+	// deadline alive through physical return/WAL sampling, without mistaking
+	// internal cleanup cancellation for caller/protected-lifetime cancellation.
+	deadline, ok := tx.ctx.Deadline()
+	if !ok {
+		return out, acknowledged, ErrInvalid
+	}
+	lifetime, stopLifetime = commandDeadline(ctx, deadline)
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
 	if err == nil {
 		if scan != nil {
@@ -314,9 +350,6 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		var owner effectiveBeginOwner
 		var disposition receiptDecision
 		saved, owner, disposition, err = lookupEffectiveStageBegin(ctx, turn, request.ProviderOperationID, expectedReceipt)
-		if disposition == receiptRetired && errors.Is(err, errEffectiveBeginResultRetired) {
-			err = nil
-		}
 		err = errors.Join(err, r.currentRunDisclosure(w, cap, request, scan))
 		if err == nil {
 			if ack {
@@ -354,15 +387,10 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if turn != nil {
 		err = errors.Join(err, turn.closeRows())
 	}
-	// A lifetime revoked while reading cannot disclose the saved result or ACK
-	// its floor. Caller cancellation alone does not erase already proven history.
-	permissionErr := r.currentRunDisclosure(w, cap, request, scan)
-	if errors.Is(permissionErr, ErrDisclosureDenied) {
-		out = commandOutput{}
-		acknowledged = AckResult{}
-		historical = false
-	}
-	err = errors.Join(err, permissionErr, checkCommandLifetimes(ctx, tx))
+	// No partial result survives ANY preterminal failure. The same helper
+	// runs again at final publication after physical return and all cleanup.
+	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentRunDisclosure(w, cap, request, scan)))
+	out, acknowledged, err = checked.output, checked.ack, checkedErr
 	var physical turnResult
 	if err == nil {
 		physical, err = tx.commit()
@@ -399,13 +427,6 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if r.executor.fenced || r.executor.ambiguous {
 		r.fenced = true
 	}
-	// Revocation during COMMIT/physical return/WAL sampling must also redact
-	// historical data. It never changes the actual physical evidence.
-	if permissionErr := r.currentRunDisclosure(w, cap, request, scan); permissionErr != nil {
-		out = commandOutput{}
-		acknowledged = AckResult{}
-		err = errors.Join(err, permissionErr)
-	}
 	if ack {
 		acknowledged.Evidence = evidence
 	} else {
@@ -436,7 +457,8 @@ func (r *effectiveRuntime) retireUnused(grant *governor.Grant, c *governedTurn) 
 	return err
 }
 
-func acknowledgeEffective(ctx context.Context, turn *commandTurn, request EnrichmentReceiptRequest, owner effectiveBeginOwner, disposition receiptDecision) (int64, error) {
+func acknowledgeEffective(ctx context.Context, turn *commandTurn, request EnrichmentReceiptRequest, owner effectiveBeginOwner, disposition receiptDecision) (value int64, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
 	if disposition == receiptRetired {
 		return owner.acknowledgedSequence, nil
 	}

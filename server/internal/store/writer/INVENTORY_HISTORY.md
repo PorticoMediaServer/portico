@@ -8,8 +8,8 @@ callback, second writer or worker-selected class/budget.
 FIRST disclosure is an opaque internal ScanDriver scope bound to the Writer,
 run, library identity/key, command incarnation and live lifetime. Current
 permission is checked independently of caller cancellation before native scope,
-after lookup, before terminal work and again before releasing data. Denial
-redacts result/floor data while retaining actual physical evidence.
+after lookup, before terminal work and again before releasing data. Any error clears all returned payload, identity, floor and evidence. The private
+frame retains actual physical truth; zero output is never rollback proof.
 
 Native scope and history have **no retired/root/status/source/lease filter**.
 The original immutable receipt, ordered N1 cohort and closed result digest are
@@ -26,7 +26,10 @@ whole-command recipe have not landed. No partial catalogue acceptance is enabled
 ACK is a same-turn scalar owner CAS with the original identity/digest checked
 first. It advances only the actual floor, refunds no bytes and deletes no
 receipt/result rows. Ambiguous COMMIT quarantines/fences the shared runtime;
-committed overrun retains the actual committed floor with its error/evidence.
+committed overrun retains the actual floor privately but returns zero data with
+its error. A single shared deferred finish checks caller and protected lifetimes
+after terminal work and WAL sampling on every release path. The exact protected
+deadline remains live independently of the SQL context's internal cleanup cancel.
 
 Every profile must carry matching Capture registration, and the primary receipt
 must cover the complete combined compiled registry. Runtime binding controls

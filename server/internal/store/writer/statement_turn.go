@@ -3,7 +3,6 @@ package writer
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -45,7 +44,8 @@ func checkCommandLifetimes(ctx context.Context, tx *transaction) error {
 	if ctx == nil || tx == nil || tx.ctx == nil {
 		return ErrInvalid
 	}
-	return errors.Join(ctx.Err(), tx.ctx.Err())
+	_, err := finishCommand(ctx, tx.ctx, struct{}{}, nil)
+	return err
 }
 
 func newCommandTurn(tx *transaction, registry *stmt.Registry, steps []statementStep) (*commandTurn, error) {

@@ -18,7 +18,7 @@ import (
 // production ScanDriver issuance, native-byte qualification or a latency run.
 func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptRequest, *executor, *governor.Authority) {
 	t.Helper()
-	e, requests := inventoryLookupFixture(t)
+	e, requests, _ := inventoryLookupFixture(t)
 	if _, err := e.db.ExecContext(t.Context(), "INSERT INTO catalog_libraries(id,library_id,root,retired) VALUES(8,'retired-library','/retired',1)"); err != nil {
 		t.Fatal(err)
 	}
@@ -160,8 +160,7 @@ func TestInventoryFacadeFreshMissAndCurrentDisclosure(t *testing.T) {
 	}
 	out, err := w.AcceptInventory(t.Context(), cap, command)
 	var refusal *Refusal
-	if !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || out.Outcome.State != Pending || out.RunID != "" || len(out.Members) != 0 ||
-		out.Outcome.Evidence == nil || out.Outcome.Evidence.Commit != CommitRolledBack {
+	if !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || !reflect.DeepEqual(out, InventoryResult{}) {
 		t.Fatal("incomplete fresh body became Applied", out, err)
 	}
 	for _, invalid := range []InventoryAcceptCommand{nil, (*inventoryAcceptCommand)(nil), contractInventory{}} {
@@ -328,7 +327,7 @@ func TestInventoryFacadeMissingProofAndSharedAvailability(t *testing.T) {
 		}
 	}
 	out, err := w.ResolveScan(t.Context(), cap, q)
-	if !errors.Is(err, ErrResolveRequired) || out.Outcome.State != ResolveRequired || out.RunID != "" || len(out.Members) != 0 {
+	if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(out, InventoryResult{}) {
 		t.Fatal("above-floor missing proof became fresh", out, err)
 	}
 	q = requests["new"]
@@ -337,7 +336,7 @@ func TestInventoryFacadeMissingProofAndSharedAvailability(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, err = w.ResolveScan(t.Context(), cap, q)
-	if !errors.Is(err, ErrOwnerUnavailable) || !errors.Is(err, ErrResolveRequired) || out.Outcome.State != ResolveRequired || out.RunID != "" {
+	if !errors.Is(err, ErrOwnerUnavailable) || !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(out, InventoryResult{}) {
 		t.Fatal("missing owner was registered or guessed retired", out, err)
 	}
 }
@@ -441,20 +440,32 @@ func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 			installFaultPool(e, fault)
 			primeEffectiveFixturePool(t, e)
 			ack, err := w.AckScan(t.Context(), cap, q)
-			if ack.Evidence == nil || ack.Evidence.PhysicalReturnedAt == nil || a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
+			if !reflect.DeepEqual(ack, AckResult{}) || a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
 				t.Fatal("ACK lost physical outcome or grant custody", ack, err)
+			}
+			if mode == "overrun" {
+				db, _, openErr := sqliteconn.Open(t.Context(), w.effective.path, e.config)
+				if openErr != nil {
+					t.Fatal(openErr)
+				}
+				var floor int64
+				readErr := db.QueryRowContext(t.Context(), "SELECT acknowledged_command_sequence FROM inventory_runs WHERE job_id=?", q.RunID).Scan(&floor)
+				closeErr := db.Close()
+				if readErr != nil || closeErr != nil || floor != 1 {
+					t.Fatal("committed floor lost", floor, readErr, closeErr)
+				}
 			}
 			switch mode {
 			case "overrun":
-				if !errors.Is(err, ErrOverrun) || ack.AcknowledgedThrough != 1 || ack.Evidence.Commit != CommitSucceeded || !w.effective.fenced {
+				if !errors.Is(err, ErrOverrun) || !w.effective.fenced {
 					t.Fatal("committed overrun became retryable rollback", ack, err)
 				}
 			case "ambiguous":
-				if !errors.Is(err, ErrResolveRequired) || ack.AcknowledgedThrough != 0 || ack.Evidence.Commit != CommitUnknown || !w.effective.fenced || !fault.nativeClosed.Load() {
+				if !errors.Is(err, ErrResolveRequired) || !w.effective.fenced || !fault.nativeClosed.Load() {
 					t.Fatal("ambiguous ACK escaped quarantine", ack, err)
 				}
 			case "revoke_after_commit":
-				if !errors.Is(err, ErrDisclosureDenied) || ack.AcknowledgedThrough != 0 || ack.Evidence.Commit != CommitSucceeded {
+				if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(ack, AckResult{}) {
 					t.Fatal("late revocation disclosed saved floor", ack, err)
 				}
 				var floor int64

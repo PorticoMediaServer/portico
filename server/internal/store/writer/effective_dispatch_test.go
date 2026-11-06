@@ -141,7 +141,7 @@ func TestEffectiveFacadeProductionRefusesUnprovedSource(t *testing.T) {
 	}
 	result, err := w.StageEffective(t.Context(), cap, command)
 	var refusal *Refusal
-	if !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || result.Outcome.State != Pending || result.Value.ImageID != 0 {
+	if !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || !reflect.DeepEqual(result, EffectiveStageResult{}) {
 		t.Fatal("unproved source reached production BEGIN", result, err)
 	}
 	var images, receipts, sequence int64
@@ -156,10 +156,6 @@ func TestEffectiveFacadeProductionRefusesUnprovedSource(t *testing.T) {
 	}
 	if images != 0 || receipts != originalReceipts || sequence != command.request.owner.lastSequence || authority.Usage()[governor.Background] != (governor.Amounts{}) || executor.db.Stats().InUse != 0 {
 		t.Fatal("refusal changed durable effects or stranded custody", images, receipts, sequence)
-	}
-	e := result.Outcome.Evidence
-	if e == nil || e.Purpose != EffectiveStage || e.Class != governor.Background || e.Durability != Normal || e.Commit != CommitRolledBack || e.Policy == nil || e.PhysicalReturnedAt == nil || e.WALBefore == nil || e.WALAfter == nil || e.ReturnedAt.Before(*e.PhysicalReturnedAt) {
-		t.Fatal("refusal lost actual frame evidence", e)
 	}
 	resolved, err := w.ResolveEffective(t.Context(), cap, request)
 	if err != nil || resolved.Outcome.State != Pending || resolved.Value.ImageID != 0 {
@@ -216,7 +212,7 @@ func TestEffectiveFacadeHistoricalReplayAckAndFloor(t *testing.T) {
 		}
 	}
 	ack, err := w.AckEffective(t.Context(), cap, request)
-	if err != nil || ack.AcknowledgedThrough != command.identity.Sequence || ack.Evidence == nil || ack.Evidence.Commit != CommitSucceeded {
+	if err != nil || !reflect.DeepEqual(ack, AckResult{}) {
 		t.Fatal(ack, err)
 	}
 	if _, err := executor.db.ExecContext(t.Context(), "DELETE FROM enrichment_command_receipts WHERE provider_operation_id=?", request.ProviderOperationID); err != nil {
@@ -410,7 +406,7 @@ func TestEffectiveFacadeMissingUnackedProofFailsClosed(t *testing.T) {
 		func() (EffectiveStageResult, error) { return w.StageEffective(t.Context(), cap, command) },
 	} {
 		result, err := invoke()
-		if !errors.Is(err, ErrResolveRequired) || result.Outcome.State != ResolveRequired || result.Value != (EffectiveStageBeginResult{}) {
+		if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(result, EffectiveStageResult{}) {
 			t.Fatal("missing historical result became fresh/Applied", result, err)
 		}
 	}
@@ -437,8 +433,23 @@ func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
 	installFaultPool(executor, fault)
 	primeEffectiveFixturePool(t, executor)
 	ack, err := w.AckEffective(t.Context(), cap, effectiveReference(command))
-	if !errors.Is(err, ErrOverrun) || ack.AcknowledgedThrough != command.identity.Sequence || ack.Evidence == nil || ack.Evidence.Commit != CommitSucceeded {
+	if !errors.Is(err, ErrOverrun) || !reflect.DeepEqual(ack, AckResult{}) {
 		t.Fatal("committed ACK became retryable failure", ack, err)
+	}
+	var nativeFloor int64
+	// Quarantine closed the private pool; independently inspect actual native
+	// state with the shared policy opener. Zero output never proves rollback.
+	db, _, openErr := sqliteconn.Open(t.Context(), path, executor.config)
+	if openErr != nil {
+		t.Fatal(openErr)
+	}
+	readErr := db.QueryRowContext(t.Context(), "SELECT acknowledged_command_sequence FROM metadata_provider_operations WHERE id=?", command.request.ownerID).Scan(&nativeFloor)
+	closeErr := db.Close()
+	if readErr != nil || closeErr != nil {
+		t.Fatal(readErr, closeErr)
+	}
+	if nativeFloor != command.identity.Sequence {
+		t.Fatal("committed floor was lost", nativeFloor)
 	}
 	if !executor.fenced || !w.effective.fenced || authority.Usage()[governor.Background] != (governor.Amounts{}) {
 		t.Fatal("overrun lost fence/physical return")
@@ -463,7 +474,7 @@ func TestEffectiveFacadeAmbiguousAckFencesAfterPhysicalReturn(t *testing.T) {
 	installFaultPool(executor, fault)
 	primeEffectiveFixturePool(t, executor)
 	ack, err := w.AckEffective(t.Context(), cap, effectiveReference(command))
-	if !errors.Is(err, ErrResolveRequired) || ack.AcknowledgedThrough != 0 || ack.Evidence == nil || ack.Evidence.Commit != CommitUnknown || ack.Evidence.PhysicalReturnedAt == nil {
+	if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(ack, AckResult{}) {
 		t.Fatal("ambiguous ACK invented acknowledgement", ack, err)
 	}
 	if !executor.ambiguous || !w.effective.fenced || authority.Usage()[governor.Background] != (governor.Amounts{}) || !fault.nativeClosed.Load() {

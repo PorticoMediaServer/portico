@@ -31,7 +31,8 @@ type inventoryReceiptLookup struct {
 // Every error returns ZERO data. The public facade remains unimplemented until
 // W composes disclosure, complete byte/native-work recipes and physical terminal
 // handling. A two-row LIMIT is not a byte bound or a memory reservation.
-func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanReceiptRequest) (inventoryReceiptLookup, error) {
+func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanReceiptRequest) (result inventoryReceiptLookup, err error) {
+	defer func() { result, err = finishCommand(ctx, commandLifetime(turn), result, err) }()
 	if ctx == nil || turn == nil || turn.transaction == nil || request.RunID == "" || request.LibraryID <= 0 ||
 		len(request.RunID) > maxCanonicalRequestBytes || !utf8.ValidString(request.RunID) || request.Receipt.Identity.Sequence <= 0 {
 		return inventoryReceiptLookup{}, ErrInvalid

@@ -342,7 +342,7 @@ func TestEffectiveBeginCorruptMissingRetiredOrConflictingResult(t *testing.T) {
 	if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE metadata_provider_operations SET acknowledged_command_sequence=12 WHERE id='operation-one'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := lookupEffectiveStageBegin(t.Context(), turn, "operation-one", receiptIdentity{identity, input.digest}); !errors.Is(err, errEffectiveBeginResultRetired) {
+	if result, _, decision, err := lookupEffectiveStageBegin(t.Context(), turn, "operation-one", receiptIdentity{identity, input.digest}); err != nil || decision != receiptRetired || result != (EffectiveStageBeginResult{}) {
 		t.Fatal("ACKed result disclosed", err)
 	}
 	if err := turn.closeRows(); err != nil {
