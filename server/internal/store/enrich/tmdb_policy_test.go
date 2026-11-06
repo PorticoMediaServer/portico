@@ -3,6 +3,7 @@ package enrich
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -76,5 +77,58 @@ func TestTransportOversizeReportsObservedBytes(t *testing.T) {
 	bounded := &ResponseSizeError{LimitBytes: 4194304, ObservedBytes: 4194305, ObservedIsLowerBound: true}
 	if !errors.Is(bounded, ErrResponse) || !strings.Contains(bounded.Error(), "at least 4194305") {
 		t.Fatal("lower bound relabelled", bounded)
+	}
+}
+
+func TestTMDBCacheRetainedBackingFitsBudget(t *testing.T) {
+	for _, test := range []struct {
+		mode      TMDBMode
+		bodyBytes int
+	}{{TMDBTwoWorkers128MiB, 65537}, {TMDBOneWorker80MiB, 131073}} {
+		t.Run(fmt.Sprint(test.bodyBytes), func(t *testing.T) {
+			policy, err := NewTMDBPolicy(test.mode)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload := make([]byte, test.bodyBytes)
+			tr, err := NewTMDBTransport(policy, admissionFunc(allowed), func(_ context.Context, _ RequestKey, _ int64, d Dispatch) (Response, error) {
+				if err := d.Check(); err != nil {
+					return Response{}, err
+				}
+				if err := d.Started(); err != nil {
+					return Response{}, err
+				}
+				return Response{Status: 200, Body: payload}, nil
+			}, time.Hour, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tr.Close()
+			clock := newFakeClock()
+			tr.clock = clock
+			for i := range 300 {
+				clock.advance(time.Second)
+				if _, err := tr.Get(t.Context(), key(fmt.Sprint(i))); err != nil {
+					t.Fatal(err)
+				}
+			}
+			tr.mu.Lock()
+			defer tr.mu.Unlock()
+			var lengths, capacities int64
+			exact := true
+			for _, entry := range tr.cache {
+				body := entry.Value.(cachedResponse).body
+				lengths += int64(len(body))
+				capacities += int64(cap(body))
+				exact = exact && cap(body) == len(body)
+			}
+			t.Logf("entries=%d charged=%d length=%d capacity=%d budget=%d", len(tr.cache), tr.stats.CacheBytes, lengths, capacities, tr.cfg.CacheBytes)
+			if capacities > tr.cfg.CacheBytes {
+				t.Fatalf("retained body capacity exceeds cache budget by %d bytes", capacities-tr.cfg.CacheBytes)
+			}
+			if !exact || lengths != tr.stats.CacheBytes || capacities != lengths {
+				t.Fatal("cache does not own exactly its charged body storage")
+			}
+		})
 	}
 }
