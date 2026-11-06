@@ -5,13 +5,14 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
-	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
-	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"reflect"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // FTSReadAudit is sealed by Capture with the definition and native plans. These

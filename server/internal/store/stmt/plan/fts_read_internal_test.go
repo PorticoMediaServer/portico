@@ -1,10 +1,11 @@
 package plan
 
 import (
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 func TestFTSReadVOpenMappingIsExact(t *testing.T) {

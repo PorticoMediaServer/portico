@@ -336,6 +336,11 @@ func (s Statement) Bind(args ...any) (Bound, error) {
 		return Bound{}, fmt.Errorf("stmt %q: %w", s.entry.ID, err)
 	}
 	frozen := cloneArgs(args)
+	if s.entry.Plan.NativeRead != nil {
+		// The bounded MATCH query owns only its charged bytes, even when the
+		// caller supplied a small substring of a larger backing allocation.
+		frozen[0] = strings.Clone(frozen[0].(string))
+	}
 	if s.entry.Plan.NativeInsert != "" {
 		// A bounded slice of a large caller backing string must not retain the
 		// larger allocation for this new native capability's bound lifetime.
