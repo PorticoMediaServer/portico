@@ -30,6 +30,8 @@ var crashClock = time.Date(2100, 11, 5, 10, 30, 0, 0, time.UTC)
 type crashCase struct{ Domain, Operation, Boundary, CommitFault string }
 
 type crashWitness struct {
+	Effective *effectiveCrashOriginal
+
 	Version          int
 	SchemaSHA        string
 	Engine           string
@@ -216,6 +218,10 @@ func TestCrashReplayChild(t *testing.T) {
 	witness := crashWitness{Version: 1, SchemaSHA: schema.SHA256, Engine: schema.NativeSQLiteVersion}
 	if err := json.Unmarshal([]byte(encoded), &witness.Case); err != nil {
 		t.Fatal(err)
+	}
+	if witness.Case.Domain == "effective_steps" {
+		crashEffectiveStepsFixture(t, &witness)
+		return
 	}
 	if witness.Case.Domain == "inventory" {
 		crashInventoryChild(t, &witness)
