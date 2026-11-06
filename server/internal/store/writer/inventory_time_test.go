@@ -3,8 +3,10 @@ package writer
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 func TestInventoryTimeAndLeaseBoundaries(t *testing.T) {
@@ -210,4 +212,45 @@ func TestInventoryTurnTimeHighWater(t *testing.T) {
 			*clock = base.Add(3 * time.Millisecond)
 		})
 	}
+}
+
+func TestTransactionSetupWallClockHighWater(t *testing.T) {
+	w, _, _ := testExecutor(t)
+	start := time.Now().Add(time.Hour)
+	sample := start.Add(time.Millisecond)
+	wall := reflect.ValueOf(&sample).Elem().FieldByName("wall")
+	// Simulate a wall-clock correction while the monotonic clock advances.
+	// Go has no public API for setting those clocks independently. Keep this
+	// representation access test-only, and verify both orderings explicitly.
+	reflect.NewAt(wall.Type(), unsafe.Pointer(wall.UnsafeAddr())).Elem().SetUint(reflect.ValueOf(start.Add(-time.Millisecond)).FieldByName("wall").Uint())
+	if sample.Sub(start) != time.Millisecond || !sample.Round(0).Before(start.Round(0)) {
+		t.Fatal("fixture did not preserve forward monotonic/backward wall time")
+	}
+	calls := 0
+	w.now = func() time.Time {
+		calls++
+		switch calls {
+		case 1:
+			return start
+		case 2:
+			return sample
+		default:
+			return start.Add(2 * time.Millisecond)
+		}
+	}
+	custody := &testCustody{}
+	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), custody)
+	if tx != nil {
+		defer tx.rollback(nil)
+	}
+	if tx != nil || !errors.Is(err, ErrQuantum) {
+		t.Fatalf("setup admitted backward wall sample: tx=%v err=%v", tx != nil, err)
+	}
+	if custody.checks != 1 || custody.returns != 1 || w.db.Stats().InUse != 0 {
+		t.Fatal("setup refusal entered native work or leaked custody", custody, w.db.Stats())
+	}
+	if !w.mu.TryLock() {
+		t.Fatal("setup refusal stranded writer mutex")
+	}
+	w.mu.Unlock()
 }
