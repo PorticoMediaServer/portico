@@ -35,8 +35,11 @@ func TestN1ComponentControlMatrix(t *testing.T) {
 					cell.Input = "escaped"
 				}
 				stream := n1ControlStream(t)
+				protocolClock := time.Now().Add(time.Hour)
 				var record *n1Attempt
-				if !t.Run(banks+"/"+age+"/"+bucket, func(t *testing.T) { runN1Attempt(t, t.Context(), stream, 1, cell, "native-counters", "", &record) }) {
+				if !t.Run(banks+"/"+age+"/"+bucket, func(t *testing.T) {
+					runN1Attempt(t, t.Context(), stream, 1, cell, "native-counters", "", &record, n1AttemptOptions{population: "first-use-reopen", clock: func() time.Time { protocolClock = protocolClock.Add(time.Microsecond); return protocolClock }})
+				}) {
 					continue
 				}
 				if !record.Complete || record.Clock.HoldNS == nil || *record.Clock.HoldNS <= 0 || record.Clock.CommitNS == nil || *record.Clock.CommitNS <= 0 {
@@ -44,6 +47,9 @@ func TestN1ComponentControlMatrix(t *testing.T) {
 				}
 				if record.Settings.Actual.Engine == "" || !*record.Settings.PolicyVerified || record.Settings.Actual.Synchronous != 1 || !*record.NativeJoined || !*record.ConnectionReturned || !*record.Retired {
 					t.Fatal("policy/retirement missing")
+				}
+				if record.Profile == nil || record.Profile.ActualAgeCurrent == nil || *record.Profile.ActualAgeCurrent != (age == "current") || record.Profile.AgeBucketRows == nil || (*record.Profile.AgeBucketRows == 1) != (bucket == "present") {
+					t.Fatal("profile lost actual native branch readback", record.Profile)
 				}
 				uses := map[stmt.ID]int{}
 				domainCalls := 0
@@ -80,7 +86,7 @@ func TestN1ComponentControlMatrix(t *testing.T) {
 	}
 }
 
-func TestN1ComponentTimingOmitsAttribution(t *testing.T) {
+func TestN1ComponentTimingOmitsNativeCounters(t *testing.T) {
 	if !*n1EnabledFlag {
 		t.Skip("opt-in component controls")
 	}
@@ -91,9 +97,18 @@ func TestN1ComponentTimingOmitsAttribution(t *testing.T) {
 	}) {
 		return
 	}
-	if !record.Complete || len(record.Units) != 0 || record.Clock.HoldNS == nil || record.Clock.BeginNS != nil {
-		t.Fatal("plain timing gained inside-HOLD attribution or lost owner HOLD")
+	if !record.Complete || len(record.Units) == 0 || record.Clock.HoldNS == nil || record.Clock.BeginNS == nil {
+		t.Fatal("timing lost bounded request observations/owner HOLD")
 	}
+	for _, unit := range record.Units {
+		if unit.Before != nil || unit.After != nil || unit.VMOps.Value != nil {
+			t.Fatal("timing cohort sampled native counters inside HOLD")
+		}
+	}
+	if record.Profile == nil || len(record.Profile.PerID) == 0 || record.Profile.ProfileReady {
+		t.Fatal("missing per-ID arrays or guessed profile readiness")
+	}
+
 }
 
 func TestN1ComponentFailureRetainsOriginalAndRollback(t *testing.T) {

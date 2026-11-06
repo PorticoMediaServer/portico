@@ -41,7 +41,10 @@ func validateN1Population(mode string, warmup int) error {
 	return nil
 }
 
-type n1AttemptOptions struct{ population string }
+type n1AttemptOptions struct {
+	population string
+	clock      func() time.Time
+} // clock is internal protocol-control only, never a flag/config input
 
 type n1ConnectionContinuity struct {
 	Population             string             `json:"population"`
