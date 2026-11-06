@@ -161,11 +161,15 @@ func validateInventoryRequest(identity CommandIdentity, in inventoryAcceptReques
 		if f.sourceKey == "" || !inventoryPath(f.relativePath, false) || path.Dir(f.relativePath) != in.directory.path ||
 			f.assetPath == "" || f.assetPath[0] != '/' || strings.IndexByte(f.assetPath, 0) >= 0 ||
 			f.revision == "" || f.size < 0 || f.year < 0 || f.directory || strings.TrimSpace(f.title) == "" ||
-			f.sortKey == "" || f.sortHead == "" || f.sortKeyKeepArticles == "" || f.sortHeadKeepArticles == "" || f.metadataLanguage == "" {
+			f.metadataLanguage == "" {
 			return invalid("inventory_file")
 		}
-		if err := ValidateMetadataShape(f.title, "", 0, 0, 0); err != nil {
+		projection, err := ProjectFilenameMetadata(f.title, f.sortTitle, f.metadataLanguage)
+		if err != nil {
 			return err
+		}
+		if f.sortKey != projection.SortKey || f.sortHead != projection.SortHead || f.sortKeyKeepArticles != projection.SortKeyKeepArticles || f.sortHeadKeepArticles != projection.SortHeadKeepArticles {
+			return invalid("inventory_sort_projection")
 		}
 	}
 	// Clock expiry, source/root equality, next-cursor progress, counter overflow,
