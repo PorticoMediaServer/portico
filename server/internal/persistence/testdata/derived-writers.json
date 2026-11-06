@@ -4520,7 +4520,7 @@
       ]
     },
     "internal/compactcatalog/identity.go": {
-      "sha256": "e5e35dadde50ccf234fad8b93bafaf6ed0d1c2ee9a740c07e97819c0e2de877c",
+      "sha256": "d90d256203559517b7d579459722c99df09eeb8bd209c5074f7eb659cf2c7e1c",
       "effects": [
         {
           "table": "*",
@@ -4754,7 +4754,7 @@
       ]
     },
     "internal/compactcatalog/write.go": {
-      "sha256": "470173c20ff311da412d041ee4e57be2e8625dcedd1cf44a01a143d0019c7f9e",
+      "sha256": "4252ef5219e1a1149e29892f9a3d9dfb7dea45fb2d04e82f93f73814dfc8cbeb",
       "effects": [
         {
           "table": "*",
