@@ -599,6 +599,61 @@ function start(pending: {url: string;method: string;body: string|null;headers: R
                 self.assertTrue(all(not s['forwardedRequest'] for s in scan(root)))
                 self.assertEqual(self.check(root)[0],1)
 
+    def test_non_api_pin_binds_full_source_and_external_release_conditions(self):
+        import hashlib
+        source='''const asset = new URL('./bundled.woff2',import.meta.url).href;
+async function load(signal: AbortSignal) {return fetch(asset,{credentials:'omit',signal});}
+'''
+        root,filename,sites,pin=self.fixture(source,category='platform-url',dependencies={'release.json':'{"debugConsole":false}'})
+        key=sites[0]['id'];span=sites[0]['guardHash']
+        hashes={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in [filename,'release.json']}
+        pin.update(category='non-api-platform',guardHashes={key:span},sourceHashes={key:hashes})
+        approval={'category':pin['category'],'reason':pin['reason'],'condition':'Exact bundled asset with omitted credentials; release config disabled',
+                  'guardHash':span,'sourceHashes':hashes,'occurrences':1,
+                  'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6649923975'}
+        (root/ALLOWLIST).write_text(json.dumps({filename:pin}));(root/APPROVALS).write_text(json.dumps({key:approval}))
+        self.assertEqual(self.check(root)[0],0)
+        with self.assertRaises(ValueError):classify(sites,{filename:pin})
+        for changed in [source.replace("'./bundled.woff2'","'/v1/private'"),
+                        source.replace("credentials:'omit'","credentials:'include'")]:
+            (root/filename).write_text(changed)
+            self.assertEqual(self.check(root)[0],1)
+        (root/filename).write_text(source)
+        # Changing a constant/config outside the reviewed function also voids it.
+        (root/'release.json').write_text('{"debugConsole":true,"debugSink":"https://server/v1/private"}')
+        self.assertEqual(self.check(root)[0],1)
+
+    def test_non_api_pins_reject_in_root_file_and_parent_directory_symlinks(self):
+        import hashlib
+        source="""const asset = new URL('../kit/font.woff2',import.meta.url).href;
+async function load(signal: AbortSignal) {return fetch(asset,{credentials:'omit',signal});}
+"""
+        for bound in ['web/src/loader.ts','web/src','web/kit/font.woff2','web/kit']:
+            with self.subTest(bound=bound):
+                root,filename,sites,pin=self.fixture(source,'web/src/loader.ts','platform-url',
+                    dependencies={'web/kit/font.woff2':'approved','web/dev/kit/font.woff2':'replaced'})
+                key=sites[0]['id']
+                hashes={p:hashlib.sha256((root/p).read_bytes()).hexdigest()
+                        for p in [filename,'web/kit/font.woff2']}
+                pin.update(category='non-api-platform',guardHashes={key:sites[0]['guardHash']},sourceHashes={key:hashes})
+                (root/ALLOWLIST).write_text(json.dumps({filename:pin}))
+                self.assertEqual(len(classify(sites,{filename:pin},root=root)[1]),1)
+                # All links stay inside root, preserving every dereferenced hash.
+                # Moving the module changes its relative asset resolution to the
+                # same-sized, unapproved dev asset without changing source bytes.
+                original=root/bound
+                moved=root/('web/dev/'+bound.removeprefix('web/') if bound.startswith('web/src') else 'relocated/'+bound)
+                moved.parent.mkdir(parents=True,exist_ok=True)
+                directory=original.is_dir()
+                original.rename(moved)
+                original.symlink_to(moved,target_is_directory=directory)
+                self.assertTrue(original.resolve().is_relative_to(root.resolve()))
+                self.assertEqual({p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in hashes},hashes)
+                with self.assertRaisesRegex(ValueError,'symlink'):
+                    classify(sites,{filename:pin},root=root)
+                code,output=self.check(root)
+                self.assertEqual(code,1);self.assertIn('symlink',output)
+
     def test_native_url_method_body_and_bound_input_edits_each_invalidate_byte_pins(self):
         source='fun relay() { val method = "GET"; val request = Request.Builder().url(upstream.toString()).method(method, null).build() }\n'
         root,filename,sites,entry=self.fixture(source,'apps/native/Relay.kt','platform-url')

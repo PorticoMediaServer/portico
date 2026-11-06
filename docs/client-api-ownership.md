@@ -61,6 +61,15 @@ allowance. Approved categories are:
   enclosing policy, including captured API selection for upload/bounded ports. Any edit invalidates the pin and needs re-approval. Native identities include the full
   receiver/fluent construction chain and enclosing method body hash, so changes
   to URL, method, body or bound inputs invalidate byte-only allowances.
+- separately ruled non-API platform IO: the exact reviewed span cannot reach a
+  Portico or Hosted API. The development diagnostic sink is inert in the bound
+  release configuration; the reader font is a same-origin bundled asset with
+  omitted credentials and exact size/digest. These are not general fetch
+  exceptions. Their `sourceHashes` also bind policy-bearing files outside the
+  function (including configuration and asset bytes), so an unchanged call
+  cannot survive a changed target, credential mode or release setting. Each
+  bound path must reach a regular file without symlinks, including every parent
+  directory below the source root; in-root relocation is rejected too.
 
 The two separately approved metadata-artwork callbacks use an explicit
 `guardSpan: "forwarding-function"` in both pin and ledger (`guardSpans` maps
