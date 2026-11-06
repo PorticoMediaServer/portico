@@ -6,15 +6,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/playback/vod"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
+	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -538,6 +538,10 @@ func (f *FiniteHLS) produce(id string, a *finiteActor, index int) (resultErr err
 	return nil
 }
 func (f *FiniteHLS) file(ctx context.Context, id, name string) (string, error) {
+	index, segment := hlsSegmentIndex(name)
+	if name != "master.m3u8" && (!segment || name != hlsSegmentFile(index)) {
+		return "", ErrHLSArtifactNotFound
+	}
 	a, err := f.ensure(ctx, id)
 	if err != nil {
 		return "", err
@@ -546,15 +550,8 @@ func (f *FiniteHLS) file(ctx context.Context, id, name string) (string, error) {
 	if name == "master.m3u8" {
 		return path, nil
 	}
-	if !artifactName.MatchString(name) {
-		return "", errors.New("unknown finite resource")
-	}
-	var index int
-	if _, err = fmt.Sscanf(name, "segment-%06d.ts", &index); err != nil {
-		return "", err
-	}
 	if index < 0 || index >= vod.IntervalCount(a.source.Duration) {
-		return "", errors.New("unknown finite interval")
+		return "", ErrHLSArtifactNotFound
 	}
 	f.mu.Lock()
 	if a.waiters >= 32 {

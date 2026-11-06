@@ -42,35 +42,45 @@ func TestUnknownHLSArtifactWithValidGrantIsHiddenNotFound(t *testing.T) {
 		t.Fatalf("fixture did not plan HLS: %+v", session.Presentation)
 	}
 	base := strings.TrimSuffix(session.Presentation.URL, "/master.m3u8")
-	// A real live grant reaches the artifact validator. These names need no encoder.
-	for _, name := range []string{"segment-invalid.ts", "segment-1.ts", "init-0.mp4", "audio-100-000000.ts"} {
-		w := f.raw("GET", base+"/"+name, "", nil, nil)
-		var body struct {
-			Error struct {
-				Code      string `json:"code"`
-				Retryable bool   `json:"retryable"`
-			}
-		}
-		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-			t.Fatal(err)
-		}
-		if w.Code != 404 || body.Error.Code != "not_found" || body.Error.Retryable || w.Header().Get("Retry-After") != "" {
-			t.Errorf("%s: %d %s", name, w.Code, w.Body.String())
-		}
-	}
-	// A declared artifact absent from ready output keeps the distinct retryable
-	// response. This uses a temporary registered HLS output, without an encoder.
 	grant := strings.TrimPrefix(base, "/v1/media/")
 	var id string
 	var generation int
 	if err := f.db.QueryRow(`SELECT id,generation FROM playback_sessions WHERE grant_hash=?`, identity.Digest(grant)).Scan(&id, &generation); err != nil {
 		t.Fatal(err)
 	}
-
 	dir := filepath.Join(root, id)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
+	// A real live grant reaches the artifact validator. These names need no encoder.
+	for _, stamp := range []int{generation + 1, generation} {
+		if err := os.WriteFile(filepath.Join(dir, "generation"), []byte(strconv.Itoa(stamp)), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"segment-invalid.ts", "segment-1.ts", "init-0.mp4", "audio-100-000000.ts", "audio-99.m3u8", "audio-99-000000.ts", "text-99.m3u8", "text-00.m3u8", "init.mp4", "segment-000000.m4s"} {
+			w := f.raw("GET", base+"/"+name, "", nil, nil)
+			var body struct {
+				Error struct {
+					Code      string `json:"code"`
+					Retryable bool   `json:"retryable"`
+				}
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if w.Code != 404 || body.Error.Code != "not_found" || body.Error.Retryable || w.Header().Get("Retry-After") != "" {
+				t.Errorf("generation %d, %s: %d %s", stamp, name, w.Code, w.Body.String())
+			}
+		}
+		if stamp != generation {
+			w := f.raw("GET", base+"/master.m3u8", "", nil, nil)
+			if w.Code != 503 || v1Code(w) != "segment_preparing" || w.Header().Get("Retry-After") != "1" {
+				t.Fatalf("declared artifact during preparation: %d %s", w.Code, w.Body.String())
+			}
+		}
+	}
+	// A declared artifact absent from ready output keeps the distinct retryable
+	// response. This uses a temporary registered HLS output, without an encoder.
 	if err := os.WriteFile(filepath.Join(dir, "generation"), []byte(strconv.Itoa(generation)), 0600); err != nil {
 		t.Fatal(err)
 	}
