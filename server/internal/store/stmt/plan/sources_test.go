@@ -38,7 +38,7 @@ func TestPlanMainBaseTableSourceResolution(t *testing.T) {
 		if issues := plan.LintSQLOn(ctx, conn, sql); len(issues) == 0 {
 			t.Fatalf("live source lint accepted %s", sql)
 		}
-		r, err := stmt.New([]stmt.Definition{definition(sql)})
+		r, err := stmt.Describe([]stmt.Definition{definition(sql)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +78,7 @@ func TestPlanMainBaseTableSourceResolution(t *testing.T) {
 			if issues := plan.LintSQLOn(ctx, conn, valid); len(issues) != 0 {
 				t.Fatal(issues)
 			}
-			r, err := stmt.New([]stmt.Definition{definition(valid)})
+			r, err := stmt.Describe([]stmt.Definition{definition(valid)})
 			if err != nil {
 				t.Fatal(err)
 			}

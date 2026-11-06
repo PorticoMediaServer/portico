@@ -57,12 +57,17 @@ func fixture(t *testing.T) (*sql.Conn, *stmt.Registry, plan.Fixture, *sql.DB) {
 		{ID: "sort.tail", SQL: "SELECT id,key FROM items INDEXED BY item_sort WHERE library_id=? AND kind=? AND " + predicate + " AND key=? AND id>? ORDER BY key,id LIMIT ?", Owner: "plan-test", CallSites: []string{"plan_test.go"}, Kind: stmt.Read, Params: []stmt.Param{{Name: "library", Type: stmt.Integer}, {Name: "kind", Type: stmt.Integer}, {Name: "key", Type: stmt.Integer}, {Name: "after", Type: stmt.Integer}, {Name: "remaining", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "ties", Bindings: []any{int64(1), int64(1), int64(1080), int64(1), int64(2)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"item_sort"}}},
 		{ID: "sort.next", SQL: "SELECT id,key FROM items INDEXED BY item_sort WHERE library_id=? AND kind=? AND " + predicate + " AND key>? ORDER BY key,id LIMIT ?", Owner: "plan-test", CallSites: []string{"plan_test.go"}, Kind: stmt.Read, Params: []stmt.Param{{Name: "library", Type: stmt.Integer}, {Name: "kind", Type: stmt.Integer}, {Name: "key", Type: stmt.Integer}, {Name: "remaining", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "next-key", Bindings: []any{int64(1), int64(1), int64(1080), int64(2)}}, {Name: "empty-library", Bindings: []any{int64(2), int64(1), int64(1080), int64(2)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"item_sort"}}},
 	}
-	registry, err := stmt.New(definitions)
+	registry, err := stmt.Describe(definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256([]byte(strings.Join(statements, "\n")))
-	return conn, registry, plan.Fixture{ConnectionPolicy: cfg, SHA256: hex.EncodeToString(sum[:]), Statistics: plan.Unanalyzed, Implementations: "bundled modernc SQLite builtin functions/collations"}, db
+	f := plan.Fixture{ConnectionPolicy: cfg, SHA256: hex.EncodeToString(sum[:]), Statistics: plan.Unanalyzed, Implementations: "bundled modernc SQLite builtin functions/collations"}
+	golden, err := plan.Capture(ctx, conn, registry, f, indexPolicy(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return conn, registered(t, registry, golden), f, db
 }
 func TestPlanGoldenAndDeclaredStatistics(t *testing.T) {
 	conn, registry, f, _ := fixture(t)
@@ -148,7 +153,7 @@ func TestPlanRejectsMissingIndexAndComputedSort(t *testing.T) {
 		d.Cohorts = []stmt.Cohort{{Name: "bad-sort", Bindings: []any{int64(1), int64(1), int64(1080), int64(2)}}}
 		definitions = append(definitions, d)
 	}
-	bad, err := stmt.New(definitions)
+	bad, err := stmt.Describe(definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +248,7 @@ func TestPlanForcedIndexCannotBeQuotedOrCommented(t *testing.T) {
 		if hint == "" {
 			d.SQL = strings.Replace(d.SQL, "SELECT id,key", "SELECT id,key,'INDEXED BY item_sort '", 1)
 		}
-		r, err := stmt.New([]stmt.Definition{d})
+		r, err := stmt.Describe([]stmt.Definition{d})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -274,7 +279,7 @@ func TestPlanRejectsRowTupleOmittedLibraryAndReversedOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.SQL = "SELECT id,key FROM items INDEXED BY item_sort WHERE library_id=? AND kind=? AND " + predicate + " AND (key,id)>(?,?) ORDER BY key,id LIMIT ?"
-	tuple, err := stmt.New([]stmt.Definition{d})
+	tuple, err := stmt.Describe([]stmt.Definition{d})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +292,7 @@ func TestPlanRejectsRowTupleOmittedLibraryAndReversedOrder(t *testing.T) {
 		d.SQL = strings.ReplaceAll(d.SQL, "library_id=?", "1=?")
 		defs = append(defs, d)
 	}
-	bad, err := stmt.New(defs)
+	bad, err := stmt.Describe(defs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +305,7 @@ func TestPlanRejectsRowTupleOmittedLibraryAndReversedOrder(t *testing.T) {
 		d.SQL = strings.ReplaceAll(d.SQL, "ORDER BY key,id", "ORDER BY key DESC,id DESC")
 		defs = append(defs, d)
 	}
-	reversed, err := stmt.New(defs)
+	reversed, err := stmt.Describe(defs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,4 +378,17 @@ func TestPlanConnectionPolicyEvidenceAndReplacement(t *testing.T) {
 	if audit.Connection != acquired {
 		t.Fatal("FK audit discarded acquisition evidence")
 	}
+}
+
+func registered(t *testing.T, catalogue *stmt.Registry, golden plan.Golden) *stmt.Registry {
+	t.Helper()
+	var definitions []stmt.Definition
+	for _, e := range catalogue.Manifest() {
+		definitions = append(definitions, e.Definition)
+	}
+	r, err := stmt.New(definitions, golden.Receipt())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }

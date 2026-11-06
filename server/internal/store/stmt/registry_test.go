@@ -13,6 +13,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func definition() stmt.Definition {
@@ -46,20 +47,20 @@ func TestRegistryRejectsInvalidDefinitions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			d := definition()
 			change(&d)
-			if _, err := stmt.New([]stmt.Definition{d}); err == nil {
+			if _, err := stmttest.New(t, []stmt.Definition{d}); err == nil {
 				t.Fatal("invalid definition accepted")
 			}
 		})
 	}
 	d := definition()
-	if _, err := stmt.New([]stmt.Definition{d, d}); err == nil {
+	if _, err := stmttest.New(t, []stmt.Definition{d, d}); err == nil {
 		t.Fatal("duplicate ID accepted")
 	}
 }
 func TestRegistryFreezesManifestAndBindings(t *testing.T) {
 	d := definition()
 	d.Cohorts[0].Bindings[2] = []byte{1}
-	r, err := stmt.New([]stmt.Definition{d})
+	r, err := stmttest.New(t, []stmt.Definition{d})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestRegistryFreezesManifestAndBindings(t *testing.T) {
 	}
 }
 func TestRegistryNativeBindingsAndNulls(t *testing.T) {
-	r, err := stmt.New([]stmt.Definition{definition()})
+	r, err := stmttest.New(t, []stmt.Definition{definition()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +140,7 @@ func TestRegistryNativeBindingsAndNulls(t *testing.T) {
 		t.Fatalf("NULL/empty lost: %d %+v %#v", id, text, bytes)
 	}
 	d := stmt.Definition{ID: "types", SQL: "SELECT ?, ?", Owner: "test", CallSites: []string{"registry_test.go"}, Kind: stmt.Read, Params: []stmt.Param{{Name: "r", Type: stmt.Real}, {Name: "b", Type: stmt.Boolean}}, Cohorts: []stmt.Cohort{{Name: "finite", Bindings: []any{1.5, true}}}}
-	r, err = stmt.New([]stmt.Definition{d})
+	r, err = stmttest.New(t, []stmt.Definition{d})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +153,7 @@ func TestRegistryNativeBindingsAndNulls(t *testing.T) {
 }
 func TestRegistrySQLQuotesAndComments(t *testing.T) {
 	d := stmt.Definition{ID: "quoted", SQL: "SELECT '?' AS [?:;], 'it''s ; :safe', \"@?\", `?`, ? /* :ignore ? */; -- ?\n", Owner: "test", CallSites: []string{"registry_test.go"}, Kind: stmt.Read, Params: []stmt.Param{{Name: "value", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "typical", Bindings: []any{"bound"}}}}
-	if _, err := stmt.New([]stmt.Definition{d}); err != nil {
+	if _, err := stmttest.New(t, []stmt.Definition{d}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -167,7 +168,7 @@ func TestRegistryExecReturningAndContext(t *testing.T) {
 		{ID: "returning", SQL: "UPDATE items SET value=? WHERE id=? RETURNING value", Owner: "test", CallSites: []string{"registry_test.go"}, Kind: stmt.Write, Params: []stmt.Param{{Name: "value", Type: stmt.Text}, {Name: "id", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "typical", Bindings: []any{"next", int64(1)}}}},
 		definition(),
 	}
-	r, err := stmt.New(defs)
+	r, err := stmttest.New(t, defs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +221,7 @@ func TestRegistryExecReturningAndContext(t *testing.T) {
 	}
 	d := definition()
 	d.SQL += " "
-	other, err := stmt.New([]stmt.Definition{d})
+	other, err := stmttest.New(t, []stmt.Definition{d})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +245,7 @@ func database(t *testing.T) *sql.DB {
 }
 
 func TestRegistryManifestHasExplicitEmptyBindings(t *testing.T) {
-	r, err := stmt.New([]stmt.Definition{{ID: "no.parameters", SQL: "SELECT 1", Owner: "test", CallSites: []string{"registry_test.go"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "empty"}}}})
+	r, err := stmttest.New(t, []stmt.Definition{{ID: "no.parameters", SQL: "SELECT 1", Owner: "test", CallSites: []string{"registry_test.go"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "empty"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +262,7 @@ func TestRegistryWaiversAreStatementBoundAndImmutable(t *testing.T) {
 	d := definition()
 	w := stmt.Waiver{StatementID: d.ID, Stage: "eqp", Form: "SCAN", Match: "SCAN tiny_control", Reason: "Synthetic test metadata only"}
 	d.Plan.Waivers = []stmt.Waiver{w}
-	r, err := stmt.New([]stmt.Definition{d})
+	r, err := stmttest.New(t, []stmt.Definition{d})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,12 +276,12 @@ func TestRegistryWaiversAreStatementBoundAndImmutable(t *testing.T) {
 		invalid := w
 		change(&invalid)
 		d.Plan.Waivers = []stmt.Waiver{invalid}
-		if _, err := stmt.New([]stmt.Definition{d}); err == nil {
+		if _, err := stmttest.New(t, []stmt.Definition{d}); err == nil {
 			t.Fatal("invalid or unbound waiver accepted")
 		}
 	}
 	d.Plan.Waivers = []stmt.Waiver{w, w}
-	if _, err := stmt.New([]stmt.Definition{d}); err == nil {
+	if _, err := stmttest.New(t, []stmt.Definition{d}); err == nil {
 		t.Fatal("duplicate waiver accepted")
 	}
 }

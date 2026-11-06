@@ -80,7 +80,7 @@ func TestPlanTwoStreamKeysetsAgainstSourceFacts(t *testing.T) {
 			add("null", " AND key IS NULL AND id"+compare+"?"+orderBy, []stmt.Param{{Name: "after", Type: stmt.Integer}}, []any{int64(1), int64(1), startID, int64(7)})
 			add("tail", " AND key=? AND id"+compare+"?"+orderBy, []stmt.Param{{Name: "key", Type: stmt.Integer}, {Name: "after", Type: stmt.Integer}}, []any{int64(1), int64(1), int64(1080), int64(500), int64(7)})
 			add("next", " AND key"+compare+"?"+orderBy, []stmt.Param{{Name: "key", Type: stmt.Integer}}, []any{int64(1), int64(1), int64(1080), int64(7)})
-			registry, err := stmt.New(defs)
+			registry, err := stmt.Describe(defs)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -107,7 +107,7 @@ func TestPlanTwoStreamKeysetsAgainstSourceFacts(t *testing.T) {
 				t.Fatal(err)
 			}
 			read := func(id string, args ...any) []fact {
-				s, err := registry.Lookup(stmt.ID(direction + "." + id))
+				s, err := registered(t, registry, golden).Lookup(stmt.ID(direction + "." + id))
 				if err != nil {
 					t.Fatal(err)
 				}

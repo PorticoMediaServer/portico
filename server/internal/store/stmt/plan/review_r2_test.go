@@ -48,7 +48,7 @@ func TestPlanRejectsEveryUserTrigger(t *testing.T) {
 					args = args[:1]
 					contract.PrimaryKeys = []string{"review_items"}
 				}
-				r, err := stmt.New([]stmt.Definition{reviewDefinition(sql, args, contract)})
+				r, err := stmt.Describe([]stmt.Definition{reviewDefinition(sql, args, contract)})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -95,7 +95,7 @@ func TestPlanDMLSyntaxCannotBeWaived(t *testing.T) {
 			args[i] = int64(1)
 		}
 		d := reviewDefinition(sql, args, stmt.Plan{PrimaryKeys: []string{"items"}})
-		if _, err := stmt.New([]stmt.Definition{d}); err != nil {
+		if _, err := stmt.Describe([]stmt.Definition{d}); err != nil {
 			t.Fatalf("invalid regression definition before waiver: %v", err)
 		}
 		for _, issue := range plan.LintSQL(sql) {
@@ -104,7 +104,7 @@ func TestPlanDMLSyntaxCannotBeWaived(t *testing.T) {
 		if len(d.Plan.Waivers) == 0 {
 			t.Fatal("counterexample entered grammar")
 		}
-		if _, err := stmt.New([]stmt.Definition{d}); err == nil || !strings.Contains(err.Error(), "only exact EQP waivers") {
+		if _, err := stmt.Describe([]stmt.Definition{d}); err == nil || !strings.Contains(err.Error(), "only exact EQP waivers") {
 			t.Fatalf("DML lint waiver accepted or rejected for unrelated reason: %v", err)
 		}
 		eqp := plan.Rows{Columns: []string{"id", "parent", "notused", "detail"}, Values: [][]any{{int64(1), int64(0), int64(0), "SEARCH items USING INTEGER PRIMARY KEY (rowid=?)"}}}
@@ -127,7 +127,7 @@ func TestPlanDMLIdentifiersResolveActualColumns(t *testing.T) {
 		if !insert {
 			contract.PrimaryKeys = []string{table}
 		}
-		r, err := stmt.New([]stmt.Definition{reviewDefinition(sql, args, contract)})
+		r, err := stmt.Describe([]stmt.Definition{reviewDefinition(sql, args, contract)})
 		if err != nil {
 			return err
 		}
@@ -184,7 +184,7 @@ func TestPlanConflictTargetMustResolveUniquely(t *testing.T) {
 		}
 		for _, index := range []string{"review_nocase", "review_binary"} {
 			d := reviewDefinition("INSERT INTO review_conflict(code,value) VALUES(?,?) ON CONFLICT(code) DO NOTHING", []any{"A", int64(1)}, stmt.Plan{Hot: true, Indexes: []string{index}})
-			r, err := stmt.New([]stmt.Definition{d})
+			r, err := stmt.Describe([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -203,7 +203,7 @@ func TestPlanConflictTargetMustResolveUniquely(t *testing.T) {
 			t.Fatal(err)
 		}
 		d := reviewDefinition("INSERT INTO review_duplicate(code,value) VALUES(?,?) ON CONFLICT(code) DO NOTHING", []any{int64(1), int64(2)}, stmt.Plan{Hot: true, Indexes: []string{"review_a"}})
-		r, err := stmt.New([]stmt.Definition{d})
+		r, err := stmt.Describe([]stmt.Definition{d})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,7 +234,7 @@ func TestPlanConflictTargetMustResolveUniquely(t *testing.T) {
 		} else {
 			contract.PrimaryKeys = []string{tc.pk}
 		}
-		r, err := stmt.New([]stmt.Definition{reviewDefinition(tc.sql, tc.args, contract)})
+		r, err := stmt.Describe([]stmt.Definition{reviewDefinition(tc.sql, tc.args, contract)})
 		if err != nil {
 			t.Fatal(err)
 		}

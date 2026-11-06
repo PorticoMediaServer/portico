@@ -40,7 +40,7 @@ func TestPlanRejectsTupleAndSubqueryComparisonSpellings(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			d := original
 			d.SQL = "SELECT id,key FROM items INDEXED BY item_sort WHERE library_id=? AND kind=? " + condition + " AND " + predicate + " ORDER BY key,id LIMIT ?"
-			r, err := stmt.New([]stmt.Definition{d})
+			r, err := stmt.Describe([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -71,7 +71,7 @@ func TestPlanAllowsClosedGrammarFunctionsAndQuotedPunctuation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			d := original
 			d.SQL = "SELECT id,key FROM items INDEXED BY item_sort WHERE library_id=? AND kind=? " + condition + " AND " + predicate + " ORDER BY key,id LIMIT ?"
-			r, err := stmt.New([]stmt.Definition{d})
+			r, err := stmt.Describe([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}

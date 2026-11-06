@@ -128,7 +128,7 @@ func TestPlanJoinGoldenAndNativeGuards(t *testing.T) {
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"item_sort", "principal_library"}, PrimaryKeys: []string{"l"}},
 		})
 	}
-	registry, err := stmt.New(defs)
+	registry, err := stmt.Describe(defs)
 	if err != nil {
 		t.Fatal(err)
 	}

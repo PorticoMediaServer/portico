@@ -33,7 +33,7 @@ func TestPlanSQLiteInternalSourcesNeverQualify(t *testing.T) {
 			if len(plan.LintSQL(sql)) == 0 || len(plan.LintSQLOn(ctx, conn, sql)) == 0 {
 				t.Fatal("internal source passed lint", sql)
 			}
-			r, err := stmt.New([]stmt.Definition{d})
+			r, err := stmt.Describe([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -52,7 +52,7 @@ func TestPlanSQLiteInternalSourcesNeverQualify(t *testing.T) {
 				args[i] = int64(1)
 			}
 			d := reviewDefinition(sql, args, stmt.Plan{Hot: true, PrimaryKeys: []string{"sqlite_sequence"}})
-			r, err := stmt.New([]stmt.Definition{d})
+			r, err := stmt.Describe([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}

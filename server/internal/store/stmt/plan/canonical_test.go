@@ -77,7 +77,7 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 	if err := golden.Compare(bytes); err != nil {
 		t.Fatal(err)
 	}
-	checkCanonicalSourceFacts(t, conn, registry)
+	checkCanonicalSourceFacts(t, conn, registered(t, registry, golden))
 	t.Logf("schema %s: %d FKs, %d actual DELETE/UPDATE/parent-collated probes; %d statement/cohort plans", schema.SHA256, len(fk.Plans), 3*len(fk.Plans), len(golden.Plans))
 }
 
@@ -129,7 +129,7 @@ func canonicalRegistry(t *testing.T, policy plan.IndexPolicy) *stmt.Registry {
 		add("resolution."+direction+".next", base+" AND resolution_key"+compare+"?"+ordered, append(append([]stmt.Param{}, prefix...), integer("key"), integer("limit")), []stmt.Cohort{{Name: "next-key", Bindings: []any{int64(1), int64(1), int64(1080), int64(7)}}}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_resolution"}, Seeks: []string{"resolution_key" + compare + "?"}})
 		add("resolution."+direction+".null", base+" AND resolution_key IS NULL AND id"+compare+"?"+ordered, append(append([]stmt.Param{}, prefix...), integer("after"), integer("limit")), []stmt.Cohort{{Name: "null-stream", Bindings: []any{int64(1), int64(1), after, int64(7)}}}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_resolution"}, Seeks: []string{"resolution_key=? AND id" + compare + "?"}})
 	}
-	registry, err := stmt.New(defs)
+	registry, err := stmt.Describe(defs)
 	if err != nil {
 		t.Fatal(err)
 	}
