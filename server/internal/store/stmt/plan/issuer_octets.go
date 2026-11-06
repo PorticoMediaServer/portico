@@ -30,7 +30,7 @@ func issuerOctetDefinition(d stmt.Definition) bool {
 // Source classification is checked by the ordinary MAIN/TEMP/view guard. Check
 // the live native key too: the single id equality must bound at most one row.
 func auditIssuerOctetKey(ctx context.Context, conn *sql.Conn) error {
-	functions, err := query(ctx, conn, "SELECT builtin,narg FROM pragma_function_list WHERE name='octet_length' AND narg IN(1,-1)")
+	functions, err := query(ctx, conn, "SELECT builtin,narg FROM pragma_function_list WHERE name='octet_length' COLLATE NOCASE AND narg IN(1,-1)")
 	if err != nil {
 		return err
 	}
