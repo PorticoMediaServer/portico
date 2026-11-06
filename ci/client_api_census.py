@@ -93,6 +93,73 @@ def native_function_spans(ts, source, path):
         if kind=='string': continue
         if value=='(': round_stack.append(i)
         elif value==')' and round_stack: rounds[round_stack.pop()]=i
+    def balanced_prefix(at):
+        pairs={'(':')','[':']','{':'}','<':'>'};stack=[]
+        angles=ts[at][1]=='<'
+        for index in range(at,len(ts)):
+            kind,value,_=ts[index]
+            if kind=='string':continue
+            if value in pairs and (value!='<' or angles and (not stack or stack[-1]=='>')):
+                stack.append(pairs[value])
+            elif value in ')]}' or value=='>' and angles and stack and stack[-1]=='>' and ts[index-1][1]!='-':
+                if not stack or stack.pop()!=value:return None
+                if not stack:return index+1
+        return None
+    def identifier_end(at):
+        if at<len(ts) and ts[at][0]=='id':return at+1
+        if at<len(ts) and ts[at][1]=='`':
+            for end in range(at+1,len(ts)):
+                if '\n' in source[ts[at][2]:ts[end][2]]:return None
+                if ts[end][1]=='`':return end+1 if end>at+1 else None
+        return None
+    def annotation_name_end(at):
+        end=identifier_end(at)
+        if end is None:return None
+        while end<len(ts) and ts[end][1]=='.':
+            end=identifier_end(end+1)
+            if end is None:return None
+        if end<len(ts) and ts[end][1]=='(':return balanced_prefix(end)
+        return end
+    def kotlin_declaration_start(at):
+        # Kotlin modifiers may interleave with complete annotations. Only their
+        # prefix is skipped; it never becomes part of the preceding try span.
+        modifiers={'enum','sealed','annotation','data','inner','value','override','lateinit',
+                   'public','private','internal','protected','tailrec','operator','infix','inline',
+                   'external','suspend','const','abstract','final','open','vararg','noinline','crossinline','expect','actual'}
+        targets={'file','field','property','get','set','receiver','param','setparam','delegate'}
+        while at<len(ts):
+            if ts[at][1] in modifiers:at+=1;continue
+            if ts[at][1]!='@':break
+            at+=1
+            if at+1<len(ts) and ts[at+1][1]==':':
+                if ts[at][1] not in targets:return False
+                at+=2
+            if at<len(ts) and ts[at][1]=='[':
+                at+=1;count=0
+                while at<len(ts) and ts[at][1]!=']':
+                    at=annotation_name_end(at)
+                    if at is None:return False
+                    count+=1
+                if not count or at>=len(ts):return False
+                at+=1
+            else:
+                at=annotation_name_end(at)
+                if at is None:return False
+        if at>=len(ts):return False
+        declaration=ts[at][1];following=at+1
+        if declaration=='fun' and following<len(ts) and ts[following][1]=='<':
+            following=balanced_prefix(following)
+            if following is None:return False
+        if declaration in {'fun','class','object','interface','typealias'}:
+            # An anonymous function can be an infix operand, not a following
+            # member declaration. Do not bind a prefix of that expression.
+            if declaration=='fun' and following<len(ts) and ts[following][1]=='(':
+                end=balanced_prefix(following)
+                return end is not None and end<len(ts) and ts[end][1]=='.' and identifier_end(end+1) is not None
+            return identifier_end(following) is not None
+        if declaration in {'val','var'}:return identifier_end(following) is not None or following<len(ts) and ts[following][1]=='('
+        if declaration=='companion':return following<len(ts) and ts[following][1] in {'object','data'}
+        return declaration in {'init','constructor'} and following<len(ts) and ts[following][1]==('{' if declaration=='init' else '(')
     def kotlin_try_end(start):
         if start+1>=len(ts) or ts[start][1]!='try' or ts[start+1][1]!='{':return None
         end=closes.get(start+1)
@@ -118,8 +185,7 @@ def native_function_spans(ts, source, path):
             # a chained/Elvis/cast/infix expression. Unknown tails stay unbound.
             following=end+1
             if '\n' not in source[ts[end][2]+1:ts[following][2]]:return None
-            while following<len(ts) and ts[following][1] in {'public','private','protected','internal','override','open','final','suspend','inline','tailrec','operator','infix'}:following+=1
-            if following>=len(ts) or ts[following][1] not in {'fun','val','var','class','object','interface','typealias','companion','init','constructor'}:return None
+            if not kotlin_declaration_start(following):return None
         return end
     spans = []
     for i, (kind, value, offset) in enumerate(ts):
