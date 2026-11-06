@@ -93,6 +93,34 @@ def native_function_spans(ts, source, path):
         if kind=='string': continue
         if value=='(': round_stack.append(i)
         elif value==')' and round_stack: rounds[round_stack.pop()]=i
+    def kotlin_try_end(start):
+        if start+1>=len(ts) or ts[start][1]!='try' or ts[start+1][1]!='{':return None
+        end=closes.get(start+1)
+        if end is None:return None
+        clause=False
+        while end+1<len(ts) and ts[end+1][1]=='catch':
+            arguments=end+2
+            if arguments>=len(ts) or ts[arguments][1]!='(':return None
+            close=rounds.get(arguments)
+            if close is None or close+1>=len(ts) or ts[close+1][1]!='{':return None
+            end=closes.get(close+1)
+            if end is None:return None
+            clause=True
+        if end+1<len(ts) and ts[end+1][1]=='finally':
+            body=end+2
+            if body>=len(ts) or ts[body][1]!='{':return None
+            end=closes.get(body)
+            if end is None:return None
+            clause=True
+        if not clause:return None
+        if end+1<len(ts) and ts[end+1][1] not in {'}',';'}:
+            # Support the complete standalone try expression, never a prefix of
+            # a chained/Elvis/cast/infix expression. Unknown tails stay unbound.
+            following=end+1
+            if '\n' not in source[ts[end][2]+1:ts[following][2]]:return None
+            while following<len(ts) and ts[following][1] in {'public','private','protected','internal','override','open','final','suspend','inline','tailrec','operator','infix'}:following+=1
+            if following>=len(ts) or ts[following][1] not in {'fun','val','var','class','object','interface','typealias','companion','init','constructor'}:return None
+        return end
     spans = []
     for i, (kind, value, offset) in enumerate(ts):
         objc = value in ('-', '+') and source[source.rfind('\n',0,offset)+1:offset].strip()=='' and i+1<len(ts) and ts[i+1][1]=='('
@@ -109,7 +137,12 @@ def native_function_spans(ts, source, path):
             token = ts[j][1]
             if token == '(': depth += 1
             elif token == ')': depth -= 1
-            elif depth == 0 and token in (';', '='): break
+            elif depth == 0 and token == '=':
+                if path.endswith('.kt'):
+                    end=kotlin_try_end(j+1)
+                    if end is not None:spans.append((i,end))
+                break
+            elif depth == 0 and token == ';': break
             elif depth == 0 and token == '{':
                 if j in closes: spans.append((i,closes[j]))
                 break
