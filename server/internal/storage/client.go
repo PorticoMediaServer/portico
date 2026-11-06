@@ -40,6 +40,7 @@ func FileObjectIdentity(file *os.File) (string, error) {
 }
 
 type request struct {
+	NativeInventory *nativeInventoryWire `json:"nativeInventory,omitempty"`
 	// PinnedPlayback distinguishes an accepted source-less pin from no session.
 	PinnedPlayback  bool             `json:"pinnedPlayback,omitempty"`
 	PlaybackBinding *PlaybackBinding `json:"playbackBinding,omitempty"`
@@ -223,6 +224,8 @@ func Helper(in io.Reader, out io.Writer) (result error) {
 			return errors.New("missing watcher request")
 		}
 		return inventoryWatchHelper(*r.Watch, out)
+	case "inventory-page-native-v1":
+		return nativeInventoryHelper(r.NativeInventory, out)
 	case "inventory-page":
 		if r.Inventory == nil {
 			return errors.New("missing inventory request")
