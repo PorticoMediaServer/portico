@@ -10,14 +10,7 @@ import (
 
 // Reclaim has its OWN receipt/ACK/lease owner. No mutable publisher/source
 // revision or current normalized text substitutes for this retained custody.
-type searchFragmentReclaimOwner struct {
-	id, publicationID, revision, afterFragmentID int64
-	livePublicationID                            sql.NullInt64
-	phase                                        string
-	incarnation                                  [16]byte
-	lastSequence, acknowledgedSequence           int64
-	leaseOwner, leaseGeneration, leaseExpiresMS  int64
-}
+type searchFragmentReclaimOwner = searchImageRetirementWitness
 
 type searchRetainedFragment struct {
 	id, publicationID, bankID, inputGeneration int64
@@ -77,6 +70,7 @@ func planSearchFragmentReclaim(s searchFragmentReclaimSnapshot, identity Command
 		o.incarnation != identity.Incarnation || identity.Sequence <= 0 || o.lastSequence < 0 || o.lastSequence != o.acknowledgedSequence ||
 		identity.Sequence <= o.lastSequence || identity.Sequence-o.lastSequence != 1 ||
 		o.leaseOwner <= 0 || o.leaseGeneration <= 0 || o.leaseExpiresMS <= 0 ||
+		o.attempts < 0 || o.nextAttempt.Valid && o.nextAttempt.Int64 < 0 || !o.nextAttempt.Valid && o.nextAttempt.Int64 != 0 ||
 		f.id <= o.afterFragmentID || f.publicationID != o.publicationID || f.bankID <= 0 || f.inputGeneration <= 0 ||
 		f.entityID <= 0 || f.libraryID <= 0 || f.kind != 1 || f.row.Field != 1 || f.row.Ordinal < 0 ||
 		(s.currentHead.Valid && s.currentHead.Int64 == f.publicationID) || (s.currentStage.Valid && s.currentStage.Int64 == f.publicationID) {
