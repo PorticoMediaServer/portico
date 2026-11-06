@@ -20,7 +20,7 @@
         "CacheKiB": 1024,
         "Synchronous": 2
       },
-      "sha256": "52ce21d70baa45a12964a9b75865322bbb53ff12b7a9ec82ac33fc121fc60ea7",
+      "sha256": "19bdb10e1d6769ee1fa4d9a9d51eaa71f8334308a678a2228ff4b3a029607ef1",
       "statistics": "unanalyzed",
       "implementations": "FIRST sealed entity own-primary-title head; original own native replacement; indexed tail and exact source/accounting/held custody; FULL pre-BEGIN only; no governor, native Work or runtime eligibility qualification"
     },
@@ -595,7 +595,7 @@
           "index",
           "authorization_family_teardown_due",
           "authorization_session_families",
-          2308,
+          2309,
           "CREATE INDEX authorization_family_teardown_due ON authorization_session_families(teardown_due_ms,id)"
         ],
         [
@@ -609,7 +609,7 @@
           "index",
           "authorization_revoke_operation",
           "authorization_session_families",
-          2307,
+          2308,
           "CREATE UNIQUE INDEX authorization_revoke_operation ON authorization_session_families(revoke_operation_id)"
         ],
         [
@@ -819,21 +819,21 @@
           "index",
           "catalog_credit_image_source_proof",
           "catalog_credit_images",
-          2325,
+          2326,
           "CREATE INDEX catalog_credit_image_source_proof ON catalog_credit_images(source_proof_owner,source_proof_incarnation,source_proof_sequence,source_proof_kind,source_proof_publication_id,entity_id,source_proof_provider)"
         ],
         [
           "index",
           "catalog_credit_images_due",
           "catalog_credit_images",
-          2283,
+          2284,
           "CREATE INDEX catalog_credit_images_due ON catalog_credit_images(job_due_ms,id) WHERE job_due_ms IS NOT NULL"
         ],
         [
           "index",
           "catalog_credit_images_entity",
           "catalog_credit_images",
-          2282,
+          2283,
           "CREATE INDEX catalog_credit_images_entity ON catalog_credit_images(entity_id,entity_incarnation,owner_revision,id)"
         ],
         [
@@ -847,7 +847,7 @@
           "index",
           "catalog_credits_entity",
           "catalog_credits",
-          2276,
+          2277,
           "CREATE INDEX catalog_credits_entity ON catalog_credits(entity_id,image_id,ord)"
         ],
         [
@@ -1813,7 +1813,7 @@
           "index",
           "credit_owner_entries_input",
           "credit_owner_entries",
-          2287,
+          2288,
           "CREATE UNIQUE INDEX credit_owner_entries_input ON credit_owner_entries(entity_id,owner_incarnation,owner_revision,input_ordinal) WHERE input_ordinal IS NOT NULL"
         ],
         [
@@ -1862,7 +1862,7 @@
           "index",
           "credit_source_publication_seal_proof",
           "credit_source_publications",
-          2324,
+          2325,
           "CREATE INDEX credit_source_publication_seal_proof ON credit_source_publications(seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind,publication_id,entity_id,provider)"
         ],
         [
@@ -2212,35 +2212,35 @@
           "index",
           "enrichment_proof_due",
           "enrichment_command_receipts",
-          2318,
+          2319,
           "CREATE INDEX enrichment_proof_due ON enrichment_command_receipts(proof_reclaim_due_ms,provider_operation_id,command_incarnation,command_sequence)"
         ],
         [
           "index",
           "enrichment_receipt_subject",
           "enrichment_command_receipts",
-          2258,
+          2259,
           "CREATE INDEX enrichment_receipt_subject ON enrichment_command_receipts(entity_id)"
         ],
         [
           "index",
           "enrichment_result_source_proof",
           "enrichment_command_receipts",
-          2317,
+          2318,
           "CREATE INDEX enrichment_result_source_proof ON enrichment_command_receipts(source_dependency_owner,source_dependency_incarnation,source_dependency_sequence,source_dependency_kind,source_dependency_publication_id,entity_id,source_dependency_provider)"
         ],
         [
           "index",
           "enrichment_seal_subject_namespace",
           "enrichment_command_receipts",
-          2314,
+          2315,
           "CREATE INDEX enrichment_seal_subject_namespace ON enrichment_command_receipts(seal_subject_id,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape)"
         ],
         [
           "index",
           "enrichment_upstream_evidence_proof",
           "enrichment_command_receipts",
-          2315,
+          2316,
           "CREATE INDEX enrichment_upstream_evidence_proof ON enrichment_command_receipts(upstream_evidence_owner,upstream_evidence_incarnation,upstream_evidence_sequence,upstream_evidence_kind,seal_evidence_id,seal_subject_id,seal_parser_version)"
         ],
         [
@@ -2779,7 +2779,7 @@
           "index",
           "inventory_runs_create_operation",
           "inventory_runs",
-          2302,
+          2303,
           "CREATE UNIQUE INDEX inventory_runs_create_operation ON inventory_runs(create_operation_id)"
         ],
         [
@@ -2793,7 +2793,7 @@
           "index",
           "inventory_runs_original_library",
           "inventory_runs",
-          2301,
+          2302,
           "CREATE INDEX inventory_runs_original_library ON inventory_runs(original_library_id,job_id)"
         ],
         [
@@ -2837,6 +2837,13 @@
           "inventory_scan_issues",
           1726,
           "CREATE INDEX inventory_scan_issues_reading_coverage ON inventory_scan_issues(job_id,sequence) WHERE protect=1"
+        ],
+        [
+          "index",
+          "inventory_scan_issues_refusal",
+          "inventory_scan_issues",
+          2328,
+          "CREATE INDEX inventory_scan_issues_refusal ON inventory_scan_issues(job_id,refusal_operation_id,refused_entry_kind)"
         ],
         [
           "index",
@@ -3045,42 +3052,42 @@
           "index",
           "listening_instant_subject",
           "listening_play_instants",
-          2265,
+          2266,
           "CREATE INDEX listening_instant_subject ON listening_play_instants(subject_id,profile_id,activity_generation,started_ms)"
         ],
         [
           "index",
           "listening_item_subject",
           "listening_item_buckets",
-          2260,
+          2261,
           "CREATE INDEX listening_item_subject ON listening_item_buckets(subject_id,profile_id,activity_generation,grain,bucket_ms)"
         ],
         [
           "index",
           "listening_item_window",
           "listening_item_buckets",
-          2261,
+          2262,
           "CREATE INDEX listening_item_window ON listening_item_buckets(profile_id,activity_generation,subject_id,grain,bucket_ms)"
         ],
         [
           "index",
           "listening_time_span_identity",
           "listening_time_spans",
-          2267,
+          2268,
           "CREATE UNIQUE INDEX listening_time_span_identity ON listening_time_spans(profile_id,activity_generation,subject_id,until_ms,from_ms)"
         ],
         [
           "index",
           "listening_time_span_profile",
           "listening_time_spans",
-          2268,
+          2269,
           "CREATE INDEX listening_time_span_profile ON listening_time_spans(profile_id,activity_generation,from_ms,id)"
         ],
         [
           "index",
           "listening_time_span_subject",
           "listening_time_spans",
-          2269,
+          2270,
           "CREATE INDEX listening_time_span_subject ON listening_time_spans(subject_id,profile_id,activity_generation,from_ms,id)"
         ],
         [
@@ -3367,7 +3374,7 @@
           "index",
           "metadata_build_owner",
           "metadata_evidence_builds",
-          2295,
+          2296,
           "CREATE INDEX metadata_build_owner ON metadata_evidence_builds(owner_operation,owner_incarnation,state,id)"
         ],
         [
@@ -3381,14 +3388,14 @@
           "index",
           "metadata_build_root_active",
           "metadata_evidence_builds",
-          2294,
+          2295,
           "CREATE UNIQUE INDEX metadata_build_root_active ON metadata_evidence_builds(owner_operation,owner_incarnation) WHERE owner_operation\u003c\u003e'' AND parent_build IS NULL AND state IN('building','ready')"
         ],
         [
           "index",
           "metadata_build_state",
           "metadata_evidence_builds",
-          2296,
+          2297,
           "CREATE INDEX metadata_build_state ON metadata_evidence_builds(state,id)"
         ],
         [
@@ -3500,7 +3507,7 @@
           "index",
           "metadata_evidence_seal_proof",
           "metadata_evidence",
-          2319,
+          2320,
           "CREATE INDEX metadata_evidence_seal_proof ON metadata_evidence(seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind,id,subject_id,parser_version)"
         ],
         [
@@ -3556,14 +3563,14 @@
           "index",
           "metadata_operation_credit_image",
           "metadata_provider_operations",
-          2275,
+          2276,
           "CREATE UNIQUE INDEX metadata_operation_credit_image ON metadata_provider_operations(credit_image_id) WHERE credit_image_id IS NOT NULL"
         ],
         [
           "index",
           "metadata_operation_proof_due",
           "metadata_provider_operations",
-          2323,
+          2324,
           "CREATE INDEX metadata_operation_proof_due ON metadata_provider_operations(proof_reclaim_due_ms,id)"
         ],
         [
@@ -3584,21 +3591,21 @@
           "index",
           "metadata_operation_source_evidence_body",
           "metadata_provider_operations",
-          2321,
+          2322,
           "CREATE INDEX metadata_operation_source_evidence_body ON metadata_provider_operations(source_evidence_id,source_subject_id)"
         ],
         [
           "index",
           "metadata_operation_source_evidence_proof",
           "metadata_provider_operations",
-          2322,
+          2323,
           "CREATE INDEX metadata_operation_source_evidence_proof ON metadata_provider_operations(source_evidence_owner,source_evidence_incarnation,source_evidence_sequence,source_evidence_kind,source_evidence_id,source_subject_id,source_parser_version)"
         ],
         [
           "index",
           "metadata_operation_source_publication",
           "metadata_provider_operations",
-          2320,
+          2321,
           "CREATE INDEX metadata_operation_source_publication ON metadata_provider_operations(source_publication_id,entity_id,provider)"
         ],
         [
@@ -3759,21 +3766,21 @@
           "index",
           "metadata_repair_credit_cohort",
           "metadata_repair_cascades",
-          2288,
+          2289,
           "CREATE UNIQUE INDEX metadata_repair_credit_cohort ON metadata_repair_cascades(entity_id,credit_owner_incarnation,credit_target_owner_revision)"
         ],
         [
           "index",
           "metadata_repair_credit_image",
           "metadata_repair_cascades",
-          2289,
+          2290,
           "CREATE UNIQUE INDEX metadata_repair_credit_image ON metadata_repair_cascades(credit_image_id) WHERE credit_image_id IS NOT NULL"
         ],
         [
           "index",
           "metadata_repair_credit_request",
           "metadata_repair_cascades",
-          2290,
+          2291,
           "CREATE UNIQUE INDEX metadata_repair_credit_request ON metadata_repair_cascades(actor,entity_id,base_revision,credit_request_digest) WHERE intent='credit-owner-single-v1' AND credit_phase IN('credit_capture','credit_prepare','credit_stage','credit_seal','credit_ready','credit_published')"
         ],
         [
@@ -4326,14 +4333,14 @@
           "index",
           "play_history_admin_item_start",
           "play_history",
-          2273,
+          2274,
           "CREATE INDEX play_history_admin_item_start ON play_history(subject_id,started_ms,id) WHERE started_ms IS NOT NULL"
         ],
         [
           "index",
           "play_history_admin_start",
           "play_history",
-          2271,
+          2272,
           "CREATE INDEX play_history_admin_start ON play_history(started_ms,id) WHERE started_ms IS NOT NULL"
         ],
         [
@@ -4354,7 +4361,7 @@
           "index",
           "play_history_admin_user_start",
           "play_history",
-          2272,
+          2273,
           "CREATE INDEX play_history_admin_user_start ON play_history(account_key,started_ms,id) WHERE started_ms IS NOT NULL"
         ],
         [
@@ -4375,14 +4382,14 @@
           "index",
           "playback_claim_start_fk",
           "playback_personal_claims",
-          2312,
+          2313,
           "CREATE INDEX playback_claim_start_fk ON playback_personal_claims(occurrence_start_event_id)"
         ],
         [
           "index",
           "playback_claim_subject_fk",
           "playback_personal_claims",
-          2311,
+          2312,
           "CREATE INDEX playback_claim_subject_fk ON playback_personal_claims(command_library_id,item_id)"
         ],
         [
@@ -4417,7 +4424,7 @@
           "index",
           "playback_pending_start_fk",
           "playback_personal_claims",
-          2313,
+          2314,
           "CREATE INDEX playback_pending_start_fk ON playback_personal_claims(pending_time_start_event_id)"
         ],
         [
@@ -4445,14 +4452,14 @@
           "index",
           "playback_receipt_reclaim_due",
           "playback_personal_claims",
-          2310,
+          2311,
           "CREATE INDEX playback_receipt_reclaim_due ON playback_personal_claims(receipt_reclaim_due_ms,playback_id)"
         ],
         [
           "index",
           "playback_reclaim_operation",
           "playback_personal_claims",
-          2309,
+          2310,
           "CREATE UNIQUE INDEX playback_reclaim_operation ON playback_personal_claims(reclaim_operation_id)"
         ],
         [
@@ -4508,7 +4515,7 @@
           "index",
           "playback_time_pending",
           "playback_personal_claims",
-          2270,
+          2271,
           "CREATE INDEX playback_time_pending ON playback_personal_claims(profile_key,pending_time_activity_generation,pending_time_cursor_ms,playback_id) WHERE pending_time_from_ms IS NOT NULL"
         ],
         [
@@ -5066,16 +5073,23 @@
         ],
         [
           "index",
+          "scan_receipt_refusal_kind",
+          "scan_command_receipts",
+          2327,
+          "CREATE UNIQUE INDEX scan_receipt_refusal_kind ON scan_command_receipts(run_id,operation_id,refused_entry_kind)"
+        ],
+        [
+          "index",
           "scan_result_asset",
           "scan_command_results",
-          2242,
+          2243,
           "CREATE INDEX scan_result_asset ON scan_command_results(library_id,asset_id)"
         ],
         [
           "index",
           "scan_result_subject",
           "scan_command_results",
-          2241,
+          2242,
           "CREATE INDEX scan_result_subject ON scan_command_results(library_id,subject_id)"
         ],
         [
@@ -5887,14 +5901,14 @@
           "index",
           "sqlite_autoindex_catalog_credit_images_1",
           "catalog_credit_images",
-          2278,
+          2279,
           null
         ],
         [
           "index",
           "sqlite_autoindex_catalog_credit_images_2",
           "catalog_credit_images",
-          2279,
+          2280,
           null
         ],
         [
@@ -6342,7 +6356,7 @@
           "index",
           "sqlite_autoindex_credit_image_reclaim_receipts_2",
           "credit_image_reclaim_receipts",
-          2286,
+          2287,
           null
         ],
         [
@@ -6601,21 +6615,21 @@
           "index",
           "sqlite_autoindex_enrichment_command_receipts_2",
           "enrichment_command_receipts",
-          2252,
+          2253,
           null
         ],
         [
           "index",
           "sqlite_autoindex_enrichment_command_receipts_3",
           "enrichment_command_receipts",
-          2253,
+          2254,
           null
         ],
         [
           "index",
           "sqlite_autoindex_enrichment_command_receipts_4",
           "enrichment_command_receipts",
-          2254,
+          2255,
           null
         ],
         [
@@ -7084,7 +7098,7 @@
           "index",
           "sqlite_autoindex_inventory_version_links_1",
           "inventory_version_links",
-          555,
+          556,
           null
         ],
         [
@@ -7105,28 +7119,28 @@
           "index",
           "sqlite_autoindex_job_observations_1",
           "job_observations",
-          563,
+          564,
           null
         ],
         [
           "index",
           "sqlite_autoindex_jobs_1",
           "jobs",
-          565,
+          566,
           null
         ],
         [
           "index",
           "sqlite_autoindex_lc_candidates_1",
           "lc_candidates",
-          567,
+          568,
           null
         ],
         [
           "index",
           "sqlite_autoindex_lc_candidates_2",
           "lc_candidates",
-          568,
+          569,
           null
         ],
         [
@@ -7154,7 +7168,7 @@
           "index",
           "sqlite_autoindex_lc_generations_1",
           "lc_generations",
-          576,
+          577,
           null
         ],
         [
@@ -7189,28 +7203,28 @@
           "index",
           "sqlite_autoindex_lc_used_1",
           "lc_used",
-          588,
+          589,
           null
         ],
         [
           "index",
           "sqlite_autoindex_libraries_1",
           "libraries",
-          590,
+          591,
           null
         ],
         [
           "index",
           "sqlite_autoindex_library_navigation_1",
           "library_navigation",
-          594,
+          595,
           null
         ],
         [
           "index",
           "sqlite_autoindex_library_navigation_revisions_1",
           "library_navigation_revisions",
-          596,
+          597,
           null
         ],
         [
@@ -7259,14 +7273,14 @@
           "index",
           "sqlite_autoindex_live_channel_choices_1",
           "live_channel_choices",
-          610,
+          611,
           null
         ],
         [
           "index",
           "sqlite_autoindex_live_channel_preferences_1",
           "live_channel_preferences",
-          612,
+          613,
           null
         ],
         [
@@ -7833,7 +7847,7 @@
           "index",
           "sqlite_autoindex_metadata_repair_command_receipts_2",
           "metadata_repair_command_receipts",
-          2292,
+          2293,
           null
         ],
         [
@@ -8211,7 +8225,7 @@
           "index",
           "sqlite_autoindex_playback_claim_command_receipts_2",
           "playback_claim_command_receipts",
-          2304,
+          2305,
           null
         ],
         [
@@ -9149,7 +9163,7 @@
           "index",
           "sqlite_autoindex_search_generation_receipts_2",
           "search_generation_receipts",
-          2247,
+          2248,
           null
         ],
         [
@@ -9233,7 +9247,7 @@
           "index",
           "sqlite_autoindex_search_publish_receipts_2",
           "search_publish_receipts",
-          2244,
+          2245,
           null
         ],
         [
@@ -9261,7 +9275,7 @@
           "index",
           "sqlite_autoindex_search_reclaim_receipts_2",
           "search_reclaim_receipts",
-          2250,
+          2251,
           null
         ],
         [
@@ -9905,14 +9919,14 @@
           "table",
           "access_channel_rules",
           "access_channel_rules",
-          2300,
+          2301,
           "CREATE TABLE access_channel_rules(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n channel_id TEXT NOT NULL CHECK(length(channel_id)\u003e0),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(channel_id)='text')\n) WITHOUT ROWID"
         ],
         [
           "table",
           "access_denied_labels",
           "access_denied_labels",
-          2297,
+          2298,
           "CREATE TABLE access_denied_labels(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n label TEXT NOT NULL CHECK(length(label)\u003e0),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(label)='text')\n) WITHOUT ROWID"
         ],
         [
@@ -9947,7 +9961,7 @@
           "table",
           "access_schedule_windows",
           "access_schedule_windows",
-          2299,
+          2300,
           "CREATE TABLE access_schedule_windows(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n day_mask INTEGER NOT NULL CHECK(day_mask BETWEEN 1 AND 127),\n start_minute INTEGER NOT NULL CHECK(start_minute BETWEEN 0 AND 1439),\n end_minute INTEGER NOT NULL CHECK(end_minute BETWEEN 0 AND 1440 AND end_minute\u003c\u003estart_minute),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(day_mask)='integer'),\n CHECK(typeof(start_minute)='integer'),\n CHECK(typeof(end_minute)='integer')\n) WITHOUT ROWID"
         ],
         [
@@ -10458,7 +10472,7 @@
           "table",
           "catalog_credit_images",
           "catalog_credit_images",
-          2277,
+          2278,
           "CREATE TABLE catalog_credit_images(\n id INTEGER PRIMARY KEY AUTOINCREMENT,\n entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),\n revision INTEGER NOT NULL DEFAULT 1 CHECK(revision\u003e0),\n entity_incarnation BLOB NOT NULL CHECK(length(entity_incarnation)=16),\n source_revision INTEGER NOT NULL CHECK(source_revision\u003e0),\n identity_revision INTEGER NOT NULL CHECK(identity_revision\u003e0),\n metadata_revision INTEGER NOT NULL CHECK(metadata_revision\u003e0),\n owner_revision INTEGER NOT NULL CHECK(owner_revision\u003e0),\n policy_incarnation BLOB NOT NULL CHECK(length(policy_incarnation)=16),\n policy_revision INTEGER NOT NULL CHECK(policy_revision\u003e=0),\n consent_revision INTEGER NOT NULL CHECK(consent_revision\u003e=0),\n metadata_language TEXT NOT NULL,\n source_manifest_digest BLOB NOT NULL CHECK(length(source_manifest_digest)=32),\n build_request_digest BLOB NOT NULL CHECK(length(build_request_digest)=32),\n manifest_algorithm TEXT NOT NULL CHECK(length(manifest_algorithm)\u003e0),\n build_expected_count INTEGER NOT NULL CHECK(build_expected_count\u003e=0),\n build_expected_bytes INTEGER NOT NULL CHECK(build_expected_bytes\u003e=0),\n build_expected_digest BLOB NOT NULL CHECK(length(build_expected_digest)=32),\n build_staged_count INTEGER NOT NULL DEFAULT 0 CHECK(build_staged_count\u003e=0),\n build_staged_bytes INTEGER NOT NULL DEFAULT 0 CHECK(build_staged_bytes\u003e=0),\n build_verified_count INTEGER NOT NULL DEFAULT 0 CHECK(build_verified_count\u003e=0),\n build_verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK(build_verified_bytes\u003e=0),\n build_seed BLOB NOT NULL CHECK(length(build_seed)=32),\n build_chain BLOB NOT NULL CHECK(length(build_chain)=32),\n build_after_ord INTEGER NOT NULL DEFAULT -1 CHECK(build_after_ord\u003e=-1),\n member_count INTEGER NOT NULL DEFAULT 0 CHECK(member_count\u003e=0),\n prepared_bytes INTEGER NOT NULL DEFAULT 0 CHECK(prepared_bytes\u003e=0),\n manifest_digest BLOB CHECK(manifest_digest IS NULL OR length(manifest_digest)=32),\n current_input_digest BLOB NOT NULL CHECK(length(current_input_digest)=32),\n sealed INTEGER NOT NULL DEFAULT 0 CHECK(sealed IN(0,1)),\n remaining_rows INTEGER NOT NULL DEFAULT 0 CHECK(remaining_rows\u003e=0),\n remaining_bytes INTEGER NOT NULL DEFAULT 0 CHECK(remaining_bytes\u003e=0),\n reclaim_state TEXT NOT NULL DEFAULT 'held' CHECK(reclaim_state IN('held','ready','running','complete')),\n reclaim_after_ord INTEGER NOT NULL DEFAULT -1 CHECK(reclaim_after_ord\u003e=-1),\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence\u003e=0),\n acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence\u003e=0),\n job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision\u003e0),\n job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner\u003e=0),\n job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation\u003e=0),\n job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms\u003e=0),\n job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts\u003e=0),\n job_next_attempt_ms INTEGER,\n job_due_ms INTEGER GENERATED ALWAYS AS(CASE WHEN reclaim_state IN('ready','running') AND job_next_attempt_ms IS NOT NULL THEN max(job_next_attempt_ms,job_lease_expires_ms) END) VIRTUAL,\n source_proof_owner TEXT,\n source_proof_incarnation BLOB CHECK(source_proof_incarnation IS NULL OR length(source_proof_incarnation)=16),\n source_proof_sequence INTEGER CHECK(source_proof_sequence IS NULL OR source_proof_sequence\u003e0),\n source_proof_kind TEXT GENERATED ALWAYS AS (CASE WHEN source_proof_owner IS NOT NULL THEN 'credit_source_seal' END) VIRTUAL,\n source_proof_publication_id TEXT,\n source_proof_provider TEXT,\n UNIQUE(id,entity_id),\n UNIQUE(id,command_incarnation),\n CHECK(build_verified_count\u003c=build_staged_count AND build_staged_count\u003c=build_expected_count),\n CHECK(build_verified_bytes\u003c=build_staged_bytes AND build_staged_bytes\u003c=build_expected_bytes),\n CHECK(remaining_rows\u003c=max(build_staged_count,member_count) AND remaining_bytes\u003c=max(build_staged_bytes,prepared_bytes)),\n CHECK(sealed=0 OR (build_verified_count=build_expected_count AND build_verified_bytes=build_expected_bytes AND build_chain=build_expected_digest AND manifest_digest IS NOT NULL)),\n CHECK(reclaim_state\u003c\u003e'complete' OR (remaining_rows=0 AND remaining_bytes=0)),\n CHECK(acknowledged_command_sequence\u003c=last_command_sequence),\n CHECK(typeof(\"id\")IN('null','integer')),\n CHECK(typeof(\"entity_id\")IN('null','integer')),\n CHECK(typeof(\"revision\")IN('null','integer')),\n CHECK(typeof(\"entity_incarnation\")IN('null','blob')),\n CHECK(typeof(\"source_revision\")IN('null','integer')),\n CHECK(typeof(\"identity_revision\")IN('null','integer')),\n CHECK(typeof(\"metadata_revision\")IN('null','integer')),\n CHECK(typeof(\"owner_revision\")IN('null','integer')),\n CHECK(typeof(\"policy_incarnation\")IN('null','blob')),\n CHECK(typeof(\"policy_revision\")IN('null','integer')),\n CHECK(typeof(\"consent_revision\")IN('null','integer')),\n CHECK(typeof(\"metadata_language\")IN('null','text')),\n CHECK(typeof(\"source_manifest_digest\")IN('null','blob')),\n CHECK(typeof(\"build_request_digest\")IN('null','blob')),\n CHECK(typeof(\"manifest_algorithm\")IN('null','text')),\n CHECK(typeof(\"build_expected_count\")IN('null','integer')),\n CHECK(typeof(\"build_expected_bytes\")IN('null','integer')),\n CHECK(typeof(\"build_expected_digest\")IN('null','blob')),\n CHECK(typeof(\"build_staged_count\")IN('null','integer')),\n CHECK(typeof(\"build_staged_bytes\")IN('null','integer')),\n CHECK(typeof(\"build_verified_count\")IN('null','integer')),\n CHECK(typeof(\"build_verified_bytes\")IN('null','integer')),\n CHECK(typeof(\"build_seed\")IN('null','blob')),\n CHECK(typeof(\"build_chain\")IN('null','blob')),\n CHECK(typeof(\"build_after_ord\")IN('null','integer')),\n CHECK(typeof(\"member_count\")IN('null','integer')),\n CHECK(typeof(\"prepared_bytes\")IN('null','integer')),\n CHECK(typeof(\"manifest_digest\")IN('null','blob')),\n CHECK(typeof(\"current_input_digest\")IN('null','blob')),\n CHECK(typeof(\"sealed\")IN('null','integer')),\n CHECK(typeof(\"remaining_rows\")IN('null','integer')),\n CHECK(typeof(\"remaining_bytes\")IN('null','integer')),\n CHECK(typeof(\"reclaim_state\")IN('null','text')),\n CHECK(typeof(\"reclaim_after_ord\")IN('null','integer')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"last_command_sequence\")IN('null','integer')),\n CHECK(typeof(\"acknowledged_command_sequence\")IN('null','integer')),\n CHECK(typeof(\"job_revision\")IN('null','integer')),\n CHECK(typeof(\"job_lease_owner\")IN('null','integer')),\n CHECK(typeof(\"job_lease_generation\")IN('null','integer')),\n CHECK(typeof(\"job_lease_expires_ms\")IN('null','integer')),\n CHECK(typeof(\"job_attempts\")IN('null','integer')),\n CHECK(typeof(\"job_next_attempt_ms\")IN('null','integer')),\n CHECK(typeof(\"job_due_ms\")IN('null','integer')),\n CHECK((source_proof_owner IS NULL)=(source_proof_incarnation IS NULL)),\n CHECK((source_proof_owner IS NULL)=(source_proof_sequence IS NULL)),\n CHECK((source_proof_owner IS NULL)=(source_proof_publication_id IS NULL)),\n CHECK((source_proof_owner IS NULL)=(source_proof_provider IS NULL)),\n FOREIGN KEY(source_proof_owner,source_proof_incarnation,source_proof_sequence,source_proof_kind,source_proof_publication_id,entity_id,source_proof_provider) REFERENCES enrichment_command_receipts(provider_operation_id,command_incarnation,command_sequence,command_kind,publication_id,entity_id,seal_provider) ON DELETE NO ACTION ON UPDATE NO ACTION,\n CHECK(typeof(source_proof_owner) IN('null','text')),\n CHECK(typeof(source_proof_incarnation) IN('null','blob')),\n CHECK(typeof(source_proof_sequence) IN('null','integer')),\n CHECK(typeof(source_proof_publication_id) IN('null','text')),\n CHECK(typeof(source_proof_provider) IN('null','text'))\n)"
         ],
         [
@@ -11039,7 +11053,7 @@
           "table",
           "credit_image_reclaim_receipts",
           "credit_image_reclaim_receipts",
-          2285,
+          2286,
           "CREATE TABLE credit_image_reclaim_receipts(\n image_id INTEGER NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('rows_reclaim','image_retire')),\n accepted_revision INTEGER NOT NULL CHECK(accepted_revision\u003e0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n after_ord INTEGER NOT NULL CHECK(after_ord\u003e=-1),\n removed_count INTEGER NOT NULL CHECK(removed_count\u003e=0),\n remaining_rows INTEGER NOT NULL CHECK(remaining_rows\u003e=0),\n complete INTEGER NOT NULL CHECK(complete IN(0,1)),\n PRIMARY KEY(image_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(image_id,command_incarnation) REFERENCES catalog_credit_images(id,command_incarnation),\n CHECK(typeof(\"image_id\")IN('null','integer')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"operation_id\")IN('null','blob')),\n CHECK(typeof(\"request_digest\")IN('null','blob')),\n CHECK(typeof(\"command_kind\")IN('null','text')),\n CHECK(typeof(\"accepted_revision\")IN('null','integer')),\n CHECK(typeof(\"applied_ms\")IN('null','integer')),\n CHECK(typeof(\"after_ord\")IN('null','integer')),\n CHECK(typeof(\"removed_count\")IN('null','integer')),\n CHECK(typeof(\"remaining_rows\")IN('null','integer')),\n CHECK(typeof(\"complete\")IN('null','integer'))\n) WITHOUT ROWID"
         ],
         [
@@ -11305,7 +11319,7 @@
           "table",
           "enrichment_command_receipts",
           "enrichment_command_receipts",
-          2251,
+          2252,
           "CREATE TABLE enrichment_command_receipts(\n provider_operation_id TEXT NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('evidence_stage','credit_stage','people_stage','effective_stage','effective_seal','enrich_accept','enrich_delta_accept','evidence_seal','credit_source_seal')),\n accepted_revision INTEGER NOT NULL CHECK(accepted_revision\u003e=0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),\n after_item TEXT NOT NULL,\n after_ordinal INTEGER NOT NULL CHECK(after_ordinal\u003e=0),\n publication_id TEXT,\n effective_image_id INTEGER,\n effective_image_revision INTEGER,\n result_count INTEGER NOT NULL CHECK(result_count\u003e=0),\n result_digest BLOB NOT NULL CHECK(length(result_digest)=32),\n seal_version INTEGER,\n seal_evidence_id TEXT,\n seal_subject_id INTEGER,\n seal_parser_version TEXT,\n seal_provider TEXT,\n seal_subject_kind TEXT,\n seal_provider_id TEXT,\n seal_language TEXT,\n seal_region TEXT,\n seal_request_shape TEXT,\n seal_observation_digest TEXT,\n seal_owner_generation INTEGER,\n seal_build_id TEXT,\n seal_build_generation INTEGER,\n seal_content_revision INTEGER,\n seal_algorithm TEXT,\n seal_commitment BLOB,\n seal_verified_rows INTEGER,\n seal_canonical_bytes INTEGER,\n seal_retained_bytes INTEGER,\n proof_revision INTEGER NOT NULL DEFAULT 1 CHECK(proof_revision\u003e0),\n proof_pin_count INTEGER NOT NULL DEFAULT 0 CHECK(proof_pin_count\u003e=0),\n proof_reclaim_due_ms INTEGER CHECK(proof_reclaim_due_ms IS NULL OR proof_reclaim_due_ms\u003e=0),\n proof_cleanup_after_sequence INTEGER NOT NULL DEFAULT 0 CHECK(proof_cleanup_after_sequence\u003e=0),\n upstream_evidence_owner TEXT,\n upstream_evidence_incarnation BLOB CHECK(upstream_evidence_incarnation IS NULL OR length(upstream_evidence_incarnation)=16),\n upstream_evidence_sequence INTEGER CHECK(upstream_evidence_sequence IS NULL OR upstream_evidence_sequence\u003e0),\n upstream_evidence_kind TEXT GENERATED ALWAYS AS (CASE WHEN upstream_evidence_owner IS NOT NULL THEN 'evidence_seal' END) VIRTUAL,\n source_dependency_owner TEXT,\n source_dependency_incarnation BLOB CHECK(source_dependency_incarnation IS NULL OR length(source_dependency_incarnation)=16),\n source_dependency_sequence INTEGER CHECK(source_dependency_sequence IS NULL OR source_dependency_sequence\u003e0),\n source_dependency_kind TEXT GENERATED ALWAYS AS (CASE WHEN source_dependency_owner IS NOT NULL THEN 'credit_source_seal' END) VIRTUAL,\n source_dependency_publication_id TEXT,\n source_dependency_provider TEXT,\n PRIMARY KEY(provider_operation_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(provider_operation_id,command_incarnation) REFERENCES metadata_provider_operations(id,command_incarnation),\n CHECK(typeof(\"provider_operation_id\")IN('null','text')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"operation_id\")IN('null','blob')),\n CHECK(typeof(\"request_digest\")IN('null','blob')),\n CHECK(typeof(\"command_kind\")IN('null','text')),\n CHECK(typeof(\"accepted_revision\")IN('null','integer')),\n CHECK(typeof(\"applied_ms\")IN('null','integer')),\n CHECK(typeof(\"entity_id\")IN('null','integer')),\n CHECK(typeof(\"after_item\")IN('null','text')),\n CHECK(typeof(\"after_ordinal\")IN('null','integer')),\n CHECK(typeof(\"publication_id\")IN('null','text')),\n CHECK(typeof(\"effective_image_id\")IN('null','integer')),\n CHECK(typeof(\"effective_image_revision\")IN('null','integer')),\n CHECK(typeof(\"result_count\")IN('null','integer')),\n CHECK(typeof(\"result_digest\")IN('null','blob')),\n CHECK((seal_version IS NULL)=(seal_evidence_id IS NULL)),\n CHECK((seal_version IS NULL)=(seal_subject_id IS NULL)),\n CHECK((seal_version IS NULL)=(seal_parser_version IS NULL)),\n CHECK((seal_version IS NULL)=(seal_provider IS NULL)),\n CHECK((seal_version IS NULL)=(seal_subject_kind IS NULL)),\n CHECK((seal_version IS NULL)=(seal_provider_id IS NULL)),\n CHECK((seal_version IS NULL)=(seal_language IS NULL)),\n CHECK((seal_version IS NULL)=(seal_region IS NULL)),\n CHECK((seal_version IS NULL)=(seal_request_shape IS NULL)),\n CHECK((seal_version IS NULL)=(seal_observation_digest IS NULL)),\n CHECK((seal_version IS NULL)=(seal_owner_generation IS NULL)),\n CHECK((seal_version IS NULL)=(seal_content_revision IS NULL)),\n CHECK((seal_version IS NULL)=(seal_algorithm IS NULL)),\n CHECK((seal_version IS NULL)=(seal_commitment IS NULL)),\n CHECK((seal_version IS NULL)=(seal_verified_rows IS NULL)),\n CHECK((seal_version IS NULL)=(seal_canonical_bytes IS NULL)),\n CHECK((seal_version IS NULL)=(seal_retained_bytes IS NULL)),\n CHECK((upstream_evidence_owner IS NULL)=(upstream_evidence_incarnation IS NULL)),\n CHECK((upstream_evidence_owner IS NULL)=(upstream_evidence_sequence IS NULL)),\n CHECK((source_dependency_owner IS NULL)=(source_dependency_incarnation IS NULL)),\n CHECK((source_dependency_owner IS NULL)=(source_dependency_sequence IS NULL)),\n CHECK((source_dependency_owner IS NULL)=(source_dependency_publication_id IS NULL)),\n CHECK((source_dependency_owner IS NULL)=(source_dependency_provider IS NULL)),\n CHECK((command_kind IN('evidence_seal','credit_source_seal'))=(seal_version IS NOT NULL)),\n CHECK((command_kind='evidence_seal')=(seal_build_id IS NOT NULL)),\n CHECK((seal_build_id IS NULL)=(seal_build_generation IS NULL)),\n CHECK((command_kind='credit_source_seal')=(upstream_evidence_owner IS NOT NULL)),\n CHECK(command_kind NOT IN('evidence_seal','credit_source_seal') OR (seal_version\u003e0 AND seal_owner_generation\u003e0 AND seal_content_revision\u003e0 AND seal_verified_rows\u003e=0 AND seal_canonical_bytes\u003e=0 AND seal_retained_bytes\u003e0 AND length(seal_commitment)=32 AND length(seal_algorithm)\u003e0 AND length(seal_observation_digest)=64 AND seal_observation_digest NOT GLOB '*[^0-9a-f]*' AND result_count=0 AND effective_image_id IS NULL AND effective_image_revision IS NULL)),\n CHECK(command_kind\u003c\u003e'evidence_seal' OR (publication_id IS NULL AND seal_build_generation\u003e0 AND seal_verified_rows\u003e0 AND after_ordinal=seal_verified_rows)),\n CHECK(command_kind\u003c\u003e'credit_source_seal' OR (publication_id IS NOT NULL AND after_ordinal=seal_verified_rows)),\n CHECK(source_dependency_owner IS NULL OR command_kind IN('effective_stage','effective_seal','enrich_accept','enrich_delta_accept')),\n CHECK(command_kind IN('evidence_seal','credit_source_seal') OR (proof_pin_count=0 AND proof_reclaim_due_ms IS NULL AND proof_cleanup_after_sequence=0)),\n UNIQUE(provider_operation_id,command_incarnation,command_sequence,command_kind,seal_evidence_id,seal_subject_id,seal_parser_version),\n UNIQUE(provider_operation_id,command_incarnation,command_sequence,command_kind,publication_id,entity_id,seal_provider),\n FOREIGN KEY(seal_subject_id,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape) REFERENCES metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape) ON DELETE NO ACTION ON UPDATE NO ACTION,\n FOREIGN KEY(upstream_evidence_owner,upstream_evidence_incarnation,upstream_evidence_sequence,upstream_evidence_kind,seal_evidence_id,seal_subject_id,seal_parser_version) REFERENCES enrichment_command_receipts(provider_operation_id,command_incarnation,command_sequence,command_kind,seal_evidence_id,seal_subject_id,seal_parser_version) ON DELETE NO ACTION ON UPDATE NO ACTION,\n FOREIGN KEY(source_dependency_owner,source_dependency_incarnation,source_dependency_sequence,source_dependency_kind,source_dependency_publication_id,entity_id,source_dependency_provider) REFERENCES enrichment_command_receipts(provider_operation_id,command_incarnation,command_sequence,command_kind,publication_id,entity_id,seal_provider) ON DELETE NO ACTION ON UPDATE NO ACTION,\n CHECK(typeof(seal_version) IN('null','integer')),\n CHECK(typeof(seal_evidence_id) IN('null','text')),\n CHECK(typeof(seal_subject_id) IN('null','integer')),\n CHECK(typeof(seal_parser_version) IN('null','text')),\n CHECK(typeof(seal_provider) IN('null','text')),\n CHECK(typeof(seal_subject_kind) IN('null','text')),\n CHECK(typeof(seal_provider_id) IN('null','text')),\n CHECK(typeof(seal_language) IN('null','text')),\n CHECK(typeof(seal_region) IN('null','text')),\n CHECK(typeof(seal_request_shape) IN('null','text')),\n CHECK(typeof(seal_observation_digest) IN('null','text')),\n CHECK(typeof(seal_owner_generation) IN('null','integer')),\n CHECK(typeof(seal_build_id) IN('null','text')),\n CHECK(typeof(seal_build_generation) IN('null','integer')),\n CHECK(typeof(seal_content_revision) IN('null','integer')),\n CHECK(typeof(seal_algorithm) IN('null','text')),\n CHECK(typeof(seal_commitment) IN('null','blob')),\n CHECK(typeof(seal_verified_rows) IN('null','integer')),\n CHECK(typeof(seal_canonical_bytes) IN('null','integer')),\n CHECK(typeof(seal_retained_bytes) IN('null','integer')),\n CHECK(typeof(proof_revision) IN('null','integer')),\n CHECK(typeof(proof_pin_count) IN('null','integer')),\n CHECK(typeof(proof_reclaim_due_ms) IN('null','integer')),\n CHECK(typeof(proof_cleanup_after_sequence) IN('null','integer')),\n CHECK(typeof(upstream_evidence_owner) IN('null','text')),\n CHECK(typeof(upstream_evidence_incarnation) IN('null','blob')),\n CHECK(typeof(upstream_evidence_sequence) IN('null','integer')),\n CHECK(typeof(source_dependency_owner) IN('null','text')),\n CHECK(typeof(source_dependency_incarnation) IN('null','blob')),\n CHECK(typeof(source_dependency_sequence) IN('null','integer')),\n CHECK(typeof(source_dependency_publication_id) IN('null','text')),\n CHECK(typeof(source_dependency_provider) IN('null','text'))\n) WITHOUT ROWID"
         ],
         [
@@ -11663,7 +11677,7 @@
           "inventory_directories",
           "inventory_directories",
           502,
-          "CREATE TABLE inventory_directories (\n job_id TEXT NOT NULL REFERENCES jobs(id),\n relative_path TEXT NOT NULL,\n identity TEXT NOT NULL DEFAULT '',\n revision TEXT NOT NULL DEFAULT '',\n cursor TEXT NOT NULL DEFAULT '',\n state TEXT NOT NULL DEFAULT 'pending',\n pages INTEGER NOT NULL DEFAULT 0,\n skipped INTEGER NOT NULL DEFAULT 0,\n PRIMARY KEY(job_id,relative_path),\n CHECK(typeof(\"job_id\")IN('null','text')),\n CHECK(typeof(\"relative_path\")IN('null','text')),\n CHECK(typeof(\"identity\")IN('null','text')),\n CHECK(typeof(\"revision\")IN('null','text')),\n CHECK(typeof(\"cursor\")IN('null','text')),\n CHECK(typeof(\"state\")IN('null','text')),\n CHECK(typeof(\"pages\")IN('null','integer')),\n CHECK(typeof(\"skipped\")IN('null','integer'))\n)"
+          "CREATE TABLE inventory_directories (\n job_id TEXT NOT NULL REFERENCES jobs(id),\n relative_path TEXT NOT NULL,\n identity TEXT NOT NULL DEFAULT '',\n revision TEXT NOT NULL DEFAULT '',\n cursor TEXT NOT NULL DEFAULT '',\n state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN('pending','done','blocked')),\n pages INTEGER NOT NULL DEFAULT 0 CHECK(pages\u003e=0),\n skipped INTEGER NOT NULL DEFAULT 0 CHECK(skipped\u003e=0),\n PRIMARY KEY(job_id,relative_path),\n CHECK(typeof(\"job_id\")IN('null','text')),\n CHECK(typeof(\"relative_path\")IN('null','text')),\n CHECK(typeof(\"identity\")IN('null','text')),\n CHECK(typeof(\"revision\")IN('null','text')),\n CHECK(typeof(\"cursor\")IN('null','text')),\n CHECK(typeof(\"state\")IN('null','text')),\n CHECK(typeof(\"pages\")IN('null','integer')),\n CHECK(typeof(\"skipped\")IN('null','integer'))\n)"
         ],
         [
           "table",
@@ -11817,7 +11831,7 @@
           "inventory_scan_issues",
           "inventory_scan_issues",
           544,
-          "CREATE TABLE inventory_scan_issues (\n sequence INTEGER PRIMARY KEY AUTOINCREMENT,\n job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,\n relative_path TEXT NOT NULL,\n reason TEXT NOT NULL,\n line INTEGER NOT NULL DEFAULT 0,\n protect INTEGER NOT NULL DEFAULT 0,\n warning INTEGER NOT NULL DEFAULT 0,\n UNIQUE(job_id,relative_path,reason,line),\n CHECK(typeof(\"sequence\")IN('null','integer')),\n CHECK(typeof(\"job_id\")IN('null','text')),\n CHECK(typeof(\"relative_path\")IN('null','text')),\n CHECK(typeof(\"reason\")IN('null','text')),\n CHECK(typeof(\"line\")IN('null','integer')),\n CHECK(typeof(\"protect\")IN('null','integer')),\n CHECK(typeof(\"warning\")IN('null','integer'))\n)"
+          "CREATE TABLE inventory_scan_issues (\n sequence INTEGER PRIMARY KEY AUTOINCREMENT,\n job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE NO ACTION ON UPDATE NO ACTION,\n relative_path TEXT NOT NULL,\n reason TEXT NOT NULL,\n line INTEGER NOT NULL DEFAULT 0,\n protect INTEGER NOT NULL DEFAULT 0,\n warning INTEGER NOT NULL DEFAULT 0,\n refused_entry_kind TEXT NOT NULL DEFAULT 'none' CHECK(refused_entry_kind IN('none','regular_file','directory')),\n refusal_operation_id BLOB,\n UNIQUE(job_id,relative_path,reason,line,refused_entry_kind),\n CHECK((reason='filename_unrepresentable')=(refused_entry_kind\u003c\u003e'none')),\n CHECK((refused_entry_kind\u003c\u003e'none')=(refusal_operation_id IS NOT NULL)),\n CHECK(refusal_operation_id IS NULL OR length(refusal_operation_id)=16),\n CHECK(refused_entry_kind='none' OR (protect=1 AND warning=1 AND line=0)),\n CHECK(typeof(refused_entry_kind)='text'),\n CHECK(typeof(refusal_operation_id) IN('null','blob')),\n FOREIGN KEY(job_id,refusal_operation_id,refused_entry_kind)\n   REFERENCES scan_command_receipts(run_id,operation_id,refused_entry_kind)\n   ON DELETE NO ACTION ON UPDATE NO ACTION,\n CHECK(typeof(\"sequence\")IN('null','integer')),\n CHECK(typeof(\"job_id\")IN('null','text')),\n CHECK(typeof(\"relative_path\")IN('null','text')),\n CHECK(typeof(\"reason\")IN('null','text')),\n CHECK(typeof(\"line\")IN('null','integer')),\n CHECK(typeof(\"protect\")IN('null','integer')),\n CHECK(typeof(\"warning\")IN('null','integer'))\n)"
         ],
         [
           "table",
@@ -11851,7 +11865,7 @@
           "table",
           "inventory_version_links",
           "inventory_version_links",
-          554,
+          555,
           "CREATE TABLE inventory_version_links (\n library_id TEXT NOT NULL,\n asset_id TEXT NOT NULL,\n item_id INTEGER NOT NULL,\n PRIMARY KEY(library_id,asset_id),\n FOREIGN KEY(item_id) REFERENCES catalog_entities(id) ON DELETE CASCADE,\n CHECK(typeof(\"library_id\")IN('null','text')),\n CHECK(typeof(\"asset_id\")IN('null','text')),\n CHECK(typeof(\"item_id\")IN('null','integer'))\n)"
         ],
         [
@@ -11879,21 +11893,21 @@
           "table",
           "job_observations",
           "job_observations",
-          562,
+          563,
           "CREATE TABLE job_observations(\n job_id TEXT PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE NOT NULL,\n updated_at TEXT NOT NULL,\n finished_at TEXT,\n CHECK(typeof(\"job_id\")IN('null','text')),\n CHECK(typeof(\"updated_at\")IN('null','text')),\n CHECK(typeof(\"finished_at\")IN('null','text'))\n)"
         ],
         [
           "table",
           "jobs",
           "jobs",
-          564,
+          565,
           "CREATE TABLE jobs(\n id TEXT PRIMARY KEY NOT NULL,\n library_id TEXT NOT NULL REFERENCES libraries(id),\n status TEXT NOT NULL,\n processed INTEGER NOT NULL DEFAULT 0,\n error TEXT NOT NULL DEFAULT '',\n created_at TEXT NOT NULL,\n CHECK(typeof(\"id\")IN('null','text')),\n CHECK(typeof(\"library_id\")IN('null','text')),\n CHECK(typeof(\"status\")IN('null','text')),\n CHECK(typeof(\"processed\")IN('null','integer')),\n CHECK(typeof(\"error\")IN('null','text')),\n CHECK(typeof(\"created_at\")IN('null','text'))\n)"
         ],
         [
           "table",
           "lc_candidates",
           "lc_candidates",
-          566,
+          567,
           "CREATE TABLE lc_candidates(\n generation_id TEXT NOT NULL REFERENCES lc_generations(id),\n rule_id TEXT NOT NULL,\n item_id INTEGER NOT NULL,\n ordinal INTEGER NOT NULL,\n library_id TEXT NOT NULL,\n asset_id TEXT NOT NULL,\n source_fence TEXT NOT NULL,\n duration_ms INTEGER NOT NULL CHECK(duration_ms\u003e0),\n title TEXT NOT NULL,\n show_id INTEGER NOT NULL,\n season INTEGER NOT NULL,\n episode INTEGER NOT NULL,\n weight REAL NOT NULL CHECK(weight\u003e0),\n sort_key TEXT NOT NULL,\n PRIMARY KEY(generation_id,rule_id,item_id),\n UNIQUE(generation_id,rule_id,ordinal),\n CHECK(typeof(\"generation_id\")IN('null','text')),\n CHECK(typeof(\"rule_id\")IN('null','text')),\n CHECK(typeof(\"item_id\")IN('null','integer')),\n CHECK(typeof(\"ordinal\")IN('null','integer')),\n CHECK(typeof(\"library_id\")IN('null','text')),\n CHECK(typeof(\"asset_id\")IN('null','text')),\n CHECK(typeof(\"source_fence\")IN('null','text')),\n CHECK(typeof(\"duration_ms\")IN('null','integer')),\n CHECK(typeof(\"title\")IN('null','text')),\n CHECK(typeof(\"show_id\")IN('null','integer')),\n CHECK(typeof(\"season\")IN('null','integer')),\n CHECK(typeof(\"episode\")IN('null','integer')),\n CHECK(typeof(\"weight\")IN('null','integer','real')),\n CHECK(typeof(\"sort_key\")IN('null','text'))\n)"
         ],
         [
@@ -11914,7 +11928,7 @@
           "table",
           "lc_generations",
           "lc_generations",
-          575,
+          576,
           "CREATE TABLE lc_generations(\n id TEXT PRIMARY KEY,\n channel_id TEXT NOT NULL REFERENCES lc_channels(id),\n config_revision INTEGER NOT NULL,\n config_json TEXT NOT NULL,\n catalog_fence TEXT NOT NULL,\n seed TEXT NOT NULL,\n status TEXT NOT NULL,\n phase TEXT NOT NULL,\n base_generation TEXT NOT NULL,\n start_ms INTEGER NOT NULL,\n end_ms INTEGER NOT NULL,\n boundary_ms INTEGER NOT NULL,\n copy_after_ms INTEGER NOT NULL DEFAULT -1,\n scan_rule INTEGER NOT NULL DEFAULT 0,\n scan_after TEXT NOT NULL DEFAULT '',\n cursor_ms INTEGER NOT NULL,\n candidate_count INTEGER NOT NULL DEFAULT 0,\n unresolved_count INTEGER NOT NULL DEFAULT 0,\n lease_token TEXT NOT NULL DEFAULT '',\n lease_until_ms INTEGER NOT NULL DEFAULT 0,\n created_ms INTEGER NOT NULL,\n published_ms INTEGER NOT NULL DEFAULT 0,\n error_code TEXT NOT NULL DEFAULT '',\n play_history_fence INTEGER NOT NULL DEFAULT 0 CHECK(play_history_fence\u003e=0)\n) STRICT"
         ],
         [
@@ -11956,14 +11970,14 @@
           "table",
           "lc_used",
           "lc_used",
-          587,
+          588,
           "CREATE TABLE lc_used(\n generation_id TEXT NOT NULL,\n rule_id TEXT NOT NULL,\n item_id INTEGER NOT NULL,\n cycle INTEGER NOT NULL,\n PRIMARY KEY(generation_id,rule_id,item_id),\n CHECK(typeof(\"generation_id\")IN('null','text')),\n CHECK(typeof(\"rule_id\")IN('null','text')),\n CHECK(typeof(\"item_id\")IN('null','integer')),\n CHECK(typeof(\"cycle\")IN('null','integer'))\n)"
         ],
         [
           "table",
           "libraries",
           "libraries",
-          589,
+          590,
           "CREATE TABLE libraries(\n id TEXT PRIMARY KEY,\n name TEXT NOT NULL,\n kind TEXT NOT NULL,\n root TEXT NOT NULL,\n position INTEGER NOT NULL DEFAULT 0,\n configuration_present INTEGER NOT NULL DEFAULT 0 CHECK(configuration_present IN(0,1)),\n configuration_revision INTEGER,\n configuration_metadata_revision INTEGER CHECK(configuration_metadata_revision\u003e0),\n preference_present INTEGER NOT NULL DEFAULT 0 CHECK(preference_present IN(0,1)),\n preference_revision INTEGER CHECK(preference_revision\u003e0),\n preference_group_collections INTEGER CHECK(preference_group_collections IN(0,1)),\n preference_local_tags TEXT CHECK(preference_local_tags IN('prefer','off')),\n preference_lyrics_source TEXT CHECK(preference_lyrics_source IN('files','lrclib')),\n preference_title_source TEXT CHECK(preference_title_source IN('tags','names')),\n preference_episode_numbering TEXT CHECK(preference_episode_numbering IN('season','absolute')),\n preference_find_extras INTEGER CHECK(preference_find_extras IN(0,1)),\n preference_sort_ignore_articles INTEGER CHECK(preference_sort_ignore_articles IN(0,1)),\n sonic_present INTEGER NOT NULL DEFAULT 0 CHECK(sonic_present IN(0,1)),\n sonic_enabled INTEGER CHECK(sonic_enabled IN(0,1)),\n sonic_revision INTEGER CHECK(sonic_revision\u003e0),\n data_revision INTEGER NOT NULL DEFAULT 1 CHECK(data_revision\u003e0),\n data_order_revision INTEGER NOT NULL DEFAULT 1 CHECK(data_order_revision\u003e0),\n data_metadata_revision INTEGER NOT NULL DEFAULT 1 CHECK(data_metadata_revision\u003e0),\n playback_origin_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(playback_origin_incarnation)=16),\n playback_origin_revision INTEGER NOT NULL DEFAULT 1 CHECK(playback_origin_revision\u003e0),\n metadata_language TEXT NOT NULL DEFAULT 'en-US',\n age_input_revision INTEGER NOT NULL DEFAULT 1 CHECK(age_input_revision\u003e0),\n age_published_revision INTEGER NOT NULL DEFAULT 1 CHECK(age_published_revision\u003e0),\n age_pending_operations INTEGER NOT NULL DEFAULT 0 CHECK(age_pending_operations\u003e=0),\n CHECK((sonic_present=0 AND sonic_enabled IS NULL AND sonic_revision IS NULL) OR (sonic_present=1 AND sonic_enabled IS NOT NULL AND sonic_revision IS NOT NULL)),\n CHECK((preference_present=0 AND preference_revision IS NULL AND preference_group_collections IS NULL AND preference_local_tags IS NULL AND preference_lyrics_source IS NULL AND preference_title_source IS NULL AND preference_episode_numbering IS NULL AND preference_find_extras IS NULL AND preference_sort_ignore_articles IS NULL) OR (preference_present=1 AND preference_revision IS NOT NULL AND preference_group_collections IS NOT NULL AND preference_local_tags IS NOT NULL AND preference_lyrics_source IS NOT NULL AND preference_title_source IS NOT NULL AND preference_episode_numbering IS NOT NULL AND preference_find_extras IS NOT NULL AND preference_sort_ignore_articles IS NOT NULL)),\n CHECK((configuration_present=0 AND configuration_revision IS NULL AND configuration_metadata_revision IS NULL) OR (configuration_present=1 AND configuration_revision IS NOT NULL AND configuration_metadata_revision IS NOT NULL))\n) STRICT"
         ],
         [
@@ -11977,14 +11991,14 @@
           "table",
           "library_navigation",
           "library_navigation",
-          593,
+          594,
           "CREATE TABLE library_navigation(\n owner_key TEXT NOT NULL,\n library_id TEXT NOT NULL REFERENCES catalog_libraries(library_id),\n position INTEGER NOT NULL,\n PRIMARY KEY(owner_key,library_id)\n) STRICT"
         ],
         [
           "table",
           "library_navigation_revisions",
           "library_navigation_revisions",
-          595,
+          596,
           "CREATE TABLE library_navigation_revisions(\n owner_key TEXT PRIMARY KEY,\n revision INTEGER NOT NULL DEFAULT 0\n) STRICT"
         ],
         [
@@ -12012,28 +12026,28 @@
           "table",
           "listening_item_buckets",
           "listening_item_buckets",
-          2259,
+          2260,
           "CREATE TABLE listening_item_buckets(\n profile_id TEXT NOT NULL,\n activity_generation INTEGER NOT NULL CHECK(activity_generation\u003e0),\n grain TEXT NOT NULL CHECK(grain IN('quarter','day','month')),\n bucket_ms INTEGER NOT NULL CHECK(bucket_ms\u003e=0),\n subject_id INTEGER NOT NULL REFERENCES catalog_subjects(id),\n started_count INTEGER NOT NULL DEFAULT 0 CHECK(started_count\u003e=0),\n completed_count INTEGER NOT NULL DEFAULT 0 CHECK(completed_count\u003e=0),\n played_ms INTEGER NOT NULL DEFAULT 0 CHECK(played_ms\u003e=0),\n PRIMARY KEY(profile_id,activity_generation,grain,bucket_ms,subject_id),\n CHECK((grain\u003c\u003e'quarter' OR bucket_ms%900000=0) AND (grain\u003c\u003e'day' OR bucket_ms%86400000=0)),\n CHECK(typeof(\"profile_id\")IN('null','text')),\n CHECK(typeof(\"activity_generation\")IN('null','integer')),\n CHECK(typeof(\"grain\")IN('null','text')),\n CHECK(typeof(\"bucket_ms\")IN('null','integer')),\n CHECK(typeof(\"subject_id\")IN('null','integer')),\n CHECK(typeof(\"started_count\")IN('null','integer')),\n CHECK(typeof(\"completed_count\")IN('null','integer')),\n CHECK(typeof(\"played_ms\")IN('null','integer'))\n) WITHOUT ROWID"
         ],
         [
           "table",
           "listening_play_instants",
           "listening_play_instants",
-          2264,
+          2265,
           "CREATE TABLE listening_play_instants(\n profile_id TEXT NOT NULL,\n activity_generation INTEGER NOT NULL CHECK(activity_generation\u003e0),\n started_ms INTEGER NOT NULL CHECK(started_ms\u003e=0),\n subject_id INTEGER NOT NULL REFERENCES catalog_subjects(id),\n started_count INTEGER NOT NULL DEFAULT 0 CHECK(started_count\u003e=0),\n completed_count INTEGER NOT NULL DEFAULT 0 CHECK(completed_count\u003e=0),\n PRIMARY KEY(profile_id,activity_generation,started_ms,subject_id),\n CHECK(typeof(\"profile_id\")IN('null','text')),\n CHECK(typeof(\"activity_generation\")IN('null','integer')),\n CHECK(typeof(\"started_ms\")IN('null','integer')),\n CHECK(typeof(\"subject_id\")IN('null','integer')),\n CHECK(typeof(\"started_count\")IN('null','integer')),\n CHECK(typeof(\"completed_count\")IN('null','integer'))\n) WITHOUT ROWID"
         ],
         [
           "table",
           "listening_profile_buckets",
           "listening_profile_buckets",
-          2262,
+          2263,
           "CREATE TABLE listening_profile_buckets(\n profile_id TEXT NOT NULL,\n activity_generation INTEGER NOT NULL CHECK(activity_generation\u003e0),\n grain TEXT NOT NULL CHECK(grain IN('quarter','day','month')),\n bucket_ms INTEGER NOT NULL CHECK(bucket_ms\u003e=0),\n started_count INTEGER NOT NULL DEFAULT 0 CHECK(started_count\u003e=0),\n completed_count INTEGER NOT NULL DEFAULT 0 CHECK(completed_count\u003e=0),\n played_ms INTEGER NOT NULL DEFAULT 0 CHECK(played_ms\u003e=0),\n PRIMARY KEY(profile_id,activity_generation,grain,bucket_ms),\n CHECK((grain\u003c\u003e'quarter' OR bucket_ms%900000=0) AND (grain\u003c\u003e'day' OR bucket_ms%86400000=0)),\n CHECK(typeof(\"profile_id\")IN('null','text')),\n CHECK(typeof(\"activity_generation\")IN('null','integer')),\n CHECK(typeof(\"grain\")IN('null','text')),\n CHECK(typeof(\"bucket_ms\")IN('null','integer')),\n CHECK(typeof(\"started_count\")IN('null','integer')),\n CHECK(typeof(\"completed_count\")IN('null','integer')),\n CHECK(typeof(\"played_ms\")IN('null','integer'))\n) WITHOUT ROWID"
         ],
         [
           "table",
           "listening_time_spans",
           "listening_time_spans",
-          2266,
+          2267,
           "CREATE TABLE listening_time_spans(\n id INTEGER PRIMARY KEY AUTOINCREMENT,\n profile_id TEXT NOT NULL,\n activity_generation INTEGER NOT NULL CHECK(activity_generation\u003e0),\n subject_id INTEGER NOT NULL REFERENCES catalog_subjects(id),\n from_ms INTEGER NOT NULL CHECK(from_ms\u003e=0),\n until_ms INTEGER NOT NULL CHECK(until_ms\u003efrom_ms),\n copies INTEGER NOT NULL DEFAULT 1 CHECK(copies\u003e0),\n CHECK(from_ms/900000=(until_ms-1)/900000),\n CHECK(typeof(\"id\")IN('null','integer')),\n CHECK(typeof(\"profile_id\")IN('null','text')),\n CHECK(typeof(\"activity_generation\")IN('null','integer')),\n CHECK(typeof(\"subject_id\")IN('null','integer')),\n CHECK(typeof(\"from_ms\")IN('null','integer')),\n CHECK(typeof(\"until_ms\")IN('null','integer')),\n CHECK(typeof(\"copies\")IN('null','integer'))\n)"
         ],
         [
@@ -12054,14 +12068,14 @@
           "table",
           "live_channel_choices",
           "live_channel_choices",
-          609,
+          610,
           "CREATE TABLE live_channel_choices(\n generation_id TEXT NOT NULL REFERENCES live_generations(id) ON DELETE CASCADE,\n channel_key TEXT NOT NULL,\n name TEXT NOT NULL,\n group_name TEXT NOT NULL,\n PRIMARY KEY(generation_id,channel_key)\n) STRICT"
         ],
         [
           "table",
           "live_channel_preferences",
           "live_channel_preferences",
-          611,
+          612,
           "CREATE TABLE live_channel_preferences(\n authority TEXT NOT NULL,\n account_id TEXT NOT NULL,\n profile_id TEXT NOT NULL,\n source_id TEXT NOT NULL,\n channel_id TEXT NOT NULL,\n favorite INTEGER NOT NULL CHECK(favorite IN(0,1)),\n hidden INTEGER NOT NULL CHECK(hidden IN(0,1)),\n revision INTEGER NOT NULL,\n PRIMARY KEY(authority,account_id,profile_id,source_id,channel_id)\n) STRICT"
         ],
         [
@@ -12089,14 +12103,14 @@
           "table",
           "live_icon_jobs",
           "live_icon_jobs",
-          621,
+          622,
           "CREATE TABLE live_icon_jobs(\n source_id TEXT PRIMARY KEY REFERENCES live_source_identities(id),\n generation_id TEXT NOT NULL,\n state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN('pending','complete','failed')),\n last_url TEXT NOT NULL DEFAULT '',\n imported INTEGER NOT NULL DEFAULT 0,\n skipped INTEGER NOT NULL DEFAULT 0,\n job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner\u003e=0),\n job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation\u003e=0),\n job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms\u003e=0),\n job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),\n job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms\u003e=0),\n job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,\n job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision\u003e0)\n) WITHOUT ROWID, STRICT"
         ],
         [
           "table",
           "live_logo_failures",
           "live_logo_failures",
-          622,
+          623,
           "CREATE TABLE live_logo_failures(\n url TEXT PRIMARY KEY,\n attempts INTEGER NOT NULL DEFAULT 0,\n retry_after_ms INTEGER NOT NULL DEFAULT 0\n) WITHOUT ROWID, STRICT"
         ],
         [
@@ -12124,7 +12138,7 @@
           "table",
           "live_programme_images",
           "live_programme_images",
-          629,
+          630,
           "CREATE TABLE live_programme_images(\n url TEXT PRIMARY KEY NOT NULL,\n small_digest TEXT NOT NULL,\n large_digest TEXT NOT NULL,\n media_type TEXT NOT NULL,\n small_width INTEGER NOT NULL,\n small_height INTEGER NOT NULL,\n small_bytes INTEGER NOT NULL,\n large_width INTEGER NOT NULL,\n large_height INTEGER NOT NULL,\n large_bytes INTEGER NOT NULL,\n stored_ms INTEGER NOT NULL,\n CHECK(typeof(\"url\")IN('null','text')),\n CHECK(typeof(\"small_digest\")IN('null','text')),\n CHECK(typeof(\"large_digest\")IN('null','text')),\n CHECK(typeof(\"media_type\")IN('null','text')),\n CHECK(typeof(\"small_width\")IN('null','integer')),\n CHECK(typeof(\"small_height\")IN('null','integer')),\n CHECK(typeof(\"small_bytes\")IN('null','integer')),\n CHECK(typeof(\"large_width\")IN('null','integer')),\n CHECK(typeof(\"large_height\")IN('null','integer')),\n CHECK(typeof(\"large_bytes\")IN('null','integer')),\n CHECK(typeof(\"stored_ms\")IN('null','integer'))\n) WITHOUT ROWID"
         ],
         [
@@ -12705,7 +12719,7 @@
           "table",
           "metadata_repair_command_receipts",
           "metadata_repair_command_receipts",
-          2291,
+          2292,
           "CREATE TABLE metadata_repair_command_receipts(\n repair_id TEXT NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('owner_begin','owner_capture','owner_seal','image_stage','image_seal','owner_accept','owner_cancel','owner_source_reclaim')),\n accepted_revision INTEGER NOT NULL CHECK(accepted_revision\u003e0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n owner_revision INTEGER NOT NULL CHECK(owner_revision\u003e0),\n after_position INTEGER NOT NULL CHECK(after_position\u003e=-1),\n captured_entries INTEGER NOT NULL CHECK(captured_entries\u003e=0),\n captured_bytes INTEGER NOT NULL CHECK(captured_bytes\u003e=0),\n verified_entries INTEGER NOT NULL CHECK(verified_entries\u003e=0),\n verified_bytes INTEGER NOT NULL CHECK(verified_bytes\u003e=0),\n chain BLOB NOT NULL CHECK(length(chain)=32),\n input_complete INTEGER NOT NULL CHECK(input_complete IN(0,1)),\n image_id INTEGER,\n image_revision INTEGER,\n owner_manifest_digest BLOB CHECK(owner_manifest_digest IS NULL OR length(owner_manifest_digest)=32),\n image_manifest_digest BLOB CHECK(image_manifest_digest IS NULL OR length(image_manifest_digest)=32),\n result_from_position INTEGER NOT NULL CHECK(result_from_position\u003e=0),\n result_until_position INTEGER NOT NULL CHECK(result_until_position\u003e=result_from_position),\n result_count INTEGER NOT NULL CHECK(result_count\u003e=0),\n result_digest BLOB NOT NULL CHECK(length(result_digest)=32),\n PRIMARY KEY(repair_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(repair_id,command_incarnation) REFERENCES metadata_repair_cascades(id,command_incarnation),\n CHECK(typeof(\"repair_id\")IN('null','text')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"operation_id\")IN('null','blob')),\n CHECK(typeof(\"request_digest\")IN('null','blob')),\n CHECK(typeof(\"command_kind\")IN('null','text')),\n CHECK(typeof(\"accepted_revision\")IN('null','integer')),\n CHECK(typeof(\"applied_ms\")IN('null','integer')),\n CHECK(typeof(\"owner_revision\")IN('null','integer')),\n CHECK(typeof(\"after_position\")IN('null','integer')),\n CHECK(typeof(\"captured_entries\")IN('null','integer')),\n CHECK(typeof(\"captured_bytes\")IN('null','integer')),\n CHECK(typeof(\"verified_entries\")IN('null','integer')),\n CHECK(typeof(\"verified_bytes\")IN('null','integer')),\n CHECK(typeof(\"chain\")IN('null','blob')),\n CHECK(typeof(\"input_complete\")IN('null','integer')),\n CHECK(typeof(\"image_id\")IN('null','integer')),\n CHECK(typeof(\"image_revision\")IN('null','integer')),\n CHECK(typeof(\"owner_manifest_digest\")IN('null','blob')),\n CHECK(typeof(\"image_manifest_digest\")IN('null','blob')),\n CHECK(typeof(\"result_from_position\")IN('null','integer')),\n CHECK(typeof(\"result_until_position\")IN('null','integer')),\n CHECK(typeof(\"result_count\")IN('null','integer')),\n CHECK(typeof(\"result_digest\")IN('null','blob'))\n) WITHOUT ROWID"
         ],
         [
@@ -13118,7 +13132,7 @@
           "table",
           "playback_claim_command_receipts",
           "playback_claim_command_receipts",
-          2303,
+          2304,
           "CREATE TABLE playback_claim_command_receipts(\n playback_id TEXT NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('capture_report','drain_piece')),\n result_version INTEGER NOT NULL CHECK(result_version\u003e0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n source_accepted_ordinal INTEGER NOT NULL CHECK(source_accepted_ordinal\u003e=0),\n source_last_accepted_sequence INTEGER NOT NULL CHECK(source_last_accepted_sequence\u003e=-1),\n source_report_sequence INTEGER NOT NULL CHECK(source_report_sequence\u003e=0),\n source_occurrence_generation INTEGER NOT NULL CHECK(source_occurrence_generation\u003e0),\n source_activity_generation INTEGER NOT NULL CHECK(source_activity_generation\u003e0),\n source_history_policy_generation INTEGER NOT NULL CHECK(source_history_policy_generation\u003e0),\n source_clock_incarnation BLOB NOT NULL CHECK(length(source_clock_incarnation)=16),\n source_start_event_id INTEGER CHECK(source_start_event_id IS NULL OR source_start_event_id\u003e0),\n source_pending_from_ms INTEGER,\n source_pending_until_ms INTEGER,\n source_pending_cursor_ms INTEGER,\n result_start_event_id INTEGER CHECK(result_start_event_id IS NULL OR result_start_event_id\u003e0),\n result_report_sequence INTEGER NOT NULL CHECK(result_report_sequence\u003e=-1),\n result_pending_sequence INTEGER NOT NULL CHECK(result_pending_sequence\u003e=0),\n result_pending_from_ms INTEGER,\n result_pending_until_ms INTEGER,\n result_pending_cursor_ms INTEGER,\n result_viewer_revision INTEGER CHECK(result_viewer_revision IS NULL OR result_viewer_revision\u003e=0),\n result_observation_revision INTEGER CHECK(result_observation_revision IS NULL OR result_observation_revision\u003e=0),\n result_history_revision INTEGER CHECK(result_history_revision IS NULL OR result_history_revision\u003e=0),\n result_personal_revision INTEGER CHECK(result_personal_revision IS NULL OR result_personal_revision\u003e0),\n capture_created_start INTEGER CHECK(capture_created_start IS NULL OR capture_created_start IN(0,1)),\n consumed_from_ms INTEGER,\n consumed_until_ms INTEGER,\n result_next_cursor_ms INTEGER,\n result_remaining_until_ms INTEGER,\n finished INTEGER CHECK(finished IS NULL OR finished IN(0,1)),\n credited_ms INTEGER,\n result_count INTEGER NOT NULL CHECK(result_count=1),\n result_digest BLOB NOT NULL CHECK(length(result_digest)=32),\n variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(playback_id AS BLOB)),0)+coalesce(length(CAST(command_incarnation AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(request_digest AS BLOB)),0)+coalesce(length(CAST(command_kind AS BLOB)),0)+coalesce(length(CAST(source_clock_incarnation AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)) VIRTUAL,\n PRIMARY KEY(playback_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(playback_id,command_incarnation) REFERENCES playback_personal_claims(playback_id,command_incarnation) ON DELETE NO ACTION ON UPDATE NO ACTION,\n CHECK((source_pending_from_ms IS NULL)=(source_pending_until_ms IS NULL)),\n CHECK((source_pending_from_ms IS NULL)=(source_pending_cursor_ms IS NULL)),\n CHECK((result_pending_from_ms IS NULL)=(result_pending_until_ms IS NULL)),\n CHECK((result_pending_from_ms IS NULL)=(result_pending_cursor_ms IS NULL)),\n CHECK(source_pending_from_ms IS NULL OR (source_pending_from_ms\u003e=0 AND source_pending_until_ms\u003esource_pending_from_ms AND source_pending_cursor_ms\u003e=source_pending_from_ms AND source_pending_cursor_ms\u003csource_pending_until_ms)),\n CHECK(result_pending_from_ms IS NULL OR (result_start_event_id IS NOT NULL AND result_pending_from_ms\u003e=0 AND result_pending_until_ms\u003eresult_pending_from_ms AND result_pending_cursor_ms\u003e=result_pending_from_ms AND result_pending_cursor_ms\u003cresult_pending_until_ms)),\n CHECK((command_kind='capture_report')=(capture_created_start IS NOT NULL)),\n CHECK((command_kind='drain_piece')=(consumed_from_ms IS NOT NULL)),\n CHECK(command_kind\u003c\u003e'capture_report' OR (source_report_sequence\u003esource_last_accepted_sequence AND result_report_sequence=source_report_sequence AND (capture_created_start=0 OR result_start_event_id IS NOT NULL))),\n CHECK(source_start_event_id IS NULL OR (result_start_event_id IS NOT NULL AND result_start_event_id=source_start_event_id)),\n CHECK(command_kind\u003c\u003e'capture_report' OR source_start_event_id IS NULL OR capture_created_start=0),\n CHECK(command_kind\u003c\u003e'drain_piece' OR (source_start_event_id IS NOT NULL AND source_pending_from_ms IS NOT NULL AND result_start_event_id=source_start_event_id AND result_report_sequence=source_last_accepted_sequence AND result_pending_sequence=source_report_sequence AND result_viewer_revision IS NOT NULL AND result_observation_revision IS NOT NULL AND result_observation_revision\u003e0 AND result_history_revision IS NOT NULL AND result_history_revision\u003e0 AND result_personal_revision IS NOT NULL)),\n CHECK(command_kind\u003c\u003e'drain_piece' OR (consumed_from_ms=source_pending_cursor_ms AND consumed_until_ms\u003econsumed_from_ms AND consumed_until_ms\u003c=source_pending_until_ms AND consumed_from_ms/900000=(consumed_until_ms-1)/900000 AND consumed_until_ms=min(source_pending_until_ms,(consumed_from_ms/900000+1)*900000) AND credited_ms=consumed_until_ms-consumed_from_ms AND result_next_cursor_ms=consumed_until_ms AND finished=(consumed_until_ms=source_pending_until_ms))),\n CHECK(command_kind\u003c\u003e'drain_piece' OR (finished=0 AND result_remaining_until_ms IS NOT NULL AND result_remaining_until_ms=source_pending_until_ms AND result_pending_from_ms IS NOT NULL AND result_pending_from_ms=source_pending_from_ms AND result_pending_until_ms=source_pending_until_ms AND result_pending_cursor_ms=consumed_until_ms) OR (command_kind='drain_piece' AND finished=1 AND result_remaining_until_ms IS NULL AND result_pending_from_ms IS NULL)),\n CHECK((consumed_from_ms IS NULL)=(consumed_until_ms IS NULL)),\n CHECK((consumed_from_ms IS NULL)=(result_next_cursor_ms IS NULL)),\n CHECK((consumed_from_ms IS NULL)=(finished IS NULL)),\n CHECK((consumed_from_ms IS NULL)=(credited_ms IS NULL)),\n CHECK(consumed_from_ms IS NOT NULL OR result_remaining_until_ms IS NULL),\n CHECK(typeof(playback_id) IN('null','text')),\n CHECK(typeof(command_incarnation) IN('null','blob')),\n CHECK(typeof(command_sequence) IN('null','integer')),\n CHECK(typeof(operation_id) IN('null','blob')),\n CHECK(typeof(request_digest) IN('null','blob')),\n CHECK(typeof(command_kind) IN('null','text')),\n CHECK(typeof(result_version) IN('null','integer')),\n CHECK(typeof(applied_ms) IN('null','integer')),\n CHECK(typeof(source_accepted_ordinal) IN('null','integer')),\n CHECK(typeof(source_last_accepted_sequence) IN('null','integer')),\n CHECK(typeof(source_report_sequence) IN('null','integer')),\n CHECK(typeof(source_occurrence_generation) IN('null','integer')),\n CHECK(typeof(source_activity_generation) IN('null','integer')),\n CHECK(typeof(source_history_policy_generation) IN('null','integer')),\n CHECK(typeof(source_clock_incarnation) IN('null','blob')),\n CHECK(typeof(source_start_event_id) IN('null','integer')),\n CHECK(typeof(source_pending_from_ms) IN('null','integer')),\n CHECK(typeof(source_pending_until_ms) IN('null','integer')),\n CHECK(typeof(source_pending_cursor_ms) IN('null','integer')),\n CHECK(typeof(result_start_event_id) IN('null','integer')),\n CHECK(typeof(result_report_sequence) IN('null','integer')),\n CHECK(typeof(result_pending_sequence) IN('null','integer')),\n CHECK(typeof(result_pending_from_ms) IN('null','integer')),\n CHECK(typeof(result_pending_until_ms) IN('null','integer')),\n CHECK(typeof(result_pending_cursor_ms) IN('null','integer')),\n CHECK(typeof(result_viewer_revision) IN('null','integer')),\n CHECK(typeof(result_observation_revision) IN('null','integer')),\n CHECK(typeof(result_history_revision) IN('null','integer')),\n CHECK(typeof(result_personal_revision) IN('null','integer')),\n CHECK(typeof(capture_created_start) IN('null','integer')),\n CHECK(typeof(consumed_from_ms) IN('null','integer')),\n CHECK(typeof(consumed_until_ms) IN('null','integer')),\n CHECK(typeof(result_next_cursor_ms) IN('null','integer')),\n CHECK(typeof(result_remaining_until_ms) IN('null','integer')),\n CHECK(typeof(finished) IN('null','integer')),\n CHECK(typeof(credited_ms) IN('null','integer')),\n CHECK(typeof(result_count) IN('null','integer')),\n CHECK(typeof(result_digest) IN('null','blob')),\n CHECK(typeof(variable_bytes)='integer' AND variable_bytes\u003e=0)\n) WITHOUT ROWID"
         ],
         [
@@ -14169,13 +14183,13 @@
           "scan_command_receipts",
           "scan_command_receipts",
           2235,
-          "CREATE TABLE scan_command_receipts(\n run_id TEXT NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('inventory_create','inventory_claim','inventory_accept','inventory_refuse','basic_stage','basic_seal','basic_accept')),\n accepted_revision INTEGER NOT NULL CHECK(accepted_revision\u003e=0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n source_id TEXT NOT NULL,\n source_incarnation TEXT NOT NULL,\n source_revision TEXT,\n change_id INTEGER,\n next_cursor TEXT NOT NULL,\n next_family INTEGER NOT NULL DEFAULT 0,\n next_copy_phase INTEGER NOT NULL DEFAULT 0,\n next_copy_id INTEGER NOT NULL DEFAULT 0,\n next_copy_aux INTEGER NOT NULL DEFAULT 0,\n next_copy_key TEXT NOT NULL DEFAULT '',\n next_copy_key2 TEXT NOT NULL DEFAULT '',\n next_copy_key3 TEXT NOT NULL DEFAULT '',\n after_entity INTEGER NOT NULL DEFAULT 0,\n expected_epoch INTEGER NOT NULL DEFAULT 0,\n result_count INTEGER NOT NULL CHECK(result_count\u003e=0),\n result_digest BLOB NOT NULL CHECK(length(result_digest)=32),\n refused_relative_path BLOB,\n refusal_code TEXT,\n cursor_kind TEXT,\n cursor_directory_path BLOB,\n cursor_directory_identity BLOB,\n cursor_directory_revision BLOB,\n cursor_expected_payload BLOB,\n cursor_next_payload BLOB,\n result_lease_owner INTEGER,\n result_lease_generation INTEGER,\n result_lease_expires_ms INTEGER,\n result_acknowledged_sequence INTEGER,\n result_discovered INTEGER,\n result_processed INTEGER,\n result_root_identity TEXT,\n result_root_revision TEXT,\n result_root_cursor TEXT,\n result_root_pages INTEGER,\n result_root_skipped INTEGER,\n CHECK((command_kind='inventory_refuse')=(refused_relative_path IS NOT NULL)),\n CHECK((refused_relative_path IS NULL)=(refusal_code IS NULL)),\n CHECK((refused_relative_path IS NULL)=(cursor_kind IS NULL)),\n CHECK((refused_relative_path IS NULL)=(cursor_directory_path IS NULL)),\n CHECK((refused_relative_path IS NULL)=(cursor_directory_identity IS NULL)),\n CHECK((refused_relative_path IS NULL)=(cursor_directory_revision IS NULL)),\n CHECK((refused_relative_path IS NULL)=(cursor_expected_payload IS NULL)),\n CHECK((refused_relative_path IS NULL)=(cursor_next_payload IS NULL)),\n CHECK(refusal_code IS NULL OR refusal_code='filename_unrepresentable'),\n CHECK(cursor_kind IS NULL OR cursor_kind IN('local_getdents64_cookie_v1','darwin_directory_stream_v1','windows_find_stream_v1','directory_snapshot_keyset_v1')),\n CHECK(command_kind\u003c\u003e'inventory_refuse' OR (result_count=0 AND change_id IS NULL AND expected_epoch=0 AND length(cursor_next_payload)\u003e0)),\n CHECK(cursor_kind IS NULL OR cursor_kind\u003c\u003e'local_getdents64_cookie_v1' OR (length(next_cursor)\u003e0 AND cursor_next_payload=CAST(next_cursor AS BLOB))),\n CHECK(cursor_kind IS NULL OR cursor_kind='local_getdents64_cookie_v1' OR next_cursor=''),\n CHECK(typeof(\"refused_relative_path\")IN('null','blob')),\n CHECK(typeof(\"refusal_code\")IN('null','text')),\n CHECK(typeof(\"cursor_kind\")IN('null','text')),\n CHECK(typeof(\"cursor_directory_path\")IN('null','blob')),\n CHECK(typeof(\"cursor_directory_identity\")IN('null','blob')),\n CHECK(typeof(\"cursor_directory_revision\")IN('null','blob')),\n CHECK(typeof(\"cursor_expected_payload\")IN('null','blob')),\n CHECK(typeof(\"cursor_next_payload\")IN('null','blob')),\n CHECK((command_kind IN('inventory_create','inventory_claim'))=(source_revision IS NULL)),\n CHECK((command_kind IN('inventory_create','inventory_claim'))=(result_lease_owner IS NOT NULL)),\n CHECK((result_lease_owner IS NULL)=(result_lease_generation IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_lease_expires_ms IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_acknowledged_sequence IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_discovered IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_processed IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_identity IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_revision IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_cursor IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_pages IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_skipped IS NULL)),\n CHECK(typeof(result_lease_owner) IN('null','integer')),\n CHECK(result_lease_owner IS NULL OR (result_lease_owner\u003e=0)),\n CHECK(typeof(result_lease_generation) IN('null','integer')),\n CHECK(result_lease_generation IS NULL OR (result_lease_generation\u003e=0)),\n CHECK(typeof(result_lease_expires_ms) IN('null','integer')),\n CHECK(result_lease_expires_ms IS NULL OR (result_lease_expires_ms\u003e=0)),\n CHECK(typeof(result_acknowledged_sequence) IN('null','integer')),\n CHECK(result_acknowledged_sequence IS NULL OR (result_acknowledged_sequence\u003e=0 AND result_acknowledged_sequence\u003ccommand_sequence)),\n CHECK(typeof(result_discovered) IN('null','integer')),\n CHECK(result_discovered IS NULL OR (result_discovered\u003e=0)),\n CHECK(typeof(result_processed) IN('null','integer')),\n CHECK(result_processed IS NULL OR (result_processed\u003e=0)),\n CHECK(typeof(result_root_identity) IN('null','text')),\n CHECK(result_root_identity IS NULL OR (length(CAST(result_root_identity AS BLOB))\u003e0)),\n CHECK(typeof(result_root_revision) IN('null','text')),\n CHECK(result_root_revision IS NULL OR (length(CAST(result_root_revision AS BLOB))\u003e0)),\n CHECK(typeof(result_root_cursor) IN('null','text')),\n CHECK(typeof(result_root_pages) IN('null','integer')),\n CHECK(result_root_pages IS NULL OR (result_root_pages\u003e=0)),\n CHECK(typeof(result_root_skipped) IN('null','integer')),\n CHECK(result_root_skipped IS NULL OR (result_root_skipped\u003e=0 AND result_root_skipped\u003c=result_root_pages)),\n CHECK(command_kind NOT IN('inventory_create','inventory_claim') OR\n   (accepted_revision\u003e0 AND result_count=0 AND change_id IS NULL AND source_revision IS NULL AND next_cursor='' AND\n    next_family=0 AND next_copy_phase=0 AND next_copy_id=0 AND next_copy_aux=0 AND\n    next_copy_key='' AND next_copy_key2='' AND next_copy_key3='' AND after_entity=0 AND expected_epoch=0)),\n CHECK(command_kind\u003c\u003e'inventory_create' OR\n   (command_sequence=1 AND accepted_revision=1 AND result_acknowledged_sequence=0 AND\n    result_lease_owner=0 AND result_lease_generation=0 AND result_lease_expires_ms=0 AND\n    result_discovered=0 AND result_processed=0 AND result_root_cursor='' AND result_root_pages=0 AND result_root_skipped=0)),\n CHECK(command_kind\u003c\u003e'inventory_claim' OR\n   (result_lease_owner\u003e0 AND result_lease_generation\u003e0 AND result_lease_expires_ms\u003eapplied_ms)),\n PRIMARY KEY(run_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(run_id,command_incarnation) REFERENCES inventory_runs(job_id,command_incarnation),\n CHECK(typeof(\"run_id\")IN('null','text')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"operation_id\")IN('null','blob')),\n CHECK(typeof(\"request_digest\")IN('null','blob')),\n CHECK(typeof(\"command_kind\")IN('null','text')),\n CHECK(typeof(\"accepted_revision\")IN('null','integer')),\n CHECK(typeof(\"applied_ms\")IN('null','integer')),\n CHECK(typeof(\"source_id\")IN('null','text')),\n CHECK(typeof(\"source_incarnation\")IN('null','text')),\n CHECK(typeof(\"source_revision\")IN('null','text')),\n CHECK(typeof(\"change_id\")IN('null','integer')),\n CHECK(typeof(\"next_cursor\")IN('null','text')),\n CHECK(typeof(\"next_family\")IN('null','integer')),\n CHECK(typeof(\"next_copy_phase\")IN('null','integer')),\n CHECK(typeof(\"next_copy_id\")IN('null','integer')),\n CHECK(typeof(\"next_copy_aux\")IN('null','integer')),\n CHECK(typeof(\"next_copy_key\")IN('null','text')),\n CHECK(typeof(\"next_copy_key2\")IN('null','text')),\n CHECK(typeof(\"next_copy_key3\")IN('null','text')),\n CHECK(typeof(\"after_entity\")IN('null','integer')),\n CHECK(typeof(\"expected_epoch\")IN('null','integer')),\n CHECK(typeof(\"result_count\")IN('null','integer')),\n CHECK(typeof(\"result_digest\")IN('null','blob'))\n) WITHOUT ROWID"
+          "CREATE TABLE scan_command_receipts(\n run_id TEXT NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('inventory_create','inventory_claim','inventory_directory_discover','inventory_directory_eof','inventory_traversal_complete','inventory_directory_refuse','inventory_accept','inventory_refuse','basic_stage','basic_seal','basic_accept')),\n accepted_revision INTEGER NOT NULL CHECK(accepted_revision\u003e=0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n source_id TEXT NOT NULL,\n source_incarnation TEXT NOT NULL,\n source_revision TEXT,\n change_id INTEGER,\n next_cursor TEXT NOT NULL,\n next_family INTEGER NOT NULL DEFAULT 0,\n next_copy_phase INTEGER NOT NULL DEFAULT 0,\n next_copy_id INTEGER NOT NULL DEFAULT 0,\n next_copy_aux INTEGER NOT NULL DEFAULT 0,\n next_copy_key TEXT NOT NULL DEFAULT '',\n next_copy_key2 TEXT NOT NULL DEFAULT '',\n next_copy_key3 TEXT NOT NULL DEFAULT '',\n after_entity INTEGER NOT NULL DEFAULT 0,\n expected_epoch INTEGER NOT NULL DEFAULT 0,\n result_count INTEGER NOT NULL CHECK(result_count\u003e=0),\n result_digest BLOB NOT NULL CHECK(length(result_digest)=32),\n refused_relative_path BLOB,\n refusal_code TEXT,\n cursor_kind TEXT,\n cursor_directory_path BLOB,\n cursor_directory_identity BLOB,\n cursor_directory_revision BLOB,\n cursor_expected_payload BLOB,\n cursor_next_payload BLOB,\n result_lease_owner INTEGER,\n result_lease_generation INTEGER,\n result_lease_expires_ms INTEGER,\n result_acknowledged_sequence INTEGER,\n result_discovered INTEGER,\n result_processed INTEGER,\n result_root_identity TEXT,\n result_root_revision TEXT,\n result_root_cursor TEXT,\n result_root_pages INTEGER,\n result_root_skipped INTEGER,\n result_directory_path TEXT,\n result_directory_identity TEXT,\n result_directory_revision TEXT,\n result_directory_cursor TEXT,\n result_directory_state TEXT,\n result_directory_pages INTEGER,\n result_directory_skipped INTEGER,\n result_parent_pages INTEGER,\n result_parent_skipped INTEGER,\n result_inventory_completed_at TEXT,\n result_traversal_blocked INTEGER,\n result_traversal_protected INTEGER,\n refused_entry_kind TEXT,\n refused_directory_identity BLOB,\n refused_directory_revision BLOB,\n CHECK((command_kind IN('inventory_refuse','inventory_directory_refuse'))=(refused_relative_path IS NOT NULL)),\n CHECK((refused_relative_path IS NULL)=(refusal_code IS NULL)),\n CHECK(refusal_code IS NULL OR refusal_code='filename_unrepresentable'),\n CHECK(cursor_kind IS NULL OR cursor_kind IN('local_getdents64_cookie_v1','darwin_directory_stream_v1','windows_find_stream_v1','directory_snapshot_keyset_v1')),\n CHECK(command_kind NOT IN('inventory_refuse','inventory_directory_refuse') OR (result_count=0 AND change_id IS NULL AND expected_epoch=0 AND length(cursor_next_payload)\u003e0)),\n CHECK(cursor_kind IS NULL OR cursor_kind\u003c\u003e'local_getdents64_cookie_v1' OR (cursor_next_payload=CAST(next_cursor AS BLOB))),\n CHECK(cursor_kind IS NULL OR cursor_kind='local_getdents64_cookie_v1' OR next_cursor=''),\n CHECK(typeof(\"refused_relative_path\")IN('null','blob')),\n CHECK(typeof(\"refusal_code\")IN('null','text')),\n CHECK(typeof(\"cursor_kind\")IN('null','text')),\n CHECK(typeof(\"cursor_directory_path\")IN('null','blob')),\n CHECK(typeof(\"cursor_directory_identity\")IN('null','blob')),\n CHECK(typeof(\"cursor_directory_revision\")IN('null','blob')),\n CHECK(typeof(\"cursor_expected_payload\")IN('null','blob')),\n CHECK(typeof(\"cursor_next_payload\")IN('null','blob')),\n CHECK((command_kind IN('inventory_create','inventory_claim','inventory_directory_discover','inventory_directory_eof','inventory_traversal_complete','inventory_directory_refuse'))=(source_revision IS NULL)),\n CHECK((command_kind IN('inventory_create','inventory_claim'))=(result_lease_owner IS NOT NULL)),\n CHECK((result_lease_owner IS NULL)=(result_lease_generation IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_lease_expires_ms IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_acknowledged_sequence IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_discovered IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_processed IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_identity IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_revision IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_cursor IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_pages IS NULL)),\n CHECK((result_lease_owner IS NULL)=(result_root_skipped IS NULL)),\n CHECK(typeof(result_lease_owner) IN('null','integer')),\n CHECK(result_lease_owner IS NULL OR (result_lease_owner\u003e=0)),\n CHECK(typeof(result_lease_generation) IN('null','integer')),\n CHECK(result_lease_generation IS NULL OR (result_lease_generation\u003e=0)),\n CHECK(typeof(result_lease_expires_ms) IN('null','integer')),\n CHECK(result_lease_expires_ms IS NULL OR (result_lease_expires_ms\u003e=0)),\n CHECK(typeof(result_acknowledged_sequence) IN('null','integer')),\n CHECK(result_acknowledged_sequence IS NULL OR (result_acknowledged_sequence\u003e=0 AND result_acknowledged_sequence\u003ccommand_sequence)),\n CHECK(typeof(result_discovered) IN('null','integer')),\n CHECK(result_discovered IS NULL OR (result_discovered\u003e=0)),\n CHECK(typeof(result_processed) IN('null','integer')),\n CHECK(result_processed IS NULL OR (result_processed\u003e=0)),\n CHECK(typeof(result_root_identity) IN('null','text')),\n CHECK(result_root_identity IS NULL OR (length(CAST(result_root_identity AS BLOB))\u003e0)),\n CHECK(typeof(result_root_revision) IN('null','text')),\n CHECK(result_root_revision IS NULL OR (length(CAST(result_root_revision AS BLOB))\u003e0)),\n CHECK(typeof(result_root_cursor) IN('null','text')),\n CHECK(typeof(result_root_pages) IN('null','integer')),\n CHECK(result_root_pages IS NULL OR (result_root_pages\u003e=0)),\n CHECK(typeof(result_root_skipped) IN('null','integer')),\n CHECK(result_root_skipped IS NULL OR (result_root_skipped\u003e=0 AND result_root_skipped\u003c=result_root_pages)),\n CHECK(command_kind NOT IN('inventory_create','inventory_claim') OR\n   (accepted_revision\u003e0 AND result_count=0 AND change_id IS NULL AND source_revision IS NULL AND next_cursor='' AND\n    next_family=0 AND next_copy_phase=0 AND next_copy_id=0 AND next_copy_aux=0 AND\n    next_copy_key='' AND next_copy_key2='' AND next_copy_key3='' AND after_entity=0 AND expected_epoch=0)),\n CHECK(command_kind\u003c\u003e'inventory_create' OR\n   (command_sequence=1 AND accepted_revision=1 AND result_acknowledged_sequence=0 AND\n    result_lease_owner=0 AND result_lease_generation=0 AND result_lease_expires_ms=0 AND\n    result_discovered=0 AND result_processed=0 AND result_root_cursor='' AND result_root_pages=0 AND result_root_skipped=0)),\n CHECK(command_kind\u003c\u003e'inventory_claim' OR\n   (result_lease_owner\u003e0 AND result_lease_generation\u003e0 AND result_lease_expires_ms\u003eapplied_ms)),\n CHECK((command_kind IN('inventory_refuse','inventory_directory_refuse','inventory_directory_discover','inventory_directory_eof'))=(cursor_kind IS NOT NULL)),\n CHECK((cursor_kind IS NULL)=(cursor_directory_path IS NULL)),\n CHECK((cursor_kind IS NULL)=(cursor_directory_identity IS NULL)),\n CHECK((cursor_kind IS NULL)=(cursor_directory_revision IS NULL)),\n CHECK((cursor_kind IS NULL)=(cursor_expected_payload IS NULL)),\n CHECK((cursor_kind IS NULL)=(cursor_next_payload IS NULL)),\n CHECK((command_kind IN('inventory_directory_discover','inventory_directory_eof','inventory_traversal_complete'))=(result_directory_path IS NOT NULL)),\n CHECK((result_directory_path IS NULL)=(result_directory_identity IS NULL)),\n CHECK((result_directory_path IS NULL)=(result_directory_revision IS NULL)),\n CHECK((result_directory_path IS NULL)=(result_directory_cursor IS NULL)),\n CHECK((result_directory_path IS NULL)=(result_directory_state IS NULL)),\n CHECK((result_directory_path IS NULL)=(result_directory_pages IS NULL)),\n CHECK((result_directory_path IS NULL)=(result_directory_skipped IS NULL)),\n CHECK((command_kind='inventory_directory_discover')=(result_parent_pages IS NOT NULL)),\n CHECK((command_kind='inventory_directory_discover')=(result_parent_skipped IS NOT NULL)),\n CHECK((command_kind='inventory_traversal_complete')=(result_inventory_completed_at IS NOT NULL)),\n CHECK((command_kind='inventory_traversal_complete')=(result_traversal_blocked IS NOT NULL)),\n CHECK((command_kind='inventory_traversal_complete')=(result_traversal_protected IS NOT NULL)),\n CHECK((command_kind IN('inventory_refuse','inventory_directory_refuse'))=(refused_entry_kind IS NOT NULL)),\n CHECK(command_kind\u003c\u003e'inventory_refuse' OR refused_entry_kind='regular_file'),\n CHECK(command_kind\u003c\u003e'inventory_directory_refuse' OR refused_entry_kind='directory'),\n CHECK((refused_entry_kind IS NOT NULL AND refused_entry_kind='directory')=(refused_directory_identity IS NOT NULL)),\n CHECK((refused_entry_kind IS NOT NULL AND refused_entry_kind='directory')=(refused_directory_revision IS NOT NULL)),\n CHECK(typeof(result_directory_path) IN('null','text')),\n CHECK(result_directory_path IS NULL OR (length(CAST(result_directory_path AS BLOB))\u003e0 AND instr(result_directory_path,char(0))=0)),\n CHECK(typeof(result_directory_identity) IN('null','text')),\n CHECK(result_directory_identity IS NULL OR (length(CAST(result_directory_identity AS BLOB))\u003e0)),\n CHECK(typeof(result_directory_revision) IN('null','text')),\n CHECK(result_directory_revision IS NULL OR (length(CAST(result_directory_revision AS BLOB))\u003e0)),\n CHECK(typeof(result_directory_cursor) IN('null','text')),\n CHECK(typeof(result_directory_state) IN('null','text')),\n CHECK(result_directory_state IS NULL OR (result_directory_state IN('pending','done','blocked'))),\n CHECK(typeof(result_directory_pages) IN('null','integer')),\n CHECK(result_directory_pages IS NULL OR (result_directory_pages\u003e=0)),\n CHECK(typeof(result_directory_skipped) IN('null','integer')),\n CHECK(result_directory_skipped IS NULL OR (result_directory_skipped\u003e=0)),\n CHECK(typeof(result_parent_pages) IN('null','integer')),\n CHECK(result_parent_pages IS NULL OR (result_parent_pages\u003e0)),\n CHECK(typeof(result_parent_skipped) IN('null','integer')),\n CHECK(result_parent_skipped IS NULL OR (result_parent_skipped\u003e=0)),\n CHECK(typeof(result_inventory_completed_at) IN('null','text')),\n CHECK(result_inventory_completed_at IS NULL OR (length(result_inventory_completed_at)=30)),\n CHECK(typeof(result_traversal_blocked) IN('null','integer')),\n CHECK(result_traversal_blocked IS NULL OR (result_traversal_blocked IN(0,1))),\n CHECK(typeof(result_traversal_protected) IN('null','integer')),\n CHECK(result_traversal_protected IS NULL OR (result_traversal_protected IN(0,1))),\n CHECK(typeof(refused_entry_kind) IN('null','text')),\n CHECK(refused_entry_kind IS NULL OR (refused_entry_kind IN('regular_file','directory'))),\n CHECK(typeof(refused_directory_identity) IN('null','blob')),\n CHECK(refused_directory_identity IS NULL OR (length(refused_directory_identity)\u003e0)),\n CHECK(typeof(refused_directory_revision) IN('null','blob')),\n CHECK(refused_directory_revision IS NULL OR (length(refused_directory_revision)\u003e0)),\n CHECK(command_kind NOT IN('inventory_directory_discover','inventory_directory_eof','inventory_traversal_complete','inventory_directory_refuse') OR\n   (accepted_revision\u003e0 AND result_count=0 AND change_id IS NULL AND source_revision IS NULL AND\n    next_family=0 AND next_copy_phase=0 AND next_copy_id=0 AND next_copy_aux=0 AND\n    next_copy_key='' AND next_copy_key2='' AND next_copy_key3='' AND after_entity=0 AND expected_epoch=0)),\n CHECK(command_kind\u003c\u003e'inventory_directory_discover' OR\n   (result_directory_path\u003c\u003eCAST(cursor_directory_path AS TEXT) AND result_directory_state='pending' AND\n    result_directory_cursor='' AND result_directory_pages=0 AND result_directory_skipped=0 AND length(cursor_next_payload)\u003e0)),\n CHECK(command_kind\u003c\u003e'inventory_directory_eof' OR\n   (result_directory_path=CAST(cursor_directory_path AS TEXT) AND\n    CAST(result_directory_identity AS BLOB)=cursor_directory_identity AND\n    CAST(result_directory_revision AS BLOB)=cursor_directory_revision AND\n    result_directory_state='done' AND result_directory_pages\u003e0 AND\n    (cursor_kind\u003c\u003e'local_getdents64_cookie_v1' OR result_directory_cursor=next_cursor))),\n CHECK(command_kind\u003c\u003e'inventory_traversal_complete' OR\n   (result_directory_path='.' AND result_directory_state IN('done','blocked') AND next_cursor='' AND\n    (result_directory_state\u003c\u003e'blocked' OR result_traversal_blocked=1))),\n PRIMARY KEY(run_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(run_id,command_incarnation) REFERENCES inventory_runs(job_id,command_incarnation),\n CHECK(typeof(\"run_id\")IN('null','text')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"operation_id\")IN('null','blob')),\n CHECK(typeof(\"request_digest\")IN('null','blob')),\n CHECK(typeof(\"command_kind\")IN('null','text')),\n CHECK(typeof(\"accepted_revision\")IN('null','integer')),\n CHECK(typeof(\"applied_ms\")IN('null','integer')),\n CHECK(typeof(\"source_id\")IN('null','text')),\n CHECK(typeof(\"source_incarnation\")IN('null','text')),\n CHECK(typeof(\"source_revision\")IN('null','text')),\n CHECK(typeof(\"change_id\")IN('null','integer')),\n CHECK(typeof(\"next_cursor\")IN('null','text')),\n CHECK(typeof(\"next_family\")IN('null','integer')),\n CHECK(typeof(\"next_copy_phase\")IN('null','integer')),\n CHECK(typeof(\"next_copy_id\")IN('null','integer')),\n CHECK(typeof(\"next_copy_aux\")IN('null','integer')),\n CHECK(typeof(\"next_copy_key\")IN('null','text')),\n CHECK(typeof(\"next_copy_key2\")IN('null','text')),\n CHECK(typeof(\"next_copy_key3\")IN('null','text')),\n CHECK(typeof(\"after_entity\")IN('null','integer')),\n CHECK(typeof(\"expected_epoch\")IN('null','integer')),\n CHECK(typeof(\"result_count\")IN('null','integer')),\n CHECK(typeof(\"result_digest\")IN('null','blob'))\n) WITHOUT ROWID"
         ],
         [
           "table",
           "scan_command_results",
           "scan_command_results",
-          2240,
+          2241,
           "CREATE TABLE scan_command_results(\n run_id TEXT NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n input_ordinal INTEGER NOT NULL CHECK(input_ordinal\u003e=0),\n child_kind INTEGER NOT NULL CHECK(child_kind IN(0,1,2)),\n child_ordinal INTEGER NOT NULL CHECK(child_ordinal\u003e=0),\n object_id TEXT NOT NULL,\n library_id INTEGER NOT NULL,\n subject_id INTEGER NOT NULL,\n asset_id INTEGER NOT NULL,\n accepted_asset_revision INTEGER NOT NULL CHECK(accepted_asset_revision\u003e0),\n PRIMARY KEY(run_id,command_incarnation,command_sequence,input_ordinal,child_kind,child_ordinal),\n FOREIGN KEY(run_id,command_incarnation,command_sequence) REFERENCES scan_command_receipts(run_id,command_incarnation,command_sequence),\n FOREIGN KEY(library_id,subject_id) REFERENCES catalog_subjects(library_id,id),\n FOREIGN KEY(library_id,asset_id) REFERENCES catalog_assets(library_id,id),\n CHECK((child_kind=0 AND child_ordinal=0) OR (child_kind=1 AND child_ordinal\u003e0) OR child_kind=2),\n CHECK(typeof(\"run_id\")IN('null','text')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"input_ordinal\")IN('null','integer')),\n CHECK(typeof(\"child_kind\")IN('null','integer')),\n CHECK(typeof(\"child_ordinal\")IN('null','integer')),\n CHECK(typeof(\"object_id\")IN('null','text')),\n CHECK(typeof(\"library_id\")IN('null','integer')),\n CHECK(typeof(\"subject_id\")IN('null','integer')),\n CHECK(typeof(\"asset_id\")IN('null','integer')),\n CHECK(typeof(\"accepted_asset_revision\")IN('null','integer'))\n) WITHOUT ROWID"
         ],
         [
@@ -14315,7 +14329,7 @@
           "table",
           "search_generation_receipts",
           "search_generation_receipts",
-          2246,
+          2247,
           "CREATE TABLE search_generation_receipts(\n search_generation_id INTEGER NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('advance','seal','flip','retire')),\n accepted_revision INTEGER NOT NULL CHECK(accepted_revision\u003e=0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n active_generation_id INTEGER,\n building_generation_id INTEGER,\n input_sequence INTEGER NOT NULL CHECK(input_sequence\u003e=0),\n after_entity_id INTEGER NOT NULL,\n after_person_id INTEGER NOT NULL,\n after_reading_id INTEGER NOT NULL,\n after_table INTEGER NOT NULL,\n PRIMARY KEY(search_generation_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(search_generation_id,command_incarnation) REFERENCES search_generations(id,command_incarnation),\n CHECK(typeof(\"search_generation_id\")IN('null','integer')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"operation_id\")IN('null','blob')),\n CHECK(typeof(\"request_digest\")IN('null','blob')),\n CHECK(typeof(\"command_kind\")IN('null','text')),\n CHECK(typeof(\"accepted_revision\")IN('null','integer')),\n CHECK(typeof(\"applied_ms\")IN('null','integer')),\n CHECK(typeof(\"active_generation_id\")IN('null','integer')),\n CHECK(typeof(\"building_generation_id\")IN('null','integer')),\n CHECK(typeof(\"input_sequence\")IN('null','integer')),\n CHECK(typeof(\"after_entity_id\")IN('null','integer')),\n CHECK(typeof(\"after_person_id\")IN('null','integer')),\n CHECK(typeof(\"after_reading_id\")IN('null','integer')),\n CHECK(typeof(\"after_table\")IN('null','integer'))\n) WITHOUT ROWID"
         ],
         [
@@ -14392,7 +14406,7 @@
           "table",
           "search_publish_receipts",
           "search_publish_receipts",
-          2243,
+          2244,
           "CREATE TABLE search_publish_receipts(\n publish_job_id INTEGER NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('image_stage','fragment_stage','seal_step','seal','head_publish','people_head_publish')),\n accepted_revision INTEGER NOT NULL CHECK(accepted_revision\u003e=0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n input_generation INTEGER NOT NULL CHECK(input_generation\u003e0),\n image_id INTEGER,\n fragment_id INTEGER,\n after_field INTEGER NOT NULL,\n after_ordinal INTEGER NOT NULL,\n after_fragment_id INTEGER NOT NULL,\n seal_chain BLOB CHECK(seal_chain IS NULL OR length(seal_chain)=32),\n published_generation INTEGER NOT NULL CHECK(published_generation\u003e=0),\n staged_fragments INTEGER NOT NULL DEFAULT 0 CHECK(staged_fragments\u003e=0),\n staged_bytes INTEGER NOT NULL DEFAULT 0 CHECK(staged_bytes\u003e=0),\n verified_fragments INTEGER NOT NULL DEFAULT 0 CHECK(verified_fragments\u003e=0),\n verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK(verified_bytes\u003e=0),\n seal_algorithm TEXT NOT NULL DEFAULT '',\n PRIMARY KEY(publish_job_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(publish_job_id,command_incarnation) REFERENCES search_publish_jobs(id,command_incarnation),\n CHECK(typeof(\"publish_job_id\")IN('null','integer')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"operation_id\")IN('null','blob')),\n CHECK(typeof(\"request_digest\")IN('null','blob')),\n CHECK(typeof(\"command_kind\")IN('null','text')),\n CHECK(typeof(\"accepted_revision\")IN('null','integer')),\n CHECK(typeof(\"applied_ms\")IN('null','integer')),\n CHECK(typeof(\"input_generation\")IN('null','integer')),\n CHECK(typeof(\"image_id\")IN('null','integer')),\n CHECK(typeof(\"fragment_id\")IN('null','integer')),\n CHECK(typeof(\"after_field\")IN('null','integer')),\n CHECK(typeof(\"after_ordinal\")IN('null','integer')),\n CHECK(typeof(\"after_fragment_id\")IN('null','integer')),\n CHECK(typeof(\"seal_chain\")IN('null','blob')),\n CHECK(typeof(\"published_generation\")IN('null','integer')),\n CHECK(typeof(\"staged_fragments\")IN('null','integer')),\n CHECK(typeof(\"staged_bytes\")IN('null','integer')),\n CHECK(typeof(\"verified_fragments\")IN('null','integer')),\n CHECK(typeof(\"verified_bytes\")IN('null','integer')),\n CHECK(typeof(\"seal_algorithm\")IN('null','text'))\n) WITHOUT ROWID"
         ],
         [
@@ -14406,7 +14420,7 @@
           "table",
           "search_reclaim_receipts",
           "search_reclaim_receipts",
-          2249,
+          2250,
           "CREATE TABLE search_reclaim_receipts(\n reclaim_job_id INTEGER NOT NULL,\n command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),\n command_sequence INTEGER NOT NULL CHECK(command_sequence\u003e0),\n operation_id BLOB NOT NULL CHECK(length(operation_id)=16),\n request_digest BLOB NOT NULL CHECK(length(request_digest)=32),\n command_kind TEXT NOT NULL CHECK(command_kind IN('fragment_reclaim','image_reclaim')),\n accepted_revision INTEGER NOT NULL CHECK(accepted_revision\u003e=0),\n applied_ms INTEGER NOT NULL CHECK(applied_ms\u003e=0),\n publication_id INTEGER NOT NULL,\n fragment_id INTEGER,\n after_fragment_id INTEGER NOT NULL CHECK(after_fragment_id\u003e=0),\n complete INTEGER NOT NULL CHECK(complete IN(0,1)),\n PRIMARY KEY(reclaim_job_id,command_incarnation,command_sequence),\n UNIQUE(operation_id),\n FOREIGN KEY(reclaim_job_id,command_incarnation) REFERENCES search_reclaim_jobs(id,command_incarnation),\n CHECK(typeof(\"reclaim_job_id\")IN('null','integer')),\n CHECK(typeof(\"command_incarnation\")IN('null','blob')),\n CHECK(typeof(\"command_sequence\")IN('null','integer')),\n CHECK(typeof(\"operation_id\")IN('null','blob')),\n CHECK(typeof(\"request_digest\")IN('null','blob')),\n CHECK(typeof(\"command_kind\")IN('null','text')),\n CHECK(typeof(\"accepted_revision\")IN('null','integer')),\n CHECK(typeof(\"applied_ms\")IN('null','integer')),\n CHECK(typeof(\"publication_id\")IN('null','integer')),\n CHECK(typeof(\"fragment_id\")IN('null','integer')),\n CHECK(typeof(\"after_fragment_id\")IN('null','integer')),\n CHECK(typeof(\"complete\")IN('null','integer'))\n) WITHOUT ROWID"
         ],
         [
@@ -14908,7 +14922,7 @@
         ]
       ]
     },
-    "schemaSha256": "bf1511bbcafb4cfd092a2ca0706c308a0dc2ed0b72745add8edfeb3a5937b735",
+    "schemaSha256": "04dc3883a4c21853bd452b4d384947f91ca2b0b254e34567c4618f71927d177f",
     "statistics": {},
     "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
     "pragmas": {
