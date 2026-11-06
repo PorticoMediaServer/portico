@@ -14,6 +14,7 @@ import (
 )
 
 type n1ComponentRestart struct {
+	Phase                          string     `json:"reached_phase"`
 	Close                          n1Interval `json:"joined_executor_close"`
 	Reopen                         n1Interval `json:"canonical_opening"`
 	SameFile                       *bool      `json:"same_native_file"`
@@ -28,9 +29,10 @@ type n1ComponentRestart struct {
 // Existing W opening and ONE factored owner builder only. This is a COMPONENT
 // restart of a synthetic fixture, not production lease/issuer re-establishment.
 // The old executor is joined and stays closed; no flag or SQL state is reset.
-func n1RestartComponent(t *testing.T, f *inventoryProgressiveFixture, trace *n1Trace, origin time.Time) *n1ComponentRestart {
+func n1RestartComponent(t *testing.T, f *inventoryProgressiveFixture, trace *n1Trace, origin time.Time, observed **n1ComponentRestart) *n1ComponentRestart {
 	t.Helper()
-	out := &n1ComponentRestart{Scope: "component-only canonical close/reopen; original reference/governor/recipe retained, no production fresh lease authority"}
+	out := &n1ComponentRestart{Phase: "inspect_old_file", Scope: "component-only canonical close/reopen; original reference/governor/recipe retained, no production fresh lease authority"}
+	*observed = out // retain partial facts even if an existing fixture helper calls Fatal/Goexit
 	old := f.owner.executor
 	before, err := os.Stat(f.owner.path)
 	if err != nil {
@@ -41,6 +43,7 @@ func n1RestartComponent(t *testing.T, f *inventoryProgressiveFixture, trace *n1T
 		out.Error = err.Error()
 		return out
 	}
+	out.Phase = "join_old_executor"
 	start := time.Now()
 	err = old.close()
 	returned := time.Now()
@@ -51,6 +54,7 @@ func n1RestartComponent(t *testing.T, f *inventoryProgressiveFixture, trace *n1T
 		out.Error = n1Join("old native join incomplete", err)
 		return out
 	}
+	out.Phase = "canonical_opening"
 	owner := scanOpeningOwner(t, f.owner.path)
 	start = time.Now()
 	opening := openScanFixture(t, f.owner.path, owner) // actual existing-file W constructor/binding
@@ -75,6 +79,7 @@ func n1RestartComponent(t *testing.T, f *inventoryProgressiveFixture, trace *n1T
 	out.NewBindingChecked = true
 	// Initial W opening is unchanged. Reuse the existing test-only openPool
 	// decorator seam only AFTER joining that unobserved setup connection.
+	out.Phase = "join_initial_opening_connection"
 	out.OpeningConnectionsOutsideTrace = w.db.Stats().OpenConnections
 	if err = w.db.Close(); err != nil {
 		out.Error = err.Error()
@@ -93,6 +98,7 @@ func n1RestartComponent(t *testing.T, f *inventoryProgressiveFixture, trace *n1T
 		out.Error = err.Error()
 		return out
 	}
+	out.Phase = "decorate_and_capture"
 	w.openPool(connector, trace.decorate)
 	w.now = old.now
 	f.owner.executor = w
@@ -109,6 +115,7 @@ func n1RestartComponent(t *testing.T, f *inventoryProgressiveFixture, trace *n1T
 		out.Error = err.Error()
 		return out
 	}
+	out.Phase = "complete"
 	out.Complete = true
 	return out
 }

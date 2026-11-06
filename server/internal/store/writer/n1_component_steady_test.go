@@ -203,7 +203,7 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 			summary.Turns[role].Started++
 			record := runN1SteadyTurn(t, ctx, stream, fixture, trace, summary, original, attemptOrdinal, population, role, cohort, baseline, control)
 			if control.restart && role == "fresh_begin" && record.Complete && stream.err == nil {
-				summary.Restart = n1RestartComponent(t, fixture, trace, stream.origin)
+				n1RestartComponent(t, fixture, trace, stream.origin, &summary.Restart)
 				if !summary.Restart.Complete {
 					summary.StopReason = summary.Restart.Error
 					return

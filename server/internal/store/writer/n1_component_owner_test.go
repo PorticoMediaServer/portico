@@ -112,7 +112,9 @@ func runN1OwnerCell(t *testing.T, ctx context.Context, stream *n1Stream, cell, c
 			clock = time.Now
 		}
 		chain := &n1SteadySummary{}
-		runN1Steady(t, ctx, stream, 1, 0, cohort, n1SteadyControls{clock: clock, restart: true}, chain)
+		t.Run("restart", func(t *testing.T) {
+			runN1Steady(t, ctx, stream, 1, 0, cohort, n1SteadyControls{clock: clock, restart: true}, chain)
+		})
 		summary.Chain = chain
 		summary.Available = chain.Restart != nil
 		summary.Complete = chain.Complete && chain.Restart != nil && chain.Restart.Complete
