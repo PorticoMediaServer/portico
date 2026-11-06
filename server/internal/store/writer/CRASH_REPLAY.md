@@ -1,5 +1,38 @@
 # Process crash and receipt recovery controls
 
+`TestCrashReplayInventoryNativeHistory` adds **55** cells for the actual
+Inventory history/ACK dispatcher: Applied Resolve (6 native uses), ACK (7),
+Retired Resolve (5), and already-retired ACK (5). Each has BEGIN/COMMIT,
+observed physical return, API return and both lost-reply controls. Exact native
+sequences pin current owner/disclosure before history, and require the retired
+paths to skip cohort decode and a second ACK write.
+
+These are existing historical SQL-fact fixtures, **not fresh Inventory
+qualification**. Complete 32-column receipts and ordered 11-column child rows
+come from raw SQL before the tested command, never from ResolveScan or a
+production decoder/codec. An independent checkpoint also commits to every
+column/row in 22 owner/catalogue/source/progress/search tables. Canonical typed
+cells distinguish NULL, integer, REAL, TEXT and BLOB, preserve integer precision,
+and treat row order as a multiset. The target ACK floor is asserted against the
+declared operation/boundary before only that single field is normalized; all
+other owners and all other bytes must remain unchanged.
+
+Complete returned results are checked against the raw receipt/cohort, including
+all-zero retired payloads. Actual Inventory/ScanMinimum/NORMAL frame evidence,
+native commit/physical return and zero retired custody are observed separately.
+Canonical reopen and the existing full-Capture identity/history binding are
+reused, with no bootstrap/setup replay, profile/facade clone or source permit.
+After each restart the checks resolve twice, ACK twice, compare all retained
+native checkpoints again and verify current disclosure still gates retirement.
+
+Twenty-four native corruption controls exercise 12 owner/floor/receipt/cohort/
+source mutations above and below the floor, including another owner's floor,
+revision/children and unprojected fields. Unsupported operations, phases,
+fault meanings and checkpoint/table/type inventories fail explicitly. Scoped
+TMPDIR/GOTMPDIR, actual SIGKILL/Wait and the same-PR Linux policy entry remain
+mandatory. This extends protocol coverage without proving fresh source/lease
+rebinding, power loss, native fsync timing, production profiles or the full V model.
+
 `TestCrashReplayEffectiveNativeSteps` extends the real W dispatcher to **74**
 cells: fresh hidden BEGIN, Stage replay, Resolve and ACK. It pins every executed
 registered statement/use (26/5/5/6), including current native disclosure and

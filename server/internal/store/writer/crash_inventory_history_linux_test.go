@@ -230,6 +230,10 @@ func crashInventoryNativeFixture(t *testing.T, witness *crashWitness) (*Writer, 
 	if err != nil {
 		t.Fatal(err)
 	}
+	witness.HistoryState, err = readInventoryHistoryState(t.Context(), e.db, q, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	floor := int64(0)
 	if strings.HasSuffix(witness.Case.Operation, "_retired") {
 		ack, err := w.AckScan(t.Context(), cap, q)
@@ -239,9 +243,12 @@ func crashInventoryNativeFixture(t *testing.T, witness *crashWitness) (*Writer, 
 		checkInventoryHistoryReturn(t, w, e, q, journal, 1, "ack", InventoryResult{}, ack)
 		floor = 1
 	}
-	witness.HistoryState, err = readInventoryHistoryState(t.Context(), e.db, q, floor)
+	prepared, err := readInventoryHistoryState(t.Context(), e.db, q, floor)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if err := compareInventoryHistoryState(witness.HistoryState, prepared); err != nil {
+		t.Fatal("preparatory ACK changed original state", err)
 	}
 	defs := inventoryHistoryDefinitions()
 	ids := map[string]stmt.ID{}
