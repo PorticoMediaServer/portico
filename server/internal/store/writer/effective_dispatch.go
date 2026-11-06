@@ -178,6 +178,12 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if r.inventoryPlan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
+		if scan.input != nil {
+			original, err := scan.input.receiptRequest()
+			if err != nil || original != scan.request {
+				return out, acknowledged, ErrInvalid
+			}
+		}
 		purpose, plan, reference, key, libraryID = InventoryAccept, r.inventoryPlan, scan.request.Receipt, scan.request.RunID, scan.request.LibraryID
 		outcome = &out.inventory.Outcome
 	}
@@ -276,22 +282,28 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		}
 	}
 	if err == nil {
-		err = errors.Join(r.currentRunDisclosure(w, cap, request, scan), ctx.Err())
+		err = errors.Join(r.currentRunDisclosure(w, cap, request, scan), turn.checkLifetimes(ctx))
 	}
 	var historical bool
 	if err == nil && scan != nil {
 		var lookup inventoryReceiptLookup
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
+		// Recheck permission even when lookup reports cancellation/error;
+		// neither a saved result nor a fresh decision escapes revocation.
+		err = errors.Join(err, r.currentRunDisclosure(w, cap, request, scan), turn.checkLifetimes(ctx))
 		if err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeInventory(ctx, turn, scan.request, lookup)
 			} else {
 				out.inventory = inventoryHistoricalResult(scan.request, lookup)
 				historical = lookup.decision != receiptFresh
-				if lookup.decision == receiptFresh && scan.accept {
+				if lookup.decision == receiptFresh && scan.input != nil {
 					// SC's complete fresh effect body and qualified recipe have
 					// not landed. No subset may become Applied.
-					err = &Refusal{Code: RefusalUnqualified}
+					err = checkInventoryFreshLibrary(ctx, turn, scan.request)
+					if err == nil {
+						err = &Refusal{Code: RefusalUnqualified}
+					}
 				}
 			}
 		}
@@ -305,6 +317,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if disposition == receiptRetired && errors.Is(err, errEffectiveBeginResultRetired) {
 			err = nil
 		}
+		err = errors.Join(err, r.currentRunDisclosure(w, cap, request, scan))
 		if err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeEffective(ctx, turn, request, owner, disposition)
@@ -322,6 +335,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 				case receiptFresh:
 					outcome.State = Pending
 					if input != nil {
+						if err = turn.checkLifetimes(ctx); err != nil {
+							break
+						}
 						permit := cap.scope.fixture
 						if permit == nil || permit.issuer != r || permit.reference != request.Receipt {
 							err = &Refusal{Code: RefusalUnqualified}
@@ -346,7 +362,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		acknowledged = AckResult{}
 		historical = false
 	}
-	err = errors.Join(err, permissionErr, ctx.Err())
+	err = errors.Join(err, permissionErr, checkCommandLifetimes(ctx, tx))
 	var physical turnResult
 	if err == nil {
 		physical, err = tx.commit()

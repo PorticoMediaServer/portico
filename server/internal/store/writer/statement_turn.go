@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -28,6 +29,23 @@ type commandTurn struct {
 	registry    *stmt.Registry
 	steps       map[stmt.ID]registeredStep
 	rows        []*commandRows
+}
+
+// checkLifetimes closes the gap after the last native read/EOF/close or digest
+// work. It proves no principal authority: the dispatcher must independently
+// check current disclosure even when this reports cancellation.
+func (t *commandTurn) checkLifetimes(ctx context.Context) error {
+	if t == nil {
+		return ErrInvalid
+	}
+	return checkCommandLifetimes(ctx, t.transaction)
+}
+
+func checkCommandLifetimes(ctx context.Context, tx *transaction) error {
+	if ctx == nil || tx == nil || tx.ctx == nil {
+		return ErrInvalid
+	}
+	return errors.Join(ctx.Err(), tx.ctx.Err())
 }
 
 func newCommandTurn(tx *transaction, registry *stmt.Registry, steps []statementStep) (*commandTurn, error) {

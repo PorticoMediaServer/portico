@@ -77,7 +77,7 @@ func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effe
 // Native qualification is setup work on the actual owned fixture, outside
 // measured command custody. Resource forecasts and source/seal authority remain
 // synthetic/test-only; an EXPLAIN receipt does not certify either of them.
-func captureEffectiveFixture(t *testing.T, conn *sql.Conn, config sqliteconn.Config, defs []stmt.Definition) plan.Golden {
+func captureEffectiveFixture(t *testing.T, conn *sql.Conn, config sqliteconn.Config, defs []stmt.Definition, additionalSources ...string) plan.Golden {
 	t.Helper()
 	catalogue, err := stmt.Describe(defs)
 	if err != nil {
@@ -92,7 +92,8 @@ func captureEffectiveFixture(t *testing.T, conn *sql.Conn, config sqliteconn.Con
 		t.Fatal(err)
 	}
 	hash := sha256.New()
-	for _, name := range []string{"effective_dispatch_test.go", "enrichment_effective_begin_handler_test.go", "enrichment_effective_begin_facts_test.go"} {
+	sources := append([]string{"effective_dispatch_test.go", "enrichment_effective_begin_handler_test.go", "enrichment_effective_begin_facts_test.go"}, additionalSources...)
+	for _, name := range sources {
 		data, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
@@ -101,7 +102,7 @@ func captureEffectiveFixture(t *testing.T, conn *sql.Conn, config sqliteconn.Con
 	}
 	golden, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{
 		ConnectionPolicy: config, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed,
-		Implementations: "owned effective component/first-light fixture setup; actual native qualification, synthetic resource forecasts and test-only source permission",
+		Implementations: "owned writer component fixture setup; actual native qualification, synthetic resource forecasts and test-only source permission",
 	}, policy)
 	if err != nil {
 		t.Fatal(err)

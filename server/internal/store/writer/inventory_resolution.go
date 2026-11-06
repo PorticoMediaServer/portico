@@ -85,7 +85,7 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 	}
 	out := inventoryReceiptLookup{owner: owner, decision: decision}
 	if decision != receiptReplay {
-		if err := errors.Join(ctx.Err(), turn.transaction.ctx.Err()); err != nil {
+		if err := turn.checkLifetimes(ctx); err != nil {
 			return inventoryReceiptLookup{}, err
 		}
 		return out, nil // floor precedes any possibly drained result-cohort decode
@@ -123,7 +123,7 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 	if err != nil || d != ResultDigest(facts.resultDigest) {
 		return inventoryReceiptLookup{}, errors.Join(ErrResolveRequired, err)
 	}
-	if err := errors.Join(ctx.Err(), turn.transaction.ctx.Err()); err != nil {
+	if err := turn.checkLifetimes(ctx); err != nil {
 		return inventoryReceiptLookup{}, err
 	}
 	out.result, out.digest = v, d

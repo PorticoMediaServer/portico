@@ -165,7 +165,7 @@ func (w *Writer) AcceptInventory(ctx context.Context, disclosure *ScanDisclosure
 	if err != nil {
 		return InventoryResult{}, err
 	}
-	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, &inventoryInvocation{disclosure, request, true})
+	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, &inventoryInvocation{disclosure, request, input.(*inventoryAcceptCommand)})
 	return out.inventory, err
 }
 
@@ -175,7 +175,7 @@ func (w *Writer) ResolveScan(ctx context.Context, disclosure *ScanDisclosure, re
 	if w == nil || w.effective == nil || w.effective.inventoryPlan == nil {
 		return InventoryResult{}, ErrNotImplemented
 	}
-	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, &inventoryInvocation{disclosure, request, false})
+	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, &inventoryInvocation{disclosure, request, nil})
 	return out.inventory, err
 }
 
@@ -183,7 +183,7 @@ func (w *Writer) AckScan(ctx context.Context, disclosure *ScanDisclosure, reques
 	if w == nil || w.effective == nil || w.effective.inventoryPlan == nil {
 		return AckResult{}, ErrNotImplemented
 	}
-	_, ack, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, &inventoryInvocation{disclosure, request, false})
+	_, ack, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, &inventoryInvocation{disclosure, request, nil})
 	return ack, err
 }
 
