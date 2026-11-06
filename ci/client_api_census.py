@@ -27,12 +27,12 @@ DETECTIONS = 'ci/client-api-detection-additions.json'
 REHASH_RULING = 'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725'
 SOURCE_ROOTS = ('web/', 'apps/native/', 'apps/desktop/', 'apps/vega/',
                 'packages/player-core/', 'packages/reader-core/', 'website/', 'server/receiver/cast/')
-EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.kt', '.java', '.swift', '.m', '.mm', '.rs'}
+EXTENSIONS = {'.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.kt', '.java', '.swift', '.m', '.mm', '.rs'}
 
 
 def production(path):
     return (path.startswith(SOURCE_ROOTS) and Path(path).suffix in EXTENSIONS
-            and not re.search(r'(?:^|/)(?:tests?|__tests__|scripts|node_modules|build|dist|Pods|dev)/|\.(?:test|spec|browser|capture)\.|\.d\.ts$', path)
+            and not re.search(r'(?:^|/)(?:tests?|__tests__|scripts|node_modules|build|dist|Pods|dev)/|\.(?:test|spec|browser|capture)\.|\.d\.[cm]?ts$', path)
             and not (path.startswith('server/receiver/cast/') and re.search(r'(?:^|/)(?:contracts|schemas|decoders|routes)\.(?:js|ts)$', path))
             and not re.search(r'/(?:ds-[^/]+|.*\.specimen)\.tsx$', path))
 
@@ -598,7 +598,7 @@ def scan(root=ROOT, paths=None):
     if paths is None:
         paths = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
     paths = sorted(p for p in paths if p and production(p))
-    js = [p for p in paths if Path(p).suffix in {'.ts','.tsx','.js','.jsx','.mjs','.cjs'}]
+    js = [p for p in paths if Path(p).suffix in {'.ts','.tsx','.mts','.cts','.js','.jsx','.mjs','.cjs'}]
     if js:
         result = subprocess.run(['node',str(SCANNER)],cwd=root,
                                 input=json.dumps({'root':str(root),'files':js}),text=True,capture_output=True,check=True)

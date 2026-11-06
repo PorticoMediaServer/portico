@@ -17,7 +17,26 @@ import time
 TOOL_ROOT=Path(__file__).resolve().parent.parent
 SUFFIXES={'.ts','.tsx','.mts','.cts','.js','.jsx','.mjs','.cjs','.json','.kt','.java','.swift','.m','.mm','.rs'}
 TYPED={'.ts','.tsx','.mts','.cts','.js','.jsx','.mjs','.cjs','.json'}
+EXECUTABLE=TYPED-{'.json'}
+DEPENDENCY_FIELDS=('dependencies','devDependencies','peerDependencies','optionalDependencies','overrides','resolutions','workspaces','packageManager')
 _ACTIVE=ContextVar('portico_ratchet_runtime',default=None)
+
+
+def dependency_input(path):
+    return Path(path).name in {'package.json','package-lock.json','npm-shrinkwrap.json','yarn.lock','pnpm-lock.yaml','.npmrc'}
+
+
+def dependency_environment(records):
+    result={}
+    for path,(_,_,data) in records.items():
+        if not dependency_input(path):continue
+        if Path(path).name=='package.json':
+            manifest=json.loads(data)
+            selected={k:manifest[k] for k in DEPENDENCY_FIELDS if k in manifest}
+            if not selected:continue
+            data=json.dumps(selected,sort_keys=True,separators=(',',':')).encode()
+        result[path]=hashlib.sha256(data).hexdigest()
+    return result
 
 
 def active_runtime(root):
@@ -142,8 +161,10 @@ class TypedWorker:
             stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=self.error,text=True,start_new_session=True)
         os.set_blocking(self.process.stdin.fileno(),False)
         self.stats={}
+        self.failure=None
 
     def scan(self, view, paths, configs=None, project_files=None):
+        if self.failure:raise RatchetFailure(self.failure)
         payload={'root':str(self.root),'dependencyRoot':str(self.dependency_root),'kind':self.kind,'files':paths,'projectFiles':project_files or paths,'sources':view.typed_sources(),'configs':configs or []}
         try:
             request=(json.dumps(payload,separators=(',',':'))+'\n').encode();sent=0
@@ -167,6 +188,7 @@ class TypedWorker:
             if answer.get('ok') is not True:raise RatchetFailure('Typed ratchet worker failed: '+str(answer.get('error','unknown'))[:6000])
             self.stats=answer['stats'];return answer
         except (OSError,ValueError) as error:
+            self.failure=str(error)
             self.close()
             if isinstance(error,RatchetFailure):raise
             raise RatchetFailure(f'Typed ratchet transport failed: {error}') from error
@@ -188,7 +210,13 @@ class RatchetRuntime:
         self.original=Path(root).resolve();self.budget=Budget(seconds)
         self.dependency_root=Path(dependency_root or self.original).resolve()
         self.git=GitBlobs(self.original,self.budget);self.views={};self.by_root={};self.native={};self.workers={};self.results={};self.rule_counts={}
+        self.query_inventories={}
         self.initial_head=self.git.git(['rev-parse','--verify','HEAD^{commit}']).decode().strip()
+        # The only install available in CI is npm ci's final checkout. Refuse
+        # to reinterpret an entry selected by different dependency inputs.
+        installed_paths=self.budget.run(['git','ls-files','-z'],cwd=self.dependency_root,capture_output=True).stdout.decode().split('\0')
+        inputs={p:('100644','',(self.dependency_root/p).read_bytes()) for p in installed_paths if dependency_input(p)}
+        self.installed_environment=dependency_environment(inputs)
         self.object_store=Path(self.git.git(['rev-parse','--path-format=absolute','--git-common-dir']).decode().strip())/'objects'
         self.scratch=tempfile.TemporaryDirectory(prefix='portico-ratchet-',dir=os.environ.get('TMPDIR'))
         self.stats={'nativeAnalysed':0,'nativeReused':0,'materializedFiles':0}
@@ -205,7 +233,7 @@ class RatchetRuntime:
         if commit in self.views:return self.views[commit]
         exceptions=self.git.json(ref,'ci/client-api-exceptions.json',optional=True) or {}
         bound=self.bound_files(exceptions)
-        wanted={p:record for p,record in entries.items() if Path(p).suffix in SUFFIXES or p in bound}
+        wanted={p:record for p,record in entries.items() if Path(p).suffix in SUFFIXES or p in bound or dependency_input(p)}
         if not bound<=entries.keys():raise RatchetFailure('Missing bound historical source file')
         for path,(mode,kind,_) in wanted.items():
             if mode not in {'100644','100755'} or kind!='blob':raise RatchetFailure(f'Historical source {path} is not a regular blob; symlinks are forbidden')
@@ -234,7 +262,7 @@ class RatchetRuntime:
         except FileNotFoundError:exceptions={}
         bound=self.bound_files(exceptions);records={}
         for path in paths:
-            if Path(path).suffix not in SUFFIXES and path not in bound:continue
+            if Path(path).suffix not in SUFFIXES and path not in bound and not dependency_input(path):continue
             relative=Path(path)
             if relative.is_absolute() or '..' in relative.parts:raise RatchetFailure('Invalid current source path')
             descriptors=[]
@@ -284,13 +312,13 @@ class RatchetRuntime:
 
     def census(self, view, files=None):
         from client_api_census import production,native_sites,identify_sites
+        self.verify_environment(view)
         key=('census',view.identity,None if files is None else tuple(sorted(files)))
         if key in self.results:return copy.deepcopy(self.results[key])
         if files is not None and ('census',view.identity,None) in self.results:
             return copy.deepcopy([s for s in self.results[('census',view.identity,None)] if s['file'] in files])
         all_paths=sorted(p for p in view.paths if production(p));paths=all_paths if files is None else [p for p in all_paths if p in files]
-        suffixes={'.ts','.tsx','.js','.jsx','.mjs','.cjs'}
-        js=[p for p in paths if Path(p).suffix in suffixes];project_files=[p for p in all_paths if Path(p).suffix in suffixes]
+        js=[p for p in paths if Path(p).suffix in EXECUTABLE];project_files=[p for p in all_paths if Path(p).suffix in EXECUTABLE]
         sites=self.worker('census').scan(view,js,project_files=project_files)['sites'] if js else []
         for path in paths:
             if path in js:continue
@@ -304,9 +332,21 @@ class RatchetRuntime:
         return copy.deepcopy(self.results[key])
 
     def query(self, view, paths, configs):
+        self.verify_environment(view)
         key=('query',view.identity,tuple(paths),tuple(configs))
-        if key not in self.results:self.results[key]=self.worker('query').scan(view,paths,configs)['reads'] if paths else {}
-        return copy.deepcopy(self.results[key])
+        if key not in self.results:
+            answer=self.worker('query').scan(view,paths,configs) if paths else {'reads':{},'inventory':[]}
+            self.results[key]=answer
+        self.query_inventories[view.identity]=self.results[key]['inventory']
+        return copy.deepcopy(self.results[key]['reads'])
+
+    def verify_environment(self,view):
+        environment=dependency_environment(view.records)
+        if environment!=self.installed_environment:
+            changed=sorted(p for p in environment.keys()|self.installed_environment.keys()
+                           if environment.get(p)!=self.installed_environment.get(p))
+            raise RatchetFailure('Historical dependency environment differs from the final install inputs: '+', '.join(changed)+
+                                 '; entry-bound dependency installs are required; no typed result accepted')
 
     def metrics(self):
         return {**self.git.stats,**self.stats,'elapsedSeconds':time.monotonic()-self.budget.start,
