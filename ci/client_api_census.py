@@ -13,8 +13,8 @@ import re
 import stat
 import subprocess
 import sys
-import tarfile
-import tempfile
+from ratchet_base import merge_base, historical_json, source_snapshot, check_queue
+from ratchet_runtime import RatchetRuntime, active_runtime
 
 ROOT = Path(__file__).resolve().parent.parent
 SCANNER = ROOT / 'ci/client_api_sites.mjs'
@@ -35,49 +35,115 @@ def production(path):
             and not re.search(r'/(?:ds-[^/]+|.*\.specimen)\.tsx$', path))
 
 
-def tokens(source, rust=False):
+def tokens(source, rust=False, swift=False):
     """Native lexical tokens with offsets. Strings/comments cannot masquerade as calls.
 
-    Handles nested block comments (Kotlin/Swift/Rust), raw Rust strings, Kotlin/Swift
-    multiline strings and Objective-C strings. No HTTP matching inside a string.
+    Swift literal payload stays opaque, including extended/multiline delimiters.
+    Executable interpolation is recursively tokenized, with its original offsets.
+    The full literal token preserves enclosing request identities; interpolation
+    children remain visible when detecting their own executable calls.
     """
-    out, i = [], 0
-    while i < len(source):
-        if source[i].isspace(): i += 1; continue
-        if source.startswith('//', i):
-            end = source.find('\n', i); i = len(source) if end < 0 else end; continue
-        if source.startswith('/*', i):
-            depth = 1; i += 2
-            while i < len(source) and depth:
-                if source.startswith('/*', i): depth += 1; i += 2
-                elif source.startswith('*/', i): depth -= 1; i += 2
-                else: i += 1
-            continue
-        start = i
-        raw = re.match(r'r(#+)?"', source[i:])
-        if raw:
-            delimiter = '"' + (raw[1] or ''); end = source.find(delimiter, i + raw.end())
-            i = len(source) if end < 0 else end + len(delimiter)
-            out.append(('string', source[start:i], start)); continue
-        if source.startswith('@"', i): i += 1
-        if source.startswith('"""', i):
-            end = source.find('"""', i + 3); i = len(source) if end < 0 else end + 3
-            out.append(('string', source[start:i], start)); continue
-        if source[i] in ('"', "'"):
-            # Rust lifetimes are identifiers, not unterminated character strings.
-            lifetime=re.match(r"'[A-Za-z_]\w*",source[i:]) if rust else None
-            if lifetime and not source.startswith("'",i+lifetime.end()):
-                i += 1; out.append(('punct', "'", start)); continue
-            quote = source[i]; i += 1
-            while i < len(source):
-                if source[i] == '\\': i += 2; continue
-                if source[i] == quote: i += 1; break
-                i += 1
-            out.append(('string', source[start:i], start)); continue
-        word = re.match(r'[A-Za-z_$][\w$]*', source[i:])
-        if word:
-            i += word.end(); out.append(('id', word[0], start)); continue
-        out.append(('punct', source[i], i)); i += 1
+    out=[]
+    def regex_end(start, expression):
+        opening=re.match(r'(#+)?/',source[start:])
+        if not opening:return None
+        hashes=opening[1] or '';i=start+opening.end();content=i
+        if not hashes and (not expression or i==len(source) or source[i].isspace()):return None
+        if not hashes:
+            operator=start
+            while operator and source[operator-1] in '+-*/%=<>!&|^~?.':operator-=1
+            if '/' in source[operator:start] or (operator<start and operator and
+                    (source[operator-1].isalnum() or source[operator-1] in '_)]}')):return None
+        multiline=bool(hashes and source[i:i+1] in ('\r','\n'))
+        classes=rounds=0;escaped=False
+        while i<len(source):
+            char=source[i]
+            if char in '\r\n' and not multiline:return None
+            if char=='\\':
+                if source[i+1:i+2] in ('\r','\n') and not multiline:return None
+                i+=2;escaped=True;continue
+            if not classes and source.startswith('/'+hashes,i):
+                if not hashes and (i==content or (source[i-1] in ' \t' and not escaped)):return None
+                line=max(source.rfind('\n',0,i),source.rfind('\r',0,i))+1
+                if not multiline or not source[line:i].strip():return i+1+len(hashes)
+            if char=='[':classes+=1
+            elif char==']' and classes:classes-=1
+            elif not classes:
+                if char=='(':rounds+=1
+                elif char==')':
+                    if not hashes and not rounds:return None  # An unapplied/prefix '/' operator.
+                    rounds-=1
+                elif char=='#' and multiline:
+                    end=re.search(r'[\r\n]',source[i:]);i=len(source) if end is None else i+end.start();continue
+            i+=1;escaped=False
+        return None
+    def code(i, interpolation=False):
+        rounds=0;expression=True;last_end=i
+        while i < len(source):
+            if source[i].isspace(): i += 1; continue
+            if source.startswith('//', i):
+                end=re.search(r'[\r\n]',source[i:]);i=len(source) if end is None else i+end.start();continue
+            if source.startswith('/*', i):
+                depth = 1; i += 2
+                while i < len(source) and depth:
+                    if source.startswith('/*', i): depth += 1; i += 2
+                    elif source.startswith('*/', i): depth -= 1; i += 2
+                    else: i += 1
+                continue
+            start = i
+            # SE-0354: extended regexes are unambiguous. Bare '/' needs an
+            # expression position, balanced ')' and a same-line terminator;
+            # division/operators must leave their executable operands visible.
+            end=regex_end(i,expression or '\n' in source[last_end:i]) if swift else None
+            if end is not None:
+                i=end;out.append(('string',source[start:i],start));expression=False;last_end=i;continue
+            literal=re.match(r'(#+)?("""|")',source[i:]) if swift else None
+            if literal:
+                hashes=literal[1] or '';delimiter=literal[2]+hashes;escape='\\'+hashes
+                slot=len(out);out.append(None);i+=literal.end()
+                while i<len(source):
+                    if source.startswith(escape,i) and not (hashes and source.startswith('#',i+len(escape))):
+                        opening=i+len(escape)
+                        if source.startswith('(',opening):
+                            out.append(('punct','(',opening));i=code(opening+1,interpolation=True)
+                        else:i=min(len(source),opening+1)
+                    elif source.startswith(delimiter,i):i+=len(delimiter);break
+                    else:i+=1
+                out[slot]=('string',source[start:i],start);expression=False;last_end=i;continue
+            raw = re.match(r'r(#+)?"', source[i:])
+            if raw:
+                delimiter = '"' + (raw[1] or ''); end = source.find(delimiter, i + raw.end())
+                i = len(source) if end < 0 else end + len(delimiter)
+                out.append(('string', source[start:i], start)); continue
+            if source.startswith('@"', i): i += 1
+            if source.startswith('"""', i):
+                end = source.find('"""', i + 3); i = len(source) if end < 0 else end + 3
+                out.append(('string', source[start:i], start)); continue
+            if source[i] in ('"', "'"):
+                # Rust lifetimes are identifiers, not character strings.
+                lifetime=re.match(r"'[A-Za-z_]\w*",source[i:]) if rust else None
+                if lifetime and not source.startswith("'",i+lifetime.end()):
+                    i += 1; out.append(('punct', "'", start)); continue
+                quote = source[i]; i += 1
+                while i < len(source):
+                    if source[i] == '\\': i += 2; continue
+                    if source[i] == quote: i += 1; break
+                    i += 1
+                out.append(('string', source[start:i], start)); continue
+            word = re.match(r'[A-Za-z_$][\w$]*', source[i:])
+            if word:
+                i += word.end(); out.append(('id', word[0], start))
+                expression=word[0] in ('return','throw','case','in','try','await');last_end=i;continue
+            out.append(('punct', source[i], i))
+            if interpolation:
+                if source[i]==')' and rounds==0:return i+1
+                if source[i]=='(':rounds+=1
+                elif source[i]==')':rounds-=1
+            expression=(not source[i].isdigit() and source[i] not in ')]}.'
+                        and (source[i] not in '!?' or expression))
+            i += 1;last_end=i
+        return i
+    code(0)
     return out
 
 
@@ -157,6 +223,15 @@ def native_forwarding_shape(path, body):
     return None
 
 
+def token_expression(ts):
+    values=[];literal_end=-1
+    for kind,value,offset in ts:
+        if offset<literal_end:continue
+        values.append(value)
+        if kind=='string':literal_end=offset+len(value)
+    return ' '.join(values)
+
+
 def native_sites(path, source):
     if path.endswith('.rs'):
         # Skip each test module's balanced body, preserving later production source.
@@ -175,7 +250,7 @@ def native_sites(path, source):
             source = source[:start]+re.sub(r'[^\n]', ' ', source[start:end])+source[end:]
     if path.endswith(('.m','.mm')):
         source = re.sub(r'^#if DEBUG\b[\s\S]*?^#endif\b', lambda m: re.sub(r'[^\n]',' ',m[0]), source, flags=re.M)
-    ts = tokens(source,rust=path.endswith('.rs'))
+    ts = tokens(source,rust=path.endswith('.rs'),swift=path.endswith('.swift'))
     # Transport evidence comes from native imports, declared types and constructor
     # bindings. A file's readText/readBytes/data/get methods alone prove no HTTP.
     code = ' '.join(value if kind != 'string' else '""' for kind,value,_ in ts)
@@ -185,8 +260,9 @@ def native_sites(path, source):
         url_names.update(re.findall(r'\b(\w+)\s*:\s*(?:java\s*\.\s*net\s*\.\s*)?URL\b',code))
         url_names.update(re.findall(r'\bURL\s+(\w+)\s*(?:=|,|\))',code))
         url_names.update(re.findall(r'\b(?:val|var|let)\s+(\w+)\s*(?::[^=;{}]+)?=\s*(?:new\s+)?(?:java\s*\.\s*net\s*\.\s*)?URL\s*\(',code))
-    session_names = set(re.findall(r'\b(\w+)\s*:\s*URLSession\b',code))
-    session_names.update(re.findall(r'\b(?:let|var)\s+(\w+)\s*(?::[^=;{}]+)?=\s*URLSession\b',code))
+    session_type=r'(?:(?:Foundation|FoundationNetworking)\s*\.\s*)?URLSession'
+    session_names = set(re.findall(r'\b(\w+)\s*:\s*'+session_type+r'\b',code))
+    session_names.update(re.findall(r'\b(?:let|var)\s+(\w+)\s*(?::[^=;{}]+)?=\s*(?:\(\s*)*'+session_type+r'\b',code))
     http_type = r'(?:reqwest\s*:\s*:\s*(?:blocking\s*:\s*:\s*)?Client|OkHttpClient|HttpClient)'
     rust_borrow = r'(?:&\s*(?:\x27\s*\w+\s+)?(?:mut\s+)?)?'
     http_names = set(re.findall(r'\b(\w+)\s*:\s*'+rust_borrow+http_type+r'\b',code))
@@ -206,8 +282,35 @@ def native_sites(path, source):
                 depth-=1
                 if not depth:return j>0 and ts[j-1][1]=='URL'
         return False
-    def session_receiver(i):
-        return receiver_at(i) in session_names or ''.join(t[1] for t in ts[max(0,i-4):i])=='URLSession.shared.'
+    round_open={};stack=[]
+    for n,(_,value,_) in enumerate(ts):
+        if value=='(':stack.append(n)
+        elif value==')' and stack:round_open[n]=stack.pop()
+    def session_origin(end):
+        """Recognize a complete receiver rooted in a known URLSession binding/type.
+
+        Walk property/call chains and grouping parentheses, never method spelling
+        or URLSession-looking text inside constructor arguments or strings.
+        """
+        while end>=0 and ts[end][1] in {'?','!'}:end-=1
+        if end<0:return None
+        if ts[end][1]==')':
+            opening=round_open.get(end)
+            if opening is None:return None
+            before=opening-1
+            grouping=(before<0 or ts[before][0]!='id' and ts[before][1] not in {')',']','?','!'}
+                      or ts[before][1] in {'await','try','return','throw'})
+            if grouping:return opening if session_origin(end-1) is not None else None
+            return session_origin(before)
+        if ts[end][0]!='id':return None
+        if end>=2 and ts[end-1][1]=='.':
+            origin=session_origin(end-2)
+            if origin is not None:return origin
+        if ts[end][1]=='URLSession' or ts[end][1] in session_names:
+            start=end
+            while start>=2 and ts[start-1][1]=='.' and ts[start-2][0]=='id':start-=2
+            return start
+        return None
     found = []
     function_spans = native_function_spans(ts, source, path)
     brackets, enclosing, opening_offsets = [], {}, {}
@@ -230,7 +333,8 @@ def native_sites(path, source):
         # Function declarations are not calls.
         if i and ts[i - 1][1] in ('fun', 'func', 'fn'): continue
         url_read = value in {'readText','readBytes','readLines','inputStream'} and url_receiver(i)
-        session_read = value in {'data','bytes','download','upload'} and session_receiver(i) and after=='(' and ts[i+2][1] in {'for','from','with'}
+        session_start=session_origin(i-2) if value in {'data','bytes','download','upload'} and i>=2 and ts[i-1][1]=='.' else None
+        session_read = session_start is not None and after=='(' and ts[i+2][1] in {'for','from','with'}
         fluent = value in {'get','post','put','patch','delete','head'} and (receiver_at(i) in http_names
                     or ''.join(t[1] for t in ts[max(0,i-3):i]) in {'reqwest::','ureq::','isahc::'})
         if value == 'bytes' and not session_read: continue
@@ -264,11 +368,12 @@ def native_sites(path, source):
                     depth -= 1
                 elif ts[end][1] == ';' and depth == 0: break
         start, end = native_chain(ts, i, end) if after == '(' else (i, end)
+        if session_read:start=session_start  # Bind inline/grouped receiver inputs too.
         message_start=opening_offsets[i][-1] if after==':' and opening_offsets[i] else start
         call = ts[start:end+1]
         if is_url and not any(t[0]=='string' and '/v1/' in t[1] for t in call): continue
         if value == 'Request' and is_builder: continue
-        expression = ' '.join(t[1] for t in call)
+        expression = token_expression(call)
         spans = [(a,b) for a,b in function_spans if a<=i<=b]
         construction_hash = None
         policy = ''
@@ -285,6 +390,8 @@ def native_sites(path, source):
 
 
 def scan(root=ROOT, paths=None):
+    runtime=active_runtime(root)
+    if runtime:return runtime.census(runtime.current(root,paths))
     if paths is None:
         paths = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
     paths = sorted(p for p in paths if p and production(p))
@@ -296,6 +403,10 @@ def scan(root=ROOT, paths=None):
     else: sites = []
     for path in paths:
         if path not in js: sites.extend(native_sites(path,(root/path).read_text()))
+    return identify_sites(sites)
+
+
+def identify_sites(sites):
     for site in sites:
         # Stable across line moves. Multisets preserve identical calls on the same line.
         identity = [site['kind'],site['owner'],site['callee'],site['expression']]
@@ -310,31 +421,9 @@ def scan(root=ROOT, paths=None):
     return sorted(sites,key=lambda s:(s['file'],s['line'],s['id']))
 
 
-def scan_snapshot(root, ref):
-    """Run the new detector on immutable base sources, without checking out a branch.
-
-    Copy tracked source/config only, never symlinks, dependencies or Git state.
-    Core/contracts sources accompany apps so resolved symbols keep their origin.
-    """
-    paths=subprocess.check_output(['git','ls-tree','-rz','--name-only',ref],cwd=root).decode().split('\0')
-    roots=[prefix for prefix in ('web','apps','packages','website','server/receiver/cast')
-           if any(path.startswith(prefix+'/') for path in paths)]
-    with tempfile.TemporaryDirectory(prefix='client-api-base-',dir=os.environ.get('TMPDIR')) as directory:
-        snapshot=Path(directory)
-        process=subprocess.Popen(['git','archive',ref,'--',*roots],cwd=root,stdout=subprocess.PIPE)
-        try:
-            with tarfile.open(fileobj=process.stdout,mode='r|') as archive:
-                for member in archive:
-                    if not member.isfile() or Path(member.name).suffix not in EXTENSIONS | {'.json'}: continue
-                    target=snapshot/member.name
-                    if not target.resolve().is_relative_to(snapshot):raise ValueError('Unsafe source archive path')
-                    target.parent.mkdir(parents=True,exist_ok=True)
-                    target.write_bytes(archive.extractfile(member).read())
-            if process.wait():raise ValueError(f'Cannot read census base source {ref}')
-        finally:
-            process.stdout.close()
-            if process.poll() is None:process.terminate();process.wait()
-        return scan(snapshot,paths)
+def scan_snapshot(root, ref, files=None):
+    with source_snapshot(root,ref) as (snapshot,paths):
+        return active_runtime(snapshot).census(active_runtime(snapshot).current(snapshot),files)
 
 
 def verified_detection_counts(root, base, baseline, old_baseline, old_exceptions, manifest):
@@ -358,8 +447,9 @@ def verified_detection_counts(root, base, baseline, old_baseline, old_exceptions
     old_pins={source_id(key) for entry in old_exceptions.values() for key in exception_pins(entry)}
     candidates=set(rising)&entries.keys()-old_pins
     if not candidates:return {}
-    original=counts(scan_snapshot(root,source))
-    at_base=original if subprocess.check_output(['git','rev-parse',base],cwd=root,text=True).strip()==source else counts(scan_snapshot(root,base))
+    files={key.split('#')[0] for key in candidates}
+    original=counts(scan_snapshot(root,source,files))
+    at_base=original if subprocess.check_output(['git','rev-parse',base],cwd=root,text=True).strip()==source else counts(scan_snapshot(root,base,files))
     return {key:min(entries[key]['occurrences'],original.get(key,0),at_base.get(key,0)) for key in candidates}
 
 
@@ -577,11 +667,13 @@ def verify_rehashes(root, base, sites, approvals, old_approvals, old_baseline=No
         for ancestor,descendant in [(commit,base)]:
             if subprocess.run(['git','merge-base','--is-ancestor',ancestor,descendant],cwd=root).returncode:
                 raise ValueError(f'{key}: re-hash source/review commit is outside its immutable ancestry')
-        if commit not in snapshots:snapshots[commit]=scan_snapshot(root,commit)
-        old=[s for s in snapshots[commit] if s['id']==previous]
+        old_key=(commit,previous.split('#')[0])
+        if old_key not in snapshots:snapshots[old_key]=scan_snapshot(root,commit,{old_key[1]})
+        old=[s for s in snapshots[old_key] if s['id']==previous]
         reviewed_commit=entry['reviewedCommit']
-        if reviewed_commit not in snapshots:snapshots[reviewed_commit]=scan_snapshot(root,reviewed_commit)
-        reviewed=[s for s in snapshots[reviewed_commit] if s['id']==key and matches_guard(s,entry['guardHash'],entry.get('guardSpan'))]
+        reviewed_key=(reviewed_commit,key.split('#')[0])
+        if reviewed_key not in snapshots:snapshots[reviewed_key]=scan_snapshot(root,reviewed_commit,{reviewed_key[1]})
+        reviewed=[s for s in snapshots[reviewed_key] if s['id']==key and matches_guard(s,entry['guardHash'],entry.get('guardSpan'))]
         try:proof=json.loads((root/entry['spanEvidence']).read_text())
         except (OSError,ValueError) as error:raise ValueError(f'{key}: complete re-hash span evidence is missing or unreadable') from error
         if (not old or len(reviewed)<len(current) or any(not matches_guard(s,entry['previousGuardHash'],entry.get('guardSpan')) for s in old)
@@ -609,7 +701,7 @@ def rehash_counts(baseline, old_baseline, moves):
     return permitted
 
 
-def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None, rehashes=None, site_counts=None):
+def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None, rehashes=None, site_counts=None, base_site_counts=None):
     permitted={**old_baseline}
     for key,count in (detections or {}).items():permitted[key]=max(permitted.get(key,0),count)
     for key,count in rehash_counts(baseline,old_baseline,rehashes or {}).items():permitted[key]=max(permitted.get(key,0),count)
@@ -630,6 +722,14 @@ def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=Non
             errors.append(f'{key}: paired activation requires complete source occurrence counts')
         elif site_counts.get(key,0)>old_total[key]:
             errors.append(f'{key}: paired activation grows total source occurrences; a new detection ruling is required')
+    # A stale-high upper bound must not supply removal credit when a formerly
+    # DIRECT occurrence becomes exempt. Check its live combined multiplicity,
+    # including the unapproved occurrences left after classification.
+    if base_site_counts is not None:
+        activated={source_id(key) for key in after if after[key]>before[key]}
+        for key in activated:
+            if base_site_counts.get(key,0) and (site_counts or {}).get(key,0)>base_site_counts[key]:
+                errors.append(f'{key}: exception activation grows live source occurrences against the merge base')
     for path,entry in exceptions.items():
         pins=exception_pins(entry);old=old_exceptions.get(path)
         previous=exception_pins(old) if old else {}
@@ -641,13 +741,20 @@ def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=Non
     return errors
 
 
-def main(argv=None, root=ROOT):
+def _main(argv=None, root=ROOT, paths=None):
+    write_root=root
+    runtime=active_runtime(root)
+    view=runtime.current(root,paths);root=view.root;paths=view.paths
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--update',action='store_true');p.add_argument('--initialize',action='store_true',help='one-time creation; refuses an existing baseline')
-    p.add_argument('--base');p.add_argument('--report',type=Path);a=p.parse_args(argv)
+    p.add_argument('--base');p.add_argument('--predecessor');p.add_argument('--queue-head');p.add_argument('--report',type=Path);a=p.parse_args(argv)
+    if a.queue_head and not a.base:p.error('--queue-head requires --base')
+    for field in ['base','predecessor','queue_head']:
+        if getattr(a,field):setattr(a,field,runtime.git.git(['rev-parse','--verify',getattr(a,field)+'^{commit}']).decode().strip())
+    queue_errors=check_queue(root,a.base,a.queue_head,lambda parent,snapshot,paths:main(['--base',parent],root=snapshot,paths=paths)) if a.queue_head else []
     exceptions=json.loads((root/ALLOWLIST).read_text())
     approvals=json.loads((root/APPROVALS).read_text()) if (root/APPROVALS).exists() else {}
-    sites=scan(root)
+    sites=scan(root,paths)
     try:
         validate_approvals(approvals)
         direct,exempt=classify(sites,exceptions,root=root)
@@ -658,31 +765,33 @@ def main(argv=None, root=ROOT):
     if a.initialize:
         if baseline_path.exists():p.error('baseline already exists; --update only removes sites')
         baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
+        (write_root/BASELINE).write_text(json.dumps(actual,indent=2)+'\n')
     baseline=json.loads(baseline_path.read_text())
     new,stale=compare(actual,baseline)
     detections={}
-    if a.base:
-        def old(path):
-            r=subprocess.run(['git','show',a.base+':'+path],cwd=root,text=True,capture_output=True)
-            if r.returncode:
-                # Only the foundation PR can introduce the baseline; don't hide invalid refs.
-                subprocess.run(['git','rev-parse','--verify',a.base+'^{commit}'],cwd=root,check=True,stdout=subprocess.DEVNULL)
-                return None
-            return json.loads(r.stdout)
-        old_baseline,old_exceptions=old(BASELINE),old(ALLOWLIST)
-        if old_baseline is not None:
-            try:
-                manifest=json.loads((root/DETECTIONS).read_text()) if (root/DETECTIONS).exists() else {}
-                moves=verify_rehashes(root,a.base,sites,approvals,old(APPROVALS) or {},old_baseline,old_exceptions or {},exceptions)
-                proposed={key:max(n,actual.get(key,0)) for key,n in baseline.items()}
-                proposed.update({key:n for key,n in actual.items() if key not in proposed})
-                detections=verified_detection_counts(root,a.base,proposed,old_baseline,old_exceptions or {},manifest)
-                permitted={**baseline}
-                for key,count in detections.items():permitted[key]=max(permitted.get(key,0),count)
-                for key,count in rehash_counts(actual,old_baseline,moves).items():permitted[key]=max(permitted.get(key,0),count)
-                new,_=compare(actual,permitted)
-                new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions or {},approvals,detections,moves,counts(sites))
-            except ValueError as error: new.append(str(error))
+    refs=list(dict.fromkeys(merge_base(root,ref)for ref in [a.base,a.predecessor]if ref))
+    if refs:new=[]
+    for base in refs:
+        old_baseline=historical_json(root,base,BASELINE)
+        old_exceptions=historical_json(root,base,ALLOWLIST)
+        old_approvals=historical_json(root,base,APPROVALS,optional=True) or {}
+        manifest=json.loads((root/DETECTIONS).read_text()) if (root/DETECTIONS).exists() else {}
+        moves=verify_rehashes(root,base,sites,approvals,old_approvals,old_baseline,old_exceptions,exceptions)
+        proposed={key:max(n,actual.get(key,0)) for key,n in baseline.items()}
+        proposed.update({key:n for key,n in actual.items() if key not in proposed})
+        detections=verified_detection_counts(root,base,proposed,old_baseline,old_exceptions,manifest)
+        permitted={**baseline}
+        for key,count in detections.items():permitted[key]=max(permitted.get(key,0),count)
+        for key,count in rehash_counts(actual,old_baseline,moves).items():permitted[key]=max(permitted.get(key,0),count)
+        new+=compare(actual,permitted)[0]
+        base_view=runtime.historical(base)
+        base_sites=runtime.census(base_view)
+        new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions,approvals,detections,moves,counts(sites),counts(base_sites))
+        previous,_=classify(base_sites,old_exceptions,root=base_view.root)
+        live=counts(previous)
+        for key,count in rehash_counts(actual,live,moves).items():live[key]=max(live.get(key,0),count)
+        new+=compare(actual,live)[0]
+    new+=queue_errors
     pinned = exception_counts(exceptions)
     stale_exceptions = list((pinned - Counter(s.get('exceptionId',s['id']) for s in exempt)).elements())
     if stale_exceptions:new += [f'{site}: stale exception; remove its allowance' for site in stale_exceptions]
@@ -692,12 +801,19 @@ def main(argv=None, root=ROOT):
         print('\n'.join(new),file=sys.stderr)
         print('Move URL/request/body policy into named client-core domain operations; do not raise the baseline or use a generic screen request wrapper.',file=sys.stderr)
         return 1
-    if a.update and actual!=baseline:baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
-    elif actual!=baseline:
-        print(f'Client-core ownership counts changed ({sum(baseline.values())} -> {sum(actual.values())}). Lock it in: python3 ci/client_api_census.py --update'+(f' --base {a.base}' if detections else ''),file=sys.stderr)
-        return 1
+    if a.update and actual!=baseline:(write_root/BASELINE).write_text(json.dumps(actual,indent=2)+'\n')
     print(f'Client-core ownership holds: {len(direct)} direct sites; {len(exempt)} pinned approved exception sites.')
     return 0
+
+
+def main(argv=None, root=ROOT, paths=None):
+    try:
+        if runtime:=active_runtime(root):
+            status=_main(argv,root,paths);runtime.ensure_head();return status
+        with RatchetRuntime(root) as runtime:
+            status=_main(argv,root,paths);runtime.ensure_head();return status
+    except (ValueError,OSError,RuntimeError,subprocess.CalledProcessError) as error:
+        print(f'Client-core ownership ratchet failed closed: {error}',file=sys.stderr);return 1
 
 
 if __name__=='__main__':sys.exit(main())

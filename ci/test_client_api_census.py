@@ -6,6 +6,26 @@ import unittest
 from client_api_census import ROOT, production, native_sites, classify, compare, base_guard, scan, counts, main, transport_rehash_budgets, BASELINE, ALLOWLIST, APPROVALS, DETECTIONS
 
 
+def swift_string_examples(call):
+    return [json.dumps('Use "'+call+'" here'),
+            '#"Use "'+call+'" here"#',
+            '##"Use "#'+call+'"# here"##',
+            '"""\nUse "'+call+'" here\n"""',
+            '#"""\nUse """ "'+call+'" here\n"""#',
+            '"outer \\("quoted '+call+'")"',
+            '#"outer \\#(#"Use "'+call+'" here"#)"#',
+            '##"not interpolation \\#('+call+')"##',
+            '"outer \\(1 /* ignored /* '+call+' */ comment */ + 2)"']
+
+
+def swift_regex_examples(call):
+    return ['/'+call+'/', '#/'+call+'/#', '##/'+call+'/# still pattern/##',
+            '/prefix\\/'+call+'/', '#/escaped\\/#'+call+'/#',
+            '/[a/b)"]'+call+'/', '/[[:alpha:]/]'+call+'/', '#/[/#)"]'+call+'/#',
+            '#/\n  '+call+' # comment with /# and "\n/#',
+            '##/\n  '+call+'\n/##']
+
+
 class ClientApiCensus(unittest.TestCase):
     def test_all_platform_languages_and_writes_are_in_scope(self):
         for p in ['web/src/request.tsx','apps/native/platform/request.ts','apps/native/Native/Transport.swift',
@@ -171,6 +191,76 @@ async fn load<'a>(client: {binding}, url: &str) {{
                 sites=native_sites('apps/desktop/src-tauri/src/read.rs',source)
                 self.assertEqual([s['callee'] for s in sites],['get'])
                 self.assertIn('client . get',sites[0]['expression'])
+
+    def test_swift_async_http_receivers_include_qualified_inline_and_grouped_chains(self):
+        receivers=['URLSession.shared','Foundation.URLSession.shared','FoundationNetworking.URLSession.shared',
+                   'URLSession(configuration: .ephemeral)','Foundation.URLSession(configuration: .ephemeral)',
+                   '(URLSession.shared)','((Foundation.URLSession(configuration: .ephemeral)))',
+                   'URLSession(configuration: .ephemeral).delegateQueue.session()',
+                   'session','(session)','((session))','self.session','optionalSession?']
+        for method in ['bytes','data','upload','download']:
+            for receiver in receivers:
+                call=f'{receiver}.{method}(for: request)'
+                source=f'''import Foundation
+func load(session: Foundation.URLSession, optionalSession: URLSession?, request: RequestValue) async throws {{
+ let value = try await {call}
+}}'''
+                with self.subTest(method=method,receiver=receiver):
+                    sites=native_sites('apps/native/Stream.swift',source)
+                    self.assertEqual([s['callee']for s in sites],[method])
+                    self.assertEqual(sites[0]['callText'],call)
+        for receiver in ['model','(model)','factory(URLSession.shared)','factory("URLSession.shared")']:
+            for method in ['bytes','data','upload','download']:
+                self.assertEqual(native_sites('apps/native/Stream.swift',f'let value = try await {receiver}.{method}(for: request)'),[])
+
+    def test_swift_literals_comments_and_nested_interpolation_do_not_create_phantom_calls(self):
+        for method in ['bytes','data','upload','download']:
+            call=f'URLSession(configuration: .ephemeral).{method}(for: request)'
+            for literal in swift_string_examples(call):
+                source='let documentation = '+literal+'\n'
+                with self.subTest(method=method,literal=literal):
+                    self.assertEqual(native_sites('apps/native/Probe.swift',source),[])
+                    sites=native_sites('apps/native/Probe.swift',source+'let real = try await '+call+'\n')
+                    self.assertEqual([s['callText']for s in sites],[call])
+        call='URLSession.shared.bytes(for: request)'
+        for literal in ['"outer \\(try await '+call+')"',
+                        '#"outer \\#(try await '+call+')"#',
+                        '##"outer \\##(try await '+call+')"##',
+                        '#"outer \\#("nested \\(try await '+call+')")"#']:
+            self.assertEqual([s['callText']for s in native_sites('apps/native/Probe.swift','let value = '+literal)],[call])
+        # Interpolation tokens do not churn the enclosing request's old identity.
+        source='func load(origin: String) { let r = URLRequest(url: URL(string: "\\(origin)/v1/system")!) }'
+        sites=native_sites('apps/native/Probe.swift',source)
+        self.assertEqual(sites[0]['expression'].count('origin'),1)
+
+    def test_swift_regex_payloads_are_opaque_inside_interpolation_with_real_call_controls(self):
+        for method in ['bytes','data','upload','download']:
+            call=f'URLSession.shared.{method}(for: request)'
+            for regex in swift_regex_examples(call):
+                for source in ['let pattern = '+regex,
+                               'let text = """\n\\( '+regex+' )\n"""',
+                               '#"outer \\#("nested \\( '+regex+' )")"#']:
+                    with self.subTest(method=method,source=source):
+                        self.assertEqual(native_sites('apps/native/Probe.swift',source),[])
+                        sites=native_sites('apps/native/Probe.swift',source+'\nlet real = try await '+call)
+                        self.assertEqual([s['callText']for s in sites],[call])
+                source='let text = """\n\\( ('+regex+', try await '+call+') )\n"""'
+                self.assertEqual([s['callText']for s in native_sites('apps/native/Probe.swift',source)],[call])
+        # Exact independently typechecked regression from the review.
+        source='func phantom() -> String { return "\\( #/URLSession.shared.data(for: request)/# )" }'
+        self.assertEqual(native_sites('apps/native/Probe.swift',source),[])
+
+    def test_swift_division_and_unapplied_slash_do_not_hide_executable_requests(self):
+        call='URLSession.shared.data(for: request)'
+        for expression in ['left / '+call+' / right','left/'+call+'/right','left+/'+call+'/right',
+                           'array.reduce(1, /) + '+call+' / 5','prefix(/x) + '+call+' / 5']:
+            for source in ['let value = '+expression,'let text = "\\( '+expression+' )"']:
+                with self.subTest(source=source):
+                    self.assertEqual([s['callText']for s in native_sites('apps/native/Probe.swift',source)],[call])
+        for source in ['let r = /URLSession.shared.data(for: request)/',
+                       'let x = 1\n/URLSession.shared.data(for: request)/',
+                       'let r = ^^/URLSession.shared.data(for: request)/']:
+            self.assertEqual(native_sites('apps/native/Probe.swift',source),[])
 
     def test_objc_call_bytes_include_complete_receiver_message(self):
         for receiver in ['session','otherSession','[factory session]']:
@@ -886,6 +976,50 @@ function owner(api: HttpLocalApi) {
                     rebound={filename:{**entry,'sites':[s['id']for s in mutated],
                                       'guardHashes':{s['id']:s['constructionHash']for s in mutated}}}
                     with self.assertRaises(ValueError):classify(mutated,rebound)
+
+    def test_new_swift_session_receivers_cannot_escape_a_zero_baseline(self):
+        for method in ['bytes','data','upload','download']:
+            source=f'''import Foundation
+func stream(session: Foundation.URLSession, request: RequestValue) async throws {{
+ let inline = try await URLSession(configuration: .ephemeral).{method}(for: request)
+ let qualified = try await Foundation.URLSession.shared.{method}(for: request)
+ let grouped = try await ((session)).{method}(for: request)
+ let chained = try await (Foundation.URLSession(configuration: .ephemeral)).delegateQueue.session().{method}(for: request)
+}}'''
+            root,filename,sites,_=self.fixture(source,'apps/native/Stream.swift','platform-url')
+            self.assertEqual(len(sites),4)
+            (root/ALLOWLIST).write_text('{}')
+            self.git(root,'add','.');self.git(root,'commit','-qm','Retain a zero baseline without byte exceptions')
+            code,output=self.check(root)
+            self.assertEqual(code,1);self.assertIn('new/increased',output)
+
+    def test_swift_regex_interpolation_additions_pass_without_hiding_real_requests(self):
+        call='URLSession.shared.data(for: request)'
+        root,filename,_,_=self.fixture('let value = try await '+call+'\n','apps/native/Probe.swift','platform-url')
+        (root/filename).write_text('func empty() {}\n')
+        (root/ALLOWLIST).write_text('{}');(root/BASELINE).write_text('{}')
+        self.git(root,'add','.');self.git(root,'commit','-qm','Empty request inventory')
+        for regex in swift_regex_examples(call):
+            with self.subTest(regex=regex):
+                source='func phantom() -> String { return """\n\\( '+regex+' )\n""" }\n'
+                (root/filename).write_text(source);self.assertEqual(self.check(root)[0],0)
+                (root/filename).write_text(source+'let real = try await '+call+'\n')
+                self.assertEqual(self.check(root)[0],1)
+                (root/filename).write_text('let text = """\n\\( ('+regex+', try await '+call+') )\n"""')
+                self.assertEqual(self.check(root)[0],1)
+
+    def test_swift_literal_only_additions_pass_and_real_calls_after_literals_fail(self):
+        for method in ['bytes','data','upload','download']:
+            call=f'URLSession(configuration: .ephemeral).{method}(for: request)'
+            root,filename,_,_=self.fixture('let real = try await '+call,'apps/native/Probe.swift','platform-url')
+            (root/ALLOWLIST).write_text('{}')
+            (root/filename).write_text('')
+            self.git(root,'add','.');self.git(root,'commit','-qm','Keep empty Swift source and zero census')
+            for literal in swift_string_examples(call):
+                (root/filename).write_text('let documentation = '+literal+'\n')
+                self.assertEqual(self.check(root)[0],0,literal)
+                (root/filename).write_text('let documentation = '+literal+'\nlet real = try await '+call+'\n')
+                self.assertEqual(self.check(root)[0],1,literal)
 
     def test_detection_growth_requires_exact_reviewed_existing_base_sites(self):
         source='import java.net.URL\nval link = URL(input)\nval text = link.readText()\n'

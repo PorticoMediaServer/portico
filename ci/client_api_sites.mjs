@@ -6,15 +6,12 @@ import {SyntaxKind as K, NodeFlags} from 'typescript/unstable/ast';
 import {readFileSync, writeFileSync, mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
-const {root, files} = JSON.parse(readFileSync(0, 'utf8'));
-const scratch = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'client-api-'));
-const api = new API({cwd: root});
 const nameOf = e => e?.kind === K.Identifier ? e.text : e?.kind === K.PropertyAccessExpression ? e.name.text : e?.kind === K.ElementAccessExpression ? e.argumentExpression?.text : undefined;
 const literal = n => n?.kind === K.StringLiteral || n?.kind === K.NoSubstitutionTemplateLiteral ? n.text : undefined;
 const requestNames = new Set(['request', 'requestRaw', 'requestConsole', 'requestDirect', 'send', 'fetch', 'fetcher', 'nativeNetworkFetch', 'nativeSignInFetch', 'networkFetch', 'nativeRequest', 'exchange', 'readJson', 'readJSON']);
 const builders = new Set(['routePath', 'encodedRoutePath', 'hostedRoutePath', 'hostedEncodedRoutePath']);
-const sites = [];
 // Shape recognition must reject construction even under a newly rebound hash.
 // Inspect the complete policy, including conditional tests and signal values.
 function hasRequestWrites(node, extraRoots=[], extraFields=[], containers=[]) {
@@ -133,17 +130,28 @@ function hasRequestWrites(node, extraRoots=[], extraFields=[], containers=[]) {
   }
   visit(node);return written;
 }
-try {
-  const config = join(scratch, 'tsconfig.json');
-  writeFileSync(config, JSON.stringify({compilerOptions: {target:'ES2022', module:'ESNext', moduleResolution:'bundler', jsx:'react-jsx', allowJs:true, noEmit:true, skipLibCheck:true, types:[], paths:{'@core/*':[resolve(root,'packages/client-core/src/*')], '@core':[resolve(root,'packages/client-core/src/index.ts')]}}, files:files.map(f=>resolve(root,f))}));
-  const snapshot = api.updateSnapshot({openProjects:[config]});
-  const project = snapshot.getProjects().find(p=>p.program.getSourceFile(resolve(root,files[0])));
+export const censusProjectConfig = (root,files) => ({compilerOptions: {target:'ES2022', module:'ESNext', moduleResolution:'bundler', jsx:'react-jsx', allowJs:true, noEmit:true, skipLibCheck:true, types:[], paths:{'@core/*':[resolve(root,'packages/client-core/src/*')], '@core':[resolve(root,'packages/client-core/src/index.ts')]}}, files:files.map(f=>resolve(root,f))});
+
+// The scan body is shared unchanged by one-shot checks and the incremental
+// worker; only project lifetime and source reads are supplied by the caller.
+export function analyseCensus({root,files},runtime={}) {
+ const sites=[];
+ const scratch=runtime.project ? null : mkdtempSync(join(process.env.TMPDIR || tmpdir(),'client-api-'));
+ const api=runtime.project ? null : new API({cwd:root});
+ try {
+  let project=runtime.project;
+  if (!project) {
+    const config=join(scratch,'tsconfig.json');
+    writeFileSync(config,JSON.stringify(censusProjectConfig(root,files)));
+    const snapshot=api.updateSnapshot({openProjects:[config]});
+    project=snapshot.getProjects().find(p=>p.program.getSourceFile(resolve(root,files[0])));
+  }
   if (!project && files.length) throw new Error('Cannot load census TypeScript project');
   const checker = project?.checker;
   for (const path of files) {
     const file = project.program.getSourceFile(resolve(root,path));
     if (!file) throw new Error(`Unscanned TypeScript source: ${path}`);
-    const source = readFileSync(resolve(root,path),'utf8');
+    const source = runtime.readFile ? runtime.readFile(resolve(root,path)) : readFileSync(resolve(root,path),'utf8');
     const text = n => source.slice(n.pos,n.end).trim();
     const calls = [], ancestors = new Map();
     function visit(n, stack=[]) {
@@ -427,5 +435,8 @@ try {
       sites.push({file:path,line,kind,forwardedRequest,forwardingShape,guardHash,forwardingHash,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),callText:text(c),expression:text(c).replace(/\s+/g,' ')});
     }
   }
-} finally {api.close();rmSync(scratch,{recursive:true,force:true});}
-process.stdout.write(JSON.stringify(sites));
+ } finally {if(api)api.close();if(scratch)rmSync(scratch,{recursive:true,force:true});}
+ return sites;
+}
+if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url))
+ process.stdout.write(JSON.stringify(analyseCensus(JSON.parse(readFileSync(0,'utf8')))));
