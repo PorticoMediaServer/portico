@@ -1279,15 +1279,6 @@
         }
       ]
     },
-    "cmd/server/instance_lock.go": {
-      "sha256": "213fa339db64083f17e304eeff9980a701de356404bd06d41f586c3ae2617cf0",
-      "effects": [
-        {
-          "table": "*",
-          "verb": "*"
-        }
-      ]
-    },
     "cmd/server/main.go": {
       "sha256": "cea136ce536373d0d71aab60a5ab36c6cab65a02040d4bbfac9826aa19b85f2e",
       "effects": [
