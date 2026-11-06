@@ -344,6 +344,7 @@ type transaction struct {
 	settings       sqliteconn.Settings
 	policyVerified bool
 	start          time.Time
+	clockHighWater time.Time // same turn: helper reads and statement/terminal admission
 	limit          time.Duration
 	workLimit      Work
 	begun          bool
@@ -371,6 +372,25 @@ type transaction struct {
 	cleanupPanics       []terminalPanic
 }
 
+// observeTime records every trusted body-time sample, even a helper read
+// that consumes no statement work. Compare both elapsed and wall ordering:
+// persisted Unix timestamps must not regress during a wall-clock adjustment.
+func (t *transaction) observeTime(now time.Time) error {
+	floors := [3]time.Time{t.start, t.clockHighWater}
+	count := 2
+	if t.quantum != nil {
+		floors[2] = t.quantum.last
+		count++
+	}
+	for _, floor := range floors[:count] {
+		if now.Before(floor) || now.Round(0).Before(floor.Round(0)) {
+			return ErrQuantum
+		}
+	}
+	t.clockHighWater = now
+	return nil
+}
+
 // before is used before each next static statement/sub-batch. Domain SQL and
 // result receipt effects must ALL be charged; no SQL executor escapes this type.
 func (t *transaction) before(work Work) error {
@@ -384,7 +404,11 @@ func (t *transaction) before(work Work) error {
 	if err := t.custody.check(t.descriptor.ID, t.workLimit); err != nil {
 		return err
 	}
-	return t.quantum.TryStep(work, t.writer.now())
+	now := t.writer.now()
+	if err := t.observeTime(now); err != nil {
+		return err
+	}
+	return t.quantum.TryStep(work, now)
 }
 
 type commitState uint8
@@ -415,7 +439,11 @@ func (t *transaction) commit() (turnResult, error) {
 		err = t.custody.check(t.descriptor.ID, t.workLimit)
 	}
 	if err == nil {
-		err = t.quantum.TryFinish(t.writer.now())
+		now := t.writer.now()
+		err = t.observeTime(now)
+		if err == nil {
+			err = t.quantum.TryFinish(now)
+		}
 	}
 	if err != nil {
 		return t.rollback(err)

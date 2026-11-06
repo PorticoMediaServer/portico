@@ -165,3 +165,49 @@ func TestInventoryTimeInvalidAndClockPanic(t *testing.T) {
 		t.Fatal("clock panic leaked physical custody", tx.done, tx.cleanupComplete, w.fenced, custody.returns)
 	}
 }
+
+func TestInventoryTurnTimeHighWater(t *testing.T) {
+	w, _, clock := testExecutor(t)
+	for _, mode := range []string{"helper_then_helper", "helper_then_statement_and_terminal", "helper_then_commit"} {
+		t.Run(mode, func(t *testing.T) {
+			base := time.Now().Add(time.Hour).Truncate(time.Millisecond)
+			*clock = base
+			tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.rollback(nil)
+			turn := &commandTurn{transaction: tx}
+			input := &inventoryAcceptCommand{valid: true, request: inventoryAcceptRequest{run: inventoryRun{leaseExpiresMS: base.Add(time.Minute).UnixMilli()}}}
+			*clock = base.Add(2 * time.Millisecond)
+			accepted, err := turn.inventoryTimeMS(t.Context(), input.request.run.leaseExpiresMS)
+			if err != nil || accepted != clock.UnixMilli() {
+				t.Fatal(accepted, err)
+			}
+			*clock = base.Add(time.Millisecond)
+			switch mode {
+			case "helper_then_helper":
+				if got, err := turn.inventoryTimeMS(t.Context(), input.request.run.leaseExpiresMS); got != 0 || !errors.Is(err, ErrQuantum) {
+					t.Errorf("backward helper sample escaped: %d %v", got, err)
+				}
+			case "helper_then_statement_and_terminal":
+				remaining := tx.quantum.Remaining()
+				if err := tx.before(Work{1, 1, 1, 1, time.Microsecond}); !errors.Is(err, ErrQuantum) {
+					t.Errorf("statement admitted before acceptance time: %v", err)
+				}
+				if tx.quantum.Remaining() != remaining {
+					t.Error("backward statement consumed budget")
+				}
+				if err := checkInventoryTerminal(t.Context(), turn, input); !errors.Is(err, ErrQuantum) {
+					t.Errorf("terminal preceded accepted time: %v", err)
+				}
+			case "helper_then_commit":
+				physical, err := tx.commit()
+				if !errors.Is(err, ErrQuantum) || physical.state != rolledBack || tx.commitAttempted {
+					t.Errorf("backward terminal admission committed: %+v %v", physical, err)
+				}
+			}
+			*clock = base.Add(3 * time.Millisecond)
+		})
+	}
+}
