@@ -2291,5 +2291,125 @@
     "guardHash": "19da9a26e2aba260859c4d7a9d4848a164ea8d103bff3ab071651c48d6c4a457",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "apps/native/src-next/screens/notifications/register.tsx#3e9ef048979dc1c1": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "5c716b2f92eec54bf5161f92d160a96f27f8bbf4ec26694a0d4da2262bcc5827",
+    "occurrences": 2,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/native/src-next/screens/settings-live/LiveRoute.tsx#22aafff635b1f14e": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "f3337664452b186c03ec5c7cedc59370625b8225f56627cb023100df1f225337",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx#d2c78d29a1e1958e": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "12b83dcfafa00b68a7c07dc56640da0bce245aaabb4bad2a04628d7cdb1f361e",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/native/src-next/screens/settings-live/live-controller.ts#61c2c4eda3eac0db": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "ac29dd8faf6f6dc96dbcbf95cd7b0b78fe713aa115cfcacbd6f9500f7505a5d5",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/native/src-next/screens/settings-live/live-controller.ts#a507004d23687bfc": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "3ed274d061f1eccae77ddc41ee0845ca7006ed75615c9aeade90982782e4b5c9",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/native/src-next/screens/settings-live/settings-panels.tsx#1b31452e0e60fbc5": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "13f80ea3c80bca29adfa2bb828f45685bb0e0ff16c70fa263942da395b2deaa7",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/native/src-next/screens/share/NativeContentLinks.tsx#54deab9656f7855c": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "f10cb2a6a71aac724b63d0711feefbbdda7187f2fa1629e2fb2b1cf4529af04f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/native/src-next/screens/share/NativeShareLinks.tsx#54deab9656f7855c": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "0b23e9dae06877a4b6efeba8da74eb2806393732f5ba76bf794d64eb7b17d006",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "4b62d415ec5c785ef36a7993f165dfaa55290e0f51838f59eeede3af604d103f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "web/src/screens/account/feedback-controller.ts#e6ba4e741880a9f2": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "8fabc2ceab1613fd3df43770c02062e60b3f5a484292363d34071d5e305d82d1",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "web/src/screens/live/bindings.ts#af28195658cca71c": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "f13166a190a8b29d6898d2c5eae8c4fcbf555f5957655106e96acae6571fc1e6",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "web/src/screens/live/recordings-controller.ts#f2782b066cfe5bba": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "a007af2e3226e20fe6a96d3c837ca1a1455e237f97d0ca4e254609933f42188b",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "web/src/screens/live/series-rules-bindings.ts#af28195658cca71c": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "86a278aee4e2d847a3725e982b0ecd23deb8cb1a3c469a1cb48f9b86e3ced6c9",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "web/src/shell/bootstrap.ts#6d3fdcbd93b6dfef": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
+    "guardHash": "a5d4b8afebd17ab6a9744e7c38bf8323fc2bdd2a2958402774c67fc88f78874a",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/vega/src/bridge/transport.ts#b03829a0bfc20290": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval. Bounded Vega start forwards pending.method/url/body verbatim and core vegaControlHeaderEntries(pending.headers) in order; no local URL/method/body/header construction.",
+    "guardHash": "c12e8a23bbcdbdb0554f6ea8ad987815751a14a44b538317814c2c4500955907",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
   }
 }

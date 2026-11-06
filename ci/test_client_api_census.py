@@ -526,6 +526,79 @@ function farewell(path: string, method: string, body: unknown) {return api.farew
                 with self.assertRaises(ValueError):
                     classify([dict(site,guardHash='0'*64)],{site['file']:entry})
 
+    def test_request_rest_tuple_forwards_exactly_and_rejects_tuple_rewrites(self):
+        source='''declare const api: {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
+function owner() {
+ return {async request<T>(...args: Parameters<typeof api.request>) {
+  return await api.request<T>(...args);
+ }};
+}'''
+        root,filename,sites,_=self.fixture(source)
+        self.assertEqual(sites[0]['forwardingShape'],'request-rest')
+        self.assertEqual(self.check(root)[0],0)
+        for changed in [source.replace('api.request<T>(...args)','api.request<T>(args[0] + "/made",args[1],args[2],args[3])'),
+                        source.replace('api.request<T>(...args)','api.request<T>(args[0],args[1],{body:args[2]},args[3])'),
+                        source.replace('  return await','  args[0] = "/made"; return await'),
+                        source.replace('  return await','  args.reverse(); return await'),
+                        source.replace('  return await','  if ((args[0] += "/made")) {} return await'),
+                        source.replace('  return await','  if ((args[2] = {})) {} return await'),
+                        source.replace('  return await','  Reflect.set(args,0,"/made"); return await'),
+                        source.replace('  return await','  [args[0],args[1]] = [args[1]!,args[0]]; return await'),
+                        source.replace('  return await','  args.length = 1; return await'),
+                        source.replace('  return await','  const copy = args; copy.reverse(); return await'),
+                        source.replace('  return await','  [args] = [args.slice(1) as Parameters<typeof api.request>]; return await'),
+                        source.replace('  return await','  [args] = [[...args,"extra"] as unknown as Parameters<typeof api.request>]; return await'),
+                        source.replace('  return await','  args["reverse"](); return await'),
+                        source.replace('  return await','  mutate(args); return await')]:
+            (root/filename).write_text(changed)
+            self.assertTrue(all(not s['forwardedRequest'] for s in scan(root)))
+            self.assertEqual(self.check(root)[0],1)
+
+    def test_vega_dispatch_forwards_core_url_method_body_and_header_sequence_only(self):
+        helper='export declare function vegaControlHeaderEntries(headers: Record<string,string>): ReadonlyArray<readonly [string,string]>;'
+        source='''import {vegaControlHeaderEntries} from '../../packages/client-core/src/vega-control-transport';
+function start(pending: {url: string;method: string;body: string|null;headers: Record<string,string>;started?: boolean;xhr?: XMLHttpRequest}) {
+ pending.started = true;
+ const xhr = new XMLHttpRequest();
+ pending.xhr = xhr;
+ xhr.open(pending.method,pending.url);
+ xhr.timeout = 15000;
+ xhr.withCredentials = false;
+ for (const [key,value] of vegaControlHeaderEntries(pending.headers)) xhr.setRequestHeader(key,value);
+ xhr.send(pending.body ?? undefined);
+}'''
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/vega-control-transport.ts':helper})
+        self.assertEqual(sites[0]['forwardingShape'],'vega-pending')
+        self.assertEqual(self.check(root)[0],0)
+        for old,new in [('pending.method,pending.url','"POST",pending.url'),
+                        ('pending.method,pending.url','pending.method,pending.url + "/made"'),
+                        ('xhr.send(pending.body ?? undefined)','xhr.send(JSON.stringify({body:pending.body}))'),
+                        ('vegaControlHeaderEntries(pending.headers)','vegaControlHeaderEntries({...pending.headers,Extra:"made"})'),
+                        ('xhr.setRequestHeader(key,value)','xhr.setRequestHeader("Extra",value)'),
+                        (' const xhr',' pending.url = "/made"; const xhr'),
+                        (' const xhr',' if ((pending.url += "/made")) {} const xhr'),
+                        (' const xhr',' if ((pending.headers.Extra = "made")) {} const xhr'),
+                        (' const xhr',' if ((pending = {...pending,url:"/made"})) {} const xhr'),
+                        ('xhr.timeout = 15000','xhr.timeout = ((pending.method = "POST"),15000)'),
+                        (' const xhr',' delete pending.headers.Authorization; const xhr'),
+                        (' const xhr',' pending["method"] = "DELETE"; const xhr'),
+                        (' const xhr',' pending["body"] = "made"; const xhr'),
+                        (' const xhr',' Object.assign(pending,{url:"/made"}); const xhr'),
+                        (' const xhr',' const copy=pending; copy["url"]="/made"; const xhr'),
+                        (' const xhr',' Object.assign(pending.headers,{Authorization:"made"}); const xhr'),
+                        ('xhr.send(pending.body ?? undefined)','xhr["setRequestHeader"]("Extra","made"); xhr.send(pending.body ?? undefined)'),
+                        ('xhr.send(pending.body ?? undefined)','const copy=xhr; copy.setRequestHeader("Extra","made"); xhr.send(pending.body ?? undefined)'),
+                        ('xhr.withCredentials = false','xhr.withCredentials = true'),
+                        ('xhr.withCredentials = false','xhr.withCredentials = Boolean(true)'),
+                        ('xhr.withCredentials = false','xhr.withCredentials = false; xhr["withCredentials"] = true'),
+                        ('xhr.withCredentials = false','xhr.withCredentials = false; Object.assign(xhr,{withCredentials:true})'),
+                        ('for (const [key,value] of vegaControlHeaderEntries(pending.headers)) xhr.setRequestHeader(key,value);',
+                         'for (let [key,value] of vegaControlHeaderEntries(pending.headers)) {value="made"; xhr.setRequestHeader(key,value);}')]:
+            with self.subTest(edit=new):
+                (root/filename).write_text(source.replace(old,new))
+                self.assertTrue(all(not s['forwardedRequest'] for s in scan(root)))
+                self.assertEqual(self.check(root)[0],1)
+
     def test_native_url_method_body_and_bound_input_edits_each_invalidate_byte_pins(self):
         source='fun relay() { val method = "GET"; val request = Request.Builder().url(upstream.toString()).method(method, null).build() }\n'
         root,filename,sites,entry=self.fixture(source,'apps/native/Relay.kt','platform-url')
