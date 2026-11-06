@@ -807,7 +807,7 @@ func (s *Service) CreateDirectMember(ctx context.Context, bearer string, q Direc
 		return out, e
 	}
 	raw, _ := json.Marshal(q.AllowedLibraries)
-	if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET allowed_libraries=? WHERE account_id=?`, string(raw), out.ID); e != nil {
+	if _, e = ExecMembershipTx(ctx, tx, out.ID, `UPDATE direct_memberships SET allowed_libraries=? WHERE account_id=?`, string(raw), out.ID); e != nil {
 		return out, e
 	}
 	if _, e = tx.ExecContext(ctx, `UPDATE direct_profiles SET name=? WHERE id=?`, q.Name, out.PrimaryProfileID); e != nil {
@@ -871,7 +871,7 @@ func (s *Service) UpdateDirectMember(ctx context.Context, bearer, id string, q D
 			return e
 		}
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET disabled=?,allowed_libraries=?,revision=revision+1 WHERE account_id=?`, q.Disabled, string(raw), id); e != nil {
+	if _, e = ExecMembershipTx(ctx, tx, id, `UPDATE direct_memberships SET disabled=?,allowed_libraries=?,revision=revision+1 WHERE account_id=?`, q.Disabled, string(raw), id); e != nil {
 		return e
 	}
 	return gated8.Commit()
@@ -951,10 +951,10 @@ func (s *Service) transferOwnershipTx(ctx context.Context, tx *sql.Tx, c directC
 	if !active {
 		return ErrForbidden
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET role='member',allowed_libraries='[]',revision=revision+1 WHERE account_id=?`, c.account.ID); e != nil {
+	if _, e = ExecMembershipTx(ctx, tx, c.account.ID, `UPDATE direct_memberships SET role='member',allowed_libraries='[]',revision=revision+1 WHERE account_id=?`, c.account.ID); e != nil {
 		return e
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET role='owner',revision=revision+1 WHERE account_id=?`, target); e != nil {
+	if _, e = ExecMembershipTx(ctx, tx, target, `UPDATE direct_memberships SET role='owner',revision=revision+1 WHERE account_id=?`, target); e != nil {
 		return e
 	}
 	// Both people stay signed in. Their sessions take their new tiers in this
