@@ -296,11 +296,15 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 	if err != nil {
 		return nil, err
 	}
-	if err = q.TryStep(r.setup, w.now()); err != nil {
-		return nil, err
-	}
 	turnCtx, cancel := context.WithDeadline(ctx, start.Add(r.limit.Hold))
 	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, limit: r.limit.Hold, workLimit: r.limit, descriptor: desc}
+	now := w.now()
+	if err = t.observeTime(now); err != nil {
+		return nil, err
+	}
+	if err = q.TryStep(r.setup, now); err != nil {
+		return nil, err
+	}
 	conn, err := w.db.Conn(turnCtx)
 	t.conn = conn
 	t.raiseDriverPanic(err)
@@ -344,7 +348,7 @@ type transaction struct {
 	settings       sqliteconn.Settings
 	policyVerified bool
 	start          time.Time
-	clockHighWater time.Time // same turn: helper reads and statement/terminal admission
+	clockHighWater time.Time // same turn: setup, helper reads and statement/terminal admission
 	limit          time.Duration
 	workLimit      Work
 	begun          bool
@@ -372,7 +376,7 @@ type transaction struct {
 	cleanupPanics       []terminalPanic
 }
 
-// observeTime records every trusted body-time sample, even a helper read
+// observeTime records every trusted admission/helper sample, even a helper read
 // that consumes no statement work. Compare both elapsed and wall ordering:
 // persisted Unix timestamps must not regress during a wall-clock adjustment.
 func (t *transaction) observeTime(now time.Time) error {
