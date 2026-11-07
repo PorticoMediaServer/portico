@@ -91,9 +91,6 @@ func replaceMGLCReceiptDebt(ctx context.Context, turn *commandTurn, b mgLCBuild,
 	if err = row.Scan(&out.rows, &out.bytes, &out.after, &out.due); err != nil {
 		return mgLCReceiptDebt{}, mgLCNoRows(err)
 	}
-	if out != after {
-		return mgLCReceiptDebt{}, ErrConflict
-	}
 	return out, nil
 }
 
