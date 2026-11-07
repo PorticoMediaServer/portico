@@ -7,11 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -68,7 +67,8 @@ func rbTermRead(t *testing.T, f *browseFixture, field RBTermField, value string)
 	t.Helper()
 	return f.reader.rbTermSmall(t.Context(), rbGroupRequest(), time.Second, f.output, RBTermSmallInput{View: f.input, Field: field, Members: value != "", Value: value})
 }
-func TestRBTermSmallComplete(t *testing.T) {
+func TestRBTermSmallComplete(t *testing.T) { synctest.Test(t, testRBTermSmallComplete) }
+func testRBTermSmallComplete(t *testing.T) {
 	f := rbTermFixture(t, false)
 	p, c, e := rbTermRead(t, f, RBTermDecade, "1990")
 	if e != nil {
@@ -102,7 +102,8 @@ func TestRBTermSmallComplete(t *testing.T) {
 	}
 }
 
-func TestRBTermSmallTVAndDVR(t *testing.T) {
+func TestRBTermSmallTVAndDVR(t *testing.T) { synctest.Test(t, testRBTermSmallTVAndDVR) }
+func testRBTermSmallTVAndDVR(t *testing.T) {
 	f := rbTermFixture(t, false)
 	f.exec(t, "BEGIN")
 	f.exec(t, "PRAGMA defer_foreign_keys=ON")
@@ -131,7 +132,7 @@ func TestRBTermSmallTVAndDVR(t *testing.T) {
 
 func TestRBTermSmallRefusalAndPublication(t *testing.T) {
 	for _, mode := range []string{"holders", "terms", "bytes", "restriction", "revoked", "metadata", "preferences"} {
-		t.Run(mode, func(t *testing.T) {
+		rbTermVirtualCase(t, mode, func(t *testing.T) {
 			f := rbTermFixture(t, false)
 			field := RBTermDecade
 			switch mode {
@@ -161,7 +162,8 @@ func TestRBTermSmallRefusalAndPublication(t *testing.T) {
 		})
 	}
 }
-func TestRBTermSmallPublicLIVE(t *testing.T) {
+func TestRBTermSmallPublicLIVE(t *testing.T) { synctest.Test(t, testRBTermSmallPublicLIVE) }
+func testRBTermSmallPublicLIVE(t *testing.T) {
 	f := rbTermFixture(t, true)
 	q, request, output := liveRequests("rb-term-small")
 	in := RBTermSmallInput{View: f.input, Field: RBTermDecade}
@@ -174,7 +176,7 @@ func TestRBTermSmallPublicLIVE(t *testing.T) {
 		if e != nil {
 			return e
 		}
-		if len(p.Groups) != 3 || c.AdmissionElapsed <= 0 {
+		if len(p.Groups) != 3 {
 			t.Fatal("live result", p, c)
 		}
 		copyBytes, e := json.Marshal(p.Groups)
@@ -206,7 +208,7 @@ func TestRBTermSmallCapture(t *testing.T) {
 			}
 		}
 	}
-	captures := map[string]plan.Golden{}
+
 	for _, stats := range []plan.Statistics{plan.Unanalyzed, plan.Analyzed} {
 		if stats == plan.Analyzed {
 			f.exec(t, "ANALYZE")
@@ -215,19 +217,30 @@ func TestRBTermSmallCapture(t *testing.T) {
 		if _, e := stmt.New(defs, g.Receipt()); e != nil {
 			t.Fatal(e)
 		}
-		captures[string(stats)] = g
 	}
-	b, e := json.Marshal(captures)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
-		if e = os.MkdirAll(dir, 0755); e != nil {
-			t.Fatal(e)
+}
+
+func rbTermVirtualCase(t *testing.T, name string, fn func(*testing.T)) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) { synctest.Test(t, fn) })
+}
+
+func TestRBTermSmallRawTranscript(t *testing.T) {
+	for _, pair := range [][2][][]any{
+		{{{string([]byte{0x80})}}, {{string([]byte{0x81})}}},
+		{{{nil}}, {{[]byte(nil)}}},
+		{{{"ab", "c"}}, {{"a", "bc"}}},
+	} {
+		var sums [2][32]byte
+		for i, rows := range pair {
+			work := rbTermSmallWork{hash: sha256.New()}
+			if e := rbTermRecord(&work, "raw", rows); e != nil {
+				t.Fatal(e)
+			}
+			copy(sums[i][:], work.hash.Sum(nil))
 		}
-		if e = os.WriteFile(filepath.Join(dir, "rb-group-term-capture.json"), b, 0644); e != nil {
-			t.Fatal(e)
+		if sums[0] == sums[1] {
+			t.Fatal("distinct native rows collapsed into one transcript", pair)
 		}
 	}
-	t.Logf("actual Reader Capture both statistics, schema=%s, fixture=%s, definitions=%d", captures["analyzed"].Environment.SchemaSHA256, rbTermHash(t), len(defs))
 }

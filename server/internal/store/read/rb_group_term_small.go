@@ -3,7 +3,7 @@ package read
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
+	"encoding/binary"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/sorttext"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -305,11 +305,45 @@ func rbTermRecord(d *rbTermSmallWork, tag string, rows [][]any) error {
 	if d.bytes > 256<<10 {
 		return ErrNotReady
 	}
-	b, e := json.Marshal([]any{tag, rows})
-	if e != nil {
-		return e
+	// Frame native types/lengths without JSON's invalid-UTF8 replacement. The
+	// transcript keeps exact raw strings, NULLs and blobs for future source reuse.
+	var header [8]byte
+	var marker [1]byte
+	var chunk [1024]byte
+	putType := func(kind byte) { marker[0] = kind; d.hash.Write(marker[:]) }
+	putUint := func(n uint64) { binary.BigEndian.PutUint64(header[:], n); d.hash.Write(header[:]) }
+	putString := func(value string) {
+		putUint(uint64(len(value)))
+		for len(value) > 0 {
+			n := min(len(value), len(chunk))
+			copy(chunk[:], value[:n])
+			d.hash.Write(chunk[:n])
+			value = value[n:]
+		}
 	}
-	d.hash.Write(b)
+	putString(tag)
+	putUint(uint64(len(rows)))
+	for _, row := range rows {
+		putUint(uint64(len(row)))
+		for _, value := range row {
+			switch value := value.(type) {
+			case nil:
+				putType('n')
+			case int64:
+				putType('i')
+				putUint(uint64(value))
+			case string:
+				putType('s')
+				putString(value)
+			case []byte:
+				putType('b')
+				putUint(uint64(len(value)))
+				d.hash.Write(value)
+			default:
+				return ErrUnqualified
+			}
+		}
+	}
 	return nil
 }
 func RBTermSmallDefinitions() []stmt.Definition {
