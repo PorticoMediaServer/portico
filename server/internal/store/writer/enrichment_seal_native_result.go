@@ -60,7 +60,7 @@ func projectSealNativeFacts(scope sealOwnerScope, actual sealMutationFacts, cont
 		SealVersion: m.version, EvidenceID: h.ID, SubjectID: h.SubjectID, ParserVersion: h.ParserVersion,
 		Provider: h.Provider, SubjectKind: h.SubjectKind, ProviderID: h.ProviderID, Language: h.Language, Region: h.Region,
 		RequestShape: h.RequestShape, ObservationDigest: hex.EncodeToString(h.ObservationDigest[:]),
-		OwnerGeneration: scope.generation, ContentRevision: actual.revision, Algorithm: m.algorithm,
+		OwnerGeneration: scope.generation, ContentRevision: scope.sourceRevision, Algorithm: m.algorithm,
 		Commitment: [32]byte(m.commitment), VerifiedRows: m.rows, CanonicalBytes: m.bytes, RetainedBytes: content.retainedBytes,
 	}, nil
 }
