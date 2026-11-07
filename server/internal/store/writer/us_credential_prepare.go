@@ -116,7 +116,7 @@ func prepareUSCredentialIssue(in usCredentialIssueRequest, nowMS int64) (*usCred
 		return nil, invalid("us_credential_kind")
 	}
 	name := strings.TrimSpace(in.name)
-	if name == "" || !usCredentialSafeText(name, 80) {
+	if name == "" || !usCredentialSafeText(name, 80) || in.kind == "app_password" && !usCredentialSafeText(in.name, 80) {
 		return nil, invalid("name")
 	}
 	// Four closed existing scopes, in the published order. This is validation,

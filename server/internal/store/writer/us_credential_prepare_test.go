@@ -164,3 +164,16 @@ func TestUSCredentialTargetUsesDirectProfileNameRules(t *testing.T) {
 		t.Fatal("profile name byte limit changed to rune limit")
 	}
 }
+
+func TestUSCredentialAppPasswordRawNameBound(t *testing.T) {
+	q := usCredentialTestIssue()
+	q.name = strings.Repeat(" ", 79) + "ok"
+	if _, err := prepareUSCredentialIssue(q, 1000); err != nil {
+		t.Fatal("key/token normalized name policy", err)
+	}
+	q.kind = "app_password"
+	q.hint = ""
+	if p, err := prepareUSCredentialIssue(q, 1000); p != nil || !errors.Is(err, ErrInvalid) {
+		t.Fatal("existing app-password raw name bound not applied")
+	}
+}

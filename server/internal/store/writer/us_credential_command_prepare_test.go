@@ -208,3 +208,48 @@ func TestUSCredentialCommandExpiryPrecision(t *testing.T) {
 		t.Fatal("exact expiry not bound independently of SQL projection")
 	}
 }
+
+// Compare against the independently prepared COMPLETE payload, including fixed
+// false witnesses and cached projections that cannot vary in this closed recipe.
+func TestUSCredentialCommandDigestMatchesWholePayload(t *testing.T) {
+	q := usCredentialCommandFixture()
+	q.issue.expiresAt = "1970-01-01T00:02:00.123456789Z"
+	password, err := prepareUSPasswordReplace(q.password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issue, err := prepareUSCredentialIssue(q.issue, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revoke, err := prepareUSCredentialRevoke(q.revoke)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := prepareUSPasswordReplaceCommand(q.identity, q.owner, q.issuer, q.password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i, err := prepareUSCredentialIssueCommand(q.identity, q.owner, q.issuer, q.issue, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := prepareUSCredentialRevokeCommand(q.identity, q.owner, q.issuer, q.revoke)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		kind    CommandID
+		request any
+		got     RequestDigest
+	}{
+		{usLocalPasswordReplace, usPasswordReplaceCommandRequest{ownerID: q.owner, issuer: q.issuer, prepared: *password}, p.digest},
+		{usAPICredentialIssue, usCredentialIssueCommandRequest{ownerID: q.owner, issuer: q.issuer, prepared: *issue}, i.digest},
+		{usAPICredentialRevoke, usCredentialRevokeCommandRequest{ownerID: q.owner, issuer: q.issuer, prepared: *revoke}, r.digest},
+	} {
+		expected, err := canonicalRequestDigest(test.kind, 1, q.identity, test.request)
+		if err != nil || expected != test.got {
+			t.Fatal("full prepared comparison payload omitted", err)
+		}
+	}
+}
