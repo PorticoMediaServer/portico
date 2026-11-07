@@ -1,6 +1,7 @@
 package governor
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -44,22 +45,26 @@ func (m *ledgerMutex) Unlock() {
 		panic("unlock of unlocked governor ledger")
 	}
 }
-func (m *ledgerMutex) lockWithin(remaining time.Duration) bool {
+func (m *ledgerMutex) lockWithin(remaining time.Duration, cancelled <-chan struct{}, ctx context.Context) error {
 	if remaining <= 0 {
-		return false
+		return ErrGrant
 	}
 	m.init()
 	deadline, stop := m.timer(remaining)
 	defer stop()
 	select {
 	case <-deadline:
-		return false
+		return ErrGrant
 	default:
 	}
 	select {
+	case <-cancelled:
+		return ErrGrant
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-m.token:
-		return true
+		return nil
 	case <-deadline:
-		return false
+		return ErrGrant
 	}
 }
