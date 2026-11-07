@@ -15,6 +15,7 @@ import (
 type UOSettingKey string
 
 const (
+	UOSettingLogRetention                       UOSettingKey = "logRetention"
 	UOSettingName                               UOSettingKey = "name"
 	UOSettingDownloadMaxQuality                 UOSettingKey = "downloadMaxQuality"
 	UOSettingAnalysisStorageGiB                 UOSettingKey = "analysisStorageGiB"
@@ -84,6 +85,7 @@ type uoSettingSpec struct {
 }
 
 var uoSettingSpecs = []uoSettingSpec{
+	{key: UOSettingLogRetention, def: UOValue{Kind: UORetention, Retention: []UOLogRetention{}}},
 	{key: UOSettingName, def: UOValue{Kind: UOText, Text: "Portico"}},
 	{key: UOSettingDownloadMaxQuality, def: UOValue{Kind: UOText, Text: "original"}, options: uoDownloadQualities()},
 	{key: UOSettingAnalysisStorageGiB, def: UOValue{Kind: UOInteger, Number: 32}, low: 1, high: 16384, ranged: true},
@@ -162,6 +164,7 @@ func UOSettingDefault(k UOSettingKey) (UOValue, bool) {
 	s, ok := uoSettingSpecFor(k)
 	v := s.def
 	v.List = slices.Clone(v.List)
+	v.Retention = slices.Clone(v.Retention)
 	return v, ok
 }
 func UOValidateSetting(k UOSettingKey, v UOValue) (UOValue, error) {
@@ -169,10 +172,23 @@ func UOValidateSetting(k UOSettingKey, v UOValue) (UOValue, error) {
 	if !ok || v.Kind != f.def.Kind {
 		return UOValue{}, ErrInvalid
 	}
-	if v.Kind != UOBool && v.Bool || v.Kind != UOInteger && v.Number != 0 || v.Kind != UOText && v.Text != "" || v.Kind != UOList && v.List != nil {
+	if v.Kind != UORetention && v.Retention != nil || v.Kind != UOBool && v.Bool || v.Kind != UOInteger && v.Number != 0 || v.Kind != UOText && v.Text != "" || v.Kind != UOList && v.List != nil {
 		return UOValue{}, ErrInvalid
 	}
 	switch v.Kind {
+	case UORetention:
+		if len(v.Retention) > 5 {
+			return UOValue{}, ErrInvalid
+		}
+		v.Retention = slices.Clone(v.Retention)
+		seen := map[UOLogCategory]bool{}
+		for _, entry := range v.Retention {
+			if !slices.Contains(uoLogCategories(), entry.Category) || seen[entry.Category] || entry.Days < 1 || entry.Days > 90 {
+				return UOValue{}, ErrInvalid
+			}
+			seen[entry.Category] = true
+		}
+		slices.SortFunc(v.Retention, func(a, b UOLogRetention) int { return strings.Compare(string(a.Category), string(b.Category)) })
 	case UOBool:
 	case UOInteger:
 		if v.Number != float64(int64(v.Number)) || f.ranged && (v.Number < f.low || v.Number > f.high) || len(f.numbers) > 0 && !slices.Contains(f.numbers, v.Number) {
@@ -343,7 +359,7 @@ func uoSettingSQL(k UOSettingKey) (point, octets, update string) {
 func UOSettingsPointDefinitions() []stmt.Definition {
 	var out []stmt.Definition
 	for _, f := range uoSettingSpecs {
-		if f.def.Kind == UOList {
+		if f.def.Kind == UOList || f.def.Kind == UORetention {
 			continue
 		}
 		point, octets, _ := uoSettingSQL(f.key)
@@ -351,6 +367,7 @@ func UOSettingsPointDefinitions() []stmt.Definition {
 			out = append(out, stmt.Definition{ID: uoSettingID(f.key, part.suffix), Owner: "store UO ordinary settings draft", CallSites: []string{"store/writer/uo_settings.go", "store/read/uo_settings.go"}, Kind: stmt.Read, SQL: part.sql, Cohorts: []stmt.Cohort{{Name: "singleton", Bindings: []any{}}}, Plan: uoSettingValuePlan(f.key)})
 		}
 	}
+	out = append(out, stmt.Definition{ID: "uo.settings.log_retention_value", Owner: "store UO ordinary settings draft", CallSites: []string{"store/writer/uo_settings.go", "store/read/uo_settings.go"}, Kind: stmt.Read, SQL: `SELECT days FROM server_log_retention WHERE category=?`, Params: []stmt.Param{{Name: "category", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "category", Bindings: []any{"server"}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_server_log_retention_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "server_log_retention", Name: "sqlite_autoindex_server_log_retention_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "category", Collation: "BINARY"}}}}}})
 	return out
 }
 func uoSettingID(k UOSettingKey, suffix string) stmt.ID {
@@ -400,11 +417,15 @@ func uoSettingPointPlan(table string) stmt.Plan {
 	if table == "r" {
 		p.PrimaryKeys = []string{"r", "s"}
 	}
-	if table == "server_setting_sources" || table == "server_configuration_pending" {
+	if table == "server_setting_sources" || table == "server_configuration_pending" || table == "server_log_retention" {
 		name := "sqlite_autoindex_" + table + "_1"
 		p.PrimaryKeys = nil
 		p.Indexes = []string{name}
-		p.AutoIndexes = []stmt.AutoIndexBinding{{Table: table, Name: name, Origin: "pk", Columns: []stmt.IndexColumn{{Name: "field", Collation: "BINARY"}}}}
+		col := "field"
+		if table == "server_log_retention" {
+			col = "category"
+		}
+		p.AutoIndexes = []stmt.AutoIndexBinding{{Table: table, Name: name, Origin: "pk", Columns: []stmt.IndexColumn{{Name: col, Collation: "BINARY"}}}}
 	}
 	return p
 }
@@ -423,4 +444,8 @@ func uoSettingValuePlan(k UOSettingKey) stmt.Plan {
 		return stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_configuration_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "configuration", Name: "sqlite_autoindex_configuration_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "key", Collation: "BINARY"}}}}}
 	}
 	return stmt.Plan{Hot: true, PrimaryKeys: []string{"server_settings"}}
+}
+
+func uoLogCategories() []UOLogCategory {
+	return []UOLogCategory{UOLogClient, UOLogNetwork, UOLogPlayback, UOLogScan, UOLogServer}
 }

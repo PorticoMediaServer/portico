@@ -155,7 +155,7 @@ func uoPreferenceValue(row []any) (UOValue, error) {
 	return v, nil
 }
 func uoReadValuesEqual(a, b UOValue) bool {
-	return a.Kind == b.Kind && a.Bool == b.Bool && a.Number == b.Number && a.Text == b.Text && slices.Equal(a.List, b.List)
+	return a.Kind == b.Kind && a.Bool == b.Bool && a.Number == b.Number && a.Text == b.Text && slices.Equal(a.List, b.List) && slices.Equal(a.Retention, b.Retention)
 }
 
 // UOPreferenceDefinitions is inert; does not append to any shared list.

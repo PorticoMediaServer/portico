@@ -174,3 +174,36 @@ func TestUOSettingsAndPreferencesNativeDefinitions(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func TestUOSettingsTypedRetentionListAndStorageDependency(t *testing.T) {
+	w := wc008NativeExecutor(t)
+	uoSettingsSeed(t, w)
+	apply := func(revision int64, v UOValue, writes int64) uoSettingsEffect {
+		t.Helper()
+		turn := uoTestTurn(t, w, uoSettingsDefinitions())
+		before := uoTestChanges(t, turn)
+		out, e := applyUOSettings(t.Context(), turn, uoTestSettings(revision, uoSettingPatch{UOSettingLogRetention, v}))
+		if e != nil || uoTestChanges(t, turn)-before != writes {
+			t.Fatal(out, e, uoTestChanges(t, turn)-before, writes)
+		}
+		uoTestCommit(t, turn)
+		return out
+	}
+	apply(1, UOValue{Kind: UORetention, Retention: []UOLogRetention{{UOLogServer, 7}, {UOLogClient, 30}}}, 6)
+	// List order has no semantics for category settings; canonical order is stable.
+	apply(2, UOValue{Kind: UORetention, Retention: []UOLogRetention{{UOLogClient, 30}, {UOLogServer, 7}}}, 0)
+	apply(2, UOValue{Kind: UORetention, Retention: []UOLogRetention{{UOLogServer, 14}, {UOLogNetwork, 1}}}, 7)
+	for _, value := range []UOValue{{Kind: UORetention, Retention: []UOLogRetention{{"unknown", 7}}}, {Kind: UORetention, Retention: []UOLogRetention{{UOLogServer, 0}}}, {Kind: UORetention, Retention: []UOLogRetention{{UOLogServer, 7}, {UOLogServer, 30}}}} {
+		if _, e := UOValidateSetting(UOSettingLogRetention, value); e == nil {
+			t.Fatal(value)
+		}
+	}
+	// Cross-field validation must also load an unchanged dependent native scalar.
+	wc008NativeExec(t, w, `UPDATE server_settings SET "analysisStageStorageMiB"=4096 WHERE singleton=1`)
+	turn := uoTestTurn(t, w, uoSettingsDefinitions())
+	before := uoTestChanges(t, turn)
+	out, e := applyUOSettings(t.Context(), turn, uoTestSettings(3, uoSettingPatch{UOSettingAnalysisStorageGiB, UOValue{Kind: UOInteger, Number: 1}}))
+	if !errors.Is(e, ErrInvalid) || !reflect.DeepEqual(out, uoSettingsEffect{}) || uoTestChanges(t, turn) != before {
+		t.Fatal(out, e)
+	}
+}
