@@ -64,7 +64,7 @@ func wcSecurityProtocolDefinitions() []stmt.Definition {
 			Cohorts: []stmt.Cohort{{Name: "permanent_original_scalar", Bindings: []any{"target", "server", inc, int64(1)}}},
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_authorization_session_families_1"}}},
 		{ID: wcSecurityNativeTarget, Kind: stmt.Read,
-			SQL:     `SELECT m.role FROM direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 INNER JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_1 ON p.account_id=m.account_id WHERE m.account_id=? AND p.id=? AND m.incarnation=? AND p.lifetime=? AND m.disabled=0 AND p.deleted=0`,
+			SQL:     `SELECT m.role FROM direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 INNER JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_1 ON p.account_id=m.account_id WHERE m.account_id=? AND p.id=? AND m.incarnation=? AND p.lifetime=?`,
 			Params:  []stmt.Param{text("account"), text("profile"), text("member_birth"), text("profile_birth")},
 			Cohorts: []stmt.Cohort{{Name: "current_target_births", Bindings: []any{"account", "profile", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}},
 			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_direct_profiles_1"}, AutoIndexes: []stmt.AutoIndexBinding{
@@ -149,7 +149,10 @@ func readWCSecurityOwner(ctx context.Context, turn *commandTurn, family, server 
 
 // This exact native point is for the parent's CURRENT target disclosure gate
 // and the fresh adapter. It never reads f.role. Birth replacement, deletion and
-// disabled membership fail closed rather than lending the old family a tier.
+// replaced birth fails closed rather than lending the old family a tier.
+// Target disabled/deleted flags do not restrict administration: legacy
+// identity/member_devices.go manages disabled accounts too. The ACTOR must
+// still be enabled/current; this target operation only adds a deny fence.
 func readWCSecurityTargetTier(ctx context.Context, turn *commandTurn, s wcSecuritySnapshot) (tier string, err error) {
 	defer func() { tier, err = finishCommand(ctx, commandLifetime(turn), tier, err) }()
 	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != SecurityAccept || s.account == "" || s.profile == "" || len(s.memberIncarnation) != 32 || len(s.profileLifetime) != 32 {
