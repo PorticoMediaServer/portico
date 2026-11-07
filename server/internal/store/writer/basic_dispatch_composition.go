@@ -23,10 +23,31 @@ func basicCommandMaxUses(purpose CommandID, id stmt.ID) int {
 	if purpose != BasicStage && purpose != BasicSeal {
 		return 0
 	}
+	if n := basicEffectsMaxUses(purpose, id); n != 0 {
+		return n
+	}
 	switch id {
-	case inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptOwner, scanReceiptAck, scanReceiptReclaimKey,
-		basicReceiptScope, basicReceiptIdentity, basicReceiptHeaderLengths, basicReceiptHeader,
-		basicControlRun, basicControlSource, basicControlActive, basicControlObject, basicControlLibrary, basicControlPolicy, basicControlJob, basicControlAsset, basicControlPostState, basicControlRunCAS, basicControlReceipt,
+	case inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptOwner, scanReceiptAck, scanReceiptReclaimKey, basicReceiptScope, basicReceiptIdentity, basicReceiptHeaderLengths, basicReceiptHeader:
+		return 1
+	}
+	return 0
+}
+func basicEffectsDefinitions(purpose CommandID) []stmt.Definition {
+	all := basicControlCommandDefinitions()
+	defs := make([]stmt.Definition, 0, len(all))
+	for _, d := range all {
+		if basicEffectsMaxUses(purpose, d.ID) > 0 {
+			defs = append(defs, d)
+		}
+	}
+	return defs
+}
+func basicEffectsMaxUses(purpose CommandID, id stmt.ID) int {
+	if purpose != BasicStage && purpose != BasicSeal {
+		return 0
+	}
+	switch id {
+	case basicControlRun, basicControlSource, basicControlActive, basicControlObject, basicControlLibrary, basicControlPolicy, basicControlJob, basicControlAsset, basicControlPostState, basicControlRunCAS, basicControlReceipt,
 		basicStageHeader, basicStageAsset, basicStageWitness, basicStageFamily:
 		return 1
 	case basicControlChange:
@@ -53,13 +74,13 @@ func basicStageCommandDefinitions(in basicStageRequest) []stmt.Definition {
 	if _, err := basicStageSource(in); err != nil {
 		return nil
 	}
-	return basicCommandDefinitions(BasicStage)
+	return basicEffectsDefinitions(BasicStage)
 }
 func basicSealCommandDefinitions(in basicSealRequest) []stmt.Definition {
 	if in.purpose != BasicPurposeSeal || in.operation != basicSealStreamInput {
 		return nil
 	}
-	return basicCommandDefinitions(BasicSeal)
+	return basicEffectsDefinitions(BasicSeal)
 }
 
 func basicControlCommandDefinitions() []stmt.Definition {
