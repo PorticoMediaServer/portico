@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,51 +29,139 @@ func seedNativeSearch(t *testing.T, f *browseFixture) {
 	t.Helper()
 	f.exec(t, "BEGIN")
 	f.exec(t, "PRAGMA defer_foreign_keys=ON")
-	p := searchpolicy.Compiled()
+	profile := searchpolicy.Compiled()
 	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(4,'episode',1,0,1,1,0)`)
 	f.exec(t, `UPDATE catalog_subjects SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END WHERE id IN(1,2,3)`)
 	f.exec(t, `UPDATE catalog_entities SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END,title=CASE id WHEN 2 THEN 'Arrival' ELSE 'Matrix' END,retired=0,show_id=CASE id WHEN 1 THEN NULL ELSE 1 END,numbering=CASE id WHEN 1 THEN NULL ELSE 'seasonal' END,episode_number=CASE id WHEN 1 THEN NULL ELSE id END WHERE id IN(1,2,3)`)
-	f.exec(t, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1',?,?,?,'active',0)`, p.RecipeVersion, p.EngineVersion, p.UnicodeFingerprint)
+	f.exec(t, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1',?,?,?,'active',0)`, profile.RecipeVersion, profile.EngineVersion, profile.UnicodeFingerprint)
 	f.exec(t, `INSERT INTO search_revision(singleton,revision,active_generation_id,input_sequence) VALUES(1,1,1,0)`)
-	for _, id := range []int64{1, 2, 3} {
-		var title string
-		var kind, revision int64
-		var inc []byte
-		if err := f.conn.QueryRowContext(t.Context(), `SELECT title,kind,revision,metadata_incarnation FROM catalog_entities WHERE id=?`, id).Scan(&title, &kind, &revision, &inc); err != nil {
-			t.Fatal(err)
-		}
-		prepared := search.PrepareTitle(title)
-		fragments, err := search.PrepareFragments(title, search.DefaultFragmentBudget())
-		if err != nil {
-			t.Fatal(err)
-		}
-		manifestRows := make([]search.ManifestRow, fragments.Len())
-		for i := range manifestRows {
-			manifestRows[i] = fragments.At(i).ManifestRow(1, int64(i), "revision-1")
-		}
-		var incarnation [16]byte
-		copy(incarnation[:], inc)
-		manifest, err := search.PrepareManifest(search.ManifestInput{Subject: search.ManifestEntity, SubjectID: id, LibraryID: 1, Kind: kind, SearchGenerationID: 1, BankKey: "v1", EngineVersion: p.EngineVersion, UnicodeFingerprint: p.UnicodeFingerprint, Recipe: p.RecipeVersion, InputGeneration: 1, SourceRevision: revision, SourceIncarnation: incarnation}, manifestRows)
-		if err != nil {
-			t.Fatal(err)
-		}
-		f.exec(t, `INSERT INTO search_publications(id,entity_id,search_generation_id,library_id,kind,generation,source_incarnation,source_revision,recipe_version,title,title_fold,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,1,1,?,1,?,?,?,?,?,?,?)`, id, id, kind, inc, revision, p.RecipeVersion, title, prepared.Fold(), prepared.PrefixTokens(), prepared.InitialTokens())
-		f.exec(t, `INSERT INTO search_publish_jobs(entity_id,search_generation_id,published_generation,published_document_id,input_generation,source_incarnation,source_revision,recipe_version,phase) VALUES(?,1,1,?,1,?,?,?,'idle')`, id, id, inc, revision, p.RecipeVersion)
-		for i, row := range manifestRows {
-			fragment := id*100 + int64(i)
-			f.exec(t, `INSERT INTO search_fragments(id,owner_entity,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized,generation,search_generation_id,publication_id) VALUES(?,?,1,?,?,?,?,?,1,1,?)`, fragment, id, row.Ordinal, row.Revision, row.Prefix, row.Lexical, row.Normalized, id)
-			f.exec(t, `INSERT INTO search_fragment_prefix(rowid,prefix_tokens) VALUES(?,?)`, fragment, row.Prefix)
-			f.exec(t, `INSERT INTO search_fragment_lexical(rowid,lexical_tokens) VALUES(?,?)`, fragment, row.Lexical)
-			f.exec(t, `INSERT INTO search_fragment_grams(rowid,normalized) VALUES(?,?)`, fragment, row.Normalized)
-		}
-		seed, digest := manifest.Seed(), manifest.Digest()
-		f.exec(t, `INSERT INTO search_image_seals(publication_id,algorithm,seed,expected_digest,expected_fragments,expected_bytes,staged_fragments,staged_bytes,verified_fragments,verified_bytes,chain,sealed) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)`, id, search.ManifestAlgorithm, seed[:], digest[:], manifest.Count(), manifest.Bytes(), manifest.Count(), manifest.Bytes(), manifest.Count(), manifest.Bytes(), digest[:])
-		f.exec(t, `INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)`, id, prepared.PrefixTokens(), prepared.InitialTokens())
-	}
-	// A raw People posting is intentionally NOT accepted without its own birth.
-	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name) VALUES(1,'person','person','Keanu','keanu')`)
-	f.exec(t, `INSERT INTO catalog_people_names(rowid,name) VALUES(1,'Keanu')`)
+	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name,search_incarnation) VALUES(1,'person','person','Keanu','keanu',x'11111111111111111111111111111111')`)
+	f.exec(t, `INSERT INTO catalog_credit_labels(id,label) VALUES(1,'Actor'),(2,'Acting')`)
+	f.exec(t, `INSERT INTO catalog_credit_images(id,entity_id,entity_incarnation,source_revision,identity_revision,metadata_revision,owner_revision,policy_incarnation,policy_revision,consent_revision,metadata_language,source_manifest_digest,build_request_digest,manifest_algorithm,build_expected_count,build_expected_bytes,build_expected_digest,build_seed,build_chain,current_input_digest,command_incarnation,sealed,manifest_digest) SELECT 1,id,metadata_incarnation,1,1,1,1,zeroblob(16),0,0,'en',zeroblob(32),zeroblob(32),'test',0,0,zeroblob(32),zeroblob(32),zeroblob(32),zeroblob(32),zeroblob(16),1,zeroblob(32) FROM catalog_entities WHERE id=2`)
+	f.exec(t, `UPDATE catalog_entities SET credit_image_id=1 WHERE id=2`)
+	f.exec(t, `INSERT INTO catalog_credits(image_id,entity_id,ord,person_id,role_id,department_id,credited_name,provider,credit_id,source_ordinal) VALUES(1,2,0,1,1,2,'Original appearance','test','credit',0)`)
+	nativeFixtureImage(t, f, search.ManifestEntity, 1, 1, []nativeFixtureField{{1, "Matrix"}, {4, "Alternate source"}})
+	nativeFixtureImage(t, f, search.ManifestEntity, 2, 2, []nativeFixtureField{{1, "Arrival"}, {6, "Original appearance"}})
+	nativeFixtureImage(t, f, search.ManifestEntity, 3, 3, []nativeFixtureField{{1, "Matrix"}})
+	nativeFixtureImage(t, f, search.ManifestPerson, 1, 1001, []nativeFixtureField{{1, "Keanu"}})
+	vector := nativeSiblingVector(t)
+	f.exec(t, `UPDATE catalog_entities SET title='Independent own',retired=0 WHERE id=4`)
+	nativeFixtureImage(t, f, search.ManifestEntity, 4, 4, []nativeFixtureField{{1, "Independent own"}, {4, vector.Source}})
+
+	seedNativeAutomatic(t, f)
 	f.exec(t, "COMMIT")
+}
+
+type nativeFixtureField struct {
+	field uint16
+	value string
+}
+
+func nativeFixtureImage(t *testing.T, f *browseFixture, subject search.ManifestSubject, id, publication int64, fields []nativeFixtureField) {
+	t.Helper()
+	profile := searchpolicy.Compiled()
+	var title string
+	var kind, library, revision int64
+	var inc []byte
+	if subject == search.ManifestEntity {
+		if err := f.conn.QueryRowContext(t.Context(), `SELECT title,kind,library_id,revision,metadata_incarnation FROM catalog_entities WHERE id=?`, id).Scan(&title, &kind, &library, &revision, &inc); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		if err := f.conn.QueryRowContext(t.Context(), `SELECT name,revision,search_incarnation FROM catalog_people WHERE id=?`, id).Scan(&title, &revision, &inc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var rows []search.ManifestRow
+	for _, field := range fields {
+		fragments, err := search.PrepareFragments(field.value, search.DefaultFragmentBudget())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < fragments.Len(); i++ {
+			rows = append(rows, fragments.At(i).ManifestRow(field.field, int64(i), "revision-1"))
+		}
+	}
+	var incarnation [16]byte
+	copy(incarnation[:], inc)
+	manifest, err := search.PrepareManifest(search.ManifestInput{Subject: subject, SubjectID: id, LibraryID: library, Kind: kind, SearchGenerationID: 1, BankKey: "v1", EngineVersion: profile.EngineVersion, UnicodeFingerprint: profile.UnicodeFingerprint, Recipe: profile.RecipeVersion, InputGeneration: 1, SourceRevision: revision, SourceIncarnation: incarnation}, rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared := search.PrepareTitle(title)
+	personTokens := ""
+	if subject == search.ManifestPerson {
+		personTokens = search.PreparePersonName(title)
+	}
+	var entity, person, lib, k any
+	if subject == search.ManifestEntity {
+		entity, lib, k = id, library, kind
+	} else {
+		person = id
+	}
+	f.exec(t, `INSERT INTO search_publications(id,entity_id,person_id,search_generation_id,library_id,kind,generation,source_incarnation,source_revision,recipe_version,title,title_fold,title_prefix_tokens,initial_prefix_tokens,person_name_tokens) VALUES(?,?,?,1,?,?,1,?,?,?,?,?,?,?,?)`, publication, entity, person, lib, k, inc, revision, profile.RecipeVersion, title, prepared.Fold(), prepared.PrefixTokens(), prepared.InitialTokens(), personTokens)
+	f.exec(t, `INSERT INTO search_publish_jobs(entity_id,person_id,search_generation_id,published_generation,published_document_id,input_generation,source_incarnation,source_revision,recipe_version,phase) VALUES(?,?,1,1,?,1,?,?,?,'idle')`, entity, person, publication, inc, revision, profile.RecipeVersion)
+	for i, row := range rows {
+		fragment := (publication-1)*1000 + int64(i) + 1
+		f.exec(t, `INSERT INTO search_fragments(id,owner_entity,owner_person,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized,generation,search_generation_id,publication_id) VALUES(?,?,?,?,?,?,?,?,?,1,1,?)`, fragment, entity, person, row.Field, row.Ordinal, row.Revision, row.Prefix, row.Lexical, row.Normalized, publication)
+		f.exec(t, `INSERT INTO search_fragment_prefix(rowid,prefix_tokens) VALUES(?,?)`, fragment, row.Prefix)
+		f.exec(t, `INSERT INTO search_fragment_lexical(rowid,lexical_tokens) VALUES(?,?)`, fragment, row.Lexical)
+		f.exec(t, `INSERT INTO search_fragment_grams(rowid,normalized) VALUES(?,?)`, fragment, row.Normalized)
+	}
+	seed, digest := manifest.Seed(), manifest.Digest()
+	f.exec(t, `INSERT INTO search_image_seals(publication_id,algorithm,seed,expected_digest,expected_fragments,expected_bytes,staged_fragments,staged_bytes,verified_fragments,verified_bytes,chain,sealed) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)`, publication, search.ManifestAlgorithm, seed[:], digest[:], manifest.Count(), manifest.Bytes(), manifest.Count(), manifest.Bytes(), manifest.Count(), manifest.Bytes(), digest[:])
+	if subject == search.ManifestEntity {
+		f.exec(t, `INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)`, id, prepared.PrefixTokens(), prepared.InitialTokens())
+	} else {
+		f.exec(t, `INSERT INTO catalog_people_names(rowid,name) VALUES(?,?)`, id, search.PreparePersonName(title))
+	}
+}
+
+// A legal legacy R21 accepted-evidence cohort. It supplies no new writer
+// receipt authority: these reads intentionally preserve the adopted view.
+func seedNativeAutomatic(t *testing.T, f *browseFixture) {
+	t.Helper()
+	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(10,'collection',0,1,1,1,0)`)
+	f.exec(t, `UPDATE catalog_subjects SET kind=10 WHERE id IN(10,11,12)`)
+	f.exec(t, `UPDATE catalog_entities SET kind=10,title=CASE id WHEN 10 THEN 'Shared saga' WHEN 11 THEN 'Provider saga' ELSE 'Authored group' END,collection_name_key=CASE id WHEN 10 THEN 'shared saga' WHEN 11 THEN 'provider saga' ELSE 'authored group' END,retired=0 WHERE id IN(10,11,12)`)
+	f.exec(t, `UPDATE catalog_entities SET title=CASE id WHEN 5 THEN 'Local work' WHEN 6 THEN 'Included work' WHEN 7 THEN 'Provider work' ELSE 'Excluded local' END,automatic_collection_name=CASE WHEN id IN(5,8) THEN 'Shared saga' ELSE '' END,automatic_collection_name_key=CASE WHEN id IN(5,8) THEN 'local' ELSE '' END,metadata_language='en',retired=0 WHERE id IN(5,6,7,8)`)
+	f.exec(t, `INSERT INTO catalog_automatic_collections(library_id,provider,provider_id,entity_id) VALUES(1,'nfo','local',10),(1,'test','other',10),(1,'tmdb','provider',11)`)
+	f.exec(t, `INSERT INTO catalog_automatic_member_overrides(collection_id,item_id,present) VALUES(10,6,1),(10,8,0)`)
+	f.exec(t, `INSERT INTO catalog_collection_members(collection_id,item_id,order_key) VALUES(12,6,'a')`)
+	f.exec(t, `UPDATE libraries SET metadata_language='en' WHERE id='movies'`)
+	f.exec(t, `INSERT INTO metadata_providers(code,adapter,enabled) VALUES('tmdb','tmdb',1)`)
+	f.exec(t, `INSERT INTO metadata_provider_policy(library_id,provider,incarnation,revision,enabled,priority,region,algorithm,refresh_mode) VALUES(1,'tmdb',zeroblob(16),1,1,0,'','fixture','fill_missing')`)
+	f.exec(t, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(1,'tmdb','movie','m1','en','','item',zeroblob(16),1)`)
+	f.exec(t, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed) VALUES('evidence1',1,'fixture','tmdb','movie','m1','en','','item',printf('%064d',1),'2026-11-06T00:00:00Z','fixture',1)`)
+	f.exec(t, `INSERT INTO metadata_evidence_collections(evidence_id,provider,evidence_kind,collection_kind,collection_id,name) VALUES('evidence1','tmdb','movie','collection','provider','Provider saga')`)
+	f.exec(t, `INSERT INTO metadata_provider_operations(id,entity_id,provider,phase,status,generation,lease,lease_until,entity_incarnation,source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,descriptive_revision,policy_incarnation,policy_revision,consent_revision,algorithm,refresh_mode,query_title,query_artist,query_year,query_digest,input_digest,selected_id,manual,review_search,qualification,created_at,source_content_revision) SELECT 'operation1',id,'tmdb','idle','applied',1,'','2026-11-07T00:00:00Z',metadata_incarnation,1,1,1,1,1,1,zeroblob(16),1,0,'fixture','fill_missing',title,'',0,'fixture','fixture','m1',0,0,'fixture','2026-11-06T00:00:00Z',1 FROM catalog_entities WHERE id=7`)
+	f.exec(t, `INSERT INTO metadata_publications(id,operation_id,entity_id,provider,subject_kind,provider_id,evidence_id,selection_revision,generation,decision,observed_at) VALUES('publication1','operation1',7,'tmdb','movie','m1','evidence1',1,1,'accepted','2026-11-06T00:00:00Z')`)
+	f.exec(t, `INSERT INTO metadata_subject_providers(entity_id,provider,role,incarnation,revision,subject_kind,provider_id,accepted_evidence_id,accepted_publication_id,status,observed_at) VALUES(7,'tmdb','primary',zeroblob(16),1,'movie','m1','evidence1','publication1','matched','2026-11-06T00:00:00Z')`)
+	f.exec(t, `INSERT INTO metadata_field_origins(subject_kind,provider_id,entity_id,field,provider,source_kind,source_url,confidence,observed_at,language,region,selection_revision,publication_id,evidence_id) VALUES('movie','m1',7,'relations','tmdb','provider','fixture',1.0,'2026-11-06T00:00:00Z','en','',1,'publication1','evidence1')`)
+	for _, v := range []struct {
+		id    int64
+		title string
+	}{{5, "Local work"}, {6, "Included work"}, {7, "Provider work"}, {8, "Excluded local"}, {10, "Shared saga"}, {11, "Provider saga"}, {12, "Authored group"}} {
+		nativeFixtureImage(t, f, search.ManifestEntity, v.id, v.id, []nativeFixtureField{{1, v.title}})
+	}
+}
+
+type nativePairVector struct {
+	Source, Query    string
+	PrefixQueryToken string `json:"prefix_query_token"`
+}
+
+func nativeSiblingVector(t *testing.T) nativePairVector {
+	t.Helper()
+	data, err := os.ReadFile("../search/testdata/read-pairing.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vector nativePairVector
+	if err = json.Unmarshal(data, &vector); err != nil {
+		t.Fatal(err)
+	}
+	return vector
 }
 func nativeFixtureHash(t *testing.T) string {
 	t.Helper()
@@ -79,7 +169,17 @@ func nativeFixtureHash(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return fmt.Sprintf("%x", sha256.Sum256(append([]byte(browsePlanFixtureHash(t)), data...)))
+	a, b := bytes.Index(data, []byte("func seedNativeSearch(")), bytes.Index(data, []byte("func nativeFixtureHash("))
+	if a < 0 || b <= a {
+		t.Fatal("missing native seed journal")
+	}
+	vector, err := os.ReadFile("../search/testdata/read-pairing.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal := append([]byte(browsePlanFixtureHash(t)), data[a:b]...)
+	journal = append(journal, vector...)
+	return fmt.Sprintf("%x", sha256.Sum256(journal))
 }
 func newNativeSource(t *testing.T) *browseFixture {
 	t.Helper()
@@ -122,7 +222,7 @@ func TestNativeSearchCurrentAllKindsAndMixedOwners(t *testing.T) {
 		query string
 		ids   []int64
 		tiers []uint8
-	}{{"matrix", []int64{3, 1, 2}, []uint8{0, 0, 5}}, {"matrix arrival", []int64{2}, []uint8{5}}} {
+	}{{"matrix", []int64{3, 1, 2}, []uint8{0, 0, 5}}, {"matrix arrival", []int64{2}, []uint8{5}}, {"keanu", []int64{1, 2}, []uint8{3, 5}}, {"matrix keanu", []int64{2}, []uint8{5}}, {"original appearance", []int64{2}, []uint8{4}}, {"shared saga", []int64{10, 6, 5}, []uint8{0, 5, 5}}, {"provider saga", []int64{11, 7}, []uint8{0, 5}}, {"authored group", []int64{12, 6}, []uint8{0, 5}}} {
 		var cursor *FullSearchCursor
 		done := false
 		for n := 0; n < 100; n++ {
@@ -162,11 +262,7 @@ func TestNativeSearchCurrentAllKindsAndMixedOwners(t *testing.T) {
 }
 func TestNativeSearchRefusesUnsupportedAndStaleProofs(t *testing.T) {
 	f, r := newNativeFixture(t)
-	page, _, err := nativeRead(t, f, r, "keanu", nil)
-	if !errors.Is(err, ErrUnqualified) || !reflect.DeepEqual(page, FullSearchPage{}) {
-		t.Fatal("People proof silently dropped", page, err)
-	}
-	page, _, err = nativeRead(t, f, r, "matrix", nil)
+	page, _, err := nativeRead(t, f, r, "matrix", nil)
 	if err != nil || page.Next == nil {
 		t.Fatal("pending setup", err)
 	}
@@ -232,5 +328,190 @@ func TestNativeSearchPlans(t *testing.T) {
 	}
 	if err = plan.CompareJSON(want, data); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNativeSearchAcceptedSiblingOracle(t *testing.T) {
+	f, r := newNativeFixture(t)
+	vector := nativeSiblingVector(t)
+	q, err := search.PlanQuery(vector.Query, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scopeQuery, err := newFullQueryScope(q, 1, 1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := readfixture.ReadRequest()
+	request.Budget.RawRows = 4096
+	var candidates, same, siblings, logical int
+	window, err := f.snapshots.ReadForecasted(t.Context(), request, time.Second, governor.SnapshotForecast{NativeRowBytes: f.snapshots.NativeRowReservation(), MaxQueries: 4096}, func(scope *governor.ReadScope) error {
+		query := func(name string, args ...any) ([][]any, error) { return scope.Query(readStatementID(name), args...) }
+		rows, err := query("full.native.fts.search_fragment_prefix.first", "\""+vector.PrefixQueryToken+"\"*", int64(64))
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			source, field, err := nativePostingSource(query, scopeQuery, 2, row[0].(int64))
+			if err != nil {
+				return err
+			}
+			if source == nil || source.key.SubjectID != 4 || field != 4 {
+				continue
+			}
+			candidates++
+			physical, err := query("full.native.field.first", source.key.PublicationID, int64(4), int64(64))
+			if err != nil {
+				return err
+			}
+			for _, sibling := range physical {
+				if strings.Contains(sibling[4].(string), vector.Query) {
+					siblings++
+					if sibling[0] == row[0] {
+						same++
+					}
+				}
+			}
+			proof, _, err := nativeLogicalField(scope.Context(), query, scopeQuery, source, field, 0)
+			if err != nil {
+				return err
+			}
+			if proof.matched[0] {
+				logical++
+			}
+		}
+		return nil
+	})
+	if err != nil || window.Refusal != nil {
+		t.Fatal(err, window.Refusal)
+	}
+	if candidates != 1 || same != 0 || siblings != 1 || logical != 1 {
+		t.Fatal("actual PB-RD-01", candidates, same, siblings, logical)
+	}
+	var after *FullSearchCursor
+	for n := 0; n < 100; n++ {
+		page, _, err := nativeRead(t, f, r, vector.Query, after)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Disposition == SearchPending {
+			after = page.Next
+			continue
+		}
+		if len(page.Hits) != 1 || page.Hits[0].ID != 4 || page.Hits[0].Tier != 4 || !page.Exhausted {
+			t.Fatal("sibling result", page)
+		}
+		return
+	}
+	t.Fatal("sibling proof did not complete")
+}
+
+type nativeBoundarySnapshots struct {
+	*governor.Snapshots
+	afterBusiness func()
+}
+
+func (s *nativeBoundarySnapshots) ReadForecasted(ctx context.Context, request governor.Request, budget time.Duration, forecast governor.SnapshotForecast, read func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	return s.Snapshots.ReadForecasted(ctx, request, budget, forecast, func(scope *governor.ReadScope) error {
+		err := read(scope)
+		if s.afterBusiness != nil {
+			s.afterBusiness()
+		}
+		return err
+	})
+}
+func TestNativeSearchPublicationDenialAndRetirement(t *testing.T) {
+	for _, v := range []struct {
+		name, sql string
+		want      error
+		cancel    bool
+	}{
+		{"revoke-with-cancel", `UPDATE authorization_session_families SET revoked=1`, ErrDenied, true},
+		{"retire-library", `UPDATE catalog_libraries SET retired=1 WHERE id=1`, ErrDenied, false},
+		{"remove-library", `UPDATE direct_memberships SET allowed_libraries='[]' WHERE account_id='a'`, ErrDenied, false},
+	} {
+		t.Run(v.name, func(t *testing.T) {
+			f, r := newNativeFixture(t)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			r.snapshots = &nativeBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() {
+				f.exec(t, v.sql)
+				if v.cancel {
+					cancel()
+				}
+			}}
+			query, err := search.PlanQuery("matrix", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			live, request, output := liveRequests("publication")
+			request.Budget.RawRows = 4096
+			var page FullSearchPage
+			_, err = ConsumeForeground(ctx, f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+				var e error
+				page, _, e = r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input}, query)
+				return e
+			})
+			if !errors.Is(err, v.want) || !reflect.DeepEqual(page, FullSearchPage{}) {
+				t.Fatal("publication leaked", page, err)
+			}
+		})
+	}
+}
+func TestNativeSearchReadJoinedStamp(t *testing.T) {
+	f, r := newNativeFixture(t)
+	prior, _, err := nativeRead(t, f, r, "matrix", nil)
+	if err != nil || prior.Stamp == nil {
+		t.Fatal("first stamp", err)
+	}
+	query, err := search.PlanQuery("matrix", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var after *FullSearchCursor
+	for n := 0; n < 100; n++ {
+		live, request, output := liveRequests("stamp")
+		request.Budget.RawRows = 4096
+		var page FullSearchPage
+		_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+			var e error
+			page, _, e = r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input, After: after}, query)
+			if e != nil {
+				return e
+			}
+			if page.Stamp == nil {
+				t.Fatal("missing final/next-less stamp")
+			}
+			if e = page.Stamp.ValidateRetained(ctx, out, prior.Stamp); e != nil {
+				t.Fatal("read-joined proof", e)
+			}
+			if e = prior.Stamp.ValidateRetained(ctx, out, page.Stamp); !errors.Is(e, ErrInput) {
+				t.Fatal("prior output grant authorized fresh disclosure", e)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Exhausted {
+			if page.Next != nil || page.Stamp == nil {
+				t.Fatal("exhausted stamp")
+			}
+			return
+		}
+		after = page.Next
+	}
+	t.Fatal("stamp stream did not finish")
+}
+func TestNativeSearchPeopleEqualIDBirth(t *testing.T) {
+	f, r := newNativeFixture(t)
+	f.exec(t, "BEGIN")
+	f.exec(t, "PRAGMA defer_foreign_keys=ON")
+	f.exec(t, `DELETE FROM catalog_people WHERE id=1`)
+	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name) VALUES(1,'replacement','replacement','Keanu','keanu')`)
+	f.exec(t, "COMMIT")
+	page, _, err := nativeRead(t, f, r, "keanu", nil)
+	if err != nil || page.Disposition != SearchPending || len(page.Hits) != 0 || page.Exhausted {
+		t.Fatal("old People publication rebased onto equal ID", page, err)
 	}
 }

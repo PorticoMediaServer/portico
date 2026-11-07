@@ -43,6 +43,7 @@ type nativeExpansion struct {
 	cursor      *ownerCursor
 	album       int64
 	albumCursor *ownerCursor
+	automatic   *nativeAutomaticCursor
 }
 type nativeSearchFence struct {
 	permission                         browseFence
@@ -68,6 +69,10 @@ func cloneNativeContinuation(p *nativeContinuation) *nativeContinuation {
 		if e.albumCursor != nil {
 			c := *e.albumCursor
 			e.albumCursor = &c
+		}
+		if e.automatic != nil {
+			c := *e.automatic
+			e.automatic = &c
 		}
 		n.expansion = &e
 	}
