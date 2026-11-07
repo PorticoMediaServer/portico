@@ -349,6 +349,25 @@
       "ignore": ["*_test.go", "*/thirdparty/*", "*/testdata/*"],
       "files": ["server/internal/persistence/derived_writers_test.go"],
       "tests": ["TestDerivedTableWritersHaveDeclaredOwners"]
+    },
+    {
+      "package": "server/internal/store/read",
+      "why": "Native full-search fixture and actual fixed-slot MATCH sibling oracle consume the exact PB-RD-01 preparation vector",
+      "reads": [
+        "server/internal/store/search/testdata/read-pairing.json"
+      ],
+      "files": [
+        "server/internal/store/read/native_search_test.go"
+      ],
+      "tests": [
+        "TestNativeSearchCurrentAllKindsAndMixedOwners",
+        "TestNativeSearchRefusesUnsupportedAndStaleProofs",
+        "TestNativeSearchPlans",
+        "TestNativeSearchAcceptedSiblingOracle",
+        "TestNativeSearchPublicationDenialAndRetirement",
+        "TestNativeSearchReadJoinedStamp",
+        "TestNativeSearchPeopleEqualIDBirth"
+      ]
     }
   ],
   "reviewed": {
