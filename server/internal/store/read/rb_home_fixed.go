@@ -61,6 +61,7 @@ type homeFixedLibrary struct {
 	Entities                []homeFixedEntity
 }
 type homeFixedFrame struct {
+	Policy                    homeManifestSourceFrame
 	Manifest                  homeManifestFrame
 	Libraries                 []homeFixedLibrary
 	RawPositions, RawBindings int
@@ -117,7 +118,8 @@ func (r *HomeFixedReader) Row(ctx context.Context, request governor.Request, bud
 	})
 }
 func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput) (frame homeFixedFrame, err error) {
-	frame.Manifest, err = homeManifestFrameRead(s, q, in.View)
+	frame.Policy, err = homeManifestSourceFrameRead(s, q, in.View)
+	frame.Manifest = frame.Policy.Manifest
 	if err != nil {
 		return
 	}
@@ -126,7 +128,7 @@ func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput) (
 		return
 	}
 	visible := false
-	doc := homeManifestProject(frame.Manifest, s.input(in.View).Now)
+	doc := homeManifestSourceProject(frame.Policy, s.input(in.View).Now).Manifest
 	for _, row := range doc.Rows {
 		if row.ID == in.RowID {
 			visible = true
