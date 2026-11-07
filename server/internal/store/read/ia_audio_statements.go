@@ -13,6 +13,10 @@ func IAAudioHarnessDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	var out []stmt.Definition
 	add := func(name, sql string, params []stmt.Param, args []any, p stmt.Plan) {
+		if name == "link_octets" {
+			out = append(out, iaLinkOctetsDefinition(args))
+			return
+		}
 		empty := append([]any(nil), args...)
 		empty[0] = int64(9999999)
 		if len(p.Seeks) == 1 && (name == "album.tail" || name == "album.next" || name == "album.disc" || name == "book.tail" || name == "book.next" || name == "book.disc") {

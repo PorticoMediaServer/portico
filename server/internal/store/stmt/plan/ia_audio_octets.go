@@ -10,15 +10,18 @@ import (
 )
 
 const iaAudioEntityOctetsSQL = `SELECT octet_length(sort_key),octet_length(public_id),octet_length(title),octet_length(metadata_incarnation),octet_length(music_incarnation) FROM catalog_entities WHERE id=? AND library_id=?`
-const iaAudioLinkOctetsSQL = `SELECT octet_length(edition),octet_length(playback_origin_incarnation) FROM catalog_asset_links WHERE entity_id=? AND asset_id=? AND library_id=?`
+const iaLinkOctetsSQL = `SELECT octet_length(edition),octet_length(playback_origin_incarnation) FROM catalog_asset_links WHERE entity_id=? AND asset_id=? AND library_id=?`
 
 func init() {
 	for _, v := range []struct {
 		name, sql, table, seek string
 		params                 []string
-	}{{"entity", iaAudioEntityOctetsSQL, "catalog_entities", "rowid=?", []string{"entity", "library"}}, {"link", iaAudioLinkOctetsSQL, "catalog_asset_links", "entity_id=? AND asset_id=?", []string{"entity", "asset", "library"}}} {
+	}{{"entity", iaAudioEntityOctetsSQL, "catalog_entities", "rowid=?", []string{"entity", "library"}}, {"link", iaLinkOctetsSQL, "catalog_asset_links", "entity_id=? AND asset_id=?", []string{"entity", "asset", "library"}}} {
 		v := v
 		id := stmt.ID("read.foreground.ia.audio." + v.name + "_octets")
+		if v.name == "link" {
+			id = "read.foreground.ia.link_octets"
+		}
 		pointOctets.add(octetShape{id, v.sql, "IA audio octets require the exact closed point definition", func(d stmt.Definition) bool {
 			if d.ID != id || d.SQL != v.sql || d.Kind != stmt.Read || !d.Plan.Hot || len(d.Params) != len(v.params) || len(d.Plan.PrimaryKeys) != 1 || d.Plan.PrimaryKeys[0] != v.table || len(d.Plan.Seeks) != 1 || d.Plan.Seeks[0] != v.seek || len(d.Plan.Indexes) != 0 || len(d.Plan.AutoIndexes) != 0 || len(d.Plan.AllowedScans) != 0 || len(d.Plan.Waivers) != 0 || d.Plan.NativeInsert != "" || d.Plan.NativeRetained != "" {
 				return false

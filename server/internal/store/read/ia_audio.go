@@ -84,7 +84,11 @@ func (s *iaAudioSnapshots) Read(ctx context.Context, r governor.Request, b time.
 	return s.base.Read(ctx, r, b, callback)
 }
 func (s *iaAudioSnapshots) point(name string, columns []int, args ...any) ([]any, error) {
-	row, e := s.scope.QueryExactBytes(readStatementID("foreground.ia.audio."+name+"_octets"), readStatementID("foreground.ia.audio."+name), columns, args...)
+	octets := readStatementID("foreground.ia.audio." + name + "_octets")
+	if name == "link" {
+		octets = iaLinkOctetsID
+	}
+	row, e := s.scope.QueryExactBytes(octets, readStatementID("foreground.ia.audio."+name), columns, args...)
 	s.extra[len(s.extra)-1].n += 2
 	if e != nil {
 		return nil, e

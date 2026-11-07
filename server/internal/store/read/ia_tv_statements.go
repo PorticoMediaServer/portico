@@ -9,6 +9,10 @@ func IATVDefinitions() []stmt.Definition {
 	point := stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_entities"}, Seeks: []string{"rowid=?"}}
 	var out []stmt.Definition
 	add := func(n, sql string, p []stmt.Param, args []any, plan stmt.Plan) {
+		if n == "link_octets" {
+			out = append(out, iaLinkOctetsDefinition(args))
+			return
+		}
 		empty := append([]any(nil), args...)
 		empty[0] = int64(999999)
 		out = append(out, stmt.Definition{ID: readStatementID("foreground.ia.tv." + n), SQL: sql, Params: p, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/ia_tv.go:ForegroundReader"}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: args}, {Name: "empty", Bindings: empty}}, Plan: plan})

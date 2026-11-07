@@ -123,7 +123,11 @@ func (s *iaTVScope) exact(name string, cols []int, args ...any) ([]any, error) {
 		return nil, governor.ErrSnapshotClosed
 	}
 	s.calls += 2
-	row, e := s.current.QueryExactBytes(readStatementID("foreground.ia.tv."+name+"_octets"), readStatementID("foreground.ia.tv."+name), cols, args...)
+	octets := readStatementID("foreground.ia.tv." + name + "_octets")
+	if name == "link" {
+		octets = iaLinkOctetsID
+	}
+	row, e := s.current.QueryExactBytes(octets, readStatementID("foreground.ia.tv."+name), cols, args...)
 	if errors.Is(e, sql.ErrNoRows) {
 		s.calls-- // The length point found no row; no payload statement ran.
 		return nil, ErrDenied

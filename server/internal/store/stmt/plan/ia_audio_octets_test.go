@@ -20,8 +20,11 @@ func iaAudioOctetsDefinitions() []stmt.Definition {
 	for _, v := range []struct {
 		name, sql, table, seek string
 		keys                   []string
-	}{{"entity", iaAudioEntityOctetsSQL, "catalog_entities", "rowid=?", []string{"entity", "library"}}, {"link", iaAudioLinkOctetsSQL, "catalog_asset_links", "entity_id=? AND asset_id=?", []string{"entity", "asset", "library"}}} {
+	}{{"entity", iaAudioEntityOctetsSQL, "catalog_entities", "rowid=?", []string{"entity", "library"}}, {"link", iaLinkOctetsSQL, "catalog_asset_links", "entity_id=? AND asset_id=?", []string{"entity", "asset", "library"}}} {
 		d := stmt.Definition{ID: stmt.ID("read.foreground.ia.audio." + v.name + "_octets"), SQL: v.sql, Kind: stmt.Read, Owner: "store/read/ia_audio", CallSites: []string{"store/read/ia_audio.go:IAAudioMembership"}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{v.table}, Seeks: []string{v.seek}}}
+		if v.name == "link" {
+			d.ID = "read.foreground.ia.link_octets"
+		}
 		args := []any{int64(1), int64(1)}
 		missing := []any{int64(999999), int64(1)}
 		if v.name == "link" {
