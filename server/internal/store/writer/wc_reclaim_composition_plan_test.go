@@ -69,6 +69,15 @@ func TestWCReclaimCompositionPlans(t *testing.T) {
 	if _, err = stmt.New(defs, g.Receipt()); err != nil {
 		t.Fatal(err)
 	}
+	// UPDATE/DELETE-only sets do not trigger Capture's INSERT-side FK audit.
+	// Obtain the complete graph independently under the same actual settings.
+	if g.ForeignKeys == nil {
+		audit, e := plan.ForeignKeys(t.Context(), conn, policy)
+		if e != nil {
+			t.Fatal(e)
+		}
+		g.ForeignKeys = &audit
+	}
 	if len(g.Manifest) != len(defs) || len(g.Plans) != len(defs) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 671 {
 		t.Fatal("incomplete capture")
 	}
