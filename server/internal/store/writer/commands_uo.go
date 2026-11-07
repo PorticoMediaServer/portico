@@ -14,6 +14,22 @@ const CompleteOperationalJob CommandID = 652
 const ReclaimOperationalJob CommandID = 653
 const RootReceiptReclaim CommandID = 654
 
+const SetWatchedIntent CommandID = 601
+const DismissContinue CommandID = 602
+const ApplyPersonalOfflineEvidence CommandID = 603
+const ResolvePersonalConflict CommandID = 604
+const ApplyActivityBoundary CommandID = 605
+const ClearHistory CommandID = 606
+const PatchViewerPreferences CommandID = 610
+const PatchServerSettings CommandID = 611
+const ApplyConfigurationProjection CommandID = 612
+const PublishNotice CommandID = 620
+const WithdrawNotice CommandID = 621
+const AcknowledgeNotice CommandID = 622
+const AcknowledgeInbox CommandID = 623
+const ReclaimNotices CommandID = 625
+const ClaimWebhookAttempt CommandID = 641
+
 var uoCommands = commandRegistration{owner: "UO", descriptors: []Descriptor{
 	{ID: SetPersonalFlags, Name: "uo_set_personal_flags", Durability: Normal},
 	{ID: BeginPersonalJob, Name: "uo_begin_personal_job", Durability: Normal},
@@ -27,4 +43,19 @@ var uoCommands = commandRegistration{owner: "UO", descriptors: []Descriptor{
 	{ID: CompleteOperationalJob, Name: "uo_complete_operational_job", Durability: Normal},
 	{ID: ReclaimOperationalJob, Name: "uo_reclaim_operational_job", Durability: Normal},
 	{ID: RootReceiptReclaim, Name: "uo_root_receipt_reclaim", Durability: Normal},
+	{ID: SetWatchedIntent, Name: "uo_set_watched_intent", Durability: Normal},
+	{ID: DismissContinue, Name: "uo_dismiss_continue", Durability: Normal},
+	{ID: ApplyPersonalOfflineEvidence, Name: "uo_apply_personal_offline_evidence", Durability: Normal},
+	{ID: ResolvePersonalConflict, Name: "uo_resolve_personal_conflict", Durability: Normal},
+	{ID: ApplyActivityBoundary, Name: "uo_apply_activity_boundary", Durability: Normal},
+	{ID: ClearHistory, Name: "uo_clear_history", Durability: Normal},
+	{ID: PatchViewerPreferences, Name: "uo_patch_viewer_preferences", Durability: Normal},
+	{ID: PatchServerSettings, Name: "uo_patch_server_settings", Durability: Normal},
+	{ID: ApplyConfigurationProjection, Name: "uo_apply_configuration_projection", Durability: Normal},
+	{ID: PublishNotice, Name: "uo_publish_notice", Durability: Normal},
+	{ID: WithdrawNotice, Name: "uo_withdraw_notice", Durability: Normal},
+	{ID: AcknowledgeNotice, Name: "uo_acknowledge_notice", Durability: Normal},
+	{ID: AcknowledgeInbox, Name: "uo_acknowledge_inbox", Durability: Normal},
+	{ID: ReclaimNotices, Name: "uo_reclaim_notices", Durability: Normal},
+	{ID: ClaimWebhookAttempt, Name: "uo_claim_webhook_attempt", Durability: Normal},
 }}
