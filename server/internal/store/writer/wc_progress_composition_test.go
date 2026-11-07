@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -295,5 +296,25 @@ func TestWCProgressCompositionRejectsConflictingOriginalAndCopiedDriver(t *testi
 	}
 	if _, e := w.AckProgress(t.Context(), nil, original); !errors.Is(e, ErrDisclosureDenied) {
 		t.Fatal(e)
+	}
+}
+
+func TestWCProgressReportPolicyMatchesLegacyCompletion(t *testing.T) {
+	p := wcProgressPolicy{StartedPercent: 5, PlayedPercent: 95, VideoCompletion: "earliest"}
+	for _, c := range []struct {
+		kind               int64
+		position, duration float64
+		state              string
+		want               bool
+	}{{1, 20, 100, "ended", false}, {1, 95, 100, "playing", true}, {4, 20, 100, "ended", false}, {9, 71, 100, "playing", true}, {1, 0, 0, "ended", true}} {
+		got, err := p.completion(c.kind, c.position, c.duration, c.state)
+		if err != nil || got != c.want {
+			t.Fatal(c, got, err)
+		}
+	}
+	p.VideoCompletion = "credits"
+	p.CreditsStart = sql.NullFloat64{Float64: 99, Valid: true}
+	if got, err := p.completion(4, 96, 100, "playing"); err != nil || got {
+		t.Fatal("episode threshold bypassed credits-only policy", got, err)
 	}
 }

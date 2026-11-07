@@ -46,6 +46,7 @@ type wcProgressScope struct {
 // an existing native owner and the actual owned opening. A copied handle is dead.
 // It is neither session authentication nor a product ingress path.
 type WCProgressDriver struct {
+	sourceStopped     bool
 	policy            wcProgressPolicy
 	principalLifetime context.Context
 	self              *WCProgressDriver
@@ -419,6 +420,9 @@ func (d *WCProgressDriver) Capture(ctx context.Context, reportSequence int64, po
 		}
 		return nil, ErrResolveRequired
 	}
+	if d.sourceStopped {
+		return nil, ErrInvalid
+	}
 	snap, err := d.writer.CurrentProgress(ctx, d.Disclosure())
 	if err != nil {
 		return nil, err
@@ -445,6 +449,9 @@ func (d *WCProgressDriver) Capture(ctx context.Context, reportSequence int64, po
 	}
 	prepared := wcProgressPrepared{Policy: d.policy, Kind: "capture_report", Source: source, Original: d.original, Position: position, Duration: duration, StartedPercent: d.policy.StartedPercent, Completed: completed, State: state}
 	d.work, err = d.seal(prepared, nil)
+	if err == nil && state != "playing" {
+		d.sourceStopped = true
+	}
 	return d.work, err
 }
 func (d *WCProgressDriver) Drain(ctx context.Context) (out ProgressCommand, err error) {

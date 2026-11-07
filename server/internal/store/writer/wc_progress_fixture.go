@@ -64,6 +64,13 @@ func initializeWCProgressFixture(ctx context.Context, d *WCProgressDriver) (err 
 	p := &wcProgressBirth{driver: d, expiresAt: d.scope.horizon}
 	q := ProgressReceiptRequest{PlaybackID: d.scope.playbackID, Kind: "capture_report", Receipt: ReceiptReference{Identity: CommandIdentity{Incarnation: d.scope.incarnation, Sequence: 1}}}
 	_, err = d.writer.runWCProgress(ctx, &wcProgressInvocation{disclosure: d.Disclosure(), request: q, birth: p}, false)
+	if err == nil {
+		// The fixture owns one continuously playing source beginning only AFTER
+		// native birth. No interval is inferred from position or a report counter.
+		now := d.writer.effective.executor.now()
+		d.observed = now
+		d.intervalFrom = now.UnixMilli()
+	}
 	return err
 }
 func applyWCProgressFixtureBirth(ctx context.Context, t *commandTurn, v *wcProgressInvocation) error {
@@ -90,7 +97,7 @@ func applyWCProgressFixtureBirth(ctx context.Context, t *commandTurn, v *wcProgr
 		args []any
 	}{
 		{"wc.fixture.account", []any{s.accountID, s.accountID, password[:], s.profileID}},
-		{"wc.fixture.member", []any{s.accountID, s.memberBirth, s.role, s.memberLibraries}},
+		{"wc.fixture.member", []any{s.accountID, s.memberBirth, s.membershipRole, s.memberLibraries}},
 		{"wc.fixture.profile", []any{s.profileID, s.accountID, s.profileBirth, "Fixture", int64(1)}},
 		{"wc.fixture.family", []any{s.familyID, s.serverID, s.accountID, s.profileID, "local", s.role, s.epoch, p.expiresAt, s.tokenGeneration, s.memberBirth, s.profileBirth, familyInc[:]}},
 		{"wc.fixture.token", []any{s.tokenHash, s.familyID, s.tokenGeneration, p.expiresAt}},
