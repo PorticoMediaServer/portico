@@ -30,3 +30,20 @@ immutable envelope construction; UO user command composition and events; real
 supervisor/IO bridges; F adoption and complete runner qualification. Read actual
 byte publication follow-up1340 remains tracked separately; no new GV seam is
 needed. These adapters grant no public command acceptance or qualification.
+
+The superseded MP user-birth persistence files (mp_birth_lifetime,
+mp_birth_values and mp_birth_queue_next plus its test) are removed from the
+active draft. Original work is preserved by Git ref
+schema-v1/p2-mp-pre-uo-owner-reference. Birth results and retirement/floor/public
+idempotency compose through UO; command788 remains unassigned by MP.
+
+Worker ACK780 and reclaim781–787 now map to final F: one source header per
+reclaim, exact native row/byte debit, root owner-revision/full old-state CAS,
+prior fixed-result ACK and W-supplied capped4096-byte fixed-slot payload.
+Read-only preparation supplies a bounded observation for W's sole codec;
+effect/store repeats it in the same turn. Immutable replay preflights the saved
+payload and preserves original identity without mutable response reconstruction.
+ACK is floor-only; root deletion/physical custody never follows from ACK or
+source receipt deletion. Native preparation target TestMPReclaimNativeFinalFPreparation
+is prepared/unrun; opaque authority/classification, codec, terminal COMMIT
+accounting, crash/race and native behavior qualification remain integration debt.
