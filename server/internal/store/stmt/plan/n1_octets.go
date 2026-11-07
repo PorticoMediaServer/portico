@@ -1,0 +1,184 @@
+package plan
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+)
+
+// Only these five literal pre-decode points extend the issuer-only scalar
+// parser. Owners still supply complete definitions and obtain a real Capture
+// receipt; this table is neither a registry nor execution authority.
+type n1OctetPoint struct {
+	id                stmt.ID
+	sql, table, index string
+	keys              []string
+	params            []stmt.Param
+}
+
+var n1OctetPoints = []n1OctetPoint{
+	{id: "scan.issuer.run_lengths", sql: "SELECT octet_length(job_id),octet_length(original_library_key),octet_length(original_resolved_root),octet_length(source_id),octet_length(root_incarnation),octet_length(root_identity),octet_length(phase),octet_length(finished_at),octet_length(scan_mode),octet_length(create_operation_id),octet_length(create_request_digest),octet_length(command_incarnation) FROM inventory_runs WHERE job_id=?", table: "inventory_runs", index: "sqlite_autoindex_inventory_runs_1", keys: []string{"job_id"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}}},
+	{id: "scan.issuer.job_lengths", sql: "SELECT octet_length(library_id),octet_length(status),octet_length(created_at),octet_length(error) FROM jobs WHERE id=?", table: "jobs", index: "sqlite_autoindex_jobs_1", keys: []string{"id"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}}},
+	{id: "scan.issuer.root_lengths", sql: "SELECT octet_length(identity),octet_length(revision),octet_length(cursor),octet_length(state) FROM inventory_directories WHERE job_id=? AND relative_path=?", table: "inventory_directories", index: "sqlite_autoindex_inventory_directories_1", keys: []string{"job_id", "relative_path"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}, {Name: "root_path", Type: stmt.Text}}},
+	{id: "scan.issuer.receipt_lengths", sql: "SELECT octet_length(operation_id),octet_length(request_digest),octet_length(command_kind),octet_length(source_id),octet_length(source_incarnation),octet_length(source_revision),octet_length(next_cursor),octet_length(result_digest),octet_length(result_root_identity),octet_length(result_root_revision),octet_length(result_root_cursor),octet_length(next_copy_key),octet_length(next_copy_key2),octet_length(next_copy_key3),octet_length(refused_relative_path),octet_length(refusal_code),octet_length(cursor_kind),octet_length(cursor_directory_path),octet_length(cursor_directory_identity),octet_length(cursor_directory_revision),octet_length(cursor_expected_payload),octet_length(cursor_next_payload) FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?", table: "scan_command_receipts", index: "", keys: []string{"run_id", "command_incarnation", "command_sequence"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}, {Name: "command_incarnation", Type: stmt.Blob}, {Name: "command_sequence", Type: stmt.Integer}}},
+	{id: "scan.inventory_accept.member_lengths", sql: "SELECT octet_length(object_id) FROM scan_command_results WHERE run_id=? AND command_incarnation=? AND command_sequence=? AND input_ordinal=? AND child_kind=? AND child_ordinal=?", table: "scan_command_results", index: "", keys: []string{"run_id", "command_incarnation", "command_sequence", "input_ordinal", "child_kind", "child_ordinal"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}, {Name: "command_incarnation", Type: stmt.Blob}, {Name: "command_sequence", Type: stmt.Integer}, {Name: "input_ordinal", Type: stmt.Integer}, {Name: "child_kind", Type: stmt.Integer}, {Name: "child_ordinal", Type: stmt.Integer}}},
+}
+
+func n1OctetPointFor(id stmt.ID) (n1OctetPoint, bool) {
+	for _, point := range n1OctetPoints {
+		if point.id == id {
+			return point, true
+		}
+	}
+	return n1OctetPoint{}, false
+}
+
+func n1OctetDefinition(d stmt.Definition) bool {
+	p, found := n1OctetPointFor(d.ID)
+	if !found || d.SQL != p.sql || d.Kind != stmt.Read || !d.Plan.Hot ||
+		!slices.Equal(d.Params, p.params) || len(d.Plan.AutoIndexes) != 0 ||
+		len(d.Plan.AllowedScans) != 0 || len(d.Plan.Waivers) != 0 ||
+		d.Plan.NativeInsert != "" || d.Plan.NativeRetained != "" {
+		return false
+	}
+	if p.index != "" {
+		if !slices.Equal(d.Plan.Indexes, []string{p.index}) || len(d.Plan.PrimaryKeys) != 0 {
+			return false
+		}
+	} else if len(d.Plan.Indexes) != 0 || !slices.Equal(d.Plan.PrimaryKeys, []string{p.table}) {
+		return false
+	}
+	return len(d.Plan.Seeks) == 0 || slices.Equal(d.Plan.Seeks, []string{n1OctetSeek(p)})
+}
+
+func n1OctetSeek(p n1OctetPoint) string {
+	terms := make([]string, len(p.keys))
+	for i, key := range p.keys {
+		terms[i] = key + "=?"
+	}
+	return strings.Join(terms, " AND ")
+}
+
+func checkN1OctetPoint(d stmt.Definition, eqp Rows) error {
+	p, _ := n1OctetPointFor(d.ID)
+	path := "PRIMARY KEY"
+	if p.index != "" {
+		path = "INDEX " + p.index
+	}
+	want := "SEARCH " + p.table + " USING " + path + " (" + n1OctetSeek(p) + ")"
+	if len(eqp.Values) != 1 || len(eqp.Values[0]) != 4 || eqp.Values[0][3] != want {
+		return fmt.Errorf("plan %s: exact full-key byte-preflight SEARCH required: %s", d.ID, want)
+	}
+	return nil
+}
+
+func auditN1OctetPoint(ctx context.Context, conn *sql.Conn, d stmt.Definition) error {
+	p, _ := n1OctetPointFor(d.ID)
+	// Native statement form: SQL objects named pragma_function_list cannot
+	// counterfeit the builtin/override inventory.
+	functions, err := query(ctx, conn, "PRAGMA function_list")
+	if err != nil {
+		return err
+	}
+	matches := 0
+	for _, row := range functions.Values {
+		if len(row) != 6 {
+			return fmt.Errorf("N1 octet point: invalid native function metadata")
+		}
+		name, nameOK := row[0].(string)
+		arity, arityOK := row[4].(int64)
+		if !nameOK || !arityOK {
+			return fmt.Errorf("N1 octet point: invalid native function metadata")
+		}
+		if strings.EqualFold(name, "octet_length") && (arity == 1 || arity == -1) {
+			if row[1] != int64(1) || arity != 1 {
+				return fmt.Errorf("N1 octet point: unshadowed native octet_length required")
+			}
+			matches++
+		}
+	}
+	if matches != 1 {
+		return fmt.Errorf("N1 octet point: unshadowed native octet_length required")
+	}
+	tables, err := query(ctx, conn, "PRAGMA main.table_list("+identifier(p.table)+")")
+	if err != nil {
+		return err
+	}
+	if len(tables.Values) != 1 || len(tables.Values[0]) != 6 ||
+		tables.Values[0][0] != "main" || tables.Values[0][1] != p.table || tables.Values[0][2] != "table" {
+		return fmt.Errorf("N1 octet point: ordinary MAIN table required")
+	}
+	columns, err := query(ctx, conn, "PRAGMA main.table_xinfo("+identifier(p.table)+")")
+	if err != nil {
+		return err
+	}
+	// These are complete PRIMARY KEY points, not prefixes that merely SEARCH.
+	keys := make([]string, len(p.keys))
+	count := 0
+	for _, row := range columns.Values {
+		if len(row) != 7 {
+			return fmt.Errorf("N1 octet point: invalid native table metadata")
+		}
+		position, ok := row[5].(int64)
+		if !ok {
+			return fmt.Errorf("N1 octet point: invalid native key position")
+		}
+		if position != 0 {
+			if position < 1 || position > int64(len(keys)) || row[6] != int64(0) {
+				return fmt.Errorf("N1 octet point: complete native key mismatch")
+			}
+			name, ok := row[1].(string)
+			if !ok || keys[position-1] != "" {
+				return fmt.Errorf("N1 octet point: invalid native key column")
+			}
+			keys[position-1] = name
+			count++
+		}
+	}
+	if count != len(p.keys) || !slices.Equal(keys, p.keys) {
+		return fmt.Errorf("N1 octet point: complete native key mismatch")
+	}
+	if p.index == "" {
+		if tables.Values[0][4] != int64(1) {
+			return fmt.Errorf("N1 octet point: WITHOUT ROWID primary key required")
+		}
+		return nil
+	}
+	indexes, err := query(ctx, conn, "PRAGMA main.index_list("+identifier(p.table)+")")
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, row := range indexes.Values {
+		if len(row) != 5 {
+			return fmt.Errorf("N1 octet point: invalid native index metadata")
+		}
+		if row[1] == p.index {
+			origin, err := autoindexOrigin(row)
+			if err != nil || origin != "pk" {
+				return fmt.Errorf("N1 octet point: pinned native primary key required")
+			}
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("N1 octet point: pinned native key absent (possible renumbering)")
+	}
+	index, err := query(ctx, conn, "PRAGMA main.index_info("+identifier(p.index)+")")
+	if err != nil {
+		return err
+	}
+	if len(index.Values) != len(p.keys) {
+		return fmt.Errorf("N1 octet point: complete native index key mismatch")
+	}
+	for i, row := range index.Values {
+		if len(row) != 3 || row[0] != int64(i) || row[2] != p.keys[i] {
+			return fmt.Errorf("N1 octet point: complete native index key mismatch")
+		}
+	}
+	return nil
+}
