@@ -148,7 +148,11 @@ func capturedSources(ctx context.Context, conn *sql.Conn, entries []stmt.Entry) 
 			}
 			continue
 		}
-		tokens, err := lintTokens(entry.SQL)
+		sourceSQL := entry.SQL
+		if readEngineDefinition(entry.Definition) {
+			sourceSQL = readEngineSourceSQL
+		}
+		tokens, err := lintTokens(sourceSQL)
 		if err != nil {
 			return nil, err
 		}

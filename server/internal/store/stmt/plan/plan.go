@@ -107,6 +107,9 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 		var nativeRead *FTSReadAudit
 		var native *FTSInsertAudit
 		var retained *FTSRetainedAudit
+		if readEngineDefinition(entry.Definition) && (fixture.ConnectionPolicy.Role != sqliteconn.Reader || env.Connection.QueryOnly != 1) {
+			return g, fmt.Errorf("plan %s: actual engine point requires Reader custody", entry.ID)
+		}
 		if entry.Plan.NativeRead != nil {
 			if fixture.ConnectionPolicy.Role != sqliteconn.Reader || env.Connection.QueryOnly != 1 {
 				return g, fmt.Errorf("plan %s: FTS native reads require actual Reader custody", entry.ID)
@@ -267,6 +270,11 @@ func Check(d stmt.Definition, _ Rows) error {
 // Only Capture may invoke this after live source, policy and DML inspection.
 // CheckEQP and the lexical lint are component checks, not qualification receipts.
 func checkCaptured(d stmt.Definition, eqp Rows, autoIndexes ...AutoIndexAudit) error {
+	if readEngineDefinition(d) {
+		if err := checkReadEnginePoint(eqp); err != nil {
+			return err
+		}
+	}
 	if n1OctetDefinition(d) {
 		if err := checkN1OctetPoint(d, eqp); err != nil {
 			return err
@@ -306,10 +314,16 @@ func checkBase(d stmt.Definition, eqp Rows) error {
 }
 
 func checkSyntax(d stmt.Definition) error {
-	return checkSyntaxIssues(d, lintSQL(d.SQL, closedIssuerOctetDefinition(d)))
+	return checkSyntaxIssues(d, readEngineSyntax(d))
 }
 
 func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error {
+	if readEngineDefinition(d) {
+		if err := checkSyntaxIssues(d, lintSQLOn(ctx, conn, readEngineSourceSQL, false)); err != nil {
+			return err
+		}
+		return auditReadEngine(ctx, conn)
+	}
 	if err := checkSyntaxIssues(d, lintSQLOn(ctx, conn, d.SQL, closedIssuerOctetDefinition(d))); err != nil {
 		return err
 	}
@@ -326,6 +340,9 @@ func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error
 }
 
 func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
+	if (d.ID == readEngineID || d.SQL == readEngineSQL) && !readEngineDefinition(d) {
+		return fmt.Errorf("plan %s: engine metadata requires its exact closed definition", d.ID)
+	}
 	if _, found := n1OctetPointFor(d.ID); found && !n1OctetDefinition(d) {
 		return fmt.Errorf("plan %s: N1 byte preflight requires its exact closed point definition", d.ID)
 	}
