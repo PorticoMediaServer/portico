@@ -5,13 +5,16 @@ package writer
 // canonical fixture. INT still owns adoption; this is not a schema embed.
 
 import (
+	"context"
 	"crypto/sha256"
+	"database/sql/driver"
 	"encoding/hex"
 	"errors"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -57,10 +60,46 @@ result_walk_removed,result_walk_kept,result_state,result_count,result_digest,ret
 	return w, q, registry
 }
 
+func TestIARetirementDraftNativeLateCancellationClearsOwner(t *testing.T) {
+	w, q, registry := iaRetirementDraftFixture(t, nil)
+	var sequence int64
+	var name, path string
+	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"caller", "turn"} {
+		t.Run(mode, func(t *testing.T) {
+			if err := w.db.Close(); err != nil {
+				t.Fatal(err)
+			}
+			connector, err := sqliteconn.Connector(path, w.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			caller, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			cancelRead := cancel
+			w.openPool(connector, func(conn driver.Conn) driver.Conn {
+				return &inventoryCancelReadConn{writerDriverConn: conn.(writerDriverConn), target: "SELECT accepted_revision,applied_ms,result_phase", point: "close", cancel: func() { cancelRead() }}
+			})
+			turn := scanLifecycleProtocolTurn(t, w, registry, IARetireSource)
+			if mode == "turn" {
+				cancelRead = turn.transaction.cancel
+			}
+			got, err := lookupIARetirement(caller, turn, q)
+			if !errors.Is(err, context.Canceled) || got != (iaRetirementHistory{}) {
+				t.Fatal("late cancellation returned result or owner", got, err)
+			}
+			turn.transaction.rollback(err)
+		})
+	}
+}
+
 func TestIARetirementDraftNativeHistoryAckAndReclaim(t *testing.T) {
 	w, q, registry := iaRetirementDraftFixture(t, nil)
 	turn := scanLifecycleProtocolTurn(t, w, registry, IARetireSource)
-	got, owner, err := lookupIARetirement(t.Context(), turn, q)
+	got, err := lookupIARetirement(t.Context(), turn, q)
+	owner := got.owner
 	if err != nil || got.decision != receiptReplay || got.result.original.resolvedRoot != "/media/original" || owner.retainedBytes != 233 {
 		t.Fatal(got, owner, err)
 	}
@@ -73,7 +112,7 @@ func TestIARetirementDraftNativeHistoryAckAndReclaim(t *testing.T) {
 		t.Fatal("ACK refunded native debt", count, debt, err)
 	}
 	delete(turn.steps, iaRetirementBodyPoint)
-	got, _, err = lookupIARetirement(t.Context(), turn, q)
+	got, err = lookupIARetirement(t.Context(), turn, q)
 	if err != nil || got.decision != receiptRetired || got.result != (iaRetirementResult{}) {
 		t.Fatal("ACKed body was queried", got, err)
 	}
@@ -215,7 +254,7 @@ func TestIARetirementDraftNativeBeginFencesAndHistory(t *testing.T) {
 				t.Fatal(got, err)
 			}
 			q := iaRetirementReference{kind: got.original.kind, target: got.original.target, libraryID: 7, libraryKey: "library", originalOperation: input.identity.OperationID, identity: input.identity, request: input.digest, purpose: purpose}
-			history, _, err := lookupIARetirement(t.Context(), turn, q)
+			history, err := lookupIARetirement(t.Context(), turn, q)
 			if err != nil || history.decision != receiptReplay || history.result != got {
 				t.Fatal("fresh fence erased historical original", history, err)
 			}
