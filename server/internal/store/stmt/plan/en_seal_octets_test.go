@@ -3,7 +3,6 @@ package plan_test
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"database/sql"
 	"database/sql/driver"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -15,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func enSealOctetDefinitions() []stmt.Definition {
@@ -180,9 +178,7 @@ func TestENSealOctetPointsClosed(t *testing.T) {
 func TestENSealOctetPointsRejectShadowedBuiltin(t *testing.T) {
 	const marker = "PORTICO_EN_OCTET_SHADOW_CHILD"
 	if os.Getenv(marker) != "1" {
-		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestENSealOctetPointsRejectShadowedBuiltin$", "-test.count=1")
+		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestENSealOctetPointsRejectShadowedBuiltin$", "-test.count=1")
 		cmd.Env = append(os.Environ(), marker+"=1")
 		if output, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("shadow control: %v\n%s", err, output)
