@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+
+	identityhash "github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
 func usSessionNativeFixture(t *testing.T) (*executor, *stmt.Registry) {
@@ -36,8 +38,8 @@ func usSessionNativeFixture(t *testing.T) (*executor, *stmt.Registry) {
 		exec(`INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,authority_generation,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES(?,'us-server','us-account','us-profile','local','member',7,?,3,'us-device',2,?,?,?)`, family, q.pins.horizon, q.pins.memberIncarnation, q.pins.profileLifetime, q.pins.incarnation[:])
 	}
 	exec(`INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES(?,'us-family',3,?)`, q.pins.accessDigest, q.pins.accessExpiresAt)
-	exec(`INSERT INTO identity_refresh_credentials(family_id,device_id,token_hash,generation,expires_at) VALUES('us-family','us-device',?,1,?)`, strings.Repeat("e", 64), q.pins.horizon)
-	exec(`INSERT INTO identity_refresh_receipts(predecessor_hash,family_id,request_id,ciphertext,expires_at) VALUES(?,'us-family','old',X'01',?),(?,'us-other-family','other',X'02',?)`, strings.Repeat("0", 64), q.pins.horizon, strings.Repeat("1", 64), q.pins.horizon)
+	exec(`INSERT INTO identity_refresh_credentials(family_id,device_id,token_hash,generation,expires_at) VALUES('us-family','us-device',?,1,?)`, identityhash.Digest("session-fixture-e"), q.pins.horizon)
+	exec(`INSERT INTO identity_refresh_receipts(predecessor_hash,family_id,request_id,ciphertext,expires_at) VALUES(?,'us-family','old',X'01',?),(?,'us-other-family','other',X'02',?)`, identityhash.Digest("session-fixture-0"), q.pins.horizon, identityhash.Digest("session-fixture-1"), q.pins.horizon)
 	// Capture prepares but never executes any effect, on the actual modernc
 	// connection and schema. Source pins include only this helper's own files.
 	registry := nativeInventoryFixtureRegistry(t, w, usSessionDefinitions(), "us_session_prepare.go", "us_session_statements.go", "us_session_statements_test.go")
@@ -81,7 +83,7 @@ func usSessionNativeReadback(t *testing.T, w *executor, wantGen int64, wantRetir
 	if err := w.db.QueryRowContext(t.Context(), `SELECT current_generation FROM authorization_session_families WHERE id='us-family'`).Scan(&gen); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.db.QueryRowContext(t.Context(), `SELECT retired FROM authorization_family_tokens WHERE token_hash=?`, strings.Repeat("c", 64)).Scan(&retired); err != nil {
+	if err := w.db.QueryRowContext(t.Context(), `SELECT retired FROM authorization_family_tokens WHERE token_hash=?`, identityhash.Digest("session-fixture-c")).Scan(&retired); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.db.QueryRowContext(t.Context(), `SELECT current_generation FROM authorization_session_families WHERE id='us-other-family'`).Scan(&otherGen); err != nil {
@@ -98,7 +100,7 @@ func TestUSSessionNativeRenewalAndRefresh(t *testing.T) {
 			w, registry := usSessionNativeFixture(t)
 			i, q, clocks := usSessionFixture(kind)
 			if kind == usSessionRefresh {
-				q.priorReceiptDigest = strings.Repeat("0", 64)
+				q.priorReceiptDigest = identityhash.Digest("session-fixture-0")
 				// A refresh is intentionally valid after the access token's
 				// expiry. Its independent native refresh expiry still fences it.
 				q.pins.accessExpiresAt = "2026-11-07T11:55:00Z"
@@ -190,10 +192,10 @@ func TestUSSessionNativeStaleBindingsAndPrefixRollback(t *testing.T) {
 		{"installation", usSessionRefresh, func(q *usSessionRotationRequest) { q.pins.installation = strings.Repeat("j", 32) }},
 		// The family CAS succeeds but a later exact token/credential/receipt step
 		// refuses. The parent must roll back every earlier effect.
-		{"token_generation_row", usSessionRenewal, func(q *usSessionRotationRequest) { q.pins.accessDigest = strings.Repeat("2", 64) }},
+		{"token_generation_row", usSessionRenewal, func(q *usSessionRotationRequest) { q.pins.accessDigest = identityhash.Digest("session-fixture-2") }},
 		{"refresh_generation_row", usSessionRefresh, func(q *usSessionRotationRequest) { q.refreshGeneration = 2 }},
 		{"refresh_expiry_row", usSessionRefresh, func(q *usSessionRotationRequest) { q.refreshExpiresAt = "2026-11-08T13:00:00Z" }},
-		{"prior_receipt_row", usSessionRefresh, func(q *usSessionRotationRequest) { q.priorReceiptDigest = strings.Repeat("2", 64) }},
+		{"prior_receipt_row", usSessionRefresh, func(q *usSessionRotationRequest) { q.priorReceiptDigest = identityhash.Digest("session-fixture-2") }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -251,7 +253,7 @@ func TestUSSessionSourceBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		allowedImports := map[string]bool{"context": true, "database/sql": true, "errors": true, "math": true, "slices": true, "strings": true, "time": true, "github.com/PorticoMediaServer/portico/server/internal/store/stmt": true}
+		allowedImports := map[string]bool{"github.com/PorticoMediaServer/portico/server/internal/identity": true, "context": true, "database/sql": true, "errors": true, "math": true, "slices": true, "strings": true, "time": true, "github.com/PorticoMediaServer/portico/server/internal/store/stmt": true}
 		for _, imp := range file.Imports {
 			path, err := strconv.Unquote(imp.Path.Value)
 			if err != nil || !allowedImports[path] {

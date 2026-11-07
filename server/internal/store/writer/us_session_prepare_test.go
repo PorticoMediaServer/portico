@@ -2,22 +2,25 @@ package writer
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
+
+	identityhash "github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
 func usSessionFixture(kind CommandID) (CommandIdentity, usSessionRotationRequest, usSessionClocks) {
 	identity := CommandIdentity{Incarnation: [16]byte{9}, Sequence: 1, OperationID: [16]byte{8}}
-	p := usSessionPins{server: "us-server", account: "us-account", profile: "us-profile", family: "us-family", device: "us-device", installation: strings.Repeat("i", 32), memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32), incarnation: [16]byte{1}, epoch: 7, authorityGeneration: 2, generation: 3, accessDigest: strings.Repeat("c", 64), accessExpiresAt: "2026-11-07T12:05:00Z", horizon: "2026-11-08T12:00:00Z"}
+	p := usSessionPins{server: "us-server", account: "us-account", profile: "us-profile", family: "us-family", device: "us-device", installation: strings.Repeat("i", 32), memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32), incarnation: [16]byte{1}, epoch: 7, authorityGeneration: 2, generation: 3, accessDigest: identityhash.Digest("session-fixture-c"), accessExpiresAt: "2026-11-07T12:05:00Z", horizon: "2026-11-08T12:00:00Z"}
 	q := usSessionRotationRequest{ownerID: "us-owner", requestID: "us-request", pins: p,
-		output: usSessionPreparedOutput{accessDigest: strings.Repeat("d", 64), accessExpiresAt: "2026-11-07T12:15:00Z", horizon: p.horizon, ciphertext: []byte{1, 2, 3}}}
+		output: usSessionPreparedOutput{accessDigest: identityhash.Digest("session-fixture-d"), accessExpiresAt: "2026-11-07T12:15:00Z", horizon: p.horizon, ciphertext: []byte{1, 2, 3}}}
 	clocks := usSessionClocks{now: "2026-11-07T12:00:00Z", resultHorizon: p.horizon}
 	if kind == usSessionRenewal {
 		q.controllerID, q.controllerEpoch, q.output.nonce = "us-controller", "us-controller-epoch", []byte{4, 5, 6}
 	} else {
-		q.refreshDigest, q.refreshGeneration, q.refreshExpiresAt = strings.Repeat("e", 64), 1, p.horizon
-		q.output.refreshDigest, q.output.horizon = strings.Repeat("f", 64), "2026-11-09T12:00:00Z"
+		q.refreshDigest, q.refreshGeneration, q.refreshExpiresAt = identityhash.Digest("session-fixture-e"), 1, p.horizon
+		q.output.refreshDigest, q.output.horizon = identityhash.Digest("session-fixture-f"), "2026-11-09T12:00:00Z"
 		clocks.resultHorizon = q.output.horizon
 	}
 	return identity, q, clocks
@@ -141,5 +144,55 @@ func TestUSSessionExactExpiryAndExpiredAccessRefresh(t *testing.T) {
 	q.pins.accessExpiresAt = "2026-11-07T11:55:00Z"
 	if _, err := prepareUSSessionRefresh(i, q, clocks); err != nil {
 		t.Fatal("refresh does not require unexpired access", err)
+	}
+}
+
+// Use the native issuer's encoding for every token and predecessor witness.
+func TestUSSessionIdentityDigestEncoding(t *testing.T) {
+	for _, kind := range []CommandID{usSessionRenewal, usSessionRefresh} {
+		i, q, clocks := usSessionFixture(kind)
+		if kind == usSessionRefresh {
+			q.priorReceiptDigest = identityhash.Digest("previous-receipt")
+		}
+		if _, err := prepareUSSessionRotation(kind, i, q, clocks); err != nil {
+			t.Fatal("native identity.Digest positive control", err)
+		}
+		fields := []struct {
+			name  string
+			field func(*usSessionRotationRequest) *string
+		}{
+			{"access_predecessor", func(q *usSessionRotationRequest) *string { return &q.pins.accessDigest }},
+			{"access_output", func(q *usSessionRotationRequest) *string { return &q.output.accessDigest }},
+		}
+		if kind == usSessionRefresh {
+			fields = append(fields,
+				struct {
+					name  string
+					field func(*usSessionRotationRequest) *string
+				}{"refresh_predecessor", func(q *usSessionRotationRequest) *string { return &q.refreshDigest }},
+				struct {
+					name  string
+					field func(*usSessionRotationRequest) *string
+				}{"refresh_output", func(q *usSessionRotationRequest) *string { return &q.output.refreshDigest }},
+				struct {
+					name  string
+					field func(*usSessionRotationRequest) *string
+				}{"prior_receipt", func(q *usSessionRotationRequest) *string { return &q.priorReceiptDigest }},
+			)
+		}
+		for _, f := range fields {
+			valid := *f.field(&q)
+			const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+			noncanonical := valid[:42] + string(alphabet[strings.IndexByte(alphabet, valid[42])|1])
+			for name, malformed := range map[string]string{"padding": valid + "=", "hex": strings.Repeat("a", 64), "noncanonical_bits": noncanonical} {
+				t.Run(fmt.Sprintf("%d/%s/%s", kind, f.name, name), func(t *testing.T) {
+					bad := q
+					*f.field(&bad) = malformed
+					if got, err := prepareUSSessionRotation(kind, i, bad, clocks); got != nil || !errors.Is(err, ErrInvalid) {
+						t.Fatal("accepted malformed digest", got, err)
+					}
+				})
+			}
+		}
 	}
 }

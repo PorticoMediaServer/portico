@@ -82,7 +82,7 @@ func prepareUSSessionRotation(kind CommandID, identity CommandIdentity, in usSes
 		!usIdentifier(p.family) || !usIdentifier(p.device) || !usIdentifier(p.installation) || len(p.installation) < 32 ||
 		!usHex(p.memberIncarnation, 32) || !usHex(p.profileLifetime, 32) || p.incarnation == [16]byte{} ||
 		p.epoch <= 0 || p.authorityGeneration <= 0 || p.generation <= 0 || p.generation == math.MaxInt64 ||
-		!usHex(p.accessDigest, 64) || !usHex(in.output.accessDigest, 64) || in.output.accessDigest == p.accessDigest {
+		!usCredentialDigest(p.accessDigest) || !usCredentialDigest(in.output.accessDigest) || in.output.accessDigest == p.accessDigest {
 		return nil, invalid("us_session_pins")
 	}
 	now, ok := usSessionTime(clocks.now)
@@ -119,10 +119,10 @@ func prepareUSSessionRotation(kind CommandID, identity CommandIdentity, in usSes
 	case usSessionRefresh:
 		refreshExpiry, valid := usSessionTime(in.refreshExpiresAt)
 		if !valid || !refreshExpiry.After(now) || in.refreshGeneration <= 0 || in.refreshGeneration > p.generation ||
-			!usHex(in.refreshDigest, 64) || !usHex(in.output.refreshDigest, 64) || in.refreshDigest == in.output.refreshDigest ||
+			!usCredentialDigest(in.refreshDigest) || !usCredentialDigest(in.output.refreshDigest) || in.refreshDigest == in.output.refreshDigest ||
 			in.refreshDigest == p.accessDigest || in.refreshDigest == in.output.accessDigest ||
 			in.output.refreshDigest == p.accessDigest || in.output.refreshDigest == in.output.accessDigest ||
-			in.priorReceiptDigest != "" && (!usHex(in.priorReceiptDigest, 64) || in.priorReceiptDigest == in.refreshDigest) ||
+			in.priorReceiptDigest != "" && (!usCredentialDigest(in.priorReceiptDigest) || in.priorReceiptDigest == in.refreshDigest) ||
 			in.controllerID != "" || in.controllerEpoch != "" || len(in.output.nonce) != 0 {
 			return nil, invalid("us_session_refresh_binding")
 		}
