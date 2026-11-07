@@ -193,7 +193,7 @@ func TestENSealOctetPointsRejectShadowedBuiltin(t *testing.T) {
 		t.Fatal(err)
 	}
 	c, f, p := enSealOctetFixture(t)
-	for _, d := range enSealOctetDefinitions() {
+	for _, d := range append(enSealOctetDefinitions(), enEffectiveSourceOctetDefinitions(t)...) {
 		if _, err := captureIssuerOctets(t, c, f, p, d); err == nil || !strings.Contains(err.Error(), "unshadowed native") {
 			t.Fatal("override accepted", err)
 		}
