@@ -47,6 +47,8 @@ func TestMGLCRetainedNativeScope(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Pending unsealed scope marker with explicit native birth fields, not
+		// an accepted publication or replay/receipt implementation.
 		for _, q := range []struct {
 			sql  string
 			args []any
@@ -54,7 +56,7 @@ func TestMGLCRetainedNativeScope(t *testing.T) {
 			{`INSERT INTO libraries(id,name,kind,root) VALUES('movies','Movies','movie','/media/電影')`, nil},
 			{`INSERT INTO catalog_libraries(id,library_id,root) VALUES(1,'movies','/media/電影')`, nil},
 			{`INSERT INTO lc_channels(id,revision,config_json,enabled,position,name,state) VALUES('channel',1,?,1,0,'Shared channel','building')`, []any{string(raw)}},
-			{`INSERT INTO lc_generations(id,channel_id,config_revision,config_json,catalog_fence,seed,status,phase,base_generation,start_ms,end_ms,boundary_ms,cursor_ms,created_ms) VALUES('generation','channel',1,?,'','seed','building','candidates','',0,10000,0,0,1000)`, []any{string(raw)}},
+			{`INSERT INTO lc_generations(id,channel_id,config_revision,config_json,catalog_fence,seed,status,phase,base_generation,start_ms,end_ms,boundary_ms,cursor_ms,created_ms,command_incarnation,create_operation_id,birth_request_digest,entry_digest,verify_end_ms,verified_entry_digest) VALUES('generation','channel',1,?,'','seed','pending','candidates','',0,10000,0,0,1000,X'01010101010101010101010101010101',X'02020202020202020202020202020202',X'0303030303030303030303030303030303030303030303030303030303030303',zeroblob(32),0,zeroblob(32))`, []any{string(raw)}},
 		} {
 			if _, err := conn.ExecContext(t.Context(), q.sql, q.args...); err != nil {
 				t.Fatal(err)
