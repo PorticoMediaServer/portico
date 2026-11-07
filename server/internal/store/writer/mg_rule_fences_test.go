@@ -27,14 +27,16 @@ func TestMGRuleNativeReadbackRollback(t *testing.T) {
 	for _, table := range []string{"dvr_rules", "dvr_rule_work"} {
 		t.Run(table, func(t *testing.T) {
 			w, r := mgRuleFixture(t)
-			turn := mgRuleTestTurn(t, w)
 			column, key := "config_json", "id"
 			if table == "dvr_rule_work" {
 				column, key = "cursor", "rule_id"
 			}
-			if _, err := turn.transaction.conn.ExecContext(t.Context(), `CREATE TEMP TRIGGER mg_rule_readback AFTER INSERT ON `+table+` BEGIN UPDATE `+table+` SET `+column+`='corrupt' WHERE `+key+`=NEW.`+key+`; END`); err != nil {
+			// Fixture DDL precedes the protected command turn. Rollback
+			// exercises only its row effects, including under the race build.
+			if _, err := w.db.ExecContext(t.Context(), `CREATE TRIGGER mg_rule_readback AFTER INSERT ON `+table+` BEGIN UPDATE `+table+` SET `+column+`='corrupt' WHERE `+key+`=NEW.`+key+`; END`); err != nil {
 				t.Fatal(err)
 			}
+			turn := mgRuleTestTurn(t, w)
 			out, err := saveMGRule(t.Context(), turn, r)
 			if !errors.Is(err, ErrConflict) || out != (mgRuleFacts{}) {
 				t.Fatal("changed native readback accepted", out, err)
