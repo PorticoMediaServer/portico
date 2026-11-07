@@ -52,6 +52,7 @@ type wcReclaimCommand struct {
 	reference   ReclaimReceiptRequest
 	preparation ReclaimSnapshot
 	retired     bool
+	abandoned   bool
 	custody     *wcClaimCommandReservation
 }
 type wcReclaimInvocation struct {
@@ -156,6 +157,7 @@ func (d *WCReclaimDriver) Close(ctx context.Context) error {
 		return ErrResolveRequired
 	}
 	if d.work != nil {
+		d.commandCustody.releaseSettled(d.work.custody)
 		d.work.request = wcReclaimRequest{}
 		d.work.preparation = ReclaimSnapshot{}
 		d.work.retired = true
@@ -195,6 +197,9 @@ func checkWCReclaimDisclosure(w *Writer, v *wcReclaimInvocation) error {
 	return nil
 }
 func reclaimReference(c *wcReclaimCommand) (ReclaimReceiptRequest, error) {
+	if c.abandoned {
+		return ReclaimReceiptRequest{}, ErrResolveRequired
+	}
 	if c.retired {
 		return c.reference, nil
 	}
@@ -241,7 +246,7 @@ func (d *WCReclaimDriver) Prepare(ctx context.Context) (out ReclaimCommand, err 
 	if d.work != nil {
 		return d.work, nil
 	}
-	reservation, err := d.commandCustody.reserve(ProgressReceiptReclaim)
+	reservation, err := d.commandCustody.reserve(ProgressReceiptReclaim, d.lifetime)
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +291,7 @@ func (w *Writer) AcceptReclaim(ctx context.Context, cap *ReclaimDisclosure, inpu
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
+	defer c.driver.abandonUncommittedReclaim(c)
 	q, e := reclaimReference(c)
 	if e != nil {
 		return out, e
@@ -295,6 +301,17 @@ func (w *Writer) AcceptReclaim(ctx context.Context, cap *ReclaimDisclosure, inpu
 	}
 	out, _, err = w.runWCReclaim(ctx, &wcReclaimInvocation{disclosure: cap, request: q, input: c}, false)
 	return
+}
+
+func (d *WCReclaimDriver) abandonUncommittedReclaim(c *wcReclaimCommand) {
+	if d.work != c || c.custody == nil || c.custody.state.Load() != wcClaimPrepared {
+		return
+	}
+	d.commandCustody.releaseSettled(c.custody)
+	c.request = wcReclaimRequest{}
+	c.preparation = ReclaimSnapshot{}
+	c.abandoned = true
+	d.work = nil
 }
 func (w *Writer) ResolveReclaim(ctx context.Context, cap *ReclaimDisclosure, q ReclaimReceiptRequest) (out ReclaimResult, err error) {
 	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
