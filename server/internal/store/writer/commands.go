@@ -29,6 +29,7 @@ const (
 	BasicSeal
 	EvidenceSeal
 	CreditSourceSeal
+	ProgressReceiptReclaim
 )
 
 type Durability uint8
@@ -62,6 +63,8 @@ func Describe(id CommandID) (Descriptor, error) {
 		name = "people_stage"
 	case EnrichAccept:
 		name = "enrich_accept"
+	case ProgressReceiptReclaim:
+		name = "progress_receipt_reclaim"
 	case ProgressAccept:
 		name = "progress_accept"
 	case SecurityAccept:

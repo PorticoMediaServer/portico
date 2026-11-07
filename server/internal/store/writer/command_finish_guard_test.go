@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"SecurityResult": true, "SecuritySnapshot": true, "SecurityCommand": true, "wcSecurityReceiptLookup": true, "ProgressResult": true, "ProgressSnapshot": true, "ProgressCommand": true, "wcProgressLookup": true, "commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true}
+	resultTypes := map[string]bool{"ReclaimResult": true, "ReclaimSnapshot": true, "ReclaimCommand": true, "wcReclaimLookup": true, "wcReclaimSnapshot": true, "wcReclaimApplied": true, "SecurityResult": true, "SecuritySnapshot": true, "SecurityCommand": true, "wcSecurityReceiptLookup": true, "ProgressResult": true, "ProgressSnapshot": true, "ProgressCommand": true, "wcProgressLookup": true, "commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -49,7 +49,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 			fn.Name.Name == "searchImageTimeMS" || fn.Name.Name == "commandTimeMS" || fn.Name.Name == "requireCommandMemory"
 		needs = needs || fn.Name.Name == "acknowledgeSearchPublisher" || fn.Name.Name == "searchImageStageFreshFacts"
 		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle" || fn.Name.Name == "composeScanLifecycleHistory"
-		needs = needs || fn.Name.Name == "newWCSecurityDriver" || fn.Name.Name == "composeWCSecurity" || fn.Name.Name == "checkWCSecurityNativeDisclosure" || fn.Name.Name == "newWCProgressDriver" || fn.Name.Name == "composeWCProgress" || fn.Name.Name == "initializeWCProgressFixture" || fn.Name.Name == "checkWCProgressNativeDisclosure"
+		needs = needs || fn.Name.Name == "newWCReclaimDriver" || fn.Name.Name == "composeWCReclaim" || fn.Name.Name == "checkWCReclaimNativeDisclosure" || fn.Name.Name == "newWCSecurityDriver" || fn.Name.Name == "composeWCSecurity" || fn.Name.Name == "checkWCSecurityNativeDisclosure" || fn.Name.Name == "newWCProgressDriver" || fn.Name.Name == "composeWCProgress" || fn.Name.Name == "initializeWCProgressFixture" || fn.Name.Name == "checkWCProgressNativeDisclosure"
 		needs = needs || fn.Name.Name == "newScanDriver" || fn.Name.Name == "keepPreparation" || fn.Name.Name == "prepareWork" || fn.Name.Name == "allocateBirth" || fn.Name.Name == "prepareBirth" || fn.Name.Name == "checkBirthAbsence" || fn.Name.Name == "excludeOldWork"
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
 		needs = needs || fn.Name.Name == "searchFragmentStageFreshFacts"

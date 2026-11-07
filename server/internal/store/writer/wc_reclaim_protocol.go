@@ -16,9 +16,10 @@ type ReclaimReceiptRequest struct {
 }
 
 type ReclaimResult struct {
-	Outcome ReceiptOutcome
-	Value   ReclaimValue
-	Digest  ResultDigest
+	Snapshot ReclaimSnapshot
+	Outcome  ReceiptOutcome
+	Value    ReclaimValue
+	Digest   ResultDigest
 }
 
 // Private SAME-turn native observations. This is neither a floor capability nor

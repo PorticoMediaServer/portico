@@ -76,6 +76,8 @@ func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDi
 		return checkWCProgressDisclosure(w, wc)
 	case *wcSecurityInvocation:
 		return checkWCSecurityDisclosure(w, wc)
+	case *wcReclaimInvocation:
+		return checkWCReclaimDisclosure(w, wc)
 	case nil:
 	default:
 		return ErrInvalid
