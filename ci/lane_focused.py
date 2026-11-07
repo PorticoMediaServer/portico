@@ -21,6 +21,7 @@ CAPTURES = {
     'hn-autoindexes': ('stmt/plan', 'TestPlanAutoindexGoldenAndNativeKeys', 'record-autoindex-plans', ['autoindexes.json']),
     'hn-scan': ('writer', 'TestScanInventoryStatementPlans', 'record-scan-plans', ['scan-inventory-accept.json', 'scan-inventory-accept-fk.json.gz']),
     'hn-scan-fresh': ('writer', 'TestScanFreshStatementPlans', 'record-scan-fresh-plans', ['scan-inventory-fresh.json', 'scan-inventory-fresh-fk.json.gz']),
+    'hn-basic-nfo': ('writer', 'TestBasicNFOStatementPlans', 'record-basic-nfo-plans', ['scan-basic-nfo.json', 'scan-basic-nfo-fk.json.gz']),
     'hn-wc-reclaim-composition': ('writer', 'TestWCReclaimCompositionPlans', 'record-wc-reclaim-composition-plans', ['wc-reclaim-composition.json', 'wc-reclaim-composition-fk.json.gz']),
     'hn-wc-security-composition': ('writer', 'TestWCSecurityCompositionPlans', 'record-wc-security-composition-plans', ['wc-security-composition.json', 'wc-security-composition-fk.json.gz']),
     'hn-wc-progress-composition': ('writer', 'TestWCProgressCompositionPlans', 'record-wc-progress-composition-plans', ['wc-progress-composition.json', 'wc-progress-composition-fk.json.gz']),
