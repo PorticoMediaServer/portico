@@ -22,7 +22,7 @@ type scanDirectoryLookup struct {
 // speculative allocation. Native/pool/index/WAL Work is separately composed.
 func directoryMemory(ctx context.Context, t *commandTurn, n uint64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
-	if t == nil || t.transaction == nil || (t.transaction.descriptor.ID != InventoryDirectoryDiscover && t.transaction.descriptor.ID != InventoryDirectoryEOF) {
+	if t == nil || t.transaction == nil || !scanDirectoryPurpose(t.transaction.descriptor.ID) {
 		return ErrInvalid
 	}
 	if n > (math.MaxUint64-65536)/32 {

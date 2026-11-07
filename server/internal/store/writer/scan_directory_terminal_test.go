@@ -249,7 +249,7 @@ func TestScanDirectoryTerminalNativeRefusalAndTwoMutants(t *testing.T) {
 func TestScanDirectoryTerminalStatementCapture(t *testing.T) {
 	e, _, _ := testExecutor(t)
 	seedScanDirectory(t, e)
-	defs := scanDirectoryTerminalDefinitions()
+	defs := scanDirectoryTerminalOwnDefinitions()
 	conn, err := e.db.Conn(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -261,15 +261,45 @@ func TestScanDirectoryTerminalStatementCapture(t *testing.T) {
 	if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	if evidence := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidence != "" {
-		payload, err := golden.JSON()
-		if err != nil {
-			t.Fatal(err)
+	if golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 671 {
+		t.Fatal("canonical671FK audit missing")
+	}
+	golden.ForeignKeys = nil
+	for _, p := range golden.Plans {
+		for _, row := range p.QueryPlan.Values {
+			if !strings.HasPrefix(row[3].(string), "SEARCH ") {
+				t.Fatal("nonindexed terminal plan", p.ID, row)
+			}
 		}
-		if err := os.WriteFile(filepath.Join(evidence, "scan-directory-terminal.json"), payload, 0600); err != nil {
-			t.Fatal(err)
+		if p.ID == scanTerminalRefuseReceipt || p.ID == scanTerminalTraversalReceipt || p.ID == scanTerminalIssueInsert {
+			if p.Insert == nil || p.Insert.Conflict != nil {
+				t.Fatal("strict native INSERT destination missing", p.ID)
+			}
 		}
 	}
+	payload, err := golden.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := os.ReadFile(filepath.Join("testdata", "scan-directory-terminal.json"))
+	if os.IsNotExist(err) {
+		if evidence := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidence != "" {
+			if err := os.MkdirAll(evidence, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(evidence, "scan-directory-terminal.json"), append(payload, '\n'), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Fatal("new terminal capture candidate requires review; written to runner evidence")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := golden.Compare(expected); err != nil {
+		t.Fatal(err)
+	}
+
 	for _, d := range scanDirectoryTerminalDefinitions() {
 		if directoryTerminalStatementMaxUses(d.ID) <= 0 {
 			t.Fatal("unbudgeted native statement", d.ID)

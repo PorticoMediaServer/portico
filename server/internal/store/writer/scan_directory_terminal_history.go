@@ -129,13 +129,14 @@ func lookupScanDirectoryTerminal(ctx context.Context, t *commandTurn, q ScanRece
 	return out, nil
 }
 
-func readScanDirectoryTerminalBody(ctx context.Context, t *commandTurn, q ScanReceiptRequest, kind CommandID, o scanRunOriginalScope, revision, applied int64, next string) (scanDirectoryTerminalSaved, error) {
+func readScanDirectoryTerminalBody(ctx context.Context, t *commandTurn, q ScanReceiptRequest, kind CommandID, o scanRunOriginalScope, revision, applied int64, next string) (value scanDirectoryTerminalSaved, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(t), value, err) }()
 	v := scanDirectoryTerminalSaved{Original: o, AcceptedRunRevision: revision, AppliedMS: applied}
 	var d [5]sql.NullString
 	var pages, skipped, blocked, protected sql.NullInt64
 	var completed, code, entry, cursor sql.NullString
 	var raw, childIdentity, childRevision, parentPath, parentIdentity, parentRevision, old, payload []byte
-	err := directoryPoint(ctx, t, scanTerminalBody, []any{q.RunID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence}, &d[0], &d[1], &d[2], &d[3], &d[4], &pages, &skipped, &completed, &blocked, &protected, &raw, &code, &entry, &childIdentity, &childRevision, &cursor, &parentPath, &parentIdentity, &parentRevision, &old, &payload)
+	err = directoryPoint(ctx, t, scanTerminalBody, []any{q.RunID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence}, &d[0], &d[1], &d[2], &d[3], &d[4], &pages, &skipped, &completed, &blocked, &protected, &raw, &code, &entry, &childIdentity, &childRevision, &cursor, &parentPath, &parentIdentity, &parentRevision, &old, &payload)
 	if err != nil {
 		return scanDirectoryTerminalSaved{}, errors.Join(ErrResolveRequired, err)
 	}
