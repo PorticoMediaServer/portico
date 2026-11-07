@@ -56,6 +56,19 @@ func reserveInventoryDriverSteps(remaining Work, steps []statementStep) (Work, e
 }
 
 func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, error) {
+	if w == nil {
+		return effectivePlan{}, ErrInvalid
+	}
+	// Reuse GV's already-bound physical checkpointer connection. The complete
+	// fresh profile cannot assume that discarding W is not the last close
+	// unless the actual writer service holds this same-file lifetime pin.
+	keeper := w.keeper.Load()
+	if keeper == nil {
+		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
+	}
+	if err := keeper.Check(); err != nil {
+		return effectivePlan{}, err
+	}
 	p, err := freezeCommandPlan(w, p, inventoryDriverCommandDefinitions(), InventoryAccept)
 	if err != nil {
 		return effectivePlan{}, err

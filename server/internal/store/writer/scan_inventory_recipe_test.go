@@ -5,8 +5,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
+
+func TestN1DriverPlanRequiresBoundKeeper(t *testing.T) {
+	w := &executor{}
+	var refusal *Refusal
+	if p, err := freezeInventoryDriverPlan(w, effectivePlan{}); !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || len(p.steps) != 0 {
+		t.Fatal("fresh profile assumed a second native connection without its actual keeper", p, err)
+	}
+	// A constructed service value is not GV's bound native lifetime pin.
+	w.keeper.Store(&governor.CheckpointWriterService{})
+	if p, err := freezeInventoryDriverPlan(w, effectivePlan{}); !errors.Is(err, governor.ErrCheckpointKeeper) || len(p.steps) != 0 {
+		t.Fatal("unbound service became a physical-close guarantee", p, err)
+	}
+}
 
 // Structural composition only: synthetic unit charges are arithmetic controls,
 // never numerical forecasts or permission to install an accepting profile.
