@@ -116,7 +116,7 @@ func TestSearchImageBeginStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(registry.Manifest()) != 18 || len(g.Plans) != 39 || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 671 {
+	if len(registry.Manifest()) != 18 || len(g.Plans) != 39 || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
 		t.Fatal("closed capture inventory", len(registry.Manifest()), len(g.Plans))
 	}
 	fk := g.ForeignKeys
@@ -170,5 +170,5 @@ func TestSearchImageBeginStatementPlans(t *testing.T) {
 	if err := plan.CompareJSON(expected, fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("18 definitions/39 cohorts/4 INSERT destination audits/671 FK/2013 probes; FULL pre-BEGIN Capture; NORMAL execution separately asserted in W shared fixture; no accepting or native eligibility claim")
+	t.Log("18 definitions/39 cohorts/4 INSERT destination audits/686 FK/2058 probes; FULL pre-BEGIN Capture; NORMAL execution separately asserted in W shared fixture; no accepting or native eligibility claim")
 }
