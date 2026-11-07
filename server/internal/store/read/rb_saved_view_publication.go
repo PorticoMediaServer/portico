@@ -83,7 +83,9 @@ func (s *savedViewSession) window(final bool, maxQueries uint16, fn func(browseQ
 		// allowance (every returned byte is charged twice). This is a legal total
 		// envelope, not columns*max; payloads still require exact native byte points.
 		native = min(native, s.copyLimit/2)
-		request.Need[governor.MemoryBytes] = native + s.copyLimit
+		// Preserve the original request ceiling. The governor funds this variable
+		// row bound, fixed native decode bookkeeping and the explicit ORIGINAL
+		// Go-copy allowance inside it; native+copy alone omits that overhead.
 	}
 	s.nativeLimit = native
 	callback := func(scope *governor.ReadScope) error {
@@ -114,7 +116,7 @@ func (s *savedViewSession) window(final bool, maxQueries uint16, fn func(browseQ
 		if !ok {
 			return ErrUnqualified
 		}
-		result, e = forecast.ReadForecasted(ctx, request, time.Until(s.deadline), governor.SnapshotForecast{NativeRowBytes: native, MaxQueries: maxQueries}, callback)
+		result, e = forecast.ReadForecasted(ctx, request, time.Until(s.deadline), governor.SnapshotForecast{NativeRowBytes: native, MaxQueries: maxQueries, GoCopyBytes: s.copyLimit}, callback)
 	} else {
 		result, e = s.r.snapshots.Read(ctx, request, time.Until(s.deadline), callback)
 	}

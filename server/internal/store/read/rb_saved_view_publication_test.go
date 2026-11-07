@@ -90,6 +90,7 @@ type savedViewWindowHook struct {
 	hook      func(int)
 	deadlines []time.Time
 	memory    []int64
+	forecasts []governor.SnapshotForecast
 }
 
 func (h *savedViewWindowHook) NativeRowReservation() int64 { return h.base.NativeRowReservation() }
@@ -107,6 +108,7 @@ func (h *savedViewWindowHook) Read(ctx context.Context, r governor.Request, budg
 }
 func (h *savedViewWindowHook) ReadForecasted(ctx context.Context, r governor.Request, budget time.Duration, forecast governor.SnapshotForecast, fn func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
 	h.before(r)
+	h.forecasts = append(h.forecasts, forecast)
 	return h.base.ReadForecasted(ctx, r, budget, forecast, fn)
 }
 func savedViewSameDeadline(t *testing.T, h *savedViewWindowHook) {
@@ -375,8 +377,18 @@ func TestRBSavedViewDirectory(t *testing.T) {
 		}
 		savedViewSameDeadline(t, hook)
 		for _, memory := range hook.memory {
-			if memory != 6<<20 {
-				t.Fatal("forecast changed original 4 MiB copy allowance", hook.memory)
+			if memory != 12<<20 {
+				t.Fatal("forecast changed original request ceiling", hook.memory)
+			}
+		}
+		for _, forecast := range hook.forecasts {
+			if forecast.GoCopyBytes != 4<<20 || forecast.NativeRowBytes != 2<<20 {
+				t.Fatal("original explicit forecast allowances changed", forecast)
+			}
+		}
+		for _, window := range append(cost.LookupWindows, cost.PublicationWindows...) {
+			if window.GoReservedBytes != 4<<20 || window.NativeReservedBytes <= 2<<20 || window.GoReservedBytes+window.NativeReservedBytes > 12<<20 {
+				t.Fatal("native decode overhead or original Go-copy hold unfunded", window)
 			}
 		}
 	})
