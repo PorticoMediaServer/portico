@@ -65,7 +65,7 @@ func activateBasicAsset(ctx context.Context, turn *commandTurn, in basicActivati
 	if err = row.Scan(&factRevision, &size, &modified, &fingerprint, &detail); err != nil {
 		return value, basicStageError(err)
 	}
-	if factRevision != in.source.factRevision || size != in.source.size || modified != in.source.modifiedNS || fingerprint != in.source.fingerprint || detail != in.source.detailVersion {
+	if size != in.source.size || modified != in.source.modifiedNS || fingerprint != in.source.fingerprint || detail != in.source.detailVersion {
 		return value, ErrConflict
 	}
 	var ownerValue, revisionValue any
