@@ -44,9 +44,19 @@ type ScanRunOperation struct {
 	claim        *inventoryClaimCommand
 	result       *ScanRunResult
 	last         scanLifecycleCommandResult
+	cleanup      *scanRunCleanup
 	acknowledged bool
 	historyOnly  bool
 	closed       bool
+}
+
+// Created only after this operation's actual native return and settled result
+// have been checked. It carries no command, payload or resource amount. Failed
+// joins keep this exact proof and preparation so Close can retry retirement.
+type scanRunCleanup struct {
+	operation   *ScanRunOperation
+	preparation *scanPreparation
+	predecessor *scanReturnedWork
 }
 
 type ScanRunResult struct {
@@ -117,8 +127,14 @@ func (d *ScanDriver) excludePredecessor(ctx context.Context, turn *commandTurn, 
 		return ErrResolveRequired
 	}
 	if p := d.predecessor; p != nil {
-		if p.driver != d || p.createOperation != before.run.scope.createOperation || p.incarnation != before.run.scope.commandIncarnation ||
-			p.sequence > before.run.acknowledgedSequence || p.generation != before.run.leaseGeneration {
+		if p.driver != d {
+			return ErrConflict
+		}
+		// create_operation_id is the immutable globally UNIQUE run anchor.
+		// The one-slot cache says nothing about a different settled run; its
+		// complete current-native snapshot and CAS above remain mandatory.
+		if p.createOperation == before.run.scope.createOperation &&
+			(p.incarnation != before.run.scope.commandIncarnation || p.sequence > before.run.acknowledgedSequence || p.generation != before.run.leaseGeneration) {
 			return ErrConflict
 		}
 	}
