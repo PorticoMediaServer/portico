@@ -12,7 +12,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	librarychannels "github.com/PorticoMediaServer/portico/server/internal/livechannels/library"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 )
@@ -21,18 +20,29 @@ import (
 func newRBChannelSource(t *testing.T) *browseFixture {
 	t.Helper()
 	f := newBrowseSource(t)
-	cfg := librarychannels.Config{Version: librarychannels.ProtocolVersion, ID: "channel", Name: "Channel", Enabled: true, Timezone: "UTC", Seed: "seed", DefaultRuleID: "rule", ViewerAccess: "server-members", Quality: librarychannels.Quality{Mode: "automatic"}, Rules: []librarychannels.Rule{{ID: "rule", Name: "Rule", Mode: "sequential", EpisodeMode: "none", Exhaustion: "loop", MaxConsecutive: 1, Query: librarychannels.Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title"}}}}
-	cfg, err := librarychannels.Normalize(cfg)
-	if err == nil {
-		err = librarychannels.Validate(cfg)
-	}
-	canonical := mustRBChannelJSON(t, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	canonical := rbChannelAcceptedFixture(t, "movie")
 	f.exec(t, `INSERT INTO lc_channels(id,revision,config_json,enabled,position,name,state) VALUES('channel',1,?,1,0,'Channel','building')`, string(canonical))
-	f.exec(t, `INSERT INTO lc_generations(id,channel_id,config_revision,config_json,catalog_fence,seed,status,phase,base_generation,start_ms,end_ms,boundary_ms,cursor_ms,created_ms) VALUES('generation','channel',1,?,'','seed','building','candidates','',0,10000,0,0,1000)`, string(canonical))
+	f.exec(t, `INSERT INTO lc_generations(id,channel_id,config_revision,config_json,catalog_fence,seed,status,phase,base_generation,start_ms,end_ms,boundary_ms,cursor_ms,created_ms,command_incarnation,create_operation_id,birth_request_digest,entry_digest,verify_end_ms,verified_entry_digest) VALUES('generation','channel',1,?,'','seed','building','candidates','',0,10000,0,0,1000,x'01010101010101010101010101010101',x'02020202020202020202020202020202',zeroblob(32),zeroblob(32),0,zeroblob(32))`, string(canonical))
 	return f
+}
+
+// Frozen fixtures were produced by the existing Config -> Normalize -> Validate
+// -> json.Marshal path, outside the native test graph (model blob0526e9c9).
+func rbChannelAcceptedFixture(t *testing.T, kind string) []byte {
+	t.Helper()
+	hashes := map[string]string{"movie": "227981f3afb5377c1ce46476d1c841bda750b9d641d668d89a07a626c024bbe6", "episode": "ff642b25e5028294f28aef60c39befe45579d18f70915f346e9954a2425f2a45"}
+	want, ok := hashes[kind]
+	if !ok {
+		t.Fatal("unknown accepted config fixture")
+	}
+	b, e := os.ReadFile("testdata/rb-channel-config-" + kind + ".json")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(b)) != want {
+		t.Fatal("accepted config fixture changed without its canonical producer")
+	}
+	return b
 }
 
 // END_RB_CHANNEL_JOURNAL

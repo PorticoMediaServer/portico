@@ -13,6 +13,17 @@ func TestRBUniquePointKeepsClosedCompleteKeyBoundary(t *testing.T) {
 	if !rbAdditionalRowIDPoint(d, a, point) {
 		t.Fatal("complete unique point with extra equality refused")
 	}
+	for _, id := range []stmt.ID{"read.browse.rb.channel.check0", "read.browse.rb.channel.check.extra", "read.browse.rb.home.binding.links0", "read.browse.rb.home.binding.links.extra"} {
+		d.ID = id
+		if rbAdditionalRowIDPoint(d, a, point) {
+			t.Fatal("exact-ID neighbour acquired point permission", id)
+		}
+	}
+	d.ID = "read.browse.rb.home.binding.links"
+	if !rbAdditionalRowIDPoint(d, a, point) {
+		t.Fatal("second exact RB read ID refused")
+	}
+	d.ID = "read.browse.rb.channel.check"
 	for _, bad := range [][]keyCondition{
 		{{"library_id", "="}, {"rowid", "="}},
 		{{"library_id", "="}, {"id", ">"}, {"rowid", "="}},

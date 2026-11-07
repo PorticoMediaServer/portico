@@ -158,17 +158,25 @@ func rbChannelMetaValue(row []any, kind int64) (rbChannelMeta, error) {
 		m.HasEpisodeNumber = true
 	}
 	if kind == 4 {
-		if row[6] == nil || row[7] == nil || row[20] == nil || row[22] != int64(0) || row[24] != int64(2) || row[25] == nil || row[27] != int64(0) || row[28] != row[6] {
+		if row[6] == nil || row[20] == nil || row[22] != int64(0) || row[24] != int64(2) {
 			return m, nil
 		}
-		m.Show, m.Season = row[6].(int64), row[7].(int64)
+		m.Show = row[6].(int64)
 		if !blob(row[20], &m.ShowPublic) {
 			return m, ErrUnqualified
 		}
 		m.TargetTitle, m.TargetYear, m.TargetKind = text(row[21]), row[23].(int64), 2
-		if row[26] != nil {
-			m.SeasonNumber = row[26].(int64)
-			m.HasSeasonNumber = true
+		// Absolute-numbered anime and unassigned episodes legitimately have no
+		// season. When a season IS assigned, retain the same current parent proof.
+		if row[7] != nil {
+			if row[25] == nil || row[27] != int64(0) || row[28] != row[6] {
+				return m, nil
+			}
+			m.Season = row[7].(int64)
+			if row[26] != nil {
+				m.SeasonNumber = row[26].(int64)
+				m.HasSeasonNumber = true
+			}
 		}
 	}
 	for _, s := range []string{m.Title, m.TitleOrder, m.TitleKeep, m.Added, m.Numbering, m.Release, m.ReleaseOrder, m.TargetTitle} {

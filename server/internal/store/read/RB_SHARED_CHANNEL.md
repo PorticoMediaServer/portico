@@ -12,7 +12,9 @@ MG's adapter outside native writer/plan uses the existing `library.Config` →
 as authority: it projects bounded query/authority fields from the actual stored
 bytes and fences those bytes. The native package imports no legacy catalogue or
 LC initialization. The scalar subset follows the published AST and is checked
-against its parser in read tests only. Unsupported predicates fail closed,
+against a frozen normalized oracle produced by its published parser outside the
+native test binary. Accepted movie/episode config fixtures are checksum-pinned
+outputs of the original full Config normalization/validation path. Unsupported predicates fail closed,
 including beneath negation; text, membership and rating families remain pending.
 
 `SharedChannelWindow` consumes at most four raw IDs. Rejected/unbound rows count
@@ -50,6 +52,10 @@ the additional constraint only narrows an at-most-one-row point. No range,
 missing-key or scan permission is added, and existing command qualification
 stays on its original path. The sole shared hunk is the full-key branch in
 `stmt/plan/autoindex_access.go`; the opt-in proof and controls are in RB files.
+
+Seasonless absolute-numbered episodes retain their valid show and whole source
+without inventing a season. An assigned season still needs the same current
+parent proof. Air-date projection remains a separate tracked follow-up.
 
 Native controls cover private UTF-8 root sizing, backing-pointer separation,
 underfunding, source-grant reuse, unchanged issuer/fences, source mutation,
