@@ -11,10 +11,11 @@ import (
 
 const mgLCCandidateOctetsID stmt.ID = "writer.mg.lc.candidate-lengths"
 const mgLCEntryOctetsID stmt.ID = "writer.mg.lc.entry-lengths-point"
-const mgLCCandidateOctetsSQL = "SELECT duration_ms,octet_length(asset_id)+octet_length(library_id)+octet_length(source_fence)+octet_length(title) FROM lc_candidates INDEXED BY sqlite_autoindex_lc_candidates_1 WHERE generation_id=? AND rule_id=? AND item_id=?"
+const mgLCCandidateOctetsSQL = "SELECT duration_ms,octet_length(asset_id),octet_length(library_id),octet_length(source_fence),octet_length(title) FROM lc_candidates INDEXED BY sqlite_autoindex_lc_candidates_1 WHERE generation_id=? AND rule_id=? AND item_id=?"
 
-// 113 is the fixed MG entry accounting recipe, admitted only by these exact SQL bytes.
-const mgLCEntryOctetsSQL = "SELECT 113+octet_length(generation_id)+octet_length(occurrence_id)+octet_length(channel_id)+octet_length(asset_id)+octet_length(library_id)+octet_length(source_fence)+octet_length(title)+octet_length(rule_id)+octet_length(block_id)+octet_length(slate_reason) FROM lc_entries INDEXED BY sqlite_autoindex_lc_entries_1 WHERE generation_id=? AND occurrence_id=?"
+// Fixed row overhead is accounted by MG after scanning these native lengths;
+// these exact projections require no arithmetic extension to the parser.
+const mgLCEntryOctetsSQL = "SELECT octet_length(generation_id),octet_length(occurrence_id),octet_length(channel_id),octet_length(asset_id),octet_length(library_id),octet_length(source_fence),octet_length(title),octet_length(rule_id),octet_length(block_id),octet_length(slate_reason) FROM lc_entries INDEXED BY sqlite_autoindex_lc_entries_1 WHERE generation_id=? AND occurrence_id=?"
 
 func init() {
 	pointOctets.add(octetShape{mgLCCandidateOctetsID, mgLCCandidateOctetsSQL,
@@ -35,7 +36,7 @@ func init() {
 
 func mgLCOctetDefinition(d stmt.Definition, table string, identities ...string) bool {
 	index := "sqlite_autoindex_" + table + "_1"
-	if d.Kind != stmt.Read || !d.Plan.Hot || len(d.Params) != 1+len(identities) || len(d.Plan.Indexes) != 1 || d.Plan.Indexes[0] != index ||
+	if d.Kind != stmt.Read || d.Plan.NativeRead != nil || !d.Plan.Hot || len(d.Params) != 1+len(identities) || len(d.Plan.Indexes) != 1 || d.Plan.Indexes[0] != index ||
 		len(d.Plan.Seeks) != 0 ||
 		len(d.Plan.AutoIndexes) != 1 || len(d.Plan.PrimaryKeys) != 0 || len(d.Plan.Waivers) != 0 || len(d.Plan.AllowedScans) != 0 || d.Plan.NativeInsert != "" || d.Plan.NativeRetained != "" {
 		return false

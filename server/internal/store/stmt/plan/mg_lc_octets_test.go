@@ -24,8 +24,8 @@ import (
 var recordMGLCOctets = flag.Bool("record-mg-lc-octets", false, "deliberately record exact MG LC octet points")
 
 func mgLCOctetDefinitions() []stmt.Definition {
-	candidateSQL := "SELECT duration_ms,octet_length(asset_id)+octet_length(library_id)+octet_length(source_fence)+octet_length(title) FROM lc_candidates INDEXED BY sqlite_autoindex_lc_candidates_1 WHERE generation_id=? AND rule_id=? AND item_id=?"
-	entrySQL := "SELECT 113+octet_length(generation_id)+octet_length(occurrence_id)+octet_length(channel_id)+octet_length(asset_id)+octet_length(library_id)+octet_length(source_fence)+octet_length(title)+octet_length(rule_id)+octet_length(block_id)+octet_length(slate_reason) FROM lc_entries INDEXED BY sqlite_autoindex_lc_entries_1 WHERE generation_id=? AND occurrence_id=?"
+	candidateSQL := "SELECT duration_ms,octet_length(asset_id),octet_length(library_id),octet_length(source_fence),octet_length(title) FROM lc_candidates INDEXED BY sqlite_autoindex_lc_candidates_1 WHERE generation_id=? AND rule_id=? AND item_id=?"
+	entrySQL := "SELECT octet_length(generation_id),octet_length(occurrence_id),octet_length(channel_id),octet_length(asset_id),octet_length(library_id),octet_length(source_fence),octet_length(title),octet_length(rule_id),octet_length(block_id),octet_length(slate_reason) FROM lc_entries INDEXED BY sqlite_autoindex_lc_entries_1 WHERE generation_id=? AND occurrence_id=?"
 	var out []stmt.Definition
 	for _, shape := range []struct {
 		id, sql, table string
@@ -69,7 +69,7 @@ func mgLCOctetsFixture(t *testing.T) (*sql.Conn, plan.Fixture, plan.IndexPolicy)
 			t.Fatal(err)
 		}
 	}
-	f.Implementations = "canonical MG LC full PK points; UTF8 title Télé television emoji; native byte counts; fixed entry recipe 113"
+	f.Implementations = "canonical MG LC full PK points; UTF8 title Télé television emoji; native per-column byte counts; fixed entry overhead is consumer-owned"
 
 	return c, f, policy
 }
@@ -86,7 +86,7 @@ func TestMGLCOctetPointsGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(g.Plans) != 7 {
-		t.Fatal("incomplete guide octet cohorts")
+		t.Fatal("incomplete LC octet cohorts")
 	}
 	registered, err := stmt.New(defs, g.Receipt())
 	if err != nil {
@@ -102,28 +102,29 @@ func TestMGLCOctetPointsGolden(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var got, duration int64
-			if i == 0 {
-				err = bound.QueryRowContext(t.Context(), c).Scan(&duration, &got)
-			} else {
-				err = bound.QueryRowContext(t.Context(), c).Scan(&got)
+			want := []int64{1000, 5, 3, 5, int64(len("Télé 📺"))}
+			if i == 1 {
+				want = []int64{10, 10, 7, 5, 3, 5, int64(len("Télé 📺")), 4, 5, 0}
 			}
+			got := make([]int64, len(want))
+			ptrs := make([]any, len(got))
+			for k := range got {
+				ptrs[k] = &got[k]
+			}
+			err = bound.QueryRowContext(t.Context(), c).Scan(ptrs...)
 			if j > 0 {
 				if err != sql.ErrNoRows {
 					t.Fatal("miss", err)
 				}
 				continue
 			}
-			want := int64(len("assetlibfenceTélé 📺"))
-			if i == 0 {
-				if duration != 1000 {
-					t.Fatal(duration)
-				}
-			} else {
-				want += 113 + int64(len("generationoccurrencechannelruleblock"))
+			if err != nil {
+				t.Fatal(err)
 			}
-			if err != nil || got != want {
-				t.Fatal("actual UTF8 octets", got, want, err)
+			for k := range want {
+				if got[k] != want[k] {
+					t.Fatal("actual UTF8 octets", got, want)
+				}
 			}
 		}
 	}
@@ -172,7 +173,7 @@ func TestMGLCOctetPointsClosed(t *testing.T) {
 		if len(plan.LintSQL(original.SQL)) == 0 || len(plan.LintSQLOn(t.Context(), c, original.SQL)) == 0 {
 			t.Fatal("generic octet grammar widened")
 		}
-		for _, name := range []string{"unknown_id", "range", "projection", "nullable", "key", "cold", "type", "seeks", "index", "origin", "collation", "descending", "constant", "cross_id"} {
+		for _, name := range []string{"unknown_id", "range", "projection", "nullable", "key", "cold", "type", "seeks", "index", "origin", "collation", "descending", "constant", "sum", "cross_id"} {
 			t.Run(string(original.ID)+"/"+name, func(t *testing.T) {
 				data, err := json.Marshal(original)
 				if err != nil {
@@ -208,10 +209,9 @@ func TestMGLCOctetPointsClosed(t *testing.T) {
 				case "descending":
 					d.Plan.AutoIndexes[0].Columns[0].Desc = true
 				case "constant":
-					d.SQL = strings.Replace(d.SQL, "113+", "114+", 1)
-					if d.SQL == original.SQL {
-						d.SQL = "SELECT 0," + strings.TrimPrefix(d.SQL, "SELECT ")
-					}
+					d.SQL = "SELECT 113," + strings.TrimPrefix(d.SQL, "SELECT ")
+				case "sum":
+					d.SQL = strings.Replace(d.SQL, "),octet_length(", ")+octet_length(", 1)
 				case "cross_id":
 					if d.ID == "writer.mg.lc.candidate-lengths" {
 						d.ID = "writer.mg.lc.entry-lengths-point"
@@ -252,7 +252,7 @@ func TestMGLCOctetPointsRejectShadowedFunction(t *testing.T) {
 	c, f, policy := mgLCOctetsFixture(t)
 	for _, d := range mgLCOctetDefinitions() {
 		if _, err := captureIssuerOctets(t, c, f, policy, d); err == nil || !strings.Contains(err.Error(), "unshadowed native") {
-			t.Fatal("shadowed guide preflight admitted", err)
+			t.Fatal("shadowed LC preflight admitted", err)
 		}
 	}
 }
