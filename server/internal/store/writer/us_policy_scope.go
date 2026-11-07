@@ -10,9 +10,9 @@ import (
 )
 
 // Receipt composition consumes, never mints, CURRENT independent authority.
-// There is deliberately no production constructor yet. W must issue this stamp
-// only AFTER same-turn native token/family/member/profile/installation, narrow
-// grant, PIN/fence and owner/admin target checks; absence fails closed.
+// The narrow direct-owner recipe in us_authority.go issues this stamp only
+// AFTER same-turn native token/family/member/profile/installation, narrow
+// grant and PIN/fence checks. Other recipes remain unavailable.
 // It is scoped to THIS frame, not a cached principal or reusable permission.
 type usPolicyAuthorityStamp struct{ frame *transaction }
 type usPolicyNativePermit struct{ frame *transaction } // test constructor only
@@ -25,6 +25,8 @@ type usPolicyAuthorization struct {
 	authorizedUntil time.Time
 	memoryBytes     uint64 // one private partition of the SAME W admission, not a ledger
 	receiptBytes    int64  // exact existing quota reservation made by W, not a caller quota
+	nativeProof     *usOwnerAuthorityProof
+	nativeBudget    usPolicyAuthorityBudget
 	nativeFixture   *usPolicyNativePermit
 }
 
@@ -41,6 +43,9 @@ func (a *usPolicyAuthorization) check(turn *commandTurn) error {
 	}
 	if a.authorizedUntil.IsZero() || a.memoryBytes == 0 {
 		return &Refusal{Code: RefusalUnqualified}
+	}
+	if tx.writer == nil || tx.writer.now == nil || !tx.writer.now().Before(a.authorizedUntil) {
+		return ErrDisclosureDenied
 	}
 	return nil
 }
@@ -110,7 +115,12 @@ func finishUSPolicy(ctx context.Context, turn *commandTurn, a *usPolicyAuthoriza
 	}
 	err = errors.Join(err, a.check(turn))
 	if err == nil {
-		_, err = usPolicyTimeMS(ctx, turn, a)
+		if a.nativeProof != nil {
+			_, err = authorizeUSOwnerPolicy(ctx, turn, a.nativeProof, a.lifetime, a.nativeBudget)
+		}
+		if err == nil {
+			_, err = usPolicyTimeMS(ctx, turn, a)
+		}
 	}
 	return finishCommand(ctx, a.lifetime, v, err)
 }
