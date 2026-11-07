@@ -4,7 +4,7 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
 const iaLinkOctetsID stmt.ID = "read.foreground.ia.link_octets"
 
-// Both media families hydrate the same native link payload. One compiled SQL
+// These media families hydrate the same native link payload. One compiled SQL
 // point and ID own the byte preflight; family captures retain their own actual
 // present/empty populations. No SQL alias or permissive registry is introduced.
 func iaLinkOctetsDefinition(args []any) stmt.Definition {
@@ -24,9 +24,11 @@ func iaLinkOctetsDefinition(args []any) stmt.Definition {
 // wiring, registration authority or a general definition deduplicator.
 func IAHarnessDefinitions() []stmt.Definition {
 	definitions := IAAudioHarnessDefinitions()
-	for _, d := range IATVDefinitions() {
-		if d.ID != iaLinkOctetsID {
-			definitions = append(definitions, d)
+	for _, family := range [][]stmt.Definition{IATVDefinitions(), IAExtraHarnessDefinitions()} {
+		for _, d := range family {
+			if d.ID != iaLinkOctetsID {
+				definitions = append(definitions, d)
+			}
 		}
 	}
 	return definitions
