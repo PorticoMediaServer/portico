@@ -27,6 +27,10 @@ type effectiveStageBeginCommand struct {
 	leaseExpiry           time.Time
 	retirementIncarnation [16]byte
 	valid                 bool
+	// Only the distinct production v2 request owns these exact immutable seal
+	// references. Legacy v1 request bytes remain unchanged. References are data,
+	// never verified native lineage or permission to execute.
+	sourceReferences *effectiveBeginSourceReferences
 }
 
 // EffectiveStageBeginResult is historical scalar BEGIN data. Returning it from
