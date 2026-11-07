@@ -137,9 +137,9 @@ func TestSealHistoryFloorSkipsRetainedPayload(t *testing.T) {
 }
 
 func TestSealHistoryRefusesPayloadBudgetAndCorruption(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		for _, oversize := range []bool{false, true} {
-			t.Run(map[bool]string{false: "corrupt_digest", true: "before_payload_copy"}[oversize], func(t *testing.T) {
+	for _, oversize := range []bool{false, true} {
+		t.Run(map[bool]string{false: "corrupt_digest", true: "before_payload_copy"}[oversize], func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
 				w, request, _ := sealHistoryNativeReceipt(t)
 				if oversize {
 					if _, err := w.db.ExecContext(t.Context(), "UPDATE enrichment_command_receipts SET after_item=? WHERE command_kind='evidence_seal'", strings.Repeat("x", 4096)); err != nil {
@@ -166,7 +166,6 @@ func TestSealHistoryRefusesPayloadBudgetAndCorruption(t *testing.T) {
 					t.Fatal("payload copied without byte refusal", err)
 				}
 			})
-		}
-
-	})
+		})
+	}
 }
