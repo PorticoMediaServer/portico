@@ -102,6 +102,16 @@ type n1NativeCloseConn struct {
 	id    uint64
 }
 
+// Keep the optional native engine getter when observing physical Close.
+// The values still come from this actual native owner, never the trace.
+func (c *n1NativeCloseConn) SQLiteEngine() (string, string, error) {
+	getter, ok := c.writerDriverConn.(nativeEngineGetter)
+	if !ok {
+		return "", "", invalid("physical_engine_getter")
+	}
+	return getter.SQLiteEngine()
+}
+
 func (c *n1NativeCloseConn) Close() (err error) {
 	t := c.trace
 	if t.closeCount == len(t.closes) {
