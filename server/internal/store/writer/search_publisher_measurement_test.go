@@ -575,6 +575,19 @@ func TestSearchPublisherRealClockSurface(t *testing.T) {
 				t.Fatal(string(log), err)
 			}
 			defer file.Close()
+			// Keep the exact prefix, including a real timing failure, before
+			// test scratch is removed. The runner owns this evidence directory.
+			if evidenceDir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidenceDir != "" {
+				saved, err := os.CreateTemp(evidenceDir, "publisher-real-clock-"+class+"-*.jsonl")
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, copyErr := io.Copy(saved, file)
+				_, seekErr := file.Seek(0, io.SeekStart)
+				if err := errors.Join(copyErr, saved.Close(), seekErr); err != nil {
+					t.Fatal(err)
+				}
+			}
 			d := json.NewDecoder(file)
 			var calls int
 			var failed *publisherMeasurementRecord
