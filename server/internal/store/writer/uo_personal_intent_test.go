@@ -181,3 +181,39 @@ func TestUOPersonalScalarCodec(t *testing.T) {
 		t.Fatal("scalar semantics")
 	}
 }
+
+func TestUOPersonalContainerUndoRestoresOriginalOrderAndWatermark(t *testing.T) {
+	w, q := uoPersonalFixture(t)
+	uoPersonalContainer(t, w)
+	q.subjectID = 2112
+	q.publicID[15] = 1
+	q.container = true
+	turn := uoPersonalTurn(t, w)
+	first, err := applyUOPersonalIntent(t.Context(), turn, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uoFlagsCommit(t, turn)
+	wc008NativeExec(t, w, `UPDATE catalog_membership_clock SET sequence=20`)
+	q.expectedRevision = 1
+	q.watched = false
+	turn = uoPersonalTurn(t, w)
+	second, err := applyUOPersonalIntent(t.Context(), turn, q)
+	if err != nil || second.membership != 20 {
+		t.Fatal(second, err)
+	}
+	uoFlagsCommit(t, turn)
+	q.expectedRevision = 2
+	q.watched = true
+	q.restore = uoPersonalIntentRestore{set: true, membership: first.membership, intent: first.intent}
+	turn = uoPersonalTurn(t, w)
+	undo, err := applyUOPersonalIntent(t.Context(), turn, q)
+	if err != nil || undo.action <= second.action || undo.intent != first.intent || undo.membership != 10 {
+		t.Fatal(undo, err)
+	}
+	uoFlagsCommit(t, turn)
+	var sequence, watermark, action int64
+	if err = w.db.QueryRowContext(t.Context(), `SELECT action_sequence,container_intent_sequence,container_membership_sequence FROM personal_items WHERE item_id=2112`).Scan(&action, &sequence, &watermark); err != nil || action != undo.action || sequence != first.intent || watermark != first.membership {
+		t.Fatal(action, sequence, watermark, err)
+	}
+}

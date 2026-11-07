@@ -88,6 +88,14 @@ func bumpUOPersonalViewer(ctx context.Context, turn *commandTurn, profile, libra
 	return
 }
 
+// Original accepted container state from parent's lifetime-bound undo receipt.
+// It is not a public token or independent authority. Restore the ORIGINAL
+// intent ordering and membership scope, so undo cannot consume late members or
+// overwrite a newer explicit child action. action_sequence still advances.
+type uoPersonalIntentRestore struct {
+	set                bool
+	membership, intent int64
+}
 type uoPersonalIntentInput struct {
 	policy                                                                    uoPersonalPolicy
 	subjectID, libraryID, entityRevision, admissionRevision, expectedRevision int64
@@ -97,19 +105,23 @@ type uoPersonalIntentInput struct {
 	// Trusted clock and captured generation, never a client timestamp/generation.
 	activityGeneration int64
 	at                 string
+	restore            uoPersonalIntentRestore
 }
 type uoPersonalIntentEffect struct {
-	revision, action, membership, viewer, selection int64
-	watched, dismissed                              bool
+	revision, action, intent, membership, viewer, selection int64
+	watched, dismissed                                      bool
 }
 
 // SetWatchedIntent(601) and DismissContinue(602). Container undo is a NEW
-// action restoring its previous watched value, with the current watermark;
+// action restoring its previous watched value and original intent/membership;
 // expectedRevision prevents undo from erasing a successor intent. No child row,
 // occurrence, play time or immutable history is manufactured or enumerated.
 func applyUOPersonalIntent(ctx context.Context, turn *commandTurn, q uoPersonalIntentInput) (out uoPersonalIntentEffect, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if !q.policy.valid() || !uoPersonalText(q.library, 128) || !uoPersonalText(q.at, 64) || q.subjectID <= 0 || q.libraryID <= 0 || q.entityRevision <= 0 || q.admissionRevision <= 0 || q.expectedRevision < 0 || q.expectedRevision == math.MaxInt64 || q.publicID == [16]byte{} || q.activityGeneration <= 0 || q.dismiss && (q.watched || q.container) {
+		return out, ErrInvalid
+	}
+	if q.restore.set && (!q.container || q.dismiss || q.restore.membership < 0 || q.restore.intent < 0 || q.restore.intent == 0 && (q.restore.membership != 0 || q.watched)) || !q.restore.set && q.restore != (uoPersonalIntentRestore{}) {
 		return out, ErrInvalid
 	}
 	h, err := readUOPersonalHead(ctx, turn, q.policy)
@@ -151,12 +163,24 @@ func applyUOPersonalIntent(ctx context.Context, turn *commandTurn, q uoPersonalI
 			return out, err
 		}
 	}
+	out.intent = h.action
+	if q.restore.set {
+		if q.restore.membership > out.membership || q.restore.intent >= h.action {
+			return out, ErrConflict
+		}
+		out.membership = q.restore.membership
+		out.intent = q.restore.intent
+	}
+	var intent any = out.intent
+	if out.intent == 0 {
+		intent = nil
+	}
 	next := q.expectedRevision + 1
 	if q.expectedRevision == 0 {
 		next = 1
 	}
 	id := stmt.ID("uo.personal.intent.watched")
-	args := []any{next, h.action, h.activity, h.recommendation, uoFlagInteger(q.watched), q.at, uoFlagInteger(q.container), out.membership, h.action, q.policy.profile, q.subjectID, q.publicID[:], max(int64(1), q.expectedRevision)}
+	args := []any{next, h.action, h.activity, h.recommendation, uoFlagInteger(q.watched), q.at, uoFlagInteger(q.container), out.membership, intent, q.policy.profile, q.subjectID, q.publicID[:], max(int64(1), q.expectedRevision)}
 	if q.dismiss {
 		id = "uo.personal.intent.dismiss"
 		args = []any{next, h.action, h.activity, h.recommendation, q.at, q.policy.profile, q.subjectID, q.publicID[:], max(int64(1), q.expectedRevision)}
@@ -186,7 +210,7 @@ func uoPersonalIntentDefinitions() []stmt.Definition {
 		uoPDef("uo.personal.intent.insert", stmt.Write, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,activity_generation,recommendation_generation) VALUES(?,?,?,?,?,?) RETURNING revision`, uoPT("profile"), uoPB("public"), uoPI("subject"), uoPI("library"), uoPI("activity"), uoPI("recommendation")),
 		uoPDef("uo.personal.intent.clock", stmt.Read, `SELECT sequence FROM catalog_membership_clock WHERE singleton=1`),
 	}
-	defs = append(defs, uoPDef("uo.personal.intent.watched", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,watched=?,watched_at=?,container_membership_sequence=CASE WHEN ?=1 THEN ? ELSE NULL END,container_intent_sequence=?,evidence_fence_playback_id=resume_playback_id,resume_position=0,resume_completed=0,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPI("watched"), uoPT("at"), uoPI("container"), uoPI("membership"), uoPI("intent"), uoPT("profile"), uoPI("subject"), uoPB("public"), uoPI("old")))
+	defs = append(defs, uoPDef("uo.personal.intent.watched", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,watched=?,watched_at=?,container_membership_sequence=CASE WHEN ?=1 THEN ? ELSE NULL END,container_intent_sequence=?,evidence_fence_playback_id=resume_playback_id,resume_position=0,resume_completed=0,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPI("watched"), uoPT("at"), uoPI("container"), uoPI("membership"), stmt.Param{Name: "intent", Type: stmt.Integer, Nullable: true}, uoPT("profile"), uoPI("subject"), uoPB("public"), uoPI("old")))
 	defs = append(defs, uoPDef("uo.personal.intent.dismiss", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,dismissed_playback_id=resume_playback_id,dismissed_child_public_id=resume_item_public_id,dismissed_activity_at=?,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPT("at"), uoPT("profile"), uoPI("subject"), uoPB("public"), uoPI("old")))
 	// Every generation-stale field is cleared before stamping this one row.
 	for n := range defs {

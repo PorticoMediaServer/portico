@@ -78,7 +78,7 @@ func readUOPersonalHistory(q browseQuery, account, profileID, member, birth stri
 		}
 		id := r[0].(int64)
 		out.next = &uoPersonalHistoryCursor{id: id, head: head, binding: [4]string{account, profileID, member, birth}}
-		if r[6].(int64) == 0 || r[1] == nil {
+		if r[6] == nil || r[1] == nil {
 			continue
 		}
 		out.rows = append(out.rows, uoPersonalHistoryRow{id: id, subject: r[1].(int64), position: r[2].(int64), playedMS: r[3].(int64), generation: r[4].(int64)})
@@ -117,19 +117,19 @@ func UOPersonalHistoryDefinitions() []stmt.Definition {
 		params := []stmt.Param{s("profile"), s("member"), s("birth"), i("cutoff"), s("account")}
 		args := []any{"profile-one", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", int64(0), "account-one"}
 		if name == "same" {
-			where = " AND occurred_at=? AND id<?"
+			where = " AND h.occurred_at=? AND h.id<?"
 			params = append(params, s("time"), i("id"))
 			args = append(args, "2026-11-07T00:00:00Z", int64(100))
 		}
 		if name == "older" {
-			where = " AND occurred_at<?"
+			where = " AND h.occurred_at<?"
 			params = append(params, s("time"))
 			args = append(args, "2026-11-07T00:00:00Z")
 		}
 		params = append(params, i("limit"))
 		args = append(args, int64(64))
-		sql := `SELECT id,subject_id,position,played_ms,activity_generation,accepted_sequence,CASE WHEN profile_id=? AND membership_incarnation=? AND profile_lifetime=? AND id>=? THEN 1 ELSE 0 END FROM play_history INDEXED BY play_history_admin_user WHERE account_key=?` + where + ` ORDER BY occurred_at DESC,id DESC LIMIT ?`
-		out = append(out, add(name, sql, params, args, stmt.Plan{Hot: true, Indexes: []string{"play_history_admin_user"}}))
+		sql := `SELECT h.id,h.subject_id,h.position,h.played_ms,h.activity_generation,h.accepted_sequence,v.id FROM play_history h INDEXED BY play_history_admin_user LEFT JOIN play_history v ON v.id=h.id AND v.profile_id=? AND v.membership_incarnation=? AND v.profile_lifetime=? AND v.id>=? WHERE h.account_key=?` + where + ` ORDER BY h.occurred_at DESC,h.id DESC LIMIT ?`
+		out = append(out, add(name, sql, params, args, stmt.Plan{Hot: true, Indexes: []string{"play_history_admin_user"}, PrimaryKeys: []string{"v"}}))
 	}
 	pin := stmt.AutoIndexBinding{Table: "personal_activity_revisions", Name: "sqlite_autoindex_personal_activity_revisions_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "profile_id", Collation: "BINARY"}}}
 	out[0].Plan = stmt.Plan{Hot: true, Indexes: []string{pin.Name}, AutoIndexes: []stmt.AutoIndexBinding{pin}}
