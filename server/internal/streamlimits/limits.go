@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/securitypolicy"
 )
 
 type Mode string
@@ -25,7 +26,7 @@ func (Mode) JSONSchema() map[string]any {
 	return map[string]any{"type": "string", "enum": []string{"inherit", "unlimited", "limit"}}
 }
 func Valid(mode Mode, value int) bool {
-	return mode == Limit && value >= 1 && value <= 1000 || (mode == Inherit || mode == Unlimited) && value == 0
+	return securitypolicy.ValidStreamMode(string(mode), value)
 }
 
 type Facts struct {
