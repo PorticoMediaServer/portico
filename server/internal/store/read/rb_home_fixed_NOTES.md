@@ -137,3 +137,19 @@ available=0 while publication is pending. The latter invalidates the entire
 shelf. Album current/next leaf dismissal markers without an accepted native
 container interpretation also remain pending instead of silently resurrecting
 removed activity or claiming a successful empty album row.
+
+## Frozen new-family evidence
+
+Source109ff098b440a515232b74dacc9d8f15f4c4ce41, hosted run42426930860:
+all seven selected NEW fixed-family parents PASS with Go1.26.10. Both actual
+Reader statistics populations passed:13 statements,20 cohorts each, no SCAN or
+TEMP exceptions. The unchanged native publication and original topology race
+parents also passed in run42422389120; that run overall failed the earlier105
+capacity and optional-byte plans, now fixed. It is not a final-source full-race
+claim. The parent retains broader integration/race qualification.
+
+Adopted artifact: testdata/rb-home-fixed-plans.json.gz
+SHA256:3abfb0bc0d08ec363012de8a2694ae5d812a1b09e24063056924b539e8dadbf5
+The artifact is copied unchanged from that actual runner, never regenerated from
+stored JSON. CompareJSON is only a baseline check; fresh Capture is still required
+to mint the opaque registration receipt. Existing frozen golden files are intact.
