@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/facettext"
@@ -113,6 +114,9 @@ func PrepareFragments(value string, budget FragmentBudget) (FragmentPlan, error)
 	if err != nil || budget.PreparationBytes < need {
 		return FragmentPlan{}, fmt.Errorf("%w: %w", ErrFragmentBudget, ErrPreparationBudget)
 	}
+	if err := preflightSearchDocument(value, budget); err != nil {
+		return FragmentPlan{}, err
+	}
 	// Both lexical and normalized streams see the same normalized field prefix. Check all
 	// indivisible tokens now, before prefix materialization or normalized-window allocation.
 	document := facettext.SearchDocument(value)
@@ -179,4 +183,72 @@ func lexicalWork(word string) int { return 4 * utf8.RuneCountInString(word) }
 
 func fits(f Fragment, b FragmentBudget) bool {
 	return f.Bytes() <= b.Bytes && f.TokenWork() <= b.TokenWork
+}
+
+// Check complete normalized/component tokens while streaming, before a large
+// delimiter tail or whole document can be materialized. These are the same
+// token byte/work and scalar-hex limits used by the actual packer.
+func preflightSearchDocument(value string, b FragmentBudget) error {
+	type token struct {
+		bytes, runes            int
+		numeric, allCJK, hasCJK bool
+	}
+	empty := func() token { return token{numeric: true, allCJK: true} }
+	whole, part := empty(), empty()
+	var refused error
+	finish := func(t token) bool {
+		if t.runes == 0 || t.hasCJK && !(t.allCJK && t.runes <= 2) {
+			return true
+		}
+		limit := facettext.IndexedSearchPrefixRunes
+		if t.numeric {
+			limit = facettext.NumericSearchPrefixRunes
+		}
+		n := min(t.runes, limit)
+		if 6*n > min(tokenColumnBytes, b.Bytes) || 1+n > b.TokenWork {
+			refused = fmt.Errorf("%w: indivisible prefix token", ErrFragmentBudget)
+			return false
+		}
+		return true
+	}
+	add := func(t *token, r rune) {
+		t.bytes += utf8.RuneLen(r)
+		t.runes++
+		t.numeric = t.numeric && unicode.IsNumber(r)
+		cjk := facettext.CJK(r)
+		t.hasCJK = t.hasCJK || cjk
+		t.allCJK = t.allCJK && cjk
+	}
+	err := facettext.WalkSearchField(value, func(r rune) bool {
+		if r == ' ' || r == '-' {
+			if !finish(part) {
+				return false
+			}
+			part = empty()
+			if r == ' ' {
+				if !finish(whole) {
+					return false
+				}
+				whole = empty()
+			}
+			return true
+		}
+		add(&whole, r)
+		add(&part, r)
+		if whole.bytes > min(tokenColumnBytes, b.Bytes) || 4*whole.runes > b.TokenWork {
+			refused = fmt.Errorf("%w: indivisible lexical token", ErrFragmentBudget)
+			return false
+		}
+		return true
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrFragmentBudget, err)
+	}
+	if refused != nil {
+		return refused
+	}
+	if !finish(part) || !finish(whole) {
+		return refused
+	}
+	return nil
 }
