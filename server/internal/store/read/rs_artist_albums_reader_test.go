@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
@@ -11,6 +12,9 @@ import (
 	"testing"
 	"time"
 )
+
+//go:embed rs_artist_albums_reader_test.go
+var rsArtistAlbumReaderJournal string
 
 func artistAlbumFixture(t *testing.T) (*browseFixture, *RSArtistAlbumReader) {
 	t.Helper()
@@ -22,7 +26,16 @@ func artistAlbumFixture(t *testing.T) (*browseFixture, *RSArtistAlbumReader) {
 	// composeReadFixture captures the actual composed registry under both native
 	// statistics profiles and issues it from the resulting receipt.
 	var _ []stmt.Definition = defs
-	f := composeReadFixture(t, audioRelationsFixture(t), defs, cfg, true, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
+	source := audioRelationsFixture(t)
+	for _, x := range []struct {
+		id, kind, template int64
+		artist, album      any
+	}{{9900, 5, 2006, nil, nil}, {9901, 6, 2001, int64(9900), nil}, {9902, 7, 4001, nil, int64(9901)}} {
+		source.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,randomblob(16),1,?)`, x.id, x.kind)
+		source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id,album_id) SELECT id,public_id,library_id,kind,?,'x','x','x','x',0,public_id,public_id,?,? FROM catalog_subjects WHERE id=?`, "é\x00album", x.artist, x.album, x.id)
+	}
+	source.exec(t, `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(9902,2006)`)
+	f := composeReadFixture(t, source, defs, cfg, true, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
 	f.exec(t, "ANALYZE")
 	g := captureBrowse(t, f, defs, plan.Analyzed, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
 	if _, err := stmt.New(defs, g.Receipt()); err != nil {
