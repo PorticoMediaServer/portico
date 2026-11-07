@@ -28,7 +28,7 @@ remain in force. Larger exact producers/cache, aggregate-container personal
 semantics, filtered composition and complete API DTO projection remain pending.
 
 Functional controls use virtual time and cover all three sorts/directions,
-NULL/zero values, ASCII versus Unicode keys, close-to-MaxInt64 play counts,
+NULL/zero values, ASCII versus Unicode titles, close-to-MaxInt64 play counts,
 other-profile facts, native public-identity FK enforcement, raw hidden-tail
 refusal, revocation/viewer-revision drift, cursor binding and actual LIVE debt.
 Both native statistics profiles require source-bound Capture receipts. This
