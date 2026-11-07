@@ -30,12 +30,27 @@ func authorBookFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture
 	defs := append(browseDefinitions(), RSAuthorBookDefinitions()...)
 	defs = append(defs, TitleFactsDefinitions()...)
 	defs = append(defs, ArtworkDefinitions()...)
+	defs = append(defs, UOPersonalDefinitions()...)
 	source := audioRelationsFixture(t)
-	source.exec(t, `UPDATE catalog_entities SET author=' École ',title='Book',series_position='2.5' WHERE id=1108`)
-	source.exec(t, `UPDATE catalog_entities SET book_id=1108 WHERE id=1109`)
-	f := composeReadFixture(t, source, defs, cfg, true, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
+	source.exec(t, `UPDATE catalog_entities SET author=' École ',title='Book',series_position='2.5' WHERE id=2002`)
+	source.exec(t, `UPDATE catalog_entities SET retired=1 WHERE kind=9`)
+	for _, x := range []struct {
+		id, kind, book     int64
+		author, title, pos string
+		retired            int64
+	}{{14001, 9, 2002, "", "", "", 0}, {14002, 9, 2002, "", "", "", 0}, {14003, 8, 0, " ÉCOLE ", "First", "1", 0}, {14004, 9, 14003, "", "", "", 0}, {14005, 8, 0, "école", "Fileless", "3", 0}, {14006, 8, 0, "other", "Wrong author", "1", 0}, {14007, 9, 14006, "", "", "", 0}, {14008, 8, 0, "école", "Retired", "1", 1}, {14009, 9, 14008, "", "", "", 0}, {14010, 8, 0, "école", "Hidden file", "1", 0}, {14011, 9, 14010, "", "", "", 0}} {
+		source.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(?,randomblob(16),1,?)`, x.id, x.kind)
+		var book any
+		if x.book != 0 {
+			book = x.book
+		}
+		source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,author,series_position,book_id,retired,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) SELECT id,public_id,library_id,kind,?,?,?,?,?,'x','x','x','x',0,public_id,public_id FROM catalog_subjects WHERE id=?`, x.title, x.author, x.pos, book, x.retired, x.id)
+	}
+	source.exec(t, `UPDATE catalog_entities SET admission_own_age=99 WHERE id=14011`)
+
+	f := composeReadFixture(t, source, defs, cfg, true, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal+rsAuthorBookReaderJournal))))
 	f.exec(t, "ANALYZE")
-	g := captureBrowse(t, f, defs, plan.Analyzed, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
+	g := captureBrowse(t, f, defs, plan.Analyzed, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal+rsAuthorBookReaderJournal))))
 	if _, err := stmt.New(defs, g.Receipt()); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +81,7 @@ func TestRSAuthorBookReaderLIVEAndMembership(t *testing.T) {
 			t.Fatal(i, e)
 		}
 		if page.Complete {
-			if page.Total != 1 || len(page.Cards) != 1 || page.Cards[0].Facts.Book == nil {
+			if page.Total != 3 || len(page.Cards) != 2 || page.Cards[0].Facts.Book == nil {
 				t.Fatal(page)
 			}
 			return

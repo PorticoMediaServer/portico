@@ -46,7 +46,8 @@ type RSAuthorBookCursor struct {
 // MissingCanonicalFacts identifies facts unavailable in the accepted scalar
 // image, rather than manufacturing successful empty provider observations.
 type RSAuthorBookCard struct {
-	Facts TitleFacts
+	Facts    TitleFacts
+	Personal *PersonalState
 
 	Artwork               ArtworkFact
 	MissingCanonicalFacts []string
@@ -73,10 +74,11 @@ type RSAuthorBookPreparation struct {
 	candidateEntry             rsAuthorBookEntry
 	fileVisible                bool
 
-	phase    int
-	selected []int64
-	cards    []RSAuthorBookCard
-	hydrate  int
+	phase       int
+	selected    []int64
+	cards       []RSAuthorBookCard
+	hydrate     int
+	hydratedArt bool
 }
 
 func (p *RSAuthorBookPreparation) charge(n int64) error {
@@ -180,7 +182,13 @@ func (r *RSAuthorBookReader) fence(ctx context.Context, q governor.Request, out 
 	return nil
 }
 func (p *RSAuthorBookPreparation) identity() [32]byte {
-	return sha256.Sum256([]byte(fmt.Sprintf("%#v/%v", p.fence, p.entries)))
+	return sha256.Sum256([]byte(fmt.Sprintf("%#v/%#v/%v", p.fence, struct {
+		Owner           governor.OwnerID
+		Author, Library int64
+		Token           string
+		Limit           int
+		Key             string
+	}{p.owner, p.input.Author, p.input.View.Library, p.input.View.TokenHash, p.input.Limit, p.key}, p.entries)))
 }
 func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out BrowseOutput, p *RSAuthorBookPreparation, at time.Time) (page RSAuthorBookPage, cost BrowseReadResult, err error) {
 	if err = r.fence(ctx, q, out, p, at, &cost); err != nil {
@@ -189,15 +197,6 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 	if p.phase < 2 {
 		err = r.enumerate(ctx, q, out, p, at, &cost)
 	} else if p.phase == 2 {
-		id := p.identity()
-		in := p.input
-		after := int64(0)
-		if a := in.After; a != nil {
-			if a.identity != id || a.author != in.Author || a.library != in.View.Library || a.kind != 8 || a.limit != in.Limit {
-				return page, cost, ErrStale
-			}
-			after = a.after
-		}
 		slices.SortFunc(p.entries, func(a, b rsAuthorBookEntry) int {
 			if n := cmp.Compare(a.position, b.position); n != 0 {
 				return n
@@ -207,6 +206,16 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 			}
 			return cmp.Compare(a.id, b.id)
 		})
+		id := p.identity()
+		in := p.input
+		after := int64(0)
+		if a := in.After; a != nil {
+			if a.identity != id || a.author != in.Author || a.library != in.View.Library || a.kind != 8 || a.limit != in.Limit {
+				return page, cost, ErrStale
+			}
+			after = a.after
+		}
+
 		offset := int(after)
 		if offset < 0 || offset > len(p.entries) {
 			return page, cost, ErrStale
@@ -253,9 +262,7 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 	if he != nil || !p.input.View.Now.Add(time.Since(p.started)).Before(horizon) {
 		return page, cost, ErrDenied
 	}
-	if err = r.authority.HandoffPreparation(p.lease); err != nil {
-		return
-	}
+
 	page = RSAuthorBookPage{Cards: p.cards, Total: len(p.entries), Complete: true}
 	offset := 0
 	if p.input.After != nil {
@@ -265,12 +272,6 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 		page.Next = &RSAuthorBookCursor{identity: p.identity(), author: p.input.Author, library: p.input.View.Library, kind: 8, limit: p.input.Limit, after: int64(offset + len(p.selected))}
 	}
 
-	// Output now owns the charged values; retiring the preparation drops all
-	// references without mutating the consumer's copied page.
-	err = p.close()
-	if err != nil {
-		page = RSAuthorBookPage{}
-	}
 	return
 }
 
@@ -417,16 +418,74 @@ func (r *RSAuthorBookReader) hydrate(ctx context.Context, q governor.Request, ou
 				card.Facts = v
 			}
 		}
-	} else {
+	} else if !p.hydratedArt {
 		card.Artwork, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 8, id), Item: id, Role: "poster", PageSlot: true})
 		if e == nil {
 			e = p.charge(authorBookCardBytes(*card))
 			if e == nil {
 				card.MissingCanonicalFacts = []string{"catalog_books.provider_match_status", "bookRoleSQL", "accepted effective series evidence"}
+				p.hydratedArt = true
+			}
+		}
+	} else {
+		var state PersonalState
+		state, c, e = f.uoPersonalState(ctx, q, time.Until(p.lease.Deadline()), out, PersonalStateInput{View: p.view(at, 8, id), Item: id})
+		if e == nil {
+			e = p.charge(512)
+			if e == nil {
+				card.Personal = &state
 				p.hydrate++
+				p.hydratedArt = false
 			}
 		}
 	}
+
 	addSearchReadCost(cost, &c)
 	return e
+}
+
+// Publish encodes and delivers a ready draft inside the existing LIVE/output
+// custody. The original preparation stays charged until the consumer returns.
+// Page is a trusted preparation API; only Publish delivers public bytes.
+func (r *RSAuthorBookReader) Publish(ctx context.Context, req governor.Request, budget time.Duration, out BrowseOutput, p *RSAuthorBookPreparation, encode func(RSAuthorBookPage) ([]byte, error), consume func([]byte) error) (bool, error) {
+	if r == nil || p == nil || p.reader != r || encode == nil || consume == nil {
+		return false, ErrInput
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed || p.owner != req.Owner {
+		return false, ErrInput
+	}
+	_, _, err := liveRead(ctx, req, budget, out, r.pool, p.input.View.Now.Add(time.Since(p.started)), func(ctx context.Context, q governor.Request, b time.Duration, at time.Time) (struct{}, BrowseReadResult, error) {
+		page, cost, e := r.poll(ctx, q, out, p, at)
+		if e != nil {
+			return struct{}{}, cost, e
+		}
+		if page.Pending {
+			return struct{}{}, cost, nil
+		}
+		bytes, e := encode(page)
+		if e != nil {
+			return struct{}{}, cost, e
+		}
+		if int64(len(bytes)) > out.Request.Need[governor.MemoryBytes]/2 {
+			return struct{}{}, cost, governor.ErrSnapshotBudget
+		}
+		if e = p.charge(int64(len(bytes))); e != nil {
+			return struct{}{}, cost, e
+		}
+		if e = r.fence(ctx, q, out, p, at, &cost); e != nil {
+			return struct{}{}, cost, e
+		}
+		if e = r.authority.HandoffPreparation(p.lease); e != nil {
+			return struct{}{}, cost, e
+		}
+		e = consume(bytes)
+		return struct{}{}, cost, e
+	})
+	done := p.phase == 4
+	if err != nil || done {
+		err = errors.Join(err, p.close())
+	}
+	return done, err
 }
