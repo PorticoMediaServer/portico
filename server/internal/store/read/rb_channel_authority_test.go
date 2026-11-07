@@ -22,7 +22,11 @@ func newRBChannelSource(t *testing.T) *browseFixture {
 	t.Helper()
 	f := newBrowseSource(t)
 	cfg := librarychannels.Config{Version: librarychannels.ProtocolVersion, ID: "channel", Name: "Channel", Enabled: true, Timezone: "UTC", Seed: "seed", DefaultRuleID: "rule", ViewerAccess: "server-members", Quality: librarychannels.Quality{Mode: "automatic"}, Rules: []librarychannels.Rule{{ID: "rule", Name: "Rule", Mode: "sequential", EpisodeMode: "none", Exhaustion: "loop", MaxConsecutive: 1, Query: librarychannels.Query{LibraryIDs: []string{"movies"}, Kinds: []string{"movie"}, Order: "title"}}}}
-	canonical, _, err := rbChannelConfig(string(mustRBChannelJSON(t, cfg)), "channel")
+	cfg, err := librarychannels.Normalize(cfg)
+	if err == nil {
+		err = librarychannels.Validate(cfg)
+	}
+	canonical := mustRBChannelJSON(t, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

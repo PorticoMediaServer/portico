@@ -13,7 +13,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/entityid"
-	librarychannels "github.com/PorticoMediaServer/portico/server/internal/livechannels/library"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
@@ -69,7 +68,7 @@ func rbChannelSamePublicFence(a, b SharedChannelFence) bool {
 
 // All source work is bounded; callbacks below are fixed reader-owned steps,
 // never caller callbacks. Every physical quantum rechecks channel+library.
-func (r *SharedChannelReader) channelQuantum(ctx context.Context, request governor.Request, deadline time.Time, out BrowseOutput, scope *SharedChannelScope, result *BrowseReadResult, publication bool, step func(browseQuery, librarychannels.Query) error) error {
+func (r *SharedChannelReader) channelQuantum(ctx context.Context, request governor.Request, deadline time.Time, out BrowseOutput, scope *SharedChannelScope, result *BrowseReadResult, publication bool, step func(browseQuery, rbChannelQuery) error) error {
 	physical, err := r.snapshots.Read(ctx, request, time.Until(deadline), func(s *governor.ReadScope) error {
 		q := func(name string, args ...any) ([][]any, error) {
 			if publication {
@@ -82,7 +81,7 @@ func (r *SharedChannelReader) channelQuantum(ctx context.Context, request govern
 			}
 			return s.Query(readStatementID(name), args...)
 		}
-		var query librarychannels.Query
+		var query rbChannelQuery
 		stamp, info, err := r.channelSource(q, scope.input, out.Request.Need[governor.MemoryBytes]/2, &query)
 		if err != nil {
 			return err
@@ -132,7 +131,16 @@ func rbChannelMetaValue(row []any, kind int64) (rbChannelMeta, error) {
 		copy(d[:], b)
 		return true
 	}
-	if !blob(row[1], &m.Public) || !blob(row[16], &m.PlaybackIncarnation) || !blob(row[19], &m.MetadataIncarnation) {
+	if !blob(row[1], &m.Public) || !blob(row[19], &m.MetadataIncarnation) {
+		return m, ErrUnqualified
+	}
+	// An unbound origin is consumed negative raw work, not a whole playable
+	// item. The complete metadata row is still fenced at final publication,
+	// including a nil origin becoming bound during this operation.
+	if row[16] == nil || row[17] == nil {
+		return m, nil
+	}
+	if !blob(row[16], &m.PlaybackIncarnation) {
 		return m, ErrUnqualified
 	}
 	text := func(v any) string {
@@ -172,7 +180,7 @@ func rbChannelMetaValue(row []any, kind int64) (rbChannelMeta, error) {
 	return m, nil
 }
 
-func rbChannelRuleMatches(query librarychannels.Query, program rbScalarFilter, m rbChannelMeta, library string, createdMS int64) bool {
+func rbChannelRuleMatches(query rbChannelQuery, program rbScalarFilter, m rbChannelMeta, library string, createdMS int64) bool {
 	leaf, show := entityid.Encode(m.Public[:]), entityid.Encode(m.ShowPublic[:])
 	if slices.Contains(query.ExcludeItemIDs, leaf) || m.Show != 0 && slices.Contains(query.ExcludeItemIDs, show) {
 		return false
@@ -202,7 +210,7 @@ func rbChannelRuleMatches(query librarychannels.Query, program rbScalarFilter, m
 	return base || pinned
 }
 
-func rbChannelCompileQuery(query librarychannels.Query, kind int64) (rbScalarFilter, error) {
+func rbChannelCompileQuery(query rbChannelQuery, kind int64) (rbScalarFilter, error) {
 	if kind != 1 && kind != 4 {
 		return rbScalarFilter{}, ErrUnqualified
 	}
