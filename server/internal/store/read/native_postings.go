@@ -142,11 +142,12 @@ func nativePostingPoint(query browseQuery, term string, slot uint8, id int64) (b
 }
 
 type nativeSource struct {
-	scope         *fullQueryScope
-	key           search.FieldKey
-	title, fold   string
-	kind, library int64
-	item          []any
+	scope                *fullQueryScope
+	key                  search.FieldKey
+	title, fold, sortKey string
+	kind, library        int64
+	item                 []any
+	permission           nativePolicyWitness
 }
 
 // The accepted point uses the current entity's full revision, not its narrower
@@ -164,7 +165,7 @@ func nativeEntitySource(query browseQuery, scope *fullQueryScope, id int64) (*na
 		if e != nil {
 			return nil, e
 		}
-		if len(item) == 0 || len(item) == 1 && len(item[0]) == 17 && item[0][4] == int64(1) {
+		if len(item) == 0 || len(item) == 1 && len(item[0]) == 19 && item[0][4] == int64(1) {
 			return nil, nil
 		}
 		return nil, errFullSearchPending
@@ -180,7 +181,7 @@ func nativeEntitySource(query browseQuery, scope *fullQueryScope, id int64) (*na
 	if err != nil {
 		return nil, err
 	}
-	if len(item) != 1 || len(item[0]) != 17 {
+	if len(item) != 1 || len(item[0]) != 19 {
 		return nil, ErrUnqualified
 	}
 	inc, ok := p[3].([]byte)

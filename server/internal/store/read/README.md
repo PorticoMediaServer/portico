@@ -210,12 +210,42 @@ census/SCAN fallback is used. Preparation-source identity changes make old banks
 stale under the existing profile check and governed rebuild protocol.
 
 
-There is **no native full-search executor installed**. The positive dispatch
-and ranking tests use explicit synthetic accepted-source data. Ordinary sibling
-tests execute real captured SQL, while native MATCH candidate selection remains
-gated on HN's fixed-slot READ Capture capability. Its eventual adapter must
-produce actual current bank/profile/head/visibility and canonical-first proofs;
-the private reducers and public callback cannot mint that authority. The opaque
-rank cursor is query/bank-bound harness state, not an authenticated wire cursor.
-No INSERT receipt is READ authority, no publisher is installed, and whole-route
-cost, maximum-body memory and ready/physical fit remain **UNQUALIFIED**.
+`NativeFullSearchReader.Read` is the unwired native adapter: one LIVE operation
+returns one global page across kinds (`View.Kind == 0`), with kind-bearing hits.
+Its inert `NativeFullSearchDefinitions` must all receive actual Reader Capture
+receipts. The merged fixed-slot READ capability supplies native rowid candidates,
+not logical populations, publisher eligibility or permission.
+
+Native search selects per-hit eligibility from the existing compiled
+`readPolicyRecipe` registry. A non-default domain must opt in with
+`nativeSearch: true`; at most one such recipe may own a kind. The private binding
+uses the actual source ID and kind, never the request's policy selector. The
+same validator runs in candidate and fresh final windows, comparing the exact
+bounded witness and source birth/revision/age. Catalogue fallback keeps restricted
+containers Unqualified; Reading stays refused until its domain opts in. A
+container's own age cannot replace its complete visible-member proof. Every
+future domain must keep its eligibility inputs within the shared source/revision
+fence used by native continuations; opting in is not a writer or epoch proof.
+
+Hits additionally carry canonical `SortKey`, `Year` and `AddedAt` for RS grouping.
+Entities use the same current source row's `sort_key`, `year` and `added_at`;
+People use `sort_name`, year0 and empty added time. Empty `AddedAt` means SQL NULL.
+
+Every validated native page, including exhausted pages with no cursor, carries
+an opaque `Stamp`. When retaining hits across polls, trusted composition supplies
+prior stamps in `FullSearchInput.Retained` (at most40 stamps/40 distinct retained
+source-policy witnesses). This SAME native operation revalidates them in both
+windows. Inside its still-live Consume callback, current
+`Stamp.ValidateRetained(ctx, out, prior)` verifies that the prior witnesses were
+actually rechecked. A prior stamp alone, including one omitted from the current
+input, grants no disclosure. RS separately owns retained payload/source-write
+custody and the shared final fence after response preparation.
+
+The prototype declares raw4096/read12MiB/output8MiB and finite forecasted calls,
+with a cumulative2MiB copy bound plus bounded proof workspace. Final windows do
+permission/source checks only, never rerun MATCH/ranking. All statements, calls
+and both windows count toward the complete route; these bounds are not a ready
+or physical-fit qualification. The rank cursor is opaque harness state, not an
+authenticated wire cursor. No INSERT receipt is READ authority, no publisher or
+runtime route is installed, and actual complete native proof/Capture controls,
+whole-route cost, maximum-body memory and ready/physical fit remain **UNQUALIFIED**.

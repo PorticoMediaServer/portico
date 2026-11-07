@@ -13,31 +13,13 @@ func nativeEligible(q browseQuery, in BrowseInput, f browseFence, source *native
 		allowed, err := nativePersonVisible(q, source.scope, in, f, source.key.SubjectID)
 		return allowed, "person", err
 	}
-	if source == nil || source.library != in.Library {
-		return false, "", nil
+	proof, name, allowed, err := nativePolicyForSource(q, in, f, source)
+	if err == nil && allowed {
+		source.permission = proof
 	}
-	if len(source.item) != 17 || !admittedItem(source.item, f) {
-		return false, "", nil
-	}
-	rows, err := q("full.native.kind", source.kind)
-	if err != nil {
-		return false, "", err
-	}
-	if len(rows) != 1 || len(rows[0]) != 3 || rows[0][0] != source.kind {
-		return false, "", ErrUnqualified
-	}
-	name, ok := rows[0][1].(string)
-	container, ok2 := rows[0][2].(int64)
-	if !ok || !ok2 {
-		return false, "", ErrUnqualified
-	}
-	f.kind, f.container = source.kind, container
-	in.Kind = source.kind
-	if err := validateReadPolicy(q, in, &f); err != nil {
-		return false, "", err
-	}
-	return true, name, nil
+	return allowed, name, err
 }
+
 func nativeSealed(q browseQuery, publication int64) error {
 	rows, err := q("full.native.seal", publication)
 	if err != nil {
@@ -259,6 +241,9 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 		return empty, hit, false, err
 	}
 	hit = FullSearchHit{Subject: search.ManifestEntity, ID: id, Library: source.library, Kind: source.kind, Tier: proof.tier, Item: item}
+	if err = nativeHitFacts(&hit, source); err != nil {
+		return empty, FullSearchHit{}, false, err
+	}
 	return proof, hit, true, nil
 }
 
