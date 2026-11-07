@@ -139,7 +139,7 @@ func TestWriterPageSizeNativeGeometry(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if err := conn.Close(); err != nil {
+				if err := conn.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
 					t.Fatal(err)
 				}
 			}
