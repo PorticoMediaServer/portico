@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
@@ -139,7 +140,13 @@ func TestWCSecurityProtocolNativeOwnerAndTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden := captureEffectiveFixture(t, conn, e.config, defs, "wc_security_protocol.go", "wc_security_protocol_test.go")
+	defer conn.Close()
+	// The reused progress birth returned this idle physical connection in
+	// NORMAL mode. Capture that actual policy; the security BEGIN below must
+	// acquire FULL independently, rather than mislabeling this idle capture.
+	capturePolicy := e.config
+	capturePolicy.Synchronous = sqliteconn.Normal
+	golden := captureEffectiveFixture(t, conn, capturePolicy, defs, "wc_security_protocol.go", "wc_security_protocol_test.go")
 	if err = conn.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -169,6 +176,9 @@ func TestWCSecurityProtocolNativeOwnerAndTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
+	if _, err = sqliteconn.Assert(tx.ctx, tx.conn, e.config); err != nil {
+		t.Fatal("security turn did not acquire FULL", err)
+	}
 	var steps []statementStep
 	for _, def := range defs {
 		steps = append(steps, statementStep{def.ID, Work{16, 4000, 16, 65536, 100 * time.Microsecond}})
