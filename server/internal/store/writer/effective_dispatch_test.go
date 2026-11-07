@@ -439,8 +439,8 @@ func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
 		t.Fatal("committed ACK above target became failure", ack, err)
 	}
 	var nativeFloor int64
-	// Quarantine closed the private pool; independently inspect actual native
-	// state with the shared policy opener. Zero output never proves rollback.
+	// Independently inspect actual native state with the shared policy opener;
+	// a target miss must neither erase the floor nor quarantine the pool.
 	db, _, openErr := sqliteconn.Open(t.Context(), path, executor.config)
 	if openErr != nil {
 		t.Fatal(openErr)
