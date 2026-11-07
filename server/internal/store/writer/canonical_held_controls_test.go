@@ -17,7 +17,11 @@ func TestCanonicalHeldClosedRegistryKeepsAllBindingsExplicit(t *testing.T) {
 			t.Fatal("duplicate/empty class", c)
 		}
 		seen[c.name] = true
-		if c.run != nil || len(canonicalHeldMissing(c)) != 2 {
+		want := 1
+		if c.name == "inventory_n1" {
+			want = 0
+		}
+		if len(canonicalHeldMissing(c)) != want || (c.run != nil) != (c.name == "inventory_n1") {
 			t.Fatal("unmerged seed/Action opened", c)
 		}
 		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.")) && (c.kind != "foreground_read" || c.purpose != nil) {
@@ -75,14 +79,14 @@ func TestCanonicalHeldBlockedPrefixIsDurableAndNotFakeZero(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
-	if len(lines) != 4 {
+	if len(lines) != 3 {
 		t.Fatal(string(raw))
 	}
 	var first, last map[string]any
 	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
 		t.Fatal(err)
 	}
-	if err := json.Unmarshal([]byte(lines[3]), &last); err != nil {
+	if err := json.Unmarshal([]byte(lines[2]), &last); err != nil {
 		t.Fatal(err)
 	}
 	if first["target_kind"] != "foreground_read" || first["normal_hosted_p99_ns"] != nil || first["actual_library_items"] != nil || last["complete"] != false || last["report"] != nil || last["native_calls_started"] != float64(0) {
