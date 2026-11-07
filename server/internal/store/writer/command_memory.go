@@ -22,7 +22,7 @@ func validateMemoryPartition(b commandMemoryBudget, total int64, field string) e
 
 func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandID, requiredBytes uint64, partitionField string) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
-	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept {
+	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && purpose != InventoryDirectoryDiscover && purpose != InventoryDirectoryEOF {
 		return ErrInvalid
 	}
 	if ctx == nil || t == nil || t.transaction == nil || requiredBytes == 0 {
@@ -55,6 +55,9 @@ func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandI
 	}
 	if purpose == BasicStage || purpose == BasicSeal || purpose == BasicAccept {
 		b = c.basicMemory
+	}
+	if purpose == InventoryDirectoryDiscover || purpose == InventoryDirectoryEOF {
+		b = c.directoryMemory
 	}
 	if err := validateMemoryPartition(b, c.expected.Need[governor.MemoryBytes], partitionField); err != nil {
 		return err
