@@ -437,9 +437,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if err := observeTime(&r.clockHighWater, now); err != nil {
 		return out, acknowledged, errors.Join(err, r.wal.Publish(r.wal.Observation(), governor.WALState{}, time.Time{}))
 	}
-	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover || scan.issuer.action == scanIssuerInventory || scan.issuer.action == scanIssuerN1Recover) {
+	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover || scan.issuer.action == scanIssuerInventory || scan.issuer.action == scanIssuerBasicSource || scan.issuer.action == scanIssuerN1Recover) {
 		scan.issuer.deadline = now.Add(scan.issuer.driver.readyPlan.ready)
-		if scan.issuer.action == scanIssuerInventory && time.UnixMilli(scan.issuer.lease.expiresMS).Before(scan.issuer.deadline) {
+		if (scan.issuer.action == scanIssuerInventory || scan.issuer.action == scanIssuerBasicSource) && time.UnixMilli(scan.issuer.lease.expiresMS).Before(scan.issuer.deadline) {
 			scan.issuer.deadline = time.UnixMilli(scan.issuer.lease.expiresMS)
 		}
 		if stop, ok := ctx.Deadline(); ok && stop.Before(scan.issuer.deadline) {
@@ -682,6 +682,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	if err == nil && scan != nil && scan.issuer != nil && scan.issuer.action == scanIssuerClaim && !historical {
 		_, err = turn.scanClaimTimeMS(ctx, scan.issuer.claimMode, scan.issuer.claim.request.Run.leaseExpiresMS, scan.issuer.expiresMS)
+	}
+	if err == nil && scan != nil && scan.issuer != nil && scan.issuer.action == scanIssuerBasicSource {
+		_, err = turn.commandTimeMS(ctx, InventoryClaim, scan.issuer.lease.expiresMS)
 	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
