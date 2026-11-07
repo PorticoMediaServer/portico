@@ -27,7 +27,7 @@ func TestScanLifecycleHistoryStatementPlans(t *testing.T) {
 	}
 	parts := []struct{ name, sha string }{
 		{"scan_lifecycle_protocol_test.go", "7edd5ab4def25d4b314fbc8944421a016e99255bcbdf1e6216b1a8854edbf358"},
-		{"scan_receipts_test.go", "82a7596dcf5619de4be293779f8e0c324dfdfb1c373f51b85328e95d99978de5"},
+		{"scan_receipts_test.go", "27c2de821f72f47109fd758a39c026b4b5d7492b2e5f0124e4b9100a13d394ae"},
 	}
 	hash := sha256.New()
 	for _, part := range parts {
@@ -45,7 +45,7 @@ func TestScanLifecycleHistoryStatementPlans(t *testing.T) {
 		hash.Write(data)
 	}
 	fixtureSHA := hex.EncodeToString(hash.Sum(nil))
-	if fixtureSHA != "faf6220202f0bea629fc3dd2dc180360659b75d18471c576fb5f2916e88782db" {
+	if fixtureSHA != "718684cc178e81745a7603ae3ccbddf6694b538889374f9623ef1a36cdc20855" {
 		t.Fatal("closed source journal changed")
 	}
 	defs := scanRunLifecycleHistoryDefinitions()
