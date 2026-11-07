@@ -62,7 +62,7 @@ func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptReques
 	for i := range partitions {
 		partitions[i] = p.need
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: e.now, WAL: gate})
+	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: func() time.Time { return e.now() }, WAL: gate})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,8 +441,17 @@ func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 			installFaultPool(e, fault)
 			primeEffectiveFixturePool(t, e)
 			ack, err := w.AckScan(t.Context(), cap, q)
-			if !reflect.DeepEqual(ack, AckResult{}) || a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
-				t.Fatal("ACK lost physical outcome or grant custody", ack, err)
+			if a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
+				t.Fatal("ACK lost grant custody", ack, err)
+			}
+			if mode == "overrun" {
+				if err != nil || ack.AcknowledgedThrough != q.Receipt.Identity.Sequence || ack.Evidence == nil ||
+					!ack.Evidence.HoldTargetExceeded || ack.Evidence.HoldTarget <= 0 || ack.Evidence.HoldTarget > MaxCommandHold ||
+					ack.Evidence.HoldSafetyCeiling != MaxCommandSafetyHold {
+					t.Fatal("over-target ACK failed or lost evidence", ack, err)
+				}
+			} else if !reflect.DeepEqual(ack, AckResult{}) {
+				t.Fatal("ACK lost physical outcome", ack, err)
 			}
 			if mode == "overrun" {
 				db, _, openErr := sqliteconn.Open(t.Context(), w.effective.path, e.config)
@@ -458,8 +467,12 @@ func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 			}
 			switch mode {
 			case "overrun":
-				if !errors.Is(err, ErrOverrun) || !w.effective.fenced {
-					t.Fatal("committed overrun became retryable rollback", ack, err)
+				if err != nil || e.fenced || w.effective.fenced || e.holdTargetOverruns.Load() != 1 {
+					t.Fatal("over-target ACK fenced or lost counter", ack, err)
+				}
+				retired, resolveErr := w.ResolveScan(t.Context(), cap, q)
+				if resolveErr != nil || retired.Outcome.State != ResultRetired || retired.RunID != "" || len(retired.Members) != 0 || retired.Digest != (ResultDigest{}) {
+					t.Fatal("next original resolution did not remain retired", retired, resolveErr)
 				}
 			case "ambiguous":
 				if !errors.Is(err, ErrResolveRequired) || !w.effective.fenced || !fault.nativeClosed.Load() {

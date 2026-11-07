@@ -259,12 +259,12 @@ func TestSearchImageTimeLeaseAndTerminal(t *testing.T) {
 			var want error
 			switch mode {
 			case "equal_deadline":
-				expires = base.Add(testRecipe().limit.Hold).UnixMilli()
+				expires = base.Add(MaxCommandSafetyHold).UnixMilli()
 			case "expired":
 				expires = base.UnixMilli()
 				want = ErrConflict
 			case "short_lease":
-				expires = base.Add(testRecipe().limit.Hold - time.Millisecond).UnixMilli()
+				expires = base.Add(MaxCommandSafetyHold - time.Millisecond).UnixMilli()
 				want = ErrConflict
 			case "backward":
 				*clock = base.Add(-time.Nanosecond)

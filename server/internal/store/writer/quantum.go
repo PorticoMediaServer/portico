@@ -19,7 +19,13 @@ type Work struct {
 	Hold     time.Duration
 }
 
+// MaxCommandHold is the admission/quantum forecast target, not an elapsed-time
+// abort. A slow successful syscall can exceed it without changing its outcome.
 const MaxCommandHold = 25 * time.Millisecond
+
+// MaxCommandSafetyHold bounds runtime execution against wedges. Original caller,
+// preparation and grant deadlines can only shorten this ceiling.
+const MaxCommandSafetyHold = 3 * time.Second
 
 // Quantum is a single-turn prospective ledger, not a grant or a transaction.
 // The private writer still validates GV's exact grant before each operation.
@@ -41,11 +47,11 @@ func NewQuantum(limit, terminal Work, start time.Time) (*Quantum, error) {
 		limit.Hold <= 0 || limit.Hold > MaxCommandHold || terminal.Hold <= 0 || !fits(terminal, limit) {
 		return nil, ErrQuantum
 	}
-	return &Quantum{remaining: limit, terminal: terminal, start: start, last: start, end: start.Add(limit.Hold)}, nil
+	return &Quantum{remaining: limit, terminal: terminal, start: start, last: start, end: start.Add(MaxCommandSafetyHold)}, nil
 }
 
 // TryStep charges a forecast only if it AND terminal reserve fit, both in the
-// cumulative forecast and the actual remaining wall time. A refusal changes no
+// cumulative forecast and the remaining runtime safety window. A refusal changes no
 // ledger fields. Call immediately before starting the indivisible operation.
 func (q *Quantum) TryStep(step Work, now time.Time) error {
 	if q == nil || q.finished || step.Hold <= 0 || now.Before(q.last) || !fits(step, q.remaining) {
@@ -57,7 +63,7 @@ func (q *Quantum) TryStep(step Work, now time.Time) error {
 	}
 	// Subtraction avoids overflow in step.Hold + terminal.Hold and elapsed sums.
 	elapsed := now.Sub(q.start)
-	if elapsed > MaxCommandHold || elapsed < 0 {
+	if elapsed > MaxCommandSafetyHold || elapsed < 0 {
 		return ErrQuantum
 	}
 	if now.After(q.end) || q.end.Sub(now) < step.Hold || q.end.Sub(now)-step.Hold < q.terminal.Hold {

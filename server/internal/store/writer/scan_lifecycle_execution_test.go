@@ -57,7 +57,11 @@ func scanLifecycleExecutionTurn(t *testing.T, w *executor, registry *stmt.Regist
 		t.Fatal(err)
 	}
 	custody.scanLifecycleMemory = budget
-	tx, err := w.begin(t.Context(), kind, recipe, custody)
+	// This lease-boundary fixture has an explicit original caller budget,
+	// independent of both its 25ms forecast and the governor's 1s deadline.
+	ctx, cancel := context.WithDeadline(t.Context(), w.now().Add(100*time.Millisecond))
+	t.Cleanup(cancel)
+	tx, err := w.begin(ctx, kind, recipe, custody)
 	if err != nil {
 		if errors.Is(err, ErrBusy) {
 			_ = custody.retired()

@@ -12,6 +12,7 @@ func frameEvidence(tx *transaction, custody *governedTurn) *ExecutionEvidence {
 	out := &ExecutionEvidence{
 		Purpose: tx.descriptor.ID, Class: custody.expected.Class,
 		Durability: tx.descriptor.Durability, HoldStartedAt: tx.start,
+		HoldTarget: tx.limit, HoldSafetyCeiling: MaxCommandSafetyHold,
 	}
 	// An acquisition failure has no complete asserted policy. In that case
 	// preserve absence rather than publishing zero-valued settings as evidence.
@@ -31,6 +32,7 @@ func frameEvidence(tx *transaction, custody *governedTurn) *ExecutionEvidence {
 	if !tx.done || !tx.cleanupComplete {
 		return out // no inferred terminal observation while cleanup is incomplete
 	}
+	out.HoldTargetExceeded = tx.limit > 0 && tx.result.hold > tx.limit
 	switch tx.result.state {
 	case committed:
 		out.Commit = CommitSucceeded

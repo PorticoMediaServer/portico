@@ -36,7 +36,7 @@ func TestInventoryTimeAndLeaseBoundaries(t *testing.T) {
 			oldNow := w.now
 			switch name {
 			case "deadline_equal_lease":
-				expires = base.Add(testRecipe().limit.Hold).UnixMilli()
+				expires = base.Add(MaxCommandSafetyHold).UnixMilli()
 			case "expired":
 				expires = base.Add(-time.Millisecond).UnixMilli()
 				want = ErrConflict
@@ -44,10 +44,10 @@ func TestInventoryTimeAndLeaseBoundaries(t *testing.T) {
 				expires = base.UnixMilli()
 				want = ErrConflict
 			case "short_lease":
-				expires = base.Add(testRecipe().limit.Hold - time.Millisecond).UnixMilli()
+				expires = base.Add(MaxCommandSafetyHold - time.Millisecond).UnixMilli()
 				want = ErrConflict
 			case "deadline_elapsed":
-				*clock = base.Add(testRecipe().limit.Hold)
+				*clock = base.Add(MaxCommandSafetyHold)
 				want = context.DeadlineExceeded
 			case "backward":
 				*clock = base.Add(-time.Nanosecond)
