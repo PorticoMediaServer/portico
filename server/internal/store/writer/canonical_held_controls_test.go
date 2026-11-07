@@ -24,11 +24,11 @@ func TestCanonicalHeldClosedRegistryKeepsAllBindingsExplicit(t *testing.T) {
 		if len(canonicalHeldMissing(c)) != want || (c.run != nil) != (c.name == "inventory_n1") {
 			t.Fatal("unmerged seed/Action opened", c)
 		}
-		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.") || strings.HasPrefix(c.name, "rs.")) && (c.kind != "foreground_read" || c.purpose != nil) {
+		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.") || strings.HasPrefix(c.name, "rs.") || strings.HasPrefix(c.name, "uo.")) && (c.kind != "foreground_read" || c.purpose != nil) {
 			t.Fatal("read became writer class", c)
 		}
 	}
-	if len(seen) != 21 {
+	if len(seen) != 22 {
 		t.Fatal(seen)
 	}
 	if _, err := canonicalHeldClassFor("caller_sql"); err == nil {
@@ -60,7 +60,7 @@ func TestCanonicalHeldConfigRejectsSmallSamplingAndIdentityDrift(t *testing.T) {
 }
 
 func TestCanonicalHeldBlockedPrefixIsDurableAndNotFakeZero(t *testing.T) {
-	for _, class := range []string{"mp.queue_head", "rb.numeric_advance", "rb.numeric_first_page", "rb.numeric_cached_page", "rb.group_window", "rb.relationship_exact", "rb.resolution", "rs.listening"} {
+	for _, class := range []string{"mp.queue_head", "uo.personal", "rb.numeric_advance", "rb.numeric_first_page", "rb.numeric_cached_page", "rb.group_window", "rb.relationship_exact", "rb.resolution", "rs.listening"} {
 		t.Run(class, func(t *testing.T) { canonicalBlockedReadPrefix(t, class) })
 	}
 }
@@ -98,7 +98,7 @@ func canonicalBlockedReadPrefix(t *testing.T, class string) {
 	if blocked["kind"] != "failed_binding" || blocked["hold_ns"] != nil || blocked["commit_ns"] != nil {
 		t.Fatal(blocked)
 	}
-	if class != "mp.queue_head" {
+	if canonicalReadRecipeFor(class) != nil {
 		var start struct {
 			ReadRecipe *canonicalReadRecipe `json:"read_recipe_intent"`
 		}

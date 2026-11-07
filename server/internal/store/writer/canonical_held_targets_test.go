@@ -135,6 +135,7 @@ func canonicalHeldClasses() []canonicalHeldClass {
 		{name: "mp.queue_head", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged MediaReader/ConsumeForeground +canonical device-owned queue fixture not attached; never a writer HOLD/COMMIT"},
 		{name: "mp.session", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged SessionHead/ConsumeForeground +canonical session fixture not attached"},
 		{name: "mp.preparation", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged PreparedJob/ConsumeForeground +canonical prepared-job fixture not attached"},
+		{name: "uo.personal", owner: "P2-UO", kind: "foreground_read", reason: "merged ForegroundReader.PersonalState/UOPersonalDefinitions available; canonical profile/current-authority/source-publication/ConsumeForeground composition not attached"},
 		{name: "rb.sorted", owner: "P2-RB", kind: "foreground_read", reason: "required reviewed/merged SortedWindow +actual RBBrowseDefinitions Capture and canonical source-order cohorts not attached"},
 		{name: "rb.chronology", owner: "P2-RB", kind: "foreground_read", reason: "required reviewed/merged ChronologyWindow +actual RBChronologyDefinitions Capture and dated/NULL/content cohorts not attached"},
 		{name: "rb.numeric_advance", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full cold NumericFacetPreparation.Advance1024 /original F04 lifetime composition/ConsumeForeground and source-bound Capture not attached"},
@@ -265,3 +266,5 @@ func TestCanonicalRBGroupWindow(t *testing.T)       { canonicalHeldRun(t, "rb.gr
 func TestCanonicalRBRelationshipExact(t *testing.T) { canonicalHeldRun(t, "rb.relationship_exact") }
 func TestCanonicalRBResolution(t *testing.T)        { canonicalHeldRun(t, "rb.resolution") }
 func TestCanonicalRSListening(t *testing.T)         { canonicalHeldRun(t, "rs.listening") }
+
+func TestCanonicalUOPersonalRead(t *testing.T) { canonicalHeldRun(t, "uo.personal") }

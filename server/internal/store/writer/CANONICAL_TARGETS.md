@@ -21,6 +21,7 @@ an accepting workload path.
 | mp.queue_head | TestCanonicalQueueHeadRead | MP current device-owned queue, proposed6lookup+6final statements |
 | mp.session | TestCanonicalSessionHeadRead | MP current session point read, proposed6+6 |
 | mp.preparation | TestCanonicalPreparationRead | MP prepared-job point read, proposed7+7 |
+| uo.personal | TestCanonicalUOPersonalRead | UO merged PersonalState point; canonical current-authority/publication/output composition not attached |
 | rb.sorted | TestCanonicalRBSortedRead | RB ten scalar orders/directions, proposed11/11–12SQL debt |
 | rb.chronology | TestCanonicalRBChronologyRead | RB dated/NULL/content chronology, proposed11–13SQL debt |
 | rb.numeric_advance | TestCanonicalRBNumericAdvance | RB cold exact numeric preparation quantum,1024raw |
@@ -31,11 +32,23 @@ an accepting workload path.
 | rb.resolution | TestCanonicalRBResolution | RB128fetched/64consumed/40output, NULL/zero ties |
 | rs.listening | TestCanonicalRSListening | RS album/audiobook complete512raw native+Go-sort route |
 
-The MP and RB rows are foreground reads through ConsumeForeground, NOT held
+The MP, RB, RS and UO rows are foreground reads through ConsumeForeground, NOT held
 writer/COMMIT samples. Source/authority drift, byte admission, statement bytes,
 original ready/consumer timing and concurrent-scan comparisons remain required.
 Scalar RB requires raw64/output40 and actual per-domain Reader Capture receipts;
 phase1a lease remains OFF (#1337 is phase2-only opt-in). Hints from pending MP/RB handoffs are not observed native facts or execution pins.
+
+The uo.personal row refers to merged #1311 (0f1a7a4672dc622848e9dd8e02c99019ce278790):
+UOPersonalDefinitions and ForegroundReader.PersonalState, with functional selector
+TestUOPersonalState. It retains existing B-READS detail/personal budgets; the
+qualification runner must capture the exact read definitions and use current
+viewing-token authority, exact source publication and ConsumeForeground output
+custody through joined consumers. Sparse defaults, rating 0 versus null, other
+profile denial, source/authority drift and cancellation remain distinct cohorts.
+Current user-state cardinalities must be stated separately from the canonical
+1M catalogue. The compiled runner stays closed until that composition for the same library and profile exists. Tiny component tests establish behavior, not qualification.
+UO flags/effects and the other unpublished draft families are not opened by this
+row; they still require their actual reviewed dispatcher and resource profile.
 
 Default runs skip these targets. Explicit opt-in requires `-canonical-held=true`,
 `PORTICO_CANONICAL_HELD=1` and `PORTICO_CANONICAL_HELD_CONFIG` naming a strict JSON
@@ -166,7 +179,19 @@ coverage accounting, Netcup quiet-max scheduling, and final qualification.
 
 ## Additional closed read recipes
 
-These seven parents remain nil bindings. Default runs skip; explicit selection
+These seven parents remain nil bindings. The uo.personal row refers to merged #1311 (0f1a7a4672dc622848e9dd8e02c99019ce278790):
+UOPersonalDefinitions and ForegroundReader.PersonalState, with functional selector
+TestUOPersonalState. It retains existing B-READS detail/personal budgets; the
+qualification runner must capture the exact read definitions and use current
+viewing-token authority, exact source publication and ConsumeForeground output
+custody through joined consumers. Sparse defaults, rating 0 versus null, other
+profile denial, source/authority drift and cancellation remain distinct cohorts.
+Current user-state cardinalities must be stated separately from the canonical
+1M catalogue. The compiled runner stays closed until that composition for the same library and profile exists. Tiny component tests establish behavior, not qualification.
+UO flags/effects and the other unpublished draft families are not opened by this
+row; they still require their actual reviewed dispatcher and resource profile.
+
+Default runs skip; explicit selection
 emits synced start/failed_binding/nonpassing final, with no native calls or
 fabricated ready page. `start.read_recipe_intent` records the source-bound owner
 handoff, required cohorts/contracts and statement debt. It is intent, not a
