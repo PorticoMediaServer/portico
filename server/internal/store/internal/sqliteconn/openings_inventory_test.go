@@ -37,6 +37,8 @@ var openingConstraints = map[string]string{
 
 	"writer/crash_inventory_history_linux_test.go": "", // implicit _linux suffix; history SIGKILL/reopen controls are Linux-only
 	"writer/scan_opening_falsifier_linux_test.go":  "", // implicit _linux suffix; native file replacement/SIGKILL witnesses are Linux-only
+	"writer/crash_progress_linux_test.go":          "", // implicit _linux suffix; actual SIGKILL/reopen component witnesses are Linux-only
+	"writer/crash_progress_oracle_linux_test.go":   "", // implicit _linux suffix; shares the native progress witness model
 }
 
 func openingPhysicalSources(root string) (map[string]bool, error) {
