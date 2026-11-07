@@ -108,16 +108,12 @@ func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, err
 	if p.inventoryMemory.preparationBytes < scanByteFixedWorkspace {
 		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
 	}
-	if p.inventoryRecords.maxBytes < inventoryRecordFixedBytes || p.inventoryRecords.work.Hold <= 0 || p.inventoryRecords.work.Rows == 0 || p.inventoryRecords.work.VMOps == 0 || p.inventoryRecords.work.Pages == 0 || p.inventoryRecords.work.WALBytes < p.inventoryRecords.maxBytes {
-		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
+	if err := validateInventoryRecordEnvelope(p); err != nil {
+		return effectivePlan{}, err
 	}
 	remaining := subtract(subtract(p.recipe.limit, p.recipe.setup), p.recipe.terminal)
-	left, e := reserveInventoryDriverSteps(remaining, p.steps)
-	if e != nil {
-		return effectivePlan{}, e
-	}
-	if !fits(p.inventoryRecords.work, left) {
-		return effectivePlan{}, ErrQuantum
+	if _, err := reserveInventoryDriverSteps(remaining, p.steps); err != nil {
+		return effectivePlan{}, err
 	}
 	return p, nil
 }
