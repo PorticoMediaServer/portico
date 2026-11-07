@@ -208,3 +208,15 @@ func TestUOSavedPublicLimits(t *testing.T) {
 		uoPersonalRollback(t, turn)
 	}
 }
+func TestUOSavedTiedAnchorRefuses(t *testing.T) {
+	w, _ := uoFlagsFixture(t)
+	s := &uoSavedTestSecurity{}
+	uoSavedTestCreate(t, w, s, "saved-one")
+	wc008NativeExec(t, w, `INSERT INTO saved_resource_entries(id,resource_id,order_key) VALUES('a','saved-one','M'),('b','saved-one','M'),('c','saved-one','a')`)
+	anchor := "a"
+	turn := uoSavedTestTurn(t, w)
+	if _, e := applyUOSaved(t.Context(), turn, uoSavedInput{action: uoSavedReorder, id: "saved-one", revision: 1, order: []string{"c"}, after: &anchor, security: s}); !errors.Is(e, ErrResolveRequired) {
+		t.Fatal("ambiguous anchor accepted", e)
+	}
+	uoPersonalRollback(t, turn)
+}
