@@ -3,6 +3,7 @@ package writer
 import (
 	"errors"
 	"fmt"
+	identitydigest "github.com/PorticoMediaServer/portico/server/internal/identity"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,7 @@ func usPolicyFixture() (CommandIdentity, usLibraryPolicyRequest) {
 		ownerID: "security-owner", issuer: usPolicyIssuer{
 			server: "server", account: "issuer", profile: "issuer-profile", family: "issuer-family",
 			memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32),
-			installation: strings.Repeat("c", 32), tokenDigest: strings.Repeat("d", 64),
+			installation: strings.Repeat("c", 32), tokenDigest: identitydigest.Digest("us-issuer-token"),
 			epoch: 1, familyGeneration: 1, authorityGeneration: 1,
 		},
 		account: "target", memberIncarnation: strings.Repeat("e", 32), expectedRevision: 1,
@@ -150,5 +151,27 @@ func TestUSPolicyDigestBindsSecurityScope(t *testing.T) {
 		if err != nil || other.digest == original.digest {
 			t.Fatal("security scope omitted", n, err)
 		}
+	}
+}
+
+func TestUSIssuerIdentityDigestEncoding(t *testing.T) {
+	real := identitydigest.Digest("us-real-digest-control")
+	for _, digest := range []string{real, real + "=", real[:42], real + "A", strings.Repeat("a", 64), strings.Repeat("!", 43), strings.Repeat("A", 42) + "B", real[:20] + "\n" + real[21:]} {
+		t.Run(digest, func(t *testing.T) {
+			id, q := usPolicyFixture()
+			q.issuer.tokenDigest = digest
+			good := digest == real
+			if usIdentityDigest(digest) != good || validUSSecurityIdentity(id, q.ownerID, q.issuer) != good {
+				t.Fatal("issuer digest encoding")
+			}
+			command, err := prepareUSLibraryPolicy(USMemberLibraries, id, q)
+			if good && (err != nil || command == nil) || !good && (command != nil || !errors.Is(err, ErrInvalid)) {
+				t.Fatal("policy digest encoding", err)
+			}
+			proof, err := prepareUSOwnerAuthority(usOwnerAuthorityWitness{issuer: q.issuer, device: "device", installationID: "installation", tokenExpiry: "2026-11-07T12:00:00Z", horizon: "2026-11-08T12:00:00Z"})
+			if good && (err != nil || proof == nil) || !good && (proof != nil || !errors.Is(err, ErrInvalid)) {
+				t.Fatal("authority digest encoding", err)
+			}
+		})
 	}
 }

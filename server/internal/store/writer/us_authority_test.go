@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -119,5 +120,38 @@ func TestUSOwnerAuthorityFinalDisclosureRechecksNativeFence(t *testing.T) {
 	var revision int64
 	if err := w.db.QueryRowContext(t.Context(), `SELECT revision FROM direct_memberships WHERE account_id='target'`).Scan(&revision); err != nil || revision != 1 {
 		t.Fatal("denied whole prefix survived", revision, err)
+	}
+}
+
+// Consume the persisted token hash as the comparison witness, with the same
+// encoding identity writes in families.go. This remains a native fixture.
+func TestUSOwnerAuthorityStoredIdentityDigest(t *testing.T) {
+	w, r, input, seeded := usOwnerAuthorityFixture(t)
+	witness := seeded.witness
+	if err := w.db.QueryRowContext(t.Context(), `SELECT token_hash FROM authorization_family_tokens WHERE family_id=? AND generation=?`, witness.issuer.family, witness.issuer.familyGeneration).Scan(&witness.issuer.tokenDigest); err != nil {
+		t.Fatal(err)
+	}
+	if witness.issuer.tokenDigest != identity.Digest("us-issuer-token") {
+		t.Fatal("stored identity digest differs")
+	}
+	proof, err := prepareUSOwnerAuthority(witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, synthetic, _ := usPolicyReceiptTurn(t, w, r, input)
+	delete(turn.steps, usSecurityOwner)
+	budget := usPolicyAuthorityBudget{memory: 4 << 20, receipts: 1 << 20, fixture: synthetic.nativeFixture}
+	out, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), budget)
+	if err != nil || out == nil {
+		t.Fatal("stored identity digest refused", err)
+	}
+	witness.issuer.tokenDigest = identity.Digest("us-other-issuer-token")
+	wrong, err := prepareUSOwnerAuthority(witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err = authorizeUSOwnerPolicy(t.Context(), turn, wrong, t.Context(), budget)
+	if out != nil || !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal("unmatched digest authorized", err)
 	}
 }

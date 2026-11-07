@@ -32,7 +32,7 @@ type usOwnerAuthorityProof struct {
 
 func prepareUSOwnerAuthority(in usOwnerAuthorityWitness) (*usOwnerAuthorityProof, error) {
 	i := in.issuer
-	if !usIdentifier(i.server) || !usIdentifier(i.account) || !usIdentifier(i.profile) || !usIdentifier(i.family) || !usHex(i.memberIncarnation, 32) || !usHex(i.profileLifetime, 32) || !usHex(i.installation, 32) || !usHex(i.tokenDigest, 64) || i.epoch <= 0 || i.familyGeneration <= 0 || i.authorityGeneration <= 0 || !usIdentifier(in.device) || !usIdentifier(in.installationID) || (in.lineage != "" && !usIdentifier(in.lineage)) {
+	if !usIdentifier(i.server) || !usIdentifier(i.account) || !usIdentifier(i.profile) || !usIdentifier(i.family) || !usHex(i.memberIncarnation, 32) || !usHex(i.profileLifetime, 32) || !usHex(i.installation, 32) || !usIdentityDigest(i.tokenDigest) || i.epoch <= 0 || i.familyGeneration <= 0 || i.authorityGeneration <= 0 || !usIdentifier(in.device) || !usIdentifier(in.installationID) || (in.lineage != "" && !usIdentifier(in.lineage)) {
 		return nil, invalid("us_authority_witness")
 	}
 	p := &usOwnerAuthorityProof{witness: in}

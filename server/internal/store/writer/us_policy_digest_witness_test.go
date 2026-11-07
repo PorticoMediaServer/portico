@@ -1,6 +1,7 @@
 package writer
 
 import (
+	identitydigest "github.com/PorticoMediaServer/portico/server/internal/identity"
 	"slices"
 	"strings"
 	"testing"
@@ -32,7 +33,9 @@ func TestUSPolicyDigestEveryWitness(t *testing.T) {
 			q.issuer.profileLifetime = strings.Repeat("f", 32)
 		}},
 		{"issuer.installation", func(_ *CommandIdentity, q *usLibraryPolicyRequest) { q.issuer.installation = strings.Repeat("f", 32) }},
-		{"issuer.token", func(_ *CommandIdentity, q *usLibraryPolicyRequest) { q.issuer.tokenDigest = strings.Repeat("f", 64) }},
+		{"issuer.token", func(_ *CommandIdentity, q *usLibraryPolicyRequest) {
+			q.issuer.tokenDigest = identitydigest.Digest("us-other-issuer-token")
+		}},
 		{"issuer.epoch", func(_ *CommandIdentity, q *usLibraryPolicyRequest) { q.issuer.epoch++ }},
 		{"issuer.generation", func(_ *CommandIdentity, q *usLibraryPolicyRequest) { q.issuer.familyGeneration++ }},
 		{"issuer.authority_generation", func(_ *CommandIdentity, q *usLibraryPolicyRequest) { q.issuer.authorityGeneration++ }},
