@@ -187,7 +187,7 @@ func sealReceiptValues(scope sealOwnerScope, facts sealMutationFacts, c sealRece
 }
 func validSealReceipt(scope sealOwnerScope, facts sealMutationFacts, c sealReceiptContent, algorithm string) bool {
 	return scope.valid() && facts.revision > 0 && facts.next == c.manifest.rows && facts.afterItem == scope.afterItem && facts.observedCatalogRevision == scope.entityRevision && facts.appliedMS >= 0 && c.header.ID != "" && c.header.SubjectID > 0 && c.header.ParserVersion != "" && c.header.Provider == scope.provider && c.header.SubjectKind == "movie" &&
-		c.manifest.version == 1 && c.manifest.algorithm == algorithm && c.manifest.rows >= 0 && c.manifest.bytes > 0 && uint64(c.manifest.bytes) <= maxCanonicalRequestBytes && c.retainedBytes > 0 && c.retainedBytes <= 8876032
+		c.manifest.version == 1 && c.manifest.algorithm == algorithm && c.manifest.rows >= 0 && c.manifest.bytes > 0 && uint64(c.manifest.bytes) <= maxCanonicalRequestBytes && c.retainedBytes > 0 && c.retainedBytes <= maxSealRetainedBytes
 }
 
 func writeEvidenceSealReceipt(ctx context.Context, turn *commandTurn, scope sealOwnerScope, root evidenceSealRoot, facts sealMutationFacts, c sealReceiptContent, result ResultDigest) (err error) {

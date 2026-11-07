@@ -27,6 +27,8 @@ const (
 	InventoryClaim
 	BasicStage
 	BasicSeal
+	EvidenceSeal
+	CreditSourceSeal
 )
 
 type Durability uint8
@@ -92,6 +94,10 @@ func Describe(id CommandID) (Descriptor, error) {
 		name = "basic_stage"
 	case BasicSeal:
 		name = "basic_seal"
+	case EvidenceSeal:
+		name = "evidence_seal"
+	case CreditSourceSeal:
+		name = "credit_source_seal"
 	default:
 		return Descriptor{}, invalid("command")
 	}
