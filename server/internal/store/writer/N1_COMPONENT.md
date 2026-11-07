@@ -526,3 +526,62 @@ DIRECTIONAL/qualification=false, readiness=false. No new host run is requested.
 N1 chain, all three physical WAL joins and one real reader; it does not measure
 budgets. Run focused controls on the GitHub lane-focused runner with Go1.26.10;
 its default-skipped measurement target is not execution evidence.
+## EC5 component memory extension
+
+This extends QL's existing process checkpoint/host/cgroup scopes on the SAME
+`N1PairedComponent`; it does not create a second issuer, fixture, SQL path,
+connection opener, resource profile or permit. `-ec5-memory=true` requires
+`PORTICO_EC5_MEMORY=1` and the separate `native-counters` cohort. The owner
+verifies its actual cgroup with `qual.CaptureHost` before creating its fixture.
+The requested assigned cap is literally 2,000,000,000 bytes, with zero swap;
+page-rounded effective limits and ancestors are retained. This is distinct from
+physical 2GB/M=1.6GB, and leaves all existing synthetic N1/RD2 limits unchanged.
+
+The paired scheduler adds one process-only `MEMORY` stream (20ms..1s, default
+100ms) using the existing `n1Memory()` RSS/VmHWM/Go heap/allocation/GC helpers.
+Every observation has its actual interval and no HOLD/COMMIT/owner Evidence.
+Instrumentation and Go runtime pauses remain included; no GC, memory limit,
+subtraction or runtime repair is introduced. Fixture/pre-warmup and joined-close
+checkpoints remain separate. Lifetime VmHWM and sampled current heap/RSS values
+are not incremental LIVE ownership peaks.
+
+Writer SQLite cache/schema/statement CURRENT bytes use the existing per-turn
+owner snapshots OUTSIDE HOLD. No new goroutine polls native connection pointers.
+The existing test-only reader Connect seam records its actual native Connect
+interval and one synchronous current-memory snapshot before returning the
+connection to its normal snapshot owner. Counter-sampling cost is separately
+bracketed. Its bounded 16-entry open ledger preserves failed openings/null native
+facts and marks overflow incomplete. Initial writer native Connect, complete
+usable-open/Capture cost, reader idle Close and CP lifecycle/aggregate native
+peaks remain null with reasons; Setup and raw DBStatus high0 cannot supply them.
+
+`memory_fixture` states the existing small N1+foreground population, actual
+observed database table cardinalities and explicit unavailable per-library/
+scalable population. There is no 1M or whole-server claim. SC/helpers, TMDB,
+media/legacy, complete native lifecycle and sustained EC2 attachment are missing
+bindings. The sustained EC5 request fails explicitly instead of running a
+substitute workload. No unmerged #1280 or #1285 code is imported.
+
+`ci/ec5_memory.py` runs a precompiled test binary in ONE new private cgroup-v2
+leaf on a disposable standard GitHub runner. It sets/readbacks the 2e9 cap and
+zero swap BEFORE exec, drops root to the runner UID, rejects stricter ancestors,
+and collects memory.current/peak/stat/events outside that leaf at 100ms. The leaf
+survives process exit so the final kernel charged peak includes teardown/tails.
+It preserves signals/errors/OOM/unknowns, joins the child and kernel populated
+state before deleting ONLY its own unique leaf. No global controller is enabled.
+The controller remains outside the cap; child observer costs remain inside.
+Raw charged file/kernel memory is never subtracted to manufacture a cap pass.
+Peak-vs-cap/reserve numbers are planning comparisons, not whole-server fit.
+
+`TestEC5PairedMemoryMeasurement` invokes the ONE existing paired measurement
+entrypoint/config and original deadlines/consumer/error/join behavior. Use the
+existing strict paired config with `ci/ec5_memory.py --binary ABS_TEST_BINARY
+--output OWN_ARTIFACT_DIR --target paired --config ABS_PAIRED_CONFIG`; run from
+the writer package through noninteractive sudo on a disposable runner. Default
+product/test runs skip this target. `--target sustained` retains an explicit
+missing-binding error. No host measurement is requested by this source change.
+
+Functional proof uses the fixed lane-focused `ec5-memory` harness, Go1.26.10:
+it starts a tiny real N1/read child inside that owned cgroup and checks actual
+parent execution, cap/zero swap, kernel peak, process join and leaf removal.
+Its source and binary remain component controls, qualification=false.

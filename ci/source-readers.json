@@ -139,6 +139,9 @@
         "server/internal/store/writer/n1_paired_export_test.go",
         "server/internal/store/writer/ec2_sustained_external_test.go",
         "server/internal/store/qual/workload/ec2.go",
+        "server/internal/store/writer/ec5_memory_export_test.go",
+        "server/internal/store/writer/ec5_memory_external_test.go",
+        "ci/ec5_memory.py",
         "server/internal/store/writer/transaction_test.go",
         "server/internal/store/writer/n1_paired_external_test.go",
         "server/internal/store/writer/n1_component_steady_test.go",
@@ -151,8 +154,8 @@
         "server/internal/store/qual/workload/foreground.go",
         "server/internal/store/read/foreground.go"
       ],
-      "files": ["server/internal/store/writer/n1_paired_export_test.go"],
-      "tests": ["TestEC2N1WALComposition", "TestEC2SustainedMeasurement", "TestN1PairedMeasurement", "TestN1PairedSameDBAndLIVE"]
+      "files": ["server/internal/store/writer/n1_paired_export_test.go", "server/internal/store/writer/ec5_memory_external_test.go"],
+      "tests": ["TestEC2N1WALComposition", "TestEC2SustainedMeasurement", "TestEC5CgroupFunctional", "TestEC5MemoryChildControl", "TestEC5PairedMemoryMeasurement", "TestN1PairedMeasurement", "TestN1PairedSameDBAndLIVE"]
     },
     {
       "package": "server/internal/compactcatalog/identityvalue",
