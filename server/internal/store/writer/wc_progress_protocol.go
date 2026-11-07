@@ -92,6 +92,7 @@ type wcProgressCommand struct {
 	applied, finished bool
 	preparation       ProgressSnapshot
 	retired           bool
+	abandoned         bool
 	driver            *WCProgressDriver
 	request           wcProgressPrepared
 	reference         ProgressReceiptRequest
@@ -110,18 +111,74 @@ type wcClaimCommandCustody struct {
 	active      atomic.Pointer[wcClaimCommandReservation]
 }
 
-type wcClaimCommandReservation struct{ purpose CommandID }
+const (
+	wcClaimPrepared uint32 = iota
+	wcClaimInFlight
+	wcClaimCommitted
+	wcClaimCommitUnknown
+	wcClaimAbandoned
+)
+
+type wcClaimCommandReservation struct {
+	purpose       CommandID
+	lifetime      context.Context
+	state         atomic.Uint32
+	beforeAttempt uint32 // accessed only under the owning driver mutex
+}
 
 func (c *wcClaimCommandCustody) matches(s wcProgressScope) bool {
 	return c != nil && c.playbackID == s.playbackID && c.incarnation == s.incarnation
 }
 
-func (c *wcClaimCommandCustody) reserve(purpose CommandID) (*wcClaimCommandReservation, error) {
-	reservation := &wcClaimCommandReservation{purpose: purpose}
+func (c *wcClaimCommandCustody) reserve(purpose CommandID, lifetime context.Context) (*wcClaimCommandReservation, error) {
+	// Cancellation cannot abandon a frame while COMMIT may still be running.
+	// Reap canceled, settled work lazily before the next preparation; no extra
+	// goroutine or authority is needed, and a COMMIT-unknown ticket stays held.
+	if old := c.active.Load(); old != nil && old.lifetime.Err() != nil {
+		c.releaseSettled(old)
+	}
+	reservation := &wcClaimCommandReservation{purpose: purpose, lifetime: lifetime}
 	if !c.active.CompareAndSwap(nil, reservation) {
 		return nil, ErrResolveRequired
 	}
 	return reservation, nil
+}
+
+func (c *wcClaimCommandCustody) releaseSettled(reservation *wcClaimCommandReservation) {
+	state := reservation.state.Load()
+	if state != wcClaimInFlight && state != wcClaimCommitUnknown && reservation.state.CompareAndSwap(state, wcClaimAbandoned) {
+		c.release(reservation)
+	}
+}
+
+func (r *wcClaimCommandReservation) begin() error {
+	if r == nil {
+		return ErrResolveRequired
+	}
+	state := r.state.Load()
+	if state == wcClaimPrepared || state == wcClaimCommitted {
+		if r.state.CompareAndSwap(state, wcClaimInFlight) {
+			r.beforeAttempt = state
+			return nil
+		}
+	} else if state == wcClaimCommitUnknown {
+		return nil // same original recovery, never another preparation
+	}
+	return ErrResolveRequired
+}
+
+// The shared dispatcher calls this AFTER physical cleanup, even on panic.
+// A public error (including ErrResolveRequired) is not a COMMIT classifier.
+func (r *wcClaimCommandReservation) finish(tx *transaction) {
+	if tx != nil && tx.commitAttempted {
+		if tx.result.state == committed {
+			r.state.Store(wcClaimCommitted)
+		} else {
+			r.state.Store(wcClaimCommitUnknown)
+		}
+	} else {
+		r.state.CompareAndSwap(wcClaimInFlight, r.beforeAttempt)
+	}
 }
 
 func (c *wcClaimCommandCustody) release(reservation *wcClaimCommandReservation) {
@@ -282,6 +339,7 @@ func (d *WCProgressDriver) Close(ctx context.Context) error {
 		return ErrResolveRequired
 	}
 	if d.work != nil {
+		d.commandCustody.releaseSettled(d.work.custody)
 		d.work.request = wcProgressPrepared{}
 		d.work.pending = nil
 	}
@@ -361,6 +419,9 @@ func ProgressReference(input ProgressCommand) (ProgressReceiptRequest, error) {
 	return progressReference(c)
 }
 func progressReference(c *wcProgressCommand) (ProgressReceiptRequest, error) {
+	if c.abandoned {
+		return ProgressReceiptRequest{}, ErrResolveRequired
+	}
 	if c.retired {
 		return c.reference, nil
 	}
@@ -398,6 +459,7 @@ func (w *Writer) AcceptProgress(ctx context.Context, cap *ProgressDisclosure, in
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
+	defer c.driver.abandonUncommittedProgress(c)
 	q, err := progressReference(c)
 	if err != nil {
 		return out, err
@@ -423,6 +485,7 @@ func (d *WCProgressDriver) ExecuteCurrentDrain(ctx context.Context, input Progre
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
+	defer c.driver.abandonUncommittedProgress(c)
 	q, e := progressReference(c)
 	if e != nil {
 		return out, e
@@ -448,6 +511,7 @@ func (d *WCProgressDriver) ExecuteDrain(ctx context.Context, input ProgressComma
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
+	defer c.driver.abandonUncommittedProgress(c)
 	q, e := progressReference(c)
 	if e != nil {
 		return out, e
@@ -513,6 +577,19 @@ func (d *WCProgressDriver) retireProgressWork(c *wcProgressCommand) {
 	c.retired = true
 	d.work = nil
 	d.commandCustody.release(c.custody)
+}
+
+// Caller holds d.mu. Only a proven uncommitted failure may discard the sealed
+// command. Keep native pending time and every known/uncertain committed result.
+func (d *WCProgressDriver) abandonUncommittedProgress(c *wcProgressCommand) {
+	if d.work != c || c.custody == nil || c.custody.state.Load() != wcClaimPrepared {
+		return
+	}
+	d.commandCustody.releaseSettled(c.custody)
+	c.request = wcProgressPrepared{}
+	c.pending = nil
+	c.abandoned = true
+	d.work = nil
 }
 
 func (w *Writer) ResolveProgress(ctx context.Context, cap *ProgressDisclosure, q ProgressReceiptRequest) (out ProgressResult, err error) {
@@ -602,7 +679,7 @@ func (d *WCProgressDriver) Capture(ctx context.Context, reportSequence int64, po
 		}
 		return nil, ErrResolveRequired
 	}
-	reservation, err := d.commandCustody.reserve(ProgressAccept)
+	reservation, err := d.commandCustody.reserve(ProgressAccept, d.lifetime)
 	if err != nil {
 		return nil, err
 	}
@@ -669,7 +746,7 @@ func (d *WCProgressDriver) Drain(ctx context.Context) (out ProgressCommand, err 
 			return nil, err
 		}
 	}
-	reservation, err := d.commandCustody.reserve(ProgressAccept)
+	reservation, err := d.commandCustody.reserve(ProgressAccept, d.lifetime)
 	if err != nil {
 		return nil, err
 	}

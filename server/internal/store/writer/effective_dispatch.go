@@ -230,6 +230,35 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		result, finalErr := finishCommand(ctx, lifetime, commandCompletion{out, acknowledged}, err)
 		out, acknowledged, err = result.output, result.ack, finalErr
 	}()
+	// Preserve the actual terminal disposition independently of public result
+	// redaction. This defer runs after tx.rollback has joined native cleanup,
+	// including a panic inside COMMIT. Only an uncertain physical COMMIT may
+	// keep canceled/closed claim command custody indefinitely.
+	var claimReservation *wcClaimCommandReservation
+	if wc != nil {
+		if wc.input != nil && !wc.input.retired {
+			claimReservation = wc.input.custody
+		} else if ack && wc.disclosure != nil && wc.disclosure.driver != nil {
+			if c := wc.disclosure.driver.work; c != nil && c.reference == wc.request {
+				claimReservation = c.custody
+			}
+		}
+	}
+	if reclaim != nil {
+		if reclaim.input != nil && !reclaim.input.retired {
+			claimReservation = reclaim.input.custody
+		} else if ack && reclaim.disclosure != nil && reclaim.disclosure.driver != nil {
+			if c := reclaim.disclosure.driver.work; c != nil && c.reference == reclaim.request {
+				claimReservation = c.custody
+			}
+		}
+	}
+	if claimReservation != nil {
+		if err = claimReservation.begin(); err != nil {
+			return out, acknowledged, err
+		}
+		defer func() { claimReservation.finish(tx) }()
+	}
 	if invalidWC || ctx == nil || len(publishers) > 1 || len(publishers) == 1 && publisher == nil {
 		return out, acknowledged, ErrInvalid
 	}
