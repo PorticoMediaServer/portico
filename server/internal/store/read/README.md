@@ -256,7 +256,8 @@ runtime route is installed, and actual complete native proof/Capture controls,
 whole-route cost, maximum-body memory and ready/physical fit remain **UNQUALIFIED**.
 
 All-group preview has a fixed2,000candidate-work budget (all MATCH results,
-including population/ranking, plus reverse-owner advancement to bound fan-out), and stops earlier once every supported group has8hits.
+including population/ranking, plus reverse-owner advancement to bound fan-out).
+RS composition stops polling earlier once every supported group has8hits.
 It does not wait for a complete population. Preview emits verified conjunction
 matches found within that bound with `Partial`, explicit lower-bound/unknown
 count status and internal `NativeCandidates` work progress. Work positions may
@@ -264,3 +265,7 @@ include aliases or rejected sources and must never be displayed as logical
 result counts. Selected full/top40 or paging retains the exact-population and
 winner-proof path. This is a component work bound, not broad-term ready-latency
 qualification.
+
+Search limits target realistic use. Pathological fields or unusually large
+proof cohorts may return a bounded partial result or typed refusal; they never
+justify a scan, an unbounded allocation or bypassing current permission checks.
