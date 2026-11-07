@@ -81,6 +81,16 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIAConfigurationResult(IAConfigureLibrary, identity, request, v.facts)
 	case iaConfigureSourceResult:
 		return preflightIAConfigurationResult(IAConfigureSource, identity, request, v.facts)
+	case iaEpisodeInventoryResult:
+		return preflightIAMediaResult(IAAcceptEpisodeInventory, identity, request, v.facts)
+	case iaAudioInventoryResult:
+		return preflightIAMediaResult(IAAcceptAudioInventory, identity, request, v.facts)
+	case iaReadingInventoryResult:
+		return preflightIAMediaResult(IAAcceptReadingInventory, identity, request, v.facts)
+	case iaExtraInventoryResult:
+		return preflightIAMediaResult(IAAcceptExtraInventory, identity, request, v.facts)
+	case iaMembershipResult:
+		return preflightIAMediaResult(IAAcceptMembership, identity, request, v.facts)
 	case iaConfigurationReceiptReclaimResult:
 		return preflightIAConfigurationReceiptReclaim(identity, v)
 	case iaRetirementReceiptReclaimResult:
@@ -142,6 +152,16 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIAConfigurationResult(e, IAConfigureLibrary, identity, request, v.facts)
 	case iaConfigureSourceResult:
 		return writeIAConfigurationResult(e, IAConfigureSource, identity, request, v.facts)
+	case iaEpisodeInventoryResult:
+		return writeIAMediaResult(e, IAAcceptEpisodeInventory, identity, request, v.facts)
+	case iaAudioInventoryResult:
+		return writeIAMediaResult(e, IAAcceptAudioInventory, identity, request, v.facts)
+	case iaReadingInventoryResult:
+		return writeIAMediaResult(e, IAAcceptReadingInventory, identity, request, v.facts)
+	case iaExtraInventoryResult:
+		return writeIAMediaResult(e, IAAcceptExtraInventory, identity, request, v.facts)
+	case iaMembershipResult:
+		return writeIAMediaResult(e, IAAcceptMembership, identity, request, v.facts)
 	case iaConfigurationReceiptReclaimResult:
 		return writeIAConfigurationReceiptReclaim(e, identity, request, v)
 	case iaRetirementReceiptReclaimResult:
