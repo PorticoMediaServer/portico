@@ -2,6 +2,7 @@ package read
 
 import (
 	"encoding/json"
+	"math"
 	"strconv"
 	"strings"
 
@@ -9,7 +10,8 @@ import (
 )
 
 // This closed scalar subset is evaluated only AFTER bounded source retrieval.
-// It projects the published AST and preserves SQL's three-valued group semantics.
+// It preserves the public compiler's predicate truth, including indexed numeric
+// false-for-missing forms and nullable fallback expressions under groups/NOT.
 // Unsupported fields refuse at compile time, including inside negated groups;
 // they can never become a false predicate that NOT would turn into permission.
 type rbScalarFilter struct{ node *rbFilterNode }
@@ -159,6 +161,19 @@ func rbEvalScalar(n *rbFilterNode, f rbFilterFacts) rbTruth {
 		if n.Operator == "not-equals" || n.Operator == "not-in" {
 			return rbTrue
 		}
+		// The public indexed year predicates explicitly exclude zero and thus
+		// produce FALSE, not NULL, for a missing year. NOT must then include it.
+		if n.Field == "year" {
+			switch n.Operator {
+			case "equals", "in", "less-than", "at-most", "greater-than", "at-least", "between":
+				return rbFalse
+			}
+		}
+		// Decade's normal numeric forms likewise compile to bounded raw-year
+		// predicates. Huge/non-normalized values keep the nullable CASE fallback.
+		if n.Field == "decade" && rbIndexedDecadeTruth(n) {
+			return rbFalse
+		}
 		return rbUnknown
 	}
 	compare := func(value any) (int, bool) {
@@ -258,4 +273,27 @@ func rbEvalScalar(n *rbFilterNode, f rbFilterFacts) rbTruth {
 		return truth(c >= 0)
 	}
 	return rbUnknown
+}
+
+func rbIndexedDecadeTruth(n *rbFilterNode) bool {
+	number := func(v any) bool {
+		x, ok := v.(float64)
+		return ok && math.Abs(x) <= 1e6
+	}
+	switch n.Operator {
+	case "equals":
+		return number(n.Value)
+	case "in", "between":
+		values, ok := n.Value.([]any)
+		if !ok || len(values) == 0 || n.Operator == "between" && len(values) != 2 {
+			return false
+		}
+		for _, value := range values {
+			if !number(value) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
