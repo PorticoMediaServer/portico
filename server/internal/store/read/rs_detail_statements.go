@@ -12,5 +12,6 @@ e.hide_seasons,e.absolute_numbering,e.newest_first,e.show_settings_revision,e.sh
 e.show_id,e.season_id,e.season_number,e.episode_number,e.numbering,e.air_date,e.local_identity_status,e.ordering_basis,
 e.artist_id,e.record_label,e.release_country,e.edition_key,e.album_id,e.disc_number,e.track_number,e.author,e.narrator,e.series,e.series_position,e.book_id,e.part_number,e.collection_name_key,e.collection_revision
 FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`, Params: []stmt.Param{i("item"), i("library"), i("kind")}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), int64(1), int64(1)}}, {Name: "empty", Bindings: []any{int64(999999), int64(1), int64(1)}}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}}}}
-	return append(out, rsDetailByteDefinitions()...)
+	out = append(out, rsDetailByteDefinitions()...)
+	return append(out, rsDetailEligibilityDefinitions()...)
 }

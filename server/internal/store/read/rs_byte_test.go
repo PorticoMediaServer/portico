@@ -53,7 +53,7 @@ func TestRSDetailReservesActualPointOctets(t *testing.T) {
 	if got := cost.LookupWindows[1].NativeReservedBytes; got != want || got <= 0 || got >= f.snapshots.NativeRowReservation() {
 		t.Fatalf("native reservation got%d want%d conservative%d", got, want, f.snapshots.NativeRowReservation())
 	}
-	if cost.LookupStatements != 9 || cost.PublicationStatements != 6 {
+	if cost.LookupStatements != 10 || cost.PublicationStatements != 7 {
 		t.Fatal("point pair statement accounting", cost)
 	}
 }

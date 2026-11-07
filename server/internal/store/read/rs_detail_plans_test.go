@@ -50,7 +50,7 @@ func TestRSDetailPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalogue.Manifest()) != 3 {
+	if len(catalogue.Manifest()) != 6 {
 		t.Fatal("review changed statement inventory")
 	}
 	path := "testdata/rs-detail-plans.json.gz"
@@ -119,7 +119,7 @@ func TestRSDetailPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capture := range captures {
-		if len(capture.Golden.Manifest) != 3 || len(capture.Golden.Plans) != 6 {
+		if len(capture.Golden.Manifest) != 6 || len(capture.Golden.Plans) != 12 {
 			t.Fatal("incomplete statement/cohort Capture coverage")
 		}
 	}
