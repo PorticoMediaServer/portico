@@ -589,3 +589,43 @@ Functional proof uses the fixed lane-focused `ec5-memory` harness, Go1.26.10:
 it starts a tiny real N1/read child inside that owned cgroup and checks actual
 parent execution, cap/zero swap, kernel peak, process join and leaf removal.
 Its source and binary remain component controls, qualification=false.
+
+## EC3 user foreground-write wait
+
+The test-only EC2 attachment accepts `-ec3-foreground-write-every=1ms..1min`
+(default0/off) and a closed `-ec3-foreground-write-pattern` drawn from
+`progress_capture,progress_drain,security` (default drain/security). This creates
+one independent bounded submission stream while the scan stream and original
+four-route reader stream run. They share the SAME actual native writer/governor;
+no driver lock, priority queue, retry, issuer or second physical writer is added.
+Scan pattern must then contain only Inventory/Effective, so WC inputs are not
+concurrently reused by two workers. At most4096 planned foreground requests;
+overflow stops and retains incomplete coverage. WC's actual missing Actions
+remain failed STUBs with null owner intervals, never synthetic FULL writes.
+
+`ec3-foreground-write-wait-v1` records each original mutation's actual driver
+Action-entry submission, original scheduled offer/lag, owner HOLD start, actual
+COMMIT return and physical return. Queue is the pre-HOLD interval including
+preparation/admission/lock waiting; no mutex-only timestamp is invented.
+`QueueWaitNS + HoldToCommitNS = SubmissionToCommitNS`. Full physical HOLD can
+extend past COMMIT into terminal/retirement and is reported separately.
+Facade return and later Resolve/ACK never reconstruct missing commit evidence.
+The original typed Result, requested receipt, errors/refusals and owner Evidence
+remain raw; only the first original-mutation observation counts as that write.
+Security's actual class stays Recovery/FULL, progress Foreground/NORMAL.
+
+The report supplies nearest-rank p50/p99/max for queue, service-to-commit,
+submission-to-commit and physical HOLD, overall AND per requested operation.
+Observed-zero queue is retained. Known failed/replay tails remain in explicit
+partial distributions; null/error/refusal/unserved/missed/overflow gaps withhold
+whole-window coverage and the nullable observed-p99<=50ms comparison. A rare slow
+security write cannot be hidden by many fast progress samples. This comparison
+is descriptive, qualification=false, not a new deadline/profile/admission rule.
+
+The original read/consumer/deadline/evidence stream is unchanged.
+`ReadsUnaffected=null` until QL performs its independent paired foreground-only
+comparison. Concurrent request return order is not a writer physical ordinal:
+future WC owner-proven IDs/order must be retained; none is manufactured here.
+No native foreground-write qualification is executable until WC's same-owner
+Actions/diagnostics land. Frozen clocks, raw SQL and failed-cell p99 claims remain
+forbidden. Functional controls run on GitHub with Go1.26.10.
