@@ -156,11 +156,16 @@ func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicke
 		return refuse(Invalid, CauseInvalidRequest)
 	}
 	// Contention consumes the original deadline; it is never false capacity.
-	if err := g.mu.lockUntil(context.Background(), r.Deadline, now); err != nil {
-		return refuse(Deadline, CauseDeadline)
+	contended := !g.mu.TryLock()
+	if contended {
+		if err := g.mu.lockUntil(context.Background(), r.Deadline, now); err != nil {
+			return refuse(Deadline, CauseDeadline)
+		}
 	}
 	defer g.mu.Unlock()
-	now = g.config.Now()
+	if contended {
+		now = g.config.Now()
+	}
 	if !r.Deadline.After(now) {
 		return refuse(Deadline, CauseDeadline)
 	}
