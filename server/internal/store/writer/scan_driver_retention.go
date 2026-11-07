@@ -36,6 +36,7 @@ func scanOwnerRetentionFor(w *executor, registry *stmt.Registry) (*scanOwnerRete
 	allowed = append(allowed, scanBirthDefinitions()...)
 	allowed = append(allowed, scanSourceDefinitions()...)
 	allowed = append(allowed, scanBytePreflightDefinitions()...)
+	allowed = append(allowed, inventoryLibraryRecordDefinition())
 	for _, def := range scanReceiptDefinitions() {
 		switch def.ID {
 		case scanReceiptLookup, scanReceiptAck, scanReceiptReclaimKey, scanReceiptReclaimHeader:
@@ -78,7 +79,7 @@ func scanOwnerRetentionID(id stmt.ID) bool {
 		}
 	}
 	switch id {
-	case scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanReceiptByteLengths, scanMemberByteLengths, scanReceiptOwnerPrefix, scanReceiptIdentityPrefix, scanMemberKeys,
+	case scanInventoryLibraryRecordLengths, scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanReceiptByteLengths, scanMemberByteLengths, scanReceiptOwnerPrefix, scanReceiptIdentityPrefix, scanMemberKeys,
 		enrichmentEffectiveOwner, enrichmentEffectiveReceipt, enrichmentEffectiveEntity,
 		enrichmentEffectiveInsert, enrichmentEffectiveAttach, enrichmentEffectiveRecord,
 		enrichmentEffectiveLibrary, enrichmentEffectiveLanguage, enrichmentEffectivePolicy,
