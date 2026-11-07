@@ -28,7 +28,7 @@ func forcedAutoindexes(text string) ([]selectSource, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := lintParser{tokens: tokens}
+	p := lintParser{tokens: tokens, issuerOctets: closedOctetSQL(text)}
 	if err := p.statement(); err != nil {
 		return nil, err
 	}
