@@ -1,7 +1,9 @@
 package read
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -60,6 +62,7 @@ type RSChildrenCursor struct {
 	limit         int
 	first, second RSChildNumber
 	id            int64
+	sortKey       string
 	source        []any
 }
 
@@ -113,6 +116,9 @@ func (r *RSChildrenReader) window(ctx context.Context, request governor.Request,
 		}
 		source = rows[0]
 		return source, nil
+	}
+	if recipe.keys == 2 {
+		return r.sortedWindow(ctx, request, budget, output, in, recipe, root, &source)
 	}
 	return publishRead(ctx, r.snapshots, request, budget, output, in.View, []readStep[RSChildrenPage]{
 		func(ctx context.Context, _ browseQuery, f browseFence, _ *RSChildrenPage) error {
@@ -228,4 +234,161 @@ func rsReadChildren(ctx context.Context, q browseQuery, f browseFence, in RSChil
 		page.Next = nil
 	}
 	return page, nil
+}
+
+// RSListeningChildCap bounds the COMPLETE raw membership, including retired and
+// wrong-kind edges. Overflow refuses without output; sorting an arbitrary SQL
+// prefix would lose the user's order. No SQL sort or additional index is used.
+const RSListeningChildCap = 512
+
+// sortedWindow rereads the complete bounded membership for every page. The
+// private continuation includes all four order keys and the existing source and
+// authority fence. Exact SQLite NOCASE comparison matches sort_key order,
+// including UTF-8 and embedded NUL bytes; effective disc/track defaults are the
+// same as the existing listening routes.
+func (r *RSChildrenReader) sortedWindow(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in RSChildrenInput, recipe rsChildrenRecipe, root rootRead, source *[]any) (RSChildrenPage, BrowseReadResult, error) {
+	windows := &rsByteWindow{source: r.snapshots, preflightCalls: RSListeningChildCap + 7}
+	type candidate struct {
+		row   []any
+		key   string
+		bytes int64
+	}
+	var raw []candidate
+	var charge int64
+	return publishRead(ctx, windows, request, budget, output, in.View, []readStep[RSChildrenPage]{
+		func(ctx context.Context, q browseQuery, f browseFence, _ *RSChildrenPage) error {
+			if in.After != nil && (in.After.fence != f || in.After.parent != in.Parent || in.After.family != in.Family || in.After.limit != in.View.Limit) {
+				return ErrStale
+			}
+			if f.maximumAge >= 0 || f.allowUnrated == 0 {
+				return ErrUnqualified
+			}
+			rows, err := q(rsChildrenName(recipe.name+".first"), in.Parent, int64(RSListeningChildCap+1))
+			if err != nil {
+				return err
+			}
+			if len(rows) > RSListeningChildCap {
+				return ErrUnqualified
+			}
+			// Charge 128 bytes per candidate (slice/string/length and sorting workspace),
+			// in addition to the shared retained-row accounting. Reserve twice actual
+			// sort-key bytes for copied keys and DTO/cursor overlap. This prospective
+			// charge must fit one quarter of the already-issued output memory grant;
+			// the shared publication copier independently accounts all SQL row copies.
+			charge = int64(len(rows)) * 128
+			if charge > output.Request.Need[governor.MemoryBytes]/4 {
+				return governor.ErrSnapshotBudget
+			}
+			raw = make([]candidate, len(rows))
+			maxBytes := int64(1)
+			for n, row := range rows {
+				sizes, err := q("rs.children."+recipe.name+".sort_octets", row[0], row[2], in.Parent)
+				if err != nil {
+					return err
+				}
+				if len(sizes) != 1 {
+					return ErrStale
+				}
+				bytes, err := rsPointBytes(sizes[0])
+				if err != nil {
+					return err
+				}
+				if bytes > (output.Request.Need[governor.MemoryBytes]/4-charge)/2 {
+					return governor.ErrSnapshotBudget
+				}
+				charge += 2 * bytes
+				raw[n] = candidate{row: row, bytes: bytes}
+				maxBytes = max(maxBytes, bytes)
+			}
+			return windows.arm(maxBytes, 2*RSListeningChildCap)
+		},
+		func(ctx context.Context, q browseQuery, f browseFence, p *RSChildrenPage) error {
+			for n := range raw {
+				row := raw[n].row
+				keys, err := q("rs.children."+recipe.name+".sort_key", row[0], row[2], in.Parent)
+				if err != nil {
+					return err
+				}
+				if len(keys) != 1 {
+					return ErrStale
+				}
+				key := keys[0][0].(string)
+				if int64(len(key)) != raw[n].bytes {
+					return ErrStale
+				}
+				raw[n].key = key
+			}
+			slices.SortFunc(raw, func(a, b candidate) int {
+				for _, pair := range [][2]int64{{a.row[17].(int64), b.row[17].(int64)}, {a.row[18].(int64), b.row[18].(int64)}} {
+					if c := cmp.Compare(pair[0], pair[1]); c != 0 {
+						return c
+					}
+				}
+				if c := rsListeningKeyCompare(a.key, b.key); c != 0 {
+					return c
+				}
+				return cmp.Compare(a.row[0].(int64), b.row[0].(int64))
+			})
+			p.RawRows = len(raw)
+			for _, c := range raw {
+				row := c.row
+				if a := in.After; a != nil {
+					order := cmp.Compare(row[17].(int64), a.first.Value)
+					if order == 0 {
+						order = cmp.Compare(row[18].(int64), a.second.Value)
+					}
+					if order == 0 {
+						order = rsListeningKeyCompare(c.key, a.sortKey)
+					}
+					if order == 0 {
+						order = cmp.Compare(row[0].(int64), a.id)
+					}
+					if order <= 0 {
+						continue
+					}
+				}
+				p.RawPositions++
+				p.Next = &RSChildrenCursor{fence: f, parent: in.Parent, family: in.Family, limit: in.View.Limit, first: rsNumber(row[17]), second: rsNumber(row[18]), id: row[0].(int64), sortKey: c.key, source: *source}
+				if row[2].(int64) != in.View.Library || row[3].(int64) != recipe.childKind || row[4].(int64) != 0 {
+					continue
+				}
+				public, ok := row[1].([]byte)
+				if !ok || len(public) != 16 {
+					return ErrUnqualified
+				}
+				item := RSChild{ID: row[0].(int64), Kind: row[3].(int64), Revision: row[5].(int64), Disc: rsNumber(row[12]), Track: rsNumber(row[13]), Part: rsNumber(row[14]), Season: rsNumber(row[15]), Episode: rsNumber(row[16])}
+				copy(item.PublicID[:], public)
+				p.Items = append(p.Items, item)
+				if len(p.Items) == in.View.Limit {
+					p.Pending = true
+					return ctx.Err()
+				}
+			}
+			p.Exhausted = true
+			p.Next = nil
+			return ctx.Err()
+		},
+	}, root)
+}
+
+// SQLite's built-in NOCASE folds ASCII only. Comparison stops at an embedded
+// NUL, then uses the original byte lengths when the compared prefix is equal.
+// Unicode folding or Go's ordinary byte comparison would change existing order.
+func rsListeningKeyCompare(a, b string) int {
+	for n := 0; n < min(len(a), len(b)); n++ {
+		x, y := a[n], b[n]
+		if x >= 'A' && x <= 'Z' {
+			x += 'a' - 'A'
+		}
+		if y >= 'A' && y <= 'Z' {
+			y += 'a' - 'A'
+		}
+		if c := cmp.Compare(x, y); c != 0 {
+			return c
+		}
+		if x == 0 {
+			break
+		}
+	}
+	return cmp.Compare(len(a), len(b))
 }

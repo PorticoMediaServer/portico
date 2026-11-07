@@ -26,7 +26,7 @@ func TestRSChildrenOrderedFamilies(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(page.Items) > 7 || page.RawRows > MaxRaw || page.RawPositions > page.RawRows || len(result.LookupWindows) != 2 || result.LookupStatements > 10 || result.PublicationStatements != 6 {
+				if len(page.Items) > 7 || page.RawRows > map[bool]int{true: RSListeningChildCap, false: MaxRaw}[family <= RSAudiobookFiles] || page.RawPositions > page.RawRows || len(result.LookupWindows) != 2 || result.LookupStatements > 3*RSListeningChildCap+7 || result.PublicationStatements != 6 {
 					t.Fatalf("bounds page=%+v result=%+v", page, result)
 				}
 				if page.Pending == page.Exhausted || (page.Next == nil) != page.Exhausted {
@@ -118,6 +118,12 @@ func TestRSChildrenSparseRawAndNullContinuation(t *testing.T) {
 		recipe, _ := rsChildrenRecipeFor(family)
 		f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id>=4000 AND id<10000`)
 		page, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+		if family <= RSAudiobookFiles {
+			if err != nil || !page.Exhausted || page.Pending || page.RawPositions != 90 || page.Next != nil || len(page.Items) != 0 {
+				t.Fatalf("sorted sparse: %+v %v", page, err)
+			}
+			continue
+		}
 		if err != nil || page.Exhausted || !page.Pending || page.RawPositions != MaxRaw || page.Next == nil {
 			t.Fatalf("%s sparse: %+v %v", recipe.name, page, err)
 		}
@@ -199,7 +205,7 @@ func TestRSChildrenSourceAndAuthorityPublication(t *testing.T) {
 		t.Run(mutation.name, func(t *testing.T) {
 			f, r := rsChildrenFixture(t)
 			in := rsChildrenInput(f, RSAlbumTracks)
-			r.snapshots = &foregroundBoundary{Snapshots: f.snapshots, mutate: func(phase int) {
+			r.snapshots = &rsChildrenBoundary{Snapshots: f.snapshots, mutate: func(phase int) {
 				if phase == 2 {
 					f.exec(t, mutation.sql)
 				}
@@ -230,7 +236,7 @@ func TestRSChildrenCursorFencesAndBoundedConflict(t *testing.T) {
 		t.Fatal("stale source cursor", result, err)
 	}
 	in.After = nil
-	r.snapshots = &foregroundBoundary{Snapshots: f.snapshots, mutate: func(int) { f.exec(t, `UPDATE catalog_entities SET revision=revision+1 WHERE id=2001`) }}
+	r.snapshots = &rsChildrenBoundary{Snapshots: f.snapshots, mutate: func(int) { f.exec(t, `UPDATE catalog_entities SET revision=revision+1 WHERE id=2001`) }}
 	page, result, err = r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(err, ErrStale) || result.Attempts != 2 || result.Refusal == nil || result.Refusal.Code != governor.Conflict || !reflect.DeepEqual(page, RSChildrenPage{}) {
 		t.Fatal("conflict retry bound", result, err)
@@ -252,7 +258,7 @@ func TestRSChildrenDefaultRestrictionAndCancellation(t *testing.T) {
 	}
 	f.exec(t, `DELETE FROM profile_restrictions WHERE profile_id='p'`)
 	ctx, cancel := context.WithCancel(t.Context())
-	r.snapshots = &foregroundBoundary{Snapshots: f.snapshots, mutate: func(phase int) {
+	r.snapshots = &rsChildrenBoundary{Snapshots: f.snapshots, mutate: func(phase int) {
 		if phase == 2 {
 			cancel()
 		}

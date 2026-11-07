@@ -34,8 +34,8 @@ func rsChildrenName(name string) string { return "foreground.rs.children." + nam
 // RSChildrenDefinitions is inert qualification composition. Combine with
 // HarnessDefinitions, Capture on the actual reader and pass the opaque receipt
 // to stmt.New. There is no shared registry edit or runtime registration.
-// All business outputs are bounded integers/nullable integers and schema-bound
-// 16-byte incarnations/public IDs: no wide-text actual-byte dependency is added.
+// Listening sort-key points use the registered actual-byte preflight pair;
+// membership streams retain the existing SEARCH-only numeric indexes.
 func RSChildrenDefinitions() []stmt.Definition {
 	i := func(name string) stmt.Param { return stmt.Param{Name: name, Type: stmt.Integer} }
 	var out []stmt.Definition
@@ -87,7 +87,11 @@ disc_number,track_number,part_number,season_number,episode_number,` + r.first + 
 			order = "rs_order_first,rs_order_second,id"
 		}
 		end := " ORDER BY " + order + " LIMIT ?"
-		add(r.name+".first", base+end, []stmt.Param{i("parent"), i("limit")}, []any{parent, int64(64)}, r.index)
+		firstLimit := int64(MaxRaw)
+		if r.keys == 2 {
+			firstLimit = RSListeningChildCap + 1
+		}
+		add(r.name+".first", base+end, []stmt.Param{i("parent"), i("limit")}, []any{parent, firstLimit}, r.index)
 		params := []stmt.Param{i("parent")}
 		values := []any{parent}
 		tail := ""
@@ -123,5 +127,5 @@ disc_number,track_number,part_number,season_number,episode_number,` + r.first + 
 			}
 		}
 	}
-	return out
+	return append(out, rsChildSortDefinitions()...)
 }
