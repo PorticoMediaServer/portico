@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
@@ -55,7 +56,10 @@ func TestN1EngineMismatchRefusesBeforeBegin(t *testing.T) {
 }
 
 func TestN1EngineAttestsEveryReplacementBeforeBegin(t *testing.T) {
-	w, path, _ := testExecutor(t)
+	// Reuse GV's ONE existing keeper and its same governor/WAL composition;
+	// closing a writer connection must not delete the WAL between samples.
+	cp := newCheckpointComponent(t, true, false)
+	w, path := cp.w, cp.path
 	expected := n1NativeEngine(t, w)
 	if err := w.db.Close(); err != nil {
 		t.Fatal(err)
@@ -82,7 +86,13 @@ func TestN1EngineAttestsEveryReplacementBeforeBegin(t *testing.T) {
 		return &n1EngineBeginTrace{c, &trace}
 	})
 	w.db.SetMaxIdleConns(0) // real native close; the next acquisition is a replacement
-	g, a, wal, request := governedFixture(t, w.now)
+	g, a, wal := cp.g, cp.a, cp.wal
+	recipe := testRecipe() // unchanged synthetic component unit; no qualification
+	request := governor.Request{Key: governor.JobKey{Domain: uint16(InventoryAccept), ID: "engine-replacement"}, Owner: 1,
+		Class: governor.ScanMinimum, Writer: true, MaxHold: recipe.limit.Hold, Deadline: cp.now().Add(time.Second),
+		Budget:    governor.UnitBudget{RawRows: uint32(recipe.limit.Rows), VMOps: recipe.limit.VMOps, Pages: uint32(recipe.limit.Pages)},
+		Need:      governor.Amounts{governor.MemoryBytes: 65536, governor.WALBytes: int64(recipe.limit.WALBytes)},
+		Footprint: []governor.Scope{{Library: 1, Domain: uint16(InventoryAccept)}}}
 	for generation := 1; generation <= 3; generation++ {
 		trace = nil
 		if err := refreshWriterWAL(path, wal, w.now); err != nil {
