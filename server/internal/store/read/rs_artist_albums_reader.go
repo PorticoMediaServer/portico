@@ -173,7 +173,7 @@ func (r *RSArtistAlbumReader) fence(ctx context.Context, q governor.Request, out
 	return nil
 }
 func (p *RSArtistAlbumPreparation) identity() [32]byte {
-	return sha256.Sum256([]byte(fmt.Sprintf("%#v/%v", p.fence, p.set.ids)))
+	return [32]byte{}
 }
 func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out BrowseOutput, p *RSArtistAlbumPreparation, at time.Time) (page RSArtistAlbumPage, cost BrowseReadResult, err error) {
 	if err = r.fence(ctx, q, out, p, at, &cost); err != nil {
