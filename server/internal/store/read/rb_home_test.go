@@ -301,7 +301,7 @@ func TestRBHomeShelfCapAndTieOrder(t *testing.T) {
 
 func TestRBHomeCapturePopulations(t *testing.T) {
 	f := newRBHomeSource(t)
-	for _, d := range append(rbHomeDefinitions(), rbHomeActivityDefinitions()...) {
+	for _, d := range append(rbHomeDefinitions(), append(rbHomeActivityDefinitions(), rbHomeMemberDefinitions()...)...) {
 		for _, c := range d.Cohorts {
 			rows, e := f.conn.QueryContext(t.Context(), d.SQL, c.Bindings...)
 			if e != nil {
@@ -319,6 +319,6 @@ func TestRBHomeCapturePopulations(t *testing.T) {
 		if stats == plan.Analyzed {
 			f.exec(t, "ANALYZE")
 		}
-		captureBrowse(t, f, append(rbHomeDefinitions(), rbHomeActivityDefinitions()...), stats, rbHomeFixtureHash(t))
+		captureBrowse(t, f, append(rbHomeDefinitions(), append(rbHomeActivityDefinitions(), rbHomeMemberDefinitions()...)...), stats, rbHomeFixtureHash(t))
 	}
 }

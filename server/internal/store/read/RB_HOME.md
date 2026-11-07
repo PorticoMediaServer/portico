@@ -9,7 +9,7 @@ No shared files, DDL, runtime routes, providers or production composition change
 ## Callable behavior
 
 `RBHomeDefinitions` composes the existing browse/foreground/chronology definitions
-and six Home statements. Capture is required on the actual Reader before registry
+and eight Home statements. Capture is required on the actual Reader before registry
 construction. `TestRBHomePlans` records unanalyzed and analyzed, present and empty,
 SEARCH-only plans. `-record-rb-home-plans` deliberately adopts the own-file golden.
 
@@ -37,6 +37,11 @@ Unsupported account policies and blocked labels still fail in the shared fence.
   dismissal, completion, millisecond unit and available version duration.
   Audiobooks require the current book state's resume leaf to match the part.
   This window intentionally does not claim full Home-family completion.
+* `HomeLeafWindow`: fenced show/season member candidates with raw ID keysets,
+  including an explicit nonexhausted continuation through arbitrary denied
+  prefixes. The continuation binds the work's exact root and library source
+  envelope. These are content-permitted candidates; availability and final
+  target/visible chronology reduction still must complete in preparation.
 
 Assets and leaf membership use bounded joins, not correlated subqueries or a
 copied Home table. Inventory acceptance is proved on the same object/source:

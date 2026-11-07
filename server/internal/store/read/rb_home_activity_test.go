@@ -21,6 +21,14 @@ func TestRBHomeActivityWorkAndCurrentBookTarget(t *testing.T) {
 			t.Fatal(v, page, e)
 		}
 	}
+	f.exec(t, `UPDATE personal_items SET dismissed_playback_id=resume_playback_id WHERE item_id=9100`)
+	bookInput := HomeActivityInput{View: f.input, Family: HomeBookActivity}
+	bookInput.View.Kind = 9
+	dismissed, _, dismissalErr := f.reader.homeActivityWindow(t.Context(), homeRequest(), time.Second, f.output, bookInput)
+	if dismissalErr != nil || len(dismissed.Items) != 0 {
+		t.Fatal("dismissed current audiobook", dismissed, dismissalErr)
+	}
+	f.exec(t, `UPDATE personal_items SET dismissed_playback_id=NULL WHERE item_id=9100`)
 	f.exec(t, `UPDATE personal_items SET resume_item_public_id=zeroblob(16) WHERE item_id=9100`)
 	in := HomeActivityInput{View: f.input, Family: HomeBookActivity}
 	in.View.Kind = 9
