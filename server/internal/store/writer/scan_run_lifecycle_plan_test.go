@@ -33,7 +33,7 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	}
 	hash := sha256.Sum256(data[start:end])
 	fixtureSHA := hex.EncodeToString(hash[:])
-	if fixtureSHA != "f96f8813659786b14397a566f6475d834aec9173ad4e3ba2b4f877e07d5a4af0" || schema.SHA256 != "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2" {
+	if fixtureSHA != "f96f8813659786b14397a566f6475d834aec9173ad4e3ba2b4f877e07d5a4af0" || schema.SHA256 != "9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05" {
 		t.Fatal("frozen seed/schema changed; review before recording")
 	}
 	defs := scanRunLifecycleDefinitions()
@@ -111,7 +111,7 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 		t.Fatal("exact full-set Capture receipt refused", err)
 	}
-	if len(golden.Manifest) != 12 || len(golden.Plans) != 19 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 671 {
+	if len(golden.Manifest) != 12 || len(golden.Plans) != 19 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 686 {
 		t.Fatal("incomplete lifecycle Capture")
 	}
 	audits, opcodes, searches := 0, 0, 0
@@ -181,5 +181,5 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("12definitions/19cohorts/6INSERTaudits/%dVM/%dSEARCH/671FK2013probes; same frozen pre-effect seed, no production profile/authority/enable", opcodes, searches)
+	t.Logf("12definitions/19cohorts/6INSERTaudits/%dVM/%dSEARCH/686FK2058probes; same frozen pre-effect seed, no production profile/authority/enable", opcodes, searches)
 }

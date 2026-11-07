@@ -54,7 +54,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 		hash.Write(data)
 	}
 	fixtureSHA := hex.EncodeToString(hash.Sum(nil))
-	if fixtureSHA != "dbc6b53fc422f9f6a3f4e9ead9975e4a0ea6ceb2dea7a881c8c1ffd43f43605c" || schema.SHA256 != "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2" {
+	if fixtureSHA != "dbc6b53fc422f9f6a3f4e9ead9975e4a0ea6ceb2dea7a881c8c1ffd43f43605c" || schema.SHA256 != "9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05" {
 		t.Fatal("frozen fixture/schema changed; review before recording")
 	}
 	definitions := scanFreshDefinitions()
@@ -136,7 +136,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(golden.Plans) != 44 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 671 {
+	if len(golden.Plans) != 44 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 686 {
 		t.Fatalf("incomplete scan evidence: cohorts=%d FK=%v", len(golden.Plans), golden.ForeignKeys != nil)
 	}
 	if len(golden.Manifest) != 24 {
@@ -189,7 +189,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 	// captured by the receipt harness before any new artifact is written.
 	baselineFK := readScanFreshFK(t, filepath.Join("testdata", "scan-inventory-accept-fk.json.gz"))
 	if err := plan.CompareExactJSON(baselineFK, fkJSON); err != nil {
-		t.Fatal("STOP: new fixture changed existing671-FK/2013-probe image", err)
+		t.Fatal("STOP: new fixture changed existing686-FK/2058-probe image", err)
 	}
 	golden.ForeignKeys = nil
 	actual, err := golden.JSON()
@@ -226,7 +226,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("24new compiled definitions/44cohorts/3destination audits/%dVM opcodes/%dSEARCH rows/671FKs/2013probes; fixture journal%s; no accepting SQL executed or full43-ID command qualified", opcodes, searches, fixtureSHA)
+	t.Logf("24new compiled definitions/44cohorts/3destination audits/%dVM opcodes/%dSEARCH rows/686FKs/2058probes; fixture journal%s; no accepting SQL executed or full43-ID command qualified", opcodes, searches, fixtureSHA)
 }
 
 func readScanFreshFK(t *testing.T, path string) []byte {
