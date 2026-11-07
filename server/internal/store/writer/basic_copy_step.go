@@ -88,3 +88,24 @@ func advanceBasicCopiedPosition(ctx context.Context, turn *commandTurn, s basicS
 	}
 	return value, nil
 }
+
+// A cleanup prefix and its true canonical-key continuation share one turn.
+// Only an exhausted native lookahead moves to family3; neither branch marks
+// the complete copy or publication ready.
+func cleanupBasicStreamStep(ctx context.Context, turn *commandTurn, in basicStreamCopyFence) (value basicCopyPosition, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
+	cleaned, err := cleanupBasicStreams(ctx, turn, in)
+	if err != nil {
+		return value, err
+	}
+	next := in.position
+	if cleaned.more {
+		if !cleaned.hasAfter {
+			return value, ErrConflict
+		}
+		next.id, next.aux = cleaned.id, 1
+	} else {
+		next.family, next.copyPhase, next.id, next.aux = 3, 0, 0, 0
+	}
+	return advanceBasicCopiedPosition(ctx, turn, in.family.source, in.position, next, in.shapeID)
+}

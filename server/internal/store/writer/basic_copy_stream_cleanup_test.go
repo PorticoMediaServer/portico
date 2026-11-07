@@ -141,10 +141,10 @@ func basicCleanupStreamFixture(t *testing.T, defs []stmt.Definition) (*executor,
 
 func TestBasicStreamCleanupRetainedProofAndBoundedContinuation(t *testing.T) {
 	w, turn, fence := basicCleanupStreamFixture(t, basicCleanupStreamTestDefinitions())
-	got, err := cleanupBasicStreams(t.Context(), turn, fence)
+	got, err := cleanupBasicStreamStep(t.Context(), turn, fence)
 	// Keys 0 and 3 are retained by full-PK staging proofs; 9..14 are
 	// obsolete. 15 is the ninth native lookahead and must remain untouched.
-	if err != nil || got != (basicStreamCleanupResult{14, true, true}) {
+	if err != nil || got != (basicCopyPosition{changeID: 51, changeRevision: 19, phase: 2, afterEntity: 31, family: 2, copyPhase: 1, id: 14, aux: 1}) {
 		t.Fatal(got, err)
 	}
 	for _, index := range []int64{0, 3, 15, 18} {
@@ -154,30 +154,21 @@ func TestBasicStreamCleanupRetainedProofAndBoundedContinuation(t *testing.T) {
 	if err = turn.transaction.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM asset_streams WHERE asset_id='basic-asset' AND stream_index BETWEEN 9 AND 14`).Scan(&count); err != nil || count != 0 {
 		t.Fatal(count, err)
 	}
-	next := fence.position
-	next.id, next.aux = got.id, 1
-	fence.position, err = advanceBasicCopiedPosition(t.Context(), turn, fence.family.source, fence.position, next, fence.shapeID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	fence.position = got
 	// This is a second bounded cleanup command, not a larger quantum for the
 	// combined prerequisite/copy/two-page fixture. Reuse the FULL receipt.
 	registry := turn.registry
 	basicMediaCommit(t, turn)
 	turn = basicHandlerTurn(t, w, BasicAccept, basicCleanupStreamTestDefinitions(), registry)
-	got, err = cleanupBasicStreams(t.Context(), turn, fence)
-	if err != nil || got != (basicStreamCleanupResult{18, true, false}) {
+	got, err = cleanupBasicStreamStep(t.Context(), turn, fence)
+	if err != nil || got != (basicCopyPosition{changeID: 51, changeRevision: 20, phase: 2, afterEntity: 31, family: 3}) {
 		t.Fatal(got, err)
-	}
-	next = fence.position
-	next.id, next.aux = got.id, 1
-	if _, err = advanceBasicCopiedPosition(t.Context(), turn, fence.family.source, fence.position, next, fence.shapeID); err != nil {
-		t.Fatal(err)
 	}
 	basicMediaCommit(t, turn)
 	var exact bool
 	if err = w.db.QueryRowContext(t.Context(), `SELECT
  (SELECT count(*)=2 FROM asset_streams WHERE asset_id='basic-asset')
+ AND (SELECT phase=2 AND job_revision=20 AND copy_family=3 AND copy_phase=0 AND copy_id=0 AND copy_aux=0 FROM catalog_info_changes WHERE id=51)
  AND (SELECT count(*)=1 FROM asset_streams WHERE asset_id='other-asset' AND stream_index=9 AND title='other')
  AND (SELECT count(*)=2 FROM catalog_info_new_streams WHERE change_id=51)
  AND (SELECT count(*)=2 FROM catalog_info_new_stream_breadth WHERE change_id=51)
