@@ -345,6 +345,13 @@ func composeHomeFixed(frame homeFixedFrame, row string, at time.Time) (HomeFixed
 	}
 	switch row {
 	case "new_on_server":
+		for _, lib := range frame.Libraries {
+			if !slices.Contains([]string{"movie", "tv", "anime", "music", "audiobook"}, lib.Library.Kind) {
+				page.Pending = true
+				page.PendingReason = "recent_library_policy_uncomposed"
+				return page, nil
+			}
+		}
 		return homeFixedRecent(frame, page)
 	case "continue", "listen_next", "continue_books":
 		return homeFixedActivity(frame, page, row, at)
