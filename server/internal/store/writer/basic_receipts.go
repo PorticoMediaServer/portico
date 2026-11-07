@@ -41,7 +41,7 @@ func lookupBasic(ctx context.Context, turn *commandTurn, q BasicReceiptRequest) 
 		return value, ErrInvalid
 	}
 	// Only the fixed identity points are prerequisites for fresh/retired;
-	// retained Accept must not need its deliberately unimplemented codec.
+	// terminal floors never need a saved result body or current fresh row.
 	for _, id := range []stmt.ID{scanReceiptOwner, basicReceiptScope, basicReceiptIdentity} {
 		if _, ok := turn.steps[id]; !ok {
 			return value, invalid("basic_receipt_identity_steps")
@@ -121,13 +121,18 @@ func lookupBasic(ctx context.Context, turn *commandTurn, q BasicReceiptRequest) 
 	if decision != receiptReplay {
 		return out, nil
 	}
+	memberCount := int64(0)
 	if q.Purpose == BasicPurposeAccept {
-		return value, ErrNotImplemented
+		memberCount = 1
 	}
-	if facts.resultCount != 0 {
+	if facts.resultCount != memberCount {
 		return value, ErrResolveRequired
 	}
-	for _, id := range []stmt.ID{basicReceiptHeaderLengths, basicReceiptHeader, scanReceiptReclaimKey} {
+	bodySteps := []stmt.ID{basicReceiptHeaderLengths, basicReceiptHeader}
+	if memberCount == 0 {
+		bodySteps = append(bodySteps, scanReceiptReclaimKey)
+	}
+	for _, id := range bodySteps {
 		if _, ok := turn.steps[id]; !ok {
 			return value, invalid("basic_receipt_body_steps")
 		}
@@ -153,6 +158,13 @@ func lookupBasic(ctx context.Context, turn *commandTurn, q BasicReceiptRequest) 
 	if err = turn.requireBasicMemory(ctx, q.Purpose, required); err != nil {
 		return value, err
 	}
+	var member InventoryMember
+	if memberCount == 1 {
+		member, err = readBasicReceiptMember(ctx, turn, q, lengths)
+		if err != nil {
+			return value, err
+		}
+	}
 	row, err = turn.query(ctx, turn.steps[basicReceiptHeader].statementStep, q.Scan.RunID, inc, expected.command.Sequence)
 	if err != nil {
 		return value, err
@@ -168,16 +180,20 @@ func lookupBasic(ctx context.Context, turn *commandTurn, q BasicReceiptRequest) 
 			return value, ErrResolveRequired
 		}
 	}
-	// FULL original key prefix, LIMIT 1: Stage/Seal's complete cohort is empty.
-	// No count-only proof or truncated successful member projection is served.
-	children, err := turn.query(ctx, turn.steps[scanReceiptReclaimKey].statementStep, q.Scan.RunID, inc, expected.command.Sequence)
-	if err != nil {
-		return value, err
-	}
-	hasChild := children.Next()
-	err = errors.Join(children.Err(), children.Close())
-	if err != nil || hasChild {
-		return value, errors.Join(ErrResolveRequired, err)
+	if memberCount == 1 {
+		v.ResultCount, v.Members = 1, []InventoryMember{member}
+	} else {
+		// Stage/Seal's complete cohort must be empty. No truncated successful
+		// prefix or count-only proof is disclosed.
+		children, e := turn.query(ctx, turn.steps[scanReceiptReclaimKey].statementStep, q.Scan.RunID, inc, expected.command.Sequence)
+		if e != nil {
+			return value, e
+		}
+		hasChild := children.Next()
+		e = errors.Join(children.Err(), children.Close())
+		if e != nil || hasChild {
+			return value, errors.Join(ErrResolveRequired, e)
+		}
 	}
 	v.Digest, err = basicResultDigest(expected.command, expected.digest, v)
 	if err != nil || v.Digest != ResultDigest(facts.resultDigest) {
