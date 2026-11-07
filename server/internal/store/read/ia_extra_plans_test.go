@@ -33,7 +33,7 @@ func TestIAExtraPlans(t *testing.T) {
 		if stats == plan.Analyzed {
 			f.exec(t, "ANALYZE")
 		}
-		g := captureBrowse(t, f, defs, stats, iaAudioHash(t))
+		g := captureBrowse(t, f, defs, stats, iaExtraHash(t))
 		if _, e := stmt.New(defs, g.Receipt()); e != nil {
 			t.Fatal(e)
 		}

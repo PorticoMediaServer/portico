@@ -186,6 +186,9 @@ func (r *ForegroundReader) iaExtraMembership(ctx context.Context, request govern
 				return ErrInput
 			}
 			keys, e = q("foreground.ia.extra.self", in.Entity)
+			if e != nil {
+				return e
+			}
 			d.Links, e = s.links(q, in.Entity, in.View.Library)
 			if e != nil {
 				return e
