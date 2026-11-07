@@ -22,12 +22,32 @@ type scanDriverFixture struct {
 	create   scanRunCreateEffects
 }
 
-func newScanDriverFixture(t *testing.T) *scanDriverFixture {
+// A closed protocol-only selector: callers cannot inject definitions, recipes,
+// grants or constructors. Omission preserves the original fixture unchanged.
+type scanDriverStatementFixture uint8
+
+const scanIssuerStatementFixture scanDriverStatementFixture = 1
+
+func newScanDriverFixture(t *testing.T, selections ...scanDriverStatementFixture) *scanDriverFixture {
 	t.Helper()
+	if len(selections) > 1 || len(selections) == 1 && selections[0] != scanIssuerStatementFixture {
+		t.Fatal("unsupported scan driver statement fixture")
+	}
 	path, owner := scanOpeningFixture(t)
 	o := openScanFixture(t, path, owner)
 	create := seedScanLifecycle(t, o.executor)
 	defs := append(scanRunLifecycleDefinitions(), scanBirthDefinitions()...)
+	if len(selections) == 1 {
+		defs = scanLifecycleCommandDefinitions()
+		for _, sql := range []string{
+			`UPDATE catalog_libraries SET root='/retained-library-identity' WHERE id=7`,
+			`INSERT INTO library_scan_policies(library_id,revision) VALUES('lifecycle-library',7)`,
+		} {
+			if _, err := o.executor.db.ExecContext(t.Context(), sql); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	registry := nativeInventoryFixtureRegistry(t, o.executor, defs, "scan_driver_test.go", "scan_run_lifecycle_test.go")
 	clock := time.Now().Add(time.Hour)
 	o.executor.now = func() time.Time { return clock }
@@ -45,6 +65,21 @@ func newScanDriverFixture(t *testing.T) *scanDriverFixture {
 		}
 	})
 	return &scanDriverFixture{d, registry, request, recipe, create}
+}
+
+func TestScanDriverIssuerFixtureCapturesCurrentSource(t *testing.T) {
+	// Protocol only: same actual Capture/governor and existing recipe/footprint;
+	// this supplies no production source, issuance or acceptance qualification.
+	f := newScanDriverFixture(t, scanIssuerStatementFixture)
+	if len(f.registry.Manifest()) != 30 {
+		t.Fatal("issuer fixture changed its closed 30-ID inventory")
+	}
+	turn := f.turn(t, InventoryCreate, f.create.scope.runID)
+	facts, err := captureScanSource(t.Context(), turn, 7, "lifecycle-library", "lifecycle-new-source")
+	if err != nil || string(facts.identityRoot) != "/retained-library-identity" ||
+		string(facts.source.resolvedRoot) != "/media-new" || string(facts.identityRoot) == string(facts.source.resolvedRoot) || facts.policyRevision != 7 {
+		t.Fatal("protocol source capture lost retained root/policy", facts, err)
+	}
 }
 
 func (f *scanDriverFixture) preparation(t *testing.T, purpose CommandID, runID string) *scanPreparation {

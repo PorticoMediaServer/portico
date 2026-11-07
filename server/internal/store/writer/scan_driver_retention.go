@@ -34,6 +34,7 @@ func scanOwnerRetentionFor(w *executor, registry *stmt.Registry) (*scanOwnerRete
 	allowed = append(allowed, scanRunLifecycleDefinitions()...)
 	allowed = append(allowed, scanRunLifecycleHistoryDefinitions()...)
 	allowed = append(allowed, scanBirthDefinitions()...)
+	allowed = append(allowed, scanSourceDefinitions()...)
 	for _, def := range scanReceiptDefinitions() {
 		switch def.ID {
 		case scanReceiptLookup, scanReceiptAck, scanReceiptReclaimKey, scanReceiptReclaimHeader:
@@ -89,6 +90,7 @@ func scanOwnerRetentionID(id stmt.ID) bool {
 		scanReceiptReclaimKey, scanReceiptReclaimHeader,
 		scanRunHistoryOwner, scanRunHistoryBody,
 		scanBirthRun, scanBirthJob, scanBirthOperation, scanBirthActive,
+		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot,
 		scanLifecycleRun, scanLifecycleJob, scanLifecycleRoot, scanLifecycleActive,
 		scanLifecycleInsertJob, scanLifecycleInsertRun, scanLifecycleInsertRoot, scanLifecycleInsertActive,
 		scanLifecycleClaimNull, scanLifecycleClaimDue, scanLifecycleClaimJob, scanLifecycleReceiptInsert:
