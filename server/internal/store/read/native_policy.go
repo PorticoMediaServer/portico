@@ -1,6 +1,8 @@
 package read
 
 import (
+	"bytes"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -32,6 +34,7 @@ func bindNativeSearchPolicy(kind, subject int64) (readPolicyBinding, error) {
 type nativePolicyWitness struct {
 	valid                                          bool
 	id, kind, library, revision, ownAge, container int64
+	creditSource                                   [32]byte
 	source                                         [32]byte
 	birth, public                                  [16]byte
 	binding                                        readPolicyBinding
@@ -102,6 +105,16 @@ func nativePolicyForSource(q browseQuery, in BrowseInput, f browseFence, source 
 	if err != nil {
 		return nativePolicyWitness{}, "", false, err
 	}
+	if r[11] != nil {
+		var valid bool
+		proof.creditSource, valid, err = nativeCreditImageProof(q, r)
+		if err != nil {
+			return nativePolicyWitness{}, "", false, err
+		}
+		if !valid {
+			return nativePolicyWitness{}, "", false, errFullSearchPending
+		}
+	}
 	copy(proof.birth[:], birth)
 	copy(proof.public[:], public)
 	return proof, name, true, nil
@@ -121,6 +134,9 @@ func validateNativePolicy(q browseQuery, in BrowseInput, f browseFence, prior na
 	source := &nativeSource{kind: prior.kind, library: prior.library, item: rows[0]}
 	source.key.SubjectID = prior.id
 	current, _, allowed, err := nativePolicyForSource(q, in, f, source)
+	if errors.Is(err, errFullSearchPending) {
+		return ErrStale
+	}
 	if err != nil {
 		return err
 	}
@@ -222,4 +238,39 @@ func nativeRetainedPolicies(stamps []*FullSearchReadStamp, fence nativeSearchFen
 		}
 	}
 	return proofs, hits, nil
+}
+
+// A separate full PK point avoids a tiny joined-header scan. The returned
+// header is checked against the current same-snapshot item's logical identity,
+// immutable birth and owner revision before any credit can authorize a match.
+func nativeCreditImageProof(q browseQuery, item []any) ([32]byte, bool, error) {
+	if len(item) != 19 {
+		return [32]byte{}, false, ErrUnqualified
+	}
+	image, ok := item[11].(int64)
+	if !ok || image <= 0 {
+		return [32]byte{}, false, ErrUnqualified
+	}
+	rows, err := q("full.native.credit.image", image)
+	if err != nil {
+		return [32]byte{}, false, err
+	}
+	if len(rows) == 0 {
+		return [32]byte{}, false, nil
+	}
+	if len(rows) != 1 || len(rows[0]) != 6 {
+		return [32]byte{}, false, ErrUnqualified
+	}
+	r := rows[0]
+	birth, a := r[2].([]byte)
+	expected, b := item[9].([]byte)
+	revision, c := r[5].(int64)
+	if !a || !b || !c || len(birth) != 16 || len(expected) != 16 || revision <= 0 {
+		return [32]byte{}, false, ErrUnqualified
+	}
+	if r[0] != image || r[1] != item[0] || !bytes.Equal(birth, expected) || r[3] != item[12] || r[4] != int64(1) {
+		return [32]byte{}, false, nil
+	}
+	digest, err := nativeItemIdentity(r)
+	return digest, err == nil, err
 }

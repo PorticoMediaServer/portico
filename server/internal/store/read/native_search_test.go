@@ -196,6 +196,28 @@ func nativeFixtureHash(t *testing.T) string {
 	journal = append(journal, vector...)
 	return fmt.Sprintf("%x", sha256.Sum256(journal))
 }
+
+// Scenario fixtures additionally bind their exact source body. The shared
+// plan golden remains tied to the unchanged base seed journal only.
+func nativeScenarioFixtureHash(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("native_search_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker := []byte("func " + strings.Split(t.Name(), "/")[0] + "(")
+	a := bytes.Index(raw, marker)
+	if a < 0 {
+		t.Fatal("missing native scenario source")
+	}
+	b := len(raw)
+	if next := bytes.Index(raw[a+len(marker):], []byte("\nfunc ")); next >= 0 {
+		b = a + len(marker) + next
+	}
+	journal := append([]byte(nativeFixtureHash(t)), raw[a:b]...)
+	return fmt.Sprintf("%x", sha256.Sum256(journal))
+}
+
 func newNativeSource(t *testing.T) *browseFixture {
 	t.Helper()
 	f := newBrowseSource(t)
@@ -283,7 +305,7 @@ func TestNativeSearchPreviewTheReturnsPartial(t *testing.T) {
 		f.exec(t, `UPDATE catalog_entities SET title=?,sort_key=?,retired=0 WHERE id=?`, title, strings.ToLower(title), id)
 		nativeFixtureImage(t, f, search.ManifestEntity, id, 1000+id, []nativeFixtureField{{1, title}})
 	}
-	fixture := fmt.Sprintf("%x", sha256.Sum256([]byte(nativeFixtureHash(t)+"; The preview entities30..50")))
+	fixture := nativeScenarioFixtureHash(t)
 	f = composeReadFixture(t, f, NativeFullSearchDefinitions(), readfixture.LiveConfig(time.Now), false, fixture)
 	r, err := NewNativeFullSearchReader(f.snapshots)
 	if err != nil {
@@ -318,6 +340,41 @@ func TestNativeSearchPreviewTheReturnsPartial(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNativeSearchPerHitPolicyRecheckedBeforePublication(t *testing.T) {
+	f := newNativeSource(t)
+	f.exec(t, "BEGIN")
+	f.exec(t, "PRAGMA defer_foreign_keys=ON")
+	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(32,'native-reading-test',0,0,1,1,0)`)
+	f.exec(t, `UPDATE catalog_subjects SET kind=32 WHERE id=60`)
+	f.exec(t, `UPDATE catalog_entities SET kind=32,title='The proof',source_revision=1,retired=0 WHERE id=60`)
+	nativeFixtureImage(t, f, search.ManifestEntity, 60, 2060, []nativeFixtureField{{1, "The proof"}})
+	f.exec(t, "COMMIT")
+	fixture := nativeScenarioFixtureHash(t)
+	f = composeReadFixture(t, f, NativeFullSearchDefinitions(), readfixture.LiveConfig(time.Now), false, fixture)
+	r, err := NewNativeFullSearchReader(f.snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.snapshots = &nativeBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE catalog_entities SET source_revision=source_revision+1 WHERE id=60`) }}
+	f.input.Kind = 0
+	f.input.Limit = 20
+	query, err := search.PlanQuery("the", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, request, output := liveRequests("per-hit-final")
+	request.Budget.RawRows = 4096
+	var page FullSearchPage
+	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+		var e error
+		page, _, e = r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input, Preview: true, CandidateBudget: 1}, query)
+		return e
+	})
+	if !errors.Is(err, ErrStale) || !reflect.DeepEqual(page, FullSearchPage{}) {
+		t.Fatal("per-hit witness drift released output", page, err)
 	}
 }
 func TestNativeSearchRefusesUnsupportedAndStaleProofs(t *testing.T) {

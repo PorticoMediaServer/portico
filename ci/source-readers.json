@@ -371,7 +371,9 @@
         "TestNativeSearchAcceptedSiblingOracle",
         "TestNativeSearchPublicationDenialAndRetirement",
         "TestNativeSearchReadJoinedStamp",
-        "TestNativeSearchPeopleEqualIDBirth"
+        "TestNativeSearchPeopleEqualIDBirth",
+        "TestNativeSearchPreviewTheReturnsPartial",
+        "TestNativeSearchPerHitPolicyRecheckedBeforePublication"
       ]
     }
   ],
