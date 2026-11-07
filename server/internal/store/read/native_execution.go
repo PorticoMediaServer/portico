@@ -289,7 +289,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		}
 		scopeQuery.nativeWork = work
 		if in.Preview {
-			draft, e = nativePreviewAdvance(scope.Context(), q, scopeQuery, initial, in, &calls)
+			draft, e = nativeAdvance(scope.Context(), q, scopeQuery, initial, in, &calls)
 		} else {
 			draft, e = nativeAdvance(scope.Context(), q, scopeQuery, initial, in, &calls)
 		}
