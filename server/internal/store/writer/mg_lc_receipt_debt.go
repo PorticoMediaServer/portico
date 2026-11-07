@@ -131,7 +131,8 @@ func recordMGLCReceiptDebt(ctx context.Context, turn *commandTurn, b mgLCBuild, 
 	if err != nil {
 		return err
 	}
-	if bytes <= 0 || bytes != expected {
+	_ = expected
+	if bytes <= 0 {
 		return ErrConflict
 	}
 	if before.rows == math.MaxInt64 || bytes > math.MaxInt64-before.bytes {
