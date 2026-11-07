@@ -30,6 +30,8 @@ func relatedRead(q browseQuery, s *relatedState, name string, args ...any) ([][]
 }
 func relatedQuantum(q browseQuery, s *relatedState, windows *rsByteWindow) error {
 	switch s.phase {
+	case -1:
+		return relatedSeedAvailability(q, s)
 	case 0:
 		return relatedEnumerate(q, s)
 	case 1:
@@ -487,23 +489,91 @@ func relatedProbeStep(q browseQuery, s *relatedState) (bool, bool, error) {
 	}
 	// Read one child per tick. Full windows are not necessary here: the cursor
 	// position is always an actual raw child and an empty seek proves exhaustion.
-	rows, err := relatedRead(q, s, "children", p.id, p.child, int64(1))
+	var rows [][]any
+	var err error
+	switch p.entity.kind() {
+	case 2:
+		rows, err = relatedRead(q, s, "show.members", p.id, p.child, int64(1))
+	case 5:
+		rows, err = relatedRead(q, s, "artist.members", p.id, p.child, int64(1))
+	case 6, 8:
+		if len(p.members) > 0 {
+			id := p.members[0]
+			p.members = p.members[1:]
+			return false, false, relatedPushProbe(s, id)
+		}
+		if p.exhausted {
+			s.probe = s.probe[:len(s.probe)-1]
+			return false, false, nil
+		}
+		name, kind := "album", int64(7)
+		if p.entity.kind() == 8 {
+			name = "book"
+			kind = 9
+		}
+		rows, err = relatedRead(q, s, "children."+name, s.fence.libraryID, kind, p.child, int64(MaxRaw))
+		if err != nil {
+			return false, false, err
+		}
+		for _, row := range rows {
+			p.child = row[0].(int64)
+			if row[1] != nil && row[1].(int64) == p.id {
+				p.members = append(p.members, p.child)
+			}
+		}
+		p.exhausted = len(rows) < MaxRaw
+		return false, false, nil
+	case 10:
+		rows, err = relatedRead(q, s, "collection.members", p.id, p.child, int64(1))
+	default:
+		rows, err = relatedRead(q, s, "children", p.id, p.child, int64(1))
+	}
 	if err != nil {
 		return false, false, err
 	}
+
 	if len(rows) == 0 {
 		s.probe = s.probe[:len(s.probe)-1]
 		return false, false, nil
 	}
 	child := rows[0][0].(int64)
 	p.child = child
+	return false, false, relatedPushProbe(s, child)
+}
+func relatedPushProbe(s *relatedState, child int64) error {
 	if s.probeSeen[child] {
-		return false, false, ErrUnqualified
+		return ErrUnqualified
 	}
 	if len(s.probeSeen) == rsRelatedCandidates || len(s.probe) == 8 {
-		return false, false, ErrRelatedCapacity
+		return ErrRelatedCapacity
 	}
 	s.probeSeen[child] = true
 	s.probe = append(s.probe, relatedProbe{id: child})
-	return false, false, nil
+	return nil
+}
+
+func relatedSeedAvailability(q browseQuery, s *relatedState) error {
+	if s.rootIndex == len(s.roots) {
+		s.phase = 0
+		s.rootIndex = 0
+		return nil
+	}
+	if s.probe == nil {
+		e := s.roots[s.rootIndex]
+		s.probe = []relatedProbe{{id: e.id(), entity: e, stage: 1}}
+		s.probeSeen = map[int64]bool{e.id(): true}
+	}
+	visible, done, err := relatedProbeStep(q, s)
+	if err != nil {
+		return err
+	}
+	if done {
+		if !visible {
+			return ErrDenied
+		}
+		s.rootIndex++
+		s.probe = nil
+		s.probeSeen = nil
+	}
+	return nil
 }

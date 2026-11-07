@@ -4,8 +4,8 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
 // RSRelatedDefinitions is inert. All candidate LIMITs apply to source rows,
 // before eligibility/reduction. Nothing installs these in a product registry.
-// Only numeric facts and schema-bounded 16-byte identities are returned. Labels,
-// titles and art belong to the separately byte-preflighted card projection.
+// Source walks return numeric facts and schema-bounded 16-byte identities.
+// Wide identity/card points are separately byte-preflighted.
 func RSRelatedDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	s := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
@@ -93,14 +93,20 @@ WHERE e.id=?`, []stmt.Param{s("profile"), i("entity")}, []any{"p", int64(1)}, po
 	}
 	// Exact identity comparison is a point on both entities; external-ID rows
 	// are individually walked by the provider equivalence statement below.
-	add("local.equal", `SELECT a.id FROM catalog_entities AS a CROSS JOIN catalog_entities AS b ON b.id=? WHERE a.id=? AND a.local_key<>'' AND a.kind=b.kind AND a.local_key=b.local_key`, []stmt.Param{i("other"), i("entity")}, []any{int64(1), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"a", "b"}})
+	add("local.equal", `SELECT a.id FROM catalog_entities AS a NOT INDEXED CROSS JOIN catalog_entities AS b NOT INDEXED ON b.id=? WHERE a.id=? AND a.local_key<>'' AND a.kind=b.kind AND a.local_key=b.local_key`, []stmt.Param{i("other"), i("entity")}, []any{int64(1), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"a", "b"}})
 	// Raw external identities are compared inside indexed SQL. A full window
 	// without equality refuses rather than guessing absent identity.
 	// Provider IDs are not required by any local generator.
-	add("provider.equal", `SELECT b.entity_id FROM metadata_entity_external_ids AS a LEFT JOIN metadata_entity_external_ids AS b ON b.entity_id=? AND b.provider=a.provider AND b.subject_kind=a.subject_kind AND b.provider_id=a.provider_id WHERE a.entity_id=? ORDER BY a.provider,a.subject_kind,a.provider_id LIMIT 64`, []stmt.Param{i("other"), i("entity")}, []any{int64(1), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"a", "b"}})
+	add("provider.equal", `SELECT b.entity_id FROM metadata_entity_external_ids AS a LEFT JOIN metadata_entity_external_ids AS b INDEXED BY sqlite_autoindex_metadata_entity_external_ids_1 ON b.entity_id=? AND b.provider=a.provider AND b.subject_kind=a.subject_kind AND b.provider_id=a.provider_id WHERE a.entity_id=? ORDER BY a.provider,a.subject_kind,a.provider_id LIMIT 64`, []stmt.Param{i("other"), i("entity")}, []any{int64(1), int64(1)}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_entity_external_ids_1"}, PrimaryKeys: []string{"a"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "metadata_entity_external_ids", Name: "sqlite_autoindex_metadata_entity_external_ids_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "entity_id", Collation: "BINARY"}, {Name: "provider", Collation: "BINARY"}, {Name: "subject_kind", Collation: "BINARY"}, {Name: "provider_id", Collation: "BINARY"}}}}})
 	out[len(out)-1].Cohorts[1].Bindings = []any{int64(1), int64(999999)}
 	// Availability consumes raw link positions before current asset filtering.
 	add("assets", `SELECT l.asset_id,l.available,a.available FROM catalog_asset_links AS l CROSS JOIN catalog_assets AS a ON a.id=l.asset_id AND a.library_id=l.library_id WHERE l.entity_id=? AND l.asset_id>? ORDER BY l.asset_id LIMIT ?`, []stmt.Param{i("entity"), i("after"), i("limit")}, []any{int64(1), int64(0), int64(64)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"l", "a"}})
 	add("children", `SELECT id,0,0 FROM catalog_entities INDEXED BY catalog_entities_parent WHERE parent_id IS NOT NULL AND parent_id=? AND id>? ORDER BY id LIMIT ?`, []stmt.Param{i("parent"), i("after"), i("limit")}, []any{int64(1), int64(0), int64(64)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_parent"}})
+	for _, r := range []struct {
+		name, column string
+		kind         int64
+	}{{"album", "album_id", 7}, {"book", "book_id", 9}} {
+		add("children."+r.name, `SELECT id,`+r.column+`,0 FROM catalog_entities INDEXED BY catalog_entities_library WHERE library_id=? AND kind=? AND id>? ORDER BY id LIMIT ?`, []stmt.Param{i("library"), i("kind"), i("after"), i("limit")}, []any{int64(1), r.kind, int64(0), int64(64)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library"}})
+	}
 	return append(out, rsRelatedByteDefinitions()...)
 }
