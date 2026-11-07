@@ -305,6 +305,9 @@ func TestRSArtistAlbumReaderCurrentPages(t *testing.T) {
 				}
 				for _, c := range page.Cards {
 					got = append(got, c.Facts.Item.ID)
+					if (c.PrimaryArtist.ID != 2006) != (c.Role == RSArtistAlbumAppearance) {
+						t.Fatal("artist relative role", c.Role, c.PrimaryArtist.ID)
+					}
 					if c.PrimaryArtist.ID != c.Facts.Album.Artist {
 						t.Fatal("primary context", c)
 					}
