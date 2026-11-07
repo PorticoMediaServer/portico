@@ -4,7 +4,7 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
 // Normalization is deliberately performed by SQLite at the exact author13
 // point. Go TrimSpace/ToLower, NOCASE and Reading20/21 are different contracts.
-const rsAudioAuthorKeySQL = `SELECT lower(trim(e.title)) FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=13 AND e.retired=0`
+const rsAudioAuthorKeySQL = `SELECT lower(e.title) FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=13 AND e.retired=0`
 const rsAudioAuthorKeyOctetsSQL = `SELECT octet_length(lower(trim(e.title))) FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=13 AND e.retired=0`
 
 func init() {
