@@ -47,6 +47,12 @@ func copyBasicMediaRowStep(ctx context.Context, turn *commandTurn, in basicMedia
 			return value, ErrInvalid
 		}
 		_, err = installBasicStreamBreadth(ctx, turn, basicStreamBreadthCopyEffects{in.fence, in.hadBefore, before})
+	case 7:
+		before, ok := in.before.(basicSubtitleSidecar)
+		if !ok {
+			return value, ErrInvalid
+		}
+		_, err = installBasicSubtitleSidecar(ctx, turn, basicSubtitleSidecarCopyEffects{in.fence, in.hadBefore, before})
 	case 5:
 		before, ok := in.before.(basicChapter)
 		if !ok {
@@ -64,7 +70,13 @@ func copyBasicMediaRowStep(ctx context.Context, turn *commandTurn, in basicMedia
 	if next.id == int64(len(f.rows)) {
 		// Cleanup has its own indexed canonical-key walk. No family is declared
 		// complete merely because its last new input row was installed.
-		next.copyPhase, next.id = 1, 0
+		if f.family == 7 {
+			// Global physical sidecars are shared; only this asset's tracks
+			// are later reconciled and removed.
+			next.family, next.id = 8, 0
+		} else {
+			next.copyPhase, next.id = 1, 0
+		}
 	}
 	return advanceBasicCopiedPosition(ctx, turn, f.source, p, next, in.fence.shapeID)
 }
