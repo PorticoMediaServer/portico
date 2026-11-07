@@ -1,0 +1,123 @@
+{
+  "source": "bb4974a29069f5e445c4e192a397a7469b7a1101",
+  "source_packet_sha256": "33ba0d732e20ad3d2ce3ea3b656177d5b7e4c854184e9228f4b48775392092dd",
+  "definitions": [
+    {
+      "id": "enrichment.effective_source.pin_evidence_lengths",
+      "sql": "SELECT octet_length(id),\n    subject_id,\n    octet_length(parser_version),\n    octet_length(provider),\n    sealed,\n    octet_length(seal_proof_owner),\n    octet_length(seal_proof_incarnation),\n    seal_proof_sequence,\n    octet_length(seal_proof_kind)\n    FROM metadata_evidence WHERE id=?",
+      "owner": "writer.enrichment",
+      "callSites": [
+        "writer/enrichment_effective_source_pin_lengths.go:readEffectiveSourceEvidencePinLengths"
+      ],
+      "kind": "read",
+      "params": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false
+        }
+      ],
+      "cohorts": [
+        {
+          "name": "draft_exact_point",
+          "bindings": [
+            "evidence-original"
+          ]
+        }
+      ],
+      "plan": {
+        "hot": true,
+        "indexes": [
+          "sqlite_autoindex_metadata_evidence_1"
+        ],
+        "primaryKeys": null,
+        "seeks": [
+          "id=?"
+        ],
+        "allowedScans": null
+      }
+    },
+    {
+      "id": "enrichment.effective_source.pin_publication_lengths",
+      "sql": "SELECT octet_length(publication_id),\n    entity_id,\n    octet_length(provider),\n    member_count,\n    sealed,\n    octet_length(seal_proof_owner),\n    octet_length(seal_proof_incarnation),\n    seal_proof_sequence,\n    octet_length(seal_proof_kind)\n    FROM credit_source_publications WHERE publication_id=?",
+      "owner": "writer.enrichment",
+      "callSites": [
+        "writer/enrichment_effective_source_pin_lengths.go:readEffectiveSourcePublicationPinLengths"
+      ],
+      "kind": "read",
+      "params": [
+        {
+          "name": "publication_id",
+          "type": "text",
+          "nullable": false
+        }
+      ],
+      "cohorts": [
+        {
+          "name": "draft_exact_point",
+          "bindings": [
+            "00112233445566778899aabbccddeeff"
+          ]
+        }
+      ],
+      "plan": {
+        "hot": true,
+        "indexes": [
+          "sqlite_autoindex_credit_source_publications_1"
+        ],
+        "primaryKeys": null,
+        "seeks": [
+          "publication_id=?"
+        ],
+        "allowedScans": null
+      }
+    },
+    {
+      "id": "enrichment.effective_source.pin_receipt_lengths",
+      "sql": "SELECT octet_length(provider_operation_id),\n    octet_length(command_incarnation),\n    command_sequence,\n    octet_length(operation_id),\n    octet_length(request_digest),\n    octet_length(command_kind),\n    accepted_revision,\n    applied_ms,\n    entity_id,\n    octet_length(after_item),\n    after_ordinal,\n    octet_length(publication_id),\n    effective_image_id,\n    effective_image_revision,\n    result_count,\n    octet_length(result_digest),\n    seal_version,\n    octet_length(seal_evidence_id),\n    seal_subject_id,\n    octet_length(seal_parser_version),\n    octet_length(seal_provider),\n    octet_length(seal_subject_kind),\n    octet_length(seal_provider_id),\n    octet_length(seal_language),\n    octet_length(seal_region),\n    octet_length(seal_request_shape),\n    octet_length(seal_observation_digest),\n    seal_owner_generation,\n    octet_length(seal_build_id),\n    seal_build_generation,\n    seal_content_revision,\n    octet_length(seal_algorithm),\n    octet_length(seal_commitment),\n    seal_verified_rows,\n    seal_canonical_bytes,\n    seal_retained_bytes,\n    octet_length(upstream_evidence_owner),\n    octet_length(upstream_evidence_incarnation),\n    upstream_evidence_sequence,\n    octet_length(source_dependency_owner),\n    octet_length(source_dependency_incarnation),\n    source_dependency_sequence,\n    octet_length(source_dependency_publication_id),\n    octet_length(source_dependency_provider),\n    proof_revision,\n    proof_pin_count,\n    proof_reclaim_due_ms,\n    proof_cleanup_after_sequence\n    FROM enrichment_command_receipts WHERE provider_operation_id=? AND command_incarnation=? AND command_sequence=?",
+      "owner": "writer.enrichment",
+      "callSites": [
+        "writer/enrichment_effective_source_pin_lengths.go:readEffectiveSourceReceiptPinLengths"
+      ],
+      "kind": "read",
+      "params": [
+        {
+          "name": "owner",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "incarnation",
+          "type": "blob",
+          "nullable": false
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "nullable": false
+        }
+      ],
+      "cohorts": [
+        {
+          "name": "draft_exact_point",
+          "bindings": [
+            "operation-original",
+            "AAAAAAAAAAAAAAAAAAAAAA==",
+            7
+          ]
+        }
+      ],
+      "plan": {
+        "hot": true,
+        "indexes": null,
+        "primaryKeys": [
+          "enrichment_command_receipts"
+        ],
+        "seeks": [
+          "provider_operation_id=? AND command_incarnation=? AND command_sequence=?"
+        ],
+        "allowedScans": null
+      }
+    }
+  ]
+}
