@@ -135,23 +135,28 @@ func applyUOSavedEntries(ctx context.Context, t *commandTurn, q uoSavedInput) (o
 				lower = r.key
 			}
 			cursor := lower
+			cursorID := *q.after
 			// At most 200 moved rows plus one surviving neighbor. No collection scan.
 			for i := 0; i <= len(q.order); i++ {
-				r, e := readUOSavedEntry(ctx, t, q.security, "next", q.id, cursor)
+				r, e := readUOSavedEntry(ctx, t, q.security, "next", q.id, cursor, cursorID)
 				if errors.Is(e, ErrConflict) {
 					break
 				}
 				if e != nil {
 					return out, e
 				}
-				if r.key <= cursor {
+				if r.key < cursor || r.key == cursor && r.id <= cursorID {
 					return out, ErrResolveRequired
 				}
 				if !seen[r.id] {
 					upper = r.key
+					if upper <= lower {
+						return out, ErrResolveRequired
+					}
 					break
 				}
 				cursor = r.key
+				cursorID = r.id
 			}
 			for i := range keys {
 				keys[i] = uoSavedRank(lower, upper, i, len(keys))
