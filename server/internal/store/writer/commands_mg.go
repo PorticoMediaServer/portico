@@ -6,6 +6,7 @@ var mgCommands = commandRegistration{owner: "MG", descriptors: mgDomainDescripto
 
 func mgDomainDescriptors() []Descriptor {
 	out := mgGuideDescriptors()
+	out = append(out, mgSourceDescriptors()...)
 	out = append(out, mgCaptureDescriptors()...)
 	return append(out, mgLCDescriptors()...)
 }
