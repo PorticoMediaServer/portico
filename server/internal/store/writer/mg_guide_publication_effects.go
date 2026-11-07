@@ -19,7 +19,7 @@ func mgGuidePublicationStep(t *commandTurn, id stmt.ID) (statementStep, error) {
 		return statementStep{}, ErrInvalid
 	}
 	switch id {
-	case mgGuideRead, mgGuideSource, mgGuideIdentity, mgGuideSealRow, mgGuidePublishSource, mgGuidePublishNewSource, mgGuidePublishOperation:
+	case mgGuideRead, mgGuideSource, mgGuideIdentity, mgGuideSealRow, mgGuidePublishSource, mgGuidePublishNewSource, mgGuidePublishOperation, mgGuideInsertChannel, mgGuideInsertProgramme, mgGuideInsertChoice, mgGuideAdvanceStage:
 	default:
 		return statementStep{}, ErrInvalid
 	}

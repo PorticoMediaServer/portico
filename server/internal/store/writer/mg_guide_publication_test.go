@@ -64,7 +64,7 @@ func mgGuideNativeFixture(t *testing.T, sealed bool, state string) (*executor, m
 }
 func mgGuideNativeTurn(t *testing.T, w *executor, defs ...[]stmt.Definition) *commandTurn {
 	t.Helper()
-	definitions := mgGuidePublicationDefinitions()
+	definitions := append(mgGuidePublicationDefinitions(), mgGuideStageDefinitions()...)
 	if len(defs) > 0 {
 		definitions = defs[0]
 	}
