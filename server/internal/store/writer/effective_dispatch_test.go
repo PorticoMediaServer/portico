@@ -433,8 +433,10 @@ func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
 	installFaultPool(executor, fault)
 	primeEffectiveFixturePool(t, executor)
 	ack, err := w.AckEffective(t.Context(), cap, effectiveReference(command))
-	if !errors.Is(err, ErrOverrun) || !reflect.DeepEqual(ack, AckResult{}) {
-		t.Fatal("committed ACK became retryable failure", ack, err)
+	if err != nil || ack.AcknowledgedThrough != command.identity.Sequence || ack.Evidence == nil ||
+		!ack.Evidence.HoldTargetExceeded || ack.Evidence.HoldTarget <= 0 || ack.Evidence.HoldTarget > MaxCommandHold ||
+		ack.Evidence.HoldSafetyCeiling != MaxCommandSafetyHold {
+		t.Fatal("committed ACK above target became failure", ack, err)
 	}
 	var nativeFloor int64
 	// Quarantine closed the private pool; independently inspect actual native
@@ -451,11 +453,12 @@ func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
 	if nativeFloor != command.identity.Sequence {
 		t.Fatal("committed floor was lost", nativeFloor)
 	}
-	if !executor.fenced || !w.effective.fenced || authority.Usage()[governor.Background] != (governor.Amounts{}) {
-		t.Fatal("overrun lost fence/physical return")
+	if executor.fenced || w.effective.fenced || executor.holdTargetOverruns.Load() != 1 || authority.Usage()[governor.Background] != (governor.Amounts{}) {
+		t.Fatal("over-target ACK fenced or lost counter/physical return")
 	}
-	if _, err := w.ResolveEffective(t.Context(), cap, effectiveReference(command)); !errors.Is(err, ErrClosed) {
-		t.Fatal("fenced facade admitted next call", err)
+	retired, err := w.ResolveEffective(t.Context(), cap, effectiveReference(command))
+	if err != nil || retired.Outcome.State != ResultRetired {
+		t.Fatal("next original resolution did not remain retired", retired, err)
 	}
 }
 
