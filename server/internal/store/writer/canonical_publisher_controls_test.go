@@ -3,6 +3,7 @@ package writer
 import (
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,9 +36,14 @@ func TestCanonicalPublisherRecipeKeepsPopulationsDistinct(t *testing.T) {
 	}
 }
 
-func TestCanonicalPublisherSameOwnerPopulationAndSustainedGate(t *testing.T) {
-	// Tiny canonical transport control, not a1M or timing measurement. No accepting
-	// command runs: the real, currently missing keeper binding must stop it.
+func TestCanonicalPublisherFundedKeeperFunctional(t *testing.T) {
+	if value := os.Getenv("PORTICO_CANONICAL_PB_FUNCTIONAL"); value == "" {
+		t.Skip("opt-in real-clock publisher/funded-keeper functional control")
+	} else if value != "1" {
+		t.Fatal("PORTICO_CANONICAL_PB_FUNCTIONAL must be1")
+	}
+	// Tiny real-clock functional component, not a1M/10k/profile measurement.
+	// Actual refusals/errors remain nonpassing; no default wall-clock assertion.
 	dir, pin := canonicalN1ControlArtifact(t)
 	for _, command := range []string{"SearchFragmentStage", "SearchHeadPublish"} {
 		t.Run(command, func(owner *testing.T) {
@@ -53,8 +59,8 @@ func TestCanonicalPublisherSameOwnerPopulationAndSustainedGate(t *testing.T) {
 			raw, _ := json.Marshal(c)
 			result := canonicalPublisherSummary{}
 			err = runCanonicalPublisherOwner(owner, c, "FUNCTIONAL_ONLY", manifest, stream, raw, "functional-only", "not-a-source-qualification", &result)
-			if !errors.Is(err, errCanonicalPublisherSustained) || result.Complete || result.Calls.CallsAttempted != 0 || result.NativeJoined == nil || !*result.NativeJoined {
-				owner.Fatal("gate/join falsely passed", result, err)
+			if err != nil || !result.Complete || result.Calls.FreshCompleted != 2 || result.Calls.CallsAttempted != 9 || result.NativeJoined == nil || !*result.NativeJoined || result.CheckpointCalls == nil || *result.CheckpointCalls < 1 || result.CheckpointComplete == nil || *result.CheckpointComplete != *result.CheckpointCalls {
+				owner.Fatal("real original/keeper chain incomplete", result, err)
 			}
 			if err := file.Close(); err != nil {
 				owner.Fatal(err)
@@ -64,8 +70,8 @@ func TestCanonicalPublisherSameOwnerPopulationAndSustainedGate(t *testing.T) {
 				owner.Fatal(err)
 			}
 			lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-			if len(lines) != 3 {
-				owner.Fatal("lost constructor prefix/census/gate", len(lines))
+			if len(lines) < 21 {
+				owner.Fatal("missing real call/CP prefixes", len(lines))
 			}
 			var population struct {
 				Kind       string           `json:"kind"`
@@ -82,13 +88,49 @@ func TestCanonicalPublisherSameOwnerPopulationAndSustainedGate(t *testing.T) {
 			if population.Kind != "population_attached" || population.Seed != 16 || population.Before["catalog_entities"] < 16 || population.After["catalog_entities"] != population.Before["catalog_entities"]+4 || population.Measured != 2 || population.Warmup != 1 || population.Background != 1 {
 				owner.Fatal("seed/overlay counts conflated", population)
 			}
-			var gate map[string]any
-			if err := json.Unmarshal([]byte(lines[2]), &gate); err != nil {
-				owner.Fatal(err)
+			calls, starts, checkpoints := 0, 0, 0
+			for _, line := range lines {
+				var value struct {
+					Kind      string                      `json:"kind"`
+					Physical  *int                        `json:"actual_physical_attempt_ordinal"`
+					Publisher *publisherMeasurementRecord `json:"publisher"`
+				}
+				if err := json.Unmarshal([]byte(line), &value); err != nil {
+					owner.Fatal(err)
+				}
+				switch value.Kind {
+				case "attempt_start":
+					starts++
+				case "checkpoint":
+					checkpoints++
+				case "attempt":
+					calls++
+					if value.Physical == nil || *value.Physical != calls || value.Publisher == nil || !value.Publisher.Complete || value.Publisher.Evidence == nil || value.Publisher.PhysicalHoldNS == nil || value.Publisher.CallError != "" {
+						owner.Fatal("unbound/partial real call", line)
+					}
+				case "failed_binding":
+					owner.Fatal("keeper not attached", line)
+				}
 			}
-			if gate["kind"] != "failed_binding" || gate["native_calls_started"] != float64(0) || gate["hold_ns"] != nil || gate["commit_ns"] != nil {
-				owner.Fatal("fake zero measurement", gate)
+			if calls != 9 || starts != 9 || checkpoints != *result.CheckpointCalls {
+				owner.Fatal(calls, starts, checkpoints, result)
 			}
 		})
+	}
+}
+
+func TestCanonicalPublisherMaintenancePreservesCaps(t *testing.T) {
+	original := publisherFixtureWALPolicy()
+	m := canonicalPublisherMaintenance()
+	comparable := m.policy
+	comparable.ConcurrentPassive = false
+	comparable.CheckpointMaxHold = 0
+	if comparable != original || !m.policy.ConcurrentPassive || m.policy.CheckpointMaxHold != 5*time.Second {
+		t.Fatal("publisher WAL caps changed", m)
+	}
+	owner := canonicalN1MaintenanceOwner{shape: canonicalCheckpointShape{SearchFragmentStage, "canonical-publisher-cp", m.policy.HardBytes}, opening: &scanOpening{binding: &scanFileBinding{device: 7}}}
+	request := owner.request("passive")
+	if request.Need[governor.Reader] != 1 || request.Need[governor.IOBytes] != 2*m.policy.HardBytes || request.MaxHold != 5*time.Second || request.Budget.Pages != uint32(2*(m.policy.HardBytes/4120)+1) || m.need[governor.IOBytes] != 4*m.policy.HardBytes || m.need[governor.Reader] != 2 {
+		t.Fatal("keeper/active/shutdown whole-prefix funding missing", request, m)
 	}
 }

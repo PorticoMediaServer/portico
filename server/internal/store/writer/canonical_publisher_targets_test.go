@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"testing"
+	"time"
 )
 
 var errCanonicalPublisherSustained = errors.New("canonical publisher sustained composition unavailable: actual funded same-DB keeper not attached; WAL refusals are harness gaps")
@@ -35,11 +36,14 @@ func canonicalPublisherConfig(c canonicalHeldConfig) (publisherMeasurementConfig
 }
 
 type canonicalPublisherSummary struct {
-	Calls        publisherCallCensus  `json:"calls"`
-	NativeJoined *bool                `json:"native_joined"`
-	Usage        *[4]governor.Amounts `json:"authority_usage_after_close"`
-	Complete     bool                 `json:"complete"`
-	Error        string               `json:"error"`
+	Calls              publisherCallCensus  `json:"calls"`
+	NativeJoined       *bool                `json:"native_joined"`
+	Usage              *[4]governor.Amounts `json:"authority_usage_after_close"`
+	CheckpointCalls    *int                 `json:"checkpoint_calls"`
+	CheckpointComplete *int                 `json:"checkpoint_complete"`
+	CheckpointOverflow *bool                `json:"checkpoint_overflow"`
+	Complete           bool                 `json:"complete"`
+	Error              string               `json:"error"`
 }
 
 type canonicalPublisherSink struct {
@@ -56,6 +60,13 @@ func (s *canonicalPublisherSink) beforeCall(r publisherMeasurementRecord) error 
 	original, call := s.ids(r)
 	return s.stream.append("attempt_start", map[string]any{"original_id": original, "attempt_id": call, "offered_original_ordinal": r.Ordinal + 1, "turn_role": r.Phase, "original_population": publisherCanonicalPopulation(r), "requested_reference": r.Request, "scope": "before dispatcher custody; original phase/reference retained even if invocation never returns"})
 }
+func (s *canonicalPublisherSink) afterOriginal() error {
+	if s.fixture.maintenance != nil {
+		return s.fixture.maintenance.drain(s.stream)
+	}
+	return errCanonicalPublisherSustained
+}
+
 func publisherCanonicalPopulation(r publisherMeasurementRecord) string {
 	if r.Warmup {
 		return "warmup"
@@ -153,8 +164,20 @@ func runCanonicalPublisherOwner(t *testing.T, c publisherMeasurementConfig, reci
 	}
 	p := preparePublisherPopulation(t, c.purpose(), c.FreshCount+c.WarmupCount, c.BackgroundCount)
 	var authority *governor.Authority
+	var maintenance *canonicalN1MaintenanceOwner
 	defer func() {
-		closeErr := p.e.close() // observe FIRST actual close, before registered no-op cleanup
+		var closeErr error
+		if maintenance != nil {
+			closeErr = maintenance.close() // same stop/join -> W.Retired -> keeper shutdown chain
+			primary = errors.Join(primary, maintenance.drain(stream))
+			started, completed, overflow := maintenance.started, maintenance.completed, maintenance.overflow
+			result.CheckpointCalls, result.CheckpointComplete, result.CheckpointOverflow = &started, &completed, &overflow
+			if overflow {
+				primary = errors.Join(primary, errors.New("publisher checkpoint ledger overflow"))
+			}
+		} else {
+			closeErr = p.e.close()
+		} // preserve first actual close result
 		p.e.physicalFaults.mu.Lock()
 		fault := p.e.physicalFaults.failed
 		p.e.physicalFaults.mu.Unlock()
@@ -178,33 +201,62 @@ func runCanonicalPublisherOwner(t *testing.T, c publisherMeasurementConfig, reci
 	if err != nil {
 		return err
 	}
-	f := bindPublisherGovernedFixture(t, p.e, c.purpose(), firstF, firstH, true)
+	// Reuse N1's attested opening after the ONE seeded executor joins. Same
+	// canonical copy/native path; no new opening implementation or SQL reset.
+	path := publisherFixturePath(t, p.e)
+	if err := p.e.close(); err != nil {
+		return err
+	}
+	p.e.physicalFaults.mu.Lock()
+	failed := p.e.physicalFaults.failed
+	p.e.physicalFaults.mu.Unlock()
+	if stats := p.e.db.Stats(); failed || stats.InUse != 0 || stats.OpenConnections != 0 {
+		return errors.New("publisher seed executor did not physically join")
+	}
+	opening := openScanFixture(t, path, scanOpeningOwner(t, path))
+	p.e = opening.executor
+	spec := canonicalPublisherMaintenance()
+	f := bindPublisherGovernedFixture(t, p.e, c.purpose(), firstF, firstH, true, spec)
 	authority = f.a
+	maintenance = newCanonicalCheckpointOwner(t, opening, f.w.effective.governor, f.a, f.w.effective.wal, path, canonicalCheckpointShape{c.purpose(), "canonical-publisher-cp", spec.policy.HardBytes})
+	f.maintenance = maintenance
 	metadata := publisherMeasurementMetadataFor(t, c, raw, host, sourceHash, p, f)
-	if err := stream.append("population_attached", map[string]any{"recipe": recipe, "publisher_metadata": metadata, "canonical_manifest_residents": manifest.Facts.Residents, "native_census_before_graphs": p.baseline, "native_census_after_graphs": p.counts, "prepared_measured_graphs": c.FreshCount, "prepared_warmup_graphs": c.WarmupCount, "prepared_background_graphs": c.BackgroundCount, "catalogue_scope": "canonical baseline library7 plus unchanged PB fixed seed and uniform title-only graph owners in library3, SAME database; no exact1M total or1M dense publisher claim", "consumer": "not exercised by held publisher class"}); err != nil {
+	if err := stream.append("population_attached", map[string]any{"recipe": recipe, "publisher_metadata": metadata, "canonical_manifest_residents": manifest.Facts.Residents, "native_census_before_graphs": p.baseline, "native_census_after_graphs": p.counts, "prepared_measured_graphs": c.FreshCount, "prepared_warmup_graphs": c.WarmupCount, "prepared_background_graphs": c.BackgroundCount, "catalogue_scope": "canonical baseline library7 plus unchanged PB fixed seed and uniform title-only graph owners in library3, SAME database; no exact1M total or1M dense publisher claim", "consumer": "not exercised by held publisher class", "maintenance_policy": spec.policy, "maintenance_additional_partition": spec.need}); err != nil {
 		return err
 	}
 	if p.baseline["catalog_entities"] < int64(manifest.Facts.Residents) {
 		return errors.New("native baseline smaller than attached canonical population")
 	}
-	// The first slice's explicit gate will be funded by the next owner-reviewed
-	// N1 keeper composition PR, with no command/profile/opening clone.
+	// Initial PASSIVE and the worker use the SAME actual g/a/WAL/native binding;
+	// failed/refused maintenance remains raw and stops the run without a retry.
 	if gap := canonicalPublisherSustainedGate(f); gap != nil {
 		if err := stream.append("failed_binding", map[string]any{"reason": gap.Error(), "native_calls_started": 0, "hold_ns": nil, "commit_ns": nil, "scope": "no accepting command attempted; constructor census is not throughput"}); err != nil {
 			return err
 		}
 		return gap
 	}
+	maintenance.results <- maintenance.step(t.Context())
+	if err := maintenance.drain(stream); err != nil {
+		return err
+	}
+	maintenance.start(t.Context())
 	sink := &canonicalPublisherSink{stream: stream, fixture: f}
 	base := publisherMeasurementRecord{Version: publisherMeasurementVersion, RunID: c.RunID, Command: c.Command, Purpose: c.purpose(), Class: governor.Background}
 	return runPublisherMeasurementCalls(t, c, p, f, sink, base, &result.Calls)
 }
 
 func canonicalPublisherSustainedGate(f *publisherGovernedFixture) error {
-	if f == nil || f.e == nil || f.e.keeper.Load() == nil {
+	if f == nil || f.e == nil || f.maintenance == nil || f.e.keeper.Load() == nil {
 		return errCanonicalPublisherSustained
 	}
 	return f.e.keeper.Load().Check()
 }
 
 var _ publisherRecordSink = (*canonicalPublisherSink)(nil)
+
+func canonicalPublisherMaintenance() governedFixtureMaintenance {
+	policy := publisherFixtureWALPolicy()
+	policy.ConcurrentPassive = true
+	policy.CheckpointMaxHold = 5 * time.Second
+	return governedFixtureMaintenance{policy: policy, need: governor.Amounts{governor.Reader: 2, governor.MemoryBytes: 8 << 20, governor.CPUMilli: 2000, governor.IOBytes: 4 * policy.HardBytes}}
+}
