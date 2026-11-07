@@ -96,11 +96,13 @@ func TestN1OperatingForecastCapacityRefusesBeforeEffects(t *testing.T) {
 		"SELECT count(*) FROM catalog_assets":                                              &assets,
 		"SELECT count(*) FROM inventory_objects":                                           &objects,
 		"SELECT count(*) FROM scan_command_receipts WHERE command_kind='inventory_accept'": &receipts,
-		"SELECT last_command_sequence FROM inventory_runs":                                 &last,
 	} {
 		if err := db.QueryRowContext(t.Context(), q).Scan(dst); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := db.QueryRowContext(t.Context(), "SELECT last_command_sequence FROM inventory_runs WHERE job_id=?", original.RunID).Scan(&last); err != nil {
+		t.Fatal(err)
 	}
 	if assets != 0 || objects != 0 || receipts != 0 || last != original.Receipt.Identity.Sequence-1 {
 		t.Fatal("capacity refusal changed durable effects", assets, objects, receipts, last)
