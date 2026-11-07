@@ -16,6 +16,9 @@ func TestSCBasicPhase011Capture(t *testing.T) {
 	if dir == "" {
 		t.Fatal("hosted evidence directory required")
 	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"scan-basic-stream-stage.json", "scan-basic-stream-stage-fk.json.gz", "scan-basic-control.json", "scan-basic-control-fk.json.gz"} {
 		data, err := os.ReadFile(filepath.Join("testdata", name))
 		if err != nil {
