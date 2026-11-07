@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,4 +66,25 @@ func TestRBHomeFixedPlans(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
+	// Comparison bytes carry no authority; the actual Reader receipt above must
+	// authorize these exact definitions on this source/schema in BOTH populations.
+	stored, e := os.ReadFile("testdata/rb-home-fixed-plans.json.gz")
+	if e != nil {
+		t.Fatal(e)
+	}
+	z, e := gzip.NewReader(bytes.NewReader(stored))
+	if e != nil {
+		t.Fatal(e)
+	}
+	expected, e := io.ReadAll(z)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = z.Close(); e != nil {
+		t.Fatal(e)
+	}
+	if e = plan.CompareJSON(expected, data); e != nil {
+		t.Fatal(e)
+	}
+
 }
