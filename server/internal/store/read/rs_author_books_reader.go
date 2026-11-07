@@ -74,6 +74,7 @@ type RSAuthorBookPreparation struct {
 	scan, fileAfter, candidate int64
 	candidateEntry             rsAuthorBookEntry
 	fileVisible                bool
+	authorContext              bool
 
 	phase       int
 	selected    []int64
@@ -339,6 +340,9 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 		}
 		if p.candidate == 0 {
 			if next == 0 {
+				if !p.authorContext {
+					return ErrDenied
+				}
 				p.phase = 2
 				return nil
 			}
@@ -392,6 +396,7 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 			p.candidateEntry = rsAuthorBookEntry{}
 			return nil
 		}
+		p.authorContext = true
 		p.fileAfter = rows[0][0].(int64)
 		itemFence := f
 		itemFence.container = 0
