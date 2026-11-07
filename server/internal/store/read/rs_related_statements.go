@@ -108,5 +108,6 @@ WHERE e.id=?`, []stmt.Param{s("profile"), i("entity")}, []any{"p", int64(1)}, po
 	}{{"album", "album_id", 7}, {"book", "book_id", 9}} {
 		add("children."+r.name, `SELECT id,`+r.column+`,0 FROM catalog_entities INDEXED BY catalog_entities_library WHERE library_id=? AND kind=? AND id>? ORDER BY id LIMIT ?`, []stmt.Param{i("library"), i("kind"), i("after"), i("limit")}, []any{int64(1), r.kind, int64(0), int64(64)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library"}})
 	}
+	add("title.less", `SELECT a.id FROM catalog_entities AS a NOT INDEXED CROSS JOIN catalog_entities AS b NOT INDEXED ON b.id=? WHERE a.id=? AND a.title COLLATE NOCASE < b.title COLLATE NOCASE`, []stmt.Param{i("other"), i("entity")}, []any{int64(2), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"a", "b"}})
 	return append(out, rsRelatedByteDefinitions()...)
 }

@@ -69,6 +69,9 @@ func TestRSRelatedPlans(t *testing.T) {
 	// Runner capture can be collected using ordinary lane-focused tests, without
 	// widening its capture-target allowlist or writing into another lane's file.
 	if evidence := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidence != "" {
+		if err = os.MkdirAll(evidence, 0755); err != nil {
+			t.Fatal(err)
+		}
 		if err = os.WriteFile(filepath.Join(evidence, "rs-related-plans.json.gz"), compressed.Bytes(), 0644); err != nil {
 			t.Fatal(err)
 		}
