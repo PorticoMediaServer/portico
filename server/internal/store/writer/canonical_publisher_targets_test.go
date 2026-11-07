@@ -204,6 +204,7 @@ func runCanonicalPublisherOwner(t *testing.T, c publisherMeasurementConfig, reci
 	// Reuse N1's attested opening after the ONE seeded executor joins. Same
 	// canonical copy/native path; no new opening implementation or SQL reset.
 	path := publisherFixturePath(t, p.e)
+	seedConfig := p.e.config
 	if err := p.e.close(); err != nil {
 		return err
 	}
@@ -215,13 +216,16 @@ func runCanonicalPublisherOwner(t *testing.T, c publisherMeasurementConfig, reci
 	}
 	opening := openScanFixture(t, path, scanOpeningOwner(t, path))
 	p.e = opening.executor
+	if p.e.config != seedConfig {
+		return errors.New("publisher reopen changed actual connection config")
+	}
 	spec := canonicalPublisherMaintenance()
 	f := bindPublisherGovernedFixture(t, p.e, c.purpose(), firstF, firstH, true, spec)
 	authority = f.a
 	maintenance = newCanonicalCheckpointOwner(t, opening, f.w.effective.governor, f.a, f.w.effective.wal, path, canonicalCheckpointShape{c.purpose(), "canonical-publisher-cp", spec.policy.HardBytes})
 	f.maintenance = maintenance
 	metadata := publisherMeasurementMetadataFor(t, c, raw, host, sourceHash, p, f)
-	if err := stream.append("population_attached", map[string]any{"recipe": recipe, "publisher_metadata": metadata, "canonical_manifest_residents": manifest.Facts.Residents, "native_census_before_graphs": p.baseline, "native_census_after_graphs": p.counts, "prepared_measured_graphs": c.FreshCount, "prepared_warmup_graphs": c.WarmupCount, "prepared_background_graphs": c.BackgroundCount, "catalogue_scope": "canonical baseline library7 plus unchanged PB fixed seed and uniform title-only graph owners in library3, SAME database; no exact1M total or1M dense publisher claim", "consumer": "not exercised by held publisher class", "maintenance_policy": spec.policy, "maintenance_additional_partition": spec.need}); err != nil {
+	if err := stream.append("population_attached", map[string]any{"recipe": recipe, "publisher_metadata": metadata, "canonical_manifest_residents": manifest.Facts.Residents, "native_census_before_graphs": p.baseline, "native_census_after_graphs": p.counts, "prepared_measured_graphs": c.FreshCount, "prepared_warmup_graphs": c.WarmupCount, "prepared_background_graphs": c.BackgroundCount, "catalogue_scope": "canonical baseline library7 plus unchanged PB fixed seed and uniform title-only graph owners in library3, SAME database; no exact1M total or1M dense publisher claim", "consumer": "not exercised by held publisher class", "seed_connection_config": seedConfig, "accepting_connection_config": p.e.config, "standalone_max_grants_per_class": 2, "actual_max_grants_per_class": f.grantLimit, "grant_limit_scope": "lead-approved N1 test-only keeper configuration: global2-to4 metadata slots; publisher stream remains serial, command/WAL/resource caps unchanged; no production profile authority", "maintenance_policy": spec.policy, "maintenance_additional_partition": spec.need}); err != nil {
 		return err
 	}
 	if p.baseline["catalog_entities"] < int64(manifest.Facts.Residents) {
