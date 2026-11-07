@@ -1,6 +1,20 @@
 package writer
 
-import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+import (
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+)
+
+// The file header reserves an unsigned byte per page. This is a conservative
+// usable-size floor, not an observation that the database reserves zero bytes.
+// The configured page size is read and asserted by the SAME physical writer
+// connection before BEGIN, including every replacement; zero is unqualified.
+func inventoryUsablePageFloor(pageSize int32) (uint64, error) {
+	if pageSize < 512 || pageSize > 65536 || pageSize&(pageSize-1) != 0 {
+		return 0, &Refusal{Code: RefusalUnqualified}
+	}
+	return uint64(pageSize) - 255, nil
+}
 
 // The driver adds its current source/policy/logical-root verification to the
 // existing complete history/effects set. This is inert: no runtime installs
@@ -74,10 +88,17 @@ func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, err
 	if err := keeper.Check(); err != nil {
 		return effectivePlan{}, err
 	}
+	if w.config.Role != sqliteconn.Writer {
+		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
+	}
+	if _, err := inventoryUsablePageFloor(w.config.WriterPageSize); err != nil {
+		return effectivePlan{}, err
+	}
 	p, err := freezeCommandPlan(w, p, inventoryDriverCommandDefinitions(), InventoryAccept)
 	if err != nil {
 		return effectivePlan{}, err
 	}
+	p.inventoryPageSize = w.config.WriterPageSize
 	if p.inventoryMemory.preparationBytes < scanByteFixedWorkspace {
 		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
 	}

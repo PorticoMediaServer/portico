@@ -119,7 +119,10 @@ func requireFK787(t *testing.T, conn *sql.Conn) {
 }
 
 func TestReplacementRestoresEveryConnectionSetting(t *testing.T) {
-	path, _, cfg := fixture(t)
+	path, original, cfg := fixture(t)
+	if err := original.QueryRowContext(t.Context(), "PRAGMA main.page_size").Scan(&cfg.WriterPageSize); err != nil {
+		t.Fatal(err)
+	}
 	base, err := Connector(path, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -130,6 +133,9 @@ func TestReplacementRestoresEveryConnectionSetting(t *testing.T) {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	conn := assertConn(t, db, cfg)
+	if got, err := Assert(t.Context(), conn, cfg); err != nil || got.WriterPageSize != cfg.WriterPageSize {
+		t.Fatal("initial physical connection lacks page evidence", got, err)
+	}
 	// A security turn changes only its private connection. A subsequent physical
 	// replacement must still start from the configured NORMAL policy.
 	if _, err := conn.ExecContext(t.Context(), "PRAGMA synchronous=FULL"); err != nil {
@@ -155,6 +161,9 @@ func TestReplacementRestoresEveryConnectionSetting(t *testing.T) {
 	conn.Close()
 	conn = assertConn(t, db, cfg)
 	defer conn.Close()
+	if got, err := Assert(t.Context(), conn, cfg); err != nil || got.WriterPageSize != cfg.WriterPageSize {
+		t.Fatal("replacement lacks same-connection page evidence", got, err)
+	}
 	if counted.opened.Load() != 2 {
 		t.Fatal("physical replacement not exercised", counted.opened.Load())
 	}
