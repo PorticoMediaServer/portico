@@ -44,6 +44,7 @@ type effectivePlan struct {
 	inventoryMemory     inventoryMemoryBudget // private whole-unit partition; zero is unqualified
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
+	enrichmentMemory    commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
 }
 
@@ -51,20 +52,21 @@ type effectivePlan struct {
 // private composition must own pool/native idle memory and WAL sampling outside
 // command custody. No production profile is inferred from these descriptors.
 type effectiveRuntime struct {
-	mu             sync.Mutex
-	executor       *executor
-	governor       governor.Governor
-	authority      *governor.Authority
-	wal            *governor.WALGate
-	path           string
-	owner          governor.OwnerID
-	plan           effectivePlan
-	inventoryPlan  *effectivePlan
-	lifecyclePlans [2]*effectivePlan // private, explicitly composed create/claim history profiles
-	issuerPlans    [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
-	registry       *stmt.Registry
-	fenced         bool
-	cleanupPanics  []terminalPanic
+	mu              sync.Mutex
+	executor        *executor
+	governor        governor.Governor
+	authority       *governor.Authority
+	wal             *governor.WALGate
+	path            string
+	owner           governor.OwnerID
+	plan            effectivePlan
+	inventoryPlan   *effectivePlan
+	lifecyclePlans  [2]*effectivePlan // private, explicitly composed create/claim history profiles
+	enrichmentPlans [4]*effectivePlan // closed EN purposes; installed once, nil is unqualified
+	issuerPlans     [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
+	registry        *stmt.Registry
+	fenced          bool
+	cleanupPanics   []terminalPanic
 
 	clockHighWater time.Time // composition custody under mu, then transferred into the frame
 }
@@ -176,18 +178,20 @@ type commandCompletion struct {
 }
 
 type commandOutput struct {
-	effective EffectiveStageResult
-	inventory InventoryResult
-	publisher SearchImageStageResult
-	lifecycle scanLifecycleCommandResult
-	source    scanSourceFacts
-	run       scanRunSnapshot
+	effective  EffectiveStageResult
+	inventory  InventoryResult
+	publisher  SearchImageStageResult
+	enrichment enrichmentCommandResult
+	lifecycle  scanLifecycleCommandResult
+	source     scanSourceFacts
+	run        scanRunSnapshot
 }
 
-func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
+func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, invocations ...commandInvocation) (out commandOutput, acknowledged AckResult, err error) {
 	var publisher *publisherInvocation
-	if len(publishers) == 1 {
-		publisher = publishers[0]
+	var enrichment *enrichmentInvocation
+	if len(invocations) == 1 {
+		publisher, enrichment = invocations[0].publisher, invocations[0].enrichment
 	}
 	// Installed before EVERY return, including admission/binding failures. It
 	// executes after rollback/retirement defers and the final WAL sample.
@@ -198,17 +202,17 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if stopLifetime != nil {
 			defer stopLifetime()
 		}
-		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, enrichment))
 		if tx != nil {
 			err = errors.Join(err, tx.lifetimeErr)
 		}
 		result, finalErr := finishCommand(ctx, lifetime, commandCompletion{out, acknowledged}, err)
 		out, acknowledged, err = result.output, result.ack, finalErr
 	}()
-	if ctx == nil || len(publishers) > 1 || len(publishers) == 1 && publisher == nil {
+	if ctx == nil || len(invocations) > 1 || len(invocations) == 1 && (publisher == nil) == (enrichment == nil) {
 		return out, acknowledged, ErrInvalid
 	}
-	if err := r.currentCommandDisclosure(w, cap, request, scan, publisher); err != nil {
+	if err := r.currentCommandDisclosure(w, cap, request, scan, publisher, enrichment); err != nil {
 		return out, acknowledged, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -226,8 +230,20 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		// entry, but no grant/BEGIN or substitute handler is manufactured.
 		return out, acknowledged, ErrNotImplemented
 	}
+	if enrichment != nil {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || ack != (enrichment.action == enrichmentAcknowledge) {
+			return out, acknowledged, ErrInvalid
+		}
+		if err = validateEnrichmentInvocation(r, w, enrichment); err != nil {
+			return out, acknowledged, err
+		}
+	}
 	purpose, plan, reference, key, libraryID := EffectiveStage, &r.plan, request.Receipt, request.ProviderOperationID, request.LibraryID
 	outcome := &out.effective.Outcome
+	if enrichment != nil {
+		purpose, plan, reference, key, libraryID = enrichment.purpose, nil, enrichment.request.Receipt, enrichment.request.ProviderOperationID, enrichment.request.LibraryID
+		outcome = &out.enrichment.Outcome
+	}
 	if scan != nil {
 		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) {
 			return out, acknowledged, ErrInvalid
@@ -266,6 +282,13 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		}
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
+		}
+	}
+	if enrichment != nil {
+		index, _ := enrichmentPlanIndex(purpose)
+		plan = r.enrichmentPlans[index]
+		if plan == nil {
+			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
 		}
 	}
 	defer func() {
@@ -361,6 +384,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	custody.inventoryMemory = plan.inventoryMemory // immutable W profile, never a worker override
 	custody.searchImageMemory = plan.searchImageMemory
 	custody.scanLifecycleMemory = plan.scanLifecycleMemory
+	custody.enrichmentMemory = plan.enrichmentMemory
 	custody.basicMemory = plan.basicMemory
 	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
@@ -415,12 +439,14 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 					err = checkInventoryNativeScope(ctx, turn, scan.request)
 				}
 			}
+		} else if enrichment != nil {
+			err = discloseEnrichment(ctx, turn, enrichment)
 		} else {
 			err = r.disclose(ctx, turn, cap, request)
 		}
 	}
 	if err == nil {
-		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
+		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher, enrichment), turn.checkLifetimes(ctx))
 	}
 	var historical bool
 	if err == nil && scan != nil && scan.issuer != nil {
@@ -448,7 +474,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;
 		// neither a saved result nor a fresh decision escapes revocation.
-		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, enrichment), turn.checkLifetimes(ctx))
 		if err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeInventory(ctx, turn, scan.request, lookup)
@@ -466,13 +492,29 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			}
 		}
 	}
-	if err == nil && scan == nil {
+	if err == nil && enrichment != nil {
+		var lookup enrichmentTurnLookup
+		lookup, err = lookupEnrichmentSealTurn(ctx, turn, enrichment)
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, enrichment), turn.checkLifetimes(ctx))
+		if err == nil {
+			if ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeEnrichment(ctx, turn, enrichment, lookup)
+			} else {
+				out.enrichment = enrichmentHistoricalResult(enrichment, lookup)
+				historical = lookup.decision != receiptFresh
+				if !historical && enrichment.payload != nil {
+					err = &Refusal{Code: RefusalUnqualified}
+				} // W native provenance remains closed
+			}
+		}
+	}
+	if err == nil && scan == nil && enrichment == nil {
 		expectedReceipt := receiptIdentity{request.Receipt.Identity, request.Receipt.RequestDigest}
 		var saved EffectiveStageBeginResult
 		var owner effectiveBeginOwner
 		var disposition receiptDecision
 		saved, owner, disposition, err = lookupEffectiveStageBegin(ctx, turn, request.ProviderOperationID, expectedReceipt)
-		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, enrichment))
 		if err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeEffective(ctx, turn, request, owner, disposition)
@@ -517,7 +559,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
-	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher)))
+	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, enrichment)))
 	out, acknowledged, err = checked.output, checked.ack, checkedErr
 	var physical turnResult
 	if err == nil {

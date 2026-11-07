@@ -205,7 +205,7 @@ func (w *Writer) StageSearchImage(ctx context.Context, disclosure *PublisherDisc
 	if err != nil {
 		return SearchImageStageResult{}, err
 	}
-	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, nil, &invocation)
+	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, nil, commandInvocation{publisher: &invocation})
 	return out.publisher, err
 }
 
@@ -218,7 +218,7 @@ func (w *Writer) ResolveSearchImage(ctx context.Context, disclosure *PublisherDi
 	if err != nil {
 		return SearchImageStageResult{}, err
 	}
-	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, nil, &invocation)
+	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, nil, commandInvocation{publisher: &invocation})
 	return out.publisher, err
 }
 
@@ -231,7 +231,7 @@ func (w *Writer) AckSearchImage(ctx context.Context, disclosure *PublisherDisclo
 	if err != nil {
 		return AckResult{}, err
 	}
-	_, ack, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, nil, &invocation)
+	_, ack, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, nil, commandInvocation{publisher: &invocation})
 	return ack, err
 }
 

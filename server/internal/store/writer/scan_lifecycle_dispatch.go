@@ -121,7 +121,7 @@ func composeScanLifecycleProfiles(ctx context.Context, r *effectiveRuntime, crea
 			all = append(all, def)
 		}
 	}
-	registry, err := stmt.New(all, r.plan.registration, create.registration, claim.registration)
+	registry, err := stmt.New(all, r.commandRegistrations(create.registration, claim.registration)...)
 	if err != nil {
 		return err
 	}
