@@ -2,6 +2,7 @@ package writer
 
 import (
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"testing"
 	"time"
 )
@@ -61,7 +62,22 @@ func TestN1AdmissionPartialAndRefusalRemainCallBound(t *testing.T) {
 	if _, err := f.NextOriginal(); err != nil {
 		t.Fatal(err)
 	}
-	f.owner.authority.EnterStatic()
+	// Deterministic real admission refusal: fund a memory-only holding from the
+	// SAME class/partition. It owns no native reader/writer and changes no cap.
+	request := f.owner.request
+	request.Key.ID = "refusal-control"
+	request.Writer = false
+	request.Need[governor.WALBytes] = 0
+	request.MaxHold = 0
+	held := f.owner.governor.Try(request)
+	if held.Grant == nil {
+		t.Fatal("control holding", held.Refusal)
+	}
+	defer func() {
+		if err := f.owner.authority.Retired(held.Grant); err != nil {
+			t.Error(err)
+		}
+	}()
 	before := time.Now()
 	if _, err := f.Begin(t); err == nil || !errors.Is(err, ErrRefused) {
 		t.Fatal("actual refusal lost", err)
