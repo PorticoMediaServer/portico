@@ -41,12 +41,12 @@ AND configuration_metadata_revision<9223372036854775807 AND data_revision<922337
 original_library_id,original_library_key,original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,
 last_command_sequence,receipt_retained_count,receipt_retained_bytes,job_next_attempt_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,1,?,?)`,
 			Params: []stmt.Param{s("kind"), s("target"), b("original_operation"), b("original_request"), b("incarnation"), i("library_id"), s("library_key"), s("resolved_root"),
-				n("source_incarnation", stmt.Text), n("source_generation", stmt.Integer), n("root_identity", stmt.Text), i("retained_bytes"), i("due_ms")}, Plan: stmt.Plan{Hot: true, NativeInsert: "catalog_removal_progress"}},
+				n("source_incarnation", stmt.Text), n("source_generation", stmt.Integer), n("root_identity", stmt.Text), i("retained_bytes"), i("due_ms")}, Plan: stmt.Plan{Hot: true}},
 		{ID: iaRetirementHeaderInsert, Kind: stmt.Write, SQL: `INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,
 accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes)
 VALUES(?,?,1,?,?,?,1,1,?,?,?,0,0,0,'',0,0,'retiring',0,?,?)`,
 			Params: []stmt.Param{b("original_operation"), b("incarnation"), b("operation"), b("request"), s("command_kind"), i("applied_ms"), s("kind"), s("target"), b("result_digest"), i("retained_bytes")},
-			Plan:   stmt.Plan{Hot: true, NativeInsert: "catalog_removal_receipts"}},
+			Plan:   stmt.Plan{Hot: true}},
 	}
 	inc, operation, digest := make([]byte, 16), make([]byte, 16), make([]byte, 32)
 	inc[0], operation[0], digest[0] = 1, 2, 9
