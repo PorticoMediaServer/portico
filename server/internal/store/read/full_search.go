@@ -101,7 +101,7 @@ func hitRank(h FullSearchHit) canonicalCandidateProof {
 }
 
 func ownFullSearchPage(p FullSearchPage, limit int) (FullSearchPage, error) {
-	if p.NativeCandidates < 0 || p.CountStatus > SearchCountExact || p.CountStatus == SearchCountUnknown && p.Count != 0 || p.Partial && (p.Exhausted || p.CountStatus == SearchCountExact) || p.Disposition < SearchResults || p.Disposition > SearchUnavailable || len(p.Hits) > limit || p.Exhausted && p.Next != nil || p.Disposition != SearchResults && (len(p.Hits) != 0 || p.Exhausted || p.Next != nil && (p.Disposition != SearchPending || p.Next.native == nil)) {
+	if p.CountStatus != SearchCountUnknown && p.Count < uint64(len(p.Hits)) || p.NativeCandidates < 0 || p.CountStatus > SearchCountExact || p.CountStatus == SearchCountUnknown && p.Count != 0 || p.Partial && (p.Exhausted || p.CountStatus == SearchCountExact) || p.Disposition < SearchResults || p.Disposition > SearchUnavailable || len(p.Hits) > limit || p.Exhausted && p.Next != nil || p.Disposition != SearchResults && (len(p.Hits) != 0 || p.Exhausted || p.Next != nil && (p.Disposition != SearchPending || p.Next.native == nil)) {
 		return FullSearchPage{}, ErrInput
 	}
 	if p.Next != nil && (len(p.Next.query) > 1536 || len(p.Next.after.lead.Revision) > 4096 || p.Next.bank <= 0 || p.Next.revision <= 0 || p.Next.input < 0) {
