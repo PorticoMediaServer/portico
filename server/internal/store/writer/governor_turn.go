@@ -38,26 +38,27 @@ func commandClass(id CommandID) (governor.Class, error) {
 // Its request includes complete command/receipt/terminal forecasts. Input and
 // output preparation and idle pool/native memory retain separate lifetime custody.
 type governedTurn struct {
-	g                   governor.Governor
-	a                   *governor.Authority
-	grant               *governor.Grant
-	expected            governor.Request
-	publication         *rbPublication // opt-in phase2 resolved dependency custody
-	purpose             CommandID
-	limit               Work
-	clockHighWater      *time.Time                // same W composition mark under its existing mutex
-	inventoryEngine     sqliteconn.EngineIdentity // exact profile implementation, observed again before BEGIN
-	inventoryMemory     inventoryMemoryBudget     // installed once by closed W composition before BEGIN
-	searchImageMemory   searchImageMemoryBudget
-	scanLifecycleMemory commandMemoryBudget
-	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
-	wcProgressMemory    commandMemoryBudget
-	wcSecurityMemory    commandMemoryBudget
-	wcReclaimMemory     commandMemoryBudget
-	directoryMemory     commandMemoryBudget
-	publisherMemory     commandMemoryBudget
-	state               atomic.Uint32 // 0 active, 1 retirement attempted, 2 retired, 3 failed
-	fenced              atomic.Bool
+	g                     governor.Governor
+	a                     *governor.Authority
+	grant                 *governor.Grant
+	expected              governor.Request
+	publication           *rbPublication // opt-in phase2 resolved dependency custody
+	purpose               CommandID
+	limit                 Work
+	clockHighWater        *time.Time                // same W composition mark under its existing mutex
+	inventoryEngine       sqliteconn.EngineIdentity // exact profile implementation, observed again before BEGIN
+	inventoryMemory       inventoryMemoryBudget     // installed once by closed W composition before BEGIN
+	searchImageMemory     searchImageMemoryBudget
+	scanLifecycleMemory   commandMemoryBudget
+	basicMemory           commandMemoryBudget // exact Basic variant; zero remains unqualified
+	wcProgressMemory      commandMemoryBudget
+	wcSecurityMemory      commandMemoryBudget
+	wcReclaimMemory       commandMemoryBudget
+	directoryMemory       commandMemoryBudget
+	publisherMemory       commandMemoryBudget
+	effectiveSourceMemory commandMemoryBudget // exact Effective source-proof partition; zero is unqualified
+	state                 atomic.Uint32       // 0 active, 1 retirement attempted, 2 retired, 3 failed
+	fenced                atomic.Bool
 }
 
 func bindGovernedTurn(id CommandID, limit Work, g governor.Governor, a *governor.Authority, wal *governor.WALGate, grant *governor.Grant, expected governor.Request) (*governedTurn, error) {

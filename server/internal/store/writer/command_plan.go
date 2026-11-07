@@ -62,6 +62,12 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && plan.basicMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
+	if purpose != EffectiveStage && plan.effectiveSourceMemory != (commandMemoryBudget{}) {
+		return effectivePlan{}, invalid("memory_purpose")
+	}
+	if err := validateMemoryPartition(plan.effectiveSourceMemory, plan.need[governor.MemoryBytes], "effective_source_memory_partition"); err != nil {
+		return effectivePlan{}, err
+	}
 	if err := validateMemoryPartition(plan.basicMemory, plan.need[governor.MemoryBytes], "basic_memory_partition"); err != nil {
 		return effectivePlan{}, err
 	}
