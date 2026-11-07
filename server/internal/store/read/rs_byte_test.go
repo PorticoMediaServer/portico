@@ -157,7 +157,7 @@ func TestRSPeoplePreflightsNamesAndCreditText(t *testing.T) {
 	}
 	in := PersonCreditsInput{View: f.input, Person: 1}
 	in.View.Limit = 1
-	p, cost, err := r.credits(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	p, cost, err := rsPeopleFirstCredit(t, r, f, &in)
 	if err != nil || p.Person == nil || p.Person.Name != name || p.Person.Biography != biography || len(p.Credits) != 1 || p.Credits[0].Item.ID != 100 || p.Credits[0].CreditedName != credited || p.Credits[0].Role != job {
 		t.Fatal("wide person/credit bytes changed", p, err)
 	}
