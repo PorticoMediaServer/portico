@@ -93,6 +93,23 @@ func TestUOFlagsDefaultPatchRemainsSparse(t *testing.T) {
 	}
 }
 
+func TestUOFlagsPatchChangesOnlyActingProfile(t *testing.T) {
+	w, q := uoFlagsFixture(t)
+	wc008NativeExec(t, w, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id) VALUES('profile-one',?,2111,7),('profile-other',?,2111,7)`, q.publicID[:], q.publicID[:])
+	q.expectedRevision = 1
+	q.patch = uoPersonalFlagsPatch{favorite: uoFlagValue{set: true, value: true}}
+	turn := uoFlagsTurn(t, w)
+	effect, err := applyUOPersonalFlags(t.Context(), turn, q)
+	if err != nil || !effect.changed || !effect.state.favorite || effect.state.revision != 2 {
+		t.Fatal(effect, err)
+	}
+	uoFlagsCommit(t, turn)
+	var ownRevision, otherRevision, ownFavorite, otherFavorite, heads int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT revision FROM personal_items WHERE profile_id='profile-one'),(SELECT revision FROM personal_items WHERE profile_id='profile-other'),(SELECT favorite FROM personal_items WHERE profile_id='profile-one'),(SELECT favorite FROM personal_items WHERE profile_id='profile-other'),(SELECT count(*) FROM viewer_revisions)`).Scan(&ownRevision, &otherRevision, &ownFavorite, &otherFavorite, &heads); err != nil || ownRevision != 2 || otherRevision != 1 || ownFavorite != 1 || otherFavorite != 0 || heads != 1 {
+		t.Fatal("cross-profile mutation", ownRevision, otherRevision, ownFavorite, otherFavorite, heads, err)
+	}
+}
+
 func TestUOFlagsCASAndRollback(t *testing.T) {
 	for _, failure := range []string{"source", "personal", "viewer-overflow", "selection-overflow", "canceled"} {
 		t.Run(failure, func(t *testing.T) {
