@@ -519,6 +519,14 @@ func relatedProbeStep(q browseQuery, s *relatedState) (bool, bool, error) {
 		return relatedInventoryStep(q, s, p)
 	}
 
+	// Only these hierarchy/member walks have a complete source proof here.
+	// Other container kinds need their own closed traversal, even when their
+	// accepted admission band is supported by the general subject recipe.
+	switch p.entity.kind() {
+	case 2, 3, 5, 6, 8, 10:
+	default:
+		return false, false, ErrUnqualified
+	}
 	// Read one child per tick. Full windows are not necessary here: the cursor
 	// position is always an actual raw child and an empty seek proves exhaustion.
 	var rows [][]any
