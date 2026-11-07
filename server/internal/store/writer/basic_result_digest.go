@@ -9,15 +9,23 @@ func basicResultDigest(identity CommandIdentity, request RequestDigest, result B
 }
 
 func preflightBasicResult(v BasicResult) error {
+	c := v.Continuation
 	switch v.Purpose {
-	case BasicPurposeStage, BasicPurposeSeal:
+	case BasicPurposeStage:
+		// Shape-pin/freeze return family1/after0; prefence returns family0
+		// and an actual positive native owner ID. No copy cursor is selected.
+		if c.NextFamily < 0 || c.NextFamily > 1 || c.AfterEntity < 0 || (c.NextFamily == 1 && c.AfterEntity != 0) {
+			return invalid("basic_result_shape")
+		}
+		c.NextFamily, c.AfterEntity = 0, 0
+	case BasicPurposeSeal: // Seal still requires the exact zero continuation.
 	case BasicPurposeAccept:
 		return ErrNotImplemented // activation's actual continuation/cohort map is not selected
 	default:
 		return invalid("basic_result_purpose")
 	}
 	if v.AcceptedRunRevision <= 0 || v.AppliedMS < 0 || v.ChangeID <= 0 || v.ExpectedEpoch <= 0 ||
-		v.ResultCount != 0 || v.Members == nil || len(v.Members) != 0 || v.Continuation != (BasicContinuation{}) {
+		v.ResultCount != 0 || v.Members == nil || len(v.Members) != 0 || c != (BasicContinuation{}) {
 		return invalid("basic_result_shape")
 	}
 	// Complete fixed wire plus ALL native TEXT lengths precede UTF-8 walks,
