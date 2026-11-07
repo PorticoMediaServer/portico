@@ -357,7 +357,7 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 				book := row[1].(int64)
 				flags := uint8(1)
 				itemFence := f
-				itemFence.container = 0
+				itemFence.container = 1
 				if _, e = rsDetailSubjectEligibility(query, p.view(at, 9, p.fileAfter), itemFence); e == nil {
 					flags |= 2
 				} else if !errors.Is(e, ErrDenied) {
