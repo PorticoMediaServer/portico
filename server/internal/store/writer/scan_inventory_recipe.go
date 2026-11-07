@@ -17,7 +17,13 @@ func inventoryDriverCommandDefinitions() []stmt.Definition {
 			defs = append(defs, def)
 		}
 	}
-	return defs
+	for _, def := range scanBytePreflightDefinitions() {
+		switch def.ID {
+		case scanRunByteLengths, scanJobByteLengths, scanRootByteLengths:
+			defs = append(defs, def)
+		}
+	}
+	return append(defs, inventoryLibraryRecordDefinition())
 }
 
 // Whole driver BEGIN, including the outer original lookup, current-source
@@ -34,7 +40,7 @@ func inventoryDriverMaxUses(id stmt.ID) int {
 	case inventoryDisclosureJob, inventoryDisclosureLibrary,
 		scanReceiptLookup, scanReceiptResults, scanReceiptAck,
 		scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
-		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot, scanLifecycleActive:
+		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot, scanLifecycleActive, scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanInventoryLibraryRecordLengths:
 		return 1
 	default:
 		return 0
@@ -81,9 +87,16 @@ func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, err
 	if p.inventoryMemory.preparationBytes < scanByteFixedWorkspace {
 		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
 	}
+	if p.inventoryRecords.maxBytes < inventoryRecordFixedBytes || p.inventoryRecords.work.Hold <= 0 || p.inventoryRecords.work.Rows == 0 || p.inventoryRecords.work.VMOps == 0 || p.inventoryRecords.work.Pages == 0 || p.inventoryRecords.work.WALBytes < p.inventoryRecords.maxBytes {
+		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
+	}
 	remaining := subtract(subtract(p.recipe.limit, p.recipe.setup), p.recipe.terminal)
-	if _, err := reserveInventoryDriverSteps(remaining, p.steps); err != nil {
-		return effectivePlan{}, err
+	left, e := reserveInventoryDriverSteps(remaining, p.steps)
+	if e != nil {
+		return effectivePlan{}, e
+	}
+	if !fits(p.inventoryRecords.work, left) {
+		return effectivePlan{}, ErrQuantum
 	}
 	return p, nil
 }

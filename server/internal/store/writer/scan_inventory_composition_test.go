@@ -52,7 +52,7 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 			seen[d.ID] = true
 		}
 	}
-	if len(defs) != 83 {
+	if len(defs) != 84 {
 		t.Fatal("complete native scan union", len(defs))
 	}
 	conn, err := cp.w.db.Conn(t.Context())
@@ -90,6 +90,9 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 		} else {
 			p.scanLifecycleMemory = commandMemoryBudget{4 << 20, 4 << 20}
 		}
+		if len(defs) == len(inventoryDriverCommandDefinitions()) {
+			p.inventoryRecords = inventoryRecordEnvelope{maxBytes: recipe.setup.WALBytes, work: recipe.setup}
+		}
 		for _, def := range defs {
 			p.steps = append(p.steps, statementStep{def.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
 		}
@@ -111,7 +114,8 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 	return d, transport
 }
 
-func TestN1ComposedDriverUsesOneKeeperAndOriginalHistory(t *testing.T) {
+func n1ComposedDriverPrepared(t *testing.T) (*ScanDriver, *N1Preparation, InventoryAcceptCommand, ScanReceiptRequest) {
+	t.Helper()
 	d, transport := n1ComposedDriverFixture(t)
 	creation, err := d.PrepareCreate(t.Context(), ScanRunInput{7, "lifecycle-library", "lifecycle-new-source", "first-import"})
 	if err != nil {
@@ -199,6 +203,11 @@ func TestN1ComposedDriverUsesOneKeeperAndOriginalHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return d, preparation, command, original
+}
+
+func TestN1ComposedDriverUsesOneKeeperAndOriginalHistory(t *testing.T) {
+	d, preparation, command, original := n1ComposedDriverPrepared(t)
 	applied, err := preparation.Accept(t.Context(), command)
 	if err != nil || applied.Outcome.State != Applied || len(applied.Members) != 1 || applied.Outcome.Reference != original.Receipt {
 		t.Fatal("whole driver did not publish committed N1", applied, err)

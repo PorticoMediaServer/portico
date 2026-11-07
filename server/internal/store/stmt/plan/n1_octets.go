@@ -21,11 +21,24 @@ type n1OctetPoint struct {
 }
 
 var n1OctetPoints = []n1OctetPoint{
-	{id: "scan.issuer.run_lengths", sql: "SELECT octet_length(job_id),octet_length(original_library_key),octet_length(original_resolved_root),octet_length(source_id),octet_length(root_incarnation),octet_length(root_identity),octet_length(phase),octet_length(finished_at),octet_length(scan_mode),octet_length(create_operation_id),octet_length(create_request_digest),octet_length(command_incarnation) FROM inventory_runs WHERE job_id=?", table: "inventory_runs", index: "sqlite_autoindex_inventory_runs_1", keys: []string{"job_id"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}}},
+	{id: "scan.issuer.run_lengths", sql: "SELECT octet_length(job_id),octet_length(original_library_key),octet_length(original_resolved_root),octet_length(source_id),octet_length(root_incarnation),octet_length(root_identity),octet_length(phase),octet_length(finished_at),octet_length(scan_mode),octet_length(create_operation_id),octet_length(create_request_digest),octet_length(command_incarnation),octet_length(reconcile_cursor),octet_length(verify_cursor),octet_length(last_turn),octet_length(pause_reason),octet_length(inventory_completed_at) FROM inventory_runs WHERE job_id=?", table: "inventory_runs", index: "sqlite_autoindex_inventory_runs_1", keys: []string{"job_id"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}}},
 	{id: "scan.issuer.job_lengths", sql: "SELECT octet_length(library_id),octet_length(status),octet_length(created_at),octet_length(error) FROM jobs WHERE id=?", table: "jobs", index: "sqlite_autoindex_jobs_1", keys: []string{"id"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}}},
 	{id: "scan.issuer.root_lengths", sql: "SELECT octet_length(identity),octet_length(revision),octet_length(cursor),octet_length(state) FROM inventory_directories WHERE job_id=? AND relative_path=?", table: "inventory_directories", index: "sqlite_autoindex_inventory_directories_1", keys: []string{"job_id", "relative_path"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}, {Name: "root_path", Type: stmt.Text}}},
 	{id: "scan.issuer.receipt_lengths", sql: "SELECT octet_length(operation_id),octet_length(request_digest),octet_length(command_kind),octet_length(source_id),octet_length(source_incarnation),octet_length(source_revision),octet_length(next_cursor),octet_length(result_digest),octet_length(result_root_identity),octet_length(result_root_revision),octet_length(result_root_cursor),octet_length(next_copy_key),octet_length(next_copy_key2),octet_length(next_copy_key3),octet_length(refused_relative_path),octet_length(refusal_code),octet_length(cursor_kind),octet_length(cursor_directory_path),octet_length(cursor_directory_identity),octet_length(cursor_directory_revision),octet_length(cursor_expected_payload),octet_length(cursor_next_payload) FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?", table: "scan_command_receipts", index: "", keys: []string{"run_id", "command_incarnation", "command_sequence"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}, {Name: "command_incarnation", Type: stmt.Blob}, {Name: "command_sequence", Type: stmt.Integer}}},
 	{id: "scan.inventory_accept.member_lengths", sql: "SELECT octet_length(object_id) FROM scan_command_results WHERE run_id=? AND command_incarnation=? AND command_sequence=? AND input_ordinal=? AND child_kind=? AND child_ordinal=?", table: "scan_command_results", index: "", keys: []string{"run_id", "command_incarnation", "command_sequence", "input_ordinal", "child_kind", "child_ordinal"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}, {Name: "command_incarnation", Type: stmt.Blob}, {Name: "command_sequence", Type: stmt.Integer}, {Name: "input_ordinal", Type: stmt.Integer}, {Name: "child_kind", Type: stmt.Integer}, {Name: "child_ordinal", Type: stmt.Integer}}},
+}
+
+func init() {
+	for _, p := range n1OctetPoints {
+		pointOctets.add(octetShape{
+			id: p.id, sql: p.sql, mismatch: "exact N1 byte-preflight definition required",
+			definition: n1OctetDefinition,
+			audit: func(ctx context.Context, conn *sql.Conn) error {
+				return auditN1OctetPoint(ctx, conn, stmt.Definition{ID: p.id})
+			},
+			point: func(eqp Rows) error { return checkN1OctetPoint(stmt.Definition{ID: p.id}, eqp) },
+		})
+	}
 }
 
 func n1OctetPointFor(id stmt.ID) (n1OctetPoint, bool) {

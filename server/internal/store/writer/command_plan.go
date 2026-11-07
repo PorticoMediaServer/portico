@@ -29,6 +29,20 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
+	if plan.inventoryRecords != (inventoryRecordEnvelope{}) {
+		if purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions()) {
+			return effectivePlan{}, invalid("inventory_record_work_purpose")
+		}
+		found := false
+		for _, d := range defs {
+			if d.ID == scanInventoryLibraryRecordLengths {
+				found = true
+			}
+		}
+		if !found {
+			return effectivePlan{}, invalid("inventory_record_work_purpose")
+		}
+	}
 	if purpose != InventoryAccept && plan.inventoryMemory != (inventoryMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}

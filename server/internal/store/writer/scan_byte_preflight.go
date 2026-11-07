@@ -23,9 +23,11 @@ type scanByteVector struct {
 func scanByteColumnCount(id stmt.ID) int {
 	switch id {
 	case scanRunByteLengths:
-		return 12
+		return 17
 	case scanJobByteLengths, scanRootByteLengths:
 		return 4
+	case scanInventoryLibraryRecordLengths:
+		return 10
 	case scanReceiptByteLengths:
 		return 22
 	case scanMemberByteLengths:
@@ -176,8 +178,38 @@ func (v scanByteVector) matchesCell(index int, value any) bool {
 	return cell.matches(value)
 }
 
+// The last five lengths cover native fields preserved by a run-row rewrite.
+// Snapshot/history copy only the original twelve payloads; those still require
+// exact NULL/byte equality, while ALL seventeen lengths fund the same grant.
+func (v scanByteVector) matchesRunCopiedFields(values ...any) bool {
+	if v.count != 17 || len(values) != 12 {
+		return false
+	}
+	v.count = 12
+	return v.matches(values...)
+}
+
+// Existing history/preparation readers copy only these twelve fields. Keep
+// their copy forecast unchanged: the additional five lengths fund a full
+// native row rewrite only in the dedicated fresh N1 record envelope.
+func (v scanByteVector) runCopiedPayload() scanByteVector {
+	if v.count != 17 {
+		return scanByteVector{}
+	}
+	v.count, v.total = 12, 0
+	for _, n := range v.cells[:12] {
+		if n.Valid {
+			if n.Int64 < 0 || uint64(n.Int64) > math.MaxUint64-v.total {
+				return scanByteVector{}
+			}
+			v.total += uint64(n.Int64)
+		}
+	}
+	return v
+}
+
 func (v scanByteVector) matchesHistoryOriginal(o scanRunOriginalScope, inc []byte) bool {
-	return v.count == 12 && v.matchesCell(0, o.RunID) && v.matchesCell(1, o.LibraryKey) &&
+	return v.count == 17 && v.matchesCell(0, o.RunID) && v.matchesCell(1, o.LibraryKey) &&
 		v.matchesCell(2, o.ResolvedRoot) && v.matchesCell(3, o.SourceID) && v.matchesCell(4, o.SourceIncarnation) &&
 		v.matchesCell(5, o.RootIdentity) && v.matchesCell(8, o.ScanMode) && v.matchesCell(9, o.CreateOperationID[:]) &&
 		v.matchesCell(10, o.CreateRequestDigest[:]) && v.matchesCell(11, inc)
@@ -226,7 +258,7 @@ func readScanLifecycleByteProof(ctx context.Context, turn *commandTurn, q ScanRe
 	if err != nil {
 		return value, err
 	}
-	required, err := scanActualByteForecast(value.run, value.header)
+	required, err := scanActualByteForecast(value.run.runCopiedPayload(), value.header)
 	if err != nil {
 		return value, err
 	}
@@ -269,7 +301,7 @@ func readScanSnapshotByteProof(ctx context.Context, turn *commandTurn, runID str
 	if value.root, err = readScanByteLengths(ctx, turn, scanRootByteLengths, runID, "."); err != nil {
 		return value, err
 	}
-	required, err := scanActualByteForecast(value.run, value.job, value.root)
+	required, err := scanActualByteForecast(value.run.runCopiedPayload(), value.job, value.root)
 	if err != nil {
 		return value, err
 	}
@@ -281,7 +313,7 @@ func readScanSnapshotByteProof(ctx context.Context, turn *commandTurn, runID str
 
 func (p scanSnapshotByteProof) matches(v scanRunSnapshot) bool {
 	r, s := v.run, v.run.scope
-	return p.run.matches(s.runID, s.libraryKey, s.resolvedRoot, s.sourceID, s.incarnation, s.rootIdentity, r.phase, r.finishedAt, s.scanMode, s.createOperation[:], s.createDigest[:], s.commandIncarnation[:]) &&
+	return p.run.matchesRunCopiedFields(s.runID, s.libraryKey, s.resolvedRoot, s.sourceID, s.incarnation, s.rootIdentity, r.phase, r.finishedAt, s.scanMode, s.createOperation[:], s.createDigest[:], s.commandIncarnation[:]) &&
 		p.job.matches(v.job.libraryKey, v.job.status, v.job.createdAt, v.job.errorText) &&
 		p.root.matches(v.root.identity, v.root.revision, v.root.cursor, v.root.state)
 }
