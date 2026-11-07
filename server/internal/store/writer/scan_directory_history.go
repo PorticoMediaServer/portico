@@ -35,11 +35,22 @@ func directoryNativeBytes(ctx context.Context, t *commandTurn, id stmt.ID, args 
 	if err != nil {
 		return 0, err
 	}
-	var n int64
+	columns, err := rows.Columns()
+	if err != nil {
+		return 0, errors.Join(err, rows.Close())
+	}
+	if len(columns) == 0 || len(columns) > 32 {
+		return 0, errors.Join(ErrInvalid, rows.Close())
+	}
+	var values [32]sql.NullInt64
+	var dest [32]any
+	for i := range columns {
+		dest[i] = &values[i]
+	}
 	if !rows.Next() {
 		return 0, errors.Join(sql.ErrNoRows, rows.Err(), rows.Close())
 	}
-	err = rows.Scan(&n)
+	err = rows.Scan(dest[:len(columns)]...)
 	if err == nil && rows.Next() {
 		err = ErrResolveRequired
 	}
@@ -47,10 +58,16 @@ func directoryNativeBytes(ctx context.Context, t *commandTurn, id stmt.ID, args 
 	if err != nil {
 		return 0, err
 	}
-	if n < 0 || n > maxCanonicalRequestBytes {
-		return 0, ErrCap
+	var total uint64
+	for _, v := range values[:len(columns)] {
+		if v.Valid {
+			if v.Int64 < 0 || uint64(v.Int64) > uint64(maxCanonicalRequestBytes)-total {
+				return 0, ErrCap
+			}
+			total += uint64(v.Int64)
+		}
 	}
-	return uint64(n), nil
+	return total, nil
 }
 func directoryPoint(ctx context.Context, t *commandTurn, id stmt.ID, args []any, dest ...any) error {
 	rows, err := t.query(ctx, t.steps[id].statementStep, args...)
