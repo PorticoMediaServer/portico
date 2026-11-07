@@ -26,7 +26,7 @@ func updateNative(t *testing.T, f *fixture, table, key string, values map[string
 	args = append(args, key)
 	f.exec(t, "UPDATE "+table+" SET "+strings.Join(sets, ",")+" WHERE request_id=?", args...)
 }
-func gcSlot(seq, ack, old, removed, rows, variable int64) map[string]any {
+func gcSlot(seq, ack, old, removed, variable int64) map[string]any {
 	var removedKey any
 	count := int64(0)
 	after := old
@@ -41,7 +41,7 @@ func gcSlot(seq, ack, old, removed, rows, variable int64) map[string]any {
 		"reclaim_command_sequence": seq, "reclaim_operation_id": bytes.Repeat([]byte{byte(seq)}, 16),
 		"reclaim_request_digest": bytes.Repeat([]byte{byte(seq + 16)}, 32), "reclaim_command_kind": "guide_receipt_reclaim",
 		"reclaim_result_version": int64(1), "reclaim_captured_acknowledged_sequence": ack, "reclaim_old_after_sequence": old,
-		"reclaim_removed_sequence": removedKey, "reclaim_removed_count": count, "reclaim_removed_rows": rows,
+		"reclaim_removed_sequence": removedKey, "reclaim_removed_count": count,
 		"reclaim_removed_variable_bytes": variable, "reclaim_result_after_sequence": after, "reclaim_result_no_next": int64(1),
 		"reclaim_applied_ms": int64(1000) + seq, "reclaim_result_count": int64(1), "reclaim_result_digest": bytes.Repeat([]byte{byte(seq + 32)}, 32),
 	}
@@ -74,7 +74,7 @@ func TestINTGroupGFixedSlotFloorAndDebt011(t *testing.T) {
 		}
 	}
 	total := first + second + diagnostic
-	updateNative(t, f, "live_operations", "gc", map[string]any{"receipt_rows": int64(3), "receipt_variable_bytes": total})
+	updateNative(t, f, "live_operations", "gc", map[string]any{"receipt_rows": int64(2), "receipt_variable_bytes": total})
 	// ACK refunds zero, including native diagnostic rows.
 	updateNative(t, f, "live_operations", "gc", map[string]any{"acknowledged_command_sequence": int64(2)})
 	var beforeBytes int64
@@ -95,7 +95,7 @@ func TestINTGroupGFixedSlotFloorAndDebt011(t *testing.T) {
 	f.exec(t, "BEGIN")
 	f.exec(t, "DELETE FROM live_operation_receipt_diagnostics WHERE request_id='gc' AND command_sequence=1")
 	f.exec(t, "DELETE FROM live_operation_command_receipts WHERE request_id='gc' AND command_sequence=1")
-	slot := gcSlot(3, 2, 0, 1, 2, first+diagnostic)
+	slot := gcSlot(3, 2, 0, 1, first+diagnostic)
 	slot["receipt_rows"] = int64(1)
 	slot["receipt_variable_bytes"] = second
 	updateNative(t, f, "live_operations", "gc", slot)
@@ -104,7 +104,7 @@ func TestINTGroupGFixedSlotFloorAndDebt011(t *testing.T) {
 	updateNative(t, f, "live_operations", "gc", map[string]any{"acknowledged_command_sequence": int64(3)})
 	f.exec(t, "BEGIN")
 	f.exec(t, "DELETE FROM live_operation_command_receipts WHERE request_id='gc' AND command_sequence=2")
-	slot = gcSlot(4, 3, 1, 2, 1, second)
+	slot = gcSlot(4, 3, 1, 2, second)
 	slot["receipt_rows"] = int64(0)
 	slot["receipt_variable_bytes"] = int64(0)
 	updateNative(t, f, "live_operations", "gc", slot)
@@ -133,13 +133,13 @@ func TestINTGroupGFixedSlotFloorAndDebt011(t *testing.T) {
 	}
 	t.Logf("transfer receipt refund=0; OLD-control=%d NEW-floor=%d actual-control-delta=%d", control, floorControl, floorControl-control)
 	// Truthful empty floor quantum retains exactly one result slot, no child.
-	empty := gcSlot(5, 4, 2, 0, 0, 0)
+	empty := gcSlot(5, 4, 2, 0, 0)
 	updateNative(t, f, "live_operation_retirements", "gc", empty)
 	updateNative(t, f, "live_operation_retirements", "gc", map[string]any{"acknowledged_command_sequence": int64(5)})
 	if err := f.c.QueryRowContext(t.Context(), "SELECT count(*) FROM live_operation_command_receipts WHERE request_id='gc'").Scan(&count); err != nil || count != 0 {
 		t.Fatal(count, err)
 	}
-	f.reject(t, "UPDATE live_operation_retirements SET reclaim_removed_rows=2 WHERE request_id='gc'", "receipt_slot")
+	f.reject(t, "UPDATE live_operation_retirements SET reclaim_removed_count=2 WHERE request_id='gc'", "receipt_slot")
 	f.reject(t, "UPDATE live_operation_retirements SET reclaim_command_kind='lc_receipt_reclaim' WHERE request_id='gc'", "receipt_slot")
 	f.reject(t, "UPDATE live_operation_retirements SET receipt_reclaim_after_sequence=3 WHERE request_id='gc'", "receipt_slot")
 	t.Log("last header drain and ACK create no child or due work; floor/slot remains charged")
@@ -156,7 +156,8 @@ func TestINTGroupGFixedSlotMutant011(t *testing.T) {
 		if err := f.insert(t, "live_operations", row); err != nil {
 			t.Fatal(err)
 		}
-		values := gcSlot(2, 1, 0, 1, 12, 100)
+		values := gcSlot(2, 1, 0, 1, 100)
+		values["reclaim_removed_count"] = int64(2)
 		names := make([]string, 0, len(values))
 		for k := range values {
 			names = append(names, k)
@@ -172,7 +173,7 @@ func TestINTGroupGFixedSlotMutant011(t *testing.T) {
 		if (err != nil) == mutant {
 			t.Fatal("fixed slot mutant not distinguished", mutant, err)
 		}
-		t.Log(fmt.Sprintf("M3 source_mutated=%v oversized-cohort-rejected=%v", mutant, err != nil))
+		t.Log(fmt.Sprintf("M3 source_mutated=%v multi-header-cohort-rejected=%v", mutant, err != nil))
 	}
 }
 

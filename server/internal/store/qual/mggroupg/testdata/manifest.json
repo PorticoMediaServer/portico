@@ -4,15 +4,15 @@
   "source_semantics": "d7e20bbe3d1ff71f4627c5c4a49d3a406969274e",
   "base_commit": "e57e57ba4bdf80935c7c42638d267d5d591a8012",
   "base_schema_sha256": "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2",
-  "candidate_sha256": "bafe20d1461b57d6aeeeb1a5e3c15988d9abd7288059c750265cb035205f4bc5",
-  "delta_sha256": "9e7299e663e1ddf224e4c95e065426c286e917a5a6030384d20c07694bd76d99",
+  "candidate_sha256": "0c45f419abd44265ce99092bfd4bd80b08a52bb3305d308cfbb9fe9f2f20867a",
+  "delta_sha256": "73a35c0410c160ec56e9ef8bebb3b07369f51f4904290a215e2d18c43b826e4c",
   "objects": [
     {
       "operation": "replace",
       "type": "table",
       "name": "live_operations",
       "before_sha256": "fe93525f7d2a461c087cb19bcc20255ff346f29c3492ef2398b4aa60cd148a6d",
-      "after_sha256": "8952e1a8512a1033a7d02d0bbb0e47e035224312a95e6d4a697efc3dbda51750",
+      "after_sha256": "3c926c4223de30c327b81323edd74fce63e1a802789b39e49ff67cda7285e17c",
       "new_columns": [
         "command_incarnation",
         "create_operation_id",
@@ -44,7 +44,6 @@
         "reclaim_old_after_sequence",
         "reclaim_removed_sequence",
         "reclaim_removed_count",
-        "reclaim_removed_rows",
         "reclaim_removed_variable_bytes",
         "reclaim_result_after_sequence",
         "reclaim_result_no_next",
@@ -67,7 +66,7 @@
       "type": "table",
       "name": "lc_generations",
       "before_sha256": "dc1d9b9a26c9094b98c190bce62358b09d7de79986d67dfd57a01eb3441412f4",
-      "after_sha256": "231b88eafcccbe7929b8c600d1f913eff7e3e1a6b31461352af2926b2d6fb7be",
+      "after_sha256": "ad5aa4b211013551f5c437f79864e185785d29b01eeab9668c0e0dfd471c3ec8",
       "new_columns": [
         "command_incarnation",
         "create_operation_id",
@@ -100,7 +99,6 @@
         "reclaim_old_after_sequence",
         "reclaim_removed_sequence",
         "reclaim_removed_count",
-        "reclaim_removed_rows",
         "reclaim_removed_variable_bytes",
         "reclaim_result_after_sequence",
         "reclaim_result_no_next",
@@ -144,7 +142,7 @@
       "type": "table",
       "name": "dvr_recordings",
       "before_sha256": "4287440418f029c460f7dfa6dd36163bda019e039e552ad521156c012503647a",
-      "after_sha256": "d7c11bc8cef7b8dd766184fb4eec90e5dbd5c8b8683b65845b4164d51e44d08c",
+      "after_sha256": "a146dcb692b1592e89917c0de1e2fef41b814556c8e79e6a6672ed82012847e6",
       "new_columns": [
         "command_incarnation",
         "create_operation_id",
@@ -183,7 +181,6 @@
         "reclaim_old_after_sequence",
         "reclaim_removed_sequence",
         "reclaim_removed_count",
-        "reclaim_removed_rows",
         "reclaim_removed_variable_bytes",
         "reclaim_result_after_sequence",
         "reclaim_result_no_next",
@@ -226,21 +223,21 @@
       "type": "table",
       "name": "live_operation_retirements",
       "before_sha256": null,
-      "after_sha256": "d053a62866e1b898f9ed4e8dbd9cc74aaf9c17643dcaa8b53bd6252c1b7d723a"
+      "after_sha256": "57b811801f5a689447ee73eaa89637425e06cfff302e65ca2f432b8c35ecddc3"
     },
     {
       "operation": "add",
       "type": "table",
       "name": "lc_generation_retirements",
       "before_sha256": null,
-      "after_sha256": "89cbb237ae90057fb0f781d86f00cf1cbba0b51729dfdde7749d87c2b4708b12"
+      "after_sha256": "3ad8447f6b098bfc2b240fee1d4e6f1fd85753c6f433361b281aa332be755570"
     },
     {
       "operation": "add",
       "type": "table",
       "name": "dvr_capture_retirements",
       "before_sha256": null,
-      "after_sha256": "0aa5826915983b718b709a0e6eee195b12760f4bf38c10c852d9a0d423c21651"
+      "after_sha256": "26c0d9bd0f4a1e63dda286545324e612894463f7604ecb876df2eb1c3714bc40"
     },
     {
       "operation": "add",
@@ -411,6 +408,6 @@
       "after_sha256": "f6373f10bc7b69a6611607e74597a081fcb1a63ba0977be1254f8f7f4323f05a"
     }
   ],
-  "field_note": "reclaim_removed_count counts0/1 header cohort; reclaim_removed_rows separately preserves physical header+diagnostic row debit (guide<=11, LC/DVR=1).",
+  "field_note": "receipt_rows and reclaim_removed_count count headers/cohorts. A guide cohort reserves at most11 physical rows, refunds exact header+diagnostic variable bytes, and decrements receipt_rows by returned header1; no persisted physical-row counter or child cursor.",
   "native_evidence": "Prior d90ece56 /42391184645 receipt is historical for the unamended delta, not this candidate."
 }
