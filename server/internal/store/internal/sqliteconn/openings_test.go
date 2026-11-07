@@ -31,7 +31,10 @@ var permittedOpenings = map[openingSite]bool{
 	{"governor/snapshot_test.go", openingStore + "governor.snapshotConnector.Connect", "database/sql/driver.Connector.Connect"}:                     true,
 	{"governor/snapshot_replacement_test.go", openingStore + "governor.snapshotObservedConnector.Connect", "database/sql/driver.Connector.Connect"}: true,
 	// Governed PASSIVE captures the same owned physical connection before SQL faults.
-	{"governor/checkpoint.go", openingStore + "governor.Checkpointer.Step", "database/sql.Conn.Raw"}: true,
+	{"governor/checkpoint.go", openingStore + "governor.Checkpointer.step", "database/sql.Conn.Raw"}:        true,
+	{"governor/checkpoint_keeper.go", openingStore + "governor.Checkpointer.Keep", "database/sql.Conn.Raw"}: true,
+	// Test-only CP native-entry signal; still opens exclusively through Connector.
+	{"writer/checkpoint_component_test.go", openingStore + "writer.checkpointSignalConnector.Connect", "database/sql/driver.Connector.Connect"}: true,
 	// QL's reviewed real wrapper, explicit raw negative and readback-only fakes.
 	{"qual/connection_test.go", openingStore + "qual.probeConnector.Connect", "database/sql/driver.Connector.Connect"}:                                    true,
 	{"qual/connection_test.go", openingStore + "qual.connectionPool", "database/sql.OpenDB"}:                                                              true,

@@ -182,6 +182,9 @@ func (o *scanOpening) close() error {
 		if failed || stats.InUse != 0 || stats.OpenConnections != 0 {
 			return ErrResolveRequired
 		}
+		if keeper := o.executor.keeper.Load(); keeper != nil && !keeper.KeeperClosed() {
+			return ErrBusy // retain process/file ownership through CP's final close
+		}
 	}
 	if err := o.ownership.Close(); err != nil {
 		return err

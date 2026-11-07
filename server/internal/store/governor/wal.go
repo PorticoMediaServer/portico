@@ -145,39 +145,43 @@ func emptyWALPageSize(path string, wal *os.File, size int64, header *[32]byte) (
 type WALPolicy struct {
 	HardBytes, ReserveBytes, SoftDebtBytes, ActivePressureBytes int64
 	MaxSampleAge                                                time.Duration
+	ConcurrentPassive                                           bool          // trusted opt-in; one CP may overlap W and foreground DB reads
+	CheckpointMaxHold                                           time.Duration // separate maintenance window, never a W window
 }
 
-// WALGate is owned by ONE governor/writer pair. Every completed writer turn
-// invalidates observations, as does a private checkpoint turn. The driver must
-// publish a fresh post-return sample
-// before any new writer. This prevents repeated admissions against stale space.
-// The recipe's WALBytes forecast must include the whole native/receipt/commit
-// operation. An underestimated forecast cannot be repaired by a timer.
+// WALGate belongs to ONE governor/writer composition. Every physical writer
+// return invalidates its generation and requires a fresh post-return sample.
+// Serialized CP does too. Opt-in concurrent PASSIVE has separate custody and
+// cannot append/reset, so a stable writer-free sample may be published during
+// CP. Backfill never grants speculative append headroom. Complete W forecasts
+// include native/receipt/commit and restart-header work before BEGIN.
 type WALGate struct {
-	mu                sync.Mutex
-	policy            WALPolicy
-	version           uint64
-	writer            bool
-	checkpoint        bool
-	pendingCheckpoint *checkpointTicket
-	nextCheckpoint    time.Time
-	valid             bool
-	state             WALState
-	at                time.Time
-	previous          WALState
-	havePrevious      bool
-	resets            uint64
-	writerClass       Class
-	writerForecast    WALRestartObservation
-	awaitWriterSample bool
-	lastRestart       WALRestartObservation
-	restartSequence   uint64
+	mu                       sync.Mutex
+	policy                   WALPolicy
+	version                  uint64
+	writer                   bool
+	blockedWAL, blockedLimit int64 // last real space refusal; no speculative reset credit
+	checkpoint               bool
+	keeper                   *CheckpointKeeper // sticky composition: no unprotected fallback
+	pendingCheckpoint        *checkpointTicket
+	nextCheckpoint           time.Time
+	valid                    bool
+	state                    WALState
+	at                       time.Time
+	previous                 WALState
+	havePrevious             bool
+	resets                   uint64
+	writerClass              Class
+	writerForecast           WALRestartObservation
+	awaitWriterSample        bool
+	lastRestart              WALRestartObservation
+	restartSequence          uint64
 }
 
 func NewWALGate(p WALPolicy) (*WALGate, error) {
 	if p.HardBytes <= 0 || p.ReserveBytes <= 0 || p.ReserveBytes >= p.HardBytes ||
 		p.SoftDebtBytes <= 0 || p.ActivePressureBytes <= 0 || p.ActivePressureBytes > p.HardBytes-p.ReserveBytes ||
-		p.MaxSampleAge <= 0 {
+		p.MaxSampleAge <= 0 || (p.ConcurrentPassive && (p.CheckpointMaxHold <= 0 || p.CheckpointMaxHold > time.Minute)) || (!p.ConcurrentPassive && p.CheckpointMaxHold != 0) {
 		return nil, ErrWALObservation
 	}
 	return &WALGate{policy: p}, nil
@@ -190,7 +194,7 @@ func (w *WALGate) Observation() uint64 { w.mu.Lock(); defer w.mu.Unlock(); retur
 func (w *WALGate) Publish(token uint64, s WALState, at time.Time) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if token != w.version || w.writer || w.checkpoint {
+	if token != w.version || w.writer || (w.checkpoint && !w.policy.ConcurrentPassive) {
 		return ErrWALObservation
 	}
 	w.valid = false
@@ -219,6 +223,9 @@ func (w *WALGate) Publish(token uint64, s WALState, at time.Time) error {
 	w.havePrevious = true
 	w.previous = s
 	w.state = s
+	if w.blockedWAL > 0 && s.ActiveBytes+32 <= w.blockedLimit && w.blockedWAL <= w.blockedLimit-s.ActiveBytes-32 {
+		w.blockedWAL, w.blockedLimit = 0, 0
+	}
 	w.at = at
 	w.valid = true
 	return nil
@@ -235,18 +242,25 @@ func validWAL(s WALState) bool {
 }
 
 func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
+	return w.reserveForLedger(r, now, nil)
+}
+
+func (w *WALGate) reserveForLedger(r Request, now time.Time, owner *ledger) RefusalCode {
 	if !w.mu.TryLock() {
 		return Capacity
 	}
 	defer w.mu.Unlock()
 	w.expireCheckpointTicket(now)
-	if w.writer || w.checkpoint || w.pendingCheckpoint != nil {
+	if (w.policy.ConcurrentPassive && w.keeper == nil) || (w.keeper != nil && !w.keeper.admits(owner, now)) {
+		return FailSafe
+	}
+	if w.writer || (!w.policy.ConcurrentPassive && (w.checkpoint || w.pendingCheckpoint != nil)) {
 		return Capacity
 	}
 	if !w.fresh(now) {
 		return FailSafe
 	}
-	if r.RestartRisk != (WALRestartRisk{}) && r.RestartRisk != w.restartRisk() {
+	if (w.policy.ConcurrentPassive && r.RestartRisk == (WALRestartRisk{})) || (r.RestartRisk != (WALRestartRisk{}) && r.RestartRisk != w.restartRisk()) {
 		return FailSafe
 	}
 	s := w.state
@@ -266,8 +280,13 @@ func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
 		header = 32
 	}
 	if r.Need[WALBytes] <= 0 || header > limit-s.ActiveBytes || r.Need[WALBytes] > limit-s.ActiveBytes-header {
+		if r.Need[WALBytes] > 0 && r.Need[WALBytes] <= limit-32 {
+			w.blockedWAL = r.Need[WALBytes]
+			w.blockedLimit = limit
+		}
 		return Capacity
 	}
+	w.blockedWAL, w.blockedLimit = 0, 0
 	w.writerClass = r.Class
 	w.writerForecast = WALRestartObservation{ForecastHold: r.MaxHold, ForecastIOBytes: r.Need[IOBytes], ForecastWALBytes: r.Need[WALBytes], Risk: r.RestartRisk}
 	w.awaitWriterSample = false
@@ -291,15 +310,15 @@ func (w *WALGate) returned() {
 func (w *WALGate) ResetCount() uint64 { w.mu.Lock(); defer w.mu.Unlock(); return w.resets }
 
 // A checkpoint may repay pressure even while WAL observations are stale. Its
-// driver still needs a whole-prefix forecast and a fresh same-file observation
-// before native entry. This is an exclusion primitive, not a service policy.
+// driver still needs a whole-prefix forecast and same-file observation. In
+// concurrent mode only CP/CP is excluded; recovery separately drains W/readers.
 func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now time.Time) RefusalCode {
 	if !w.mu.TryLock() {
 		return Capacity
 	}
 	defer w.mu.Unlock()
 	w.expireCheckpointTicket(now)
-	if w.writer || w.checkpoint {
+	if w.checkpoint || (w.writer && (!w.policy.ConcurrentPassive || (ticket != nil && ticket.recovery))) {
 		return Capacity
 	}
 	if w.pendingCheckpoint != ticket {
@@ -309,20 +328,35 @@ func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now time.Time) Ref
 		return Deadline
 	}
 	w.pendingCheckpoint = nil
-	w.awaitWriterSample = false // a CP boundary cannot attest the preceding writer
 	w.checkpoint = true
-	w.valid = false
-	w.version++
+	if !w.policy.ConcurrentPassive || (ticket != nil && ticket.recovery) {
+		w.awaitWriterSample = false
+		w.valid = false
+		w.version++
+	}
 	return 0
 }
 
 // Only exact private grant retirement reaches this boundary, after native
 // statements/connection return. Cancel/expiry/fence never release the turn.
-// A fresh Observation-before-read/Publish is required before another writer.
+// Serialized mode also requires a fresh Observation-before-read/Publish; the
+// concurrent mode preserves the independent writer generation.
 func (w *WALGate) checkpointReturned() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.checkpoint = false
-	w.valid = false
-	w.version++
+	if !w.policy.ConcurrentPassive {
+		w.valid = false
+		w.version++
+	}
+}
+
+// A real command can stop fitting before hard-minus-reserve. Its actual space
+// refusal also authorizes exclusive recovery; otherwise that legal recipe can
+// wedge below the byte threshold. No threshold or legal recipe is reduced.
+func (w *WALGate) recoveryPressure(s WALState) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return s.PhysicalBytes <= w.policy.HardBytes && (s.ActiveBytes >= w.policy.HardBytes-w.policy.ReserveBytes ||
+		(w.blockedWAL > 0 && (s.ActiveBytes > w.blockedLimit-32 || w.blockedWAL > w.blockedLimit-s.ActiveBytes-32)))
 }
