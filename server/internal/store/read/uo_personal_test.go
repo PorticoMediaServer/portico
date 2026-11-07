@@ -81,10 +81,14 @@ func TestUOPersonalStateDenials(t *testing.T) {
 		t.Fatal("age-restricted personal state escaped", v, err)
 	}
 	f.exec(t, `DELETE FROM profile_restrictions WHERE profile_id='p'`)
-	f.exec(t, `UPDATE personal_items SET item_public_id=zeroblob(16) WHERE profile_id='p' AND item_id=1`)
+	// The native subject FK prevents retained identity reassignment before a
+	// read can observe it. Exercise that real boundary, without disabling FKs.
+	if _, err := f.conn.ExecContext(t.Context(), `UPDATE personal_items SET item_public_id=zeroblob(16) WHERE profile_id='p' AND item_id=1`); err == nil {
+		t.Fatal("native subject identity constraint accepted a mismatch")
+	}
 	v, _, err = r.uoPersonalState(t.Context(), foregroundRequest(), time.Second, f.output, PersonalStateInput{View: f.input, Item: 1})
-	if !errors.Is(err, ErrUnqualified) || !reflect.DeepEqual(v, PersonalState{}) {
-		t.Fatal("retained identity mismatch escaped", v, err)
+	if err != nil || v.PublicID[0] != 1 || v.ResumePosition != 500 {
+		t.Fatal("rejected identity mismatch damaged current state", v, err)
 	}
 }
 
