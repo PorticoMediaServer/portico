@@ -193,7 +193,7 @@ func (r *SharedChannelReader) channelWindow(ctx context.Context, request governo
 			if bindingErr != nil && !errors.Is(bindingErr, errHomeBindingUnresolved) {
 				return bindingErr
 			}
-			projection, e := q("rb.channel.check", meta.ID, scope.library.id, in.Kind, int64(rbChannelProjectionRaw))
+			projection, e := q("rb.channel.check", rbChannelCheckArgs(scope, in.Kind, meta.ID)...)
 			if e != nil {
 				return e
 			}
@@ -224,6 +224,9 @@ func (r *SharedChannelReader) channelWindow(ctx context.Context, request governo
 			// projection stays unchanged at publication. It cannot become a false EOF.
 			if bindingErr != nil {
 				return nil
+			}
+			if projection[0][73] != int64(1) || projection[0][74] != int64(0) {
+				return ErrUnqualified
 			}
 			if meta.Kind == 4 && projection[0][72] != "whole_source" {
 				return nil
@@ -293,7 +296,7 @@ func (r *SharedChannelReader) channelWindow(ctx context.Context, request governo
 			if !observation.full {
 				continue
 			}
-			rows, e := q("rb.channel.check", observation.meta.ID, scope.library.id, in.Kind, int64(rbChannelProjectionRaw))
+			rows, e := q("rb.channel.check", rbChannelCheckArgs(scope, in.Kind, observation.meta.ID)...)
 			if e != nil {
 				return e
 			}
@@ -326,4 +329,12 @@ func (r *SharedChannelReader) channelWindow(ctx context.Context, request governo
 		}
 	}
 	return batch, result, nil
+}
+
+func rbChannelCheckArgs(scope *SharedChannelScope, kind, item int64) []any {
+	name := "movie"
+	if kind == 4 {
+		name = "episode"
+	}
+	return []any{name, scope.input.Library, item, scope.library.id, kind, int64(rbChannelProjectionRaw)}
 }

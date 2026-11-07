@@ -43,6 +43,14 @@ For copying, freeze the source values while their `BrowseOutput` custody is live
 4. Release source output after copying. Keep retained output until all copied
    values and consumers exit. The helper cancels or retires neither grant.
 
+The complete native key proof accepts one additional `rowid=?` equality only
+for the two compiled RB channel-check/whole-binding read IDs. Every declared
+UNIQUE key column must already have SQL equality and matching native equality;
+the additional constraint only narrows an at-most-one-row point. No range,
+missing-key or scan permission is added, and existing command qualification
+stays on its original path. The sole shared hunk is the full-key branch in
+`stmt/plan/autoindex_access.go`; the opt-in proof and controls are in RB files.
+
 Native controls cover private UTF-8 root sizing, backing-pointer separation,
 underfunding, source-grant reuse, unchanged issuer/fences, source mutation,
 whole binding, rejected-row continuation and raw EOF. Publication adversaries

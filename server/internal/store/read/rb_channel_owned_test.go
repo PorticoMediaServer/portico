@@ -91,5 +91,12 @@ func TestRBChannelOwnedCopyCountsPrivateRoots(t *testing.T) {
 		if _, e := r.CloneSharedChannelValues(t.Context(), f.output, f.output, values); !errors.Is(e, ErrInput) {
 			t.Fatal("reused source output instead of separate retention", e)
 		}
+		empty := batch
+		empty.Items = make([]SharedChannelPlayable, 0)
+		values.Batch, values.Info = &empty, &scope.info
+		emptyOwned, e := r.CloneSharedChannelValues(t.Context(), f.output, retained, values)
+		if e != nil || emptyOwned.Batch.Items == nil || emptyOwned.Info != &emptyOwned.Scope.info || emptyOwned.Cursor != emptyOwned.Batch.After {
+			t.Fatal("empty slice or shared metadata topology changed", e)
+		}
 	})
 }

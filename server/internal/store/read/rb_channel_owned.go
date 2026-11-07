@@ -248,7 +248,7 @@ func rbCloneChannelCursor(cursor *SharedChannelCursor) *SharedChannelCursor {
 	return &v
 }
 func rbCloneChannelItems(items []SharedChannelPlayable) []SharedChannelPlayable {
-	if len(items) == 0 {
+	if items == nil {
 		return nil
 	}
 	owned := make([]SharedChannelPlayable, len(items))
