@@ -94,7 +94,7 @@ func TestClosedCommandDurability(t *testing.T) {
 			t.Fatal(d)
 		}
 	}
-	for _, id := range []CommandID{0, InventoryClaim + 1, 65535} {
+	for _, id := range []CommandID{0, BasicSeal + 1, 65535} {
 		if _, err := Describe(id); !errors.Is(err, ErrInvalid) {
 			t.Fatal(id, err)
 		}
