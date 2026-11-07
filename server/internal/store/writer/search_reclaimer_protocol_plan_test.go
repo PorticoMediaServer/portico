@@ -1,14 +1,11 @@
 package writer
 
 import (
-	"bytes"
-	"compress/gzip"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -85,39 +82,22 @@ func TestSearchReclaimerProtocolStatementPlans(t *testing.T) {
 	if err = conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&after); err != nil || before != after {
 		t.Fatal("Capture executed effects", before, after, err)
 	}
-	if len(g.Manifest) != 1 || len(g.Plans) != 2 || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
+	if len(g.Manifest) != 1 || len(g.Plans) != 2 || g.ForeignKeys != nil {
 		t.Fatal("incomplete reclaimer ACK capture")
 	}
 	if _, err = stmt.New(defs, g.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	fk := g.ForeignKeys
-	g.ForeignKeys = nil
 	actual, err := json.MarshalIndent(g, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fkJSON, err := json.MarshalIndent(fk, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
 	path := filepath.Join("testdata", "search-reclaimer-protocol.json")
-	fkPath := filepath.Join("testdata", "search-reclaimer-protocol-fk.json.gz")
 	if *recordSearchReclaimerProtocol {
 		if err = os.WriteFile(path, append(actual, '\n'), 0644); err != nil {
 			t.Fatal(err)
 		}
-		var b bytes.Buffer
-		w := gzip.NewWriter(&b)
-		if _, err = w.Write(fkJSON); err != nil {
-			t.Fatal(err)
-		}
-		if err = w.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if err = os.WriteFile(fkPath, b.Bytes(), 0644); err != nil {
-			t.Fatal(err)
-		}
+
 	}
 	expected, err := os.ReadFile(path)
 	if err != nil {
@@ -126,21 +106,5 @@ func TestSearchReclaimerProtocolStatementPlans(t *testing.T) {
 	if err = plan.CompareJSON(expected, actual); err != nil {
 		t.Fatal(err)
 	}
-	compressed, err := os.ReadFile(fkPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	z, err := gzip.NewReader(bytes.NewReader(compressed))
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected, err = io.ReadAll(z)
-	closeErr := z.Close()
-	if err != nil || closeErr != nil {
-		t.Fatal(err, closeErr)
-	}
-	if err = plan.CompareJSON(expected, fkJSON); err != nil {
-		t.Fatal(err)
-	}
-	t.Log("one independent ACK ID/two exact cohorts;686FK/2058probes; no publisher-owner floor write")
+	t.Log("one independent ACK ID/two exact cohorts; ordinary UPDATE uses existing Capture DML checks, no INSERT/native FK census; no publisher-owner floor write")
 }
