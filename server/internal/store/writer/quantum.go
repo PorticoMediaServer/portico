@@ -47,7 +47,7 @@ func NewQuantum(limit, terminal Work, start time.Time) (*Quantum, error) {
 		limit.Hold <= 0 || limit.Hold > MaxCommandHold || terminal.Hold <= 0 || !fits(terminal, limit) {
 		return nil, ErrQuantum
 	}
-	return &Quantum{remaining: limit, terminal: terminal, start: start, last: start, end: start.Add(MaxCommandSafetyHold)}, nil
+	return &Quantum{remaining: limit, terminal: terminal, start: start, last: start, end: start.Add(limit.Hold)}, nil
 }
 
 // TryStep charges a forecast only if it AND terminal reserve fit, both in the
