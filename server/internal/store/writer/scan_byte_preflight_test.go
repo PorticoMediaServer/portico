@@ -1,25 +1,27 @@
 package writer
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"math"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func TestScanActualByteForecastArithmeticAndNullEcho(t *testing.T) {
-	a := scanByteVector{exists: true, count: 3, total: 6}
+	a := scanByteVector{exists: true, count: 3, total: 4}
 	a.cells[0] = sql.NullInt64{Int64: 4, Valid: true}
 	a.cells[1] = sql.NullInt64{Int64: 0, Valid: true}
 	if !a.matches("😀", "", nil) || a.matches("😀", nil, nil) || a.matches("😀", "", "") || a.matches("x", "", nil) {
 		t.Fatal("native byte counts or NULL/empty distinction lost")
 	}
-	if n, err := scanActualByteForecast(a, scanByteVector{exists: true, total: 7}); err != nil || n != scanByteFixedWorkspace+32*13 {
+	if n, err := scanActualByteForecast(a, scanByteVector{exists: true, total: 7}); err != nil || n != scanByteFixedWorkspace+32*11 {
 		t.Fatal(n, err)
 	}
 	for _, vectors := range [][]scanByteVector{
@@ -70,24 +72,82 @@ func TestInventoryHistoryFloorDoesNotCopyOrPreflightRetiredPayload(t *testing.T)
 }
 
 func TestInventoryHistoryByteEchoRejectsChangedProjection(t *testing.T) {
-	w, requests, _ := inventoryLookupFixture(t)
-	// Deliberately altered projection only: the ordinary native fixture and
-	// cancellation controls retain real complete-set Capture receipts.
-	defs := inventoryLookupDefinitions()
-	for i := range defs {
-		if defs[i].ID == scanReceiptLookup {
-			defs[i].SQL = strings.Replace(defs[i].SQL, "source_revision", "source_revision||'x'", 1)
-		}
+	w, requests, registry := inventoryLookupFixture(t)
+	var sequence int64
+	var name, path string
+	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
+		t.Fatal(err)
 	}
-	registry, err := stmttest.New(t, defs)
+	if err := w.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(path, w.config)
 	if err != nil {
 		t.Fatal(err)
 	}
+	var target string
+	for _, d := range inventoryLookupDefinitions() {
+		if d.ID == scanReceiptLookup {
+			target = d.SQL
+		}
+	}
+	if target == "" {
+		t.Fatal("missing captured receipt projection")
+	}
+	// Preserve the exact SQL and complete native Capture receipt. Inject drift
+	// only when the driver returns the saved source revision to the reader.
+	copies := 0
+	w.openPool(connector, func(conn driver.Conn) driver.Conn {
+		return &scanByteProjectionConn{writerDriverConn: conn.(writerDriverConn), target: target, copies: &copies}
+	})
 	turn, _ := inventoryLookupTurn(t, w, registry)
+	// An echo bypass must fail here with ErrQuantum, before a later result
+	// digest mismatch could accidentally make the control pass.
+	step := turn.steps[scanReceiptResults]
+	step.work.Rows = math.MaxUint64
+	turn.steps[scanReceiptResults] = step
 	got, err := lookupInventoryAccept(t.Context(), turn, requests["hit"])
-	if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(got, inventoryReceiptLookup{}) {
+	if copies != 1 || !errors.Is(err, ErrResolveRequired) || errors.Is(err, ErrQuantum) || !reflect.DeepEqual(got, inventoryReceiptLookup{}) {
 		t.Fatal("same-snapshot byte echo drift escaped", got, err)
 	}
+}
+
+type scanByteProjectionConn struct {
+	writerDriverConn
+	target string
+	copies *int
+}
+
+func (c *scanByteProjectionConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	rows, err := c.writerDriverConn.QueryContext(ctx, query, args)
+	if err == nil && query == c.target {
+		for i, column := range rows.Columns() {
+			if column == "source_revision" {
+				return &scanByteProjectionRows{Rows: rows, column: i, copies: c.copies}, nil
+			}
+		}
+		return nil, errors.Join(errors.New("missing source_revision projection"), rows.Close())
+	}
+	return rows, err
+}
+
+type scanByteProjectionRows struct {
+	driver.Rows
+	column int
+	copies *int
+}
+
+func (r *scanByteProjectionRows) Next(dest []driver.Value) error {
+	if err := r.Rows.Next(dest); err != nil {
+		return err
+	}
+	value, ok := dest[r.column].(string)
+	if !ok {
+		return errors.New("source_revision fixture must be TEXT")
+	}
+	dest[r.column] = value + "x"
+	*r.copies++
+	return nil
 }
 
 func TestInventoryHistoryExtraMemberRefusesBeforeObjectCopy(t *testing.T) {
