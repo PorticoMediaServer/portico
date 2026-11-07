@@ -48,7 +48,7 @@ func (p *CollectionPreparation) Detail(ctx context.Context, request governor.Req
 	if !p.ready || offset < 0 || offset > len(p.nodes) {
 		return CollectionDetail{}, BrowseReadResult{}, ErrInput
 	}
-	return liveRead(ctx, request, budget, output, p.reader.pool, p.in.View.Now, func(ctx context.Context, r governor.Request, b time.Duration, at time.Time) (CollectionDetail, BrowseReadResult, error) {
+	return liveRead(ctx, request, budget, output, p.reader.pool, p.in.View.Now.Add(time.Since(p.started)), func(ctx context.Context, r governor.Request, b time.Duration, at time.Time) (CollectionDetail, BrowseReadResult, error) {
 		if after != nil && (p.fence == nil || !rsCollectionSameFence(after.fence, *p.fence) || !equalSource(after.source, p.source) || after.collection != p.in.Collection) {
 			_ = p.Close()
 			return CollectionDetail{}, BrowseReadResult{}, ErrStale

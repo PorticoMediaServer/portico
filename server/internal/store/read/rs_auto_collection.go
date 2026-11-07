@@ -16,6 +16,7 @@ import (
 // Trusted composition serializes Advance/Detail/Close and keeps the job context
 // alive between polls; an HTTP poll context must not own the job lifetime.
 type CollectionPreparation struct {
+	started       time.Time
 	owner         governor.OwnerID
 	reader        *CollectionReader
 	authority     *governor.Authority
@@ -58,7 +59,7 @@ type CollectionAdvance struct {
 // Capacity is explicit, never a successful truncation. All tree storage is
 // admitted before allocation; the remaining allowance funds cursors and fences.
 func (r *CollectionReader) BeginCollectionPreparation(ctx context.Context, a *governor.Authority, owner governor.OwnerID, deadline time.Time, bytes int64, in CollectionInput) (*CollectionPreparation, *governor.Refusal, error) {
-	if r == nil || a == nil || ctx == nil || in.Collection <= 0 || len(in.View.Database) == 0 || len(in.View.Database) > 256 || len(in.View.TokenHash) == 0 || len(in.View.TokenHash) > 256 || in.View.Library <= 0 || in.View.Kind != 10 || in.View.After != nil || in.After != nil || in.View.Descending || in.View.KeepArticles || in.View.Limit < 1 || in.View.Limit > MaxPage || bytes < governor.PreparationMetadataBytes+16384 {
+	if r == nil || a == nil || ctx == nil || in.Collection <= 0 || len(in.View.Database) == 0 || len(in.View.Database) > 256 || len(in.View.TokenHash) == 0 || len(in.View.TokenHash) > 256 || in.View.Library <= 0 || in.View.Now.IsZero() || in.View.Kind != 10 || in.View.After != nil || in.After != nil || in.View.Descending || in.View.KeepArticles || in.View.Limit < 1 || in.View.Limit > MaxPage || bytes < governor.PreparationMetadataBytes+16384 {
 		return nil, nil, ErrInput
 	}
 	key := sha256.Sum256([]byte(fmt.Sprintf("%q/%q/%d/%d/%d/%d", in.View.Database, in.View.TokenHash, in.View.Library, in.Collection, in.View.policy.recipe, in.View.policy.subject)))
@@ -69,7 +70,7 @@ func (r *CollectionReader) BeginCollectionPreparation(ctx context.Context, a *go
 	capacity := int((d.Lease.PayloadBytes() - 16384) / int64(unsafe.Sizeof(rsCollectionNode{})))
 	in.View.Database = strings.Clone(in.View.Database)
 	in.View.TokenHash = strings.Clone(in.View.TokenHash)
-	p := &CollectionPreparation{owner: owner, reader: r, authority: a, lease: d.Lease, in: in, nodes: make([]rsCollectionNode, 0, capacity)}
+	p := &CollectionPreparation{started: time.Now(), owner: owner, reader: r, authority: a, lease: d.Lease, in: in, nodes: make([]rsCollectionNode, 0, capacity)}
 	p.in.View.policy = readPolicyBinding{recipe: rsCollectionComputePolicy, subject: in.Collection, state: p}
 	return p, nil, nil
 }
@@ -150,7 +151,7 @@ func (p *CollectionPreparation) Advance(ctx context.Context, request governor.Re
 	if err := p.check(output, request); err != nil {
 		return CollectionAdvance{}, BrowseReadResult{}, err
 	}
-	return liveRead(ctx, request, budget, output, p.reader.pool, p.in.View.Now, func(ctx context.Context, r governor.Request, b time.Duration, at time.Time) (CollectionAdvance, BrowseReadResult, error) {
+	return liveRead(ctx, request, budget, output, p.reader.pool, p.in.View.Now.Add(time.Since(p.started)), func(ctx context.Context, r governor.Request, b time.Duration, at time.Time) (CollectionAdvance, BrowseReadResult, error) {
 		return p.advance(ctx, r, b, output, at)
 	})
 }
