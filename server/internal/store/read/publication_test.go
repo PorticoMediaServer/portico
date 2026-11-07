@@ -112,7 +112,7 @@ func TestBrowsePublicationCancellationNeverReleasesPage(t *testing.T) {
 }
 
 func TestBrowsePublicationDenialWinsOverCancellation(t *testing.T) {
-	// Preserve the real one-second/cleanup limits while isolating the ordering
+	// Preserve the configured one-second/cleanup limits while isolating the ordering
 	// assertion from instrumentation and canonical Reader startup CPU time.
 	synctest.Test(t, testBrowsePublicationDenialWinsOverCancellation)
 }

@@ -309,6 +309,10 @@ func TestLiveExactBindingsAndEscapedScope(t *testing.T) {
 }
 
 func TestLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline(t *testing.T) {
+	synctest.Test(t, testLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline)
+}
+
+func testLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline(t *testing.T) {
 	f, _ := newLiveFixture(t)
 	hold, _, _ := liveRequests("holder")
 	var grants []*governor.Grant
@@ -352,19 +356,15 @@ func TestLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline(t *testing.T)
 		})
 		done <- e
 	}()
-	until := time.NewTimer(time.Second)
-	defer until.Stop()
-	tick := time.NewTicker(time.Millisecond)
-	defer tick.Stop()
-	for f.authority.ForegroundUsage().Waiters != 1 {
-		select {
-		case <-tick.C:
-		case e := <-done:
-			t.Fatal("waiter ended early", e)
-		case <-until.C:
-			t.Fatal("waiter did not queue")
-		}
+	// Observe the blocked waiter without racing a wall-clock polling loop
+	// against its bounded admission/ready lifetime. Then advance virtual time
+	// by one millisecond to retain a nonzero admission-elapsed witness.
+	synctest.Wait()
+	if got := f.authority.ForegroundUsage().Waiters; got != 1 {
+		t.Fatalf("waiter did not queue: %d", got)
 	}
+	time.Sleep(time.Millisecond)
+
 	select {
 	case <-entered:
 		t.Fatal("queued callback allocated payload")
