@@ -92,7 +92,7 @@ type browseQuery func(string, ...any) ([][]any, error)
 // readBrowseFence runs identically in the lookup and fresh publication views.
 // Besides revisions, retain the actual policy values used by the item predicate
 // so an unversioned policy drift still cannot release the earlier page.
-func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
+func readPrincipalFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	global, err := query("global_authority", int64(1))
 	if err != nil {
 		return browseFence{}, err
@@ -148,6 +148,39 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	if len(labels) > 0 {
 		return browseFence{}, ErrUnqualified
 	}
+	f := browseFence{database: strings.Clone(in.Database), token: strings.Clone(in.TokenHash), account: r[0].(string), profile: r[1].(string), membership: r[2].(string), lifetime: r[3].(string), epoch: r[4].(int64), authority: r[10].(int64), membershipRevision: r[11].(int64), profileRevision: r[16].(int64), restrictionRevision: r[17].(int64), maximumAge: r[12].(int64), allowUnrated: r[13].(int64), role: r[5].(string), memberLibraries: r[6].(string), profileLabels: r[14].(string), expiresAt: r[8].(string), horizon: r[9].(string), profileRestricted: r[7] != nil, descending: in.Descending, keepArticles: in.KeepArticles, kind: in.Kind}
+	if r[7] != nil {
+		f.profileLibraries = r[7].(string)
+	}
+	return f, nil
+}
+
+func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
+	f, err := readPrincipalFence(query, in)
+	if err != nil {
+		return browseFence{}, err
+	}
+	policy, err := resolveReadPolicy(in)
+	if err != nil {
+		return browseFence{}, err
+	}
+	if !validReadPolicyScope(in, policy) {
+		return browseFence{}, ErrInput
+	}
+	if policy.scope == readPrincipalScope {
+		if err := validateReadPolicy(query, in, &f); err != nil {
+			return browseFence{}, err
+		}
+		if in.After != nil && in.After.fence != f {
+			return browseFence{}, ErrStale
+		}
+		return f, nil
+	}
+	var allowed, profileAllowed []string
+	_ = json.Unmarshal([]byte(f.memberLibraries), &allowed)
+	if f.profileRestricted {
+		_ = json.Unmarshal([]byte(f.profileLibraries), &profileAllowed)
+	}
 	bridge, err := query("library_identity", in.Library)
 	if err != nil {
 		return browseFence{}, err
@@ -155,7 +188,7 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	if len(bridge) != 1 {
 		return browseFence{}, ErrDenied
 	}
-	l, err := query("library", r[1].(string), bridge[0][0])
+	l, err := query("library", f.profile, bridge[0][0])
 	if err != nil {
 		return browseFence{}, err
 	}
@@ -172,7 +205,7 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 		}
 		return false
 	}
-	if r[5].(string) != "owner" && !contains(allowed) || r[7] != nil && !contains(profileAllowed) {
+	if f.role != "owner" && !contains(allowed) || f.profileRestricted && !contains(profileAllowed) {
 		return browseFence{}, ErrDenied
 	}
 	if lr[7].(int64) != 0 || lr[5] != lr[6] {
@@ -185,10 +218,14 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	if len(k) != 1 {
 		return browseFence{}, ErrUnqualified
 	}
-	maximum, unrated := r[12].(int64), r[13].(int64)
-	f := browseFence{database: strings.Clone(in.Database), token: strings.Clone(in.TokenHash), account: r[0].(string), profile: r[1].(string), membership: r[2].(string), lifetime: r[3].(string), library: lib,
-		epoch: r[4].(int64), authority: r[10].(int64), membershipRevision: r[11].(int64), profileRevision: r[16].(int64), restrictionRevision: r[17].(int64),
-		libraryID: in.Library, kind: in.Kind, dataRevision: lr[1].(int64), orderRevision: lr[2].(int64), metadataRevision: lr[3].(int64), viewerRevision: lr[4].(int64), ageRevision: lr[5].(int64), maximumAge: maximum, allowUnrated: unrated, container: k[0][0].(int64), role: r[5].(string), memberLibraries: r[6].(string), profileLabels: r[14].(string), expiresAt: r[8].(string), horizon: r[9].(string), profileRestricted: r[7] != nil, descending: in.Descending, keepArticles: in.KeepArticles}
+	f.library = lib
+	f.libraryID = in.Library
+	f.dataRevision = lr[1].(int64)
+	f.orderRevision = lr[2].(int64)
+	f.metadataRevision = lr[3].(int64)
+	f.viewerRevision = lr[4].(int64)
+	f.ageRevision = lr[5].(int64)
+	f.container = k[0][0].(int64)
 
 	f.root = lr[8].(string)
 	f.bridgeRoot = bridge[0][1].(string)
@@ -198,9 +235,6 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	}
 	copy(f.originIncarnation[:], origin)
 	f.originRevision = lr[10].(int64)
-	if r[7] != nil {
-		f.profileLibraries = r[7].(string)
-	}
 	if err := validateReadPolicy(query, in, &f); err != nil {
 		return browseFence{}, err
 	}
