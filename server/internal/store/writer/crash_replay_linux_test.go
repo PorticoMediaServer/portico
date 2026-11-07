@@ -33,6 +33,7 @@ type crashWitness struct {
 	Effective *effectiveCrashOriginal
 	Passive   *passiveCrashProof
 	Opening   *scanOpeningCrashProof
+	Progress  *progressCrashSource
 
 	Version          int
 	SchemaSHA        string
@@ -222,6 +223,10 @@ func TestCrashReplayChild(t *testing.T) {
 	witness := crashWitness{Version: 1, SchemaSHA: schema.SHA256, Engine: schema.NativeSQLiteVersion}
 	if err := json.Unmarshal([]byte(encoded), &witness.Case); err != nil {
 		t.Fatal(err)
+	}
+	if witness.Case.Domain == "wc_progress" {
+		crashProgressFixture(t, &witness)
+		return
 	}
 	if witness.Case.Domain == "passive_native" {
 		crashPassiveFixture(t, &witness)
