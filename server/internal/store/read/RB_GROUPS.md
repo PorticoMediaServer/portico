@@ -2,7 +2,7 @@
 
 Harness-only; no runtime registration, HTTP adapter, DDL, durable result copy,
 provider call, or per-profile import/fanout. All definitions live in this family.
-Current inventory: 60 definitions for ten source families and the relationship
+Current inventory: 62 definitions for ten source families and the relationship
 exact fallback, with both statistics profiles captured on the actual Reader.
 
 Base: `d09f554e0450a14bc3f7b54317877f9151ceb6cb` (fresh origin/main,
@@ -22,7 +22,7 @@ raw row separately checks library/kind/retirement and the common item predicate.
 
 | Family | Physical stream | Public direct source order |
 | --- | --- | --- |
-| Show seasons | show_id + entity ID; mixed raw show children consume the cap | Candidate only; numeric/specials order unfinished |
+| Show seasons | kind=3 partial index + show_id + numeric season + entity ID | Candidate only; specials-last rotation unfinished |
 | Show episodes | show_id + entity ID | Candidate only; season number/specials order unfinished |
 | Season episodes | season_id + episode number + entity ID | Exact direct order across accepted numbering modes |
 | Artist albums | artist_id + entity ID | Candidate only; release type/year/title unfinished |
@@ -173,3 +173,10 @@ continuation. Current compressed SHA256
 `85a21da6de275dd87dd2980372387caab82381958489585101414f5609083423`;
 current JSON SHA256
 `d01577ace4f28b7a3a8f52f68540776e374eb5ad3eb331ffec0844d909791f2c`.
+
+The final show-season source uses canonical `catalog_entities_season_number`
+with exact `kind=3`, avoiding raw episode work when enumerating seasons. Its
+candidate order is numeric (0,1,2,10 in the fixture), not inherited title order
+or the public specials-last group order. Per-item eligibility remains separate;
+this structural kind index does not turn a subject proof into grid permission.
+The prior 6599585fc full/race baseline predates this final access-shape change.

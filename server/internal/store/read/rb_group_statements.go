@@ -25,7 +25,7 @@ func rbGroupSpecs() []rbGroupSpec {
 	s := func(s string) rbGroupKey { return rbGroupKey{sql: s, text: true} }
 	entity := "catalog_entities AS e INDEXED BY "
 	return []rbGroupSpec{
-		{RBGroupShowSeasons, "show-seasons", entity + "catalog_entities_show_fk", "show_id IS NOT NULL AND e.show_id=?", "catalog_entities_show_fk", []rbGroupKey{n("e.id")}, 2, []int64{3}, false},
+		{RBGroupShowSeasons, "show-seasons", entity + "catalog_entities_season_number", "kind=3 AND e.show_id=?", "catalog_entities_season_number", []rbGroupKey{n("e.season_number"), n("e.id")}, 2, []int64{3}, false},
 		{RBGroupShowEpisodes, "show-episodes", entity + "catalog_entities_show_fk", "show_id IS NOT NULL AND e.show_id=?", "catalog_entities_show_fk", []rbGroupKey{n("e.id")}, 2, []int64{4}, false},
 		{RBGroupSeasonEpisodes, "season-episodes", entity + "catalog_entities_season", "season_id IS NOT NULL AND e.season_id=?", "catalog_entities_season", []rbGroupKey{n("e.episode_number"), n("e.id")}, 3, []int64{4}, true},
 		{RBGroupArtistAlbums, "artist-albums", entity + "catalog_entities_artist", "artist_id IS NOT NULL AND e.artist_id=?", "catalog_entities_artist", []rbGroupKey{n("e.id")}, 5, []int64{6}, false},
@@ -154,7 +154,7 @@ func rbGroupFixtureSubject(f RBGroupFamily) int64 {
 	switch f {
 	case RBGroupShowSeasons, RBGroupShowEpisodes:
 		return 2001
-	case RBGroupSeasonEpisodes:
+	case RBGroupSeasonEpisodes, RBGroupShowSeasons:
 		return 2002
 	case RBGroupArtistAlbums, RBGroupArtistCredits:
 		return 2003
@@ -186,7 +186,7 @@ func rbGroupFixtureKeys(f RBGroupFamily, desc bool, level int) []any {
 			return []any{int64(1), value}
 		}
 		return []any{int64(1), int64(0), value}
-	case RBGroupSeasonEpisodes:
+	case RBGroupSeasonEpisodes, RBGroupShowSeasons:
 		if level == 0 {
 			return []any{value}
 		}

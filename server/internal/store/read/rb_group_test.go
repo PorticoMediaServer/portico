@@ -79,7 +79,7 @@ func TestRBGroupTraversal(t *testing.T) {
 func rbGroupExpected(f RBGroupFamily) []int64 {
 	switch f {
 	case RBGroupShowSeasons:
-		return []int64{2002}
+		return []int64{2012, 2002, 2009, 2011}
 	case RBGroupArtistAlbums:
 		return []int64{2004}
 	case RBGroupAuthorBooks:
