@@ -7,6 +7,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,7 +18,7 @@ func init() {
 		if f.maximumAge >= 0 || f.allowUnrated == 0 {
 			return "", ErrUnqualified
 		}
-		rows, e := q("rb.group.subject", in.policy.subject)
+		rows, e := q("rb.group.author.subject", in.policy.subject)
 		if e != nil {
 			return "", e
 		}
@@ -61,7 +62,7 @@ func (r *BrowseReader) rbAuthorExact(ctx context.Context, req governor.Request, 
 	}
 	view.policy = readPolicyBinding{recipe: rbAuthorPolicy, subject: author}
 	steps := []readStep[rbAuthorNativeDraft]{func(_ context.Context, q browseQuery, f browseFence, d *rbAuthorNativeDraft) error {
-		rows, e := q("rb.group.subject", author)
+		rows, e := q("rb.group.author.subject", author)
 		if e != nil {
 			return e
 		}
@@ -82,6 +83,7 @@ func (r *BrowseReader) rbAuthorExact(ctx context.Context, req governor.Request, 
 			return ErrNotReady
 		}
 		d.books = rows
+		d.raw = len(rows)
 		return nil
 	}}
 	// Each book has four raw quanta and an exhaustion quantum. Empty steps use
@@ -108,13 +110,13 @@ func (r *BrowseReader) rbAuthorExact(ctx context.Context, req governor.Request, 
 				var rows [][]any
 				var e error
 				if d.keys == nil {
-					rows, e = q("rb.group.book-parts.asc.first", b[0], int64(64))
+					rows, e = q("rb.group.author.parts.first", b[0], int64(64))
 				} else {
 					for level := 2; level >= 0 && len(rows) < 64; level-- {
 						args := []any{b[0]}
 						args = append(args, d.keys[:level+1]...)
 						args = append(args, int64(64-len(rows)))
-						more, err := q(fmt.Sprintf("rb.group.book-parts.asc.seek%d", level), args...)
+						more, err := q(fmt.Sprintf("rb.group.author.parts.seek%d", level), args...)
 						if err != nil {
 							return err
 						}
@@ -190,6 +192,26 @@ func RBAuthorDefinitions() []stmt.Definition {
 			key, name = "sort_key_keep_articles", "keep"
 		}
 		add("books."+name, `SELECT id,'',public_id,title,retired,revision,admission_own_age,series,NULLIF(series_position,''),`+key+`,PRINTF('%!.17g',series_position) FROM catalog_entities INDEXED BY catalog_entities_book_author WHERE kind=8 AND library_id=? AND author COLLATE NOCASE=? ORDER BY id LIMIT ?`, []stmt.Param{i("library"), s("author"), i("limit")}, []any{int64(1), "Author", int64(17)}, "catalog_entities_book_author")
+	}
+	for _, base := range RBGroupDefinitions() {
+		name := strings.TrimPrefix(string(base.ID), "read.browse.rb.group.")
+		suffix := ""
+		if name == "subject" {
+			suffix = "subject"
+		} else if strings.HasPrefix(name, "book-parts.asc.") {
+			suffix = "parts." + strings.TrimPrefix(name, "book-parts.asc.")
+		} else {
+			continue
+		}
+		base.ID = statementID("rb.group.author." + suffix)
+		base.CallSites = []string{"store/read/rb_group_author_native.go:BrowseReader.RBAuthorExact"}
+		for i := range base.Plan.Waivers {
+			base.Plan.Waivers[i].StatementID = base.ID
+		}
+		if name == "subject" {
+			base.Cohorts[0].Bindings[0] = int64(2005)
+		}
+		defs = append(defs, base)
 	}
 	return defs
 }
