@@ -170,7 +170,7 @@ func (d *ScanDriver) OpenRun(ctx context.Context, reference ScanRunReference) (o
 func (d *ScanDriver) invokeIssuer(ctx context.Context, q ScanReceiptRequest, purpose CommandID, call *scanIssuerInvocation, ack bool) (out commandOutput, err error) {
 	defer func() { err = errors.Join(err, d.current()); out, err = finishCommand(ctx, d.lifetime, out, err) }()
 	in := &inventoryInvocation{disclosure: d.sourceDisclosure(q), request: q, lifecycle: purpose, issuer: call}
-	out, _, err = d.writer.effective.runCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, ack, in, nil)
+	out, _, err = d.writer.effective.dispatchCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, ack, in, nil)
 	if err != nil && d.preparation != nil {
 		d.preparation.mu.Lock()
 		d.preparation.failed = true
@@ -386,7 +386,7 @@ func (o *ScanRunOperation) Ack(ctx context.Context) (value AckResult, err error)
 	}
 	call := &scanIssuerInvocation{driver: d, action: scanIssuerHistory, retained: o.preparation, deadline: o.preparation.expected.Deadline}
 	in := &inventoryInvocation{disclosure: d.sourceDisclosure(o.reference.Scan), request: o.reference.Scan, lifecycle: o.reference.Purpose, issuer: call}
-	_, value, err = d.writer.effective.runCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, true, in, nil)
+	_, value, err = d.writer.effective.dispatchCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, true, in, nil)
 	if err == nil {
 		o.acknowledged = true
 	}

@@ -146,7 +146,7 @@ func (r *effectiveRuntime) runScanLifecycleHistory(ctx context.Context, w *Write
 	if r == nil || w == nil || w.effective != r || (purpose != InventoryCreate && purpose != InventoryClaim) {
 		return value, acknowledged, ErrInvalid
 	}
-	out, acknowledged, err := r.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack,
+	out, acknowledged, err := r.dispatchCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack,
 		&inventoryInvocation{disclosure: cap, request: q, lifecycle: purpose}, nil)
 	return out.lifecycle, acknowledged, err
 }
