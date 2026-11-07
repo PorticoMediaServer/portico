@@ -6,6 +6,17 @@ import (
 	"testing"
 )
 
+func TestUONoticeZeroTimeBulkHeadRequiresResync(t *testing.T) {
+	notice := uoNoticeIdentity{sequence: 1, revision: 1}
+	if state, err := resolveUONoticeReadState(notice, uoNoticeIndividualAck{}, uoNoticeReadThrough{exists: true, sequence: 1, revision: 2}); !errors.Is(err, ErrInput) || state != (uoNoticeReadState{}) {
+		t.Fatal("zero timestamp invented coverage", state, err)
+	}
+	// The native loader normalizes a zero-sequence head to no bulk coverage.
+	if state, err := resolveUONoticeReadState(notice, uoNoticeIndividualAck{}, uoNoticeReadThrough{}); err != nil || state.readMS.Valid {
+		t.Fatal(state, err)
+	}
+}
+
 func TestUONoticeTwoBulkReadTimes(t *testing.T) {
 	a := uoNoticeIdentity{sequence: 1, revision: 1}
 	c := uoNoticeIdentity{sequence: 2, revision: 2}

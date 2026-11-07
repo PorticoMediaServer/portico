@@ -12,4 +12,4 @@ Read-all excludes archived notices. An archived notice marked unread stays unrea
 
 Coverage follows **sequence plus revision ordering**: a notice must be within the read-through sequence and must not have been restated after that read-all. Producer restatement resets older individual and bulk acknowledgments. A later individual unread overrides older bulk coverage; later eligible read-all overrides that unread. Individual read timestamps remain exact under subsequent bulk coverage.
 
-A present bulk head with timestamp zero is uninitialized and requires resync rather than synthesizing a read time. An absent head supplies no bulk coverage.
+A zero-sequence head supplies no bulk coverage, as does an absent head. A positive-sequence head with timestamp zero is uninitialized and requires resync rather than synthesizing a read time.
