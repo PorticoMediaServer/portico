@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
@@ -85,6 +86,12 @@ func TestRSDetailEveryCatalogueKind(t *testing.T) {
 	}
 }
 func TestRSDetailPublicationAndRetry(t *testing.T) {
+	// Assert whole-retry and fresh denial ordering with the original one-second
+	// budget, independent of shared runner startup and race-instrumentation time.
+	synctest.Test(t, testRSDetailPublicationAndRetry)
+}
+
+func testRSDetailPublicationAndRetry(t *testing.T) {
 	f, r := newRSDetailFixture(t, false)
 	in := TitleFactsInput{View: f.input, Item: 1101}
 	r.snapshots = &rsByteBoundarySnapshots{Snapshots: f.snapshots, after: func() {
