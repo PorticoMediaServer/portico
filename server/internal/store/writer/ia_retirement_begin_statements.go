@@ -27,12 +27,12 @@ func iaRetirementBeginDefinitions() []stmt.Definition {
 WHERE id=? AND library_id=? AND incarnation=? AND generation=? AND root=? AND root_identity=? AND health<>'removing' AND generation<9223372036854775807`,
 			Params: []stmt.Param{s("source_id"), s("library_key"), s("source_incarnation"), i("source_generation"), s("resolved_root"), s("root_identity")},
 			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_library_sources_1"}, Seeks: []string{"id=?"}}},
-		{ID: iaRetirementConfigurationCAS, Kind: stmt.Write, SQL: `UPDATE libraries SET configuration_revision=configuration_revision+1,configuration_metadata_revision=configuration_metadata_revision+1,
+		{ID: iaRetirementConfigurationCAS, Kind: stmt.Write, SQL: `UPDATE libraries INDEXED BY sqlite_autoindex_libraries_1 SET configuration_revision=configuration_revision+1,configuration_metadata_revision=configuration_metadata_revision+1,
 data_revision=data_revision+1,data_order_revision=data_order_revision+1,playback_origin_revision=playback_origin_revision+1
 WHERE id=? AND configuration_present=1 AND configuration_revision=? AND configuration_revision<9223372036854775807
 AND configuration_metadata_revision<9223372036854775807 AND data_revision<9223372036854775807 AND data_order_revision<9223372036854775807 AND playback_origin_revision<9223372036854775807`,
 			Params: []stmt.Param{s("library_key"), i("configuration_revision")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_libraries_1"}, Seeks: []string{"id=?"}}},
-		{ID: iaRetirementConfirmationPoint, Kind: stmt.Read, SQL: `SELECT 1 FROM libraries WHERE id=? AND name=? AND root=? AND configuration_present=1 AND configuration_revision=?`,
+		{ID: iaRetirementConfirmationPoint, Kind: stmt.Read, SQL: `SELECT 1 FROM libraries INDEXED BY sqlite_autoindex_libraries_1 WHERE id=? AND name=? AND root=? AND configuration_present=1 AND configuration_revision=?`,
 			Params: []stmt.Param{s("library_key"), s("confirmed_current_name"), s("resolved_root"), i("configuration_revision")},
 			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_libraries_1"}, Seeks: []string{"id=?"}}},
 		{ID: iaRetirementLiveLibraryPoint, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_libraries WHERE id=? AND library_id=? AND retired=0`,
