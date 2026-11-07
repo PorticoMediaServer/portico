@@ -131,7 +131,8 @@ func TestReadEngineActualPoint(t *testing.T) {
 	}
 }
 func TestReadEngineClosedDefinition(t *testing.T) {
-	conn, f, policy := ftsReader(t, engineDatabase(t))
+	path := engineDatabase(t)
+	conn, f, policy := ftsReader(t, path)
 	d := readEngineDefinition()
 	for _, mutate := range []func(*stmt.Definition){func(d *stmt.Definition) { d.ID = "borrowed.engine" }, func(d *stmt.Definition) { d.SQL = strings.Replace(d.SQL, "sqlite_source_id()", "random()", 1) }, func(d *stmt.Definition) { d.Plan.PrimaryKeys = nil }, func(d *stmt.Definition) { d.Params[0].Name = "other" }} {
 		x := d
@@ -145,12 +146,34 @@ func TestReadEngineClosedDefinition(t *testing.T) {
 			t.Fatal("altered exact engine definition admitted")
 		}
 	}
-	writer := f
-	writer.ConnectionPolicy.Role = sqliteconn.Writer
-	c, _ := stmt.Describe([]stmt.Definition{d})
-	if _, err := plan.Capture(t.Context(), conn, c, writer, policy); err == nil {
-		t.Fatal("Writer metadata custody admitted")
-	}
+	t.Run("WriterCustody", func(t *testing.T) {
+		// Use a real shared-opener Writer with its matching policy. Relabeling
+		// a Reader fixture only tests the generic connection-policy mismatch.
+		cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
+		writer, _, err := sqliteconn.Open(t.Context(), path, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer writer.Close()
+		writerConn, err := writer.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer writerConn.Close()
+		writerFixture := f
+		writerFixture.ConnectionPolicy = cfg
+		c, err := stmt.Describe([]stmt.Definition{d})
+		if err != nil {
+			t.Fatal(err)
+		}
+		g, err := plan.Capture(t.Context(), writerConn, c, writerFixture, policy)
+		if err == nil || !strings.Contains(err.Error(), "actual engine point requires Reader custody") {
+			t.Fatal("Writer metadata custody admitted or refused for the wrong reason", err)
+		}
+		if _, err := stmt.New([]stmt.Definition{d}, g.Receipt()); err == nil {
+			t.Fatal("failed Writer capture minted registration authority")
+		}
+	})
 }
 func TestReadEngineOverrideRefuses(t *testing.T) {
 	if os.Getenv("PORTICO_READ_ENGINE_OVERRIDE") != "1" {
