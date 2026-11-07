@@ -52,6 +52,23 @@ func TestENSealOctetPointsNative(t *testing.T) {
 			t.Fatal("generic octet grammar widened")
 		}
 	}
+	for _, d := range defs {
+		rows, err := c.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+d.SQL, d.Cohorts[0].Bindings...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var a, b, c int
+			var detail string
+			if err := rows.Scan(&a, &b, &c, &detail); err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("actual %s: %s", d.ID, detail)
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
 	registry, err := stmt.Describe(defs)
 	if err != nil {
 		t.Fatal(err)
