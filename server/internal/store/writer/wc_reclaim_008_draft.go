@@ -224,8 +224,7 @@ func applyWC008ReclaimChild(ctx context.Context, turn *commandTurn, q wc008Recla
 		return wc008ReclaimEffect{}, err
 	}
 	if out.prepared.remove {
-		debit, e := wc008DraftInteger(ctx, turn, wc008ReclaimDelete, out.prepared.key.playbackID,
-			out.prepared.key.incarnation[:], out.prepared.key.sequence, out.prepared.removedVariableBytes)
+		debit, e := out.prepared.removedVariableBytes, error(nil) // mutant skips physical delete
 		if e != nil {
 			return wc008ReclaimEffect{}, e
 		}
