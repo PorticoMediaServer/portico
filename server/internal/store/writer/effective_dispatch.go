@@ -41,8 +41,9 @@ type effectivePlan struct {
 	steps               []statementStep
 	need                governor.Amounts
 	io                  []governor.DeviceIO
-	inventoryPageSize   int32                 // frozen read-only assertion; zero cannot enable N1
-	inventoryMemory     inventoryMemoryBudget // private whole-unit partition; zero is unqualified
+	inventoryPageSize   int32                   // frozen read-only assertion; zero cannot enable N1
+	inventoryRecords    inventoryRecordEnvelope // extra native-record work inside the SAME grant
+	inventoryMemory     inventoryMemoryBudget   // private whole-unit partition; zero is unqualified
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
