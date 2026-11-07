@@ -20,7 +20,11 @@ type scanDirectoryLookup struct {
 // Actual native lengths are read BEFORE payloads. Reserve only the actual
 // complete envelope, including copies/digest/RETURNING; never a maximum-sized
 // speculative allocation. Native/pool/index/WAL Work is separately composed.
-func directoryMemory(ctx context.Context, t *commandTurn, n uint64) error {
+func directoryMemory(ctx context.Context, t *commandTurn, n uint64) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
+	if t == nil || t.transaction == nil || (t.transaction.descriptor.ID != InventoryDirectoryDiscover && t.transaction.descriptor.ID != InventoryDirectoryEOF) {
+		return ErrInvalid
+	}
 	if n > (math.MaxUint64-65536)/32 {
 		return ErrCap
 	}
