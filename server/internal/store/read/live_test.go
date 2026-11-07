@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -455,6 +456,12 @@ func TestLiveConsumerReturnJoinsActiveReadBeforeRefund(t *testing.T) {
 }
 
 func TestLivePublicationDenialWinsOverCancellation(t *testing.T) {
+	// This is an ordering control, not a wall-clock qualification: race
+	// instrumentation must not expire the Reader before the revoke boundary.
+	synctest.Test(t, testLivePublicationDenialWinsOverCancellation)
+}
+
+func testLivePublicationDenialWinsOverCancellation(t *testing.T) {
 	f, _ := newLiveFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -462,8 +469,11 @@ func TestLivePublicationDenialWinsOverCancellation(t *testing.T) {
 	q, request, output := liveRequests("denial-cancel")
 	var readErr error
 	_, e := ConsumeForeground(ctx, f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-		page, _, err := f.reader.Window(ctx, request, time.Second, out, f.input)
+		page, result, err := f.reader.Window(ctx, request, time.Second, out, f.input)
 		readErr = err
+		if result.PublicationStatements != 2 {
+			t.Fatalf("fresh authority/principal fence did not run: %+v, err=%v", result, err)
+		}
 		if !reflect.DeepEqual(page, BrowsePage{}) {
 			t.Fatal("denied output escaped")
 		}
