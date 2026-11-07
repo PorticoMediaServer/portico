@@ -137,6 +137,13 @@ func canonicalHeldClasses() []canonicalHeldClass {
 		{name: "mp.preparation", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged PreparedJob/ConsumeForeground +canonical prepared-job fixture not attached"},
 		{name: "rb.sorted", owner: "P2-RB", kind: "foreground_read", reason: "required reviewed/merged SortedWindow +actual RBBrowseDefinitions Capture and canonical source-order cohorts not attached"},
 		{name: "rb.chronology", owner: "P2-RB", kind: "foreground_read", reason: "required reviewed/merged ChronologyWindow +actual RBChronologyDefinitions Capture and dated/NULL/content cohorts not attached"},
+		{name: "rb.numeric_advance", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full cold NumericFacetPreparation.Advance1024 /original F04 lifetime composition/ConsumeForeground and source-bound Capture not attached"},
+		{name: "rb.numeric_first_page", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full first exact numeric Page /fresh LIVE/publication/cache handoff composition/ConsumeForeground and source-bound Capture not attached"},
+		{name: "rb.numeric_cached_page", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full cached exact numeric Page /original expiry and fresh authorization composition/ConsumeForeground and source-bound Capture not attached"},
+		{name: "rb.group_window", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full RBGroupWindow ten-family64raw /source-order witness composition/ConsumeForeground and source-bound Capture not attached"},
+		{name: "rb.relationship_exact", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full RBRelationshipExact complete<=256 /cap+1 zero ErrNotReady composition/ConsumeForeground and source-bound Capture not attached"},
+		{name: "rb.resolution", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full ResolutionWindow128fetched/64consumed/40output /NULL-zero continuation composition/ConsumeForeground and source-bound Capture not attached"},
+		{name: "rs.listening", owner: "P2-RS", kind: "foreground_read", reason: "canonical library7 full RSChildrenReader.Window512raw /native lookup+Go sort+fresh publication composition/ConsumeForeground and source-bound Capture not attached"},
 	}
 }
 func canonicalHeldClassFor(name string) (canonicalHeldClass, error) {
@@ -214,7 +221,7 @@ func emitCanonicalHeldPrefix(stream *n1Stream, cfg canonicalHeldConfig, definiti
 		a, b, c := int64(10*time.Millisecond), int64(25*time.Millisecond), int64(100*time.Millisecond)
 		normalP99, quietMax, errorCeiling = &a, &b, &c
 	}
-	if err := stream.append("start", map[string]any{"owner": definition.owner, "target_kind": definition.kind, "compiled_intent": canonicalHeldIntent(definition), "actual_class": nil, "actual_durability": nil, "requested_originals": cfg.Attempts, "expected_library_items": canonicalHeldItems, "actual_library_items": nil, "actual_library_items_unavailable_reason": "canonical seed has not been attached/observed", "declared_artifact_directory": cfg.ArtifactDirectory, "declared_manifest_sha256": cfg.ManifestSHA256, "expected_library_numeric_id": 7, "expected_library_key": "qualification-movies", "expected_root": "/qualification-media", "expected_shape": "canonical-movies-v1", "observed_statement_bytes": nil, "statement_bytes_unavailable_reason": definition.reason, "normal_hosted_p99_ns": normalP99, "quiet_max_ns": quietMax, "rare_error_ceiling_ns": errorCeiling, "maintenance_budget_ns": nil, "maintenance_budget_unavailable_reason": "owner-supplied maintenance budget required; never normal25ms", "physical_owner_intervals": nil, "reads_are_writer_holds": false, "phase1a_lease_enabled": false}); err != nil {
+	if err := stream.append("start", map[string]any{"owner": definition.owner, "target_kind": definition.kind, "compiled_intent": canonicalHeldIntent(definition), "actual_class": nil, "actual_durability": nil, "requested_originals": cfg.Attempts, "expected_library_items": canonicalHeldItems, "actual_library_items": nil, "actual_library_items_unavailable_reason": "canonical seed has not been attached/observed", "declared_artifact_directory": cfg.ArtifactDirectory, "declared_manifest_sha256": cfg.ManifestSHA256, "expected_library_numeric_id": 7, "expected_library_key": "qualification-movies", "expected_root": "/qualification-media", "expected_shape": "canonical-movies-v1", "observed_statement_bytes": nil, "statement_bytes_unavailable_reason": definition.reason, "normal_hosted_p99_ns": normalP99, "quiet_max_ns": quietMax, "rare_error_ceiling_ns": errorCeiling, "maintenance_budget_ns": nil, "maintenance_budget_unavailable_reason": "owner-supplied maintenance budget required; never normal25ms", "physical_owner_intervals": nil, "read_recipe_intent": canonicalReadRecipeFor(definition.name), "reads_are_writer_holds": false, "phase1a_lease_enabled": false}); err != nil {
 		return err
 	}
 	missing := canonicalHeldMissing(definition)
@@ -250,3 +257,11 @@ func TestCanonicalPreparationRead(t *testing.T) { canonicalHeldRun(t, "mp.prepar
 
 func TestCanonicalRBSortedRead(t *testing.T)     { canonicalHeldRun(t, "rb.sorted") }
 func TestCanonicalRBChronologyRead(t *testing.T) { canonicalHeldRun(t, "rb.chronology") }
+
+func TestCanonicalRBNumericAdvance(t *testing.T)    { canonicalHeldRun(t, "rb.numeric_advance") }
+func TestCanonicalRBNumericFirstPage(t *testing.T)  { canonicalHeldRun(t, "rb.numeric_first_page") }
+func TestCanonicalRBNumericCachedPage(t *testing.T) { canonicalHeldRun(t, "rb.numeric_cached_page") }
+func TestCanonicalRBGroupWindow(t *testing.T)       { canonicalHeldRun(t, "rb.group_window") }
+func TestCanonicalRBRelationshipExact(t *testing.T) { canonicalHeldRun(t, "rb.relationship_exact") }
+func TestCanonicalRBResolution(t *testing.T)        { canonicalHeldRun(t, "rb.resolution") }
+func TestCanonicalRSListening(t *testing.T)         { canonicalHeldRun(t, "rs.listening") }
