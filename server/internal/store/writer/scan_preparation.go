@@ -339,6 +339,14 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 	// closed handles outside the driver. No tombstone or cancelled Scope is a
 	// memory owner after Retired. Keep only bounded closed-custody identity.
 	if o := p.operation; o != nil {
+		// Native work and helper custody have joined. Drop the driver's roots
+		// here, not before a potentially failed wait and not after the refund.
+		if w := o.driver.work; w != nil && w.preparation == p {
+			o.driver.work = nil
+		}
+		if b := o.driver.birth; b != nil && b.preparation == p {
+			o.driver.birth = nil
+		}
 		if o.result != nil {
 			o.result.value = scanLifecycleCommandResult{}
 			o.result.closed = true
