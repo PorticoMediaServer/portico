@@ -13,7 +13,9 @@ func TestRSChildrenListeningOrderMatchesPublicOracle(t *testing.T) {
 	f, r := rsChildrenFixture(t)
 	for _, family := range []RSChildrenFamily{RSAlbumTracks, RSAudiobookFiles} {
 		base := int64(3000) + 1000*int64(family)
-		for n, key := range []string{"Zulu", "alpha", "A\x00z", "a\x00a", "same", "SAME", "a\x00zz", "é\x00a"} {
+		// Lowercase accented/script keys deliberately receive LOWER IDs than
+		// their uppercase partners. Unicode folding would create false ID ties.
+		for n, key := range []string{"Zulu", "alpha", "A\x00z", "a\x00a", "same", "SAME", "a\x00zz", "é\x00a", "retired-sentinel", "éclair", "Éclair", "ångström", "Ångström", "жук", "Жук", "αλφα", "Αλφα", "retired-sentinel", "東京", "大阪", "e\u0301clair"} {
 			f.exec(t, `UPDATE catalog_entities SET disc_number=1,track_number=0,part_number=0,sort_key=? WHERE id=?`, key, base+int64(n+1))
 		}
 		in := rsChildrenInput(f, family)
