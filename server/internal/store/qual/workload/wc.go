@@ -101,7 +101,13 @@ func ProgressDrain(bindings ...ProgressBinding) Action {
 	}
 	return progressAction(bindings[0], true)
 }
-func Security() Action { intent, _ := WCIntentFor(SecurityPhase); return wcGatedAction(intent) }
+func Security(bindings ...SecurityBinding) Action {
+	if len(bindings) != 1 {
+		intent, _ := WCIntentFor(SecurityPhase)
+		return wcGatedAction(intent)
+	}
+	return securityAction(bindings[0])
+}
 func wcGatedAction(intent WCIntent) Action {
 	return func(_ context.Context, _ Offer, emit func(Observation) error) error {
 		return errors.Join(ErrWCComposition, emit(Observation{Phase: "STUB", Stub: true, Notice: ErrWCComposition.Error(), Result: intent}))
