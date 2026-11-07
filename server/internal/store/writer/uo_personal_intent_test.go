@@ -144,7 +144,7 @@ func TestUOPersonalDraftDefinitionsPrepare(t *testing.T) {
 	wc008NativePrepare(t, w, uoPersonalAllDefinitions())
 }
 func TestUOPersonalDraftFinishGuards(t *testing.T) {
-	want := map[string]bool{"applyUOPersonalIntent": false, "applyUOPersonalClear": false, "applyUOPersonalBoundary": false, "applyUOPersonalOffline": false, "applyUOPersonalResolve": false, "applyUOPersonalBulkBegin": false, "applyUOPersonalBulkStep": false}
+	want := map[string]bool{"applyUOPersonalIntent": false, "applyUOPersonalClear": false, "applyUOPersonalBoundary": false, "applyUOPersonalOffline": false, "applyUOPersonalResolve": false, "applyUOPersonalBulkBegin": false, "applyUOPersonalBulkStep": false, "applyUOPersonalBulkMembers": false}
 	for _, path := range []string{"uo_personal_intent.go", "uo_personal_history.go", "uo_personal_offline.go", "uo_personal_bulk.go"} {
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 		if err != nil {

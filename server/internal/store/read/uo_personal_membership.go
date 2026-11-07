@@ -99,14 +99,14 @@ func readUOPersonalMembership(q browseQuery, f browseFence, m uoPersonalMembersh
 func UOPersonalMembershipDefinitions() []stmt.Definition {
 	var out []stmt.Definition
 	for _, m := range []uoPersonalMembership{uoMembershipMyList, uoMembershipFavorite, uoMembershipRating, uoMembershipNotInterested} {
-		index, predicate := "personal_current_watchlist", "p.watchlisted=1"
+		index, predicate := "personal_current_watchlist", "watchlisted=1"
 		switch m {
 		case uoMembershipFavorite:
-			index, predicate = "personal_current_favorite", "p.favorite=1"
+			index, predicate = "personal_current_favorite", "favorite=1"
 		case uoMembershipRating:
 			index, predicate = "personal_current_rating", "p.rating=?"
 		case uoMembershipNotInterested:
-			index, predicate = "personal_current_not_interested", "p.not_interested=1"
+			index, predicate = "personal_current_not_interested", "not_interested=1"
 		}
 		params := []stmt.Param{{Name: "profile", Type: stmt.Text}}
 		args := []any{"profile-one"}
