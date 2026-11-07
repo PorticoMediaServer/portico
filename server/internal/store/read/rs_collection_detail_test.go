@@ -156,6 +156,8 @@ func TestRSCollectionPreparationExpiryAndSourceFence(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	clock = time.Now()
+	now = clock
 	p := rsBeginCollection(t, f, r)
 	deadline := p.Deadline()
 	_, _, e = p.advance(t.Context(), foregroundRequest(), time.Second, f.output, f.input.Now)
