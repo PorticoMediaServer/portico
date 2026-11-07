@@ -32,18 +32,19 @@ type ReclaimSnapshot struct {
 	source                                                                     wcReclaimSnapshot
 }
 type WCReclaimDriver struct {
-	self        *WCReclaimDriver
-	mu          sync.Mutex
-	writer      *Writer
-	scope       wcProgressScope
-	lifetime    context.Context
-	cancel      context.CancelFunc
-	stopOpening func() bool
-	closed      atomic.Bool
-	grant       *governor.Grant
-	expected    governor.Request
-	work        *wcReclaimCommand
-	retired     bool
+	self           *WCReclaimDriver
+	mu             sync.Mutex
+	commandCustody *wcClaimCommandCustody
+	writer         *Writer
+	scope          wcProgressScope
+	lifetime       context.Context
+	cancel         context.CancelFunc
+	stopOpening    func() bool
+	closed         atomic.Bool
+	grant          *governor.Grant
+	expected       governor.Request
+	work           *wcReclaimCommand
+	retired        bool
 }
 type wcReclaimCommand struct {
 	driver      *WCReclaimDriver
@@ -51,6 +52,7 @@ type wcReclaimCommand struct {
 	reference   ReclaimReceiptRequest
 	preparation ReclaimSnapshot
 	retired     bool
+	custody     *wcClaimCommandReservation
 }
 type wcReclaimInvocation struct {
 	disclosure *ReclaimDisclosure
@@ -60,7 +62,7 @@ type wcReclaimInvocation struct {
 }
 
 func (d *WCReclaimDriver) current() error {
-	if d == nil || d.self != d || d.writer == nil || d.writer.effective == nil || d.closed.Load() || d.lifetime == nil || d.lifetime.Err() != nil {
+	if d == nil || d.self != d || d.writer == nil || d.writer.effective == nil || d.closed.Load() || d.lifetime == nil || d.lifetime.Err() != nil || d.commandCustody == nil {
 		return ErrDisclosureDenied
 	}
 	r := d.writer.effective
@@ -118,7 +120,7 @@ func newWCReclaimDriver(ctx context.Context, w *Writer, owned *WCProgressDriver,
 	s = wcProgressScope{playbackID: strings.Clone(s.playbackID), profileKey: strings.Clone(s.profileKey), accountID: strings.Clone(s.accountID), profileID: strings.Clone(s.profileID), memberBirth: strings.Clone(s.memberBirth), profileBirth: strings.Clone(s.profileBirth), libraryKey: strings.Clone(s.libraryKey), libraryID: s.libraryID, subjectID: s.subjectID, subjectPublicID: s.subjectPublicID, incarnation: s.incarnation}
 	expected.Key.ID = strings.Clone(expected.Key.ID)
 	expected.Footprint = slices.Clone(expected.Footprint)
-	d := &WCReclaimDriver{writer: w, scope: s, grant: grant, expected: expected}
+	d := &WCReclaimDriver{writer: w, scope: s, grant: grant, expected: expected, commandCustody: owned.commandCustody}
 	candidate = d
 	d.self = d
 	d.lifetime, d.cancel = context.WithDeadline(ctx, expected.Deadline)
@@ -181,11 +183,14 @@ func checkWCReclaimDisclosure(w *Writer, v *wcReclaimInvocation) error {
 	if err := d.current(); err != nil {
 		return err
 	}
-	if d.writer != w || v.request.PlaybackID != d.scope.playbackID || !validWCReclaimScope(d.scope) {
+	if d.writer != w || !d.commandCustody.matches(d.scope) || v.request.PlaybackID != d.scope.playbackID || !validWCReclaimScope(d.scope) {
 		return ErrDisclosureDenied
 	}
 	if !v.snapshot && (v.request.Receipt.Identity.Incarnation != d.scope.incarnation || v.request.Receipt.Identity.Sequence <= 0 || v.request.Receipt.Identity.OperationID == [16]byte{} || v.request.Receipt.RequestDigest == (RequestDigest{})) {
 		return ErrInvalid
+	}
+	if v.input != nil && !v.input.retired && (v.input != d.work || !d.commandCustody.owns(v.input.custody, ProgressReceiptReclaim)) {
+		return ErrResolveRequired
 	}
 	return nil
 }
@@ -236,6 +241,15 @@ func (d *WCReclaimDriver) Prepare(ctx context.Context) (out ReclaimCommand, err 
 	if d.work != nil {
 		return d.work, nil
 	}
+	reservation, err := d.commandCustody.reserve(ProgressReceiptReclaim)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if d.work == nil {
+			d.commandCustody.release(reservation)
+		}
+	}()
 	result, _, err := d.writer.runWCReclaim(ctx, &wcReclaimInvocation{disclosure: d.Disclosure(), request: ReclaimReceiptRequest{PlaybackID: d.scope.playbackID}, snapshot: true}, false)
 	if err != nil {
 		return nil, err
@@ -259,7 +273,7 @@ func (d *WCReclaimDriver) Prepare(ctx context.Context) (out ReclaimCommand, err 
 	if err != nil {
 		return nil, err
 	}
-	d.work = &wcReclaimCommand{driver: d, request: request, reference: ReclaimReceiptRequest{d.scope.playbackID, ReceiptReference{id, digest}}, preparation: s}
+	d.work = &wcReclaimCommand{driver: d, request: request, reference: ReclaimReceiptRequest{d.scope.playbackID, ReceiptReference{id, digest}}, preparation: s, custody: reservation}
 	return d.work, nil
 }
 func (w *Writer) AcceptReclaim(ctx context.Context, cap *ReclaimDisclosure, input ReclaimCommand) (out ReclaimResult, err error) {
@@ -306,10 +320,12 @@ func (w *Writer) AckReclaim(ctx context.Context, cap *ReclaimDisclosure, q Recla
 	defer d.mu.Unlock()
 	_, out, err = w.runWCReclaim(ctx, &wcReclaimInvocation{disclosure: cap, request: q}, true)
 	if err == nil && d.work != nil && d.work.reference == q && out.AcknowledgedThrough >= q.Receipt.Identity.Sequence {
+		reservation := d.work.custody
 		d.work.request = wcReclaimRequest{}
 		d.work.preparation = ReclaimSnapshot{}
 		d.work.retired = true
 		d.work = nil
+		d.commandCustody.release(reservation)
 	}
 	return
 }
