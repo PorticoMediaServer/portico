@@ -1,7 +1,6 @@
 package read
 
 import (
-	"bytes"
 	"context"
 	"time"
 
@@ -68,7 +67,7 @@ func (r *ForegroundReader) uoPersonalState(ctx context.Context, request governor
 		// Retained state cannot attach to a different public identity merely
 		// because an internal ID happens to match.
 		personalPublic, ok := source[17].([]byte)
-		if !ok || !bytes.Equal(public, personalPublic) {
+		if !ok || !uoPersonalPublicIDMatches(personalPublic, draft.PublicID) {
 			return ErrUnqualified
 		}
 		draft.UserState = stateValue(source[7:15])
