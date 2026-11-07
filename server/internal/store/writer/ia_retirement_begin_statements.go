@@ -23,7 +23,7 @@ func iaRetirementBeginDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: iaRetirementLibraryFence, Kind: stmt.Write, SQL: `UPDATE catalog_libraries SET retired=1 WHERE id=? AND library_id=? AND root=? AND retired=0`,
 			Params: []stmt.Param{i("library_id"), s("library_key"), s("root")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_libraries"}, Seeks: []string{"rowid=?"}}},
-		{ID: iaRetirementSourceFence, Kind: stmt.Write, SQL: `UPDATE library_sources SET enabled=0,health='removing',generation=generation+1,next_scan_at=''
+		{ID: iaRetirementSourceFence, Kind: stmt.Write, SQL: `UPDATE library_sources INDEXED BY sqlite_autoindex_library_sources_1 SET enabled=0,health='removing',generation=generation+1,next_scan_at=''
 WHERE id=? AND library_id=? AND incarnation=? AND generation=? AND root=? AND root_identity=? AND health<>'removing' AND generation<9223372036854775807`,
 			Params: []stmt.Param{s("source_id"), s("library_key"), s("source_incarnation"), i("source_generation"), s("resolved_root"), s("root_identity")},
 			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_library_sources_1"}, Seeks: []string{"id=?"}}},
