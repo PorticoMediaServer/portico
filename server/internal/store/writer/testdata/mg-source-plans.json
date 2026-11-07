@@ -1051,7 +1051,7 @@
           ],
           "values": [
             [
-              0,
+              1,
               "sqlite_autoindex_live_sources_1",
               1,
               "pk",
@@ -2783,7 +2783,7 @@
         [
           2,
           "Noop",
-          2,
+          3,
           0,
           1,
           null,
@@ -2803,7 +2803,7 @@
         [
           4,
           "OpenWrite",
-          1,
+          2,
           "\"main\".\"sqlite_autoindex_live_sources_1\"",
           0,
           "k(2,,)",
@@ -2843,7 +2843,7 @@
         [
           8,
           "SeekGE",
-          1,
+          2,
           22,
           10,
           "1",
@@ -2853,7 +2853,7 @@
         [
           9,
           "IdxGT",
-          1,
+          2,
           22,
           10,
           "1",
@@ -2863,7 +2863,7 @@
         [
           10,
           "DeferredSeek",
-          1,
+          2,
           0,
           0,
           null,
@@ -3414,7 +3414,7 @@
           ],
           "values": [
             [
-              0,
+              1,
               "sqlite_autoindex_live_sources_1",
               1,
               "pk",

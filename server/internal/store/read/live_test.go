@@ -31,7 +31,12 @@ func newLiveFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture, *
 	return f, r
 }
 func liveRequests(id string) (governor.ForegroundRequest, governor.Request, governor.Request) {
-	return readfixture.Requests(id, time.Now())
+	entry := time.Now()
+	q, request, output := readfixture.Requests(id, entry)
+	q.ReadyDeadline = entry.Add(functionalReadTimeout)
+	q.ProtectedDeadline = entry.Add(2 * functionalReadTimeout)
+	request.Deadline, output.Deadline = q.ProtectedDeadline, q.ProtectedDeadline
+	return q, request, output
 }
 func assertLiveUsage(t *testing.T, f *browseFixture, live int, readers int64) {
 	t.Helper()
@@ -86,6 +91,10 @@ func TestLivePublicReadersRequireAdmission(t *testing.T) {
 }
 
 func TestLiveAllRecipesKeepConsumerCustody(t *testing.T) {
+	synctest.Test(t, testLiveAllRecipesKeepConsumerCustody)
+}
+
+func testLiveAllRecipesKeepConsumerCustody(t *testing.T) {
 	f, r := newLiveFixture(t)
 	for _, recipe := range []string{"browse", "detail", "playback", "continue"} {
 		q, request, output := liveRequests(recipe)
@@ -122,8 +131,8 @@ func TestLiveAllRecipesKeepConsumerCustody(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if readResult.AdmissionElapsed <= 0 || readResult.Elapsed < readResult.AdmissionElapsed {
-				t.Fatal("admission time omitted")
+			if readResult.AdmissionElapsed != out.live.admission || readResult.AdmissionElapsed < 0 || readResult.Elapsed < readResult.AdmissionElapsed {
+				t.Fatal("admission accounting differs from the issued LIVE scope")
 			}
 			for _, w := range append(readResult.LookupWindows, readResult.PublicationWindows...) {
 				if w.Ended.IsZero() || w.Deadline.After(q.ReadyDeadline) {
@@ -145,6 +154,10 @@ func TestLiveAllRecipesKeepConsumerCustody(t *testing.T) {
 }
 
 func TestLiveCapacityHeldBySlowConsumers(t *testing.T) {
+	synctest.Test(t, testLiveCapacityHeldBySlowConsumers)
+}
+
+func testLiveCapacityHeldBySlowConsumers(t *testing.T) {
 	f, _ := newLiveFixture(t)
 	release := make(chan struct{})
 	defer func() {
@@ -176,11 +189,12 @@ func TestLiveCapacityHeldBySlowConsumers(t *testing.T) {
 			})
 			errorsOut <- e
 		}()
+		synctest.Wait()
 		select {
 		case <-entered:
 		case e := <-errorsOut:
 			t.Fatal("slow consumer failed", e)
-		case <-time.After(2 * time.Second):
+		default:
 			t.Fatal("consumer did not start")
 		}
 	}
@@ -205,62 +219,64 @@ func TestLiveCapacityHeldBySlowConsumers(t *testing.T) {
 func TestLiveErrorsPanicCancellationAndExpiryKeepCustody(t *testing.T) {
 	for _, mode := range []string{"error", "panic", "cancel", "expiry", "revoke"} {
 		t.Run(mode, func(t *testing.T) {
-			f, _ := newLiveFixture(t)
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			q, request, output := liveRequests(mode)
-			if mode == "expiry" {
-				q.ReadyDeadline = time.Now().Add(20 * time.Millisecond)
-				q.ProtectedDeadline = time.Now().Add(40 * time.Millisecond)
-				output.Deadline = q.ProtectedDeadline
-			}
-			marker := errors.New("consumer fault")
-			var e error
-			var got any
-			func() {
-				defer func() { got = recover() }()
-				_, e = ConsumeForeground(ctx, f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-					if mode == "expiry" {
-						<-ctx.Done()
-					} else {
-						page, _, err := f.reader.Window(ctx, request, time.Second, out, f.input)
-						if err != nil {
-							return err
-						}
-						if len(page.Items) == 0 {
-							t.Fatal("missing content")
-						}
-					}
-					switch mode {
-					case "cancel":
-						cancel()
-					case "revoke":
-						f.governor.Cancel(out.live.live)
-						if err := out.live.check(); !errors.Is(err, governor.ErrGrant) {
-							t.Fatal("revoked LIVE usable", err)
-						}
-					}
-					assertLiveUsage(t, f, 1, 0)
-					if mode == "panic" {
-						panic(marker)
-					}
-					if mode == "error" {
-						return marker
-					}
-					return nil
-				})
-			}()
-			if mode == "panic" {
-				if got != marker {
-					t.Fatal("primary panic lost", got)
+			synctest.Test(t, func(t *testing.T) {
+				f, _ := newLiveFixture(t)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				q, request, output := liveRequests(mode)
+				if mode == "expiry" {
+					q.ReadyDeadline = time.Now().Add(20 * time.Millisecond)
+					q.ProtectedDeadline = time.Now().Add(40 * time.Millisecond)
+					output.Deadline = q.ProtectedDeadline
 				}
-			} else if got != nil {
-				t.Fatal(got)
-			}
-			if mode == "error" && !errors.Is(e, marker) || mode == "cancel" && !errors.Is(e, context.Canceled) || mode == "expiry" && !errors.Is(e, context.DeadlineExceeded) {
-				t.Fatal("consumer outcome lost", mode, e)
-			}
-			assertLiveUsage(t, f, 0, 0)
+				marker := errors.New("consumer fault")
+				var e error
+				var got any
+				func() {
+					defer func() { got = recover() }()
+					_, e = ConsumeForeground(ctx, f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+						if mode == "expiry" {
+							<-ctx.Done()
+						} else {
+							page, _, err := f.reader.Window(ctx, request, time.Second, out, f.input)
+							if err != nil {
+								return err
+							}
+							if len(page.Items) == 0 {
+								t.Fatal("missing content")
+							}
+						}
+						switch mode {
+						case "cancel":
+							cancel()
+						case "revoke":
+							f.governor.Cancel(out.live.live)
+							if err := out.live.check(); !errors.Is(err, governor.ErrGrant) {
+								t.Fatal("revoked LIVE usable", err)
+							}
+						}
+						assertLiveUsage(t, f, 1, 0)
+						if mode == "panic" {
+							panic(marker)
+						}
+						if mode == "error" {
+							return marker
+						}
+						return nil
+					})
+				}()
+				if mode == "panic" {
+					if got != marker {
+						t.Fatal("primary panic lost", got)
+					}
+				} else if got != nil {
+					t.Fatal(got)
+				}
+				if mode == "error" && !errors.Is(e, marker) || mode == "cancel" && !errors.Is(e, context.Canceled) || mode == "expiry" && !errors.Is(e, context.DeadlineExceeded) {
+					t.Fatal("consumer outcome lost", mode, e)
+				}
+				assertLiveUsage(t, f, 0, 0)
+			})
 		})
 	}
 }
@@ -349,7 +365,7 @@ func testLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline(t *testing.T)
 			if len(page.Items) != 40 {
 				return errors.New("waiter content")
 			}
-			if result.Lookup.Deadline.After(q.ReadyDeadline) || result.Publication.Deadline.After(q.ReadyDeadline) || result.Elapsed < result.AdmissionElapsed {
+			if result.Lookup.Deadline.After(q.ReadyDeadline) || result.Publication.Deadline.After(q.ReadyDeadline) || result.AdmissionElapsed != time.Millisecond || result.Elapsed < result.AdmissionElapsed {
 				return errors.New("waiter renewed/omitted original ready budget")
 			}
 			return nil
@@ -381,8 +397,8 @@ func testLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline(t *testing.T)
 	if e := <-done; e != nil {
 		t.Fatal(e)
 	}
-	if consumption.AdmissionElapsed <= 0 {
-		t.Fatal("waiting omitted")
+	if consumption.AdmissionElapsed != time.Millisecond || consumption.Elapsed < consumption.AdmissionElapsed {
+		t.Fatal("virtual admission wait was not charged exactly", consumption)
 	}
 	if f.authority.ForegroundUsage().Live != 3 || f.authority.ForegroundUsage().Waiters != 0 {
 		t.Fatal("waiter/consumer custody leaked")
@@ -403,6 +419,10 @@ func (s *liveBlockedRead) Read(ctx context.Context, r governor.Request, budget t
 	})
 }
 func TestLiveConsumerReturnJoinsActiveReadBeforeRefund(t *testing.T) {
+	synctest.Test(t, testLiveConsumerReturnJoinsActiveReadBeforeRefund)
+}
+
+func testLiveConsumerReturnJoinsActiveReadBeforeRefund(t *testing.T) {
 	f, _ := newLiveFixture(t)
 	observed := &liveBlockedRead{Snapshots: f.snapshots, entered: make(chan struct{}), release: make(chan struct{})}
 	f.reader.snapshots = observed
@@ -420,22 +440,14 @@ func TestLiveConsumerReturnJoinsActiveReadBeforeRefund(t *testing.T) {
 		done <- e
 	}()
 	out := <-scopeOut
-	tick := time.NewTicker(time.Millisecond)
-	defer tick.Stop()
-	timeout := time.NewTimer(time.Second)
-	defer timeout.Stop()
-	for {
-		out.live.mu.Lock()
-		closed := out.live.closed
-		out.live.mu.Unlock()
-		if closed {
-			break
-		}
-		select {
-		case <-tick.C:
-		case <-timeout.C:
-			t.Fatal("scope did not close")
-		}
+	// The consumer has returned and cleanup must block on the active read.
+	// Quiescence proves the ordering without polling a real-clock deadline.
+	synctest.Wait()
+	out.live.mu.Lock()
+	closed := out.live.closed
+	out.live.mu.Unlock()
+	if !closed {
+		t.Fatal("scope did not close before joining its active read")
 	}
 	select {
 	case e := <-done:

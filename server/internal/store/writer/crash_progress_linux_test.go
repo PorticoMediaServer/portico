@@ -16,7 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-const progressCrashSchema010 = "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2"
+const progressCrashSchema010 = "9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05"
 
 func progressCrashDefinitions() []stmt.Definition {
 	defs := append(wcProgressDefinitions(), wcProgressAckDefinitions()...)

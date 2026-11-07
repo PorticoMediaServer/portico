@@ -145,7 +145,7 @@ VALUES(2,'clock_fixture_only','fixture_recipe','fixture_engine','fixture_unicode
 				seen[key] = true
 			}
 			if golden.ForeignKeys != nil {
-				if fk != nil || len(golden.ForeignKeys.Plans) != 671 {
+				if fk != nil || len(golden.ForeignKeys.Plans) != 686 {
 					t.Fatal("incomplete/duplicate FK audit")
 				}
 				fk = golden.ForeignKeys
@@ -212,5 +212,5 @@ VALUES(2,'clock_fixture_only','fixture_recipe','fixture_engine','fixture_unicode
 	if err := plan.CompareJSON(expected, fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("9compiled definitions/12cohorts; two actual clock states; one INSERT destination;671FK/2013probes; no accepting helper executed")
+	t.Log("9compiled definitions/12cohorts; two actual clock states; one INSERT destination;686FK/2058probes; no accepting helper executed")
 }

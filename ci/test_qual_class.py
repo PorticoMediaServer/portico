@@ -169,6 +169,56 @@ class ClassProtocol(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'duplicate VM'):
             c.summarize(artifacts, output)
 
+    def test_cleanup_readonly_module_directories_and_symlinks(self):
+        temporary, workspace = self.root/'runner-temp', self.root/'workspace'
+        temporary.mkdir(); workspace.mkdir()
+        module=temporary/'qual-class-work/gopath/pkg/mod/example@v1/nested'
+        module.mkdir(parents=True)
+        (module/'readonly.go').write_text('synthetic readonly module')
+        (module/'readonly.go').chmod(0o444)
+        module.chmod(0o555);module.parent.chmod(0o555)
+        (workspace/'population').mkdir()
+        (workspace/'population/population.sqlite').write_bytes(b'synthetic, not SQLite')
+        external=self.root/'preserve';external.mkdir();(external/'keep').write_text('preserve')
+        (temporary/'qual-class-work/link').symlink_to(external, target_is_directory=True)
+        with mock.patch.dict(os.environ, RUNNER_TEMP=str(temporary), GITHUB_WORKSPACE=str(workspace)), \
+             mock.patch.object(c, 'retired_unit', return_value={'LoadState':'not-found','ActiveState':'inactive'}):
+            c.cleanup(keep_output=True)
+            proof=json.loads((temporary/'qual-class-out/cleanup.json').read_text())
+            self.assertEqual(proof['errors'], [])
+            self.assertFalse((temporary/'qual-class-work').exists())
+            self.assertFalse((workspace/'population').exists())
+            self.assertEqual((external/'keep').read_text(), 'preserve')
+            c.cleanup()
+            self.assertFalse((temporary/'qual-class-out').exists())
+
+    def test_retired_unit_requires_complete_stopped_and_drained_evidence(self):
+        good='LoadState=not-found\nActiveState=inactive\nControlGroup=\n'
+        for raw in (good, good.replace('not-found','loaded').replace('ControlGroup=', 'ControlGroup=/system.slice/portico-canonical-class.service')):
+            with mock.patch.object(c.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout=raw)), \
+                 mock.patch.object(Path, 'read_text', return_value='populated 0\nfrozen 0\n'):
+                self.assertEqual(c.retired_unit()['ActiveState'], 'inactive')
+        for raw in (good.replace('inactive','active'), good.replace('ControlGroup=\n',''),
+                    good.replace('ControlGroup=', 'ControlGroup=/'),
+                    good+'ActiveState=inactive\n'):
+            with self.subTest(raw=raw), mock.patch.object(c.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout=raw)):
+                with self.assertRaises(ValueError): c.retired_unit()
+        with mock.patch.object(c.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout=good.replace('ControlGroup=', 'ControlGroup=/system.slice/portico-canonical-class.service'))), \
+             mock.patch.object(Path, 'read_text', return_value='populated 1\nfrozen 0\n'):
+            with self.assertRaises(ValueError): c.retired_unit()
+
+    def test_cleanup_refuses_unproven_process_retirement(self):
+        temporary, workspace = self.root/'temp', self.root/'workspace'
+        temporary.mkdir(); workspace.mkdir()
+        work=temporary/'qual-class-work';work.mkdir();(work/'preserve').write_text('live work')
+        with mock.patch.dict(os.environ, RUNNER_TEMP=str(temporary), GITHUB_WORKSPACE=str(workspace)), \
+             mock.patch.object(c, 'retired_unit', side_effect=ValueError('active')):
+            with self.assertRaises(ValueError): c.cleanup(keep_output=True)
+        self.assertEqual((work/'preserve').read_text(),'live work')
+        proof=json.loads((temporary/'qual-class-out/cleanup.json').read_text())
+        self.assertTrue(proof['errors'])
+        self.assertEqual(json.loads((temporary/'qual-class-out/receipt.json').read_text())['status'],'failed')
+
     def test_finalize_retains_failure_and_file_hashes(self):
         output = self.root/'partial'
         output.mkdir()

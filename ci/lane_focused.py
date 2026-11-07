@@ -21,11 +21,15 @@ CAPTURES = {
     'hn-autoindexes': ('stmt/plan', 'TestPlanAutoindexGoldenAndNativeKeys', 'record-autoindex-plans', ['autoindexes.json']),
     'hn-scan': ('writer', 'TestScanInventoryStatementPlans', 'record-scan-plans', ['scan-inventory-accept.json', 'scan-inventory-accept-fk.json.gz']),
     'hn-scan-fresh': ('writer', 'TestScanFreshStatementPlans', 'record-scan-fresh-plans', ['scan-inventory-fresh.json', 'scan-inventory-fresh-fk.json.gz']),
+    'hn-wc-reclaim-composition': ('writer', 'TestWCReclaimCompositionPlans', 'record-wc-reclaim-composition-plans', ['wc-reclaim-composition.json', 'wc-reclaim-composition-fk.json.gz']),
+    'hn-wc-security-composition': ('writer', 'TestWCSecurityCompositionPlans', 'record-wc-security-composition-plans', ['wc-security-composition.json', 'wc-security-composition-fk.json.gz']),
+    'hn-wc-progress-composition': ('writer', 'TestWCProgressCompositionPlans', 'record-wc-progress-composition-plans', ['wc-progress-composition.json', 'wc-progress-composition-fk.json.gz']),
     'hn-wc-progress': ('writer', 'TestWCProgressStatementPlans', 'record-wc-progress-plans', ['wc-progress-capture_start.json', 'wc-progress-pending_drain.json', 'wc-progress-fk.json.gz']),
     'hn-browse': ('read', 'TestBrowsePlans', 'record-browse-plans', ['browse-plans.json.gz']),
     'hn-foreground': ('read', 'TestForegroundPlans', 'record-foreground-plans', ['foreground-plans.json.gz']),
 }
 HARNESSES = {
+    'canonical-wc': ('./internal/store/writer', '^TestCanonicalWCFunctional$'),
     'ec5-memory': ('./internal/store/writer', '^TestEC5'),
     'connections': ('./internal/store/qual', '^TestConnection'),
     'wal-protocol': ('./internal/store/governor', '^Test(NativeEmptyWALFirstGovernedWrite|WAL)'),
@@ -146,6 +150,8 @@ def split_units(units, requested):
 def plan(source, output):
     cfg = validated(os.environ)  # before fetch or executing source tooling
     env = clean_env(output)
+    if cfg['mode'] == 'harness' and 'canonical-wc' in cfg['targets']:
+        env['PORTICO_CANONICAL_WC_FUNCTIONAL'] = '1'
     command(['git', 'fetch', '--no-tags', '--depth=1', 'origin', cfg['fetch_ref']], source)
     sha = command(['git', 'rev-parse', '--verify', 'FETCH_HEAD^{commit}'], source).strip()
     if not re.fullmatch('[0-9a-f]{40}', sha):
@@ -242,6 +248,8 @@ def worker(source, output, plan_path, index):
     if index < 0 or index >= len(p['shards']) or command(['git', 'rev-parse', 'HEAD'], source).strip() != p['source_sha']:
         raise ValueError('shard/source binding mismatch')
     env = clean_env(output)
+    if cfg['mode'] == 'harness' and 'canonical-wc' in cfg['targets']:
+        env['PORTICO_CANONICAL_WC_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'ec5-memory' in cfg['targets']:
         env['PORTICO_EC5_FUNCTIONAL'] = '1'
     groups = {}

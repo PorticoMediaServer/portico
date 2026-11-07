@@ -267,20 +267,8 @@ func Check(d stmt.Definition, _ Rows) error {
 // Only Capture may invoke this after live source, policy and DML inspection.
 // CheckEQP and the lexical lint are component checks, not qualification receipts.
 func checkCaptured(d stmt.Definition, eqp Rows, autoIndexes ...AutoIndexAudit) error {
-	if n1OctetDefinition(d) {
-		if err := checkN1OctetPoint(d, eqp); err != nil {
-			return err
-		}
-	}
-	if issuerLibraryOctetDefinition(d) {
-		if err := checkIssuerLibraryOctetPoint(eqp); err != nil {
-			return fmt.Errorf("plan %s: %w", d.ID, err)
-		}
-	}
-	if issuerOctetDefinition(d) {
-		if err := checkIssuerOctetPoint(eqp); err != nil {
-			return fmt.Errorf("plan %s: %w", d.ID, err)
-		}
+	if err := checkOctetPoint(d, eqp); err != nil {
+		return err
 	}
 	if err := checkBase(d, eqp); err != nil {
 		return err
@@ -306,34 +294,19 @@ func checkBase(d stmt.Definition, eqp Rows) error {
 }
 
 func checkSyntax(d stmt.Definition) error {
-	return checkSyntaxIssues(d, lintSQL(d.SQL, closedIssuerOctetDefinition(d)))
+	return checkSyntaxIssues(d, lintSQL(d.SQL, closedOctetDefinition(d)))
 }
 
 func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error {
-	if err := checkSyntaxIssues(d, lintSQLOn(ctx, conn, d.SQL, closedIssuerOctetDefinition(d))); err != nil {
+	if err := checkSyntaxIssues(d, lintSQLOn(ctx, conn, d.SQL, closedOctetDefinition(d))); err != nil {
 		return err
 	}
-	if n1OctetDefinition(d) {
-		return auditN1OctetPoint(ctx, conn, d)
-	}
-	if issuerOctetDefinition(d) {
-		return auditIssuerOctetKey(ctx, conn)
-	}
-	if issuerLibraryOctetDefinition(d) {
-		return auditIssuerLibraryOctetKey(ctx, conn)
-	}
-	return nil
+	return auditOctetDefinition(ctx, conn, d)
 }
 
 func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
-	if _, found := n1OctetPointFor(d.ID); found && !n1OctetDefinition(d) {
-		return fmt.Errorf("plan %s: N1 byte preflight requires its exact closed point definition", d.ID)
-	}
-	if d.ID == issuerSourceLengthsID && !issuerOctetDefinition(d) {
-		return fmt.Errorf("plan %s: issuer byte preflight requires the exact closed read definition", d.ID)
-	}
-	if d.ID == issuerLibraryRootLengthsID && !issuerLibraryOctetDefinition(d) {
-		return fmt.Errorf("plan %s: issuer library byte preflight requires the exact closed read definition", d.ID)
+	if err := checkOctetDefinition(d); err != nil {
+		return err
 	}
 	for _, issue := range issues {
 		return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)

@@ -59,3 +59,35 @@ counts; this descriptive reducer does not turn that target into a gate verdict.
 Fenced attempts, including committed appends, retain event IDs and evidence
 references with their true outcome; each recipe/class/durability reports its
 fence count separately.
+
+### Device-only Linux IO statistics
+
+Linux `blkcg_print_one_stat` emits a device name even when it suppresses the
+core read/write counter block. This produces valid lines such as `7:7` in a
+readable `io.stat`; an empty readable file is also valid before any IO. See the
+[pinned Linux 7.0 implementation](https://github.com/torvalds/linux/blob/v7.0/block/blk-cgroup.c#L1116-L1132).
+The collector retains those exact raw bytes and synthesizes no discard, delay
+or other counters. A populated record still needs every required read/write
+field; malformed/duplicate devices or fields fail. Unreadable/missing required
+telemetry and incomplete/finite `io.max` controls still fail closed. This format
+recognition supplies no latency, throughput or qualification verdict.
+
+### Applying the hosted hold gate
+
+`go run ./internal/store/qual/cmd/holdreport -input cohort.json` calls the
+reviewed `EvaluateHostedHolds` and `Summarize` implementations without opening
+SQLite or reimplementing their confidence-bound calculation. Input is ONE
+externally verified source/profile/recipe/population, with `source_sha`,
+`profile` (`standard` or `legacy8`), `recipe`, `population`, and `hosts` containing
+`HostHolds` records. Durations are integer nanoseconds. The adapter owns raw
+joins and must verify pins, actual policy, independent host/profile evidence,
+all offered attempts and original identities before forming this input. This
+command does not supply those proofs from labels or counts.
+
+Run separately for each command role and warm/steady/error population. Do not
+pool profiles, hosts, command roles, source epochs or cold/warm populations.
+Keep failed/refused commands and protocol errors in their host records even
+when their accepted duration population is empty. Nonpassing results are still
+emitted as JSON, with a nonzero process exit. The output is only the hosted
+statistical hold gate; quiet maximum, error-path ceiling, maintenance service,
+foreground budgets, WAL, memory and final qualification remain separate.

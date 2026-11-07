@@ -121,8 +121,8 @@ func TestCanonicalN1MaintenanceKeepsCommandCaps(t *testing.T) {
 	}
 	for _, name := range []string{"progress", "security", "wc_reclaim"} {
 		c, _ = canonicalHeldClassFor(name)
-		if c.run != nil || len(canonicalHeldMissing(c)) != 1 {
-			t.Fatal("unreviewed WC path opened", name)
+		if c.run == nil || len(canonicalHeldMissing(c)) != 0 {
+			t.Fatal("merged WC binding unavailable", name)
 		}
 	}
 }

@@ -2,7 +2,8 @@
 
 These closed TEST-ONLY entrypoints are scaffolding for QL's ONE canonical 1M
 population. `inventory_n1` is executable through the existing test-only N1
-owner and a real funded concurrent PASSIVE keeper. The other classes emit
+owner and a real funded concurrent PASSIVE keeper. WC progress/security/reclaim
+now use their actual merged Actions and a factored trusted owner fixture. Other classes emit
 explicit failed bindings. No production issuer, profile, SQL callback, authority
 or qualification report is introduced. Merged command bodies alone do not open
 an accepting workload path.
@@ -14,21 +15,41 @@ an accepting workload path.
 | staged_enrich | TestCanonicalHeldStagedEnrich | EN/W staged owner |
 | progress | TestCanonicalHeldProgress | WC actual Progress Action |
 | security | TestCanonicalHeldSecurity | WC actual FULL Security Action |
-| wc_reclaim | TestCanonicalHeldWCReclaim | WC retained receipt/source reclaim; purpose unavailable, never publisher reclaim |
+| wc_reclaim | TestCanonicalHeldWCReclaim | WC retained receipt/source reclaim; actual ProgressReceiptReclaim, never publisher reclaim |
 | publisher_fragment | TestCanonicalHeldPublisherFragment | PB accepting fragment composition |
 | publisher_flip | TestCanonicalHeldPublisherFlip | PB accepting head-publish/flip composition |
 | checkpoint | TestCanonicalHeldCheckpoint | GV governed maintenance owner, outside writer HOLD |
 | mp.queue_head | TestCanonicalQueueHeadRead | MP current device-owned queue, proposed6lookup+6final statements |
 | mp.session | TestCanonicalSessionHeadRead | MP current session point read, proposed6+6 |
 | mp.preparation | TestCanonicalPreparationRead | MP prepared-job point read, proposed7+7 |
+| uo.personal | TestCanonicalUOPersonalRead | UO merged PersonalState point; canonical current-authority/publication/output composition not attached |
 | rb.sorted | TestCanonicalRBSortedRead | RB ten scalar orders/directions, proposed11/11–12SQL debt |
 | rb.chronology | TestCanonicalRBChronologyRead | RB dated/NULL/content chronology, proposed11–13SQL debt |
+| rb.numeric_advance | TestCanonicalRBNumericAdvance | RB cold exact numeric preparation quantum,1024raw |
+| rb.numeric_first_page | TestCanonicalRBNumericFirstPage | RB first exact ready Page/fresh LIVE handoff |
+| rb.numeric_cached_page | TestCanonicalRBNumericCachedPage | RB cached exact Page/fresh authorization at original expiry |
+| rb.group_window | TestCanonicalRBGroupWindow | RB ten direct source families,64raw/40output |
+| rb.relationship_exact | TestCanonicalRBRelationshipExact | RB small complete-set fallback<=256raw;257refuses |
+| rb.resolution | TestCanonicalRBResolution | RB128fetched/64consumed/40output, NULL/zero ties |
+| rs.listening | TestCanonicalRSListening | RS album/audiobook complete512raw native+Go-sort route |
 
-The MP and RB rows are foreground reads through ConsumeForeground, NOT held
+The MP, RB, RS and UO rows are foreground reads through ConsumeForeground, NOT held
 writer/COMMIT samples. Source/authority drift, byte admission, statement bytes,
 original ready/consumer timing and concurrent-scan comparisons remain required.
-RB requires raw64/output40 and actual per-domain Reader Capture receipts;
+Scalar RB requires raw64/output40 and actual per-domain Reader Capture receipts;
 phase1a lease remains OFF (#1337 is phase2-only opt-in). Hints from pending MP/RB handoffs are not observed native facts or execution pins.
+
+The uo.personal row refers to merged #1311 (0f1a7a4672dc622848e9dd8e02c99019ce278790):
+UOPersonalDefinitions and ForegroundReader.PersonalState, with functional selector
+TestUOPersonalState. It retains existing B-READS detail/personal budgets; the
+qualification runner must capture the exact read definitions and use current
+viewing-token authority, exact source publication and ConsumeForeground output
+custody through joined consumers. Sparse defaults, rating 0 versus null, other
+profile denial, source/authority drift and cancellation remain distinct cohorts.
+Current user-state cardinalities must be stated separately from the canonical
+1M catalogue. The compiled runner stays closed until that composition for the same library and profile exists. Tiny component tests establish behavior, not qualification.
+UO flags/effects and the other unpublished draft families are not opened by this
+row; they still require their actual reviewed dispatcher and resource profile.
 
 Default runs skip these targets. Explicit opt-in requires `-canonical-held=true`,
 `PORTICO_CANONICAL_HELD=1` and `PORTICO_CANONICAL_HELD_CONFIG` naming a strict JSON
@@ -75,8 +96,8 @@ inventory/probe/enrichment/search states, seals and command authority are absent
 and must come from the actual reviewed owner composition, never a seeder clone.
 
 The common attachment now calls the exact merged UseQualificationPopulation API,
-checks the trusted manifest and requires exactly1M residents. Only inventory_n1
-has a compiled runner. No pending WC/PB/MP/RB implementation is imported. The same
+checks the trusted manifest and requires exactly1M residents. N1 and the three WC
+classes have closed compiled runners; no pending PB/MP/RB implementation is imported. The same
 seed remains EC5's future scale input; there is no separate memory seed.
 
 ## First executable recipe
@@ -156,3 +177,120 @@ owner budget and cannot be counted as a normal writer hold. Read classes inherit
 B-READS, not writer ceilings. No profile or grant is widened to meet these values.
 QL owns >=3VMs/profile, >=10k actual holds/recipe, confidence bounds, failure and
 coverage accounting, Netcup quiet-max scheduling, and final qualification.
+
+## Additional closed read recipes
+
+These seven parents remain nil bindings. Default runs skip; explicit selection
+emits synced start/failed_binding/nonpassing final, with no native calls or
+fabricated ready page. `start.read_recipe_intent` records the source-bound owner
+handoff, required cohorts/contracts and statement debt. It is intent, not a
+Capture receipt, observed facts, a runnable source pin or a qualification result.
+Full route composition must use the SAME canonical1M/library7 clone, actual
+source fixture, original deadlines and ConsumeForeground, joining consumers
+before release. Lookup, preparation/Go sort, fresh publication and consumer
+errors/times remain separate and nullable until genuinely observed. Seed movies
+do not establish missing album/audiobook/group/policy ownership; a tiny unrelated
+fixture cannot substitute for the populated parent.
+
+Numeric recipes pin #1440 d3c788c173be46b106bbddb843a418e51ea13e95. Each
+full1024raw Advance remains pending until a separate exhaustion probe. Cold
+Advance, first authorized Page and cached Page are distinct cells: the original
+F04 lifetime/absolute deadline is never renewed by attachment. Ready alone does
+not release the publication conflict; first Page needs fresh LIVE, and later
+cached pages reauthorize the whole fence/token horizon. Actual preparation/cache
+and output charges, pending/errors/refusals and foreground interruption remain
+raw. Unsupported policy must refuse rather than supply a partial exact result.
+
+Group/relationship recipes pin #1444
+0748faa2c779576892feac15f90b6701c54fe171. All ten group families require
+first/far continuation and both directions; candidate SourceOrdered=false never
+becomes groupOrder success. Relationship exact covers complete sets only, at
+most four64row quanta plus an exhaustion probe. Raw257 returns ZERO ErrNotReady,
+including ineligible overflow, and earns no large-exact or top-K claim. Equal and
+prefix parent-key merge, cumulative retained bytes, sparse/NULL occurrences,
+default disc/track/part and unsupported age/label/custom/shared/restricted policy
+refusals stay explicit. The13..15route statements exceed proposed B-R04's10.
+
+Resolution pins #1446 aa957a0b6b6c6405f1a04435aa2e8ab563f49b3b. Count both
+lookahead streams in128fetched, retain64consumed/40output, and preserve raw
+continuation for empty full hidden quanta. NULL/zero interleave by ID, including
+far ties/sparse eligibility. Both streams must end and all fetched rows be
+consumed before exhaustion. Actual route12..13SQL exceeds proposed10.
+
+Listening pins merged #1430 9b3cb335877cd9f3d5c1910fcc2b7129ad76c2ab.
+Album/audiobook first/deep/sparse/repeated/import-pressure cells include native
+lookup, complete-window Go sort and fresh publication/consumer return. Observe
+actual retention128B/raw+2key bytes. Raw512 is a bounded complete-window recipe;
+>512 is RS-001's post-lock indexed stream, not a prelock gate. Route13statements
+exceeds B-R10's12; local29ms and the NOCASE oracle are not qualification evidence.
+
+Existing B-R budgets and #1357 statement debt remain; all read classes are
+UNQUALIFIED. The open RB heads are draft targets only. CHANGE-012/013 embed
+#1450 remains the golden-refresh gate: this scaffold imports no draft runtime,
+refreshes no Capture/golden and requests no host execution. QL may dispatch only
+a subsequently reviewed/merged executable recipe with actual source/binary pins.
+
+## WC original-chain recipes
+
+The exact matching parents for progress/security/wc_reclaim now call the merged
+workload.ProgressCapture/ProgressDrain, Security and Reclaim Actions. Recipes are
+canonical-wc-progress-original-chain-v1,
+canonical-wc-security-original-chain-v1 and
+canonical-wc-wc_reclaim-original-chain-v1. They attach the canonical artifact to
+the EXACT same t before factoring the ONE existing WC composition builder. The
+real native existing-catalog guard binds library7 and the actual seeded public
+subject ID. No tiny library7 insert, catalogue reset, SQL ACK, issuer clone,
+second writer, cap change or replay is used. This is a synthetic test composition,
+not production profile, permission or issuer authority.
+
+A fixed eight warmup originals precede the configured measured originals on the
+same writer/executor/registry/governor/file. Progress alternates fresh capture
+with actual pending drains; a split remains pending and is drained before a new
+capture. Report sequence/position/duration/state are declared synthetic inputs,
+not observed acceptance. The actual retained capture reference/incarnation,
+accepted sequence and cursor/range join each original to its source; raw native
+before/after snapshots remain independent. Capture and drain variant counts are
+reported separately; requested N is their combined actual fresh-original count,
+not N captures plus N drains. Security prepares DISTINCT target family births
+outside measured originals and revokes each once with actual FULL/Recovery.
+Reclaim first earns real Progress receipt debt via separately counted auxiliary
+capture/drain originals, then runs Background/NORMAL retained Progress reclaim.
+Auxiliary/source/Resolve/ACK/current-snapshot work never inflates measured N.
+
+The existing WC command work/memory profile and 25ms normal quantum stay
+unchanged. The retained preparation grant is funded until its already-existing
+native token horizon (one hour) in this streaming component; this is a holding
+lifetime, not a command deadline or lease renewal. Commands still require their
+actual bounded current owner request. The canonical fixture adds the same
+separately funded concurrent keeper/PASSIVE resources and shutdown lifecycle as
+N1; all writers/checkpointer share the actual g/a/WAL/native binding. Missing or
+failed maintenance is a harness gap. No WAL refusal is called a product failure
+or repaired by this target.
+
+attempt_start is synced before Action preparation, with stable original ID and
+reference null until the actual owner seals it. Each public invocation gets a
+separate raw attempt, original reference/phase, nullable real owner_clock and
+strictly call-bound private owner_window/diagnostic. Facade error leaves public
+Evidence absent/zero; no later Resolve reconstructs it. Every actual native
+BEGIN attempt has its ordinal in the single physical stream, including failed
+attempts, fixture births and auxiliary calls; no success-only renumbering.
+Preparation starts/results, warmup, refused/partial/error/fenced/unknown prefixes
+remain raw and cause sticky stop. A partial native ledger is marked incomplete.
+Initial setup starts before sampling and is explicitly counted separately; its
+missing owner intervals are not fabricated from elapsed construction time.
+
+Typed WALSnapshot runs after physical return and records bounded partial probes
+and error strings. It may overlap CP, so equal tokens/salts are not atomicity,
+reset proof or command IO attribution. Timing mode omits attribution snapshots
+inside HOLD. Unavailable examined rows/pages/xSync/device attribution/aggregate
+LIVE peak remain null with reasons. Native Close intervals remain distinct from
+borrower/quarantine return. Final requires all selected original chains, actual
+CP join, driver/native close and zero charged usage; there is no filtered success
+report. Raw always qualification=false/profileReady=false.
+
+TestCanonicalWCFunctional uses the same composition on the canonical producer's
+tiny16-row control artifact (one warmup/three measured), explicitly NOT a1M run.
+It skips by default and requires PORTICO_CANONICAL_WC_FUNCTIONAL=1. The closed
+lane-focused harness canonical-wc supplies that flag; real timing/refusal errors
+stay strict and raw, never default-suite wall-clock assertions. Native functional
+results and source pins belong in the PR/run receipt, not qualification numbers.

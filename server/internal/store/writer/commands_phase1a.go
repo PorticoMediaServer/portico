@@ -26,6 +26,7 @@ const (
 	BasicSeal               CommandID = 22
 	EvidenceSeal            CommandID = 23
 	CreditSourceSeal        CommandID = 24
+	ProgressReceiptReclaim  CommandID = 25
 )
 
 var phase1aCommands = commandRegistration{
@@ -55,5 +56,6 @@ var phase1aCommands = commandRegistration{
 		{ID: BasicSeal, Name: "basic_seal", Durability: Normal},
 		{ID: EvidenceSeal, Name: "evidence_seal", Durability: Normal},
 		{ID: CreditSourceSeal, Name: "credit_source_seal", Durability: Normal},
+		{ID: ProgressReceiptReclaim, Name: "progress_receipt_reclaim", Durability: Normal},
 	},
 }

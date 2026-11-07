@@ -111,6 +111,12 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "catalog_entities_album_search",
+      "predicate": "album_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Force INDEXED BY; bound album equality plus optional id range; reverse id keyset LIMIT1..64; SEARCH-only/no TEMP before and after ANALYZE."
+    },
+    {
       "index": "catalog_entities_artist",
       "predicate": "artist_id IS NOT NULL",
       "choice": "repeat_exact_predicate",
@@ -501,6 +507,12 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "dvr_capture_retirements_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Repeat this literal predicate in the closed static statement; force the intended INDEXED BY; bundled SEARCH/no temp-tree proof. Capture launch key enforces uniqueness; due streams use due/key raw LIMIT1."
+    },
+    {
       "index": "dvr_cleanup_work_governor_due",
       "predicate": "job_due_ms IS NOT NULL",
       "choice": "repeat_exact_predicate",
@@ -523,6 +535,18 @@
       "predicate": "phase!='retired'",
       "choice": "repeat_exact_predicate",
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "dvr_recordings_capture_launch",
+      "predicate": "capture_launch_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Repeat this literal predicate in the closed static statement; force the intended INDEXED BY; bundled SEARCH/no temp-tree proof. Capture launch key enforces uniqueness; due streams use due/key raw LIMIT1."
+    },
+    {
+      "index": "dvr_recordings_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Repeat this literal predicate in the closed static statement; force the intended INDEXED BY; bundled SEARCH/no temp-tree proof. Capture launch key enforces uniqueness; due streams use due/key raw LIMIT1."
     },
     {
       "index": "dvr_retention_retry_governor_due",
@@ -627,6 +651,18 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "lc_generation_retirements_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Repeat this literal predicate in the closed static statement; force the intended INDEXED BY; bundled SEARCH/no temp-tree proof. Capture launch key enforces uniqueness; due streams use due/key raw LIMIT1."
+    },
+    {
+      "index": "lc_generations_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Repeat this literal predicate in the closed static statement; force the intended INDEXED BY; bundled SEARCH/no temp-tree proof. Capture launch key enforces uniqueness; due streams use due/key raw LIMIT1."
+    },
+    {
       "index": "lc_one_job",
       "predicate": "status='pending'",
       "choice": "repeat_exact_predicate",
@@ -643,6 +679,18 @@
       "predicate": "job_due_ms IS NOT NULL",
       "choice": "repeat_exact_predicate",
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "live_operation_retirements_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Repeat this literal predicate in the closed static statement; force the intended INDEXED BY; bundled SEARCH/no temp-tree proof. Capture launch key enforces uniqueness; due streams use due/key raw LIMIT1."
+    },
+    {
+      "index": "live_operations_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Repeat this literal predicate in the closed static statement; force the intended INDEXED BY; bundled SEARCH/no temp-tree proof. Capture launch key enforces uniqueness; due streams use due/key raw LIMIT1."
     },
     {
       "index": "live_programmes_icon",
