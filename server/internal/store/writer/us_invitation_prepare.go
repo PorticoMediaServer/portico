@@ -13,16 +13,13 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/streamlimits"
 )
 
-// Local draft purposes only. Root composes these into RD2's closed registry;
-// preparation deliberately does not borrow a registered purpose for hashing.
+// Explicit purposes live in commands_us.go; never borrow another purpose for
+// request hashing. These remaining constants preserve existing API envelopes.
 const (
-	usInvitationCreate       CommandID = 550
-	usInvitationEdit         CommandID = 551
-	usInvitationRevoke       CommandID = 552
-	usInvitationMaxLibraries           = 256
-	usInvitationMaxHours               = 720
-	usInvitationHourMS       int64     = 3600000
-	usInvitationMaxSpanMS              = usInvitationMaxHours * usInvitationHourMS
+	usInvitationMaxLibraries       = 256
+	usInvitationMaxHours           = 720
+	usInvitationHourMS       int64 = 3600000
+	usInvitationMaxSpanMS          = usInvitationMaxHours * usInvitationHourMS
 )
 
 func describeUSInvitationCommand(id CommandID) (Descriptor, bool) {

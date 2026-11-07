@@ -2,13 +2,6 @@ package writer
 
 import "slices"
 
-// Local draft purposes. Root must compose these FULL descriptors into the
-// canonical registry; preparation deliberately has no request identity yet.
-const (
-	usPINSet   CommandID = 532
-	usPINClear CommandID = 533
-)
-
 func describeUSPINCommand(id CommandID) (Descriptor, bool) {
 	switch id {
 	case usPINSet:
