@@ -127,7 +127,7 @@ func TestWCSecurityStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fk.Plans) != 671 {
+	if len(fk.Plans) != 686 {
 		t.Fatal("FK coverage changed")
 	}
 	fkJSON, err := json.MarshalIndent(fk, "", "  ")
@@ -182,5 +182,5 @@ func TestWCSecurityStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(expectedFK, fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("2IDs/%dcohorts/%dVM/%dEQP SEARCH rows/%dINSERT destinations/671FK2013probes; exact receipt; no production profile", cohorts, vm, search, inserts)
+	t.Logf("2IDs/%dcohorts/%dVM/%dEQP SEARCH rows/%dINSERT destinations/686FK2058probes; exact receipt; no production profile", cohorts, vm, search, inserts)
 }
