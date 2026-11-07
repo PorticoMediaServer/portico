@@ -9,6 +9,7 @@ type basicInvocation struct {
 	request BasicReceiptRequest
 	stage   *basicStageCommand
 	seal    *basicSealCommand
+	accept  *basicAcceptCommand
 	work    *scanDriverWork // W-owned transient envelope; never in the request digest
 }
 
@@ -17,21 +18,26 @@ func (in *basicInvocation) validate() (CommandID, error) {
 		return 0, ErrInvalid
 	}
 	kind, err := basicResourceCommand(in.request.Purpose)
-	if err != nil || kind == BasicAccept {
+	if err != nil {
 		return 0, ErrInvalid
 	}
 	var original BasicReceiptRequest
 	switch {
 	case in.stage != nil:
-		if kind != BasicStage || in.seal != nil {
+		if kind != BasicStage || in.seal != nil || in.accept != nil {
 			return 0, ErrInvalid
 		}
 		original, err = in.stage.receiptRequest()
 	case in.seal != nil:
-		if kind != BasicSeal {
+		if kind != BasicSeal || in.accept != nil {
 			return 0, ErrInvalid
 		}
 		original, err = in.seal.receiptRequest()
+	case in.accept != nil:
+		if kind != BasicAccept {
+			return 0, ErrInvalid
+		}
+		original, err = in.accept.receiptRequest()
 	default:
 		return kind, nil // original Resolve/ACK; never a fresh effects request
 	}
@@ -42,7 +48,7 @@ func (in *basicInvocation) validate() (CommandID, error) {
 }
 
 func (in *basicInvocation) fresh() bool {
-	return in != nil && (in.stage != nil || in.seal != nil)
+	return in != nil && (in.stage != nil || in.seal != nil || in.accept != nil)
 }
 
 func (in *basicInvocation) leaseExpiresMS() int64 {
@@ -51,6 +57,9 @@ func (in *basicInvocation) leaseExpiresMS() int64 {
 	}
 	if in != nil && in.seal != nil {
 		return in.seal.request.original.run.leaseExpiresMS
+	}
+	if in != nil && in.accept != nil {
+		return in.accept.request.original.run.leaseExpiresMS
 	}
 	return 0
 }
@@ -67,6 +76,9 @@ func (in *basicInvocation) apply(ctx context.Context, turn *commandTurn) (value 
 	}
 	if in.seal != nil {
 		return applyBasicSeal(ctx, turn, in.seal)
+	}
+	if in.accept != nil {
+		return applyBasicAccept(ctx, turn, in.accept)
 	}
 	return value, ErrInvalid
 }

@@ -60,7 +60,11 @@ func applyBasicAccept(ctx context.Context, turn *commandTurn, command *basicAcce
 	if err != nil {
 		return value, err
 	}
-	published, err := publishBasicFirstLeaf(ctx, turn, basicLeafPublication{a, in.entityID, in.duration, settled})
+	publication := basicLeafPublication{a, in.entityID, in.duration, settled}
+	if _, err = dischargeBasicFirstScalarOld(ctx, turn, publication, in.oldScalars); err != nil {
+		return value, err
+	}
+	published, err := publishBasicFirstLeaf(ctx, turn, publication)
 	if err != nil {
 		return value, err
 	}

@@ -20,6 +20,7 @@ type basicAcceptRequest struct {
 	analysis   basicObjectAnalysis
 	nfo        *basicNFOSet
 	artwork    []basicArtworkInput
+	oldScalars []basicFirstOldScalar
 }
 type basicAcceptCommand struct {
 	identity CommandIdentity
@@ -84,6 +85,9 @@ func newBasicAcceptCommand(identity CommandIdentity, in basicAcceptRequest) (*ba
 	if in.purpose != BasicPurposeAccept || in.operation != basicAcceptFirstOrdinaryLeaf || in.entityID <= 0 || in.duration <= 0 || math.IsNaN(in.duration) || math.IsInf(in.duration, 0) || in.height < 0 || in.activation.changeRevision <= 0 || in.activation.changeRevision > math.MaxInt64-2 || in.activation.familyMask != 511 || in.activation.shapeID <= 0 || s.expectedEpoch == math.MaxInt64 || in.activation.invalidationRevision <= 0 || in.activation.fileSizeRevision <= 0 || in.activation.ownerObject.Valid || in.activation.ownerRevision.Valid || in.activation.ownerObject.String != "" || in.activation.ownerRevision.String != "" || !in.analysis.valid || in.analysis.source != s || in.analysis.libraryKey != in.original.scope.libraryKey {
 		return nil, ErrInvalid
 	}
+	if _, err := validateBasicFirstScalarOld(in.oldScalars); err != nil {
+		return nil, err
+	}
 	// Revalidate and own every local input. They are inert observations, with
 	// no preparation capability, mutable proof or source lookup in the request.
 	analysis, err := prepareBasicObjectAnalysis(s, in.analysis.libraryKey, in.analysis.algorithm, in.analysis.policyJSON, in.analysis.completedJSON, in.analysis.subtitleTextPending)
@@ -125,6 +129,10 @@ func newBasicAcceptCommand(identity CommandIdentity, in basicAcceptRequest) (*ba
 		owned = nil
 	}
 	in.artwork = owned
+	in.oldScalars, err = cloneBasicFirstScalarOld(in.oldScalars)
+	if err != nil {
+		return nil, err
+	}
 	in.original = cloneBasicOriginal(in.original)
 	in.activation.source = cloneBasicSource(s)
 	digest, err := canonicalRequestDigest(BasicAccept, 1, identity, in)

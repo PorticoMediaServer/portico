@@ -68,11 +68,11 @@ func cloneBasicFirstScalarOld(before []basicFirstOldScalar) ([]basicFirstOldScal
 // this same transaction. Refund only rows physically deleted, never ACK debt.
 func dischargeBasicFirstScalarOld(ctx context.Context, turn *commandTurn, in basicLeafPublication, before []basicFirstOldScalar) (removed int64, err error) {
 	defer func() { removed, err = finishCommand(ctx, commandLifetime(turn), removed, err) }()
-	if _, err = readBasicLeafPublicationProof(ctx, turn, in); err != nil {
-		return 0, err
-	}
 	charge, err := validateBasicFirstScalarOld(before)
 	if err != nil {
+		return 0, err
+	}
+	if _, err = readBasicLeafPublicationProof(ctx, turn, in); err != nil {
 		return 0, err
 	}
 	s := in.activation.source

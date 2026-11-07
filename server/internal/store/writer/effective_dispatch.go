@@ -46,6 +46,7 @@ type effectivePlan struct {
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
+	basicAcceptBounds   basicAcceptBounds
 	wcProgressMemory    commandMemoryBudget
 	wcSecurityMemory    commandMemoryBudget
 	wcReclaimMemory     commandMemoryBudget
@@ -64,6 +65,7 @@ type effectiveRuntime struct {
 	owner                    governor.OwnerID
 	plan                     effectivePlan
 	basicPlans               [2]*effectivePlan // private closed Stage/Seal profiles
+	basicAcceptPlan          *effectivePlan
 	inventoryPlan            *effectivePlan
 	lifecyclePlans           [2]*effectivePlan // private, explicitly composed create/claim history profiles
 	issuerPlans              [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
@@ -367,7 +369,15 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			return out, acknowledged, err
 		}
 		submittedWork = scan.basic.work
-		plan = r.basicPlans[int(purpose-BasicStage)]
+		if purpose == BasicAccept {
+			plan = r.basicAcceptPlan
+		} else {
+			index := basicPlanIndex(purpose)
+			if index < 0 {
+				return out, acknowledged, ErrInvalid
+			}
+			plan = r.basicPlans[index]
+		}
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}

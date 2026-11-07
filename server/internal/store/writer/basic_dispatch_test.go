@@ -40,18 +40,29 @@ func basicDispatchPlan(purpose CommandID) effectivePlan {
 	return p
 }
 
-func basicDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Authority, basicInvocation, [2]effectivePlan) {
+func basicDispatchFixture(t *testing.T, acceptMode ...bool) (*Writer, *executor, *governor.Authority, basicInvocation, [2]effectivePlan) {
 	t.Helper()
-	e, source, original, identity := basicControlFixture(t)
-	if _, err := e.db.ExecContext(t.Context(), `UPDATE catalog_info_changes SET family_mask=511 WHERE id=51`); err != nil {
-		t.Fatal(err)
+	var e *executor
+	var stage *basicStageCommand
+	var accept *basicAcceptCommand
+	var q BasicReceiptRequest
+	var err error
+	if len(acceptMode) == 1 && acceptMode[0] {
+		e, accept = basicFirstAcceptCommandFixture(t)
+		q, err = accept.receiptRequest()
+	} else {
+		var source basicStreamFactStage
+		var original basicOriginalScope
+		var identity CommandIdentity
+		e, source, original, identity = basicControlFixture(t)
+		if _, err = e.db.ExecContext(t.Context(), `UPDATE catalog_info_changes SET family_mask=511 WHERE id=51`); err != nil {
+			t.Fatal(err)
+		}
+		stage, err = newBasicStageCommand(identity, basicStageRequest{original: original, purpose: BasicPurposeStage, operation: basicStageFactInput, fact: source, changeRevision: 1})
+		if err == nil {
+			q, err = stage.receiptRequest()
+		}
 	}
-	stage, err := newBasicStageCommand(identity, basicStageRequest{original: original, purpose: BasicPurposeStage,
-		operation: basicStageFactInput, fact: source, changeRevision: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	q, err := stage.receiptRequest()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,8 +76,24 @@ func basicDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Authority
 	primary.need = plans[0].need
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
-	for _, purpose := range []CommandID{BasicStage, BasicSeal} {
-		for _, def := range basicCommandDefinitions(purpose) {
+	groups := [][]stmt.Definition{basicCommandDefinitions(BasicStage), basicCommandDefinitions(BasicSeal)}
+	var acceptPlans []effectivePlan
+	if accept != nil {
+		ap := basicDispatchPlan(BasicStage)
+		ap.steps = nil
+		ap.basicAcceptBounds = basicAcceptBounds{nfo: true}
+		for _, d := range basicFinalDefinitions(ap.basicAcceptBounds) {
+			work := Work{Rows: 16, VMOps: 160000, Pages: 16, Hold: 25 * time.Microsecond}
+			if d.Kind == stmt.Write {
+				work.WALBytes = 65536
+			}
+			ap.steps = append(ap.steps, statementStep{d.ID, work})
+		}
+		acceptPlans = []effectivePlan{ap}
+		groups = append(groups, basicFinalDefinitions(ap.basicAcceptBounds))
+	}
+	for _, group := range groups {
+		for _, def := range group {
 			found := false
 			for _, old := range defs {
 				if old.ID == def.ID {
@@ -100,6 +127,9 @@ func basicDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Authority
 	for i := range plans {
 		plans[i].registration = golden.Receipt()
 	}
+	for i := range acceptPlans {
+		acceptPlans[i].registration = golden.Receipt()
+	}
 	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20,
 		SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
 	if err != nil {
@@ -117,10 +147,10 @@ func basicDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Authority
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := composeBasicProfiles(t.Context(), r, plans[0], plans[1]); err != nil {
+	if err := composeBasicProfiles(t.Context(), r, plans[0], plans[1], acceptPlans...); err != nil {
 		t.Fatal(err)
 	}
-	return &Writer{effective: r}, e, authority, basicInvocation{request: q, stage: stage}, plans
+	return &Writer{effective: r}, e, authority, basicInvocation{request: q, stage: stage, accept: accept}, plans
 }
 
 func basicDispatchReturned(t *testing.T, e *executor, a *governor.Authority) {

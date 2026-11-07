@@ -66,6 +66,9 @@ func checkBasicFreshWork(in *basicInvocation) error {
 	if in.seal != nil {
 		generation = in.seal.request.original.run.leaseGeneration
 	}
+	if in.accept != nil {
+		generation = in.accept.request.original.run.leaseGeneration
+	}
 	if generation <= 0 || generation != in.work.generation {
 		return ErrConflict
 	}

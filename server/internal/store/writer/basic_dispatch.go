@@ -74,6 +74,14 @@ func (r *effectiveRuntime) runBasicTurn(ctx context.Context, w *Writer, turn *co
 	if err = checkBasicFreshWork(in); err != nil {
 		return value, false, err
 	}
+	if in.accept != nil {
+		if r.basicAcceptPlan == nil {
+			return value, false, ErrNotImplemented
+		}
+		if err = checkBasicAcceptBounds(in.accept, r.basicAcceptPlan.basicAcceptBounds); err != nil {
+			return value, false, err
+		}
+	}
 	value, err = in.apply(ctx, turn)
 	if err != nil {
 		return value, false, err
@@ -108,8 +116,10 @@ func validateBasicFreshResult(in *basicInvocation, value BasicResult) error {
 	if in.stage != nil {
 		original = in.stage.request.original
 		source, err = basicStageSource(in.stage.request)
-	} else {
+	} else if in.seal != nil {
 		original, source = in.seal.request.original, in.seal.request.source
+	} else if in.accept != nil {
+		original, source = in.accept.request.original, in.accept.request.activation.source
 	}
 	if err != nil || original.run.revision == math.MaxInt64 || value.Purpose != in.request.Purpose || value.RunID != in.request.Scan.RunID ||
 		value.AcceptedRunRevision != original.run.revision+1 || value.SourceID != source.sourceID || value.SourceIncarnation != source.incarnation ||

@@ -11,7 +11,7 @@ import (
 // Private trusted composition installs both closed purpose profiles exactly
 // once on the existing runtime/registry. There are no worker Work values,
 // fallback numbers, new constructors, public minters or alternate executors.
-func composeBasicProfiles(ctx context.Context, r *effectiveRuntime, stage, seal effectivePlan) (err error) {
+func composeBasicProfiles(ctx context.Context, r *effectiveRuntime, stage, seal effectivePlan, accepted ...effectivePlan) (err error) {
 	var runtimeLocked, executorLocked, installed bool
 	var oldRegistry *stmt.Registry
 	defer func() {
@@ -19,6 +19,7 @@ func composeBasicProfiles(ctx context.Context, r *effectiveRuntime, stage, seal 
 		if installed && err != nil {
 			r.registry = oldRegistry
 			r.basicPlans = [2]*effectivePlan{}
+			r.basicAcceptPlan = nil
 		}
 		if executorLocked {
 			r.executor.mu.Unlock()
@@ -28,6 +29,9 @@ func composeBasicProfiles(ctx context.Context, r *effectiveRuntime, stage, seal 
 		}
 	}()
 	defer func() { _, err = finishCommand(ctx, ctx, struct{}{}, err) }()
+	if len(accepted) > 1 {
+		return ErrInvalid
+	}
 	if ctx == nil || r == nil || r.executor == nil || r.governor == nil || r.authority == nil || r.wal == nil {
 		return ErrInvalid
 	}
@@ -45,7 +49,7 @@ func composeBasicProfiles(ctx context.Context, r *effectiveRuntime, stage, seal 
 	if r.fenced || r.executor.closed || r.executor.fenced || r.executor.ambiguous {
 		return ErrClosed
 	}
-	if r.basicPlans != ([2]*effectivePlan{}) {
+	if r.basicPlans != ([2]*effectivePlan{}) || r.basicAcceptPlan != nil {
 		return ErrBusy
 	}
 	stageDefs, sealDefs := basicCommandDefinitions(BasicStage), basicCommandDefinitions(BasicSeal)
@@ -57,11 +61,23 @@ func composeBasicProfiles(ctx context.Context, r *effectiveRuntime, stage, seal 
 	if err != nil {
 		return err
 	}
+	groups := [][]stmt.Definition{stageDefs, sealDefs}
+	receipts := []stmt.Receipt{stage.registration, seal.registration}
+	var accept effectivePlan
+	if len(accepted) == 1 {
+		acceptDefs := basicFinalDefinitions(accepted[0].basicAcceptBounds)
+		accept, err = freezeCommandPlan(r.executor, accepted[0], acceptDefs, BasicAccept)
+		if err != nil {
+			return err
+		}
+		groups = append(groups, acceptDefs)
+		receipts = append(receipts, accept.registration)
+	}
 	all := make([]stmt.Definition, 0, len(r.registry.Manifest())+len(stageDefs)+len(sealDefs))
 	for _, entry := range r.registry.Manifest() {
 		all = append(all, entry.Definition)
 	}
-	for _, defs := range [][]stmt.Definition{stageDefs, sealDefs} {
+	for _, defs := range groups {
 		for _, def := range defs {
 			found := false
 			for _, old := range all {
@@ -80,7 +96,7 @@ func composeBasicProfiles(ctx context.Context, r *effectiveRuntime, stage, seal 
 	}
 	// The new full-set native Capture must cover ALL existing definitions as
 	// well as both new purposes. An old unrelated receipt cannot fill a hole.
-	registry, err := stmt.New(all, stage.registration, seal.registration)
+	registry, err := stmt.New(all, receipts...)
 	if err != nil {
 		return err
 	}
@@ -89,6 +105,9 @@ func composeBasicProfiles(ctx context.Context, r *effectiveRuntime, stage, seal 
 	}
 	oldRegistry, r.registry = r.registry, registry
 	r.basicPlans = [2]*effectivePlan{&stage, &seal}
+	if len(accepted) == 1 {
+		r.basicAcceptPlan = &accept
+	}
 	installed = true
 	return nil
 }
