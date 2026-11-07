@@ -45,11 +45,37 @@ func TestRBGroupAuthorNative(t *testing.T) {
 	if !reflect.DeepEqual(got, want) || p.RawRows != 87 {
 		t.Fatal(got, want, p.RawRows)
 	}
+	view.Descending = true
+	reverse, _, err := f.reader.rbAuthorExact(t.Context(), rbGroupRequest(), time.Second, f.output, view, 2005)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, v := range reverse.Items {
+		if v.ID != want[len(want)-1-i] {
+			t.Fatal("native descending order")
+		}
+	}
+	view.Descending = false
 	f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
 	p, _, e = f.reader.rbAuthorExact(t.Context(), rbGroupRequest(), time.Second, f.output, view, 2005)
 	if !errors.Is(e, ErrDenied) || !reflect.DeepEqual(p, RBAuthorScope{}) {
 		t.Fatal("publication leak", e)
 	}
+	f.reader.snapshots = f.snapshots
+	f.exec(t, `UPDATE authorization_session_families SET revoked=0`)
+	f.exec(t, "BEGIN")
+	for n := 0; n < 177; n++ {
+		id := int64(10000 + n)
+		public := fmt.Sprintf("%032x", id)
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,unhex(?),1,9)`, id, public)
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,book_id,retired) VALUES(?,unhex(?),1,9,'Hidden','h','h','h','h',0,zeroblob(16),zeroblob(16),2006,1)`, id, public)
+	}
+	f.exec(t, "COMMIT")
+	p, _, e = f.reader.rbAuthorExact(t.Context(), rbGroupRequest(), time.Second, f.output, view, 2005)
+	if !errors.Is(e, ErrNotReady) || !reflect.DeepEqual(p, RBAuthorScope{}) {
+		t.Fatal("rejected raw tail escaped cap", e)
+	}
+
 }
 
 var _ []stmt.Definition = RBAuthorDefinitions()
