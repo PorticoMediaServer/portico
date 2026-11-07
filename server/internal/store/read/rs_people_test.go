@@ -78,7 +78,7 @@ func TestRSPeopleCompleteCreditTraversal(t *testing.T) {
 	f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id<=100`)
 	in.Person = 1
 	p, _, err = r.credits(t.Context(), foregroundRequest(), time.Second, f.output, in)
-	if err != nil || p.Person != nil || len(p.Credits) != 0 || p.Exhausted || p.Next == nil || p.RawPositions != MaxRaw {
+	if err != nil || p.Person != nil || len(p.Credits) != 0 || p.Exhausted || p.Next == nil || p.RawPositions != rsPeopleRaw {
 		t.Fatal("hidden raw page", p, err)
 	}
 	in.After = p.Next
