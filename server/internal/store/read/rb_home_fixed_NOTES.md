@@ -153,3 +153,8 @@ SHA256:3abfb0bc0d08ec363012de8a2694ae5d812a1b09e24063056924b539e8dadbf5
 The artifact is copied unchanged from that actual runner, never regenerated from
 stored JSON. CompareJSON is only a baseline check; fresh Capture is still required
 to mint the opaque registration receipt. Existing frozen golden files are intact.
+
+Recent scope is closed to movie/tv/anime/music/audiobook libraries. Reading and
+unknown library families return explicit recent_library_policy_uncomposed; their
+absence of a whole-playable binding is not interpreted as a successful empty
+recent shelf. MP/current publication integration remains required there too.
