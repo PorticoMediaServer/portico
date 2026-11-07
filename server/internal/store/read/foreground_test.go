@@ -25,7 +25,11 @@ func newForegroundFixture(t *testing.T) (*browseFixture, *ForegroundReader) {
 	}
 	return f, r
 }
-func foregroundRequest() governor.Request { return readfixture.ReadRequest() }
+func foregroundRequest() governor.Request {
+	r := readfixture.ReadRequest()
+	r.Deadline = time.Now().Add(functionalReadTimeout)
+	return r
+}
 func TestForegroundDetailAndPlayback(t *testing.T) {
 	f, r := newForegroundFixture(t)
 	in := TitleInput{View: f.input, Item: 1, Asset: 1}

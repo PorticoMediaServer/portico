@@ -92,8 +92,13 @@ func (b *scanFileBinding) attest(conn driver.Conn) error {
 // budget belongs to the private opening profile. It opens only an EXISTING
 // canonical file: no InitializeEmpty, schema fallback, repair or seed replay.
 // Every physical replacement checks the same immutable file/ownership binding.
-func openScanStore(ctx context.Context, owner *stateownership.Lock, path string, cacheKiB int32) (out *scanOpening, err error) {
+// Trusted startup may also select a read-only page-size assertion; omission
+// preserves existing history/opening behavior but cannot qualify a fresh N1 plan.
+func openScanStore(ctx context.Context, owner *stateownership.Lock, path string, cacheKiB int32, expectedPageSize ...int32) (out *scanOpening, err error) {
 	if ctx == nil || owner == nil || !filepath.IsAbs(path) || filepath.Clean(path) != path || strings.ContainsRune(path, 0) || cacheKiB <= 0 {
+		return nil, ErrInvalid
+	}
+	if len(expectedPageSize) > 1 {
 		return nil, ErrInvalid
 	}
 	if err := ctx.Err(); err != nil {
@@ -131,6 +136,9 @@ func openScanStore(ctx context.Context, owner *stateownership.Lock, path string,
 	}
 	o.binding = &scanFileBinding{path: strings.Clone(path), identity: info, device: device, inode: inode, ownership: lease, lifetime: o.lifetime}
 	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: cacheKiB, Synchronous: sqliteconn.Full}
+	if len(expectedPageSize) == 1 {
+		cfg.WriterPageSize = expectedPageSize[0]
+	}
 	connector, err := sqliteconn.Connector(path, cfg, sqliteconn.ExistingFile)
 	if err != nil {
 		return nil, err

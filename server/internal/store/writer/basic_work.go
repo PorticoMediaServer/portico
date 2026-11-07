@@ -4,8 +4,6 @@ import "context"
 
 // Reserved dedicated mode, not an N1 observation or history reservation. The
 // W-owned constructor remains closed until its Basic preparation is integrated.
-const scanBasicPreparation scanPreparationMode = 3
-
 func basicPreparationPurpose(purpose CommandID) bool {
 	return purpose == BasicStage || purpose == BasicSeal || purpose == BasicAccept
 }

@@ -42,6 +42,9 @@ type browseFact struct {
 	age       *int64
 }
 
+// Functional controls do not qualify real-clock ready latency.
+const functionalReadTimeout = 10 * time.Second
+
 func newBrowseFixture(t *testing.T) *browseFixture {
 	t.Helper()
 	return composeBrowseFixture(t, newBrowseSource(t), browseDefinitions())
@@ -125,10 +128,10 @@ func (f *browseFixture) exec(t *testing.T, q string, args ...any) {
 
 func (f *browseFixture) window(t *testing.T, ctx context.Context, in BrowseInput) (BrowsePage, BrowseReadResult, error) {
 	t.Helper()
-	r := governor.Request{Key: governor.JobKey{Domain: 71, ID: "browse-test"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	r := governor.Request{Key: governor.JobKey{Domain: 71, ID: "browse-test"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(functionalReadTimeout)}
 	// This fixture exercises the private fence kernel and retains its output
 	// through the last assertion. TestLive covers mandatory public admission.
-	return f.reader.window(ctx, r, time.Second, f.output, in)
+	return f.reader.window(ctx, r, functionalReadTimeout, f.output, in)
 }
 
 func TestBrowseTraversalMatchesIndependentFacts(t *testing.T) {
@@ -155,7 +158,7 @@ func TestBrowseTraversalMatchesIndependentFacts(t *testing.T) {
 					if page.RawRows > MaxRaw || page.RawPositions > page.RawRows || result.LookupStatements > 7 || result.PublicationStatements != 5 || page.Statements != result.LookupStatements+result.PublicationStatements || page.Statements > 12 || len(page.Items) > in.Limit {
 						t.Fatalf("unbounded window: %+v", page)
 					}
-					if result.Lookup.Ended.IsZero() || result.Publication.Ended.IsZero() || result.Elapsed > time.Second || result.Lookup.Ended.Sub(result.Lookup.Started) > time.Second || result.Publication.Ended.Sub(result.Publication.Started) > time.Second {
+					if result.Lookup.Ended.IsZero() || result.Publication.Ended.IsZero() || result.Lookup.Ended.Before(result.Lookup.Started) || result.Publication.Started.Before(result.Lookup.Ended) || result.Publication.Ended.Before(result.Publication.Started) {
 						t.Fatal("snapshot physical lifetime")
 					}
 					for _, item := range page.Items {

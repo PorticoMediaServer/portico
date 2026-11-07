@@ -36,7 +36,7 @@ func TestWCProgressCompositionPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	hash := sha256.New()
-	for _, name := range []string{"wc_fixture_clock_test.go", "wc_progress_composition_test.go", "wc_progress_composition_plan_test.go", "wc_progress_protocol.go", "wc_progress_native.go", "wc_progress_execution.go", "wc_progress_protocol_receipt.go", "wc_progress_fixture.go", "wc_progress_report_policy.go"} {
+	for _, name := range []string{"wc_component_fixture_test.go", "wc_fixture_clock_test.go", "wc_progress_composition_test.go", "wc_progress_composition_plan_test.go", "wc_progress_protocol.go", "wc_progress_native.go", "wc_progress_execution.go", "wc_progress_protocol_receipt.go", "wc_progress_fixture.go", "wc_progress_report_policy.go"} {
 		data, e := os.ReadFile(name)
 		if e != nil {
 			t.Fatal(e)
@@ -66,7 +66,7 @@ func TestWCProgressCompositionPlans(t *testing.T) {
 	if _, err = stmt.New(defs, g.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	if len(g.Manifest) != len(defs) || len(g.Plans) != len(defs) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 671 {
+	if len(g.Manifest) != len(defs) || len(g.Plans) != len(defs) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
 		t.Fatal("incomplete capture")
 	}
 	fk, err := json.MarshalIndent(g.ForeignKeys, "", "  ")
@@ -121,5 +121,5 @@ func TestWCProgressCompositionPlans(t *testing.T) {
 	if err = plan.CompareExactJSON(expectedFK, fk); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("%d exact IDs/plans; complete 671FK/2013 probes, actual NORMAL; no runtime/qualification grant", len(defs))
+	t.Logf("%d exact IDs/plans; complete 686FK/2058 probes, actual NORMAL; no runtime/qualification grant", len(defs))
 }

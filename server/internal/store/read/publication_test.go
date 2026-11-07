@@ -159,6 +159,10 @@ func TestBrowsePublicationRejectsUnversionedPolicyDrift(t *testing.T) {
 }
 
 func TestBrowsePublicationChecksExpiryAfterFinalRead(t *testing.T) {
+	synctest.Test(t, testBrowsePublicationChecksExpiryAfterFinalRead)
+}
+
+func testBrowsePublicationChecksExpiryAfterFinalRead(t *testing.T) {
 	f := newBrowseFixture(t)
 	f.exec(t, `UPDATE authorization_family_tokens SET expires_at=? WHERE token_hash='token'`, f.input.Now.Add(30*time.Millisecond).Format(time.RFC3339Nano))
 	wait, cancel := context.WithTimeout(t.Context(), 60*time.Millisecond)
@@ -172,6 +176,10 @@ func TestBrowsePublicationChecksExpiryAfterFinalRead(t *testing.T) {
 }
 
 func TestBrowsePublicationProtectedDeadlineNeverReleasesPage(t *testing.T) {
+	synctest.Test(t, testBrowsePublicationProtectedDeadlineNeverReleasesPage)
+}
+
+func testBrowsePublicationProtectedDeadlineNeverReleasesPage(t *testing.T) {
 	f := newBrowseFixture(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()

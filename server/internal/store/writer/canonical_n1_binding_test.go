@@ -53,7 +53,9 @@ func (r *canonicalN1Checkpoint) observeClock(origin time.Time) {
 
 type canonicalN1MaintenanceOwner struct {
 	opening            *scanOpening
-	fixture            *inventoryProgressiveFixture
+	executor           *executor
+	governor           governor.Governor
+	authority          *governor.Authority
 	cp                 *governor.Checkpointer
 	keeper             *governor.CheckpointKeeper
 	lifetime           *governor.Grant
@@ -103,7 +105,15 @@ func newCanonicalN1Fixture(t *testing.T, count int, trace *n1Trace) (*inventoryP
 	w.openPool(connector, trace.decorate)
 	registry := nativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go")
 	f := inventoryProgressiveOwner(t, w, original, registry, count, time.Now, canonicalN1Maintenance())
-	m := &canonicalN1MaintenanceOwner{opening: opening, fixture: f, stop: make(chan struct{}), done: make(chan struct{}), results: make(chan canonicalN1Checkpoint, 128)}
+	m := newCanonicalCheckpointOwner(t, opening, f.owner.governor, f.owner.authority, f.owner.wal, path)
+	f.sharedMaintenance = true
+	return f, m
+}
+
+// Same lifecycle and funded keeper for other trusted canonical command owners.
+func newCanonicalCheckpointOwner(t *testing.T, opening *scanOpening, g governor.Governor, a *governor.Authority, wal *governor.WALGate, path string) *canonicalN1MaintenanceOwner {
+	t.Helper()
+	m := &canonicalN1MaintenanceOwner{opening: opening, executor: opening.executor, governor: g, authority: a, stop: make(chan struct{}), done: make(chan struct{}), results: make(chan canonicalN1Checkpoint, 128)}
 	// Installed before any fallible keeper setup; retain partial cleanup on Fatal.
 	t.Cleanup(func() {
 		if err := m.close(); err != nil {
@@ -111,11 +121,11 @@ func newCanonicalN1Fixture(t *testing.T, count int, trace *n1Trace) (*inventoryP
 		}
 	})
 	cfg := sqliteconn.Config{Role: sqliteconn.Checkpointer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
-	connector, err = sqliteconn.Connector(path, cfg, sqliteconn.ExistingFile)
+	connector, err := sqliteconn.Connector(path, cfg, sqliteconn.ExistingFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.cp, err = governor.NewCheckpointer(connector, cfg, f.owner.governor, f.owner.authority, governor.CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 5 * time.Second, MaxWait: 50 * time.Millisecond})
+	m.cp, err = governor.NewCheckpointer(connector, cfg, g, a, governor.CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 5 * time.Second, MaxWait: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,15 +140,14 @@ func newCanonicalN1Fixture(t *testing.T, count int, trace *n1Trace) (*inventoryP
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = f.owner.authority.Retired(resources.Startup); err != nil {
+	if err = a.Retired(resources.Startup); err != nil {
 		t.Fatal(err)
 	}
 	m.startup = nil
-	if err = opening.bindCheckpointKeeper(m.keeper, f.owner.governor, f.owner.authority, f.owner.wal); err != nil {
+	if err = opening.bindCheckpointKeeper(m.keeper, g, a, wal); err != nil {
 		t.Fatal(err)
 	}
-	f.sharedMaintenance = true
-	return f, m
+	return m
 }
 func (m *canonicalN1MaintenanceOwner) request(role string) governor.Request {
 	r := governor.Request{Key: governor.JobKey{Domain: uint16(InventoryAccept), ID: "canonical-n1-cp/" + role}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.MemoryBytes: 64 << 10, governor.CPUMilli: 1000, governor.IOBytes: 2 * (1 << 29)}, Deadline: time.Now().Add(time.Hour)}
@@ -153,7 +162,7 @@ func (m *canonicalN1MaintenanceOwner) request(role string) governor.Request {
 }
 func (m *canonicalN1MaintenanceOwner) grant(t *testing.T, r governor.Request) *governor.Grant {
 	t.Helper()
-	d := m.fixture.owner.governor.Try(r)
+	d := m.governor.Try(r)
 	if d.Grant == nil {
 		t.Fatal("canonical maintenance funding", d.Refusal)
 	}
@@ -225,9 +234,8 @@ func (m *canonicalN1MaintenanceOwner) close() error {
 		return nil
 	}
 	m.joinWorker()
-	f := m.fixture
 	if m.keeper == nil {
-		err := f.owner.executor.close()
+		err := m.executor.close()
 		if m.cp != nil {
 			err = errors.Join(err, m.cp.Close())
 		}
@@ -236,7 +244,7 @@ func (m *canonicalN1MaintenanceOwner) close() error {
 		} // uncertain native holdings stay charged
 		for _, p := range []**governor.Grant{&m.startup, &m.lifetime} {
 			if *p != nil {
-				if e := f.owner.authority.Retired(*p); e != nil {
+				if e := m.authority.Retired(*p); e != nil {
 					return e
 				}
 				*p = nil
@@ -263,7 +271,7 @@ func (m *canonicalN1MaintenanceOwner) close() error {
 	}
 	for _, p := range []**governor.Grant{&m.shutdown, &m.lifetime, &m.startup} {
 		if *p != nil {
-			if e := f.owner.authority.Retired(*p); e != nil {
+			if e := m.authority.Retired(*p); e != nil {
 				return e
 			}
 			*p = nil

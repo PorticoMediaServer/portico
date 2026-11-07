@@ -1,6 +1,9 @@
 package writer
 
-import "unicode/utf8"
+import (
+	"math"
+	"unicode/utf8"
+)
 
 // Only W's canonical encoder hashes this projection. Outcome and Digest are
 // publication metadata and are deliberately absent from the saved wire.
@@ -10,39 +13,90 @@ func basicResultDigest(identity CommandIdentity, request RequestDigest, result B
 
 func preflightBasicResult(v BasicResult) error {
 	c := v.Continuation
-	switch v.Purpose {
-	case BasicPurposeStage:
-		// Shape-pin/freeze return family1/after0; prefence returns family0
-		// and an actual positive native owner ID. No copy cursor is selected.
-		if c.NextFamily < 0 || c.NextFamily > 1 || c.AfterEntity < 0 || (c.NextFamily == 1 && c.AfterEntity != 0) {
-			return invalid("basic_result_shape")
-		}
-		c.NextFamily, c.AfterEntity = 0, 0
-	case BasicPurposeSeal: // Seal still requires the exact zero continuation.
-	case BasicPurposeAccept:
-		return ErrNotImplemented // activation's actual continuation/cohort map is not selected
-	default:
-		return invalid("basic_result_purpose")
-	}
-	if v.AcceptedRunRevision <= 0 || v.AppliedMS < 0 || v.ChangeID <= 0 || v.ExpectedEpoch <= 0 ||
-		v.ResultCount != 0 || v.Members == nil || len(v.Members) != 0 || c != (BasicContinuation{}) {
-		return invalid("basic_result_shape")
-	}
-	// Complete fixed wire plus ALL native TEXT lengths precede UTF-8 walks,
-	// hashing and byte conversions. SourceRevision stays arbitrary native TEXT;
-	// it is not parsed or constrained to an assumed digest format.
+	// Account for every fixed field and TEXT byte before inspecting UTF-8 or hashing.
 	remaining := maxCanonicalResultBytes - basicResultFixedBytes(v.Purpose)
-	texts := [...]string{v.RunID, v.SourceID, v.SourceIncarnation, v.SourceRevision}
+	if len(v.Members) > remaining/(8*8) {
+		return invalid("basic_result_bytes")
+	}
+	remaining -= len(v.Members) * 8 * 8 // seven integers and one TEXT frame per member
+	texts := []string{v.RunID, v.SourceID, v.SourceIncarnation, v.SourceRevision,
+		c.NextCursor, c.NextCopyKey, c.NextCopyKey2, c.NextCopyKey3}
 	for _, s := range texts {
-		if s == "" || len(s) > remaining {
+		if len(s) > remaining {
 			return invalid("basic_result_bytes")
 		}
 		remaining -= len(s)
+	}
+	for _, m := range v.Members {
+		if len(m.ObjectID) > remaining {
+			return invalid("basic_result_bytes")
+		}
+		remaining -= len(m.ObjectID)
 	}
 	for _, s := range texts {
 		if !utf8.ValidString(s) {
 			return invalid("basic_result_utf8")
 		}
+	}
+	for _, m := range v.Members {
+		if !utf8.ValidString(m.ObjectID) {
+			return invalid("basic_result_utf8")
+		}
+	}
+	if v.RunID == "" || v.SourceID == "" || v.SourceIncarnation == "" || v.SourceRevision == "" ||
+		v.AcceptedRunRevision <= 0 || v.AppliedMS < 0 || v.ChangeID <= 0 || v.ExpectedEpoch <= 0 || v.Members == nil ||
+		c.NextCursor != "" || c.NextCopyKey != "" || c.NextCopyKey2 != "" || c.NextCopyKey3 != "" || c.AfterEntity < 0 {
+		return invalid("basic_result_shape")
+	}
+	switch v.Purpose {
+	case BasicPurposeStage:
+		if v.ResultCount != 0 || len(v.Members) != 0 {
+			return invalid("basic_result_shape")
+		}
+		switch c.NextFamily {
+		case 0, 1:
+			if c.NextFamily == 1 && c.AfterEntity != 0 {
+				return invalid("basic_result_shape")
+			}
+			if c.NextCopyPhase != 0 || c.NextCopyID != 0 || c.NextCopyAux != 0 {
+				return invalid("basic_result_shape")
+			}
+		case 2, 3, 5:
+			if c.AfterEntity <= 0 || c.NextCopyID < 0 || c.NextCopyPhase < 0 || c.NextCopyPhase > 1 ||
+				(c.NextCopyPhase == 0 && c.NextCopyAux != 0) ||
+				(c.NextCopyPhase == 1 && ((c.NextCopyID == 0 && c.NextCopyAux != 0) || (c.NextCopyID > 0 && c.NextCopyAux != 1))) {
+				return invalid("basic_result_shape")
+			}
+		case 4, 6, 9:
+			if c.AfterEntity <= 0 || c.NextCopyPhase != 0 || c.NextCopyID != 0 || c.NextCopyAux != 0 {
+				return invalid("basic_result_shape")
+			}
+		case 7, 8:
+			if c.AfterEntity <= 0 || c.NextCopyPhase != 0 || c.NextCopyID < 0 || c.NextCopyAux != 0 {
+				return invalid("basic_result_shape")
+			}
+		default:
+			return invalid("basic_result_shape")
+		}
+	case BasicPurposeSeal:
+		if c != (BasicContinuation{}) || v.ResultCount != 0 || len(v.Members) != 0 {
+			return invalid("basic_result_shape")
+		}
+	case BasicPurposeAccept:
+		if c.AfterEntity <= 0 {
+			return invalid("basic_result_shape")
+		}
+		c.AfterEntity = 0
+		if c != (BasicContinuation{}) || v.ResultCount != 1 || len(v.Members) != 1 || v.ExpectedEpoch == math.MaxInt64 {
+			return invalid("basic_result_shape")
+		}
+		m := v.Members[0]
+		if m.InputOrdinal != 0 || m.ChildKind != 0 || m.ChildOrdinal != 0 || m.ObjectID == "" || m.LibraryID <= 0 ||
+			m.SubjectID != v.Continuation.AfterEntity || m.AssetID <= 0 || m.AcceptedAssetRevision != v.ExpectedEpoch+1 {
+			return invalid("basic_result_shape")
+		}
+	default:
+		return invalid("basic_result_purpose")
 	}
 	return nil
 }
@@ -51,7 +105,7 @@ func basicResultFixedBytes(purpose BasicPurpose) int {
 	// Domain/version; three framed tags; four framed native TEXT values;
 	// original incarnation/sequence/op/request; four header integers;
 	// one framed cursor + four copy integers + three framed keys + after_entity;
-	// result_count and explicit complete cohort length. FIRST has no members.
+	// result_count and explicit complete cohort length. Member framing is added in preflight.
 	return len(canonicalResultCodec) + 2 + 3*8 + len("scan_basic") + len(purpose) + len("applied") +
 		4*8 + 16 + 8 + 16 + 32 + 4*8 + 8 + 4*8 + 3*8 + 8 + 2*8
 }
@@ -86,5 +140,15 @@ func writeBasicResult(e *requestEncoder, identity CommandIdentity, request Reque
 	e.number(uint64(c.AfterEntity))
 	e.number(uint64(v.ResultCount))
 	e.number(uint64(len(v.Members)))
+	for _, m := range v.Members {
+		e.number(uint64(m.InputOrdinal))
+		e.number(uint64(m.ChildKind))
+		e.number(uint64(m.ChildOrdinal))
+		e.text(m.ObjectID)
+		e.number(uint64(m.LibraryID))
+		e.number(uint64(m.SubjectID))
+		e.number(uint64(m.AssetID))
+		e.number(uint64(m.AcceptedAssetRevision))
+	}
 	return e.err
 }

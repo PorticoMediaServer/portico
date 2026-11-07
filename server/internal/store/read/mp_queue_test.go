@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -227,6 +228,10 @@ func TestMPQueuePlans(t *testing.T) {
 }
 
 func TestMPQueueLiveConsumer(t *testing.T) {
+	synctest.Test(t, testMPQueueLiveConsumer)
+}
+
+func testMPQueueLiveConsumer(t *testing.T) {
 	f := composeReadFixture(t, mpQueueSource(t), MediaHarnessDefinitions(), readfixture.LiveConfig(time.Now), false)
 	r, err := NewMediaReader(f.snapshots)
 	if err != nil {
@@ -239,7 +244,7 @@ func TestMPQueueLiveConsumer(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if got.Revision != 3 || result.AdmissionElapsed <= 0 {
+		if got.Revision != 3 || result.AdmissionElapsed != out.live.admission || result.AdmissionElapsed < 0 || result.Elapsed < result.AdmissionElapsed {
 			t.Fatal("missing live value", got, result)
 		}
 		assertLiveUsage(t, f, 1, 0)

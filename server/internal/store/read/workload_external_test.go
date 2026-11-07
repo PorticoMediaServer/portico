@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -18,7 +19,11 @@ import (
 
 func workloadInput[I, P any](id string, input I, consume func(context.Context, P) error) workload.ForegroundInput[I, P] {
 	q, request, output := read.ForegroundWorkloadRequests(id)
-	return workload.ForegroundInput[I, P]{Request: request, Budget: time.Second, Foreground: q, OutputRequest: output, Input: input, Consume: consume}
+	entry := time.Now()
+	// Functional adapter controls retain real admission/custody, not a ready SLA.
+	q.ReadyDeadline, q.ProtectedDeadline = entry.Add(10*time.Second), entry.Add(20*time.Second)
+	request.Deadline, output.Deadline = q.ProtectedDeadline, q.ProtectedDeadline
+	return workload.ForegroundInput[I, P]{Request: request, Budget: 10 * time.Second, Foreground: q, OutputRequest: output, Input: input, Consume: consume}
 }
 
 func requireConsumerCustody(t *testing.T, f read.ForegroundWorkloadFixture, ctx context.Context) {
@@ -40,97 +45,99 @@ func requireRetired(t *testing.T, f read.ForegroundWorkloadFixture) {
 }
 
 func TestForegroundWorkloadActualRecipes(t *testing.T) {
-	f := read.NewForegroundWorkloadFixture(t)
 	for _, recipe := range []string{"BROWSE", "TITLE_DETAIL", "PLAYBACK_LOOKUP", "CONTINUE_WATCHING"} {
 		t.Run(recipe, func(t *testing.T) {
-			consumed := 0
-			check := func(ctx context.Context) { consumed++; requireConsumerCustody(t, f, ctx) }
-			var action workload.Action
-			switch recipe {
-			case "BROWSE":
-				action = workload.Browse(f.Browse, f.Governor, f.Authority, f.Snapshots, func(context.Context, workload.Offer) (workload.BrowseInput, error) {
-					return workloadInput(recipe, f.Input, func(ctx context.Context, p read.BrowsePage) error {
-						check(ctx)
-						if len(p.Items) != 40 {
-							t.Error("browse page")
-						}
-						return nil
-					}), nil
-				})
-			case "TITLE_DETAIL":
-				action = workload.Detail(f.Foreground, f.Governor, f.Authority, f.Snapshots, func(context.Context, workload.Offer) (workload.DetailInput, error) {
-					return workloadInput(recipe, read.TitleInput{View: f.Input, Item: 1, Asset: 1}, func(ctx context.Context, p read.TitleDetail) error {
-						check(ctx)
-						if len(p.Cast) != 100 || len(p.Crew) != 50 || p.File == nil {
-							t.Error("detail page")
-						}
-						return nil
-					}), nil
-				})
-			case "PLAYBACK_LOOKUP":
-				action = workload.PlaybackLookup(f.Foreground, f.Governor, f.Authority, f.Snapshots, func(context.Context, workload.Offer) (workload.PlaybackInput, error) {
-					return workloadInput(recipe, read.TitleInput{View: f.Input, Item: 1, Asset: 1}, func(ctx context.Context, p read.PlaybackFile) error {
-						check(ctx)
-						if p.Path != "/media/title.mkv" {
-							t.Error("playback file")
-						}
-						return nil
-					}), nil
-				})
-			case "CONTINUE_WATCHING":
-				action = workload.ContinueWatching(f.Foreground, f.Governor, f.Authority, f.Snapshots, func(context.Context, workload.Offer) (workload.ContinueInput, error) {
-					return workloadInput(recipe, read.ContinueInput{View: f.Input}, func(ctx context.Context, p read.ContinuePage) error {
-						check(ctx)
-						if len(p.Items) != 40 {
-							t.Error("continue page")
-						}
-						return nil
-					}), nil
-				})
-			}
-			err := action(t.Context(), workload.Offer{}, func(o workload.Observation) error {
-				requireRetired(t, f)
-				if o.Phase != recipe || o.HoldNS != nil || o.CommitNS != nil || o.Evidence != nil || o.RefusalError || o.CallError != "" {
-					t.Error("invented writer/error evidence", o)
+			synctest.Test(t, func(t *testing.T) {
+				f := read.NewForegroundWorkloadFixture(t)
+				consumed := 0
+				check := func(ctx context.Context) { consumed++; requireConsumerCustody(t, f, ctx) }
+				var action workload.Action
+				switch recipe {
+				case "BROWSE":
+					action = workload.Browse(f.Browse, f.Governor, f.Authority, f.Snapshots, func(context.Context, workload.Offer) (workload.BrowseInput, error) {
+						return workloadInput(recipe, f.Input, func(ctx context.Context, p read.BrowsePage) error {
+							check(ctx)
+							if len(p.Items) != 40 {
+								t.Error("browse page")
+							}
+							return nil
+						}), nil
+					})
+				case "TITLE_DETAIL":
+					action = workload.Detail(f.Foreground, f.Governor, f.Authority, f.Snapshots, func(context.Context, workload.Offer) (workload.DetailInput, error) {
+						return workloadInput(recipe, read.TitleInput{View: f.Input, Item: 1, Asset: 1}, func(ctx context.Context, p read.TitleDetail) error {
+							check(ctx)
+							if len(p.Cast) != 100 || len(p.Crew) != 50 || p.File == nil {
+								t.Error("detail page")
+							}
+							return nil
+						}), nil
+					})
+				case "PLAYBACK_LOOKUP":
+					action = workload.PlaybackLookup(f.Foreground, f.Governor, f.Authority, f.Snapshots, func(context.Context, workload.Offer) (workload.PlaybackInput, error) {
+						return workloadInput(recipe, read.TitleInput{View: f.Input, Item: 1, Asset: 1}, func(ctx context.Context, p read.PlaybackFile) error {
+							check(ctx)
+							if p.Path != "/media/title.mkv" {
+								t.Error("playback file")
+							}
+							return nil
+						}), nil
+					})
+				case "CONTINUE_WATCHING":
+					action = workload.ContinueWatching(f.Foreground, f.Governor, f.Authority, f.Snapshots, func(context.Context, workload.Offer) (workload.ContinueInput, error) {
+						return workloadInput(recipe, read.ContinueInput{View: f.Input}, func(ctx context.Context, p read.ContinuePage) error {
+							check(ctx)
+							if len(p.Items) != 40 {
+								t.Error("continue page")
+							}
+							return nil
+						}), nil
+					})
 				}
-				data, err := json.Marshal(o.Result)
-				if err != nil {
-					t.Fatal(err)
-				}
-				var result struct {
-					Summary                                        json.RawMessage
-					Evidence                                       *workload.ReadEvidence
-					Consumption                                    *read.ForegroundConsumption
-					ReadyBudget                                    time.Duration
-					ReadyDeadline, ProtectedDeadline, ReadDeadline time.Time
-					ReadError, ConsumerError, ScopeError           *string
-				}
-				if err = json.Unmarshal(data, &result); err != nil {
-					t.Fatal(err)
-				}
-				if string(result.Summary) == "null" || result.Evidence == nil || result.Consumption == nil || result.ReadError == nil || *result.ReadError != "" || result.ConsumerError == nil || *result.ConsumerError != "" || result.ScopeError == nil || *result.ScopeError != "" {
-					t.Fatal("missing successful evidence", string(data))
-				}
-				cost := result.Evidence
-				want := map[string]int{"BROWSE": 11, "TITLE_DETAIL": 26, "PLAYBACK_LOOKUP": 19, "CONTINUE_WATCHING": 11}[recipe]
-				if cost.LookupStatements+cost.PublicationStatements != want || cost.Attempts != 1 || cost.AdmissionElapsed <= 0 || result.Consumption.Elapsed < cost.Elapsed || o.WallNS == nil || *o.WallNS < result.Consumption.Elapsed {
-					t.Error("lost whole-operation cost", cost)
-				}
-				for _, w := range append(cost.LookupWindows, cost.PublicationWindows...) {
-					if w == nil || w.Started == nil || w.Ended == nil || w.Settings == nil || w.Deadline.After(result.ReadyDeadline) {
-						t.Error("missing actual window/deadline", w)
+				err := action(t.Context(), workload.Offer{}, func(o workload.Observation) error {
+					requireRetired(t, f)
+					if o.Phase != recipe || o.HoldNS != nil || o.CommitNS != nil || o.Evidence != nil || o.RefusalError || o.CallError != "" {
+						t.Error("invented writer/error evidence", o)
 					}
-				}
-				for _, secret := range []string{"/media/title.mkv", `"PublicID"`, `"ResumePosition"`, `"Title":`, `"Token":`} {
-					if strings.Contains(string(data), secret) {
-						t.Error("payload escaped custody", secret)
+					data, err := json.Marshal(o.Result)
+					if err != nil {
+						t.Fatal(err)
 					}
+					var result struct {
+						Summary                                        json.RawMessage
+						Evidence                                       *workload.ReadEvidence
+						Consumption                                    *read.ForegroundConsumption
+						ReadyBudget                                    time.Duration
+						ReadyDeadline, ProtectedDeadline, ReadDeadline time.Time
+						ReadError, ConsumerError, ScopeError           *string
+					}
+					if err = json.Unmarshal(data, &result); err != nil {
+						t.Fatal(err)
+					}
+					if string(result.Summary) == "null" || result.Evidence == nil || result.Consumption == nil || result.ReadError == nil || *result.ReadError != "" || result.ConsumerError == nil || *result.ConsumerError != "" || result.ScopeError == nil || *result.ScopeError != "" {
+						t.Fatal("missing successful evidence", string(data))
+					}
+					cost := result.Evidence
+					want := map[string]int{"BROWSE": 11, "TITLE_DETAIL": 26, "PLAYBACK_LOOKUP": 19, "CONTINUE_WATCHING": 11}[recipe]
+					if cost.LookupStatements+cost.PublicationStatements != want || cost.Attempts != 1 || cost.AdmissionElapsed != result.Consumption.AdmissionElapsed || cost.AdmissionElapsed < 0 || cost.Elapsed < cost.AdmissionElapsed || result.Consumption.Elapsed < cost.Elapsed || o.WallNS == nil || *o.WallNS < result.Consumption.Elapsed {
+						t.Error("lost whole-operation cost", cost)
+					}
+					for _, w := range append(cost.LookupWindows, cost.PublicationWindows...) {
+						if w == nil || w.Started == nil || w.Ended == nil || w.Settings == nil || w.Deadline.After(result.ReadyDeadline) {
+							t.Error("missing actual window/deadline", w)
+						}
+					}
+					for _, secret := range []string{"/media/title.mkv", `"PublicID"`, `"ResumePosition"`, `"Title":`, `"Token":`} {
+						if strings.Contains(string(data), secret) {
+							t.Error("payload escaped custody", secret)
+						}
+					}
+					return nil
+				})
+				if err != nil || consumed != 1 {
+					t.Fatal("actual adapter", consumed, err)
 				}
-				return nil
 			})
-			if err != nil || consumed != 1 {
-				t.Fatal("actual adapter", consumed, err)
-			}
 		})
 	}
 }
@@ -203,6 +210,10 @@ func (s *pairedReadSink) Append(r workload.Record) error {
 }
 
 func TestForegroundWorkloadPairedStopJoinsConsumer(t *testing.T) {
+	synctest.Test(t, testForegroundWorkloadPairedStopJoinsConsumer)
+}
+
+func testForegroundWorkloadPairedStopJoinsConsumer(t *testing.T) {
 	f := read.NewForegroundWorkloadFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	writerEntered, consumerEntered := make(chan struct{}), make(chan struct{})
