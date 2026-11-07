@@ -80,35 +80,19 @@ func readUSPolicyOwner(ctx context.Context, turn *commandTurn, a *usPolicyAuthor
 // shared classifier sees only the ORIGINAL identity; fresh target CAS is absent.
 func lookupUSPolicy(ctx context.Context, turn *commandTurn, a *usPolicyAuthorization, q usPolicyReceiptRequest) (out usPolicyReceiptLookup, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, errors.Join(err, a.check(turn))) }()
-	if err = a.check(turn); err != nil {
-		return out, err
+	if _, e := usPolicyCodec(q.kind); e != nil {
+		return out, e
 	}
-	if !usIdentifier(q.ownerID) || q.kind != turn.transaction.descriptor.ID || q.reference.Identity.Sequence <= 0 || q.reference.Identity.Incarnation == ([16]byte{}) || q.reference.Identity.OperationID == ([16]byte{}) || q.reference.RequestDigest == (RequestDigest{}) {
-		return out, ErrInvalid
+	custody, e := lookupUSSecurityBinding(ctx, turn, a, q)
+	if e != nil {
+		return out, e
 	}
-	if err = a.requireMemory(ctx, turn, 0); err != nil {
-		return out, err
+	out.owner, out.decision = custody.owner, custody.decision
+	if out.decision != receiptReplay {
+		return out, nil
 	}
-	out.owner, err = readUSPolicyOwner(ctx, turn, a, q.ownerID)
-	if err != nil {
-		return out, err
-	}
+	binding := custody.binding
 	expected := receiptIdentity{q.reference.Identity, q.reference.RequestDigest}
-	if !out.owner.exists || out.owner.incarnation != expected.command.Incarnation {
-		_, err = classifyReceipt(expected, q.kind, out.owner.receiptOwnerFacts, receiptFacts{})
-		return out, err
-	}
-	binding, err := readUSPolicyBinding(ctx, turn, q)
-	if err != nil {
-		return out, err
-	}
-	out.decision, err = classifyReceipt(expected, q.kind, out.owner.receiptOwnerFacts, binding)
-	if err == nil && out.decision == receiptFresh && out.owner.retiredMS != 0 {
-		return out, errors.Join(ErrResolveRequired, ErrOwnerUnavailable)
-	}
-	if err != nil || out.decision != receiptReplay {
-		return out, err
-	}
 	if binding.resultCount < 0 || binding.resultCount > usMaxPolicyLibraries {
 		return out, ErrResolveRequired
 	}

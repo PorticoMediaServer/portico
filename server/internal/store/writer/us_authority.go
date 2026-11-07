@@ -74,7 +74,7 @@ func (b usPolicyAuthorityBudget) check(ctx context.Context, turn *commandTurn, b
 		return ErrInvalid
 	}
 	tx := turn.transaction
-	if !tx.begun || tx.done || !tx.policyVerified || tx.settings.Synchronous != int(sqliteconn.Full) || tx.descriptor.Durability != Full || (tx.descriptor.ID != USMemberLibraries && tx.descriptor.ID != USProfileLibraries) {
+	if !tx.begun || tx.done || !tx.policyVerified || tx.settings.Synchronous != int(sqliteconn.Full) || tx.descriptor.Durability != Full || !isUSSecurityReceiptPurpose(tx.descriptor.ID) {
 		return ErrInvalid
 	}
 	if bytes < 0 || bytes > maxCanonicalResultBytes || uint64(64<<10)+uint64(bytes)*32 > b.memory {
@@ -203,7 +203,7 @@ func authorizeUSOwnerPolicy(ctx context.Context, turn *commandTurn, p *usOwnerAu
 	}
 	// This is the only non-test mint, after all independent source checks.
 	frozen := *p
-	out = &usPolicyAuthorization{turn: turn, stamp: &usPolicyAuthorityStamp{frame: tx}, issuer: i, lifetime: lifetime, authorizedUntil: until, memoryBytes: b.memory, receiptBytes: b.receipts, nativeFixture: b.fixture, nativeProof: &frozen, nativeBudget: b}
+	out = &usPolicyAuthorization{turn: turn, stamp: &usPolicyAuthorityStamp{frame: tx, recipe: usDirectOwnerRecipe}, issuer: i, lifetime: lifetime, authorizedUntil: until, memoryBytes: b.memory, receiptBytes: b.receipts, nativeFixture: b.fixture, nativeProof: &frozen, nativeBudget: b}
 	return out, nil
 }
 func usAuthorityReadError(err error) error {

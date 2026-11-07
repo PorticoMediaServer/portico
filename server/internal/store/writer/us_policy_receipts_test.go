@@ -60,7 +60,7 @@ func usPolicyReceiptTurn(t *testing.T, w *executor, r *stmt.Registry, c *usLibra
 	t.Cleanup(func() { _ = turn.closeRows() })
 	lifetime, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
-	a := &usPolicyAuthorization{turn: turn, stamp: &usPolicyAuthorityStamp{frame: tx}, issuer: c.request.issuer, lifetime: lifetime,
+	a := &usPolicyAuthorization{turn: turn, stamp: &usPolicyAuthorityStamp{frame: tx, recipe: usDirectOwnerRecipe}, issuer: c.request.issuer, lifetime: lifetime,
 		authorizedUntil: w.now().Add(time.Minute), memoryBytes: 4 << 20, receiptBytes: 1 << 20, nativeFixture: &usPolicyNativePermit{frame: tx}}
 	return turn, a, cancel
 }

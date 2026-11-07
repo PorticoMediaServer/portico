@@ -14,7 +14,14 @@ import (
 // AFTER same-turn native token/family/member/profile/installation, narrow
 // grant and PIN/fence checks. Other recipes remain unavailable.
 // It is scoped to THIS frame, not a cached principal or reusable permission.
-type usPolicyAuthorityStamp struct{ frame *transaction }
+type usAuthorityRecipe uint8
+
+const usDirectOwnerRecipe usAuthorityRecipe = 1
+
+type usPolicyAuthorityStamp struct {
+	frame  *transaction
+	recipe usAuthorityRecipe
+}
 type usPolicyNativePermit struct{ frame *transaction } // test constructor only
 
 type usPolicyAuthorization struct {
@@ -31,11 +38,11 @@ type usPolicyAuthorization struct {
 }
 
 func (a *usPolicyAuthorization) check(turn *commandTurn) error {
-	if a == nil || turn == nil || turn.transaction == nil || a.turn != turn || a.stamp == nil || a.stamp.frame != turn.transaction || a.lifetime == nil || a.lifetime.Err() != nil {
+	if a == nil || turn == nil || turn.transaction == nil || a.turn != turn || a.stamp == nil || a.stamp.frame != turn.transaction || a.stamp.recipe != usDirectOwnerRecipe || a.lifetime == nil || a.lifetime.Err() != nil {
 		return ErrDisclosureDenied
 	}
 	tx := turn.transaction
-	if tx.descriptor.ID != USMemberLibraries && tx.descriptor.ID != USProfileLibraries || tx.descriptor.Durability != Full || tx.settings.Synchronous != int(sqliteconn.Full) || !tx.policyVerified {
+	if !isUSSecurityReceiptPurpose(tx.descriptor.ID) || tx.descriptor.Durability != Full || tx.settings.Synchronous != int(sqliteconn.Full) || !tx.policyVerified {
 		return ErrInvalid
 	}
 	if !tx.begun || tx.done {
@@ -113,14 +120,23 @@ func finishUSPolicy(ctx context.Context, turn *commandTurn, a *usPolicyAuthoriza
 	if a == nil {
 		return usPolicyComposition{}, errors.Join(err, ErrDisclosureDenied)
 	}
-	err = errors.Join(err, a.check(turn))
 	if err == nil {
-		if a.nativeProof != nil {
-			_, err = authorizeUSOwnerPolicy(ctx, turn, a.nativeProof, a.lifetime, a.nativeBudget)
-		}
-		if err == nil {
-			_, err = usPolicyTimeMS(ctx, turn, a)
-		}
+		err = checkUSSecurityDisclosure(ctx, turn, a)
+	} else {
+		err = errors.Join(err, a.check(turn))
 	}
 	return finishCommand(ctx, a.lifetime, v, err)
+}
+
+func checkUSSecurityDisclosure(ctx context.Context, turn *commandTurn, a *usPolicyAuthorization) error {
+	if err := a.check(turn); err != nil {
+		return err
+	}
+	if a.nativeProof != nil {
+		if _, err := authorizeUSOwnerPolicy(ctx, turn, a.nativeProof, a.lifetime, a.nativeBudget); err != nil {
+			return err
+		}
+	}
+	_, err := usPolicyTimeMS(ctx, turn, a)
+	return err
 }
