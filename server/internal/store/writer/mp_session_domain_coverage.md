@@ -1,6 +1,6 @@
 # MP queryable session, physical custody and canonical HLS draft
 
-Current clarified ruling: **UO-001 owns user-initiated birth/lifetime/public idempotency. Seven actual media worker streams keep their independent MP native incarnation/last/ACK/header/result quota, including cleanup after issuer revocation.** W owns the sole adopting codec with payload <=65,536 bytes per closed purpose. No five retained MP public-birth tables or borrowed UO sequence. Parent owns exact F and UO integration. UO draft SHA256 `a049c20e0c1763a3508d384688953a64e26197f7e3d21f143cddc30d21e4fa41` was read and verified. This change prioritizes canonical HLS mapping; worker payload storage awaits the parent's ready F table definitions. No second codec is adopted.
+Current clarified ruling: **UO-001 owns user-initiated birth/lifetime/public idempotency. Seven actual media worker streams keep their independent MP native incarnation/last/ACK/header/result quota, including cleanup after issuer revocation.** W owns the sole adopting codec with payload <=65,536 bytes per closed purpose. No five retained MP public-birth tables or borrowed UO sequence. Parent owns exact F and UO integration. UO draft SHA256 `a049c20e0c1763a3508d384688953a64e26197f7e3d21f143cddc30d21e4fa41` was read and verified. Canonical HLS mapping was committed first at `73f7585066b0a145a6b966d6b3a2af0c238fe1ca`. The subsequent adapter maps the parent's now-concrete session/physical worker receipt tables. No second codec is adopted.
 
 Source base: local `1be57f969abd46535ba6679832676670aea5f6f7`; parent integrated that draft at `cdb385657a01d0b3415fffec81b379b020dfab11`. Changes stay in owned `mp_session_domain*`, `mp_source_pins*`, `mp_hls_domain*`. No canonical DDL, registry, legacy, product wiring, live provider, push, PR or subagent work. No family/native acceptance claim.
 
@@ -45,7 +45,7 @@ Parent F includes actual TEXT/BLOB bytes for every added queryable field in its 
 
 ## Origin/incarnation integration with UO and native MP workers
 
-`mp_command_incarnation` remains the independent actual media worker stream incarnation. User-origin bindings (`mp_birth_id`, `mp_start_birth_id` spellings from the prior draft) require mapping to UO's actual user lifetime/idempotency graph; they do not authorize retained MP public-birth tables. Parent owns that mapping. This patch does not add worker header SQL while F is being rewritten, and does not change other MP families. Native worker counters, ACK/floors and quota remain separate from UO sequences and must remain usable for cleanup after issuer revocation.
+`mp_command_incarnation` remains the independent actual media worker stream incarnation. User-origin bindings (`mp_birth_id`, `mp_start_birth_id` spellings from the prior draft) require mapping to UO's actual user lifetime/idempotency graph; they do not authorize retained MP public-birth tables. Parent owns that mapping. The follow-up adds only session/physical worker header payload INSERT/lookup and native counter/debt CAS against F; it does not change other MP families. Native worker counters, ACK/floors and quota remain separate from UO sequences and must remain usable for cleanup after issuer revocation.
 
 703 creation consumes exact accepted preparation IDs and original media generation. Independent710 installation and closed760/762 composition use the actual parent lifetime mapping; no nested operation borrows710.760/762 can stage physical retirement while keeping the predecessor's logical state for the parent's selected-next CAS. After native exit/cleanup they end old logical authority and install the new one.762 adopts the exact already-buffered private physical root and transfers its private binding; it never clones that resource. Original resource/execution/generation/retirement/exit data remain available as bounded result data.
 
@@ -78,7 +78,7 @@ After parent review/integration and authorized publication:
 gh workflow run lane-focused.yml --repo PorticoMediaServer/portico --ref main \
   -f source_ref="$(git rev-parse HEAD)" -f module=server -f runner=ubuntu-24.04 \
   -f packages='./internal/store/writer' \
-  -f run='^TestMP(SessionDomainDraft|HLSDomainDraft|HLSDomainNative|SourcePinsDraft)' \
+  -f run='^TestMP(SessionDomain(Draft|Native)|HLSDomain(Draft|Native)|SourcePinsDraft)' \
   -f race=true -f shards=auto
 ```
 
@@ -90,4 +90,14 @@ The unfinished standalone session receipt graph file was stopped at the lead rul
 
 ## Current mapping handoff
 
-Canonical window text preflight `mp.hls.window_octets` measures actual execution/source-request/plan/exit text octets under the exact selected row fences before payload copying. The parent must admit those measured bytes; the helper does not mint memory credit. All own standalone/composed media effects remain drafted. Exact worker payload INSERT/lookup/counter/debt mapping is remaining code-adapter work and will use only ready F concrete worker parents and W-produced bounded payloads. No native SQL test has run locally.
+Canonical window text preflight `mp.hls.window_octets` measures actual execution/source-request/plan/exit text octets under the exact selected row fences before payload copying. The parent must admit those measured bytes; the helper does not mint memory credit. All own standalone/composed media effects remain drafted. Exact standalone worker payload INSERT/lookup/counter/debt mapping now exists in `mp_session_receipts.go` and `mp_physical_receipts.go`; W codec/authority/admission/ACK/reclaim integration remains outstanding. No native SQL test has run locally.
+
+## Follow-up worker storage mapping
+
+F source snapshot SHA256 `c295971123cce995fdc641d5057ff2744548279f8be4bd8b2d56fda8e5d67a03` (parent-owned file, read only). Concrete parents are `mp_session_command_receipts` (711–719; actual root `playback_v1_sessions`) and `mp_physical_command_receipts` (720–739; actual root `playback_sessions`). Both map exactly: `owner_id`, `command_incarnation`, `command_sequence`, `operation_id`, `command_kind`, `request_digest`, `result_version=1`, `result_count`, `result_digest`, `result_payload` (1..65536), `applied_ms`, generated `variable_bytes`. No new field request for this adapter.
+
+The shared DATA envelope is `mpWMediaPayload`, never a serializer. W must supply the original closed-purpose version/count/digest/bytes after its codec preflight. Actual native variable-byte debt is owner text octets +16 incarnation +16 operation +32 request +32 digest + actual payload octets. The native generated RETURNING value must equal that total. Caller supplies captured actual worker incarnation/revision/last/ACK/rows/debt and real admitted max rows/bytes/due. CAS advances `mp_command_last_sequence`, `mp_receipt_rows`, `mp_receipt_variable_bytes`, `mp_owner_revision`, and initializes `mp_receipt_reclaim_due_ms`; it repeats all captured counters and allows live/draining cleanup. ACK, retired/exited floors and current live stop debt remain untouched. A failed CAS must roll back the INSERT through W's single transaction finish.
+
+Point-only `mpSessionWorkerPayloadBytes`/`mpPhysicalWorkerPayloadBytes` measures native debt before admission. Lookup repeats that bounded point and requires admitted variable bytes before copying the original saved payload. It repeats actual incarnation/sequence and checks operation/request/purpose/version/count/digest shape. W must still verify the purpose-bound canonical digest and decode into the closed typed result; this adapter never reconstructs replay from current media state. Nested703/760/762 and user birth710 are explicitly rejected by standalone session worker storage and stay in the actual parent's result.
+
+Tiny admission/catalog/arity checks passed; runner-only `TestMPSessionDomainNativeWorkerOriginalPayload` is compiled, unrun locally. It exercises both actual-root projections with original-byte replay after mutable root drift, exact native debt, unchanged ACK and refused copy without admission. Its synthetic payload/DDL does not qualify F, W codec, authority, actual memory admission, rollback/unknown COMMIT, ACK/floor/reclaim or IO. Adapter definitions still need parent registration and descriptor steps; W closed-purpose encode/decode/admission bridges and actual root initialization remain integration debt. No family completion is claimed.
