@@ -86,6 +86,12 @@ func (s *FullSearchReadStamp) MetadataBytes() int64 {
 	for _, v := range []string{f.state, f.engineVersion, f.engineSource, f.profile.RecipeVersion, f.profile.EngineVersion, f.profile.UnicodeFingerprint, p.database, p.token, p.account, p.profile, p.membership, p.lifetime, p.library, p.role, p.memberLibraries, p.profileLibraries, p.profileLabels, p.expiresAt, p.horizon, p.root, p.bridgeRoot, p.policyWitness} {
 		n += int64(len(v))
 	}
+	n += int64(cap(s.libraries)) * int64(unsafe.Sizeof(browseFence{}))
+	for _, p := range s.libraries {
+		for _, v := range []string{p.database, p.token, p.account, p.profile, p.membership, p.lifetime, p.library, p.role, p.memberLibraries, p.profileLibraries, p.profileLabels, p.expiresAt, p.horizon, p.root, p.bridgeRoot, p.policyWitness} {
+			n += int64(len(v))
+		}
+	}
 	n += int64(cap(s.hits)) * int64(unsafe.Sizeof(nativeStampedHit{}))
 	n += int64(cap(s.policies)+cap(s.checked)) * int64(unsafe.Sizeof(nativePolicyWitness{}))
 	seen := make(map[string]bool)
@@ -139,6 +145,20 @@ func (s *FullSearchReadStamp) RetainHits(hits []FullSearchHit) (*FullSearchReadS
 		}
 	}
 	out.checked = nativeCloneExact(out.policies)
+	out.libraries = nil
+	for _, proof := range out.policies {
+		f, ok := nativeStampLibrary(s, proof.library)
+		if !ok {
+			return nil, ErrStale
+		}
+		if _, found := nativeLibraryFence(out.libraries, proof.library); !found {
+			out.libraries = append(out.libraries, f)
+		}
+	}
+	if len(out.libraries) > 0 {
+		out.fence.permission = out.libraries[0]
+	}
+	out.libraries = nativeCloneExact(out.libraries)
 	if out.MetadataBytes() > MaxNativeStampBytes {
 		return nil, governor.ErrSnapshotBudget
 	}
