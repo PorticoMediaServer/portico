@@ -51,7 +51,7 @@ func TestBasicResourcesPurposeAndOriginalLease(t *testing.T) {
 			*clock = clock.Truncate(time.Millisecond)
 			turn, _ := basicResourceTestTurn(t, w, path, id, commandMemoryBudget{})
 			deadline, ok := turn.transaction.ctx.Deadline()
-			if !ok || deadline != clock.Add(testRecipe().limit.Hold) {
+			if !ok || deadline != turn.transaction.custody.(*governedTurn).expected.Deadline {
 				t.Fatal("missing original protected deadline", deadline)
 			}
 			expires := deadline.UnixMilli()

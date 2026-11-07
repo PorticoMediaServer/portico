@@ -434,33 +434,56 @@ func TestTransactionAmbiguousCommitClosesBeforeRetirementAndBlocksNextTurn(t *te
 	}
 }
 
-func TestTransactionCommittedOverrunNeverBecomesRetryableRollback(t *testing.T) {
-	w, path, clock := testExecutor(t)
-	if err := w.db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	base, err := sqliteconn.Connector(path, w.config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fault := &faultConnector{Connector: base, afterNativeCommit: func() { *clock = clock.Add(30 * time.Millisecond) }}
-	installFaultPool(w, fault)
-	c := &testCustody{}
-	tx, err := w.begin(t.Context(), ProgressAccept, testRecipe(), c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.rollback(nil)
-	mutateFixture(t, tx)
-	result, err := tx.commit()
-	if result.state != committed || !errors.Is(err, ErrOverrun) || result.commit != 30*time.Millisecond || c.fences != 1 || c.returns != 1 {
-		t.Fatal(result, err, c)
-	}
-	if got := readRevision(t, path); got != 2 {
-		t.Fatal("committed effect lost", got)
-	}
-	if _, err := w.begin(t.Context(), ProgressAccept, testRecipe(), &testCustody{}); !errors.Is(err, ErrClosed) {
-		t.Fatal(err)
+func TestTransactionCommittedHoldTargetAndSafetyCeiling(t *testing.T) {
+	for _, elapsed := range []time.Duration{30 * time.Millisecond, MaxCommandSafetyHold + time.Millisecond} {
+		t.Run(elapsed.String(), func(t *testing.T) {
+			w, path, clock := testExecutor(t)
+			if err := w.db.Close(); err != nil {
+				t.Fatal(err)
+			}
+			base, err := sqliteconn.Connector(path, w.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			installFaultPool(w, &faultConnector{Connector: base, afterNativeCommit: func() { *clock = clock.Add(elapsed) }})
+			c := &testCustody{}
+			tx, err := w.begin(t.Context(), ProgressAccept, testRecipe(), c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.rollback(nil)
+			mutateFixture(t, tx)
+			result, err := tx.commit()
+			if result.state != committed || result.commit != elapsed || c.returns != 1 || w.holdTargetOverruns.Load() != 1 {
+				t.Fatal(result, err, c)
+			}
+			evidence := frameEvidence(tx, &governedTurn{})
+			if !evidence.HoldTargetExceeded || evidence.HoldTarget != testRecipe().limit.Hold || evidence.HoldSafetyCeiling != MaxCommandSafetyHold {
+				t.Fatal(evidence)
+			}
+			if got := readRevision(t, path); got != 2 {
+				t.Fatal("committed effect lost", got)
+			}
+			if elapsed > MaxCommandSafetyHold {
+				if !errors.Is(err, ErrOverrun) || c.fences != 1 || !w.fenced {
+					t.Fatal(result, err, c)
+				}
+				if _, err := w.begin(t.Context(), ProgressAccept, testRecipe(), &testCustody{}); !errors.Is(err, ErrClosed) {
+					t.Fatal(err)
+				}
+			} else {
+				if err != nil || c.fences != 0 || w.fenced {
+					t.Fatal(result, err, c)
+				}
+				next, err := w.begin(t.Context(), ProgressAccept, testRecipe(), &testCustody{})
+				if err != nil {
+					t.Fatal("target miss disabled later work", err)
+				}
+				if _, err := next.rollback(nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }
 
@@ -490,7 +513,7 @@ func TestTransactionAdmissionAndCompleteOverrunFailClosed(t *testing.T) {
 	}
 	defer tx.rollback(nil)
 	mutateFixture(t, tx)
-	*clock = clock.Add(21 * time.Millisecond)
+	*clock = clock.Add(MaxCommandSafetyHold + time.Millisecond)
 	result, err := tx.commit()
 	if result.state != rolledBack || !errors.Is(err, ErrQuantum) || !errors.Is(err, ErrOverrun) {
 		t.Fatal(result, err)
@@ -948,6 +971,47 @@ func TestTransactionDeferredRollbackPreservesCallerPanic(t *testing.T) {
 			}
 			if !w.fenced || !fault.nativeClosed.Load() || fault.nativeCloses.Load() != 1 || c.returns != 1 || w.db.Stats().InUse != 0 || readRevision(t, path) != 1 {
 				t.Error("deferred cleanup did not preserve release/rollback/fence", w.db.Stats(), c)
+			}
+		})
+	}
+}
+
+func TestTransactionSafetyDeadlinePreservesOriginalCaps(t *testing.T) {
+	for _, mode := range []string{"safety", "caller", "grant"} {
+		t.Run(mode, func(t *testing.T) {
+			w, path, clock := testExecutor(t)
+			ctx := t.Context()
+			expected := clock.Add(MaxCommandSafetyHold)
+			var c turnCustody = &testCustody{}
+			switch mode {
+			case "caller":
+				expected = clock.Add(100 * time.Millisecond)
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, expected)
+				defer cancel()
+			case "grant":
+				g, a, wal, request := governedFixture(t, w.now)
+				if err := refreshWriterWAL(path, wal, w.now); err != nil {
+					t.Fatal(err)
+				}
+				d := g.Try(request)
+				if d.Grant == nil {
+					t.Fatal(d.Refusal)
+				}
+				governed, err := bindGovernedTurn(InventoryAccept, testRecipe().limit, g, a, wal, d.Grant, request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				c = governed
+				expected = request.Deadline
+			}
+			tx, err := w.begin(ctx, InventoryAccept, testRecipe(), c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.rollback(nil)
+			if got, ok := tx.ctx.Deadline(); !ok || !got.Equal(expected) {
+				t.Fatal("original deadline changed", got, expected)
 			}
 		})
 	}

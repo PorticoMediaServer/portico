@@ -26,7 +26,7 @@ whole-command recipe have not landed. No partial catalogue acceptance is enabled
 ACK is a same-turn scalar owner CAS with the original identity/digest checked
 first. It advances only the actual floor, refunds no bytes and deletes no
 receipt/result rows. Ambiguous COMMIT quarantines/fences the shared runtime;
-committed overrun retains the actual floor privately but returns zero data with
+committed safety-ceiling overrun retains the actual floor privately but returns zero data with
 its error. A single shared deferred finish checks caller and protected lifetimes
 after terminal work and WAL sampling on every release path. The exact protected
 deadline remains live independently of the SQL context's internal cleanup cancel.

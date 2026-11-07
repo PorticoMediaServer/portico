@@ -506,7 +506,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			scan.issuer.deadline = stop
 		}
 	}
-	deadline := now.Add(plan.recipe.limit.Hold)
+	deadline := now.Add(MaxCommandSafetyHold)
 	if scan != nil && scan.issuer != nil && !scan.issuer.deadline.IsZero() && scan.issuer.deadline.Before(deadline) {
 		deadline = scan.issuer.deadline
 	}
