@@ -26,7 +26,7 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 // qualification claim. Reserve every possible registered use, setup and
 // terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept {
+	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
 	if purpose != InventoryAccept && plan.inventoryMemory != (inventoryMemoryBudget{}) {
@@ -57,6 +57,12 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.wcProgressMemory, plan.need[governor.MemoryBytes], "wc_progress_memory"); err != nil {
+		return effectivePlan{}, err
+	}
+	if purpose != SecurityAccept && plan.wcSecurityMemory != (commandMemoryBudget{}) {
+		return effectivePlan{}, invalid("memory_purpose")
+	}
+	if err := validateMemoryPartition(plan.wcSecurityMemory, plan.need[governor.MemoryBytes], "wc_security_memory"); err != nil {
 		return effectivePlan{}, err
 	}
 	// Each profile must itself carry a real matching registration. Another
