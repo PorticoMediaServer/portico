@@ -38,10 +38,16 @@ func TestBasicMediaNativeInputDriftFences(t *testing.T) {
 				if got, err := stageBasicStreamFact(t.Context(), turn, source); err != nil || got != (basicFamilyProgress{51, 7, 1, 0}) {
 					t.Fatal("stage parent fact", got, err)
 				}
+				// Separate each existing bounded owner turn; the regression
+				// must not fail because prerequisites consumed its quantum.
+				basicMediaCommit(t, turn)
+				turn = basicComponentTurn(t, w, basicMediaTestDefs())
 				if operation == "seal" {
 					if got, err := stageBasicMediaRows(t.Context(), turn, family, 0, 2); err != nil || got != (basicFamilyProgress{51, 7, 2, 0}) {
 						t.Fatal("populate through stage owner", got, err)
 					}
+					basicMediaCommit(t, turn)
+					turn = basicComponentTurn(t, w, basicMediaTestDefs())
 				}
 				if _, err := turn.transaction.conn.ExecContext(t.Context(), drift.sql); err != nil {
 					t.Fatal(err)
