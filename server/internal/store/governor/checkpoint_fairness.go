@@ -2,6 +2,7 @@ package governor
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 )
 
@@ -9,6 +10,7 @@ import (
 // to enter SQLite. New writers cannot jump it after the current physical writer
 // returns. Cancellation/expiry drops only unused metadata, never an active CP.
 type checkpointTicket struct {
+	cancelled atomic.Bool // unused metadata only; never releases an active CP
 	gate      *WALGate
 	owner     *ledger
 	expires   time.Time
@@ -56,24 +58,26 @@ func (a *Authority) queueCheckpointContext(ctx context.Context, until time.Time,
 	return ticket, nil
 }
 func (w *WALGate) signalCheckpointTicket() {
-	if t := w.pendingCheckpoint; t != nil && (!w.writer || w.policy.ConcurrentPassive) && !w.checkpoint && !t.signalled {
+	if t := w.pendingCheckpoint; t != nil && !t.cancelled.Load() && (!w.writer || w.policy.ConcurrentPassive) && !w.checkpoint && !t.signalled {
 		t.signalled = true
 		close(t.ready)
 	}
 }
 func (w *WALGate) expireCheckpointTicket(now time.Time) {
-	if t := w.pendingCheckpoint; t != nil && !now.Before(t.expires) {
+	if t := w.pendingCheckpoint; t != nil && (t.cancelled.Load() || !now.Before(t.expires)) {
 		w.pendingCheckpoint = nil
 	}
 }
+
+// Cancellation is an issuer-checked, lock-free metadata tombstone. The next
+// gate owner prunes the one pending pointer; no caller waits for the gate merely
+// to abandon an unused offer. Active CP custody lives elsewhere and is untouched.
 func (a *Authority) cancelCheckpointTicket(t *checkpointTicket) {
-	w := a.ledger.config.WAL
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.pendingCheckpoint == t && t != nil && t.owner == a.ledger {
-		w.pendingCheckpoint = nil
+	if a != nil && a.ledger != nil && t != nil && t.owner == a.ledger && t.gate == a.ledger.config.WAL {
+		t.cancelled.Store(true)
 	}
 }
+
 func (a *Authority) tryCheckpointTurn(r Request, t *checkpointTicket) Decision {
 	return a.ledger.try(r, true, t)
 }
