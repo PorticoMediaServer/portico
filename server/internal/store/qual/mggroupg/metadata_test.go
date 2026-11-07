@@ -80,7 +80,7 @@ func TestINTGroupGSelectedMetadata011(t *testing.T) {
 			rows.Close()
 			index["keys"] = keys
 			var indexSQL sql.NullString
-			if err := f.c.QueryRowContext(t.Context(), "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?", index["name"]).Scan(&indexSQL); err != nil {
+			if err := f.c.QueryRowContext(t.Context(), "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?", index["name"]).Scan(&indexSQL); err != nil && !(err == sql.ErrNoRows && index["origin"] == "pk") {
 				t.Fatal(err)
 			}
 			if indexSQL.Valid {
