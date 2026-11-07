@@ -200,6 +200,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	var copies int64
 	var retained, checked []nativePolicyWitness
 	var retainedHits []nativeStampedHit
+	var libraryFences []browseFence
 	rawPositions := 0
 	calls := 0
 	lookup, lookupErr := r.snapshots.ReadForecasted(ctx, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: r.snapshots.NativeRowReservation(), MaxQueries: 4096}, func(scope *governor.ReadScope) error {
@@ -265,12 +266,16 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		if err != nil {
 			return err
 		}
+		libraryFences, err = nativeRecheckLibraries(q, in.View, initial, in.Retained)
+		if err != nil {
+			return err
+		}
 		for _, proof := range retained {
 			copies += 256 + int64(len(proof.witness))
 			if copies > 2<<20 {
 				return governor.ErrSnapshotBudget
 			}
-			if err = validateNativePolicy(q, in.View, initial.permission, proof); err != nil {
+			if err = nativeValidateRetainedPolicy(q, in.View, libraryFences, proof); err != nil {
 				return err
 			}
 		}
@@ -368,6 +373,22 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		if current != initial {
 			return ErrStale
 		}
+		for _, expected := range libraryFences {
+			if expected.libraryID == finalIn.Library {
+				continue
+			}
+			view := finalIn
+			view.Library = expected.libraryID
+			fresh, _, e := nativeReadFence(q, view)
+			if e != nil {
+				return e
+			}
+			want := initial
+			want.permission = expected
+			if fresh != want {
+				return ErrStale
+			}
+		}
 		checked = make([]nativePolicyWitness, 0, len(retained)+len(draft.Hits))
 		checked = append(checked, retained...)
 		for _, hit := range draft.Hits {
@@ -382,7 +403,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			return ErrInput
 		}
 		for _, proof := range checked {
-			if e := validateNativePolicy(q, finalIn, current.permission, proof); e != nil {
+			if e := nativeValidateRetainedPolicy(q, finalIn, libraryFences, proof); e != nil {
 				return e
 			}
 		}
@@ -429,7 +450,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			issued = append(issued, entry)
 		}
 	}
-	draft.Stamp = &FullSearchReadStamp{hits: issued, policies: policies, checked: checked, pool: r.pool, output: output.Grant, fence: initial, query: query.Fold(), started: started, clock: in.View.Now, deadline: deadline}
+	draft.Stamp = &FullSearchReadStamp{hits: issued, policies: policies, checked: checked, pool: r.pool, output: output.Grant, fence: initial, libraries: nativeCloneExact(libraryFences), query: query.Fold(), started: started, clock: in.View.Now, deadline: deadline}
 	draft.Stamp.ownWitnesses()
 	metadataBytes := draft.Stamp.MetadataBytes()
 	copies += metadataBytes

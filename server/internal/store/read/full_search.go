@@ -129,6 +129,7 @@ func ownFullSearchPage(p FullSearchPage, limit int) (FullSearchPage, error) {
 	p.Next = cloneFullCursor(p.Next)
 	if p.Stamp != nil {
 		stamp := *p.Stamp
+		stamp.libraries = nativeCloneExact(p.Stamp.libraries)
 		stamp.hits = nativeCloneExact(stamp.hits)
 		stamp.policies = nativeCloneExact(stamp.policies)
 		stamp.checked = nativeCloneExact(stamp.checked)
