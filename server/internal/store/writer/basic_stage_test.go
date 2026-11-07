@@ -44,6 +44,11 @@ VALUES(51,0,0,'basic-run','basic-source',23,'basic-incarnation','basic-object','
 
 func basicStreamComponentTurn(t *testing.T, w *executor) *commandTurn {
 	t.Helper()
+	return basicComponentTurn(t, w, basicStreamStageDefinitions())
+}
+
+func basicComponentTurn(t *testing.T, w *executor, defs []stmt.Definition) *commandTurn {
+	t.Helper()
 	// This is the EXISTING BasicAccept synthetic component frame, not a new
 	// BasicStage/Seal command, grant, issuer, recipe or durable receipt. The
 	// private effect bodies are not wired; W's draft dedicated purposes and
@@ -55,7 +60,6 @@ func basicStreamComponentTurn(t *testing.T, w *executor) *commandTurn {
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
 	policy := w.config
 	policy.Synchronous = sqliteconn.Normal
-	defs := basicStreamStageDefinitions()
 	registry := nativeFixtureRegistry(t, tx.conn, policy, defs, "basic_stage_test.go")
 	var steps []statementStep
 	for _, d := range defs {
