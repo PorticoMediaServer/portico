@@ -62,9 +62,11 @@ func (v mgRuleFacts) valid(o mgRecordingOwner) bool {
 	return o.valid() && mgRecordingHex(v.id, 64) && v.owner == o.key() && v.account == o.account && v.profile == o.profile && mgRecordingHex(v.source, 48) && mgRecordingText(v.series, false, 512) && mgRecordingText(v.title, false, 512) && v.title == strings.ToLower(strings.TrimSpace(v.title)) && (v.channel == "" || mgRecordingHex(v.channel, 64)) && (v.series != "" || v.title != "") && mgRecordingText(v.config, true, 65536) && v.revision > 0 && v.updated >= 0 && (v.enabled == 0 || v.enabled == 1) && (v.deleted == 0 || v.deleted == 1) && !(v.deleted == 1 && v.enabled != 0)
 }
 func saveMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest) (out mgRuleFacts, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	return mutateMGRule(ctx, t, r, false)
 }
 func deleteMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest) (out mgRuleFacts, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	return mutateMGRule(ctx, t, r, true)
 }
 func mutateMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest, deleting bool) (out mgRuleFacts, err error) {
