@@ -150,10 +150,9 @@ func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput) (
 		}
 		view := s.input(in.View)
 		view.Library, view.Kind = lib.NativeID, 1
-		view.policy = readPolicyBinding{}
 		// Actual merged principal and native library fence; kind1 selects the common
 		// leaf envelope only. No container is admitted without eligible native members.
-		l.Fence, err = readBrowseFence(q, view)
+		l.Fence, err = readHomeFixedLibraryFence(q, view, lib.NativeID)
 		if err != nil {
 			return
 		}
