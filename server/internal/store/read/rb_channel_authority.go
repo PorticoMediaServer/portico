@@ -18,9 +18,10 @@ import (
 // SharedChannelReader is a closed LC authority, not a general service reader.
 // It cannot execute caller SQL, accept a caller config, or synthesize a viewer.
 type SharedChannelReader struct {
-	pool     *governor.Snapshots
-	a        *governor.Authority
-	database string
+	pool      *governor.Snapshots
+	snapshots browseSnapshots
+	a         *governor.Authority
+	database  string
 }
 type rbChannelStamp struct {
 	revision, createdMS                         int64
@@ -37,7 +38,7 @@ func NewSharedChannelReader(pool *governor.Snapshots, a *governor.Authority, dat
 	if pool == nil || a == nil || !pool.OwnedBy(a) || !rbChannelName(database, 256) {
 		return nil, ErrInput
 	}
-	return &SharedChannelReader{pool: pool, a: a, database: strings.Clone(database)}, nil
+	return &SharedChannelReader{pool: pool, snapshots: pool, a: a, database: strings.Clone(database)}, nil
 }
 func rbChannelName(s string, max int) bool {
 	return s != "" && len(s) <= max && utf8.ValidString(s) && !strings.ContainsAny(s, "\x00\r\n")
@@ -94,7 +95,7 @@ func (r *SharedChannelReader) openSharedChannelScope(ctx context.Context, reques
 	var library rbChannelLibrary
 	var firstInfo SharedChannelScopeInfo
 	read := func(publication bool) (governor.SnapshotResult, error) {
-		return r.pool.Read(operation, request, time.Until(deadline), func(s *governor.ReadScope) error {
+		return r.snapshots.Read(operation, request, time.Until(deadline), func(s *governor.ReadScope) error {
 			q := func(name string, args ...any) ([][]any, error) {
 				if publication {
 					result.PublicationStatements++
@@ -106,7 +107,7 @@ func (r *SharedChannelReader) openSharedChannelScope(ctx context.Context, reques
 				}
 				return s.Query(readStatementID(name), args...)
 			}
-			current, meta, e := r.channelSource(q, in, out.Request.Need[governor.MemoryBytes]/2)
+			current, meta, e := r.channelSource(q, in, out.Request.Need[governor.MemoryBytes]/2, nil)
 			if e != nil {
 				return e
 			}
@@ -172,7 +173,7 @@ func (r *SharedChannelReader) RevalidateSharedChannelScope(ctx context.Context, 
 	return result, nil
 }
 
-func (r *SharedChannelReader) channelSource(q browseQuery, in SharedChannelScopeInput, copyBytes int64) (rbChannelStamp, SharedChannelScopeInfo, error) {
+func (r *SharedChannelReader) channelSource(q browseQuery, in SharedChannelScopeInput, copyBytes int64, queryOut *librarychannels.Query) (rbChannelStamp, SharedChannelScopeInfo, error) {
 	var stamp rbChannelStamp
 	var info SharedChannelScopeInfo
 	lengths, err := q("rb.channel.octets", in.Channel, in.Generation)
@@ -239,6 +240,9 @@ func (r *SharedChannelReader) channelSource(q browseQuery, in SharedChannelScope
 	info = SharedChannelScopeInfo{Database: r.database, Channel: strings.Clone(in.Channel), Generation: strings.Clone(in.Generation), Rule: strings.Clone(in.Rule), Library: strings.Clone(in.Library), ChannelRevision: in.ExpectedRevision, CreatedMS: stamp.createdMS, ConfigHash: stamp.canonical, QueryHash: stamp.query, RequiredLibraryCount: len(libraries)}
 	for i, s := range libraries {
 		info.RequiredLibraries[i] = strings.Clone(s)
+	}
+	if queryOut != nil {
+		*queryOut = rule.Query
 	}
 	return stamp, info, nil
 }

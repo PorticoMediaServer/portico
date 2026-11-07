@@ -14,6 +14,9 @@ type SharedChannelReadPort interface {
 	OpenSharedChannelScope(context.Context, governor.Request, time.Duration, BrowseOutput, SharedChannelScopeInput) (*SharedChannelScope, SharedChannelScopeInfo, BrowseReadResult, error)
 	RevalidateSharedChannelScope(context.Context, governor.Request, time.Duration, BrowseOutput, *SharedChannelScope) (BrowseReadResult, error)
 	SharedChannelWindow(context.Context, governor.Request, time.Duration, BrowseOutput, SharedChannelInput) (SharedChannelBatch, BrowseReadResult, error)
+	RevalidateSharedChannelBatch(context.Context, governor.Request, time.Duration, BrowseOutput, *SharedChannelScope, SharedChannelBatch) (SharedChannelValidatedBatch, BrowseReadResult, error)
+	MeasureSharedChannelValues(context.Context, BrowseOutput, SharedChannelRetainedValues) (SharedChannelCopySize, error)
+	CloneSharedChannelValues(context.Context, BrowseOutput, BrowseOutput, SharedChannelRetainedValues) (SharedChannelRetainedValues, error)
 }
 
 // SharedChannelScopeInput names actual stored facts, not a caller's filter or
@@ -49,7 +52,8 @@ type SharedChannelFence struct {
 	Database, Channel, Generation, Rule, Library                     string
 	ChannelRevision, CatalogueLibrary                                int64
 	DataRevision, OrderRevision, MetadataRevision, AdmissionRevision int64
-	ConfigHash, Query                                                [32]byte
+	ConfigHash, Query, ScopeHash                                     [32]byte
+	Kind                                                             int64
 	source                                                           rbChannelStamp
 	library                                                          rbChannelLibrary
 }
@@ -67,6 +71,10 @@ type SharedChannelPlayable struct {
 	AssetRevision, LinkRevision, PreparedSourceRevision int64
 	Token, Path, Container                              string
 	Size, ModifiedNS                                    int64
+	BindingHash                                         [32]byte
+	Object, ObjectRevision, Source, SourceIncarnation   string
+	SourceGeneration                                    int64
+	SourceRoot, SourceConfiguredRoot                    string
 	// Whole-file identity only: linked start=0/end=NULL. Multipart/sliced or
 	// ambiguous binding is refused or explicitly skipped as consumed raw work;
 	// it can never be presented as a whole playable item.
@@ -74,6 +82,7 @@ type SharedChannelPlayable struct {
 	Show, Season                       int64
 	SeasonNumber, EpisodeNumber        *int64
 	Numbering, AiredAt                 string
+	ReleaseDate, ReleaseOrderKey       string
 	TitleOrder, TitleOrderKeepArticles string
 	AddedAt                            string
 	Year                               int64
@@ -87,4 +96,11 @@ type SharedChannelBatch struct {
 	// Empty non-EOF means consumed rejected work, never an empty channel pool.
 	RawEOF                  bool
 	RawFetched, RawConsumed int
+}
+
+// Validation re-proves copied values and source fences. It deliberately makes
+// no new EOF/continuation claim for caller-supplied frozen traversal evidence.
+type SharedChannelValidatedBatch struct {
+	Fence SharedChannelFence
+	Items []SharedChannelPlayable
 }
