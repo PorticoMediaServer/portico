@@ -21,6 +21,7 @@ class LaneTests(unittest.TestCase):
         self.assertEqual(cfg['run'], 'TestX/$(id)|`id`') # safe argv, never shell/eval
         self.assertEqual(self.config(source_ref='a' * 40)['fetch_ref'], 'a' * 40)
         self.assertEqual(self.config(mode='capture', targets='hn-browse')['targets'], ['hn-browse'])
+        self.assertEqual(self.config(mode='capture', targets='hn-n1-preflights')['targets'], ['hn-n1-preflights'])
 
     def test_auto_splits_a_single_large_package_and_exact_lists(self):
         units = [dict(Package='same/package', Name=f'Test{i}') for i in range(76)]

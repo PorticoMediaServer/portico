@@ -25,6 +25,7 @@ The original `-run` filter reaches Go unchanged; `-skip` excludes parents assign
 | hn-canonical | canonical.json, canonical-fk.json.gz |
 | hn-issuer | issuer-source-octets.json |
 | hn-issuer-library | issuer-library-root-octets.json |
+| hn-n1-preflights | n1-byte-preflights.json |
 | hn-autoindexes | autoindexes.json |
 | hn-scan | scan-inventory-accept.json, scan-inventory-accept-fk.json.gz |
 | hn-scan-fresh | scan-inventory-fresh.json, scan-inventory-fresh-fk.json.gz |
