@@ -144,6 +144,14 @@ func readUORootPayload(ctx context.Context, turn *commandTurn, lookup uoRootLook
 // Applied result, an authority issuer, a quota reservation or an ACK refund.
 func persistUORootOperation(ctx context.Context, turn *commandTurn, lookup uoRootLookup, result uoOperationResult) (out ResultDigest, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	q := lookup.reference
+	return persistUORootCanonical(ctx, turn, lookup, uoRootOperationResult{root: q.root, kind: q.kind, result: result})
+}
+
+// A finite typed result union, always encoded by W's sole canonical dispatcher.
+// Unknown purposes/types cannot smuggle arbitrary BLOBs into root custody.
+func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRootLookup, result any) (out ResultDigest, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	q, o := lookup.reference, lookup.owner
 	if lookup.turn != turn || !q.valid() || lookup.decision != receiptFresh || o.revision == math.MaxInt64 || o.rows == math.MaxInt64 {
 		return out, ErrResolveRequired
@@ -151,7 +159,22 @@ func persistUORootOperation(ctx context.Context, turn *commandTurn, lookup uoRoo
 	if decision, e := classifyReceipt(receiptIdentity{command: q.identity, digest: q.request}, q.kind, o.facts, receiptFacts{}); e != nil || decision != receiptFresh {
 		return out, ErrResolveRequired
 	}
-	payload, digest, err := encodeUORootOperation(q.identity, q.request, uoRootOperationResult{root: q.root, kind: q.kind, result: result})
+	var appliedMS int64
+	switch v := result.(type) {
+	case uoRootOperationResult:
+		if v.root != q.root || v.kind != q.kind {
+			return out, ErrInvalid
+		}
+		appliedMS = v.result.appliedMS
+	case uoRootFlagsResult:
+		if v.root != q.root || q.kind != SetPersonalFlags {
+			return out, ErrInvalid
+		}
+		appliedMS = v.appliedMS
+	default:
+		return out, ErrInvalid
+	}
+	payload, digest, err := encodeUORootCanonical(q.identity, q.request, result)
 	if err != nil {
 		return out, err
 	}
@@ -159,7 +182,7 @@ func persistUORootOperation(ctx context.Context, turn *commandTurn, lookup uoRoo
 	if bytes > math.MaxInt64-o.variableBytes {
 		return out, ErrInvalid
 	}
-	actual, err := wc008DraftInteger(ctx, turn, uoRootReceiptInsert, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], digest[:], payload, result.appliedMS)
+	actual, err := wc008DraftInteger(ctx, turn, uoRootReceiptInsert, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], digest[:], payload, appliedMS)
 	if err != nil {
 		return out, err
 	}

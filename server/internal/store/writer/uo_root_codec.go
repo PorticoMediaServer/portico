@@ -87,6 +87,12 @@ func (s *uoRootPayloadSink) Size() int           { return s.digest.Size() }
 func (s *uoRootPayloadSink) BlockSize() int      { return s.digest.BlockSize() }
 
 func encodeUORootOperation(i CommandIdentity, q RequestDigest, v uoRootOperationResult) ([]byte, ResultDigest, error) {
+	return encodeUORootCanonical(i, q, v)
+}
+
+// The caller's exact typed value still passes W's closed result dispatcher.
+// No runtime codec registration or opaque result reflection is introduced.
+func encodeUORootCanonical(i CommandIdentity, q RequestDigest, v any) ([]byte, ResultDigest, error) {
 	if i.Incarnation == [16]byte{} || i.OperationID == [16]byte{} || q == [32]byte{} {
 		return nil, ResultDigest{}, ErrInvalid
 	}
