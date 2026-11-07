@@ -10,6 +10,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -233,5 +234,92 @@ func TestRSArtistAlbumReaderAbsoluteExpiry(t *testing.T) {
 	page, _, e := r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
 	if e == nil || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
 		t.Fatal("expired original lease", page, e)
+	}
+}
+
+// This oracle checks exact IDs across opaque public continuations, independently
+// of the production enumeration statements. Each control changes current facts
+// before Begin; no cached acceptance or own-age surrogate admits an album.
+func TestRSArtistAlbumReaderCurrentPages(t *testing.T) {
+	for _, mode := range []string{"union", "retired-album", "retired-feature", "primary-context"} {
+		t.Run(mode, func(t *testing.T) {
+			f, r := artistAlbumFixture(t)
+			// Keep a small direct-only plus duplicate plus featured-only population.
+			f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE kind=6 AND id NOT IN(1999,2001,9001)`)
+			switch mode {
+			case "retired-album":
+				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=1999`)
+			case "retired-feature":
+				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=9902`)
+			case "primary-context":
+				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=1998`)
+			}
+			rows, e := f.conn.QueryContext(t.Context(), `SELECT a.id FROM catalog_entities a JOIN catalog_entities ar ON ar.id=a.artist_id AND ar.kind=5 AND ar.retired=0 WHERE a.kind=6 AND a.retired=0 AND a.library_id=1 AND (a.artist_id=2006 OR EXISTS(SELECT 1 FROM catalog_entities s JOIN catalog_song_artists sa ON sa.song_id=s.id WHERE s.album_id=a.id AND s.kind=7 AND s.retired=0 AND s.library_id=1 AND sa.artist_id=2006)) ORDER BY a.id`)
+			if e != nil {
+				t.Fatal(e)
+			}
+			var want []int64
+			for rows.Next() {
+				var id int64
+				if e = rows.Scan(&id); e != nil {
+					t.Fatal(e)
+				}
+				want = append(want, id)
+			}
+			e = rows.Err()
+			rows.Close()
+			if e != nil {
+				t.Fatal(e)
+			}
+			var got []int64
+			var after *RSArtistAlbumCursor
+			for pageNo := 0; pageNo < 10; pageNo++ {
+				v := f.input
+				v.Kind = 5
+				p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 1, After: after})
+				if e != nil || ref != nil {
+					t.Fatal(e, ref)
+				}
+				var page RSArtistAlbumPage
+				for poll := 0; poll < 100; poll++ {
+					q, req, out := liveRequests("artist-current-pages")
+					_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, out, func(ctx context.Context, o BrowseOutput) error {
+						var err error
+						page, _, err = r.Page(ctx, req, time.Second, o, p)
+						return err
+					})
+					if e != nil {
+						p.Close()
+						t.Fatal(e)
+					}
+					if page.Complete {
+						break
+					}
+					if !page.Pending || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
+						t.Fatal("pending leaked", page)
+					}
+				}
+				p.Close()
+				if !page.Complete || page.Total != len(want) {
+					t.Fatal("complete total", page, len(want))
+				}
+				for _, c := range page.Cards {
+					got = append(got, c.Facts.Item.ID)
+					if c.PrimaryArtist.ID != c.Facts.Album.Artist {
+						t.Fatal("primary context", c)
+					}
+					if c.Facts.Item.ID == 1999 && c.PrimaryArtist.Title != "é\x00album" {
+						t.Fatal("actual bytes", c.PrimaryArtist)
+					}
+				}
+				after = page.Next
+				if after == nil {
+					break
+				}
+			}
+			if !slices.Equal(got, want) {
+				t.Fatal("exact membership/order", got, want)
+			}
+		})
 	}
 }
