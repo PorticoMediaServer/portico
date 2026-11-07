@@ -131,7 +131,24 @@ func settleBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafSe
 	if le != in.entityID || la != s.assetID || ll != s.libraryID || ls != a.shapeID || ld != in.duration || lp != s.changeID {
 		return value, ErrConflict
 	}
-	row, e = basicStageRead(ctx, turn, basicSettleScalarCAS, next.duration.Float64, next.resolution.Int64, next.scalarRevision, s.libraryID, in.entityID, in.entityID, basicLeafDurationArg(before.duration), basicLeafResolutionArg(before.resolution), before.scalarRevision, before.membershipSequence)
+	scalarID := basicSettleScalarCAS
+	switch {
+	case !before.duration.Valid && !before.resolution.Valid:
+		scalarID = basicSettleScalarBothNull
+	case !before.duration.Valid:
+		scalarID = basicSettleScalarDurationNull
+	case !before.resolution.Valid:
+		scalarID = basicSettleScalarResolutionNull
+	}
+	scalarArgs := []any{next.duration.Float64, next.resolution.Int64, next.scalarRevision, s.libraryID, in.entityID, in.entityID}
+	if before.duration.Valid {
+		scalarArgs = append(scalarArgs, before.duration.Float64)
+	}
+	if before.resolution.Valid {
+		scalarArgs = append(scalarArgs, before.resolution.Int64)
+	}
+	scalarArgs = append(scalarArgs, before.scalarRevision, before.membershipSequence)
+	row, e = basicStageRead(ctx, turn, scalarID, scalarArgs...)
 	if e != nil {
 		return value, e
 	}
@@ -157,17 +174,4 @@ func settleBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafSe
 		return value, ErrConflict
 	}
 	return next, nil
-}
-
-func basicLeafDurationArg(v sql.NullFloat64) any {
-	if v.Valid {
-		return v.Float64
-	}
-	return nil
-}
-func basicLeafResolutionArg(v sql.NullInt64) any {
-	if v.Valid {
-		return v.Int64
-	}
-	return nil
 }

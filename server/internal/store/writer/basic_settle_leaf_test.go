@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
 func TestBasicSettleLeafComponent(t *testing.T) {
@@ -110,5 +111,10 @@ func TestBasicSettleLeafComponent(t *testing.T) {
 func TestBasicSettleLeafDefinitions(t *testing.T) {
 	if _, err := stmt.Describe(basicSettleLeafDefinitions()); err != nil {
 		t.Fatal(err)
+	}
+	for _, d := range basicSettleLeafDefinitions() {
+		if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
+			t.Fatal(d.ID, issues)
+		}
 	}
 }
