@@ -7,6 +7,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 	"testing"
 	"time"
 )
@@ -22,6 +23,11 @@ func artistAlbumFixture(t *testing.T) (*browseFixture, *RSArtistAlbumReader) {
 	// statistics profiles and issues it from the resulting receipt.
 	var _ []stmt.Definition = defs
 	f := composeReadFixture(t, audioRelationsFixture(t), defs, cfg, false, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
+	f.exec(t, "ANALYZE")
+	g := captureBrowse(t, f, defs, plan.Analyzed, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
+	if _, err := stmt.New(defs, g.Receipt()); err != nil {
+		t.Fatal(err)
+	}
 	r, e := NewRSArtistAlbumReader(f.snapshots, f.authority)
 	if e != nil {
 		t.Fatal(e)

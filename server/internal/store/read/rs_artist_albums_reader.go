@@ -154,7 +154,7 @@ func (r *RSArtistAlbumReader) fence(ctx context.Context, q governor.Request, out
 	if e := r.authority.CheckPreparation(p.lease); e != nil {
 		return e
 	}
-	f, c, e := rsPeoplePublish(ctx, r.pool, q, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[browseFence]{func(_ context.Context, _ browseQuery, f browseFence, d *browseFence) error { *d = f; return nil }})
+	f, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.pool, preflightCalls: 12}, q, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[browseFence]{func(_ context.Context, _ browseQuery, f browseFence, d *browseFence) error { *d = f; return nil }})
 	addSearchReadCost(cost, &c)
 	if e != nil {
 		return e
@@ -225,7 +225,11 @@ func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out 
 		return
 	}
 	expires, e := time.Parse(time.RFC3339Nano, p.fence.expiresAt)
-	if e != nil || !at.Before(expires) {
+	if e != nil || !p.input.View.Now.Add(time.Since(p.started)).Before(expires) {
+		return page, cost, ErrDenied
+	}
+	horizon, he := time.Parse(time.RFC3339Nano, p.fence.horizon)
+	if he != nil || !p.input.View.Now.Add(time.Since(p.started)).Before(horizon) {
 		return page, cost, ErrDenied
 	}
 	if err = r.authority.HandoffPreparation(p.lease); err != nil {
@@ -244,7 +248,7 @@ func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out 
 	return
 }
 func (r *RSArtistAlbumReader) enumerate(ctx context.Context, q governor.Request, out BrowseOutput, p *RSArtistAlbumPreparation, at time.Time, cost *BrowseReadResult) error {
-	_, c, e := rsPeoplePublish(ctx, r.pool, q, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[struct{}]{func(_ context.Context, query browseQuery, f browseFence, _ *struct{}) error {
+	_, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.pool, preflightCalls: 12}, q, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[struct{}]{func(context.Context, browseQuery, browseFence, *struct{}) error { return nil }, func(_ context.Context, query browseQuery, f browseFence, _ *struct{}) error {
 		name, after := "rs.audio.primary", p.primary
 		if p.phase == 1 {
 			name, after = "rs.audio.featured", p.featured
