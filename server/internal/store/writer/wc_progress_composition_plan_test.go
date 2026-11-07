@@ -36,7 +36,7 @@ func TestWCProgressCompositionPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	hash := sha256.New()
-	for _, name := range []string{"wc_fixture_clock_test.go", "wc_progress_composition_test.go", "wc_progress_composition_plan_test.go", "wc_progress_protocol.go", "wc_progress_native.go", "wc_progress_execution.go", "wc_progress_protocol_receipt.go", "wc_progress_fixture.go", "wc_progress_report_policy.go"} {
+	for _, name := range []string{"wc_component_fixture_test.go", "wc_fixture_clock_test.go", "wc_progress_composition_test.go", "wc_progress_composition_plan_test.go", "wc_progress_protocol.go", "wc_progress_native.go", "wc_progress_execution.go", "wc_progress_protocol_receipt.go", "wc_progress_fixture.go", "wc_progress_report_policy.go"} {
 		data, e := os.ReadFile(name)
 		if e != nil {
 			t.Fatal(e)
