@@ -34,7 +34,7 @@ func TestIAMediaCanonicalDispatchClosedPurposes(t *testing.T) {
 			t.Fatal("compiled purpose/reference mismatch", k, got, want, err)
 		}
 		e := requestEncoder{h: sha256.New()}
-		if err := encodeCanonicalResult(&e, id, request, iaMediaCompiledResult(k, v)); err != nil || e.written != len(iaMediaReference(name, id, request, v)) {
+		if err := encodeCanonicalResult(&e, id, request, iaMediaCompiledResult(k, v)); err != nil || e.written != uint64(len(iaMediaReference(name, id, request, v))) {
 			t.Fatal("compiled encoder differs", k, e.written, err)
 		}
 		// A malformed complete body must fail before the canonical encoder hashes
