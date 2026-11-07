@@ -13,6 +13,7 @@ import (
 func TestN1OtherExistingRecordCapacityBeforeEffects(t *testing.T) {
 	for _, tc := range []struct{ name, query string }{
 		{"jobs_error", `UPDATE jobs SET error=? WHERE id=?`},
+		{"source_name", `UPDATE library_sources SET name=? WHERE id=(SELECT source_id FROM inventory_runs WHERE job_id=?)`},
 		{"directory_revision", `UPDATE inventory_directories SET revision=? WHERE job_id=? AND relative_path='.'`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -26,7 +27,7 @@ func TestN1OtherExistingRecordCapacityBeforeEffects(t *testing.T) {
 				t.Fatal("control must enlarge exactly one existing row", n, err)
 			}
 			// Snapshot every native table after injecting the preserved bytes. This
-			// catches partial fresh writes as well as mutations to any of the four rows.
+			// catches partial fresh writes as well as mutations to any touched row.
 			snapshot := func() map[string][][]any {
 				t.Helper()
 				names, err := db.QueryContext(t.Context(), `SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)

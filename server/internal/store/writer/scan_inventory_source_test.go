@@ -84,7 +84,7 @@ func TestN1FreshSourceRequiresCurrentNativeRootAndActiveRun(t *testing.T) {
 			retained.inventory = n
 			turn, _ := inventoryMemoryFixtureTurn(t, w, registry, c, inventoryMemoryBudget{4 << 20, 4 << 20})
 			in := &inventoryInvocation{input: c, request: ref, issuer: &scanIssuerInvocation{action: scanIssuerN1Apply, frame: turn.transaction, retained: retained}}
-			err = checkInventoryDriverFreshSource(t.Context(), turn, in)
+			_, err = checkInventoryDriverFreshSource(t.Context(), turn, in)
 			allowed := mode == "current" || foreignRoot != ""
 			if allowed && err != nil {
 				t.Fatal("current same-snapshot source refused", err)

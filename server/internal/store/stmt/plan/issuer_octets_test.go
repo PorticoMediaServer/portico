@@ -20,7 +20,7 @@ import (
 
 var recordIssuerOctets = flag.Bool("record-issuer-octets", false, "deliberately record the closed issuer byte-preflight point")
 
-const sourceOctetsSQL = "SELECT octet_length(id),octet_length(library_id),octet_length(kind),octet_length(root),octet_length(incarnation),octet_length(root_identity),octet_length(health),octet_length(classification) FROM library_sources WHERE id=? AND library_id=?"
+const sourceOctetsSQL = "SELECT octet_length(id),octet_length(library_id),octet_length(kind),octet_length(root),octet_length(incarnation),octet_length(root_identity),octet_length(health),octet_length(classification),octet_length(name),octet_length(configured_root),octet_length(next_scan_at),octet_length(last_complete_job),octet_length(last_complete_at),octet_length(last_integrity_at),octet_length(remote_source_id),octet_length(double_check_job),octet_length(progress_last_progress_at) FROM library_sources WHERE id=? AND library_id=?"
 
 func issuerOctetsDefinition() stmt.Definition {
 	return stmt.Definition{ID: "scan.issuer.source_lengths", Owner: "issuer-byte-preflight", CallSites: []string{"issuer_octets_test.go"}, Kind: stmt.Read, SQL: sourceOctetsSQL, Params: []stmt.Param{{Name: "source", Type: stmt.Text}, {Name: "library", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "hit", Bindings: []any{"source", "lib"}}, {Name: "missing", Bindings: []any{"missing", "lib"}}, {Name: "wrong_library", Bindings: []any{"source", "other"}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_library_sources_1"}, Seeks: []string{"id=?"}}}
@@ -89,12 +89,21 @@ func TestIssuerSourceOctetLengthsGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got [8]int64
-	if err := b.QueryRowContext(context.Background(), conn).Scan(&got[0], &got[1], &got[2], &got[3], &got[4], &got[5], &got[6], &got[7]); err != nil {
+	var got [17]sql.NullInt64
+	var destinations [17]any
+	for i := range got {
+		destinations[i] = &got[i]
+	}
+	if err := b.QueryRowContext(context.Background(), conn).Scan(destinations[:]...); err != nil {
 		t.Fatal(err)
 	}
-	if got != [8]int64{6, 3, 5, 4, 32, 4, 5, 5} {
-		t.Fatalf("native byte counts %v", got)
+	for i, n := range [8]int64{6, 3, 5, 4, 32, 4, 5, 5} {
+		if !got[i].Valid || got[i].Int64 != n {
+			t.Fatalf("native byte counts %v", got)
+		}
+	}
+	if got[14].Valid || got[16].Valid {
+		t.Fatal("nullable preserved source fields changed", got)
 	}
 	var characters int64
 	if err := conn.QueryRowContext(t.Context(), "SELECT length(root) FROM library_sources WHERE id='source'").Scan(&characters); err != nil || characters != 1 {

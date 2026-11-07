@@ -22,7 +22,7 @@ type scanByteVector struct {
 
 func scanByteColumnCount(id stmt.ID) int {
 	switch id {
-	case scanRunByteLengths:
+	case scanRunByteLengths, scanSourceLengths:
 		return 17
 	case scanJobByteLengths, scanRootByteLengths:
 		return 4
