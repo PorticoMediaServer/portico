@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 func profileImageFixture() usMemberProfileImage {
@@ -144,5 +145,30 @@ func TestUSMemberProfileImageNativeData(t *testing.T) {
 	v.name = strings.Repeat("x", maxCanonicalRequestBytes)
 	if _, e := usMemberProfileImageManifest(CommandIdentity{}, 0, v); e == nil {
 		t.Fatal("staging bound missing")
+	}
+}
+
+func TestUSMemberProfileImageOwnsStringBacking(t *testing.T) {
+	source := profileImageFixture()
+	clone := cloneUSMemberProfileImage(source)
+	pairs := [][2]string{
+		{source.id, clone.id}, {source.name, clone.name}, {source.art, clone.art},
+		{source.allowedLibraries[0], clone.allowedLibraries[0]},
+		{source.allowedLibraries[1], clone.allowedLibraries[1]},
+		{source.restrictions.profileID, clone.restrictions.profileID},
+		{source.restrictions.ratingSystem, clone.restrictions.ratingSystem},
+		{source.restrictions.maximumAgeRating, clone.restrictions.maximumAgeRating},
+		{source.restrictions.blockedLabels[0], clone.restrictions.blockedLabels[0]},
+		{source.restrictions.blockedLabels[1], clone.restrictions.blockedLabels[1]},
+		{source.restrictions.blockedLabels[2], clone.restrictions.blockedLabels[2]},
+		{source.avatar.profileID, clone.avatar.profileID},
+		{source.avatar.updatedAt, clone.avatar.updatedAt},
+		{source.avatar.sourceMIME, clone.avatar.sourceMIME},
+		{source.avatar.url, clone.avatar.url},
+	}
+	for n, p := range pairs {
+		if p[0] != p[1] || len(p[0]) == 0 || unsafe.StringData(p[0]) == unsafe.StringData(p[1]) {
+			t.Fatalf("field %d did not acquire independent backing", n)
+		}
 	}
 }

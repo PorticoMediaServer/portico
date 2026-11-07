@@ -3,6 +3,7 @@ package writer
 import (
 	"crypto/sha256"
 	"fmt"
+	"strings"
 )
 
 // usMemberProfileImage owns the complete native identity.MemberProfile DTO at
@@ -61,14 +62,24 @@ func (usMemberProfileAvatarImage) Format(s fmt.State, _ rune) {
 }
 
 func cloneUSMemberProfileImage(v usMemberProfileImage) usMemberProfileImage {
+	v.id, v.name, v.art = strings.Clone(v.id), strings.Clone(v.name), strings.Clone(v.art)
 	if v.allowedLibraries != nil {
 		v.allowedLibraries = append(make([]string, 0, len(v.allowedLibraries)), v.allowedLibraries...)
+		for n, value := range v.allowedLibraries {
+			v.allowedLibraries[n] = strings.Clone(value)
+		}
 	}
+	r := &v.restrictions
+	r.profileID, r.ratingSystem, r.maximumAgeRating = strings.Clone(r.profileID), strings.Clone(r.ratingSystem), strings.Clone(r.maximumAgeRating)
 	if v.restrictions.blockedLabels != nil {
 		v.restrictions.blockedLabels = append(make([]string, 0, len(v.restrictions.blockedLabels)), v.restrictions.blockedLabels...)
+		for n, value := range v.restrictions.blockedLabels {
+			v.restrictions.blockedLabels[n] = strings.Clone(value)
+		}
 	}
 	if v.avatar != nil {
 		a := *v.avatar
+		a.profileID, a.updatedAt, a.sourceMIME, a.url = strings.Clone(a.profileID), strings.Clone(a.updatedAt), strings.Clone(a.sourceMIME), strings.Clone(a.url)
 		v.avatar = &a
 	}
 	return v

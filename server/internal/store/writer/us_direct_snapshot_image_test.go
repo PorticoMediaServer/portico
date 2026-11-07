@@ -149,11 +149,6 @@ func TestUSDirectSnapshotImageCodecBudget(t *testing.T) {
 	if _, err := v.ManifestSHA256(); err == nil {
 		t.Fatal("over budget accepted")
 	}
-	v = directImageFixture()
-	v.ServerID = string([]byte{255})
-	if _, err := v.ManifestSHA256(); err == nil {
-		t.Fatal("invalid text accepted")
-	}
 	// Input edit caps do not become source-image cohort ceilings.
 	v = directImageFixture()
 	v.Profiles = make([]USDirectProfileImage, 1001)
@@ -223,6 +218,23 @@ func TestUSDirectSnapshotImageSourceShape(t *testing.T) {
 			if native(f.Type) != got {
 				t.Fatalf("%s.%s type drift: %s versus %s", c.dto, typ.Field(i).Name, native(f.Type), got)
 			}
+		}
+	}
+}
+
+func TestUSDirectSnapshotImagePreservesNativeStringBytes(t *testing.T) {
+	a := directImageFixture()
+	a.Account.Username = string([]byte{0xff})
+	a.Profiles[0].AllowedLibraries[0] = string([]byte{0xfe})
+	want := imageSHA(t, a)
+	for _, mutate := range []func(*USDirectSnapshotImage){
+		func(v *USDirectSnapshotImage) { v.Account.Username = string([]byte{0xfe}) },
+		func(v *USDirectSnapshotImage) { v.Profiles[0].AllowedLibraries[0] = string([]byte{0xff}) },
+	} {
+		b := a.Clone()
+		mutate(&b)
+		if imageSHA(t, b) == want {
+			t.Fatal("native bytes collapsed before JSON encoding")
 		}
 	}
 }

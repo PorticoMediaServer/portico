@@ -151,6 +151,13 @@ func (v USDirectSnapshotImage) ManifestSHA256() ([32]byte, error) {
 	copy(out[:], e.h.Sum(nil))
 	return out, nil
 }
+
+// Native DTO strings are length-prefixed bytes. A legal stored TEXT value may
+// contain invalid UTF-8; a manifest must preserve it before any JSON repair.
+func encodeUSDirectImageText(e *requestEncoder, v string) {
+	e.number(uint64(len(v)))
+	e.bytes([]byte(v))
+}
 func encodeUSDirectImageStrings(e *requestEncoder, v []string) {
 	e.flag(v != nil)
 	if v == nil {
@@ -162,7 +169,7 @@ func encodeUSDirectImageStrings(e *requestEncoder, v []string) {
 			return
 		}
 		e.number(uint64(i))
-		e.text(s)
+		encodeUSDirectImageText(e, s)
 	}
 }
 func encodeUSDirectSnapshotImage(e *requestEncoder, v USDirectSnapshotImage) {
@@ -170,9 +177,9 @@ func encodeUSDirectSnapshotImage(e *requestEncoder, v USDirectSnapshotImage) {
 	e.number(0) // TwoStepSetupRequired
 	e.flag(v.TwoStepSetupRequired)
 	e.number(1) // Authority
-	e.text(v.Authority)
+	encodeUSDirectImageText(e, v.Authority)
 	e.number(2) // ServerID
-	e.text(v.ServerID)
+	encodeUSDirectImageText(e, v.ServerID)
 	e.number(3) // Account
 	encodeUSDirectAccountImage(e, v.Account)
 	e.number(4) // Profiles
@@ -201,13 +208,13 @@ func encodeUSDirectSnapshotImage(e *requestEncoder, v USDirectSnapshotImage) {
 func encodeUSDirectAccountImage(e *requestEncoder, v USDirectAccountImage) {
 	e.number(10)
 	e.number(0) // ID
-	e.text(v.ID)
+	encodeUSDirectImageText(e, v.ID)
 	e.number(1) // Username
-	e.text(v.Username)
+	encodeUSDirectImageText(e, v.Username)
 	e.number(2) // PrimaryProfileID
-	e.text(v.PrimaryProfileID)
+	encodeUSDirectImageText(e, v.PrimaryProfileID)
 	e.number(3) // Role
-	e.text(v.Role)
+	encodeUSDirectImageText(e, v.Role)
 	e.number(4) // Revision
 	e.number(uint64(v.Revision))
 	e.number(5) // Disabled
@@ -215,24 +222,24 @@ func encodeUSDirectAccountImage(e *requestEncoder, v USDirectAccountImage) {
 	e.number(6) // AllowedLibraries
 	encodeUSDirectImageStrings(e, v.AllowedLibraries)
 	e.number(7) // DisabledAt
-	e.text(v.DisabledAt)
+	encodeUSDirectImageText(e, v.DisabledAt)
 	e.number(8) // DisabledReason
-	e.text(v.DisabledReason)
+	encodeUSDirectImageText(e, v.DisabledReason)
 	e.number(9) // HostedAccountID
-	e.text(v.HostedAccountID)
+	encodeUSDirectImageText(e, v.HostedAccountID)
 }
 func encodeUSDirectProfileImage(e *requestEncoder, v USDirectProfileImage) {
 	e.number(9)
 	e.number(0) // ID
-	e.text(v.ID)
+	encodeUSDirectImageText(e, v.ID)
 	e.number(1) // Name
-	e.text(v.Name)
+	encodeUSDirectImageText(e, v.Name)
 	e.number(2) // Primary
 	e.flag(v.Primary)
 	e.number(3) // Position
 	e.number(uint64(v.Position))
 	e.number(4) // Art
-	e.text(v.Art)
+	encodeUSDirectImageText(e, v.Art)
 	e.number(5) // Revision
 	e.number(uint64(v.Revision))
 	e.number(6) // PINRevision
