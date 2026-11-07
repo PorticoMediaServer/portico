@@ -68,19 +68,24 @@ func applyInventoryClaim(ctx context.Context, turn *commandTurn, input *inventor
 	if r.NextAttemptMS.Present && r.NextAttemptMS.Value > applied {
 		return value, ErrConflict
 	}
-	before := scanRunSnapshot{run: scanRunNative{scope: scanNativeOriginal(o, input.identity.Incarnation), phase: r.Run.phase, finishedAt: r.FinishedAt,
-		authoritative: r.Authoritative, rootRebound: r.RootRebound, discovered: r.Discovered,
-		leaseOwner: r.Run.leaseOwner, leaseGeneration: r.Run.leaseGeneration, leaseExpiresMS: r.Run.leaseExpiresMS,
-		attempts: r.Attempts, nextAttemptMS: sql.NullInt64{Int64: r.NextAttemptMS.Value, Valid: r.NextAttemptMS.Present},
-		revision: r.Run.revision, lastSequence: r.Run.lastSequence, acknowledgedSequence: r.Run.acknowledgedSequence},
-		job:  scanRunJob{libraryKey: o.LibraryKey, status: r.JobStatus, createdAt: r.JobCreatedAt, errorText: r.JobErrorText, processed: r.Processed},
-		root: scanRunRoot{identity: r.Root.Identity, revision: r.Root.Revision, cursor: r.Root.Cursor, state: r.Root.State, pages: r.Root.Pages, skipped: r.Root.Skipped}}
+	before := scanClaimSnapshot(input)
 	facts, err := applyScanRunClaim(ctx, turn, scanRunClaimEffects{before: before, mode: mode,
 		identity: input.identity, request: input.digest, leaseOwner: owner, expiresMS: expiry, appliedMS: applied})
 	if err != nil {
 		return value, err
 	}
 	return persistScanRunLifecycleResult(ctx, turn, facts)
+}
+
+func scanClaimSnapshot(input *inventoryClaimCommand) scanRunSnapshot {
+	r, o := input.request, input.request.Original
+	return scanRunSnapshot{run: scanRunNative{scope: scanNativeOriginal(o, input.identity.Incarnation), phase: r.Run.phase, finishedAt: r.FinishedAt,
+		authoritative: r.Authoritative, rootRebound: r.RootRebound, discovered: r.Discovered,
+		leaseOwner: r.Run.leaseOwner, leaseGeneration: r.Run.leaseGeneration, leaseExpiresMS: r.Run.leaseExpiresMS,
+		attempts: r.Attempts, nextAttemptMS: sql.NullInt64{Int64: r.NextAttemptMS.Value, Valid: r.NextAttemptMS.Present},
+		revision: r.Run.revision, lastSequence: r.Run.lastSequence, acknowledgedSequence: r.Run.acknowledgedSequence},
+		job:  scanRunJob{libraryKey: o.LibraryKey, status: r.JobStatus, createdAt: r.JobCreatedAt, errorText: r.JobErrorText, processed: r.Processed},
+		root: scanRunRoot{identity: r.Root.Identity, revision: r.Root.Revision, cursor: r.Root.Cursor, state: r.Root.State, pages: r.Root.Pages, skipped: r.Root.Skipped}}
 }
 
 func scanNativeOriginal(o scanRunOriginalScope, incarnation [16]byte) scanRunScope {

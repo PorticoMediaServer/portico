@@ -16,6 +16,10 @@ type governedFixtureProfile struct {
 }
 
 func governedFixture(t *testing.T, now func() time.Time, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
+	return governedFixtureResources(t, now, governor.Amounts{}, profiles...)
+}
+
+func governedFixtureResources(t *testing.T, now func() time.Time, extra governor.Amounts, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
 	t.Helper()
 	profile := governedFixtureProfile{testRecipe(), 65536}
 	if len(profiles) > 2 {
@@ -35,6 +39,11 @@ func governedFixture(t *testing.T, now func() time.Time, profiles ...governedFix
 		Budget: governor.UnitBudget{RawRows: uint32(profile.recipe.limit.Rows), VMOps: profile.recipe.limit.VMOps, Pages: uint32(profile.recipe.limit.Pages)}, Footprint: []governor.Scope{{Library: 1, Domain: 1, Source: 1}}}
 	r.Need[governor.WALBytes] = int64(profile.recipe.limit.WALBytes)
 	r.Need[governor.MemoryBytes] = profile.memoryBytes
+	r.Need[governor.CPUMilli] = extra[governor.CPUMilli]
+	r.Need[governor.IOBytes] = extra[governor.IOBytes]
+	if r.Need[governor.IOBytes] > 0 {
+		r.IO = []governor.DeviceIO{{DeviceID: "protocol", Class: governor.Seeking, Outstanding: 1, Bytes: r.Need[governor.IOBytes]}}
+	}
 	var partitions [4]governor.Amounts
 	for i := range partitions {
 		partitions[i] = r.Need

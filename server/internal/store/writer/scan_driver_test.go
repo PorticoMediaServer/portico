@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/stateownership"
 	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -20,6 +21,7 @@ type scanDriverFixture struct {
 	request  governor.Request
 	recipe   turnRecipe
 	create   scanRunCreateEffects
+	clock    *time.Time
 }
 
 // A closed protocol-only selector: callers cannot inject definitions, recipes,
@@ -27,24 +29,35 @@ type scanDriverFixture struct {
 type scanDriverStatementFixture uint8
 
 const scanIssuerStatementFixture scanDriverStatementFixture = 1
+const scanIssuerRuntimeFixture scanDriverStatementFixture = 2
 
 func newScanDriverFixture(t *testing.T, selections ...scanDriverStatementFixture) *scanDriverFixture {
 	t.Helper()
-	if len(selections) > 1 || len(selections) == 1 && selections[0] != scanIssuerStatementFixture {
+	if len(selections) > 1 || len(selections) == 1 && selections[0] != scanIssuerStatementFixture && selections[0] != scanIssuerRuntimeFixture {
 		t.Fatal("unsupported scan driver statement fixture")
 	}
 	path, owner := scanOpeningFixture(t)
 	o := openScanFixture(t, path, owner)
 	create := seedScanLifecycle(t, o.executor)
+	return scanDriverFixtureOnOpening(t, o, owner, create, selections, true)
+}
+
+// Reopen controls reuse this ONE fixture composition without re-seeding,
+// resetting a floor or constructing a second resource bridge.
+func scanDriverFixtureOnOpening(t *testing.T, o *scanOpening, owner *stateownership.Lock, create scanRunCreateEffects, selections []scanDriverStatementFixture, initialize bool) *scanDriverFixture {
+	t.Helper()
+	path := o.binding.path
 	defs := append(scanRunLifecycleDefinitions(), scanBirthDefinitions()...)
 	if len(selections) == 1 {
 		defs = scanLifecycleCommandDefinitions()
-		for _, sql := range []string{
-			`UPDATE catalog_libraries SET root='/retained-library-identity' WHERE id=7`,
-			`INSERT INTO library_scan_policies(library_id,revision) VALUES('lifecycle-library',7)`,
-		} {
-			if _, err := o.executor.db.ExecContext(t.Context(), sql); err != nil {
-				t.Fatal(err)
+		if initialize {
+			for _, sql := range []string{
+				`UPDATE catalog_libraries SET root='/retained-library-identity' WHERE id=7`,
+				`INSERT INTO library_scan_policies(library_id,revision) VALUES('lifecycle-library',7)`,
+			} {
+				if _, err := o.executor.db.ExecContext(t.Context(), sql); err != nil {
+					t.Fatal(err)
+				}
 			}
 		}
 	}
@@ -53,7 +66,12 @@ func newScanDriverFixture(t *testing.T, selections ...scanDriverStatementFixture
 	o.executor.now = func() time.Time { return clock }
 	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}
 	profile := governedFixtureProfile{recipe, 8 << 20}
-	g, a, wal, request := governedFixture(t, o.executor.now, profile, profile)
+	var extra governor.Amounts
+	if len(selections) == 1 && selections[0] == scanIssuerRuntimeFixture {
+		profile.memoryBytes = int64(scanLifecycleHistoryBytes) + (8 << 20)
+		extra[governor.CPUMilli], extra[governor.IOBytes] = 100, 64<<20
+	}
+	g, a, wal, request := governedFixtureResources(t, o.executor.now, extra, profile, profile)
 	r := &effectiveRuntime{executor: o.executor, path: path, governor: g, authority: a, wal: wal, owner: request.Owner, registry: registry}
 	d, err := newScanDriver(t.Context(), o, owner, &Writer{effective: r}, nativeinventory.NewObserver(&scanObservationFaultTransport{page: `{"Version":1,"RootIdentity":"source-root","DirectoryIdentity":"actual-directory","DirectoryRevision":"directory-revision","Complete":true,"Entries":[{"Path":"L21lZGlhLW5ldy9hLm1rdg==","Name":"YS5ta3Y=","ObjectIdentity":"native-object","ChangeToken":"token","Size":1,"ModifiedNS":1}],"Issues":[]}`}))
 	if err != nil {
@@ -64,7 +82,7 @@ func newScanDriverFixture(t *testing.T, selections ...scanDriverStatementFixture
 			t.Error(err)
 		}
 	})
-	return &scanDriverFixture{d, registry, request, recipe, create}
+	return &scanDriverFixture{d, registry, request, recipe, create, &clock}
 }
 
 func TestScanDriverIssuerFixtureCapturesCurrentSource(t *testing.T) {
