@@ -238,7 +238,7 @@ func beginMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCComman
 		return out, err
 	}
 	digest := mgLCInitialDigest(b)
-	args := append(b.values(), b.start, b.start, now, digest[:], b.start, digest[:])
+	args := append(b.values(), "pending", mgLCCandidatesPhase, b.start, b.start, now, digest[:], b.start, digest[:])
 	row, err := mgLCRow(ctx, turn, mgLCInsert, args...)
 	if err != nil {
 		return out, err
