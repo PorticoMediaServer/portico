@@ -261,6 +261,10 @@ func mpPrepDraftRequestDigest(kind CommandID, identity CommandIdentity, input an
 		match = kind == MPStartPrepRetire
 	case mpTranscodeCreate:
 		match = kind == MPTranscodeCreate
+	case mpVersionCleanupClaim:
+		match = kind == MPVersionFinalize
+	case mpVersionCleanupConfirmation:
+		match = kind == MPVersionFinalize
 	case mpVersionFinalizeInput:
 		match = kind == MPVersionFinalize
 	case mpTranscodeRetryInput:

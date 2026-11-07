@@ -6,7 +6,7 @@ import (
 )
 
 func TestMPVersionReceiptOwnsItsOriginal(t *testing.T) {
-	v := mpVersionReceipt{header: mpPrepReceiptHeader{identity: CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1}, kind: 745, request: RequestDigest{3}, appliedMS: 1000}, result: mpVersionResult{version: "v", job: "j", sourceRevision: strings.Repeat("a", 64), transformation: strings.Repeat("b", 64), digest: strings.Repeat("c", 64), state: "deleting", retirement: "live", revision: 2, size: 10, physicalPending: true}}
+	v := mpVersionReceipt{header: mpPrepReceiptHeader{identity: CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1}, kind: 745, request: RequestDigest{3}, appliedMS: 1000}, result: mpVersionResult{version: "v", job: "j", sourceRevision: strings.Repeat("a", 64), transformation: strings.Repeat("b", 64), digest: strings.Repeat("c", 64), state: "deleting", retirement: "live", revision: 2, size: 10, physicalPending: true, cleanupRequest: "cleanup", physicalExited: true, cleaned: true}}
 	original, err := mpVersionResultDigest(v)
 	if err != nil {
 		t.Fatal(err)
@@ -32,6 +32,9 @@ func TestMPVersionReceiptOwnsItsOriginal(t *testing.T) {
 	altered.result.state = "deleted"
 	altered.result.retirement = "retired"
 	altered.result.physicalPending = false
+	altered.result.cleanupFinished = true
+	altered.result.cleanupGeneration = 1
+	altered.result.cleanupExecution = "delete-execution"
 	if _, err = mpVersionResultDigest(altered); err != nil {
 		t.Fatal("settled version retirement", err)
 	}
