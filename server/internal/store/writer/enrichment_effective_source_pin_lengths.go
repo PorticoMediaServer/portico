@@ -6,7 +6,8 @@ import (
 	"fmt"
 )
 
-// Closed native layouts in the literal SELECT order. Upper case requires a
+// Required schema type contracts in literal SELECT order, not observed SQL types.
+// Adopted CHECKs constrain scalar slots. Upper case requires a
 // non-NULL value; lower case permits NULL. No table/SQL selector is accepted.
 const (
 	effectiveEvidencePinLayout    = "TITTITBIT"
@@ -67,52 +68,39 @@ func effectivePinMalformed() error {
 	return fmt.Errorf("%w: native pinned seal projection", ErrResolveRequired)
 }
 
-// Only fixed typeof strings and INTEGER octet lengths enter this decoder. NULL
-// and integer types are checked before a second query copies any scalar value.
-// There are no variable native payloads in this phase, including malformed rows.
+// Each preflight cell is native octet_length for TEXT/BLOB, or the actual
+// fixed INTEGER/NULL scalar. No variable payload is copied in this phase.
 func decodeEffectivePinLengths(raw []any, layout string) (out effectivePinProjection, err error) {
-	if len(layout) > effectivePinMaxColumns {
+	if len(layout) > effectivePinMaxColumns || len(raw) != len(layout) {
 		return out, effectivePinMalformed()
 	}
-	want := len(layout)
-	for i := range layout {
-		if layout[i] == 'T' || layout[i] == 't' || layout[i] == 'B' || layout[i] == 'b' {
-			want++
-		}
-	}
-	if len(raw) != want {
-		return out, effectivePinMalformed()
-	}
-	p := len(layout)
 	for i := range layout {
 		expected := layout[i]
 		nullable := expected >= 'a' && expected <= 'z'
 		if nullable {
 			expected -= 'a' - 'A'
 		}
-		var native string
-		switch expected {
-		case 'T':
-			native = "text"
-		case 'B':
-			native = "blob"
-		case 'I':
-			native = "integer"
-		default:
-			return effectivePinProjection{}, effectivePinMalformed()
-		}
-		typ, ok := raw[i].(string)
-		if !ok || (typ != native && !(nullable && typ == "null")) {
+		if expected != 'T' && expected != 'B' && expected != 'I' {
 			return effectivePinProjection{}, effectivePinMalformed()
 		}
 		cell := effectivePinCell{}
-		if typ != "null" {
+		if raw[i] != nil {
 			cell.kind = expected
+		} else if !nullable {
+			return effectivePinProjection{}, effectivePinMalformed()
 		}
+		if expected == 'I' && cell.kind != 0 {
+			n, ok := raw[i].(int64)
+			if !ok {
+				return effectivePinProjection{}, effectivePinMalformed()
+			}
+			cell.integer = n
+		}
+
 		if expected == 'T' || expected == 'B' {
-			n, ok := raw[p].(int64)
+			n, ok := raw[i].(int64)
 			if cell.kind == 0 {
-				if raw[p] != nil {
+				if raw[i] != nil {
 					return effectivePinProjection{}, effectivePinMalformed()
 				}
 			} else {
@@ -147,7 +135,6 @@ func decodeEffectivePinLengths(raw []any, layout string) (out effectivePinProjec
 					out.octets.blob += uint64(n)
 				}
 			}
-			p++
 		}
 		out.cells[i] = cell
 	}
@@ -156,34 +143,6 @@ func decodeEffectivePinLengths(raw []any, layout string) (out effectivePinProjec
 	// This addition cannot overflow uint64. Native allocation overhead is separate.
 	out.octets.payload = out.octets.text + out.octets.blob
 	return out, nil
-}
-
-func effectivePinFixed(raw []any, layout string, projection effectivePinProjection) (effectivePinProjection, error) {
-	j := 0
-	for i := range layout {
-		if layout[i] != 'I' && layout[i] != 'i' {
-			continue
-		}
-		if j == len(raw) {
-			return effectivePinProjection{}, effectivePinMalformed()
-		}
-		if projection.cells[i].kind == 0 {
-			if raw[j] != nil {
-				return effectivePinProjection{}, effectivePinMalformed()
-			}
-		} else {
-			n, ok := raw[j].(int64)
-			if !ok {
-				return effectivePinProjection{}, effectivePinMalformed()
-			}
-			projection.cells[i].integer = n
-		}
-		j++
-	}
-	if j != len(raw) {
-		return effectivePinProjection{}, effectivePinMalformed()
-	}
-	return projection, nil
 }
 
 // Cardinality, error and close handling shared by the three literal readers;
@@ -239,7 +198,7 @@ func readEffectiveSourceEvidencePinLengths(ctx context.Context, turn *commandTur
 	if err != nil {
 		return out, err
 	}
-	var raw [15]any // 9 types + 6 octet lengths
+	var raw [9]any // six lengths + three scalars
 	if err = effectivePinScanPoint(rows, effectivePinDest(raw[:])); err != nil {
 		return out, err
 	}
@@ -249,22 +208,6 @@ func readEffectiveSourceEvidencePinLengths(ctx context.Context, turn *commandTur
 	}
 	if p.cells[6].octets != 16 {
 		return out, effectivePinMalformed()
-	}
-	step, err = sealStep(turn, effectiveSourcePinEvidenceFixed)
-	if err != nil {
-		return out, err
-	}
-	rows, err = turn.query(ctx, step, evidence)
-	if err != nil {
-		return out, err
-	}
-	var fixed [3]any
-	if err = effectivePinScanPoint(rows, effectivePinDest(fixed[:])); err != nil {
-		return out, err
-	}
-	p, err = effectivePinFixed(fixed[:], effectiveEvidencePinLayout, p)
-	if err != nil {
-		return out, err
 	}
 	if p.cells[1].integer <= 0 || p.cells[4].integer != 1 || p.cells[7].integer <= 0 {
 		return out, effectivePinMalformed()
@@ -289,7 +232,7 @@ func readEffectiveSourcePublicationPinLengths(ctx context.Context, turn *command
 	if err != nil {
 		return out, err
 	}
-	var raw [14]any // 9 types + 5 octet lengths
+	var raw [9]any // five lengths + four scalars
 	if err = effectivePinScanPoint(rows, effectivePinDest(raw[:])); err != nil {
 		return out, err
 	}
@@ -299,22 +242,6 @@ func readEffectiveSourcePublicationPinLengths(ctx context.Context, turn *command
 	}
 	if p.cells[6].octets != 16 {
 		return out, effectivePinMalformed()
-	}
-	step, err = sealStep(turn, effectiveSourcePinPublicationFixed)
-	if err != nil {
-		return out, err
-	}
-	rows, err = turn.query(ctx, step, publication)
-	if err != nil {
-		return out, err
-	}
-	var fixed [4]any
-	if err = effectivePinScanPoint(rows, effectivePinDest(fixed[:])); err != nil {
-		return out, err
-	}
-	p, err = effectivePinFixed(fixed[:], effectivePublicationPinLayout, p)
-	if err != nil {
-		return out, err
 	}
 	if p.cells[1].integer <= 0 || p.cells[3].integer < 0 || p.cells[3].integer > MaxCastCredits+MaxCrewCredits || p.cells[4].integer != 1 || p.cells[7].integer <= 0 {
 		return out, effectivePinMalformed()
@@ -342,7 +269,7 @@ func readEffectiveSourceReceiptPinLengths(ctx context.Context, turn *commandTurn
 	if err != nil {
 		return out, err
 	}
-	var raw [74]any // 48 types + 19 TEXT + 7 BLOB occurrences
+	var raw [48]any // 26 lengths + 22 scalars
 	if err = effectivePinScanPoint(rows, effectivePinDest(raw[:])); err != nil {
 		return out, err
 	}
@@ -351,22 +278,6 @@ func readEffectiveSourceReceiptPinLengths(ctx context.Context, turn *commandTurn
 		return out, err
 	}
 	if err = effectiveReceiptPinShape(p, ref.kind); err != nil {
-		return out, err
-	}
-	step, err = sealStep(turn, effectiveSourcePinReceiptFixed)
-	if err != nil {
-		return out, err
-	}
-	rows, err = turn.query(ctx, step, ref.owner, ref.incarnation[:], ref.sequence)
-	if err != nil {
-		return out, err
-	}
-	var fixed [22]any // all immutable INTEGERs plus lifecycle INTEGERs
-	if err = effectivePinScanPoint(rows, effectivePinDest(fixed[:])); err != nil {
-		return out, err
-	}
-	p, err = effectivePinFixed(fixed[:], effectiveReceiptPinLayout, p)
-	if err != nil {
 		return out, err
 	}
 	if err = effectiveReceiptPinFixedShape(p, ref); err != nil {
