@@ -31,7 +31,9 @@ func checkInventoryDriverFreshSource(ctx context.Context, turn *commandTurn, in 
 	if !inventoryDriverSourceMatches(in.input, *v.retained.source, actual) {
 		return ErrConflict
 	}
-	return nil
+	// The source tuple alone does not prove this run still owns the active
+	// source slot. Recheck that actual point on the same protected snapshot.
+	return checkScanSourceActive(ctx, turn, r.source.id, r.scope.runID)
 }
 
 // Values-only equality, not an authority witness. The actual reader above
