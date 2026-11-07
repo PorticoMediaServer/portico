@@ -64,15 +64,20 @@ func wcSecurityProtocolDefinitions() []stmt.Definition {
 			Cohorts: []stmt.Cohort{{Name: "permanent_original_scalar", Bindings: []any{"target", "server", inc, int64(1)}}},
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_authorization_session_families_1"}}},
 		{ID: wcSecurityNativeTarget, Kind: stmt.Read,
-			SQL:     `SELECT m.role FROM direct_memberships AS m INNER JOIN direct_profiles AS p ON p.account_id=m.account_id WHERE m.account_id=? AND p.id=? AND m.incarnation=? AND p.lifetime=? AND m.disabled=0 AND p.deleted=0`,
+			SQL:     `SELECT m.role FROM direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 INNER JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_1 ON p.account_id=m.account_id WHERE m.account_id=? AND p.id=? AND m.incarnation=? AND p.lifetime=? AND m.disabled=0 AND p.deleted=0`,
 			Params:  []stmt.Param{text("account"), text("profile"), text("member_birth"), text("profile_birth")},
 			Cohorts: []stmt.Cohort{{Name: "current_target_births", Bindings: []any{"account", "profile", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}},
-			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_direct_profiles_2"}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_direct_profiles_1"}, AutoIndexes: []stmt.AutoIndexBinding{
+				{Table: "direct_memberships", Name: "sqlite_autoindex_direct_memberships_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "account_id", Collation: "BINARY"}}},
+				{Table: "direct_profiles", Name: "sqlite_autoindex_direct_profiles_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
+			}}},
 		{ID: wcSecurityNativeAck, Kind: stmt.Write,
-			SQL:     `UPDATE authorization_session_families SET command_acknowledged_sequence=? WHERE id=? AND server_id=? AND authority='local' AND command_incarnation=? AND command_last_sequence=? AND command_acknowledged_sequence=? AND revoke_command_sequence=? AND revoke_operation_id=? AND revoke_request_digest=? AND revoke_result_digest=? AND revoke_command_kind='admin_revoke' AND revoke_result_count=1 AND revoked=1 RETURNING command_acknowledged_sequence`,
+			SQL:     `UPDATE authorization_session_families INDEXED BY sqlite_autoindex_authorization_session_families_1 SET command_acknowledged_sequence=? WHERE id=? AND server_id=? AND authority='local' AND command_incarnation=? AND command_last_sequence=? AND command_acknowledged_sequence=? AND revoke_command_sequence=? AND revoke_operation_id=? AND revoke_request_digest=? AND revoke_result_digest=? AND revoke_command_kind='admin_revoke' AND revoke_result_count=1 AND revoked=1 RETURNING command_acknowledged_sequence`,
 			Params:  []stmt.Param{integer("next_floor"), text("family"), text("server"), blob("incarnation"), integer("last"), integer("old_floor"), integer("original_sequence"), blob("operation"), blob("request"), blob("result")},
 			Cohorts: []stmt.Cohort{{Name: "floor_only_keep_scalar", Bindings: []any{int64(1), "target", "server", inc, int64(1), int64(0), int64(1), inc, make([]byte, 32), make([]byte, 32)}}},
-			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_authorization_session_families_1"}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_authorization_session_families_1"}, AutoIndexes: []stmt.AutoIndexBinding{{
+				Table: "authorization_session_families", Name: "sqlite_autoindex_authorization_session_families_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}},
+			}}}},
 	}
 	for i := range defs {
 		defs[i].Owner = "store/writer WC security protocol"
