@@ -47,8 +47,12 @@ func TestRSPolicyClosedPrincipalScope(t *testing.T) {
 	in := f.input
 	in.Library = 0
 	in.policy = readPolicyBinding{recipe: rsTestPrincipalPolicy, state: &rsTestPrincipalState{f.authority, decision.Lease}}
-	read := func(in BrowseInput) (bool, error) {
-		p, _, e := publishRead(t.Context(), f.snapshots, foregroundRequest(), time.Second, f.output, in, []readStep[bool]{func(_ context.Context, _ browseQuery, scope browseFence, result *bool) error {
+	read := func(in BrowseInput, sources ...browseSnapshots) (bool, error) {
+		var snapshots browseSnapshots = f.snapshots
+		if len(sources) != 0 {
+			snapshots = sources[0]
+		}
+		p, _, e := publishRead(t.Context(), snapshots, foregroundRequest(), time.Second, f.output, in, []readStep[bool]{func(_ context.Context, _ browseQuery, scope browseFence, result *bool) error {
 			if scope.libraryID != 0 || scope.library != "" || scope.account != "a" || scope.profile != "p" {
 				t.Fatal("principal scope invented library authority", scope.libraryID, scope.library)
 			}
@@ -66,8 +70,22 @@ func TestRSPolicyClosedPrincipalScope(t *testing.T) {
 			t.Fatal("unsealed/wrong scope accepted", ok, e)
 		}
 	}
-	f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
+	if ok, e := read(in, &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}); !errors.Is(e, ErrDenied) || ok {
+		t.Fatal("global purpose skipped fresh final principal", ok, e)
+	}
 	if ok, e := read(in); !errors.Is(e, ErrDenied) || ok {
 		t.Fatal("global purpose skipped current principal", ok, e)
+	}
+}
+
+func TestRSPolicyStateBindingIsClosed(t *testing.T) {
+	state := &rsTestPrincipalState{}
+	for _, in := range []BrowseInput{
+		{Kind: 1, policy: readPolicyBinding{state: state}},
+		{Kind: 1, policy: readPolicyBinding{recipe: rsTestPrincipalPolicy}},
+	} {
+		if _, e := resolveReadPolicy(in); !errors.Is(e, ErrInput) {
+			t.Fatal("state escaped its registered purpose", e)
+		}
 	}
 }
