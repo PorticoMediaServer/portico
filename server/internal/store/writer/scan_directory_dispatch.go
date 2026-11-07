@@ -27,6 +27,7 @@ func composeScanDirectories(ctx context.Context, r *effectiveRuntime, discover, 
 			r.mu.Unlock()
 		}
 	}()
+	defer func() { _, err = finishCommand(ctx, ctx, struct{}{}, err) }()
 	if ctx == nil || r == nil || r.executor == nil || r.registry == nil {
 		return ErrInvalid
 	}
@@ -52,6 +53,9 @@ func composeScanDirectories(ctx context.Context, r *effectiveRuntime, discover, 
 	eof, err = freezeCommandPlan(r.executor, eof, defs, InventoryDirectoryEOF)
 	if err != nil {
 		return err
+	}
+	if discover.directoryMemory == (commandMemoryBudget{}) || eof.directoryMemory == (commandMemoryBudget{}) {
+		return &Refusal{Code: RefusalUnqualified}
 	}
 	all := make([]stmt.Definition, 0, len(r.registry.Manifest())+len(defs))
 	for _, entry := range r.registry.Manifest() {
