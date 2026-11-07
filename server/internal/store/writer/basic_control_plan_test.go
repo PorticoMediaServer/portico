@@ -54,8 +54,8 @@ func captureBasicControlPlans(t *testing.T) ([]byte, []byte) {
 		{"basic_control_statements.go", "cae20d889dc5a37925dedf58142fa872ab6108ac38745cd0b6320c340eb70b4a"},
 		{"basic_control_test.go", "3025acbc66b43e25982fa7761664b3a8eb2f24bb77f0cd461befd2e180148a3b"},
 		{"basic_original.go", "5015f3cc2fafad60e60b004129e72a89a77037d1168076f02071a8f94812c3da"},
-		{"basic_stage_test.go", "11beb315256859a2f5378cc65479086c1d3097d62df16fd9611f05c25152ca03"},
-		{"basic_stage.go", "89f3e1171aaea3bf9ff5265e8cdf1e478df9630354ce9d806ca97464870300c7"},
+		{"basic_stage_test.go", "8e8da49da22747d1d709405398198f8c3fd46400bc63c9fb434758c553a17966"},
+		{"basic_stage.go", "b2adbf700ce9928f1a2b388322124455b564780b85d71a6026861342aed52b23"},
 	}
 	h := sha256.New()
 	for _, p := range parts {
