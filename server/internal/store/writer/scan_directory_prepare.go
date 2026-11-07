@@ -47,13 +47,17 @@ func newScanDirectoryDiscoverCommand(id CommandIdentity, snapshot inventoryClaim
 		return nil, ErrInvalid
 	}
 	if !utf8.Valid(e.Path) || !utf8.Valid(e.Name) {
-		return nil, ErrFilenameUnrepresentable
+		return nil, &PolicyError{Field: "inventory_native_path", Cause: ErrFilenameUnrepresentable}
 	}
 	if e.ObjectIdentity == "" || child.DirectoryIdentity != e.ObjectIdentity || child.DirectoryRevision == "" || child.RootIdentity != snapshot.Original.RootIdentity {
 		return nil, ErrConflict
 	}
+	relative, err := directoryRelativePath(snapshot.Original.ResolvedRoot, e.Path)
+	if err != nil {
+		return nil, err
+	}
 	q := scanDirectoryRequest{Snapshot: snapshot, Parent: parent, CursorKind: inventoryLinuxCursor, NextCursor: page.NextCursor, RawNames: 1,
-		ChildPath: string(e.Path), ChildIdentity: child.DirectoryIdentity, ChildRevision: child.DirectoryRevision, RawChildName: e.Name, RawChildPath: e.Path}
+		ChildPath: string(relative), ChildIdentity: child.DirectoryIdentity, ChildRevision: child.DirectoryRevision, RawChildName: e.Name, RawChildPath: e.Path}
 	if page.RootIdentity != snapshot.Original.RootIdentity || page.DirectoryIdentity != parent.Identity || page.DirectoryRevision != parent.Revision {
 		return nil, ErrConflict
 	}
@@ -155,10 +159,17 @@ func validateScanDirectoryRequest(kind CommandID, id CommandIdentity, q scanDire
 	}
 	switch kind {
 	case InventoryDirectoryDiscover:
+		relative, err := directoryRelativePath(o.ResolvedRoot, q.RawChildPath)
+		if err != nil {
+			return err
+		}
+		if string(relative) != q.ChildPath {
+			return ErrConflict
+		}
 		old, _ := inventoryFreshCookie(p.Cursor)
 		if q.RawNames != 1 || q.Complete || q.NextCursor == "" || old == next || q.ChildIdentity == "" || q.ChildRevision == "" ||
 			!validDirectoryRelative(q.ChildPath) || q.ChildPath == "." || path.Dir(q.ChildPath) != p.Path ||
-			string(q.RawChildPath) != q.ChildPath || string(q.RawChildName) != path.Base(q.ChildPath) {
+			string(q.RawChildName) != path.Base(q.ChildPath) {
 			return ErrConflict
 		}
 	case InventoryDirectoryEOF:
@@ -203,4 +214,34 @@ func preflightDirectoryObservation(s inventoryClaimRequest, parent scanRootWitne
 		}
 	}
 	return nil
+}
+
+// Native Entry.Path is ABSOLUTE. Derive a borrowed raw relative slice only under
+// the exact original root/component boundary; never clean, replace or rebase it.
+// CHANGE-003's typed unrepresentable cause is distinct from invalid/outside
+// scope (which must never become poison progress).
+func directoryRelativePath(root, absolute []byte) ([]byte, error) {
+	if len(root) == 0 || len(root) > maxCanonicalRequestBytes || len(absolute) > maxCanonicalRequestBytes-len(root) {
+		return nil, ErrCap
+	}
+	if bytes.IndexByte(root, 0) >= 0 || bytes.IndexByte(absolute, 0) >= 0 {
+		return nil, invalid("inventory_native_path")
+	}
+	if !utf8.Valid(root) || !utf8.Valid(absolute) {
+		return nil, &PolicyError{Field: "inventory_native_path", Cause: ErrFilenameUnrepresentable}
+	}
+	start := len(root)
+	if root[0] != '/' || path.Clean(string(root)) != string(root) || len(absolute) <= start || !bytes.Equal(absolute[:start], root) {
+		return nil, invalid("inventory_native_path")
+	}
+	if !(len(root) == 1 && root[0] == '/') {
+		if absolute[start] != '/' {
+			return nil, invalid("inventory_native_path")
+		}
+		start++
+	}
+	if start >= len(absolute) || !validDirectoryRelative(string(absolute[start:])) || string(absolute[start:]) == "." {
+		return nil, invalid("inventory_native_path")
+	}
+	return absolute[start:], nil
 }

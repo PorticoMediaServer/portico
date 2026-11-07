@@ -285,6 +285,19 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			return out, acknowledged, ErrNotImplemented
 		}
 	}
+	if scan != nil && scan.directory != 0 {
+		required := uint64(len(scan.request.RunID) + len(scan.request.LibraryKey))
+		if scan.directoryInput != nil {
+			n, e := directoryRequestBytes(scan.directoryInput.request)
+			if e != nil {
+				return out, acknowledged, e
+			}
+			required += n
+		}
+		if required > uint64(maxCanonicalRequestBytes)*2 || plan.directoryMemory.preparationBytes < 65536+32*required {
+			return out, acknowledged, &Refusal{Code: RefusalCapacity}
+		}
+	}
 	defer func() {
 		if primary := recover(); primary != nil {
 			r.fenced = true
