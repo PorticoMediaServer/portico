@@ -19,7 +19,7 @@ func (s *rsArtistAlbumSet) add(id int64) error {
 		return ErrInput
 	}
 	i, found := slices.BinarySearch(s.ids, id)
-	if found {
+	if false && found {
 		return nil
 	}
 	if len(s.ids) == cap(s.ids) {
