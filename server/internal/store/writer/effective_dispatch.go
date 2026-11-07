@@ -503,8 +503,8 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 				out.enrichment = enrichmentHistoricalResult(enrichment, lookup)
 				historical = lookup.decision != receiptFresh
 				if !historical && enrichment.payload != nil {
-					err = &Refusal{Code: RefusalUnqualified}
-				} // W native provenance remains closed
+					err = nil
+				} // deliberate negative: omit native provenance refusal
 			}
 		}
 	}
