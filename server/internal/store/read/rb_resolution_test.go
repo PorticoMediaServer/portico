@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -53,6 +54,9 @@ func rbResolutionRequest() governor.Request {
 	return r
 }
 func TestRBResolutionNullZeroTraversal(t *testing.T) {
+	synctest.Test(t, testRBResolutionNullZeroTraversal)
+}
+func testRBResolutionNullZeroTraversal(t *testing.T) {
 	f := rbResolutionFixture(t, false)
 	for _, desc := range []bool{false, true} {
 		in := ResolutionInput{View: f.input}
@@ -116,6 +120,9 @@ func TestRBResolutionNullZeroTraversal(t *testing.T) {
 	}
 }
 func TestRBResolutionRawHiddenAndFence(t *testing.T) {
+	synctest.Test(t, testRBResolutionRawHiddenAndFence)
+}
+func testRBResolutionRawHiddenAndFence(t *testing.T) {
 	f := rbResolutionFixture(t, false)
 	f.exec(t, `UPDATE catalog_entities SET retired=1`)
 	in := ResolutionInput{View: f.input}
@@ -131,6 +138,9 @@ func TestRBResolutionRawHiddenAndFence(t *testing.T) {
 	}
 }
 func TestRBResolutionLIVEAndCurrentDenial(t *testing.T) {
+	synctest.Test(t, testRBResolutionLIVEAndCurrentDenial)
+}
+func testRBResolutionLIVEAndCurrentDenial(t *testing.T) {
 	f := rbResolutionFixture(t, true)
 	in := ResolutionInput{View: f.input}
 	q, request, output := liveRequests("resolution-ready")
@@ -140,9 +150,10 @@ func TestRBResolutionLIVEAndCurrentDenial(t *testing.T) {
 	}
 	_, e := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
 		page, cost, e := f.reader.ResolutionWindow(ctx, request, time.Second, out, in)
-		if e == nil && (len(page.Items) != in.View.Limit || cost.AdmissionElapsed <= 0) {
+		if e == nil && (len(page.Items) != in.View.Limit) {
 			t.Fatal("LIVE evidence", page, cost)
 		}
+		assertLiveUsage(t, f, 1, 0)
 		return e
 	})
 	if e != nil {
