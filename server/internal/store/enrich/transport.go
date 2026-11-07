@@ -221,7 +221,18 @@ func (t *Transport) Get(ctx context.Context, key RequestKey) (body []byte, err e
 // GetDocument is the closed FIRST typed acquisition. Required original metadata
 // must have an explicit trusted resource budget; missing policy refuses before
 // dispatch. Generic body-only Get remains available for its existing callers.
-func (t *Transport) GetDocument(ctx context.Context, key RequestKey) (document AcquisitionDocument, err error) {
+func (t *Transport) GetDocument(ctx context.Context, key RequestKey) (AcquisitionDocument, error) {
+	return t.getDocument(ctx, key, false)
+}
+
+// The governed producer cannot reuse its preparation slot until acquisition
+// physically exits, including when its caller cancels. Ordinary GetDocument
+// keeps its existing early-cancellation semantics.
+func (t *Transport) getDocumentJoined(ctx context.Context, key RequestKey) (AcquisitionDocument, error) {
+	return t.getDocument(ctx, key, true)
+}
+
+func (t *Transport) getDocument(ctx context.Context, key RequestKey, joinPhysical bool) (document AcquisitionDocument, err error) {
 	defer func() {
 		if ctx != nil {
 			if cancelled := ctx.Err(); cancelled != nil {
@@ -253,11 +264,15 @@ func (t *Transport) GetDocument(ctx context.Context, key RequestKey) (document A
 	if parseErr != nil || id <= 0 || strconv.FormatInt(id, 10) != key.ExternalID || key.Locale == "" || !utf8.ValidString(key.Locale) || strings.IndexByte(key.Locale, 0) >= 0 {
 		return AcquisitionDocument{}, ErrAcquisitionMetadata
 	}
-	document, err = t.get(ctx, key)
+	document, err = t.getJoined(ctx, key, joinPhysical)
 	return document, err
 }
 
 func (t *Transport) get(ctx context.Context, key RequestKey) (AcquisitionDocument, error) {
+	return t.getJoined(ctx, key, false)
+}
+
+func (t *Transport) getJoined(ctx context.Context, key RequestKey, joinPhysical bool) (AcquisitionDocument, error) {
 	if ctx == nil {
 		return AcquisitionDocument{}, errors.New("invalid enrichment request context")
 	}
@@ -274,11 +289,14 @@ func (t *Transport) get(ctx context.Context, key RequestKey) (AcquisitionDocumen
 	}
 	defer func() {
 		t.mu.Lock()
-		defer t.mu.Unlock()
 		c.waiters--
 		t.stats.Waiters--
 		if c.waiters == 0 {
 			c.cancel()
+		}
+		t.mu.Unlock()
+		if joinPhysical {
+			<-c.done
 		}
 	}()
 	select {
