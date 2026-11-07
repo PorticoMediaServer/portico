@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"math"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 )
@@ -57,7 +58,7 @@ func readBasicAssetBeforeProbe(ctx context.Context, turn *commandTurn, purpose B
 	if err = turn.requireBasicMemory(ctx, purpose, required); err != nil {
 		return value, err
 	}
-	if in.assetID <= 0 || in.libraryID <= 0 || in.size < 0 || in.assetPath == "" || in.assetPath[0] != '/' || strings.IndexByte(in.assetPath, 0) >= 0 {
+	if in.assetID <= 0 || in.libraryID <= 0 || in.size < 0 || !filepath.IsAbs(in.assetPath) || strings.IndexByte(in.assetPath, 0) >= 0 {
 		return value, ErrInvalid
 	}
 	if !utf8.ValidString(in.assetPath) {
