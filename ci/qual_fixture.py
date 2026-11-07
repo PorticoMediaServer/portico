@@ -204,6 +204,22 @@ def command(argv, cwd, env, report, name, timeout):
     return log_path
 
 
+def validate_sqlite_build_identity(metadata, selected):
+    # Go test binaries omit dependency records from debug/buildinfo. Retain
+    # that actual metadata, and prove the build-selected dependency separately
+    # with go list under the SAME source/env/flags as the test binary build.
+    lines = metadata.splitlines()
+    require(lines and lines[0].endswith(': ' + GO)
+            and '\tpath\tgithub.com/PorticoMediaServer/portico/server/internal/store/writer.test' in metadata,
+            'test binary toolchain/package identity mismatch')
+    dependencies = [line.strip() for line in selected.splitlines() if line.strip()]
+    expected = {'modernc.org/sqlite/lib v1.58.0 ORIGINAL',
+                'github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite BUNDLED'}
+    require(len(dependencies) == len(expected) and set(dependencies) == expected,
+            'build-selected bundled SQLite dependency identity mismatch/replacement')
+    return sorted(dependencies)
+
+
 def publish(staging, output, receipt, **expected):
     m, manifest_sha = validate_artifact(staging, **expected)
     for name in ('population.sqlite', 'population.json'):
@@ -298,9 +314,12 @@ def produce(source, output, work):
         run_command(['go', 'test', '-p', '1', '-c', '-o', str(binary), './internal/store/writer'], module, 'build', 1200)
         receipt['binary_sha256'] = file_hash(binary)
         metadata = run_command(['go', 'version', '-m', str(binary)], module, 'binary-build-info').read_text()
-        require(re.search(r'\bmodernc.org/sqlite\s+v1\.58\.0\s', metadata)
-                and '=>' not in metadata, 'binary dependency identity mismatch/replacement')
+        template = '{{if eq .ImportPath "modernc.org/sqlite/lib"}}{{.ImportPath}} {{.Module.Version}} {{if .Module.Replace}}REPLACED{{else}}ORIGINAL{{end}}{{end}}{{if eq .ImportPath "github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"}}{{.ImportPath}} BUNDLED{{end}}{{if eq .ImportPath "modernc.org/sqlite"}}{{.ImportPath}} ROOT_DRIVER{{end}}'
+        selected = run_command(['go', 'list', '-deps', '-test', '-f', template, './internal/store/writer'],
+                               module, 'sqlite-build-dependency', 300).read_text()
+        dependencies = validate_sqlite_build_identity(metadata, selected)
         receipt['binary_build_info'] = metadata
+        receipt['sqlite_build_dependencies'] = dependencies
         staging = work / 'export'
         config_path = work / 'export-config.json'
         atomic_json(config_path, dict(output_dir=str(staging), source_commit=actual,
