@@ -110,6 +110,9 @@ func TestRSRelatedRestrictedRoot(t *testing.T) {
 	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
 	f.exec(t, `UPDATE catalog_entities SET admission_own_age=8 WHERE kind=1`)
 	f.exec(t, `UPDATE catalog_entities SET admission_own_age=99,admission_member_count=3,admission_unrated_members=1,admission_min_known_age=8 WHERE id=2000`)
+	f.exec(t, `INSERT INTO catalog_aggregate_operations(id,library_id,source_kind,source_entity_id,source_incarnation,source_revision,phase) VALUES(1,1,'entity',2000,'inc','1','complete')`)
+	f.exec(t, `INSERT INTO catalog_aggregate_publications(id,operation_id,parent_id,captured_revision,generation,phase,duration_key,community_rating_key,critic_rating_key,file_size_key,episode_count,latest_aired_key,admission_member_count,admission_unrated_members,admission_min_known_age) VALUES(1,1,2000,1,1,'published',0,0,0,0,0,'',3,1,8)`)
+	f.exec(t, `UPDATE catalog_entities SET aggregate_publication_id=1 WHERE id=2000`)
 	in := RelatedInput{View: f.input, Item: 2000, Windows: 64}
 	in.View.Kind = 10
 	p := rsFinish(t, f, r, in, rsBegin(t, f, in, true), true)
@@ -117,6 +120,7 @@ func TestRSRelatedRestrictedRoot(t *testing.T) {
 		t.Fatal("mixed accepted container did not complete")
 	}
 	f.exec(t, `UPDATE catalog_entities SET admission_unrated_members=0,admission_min_known_age=18 WHERE id=2000`)
+	f.exec(t, `UPDATE catalog_aggregate_publications SET admission_unrated_members=0,admission_min_known_age=18 WHERE id=1`)
 	_, _, err := rsPoll(t, f, r, in, rsBegin(t, f, in, true), true)
 	if err != ErrDenied && !errors.Is(err, ErrDenied) {
 		t.Fatal("hidden root admitted", err)
