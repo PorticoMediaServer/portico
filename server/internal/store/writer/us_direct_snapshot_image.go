@@ -3,6 +3,7 @@ package writer
 import (
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -89,6 +90,34 @@ func (USDirectCapabilitiesImage) String() string   { return "[direct snapshot im
 func (USDirectCapabilitiesImage) GoString() string { return "[direct snapshot image redacted]" }
 func (USDirectCapabilitiesImage) Format(f fmt.State, _ rune) {
 	_, _ = f.Write([]byte("[direct snapshot image redacted]"))
+}
+
+// Generic serialization and structured logging disclose no historical identity
+// or permission fields. A future response adapter must extract its explicitly
+// named DTO under current disclosure authority rather than marshal this image.
+func (USDirectSnapshotImage) MarshalJSON() ([]byte, error) {
+	return []byte(`"[direct snapshot image redacted]"`), nil
+}
+func (USDirectSnapshotImage) LogValue() slog.Value {
+	return slog.StringValue("[direct snapshot image redacted]")
+}
+func (USDirectAccountImage) MarshalJSON() ([]byte, error) {
+	return []byte(`"[direct snapshot image redacted]"`), nil
+}
+func (USDirectAccountImage) LogValue() slog.Value {
+	return slog.StringValue("[direct snapshot image redacted]")
+}
+func (USDirectProfileImage) MarshalJSON() ([]byte, error) {
+	return []byte(`"[direct snapshot image redacted]"`), nil
+}
+func (USDirectProfileImage) LogValue() slog.Value {
+	return slog.StringValue("[direct snapshot image redacted]")
+}
+func (USDirectCapabilitiesImage) MarshalJSON() ([]byte, error) {
+	return []byte(`"[direct snapshot image redacted]"`), nil
+}
+func (USDirectCapabilitiesImage) LogValue() slog.Value {
+	return slog.StringValue("[direct snapshot image redacted]")
 }
 
 // Clone takes ownership of all mutable containers without normalization.

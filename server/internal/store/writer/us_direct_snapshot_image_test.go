@@ -1,10 +1,13 @@
 package writer
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log/slog"
 	"reflect"
 	"strings"
 	"testing"
@@ -235,6 +238,28 @@ func TestUSDirectSnapshotImagePreservesNativeStringBytes(t *testing.T) {
 		mutate(&b)
 		if imageSHA(t, b) == want {
 			t.Fatal("native bytes collapsed before JSON encoding")
+		}
+	}
+}
+
+func TestUSDirectSnapshotImageGenericEncodingAndLoggingRedact(t *testing.T) {
+	v := directImageFixture()
+	for _, item := range []any{v, &v, v.Account, &v.Account, v.Profiles[0], &v.Profiles[0], v.Capabilities, &v.Capabilities, v.Profiles} {
+		encoded, err := json.Marshal(item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var log bytes.Buffer
+		slog.New(slog.NewJSONHandler(&log, nil)).Info("fixture", "image", item)
+		for _, output := range []string{string(encoded), log.String()} {
+			if !strings.Contains(output, "[direct snapshot image redacted]") {
+				t.Fatal("missing redaction", output)
+			}
+			for _, secret := range []string{`"ID"`, `"Username"`, `"HostedAccountID"`, "native user", "primary", "hosted", `"ManageAccount"`} {
+				if strings.Contains(output, secret) {
+					t.Fatalf("generic encoding leaked %q: %s", secret, output)
+				}
+			}
 		}
 	}
 }
