@@ -100,6 +100,16 @@ func rbGroupExpected(f RBGroupFamily) []int64 {
 	}
 	if f == RBGroupAlbumSongs || f == RBGroupBookParts {
 		sort.Slice(ns, func(i, j int) bool {
+			discA, discB := int64(1), int64(1)
+			if ns[i]%7 == 0 {
+				discA = 2
+			}
+			if ns[j]%7 == 0 {
+				discB = 2
+			}
+			if discA != discB {
+				return discA < discB
+			}
 			a, b := ns[i]%3, ns[j]%3
 			if ns[i]%5 == 0 {
 				a = 0
@@ -187,4 +197,47 @@ func TestRBGroupPublicLIVE(t *testing.T) {
 		t.Fatal(e)
 	}
 	assertLiveUsage(t, f, 0, 0)
+}
+
+func TestRBGroupForeignMembersAndPlaylistOccurrences(t *testing.T) {
+	f := rbGroupFixture(t, false)
+	// A permitted collection subject is not permission for a foreign-library row.
+	f.exec(t, `INSERT INTO catalog_collection_members(collection_id,item_id,order_key) VALUES(2007,1040,'a')`)
+	in := RBGroupInput{View: f.input, Family: RBGroupCollectionMembers, Subject: 2007}
+	in.View.Kind = 7
+	p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+	if e != nil || len(p.Items) != 40 || p.RawPositions <= len(p.Items) {
+		t.Fatal("raw rejection budget", p, e)
+	}
+	for _, item := range p.Items {
+		if item.ID == 1040 {
+			t.Fatal("foreign member escaped")
+		}
+	}
+	// Distinct playlist entries referencing one subject are distinct occurrences.
+	f.exec(t, `INSERT INTO catalog_playlist_entries(id,token,playlist_id,item_id,order_key) VALUES(101,'repeat',1,3001,'a')`)
+	in.Family = RBGroupPlaylistEntries
+	in.Subject = 1
+	var count int
+	for n := 0; ; n++ {
+		if n > 20 {
+			t.Fatal("playlist stalled")
+		}
+		p, _, e = f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+		if e != nil {
+			t.Fatal(e)
+		}
+		for _, item := range p.Items {
+			if item.ID == 3001 {
+				count++
+			}
+		}
+		if p.Exhausted {
+			break
+		}
+		in.After = p.Next
+	}
+	if count != 2 {
+		t.Fatal("playlist occurrence lost", count)
+	}
 }
