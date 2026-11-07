@@ -13,9 +13,16 @@ import (
 // Actual Capture, exact-purpose grant and SAME frame, with a deliberately
 // synthetic component recipe. No dispatcher/current-authority/preparation
 // issuer or production/physical qualification is supplied by this fixture.
-func basicHandlerTurn(t *testing.T, w *executor, kind CommandID, defs []stmt.Definition) *commandTurn {
+func basicHandlerTurn(t *testing.T, w *executor, kind CommandID, defs []stmt.Definition, registries ...*stmt.Registry) *commandTurn {
 	t.Helper()
-	registry := nativeInventoryFixtureRegistry(t, w, defs, "basic_handlers_test.go", "basic_control_test.go", "basic_stage_test.go")
+	var registry *stmt.Registry
+	if len(registries) == 1 {
+		registry = registries[0]
+	} else if len(registries) == 0 {
+		registry = nativeInventoryFixtureRegistry(t, w, defs, "basic_handlers_test.go", "basic_control_test.go", "basic_stage_test.go")
+	} else {
+		t.Fatal("one captured startup registry only")
+	}
 	recipe := turnRecipe{limit: Work{65536, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}
 	g, authority, wal, request := governedFixture(t, w.now, governedFixtureProfile{recipe, 8 << 20})
 	request.Key.Domain, request.Key.ID = uint16(kind), "basic-run"
@@ -124,6 +131,10 @@ func TestBasicHandlerMediaStageAndSealKeepActualReceipts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// Capture the full finite recipe once on FULL startup. Later NORMAL turns
+	// reuse its actual receipt; they cannot pretend to be a second startup.
+	all := append(basicControlCommandDefinitions(), basicMediaDefinitions()...)
+	registry := nativeInventoryFixtureRegistry(t, w, all, "basic_handlers_test.go", "basic_control_test.go", "basic_stage_test.go")
 	// The native chapter child FK requires its actual staged family4 parent.
 	// Publish that parent through the SAME Stage body before any chapter row;
 	// the failed first fixture omitted it and correctly hit native FK787.
@@ -132,7 +143,7 @@ func TestBasicHandlerMediaStageAndSealKeepActualReceipts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn := basicHandlerTurn(t, w, BasicStage, basicStageCommandDefinitions(parent.request))
+	turn := basicHandlerTurn(t, w, BasicStage, basicStageCommandDefinitions(parent.request), registry)
 	parentResult, err := applyBasicStage(t.Context(), turn, parent)
 	if err != nil || parentResult.AcceptedRunRevision != 42 || parentResult.Outcome != (ReceiptOutcome{}) {
 		t.Fatal(parentResult, err)
@@ -144,7 +155,7 @@ func TestBasicHandlerMediaStageAndSealKeepActualReceipts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn = basicHandlerTurn(t, w, BasicStage, basicStageCommandDefinitions(stage.request))
+	turn = basicHandlerTurn(t, w, BasicStage, basicStageCommandDefinitions(stage.request), registry)
 	staged, err := applyBasicStage(t.Context(), turn, stage)
 	if err != nil || staged.Outcome != (ReceiptOutcome{}) || staged.AcceptedRunRevision != 43 || staged.Continuation != (BasicContinuation{}) || staged.ExpectedEpoch != 17 {
 		t.Fatal(staged, err)
@@ -155,7 +166,7 @@ func TestBasicHandlerMediaStageAndSealKeepActualReceipts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn = basicHandlerTurn(t, w, BasicSeal, basicSealCommandDefinitions(seal.request))
+	turn = basicHandlerTurn(t, w, BasicSeal, basicSealCommandDefinitions(seal.request), registry)
 	sealed, err := applyBasicSeal(t.Context(), turn, seal)
 	if err != nil || sealed.Outcome != (ReceiptOutcome{}) || sealed.AcceptedRunRevision != 44 || sealed.ChangeID != 51 || sealed.ExpectedEpoch != 17 || sealed.SourceRevision != "object:019" || sealed.Continuation != (BasicContinuation{}) || sealed.ResultCount != 0 || sealed.Members == nil || len(sealed.Members) != 0 || sealed.Digest == staged.Digest {
 		t.Fatal(sealed, err)
