@@ -26,7 +26,12 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 	if err != nil || digest != command.digest {
 		return value, ErrConflict
 	}
-	facts, err := readBasicFreshFacts(ctx, turn, command.identity, original, source)
+	var facts basicFreshFacts
+	if command.request.operation == basicStageRetireInput {
+		facts, err = readBasicRetireLiveFacts(ctx, turn, command.identity, original, source)
+	} else {
+		facts, err = readBasicFreshFacts(ctx, turn, command.identity, original, source)
+	}
 	if err != nil {
 		return value, err
 	}
@@ -37,6 +42,18 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 	changeRevision := command.request.changeRevision
 	expectedContinuation := BasicContinuation{}
 	switch command.request.operation {
+	case basicStageRetireInput:
+		if command.request.rows.family != 0 {
+			if err = applyBasicRetirePrefix(ctx, turn, command.request); err != nil {
+				return value, err
+			}
+			return completeBasicControl(ctx, turn, command.identity, command.digest, BasicPurposeStage, original, source, facts, appliedMS, BasicContinuation{AfterEntity: command.request.retire.entityID})
+		}
+		retired, err := retireBasicFirstInput(ctx, turn, command.request.retire)
+		if err != nil {
+			return value, err
+		}
+		return completeBasicRetireControl(ctx, turn, command, facts, appliedMS, retired)
 	case basicStageCopyInput:
 		var position basicCopyPosition
 		position, err = applyBasicCopy(ctx, turn, command.request.copy, appliedMS)
@@ -216,7 +233,7 @@ func basicStageRequiredBytes(in basicStageRequest) (uint64, error) {
 		}
 		return base + 8*extra, nil
 	}
-	if in.operation == basicStageMediaInput {
+	if in.operation == basicStageMediaInput || in.operation == basicStageRetireInput && in.rows.family != 0 {
 		rowsBytes, err := basicRowsRequestBytes(source, in.rows)
 		if err != nil {
 			return 0, err

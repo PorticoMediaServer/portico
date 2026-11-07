@@ -18,12 +18,8 @@ func basicRetireFirstTestDefinitions() []stmt.Definition {
 	return defs
 }
 
-func basicRetireFirstFixture(t *testing.T, setup string, wrongShapeReturn bool) (*executor, *commandTurn, basicRetireFirstEffects, int64) {
+func seedBasicRetiredFirstInput(t *testing.T, w *executor, s basicStreamFactStage) (basicRetireFirstEffects, int64) {
 	t.Helper()
-	w, s := basicStreamFixture(t)
-	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_kinds VALUES(1,'movie',1,0,1,1,0)`); err != nil {
-		t.Fatal(err)
-	}
 	seedBasicFirstOrdinaryOwner(t, w)
 	for _, q := range []string{
 		`INSERT INTO catalog_info_shapes(id,container,video_codec,height,ref_count) VALUES(61,'mkv','h264',1080,2)`,
@@ -50,16 +46,26 @@ func basicRetireFirstFixture(t *testing.T, setup string, wrongShapeReturn bool) 
 	if _, err = w.db.ExecContext(t.Context(), `UPDATE catalog_info_input_budget SET used_bytes=? WHERE singleton=1`, 777+charge); err != nil {
 		t.Fatal(err)
 	}
+	return in, charge
+}
+
+func basicRetireFirstFixture(t *testing.T, setup string, fault string) (*executor, *commandTurn, basicRetireFirstEffects, int64) {
+	t.Helper()
+	w, s := basicStreamFixture(t)
+	in, charge := seedBasicRetiredFirstInput(t, w, s)
 	if setup != "" {
-		if _, err = w.db.ExecContext(t.Context(), setup); err != nil {
+		if _, err := w.db.ExecContext(t.Context(), setup); err != nil {
 			t.Fatal(err)
 		}
 	}
 	defs := basicRetireFirstTestDefinitions()
-	if wrongShapeReturn {
+	if fault != "" {
 		for n := range defs {
-			if defs[n].ID == basicRetireShapeRelease {
+			if defs[n].ID == basicRetireShapeRelease && fault == "shape_returning" {
 				defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING id,ref_count", "RETURNING ref_count,id", 1)
+			}
+			if defs[n].ID == basicRetireDeleteHeader && fault == "header_returning" {
+				defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING id,expected_epoch,", "RETURNING expected_epoch,id,", 1)
 			}
 		}
 	}
@@ -68,7 +74,7 @@ func basicRetireFirstFixture(t *testing.T, setup string, wrongShapeReturn bool) 
 }
 
 func TestBasicRetireFirstDeletesOnlyInputAndRefundsActualDebt(t *testing.T) {
-	w, turn, in, charge := basicRetireFirstFixture(t, "", false)
+	w, turn, in, charge := basicRetireFirstFixture(t, "", "")
 	got, err := retireBasicFirstInput(t.Context(), turn, in)
 	want := basicRetiredFirstInput{51, 17, 18, 12, charge}
 	if err != nil || got != want {
@@ -91,7 +97,7 @@ func TestBasicRetireFirstDeletesOnlyInputAndRefundsActualDebt(t *testing.T) {
 }
 
 func TestBasicRetireFirstUndrainedPrefixAndEpochRefuse(t *testing.T) {
-	for _, state := range []string{"media_prefix", "extra_manifest", "fresh_epoch"} {
+	for _, state := range []string{"media_prefix", "extra_manifest", "fresh_epoch", "witness_changed"} {
 		t.Run(state, func(t *testing.T) {
 			setup := ""
 			if state == "media_prefix" {
@@ -100,7 +106,10 @@ func TestBasicRetireFirstUndrainedPrefixAndEpochRefuse(t *testing.T) {
 			if state == "extra_manifest" {
 				setup = `INSERT INTO catalog_info_input_families VALUES(51,10,0,0,0,1)`
 			}
-			_, turn, in, _ := basicRetireFirstFixture(t, setup, false)
+			if state == "witness_changed" {
+				setup = `UPDATE catalog_info_input_witnesses SET object_revision='changed' WHERE change_id=51 AND ordinal=0`
+			}
+			_, turn, in, _ := basicRetireFirstFixture(t, setup, "")
 			if state == "fresh_epoch" {
 				in.currentAssetEpoch = 19
 			}
@@ -120,13 +129,10 @@ func TestBasicRetireFirstUndrainedPrefixAndEpochRefuse(t *testing.T) {
 }
 
 func TestBasicRetireFirstLateFailureRestoresHeaderPinAndDebt(t *testing.T) {
-	for _, state := range []string{"shape_returning", "witness_changed"} {
+	for _, state := range []string{"shape_returning", "header_returning"} {
 		t.Run(state, func(t *testing.T) {
 			setup := ""
-			if state == "witness_changed" {
-				setup = `UPDATE catalog_info_input_witnesses SET object_revision='changed' WHERE change_id=51 AND ordinal=0`
-			}
-			w, turn, in, charge := basicRetireFirstFixture(t, setup, state == "shape_returning")
+			w, turn, in, charge := basicRetireFirstFixture(t, setup, state)
 			got, err := retireBasicFirstInput(t.Context(), turn, in)
 			if !errors.Is(err, ErrConflict) || got != (basicRetiredFirstInput{}) {
 				t.Fatal(got, err)

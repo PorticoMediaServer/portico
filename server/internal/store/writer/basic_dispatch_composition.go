@@ -40,6 +40,8 @@ func basicEffectsDefinitions(purpose CommandID) []stmt.Definition {
 	}
 	all := append(basicControlCommandDefinitions(), basicMediaDefinitions()...)
 	if purpose == BasicStage {
+		all = append(all, basicRetireFirstDefinitions()...)
+		all = append(all, basicReclaimMediaDefinitions()...)
 		all = append(all, basicProbeDefinitions()...)
 		all = append(all, basicShapeDefinitions()...)
 		all = append(all, basicCopyRecipeDefinitions()...)
@@ -61,6 +63,20 @@ func basicEffectsMaxUses(purpose CommandID, id stmt.ID) int {
 		return uses
 	}
 	if purpose == BasicStage {
+		if uses := basicRetireFirstMaxUses(id); uses != 0 {
+			return uses
+		}
+		if id == basicReclaimMediaHeader {
+			return 1
+		}
+		if id == basicReclaimMediaSubtitleEmbedded {
+			return 8
+		}
+		for family := int64(2); family <= 9; family++ {
+			if id == basicReclaimMediaID(family) {
+				return 8
+			}
+		}
 		if uses := basicCopyStageMaxUses(id); uses != 0 {
 			return uses
 		}

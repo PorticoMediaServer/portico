@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const basicStageRequestVersion uint16 = 2
+const basicStageRequestVersion uint16 = 3
 
 type basicStageOperation uint8
 type basicSealOperation uint8
@@ -17,6 +17,7 @@ const (
 	basicStageProbeInput
 	basicStagePinShapeInput
 	basicStageCopyInput
+	basicStageRetireInput
 )
 const (
 	basicSealStreamInput basicSealOperation = iota + 1
@@ -37,6 +38,7 @@ type basicStageRequest struct {
 	start, end     int64 // bounded staging prefix, never a receipt COPY cursor
 	probe          basicProbeEffects
 	copy           basicCopyRequest
+	retire         basicRetireFirstEffects
 }
 type basicSealRequest struct {
 	original       basicOriginalScope
@@ -73,6 +75,19 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 		return nil, err
 	}
 	switch in.operation {
+	case basicStageRetireInput:
+		if _, err = basicRetireFirstCharge(in.retire); err != nil {
+			return nil, err
+		}
+		if in.rows.family != 0 {
+			in.rows, err = freezeBasicRowsRequest(source, in.rows)
+			if err != nil {
+				return nil, err
+			}
+			if basicRowsCount(in.rows) != in.retire.counts[in.rows.family-1] {
+				return nil, ErrInvalid
+			}
+		}
 	case basicStageBeginInput:
 		if err = validateBasicOrdinaryCounts(source.libraryID, in.begin.shape, in.begin.counts); err != nil {
 			return nil, err
@@ -107,7 +122,9 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 		}
 	}
 	in.original = cloneBasicOriginal(in.original)
-	if in.operation == basicStageBeginInput {
+	if in.operation == basicStageRetireInput {
+		in.retire.source = cloneBasicSource(in.retire.source)
+	} else if in.operation == basicStageBeginInput {
 		in.begin.source = cloneBasicSource(in.begin.source)
 		in.begin.shape.CUEOrdinals = cloneBasicRequestSlice(in.begin.shape.CUEOrdinals)
 		in.begin.shape.EpisodeIDs = cloneBasicRequestSlice(in.begin.shape.EpisodeIDs)
@@ -130,6 +147,9 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 }
 
 func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
+	if in.operation != basicStageRetireInput && in.retire != (basicRetireFirstEffects{}) {
+		return basicStreamFactStage{}, ErrInvalid
+	}
 	if in.operation != basicStageCopyInput && !reflect.ValueOf(in.copy).IsZero() {
 		return basicStreamFactStage{}, ErrInvalid
 	}
@@ -140,6 +160,18 @@ func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
 		return basicStreamFactStage{}, ErrInvalid
 	}
 	switch in.operation {
+	case basicStageRetireInput:
+		if !reflect.ValueOf(in.begin).IsZero() || in.fact != (basicStreamFactStage{}) || in.changeRevision != 0 {
+			return basicStreamFactStage{}, ErrInvalid
+		}
+		if in.rows.family == 0 {
+			if !reflect.ValueOf(in.rows).IsZero() || in.start != 0 || in.end != 0 {
+				return basicStreamFactStage{}, ErrInvalid
+			}
+		} else if in.rows.family < 2 || in.rows.family > 9 || in.start < 0 || in.end <= in.start || in.end-in.start > 8 || in.end > basicRowsCount(in.rows) {
+			return basicStreamFactStage{}, ErrInvalid
+		}
+		return in.retire.source, nil
 	case basicStageCopyInput:
 		if !reflect.ValueOf(in.begin).IsZero() || in.fact != (basicStreamFactStage{}) || !reflect.ValueOf(in.rows).IsZero() || in.changeRevision != 0 || in.start != 0 || in.end != 0 || in.probe != (basicProbeEffects{}) {
 			return basicStreamFactStage{}, ErrInvalid

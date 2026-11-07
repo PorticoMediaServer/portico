@@ -27,6 +27,10 @@ func basicCopyRecipeDefinitions() []stmt.Definition {
 
 func basicStageSealRowBound(id stmt.ID) uint64 {
 	switch id {
+	case basicRetireFamilyKeys:
+		return 10
+	case basicRetireWitnessKeys, basicRetireStreamFactKeys:
+		return 2
 	case basicBeginFirstEntityAssets, basicStageWitness, basicAcceptOwners:
 		return 2
 	case basicAcceptVersions:

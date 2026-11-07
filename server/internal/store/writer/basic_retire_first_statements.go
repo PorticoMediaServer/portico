@@ -3,6 +3,7 @@ package writer
 import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
 const (
+	basicRetireWitnessMatch                      stmt.ID = "scan.basic_retire.witness_match"
 	basicRetireStreamFactKeys                    stmt.ID = "scan.basic_retire.stream_fact_keys"
 	basicRetireHeader                            stmt.ID = "scan.basic_retire.header"
 	basicRetireAsset                             stmt.ID = "scan.basic_retire.asset"
@@ -41,6 +42,7 @@ func basicRetireFirstDefinitions() []stmt.Definition {
 	t := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	b := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
 	defs := []stmt.Definition{
+		{ID: basicRetireWitnessMatch, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_info_input_witnesses WHERE change_id=? AND ordinal=? AND kind=? AND job_id=? AND source_id=? AND source_generation=? AND root_incarnation=? AND object_id=? AND object_revision=? AND policy_revision=? AND expected_choice_revision=? AND fingerprint=?`, Params: []stmt.Param{i("change_id"), i("ordinal"), i("kind"), t("job_id"), t("source_id"), i("source_generation"), t("root_incarnation"), t("object_id"), t("object_revision"), i("policy_revision"), i("expected_choice_revision"), b("fingerprint")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_info_input_witnesses"}, Seeks: []string{"change_id=? AND ordinal=?"}}, Cohorts: []stmt.Cohort{{Name: "owned_retired_witness", Bindings: []any{int64(51), int64(0), int64(0), "basic-run", "basic-source", int64(23), "basic-incarnation", "basic-object", "object:019", int64(29), int64(0), make([]byte, 32)}}}},
 		{ID: basicRetireStreamFactKeys, Kind: stmt.Read, SQL: `SELECT input_ordinal FROM catalog_info_new_stream_facts WHERE change_id=? ORDER BY input_ordinal LIMIT ?`, Params: []stmt.Param{i("change_id"), i("row_limit")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_catalog_info_new_stream_facts_2"}, Seeks: []string{"change_id=?"}}, Cohorts: []stmt.Cohort{{Name: "sole_stream_fact_key", Bindings: []any{int64(51), int64(2)}}}},
 		{ID: basicRetireHeader, Kind: stmt.Read, SQL: `SELECT id FROM catalog_info_changes WHERE id=? AND asset_id=? AND asset_token=? AND expected_epoch=? AND input_revision=? AND fingerprint=? AND job_revision=? AND target_shape_id=? AND after_entity=? AND upper_entity=? AND slot=0 AND phase=5 AND family_mask=511 AND has_after=1 AND target_available=1 AND target_owner_object IS NULL AND target_owner_revision IS NULL AND copy_family=0 AND copy_phase=0 AND copy_id=0 AND copy_aux=0 AND copy_key='' AND copy_key2='' AND copy_key3='' AND old_path IS NULL AND job_lease_owner=0 AND job_lease_generation=0 AND job_lease_expires_ms=0 AND job_attempts=0 AND job_next_attempt_ms IS NULL AND fault=''`, Params: []stmt.Param{i("change_id"), i("asset_id"), t("asset_token"), i("expected_epoch"), i("input_revision"), b("fingerprint"), i("job_revision"), i("shape_id"), i("after_entity"), i("upper_entity")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_info_changes"}, Seeks: []string{"rowid=?"}}, Cohorts: []stmt.Cohort{{Name: "header", Bindings: []any{int64(51), int64(41), "basic-asset", int64(17), int64(7), make([]byte, 32), int64(15), int64(61), int64(31), int64(31)}}}},
 		{ID: basicRetireAsset, Kind: stmt.Read, SQL: `SELECT info_epoch FROM catalog_assets WHERE id=? AND library_id=? AND token=? AND info_epoch=? AND available=1 AND info_publication_pending=0 AND info_owner_object IS NULL AND info_owner_revision IS NULL`, Params: []stmt.Param{i("asset_id"), i("library_id"), t("asset_token"), i("current_asset_epoch")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_assets"}, Seeks: []string{"rowid=?"}}, Cohorts: []stmt.Cohort{{Name: "asset", Bindings: []any{int64(41), int64(7), "basic-asset", int64(18)}}}},
@@ -82,4 +84,14 @@ func basicRetireFirstDefinitions() []stmt.Definition {
 
 func basicRetireEmptyPoints() []stmt.ID {
 	return []stmt.ID{basicRetireEmptyPendingLinks, basicRetireEmptyNewChapterFacts, basicRetireEmptyNewChapters, basicRetireEmptyNewDiscChapters, basicRetireEmptyNewDiscClips, basicRetireEmptyNewDiscFacts, basicRetireEmptyNewDiscMediaMembers, basicRetireEmptyNewDiscStreams, basicRetireEmptyNewDiscTitleMedia, basicRetireEmptyNewDiscTitleMediaMembers, basicRetireEmptyNewDiscTitleMediaStreams, basicRetireEmptyNewDiscTitles, basicRetireEmptyNewStreamBreadth, basicRetireEmptyNewStreams, basicRetireEmptyNewSubtitleFacts, basicRetireEmptyNewSubtitleInventoryEvidence, basicRetireEmptyNewSubtitleSidecars, basicRetireEmptyNewSubtitles, basicRetireEmptyScalarOld}
+}
+
+func basicRetireFirstMaxUses(id stmt.ID) int {
+	switch id {
+	case basicRetireDeleteFamily:
+		return 9
+	case basicRetireWitnessMatch, basicRetireStreamFactKeys, basicRetireHeader, basicRetireAsset, basicRetireLink, basicRetireEmptyPendingLinks, basicRetireEmptyNewChapterFacts, basicRetireEmptyNewChapters, basicRetireEmptyNewDiscChapters, basicRetireEmptyNewDiscClips, basicRetireEmptyNewDiscFacts, basicRetireEmptyNewDiscMediaMembers, basicRetireEmptyNewDiscStreams, basicRetireEmptyNewDiscTitleMedia, basicRetireEmptyNewDiscTitleMediaMembers, basicRetireEmptyNewDiscTitleMediaStreams, basicRetireEmptyNewDiscTitles, basicRetireEmptyNewStreamBreadth, basicRetireEmptyNewStreams, basicRetireEmptyNewSubtitleFacts, basicRetireEmptyNewSubtitleInventoryEvidence, basicRetireEmptyNewSubtitleSidecars, basicRetireEmptyNewSubtitles, basicRetireEmptyScalarOld, basicRetireFamilyKeys, basicRetireWitnessKeys, basicRetireDeleteStreamFact, basicRetireDeleteWitness, basicRetireDeleteHeader, basicRetireShapeRefs, basicRetireShapeRelease:
+		return 1
+	}
+	return 0
 }

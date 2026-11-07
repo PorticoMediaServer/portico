@@ -61,6 +61,25 @@ func basicRetireHeaderArgs(in basicRetireFirstEffects) []any {
 	return []any{s.changeID, s.assetID, s.assetToken, s.expectedEpoch, s.inputRevision, s.witnessFingerprint[:], in.changeRevision, in.shapeID, in.entityID, in.entityID}
 }
 
+func basicRetireWitnessArgs(s basicStreamFactStage) []any {
+	return []any{s.changeID, int64(0), int64(0), s.runID, s.sourceID, s.sourceGeneration, s.incarnation, s.objectID, s.objectRevision, s.policyRevision, int64(0), s.witnessFingerprint[:]}
+}
+
+func checkBasicRetireWitness(ctx context.Context, turn *commandTurn, s basicStreamFactStage) error {
+	row, err := basicStageRead(ctx, turn, basicRetireWitnessMatch, basicRetireWitnessArgs(s)...)
+	if err != nil {
+		return err
+	}
+	var matched int64
+	if err = row.Scan(&matched); err != nil {
+		return basicStageError(err)
+	}
+	if matched != 1 {
+		return ErrConflict
+	}
+	return nil
+}
+
 // Final fixed-size retirement after bounded media-prefix cleanup. Only the
 // enclosing Stage command supplies live-run disclosure, lease, memory, receipt
 // and whole-command rollback. No ACK refund, parent cascade, serving fact
@@ -105,6 +124,9 @@ func retireBasicFirstInput(ctx context.Context, turn *commandTurn, in basicRetir
 	}
 	if id != 1 {
 		return value, ErrConflict
+	}
+	if err = checkBasicRetireWitness(ctx, turn, s); err != nil {
+		return value, err
 	}
 	// These constant-valued bounded points allocate no unknown child payload.
 	// They cover every other adopted inbound header edge before parent DELETE.
@@ -198,7 +220,7 @@ func retireBasicFirstInput(ctx context.Context, turn *commandTurn, in basicRetir
 		return value, err
 	}
 	value.deleted++
-	args = []any{s.changeID, int64(0), int64(0), s.runID, s.sourceID, s.sourceGeneration, s.incarnation, s.objectID, s.objectRevision, s.policyRevision, int64(0), s.witnessFingerprint[:]}
+	args = basicRetireWitnessArgs(s)
 	rows, err = basicRows(ctx, turn, basicRetireDeleteWitness, args...)
 	if err != nil {
 		return value, err

@@ -11,6 +11,26 @@ func basicControlCommandDefinitions() []stmt.Definition {
 }
 
 func basicStageCommandMaxUses(operation basicStageOperation, id stmt.ID) int {
+	if operation == basicStageRetireInput {
+		if uses := basicRetireFirstMaxUses(id); uses != 0 {
+			return uses
+		}
+		if id == basicReclaimMediaHeader || id == basicStageFamily || id == basicStageBudget || id == basicStageBudgetCAS {
+			return 1
+		}
+		if id == basicReclaimMediaSubtitleEmbedded {
+			return 8
+		}
+		for family := int64(2); family <= 9; family++ {
+			if id == basicReclaimMediaID(family) {
+				return 8
+			}
+		}
+		if id == basicControlObject || id == basicControlAsset {
+			return 0
+		}
+		return basicControlCommonMaxUses(id)
+	}
 	if operation != basicStageBeginInput && operation != basicStageFactInput {
 		return 0
 	}
