@@ -96,7 +96,7 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 			p.scanLifecycleMemory = commandMemoryBudget{4 << 20, 4 << 20}
 		}
 		if len(defs) == len(inventoryDriverCommandDefinitions()) {
-			p.inventoryRecords = inventoryRecordEnvelope{maxBytes: recipe.setup.WALBytes, work: recipe.setup}
+			p.inventoryRecords = inventoryRecordEnvelope{maxBytes: 65536, work: Work{16, 2000, 16, 65536, 100 * time.Microsecond}}
 		}
 		for _, def := range defs {
 			p.steps = append(p.steps, statementStep{def.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
