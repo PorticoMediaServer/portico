@@ -172,6 +172,16 @@ func (f *scanObservationFaultTransport) NativeInventoryExchange(ctx context.Cont
 
 func scanPreparationFundingFixture(t *testing.T, now func() time.Time, memory ...int64) (*scanOpening, *stateownership.Lock, *effectiveRuntime, governor.Request, *governor.Grant) {
 	t.Helper()
+	return scanPreparationPurposeFundingFixture(t, now, InventoryCreate, memory...)
+}
+
+// ONE existing ownership/governor builder, with a closed purpose selected before
+// admission. No grant is rebound or copied after Try.
+func scanPreparationPurposeFundingFixture(t *testing.T, now func() time.Time, purpose CommandID, memory ...int64) (*scanOpening, *stateownership.Lock, *effectiveRuntime, governor.Request, *governor.Grant) {
+	t.Helper()
+	if purpose != InventoryCreate && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept {
+		t.Fatal("unsupported fixture purpose")
+	}
 	path, owner := scanOpeningFixture(t)
 	opening := openScanFixture(t, path, owner)
 	profile := governedFixtureProfile{testRecipe(), 65536}
@@ -183,10 +193,10 @@ func scanPreparationFundingFixture(t *testing.T, now func() time.Time, memory ..
 	}
 	g, a, wal, request := governedFixture(t, now, profile)
 	request.Writer = false
-	request.Key = governor.JobKey{Domain: uint16(InventoryCreate), ID: "prepared-original"}
+	request.Key = governor.JobKey{Domain: uint16(purpose), ID: "prepared-original"}
 	request.Deadline = time.Now().Add(10 * time.Second)
 	request.Need[governor.WALBytes] = 0
-	request.Footprint = []governor.Scope{{Library: 7, Domain: uint16(InventoryCreate)}}
+	request.Footprint = []governor.Scope{{Library: 7, Domain: uint16(purpose)}}
 	decision := g.Try(request)
 	if decision.Grant == nil {
 		t.Fatal(decision.Refusal)

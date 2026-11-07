@@ -49,6 +49,7 @@ type scanPreparationMode uint8
 const (
 	scanNativePreparation scanPreparationMode = iota + 1
 	scanHistoryPreparation
+	scanBasicPreparation // reserved dedicated Basic custody; never native observation
 )
 
 func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateownership.Lock, r *effectiveRuntime,
@@ -74,22 +75,26 @@ func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateo
 		}
 	}()
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
-	if ctx == nil || opening == nil || opening.binding == nil || opening.executor == nil || owner == nil || r == nil || r.executor != opening.executor || r.path != opening.binding.path ||
-		expected.Writer || expected.Class != governor.ScanMinimum || expected.Owner != r.owner || grant == nil ||
-		(expected.Key.Domain != uint16(InventoryCreate) && expected.Key.Domain != uint16(InventoryClaim) && expected.Key.Domain != uint16(InventoryAccept)) || expected.Key.ID == "" ||
-		expected.Need[governor.MemoryBytes] <= 0 || len(expected.Footprint) != 1 || expected.Footprint[0].Library <= 0 ||
-		expected.Footprint[0].Domain != expected.Key.Domain {
-		return nil, ErrInvalid
-	}
 	mode := scanNativePreparation
-	if len(modes) > 1 || len(modes) == 1 && modes[0] != scanHistoryPreparation {
+	if len(modes) > 1 || len(modes) == 1 && modes[0] != scanHistoryPreparation && modes[0] != scanBasicPreparation {
 		return nil, ErrInvalid
 	}
 	if len(modes) == 1 {
 		mode = modes[0]
 	}
-	if mode == scanHistoryPreparation {
-		// Recovery has no live source/root or native observation authority.
+	purpose := CommandID(expected.Key.Domain)
+	ordinary := mode != scanBasicPreparation && (purpose == InventoryCreate || purpose == InventoryClaim || purpose == InventoryAccept)
+	basic := mode == scanBasicPreparation && (purpose == BasicStage || purpose == BasicSeal || purpose == BasicAccept)
+	if ctx == nil || opening == nil || opening.binding == nil || opening.executor == nil || owner == nil || r == nil || r.executor != opening.executor || r.path != opening.binding.path ||
+		expected.Writer || expected.Class != governor.ScanMinimum || expected.Owner != r.owner || grant == nil ||
+		(!ordinary && !basic) || expected.Key.ID == "" ||
+		expected.Need[governor.MemoryBytes] <= 0 || len(expected.Footprint) != 1 || expected.Footprint[0].Library <= 0 ||
+		expected.Footprint[0].Domain != expected.Key.Domain {
+		return nil, ErrInvalid
+	}
+	if mode != scanNativePreparation {
+		// History and dedicated Basic custody have no native inventory observation
+		// authority. Basic retains only its exact-purpose ORIGINAL funded holding.
 		if len(request.Root) != 0 || len(request.RelativePath) != 0 ||
 			request.RootIdentity != "" || request.DirectoryRevision != "" || request.Cursor != "" || request.Limit != 0 || request.FollowSymlinks {
 			return nil, ErrInvalid
@@ -274,7 +279,7 @@ func (p *scanPreparation) ObserveInventory(ctx context.Context) (value nativeinv
 func (p *scanPreparation) beginObservation() (*sourceops.Lease, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.closed || p.retiring || p.retired || p.failed || p.observing || p.observed != nil || p.mode == scanHistoryPreparation || p.expected.Key.Domain == uint16(InventoryClaim) {
+	if p.closed || p.retiring || p.retired || p.failed || p.observing || p.observed != nil || p.mode != scanNativePreparation || p.expected.Key.Domain == uint16(InventoryClaim) {
 		return nil, ErrClosed
 	}
 	if err := p.current(); err != nil {
