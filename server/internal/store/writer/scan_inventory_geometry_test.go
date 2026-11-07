@@ -68,7 +68,7 @@ func (c *pageBeginCounter) ExecContext(ctx context.Context, sql string, args []d
 
 func TestWriterPageMismatchRefusesBeforeBegin(t *testing.T) {
 	begins := 0
-	w, _, _ := testExecutor(t, func(c driver.Conn) driver.Conn { return &pageBeginCounter{c.(writerDriverConn), &begins} })
+	w, path, _ := testExecutor(t, func(c driver.Conn) driver.Conn { return &pageBeginCounter{c.(writerDriverConn), &begins} })
 	var actual int32
 	if err := w.db.QueryRowContext(t.Context(), "PRAGMA main.page_size").Scan(&actual); err != nil {
 		t.Fatal(err)
@@ -78,9 +78,12 @@ func TestWriterPageMismatchRefusesBeforeBegin(t *testing.T) {
 		w.config.WriterPageSize = 1024
 	}
 	g, a, wal, request := governedFixture(t, w.now)
+	if err := refreshWriterWAL(path, wal, w.now); err != nil {
+		t.Fatal(err)
+	}
 	decision := g.Try(request)
 	if decision.Grant == nil {
-		t.Fatal(decision)
+		t.Fatal(decision.Refusal)
 	}
 	custody, err := bindGovernedTurn(InventoryAccept, testRecipe().limit, g, a, wal, decision.Grant, request)
 	if err != nil {
@@ -88,6 +91,9 @@ func TestWriterPageMismatchRefusesBeforeBegin(t *testing.T) {
 	}
 	before := begins
 	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), custody)
+	if tx != nil {
+		defer tx.rollback(nil) // also join a deliberately broken assertion in mutant controls
+	}
 	if tx != nil || !errors.Is(err, sqliteconn.ErrPolicy) || begins != before || custody.state.Load() != 2 {
 		t.Fatal("page mismatch began native work or lost retirement", tx, err, begins-before, custody.state.Load())
 	}
