@@ -288,6 +288,7 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 
 func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inventoryProgressiveFixture, trace *n1Trace, summary *n1SteadySummary, original, ordinal int, population, role, cohort string, baseline uint64, control n1SteadyControls) (record *n1Attempt) {
 	t.Helper()
+	f.owner.lastAdmission = nil // early guards must not borrow the previous call's receipt
 	trace.nextTurn()
 	trace.failQuery = ""
 	if control.failOriginal == original && control.failRole == role {
