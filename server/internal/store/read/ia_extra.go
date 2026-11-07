@@ -69,9 +69,7 @@ func (s *iaExtraSnapshots) Read(ctx context.Context, r governor.Request, b time.
 }
 func (s *iaExtraSnapshots) point(name string, columns []int, args ...any) ([]any, error) {
 	prefix := "foreground.ia.extra."
-	if name == "entity" || name == "link" {
-		prefix = "foreground.ia.audio."
-	}
+
 	octets := readStatementID(prefix + name + "_octets")
 	if name == "link" {
 		octets = iaLinkOctetsID
@@ -96,7 +94,7 @@ func (s *iaExtraSnapshots) point(name string, columns []int, args ...any) ([]any
 	return row, nil
 }
 func (s *iaExtraSnapshots) links(q browseQuery, entity, library int64) ([]IAAudioLink, error) {
-	rows, e := q("foreground.ia.audio.links", entity)
+	rows, e := q("foreground.ia.extra.links", entity)
 	if e != nil {
 		return nil, e
 	}
@@ -149,7 +147,7 @@ func (r *ForegroundReader) iaExtraMembership(ctx context.Context, request govern
 	root := func(q browseQuery) ([]any, error) {
 		s.rootCalls++
 		s.extra[len(s.extra)-1].publication = s.rootCalls%2 == 0
-		row, e := s.point("entity", []int{1, 2, 3, 14, 18}, in.Entity, in.View.Library)
+		row, e := s.point("entity", []int{1, 2, 3, 14, 18, 24}, in.Entity, in.View.Library)
 		if errors.Is(e, sql.ErrNoRows) {
 			return nil, ErrDenied
 		}
@@ -213,7 +211,7 @@ func (r *ForegroundReader) iaExtraMembership(ctx context.Context, request govern
 			if in.ExtraKind != "" && (row[3] != in.Entity || row[4] != in.ExtraKind) {
 				return ErrDenied
 			}
-			ent, e := s.point("entity", []int{1, 2, 3, 14, 18}, id, in.View.Library)
+			ent, e := s.point("entity", []int{1, 2, 3, 14, 18, 24}, id, in.View.Library)
 			if errors.Is(e, sql.ErrNoRows) {
 				return ErrDenied
 			}
@@ -224,7 +222,7 @@ func (r *ForegroundReader) iaExtraMembership(ctx context.Context, request govern
 				continue
 			}
 			if row[3] != nil {
-				owner, e := s.point("entity", []int{1, 2, 3, 14, 18}, row[3], in.View.Library)
+				owner, e := s.point("entity", []int{1, 2, 3, 14, 18, 24}, row[3], in.View.Library)
 				if errors.Is(e, sql.ErrNoRows) {
 					return ErrDenied
 				}
