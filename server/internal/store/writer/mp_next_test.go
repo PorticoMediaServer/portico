@@ -47,7 +47,7 @@ func TestMPNextStopIsPhysicalAndExact(t *testing.T) {
 	for _, d := range defs {
 		byID[string(d.ID)] = d.SQL
 	}
-	for _, part := range []string{"media_generation=?", "exited_ms IS NULL", "playback_physical_exits", "supervisor_incarnation=?"} {
+	for _, part := range []string{"media_generation=?", "request_id=?", "exited_ms IS NULL", "playback_sessions", "mp_retired_generation", "mp_exited_generation", "mp_retire_request_id", "mp_exit_request_id", "mp_exit_supervisor_incarnation=?", "mp_exited_ms=?"} {
 		if !containsMP(byID["mp.next.exit"], part) {
 			t.Fatal("physical-exit predicate removed", part)
 		}
@@ -100,4 +100,36 @@ func containsMP(s, part string) bool {
 		}
 	}
 	return false
+}
+
+func TestMPPhysicalExitRequiresOriginalRequestAndTrustedRoot(t *testing.T) {
+	supervisor := [16]byte{9}
+	f := mpStopExitFact{requestID: "original / 音", requested: 10, physical: mpPhysicalStopFact{retired: 4, exited: 4, requestID: "original / 音", exitRequestID: "original / 音", supervisor: supervisor[:], exitedMS: 20}}
+	if !mpStopExitMatches(f, "original / 音", 4, 20, supervisor) {
+		t.Fatal("matching physical exit refused")
+	}
+	for i, change := range []func(*mpStopExitFact){func(f *mpStopExitFact) { f.requestID = "trimmed" }, func(f *mpStopExitFact) { f.physical.requestID = "new request" }, func(f *mpStopExitFact) { f.physical.exitRequestID = "foreign" }, func(f *mpStopExitFact) { f.physical.retired++ }, func(f *mpStopExitFact) { f.physical.exited-- }, func(f *mpStopExitFact) { f.physical.supervisor = []byte{1} }, func(f *mpStopExitFact) { f.physical.exitedMS++ }, func(f *mpStopExitFact) { f.requested = 21 }} {
+		bad := f
+		change(&bad)
+		if mpStopExitMatches(bad, "original / 音", 4, 20, supervisor) {
+			t.Fatal("foreign/unexited physical debt accepted", i)
+		}
+	}
+	f.exited.Valid = true
+	f.exited.Int64 = 20
+	if !mpStopExitMatches(f, "original / 音", 4, 20, supervisor) {
+		t.Fatal("exact repeated exit not idempotent")
+	}
+	f.exited.Int64 = 19
+	if mpStopExitMatches(f, "original / 音", 4, 20, supervisor) {
+		t.Fatal("rewrote observed exit time")
+	}
+	pending := f.physical
+	pending.exited = 3
+	pending.exitRequestID = ""
+	pending.supervisor = nil
+	pending.exitedMS = 0
+	if !mpPhysicalRetirementValid(pending, 4) {
+		t.Fatal("logical retirement lost physical debt")
+	}
 }

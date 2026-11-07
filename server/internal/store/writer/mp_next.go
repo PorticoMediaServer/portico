@@ -29,9 +29,9 @@ type mpNextEffect struct {
 	transfer mpNextTransfer
 }
 
-// These additional prepared columns and the per-preparation stop child are
-// PROPOSED MP-001 typed fields, listed in the coverage note. No canonical DDL
-// is changed here. No token, JSON response or source digest acts as authority.
+// Exact F witness/stop definitions, pinned in the coverage note; not embedded
+// or executable until parent adoption/Capture/composition. No canonical DDL is
+// changed here. No token, JSON response or source digest acts as authority.
 func mpNextDefinitions() []stmt.Definition {
 	r, w := stmt.Read, stmt.Write
 	return []stmt.Definition{
@@ -44,9 +44,10 @@ func mpNextDefinitions() []stmt.Definition {
 		mpDefinition("mp.next.insert", `INSERT INTO playback_v1_prepared(token,queue_id,device_id,create_key,digest,session_id,session_generation,session_state,queue_revision,next_position,entry_id,item_id,media_session_id,request,presentation,expires_ms,state,created_ms,mp_family_id,mp_current_entry_id,mp_custody_generation,mp_next_lap,mp_media_generation,mp_source_revision,mp_prepared_revision,mp_predecessor_media_id,mp_predecessor_media_generation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'','',?,'prepared',?,?,?,?,?,?,?,?,?,?)`, "ssssssisii sisii ssiiisisi", w),
 		mpDefinition("mp.next.cancel", `UPDATE playback_v1_prepared SET state='canceled',cancel_reason=? WHERE token=? AND queue_id=? AND state='prepared'`, "sss", w),
 		mpDefinition("mp.next.commit", `UPDATE playback_v1_prepared SET state='committed' WHERE token=? AND queue_id=? AND state='prepared' AND queue_revision=? AND mp_custody_generation=? AND session_generation=? AND mp_media_generation=?`, "ssiiii", w),
-		mpDefinition("mp.next.stop", `INSERT INTO playback_v1_next_stop_obligations(token,media_session_id,media_generation,reason,requested_ms) VALUES(?,?,?,?,?) ON CONFLICT(token,media_session_id,media_generation) DO NOTHING`, "ssisi", w),
+		mpDefinition("mp.next.stop", `INSERT INTO mp_next_stop_obligations(next_id,media_session_id,media_generation,request_id,reason,requested_ms) SELECT ?,p.id,?,p.mp_retire_request_id,?,? FROM playback_sessions p WHERE p.id=? AND p.mp_retired_generation=? AND p.mp_retire_request_id<>''`, "sisis i", w),
 		mpDefinition("mp.next.revoked", `SELECT 1 FROM playback_v1_prepared n JOIN authorization_session_families f ON f.id=n.mp_family_id WHERE n.token=? AND n.queue_id=? AND n.media_session_id=? AND n.mp_media_generation=? AND n.state='prepared' AND (f.revoked=1 OR n.expires_ms<=?)`, "sssii", r),
-		mpDefinition("mp.next.exit", `UPDATE playback_v1_next_stop_obligations SET exited_ms=? WHERE token=? AND media_session_id=? AND media_generation=? AND exited_ms IS NULL AND EXISTS(SELECT 1 FROM playback_physical_exits x WHERE x.session_id=playback_v1_next_stop_obligations.media_session_id AND x.generation=playback_v1_next_stop_obligations.media_generation AND x.supervisor_incarnation=? AND x.exited_ms=?)`, "issibi", w),
+		mpDefinition("mp.next.exit_fact", `SELECT o.request_id,o.requested_ms,o.exited_ms,p.mp_retired_generation,p.mp_exited_generation,p.mp_retire_request_id,p.mp_exit_request_id,p.mp_exit_supervisor_incarnation,p.mp_exited_ms FROM mp_next_stop_obligations o JOIN playback_sessions p ON p.id=o.media_session_id WHERE o.next_id=? AND o.media_session_id=? AND o.media_generation=?`, "ssi", r),
+		mpDefinition("mp.next.exit", `UPDATE mp_next_stop_obligations SET exited_ms=? WHERE next_id=? AND media_session_id=? AND media_generation=? AND request_id=? AND exited_ms IS NULL AND requested_ms<=? AND EXISTS(SELECT 1 FROM playback_sessions p WHERE p.id=mp_next_stop_obligations.media_session_id AND p.mp_retired_generation=mp_next_stop_obligations.media_generation AND p.mp_exited_generation=mp_next_stop_obligations.media_generation AND p.mp_retire_request_id=mp_next_stop_obligations.request_id AND p.mp_exit_request_id=mp_next_stop_obligations.request_id AND p.mp_exit_supervisor_incarnation=? AND p.mp_exited_ms=?)`, "issisibi", w),
 	}
 }
 
@@ -297,7 +298,7 @@ func mpCancelPrepared(ctx context.Context, t *commandTurn, p mpNextPrepared, rea
 	if !mpID(p.media) || p.mediaGeneration < 1 || len(reason) > 64 {
 		return ErrInvalid
 	}
-	if err := mpExec(ctx, t, "mp.next.stop", p.token, p.media, p.mediaGeneration, reason, now.UnixMilli()); err != nil {
+	if err := mpRecordNextStop(ctx, t, p.token, p.media, p.mediaGeneration, reason, now); err != nil {
 		return err
 	}
 	return mpExec(ctx, t, "mp.next.cancel", reason, p.token, p.queue)
@@ -377,7 +378,7 @@ func mpCommitQueueNext(ctx context.Context, t *commandTurn, token, queue, nextTo
 	if err != nil {
 		return out, err
 	}
-	if err = mpExec(ctx, t, "mp.next.stop", p.token, s.media, s.mediaGeneration, "completed", now.UnixMilli()); err != nil {
+	if err = mpRecordNextStop(ctx, t, p.token, s.media, s.mediaGeneration, "completed", now); err != nil {
 		return out, err
 	}
 	out.result.done = true
@@ -453,20 +454,45 @@ func mpRevokeQueueNext(ctx context.Context, t *commandTurn, queue, nextToken str
 	}
 	return mpQueueEffect{queue: queue, revision: p.queueRevision, custody: p.custody, token: p.token, reason: "revoked_or_expired", changed: true, done: true}, nil
 }
-func mpRecordNextPhysicalExit(ctx context.Context, t *commandTurn, queue, nextToken, media string, generation, exited int64, supervisor [16]byte) (out mpQueueEffect, err error) {
+func mpRecordNextPhysicalExit(ctx context.Context, t *commandTurn, queue, nextToken, media, requestID string, generation, exited int64, supervisor [16]byte) (out mpQueueEffect, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	if err = mpPurpose(t, mpNextPhysicalExit); err != nil {
 		return out, err
 	}
-	if supervisor == [16]byte{} || generation < 1 || exited < 1 {
+	if supervisor == [16]byte{} || generation < 1 || exited < 1 || requestID == "" || len(requestID) > 512 {
 		return out, ErrInvalid
 	}
 	p, err := mpLoadPrepared(ctx, t, queue, nextToken)
 	if err != nil {
 		return out, err
 	}
-	if err = mpExec(ctx, t, "mp.next.exit", exited, nextToken, media, generation, supervisor[:], exited); err != nil {
+	fact, e := mpReadStopExit(ctx, t, "mp.next.exit_fact", nextToken, media, generation)
+	if e != nil {
+		return out, e
+	}
+	if !mpStopExitMatches(fact, requestID, generation, exited, supervisor) {
+		return out, ErrConflict
+	}
+	if fact.exited.Valid {
+		return mpQueueEffect{queue: queue, revision: p.queueRevision, custody: p.custody, token: nextToken, done: true}, nil
+	}
+	if err = mpExec(ctx, t, "mp.next.exit", exited, nextToken, media, generation, requestID, exited, supervisor[:], exited); err != nil {
 		return out, err
 	}
 	return mpQueueEffect{queue: queue, revision: p.queueRevision, custody: p.custody, token: nextToken, changed: true, done: true}, nil
+}
+
+func mpRecordNextStop(ctx context.Context, t *commandTurn, token, media string, generation int64, reason string, now time.Time) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
+	if !mpID(token) || len(reason) > 64 || now.UnixMilli() < 1 {
+		return ErrInvalid
+	}
+	proof, err := mpReadPhysicalStop(ctx, t, media, generation)
+	if err != nil {
+		return err
+	}
+	if !proof.pending {
+		return nil
+	}
+	return mpExec(ctx, t, "mp.next.stop", token, generation, reason, now.UnixMilli(), media, generation)
 }
