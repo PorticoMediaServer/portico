@@ -16,33 +16,35 @@ const rsCollectionCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(
 // next TEXT cursor before decoding, never the entire provider cohort.
 func init() {
 	pointOctets.add(octetShape{"read.browse.rs.auto.identity_octets", rsAutoIdentityOctetsSQL, "RS collection requires its exact bounded source point", func(d stmt.Definition) bool {
-		return rsCollectionOctetDefinition(d, 2, "catalog_automatic_collection_entity")
+		return rsCollectionOctetDefinition(d, []stmt.Type{stmt.Integer, stmt.Integer}, "catalog_automatic_collection_entity")
 	}, auditRSDetailOctetPoint, func(r Rows) error {
 		return checkRSCollectionOctetPoint(r, "catalog_automatic_collection_entity", "entity_id=?")
 	}})
 	pointOctets.add(octetShape{"read.browse.rs.auto.evidence_octets", rsAutoEvidenceOctetsSQL, "RS collection requires its exact bounded source point", func(d stmt.Definition) bool {
-		return rsCollectionOctetDefinition(d, 3, "metadata_evidence_collection_members")
+		return rsCollectionOctetDefinition(d, []stmt.Type{stmt.Text, stmt.Text, stmt.Text}, "metadata_evidence_collection_members")
 	}, auditRSDetailOctetPoint, func(r Rows) error {
 		return checkRSCollectionOctetPoint(r, "metadata_evidence_collection_members", "provider=? AND collection_kind=? AND collection_id=? AND evidence_id>?")
 	}})
 	pointOctets.add(octetShape{"read.browse.rs.auto.authored_tail_octets", rsAuthoredTailOctetsSQL, "RS collection requires its exact bounded source point", func(d stmt.Definition) bool {
-		return rsCollectionOctetDefinition(d, 3, "catalog_collection_members_page")
+		return rsCollectionOctetDefinition(d, []stmt.Type{stmt.Integer, stmt.Text, stmt.Integer}, "catalog_collection_members_page")
 	}, auditRSDetailOctetPoint, func(r Rows) error {
 		return checkRSCollectionOctetPoint(r, "catalog_collection_members_page", "collection_id=? AND order_key=? AND item_id>?")
 	}})
 	pointOctets.add(octetShape{"read.browse.rs.auto.authored_next_octets", rsAuthoredNextOctetsSQL, "RS collection requires its exact bounded source point", func(d stmt.Definition) bool {
-		return rsCollectionOctetDefinition(d, 2, "catalog_collection_members_page")
+		return rsCollectionOctetDefinition(d, []stmt.Type{stmt.Integer, stmt.Text}, "catalog_collection_members_page")
 	}, auditRSDetailOctetPoint, func(r Rows) error {
 		return checkRSCollectionOctetPoint(r, "catalog_collection_members_page", "collection_id=? AND order_key>?")
 	}})
-	pointOctets.add(octetShape{"read.browse.rs.auto.card_octets", rsCollectionCardOctetsSQL, "RS collection requires its exact bounded source point", func(d stmt.Definition) bool { return rsCollectionOctetDefinition(d, 2, "") }, auditRSDetailOctetPoint, func(r Rows) error { return checkRSCollectionOctetPoint(r, "", "") }})
+	pointOctets.add(octetShape{"read.browse.rs.auto.card_octets", rsCollectionCardOctetsSQL, "RS collection requires its exact bounded source point", func(d stmt.Definition) bool {
+		return rsCollectionOctetDefinition(d, []stmt.Type{stmt.Integer, stmt.Integer}, "")
+	}, auditRSDetailOctetPoint, func(r Rows) error { return checkRSCollectionOctetPoint(r, "", "") }})
 }
-func rsCollectionOctetDefinition(d stmt.Definition, count int, index string) bool {
-	if d.Kind != stmt.Read || !d.Plan.Hot || len(d.Params) != count || len(d.Plan.Waivers) != 0 || len(d.Plan.AllowedScans) != 0 || len(d.Plan.AutoIndexes) != 0 || d.Plan.NativeInsert != "" || d.Plan.NativeRetained != "" {
+func rsCollectionOctetDefinition(d stmt.Definition, types []stmt.Type, index string) bool {
+	if d.Kind != stmt.Read || !d.Plan.Hot || len(d.Params) != len(types) || len(d.Plan.Waivers) != 0 || len(d.Plan.AllowedScans) != 0 || len(d.Plan.AutoIndexes) != 0 || d.Plan.NativeInsert != "" || d.Plan.NativeRetained != "" {
 		return false
 	}
-	for _, p := range d.Params {
-		if p.Nullable || (p.Type != stmt.Integer && p.Type != stmt.Text) {
+	for n, p := range d.Params {
+		if p.Nullable || p.Type != types[n] {
 			return false
 		}
 	}

@@ -45,7 +45,7 @@ func AutomaticCollectionDefinitions() []stmt.Definition {
 		defs = append(defs, stmt.Definition{ID: readStatementID("rs.auto." + n), SQL: sql, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/rs_auto_collection.go:CollectionPreparation"}, Params: params, Cohorts: []stmt.Cohort{{Name: "present", Bindings: args}, {Name: "empty", Bindings: empty}}, Plan: p})
 	}
 	// LIMIT2 detects an ambiguous automatic identity rather than selecting one.
-	add("source", `SELECT e.id,e.revision,e.collection_revision,e.metadata_incarnation,e.source_revision,e.metadata_revision,e.aggregate_revision,e.admission_revision,a.removed,a.owner_edited FROM catalog_entities AS e NOT INDEXED LEFT JOIN catalog_automatic_collections AS a INDEXED BY catalog_automatic_collection_entity ON a.entity_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=10 AND e.retired=0 LIMIT 2`, []stmt.Param{i("collection"), i("library")}, []any{int64(1101), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}, Indexes: []string{"catalog_automatic_collection_entity"}})
+	add("source", `SELECT e.id,e.revision,e.collection_revision,e.metadata_incarnation,e.source_revision,e.metadata_revision,e.aggregate_revision,e.admission_revision,a.removed,a.owner_edited,policy.enabled,policy.incarnation,policy.revision,provider.enabled FROM catalog_entities AS e NOT INDEXED LEFT JOIN catalog_automatic_collections AS a INDEXED BY catalog_automatic_collection_entity ON a.entity_id=e.id LEFT JOIN metadata_provider_policy AS policy INDEXED BY sqlite_autoindex_metadata_provider_policy_1 ON policy.library_id=a.library_id AND policy.provider=a.provider LEFT JOIN metadata_providers AS provider INDEXED BY sqlite_autoindex_metadata_providers_1 ON provider.code=a.provider WHERE e.id=? AND e.library_id=? AND e.kind=10 AND e.retired=0 LIMIT 2`, []stmt.Param{i("collection"), i("library")}, []any{int64(1101), int64(1)}, rsCollectionSourcePlan())
 	for _, v := range []struct{ n, sql string }{{"identity", rsAutoIdentitySQL}, {"identity_octets", rsAutoIdentityOctetsSQL}} {
 		add(v.n, v.sql, []stmt.Param{i("collection"), i("library")}, []any{int64(1101), int64(1)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_automatic_collection_entity"}, Seeks: []string{"entity_id=?"}})
 	}
@@ -75,6 +75,7 @@ func AutomaticCollectionDefinitions() []stmt.Definition {
  CROSS JOIN metadata_provider_operations AS op INDEXED BY sqlite_autoindex_metadata_provider_operations_1 ON op.id=p.operation_id AND op.entity_id=e.id AND op.provider=c.provider
  CROSS JOIN metadata_provider_policy AS policy INDEXED BY sqlite_autoindex_metadata_provider_policy_1 ON policy.library_id=e.library_id AND policy.provider=c.provider AND policy.enabled=1 AND policy.incarnation=op.policy_incarnation AND policy.revision=op.policy_revision
  CROSS JOIN metadata_evidence AS ev INDEXED BY sqlite_autoindex_metadata_evidence_1 ON ev.id=c.evidence_id AND ev.sealed=1 AND ev.language=lib.metadata_language
+ CROSS JOIN metadata_providers AS provider INDEXED BY sqlite_autoindex_metadata_providers_1 ON provider.code=c.provider AND provider.enabled=1
  LEFT JOIN catalog_automatic_member_overrides AS x INDEXED BY sqlite_autoindex_catalog_automatic_member_overrides_1 ON x.collection_id=? AND x.item_id=e.id
  WHERE e.library_id=? AND e.id=? AND c.provider=? AND c.collection_id=? AND e.kind=1 AND e.retired=0 AND e.automatic_collection_name_key='' AND c.collection_id<>'' AND c.evidence_id=? AND e.metadata_language=lib.metadata_language AND o.evidence_id=b.accepted_evidence_id AND o.publication_id=b.accepted_publication_id AND x.item_id IS NULL AND o.field='relations' AND c.collection_kind='collection' AND b.role='primary' AND b.status='matched' AND p.decision='accepted' AND op.status='applied'`,
 		[]stmt.Param{i("collection"), i("library"), i("item"), s("provider"), s("external"), s("evidence")}, []any{int64(1101), int64(1), int64(1), "tmdb", "C", "e1"}, rsAutomaticAcceptedPlan())
@@ -89,6 +90,8 @@ func AutomaticCollectionDefinitions() []stmt.Definition {
 
 func rsAutomaticAcceptedPlan() stmt.Plan {
 	p := rsAutomaticLocalPlan()
+	p.Indexes = append(p.Indexes, "sqlite_autoindex_metadata_providers_1")
+	p.AutoIndexes = append(p.AutoIndexes, rsCollectionProviderPin())
 	p.PrimaryKeys = []string{"e", "cl"}
 	for _, table := range []string{"libraries", "metadata_publications", "metadata_provider_operations", "metadata_evidence"} {
 		name := "sqlite_autoindex_" + table + "_1"
@@ -114,4 +117,11 @@ func rsAutomaticAcceptedPlan() stmt.Plan {
 
 func rsAutomaticLocalPlan() stmt.Plan {
 	return stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}, Indexes: []string{"sqlite_autoindex_catalog_automatic_member_overrides_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "catalog_automatic_member_overrides", Name: "sqlite_autoindex_catalog_automatic_member_overrides_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "collection_id", Collation: "BINARY"}, {Name: "item_id", Collation: "BINARY"}}}}}
+}
+
+func rsCollectionProviderPin() stmt.AutoIndexBinding {
+	return stmt.AutoIndexBinding{Table: "metadata_providers", Name: "sqlite_autoindex_metadata_providers_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "code", Collation: "BINARY"}}}
+}
+func rsCollectionSourcePlan() stmt.Plan {
+	return stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}, Indexes: []string{"catalog_automatic_collection_entity", "sqlite_autoindex_metadata_provider_policy_1", "sqlite_autoindex_metadata_providers_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "metadata_provider_policy", Name: "sqlite_autoindex_metadata_provider_policy_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "library_id", Collation: "BINARY"}, {Name: "provider", Collation: "BINARY"}}}, rsCollectionProviderPin()}}
 }

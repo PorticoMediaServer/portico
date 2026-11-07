@@ -192,8 +192,8 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 				c.stage = rsAutoAuthored
 				return nil
 			}
-			c.provider = source[10].(string)
-			c.external = source[11].(string)
+			c.provider = source[len(source)-2].(string)
+			c.external = source[len(source)-1].(string)
 			c.stage = rsAutoEvidence
 			if c.provider == "nfo" {
 				c.stage = rsAutoLocal

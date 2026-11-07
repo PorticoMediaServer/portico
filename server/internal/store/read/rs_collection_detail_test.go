@@ -91,3 +91,94 @@ func TestRSCollectionDetailActualBytesAndDefaultPolicy(t *testing.T) {
 		t.Fatal("unproved container policy", e)
 	}
 }
+
+func TestRSCollectionDetailContinuationAndLive(t *testing.T) {
+	f := composeReadFixture(t, newRSAutoSource(t), append(browseDefinitions(), AutomaticCollectionDefinitions()...), rsAutoConfig(), false, rsAutoHash(t))
+	r, e := NewCollectionReader(f.snapshots)
+	if e != nil {
+		t.Fatal(e)
+	}
+	f.input.Limit = 1
+	var after *CollectionDetailCursor
+	for page := 0; page < 2; page++ {
+		p := rsBeginCollection(t, f, r)
+		// Each pending quantum is its own foreground entry; the SAME preparation
+		// lease survives consumer return and no owner priority/deadline is renewed.
+		for n := 0; n < 100; n++ {
+			q, request, output := liveRequests("collection-live")
+			var step CollectionAdvance
+			_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+				var e error
+				step, _, e = p.Advance(ctx, request, time.Second, out)
+				return e
+			})
+			if e != nil {
+				t.Fatal(e)
+			}
+			if step.Ready {
+				break
+			}
+			if n == 99 {
+				t.Fatal("pending forever")
+			}
+		}
+		q, request, output := liveRequests("collection-handoff")
+		var d CollectionDetail
+		_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+			var e error
+			d, _, e = p.Detail(ctx, request, time.Second, out, after)
+			if e == nil && f.authority.ForegroundUsage().Live != 1 {
+				t.Fatal("consumer custody lost")
+			}
+			return e
+		})
+		if e != nil {
+			t.Fatal(e)
+		}
+		if len(d.Items) != 1 || d.Items[0].ID != []int64{1, 4}[page] || d.ExactCount != 2 {
+			t.Fatal(d)
+		}
+		after = d.Next
+	}
+	if after != nil {
+		t.Fatal("terminal continuation")
+	}
+	assertLiveUsage(t, f, 0, 0)
+}
+
+func TestRSCollectionPreparationExpiryAndSourceFence(t *testing.T) {
+	now := time.Now()
+	clock := now
+	cfg := rsAutoConfig()
+	cfg.Now = func() time.Time { return clock }
+	f := composeReadFixture(t, newRSAutoSource(t), append(browseDefinitions(), AutomaticCollectionDefinitions()...), cfg, true, rsAutoHash(t))
+	r, e := NewCollectionReader(f.snapshots)
+	if e != nil {
+		t.Fatal(e)
+	}
+	p := rsBeginCollection(t, f, r)
+	deadline := p.Deadline()
+	_, _, e = p.advance(t.Context(), foregroundRequest(), time.Second, f.output, f.input.Now)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !p.Deadline().Equal(deadline) {
+		t.Fatal("poll renewed deadline")
+	}
+	clock = now.Add(13 * time.Second)
+	step, _, e := p.advance(t.Context(), foregroundRequest(), time.Second, f.output, f.input.Now)
+	if !errors.Is(e, governor.ErrPreparationExpired) || step.Ready || !p.closed || p.nodes != nil {
+		t.Fatal("expired work returned exact result", e)
+	}
+	clock = now
+	p = rsBeginCollection(t, f, r)
+	_, _, e = p.advance(t.Context(), foregroundRequest(), time.Second, f.output, f.input.Now)
+	if e != nil {
+		t.Fatal(e)
+	}
+	f.exec(t, `UPDATE metadata_provider_policy SET revision=2`)
+	step, _, e = p.advance(t.Context(), foregroundRequest(), time.Second, f.output, f.input.Now)
+	if !errors.Is(e, ErrStale) || step.Ready || !p.closed {
+		t.Fatal("unversioned policy drift survived", e)
+	}
+}
