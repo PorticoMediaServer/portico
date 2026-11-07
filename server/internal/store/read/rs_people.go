@@ -85,7 +85,7 @@ func (r *PersonReader) credits(ctx context.Context, request governor.Request, bu
 	var source []any
 	var raw [][]any
 	var exhausted bool
-	windows := &rsByteWindow{source: r.snapshots, preflightCalls: rsPeopleRaw + 10}
+	windows := &rsByteWindow{source: r.snapshots, preflightCalls: rsPeopleRaw + 10, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	root := func(q browseQuery) ([]any, error) {
 		rows, err := q("rs.people.source", in.Person)
 		if err != nil {

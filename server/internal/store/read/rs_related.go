@@ -333,7 +333,7 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 		}
 		return flat, nil
 	}
-	byteWindows := &rsByteWindow{source: r.snapshots}
+	byteWindows := &rsByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	w.state.windows = byteWindows
 	for i := range w.state.probe {
 		if v := w.state.probe[i].inventory; v != nil {

@@ -167,7 +167,7 @@ func (r *RSAuthorBookReader) fence(ctx context.Context, q governor.Request, out 
 	if e := r.authority.CheckPreparation(p.lease); e != nil {
 		return e
 	}
-	f, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.snapshots, preflightCalls: 12}, q, time.Until(p.lease.Deadline()), out, p.view(at, 13, p.input.Author), []readStep[browseFence]{func(_ context.Context, _ browseQuery, f browseFence, d *browseFence) error { *d = f; return nil }})
+	f, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.snapshots, preflightCalls: 12, goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}, q, time.Until(p.lease.Deadline()), out, p.view(at, 13, p.input.Author), []readStep[browseFence]{func(_ context.Context, _ browseQuery, f browseFence, d *browseFence) error { *d = f; return nil }})
 	addSearchReadCost(cost, &c)
 	if e != nil {
 		return e
@@ -289,7 +289,7 @@ type rsAuthorBookEntry struct {
 // records structural and visible membership; wide book text is read only from
 // exact admitted points in the subsequent complete book stream.
 func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, out BrowseOutput, p *RSAuthorBookPreparation, at time.Time, cost *BrowseReadResult) error {
-	w := &rsByteWindow{source: r.snapshots, preflightCalls: 20}
+	w := &rsByteWindow{source: r.snapshots, preflightCalls: 20, goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}
 	var next int64
 	_, c, e := rsPeoplePublish(ctx, w, q, time.Until(p.lease.Deadline()), out, p.view(at, 13, p.input.Author), []readStep[struct{}]{
 		func(_ context.Context, query browseQuery, _ browseFence, _ *struct{}) error {

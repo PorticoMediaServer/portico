@@ -447,7 +447,7 @@ func (r *RSPeoplePageReader) peopleQuantum(ctx context.Context, request governor
 	var selected []int
 	var done bool
 	var maxBytes int64
-	w := &rsByteWindow{source: r.snapshots, preflightCalls: 14}
+	w := &rsByteWindow{source: r.snapshots, preflightCalls: 14, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	root := func(q browseQuery) ([]any, error) {
 		rows, err := q("rs.people.source", c.person)
 		if err != nil {
@@ -573,7 +573,7 @@ func (r *RSPeoplePageReader) peopleFacts(ctx context.Context, request governor.R
 	c := &p.current
 	view := p.input.Views[0]
 	view.Now = at
-	w := &rsByteWindow{source: r.snapshots}
+	w := &rsByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	_, one, err := rsPeoplePublish(ctx, w, request, time.Until(minTimeRS(request.Deadline, p.lease.Deadline())), output, view, []readStep[struct{}]{
 		func(_ context.Context, q browseQuery, _ browseFence, _ *struct{}) error {
 			rows, e := q("rs.people.person_octets", c.person)
@@ -622,7 +622,7 @@ func (r *RSPeoplePageReader) peoplePortrait(ctx context.Context, request governo
 	c := &p.current
 	view := p.input.Views[0]
 	view.Now = at
-	w := &rsByteWindow{source: r.snapshots}
+	w := &rsByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	choice := ""
 	_, one, err := rsPeoplePublish(ctx, w, request, time.Until(p.lease.Deadline()), output, view, []readStep[struct{}]{
 		func(context.Context, browseQuery, browseFence, *struct{}) error { return nil },

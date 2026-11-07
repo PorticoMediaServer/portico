@@ -178,7 +178,7 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 	var raw [][]any
 	var accepted []int64
 	nonempty := p.nonempty
-	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 40}
+	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 40, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	root := func(q browseQuery) ([]any, error) { var e error; source, e = p.rootRead(q); return source, e }
 	// Every quantum has one bounded source position, at most four candidate
 	// points, then a fresh authorization/source publication check.

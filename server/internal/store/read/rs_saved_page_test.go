@@ -466,7 +466,7 @@ func TestRSSavedPagesBytePreflightRefusesPayload(t *testing.T) {
 		args []any
 	}{{"metadata", []any{"saved"}}, {"resource", []any{int64(1)}}, {"entry", []any{int64(1), "saved"}}, {"card", []any{"p", int64(1), int64(1), int64(1)}}} {
 		t.Run(c.name, func(t *testing.T) {
-			result, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2}, func(scope *governor.ReadScope) error {
+			result, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2, GoCopyBytes: 64 << 10}, func(scope *governor.ReadScope) error {
 				rows, _, e := queryReadScope(scope, "rs.saved_page."+c.name, c.args...)
 				if !errors.Is(e, governor.ErrSnapshotBudget) || rows != nil {
 					t.Fatal("wide payload decoded before byte admission", rows, e)

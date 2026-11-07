@@ -474,7 +474,7 @@ func (p *SavedCollectionWork) advance(ctx context.Context, req governor.Request,
 	if p.ready {
 		return BrowseReadResult{}, nil
 	}
-	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 768}
+	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 768, goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}
 	var steps []readStep[struct{}]
 	point := func(name string, args []any, consume func([]any) error) {
 		var exists bool
@@ -987,7 +987,7 @@ func (p *SavedCollectionWork) deliver(ctx context.Context, req governor.Request,
 			return s, nil
 		}}
 	}
-	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 16}
+	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 16, goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}
 	page, cost, err := publishRead(ctx, w, req, min(budget, time.Until(p.lease.Deadline())), out, view, []readStep[SavedCollectionPage]{func(_ context.Context, _ browseQuery, f browseFence, d *SavedCollectionPage) error {
 		if p.fence == nil || !rsCollectionSameFence(*p.fence, f) {
 			return ErrStale

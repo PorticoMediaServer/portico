@@ -75,7 +75,7 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 	for rank := offset; rank < end; rank++ {
 		ids = append(ids, rsNodeRank(p.nodes, p.root, rank))
 	}
-	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 40}
+	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 40, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	steps := []readStep[CollectionDetail]{func(ctx context.Context, q browseQuery, f browseFence, d *CollectionDetail) error {
 		if p.fence == nil || !rsCollectionSameFence(*p.fence, f) {
 			return ErrStale

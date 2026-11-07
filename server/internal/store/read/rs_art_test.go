@@ -158,7 +158,7 @@ func TestRSArtActualBytesAndLIVE(t *testing.T) {
 	if err == nil || d.Present {
 		t.Fatal("cancelled output", err)
 	}
-	result, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2}, func(scope *governor.ReadScope) error {
+	result, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2, GoCopyBytes: 64 << 10}, func(scope *governor.ReadScope) error {
 		_, _, err := queryReadScope(scope, "rs.art.point", int64(1103), "poster")
 		return err
 	})

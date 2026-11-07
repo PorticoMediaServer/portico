@@ -162,7 +162,7 @@ func (r *RSArtistAlbumReader) fence(ctx context.Context, q governor.Request, out
 	if e := r.authority.CheckPreparation(p.lease); e != nil {
 		return e
 	}
-	f, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.snapshots, preflightCalls: 12}, q, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[browseFence]{func(_ context.Context, _ browseQuery, f browseFence, d *browseFence) error { *d = f; return nil }})
+	f, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.snapshots, preflightCalls: 12, goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}, q, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[browseFence]{func(_ context.Context, _ browseQuery, f browseFence, d *browseFence) error { *d = f; return nil }})
 	addSearchReadCost(cost, &c)
 	if e != nil {
 		return e
@@ -256,7 +256,7 @@ func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out 
 	return
 }
 func (r *RSArtistAlbumReader) enumerate(ctx context.Context, q governor.Request, out BrowseOutput, p *RSArtistAlbumPreparation, at time.Time, cost *BrowseReadResult) error {
-	_, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.snapshots, preflightCalls: 12}, q, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[struct{}]{func(context.Context, browseQuery, browseFence, *struct{}) error { return nil }, func(_ context.Context, query browseQuery, f browseFence, _ *struct{}) error {
+	_, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.snapshots, preflightCalls: 12, goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}, q, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[struct{}]{func(context.Context, browseQuery, browseFence, *struct{}) error { return nil }, func(_ context.Context, query browseQuery, f browseFence, _ *struct{}) error {
 		name, after := "rs.audio.primary", p.primary
 		if p.phase == 1 {
 			name, after = "rs.audio.featured", p.featured
@@ -380,7 +380,7 @@ func (r *RSArtistAlbumReader) hydrate(ctx context.Context, q governor.Request, o
 		// The album authorizes this title context. The legacy contract requires
 		// the primary artist to be live, not independently visible as a container.
 		artist := card.Facts.Album.Artist
-		w := &rsByteWindow{source: r.snapshots, preflightCalls: 12}
+		w := &rsByteWindow{source: r.snapshots, preflightCalls: 12, goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}
 		var value BrowseItem
 		value, c, e = rsPeoplePublish(ctx, w, q, time.Until(p.lease.Deadline()), out, p.view(at, 6, id), []readStep[BrowseItem]{
 			func(_ context.Context, query browseQuery, _ browseFence, _ *BrowseItem) error {

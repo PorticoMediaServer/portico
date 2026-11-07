@@ -156,7 +156,7 @@ func (r *RSSelectedTechnicalReader) poll(ctx context.Context, request governor.R
 		return RSTechnicalFacts{}, BrowseReadResult{}, e
 	}
 	in.View.policy = readPolicyBinding{recipe: rsDetailSubjectPolicy, subject: in.Item}
-	windows := &rsByteWindow{source: r.snapshots, preflightCalls: 16}
+	windows := &rsByteWindow{source: r.snapshots, preflightCalls: 16, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	var current []any
 	root := func(q browseQuery) ([]any, error) {
 		if e := w.authority.CheckPreparation(w.lease); e != nil {

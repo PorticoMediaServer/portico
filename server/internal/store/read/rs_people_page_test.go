@@ -211,7 +211,7 @@ func TestRSPeoplePageBytePointsAndFinalRevocation(t *testing.T) {
 		name string
 		args []any
 	}{{"rs.people.page.credit", []any{int64(1), int64(0), int64(1), int64(1), int64(1)}}, {"rs.people.page.portrait", []any{int64(1), "matched"}}} {
-		_, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2}, func(scope *governor.ReadScope) error {
+		_, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2, GoCopyBytes: 64 << 10}, func(scope *governor.ReadScope) error {
 			rows, _, err := queryReadScope(scope, point.name, point.args...)
 			if rows != nil || !errors.Is(err, governor.ErrSnapshotBudget) {
 				t.Fatal("payload copied without actual-byte permission", rows, err)
