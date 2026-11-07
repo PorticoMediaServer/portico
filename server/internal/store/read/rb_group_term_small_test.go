@@ -152,6 +152,9 @@ func TestRBTermSmallRefusalAndPublication(t *testing.T) {
 			case "restriction":
 				f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
 			default:
+				if mode == "preferences" {
+					f.exec(t, "UPDATE libraries SET preference_present=1,preference_revision=1,preference_group_collections=0,preference_local_tags='off',preference_lyrics_source='files',preference_title_source='tags',preference_episode_numbering='season',preference_find_extras=0,preference_sort_ignore_articles=1 WHERE id='movies'")
+				}
 				sql := map[string]string{"revoked": `UPDATE authorization_session_families SET revoked=1`, "metadata": `UPDATE libraries SET data_metadata_revision=data_metadata_revision+1 WHERE id='movies'`, "preferences": `UPDATE libraries SET preference_revision=preference_revision+1 WHERE id='movies'`}[mode]
 				f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, sql) }}
 			}
@@ -242,5 +245,73 @@ func TestRBTermSmallRawTranscript(t *testing.T) {
 		if sums[0] == sums[1] {
 			t.Fatal("distinct native rows collapsed into one transcript", pair)
 		}
+	}
+}
+
+// All other bounds stay below their limits so each refusal proves its named
+// boundary. In particular 257 combined rows uses only four terms on one holder.
+func TestRBTermSmallExactBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name                     string
+		holders, terms           int
+		extra, firstOnly, refuse bool
+		raw                      int
+	}{
+		{name: "combined256", holders: 64, terms: 3, raw: 256},
+		{name: "combined257", holders: 64, terms: 3, extra: true, refuse: true},
+		{name: "holders64", holders: 64, terms: 0, raw: 64},
+		{name: "holders65", holders: 65, terms: 0, refuse: true},
+		{name: "terms16", holders: 8, terms: 16, firstOnly: true, raw: 24},
+		{name: "terms17", holders: 8, terms: 17, firstOnly: true, refuse: true},
+	} {
+		rbTermVirtualCase(t, tc.name, func(t *testing.T) {
+			f := rbTermFixture(t, false)
+			rbTermMusic(t, f)
+			f.exec(t, "DELETE FROM catalog_term_sources")
+			f.exec(t, "DELETE FROM catalog_entity_terms")
+			f.exec(t, "UPDATE catalog_entities SET retired=0 WHERE kind=7")
+			for n := 0; n < tc.holders; n++ {
+				id := int64(n + 1)
+				if id >= 9 {
+					id += 2
+				}
+				if id >= 11 {
+					f.exec(t, "UPDATE catalog_subjects SET kind=7 WHERE id=?", id)
+					f.exec(t, "INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,album_id) SELECT id,public_id,library_id,7,'Boundary','boundary','b','boundary','b',0,public_id,public_id,10 FROM catalog_subjects WHERE id=?", id)
+				}
+				count := tc.terms
+				if tc.firstOnly && n > 0 {
+					count = 0
+				}
+				if tc.extra && n == 0 {
+					count++
+				}
+				if count > 0 {
+					f.exec(t, "INSERT INTO catalog_entity_terms(entity_id,term_id) VALUES(?,1)", id)
+				}
+				for term := 0; term < count; term++ {
+					f.exec(t, "INSERT INTO catalog_term_sources(entity_id,term_id,provider,source_id) VALUES(?,1,'owner',?)", id, fmt.Sprintf("%03d", term))
+				}
+			}
+			page, _, err := rbTermRead(t, f, RBTermGenre, "")
+			if tc.refuse {
+				if !errors.Is(err, ErrNotReady) || !reflect.DeepEqual(page, RBTermSmallResult{}) {
+					t.Fatal("over-bound source escaped", page, err)
+				}
+				return
+			}
+			if err != nil || !page.Exhausted || page.RawFetched != tc.raw || page.RawPositions != tc.raw {
+				t.Fatal("exact bound refused or truncated", page, err)
+			}
+			if tc.terms > 0 {
+				count := tc.holders
+				if tc.firstOnly {
+					count = 1
+				}
+				if len(page.Groups) != 1 || page.Groups[0].Count != count || len(page.Groups[0].MemberIDs) != count {
+					t.Fatal("boundary membership incomplete", page)
+				}
+			}
+		})
 	}
 }
