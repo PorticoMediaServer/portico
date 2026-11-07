@@ -49,7 +49,7 @@ result_version,accepted_revision,applied_ms,result_kind,result_target,result_pha
 result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		o.operationID[:], owner.incarnation[:], q.identity.Sequence, q.identity.OperationID[:], q.request[:], "retire_source", 1, r.acceptedRevision, r.appliedMS,
 		o.kind, o.target, r.phase, r.entityKind, r.entityCursor, r.objectCursor, 0, 0, r.state, 0, header.digest[:], header.retainedBytes)
-	defs := iaRetirementHistoryDefinitions()
+	defs := append(iaRetirementHistoryDefinitions(), iaRetirementBeginDefinitions()...)
 	if mutate != nil {
 		mutate(defs)
 	}
@@ -157,6 +157,10 @@ func TestIARetirementDraftNativeFullKeyMutants(t *testing.T) {
 				for i := range defs {
 					if defs[i].ID == iaRetirementReclaimDelete {
 						defs[i].SQL = strings.Replace(defs[i].SQL, "result_target=?", "? IS NOT NULL", 1)
+						// Test-only weaker plan expectation lets the compiled mutant
+						// reach the native effect falsifier, rather than dying at
+						// registration on the removed leading-key predicate.
+						defs[i].Plan.Seeks = []string{"original_operation_id=? AND command_incarnation=? AND result_kind=?"}
 					}
 				}
 			})
@@ -173,5 +177,100 @@ func TestIARetirementDraftNativeFullKeyMutants(t *testing.T) {
 			}
 			turn.transaction.rollback(nil)
 		})
+	}
+}
+
+func iaRetirementDraftFreshInput(t *testing.T, w *executor, purpose CommandID) *iaRetirementCommand {
+	t.Helper()
+	for _, q := range []string{`DELETE FROM catalog_removal_receipts`, `DELETE FROM catalog_removal_progress`,
+		`UPDATE libraries SET configuration_present=1,configuration_revision=5,configuration_metadata_revision=9`,
+		`INSERT INTO library_sources(id,library_id,configured_root,root,generation,incarnation,root_identity,identity_confirmed) VALUES('source','library','/media/original','/media/original',3,'original','device:inode',1)`} {
+		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	id, r := iaRetirementRequestFixture()
+	if purpose == IARetireLibrary {
+		r.scope.sourceID, r.scope.sourceIncarnation, r.scope.sourceGeneration, r.scope.rootIdentity = "", "", 0, ""
+		r.libraryName, r.confirmation = "Library", " Library "
+	}
+	input, err := newIARetirementCommand(purpose, id, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return input
+}
+
+func TestIARetirementDraftNativeBeginFencesAndHistory(t *testing.T) {
+	for _, purpose := range []CommandID{IARetireLibrary, IARetireSource} {
+		t.Run(map[CommandID]string{IARetireLibrary: "library", IARetireSource: "source"}[purpose], func(t *testing.T) {
+			w, _, registry := iaRetirementDraftFixture(t, nil)
+			input := iaRetirementDraftFreshInput(t, w, purpose)
+			turn := scanLifecycleProtocolTurn(t, w, registry, purpose)
+			if turn.transaction.settings.Synchronous != 2 {
+				t.Fatal("BEGIN denial is not FULL")
+			}
+			got, err := applyIARetirementBegin(t.Context(), turn, input)
+			if err != nil || got.acceptedRevision != 1 || got.state != "retiring" || got.phase != 0 {
+				t.Fatal(got, err)
+			}
+			q := iaRetirementReference{kind: got.original.kind, target: got.original.target, libraryID: 7, libraryKey: "library", originalOperation: input.identity.OperationID, identity: input.identity, request: input.digest, purpose: purpose}
+			history, _, err := lookupIARetirement(t.Context(), turn, q)
+			if err != nil || history.decision != receiptReplay || history.result != got {
+				t.Fatal("fresh fence erased historical original", history, err)
+			}
+			if _, err = turn.transaction.commit(); err != nil {
+				t.Fatal(err)
+			}
+			var retired, generation, enabled, revision, due int64
+			var health string
+			if err = w.db.QueryRowContext(t.Context(), `SELECT retired FROM catalog_libraries WHERE id=7`).Scan(&retired); err != nil {
+				t.Fatal(err)
+			}
+			if err = w.db.QueryRowContext(t.Context(), `SELECT generation,enabled,health FROM library_sources WHERE id='source'`).Scan(&generation, &enabled, &health); err != nil {
+				t.Fatal(err)
+			}
+			if err = w.db.QueryRowContext(t.Context(), `SELECT configuration_revision FROM libraries WHERE id='library'`).Scan(&revision); err != nil {
+				t.Fatal(err)
+			}
+			if err = w.db.QueryRowContext(t.Context(), `SELECT job_due_ms FROM catalog_removal_progress`).Scan(&due); err != nil {
+				t.Fatal(err)
+			}
+			if revision != 6 || due != got.appliedMS {
+				t.Fatal("configuration/scheduling", revision, due, got.appliedMS)
+			}
+			if purpose == IARetireLibrary {
+				if retired != 1 || generation != 3 || enabled != 1 || health != "ready" {
+					t.Fatal("library BEGIN fanned out", retired, generation, enabled, health)
+				}
+			} else if retired != 0 || generation != 4 || enabled != 0 || health != "removing" {
+				t.Fatal("source denial fence", retired, generation, enabled, health)
+			}
+		})
+	}
+}
+
+func TestIARetirementDraftNativeBeginRollback(t *testing.T) {
+	w, _, registry := iaRetirementDraftFixture(t, nil)
+	input := iaRetirementDraftFreshInput(t, w, IARetireSource)
+	// Deliberate test-only native failure after all fresh fences and driver
+	// insertion. The candidate itself has zero application triggers.
+	if _, err := w.db.ExecContext(t.Context(), `CREATE TRIGGER ia_probe_reject_header BEFORE INSERT ON catalog_removal_receipts BEGIN SELECT RAISE(ABORT,'injected receipt failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	turn := scanLifecycleProtocolTurn(t, w, registry, IARetireSource)
+	if got, err := applyIARetirementBegin(t.Context(), turn, input); err == nil || got != (iaRetirementResult{}) {
+		t.Fatal("failed BEGIN released output", got, err)
+	}
+	turn.transaction.rollback(nil)
+	var revision, generation, enabled, drivers int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT configuration_revision FROM libraries WHERE id='library'`).Scan(&revision); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.db.QueryRowContext(t.Context(), `SELECT generation,enabled FROM library_sources WHERE id='source'`).Scan(&generation, &enabled); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM catalog_removal_progress`).Scan(&drivers); err != nil || revision != 5 || generation != 3 || enabled != 1 || drivers != 0 {
+		t.Fatal("BEGIN prefix survived rollback", revision, generation, enabled, drivers, err)
 	}
 }
