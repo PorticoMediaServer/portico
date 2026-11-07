@@ -40,5 +40,5 @@ func rsListeningAuthorKey(title string) string {
 			b[i] = c + ('a' - 'A')
 		}
 	}
-	return string(b)
+	return title
 }
