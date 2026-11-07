@@ -48,5 +48,18 @@ func checkBasicBeginFirst(ctx context.Context, turn *commandTurn, source basicSt
 	if rows.Next() {
 		return &Refusal{Code: RefusalUnqualified}
 	}
-	return rows.Err()
+	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
+		return err
+	}
+	assets, e := basicRows(ctx, turn, basicBeginFirstEntityAssets, entity)
+	if e != nil {
+		return e
+	}
+	if e = basicMediaExactRow(assets, []any{source.assetID}); e != nil {
+		if errors.Is(e, ErrConflict) {
+			return &Refusal{Code: RefusalUnqualified}
+		}
+		return e
+	}
+	return nil
 }

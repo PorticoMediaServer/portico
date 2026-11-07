@@ -128,7 +128,7 @@ func TestBasicBeginWholeUnitRollbackAndZeroResult(t *testing.T) {
 
 func TestBasicBeginFiniteDefinitions(t *testing.T) {
 	defs := basicBeginDefinitions()
-	if len(defs) != 6 || basicBeginMaxUses(basicBeginFamiliesInsert) != 9 || basicBeginMaxUses(basicStageAsset) != 0 {
+	if len(defs) != 7 || basicBeginMaxUses(basicBeginFamiliesInsert) != 9 || basicBeginMaxUses(basicStageAsset) != 0 {
 		t.Fatal("wrong bounded begin recipe")
 	}
 	for _, d := range defs {

@@ -104,7 +104,7 @@ func TestBasicFirstScalarOldLateFailureRollback(t *testing.T) {
 			defs := append(basicPublishLeafTestDefinitions(), basicFirstScalarOldDefinitions()...)
 			for n := range defs {
 				if fault == "budget_cas" && defs[n].ID == basicStageBudgetCAS {
-					defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING used_bytes", "RETURNING used_bytes+1", 1)
+					defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING used_bytes", "RETURNING cap_bytes", 1)
 				}
 				if fault == "returning" && defs[n].ID == basicFirstScalarOldReal {
 					defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING change_id,field,kind", "RETURNING field,change_id,kind", 1)

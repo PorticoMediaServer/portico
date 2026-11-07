@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"database/sql"
 	"errors"
 	"reflect"
 	"testing"
@@ -9,7 +10,7 @@ import (
 )
 
 func basicFirstAcceptTestDefinitions() []stmt.Definition {
-	groups := [][]stmt.Definition{basicControlCommandDefinitions(), basicActivationDefinitions(), basicSettleLeafDefinitions(), basicPublishLeafDefinitions(), basicObjectAnalysisDefinitions(), basicAcceptControlDefinitions(), basicNFODefinitions(), basicArtworkDefinitions(), basicReceiptDefinitions(), basicReceiptMemberDefinitions()}
+	groups := [][]stmt.Definition{basicControlCommandDefinitions(), basicActivationDefinitions(), basicSettleLeafDefinitions(), basicPublishLeafDefinitions(), basicObjectAnalysisDefinitions(), basicAcceptControlDefinitions(), basicFirstScalarOldDefinitions(), basicNFODefinitions(), basicArtworkDefinitions(), basicReceiptDefinitions(), basicReceiptMemberDefinitions()}
 	var defs []stmt.Definition
 	for _, group := range groups {
 		for _, d := range group {
@@ -49,6 +50,8 @@ func basicFirstAcceptCommandFixture(t *testing.T) (*executor, *basicAcceptComman
 		`INSERT INTO catalog_scalar_contributions(library_id,parent_id,contributor_id,source,contributor_revision,membership_sequence,community_rating,critic_rating) VALUES(7,31,31,0,17,9,7,8)`,
 		`INSERT INTO catalog_asset_contributions(library_id,parent_id,asset_id,membership_refs,file_size,file_size_revision,authored_refs) VALUES(7,31,41,1,42,1,0)`,
 		`INSERT INTO asset_stream_facts VALUES('basic-asset',31,42,-11,'probe-fingerprint',1)`,
+		`INSERT INTO catalog_info_scalar_old VALUES(51,4,3,NULL,NULL,'old'),(51,5,3,NULL,NULL,'vp9'),(51,6,3,NULL,NULL,'aac'),(51,7,1,1920,NULL,NULL),(51,8,1,720,NULL,NULL),(51,9,2,NULL,90,NULL)`,
+		`UPDATE catalog_info_input_budget SET used_bytes=2065 WHERE singleton=1`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
@@ -62,7 +65,14 @@ func basicFirstAcceptCommandFixture(t *testing.T) (*executor, *basicAcceptComman
 	if err != nil {
 		t.Fatal(err)
 	}
-	command, err := newBasicAcceptCommand(identity, basicAcceptRequest{original: original, purpose: BasicPurposeAccept, operation: basicAcceptFirstOrdinaryLeaf, activation: basicActivationEffects{source: s, changeRevision: 13, familyMask: 511, shapeID: 61, invalidationRevision: 1, fileSizeRevision: 1}, entityID: 31, duration: 100, height: 1080, analysis: *analysis, nfo: nfo})
+	command, err := newBasicAcceptCommand(identity, basicAcceptRequest{original: original, purpose: BasicPurposeAccept, operation: basicAcceptFirstOrdinaryLeaf, activation: basicActivationEffects{source: s, changeRevision: 13, familyMask: 511, shapeID: 61, invalidationRevision: 1, fileSizeRevision: 1}, entityID: 31, duration: 100, height: 1080, analysis: *analysis, nfo: nfo, oldScalars: []basicFirstOldScalar{
+		{field: 4, kind: 3, text: sql.NullString{String: "old", Valid: true}},
+		{field: 5, kind: 3, text: sql.NullString{String: "vp9", Valid: true}},
+		{field: 6, kind: 3, text: sql.NullString{String: "aac", Valid: true}},
+		{field: 7, kind: 1, integer: sql.NullInt64{Int64: 1920, Valid: true}},
+		{field: 8, kind: 1, integer: sql.NullInt64{Int64: 720, Valid: true}},
+		{field: 9, kind: 2, real: sql.NullFloat64{Float64: 90, Valid: true}},
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +97,9 @@ func TestBasicFirstAcceptAtomicPublicationAndSavedHistory(t *testing.T) {
  (SELECT analysis_revision='object:019' AND analysis_policy=29 AND analysis_state='complete' AND analysis_algorithm='actual-probe-algorithm' AND analysis_generation=23 FROM inventory_objects WHERE id='basic-object') AND
  (SELECT phase=5 AND job_revision=15 FROM catalog_info_changes WHERE id=51) AND
  (SELECT accepted_revision=42 AND expected_epoch=17 AND result_count=1 FROM scan_command_receipts WHERE run_id='basic-run') AND
- (SELECT accepted_asset_revision=18 FROM scan_command_results WHERE run_id='basic-run')`).Scan(&exact); err != nil || !exact {
+ (SELECT accepted_asset_revision=18 FROM scan_command_results WHERE run_id='basic-run') AND
+ (SELECT count(*)=0 FROM catalog_info_scalar_old WHERE change_id=51) AND
+ (SELECT used_bytes=1000 FROM catalog_info_input_budget WHERE singleton=1)`).Scan(&exact); err != nil || !exact {
 		t.Fatal(exact, err)
 	}
 	q, err := command.receiptRequest()
@@ -137,7 +149,10 @@ func TestBasicFirstAcceptLateFailureRollsBackEntirePublication(t *testing.T) {
   (SELECT phase=3 AND job_revision=13 FROM catalog_info_changes WHERE id=51) AND
   (SELECT analysis_policy=0 AND analysis_revision='' AND analysis_algorithm='' FROM inventory_objects WHERE id='basic-object') AND
   (SELECT job_revision=41 AND analyzed=43 AND last_command_sequence=18 FROM inventory_runs WHERE job_id='basic-run') AND
-  (SELECT count(*)=0 FROM scan_command_receipts) AND (SELECT count(*)=0 FROM scan_command_results)`).Scan(&exact); err != nil || !exact {
+  (SELECT count(*)=6 FROM catalog_info_scalar_old WHERE change_id=51) AND
+ (SELECT used_bytes=2065 FROM catalog_info_input_budget WHERE singleton=1) AND
+ (SELECT count(*)=0 FROM video_nfo_status) AND
+ (SELECT count(*)=0 FROM scan_command_receipts) AND (SELECT count(*)=0 FROM scan_command_results)`).Scan(&exact); err != nil || !exact {
 				t.Fatal(exact, err)
 			}
 		})

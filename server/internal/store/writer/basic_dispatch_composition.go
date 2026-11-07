@@ -42,11 +42,7 @@ func basicEffectsDefinitions(purpose CommandID) []stmt.Definition {
 	if purpose == BasicStage {
 		all = append(all, basicProbeDefinitions()...)
 		all = append(all, basicShapeDefinitions()...)
-		for _, def := range basicStreamAcceptDefinitions() {
-			if def.ID == basicAcceptFamilies {
-				all = append(all, def)
-			}
-		}
+		all = append(all, basicCopyRecipeDefinitions()...)
 	}
 	defs := make([]stmt.Definition, 0, len(all))
 	for _, def := range all {
@@ -65,6 +61,9 @@ func basicEffectsMaxUses(purpose CommandID, id stmt.ID) int {
 		return uses
 	}
 	if purpose == BasicStage {
+		if uses := basicCopyStageMaxUses(id); uses != 0 {
+			return uses
+		}
 		if uses := basicProbeMaxUses(id); uses != 0 {
 			return uses
 		}
@@ -76,7 +75,7 @@ func basicEffectsMaxUses(purpose CommandID, id stmt.ID) int {
 		case basicBeginFamiliesInsert:
 			return 9
 		case basicStageAsset, basicStageWitness, basicStageFamily, basicStageBudget, basicStageBudgetCAS,
-			basicStageStreamInsert, basicStageFamilyCAS, basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert, basicBeginFirstAsset, basicBeginFirstOwners:
+			basicStageStreamInsert, basicStageFamilyCAS, basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert, basicBeginFirstAsset, basicBeginFirstOwners, basicBeginFirstEntityAssets:
 			return 1
 		}
 		if basicMediaInsertFamily(id) != 0 {

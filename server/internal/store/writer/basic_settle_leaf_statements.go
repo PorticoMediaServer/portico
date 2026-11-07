@@ -64,5 +64,10 @@ AND ac.library_id=a.library_id AND ac.membership_refs=1 AND ac.authored_refs=0 A
 			defs = append(defs, d)
 		}
 	}
+	for _, d := range basicBeginFirstDefinitions() {
+		if d.ID == basicBeginFirstEntityAssets {
+			defs = append(defs, d)
+		}
+	}
 	return defs
 }

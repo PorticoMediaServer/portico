@@ -100,6 +100,13 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 		}
 		remaining = subtract(remaining, work)
 	}
+	if purpose == BasicStage || purpose == BasicSeal {
+		for _, step := range plan.steps {
+			if step.work.Rows < basicStageSealRowBound(step.id) {
+				return effectivePlan{}, invalid("basic_row_forecast")
+			}
+		}
+	}
 	var forecastErr error
 	if purpose == BasicAccept {
 		for _, step := range plan.steps {

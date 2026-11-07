@@ -3,10 +3,12 @@ package writer
 import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
 const basicBeginFirstAsset stmt.ID = "scan.basic_stage.begin_first_asset"
+const basicBeginFirstEntityAssets stmt.ID = "scan.basic_stage.begin_first_entity_assets"
 const basicBeginFirstOwners stmt.ID = "scan.basic_stage.begin_first_owners"
 
 func basicBeginFirstDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
+		{ID: basicBeginFirstEntityAssets, Kind: stmt.Read, SQL: `SELECT asset_id FROM catalog_asset_links WHERE entity_id=? ORDER BY asset_id LIMIT 2`, Params: []stmt.Param{{Name: "entity_id", Type: stmt.Integer}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_asset_links"}, Seeks: []string{"entity_id=?"}}, Cohorts: []stmt.Cohort{{Name: "first_single_asset_leaf", Bindings: []any{int64(31)}}}},
 		{ID: basicBeginFirstAsset, Kind: stmt.Read, SQL: `SELECT id FROM catalog_assets WHERE id=? AND token=? AND library_id=? AND info_epoch=? AND available=1 AND info_publication_pending=0 AND info_owner_object IS NULL AND info_owner_revision IS NULL`, Params: []stmt.Param{{Name: "asset_id", Type: stmt.Integer}, {Name: "asset_token", Type: stmt.Text}, {Name: "library_id", Type: stmt.Integer}, {Name: "expected_epoch", Type: stmt.Integer}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_assets"}, Seeks: []string{"rowid=?"}}, Cohorts: []stmt.Cohort{{Name: "unfenced_ordinary_asset", Bindings: []any{int64(41), "basic-asset", int64(7), int64(17)}}}},
 		{ID: basicBeginFirstOwners, Kind: stmt.Read, SQL: `SELECT l.entity_id,l.library_id,l.info_shape_id,l.info_duration,l.info_pending_change,e.kind,e.retired,sub.id,sub.library_id,sub.kind
 FROM catalog_asset_links AS l INDEXED BY catalog_asset_links_asset

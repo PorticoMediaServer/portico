@@ -54,7 +54,7 @@ func basicBeginMaxUses(id stmt.ID) int {
 	switch id {
 	case basicBeginFamiliesInsert:
 		return 9
-	case basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert, basicBeginFirstAsset, basicBeginFirstOwners:
+	case basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert, basicBeginFirstAsset, basicBeginFirstOwners, basicBeginFirstEntityAssets:
 		return 1
 	default:
 		return 0

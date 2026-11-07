@@ -29,7 +29,7 @@ func TestBasicInvocationIsClosedAndKeepsOriginalReference(t *testing.T) {
 		}
 	}
 	// Original history carries no current fresh lease or source observation.
-	for _, purpose := range []BasicPurpose{BasicPurposeStage, BasicPurposeSeal} {
+	for _, purpose := range []BasicPurpose{BasicPurposeStage, BasicPurposeSeal, BasicPurposeAccept} {
 		in := basicInvocation{request: BasicReceiptRequest{Scan: q.Scan, Purpose: purpose}}
 		if _, err := in.validate(); err != nil || in.fresh() || in.leaseExpiresMS() != 0 {
 			t.Fatal(in, err)

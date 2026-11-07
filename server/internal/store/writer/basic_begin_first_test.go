@@ -29,7 +29,7 @@ VALUES(?,?,7,1,'Arrival','','arrival','a','arrival','a',1,2016,'2026-11-07T00:00
 	}
 }
 func TestBasicBeginNonFirstHolderRefusesBeforeDebt(t *testing.T) {
-	for _, state := range []string{"published", "shared", "retired"} {
+	for _, state := range []string{"published", "shared", "retired", "multiple_assets"} {
 		t.Run(state, func(t *testing.T) {
 			w, in := basicBeginFixture(t)
 			switch state {
@@ -41,6 +41,8 @@ func TestBasicBeginNonFirstHolderRefusesBeforeDebt(t *testing.T) {
 				}
 			case "shared":
 				seedBasicFirstOwnerEntity(t, w, 32, 0x52)
+			case "multiple_assets":
+				basicAcceptAddLinkedAsset(t, w, 42, 0)
 			case "retired":
 				if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_entities SET retired=1 WHERE id=31`); err != nil {
 					t.Fatal(err)

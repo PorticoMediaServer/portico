@@ -46,6 +46,13 @@ func settleBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafSe
 	if e = basicMediaExactRow(ownerRows, []any{in.entityID, s.libraryID, nil}); e != nil {
 		return value, e
 	}
+	assets, e := basicRows(ctx, turn, basicBeginFirstEntityAssets, in.entityID)
+	if e != nil {
+		return value, e
+	}
+	if e = basicMediaExactRow(assets, []any{s.assetID}); e != nil {
+		return value, e
+	}
 	for _, point := range []struct {
 		id   stmt.ID
 		args []any

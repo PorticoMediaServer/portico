@@ -44,7 +44,7 @@ func basicFinalMaxUses(b basicAcceptBounds, id stmt.ID) int {
 		return 2
 	case basicAcceptOwners, basicSettleForward, basicSettleReverse, basicSettleCollection, basicPublishLeafProof, basicSettleShapeRead:
 		return 2
-	case basicSettleProof, basicAcceptSuccessor, basicSettleBefore, basicSettleLinkCAS, basicSettleScalarCAS, basicSettleScalarBothNull, basicSettleScalarDurationNull, basicSettleScalarResolutionNull, basicSettleShapeCAS, basicSettleEntityCAS, basicPublishScalarOld, basicPublishLinkCAS, basicPublishAssetCAS, basicObjectAnalysisPolicy, basicObjectAnalysisCAS, basicFirstScalarOldKeys, basicStageBudget, basicStageBudgetCAS:
+	case basicBeginFirstEntityAssets, basicSettleProof, basicAcceptSuccessor, basicSettleBefore, basicSettleLinkCAS, basicSettleScalarCAS, basicSettleScalarBothNull, basicSettleScalarDurationNull, basicSettleScalarResolutionNull, basicSettleShapeCAS, basicSettleEntityCAS, basicPublishScalarOld, basicPublishLinkCAS, basicPublishAssetCAS, basicObjectAnalysisPolicy, basicObjectAnalysisCAS, basicFirstScalarOldKeys, basicStageBudget, basicStageBudgetCAS:
 		return 1
 	case basicFirstScalarOldText:
 		return 3
@@ -99,7 +99,7 @@ func basicFinalRows(b basicAcceptBounds, id stmt.ID) uint64 {
 	switch id {
 	case basicNFORows:
 		return uint64(b.nfoBefore) + 1
-	case basicStageWitness, basicAcceptOwners, basicSettleForward, basicSettleReverse, scanMemberKeys, scanReceiptResults:
+	case basicBeginFirstEntityAssets, basicStageWitness, basicAcceptOwners, basicSettleForward, basicSettleReverse, scanMemberKeys, scanReceiptResults:
 		return 2
 	case basicFirstScalarOldKeys:
 		return 7

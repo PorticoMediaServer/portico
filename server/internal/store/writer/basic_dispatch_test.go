@@ -27,7 +27,7 @@ func basicDispatchPlan(purpose CommandID) effectivePlan {
 	p.need[governor.MemoryBytes] = int64(p.basicMemory.preparationBytes + p.basicMemory.reservedBytes)
 	p.recipe.limit.Rows, p.recipe.limit.VMOps, p.recipe.limit.Pages = 1<<20, 1<<32, 1<<20
 	for _, def := range basicCommandDefinitions(purpose) {
-		rows := uint64(16)
+		rows := max(uint64(16), basicStageSealRowBound(def.ID))
 
 		// Every one-fact effect/history use is reserved by the real
 		// freezeCommandPlan before native BEGIN; no future operation is enabled.

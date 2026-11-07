@@ -14,7 +14,7 @@ type basicInvocation struct {
 }
 
 func (in *basicInvocation) validate() (CommandID, error) {
-	if in == nil {
+	if in == nil || in.request.Scan.RunID == "" || in.request.Scan.LibraryID <= 0 || in.request.Scan.LibraryKey == "" || in.request.Scan.Receipt.Identity.Sequence <= 0 {
 		return 0, ErrInvalid
 	}
 	kind, err := basicResourceCommand(in.request.Purpose)

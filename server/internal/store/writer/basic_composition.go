@@ -19,7 +19,7 @@ func basicStageCommandMaxUses(operation basicStageOperation, id stmt.ID) int {
 	}
 	if operation == basicStageBeginInput {
 		switch id {
-		case basicControlChange, basicStageAsset, basicStageBudget, basicStageBudgetCAS, basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert, basicBeginFirstAsset, basicBeginFirstOwners:
+		case basicControlChange, basicStageAsset, basicStageBudget, basicStageBudgetCAS, basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert, basicBeginFirstAsset, basicBeginFirstOwners, basicBeginFirstEntityAssets:
 			return 1
 		case basicBeginFamiliesInsert:
 			return 9
