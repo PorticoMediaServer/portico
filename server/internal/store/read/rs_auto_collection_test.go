@@ -30,6 +30,7 @@ func TestRSAutoCollectionCurrentSources(t *testing.T) {
 		name, sql string
 		want      []int64
 	}{
+		{"provider-disabled", `UPDATE metadata_providers SET enabled=0`, []int64{4}},
 		{"disabled", `UPDATE metadata_provider_policy SET enabled=0`, []int64{4}},
 		{"policy-incarnation", `UPDATE metadata_provider_policy SET incarnation=x'01000000000000000000000000000000'`, []int64{4}},
 		{"policy-revision", `UPDATE metadata_provider_policy SET revision=2`, []int64{4}},

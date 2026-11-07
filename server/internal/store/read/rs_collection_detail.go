@@ -9,8 +9,19 @@ import (
 // CollectionDetail contains the complete viewer-scoped count and a bounded
 // page. Automatic order is stable item-ID order; authored order is the exact
 // (order_key,item_id) order. It is an internal component, not a new HTTP DTO.
+// CollectionDetailCursor binds a continuation to the exact viewer, source and
+// query. A subsequent request prepares current membership, then proves this
+// cursor in the fresh authorized handoff; an offset alone is not a wire token.
+type CollectionDetailCursor struct {
+	fence      browseFence
+	source     []any
+	collection int64
+	offset     int
+}
+
 type CollectionDetail struct {
 	Collection         BrowseItem
+	Next               *CollectionDetailCursor
 	Origin             string
 	ExactCount         int
 	Items              []TitleItem
@@ -21,7 +32,11 @@ type CollectionDetail struct {
 // Detail performs the first ready handoff under the ORIGINAL preparation
 // lease. Preparing work cannot return a successful exact response. Caller
 // retains separately admitted output through encoding and client IO.
-func (p *CollectionPreparation) Detail(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, offset int) (CollectionDetail, BrowseReadResult, error) {
+func (p *CollectionPreparation) Detail(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, after *CollectionDetailCursor) (CollectionDetail, BrowseReadResult, error) {
+	offset := 0
+	if after != nil {
+		offset = after.offset
+	}
 	if err := p.check(output, request); err != nil {
 		_ = p.Close()
 		return CollectionDetail{}, BrowseReadResult{}, err
@@ -30,6 +45,9 @@ func (p *CollectionPreparation) Detail(ctx context.Context, request governor.Req
 		return CollectionDetail{}, BrowseReadResult{}, ErrInput
 	}
 	return liveRead(ctx, request, budget, output, p.reader.pool, p.in.View.Now, func(ctx context.Context, r governor.Request, b time.Duration, at time.Time) (CollectionDetail, BrowseReadResult, error) {
+		if after != nil && (p.fence == nil || after.fence != *p.fence || !equalSource(after.source, p.source) || after.collection != p.in.Collection) {
+			return CollectionDetail{}, BrowseReadResult{}, ErrStale
+		}
 		return p.detail(ctx, r, b, output, offset, at)
 	})
 }
@@ -64,6 +82,9 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 		d.Offset = offset
 		d.NextOffset = end
 		d.Exhausted = end == len(p.nodes)
+		if !d.Exhausted {
+			d.Next = &CollectionDetailCursor{fence: f, source: append([]any(nil), p.source...), collection: p.in.Collection, offset: end}
+		}
 		return p.authority.CheckPreparation(p.lease)
 	}}
 	// Four points per business scope, at most eight exact-byte calls. Actual
