@@ -10,14 +10,20 @@ import (
 // cannot supply a policy, register a validator or turn a refusal into permission.
 // Domain readers select their own registered recipe in their own source files.
 type readPolicyID uint16
+
+// Stateful recipes accept only private, compiled domain work. The marker is
+// deliberately unexported; it is neither a caller assertion nor a wire value.
+type readPolicyState interface{ readPolicyState() }
 type readPolicyBinding struct {
 	recipe  readPolicyID
 	subject int64
+	state   readPolicyState
 }
 type readPolicyRecipe struct {
-	id     readPolicyID
-	domain string
-	kinds  []int64
+	id       readPolicyID
+	domain   string
+	kinds    []int64
+	stateful bool
 	// validate runs AFTER all common authority, birth, library and policy checks,
 	// in BOTH initial and final snapshots. It must prove the complete eligibility
 	// obligation of its closed domain; no caller-supplied proof flag is accepted.
@@ -61,6 +67,9 @@ func resolveReadPolicy(in BrowseInput) (readPolicyRecipe, error) {
 	p, ok := readPolicies.recipes[in.policy.recipe]
 	if !ok || !slices.Contains(p.kinds, in.Kind) {
 		return readPolicyRecipe{}, ErrUnqualified
+	}
+	if p.stateful != (in.policy.state != nil) {
+		return readPolicyRecipe{}, ErrInput
 	}
 	// The legacy/default path has no subject-specific eligibility proof.
 	if p.id == 0 && in.policy.subject != 0 {
