@@ -76,9 +76,9 @@ CREATE TABLE security_command_receipts(
  command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
  operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
  request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
- command_kind INTEGER NOT NULL CHECK(command_kind IN(511,512,520,521,522,532,533,540,541,542,550,551,552)),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(511,512,520,521,522,532,533,540,541,542,550,551,552,553)),
  result_version INTEGER NOT NULL CHECK(result_version=1),
- result_codec TEXT NOT NULL CHECK(result_codec IN('session_renewal_v1','session_refresh_v1','password_replace_v1','credential_issue_v1','credential_revoke_v1','pin_set_v1','pin_clear_v1','member_libraries_v1','profile_libraries_v1','profile_restrictions_v1','invitation_create_v1','invitation_edit_v1','invitation_revoke_v1')),
+ result_codec TEXT NOT NULL CHECK(result_codec IN('session_renewal_v1','session_refresh_v1','password_replace_v1','credential_issue_v1','credential_revoke_v1','pin_set_v1','pin_clear_v1','member_libraries_v1','profile_libraries_v1','profile_restrictions_v1','invitation_create_v1','invitation_edit_v1','invitation_revoke_v1','invitation_short_issue_v1')),
  applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
  result_digest BLOB NOT NULL CHECK(length(result_digest)=32),
  target_account_id TEXT,
@@ -115,7 +115,8 @@ CREATE TABLE security_command_receipts(
   OR (command_kind=542 AND result_codec='profile_restrictions_v1')
   OR (command_kind=550 AND result_codec='invitation_create_v1')
   OR (command_kind=551 AND result_codec='invitation_edit_v1')
-  OR (command_kind=552 AND result_codec='invitation_revoke_v1')),
+  OR (command_kind=552 AND result_codec='invitation_revoke_v1')
+  OR (command_kind=553 AND result_codec='invitation_short_issue_v1')),
  CHECK((command_kind IN(540,541) AND target_account_id IS NOT NULL AND length(CAST(target_account_id AS BLOB)) BETWEEN 1 AND 128
   AND target_member_incarnation IS NOT NULL AND length(target_member_incarnation)=32
   AND result_revision IS NOT NULL AND result_revision BETWEEN 1 AND 9007199254740991
@@ -137,7 +138,7 @@ CREATE TABLE security_command_receipts(
   AND ((command_kind=532 AND result_pin_required=1) OR (command_kind=533 AND result_pin_required=0))
   AND result_changed IS NOT NULL AND result_changed=1 AND policy_inherits IS NULL AND result_count=0
   AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
- OR (command_kind IN(511,512,520,521,522) AND target_account_id IS NULL AND target_member_incarnation IS NULL
+ OR (command_kind IN(511,512,520,521,522,553) AND target_account_id IS NULL AND target_member_incarnation IS NULL
   AND target_profile_id IS NULL AND target_profile_lifetime IS NULL AND result_revision IS NULL
   AND policy_inherits IS NULL AND result_changed IS NULL AND result_pin_revision IS NULL AND result_pin_required IS NULL
   AND result_count=0 AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
@@ -499,4 +500,44 @@ CREATE TABLE security_restriction_result_labels(
   length(CAST(owner_id AS BLOB))+length(command_incarnation)+length(CAST(label AS BLOB))) VIRTUAL,
  PRIMARY KEY(owner_id,command_incarnation,command_sequence,ordinal),
  FOREIGN KEY(owner_id,command_incarnation,command_sequence) REFERENCES security_restriction_results(owner_id,command_incarnation,command_sequence)
+) WITHOUT ROWID, STRICT;
+
+-- Concrete 553 output: actual staged serverId, exact expiry and the separately
+-- protected first-response ShortCode. Retry still omits ShortCode publicly.
+-- Display is 16 Crockford characters in four groups of four: 19 ASCII bytes;
+-- 35 encrypted bytes = exact display + GCM's 16-byte tag, not a body quota.
+CREATE TABLE security_invitation_short_results(
+ owner_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ command_kind INTEGER NOT NULL DEFAULT 553 CHECK(command_kind=553),
+ invitation_id TEXT NOT NULL CHECK(length(CAST(invitation_id AS BLOB)) BETWEEN 1 AND 128),
+ invitation_revision INTEGER NOT NULL CHECK(invitation_revision>0),
+ invitation_code_hash TEXT NOT NULL CHECK(length(invitation_code_hash)=64 AND invitation_code_hash NOT GLOB '*[^0-9a-f]*'),
+ invitation_role TEXT NOT NULL CHECK(invitation_role IN('member','admin')),
+ invitation_expires_ms INTEGER NOT NULL CHECK(invitation_expires_ms>issued_ms),
+ server_id TEXT NOT NULL CHECK(length(CAST(server_id AS BLOB))=47 AND substr(server_id,1,4)='srv_'
+  AND substr(server_id,5) NOT GLOB '*[^A-Za-z0-9_-]*' AND substr(server_id,47,1) IN('A','E','I','M','Q','U','Y','c','g','k','o','s','w','0','4','8')),
+ server_public_key BLOB NOT NULL CHECK(length(server_public_key)=32),
+ server_key_incarnation TEXT NOT NULL CHECK(length(CAST(server_key_incarnation AS BLOB)) BETWEEN 1 AND 128),
+ server_reset_generation INTEGER NOT NULL CHECK(server_reset_generation>=0),
+ sign_in_kind TEXT NOT NULL CHECK(sign_in_kind IN('local','portico')),
+ kind_revision INTEGER NOT NULL CHECK(kind_revision>0 OR (sign_in_kind='portico' AND kind_revision=0)),
+ issued_ms INTEGER NOT NULL CHECK(issued_ms BETWEEN 0 AND 9223372036854175807),
+ expires_ms INTEGER NOT NULL CHECK(expires_ms>issued_ms
+  AND ((invitation_expires_ms<=issued_ms+600000 AND expires_ms=invitation_expires_ms)
+   OR (invitation_expires_ms>issued_ms+600000 AND expires_ms=issued_ms+600000))),
+ lookup_hash TEXT NOT NULL CHECK(length(lookup_hash)=64 AND lookup_hash NOT GLOB '*[^0-9a-f]*'),
+ binding_hash TEXT NOT NULL CHECK(length(binding_hash)=64 AND binding_hash NOT GLOB '*[^0-9a-f]*'),
+ result_key_id TEXT NOT NULL CHECK(length(CAST(result_key_id AS BLOB)) BETWEEN 1 AND 128),
+ result_nonce BLOB NOT NULL CHECK(length(result_nonce)=12),
+ result_body BLOB NOT NULL CHECK(length(result_body)=35),
+ result_aad_digest BLOB NOT NULL CHECK(length(result_aad_digest)=32),
+ variable_bytes INTEGER GENERATED ALWAYS AS (
+  length(CAST(owner_id AS BLOB))+length(command_incarnation)+length(CAST(invitation_id AS BLOB))+length(CAST(invitation_code_hash AS BLOB))
+  +length(CAST(invitation_role AS BLOB))+length(CAST(server_id AS BLOB))+length(server_public_key)+length(CAST(server_key_incarnation AS BLOB))
+  +length(CAST(sign_in_kind AS BLOB))+length(CAST(lookup_hash AS BLOB))+length(CAST(binding_hash AS BLOB))
+  +length(CAST(result_key_id AS BLOB))+length(result_nonce)+length(result_body)+length(result_aad_digest)) VIRTUAL,
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ FOREIGN KEY(owner_id,command_incarnation,command_sequence,command_kind) REFERENCES security_command_receipts(owner_id,command_incarnation,command_sequence,command_kind)
 ) WITHOUT ROWID, STRICT;
