@@ -100,3 +100,32 @@ cache state and cgroup/physical IO deltas; a warm cache cell is not HDD evidence
 `requested_storage` is a requested label only. Host-before/after evidence retains
 actual limits and missing counters. No throughput, memory-fit or exit-criterion-4
 pass follows from these controls.
+
+The local EC4 composition draft uses W's `PrepareCreate`/`PrepareClaim` operations,
+then the post-ACK opaque lease and `PrepareInventory`. `ReceiptJournal` creates an
+exclusive private directory and syncs each original before an effect is offered.
+It separately syncs actual consumed results before W ACK. Journal failure stops
+submission/ACK; it keeps the original preparation for physical Close. This is a
+bounded component path, not a restart dispatcher or a production resource profile.
+A restart must use W's same-original `OpenRun`; saved lease fields grant nothing.
+
+N1 mapping consumes SC's entire ordinary filename projection, including the now
+merged Part carrier. The retained logical IdentityRoot stays distinct from the
+physical source root. Invalid UTF-8 reaches SC's typed TEXT refusal with exact
+native bytes. It is not a poison skip or cursor effect.
+
+The component branch compiles against W's preserved #1278 plus N1 preparation
+DRAFT. N1 ResolveScan/AckScan are W-owned target methods; no Writer disclosure is
+constructed here. No ready production issuer/profile is installed. The N1 clock
+origin is this owned observation's offer, explicitly labelled; create preparation
+can already have observed the root, so this cannot supply whole-scan latency.
+Actual current receipt/object/asset/info_epoch visibility and Basic witnesses are
+still missing, and all four availability clocks stay null with reasons. Nested
+400k traversal additionally needs the separate directory/EOF/frontier commands.
+Do not call this ready for qualification merely because the issuer API compiles.
+
+A small `lane-focused.yml` component smoke runs on Go 1.26.10, testing 16 physical
+files, native helper bytes, projection, saved-original recovery/ACK ordering and
+explicit nulls. Its SSD and throttled-HDD cases check requested profile plumbing;
+they apply no IO throttle. Only QL's scheduled launcher run, with actual effective
+limits/device placement/drain evidence, can supply a throttled-device cell.

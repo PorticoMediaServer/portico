@@ -8,13 +8,14 @@ import (
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
-	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/sourceops"
 )
 
 // InventoryReader is the existing storage stream, not filesystem or SQL
 // authority. The composing driver owns its operation scope and physical join.
 type InventoryReader interface {
-	NativeInventoryPage(context.Context, *storage.OperationScope, string, storage.NativeInventoryRequest) (storage.NativeInventoryPage, error)
+	NativeInventoryPage(context.Context, *sourceops.Scope, string, nativeinventory.Request) (nativeinventory.Page, error)
 	StopInventory(string)
 }
 
@@ -23,8 +24,8 @@ type InventoryReader interface {
 // Those turns require their own writer protocol; they are never fabricated
 // into an N1 file accept. Consumers must not retain or mutate the page slices.
 type InventoryTurn struct {
-	Request storage.NativeInventoryRequest
-	Page    storage.NativeInventoryPage
+	Request nativeinventory.Request
+	Page    nativeinventory.Page
 }
 
 // TraversalCounts describe observed traversal only, never accepted availability,
@@ -45,16 +46,16 @@ type TraversalCounts struct {
 // The caller must reserve working memory before entry; maxBytes bounds each
 // returned observation's strings, not total heap/helper/native/RSS custody.
 // This harness-only path follows no symlinks and cannot certify a probe seam.
-func WalkInventory(ctx context.Context, reader InventoryReader, owner *storage.OperationScope, key string, root []byte, maxBytes int64, visit func(context.Context, InventoryTurn) error) (counts TraversalCounts, err error) {
-	if reader == nil || owner == nil || visit == nil || key == "" || len(key) > 1024 || !filepath.IsAbs(string(root)) || len(root) > naming.MaxPathBytes || maxBytes <= 0 || bytes.IndexByte(root, 0) >= 0 {
+func WalkInventory(ctx context.Context, reader InventoryReader, owner *sourceops.Scope, key string, root []byte, maxBytes int64, visit func(context.Context, InventoryTurn) error) (counts TraversalCounts, err error) {
+	if reader == nil || owner == nil || visit == nil || key == "" || len(key) > 1024 || len(root) > naming.MaxPathBytes || maxBytes <= 0 || bytes.IndexByte(root, 0) >= 0 || !filepath.IsAbs(string(root)) {
 		return counts, ErrInvalid
 	}
 	defer reader.StopInventory(key)
 	type frame struct {
-		request  storage.NativeInventoryRequest
+		request  nativeinventory.Request
 		identity string
 	}
-	stack := []frame{{request: storage.NativeInventoryRequest{Root: bytes.Clone(root), RelativePath: []byte("."), Limit: 1}}}
+	stack := []frame{{request: nativeinventory.Request{Root: bytes.Clone(root), RelativePath: []byte("."), Limit: 1}}}
 	stackRoot := stack[0].request.Root
 	rootIdentity := ""
 	counts.MaxDepth = 1
@@ -77,7 +78,7 @@ func WalkInventory(ctx context.Context, reader InventoryReader, owner *storage.O
 		}
 		// Even an adapter accepting a moved device must not mix two roots in one run.
 		if rootIdentity != page.RootIdentity {
-			return counts, storage.ErrInventoryChanged
+			return counts, nativeinventory.ErrInventoryChanged
 		}
 		if err := ctx.Err(); err != nil {
 			return counts, err
@@ -109,18 +110,18 @@ func WalkInventory(ctx context.Context, reader InventoryReader, owner *storage.O
 			f.request.Cursor, f.request.DirectoryRevision, f.identity = next, revision, identity
 		}
 		if child != "" {
-			stack = append(stack, frame{request: storage.NativeInventoryRequest{Root: stackRoot, RelativePath: []byte(child), Limit: 1}})
+			stack = append(stack, frame{request: nativeinventory.Request{Root: stackRoot, RelativePath: []byte(child), Limit: 1}})
 		}
 		counts.MaxDepth = max(counts.MaxDepth, len(stack))
 	}
 	return counts, nil
 }
 
-func checkInventoryTurn(r storage.NativeInventoryRequest, p storage.NativeInventoryPage, identity string, budget int64) error {
+func checkInventoryTurn(r nativeinventory.Request, p nativeinventory.Page, identity string, budget int64) error {
 	if p.Version != 1 || p.ErrorCode != "" || p.Unstable || p.RootIdentity == "" || p.DirectoryIdentity == "" || p.DirectoryRevision == "" ||
 		len(p.Entries) > 1 || len(p.Issues) > 512 || p.Complete == (p.NextCursor != "") || !p.Complete && p.NextCursor == r.Cursor || len(p.NextCursor) > 4096 ||
 		r.DirectoryRevision != "" && r.DirectoryRevision != p.DirectoryRevision || identity != "" && identity != p.DirectoryIdentity {
-		return storage.ErrInventoryChanged
+		return nativeinventory.ErrInventoryChanged
 	}
 	charge := func(n int) bool {
 		if int64(n) > budget {

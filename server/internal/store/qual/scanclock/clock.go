@@ -26,6 +26,7 @@ type Report struct {
 	TargetSubjectID        int64                    `json:"target_subject_id"`
 	Population             string                   `json:"population"`
 	Label                  string                   `json:"label"`
+	Origin                 string                   `json:"origin"`
 	Qualification          bool                     `json:"qualification"`
 	Manifest               Manifest                 `json:"manifest"`
 	AppliedObserved        bool                     `json:"applied_observed"`
@@ -45,6 +46,7 @@ type Report struct {
 type Clock struct {
 	manifest                              Manifest
 	start                                 time.Time
+	origin                                string
 	reference                             writer.ScanReceiptRequest
 	member                                writer.InventoryMember
 	appliedAt                             time.Time
@@ -69,7 +71,19 @@ func New(start time.Time, m Manifest) (*Clock, error) {
 	m.BinarySHA256 = strings.Clone(m.BinarySHA256)
 	m.HostEpoch = strings.Clone(m.HostEpoch)
 	m.MediaProfile = strings.Clone(m.MediaProfile)
-	return &Clock{start: start, manifest: m}, nil
+	return &Clock{start: start, manifest: m, origin: "first_supervised_traversal_offer"}, nil
+}
+
+// NewN1Observation times only this owned N1 operation's offer. W's create
+// preparation may already have observed the root. This origin cannot measure
+// whole-scan latency, and a recovery receipt cannot reconstruct an earlier one.
+func NewN1Observation(start time.Time, m Manifest) (*Clock, error) {
+	c, err := New(start, m)
+	if err != nil {
+		return nil, err
+	}
+	c.origin = "owned_n1_observation_offer"
+	return c, nil
 }
 
 // Applied observes an ACTUAL successful facade call with its saved ORIGINAL
@@ -133,6 +147,10 @@ func (c *Clock) Report() Report {
 		return r
 	}
 	r.Manifest = c.manifest
+	r.Origin = c.origin
+	if c.origin == "owned_n1_observation_offer" {
+		r.Missing = append(r.Missing, "whole-scan first traversal offer is inside W lifecycle custody; this operation origin cannot substitute")
+	}
 	r.Rejected = c.rejected
 	if c.nonPositiveOrigin {
 		r.Missing = append(r.Missing, "non-positive traversal-offer-to-observation interval refused")

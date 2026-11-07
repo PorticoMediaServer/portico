@@ -159,3 +159,15 @@ func TestScanClockRejectsWrongBrowseAndMissingClockOrigin(t *testing.T) {
 		t.Fatal("invalid browse set clock")
 	}
 }
+
+func TestScanClockOwnedN1OriginCannotBecomeWholeScan(t *testing.T) {
+	base, start, _, _, _ := control(t)
+	c, err := NewN1Observation(start, base.manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := c.Report()
+	if r.Origin != "owned_n1_observation_offer" || r.FirstFilenameVisibleNS != nil || r.FirstBasicNS != nil {
+		t.Fatal(r)
+	}
+}
