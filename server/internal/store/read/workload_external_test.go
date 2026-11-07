@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -18,7 +19,11 @@ import (
 
 func workloadInput[I, P any](id string, input I, consume func(context.Context, P) error) workload.ForegroundInput[I, P] {
 	q, request, output := read.ForegroundWorkloadRequests(id)
-	return workload.ForegroundInput[I, P]{Request: request, Budget: time.Second, Foreground: q, OutputRequest: output, Input: input, Consume: consume}
+	entry := time.Now()
+	// Functional adapter controls retain real admission/custody, not a ready SLA.
+	q.ReadyDeadline, q.ProtectedDeadline = entry.Add(10*time.Second), entry.Add(20*time.Second)
+	request.Deadline, output.Deadline = q.ProtectedDeadline, q.ProtectedDeadline
+	return workload.ForegroundInput[I, P]{Request: request, Budget: 10 * time.Second, Foreground: q, OutputRequest: output, Input: input, Consume: consume}
 }
 
 func requireConsumerCustody(t *testing.T, f read.ForegroundWorkloadFixture, ctx context.Context) {
@@ -40,6 +45,10 @@ func requireRetired(t *testing.T, f read.ForegroundWorkloadFixture) {
 }
 
 func TestForegroundWorkloadActualRecipes(t *testing.T) {
+	synctest.Test(t, testForegroundWorkloadActualRecipes)
+}
+
+func testForegroundWorkloadActualRecipes(t *testing.T) {
 	f := read.NewForegroundWorkloadFixture(t)
 	for _, recipe := range []string{"BROWSE", "TITLE_DETAIL", "PLAYBACK_LOOKUP", "CONTINUE_WATCHING"} {
 		t.Run(recipe, func(t *testing.T) {
@@ -113,7 +122,7 @@ func TestForegroundWorkloadActualRecipes(t *testing.T) {
 				}
 				cost := result.Evidence
 				want := map[string]int{"BROWSE": 11, "TITLE_DETAIL": 26, "PLAYBACK_LOOKUP": 19, "CONTINUE_WATCHING": 11}[recipe]
-				if cost.LookupStatements+cost.PublicationStatements != want || cost.Attempts != 1 || cost.AdmissionElapsed <= 0 || result.Consumption.Elapsed < cost.Elapsed || o.WallNS == nil || *o.WallNS < result.Consumption.Elapsed {
+				if cost.LookupStatements+cost.PublicationStatements != want || cost.Attempts != 1 || cost.AdmissionElapsed != result.Consumption.AdmissionElapsed || cost.AdmissionElapsed < 0 || cost.Elapsed < cost.AdmissionElapsed || result.Consumption.Elapsed < cost.Elapsed || o.WallNS == nil || *o.WallNS < result.Consumption.Elapsed {
 					t.Error("lost whole-operation cost", cost)
 				}
 				for _, w := range append(cost.LookupWindows, cost.PublicationWindows...) {
@@ -203,6 +212,10 @@ func (s *pairedReadSink) Append(r workload.Record) error {
 }
 
 func TestForegroundWorkloadPairedStopJoinsConsumer(t *testing.T) {
+	synctest.Test(t, testForegroundWorkloadPairedStopJoinsConsumer)
+}
+
+func testForegroundWorkloadPairedStopJoinsConsumer(t *testing.T) {
 	f := read.NewForegroundWorkloadFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	writerEntered, consumerEntered := make(chan struct{}), make(chan struct{})

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -36,6 +37,10 @@ func dispatcherInput(f *browseFixture, text string) SearchInput {
 }
 
 func TestSearchDispatcherModesAndTypedOutcomes(t *testing.T) {
+	synctest.Test(t, testSearchDispatcherModesAndTypedOutcomes)
+}
+
+func testSearchDispatcherModesAndTypedOutcomes(t *testing.T) {
 	var calls int
 	f, _, d := searchDispatcherFixture(t, 2, nil)
 	d.titles = func(ctx context.Context, purpose governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput, q search.Query) (TitleSearchPage, *BrowseReadResult, error) {
@@ -72,7 +77,7 @@ func TestSearchDispatcherModesAndTypedOutcomes(t *testing.T) {
 			}
 			return func(context.Context) error { assertLiveUsage(t, f, 1, 0); published = true; return nil }, nil
 		})
-		if err != nil || !published || !result.Published || result.Read == nil || result.Read.LookupStatements != 5 || result.Read.PublicationStatements != 5 || len(result.Read.LookupWindows) != 1 || len(result.Read.PublicationWindows) != 1 || result.Disposition != tc.state || result.Consumption.AdmissionElapsed <= 0 || result.Elapsed < result.Consumption.Elapsed {
+		if err != nil || !published || !result.Published || result.Read == nil || result.Read.LookupStatements != 5 || result.Read.PublicationStatements != 5 || len(result.Read.LookupWindows) != 1 || len(result.Read.PublicationWindows) != 1 || result.Disposition != tc.state || result.Consumption == nil || result.Read.AdmissionElapsed != result.Consumption.AdmissionElapsed || result.Consumption.AdmissionElapsed < 0 || result.Consumption.Elapsed < result.Consumption.AdmissionElapsed || result.Elapsed < result.Consumption.Elapsed {
 			t.Fatal(result, err)
 		}
 		assertLiveUsage(t, f, 0, 0)
@@ -125,6 +130,10 @@ func TestSearchDispatcherModesAndTypedOutcomes(t *testing.T) {
 }
 
 func TestSearchDispatcherSuppressesAfterEncodingAndRetainsCustody(t *testing.T) {
+	synctest.Test(t, testSearchDispatcherSuppressesAfterEncodingAndRetainsCustody)
+}
+
+func testSearchDispatcherSuppressesAfterEncodingAndRetainsCustody(t *testing.T) {
 	f, requests, d := searchDispatcherFixture(t, 2, func(context.Context, governor.Request, time.Duration, BrowseOutput, BrowseInput, search.Query) (TitleSearchPage, *BrowseReadResult, error) {
 		return TitleSearchPage{Disposition: SearchResults, Items: []BrowseItem{{ID: 1, Title: "synthetic"}}}, nil, nil
 	})
@@ -188,6 +197,10 @@ func TestSearchDispatcherSuppressesAfterEncodingAndRetainsCustody(t *testing.T) 
 }
 
 func TestSearchDispatcherFailureRetiresAfterPublishAndFinish(t *testing.T) {
+	synctest.Test(t, testSearchDispatcherFailureRetiresAfterPublishAndFinish)
+}
+
+func testSearchDispatcherFailureRetiresAfterPublishAndFinish(t *testing.T) {
 	f, requests, d := searchDispatcherFixture(t, 1, nil)
 	prepareErr := errors.New("encoding failed")
 	q, r, o := liveRequests("encode-fail")
@@ -217,6 +230,10 @@ func TestSearchDispatcherFailureRetiresAfterPublishAndFinish(t *testing.T) {
 }
 
 func TestSearchDispatcherRejectsPartialOrOversizedTitleResults(t *testing.T) {
+	synctest.Test(t, testSearchDispatcherRejectsPartialOrOversizedTitleResults)
+}
+
+func testSearchDispatcherRejectsPartialOrOversizedTitleResults(t *testing.T) {
 	f, _, d := searchDispatcherFixture(t, 1, nil)
 	for _, page := range []TitleSearchPage{
 		{Disposition: SearchPending, Items: []BrowseItem{{ID: 1, Title: "partial"}}},
@@ -239,6 +256,10 @@ func TestSearchDispatcherRejectsPartialOrOversizedTitleResults(t *testing.T) {
 }
 
 func TestSearchDispatcherCancellationAndRevocationBeforePublish(t *testing.T) {
+	synctest.Test(t, testSearchDispatcherCancellationAndRevocationBeforePublish)
+}
+
+func testSearchDispatcherCancellationAndRevocationBeforePublish(t *testing.T) {
 	f, _, d := searchDispatcherFixture(t, 1, nil)
 	for _, kind := range []string{"cancel-read", "revoke-encoded"} {
 		ctx, cancel := context.WithCancel(t.Context())
@@ -274,6 +295,10 @@ func TestSearchDispatcherCancellationAndRevocationBeforePublish(t *testing.T) {
 }
 
 func TestSearchPermissionFencesIncludePublicExecutorCost(t *testing.T) {
+	synctest.Test(t, testSearchPermissionFencesIncludePublicExecutorCost)
+}
+
+func testSearchPermissionFencesIncludePublicExecutorCost(t *testing.T) {
 	f, _, d := searchDispatcherFixture(t, 1, nil)
 	d.titles = func(ctx context.Context, purpose governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput, _ search.Query) (TitleSearchPage, *BrowseReadResult, error) {
 		// An actual public reader still consumes the same scope's one operation;
