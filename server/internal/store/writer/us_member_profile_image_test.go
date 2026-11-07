@@ -1,11 +1,65 @@
 package writer
 
 import (
+	"bytes"
 	"fmt"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
+	"reflect"
 	"strings"
 	"testing"
 	"unsafe"
 )
+
+// Inspect source without importing identity: its legacy SQLite registrations
+// must stay out of the writer test binary. New public fields require an image
+// and manifest decision rather than silently disappearing from saved output.
+func TestUSMemberProfileImageNativeSourceShape(t *testing.T) {
+	for _, c := range []struct {
+		file, name string
+		want       []string
+	}{
+		{"member_profiles.go", "MemberProfile", []string{"DirectProfile", "Restrictions:ProfileRestrictions", "Avatar:*ProfileAvatar"}},
+		{"direct_profiles.go", "DirectProfile", []string{"ID:string", "Name:string", "Primary:bool", "Position:int", "Art:string", "Revision:int64", "PINRevision:int64", "PINRequired:bool", "AllowedLibraries:[]string"}},
+		{"restrictions.go", "ProfileRestrictions", []string{"ProfileID:string", "RatingSystem:string", "MaximumAgeRating:string", "MaximumAge:int", "AllowUnrated:bool", "BlockedLabels:[]string", "AllowDownloads:bool", "AllowLiveTV:bool", "AllowDVR:bool", "AllowWatchTogether:bool", "Revision:int64"}},
+		{"avatars.go", "ProfileAvatar", []string{"ProfileID:string", "Version:int64", "UpdatedAt:string", "SourceMIME:string", "URL:string"}},
+	} {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, "../../identity/"+c.file, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		ast.Inspect(f, func(n ast.Node) bool {
+			ts, ok := n.(*ast.TypeSpec)
+			if !ok || ts.Name.Name != c.name {
+				return true
+			}
+			st, ok := ts.Type.(*ast.StructType)
+			if !ok {
+				t.Fatal("native DTO ceased to be a struct", c.name)
+			}
+			for _, field := range st.Fields.List {
+				var typ bytes.Buffer
+				if err := format.Node(&typ, fset, field.Type); err != nil {
+					t.Fatal(err)
+				}
+				if len(field.Names) == 0 {
+					got = append(got, typ.String())
+				}
+				for _, name := range field.Names {
+					got = append(got, name.Name+":"+typ.String())
+				}
+			}
+			return false
+		})
+		if !reflect.DeepEqual(got, c.want) {
+			t.Fatalf("%s native response drift: %v", c.name, got)
+		}
+	}
+}
 
 func profileImageFixture() usMemberProfileImage {
 	return usMemberProfileImage{id: "secret-id", name: "secret-name", primary: true, position: 7, art: "secret-art", revision: 9, pinRevision: 8, pinRequired: true, allowedLibraries: []string{"secret-lib", "second"}, restrictions: usMemberProfileRestrictionsImage{profileID: "secret-profile", ratingSystem: "secret-system", maximumAgeRating: "secret-rating", maximumAge: 13, allowUnrated: true, blockedLabels: []string{"�", "�", "last"}, allowDownloads: true, allowLiveTV: true, allowDVR: true, allowWatchTogether: true, revision: 4}, avatar: &usMemberProfileAvatarImage{profileID: "secret-avatar", version: 3, updatedAt: "secret-time", sourceMIME: "secret-mime", url: "secret-url"}}
