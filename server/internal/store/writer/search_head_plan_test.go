@@ -64,7 +64,7 @@ func TestSearchHeadStatementPlans(t *testing.T) {
 		t.Fatal("Capture executed effects", before, after, err)
 	}
 	if len(defs) != 30 || len(g.Plans) != 45 || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 671 {
-		t.Fatal("incomplete 010 capture inventory", len(defs), len(g.Plans))
+		t.Fatal("incomplete 011 capture inventory", len(defs), len(g.Plans))
 	}
 	if _, err := stmt.New(defs, g.Receipt()); err != nil {
 		t.Fatal(err)

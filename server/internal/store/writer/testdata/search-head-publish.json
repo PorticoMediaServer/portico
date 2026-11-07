@@ -12,7 +12,7 @@
       "QueryOnly": 0,
       "TempStore": 1
     },
-    "indexPolicySha256": "e365c8f4054dbcfc1bdae6b4703cac2d2aca3357b1fc7c85850b56fe90c487b9",
+    "indexPolicySha256": "f7859d7616bb975a81977bf07522efcca916e01d2d9195f42c6293bb3faa32bc",
     "fixture": {
       "connectionPolicy": {
         "Role": 1,
@@ -20,7 +20,7 @@
         "CacheKiB": 1024,
         "Synchronous": 2
       },
-      "sha256": "19bdb10e1d6769ee1fa4d9a9d51eaa71f8334308a678a2228ff4b3a029607ef1",
+      "sha256": "3ff26b5afd7d0e7dd7e83d17fe57841b0ead41a0e56dd785bbf3200ffce7e856",
       "statistics": "unanalyzed",
       "implementations": "FIRST sealed entity own-primary-title head; original own native replacement; indexed tail and exact source/accounting/held custody; FULL pre-BEGIN only; no governor, native Work or runtime eligibility qualification"
     },
@@ -5077,6 +5077,13 @@
           "scan_command_receipts",
           2327,
           "CREATE UNIQUE INDEX scan_receipt_refusal_kind ON scan_command_receipts(run_id,operation_id,refused_entry_kind)"
+        ],
+        [
+          "index",
+          "scan_receipt_refused_directory_identity",
+          "scan_command_receipts",
+          2329,
+          "CREATE INDEX scan_receipt_refused_directory_identity ON scan_command_receipts(run_id,refused_directory_identity) WHERE refused_directory_identity IS NOT NULL"
         ],
         [
           "index",
@@ -14922,7 +14929,7 @@
         ]
       ]
     },
-    "schemaSha256": "04dc3883a4c21853bd452b4d384947f91ca2b0b254e34567c4618f71927d177f",
+    "schemaSha256": "bb0d3cfe5cb9b17fe2651b12b7c07c200eefba82eceb34c40d5daafd384af917",
     "statistics": {},
     "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
     "pragmas": {
