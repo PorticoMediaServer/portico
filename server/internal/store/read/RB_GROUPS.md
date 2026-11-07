@@ -42,8 +42,8 @@ parents, rather than concatenating a parent-ID order. Both article keys and both
 directions bind the cursor; folding matches SQLite's ASCII lower/NOCASE behavior.
 Retired or wrong-library/kind required ancestors cannot contribute an order key.
 
-The small complete-set fallback processes at most four64-row quanta plus a
-single-row exhaustion probe. More than256 raw source rows returns ZERO payload
+The small complete-set fallback processes at most four 64-row quanta plus a
+single-row exhaustion probe. More than 256 raw source rows returns ZERO payload
 with `ErrNotReady`, even when all excess rows are ineligible. This is not a
 bounded top-K approximation, a large-library completion algorithm, a retained
 cache, or a claim of F-04 lease coverage. The root's exact manager must adopt a
@@ -51,16 +51,16 @@ larger source walk/merge under its own retained-memory and publication lease.
 
 ## Budgets and policy envelope
 
-Direct source queries fetch at most64 rows across up to three disjoint
+Direct source queries fetch at most 64 rows across up to three disjoint
 lexicographic seek legs. Raw fetches include lookahead, retired members, foreign
 library/kind positions and NULL playlist entries. Cursor progress precedes
-eligibility; output is at most40. A full64-row window is never exhaustion; an
+eligibility; output is at most 40. A full 64-row window is never exhaustion; an
 empty non-exhausted window keeps its raw continuation. No OFFSET, SQL sort,
 whole-library COUNT, or unbounded join fanout is used.
 
 The group recipe runs six-call common/subject fencing separately from its
 business quantum, then repeats the six-call current fence before publication.
-Author-name capture adds one point read in the first window. Each native scope stays below eight calls. Route SQL is13..15, exceeding B-R04's
+Author-name capture adds one point read in the first window. Each native scope stays below eight calls. Route SQL is 13..15, exceeding B-R04's
 proposed10-call ceiling; this is qualification debt, not an exception or pass.
 Relationship exact likewise carries all windows and shared fence cost in its
 receipt, rather than reporting source SQL as route latency.
@@ -95,7 +95,7 @@ There is no requested DDL delta and no publication-gate wait stopping this draft
 
 ## Validation and qualification target
 
-Go must be exactly1.26.10. mini-1 runs compile-only; native fixtures, complete
+Go must be exactly 1.26.10. mini-1 runs compile and tiny grammar checks only; native fixtures, complete
 traversals, actual Reader Capture and race controls run on standard GitHub runners.
 `TestRBGroupPlans` verifies every present/empty cohort, unanalyzed/analyzed SEARCH
 plans and mints fresh receipts for exactly the compiled definitions. A golden is
@@ -106,7 +106,7 @@ are recorded in the parent handoff.
 Qualification handoff: `BrowseReader.RBGroupWindow`, the nine family selectors,
 first/far continuation and both directions; `BrowseReader.RBRelationshipExact`
 small complete sets and truthful raw-cap refusals. QS/QL must additionally adapt
-the root's large exact source walk on the canonical1M seed, including equal and
+the root's large exact source walk on the canonical 1M seed, including equal and
 prefix parent keys, sparse allowed rows, default disc/track/part, duplicate keys,
 numbering overlaps, playlist occurrences, cancellation/revocation and source
 reparent/rename between windows. B-R04/SORT-KIND-21 remain UNQUALIFIED; no runner
@@ -118,3 +118,36 @@ The generic HN recognizer accepts only plain-column constraint tokens. These
 are explicit review items for the parent/owner; no SCAN, temporary sort, SQL
 grammar or dynamic planner exception is granted. The actual Reader must match
 the complete pinned detail in both statistics profiles.
+
+## Runner history
+
+All runs below use the lane-focused standard Ubuntu runner and Go 1.26.10;
+none is performance qualification. Source pins are retained in their planner
+and result artifacts. Failed runs are kept as evidence, not relabeled passes.
+
+| Run | Source | Result / correction |
+| --- | --- | --- |
+| 42384700985 | abbreviated 413cf1dcf | Planner rejected abbreviated SHA as a branch; no tests ran |
+| 42384726133 | 413cf1dcf | Literal partial-index predicate rejected; use exact unqualified conjunct |
+| 42385171450 | 99f67f95e | ORDER BY expression rejected; subsequent tiny lint also found subquery/CASE; fixed aliases and static shapes |
+| 42385563577 | 3ba61bbee | Generic recognizer rejected SEARCH expression token; exact SEARCH details pinned |
+| 42385775948 | 01ddd64b5 | Same expression-token rejection in capture-only run |
+| 42385967282 | 8eac5cd6c | Real temporary ORDER BY B-tree rejected; omit equality-fixed ordering prefix |
+| 42386276442 | 6c982ed6e | Hydration primary-key metadata needed SQL aliases |
+| 42386526593 | b319778be | All nine non-golden parents passed, both-profile Capture completed; artifact directory was absent |
+| 42386783393 | 5cc2b50fa | Both profiles completed; expected absent-baseline failure; artifact adopted verbatim after review |
+
+The original policy dependency and local cherry-pick have identical binary
+patch SHA256 `0cfe2f4dc7021a3a2715a9cf1aee9f47bbba75e792ee4b374ec5ce8eea871246`.
+Helper-authored commits change only this document, rb_group*.go and rb-group-*
+fixtures. Functional successes establish the implemented subset only.
+
+Capture adoption: runner source `5cc2b50fa108c1286ff8f95eef9536b7ae3409a1`,
+56 definitions, 112 present/empty plans per statistics profile, 152 SEARCH rows
+per profile (304 total); zero SCAN or temporary-sort rows. Compressed artifact
+SHA256 `98694abecfbd5bc560861b65b77a87737268f94058f4f655e9f0eedcd3c0cad4`;
+uncompressed JSON SHA256
+`9e66c369ce2954748b4afb9a2d32392ef7b98914cd7dfded507f6451b8c0ebf9`.
+Article context is accepted for direct source streams, whose order is independent
+of articles, and still binds their cursor. The final tests also exercise that
+context change; the captured SQL definitions and seed are unchanged.
