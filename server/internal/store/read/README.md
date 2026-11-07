@@ -225,7 +225,9 @@ bounded witness and source birth/revision/age. Catalogue fallback keeps restrict
 containers Unqualified; Reading stays refused until its domain opts in. A
 container's own age cannot replace its complete visible-member proof. Every
 future domain must keep its eligibility inputs within the shared source/revision
-fence used by native continuations; opting in is not a writer or epoch proof.
+fence used by native continuations; opting in is not a writer or epoch proof. Domain validators may use fully qualified `read.*` statement IDs (or
+`rs.*` names); trusted composition must include their inert definitions in the
+SAME actual Capture/closed read registry. The opt-in adds no executable SQL.
 
 Hits additionally carry canonical `SortKey`, `Year` and `AddedAt` for RS grouping.
 Entities use the same current source row's `sort_key`, `year` and `added_at`;
