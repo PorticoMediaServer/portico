@@ -7,7 +7,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
 func iaRetirementReclaimDraftDefinitions() []stmt.Definition {
@@ -28,6 +31,66 @@ func iaRetirementReclaimDraftDefinitions() []stmt.Definition {
 	return defs
 }
 
+func iaRetirementReclaimDraftPolicy(t *testing.T) []byte {
+	t.Helper()
+	data, err := os.ReadFile("../../../research/p2ia-native/index-policy.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := sha256.Sum256(data)
+	if hex.EncodeToString(hash[:]) != "480df31d5701147b9c6cb4a961cecd7fe673e582f526770e39caba10c0096c21" {
+		t.Fatal("owned draft index policy changed")
+	}
+	return data
+}
+
+// Exact two-entry IA draft companion, never a policy waiver or a canonical
+// contract edit. Capture still reconciles EVERY installed partial predicate.
+func iaRetirementReclaimDraftRegistry(t *testing.T, w *executor, defs []stmt.Definition, sources ...string) *stmt.Registry {
+	t.Helper()
+	catalogue, err := stmt.Describe(defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := plan.ReadIndexPolicy(iaRetirementReclaimDraftPolicy(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := sha256.New()
+	sources = append(sources, "../../../research/p2ia-native/index-policy.json")
+	for _, name := range sources {
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hash.Write(binary.BigEndian.AppendUint64(nil, uint64(len(name))))
+		hash.Write([]byte(name))
+		hash.Write(binary.BigEndian.AppendUint64(nil, uint64(len(data))))
+		hash.Write(data)
+	}
+	conn, err := w.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	var before, after int64
+	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "IA owned draft declarations only; no adoption, issuer/resource or timing qualification"}, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&after); err != nil || before != after {
+		t.Fatal("Capture executed effects", before, after, err)
+	}
+	registry, err := stmt.New(defs, g.Receipt())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return registry
+}
+
 func iaRetirementReclaimDraftFixture(t *testing.T, source bool) (*executor, string, iaReceiptReclaimReference, *stmt.Registry) {
 	t.Helper()
 	w, path, _ := testExecutor(t)
@@ -36,7 +99,7 @@ func iaRetirementReclaimDraftFixture(t *testing.T, source bool) (*executor, stri
 		t.Fatal(err)
 	}
 	hash := sha256.Sum256(data)
-	if hex.EncodeToString(hash[:]) != "8a577e6643eba63b35cb02dd22bc6270fe6cb654f7875777ad9c1737d1b1296d" {
+	if hex.EncodeToString(hash[:]) != "77f3f17b68d4e79a2e0d7832c7bfb4168bc8ab261d30a54d7df50989f3c5b2e1" {
 		t.Fatal("draft retirement SQL changed")
 	}
 	exec := func(query string, args ...any) {
@@ -81,8 +144,57 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, o.kind, o.target, o.operationID[
 	name, _ := iaRetirementKindName(kind)
 	iaRetirementReclaimInsertHeader(t, w, id, request, r, name, digest, n)
 	q := iaReceiptReclaimReference{purpose: IARetirementReceiptReclaim, identity: CommandIdentity{Incarnation: id.Incarnation, Sequence: 2, OperationID: [16]byte{3}}, request: RequestDigest{4}, retirement: o}
-	registry := nativeInventoryFixtureRegistry(t, w, iaRetirementReclaimDraftDefinitions(), "ia_retirement_reclaim_native.go", "ia_retirement_reclaim_statements.go", "ia_retirement_reclaim_draft_probe_test.go", "../../../research/p2ia-native/retirement-reclaim.sql")
+	registry := iaRetirementReclaimDraftRegistry(t, w, iaRetirementReclaimDraftDefinitions(), "ia_retirement_reclaim_native.go", "ia_retirement_reclaim_statements.go", "ia_retirement_reclaim_draft_probe_test.go", "../../../research/p2ia-native/retirement-reclaim.sql")
 	return w, path, q, registry
+}
+
+func TestIARetirementReclaimDraftPolicyControls(t *testing.T) {
+	w, _, _, _ := iaRetirementReclaimDraftFixture(t, true)
+	catalogue, err := stmt.Describe(iaRetirementReclaimDraftDefinitions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := iaRetirementReclaimDraftPolicy(t)
+	for _, drop := range []bool{false, true} {
+		var contract struct {
+			Indexes []map[string]any `json:"indexes"`
+		}
+		if err := json.Unmarshal(data, &contract); err != nil {
+			t.Fatal(err)
+		}
+		var entries []map[string]any
+		for _, e := range contract.Indexes {
+			if drop && e["index"] == "catalog_removal_receipt_due" {
+				continue
+			}
+			if !drop && e["index"] == "catalog_configuration_receipt_due" {
+				e["predicate"] = "receipt_reclaim_due_ms >= 0"
+			}
+			entries = append(entries, e)
+		}
+		contract.Indexes = entries
+		mutant, err := json.Marshal(contract)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := plan.ReadIndexPolicy(mutant)
+		if err != nil {
+			t.Fatal("policy mutant did not load", err)
+		}
+		conn, err := w.db.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, captureErr := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: strings.Repeat("0", 64), Statistics: plan.Unanalyzed, Implementations: "deliberate draft policy mutant"}, policy)
+		conn.Close()
+		want := "predicate drift"
+		if drop {
+			want = "undeclared partial index"
+		}
+		if captureErr == nil || !strings.Contains(captureErr.Error(), want) {
+			t.Fatal("policy mutant did not fail its exact falsifier", captureErr)
+		}
+	}
 }
 
 func iaRetirementReclaimInsertHeader(t *testing.T, w *executor, id CommandIdentity, request RequestDigest, r iaRetirementResult, name string, digest ResultDigest, n int64) {
@@ -189,7 +301,7 @@ func TestIARetirementReclaimDraftNativeRollbackScopeAndMissing(t *testing.T) {
 			defs[i].SQL = defs[i].SQL[:at] + strings.Replace(defs[i].SQL[at:], "last_command_sequence=?", "last_command_sequence<?", 1)
 		}
 	}
-	fault := nativeInventoryFixtureRegistry(t, w, defs, "ia_retirement_reclaim_native.go", "ia_retirement_reclaim_statements.go", "ia_retirement_reclaim_draft_probe_test.go")
+	fault := iaRetirementReclaimDraftRegistry(t, w, defs, "ia_retirement_reclaim_native.go", "ia_retirement_reclaim_statements.go", "ia_retirement_reclaim_draft_probe_test.go")
 	turn := scanLifecycleProtocolTurn(t, w, fault, q.purpose)
 	if out, err := applyIARetirementReceiptReclaim(t.Context(), turn, q, iaReceiptReclaimSlot{}); !errors.Is(err, sql.ErrNoRows) || out.owner.exists || out.decision != 0 {
 		t.Fatal("stale CAS returned a prefix", out, err)
@@ -234,7 +346,7 @@ func TestIARetirementReclaimDraftNativeSQLMutants(t *testing.T) {
 						defs[i].SQL = strings.Replace(defs[i].SQL, "original_request_digest=?", "original_request_digest>=?", 1)
 					}
 				}
-				registry = nativeInventoryFixtureRegistry(t, w, defs, "ia_retirement_reclaim_native.go", "ia_retirement_reclaim_statements.go", "ia_retirement_reclaim_draft_probe_test.go")
+				registry = iaRetirementReclaimDraftRegistry(t, w, defs, "ia_retirement_reclaim_native.go", "ia_retirement_reclaim_statements.go", "ia_retirement_reclaim_draft_probe_test.go")
 			}
 			turn := scanLifecycleProtocolTurn(t, w, registry, q.purpose)
 			out, err := applyIARetirementReceiptReclaim(t.Context(), turn, q, iaReceiptReclaimSlot{})

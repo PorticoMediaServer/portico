@@ -1,0 +1,1090 @@
+{
+  "decision": "(a) for every retained partial index; no physical full-index exception selected",
+  "planner_stance": "O11: force each hot static statement onto its intended index with INDEXED BY where supported; exact shared partial predicate; bundled golden under declared statistics. No reliance on opportunistic runtime planner statistics.",
+  "indexes": [
+    {
+      "index": "artwork_discovery_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "artwork_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "artwork_subject_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "audio_genre_projection_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "audio_render_fact_requests_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "audio_tag_evidence_genre_value",
+      "predicate": "field='genre'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_aggregate_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_aggregate_new_evidence",
+      "predicate": "new_evidence_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_aggregate_old_evidence",
+      "predicate": "old_evidence_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_aggregate_one_published",
+      "predicate": "phase IN('published','folding')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_aggregate_source_entity",
+      "predicate": "source_entity_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_asset_authored",
+      "predicate": "authored_refs>0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_asset_delta_size",
+      "predicate": "action='upsert'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_asset_links_cue_ordinal",
+      "predicate": "cue_ordinal IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_attribute_ambiguous_restrictions",
+      "predicate": "instr(value_key,'|')>0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_credit_images_due",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "job_due_ms IS NOT NULL"
+    },
+    {
+      "index": "catalog_credits_provider_person",
+      "predicate": "provider_person_id<>''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_album",
+      "predicate": "album_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_artist",
+      "predicate": "artist_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_automatic_local",
+      "predicate": "kind=1 AND retired=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_book",
+      "predicate": "book_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_book_author",
+      "predicate": "kind=8",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_collection_name",
+      "predicate": "kind=10",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_critic",
+      "predicate": "kind IN(1,2,3,4,10)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_duration",
+      "predicate": "kind IN(1,2,3,4,5,6,7,8,9,10)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_episode_count",
+      "predicate": "kind IN(2,3)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_episode_position",
+      "predicate": "kind=4",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_file_size",
+      "predicate": "kind IN(1,2,3,4,5,6,7,8,9,10)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_known_age_added",
+      "predicate": "admission_known_age IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_known_age_title",
+      "predicate": "admission_known_age IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_latest_aired",
+      "predicate": "kind IN(2,3)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_missing",
+      "predicate": "missing_since_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_parent",
+      "predicate": "parent_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_parent_community_rating_key",
+      "predicate": "parent_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_parent_critic_rating_key",
+      "predicate": "parent_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_parent_duration_key",
+      "predicate": "parent_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_parent_file_size_key",
+      "predicate": "parent_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_parent_latest_aired_key",
+      "predicate": "parent_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_parent_resolution_key",
+      "predicate": "parent_id IS NOT NULL AND kind IN(1,2,3,4,10)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_rating",
+      "predicate": "kind IN(1,2,3,4,5,6,7,8,9,10,13)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_release",
+      "predicate": "kind IN(1,2,3,4,6,8)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_resolution",
+      "predicate": "kind IN(1,2,3,4,10)",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_season",
+      "predicate": "season_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_season_number",
+      "predicate": "kind=3",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_show",
+      "predicate": "show_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_show_fk",
+      "predicate": "show_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entities_track",
+      "predicate": "kind=7",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entity_mutations_artist_identity",
+      "predicate": "entity_kind=5 AND owner_kind='identity' AND mode='adopt' AND parent_mutation_id IS NULL AND status IN('active','blocked')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entity_mutations_automatic_missing",
+      "predicate": "owner_kind='missing' AND cause_operation='automatic-missing' AND status='active' AND parent_mutation_id IS NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entity_mutations_command_root",
+      "predicate": "parent_mutation_id IS NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entity_mutations_provider",
+      "predicate": "status<>'terminal' AND mode='adopt'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entity_mutations_subject",
+      "predicate": "status<>'terminal' AND mode<>'adopt'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_entity_mutations_target",
+      "predicate": "status<>'terminal'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_facet_active_scans",
+      "predicate": "status IN('queued','running')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_info_changes_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_info_owner_object",
+      "predicate": "info_owner_object IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_info_pending_links",
+      "predicate": "info_pending_change IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_info_shapes_unused",
+      "predicate": "ref_count=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_info_target_owner_object",
+      "predicate": "target_owner_object IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_person_merge_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_playlist_entries_item",
+      "predicate": "item_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_purge_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_removal_progress_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_scalar_admission",
+      "predicate": "admission_age IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_scalar_critic",
+      "predicate": "critic_rating IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_scalar_delta_duration",
+      "predicate": "action='upsert' AND duration IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_scalar_delta_rating",
+      "predicate": "action='upsert' AND community_rating IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_scalar_duration",
+      "predicate": "duration IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_scalar_latest_aired",
+      "predicate": "latest_aired_key IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_scalar_rating",
+      "predicate": "community_rating IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_scalar_resolution",
+      "predicate": "resolution IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_source_verification_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_term_sources_overrides",
+      "predicate": "label_override IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "console_active_work",
+      "predicate": "state IN ('queued','running','cancellation-requested','reconciling','paused')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "credit_owner_entries_input",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "input_ordinal IS NOT NULL"
+    },
+    {
+      "index": "credit_owner_entries_source",
+      "predicate": "source_row_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "direct_one_owner",
+      "predicate": "role='owner'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "direct_primary_profile",
+      "predicate": "is_primary=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "download_grants_retirement",
+      "predicate": "revoked=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "download_preparation_live",
+      "predicate": "state IN('queued','running','ready','paused','failed')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "download_receipts_retirement",
+      "predicate": "revoked_ms=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "download_request_items_retirement",
+      "predicate": "reason=''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "download_requests_retirement",
+      "predicate": "state='capturing'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "dvr_cleanup_work_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "dvr_delete_work_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "dvr_recording_layouts_linked_path",
+      "predicate": "phase='linked'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "dvr_recording_layouts_live_path",
+      "predicate": "phase!='retired'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "dvr_retention_retry_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "dvr_rule_work_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "enrichment_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "episodic_sources_issues",
+      "predicate": "issue<>''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "identity_one_move",
+      "predicate": "stage NOT IN('complete','cancelled')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "identity_service_outbox_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "identity_setup_one_active",
+      "predicate": "phase IN('prepared','installed','consumed')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "integration_ids_expiry",
+      "predicate": "expires_ms>0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_analysis_queue_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_directories_visited",
+      "predicate": "identity!=''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_objects_missing",
+      "predicate": "state='missing' AND retired=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_objects_path",
+      "predicate": "retired=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_objects_probe_binding",
+      "predicate": "has_analysis_probe_bindings=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_objects_separate_folder",
+      "predicate": "retired=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_runs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_scan_issues_protected",
+      "predicate": "protect=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "inventory_scan_issues_reading_coverage",
+      "predicate": "protect=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "lc_one_job",
+      "predicate": "status='pending'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "live_icon_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "live_logo_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "live_programmes_icon",
+      "predicate": "has_live_programme_icons=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "live_reservation_window",
+      "predicate": "enabled=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "metadata_accounting_one_active",
+      "predicate": "phase<>'idle'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "metadata_accounting_one_published",
+      "predicate": "published_next=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "metadata_artwork_size_sweep_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "metadata_build_root_active",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared partial predicate, closed forced index and bundled EQP; root ownership structural uniqueness is not an execution grant.",
+      "predicate": "owner_operation<>'' AND parent_build IS NULL AND state IN('building','ready')"
+    },
+    {
+      "index": "metadata_discovery_refresh_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "metadata_lookup_fanout_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "metadata_operation_credit_image",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "credit_image_id IS NOT NULL"
+    },
+    {
+      "index": "metadata_repair_cascades_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "metadata_repair_credit_image",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "credit_image_id IS NOT NULL"
+    },
+    {
+      "index": "metadata_repair_credit_request",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "intent='credit-owner-single-v1' AND credit_phase IN('credit_capture','credit_prepare','credit_stage','credit_seal','credit_ready','credit_published')"
+    },
+    {
+      "index": "networking_claim_one_active",
+      "predicate": "stage NOT IN('cancelled','installed')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "networking_claim_one_installed",
+      "predicate": "stage='installed'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "notice_broadcast_work_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "personal_conflict_open",
+      "predicate": "resolved=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "personal_current_radio",
+      "predicate": "radio_last_started_at IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "personal_current_retained",
+      "predicate": "retained_at_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "personal_jobs_active",
+      "predicate": "state IN('building','queued','running')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "personal_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "play_history_admin_item_start",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control",
+      "predicate": "started_ms IS NOT NULL"
+    },
+    {
+      "index": "play_history_admin_start",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control",
+      "predicate": "started_ms IS NOT NULL"
+    },
+    {
+      "index": "play_history_admin_user_start",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control",
+      "predicate": "started_ms IS NOT NULL"
+    },
+    {
+      "index": "playback_channel_sessions_live",
+      "predicate": "ended_ms=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_start_preparation_execution",
+      "predicate": "execution_id<>''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_time_pending",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control",
+      "predicate": "pending_time_from_ms IS NOT NULL"
+    },
+    {
+      "index": "playback_v1_prepared_queue",
+      "predicate": "state='prepared'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_v1_prepared_session",
+      "predicate": "state='prepared'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_v1_sessions_account",
+      "predicate": "ended_ms=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_v1_sessions_active",
+      "predicate": "ended_ms=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_v1_sessions_device",
+      "predicate": "ended_ms=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_v1_sessions_ended",
+      "predicate": "ended_ms>0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_v1_sessions_lease",
+      "predicate": "ended_ms=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_v1_sessions_paused",
+      "predicate": "ended_ms=0 AND state='paused'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "portico_admitted_signer",
+      "predicate": "signer_key_id<>''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "prepared_media_download_pinned",
+      "predicate": "state='published' AND length(digest)=64 AND digest NOT GLOB '*[^0-9a-f]*'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "prepared_media_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "queue_v1_snapshots_building",
+      "predicate": "state='building'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "reading_entity_author_facet",
+      "predicate": "has_reading_attribution_members=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "reading_entity_issue_date",
+      "predicate": "has_reading_attribution_members=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "reading_entity_series",
+      "predicate": "has_reading_attribution_members=1 AND reading_series_key IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "reading_entity_series_facet",
+      "predicate": "has_reading_attribution_members=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "reading_entity_series_seek",
+      "predicate": "has_reading_attribution_members=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "reading_path_dirty_work_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "recording_root_request_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "remote_listing_sessions_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "screen_metadata_fanout_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "screen_metadata_fanout_served",
+      "predicate": "pending=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "search_fragment_entity",
+      "predicate": "owner_entity IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "search_fragment_person",
+      "predicate": "owner_person IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "search_generation_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "search_publish_document_fk",
+      "predicate": "document_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "search_publish_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "search_publish_published_doc",
+      "predicate": "published_document_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "search_reclaim_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate; intended INDEXED BY; bundled EQP no temp Btree; bounded two-stream keyset"
+    },
+    {
+      "index": "security_purge_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "segment_catchup_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "segment_files_pending_by_library",
+      "predicate": "state='pending'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "segment_shows_dirty",
+      "predicate": "dirty=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "separate_asset_preparations",
+      "predicate": "separate_retired=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "separate_asset_versions",
+      "predicate": "state='published'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "separate_preparation_grants",
+      "predicate": "revoked=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "separate_preparation_receipts",
+      "predicate": "revoked_ms=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "separate_preparation_requests",
+      "predicate": "reason=''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "social_cast_devices_previous",
+      "predicate": "previous_token_digest<>''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "state_rebase_jobs_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "subtitle_resources_disc_title",
+      "predicate": "has_subtitle_disc_resources=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "subtitle_revisions_original_object",
+      "predicate": "has_subtitle_original_revisions=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "user_mutation_roots_active",
+      "predicate": "state='active'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "user_mutation_roots_draining",
+      "predicate": "state='draining'",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "webhook_deliveries_governor_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "webhooks_create_identity",
+      "predicate": "create_operation<>''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "catalog_removal_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate"
+    },
+    {
+      "index": "catalog_configuration_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate"
+    }
+  ]
+}
