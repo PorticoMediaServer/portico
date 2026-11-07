@@ -54,26 +54,29 @@ type effectivePlan struct {
 // private composition must own pool/native idle memory and WAL sampling outside
 // command custody. No production profile is inferred from these descriptors.
 type effectiveRuntime struct {
-	mu                  sync.Mutex
-	executor            *executor
-	governor            governor.Governor
-	authority           *governor.Authority
-	wal                 *governor.WALGate
-	path                string
-	owner               governor.OwnerID
-	plan                effectivePlan
-	inventoryPlan       *effectivePlan
+	mu                       sync.Mutex
+	executor                 *executor
+	governor                 governor.Governor
+	authority                *governor.Authority
+	wal                      *governor.WALGate
+	path                     string
+	owner                    governor.OwnerID
+	plan                     effectivePlan
+	inventoryPlan            *effectivePlan
+	lifecyclePlans           [2]*effectivePlan // private, explicitly composed create/claim history profiles
+	issuerPlans              [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
+	inventoryPreparationPlan *effectivePlan
+	registry                 *stmt.Registry
+	fenced                   bool
+	cleanupPanics            []terminalPanic
+
+	clockHighWater time.Time // composition custody under mu, then transferred into the frame
+
+	// Private, explicitly composed WC profiles share the same dispatcher.
 	wcProgressPlan      *effectivePlan
 	wcProgressBirthPlan *effectivePlan
 	wcSecurityPlan      *effectivePlan
 	wcReclaimPlan       *effectivePlan
-	lifecyclePlans      [2]*effectivePlan // private, explicitly composed create/claim history profiles
-	issuerPlans         [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
-	registry            *stmt.Registry
-	fenced              bool
-	cleanupPanics       []terminalPanic
-
-	clockHighWater time.Time // composition custody under mu, then transferred into the frame
 }
 
 func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *governor.Authority, wal *governor.WALGate, owner governor.OwnerID, plan effectivePlan, inventoryPlans ...effectivePlan) (*effectiveRuntime, error) {
