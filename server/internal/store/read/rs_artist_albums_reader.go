@@ -44,7 +44,7 @@ type RSArtistAlbumCursor struct {
 // image, rather than manufacturing successful empty provider observations.
 type RSArtistAlbumCard struct {
 	Facts                 TitleFacts
-	PrimaryArtist         TitleFacts
+	PrimaryArtist         BrowseItem
 	Artwork               ArtworkFact
 	MissingCanonicalFacts []string
 }
@@ -368,16 +368,46 @@ func (r *RSArtistAlbumReader) hydrate(ctx context.Context, q governor.Request, o
 				card.Facts = value
 			}
 		}
-	} else if card.PrimaryArtist.Item.ID == 0 {
-		// Artist context may be hidden by its own subject policy: never expose it.
-		var value TitleFacts
-		value, c, e = f.facts(ctx, q, time.Until(p.lease.Deadline()), out, TitleFactsInput{View: p.view(at, 5, card.Facts.Album.Artist), Item: card.Facts.Album.Artist})
+	} else if card.PrimaryArtist.ID == 0 {
+		// The album authorizes this title context. The legacy contract requires
+		// the primary artist to be live, not independently visible as a container.
+		artist := card.Facts.Album.Artist
+		w := &rsByteWindow{source: r.pool, preflightCalls: 12}
+		var value BrowseItem
+		value, c, e = rsPeoplePublish(ctx, w, q, time.Until(p.lease.Deadline()), out, p.view(at, 6, id), []readStep[BrowseItem]{
+			func(_ context.Context, query browseQuery, _ browseFence, _ *BrowseItem) error {
+				rows, err := query("rs.detail.facts_octets", artist, p.input.View.Library, int64(5))
+				if err != nil {
+					return err
+				}
+				if len(rows) != 1 {
+					return ErrStale
+				}
+				n, err := rsPointBytes(rows[0])
+				if err != nil {
+					return err
+				}
+				return w.arm(n, 2)
+			},
+			func(_ context.Context, query browseQuery, _ browseFence, d *BrowseItem) error {
+				rows, err := query("rs.detail.facts", artist, p.input.View.Library, int64(5))
+				if err != nil {
+					return err
+				}
+				if len(rows) != 1 {
+					return ErrStale
+				}
+				*d, err = itemValue(rows[0])
+				return err
+			},
+		})
 		if e == nil {
-			e = p.charge(artistAlbumCardBytes(RSArtistAlbumCard{PrimaryArtist: value}))
+			e = p.charge(512 + 4*int64(len(value.Title)))
 			if e == nil {
 				card.PrimaryArtist = value
 			}
 		}
+
 	} else {
 		card.Artwork, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 6, id), Item: id, Role: "poster", PageSlot: true})
 		if e == nil {
