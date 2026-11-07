@@ -36,7 +36,7 @@ func searchPublisherPlanIndex(purpose CommandID) int {
 func searchPublisherDisclosureBytes(v *publisherInvocation) uint64 {
 	// Scope strings are frozen by the existing issuer; charge their bind custody.
 	n := searchPublisherHistoryBytes
-	if v != nil && v.disclosure != nil && v.disclosure.scope != nil {
+	if v != nil && v.purpose == SearchFragmentReclaim && v.disclosure != nil && v.disclosure.scope != nil {
 		n += 4 * uint64(len(v.disclosure.scope.libraryKey))
 	}
 	return n

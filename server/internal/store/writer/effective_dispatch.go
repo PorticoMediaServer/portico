@@ -307,8 +307,8 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		if _, err := validatePublisherInvocation(ctx, w, publisher); err != nil {
 			return out, acknowledged, err
 		}
-		// The image facade stays closed; only the explicitly installed two
-		// publisher qualification purposes may enter this SAME dispatcher.
+		// The image facade stays closed. Explicitly installed publisher-job
+		// and independent reclaimer scopes enter this SAME dispatcher.
 		if !searchPublisherResourcePurpose(publisher.purpose) {
 			return out, acknowledged, ErrNotImplemented
 		}
