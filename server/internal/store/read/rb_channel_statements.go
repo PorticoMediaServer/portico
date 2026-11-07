@@ -5,7 +5,9 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 const rbChannelOctetsSQL = "SELECT octet_length(c.config_json),octet_length(g.config_json) FROM lc_channels AS c INDEXED BY sqlite_autoindex_lc_channels_1 CROSS JOIN lc_generations AS g INDEXED BY sqlite_autoindex_lc_generations_1 ON g.channel_id=c.id WHERE c.id=? AND g.id=?"
 
 func RBSharedChannelDefinitions() []stmt.Definition {
-	return rbChannelDefinitions()
+	out := rbChannelDefinitions()
+	out = append(out, rbHomeBindingDefinitions()...)
+	return append(out, rbChannelCandidateDefinitions()...)
 }
 func rbChannelDefinitions() []stmt.Definition {
 	s := func(name string) stmt.Param { return stmt.Param{Name: name, Type: stmt.Text} }
