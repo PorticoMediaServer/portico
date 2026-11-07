@@ -4,10 +4,12 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
-func TestRBGroupArtistNative(t *testing.T) {
+func TestRBGroupArtistNative(t *testing.T) { synctest.Test(t, testRBGroupArtistNative) }
+func testRBGroupArtistNative(t *testing.T) {
 	defs := append(append(browseDefinitions(), RBGroupDefinitions()...), RBArtistDefinitions()...)
 	f := composeBrowseFixture(t, rbGroupSource(t), defs)
 	in := RBArtistInput{View: f.input, Artist: 2010, Feed: RBArtistCredits}

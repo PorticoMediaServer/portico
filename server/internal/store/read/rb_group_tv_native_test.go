@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -14,7 +15,8 @@ var rbTVFrozenContract []byte
 
 // Frozen expected groupOrder tuples are independent of legacy packages. Native
 // test binaries must never import the legacy implementation as a parity oracle.
-func TestRBGroupTVNative(t *testing.T) {
+func TestRBGroupTVNative(t *testing.T) { synctest.Test(t, testRBGroupTVNative) }
+func testRBGroupTVNative(t *testing.T) {
 	var frozen map[string][]int64
 	if e := json.Unmarshal(rbTVFrozenContract, &frozen); e != nil {
 		t.Fatal(e)
