@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"testing"
 	"time"
 )
@@ -22,7 +23,8 @@ func rsTechnicalSource(t *testing.T) *browseFixture {
 	return f
 }
 func rsTechnicalFixture(t *testing.T) (*browseFixture, *RSSelectedTechnicalReader) {
-	gc := rsChildrenGovernor()
+	gc := readfixture.LiveConfig(time.Now)
+	gc.Preparation = &governor.PreparationProfile{MaxActive: 2, MaxBytes: 16 << 20, MaxJobBytes: 8 << 20, ProtectedBytes: 32 << 20}
 	gc.Preparation.MaxJobBytes = 16 << 20
 	f := composeReadFixture(t, rsTechnicalSource(t), append(append(HarnessDefinitions(), TitleFactsDefinitions()...), TechnicalFactsDefinitions()...), gc, true, rsTechnicalHash(t))
 	r, e := NewRSSelectedTechnicalReader(f.snapshots)
