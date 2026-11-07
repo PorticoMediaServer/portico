@@ -192,6 +192,8 @@ def run(launch_path):
     launch = json.loads(launch_path.read_text(), object_pairs_hook=q.no_duplicates)
     output, work = Path(launch['output']), Path(launch['work'])
     cfg = launch['cfg']
+    q.require(type(launch.get('uid')) is int and launch['uid'] > 0
+              and type(launch.get('gid')) is int and launch['gid'] > 0, 'unprivileged target UID/GID required')
     env = launch['env']
     binary, host = work / 'writer.test', work / 'host'
     q.require(q.file_hash(binary) == launch['binary_sha256'] and q.file_hash(host) == launch['host_sha256'], 'binary changed before execution')
