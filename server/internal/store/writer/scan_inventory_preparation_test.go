@@ -195,6 +195,50 @@ func TestN1ObserveFinalCancellationCannotAuthorizeFreeze(t *testing.T) {
 	}
 }
 
+func TestN1RepeatedObservePreservesObservedPreparation(t *testing.T) {
+	n, in := n1FreezeFixture(t)
+	if page, err := n.ObserveInventory(t.Context()); !errors.Is(err, ErrClosed) || page.Version != 0 {
+		t.Fatal("repeat observation was not refused", page, err)
+	}
+	if n.observationFailed.Load() || n.preparation.failed {
+		t.Fatal("admission refusal poisoned the completed observation")
+	}
+	if command, err := n.Freeze(t.Context(), in); err != nil || command == nil {
+		t.Fatal("refused repeat discarded the valid first page", command, err)
+	}
+	if err := n.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestN1FirstObservationFailureRemainsSticky(t *testing.T) {
+	for _, name := range []string{"error", "panic"} {
+		t.Run(name, func(t *testing.T) {
+			n, in := n1PreparationFixture(t, false, false)
+			n.preparation.observer = nativeinventory.NewObserver(&scanObservationFaultTransport{page: "{", panicExchange: name == "panic"})
+			func() {
+				defer func() {
+					if got := recover(); (got != nil) != (name == "panic") {
+						t.Error("first observation panic changed", got)
+					}
+				}()
+				if page, err := n.ObserveInventory(t.Context()); err == nil || page.Version != 0 {
+					t.Fatal("failed first observation escaped", page, err)
+				}
+			}()
+			if !n.observationFailed.Load() || !n.preparation.failed || n.driver.writer.effective.authority.Usage() == ([4]governor.Amounts{}) {
+				t.Fatal("first failure lost stickiness or refunded custody")
+			}
+			if command, err := n.Freeze(t.Context(), in); command != nil || !errors.Is(err, ErrClosed) {
+				t.Fatal("failed first observation authorized Freeze", command, err)
+			}
+			if err := n.Close(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func isN1CapacityRefusal(err error) bool {
 	var refusal *Refusal
 	return errors.As(err, &refusal) && refusal.Code == RefusalCapacity
@@ -297,6 +341,14 @@ func TestN1PreparationUsesTheIssuerAndKeepsFreshClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Run("refused_repeat_preserves_frozen_accept", func(t *testing.T) {
+		if page, err := n.ObserveInventory(t.Context()); !errors.Is(err, ErrClosed) || page.Version != 0 {
+			t.Fatal("repeat after Freeze was not refused", page, err)
+		}
+		if n.observationFailed.Load() || n.preparation.failed || n.command != command {
+			t.Fatal("refused repeat discarded the frozen original")
+		}
+	})
 	q, err := InventoryAcceptReference(command)
 	if err != nil {
 		t.Fatal(err)
