@@ -93,10 +93,10 @@ AND s.search_incarnation=p.source_incarnation AND s.revision=p.source_revision`,
 	// unique within an image; no secondary tie cursor is needed.
 	credit := `SELECT c.ord,c.person_id,c.image_id,c.credited_name,c.owner_incarnation,c.owner_revision
 FROM catalog_entities AS e
-CROSS JOIN catalog_credit_images AS h ON h.id=e.credit_image_id
+CROSS JOIN catalog_credit_images AS h INDEXED BY sqlite_autoindex_catalog_credit_images_1 ON h.id=e.credit_image_id
 CROSS JOIN catalog_credits AS c INDEXED BY catalog_credits_entity ON c.entity_id=e.id AND c.image_id=h.id
 WHERE e.id=? AND h.id=? AND h.entity_id=e.id AND h.entity_incarnation=e.metadata_incarnation AND h.owner_revision=e.credit_owner_revision AND h.sealed=1`
-	cp := stmt.Plan{Hot: true, Indexes: []string{"catalog_credits_entity"}, PrimaryKeys: []string{"e", "h"}, Seeks: []string{"entity_id=? AND image_id=?"}}
+	cp := stmt.Plan{Hot: true, Indexes: []string{"catalog_credits_entity", "sqlite_autoindex_catalog_credit_images_1"}, AutoIndexes: []stmt.AutoIndexBinding{key("catalog_credit_images", "sqlite_autoindex_catalog_credit_images_1", "u", "id", "entity_id")}, PrimaryKeys: []string{"e"}, Seeks: []string{"entity_id=? AND image_id=?"}}
 	add("credit.first", credit+` ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("limit")}, []any{int64(2), int64(1), int64(64)}, cp)
 	add("credit.next", credit+` AND c.ord>? ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("after"), i("limit")}, []any{int64(2), int64(1), int64(-1), int64(64)}, cp)
 	add("credit.point", credit+` AND c.ord=? AND c.person_id=?`, []stmt.Param{i("entity"), i("image"), i("ordinal"), i("person")}, []any{int64(2), int64(1), int64(0), int64(1)}, cp)
