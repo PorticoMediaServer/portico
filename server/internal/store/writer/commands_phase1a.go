@@ -26,8 +26,8 @@ const (
 	BasicSeal                  CommandID = 22
 	EvidenceSeal               CommandID = 23
 	CreditSourceSeal           CommandID = 24
-	InventoryDirectoryDiscover CommandID = 25
-	InventoryDirectoryEOF      CommandID = 26
+	InventoryDirectoryDiscover CommandID = 26
+	InventoryDirectoryEOF      CommandID = 27
 )
 
 var phase1aCommands = commandRegistration{
