@@ -21,14 +21,24 @@ const iaReadingRequestVersion uint16 = 1
 // are descriptive types, not library identities. No decoded text/cover promise,
 // accepted revision, allocated identity or current source authority is carried.
 type iaReadingInventoryRequest struct {
-	kind, format string
-	scope        inventoryScope
-	source       inventorySource
-	run          inventoryRun
-	directory    inventoryDirectory
-	files        []inventoryFile
-	naming       naming.Reading
-	values       compactcatalog.ReadingValues
+	kind, format   string
+	scope          inventoryScope
+	source         inventorySource
+	run            inventoryRun
+	directory      inventoryDirectory
+	files          []inventoryFile
+	naming         naming.Reading
+	values         compactcatalog.ReadingValues
+	classification *iaReadingTypeEvidence
+}
+
+// Original explicit classification evidence, matching reading.Metadata's
+// source field/raw/complete facts without its decoded text or cover fields.
+// Nil means no classification observation, not an implicit Book decision.
+type iaReadingTypeEvidence struct {
+	sourceFormat, sourceField string
+	raw                       []string
+	complete                  bool
 }
 type iaReadingInventoryCommand struct {
 	identity CommandIdentity
@@ -38,6 +48,9 @@ type iaReadingInventoryCommand struct {
 }
 
 func newIAReadingInventoryCommand(id CommandIdentity, r iaReadingInventoryRequest) (*iaReadingInventoryCommand, error) {
+	if r.classification != nil && (len(r.classification.raw) > 64 || !r.classification.complete) {
+		return nil, invalid("ia_reading_classification_count")
+	}
 	if len(r.files) != 1 || !iaAudioCounts(reflect.ValueOf(r.naming)) {
 		return nil, invalid("ia_reading_count")
 	}
@@ -71,6 +84,16 @@ func newIAReadingInventoryCommand(id CommandIdentity, r iaReadingInventoryReques
 	if r.values.PublicationType != nil && !compactcatalog.ValidReadingPublicationType(r.values.PublicationType.Value) {
 		return nil, invalid("ia_reading_classification")
 	}
+	if e := r.classification; e != nil {
+		if e.sourceFormat != r.format || (r.format != "epub" && r.format != "cbz") || e.sourceField == "" {
+			return nil, invalid("ia_reading_classification_source")
+		}
+		for _, raw := range e.raw {
+			if len(raw) > 4096 {
+				return nil, invalid("ia_reading_classification_scalar")
+			}
+		}
+	}
 	// Preserve only existing closed attribution provenance; owner decisions are
 	// not inventory evidence. Absence remains distinct from a present value.
 	for _, v := range []*compactcatalog.ReadingValue{r.values.Author, r.values.Series, r.values.IssueDate, r.values.PublicationType} {
@@ -89,6 +112,16 @@ func newIAReadingInventoryCommand(id CommandIdentity, r iaReadingInventoryReques
 	r.source.resolvedRoot = bytes.Clone(r.source.resolvedRoot)
 	r.naming = iaAudioCloneReading(r.naming)
 	r.values = iaReadingCloneValues(r.values)
+	if r.classification != nil {
+		e := *r.classification
+		e.sourceFormat = strings.Clone(e.sourceFormat)
+		e.sourceField = strings.Clone(e.sourceField)
+		e.raw = slices.Clone(e.raw)
+		for i := range e.raw {
+			e.raw[i] = strings.Clone(e.raw[i])
+		}
+		r.classification = &e
+	}
 	base = iaAudioInventoryRequest{scope: r.scope, source: r.source, run: r.run, directory: r.directory, files: r.files}
 	for _, s := range iaAudioTexts(&base) {
 		*s = strings.Clone(*s)

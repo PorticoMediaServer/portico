@@ -15,14 +15,16 @@ func iaReadingFixture() (iaReadingInventoryRequest, CommandIdentity) {
 	old.files[0].relativePath = "Book.epub"
 	old.files[0].assetPath = "/media/Book.epub"
 	return iaReadingInventoryRequest{kind: "book", format: "epub", scope: old.scope, source: old.source, run: old.run, directory: old.directory, files: old.files,
-		naming: naming.Reading{Titles: []naming.Evidence[string]{{Value: "One", Source: naming.FileName, Path: "Book.epub"}, {Value: "Two", Source: naming.ParentFolder, Path: "."}}, Episodes: []naming.Evidence[[]int]{{Value: []int{1, 2}, Source: naming.FileName}}},
-		values: compactcatalog.ReadingValues{Title: "Book", Author: &compactcatalog.ReadingValue{Value: "Author", Source: compactcatalog.ReadingFolder}, SeriesNumber: &compactcatalog.ReadingNumber{Value: 2, Source: compactcatalog.ReadingFolder}}}, id
+		naming:         naming.Reading{Titles: []naming.Evidence[string]{{Value: "One", Source: naming.FileName, Path: "Book.epub"}, {Value: "Two", Source: naming.ParentFolder, Path: "."}}, Episodes: []naming.Evidence[[]int]{{Value: []int{1, 2}, Source: naming.FileName}}},
+		classification: &iaReadingTypeEvidence{sourceFormat: "epub", sourceField: "{http://purl.org/dc/elements/1.1/}type", raw: []string{"magazine", "Magazine"}, complete: true},
+		values:         compactcatalog.ReadingValues{Title: "Book", Author: &compactcatalog.ReadingValue{Value: "Author", Source: compactcatalog.ReadingFolder}, SeriesNumber: &compactcatalog.ReadingNumber{Value: 2, Source: compactcatalog.ReadingFolder}}}, id
 }
 func TestIAReadingPreparationFamiliesAndFreeze(t *testing.T) {
 	for _, family := range []string{"ebook", "comic", "magazine", "newspaper"} {
 		t.Run(family, func(t *testing.T) {
 			r, id := iaReadingFixture()
 			if family == "comic" {
+				r.classification = nil
 				r.kind = "comic"
 				r.format = "cbz"
 				r.files[0].relativePath = "Book.cbz"
@@ -34,6 +36,9 @@ func TestIAReadingPreparationFamiliesAndFreeze(t *testing.T) {
 			c, err := newIAReadingInventoryCommand(id, r)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if r.classification != nil {
+				r.classification.raw[0] = "changed"
 			}
 			r.source.resolvedRoot[1] = 'X'
 			r.files[0].revision = "changed"
@@ -52,6 +57,10 @@ func TestIAReadingPreparationFamiliesAndFreeze(t *testing.T) {
 }
 func TestIAReadingPreparationRefusals(t *testing.T) {
 	cases := []func(*iaReadingInventoryRequest){
+		func(r *iaReadingInventoryRequest) { r.classification.complete = false },
+		func(r *iaReadingInventoryRequest) { r.classification.raw = make([]string, 65) },
+		func(r *iaReadingInventoryRequest) { r.classification.sourceFormat = "cbz" },
+
 		func(r *iaReadingInventoryRequest) { r.files = nil },
 		func(r *iaReadingInventoryRequest) { r.naming.Titles = make([]naming.Evidence[string], 65) },
 		func(r *iaReadingInventoryRequest) { r.naming.Episodes[0].Value = make([]int, 9) },
@@ -82,6 +91,7 @@ func TestIAReadingPreparationRefusals(t *testing.T) {
 }
 func TestIAReadingPreparationDrift(t *testing.T) {
 	cases := []func(*iaReadingInventoryRequest){
+		func(r *iaReadingInventoryRequest) { r.classification.raw[1] += "x" },
 		func(r *iaReadingInventoryRequest) { r.values.Author.Value += "x" },
 		func(r *iaReadingInventoryRequest) { r.values.Author.Source = compactcatalog.ReadingFileName },
 		func(r *iaReadingInventoryRequest) { r.values.SeriesNumber.Value++ },
