@@ -59,3 +59,45 @@ func TestUOPersonalBulkRejectsDuplicateSelection(t *testing.T) {
 	}
 	uoPersonalRollback(t, turn)
 }
+
+func TestUOPersonalBulkBuildResumeAndSeal(t *testing.T) {
+	w, target := uoPersonalFixture(t)
+	uoPersonalContainer(t, w)
+	q := uoPersonalBulkBeginInput{policy: target.policy, job: "build-one", operation: "build-op", requestHash: strings.Repeat("a", 64), field: uoPersonalFavorite, value: "1", building: true, selectionFence: strings.Repeat("b", 64), nowMS: 1}
+	turn := uoPersonalTurn(t, w)
+	e, err := applyUOPersonalBulkBegin(t.Context(), turn, q)
+	if err != nil || e.total != 0 {
+		t.Fatal(e, err)
+	}
+	uoFlagsCommit(t, turn)
+	stage := uoPersonalBulkMembersInput{policy: target.policy, job: q.job, selectionFence: q.selectionFence, revision: 1, subjects: []int64{2111}, nowMS: 2}
+	turn = uoPersonalTurn(t, w)
+	one, err := applyUOPersonalBulkMembers(t.Context(), turn, stage)
+	if err != nil || one.total != 1 || one.revision != 2 {
+		t.Fatal(one, err)
+	}
+	uoFlagsCommit(t, turn)
+	// Old builder cursor cannot append another copy after restart.
+	turn = uoPersonalTurn(t, w)
+	bad, err := applyUOPersonalBulkMembers(t.Context(), turn, stage)
+	if err == nil || bad != (uoPersonalBulkEffect{}) {
+		t.Fatal(bad, err)
+	}
+	uoPersonalRollback(t, turn)
+	stage.revision = 2
+	stage.after = 1
+	stage.subjects = []int64{2112}
+	stage.seal = true
+	stage.nowMS = 3
+	turn = uoPersonalTurn(t, w)
+	two, err := applyUOPersonalBulkMembers(t.Context(), turn, stage)
+	if err != nil || two.total != 2 || two.revision != 3 {
+		t.Fatal(two, err)
+	}
+	uoFlagsCommit(t, turn)
+	var state, cursor string
+	var count, due, complete int64
+	if err = w.db.QueryRowContext(t.Context(), `SELECT state,selection_cursor,selection_complete,job_next_attempt_ms,(SELECT count(*) FROM personal_job_items WHERE job_id='build-one') FROM personal_jobs WHERE id='build-one'`).Scan(&state, &cursor, &complete, &due, &count); err != nil || state != "queued" || cursor != "2" || complete != 1 || due != 3 || count != 2 {
+		t.Fatal(state, cursor, complete, due, count, err)
+	}
+}

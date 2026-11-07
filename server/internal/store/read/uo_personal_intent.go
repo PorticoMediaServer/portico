@@ -106,14 +106,14 @@ func readUOPersonalWatchedFact(q browseQuery, profile string, subject int64, pub
 // recursion or an all-descendants scan. At most two ancestors enter the fold.
 func readUOPersonalAncestor(q browseQuery, profile string, parent, child int64, public [16]byte) (uoPersonalAncestorIntent, error) {
 	var out uoPersonalAncestorIntent
-	rows, err := q("uo.personal.intent.ancestor", child, profile, parent)
+	rows, err := q("uo.personal.intent.ancestor", profile, parent)
 	if err != nil {
 		return out, err
 	}
 	if len(rows) == 0 {
 		return out, ErrNotReady
 	}
-	if len(rows) != 1 || len(rows[0]) != 6 {
+	if len(rows) != 1 || len(rows[0]) != 5 {
 		return out, ErrUnqualified
 	}
 	r := rows[0]
@@ -121,10 +121,30 @@ func readUOPersonalAncestor(q browseQuery, profile string, parent, child int64, 
 	if !ok || !uoPersonalPublicIDMatches(got, public) {
 		return out, ErrUnqualified
 	}
-	if r[1] == nil || r[2] == nil || r[4] == nil || r[5] == nil {
+	if r[1] == nil || r[2] == nil || r[4] == nil {
 		return out, ErrNotReady
 	}
-	out = uoPersonalAncestorIntent{uoPersonalWatchedFact: uoPersonalWatchedFact{subject: parent, public: public, generation: r[1].(int64), action: r[2].(int64), watched: r[3].(int64) == 1}, watermark: r[4].(int64), membership: r[5].(int64)}
+	memberships, err := q("uo.personal.intent.membership", child, parent)
+	if err != nil {
+		return out, err
+	}
+	if len(memberships) == 0 {
+		return out, ErrNotReady
+	}
+	if len(memberships) > 9 {
+		return out, ErrUnqualified
+	}
+	sequence := int64(0)
+	for _, m := range memberships {
+		if len(m) != 1 || m[0].(int64) <= 0 {
+			return out, ErrUnqualified
+		}
+		if sequence == 0 || m[0].(int64) < sequence {
+			sequence = m[0].(int64)
+		}
+	}
+	out = uoPersonalAncestorIntent{uoPersonalWatchedFact: uoPersonalWatchedFact{subject: parent, public: public, generation: r[1].(int64), action: r[2].(int64), watched: r[3].(int64) == 1}, watermark: r[4].(int64), membership: sequence}
+
 	return out, nil
 }
 func UOPersonalIntentDefinitions() []stmt.Definition {
@@ -132,15 +152,19 @@ func UOPersonalIntentDefinitions() []stmt.Definition {
 	s := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	out := []stmt.Definition{
 		{ID: readStatementID("uo.personal.intent.fact"), Kind: stmt.Read, SQL: `SELECT item_public_id,activity_generation,action_sequence,watched,container_intent_sequence FROM personal_items INDEXED BY personal_current_live WHERE profile_id=? AND item_id=?`, Params: []stmt.Param{s("profile"), i("subject")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"personal_current_live"}}},
-		{ID: readStatementID("uo.personal.intent.ancestor"), Kind: stmt.Read, SQL: `SELECT s.public_id,p.activity_generation,p.container_intent_sequence,p.watched,p.container_membership_sequence,(SELECT min(c.membership_sequence) FROM catalog_scalar_contributions c INDEXED BY catalog_scalar_contributor WHERE c.parent_id=s.id AND c.contributor_id=?) FROM catalog_subjects s CROSS JOIN catalog_kinds k ON k.id=s.kind AND k.container=1 CROSS JOIN personal_items p INDEXED BY personal_current_live ON p.item_id=s.id AND p.item_public_id=s.public_id WHERE p.profile_id=? AND s.id=?`, Params: []stmt.Param{i("child"), s("profile"), i("parent")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"personal_current_live"}, PrimaryKeys: []string{"s"}}},
+		{ID: readStatementID("uo.personal.intent.ancestor"), Kind: stmt.Read, SQL: `SELECT s.public_id,p.activity_generation,p.container_intent_sequence,p.watched,p.container_membership_sequence FROM catalog_subjects s CROSS JOIN catalog_kinds k ON k.id=s.kind AND k.container=1 CROSS JOIN personal_items p INDEXED BY personal_current_live ON p.item_id=s.id AND p.item_public_id=s.public_id WHERE p.profile_id=? AND s.id=?`, Params: []stmt.Param{s("profile"), i("parent")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"personal_current_live"}, PrimaryKeys: []string{"s", "k"}}},
+		{ID: readStatementID("uo.personal.intent.membership"), Kind: stmt.Read, SQL: `SELECT membership_sequence FROM catalog_scalar_contributions INDEXED BY catalog_scalar_contributor WHERE contributor_id=? AND parent_id=? ORDER BY source LIMIT 9`, Params: []stmt.Param{i("child"), i("parent")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_scalar_contributor"}, Seeks: []string{"contributor_id=? AND parent_id=?"}}},
 	}
-	// Argument order of the inner membership point is fixed in SQL.
+	// One source tuple per source category; the logical contributor folds once.
 	for n := range out {
 		out[n].Owner = "store/read UO personal draft"
 		out[n].CallSites = []string{"store/read/uo_personal_intent.go"}
 		args := []any{"profile-one", int64(2111)}
 		if n == 1 {
-			args = []any{int64(2111), "profile-one", int64(2112)}
+			args = []any{"profile-one", int64(2112)}
+		}
+		if n == 2 {
+			args = []any{int64(2111), int64(2112)}
 		}
 		out[n].Cohorts = []stmt.Cohort{{Name: fmt.Sprintf("point_%d", n), Bindings: args}}
 	}
