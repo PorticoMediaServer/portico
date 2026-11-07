@@ -253,6 +253,12 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			if err != nil {
 				return out, acknowledged, err
 			}
+			// Basic ingress has no W-owned preparation/work binding yet. A
+			// live driver cannot borrow its Inventory or lifecycle preparation;
+			// in particular Close/renewal must track the actual Basic frame.
+			if scan.basic.fresh() && scan.disclosure.scope.driver != nil {
+				return out, acknowledged, &Refusal{Code: RefusalUnqualified}
+			}
 			plan = nil // one-time private profile is read only under runtime custody
 			outcome = &out.basic.Outcome
 		}
