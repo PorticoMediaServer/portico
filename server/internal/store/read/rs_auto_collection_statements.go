@@ -45,7 +45,7 @@ func AutomaticCollectionDefinitions() []stmt.Definition {
 		defs = append(defs, stmt.Definition{ID: readStatementID("rs.auto." + n), SQL: sql, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/rs_auto_collection.go:CollectionPreparation"}, Params: params, Cohorts: []stmt.Cohort{{Name: "present", Bindings: args}, {Name: "empty", Bindings: empty}}, Plan: p})
 	}
 	// LIMIT2 detects an ambiguous automatic identity rather than selecting one.
-	add("source", `SELECT e.id,e.revision,e.collection_revision,e.metadata_incarnation,e.source_revision,e.metadata_revision,e.aggregate_revision,e.admission_revision,a.removed,a.owner_edited FROM catalog_entities AS e LEFT JOIN catalog_automatic_collections AS a INDEXED BY catalog_automatic_collection_entity ON a.entity_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=10 AND e.retired=0 LIMIT 2`, []stmt.Param{i("collection"), i("library")}, []any{int64(1101), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}, Indexes: []string{"catalog_automatic_collection_entity"}})
+	add("source", `SELECT e.id,e.revision,e.collection_revision,e.metadata_incarnation,e.source_revision,e.metadata_revision,e.aggregate_revision,e.admission_revision,a.removed,a.owner_edited FROM catalog_entities AS e NOT INDEXED LEFT JOIN catalog_automatic_collections AS a INDEXED BY catalog_automatic_collection_entity ON a.entity_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=10 AND e.retired=0 LIMIT 2`, []stmt.Param{i("collection"), i("library")}, []any{int64(1101), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}, Indexes: []string{"catalog_automatic_collection_entity"}})
 	for _, v := range []struct{ n, sql string }{{"identity", rsAutoIdentitySQL}, {"identity_octets", rsAutoIdentityOctetsSQL}} {
 		add(v.n, v.sql, []stmt.Param{i("collection"), i("library")}, []any{int64(1101), int64(1)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_automatic_collection_entity"}, Seeks: []string{"entity_id=?"}})
 	}
@@ -66,14 +66,14 @@ func AutomaticCollectionDefinitions() []stmt.Definition {
 	// Expand the canonical source predicate over base tables because HN grants
 	// no execution authority to views. Each relation below is a point seek.
 	add("accepted", `SELECT e.id FROM catalog_entities AS e
- CROSS JOIN metadata_field_origins AS o ON o.entity_id=e.id
- CROSS JOIN metadata_evidence_collections AS c ON c.evidence_id=o.evidence_id AND c.provider=o.provider
+ CROSS JOIN metadata_field_origins AS o INDEXED BY sqlite_autoindex_metadata_field_origins_1 ON o.entity_id=e.id
+ CROSS JOIN metadata_evidence_collections AS c INDEXED BY sqlite_autoindex_metadata_evidence_collections_1 ON c.evidence_id=o.evidence_id AND c.provider=o.provider
  CROSS JOIN catalog_libraries AS cl ON cl.id=e.library_id AND cl.retired=0
  CROSS JOIN libraries AS lib INDEXED BY sqlite_autoindex_libraries_1 ON lib.id=cl.library_id
  CROSS JOIN metadata_subject_providers AS b INDEXED BY sqlite_autoindex_metadata_subject_providers_1 ON b.entity_id=e.id AND b.provider=c.provider AND b.accepted_evidence_id=c.evidence_id AND b.accepted_publication_id=o.publication_id
  CROSS JOIN metadata_publications AS p INDEXED BY sqlite_autoindex_metadata_publications_1 ON p.id=b.accepted_publication_id AND p.entity_id=e.id AND p.evidence_id=c.evidence_id
  CROSS JOIN metadata_provider_operations AS op INDEXED BY sqlite_autoindex_metadata_provider_operations_1 ON op.id=p.operation_id AND op.entity_id=e.id AND op.provider=c.provider
- CROSS JOIN metadata_provider_policy AS policy ON policy.library_id=e.library_id AND policy.provider=c.provider AND policy.enabled=1 AND policy.incarnation=op.policy_incarnation AND policy.revision=op.policy_revision
+ CROSS JOIN metadata_provider_policy AS policy INDEXED BY sqlite_autoindex_metadata_provider_policy_1 ON policy.library_id=e.library_id AND policy.provider=c.provider AND policy.enabled=1 AND policy.incarnation=op.policy_incarnation AND policy.revision=op.policy_revision
  CROSS JOIN metadata_evidence AS ev INDEXED BY sqlite_autoindex_metadata_evidence_1 ON ev.id=c.evidence_id AND ev.sealed=1 AND ev.language=lib.metadata_language
  LEFT JOIN catalog_automatic_member_overrides AS x INDEXED BY sqlite_autoindex_catalog_automatic_member_overrides_1 ON x.collection_id=? AND x.item_id=e.id
  WHERE e.library_id=? AND e.id=? AND c.provider=? AND c.collection_id=? AND e.kind=1 AND e.retired=0 AND e.automatic_collection_name_key='' AND c.collection_id<>'' AND c.evidence_id=? AND e.metadata_language=lib.metadata_language AND o.evidence_id=b.accepted_evidence_id AND o.publication_id=b.accepted_publication_id AND x.item_id IS NULL AND o.field='relations' AND c.collection_kind='collection' AND b.role='primary' AND b.status='matched' AND p.decision='accepted' AND op.status='applied'`,
@@ -89,7 +89,7 @@ func AutomaticCollectionDefinitions() []stmt.Definition {
 
 func rsAutomaticAcceptedPlan() stmt.Plan {
 	p := rsAutomaticLocalPlan()
-	p.PrimaryKeys = []string{"e", "o", "c", "cl", "policy"}
+	p.PrimaryKeys = []string{"e", "cl"}
 	for _, table := range []string{"libraries", "metadata_publications", "metadata_provider_operations", "metadata_evidence"} {
 		name := "sqlite_autoindex_" + table + "_1"
 		p.Indexes = append(p.Indexes, name)
@@ -97,6 +97,18 @@ func rsAutomaticAcceptedPlan() stmt.Plan {
 	}
 	p.Indexes = append(p.Indexes, "sqlite_autoindex_metadata_subject_providers_1")
 	p.AutoIndexes = append(p.AutoIndexes, stmt.AutoIndexBinding{Table: "metadata_subject_providers", Name: "sqlite_autoindex_metadata_subject_providers_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "entity_id", Collation: "BINARY"}, {Name: "provider", Collation: "BINARY"}, {Name: "role", Collation: "BINARY"}}})
+	for _, v := range []struct {
+		table   string
+		columns []string
+	}{{"metadata_provider_policy", []string{"library_id", "provider"}}, {"metadata_field_origins", []string{"entity_id", "field"}}, {"metadata_evidence_collections", []string{"evidence_id", "collection_kind", "collection_id"}}} {
+		name := "sqlite_autoindex_" + v.table + "_1"
+		p.Indexes = append(p.Indexes, name)
+		pin := stmt.AutoIndexBinding{Table: v.table, Name: name, Origin: "pk"}
+		for _, column := range v.columns {
+			pin.Columns = append(pin.Columns, stmt.IndexColumn{Name: column, Collation: "BINARY"})
+		}
+		p.AutoIndexes = append(p.AutoIndexes, pin)
+	}
 	return p
 }
 
