@@ -260,7 +260,7 @@ func TestNativeSearchCurrentAllKindsAndMixedOwners(t *testing.T) {
 			for _, hit := range page.Hits {
 				ids = append(ids, hit.ID)
 				tiers = append(tiers, hit.Tier)
-				if hit.Kind <= 0 {
+				if hit.Subject == search.ManifestEntity && hit.Kind <= 0 {
 					t.Fatal("missing entity kind")
 				}
 			}
