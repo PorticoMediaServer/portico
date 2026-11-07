@@ -60,6 +60,9 @@ func installBasicSubtitleFact(ctx context.Context, turn *commandTurn, in basicSu
 	if !in.hadBefore && in.before != (basicCanonicalSubtitleFact{}) {
 		return value, ErrInvalid
 	}
+	if in.hadBefore && in.before.revision > next.revision {
+		return value, ErrConflict
+	}
 	if in.hadBefore && (in.before.revision < 0 || in.before.size < 0) {
 		return value, ErrInvalid
 	}

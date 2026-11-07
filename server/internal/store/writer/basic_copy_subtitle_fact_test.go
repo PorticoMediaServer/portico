@@ -2,9 +2,10 @@ package writer
 
 import (
 	"errors"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 func basicCopySubtitleFactTestDefinitions() []stmt.Definition {
@@ -87,16 +88,16 @@ func TestBasicCopySubtitleFactInsertAndReplace(t *testing.T) {
 	}
 }
 func TestBasicCopySubtitleFactDriftAndReturningRollback(t *testing.T) {
-	for _, control := range []string{"before", "staged", "return_token", "return_origin"} {
+	for _, control := range []string{"before", "staged", "newer_fact", "return_token", "return_origin"} {
 		t.Run(control, func(t *testing.T) {
 			defs := basicCopySubtitleFactTestDefinitions()
 			for i := range defs {
 				if defs[i].ID == basicCopySubtitleFactUpdate {
 					if control == "return_token" {
-						defs[i].SQL = strings.Replace(defs[i].SQL, "RETURNING asset_id,", "RETURNING 'wrong',", 1)
+						defs[i].SQL = strings.Replace(defs[i].SQL, "RETURNING asset_id,revision,size,modified_ns,origin_us,timing_known,status,fingerprint", "RETURNING fingerprint,revision,size,modified_ns,origin_us,timing_known,status,asset_id", 1)
 					}
 					if control == "return_origin" {
-						defs[i].SQL = strings.Replace(defs[i].SQL, "RETURNING asset_id,revision,size,modified_ns,origin_us,", "RETURNING asset_id,revision,size,modified_ns,origin_us+1,", 1)
+						defs[i].SQL = strings.Replace(defs[i].SQL, "RETURNING asset_id,revision,size,modified_ns,origin_us,", "RETURNING asset_id,revision,size,modified_ns,size,", 1)
 					}
 				}
 			}
@@ -104,6 +105,11 @@ func TestBasicCopySubtitleFactDriftAndReturningRollback(t *testing.T) {
 			switch control {
 			case "before":
 				in.before.modifiedNS++
+			case "newer_fact":
+				in.before.revision = 42
+				if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE asset_subtitle_facts SET revision=42 WHERE asset_id='basic-asset'`); err != nil {
+					t.Fatal(err)
+				}
 			case "staged":
 				if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE catalog_info_new_subtitle_facts SET fingerprint='drift' WHERE change_id=51`); err != nil {
 					t.Fatal(err)
