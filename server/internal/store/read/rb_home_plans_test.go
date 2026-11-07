@@ -33,7 +33,7 @@ func TestRBHomePlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalogue.Manifest()) != 8 {
+	if len(catalogue.Manifest()) != 9 {
 		t.Fatal("review changed statement inventory")
 	}
 	path := "testdata/rb-home-plans.json.gz"
@@ -102,7 +102,7 @@ func TestRBHomePlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capture := range captures {
-		if len(capture.Golden.Manifest) != 8 || len(capture.Golden.Plans) != 16 {
+		if len(capture.Golden.Manifest) != 9 || len(capture.Golden.Plans) != 18 {
 			t.Fatal("incomplete statement/cohort Capture coverage")
 		}
 	}

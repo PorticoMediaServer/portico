@@ -9,12 +9,14 @@ No shared files, DDL, runtime routes, providers or production composition change
 ## Callable behavior
 
 `RBHomeDefinitions` composes the existing browse/foreground/chronology definitions
-and eight Home statements. Capture is required on the actual Reader before registry
+and nine Home statements. Capture is required on the actual Reader before registry
 construction. `TestRBHomePlans` records unanalyzed and analyzed, present and empty,
 SEARCH-only plans. `-record-rb-home-plans` deliberately adopts the own-file golden.
 
-All public methods require `ConsumeForeground` LIVE/output custody and use
-`publishRead`. Draft errors return zero payload. The new closed Home recipe
+All public methods require `ConsumeForeground` LIVE/output custody. The shared
+`publishRead`/`publishAttempt` protocol supplies the physical lookup and fresh
+publication fences; dynamic two-stage methods retain its one whole-operation
+retry, original deadline and shared copy counter across both stages. Draft errors return zero payload. The new closed Home recipe
 permits container business verification without weakening the default policy.
 Unsupported account policies and blocked labels still fail in the shared fence.
 
@@ -82,8 +84,9 @@ each target window has at most five business calls and67 raw rows. Continuations
 also bind the complete source lifecycle envelope.
 
 The recent row uses two private publication stages: source capture and a
-cardinality-sized target stage (at most four movie or two show targets per
-snapshot, eight business calls and260 raw joined rows). Both share one cumulative copy counter, one
+cardinality-sized target stage (at most eight movie points or two show targets
+plus one movie per snapshot, eight business calls and512 joined raw rows; lower
+caller row budgets still refuse before their own ceiling). Both share one cumulative copy counter, one
 original deadline and at most one whole-composition retry. The second stage
 compares the complete first stage's shared/source fence before business work;
 final publication rechecks it again. No spare empty snapshots are executed.
