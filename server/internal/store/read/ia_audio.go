@@ -267,7 +267,7 @@ func (r *ForegroundReader) iaAudioMembership(ctx context.Context, request govern
 		for index, entry := range rows {
 			row := entry.row
 			id, disc, pos = row[0].(int64), row[12].(int64), row[13].(int64)
-			if listening && in.After != nil && iaAudioListeningCompare(disc, pos, entry.key, id, in.After.disc, in.After.position, in.After.sortKey, in.After.id) <= 0 {
+			if listening && in.After != nil && iaAudioListeningCompare(disc, pos, entry.key, id, in.After.disc, in.After.position, entry.key, in.After.id) <= 0 {
 				continue
 			}
 			// Advance all four RAW keys before filtering rejected members.

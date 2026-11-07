@@ -64,8 +64,8 @@ func (s *iaAudioSnapshots) listeningRows(ctx context.Context, q browseQuery, par
 		rows = append(rows, iaAudioListeningRow{row: row, key: key})
 	}
 	slices.SortFunc(rows, func(a, b iaAudioListeningRow) int {
-		return iaAudioListeningCompare(a.row[12].(int64), a.row[13].(int64), "", a.row[0].(int64),
-			b.row[12].(int64), b.row[13].(int64), "", b.row[0].(int64))
+		return iaAudioListeningCompare(a.row[12].(int64), a.row[13].(int64), a.key, a.row[0].(int64),
+			b.row[12].(int64), b.row[13].(int64), b.key, b.row[0].(int64))
 	})
 	if err := ctx.Err(); err != nil {
 		return nil, err
