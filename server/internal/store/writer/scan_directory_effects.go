@@ -68,7 +68,8 @@ func applyScanDirectory(ctx context.Context, t *commandTurn, c *scanDirectoryCom
 	if err != nil || before != directorySnapshot(q, c.identity) {
 		return out, digest, errors.Join(ErrConflict, err)
 	}
-	if err = scanLifecycleCheckActive(ctx, t, before.run.scope); err != nil {
+	var active int64
+	if err = directoryPoint(ctx, t, scanDirectoryActive, []any{o.SourceID, o.RunID}, &active); err != nil || active != 1 {
 		return out, digest, err
 	}
 	source, err := captureScanSource(ctx, t, o.LibraryID, o.LibraryKey, o.SourceID)
