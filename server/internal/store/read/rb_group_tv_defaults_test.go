@@ -110,8 +110,8 @@ func TestRBTVProvisionalSourceDefaults(t *testing.T) {
 		}
 		return nil
 	})
-	if e != nil {
-		t.Fatal(e)
+	if e == nil {
+		t.Fatal("LIVE scope must propagate the rejected source publication")
 	}
 	t.Logf("PROVISIONAL lead rule; actual Reader Capture both statistics schema=%s fixture=%s", captures["analyzed"].Environment.SchemaSHA256, rbTVDefaultsHash(t))
 }

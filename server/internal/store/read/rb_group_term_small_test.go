@@ -151,7 +151,7 @@ func TestRBTermSmallRefusalAndPublication(t *testing.T) {
 			case "restriction":
 				f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
 			default:
-				sql := map[string]string{"revoked": `UPDATE authorization_session_families SET revoked=1`, "metadata": `UPDATE libraries SET data_metadata_revision=data_metadata_revision+1 WHERE id='movies'`, "preferences": `UPDATE libraries SET preference_revision=preference_revision+1 WHERE id='movies'`}[mode]
+				sql := map[string]string{"revoked": `UPDATE authorization_session_families SET revoked=1`, "metadata": `UPDATE libraries SET data_metadata_revision=data_metadata_revision+1 WHERE id='movies'`, "preferences": `UPDATE libraries SET preference_present=1,preference_revision=1,preference_group_collections=0,preference_local_tags='off',preference_lyrics_source='files',preference_title_source='tags',preference_episode_numbering='absolute',preference_find_extras=0,preference_sort_ignore_articles=1 WHERE id='movies'`}[mode]
 				f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, sql) }}
 			}
 			p, _, e := rbTermRead(t, f, field, "")
