@@ -30,7 +30,7 @@ func resolveUONoticeReadState(notice uoNoticeIdentity, individual uoNoticeIndivi
 		!individual.exists && individual != (uoNoticeIndividualAck{}) ||
 		individual.exists && (individual.revision <= 0 || !validTime(individual.readMS) || !validTime(individual.archivedMS)) ||
 		!bulk.exists && bulk != (uoNoticeReadThrough{}) ||
-		bulk.exists && (bulk.sequence <= 0 || bulk.revision <= 0 || bulk.readMS < 0) {
+		bulk.exists && (bulk.sequence <= 0 || bulk.revision <= 0 || bulk.readMS <= 0) {
 		return uoNoticeReadState{}, ErrInput
 	}
 	currentIndividual := individual.exists && individual.revision >= notice.revision
@@ -41,6 +41,11 @@ func resolveUONoticeReadState(notice uoNoticeIdentity, individual uoNoticeIndivi
 		if individual.readMS.Valid {
 			// Even a later read-all keeps this individual's exact accepted time.
 			state.readMS = individual.readMS
+			return state, nil
+		}
+		if individual.archivedMS.Valid {
+			// Read-all excludes archived notices. In particular archive -> unread
+			// -> read-all remains unread until an individual read or unarchive.
 			return state, nil
 		}
 		if !covered || individual.revision > bulk.revision {
