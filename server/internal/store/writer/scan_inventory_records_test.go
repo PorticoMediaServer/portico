@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"database/sql"
 	"errors"
 	"math"
 	"reflect"
@@ -18,6 +19,14 @@ func TestN1ExistingRecordByteArithmetic(t *testing.T) {
 		if got, err := inventoryRecordActualBytes(nil, vectors...); err == nil || got != 0 {
 			t.Fatal("invalid vector produced a record allowance", got, err)
 		}
+	}
+	// A preserved native field is charged for a fresh rewrite, without changing
+	// the existing history reader's twelve-field payload-copy budget.
+	run := scanByteVector{exists: true, count: 17, total: 1003}
+	run.cells[0] = sql.NullInt64{Int64: 3, Valid: true}
+	run.cells[15] = sql.NullInt64{Int64: 1000, Valid: true}
+	if copied := run.runCopiedPayload(); copied.total != 3 || copied.count != 12 || !copied.exists || run.total != 1003 {
+		t.Fatal("native rewrite bound changed history copy budget", copied, run)
 	}
 }
 
