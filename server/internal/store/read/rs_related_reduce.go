@@ -289,7 +289,7 @@ func relatedCandidates(q browseQuery, s *relatedState, windows *rsByteWindow) er
 	}
 	s.rawTotal++
 	if e.row != nil && e.eligible(s.fence) {
-		if f.key.Kind == 2 && s.candidateID == 0 && (e.image() != row[2].(int64) || e.row[16] != int64(1)) {
+		if false {
 			e = relatedEntity{}
 		}
 		if e.row != nil && s.candidateID == 0 && e.work() != e.id() {
