@@ -69,11 +69,13 @@ type ipEditBulkRoot struct {
 	Fields                                        []ipEditBulkField
 }
 type ipEditBulkRequest struct {
-	Identity               CommandIdentity
-	Action                 ipEditBulkAction
-	Root                   ipEditBulkRoot
-	Revision, AfterOrdinal int64
-	Targets                []ipEditBulkTarget
+	Identity                                  CommandIdentity
+	Action                                    ipEditBulkAction
+	Root                                      ipEditBulkRoot
+	Revision, AfterOrdinal                    int64
+	Targets                                   []ipEditBulkTarget
+	Edits                                     []ipTextBundleRequest
+	LeaseOwner, LeaseGeneration, LeaseUntilMS int64
 }
 type ipEditBulkCommand struct {
 	request    ipEditBulkRequest
@@ -117,9 +119,17 @@ func newIPEditBulkCommand(q ipEditBulkRequest) (ipEditBulkCommand, error) {
 		!ipPolicyValidText(r.Operation, 512) || !ipPolicyValidText(r.Kind, 64) || !ipPolicyValidText(r.Library, 512) || !ipPolicyValidText(r.Actor, 4096) || !ipPolicyValidText(r.BaseRevision, 128) {
 		return ipEditBulkCommand{}, ErrInvalid
 	}
-	if q.Action != ipEditBulkCapture && len(q.Targets) != 0 || q.Action == ipEditBulkCapture && (len(q.Targets) == 0 || len(q.Targets) > ipEditBulkChunk || int64(len(q.Targets)) > r.ExpectedCount-q.AfterOrdinal) {
+	if (q.Action != ipEditBulkCapture && q.Action != ipEditBulkApply) && len(q.Targets) != 0 || (q.Action == ipEditBulkCapture || q.Action == ipEditBulkApply) && (len(q.Targets) == 0 || len(q.Targets) > ipEditBulkChunk || int64(len(q.Targets)) > r.ExpectedCount-q.AfterOrdinal) {
 		return ipEditBulkCommand{}, ErrInvalid
 	}
+	if q.Action == ipEditBulkApply || q.Action == ipEditBulkFinish {
+		if q.LeaseOwner <= 0 || q.LeaseGeneration <= 0 || q.LeaseUntilMS <= 0 {
+			return ipEditBulkCommand{}, ErrInvalid
+		}
+	} else if q.LeaseOwner != 0 || q.LeaseGeneration != 0 || q.LeaseUntilMS != 0 {
+		return ipEditBulkCommand{}, ErrInvalid
+	}
+
 	var bytes int64
 	last := ""
 	for _, f := range r.Fields {
@@ -150,10 +160,41 @@ func newIPEditBulkCommand(q ipEditBulkRequest) (ipEditBulkCommand, error) {
 	if q.Action == ipEditBulkBegin && (q.AfterOrdinal != 0 || q.Identity.Sequence != 1) {
 		return ipEditBulkCommand{}, ErrInvalid
 	}
+	if q.Action == ipEditBulkApply {
+		if len(q.Edits) != len(q.Targets) {
+			return ipEditBulkCommand{}, ErrInvalid
+		}
+	} else if len(q.Edits) != 0 {
+		return ipEditBulkCommand{}, ErrInvalid
+	}
+
 	d, err := canonicalRequestDigest(q.Action.command(), 1, q.Identity, q)
 	if err != nil {
 		return ipEditBulkCommand{}, err
 	}
+	var edits []ipTextBundleRequest
+	if q.Edits != nil {
+		edits = make([]ipTextBundleRequest, len(q.Edits))
+	}
+	for j, edit := range q.Edits {
+		target := q.Targets[j]
+		src := edit.Source
+		if edit.Kind != IPFieldEdit || src.EntityID != target.EntityID || src.PersonID != 0 || src.SubjectRevision != target.Revision || src.MetadataIncarnation != target.Incarnation || src.Kind != r.Kind || src.Actor != r.Actor || len(edit.Fields) != len(r.Fields) || edit.Identity.OperationID != ipEditBulkChildOperationID(q.Identity, target.Ordinal) {
+			return ipEditBulkCommand{}, ErrInvalid
+		}
+		for k, field := range edit.Fields {
+			if field.Field != r.Fields[k].Field || field.Edit != r.Fields[k].Edit {
+				return ipEditBulkCommand{}, ErrInvalid
+			}
+		}
+		prepared, err := newIPTextBundleCommand(edit)
+		if err != nil {
+			return ipEditBulkCommand{}, err
+		}
+		edits[j] = prepared.request
+	}
+	q.Edits = edits
+
 	r.Fields = append([]ipEditBulkField(nil), r.Fields...)
 	for j := range r.Fields {
 		r.Fields[j].Field = fieldmeta.TextField(strings.Clone(string(r.Fields[j].Field)))
@@ -165,7 +206,11 @@ func newIPEditBulkCommand(q ipEditBulkRequest) (ipEditBulkCommand, error) {
 	r.Actor = strings.Clone(r.Actor)
 	r.BaseRevision = strings.Clone(r.BaseRevision)
 	q.Root = r
-	q.Targets = append([]ipEditBulkTarget(nil), q.Targets...)
+	if q.Targets != nil {
+		targets := make([]ipEditBulkTarget, len(q.Targets))
+		copy(targets, q.Targets)
+		q.Targets = targets
+	}
 	return ipEditBulkCommand{q, d, ipEditBulkSeed(r), bytes}, nil
 }
 func ipBulkPut(h hash.Hash, n int64) {
@@ -231,4 +276,18 @@ func writeIPEditBulkResult(e *requestEncoder, i CommandIdentity, q RequestDigest
 	e.flag(r.Complete)
 	e.bytes(r.Manifest[:])
 	return e.err
+}
+
+// Child operation IDs are deterministic from ORIGINAL parent identity and raw
+// target ordinal. The full child inputs additionally bind the parent request;
+// mutable current owner/field values are never substituted during retry.
+func ipEditBulkChildOperationID(i CommandIdentity, ordinal int64) (out [16]byte) {
+	h := sha256.New()
+	_, _ = h.Write([]byte("portico-ip-bulk-field-operation-v1\x00"))
+	_, _ = h.Write(i.Incarnation[:])
+	ipBulkPut(h, i.Sequence)
+	_, _ = h.Write(i.OperationID[:])
+	ipBulkPut(h, ordinal)
+	copy(out[:], h.Sum(nil))
+	return
 }

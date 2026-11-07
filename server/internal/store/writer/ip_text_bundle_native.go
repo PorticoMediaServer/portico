@@ -30,12 +30,12 @@ func ipBundleResultFields(c ipTextBundleCommand) []ipTextBundleFieldResult {
 // This private component does not issue current authority/resource grants,
 // mutate source provenance into owner provenance, publish events/search or claim
 // COMMIT. The outer closed driver must compose those required effects first.
-func applyIPTextBundle(ctx context.Context, t *commandTurn, c ipTextBundleCommand, appliedMS int64) (out ipTextBundleNative, err error) {
+func applyIPTextBundleBody(ctx context.Context, t *commandTurn, c ipTextBundleCommand, appliedMS int64) (out ipTextBundleNative, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	q := c.request
 	s := q.Source
 	i := q.Identity
-	if t == nil || t.transaction == nil || t.transaction.descriptor.ID != q.Kind || appliedMS < 0 {
+	if t == nil || t.transaction == nil || appliedMS < 0 {
 		return out, ErrInvalid
 	}
 	checked, e := newIPTextBundleCommand(q)
@@ -262,4 +262,12 @@ func ipBundleFieldArgs(owner int64, i CommandIdentity, ordinal int64, f ipTextBu
 	c := f.Change
 	s := c.State
 	return []any{owner, i.Incarnation[:], i.Sequence, ordinal, string(f.Field), s.Effective.Value, s.Automatic.Value, ipTextBool(s.Effective.Present), ipTextBool(s.Automatic.Present), ipTextBool(s.Locked), ipTextBool(c.Changed), ipTextBool(c.EffectiveChanged)}
+}
+
+func applyIPTextBundle(ctx context.Context, t *commandTurn, c ipTextBundleCommand, appliedMS int64) (out ipTextBundleNative, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	if t == nil || t.transaction == nil || t.transaction.descriptor.ID != c.request.Kind {
+		return out, ErrInvalid
+	}
+	return applyIPTextBundleBody(ctx, t, c, appliedMS)
 }

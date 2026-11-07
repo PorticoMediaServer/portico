@@ -10,6 +10,7 @@ import (
 
 type ipEditBulkFacts struct {
 	revision, last, ack, processed, failed, state              int64
+	leaseOwner, leaseGeneration, leaseUntilMS                  int64
 	incarnation                                                []byte
 	expected, captured, complete, expectedBytes, capturedBytes sql.NullInt64
 	manifest, chain                                            []byte
@@ -34,72 +35,11 @@ func applyIPEditBulkCapture(ctx context.Context, t *commandTurn, c ipEditBulkCom
 	if err = t.checkLifetimes(ctx); err != nil {
 		return out, err
 	}
-	var f ipEditBulkFacts
-	rows, e := ipTextRows(ctx, t, ipBulkOwner, r.Operation)
-	if e != nil {
+	f, out, e := resolveIPEditBulk(ctx, t, c)
+	if e != nil || out.decision != receiptFresh {
 		return out, e
 	}
-	e = ipTextOne(rows, func() error {
-		return rows.Scan(&f.incarnation, &f.last, &f.ack, &f.revision, &f.expected, &f.captured, &f.complete, &f.expectedBytes, &f.capturedBytes, &f.manifest, &f.chain, &f.processed, &f.failed, &f.state)
-	})
-	if errors.Is(e, sql.ErrNoRows) {
-		return out, ErrOwnerUnavailable
-	}
-	if e != nil {
-		return out, e
-	}
-	if len(f.incarnation) != 16 {
-		return out, ErrResolveRequired
-	}
-	owner := receiptOwnerFacts{exists: true, lastSequence: f.last, acknowledgedSequence: f.ack}
-	copy(owner.incarnation[:], f.incarnation)
-	var found receiptFacts
-	var operation, request, result, manifest []byte
-	var variant, complete, algorithm int64
-	var saved ipEditBulkResult
-	rows, e = ipTextRows(ctx, t, ipBulkReceipt, r.Operation, i.Incarnation[:], i.Sequence)
-	if e != nil {
-		return out, e
-	}
-	e = ipTextOne(rows, func() error {
-		return rows.Scan(&operation, &request, &result, &variant, &saved.Revision, &saved.AfterOrdinal, &saved.Captured, &saved.Processed, &saved.Failed, &complete, &manifest, &saved.AppliedMS, &algorithm)
-	})
-	if e != nil && !errors.Is(e, sql.ErrNoRows) {
-		return out, e
-	}
-	if e == nil {
-		if len(operation) != 16 || len(request) != 32 || len(result) != 32 || len(manifest) != 32 || variant < 1 || variant > 5 || complete < 0 || complete > 1 || algorithm != 1 {
-			return out, ErrResolveRequired
-		}
-		found.exists = true
-		found.kind = ipEditBulkAction(variant).command()
-		found.resultCount = 1
-		found.identity.command = i
-		copy(found.identity.command.OperationID[:], operation)
-		copy(found.identity.digest[:], request)
-		copy(found.resultDigest[:], result)
-		copy(saved.Manifest[:], manifest)
-		saved.Complete = complete == 1
-	}
-	decision, e := classifyReceipt(receiptIdentity{i, c.digest}, q.Action.command(), owner, found)
-	if e != nil {
-		return out, e
-	}
-	out.decision = decision
-	if decision == receiptRetired {
-		return out, nil
-	}
-	if decision == receiptReplay {
-		if variant != int64(q.Action) {
-			return ipEditBulkNative{}, ErrConflict
-		}
-		out.digest, e = canonicalResultDigest(i, c.digest, ipEditBulkSavedResult{q.Action, saved})
-		if e != nil || [32]byte(out.digest) != found.resultDigest {
-			return ipEditBulkNative{}, ErrResolveRequired
-		}
-		out.value = saved
-		return out, nil
-	}
+	decision := out.decision
 	if decision != receiptFresh || f.revision != q.Revision || f.processed != 0 || f.failed != 0 || f.state != 1 {
 		return ipEditBulkNative{}, ErrConflict
 	}
@@ -176,4 +116,79 @@ func ipEditBulkFieldArgs(owner string, f ipEditBulkField) []any {
 		value = f.Edit.Value
 	}
 	return []any{owner, string(f.Field), ipEditBulkFieldAction(f.Edit), value, int64(f.Edit.Lock)}
+}
+
+func resolveIPEditBulk(ctx context.Context, t *commandTurn, c ipEditBulkCommand) (ipEditBulkFacts, ipEditBulkNative, error) {
+	q := c.request
+	r := q.Root
+	i := q.Identity
+	var out ipEditBulkNative
+	var f ipEditBulkFacts
+	rows, e := ipTextRows(ctx, t, ipBulkOwner, r.Operation)
+	if e != nil {
+		return f, out, e
+	}
+	e = ipTextOne(rows, func() error {
+		return rows.Scan(&f.incarnation, &f.last, &f.ack, &f.revision, &f.expected, &f.captured, &f.complete, &f.expectedBytes, &f.capturedBytes, &f.manifest, &f.chain, &f.processed, &f.failed, &f.state, &f.leaseOwner, &f.leaseGeneration, &f.leaseUntilMS)
+	})
+	if errors.Is(e, sql.ErrNoRows) {
+		return f, out, ErrOwnerUnavailable
+	}
+	if e != nil {
+		return f, out, e
+	}
+	if len(f.incarnation) != 16 {
+		return f, out, ErrResolveRequired
+	}
+	owner := receiptOwnerFacts{exists: true, lastSequence: f.last, acknowledgedSequence: f.ack}
+	copy(owner.incarnation[:], f.incarnation)
+	var found receiptFacts
+	var operation, request, result, manifest []byte
+	var variant, complete, algorithm int64
+	var saved ipEditBulkResult
+	rows, e = ipTextRows(ctx, t, ipBulkReceipt, r.Operation, i.Incarnation[:], i.Sequence)
+	if e != nil {
+		return f, out, e
+	}
+	e = ipTextOne(rows, func() error {
+		return rows.Scan(&operation, &request, &result, &variant, &saved.Revision, &saved.AfterOrdinal, &saved.Captured, &saved.Processed, &saved.Failed, &complete, &manifest, &saved.AppliedMS, &algorithm)
+	})
+	if e != nil && !errors.Is(e, sql.ErrNoRows) {
+		return f, out, e
+	}
+	if e == nil {
+		if len(operation) != 16 || len(request) != 32 || len(result) != 32 || len(manifest) != 32 || variant < 1 || variant > 5 || complete < 0 || complete > 1 || algorithm != 1 {
+			return f, out, ErrResolveRequired
+		}
+		found.exists = true
+		found.kind = ipEditBulkAction(variant).command()
+		found.resultCount = 1
+		found.identity.command = i
+		copy(found.identity.command.OperationID[:], operation)
+		copy(found.identity.digest[:], request)
+		copy(found.resultDigest[:], result)
+		copy(saved.Manifest[:], manifest)
+		saved.Complete = complete == 1
+	}
+	decision, e := classifyReceipt(receiptIdentity{i, c.digest}, q.Action.command(), owner, found)
+	if e != nil {
+		return f, out, e
+	}
+	out.decision = decision
+	if decision == receiptRetired {
+		return f, out, nil
+	}
+	if decision == receiptReplay {
+		if variant != int64(q.Action) {
+			return f, ipEditBulkNative{}, ErrConflict
+		}
+		out.digest, e = canonicalResultDigest(i, c.digest, ipEditBulkSavedResult{q.Action, saved})
+		if e != nil || [32]byte(out.digest) != found.resultDigest {
+			return f, ipEditBulkNative{}, ErrResolveRequired
+		}
+		out.value = saved
+		return f, out, nil
+	}
+
+	return f, out, nil
 }
