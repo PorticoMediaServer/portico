@@ -86,13 +86,21 @@ func WCCadence(name string, every, offset time.Duration, pattern []WCPhase) (Str
 
 // These entry points intentionally cannot execute native work yet. The source-
 // bound owner fixture will be adopted after real ACK/events land and review.
-func ProgressCapture() Action {
-	intent, _ := WCIntentFor(ProgressCapturePhase)
-	return wcGatedAction(intent)
+// No binding remains an explicit closed gate. A real binding uses only the
+// opaque owner driver and the typed facade; report callbacks supply data only.
+func ProgressCapture(bindings ...ProgressBinding) Action {
+	if len(bindings) != 1 {
+		intent, _ := WCIntentFor(ProgressCapturePhase)
+		return wcGatedAction(intent)
+	}
+	return progressAction(bindings[0], false)
 }
-func ProgressDrain() Action {
-	intent, _ := WCIntentFor(ProgressDrainPhase)
-	return wcGatedAction(intent)
+func ProgressDrain(bindings ...ProgressBinding) Action {
+	if len(bindings) != 1 {
+		intent, _ := WCIntentFor(ProgressDrainPhase)
+		return wcGatedAction(intent)
+	}
+	return progressAction(bindings[0], true)
 }
 func Security() Action { intent, _ := WCIntentFor(SecurityPhase); return wcGatedAction(intent) }
 func wcGatedAction(intent WCIntent) Action {

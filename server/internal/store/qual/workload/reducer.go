@@ -194,7 +194,7 @@ func Reduce(cell qual.RestartCell, raw []Record, joins map[string]Classification
 			problem("unknown raw record kind")
 		}
 		o := r.Observation
-		if o == nil || o.Phase != "ACCEPT" && o.Phase != "BEGIN" && o.Phase != "RESOLVE" && o.Phase != "ACK" {
+		if o == nil || o.Phase != "ACCEPT" && o.Phase != "BEGIN" && o.Phase != "RESOLVE" && o.Phase != "ACK" && o.Phase != "SNAPSHOT" {
 			continue
 		}
 		c.WriterCalls++
