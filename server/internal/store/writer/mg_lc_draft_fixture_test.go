@@ -3,97 +3,23 @@ package writer
 import (
 	"crypto/sha256"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 const mgLCDraftSHA = "4e0751989357d1aed85467ba81f5c24ce79aa3a26f947e0fd222070891bb9262"
 
-var mgLCDraftTemplate struct {
-	sync.Once
-	image []byte
-	err   error
-}
-
-// No canonical schema edits, copied DDL packet or absolute owner checkout in
-// source. Parent runners supply this exact candidate as a pinned input. All DB
-// scratch uses testing's TMPDIR and is closed/removed before task completion.
+// Replace only EMPTY owned-domain declarations on a disposable canonical clone.
+// Native foreign keys remain on; same-generation composite parents are exact
+// draft declarations. No environment skip or alternate authority is accepted.
 func mgLCDraftExecutor(t *testing.T) (*executor, string) {
 	t.Helper()
-	candidate := os.Getenv("MGLC_DRAFT_CANDIDATE")
-	if candidate == "" {
-		t.Skip("set MGLC_DRAFT_CANDIDATE to the exact MG-001 owner candidate " + mgLCDraftSHA)
-	}
-	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Full}
-	open := func(path string) (*executor, error) {
-		connector, err := sqliteconn.Connector(path, cfg)
-		if err != nil {
-			return nil, err
-		}
-		w := &executor{config: cfg, now: time.Now}
-		w.openPool(connector, nil)
-		return w, nil
-	}
-	mgLCDraftTemplate.Do(func() {
-		data, err := os.ReadFile(candidate)
-		if err != nil {
-			mgLCDraftTemplate.err = err
-			return
-		}
-		if fmt.Sprintf("%x", sha256.Sum256(data)) != mgLCDraftSHA {
-			mgLCDraftTemplate.err = fmt.Errorf("LC candidate SHA mismatch")
-			return
-		}
-		dir, err := os.MkdirTemp(os.Getenv("TMPDIR"), "mg-lc-template-")
-		if err != nil {
-			mgLCDraftTemplate.err = err
-			return
-		}
-		defer os.RemoveAll(dir)
-		path := filepath.Join(dir, "draft.db")
-		w, err := open(path)
-		if err != nil {
-			mgLCDraftTemplate.err = err
-			return
-		}
-		if _, err = w.db.ExecContext(t.Context(), string(data)); err == nil {
-			_, err = w.db.ExecContext(t.Context(), `PRAGMA wal_checkpoint(TRUNCATE)`)
-		}
-		closeErr := w.close()
-		if err != nil {
-			mgLCDraftTemplate.err = err
-			return
-		}
-		if closeErr != nil {
-			mgLCDraftTemplate.err = closeErr
-			return
-		}
-		mgLCDraftTemplate.image, mgLCDraftTemplate.err = os.ReadFile(path)
-	})
-	if mgLCDraftTemplate.err != nil {
-		t.Fatal(mgLCDraftTemplate.err)
-	}
-	path := filepath.Join(t.TempDir(), "lc-draft.db")
-	if err := os.WriteFile(path, mgLCDraftTemplate.image, 0600); err != nil {
+	w, path := testCanonicalExecutor(t)
+	if _, err := w.db.ExecContext(t.Context(), "DROP TABLE lc_playback_refs; DROP TABLE lc_generations; DROP TABLE lc_channels;"+mgLCDraftSQL); err != nil {
 		t.Fatal(err)
 	}
-	w, err := open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if !w.closed {
-			if err := w.close(); err != nil {
-				t.Error(err)
-			}
-		}
-	})
 	return w, path
 }
 func mgLCFixture(t *testing.T) (*executor, mgLCBuild) {
