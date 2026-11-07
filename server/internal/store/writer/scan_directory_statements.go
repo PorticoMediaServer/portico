@@ -6,19 +6,20 @@ import (
 )
 
 const (
-	scanDirectoryActive         stmt.ID = "scan.directory.active"
-	scanDirectoryRunLengths     stmt.ID = "scan.directory.run_lengths"
-	scanDirectoryJobLengths     stmt.ID = "scan.directory.job_lengths"
-	scanDirectoryRootLengths    stmt.ID = "scan.directory.root_lengths"
-	scanDirectoryReceiptLengths stmt.ID = "scan.directory.receipt_lengths"
-	scanDirectoryBody           stmt.ID = "scan.directory.receipt_body"
-	scanDirectoryPath           stmt.ID = "scan.directory.path"
-	scanDirectoryVisited        stmt.ID = "scan.directory.visited"
-	scanDirectoryInsert         stmt.ID = "scan.directory.insert_child"
-	scanDirectoryDiscoverCAS    stmt.ID = "scan.directory.discover_cas"
-	scanDirectoryEOFCAS         stmt.ID = "scan.directory.eof_cas"
-	scanDirectoryRunCAS         stmt.ID = "scan.directory.run_cas"
-	scanDirectoryReceiptInsert  stmt.ID = "scan.directory.receipt_insert"
+	scanDirectoryActive          stmt.ID = "scan.directory.active"
+	scanDirectoryRunLengths      stmt.ID = "scan.directory.run_lengths"
+	scanDirectoryJobLengths      stmt.ID = "scan.directory.job_lengths"
+	scanDirectoryRootLengths     stmt.ID = "scan.directory.root_lengths"
+	scanDirectoryReceiptLengths  stmt.ID = "scan.directory.receipt_lengths"
+	scanDirectoryBody            stmt.ID = "scan.directory.receipt_body"
+	scanDirectoryPath            stmt.ID = "scan.directory.path"
+	scanDirectoryVisited         stmt.ID = "scan.directory.visited"
+	scanDirectoryRefusedIdentity stmt.ID = "scan.directory.refused_identity"
+	scanDirectoryInsert          stmt.ID = "scan.directory.insert_child"
+	scanDirectoryDiscoverCAS     stmt.ID = "scan.directory.discover_cas"
+	scanDirectoryEOFCAS          stmt.ID = "scan.directory.eof_cas"
+	scanDirectoryRunCAS          stmt.ID = "scan.directory.run_cas"
+	scanDirectoryReceiptInsert   stmt.ID = "scan.directory.receipt_insert"
 )
 
 // Exact shared SQL definitions are reused, not restated or re-registered under
@@ -89,6 +90,10 @@ func scanDirectoryOwnDefinitions() []stmt.Definition {
 FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?`, Params: tripleParams, Plan: receiptPlan, Cohorts: []stmt.Cohort{{Name: "saved_discovery", Bindings: triple}}},
 		{ID: scanDirectoryPath, Kind: stmt.Read, SQL: `SELECT relative_path FROM inventory_directories WHERE job_id=? AND relative_path=?`, Params: []stmt.Param{text("run_id"), text("child_path")}, Plan: rootPlan, Cohorts: []stmt.Cohort{{Name: "absent_child", Bindings: []any{"lifecycle-run", "child"}}, {Name: "existing_path", Bindings: []any{"lifecycle-run", "."}}}},
 		{ID: scanDirectoryVisited, Kind: stmt.Read, SQL: `SELECT identity FROM inventory_directories INDEXED BY inventory_directories_visited WHERE job_id=? AND identity=? AND identity!='' LIMIT 1`, Params: []stmt.Param{text("run_id"), text("identity")}, Plan: point("inventory_directories_visited", "job_id=? AND identity=?"), Cohorts: []stmt.Cohort{{Name: "new_identity", Bindings: []any{"lifecycle-run", "new-directory"}}, {Name: "identity_alias", Bindings: []any{"lifecycle-run", "actual-directory"}}}},
+		// CHANGE-011 retains this run-wide identity fence beyond public ACK,
+		// lease changes and restart. Bind the native identity bytes, not a path
+		// or a cast of the indexed BLOB column; history is classified first.
+		{ID: scanDirectoryRefusedIdentity, Kind: stmt.Read, SQL: `SELECT 1 FROM scan_command_receipts INDEXED BY scan_receipt_refused_directory_identity WHERE run_id=? AND refused_directory_identity=? AND refused_directory_identity IS NOT NULL LIMIT 1`, Params: []stmt.Param{text("run_id"), blob("identity")}, Plan: point("scan_receipt_refused_directory_identity", "run_id=? AND refused_directory_identity=?"), Cohorts: []stmt.Cohort{{Name: "refused_identity_point", Bindings: []any{"lifecycle-run", []byte("bad-child")}}}},
 		{ID: scanDirectoryInsert, Kind: stmt.Write, SQL: `INSERT INTO inventory_directories(job_id,relative_path,identity,revision) VALUES(?,?,?,?) RETURNING relative_path,identity,revision,cursor,state,pages,skipped`, Params: []stmt.Param{text("run_id"), text("child_path"), text("identity"), text("revision")}, Plan: stmt.Plan{Hot: true}, Cohorts: []stmt.Cohort{{Name: "new_child", Bindings: []any{"lifecycle-run", "child", "new-directory", "new-revision"}}}},
 	}
 	directoryParams := []stmt.Param{text("run_id"), text("path"), text("identity"), text("revision"), text("cursor"), integer("pages"), integer("skipped")}
@@ -125,7 +130,7 @@ func directoryStatementMaxUses(id stmt.ID) int {
 	switch id {
 	case inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptAck, scanLifecycleRun, scanLifecycleJob, scanDirectoryActive,
 		scanSourcePayload, scanSourcePolicy, scanLibraryRoot, inventoryFreshLibrary,
-		scanDirectoryJobLengths, scanFreshSource, scanDirectoryPath, scanDirectoryVisited, scanDirectoryInsert, scanDirectoryDiscoverCAS, scanDirectoryEOFCAS, scanDirectoryRunCAS, scanDirectoryReceiptInsert:
+		scanDirectoryJobLengths, scanFreshSource, scanDirectoryPath, scanDirectoryVisited, scanDirectoryRefusedIdentity, scanDirectoryInsert, scanDirectoryDiscoverCAS, scanDirectoryEOFCAS, scanDirectoryRunCAS, scanDirectoryReceiptInsert:
 		return 1
 	case scanRunHistoryOwner, scanReceiptLookup, scanReceiptReclaimKey, scanDirectoryReceiptLengths, scanDirectoryBody, scanLifecycleRoot:
 		return 2

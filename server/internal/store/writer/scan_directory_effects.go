@@ -99,8 +99,8 @@ func applyScanDirectory(ctx context.Context, t *commandTurn, c *scanDirectoryCom
 	if c.purpose == InventoryDirectoryDiscover {
 		for _, point := range []struct {
 			id    stmt.ID
-			value string
-		}{{scanDirectoryPath, q.ChildPath}, {scanDirectoryVisited, q.ChildIdentity}} {
+			value any
+		}{{scanDirectoryPath, q.ChildPath}, {scanDirectoryVisited, q.ChildIdentity}, {scanDirectoryRefusedIdentity, []byte(q.ChildIdentity)}} {
 			rows, e := t.query(ctx, t.steps[point.id].statementStep, o.RunID, point.value)
 			if e != nil {
 				return out, digest, e

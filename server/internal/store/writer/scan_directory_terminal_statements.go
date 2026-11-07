@@ -34,7 +34,7 @@ func scanDirectoryTerminalDefinitions() []stmt.Definition {
 		switch d.ID {
 		case inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptLookup, scanReceiptAck, scanReceiptReclaimKey,
 			scanLifecycleRun, scanLifecycleJob, scanLifecycleRoot, scanRunHistoryOwner, scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot, inventoryFreshLibrary, scanFreshSource,
-			scanDirectoryRunLengths, scanDirectoryJobLengths, scanDirectoryRootLengths, scanDirectoryActive, scanDirectoryVisited:
+			scanDirectoryRunLengths, scanDirectoryJobLengths, scanDirectoryRootLengths, scanDirectoryActive, scanDirectoryVisited, scanDirectoryRefusedIdentity:
 			defs = append(defs, d)
 		}
 	}
