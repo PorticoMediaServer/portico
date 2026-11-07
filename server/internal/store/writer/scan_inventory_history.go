@@ -45,11 +45,12 @@ func runScanInventoryHistory(ctx context.Context, turn *commandTurn, in *invento
 		if err = checkInventoryDriverTurn(ctx, turn, in); err == nil {
 			err = checkInventoryFreshLibrary(ctx, turn, in.request)
 		}
+		var sourceRecordBytes uint64
 		if err == nil {
-			err = checkInventoryDriverFreshSource(ctx, turn, in)
+			sourceRecordBytes, err = checkInventoryDriverFreshSource(ctx, turn, in)
 		}
 		if err == nil {
-			err = checkInventoryExistingRecords(ctx, turn, in)
+			err = checkInventoryExistingRecords(ctx, turn, in, sourceRecordBytes)
 		}
 		if err == nil {
 			out.inventory, err = applyInventoryAccept(ctx, turn, in.input)
