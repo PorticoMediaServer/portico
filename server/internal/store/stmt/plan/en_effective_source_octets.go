@@ -11,7 +11,7 @@ import (
 )
 
 // Exactly three Effective native-pin byte points approved in packet33ba0d73.
-// Registration qualifies these reads only; it grants no verifier authority.
+// Capture can qualify only these reads; this grants no verifier authority.
 type enEffectiveSourceOctetPoint struct {
 	id                stmt.ID
 	sql, table, index string
