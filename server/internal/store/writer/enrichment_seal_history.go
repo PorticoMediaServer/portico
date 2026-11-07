@@ -117,7 +117,7 @@ func readEnrichmentSealHistory(ctx context.Context, scope *governor.ReadScope, p
 		return out, err
 	}
 	out.decision = decision
-	if decision != receiptReplay {
+	if decision != receiptReplay && decision != receiptRetired {
 		return out, nil
 	}
 	// The same immutable snapshot supplies BOTH native octet counts and copy.
