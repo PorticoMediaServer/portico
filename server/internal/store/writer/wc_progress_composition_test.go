@@ -272,8 +272,15 @@ func TestWCProgressCompositionRetainedDrainAndCurrentUserFence(t *testing.T) {
 	if err != nil {
 		t.Fatal("owned pending capability lost", err)
 	}
+	prepared, err := ProgressReference(drain)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err = w.AcceptProgress(t.Context(), current, drain); !errors.Is(err, ErrDisclosureDenied) {
 		t.Fatal("public Accept consumed retained drain", err)
+	}
+	if ref, e := ProgressReference(drain); e != nil || ref != prepared {
+		t.Fatal("rejected public route consumed the retained original", ref, e)
 	}
 	result, err := d.ExecuteDrain(t.Context(), drain)
 	if err != nil || result.Outcome.State != Applied || result.Value.Finished.Int64 != 1 || result.Value.CreditedMs.Int64 <= 0 {

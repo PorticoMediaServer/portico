@@ -291,7 +291,6 @@ func (w *Writer) AcceptReclaim(ctx context.Context, cap *ReclaimDisclosure, inpu
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
-	defer c.driver.abandonUncommittedReclaim(c)
 	q, e := reclaimReference(c)
 	if e != nil {
 		return out, e
@@ -299,6 +298,7 @@ func (w *Writer) AcceptReclaim(ctx context.Context, cap *ReclaimDisclosure, inpu
 	if cap == nil || cap.driver != c.driver {
 		return out, ErrDisclosureDenied
 	}
+	defer c.driver.abandonUncommittedReclaim(c)
 	out, _, err = w.runWCReclaim(ctx, &wcReclaimInvocation{disclosure: cap, request: q, input: c}, false)
 	return
 }
