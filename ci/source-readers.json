@@ -2,6 +2,43 @@
   "version": 1,
   "readers": [
     {
+      "package": "server/internal/store/writer",
+      "why": "Pins the exact Basic receipt Capture population, owner effect bodies and shared native fixture source closure",
+      "reads": [
+        "server/internal/store/writer/basic_control_test.go",
+        "server/internal/store/writer/basic_stage_test.go",
+        "server/internal/store/writer/transaction_test.go",
+        "server/internal/store/writer/basic_handlers_test.go",
+        "server/internal/store/writer/governor_turn_test.go",
+        "server/internal/store/writer/schema_fixture_test.go",
+        "server/internal/store/writer/qualification_population_test.go",
+        "server/internal/store/internal/schematest/fixture.go",
+        "server/internal/store/writer/basic_stage.go",
+        "server/internal/store/writer/basic_control.go",
+        "server/internal/store/writer/basic_control_statements.go",
+        "server/internal/store/writer/basic_original.go",
+        "server/internal/store/writer/basic_commands.go",
+        "server/internal/store/writer/basic_handlers.go",
+        "server/internal/store/writer/basic_resources.go",
+        "server/internal/store/writer/basic_dispatch_composition.go",
+        "server/internal/store/writer/basic_command_state.go",
+        "server/internal/store/writer/basic_receipt_statements.go",
+        "server/internal/store/writer/basic_result_digest.go",
+        "server/internal/store/writer/request_digest.go",
+        "server/internal/store/writer/result_digest.go",
+        "server/internal/store/writer/basic_contract.go",
+        "server/internal/store/writer/scan_types.go",
+        "server/internal/store/writer/scan_fresh_plan_test.go",
+        "server/internal/store/writer/basic_receipt_plan_test.go"
+      ],
+      "files": [
+        "server/internal/store/writer/basic_receipt_plan_test.go"
+      ],
+      "tests": [
+        "TestBasicReceiptStatementPlans"
+      ]
+    },
+    {
       "package": "server/internal/store/stmt/stmttest",
       "why": "Checks all production server Go sources for fixture-only registration imports and unreceipted constructors, and compiles an ordinary-binary probe with the server module's Go version",
       "reads": ["server/*.go", "server/go.mod"],

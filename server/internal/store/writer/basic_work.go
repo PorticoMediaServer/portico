@@ -44,6 +44,9 @@ func validateBasicWork(r *effectiveRuntime, w *Writer, scan *inventoryInvocation
 
 func basicWorkCurrent(scan *inventoryInvocation) error {
 	if scan != nil && scan.basic != nil && scan.basic.work != nil {
+		if scan.basic.work.preparation == nil {
+			return ErrInvalid
+		}
 		return scan.basic.work.preparation.current()
 	}
 	return nil

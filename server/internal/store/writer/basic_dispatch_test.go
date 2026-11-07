@@ -419,3 +419,12 @@ func TestBasicDispatchMemoryPrecedesScopeEcho(t *testing.T) {
 	basicDispatchUnchanged(t, e)
 	basicDispatchReturned(t, e, a)
 }
+
+func TestBasicDispatchMalformedWorkLifetimeFailsClosed(t *testing.T) {
+	in := basicInvocation{work: &scanDriverWork{}}
+	var r *effectiveRuntime
+	value, ack, err := r.runBasic(t.Context(), nil, nil, in, false)
+	if !errors.Is(err, ErrInvalid) || !reflect.DeepEqual(value, BasicResult{}) || !reflect.DeepEqual(ack, AckResult{}) {
+		t.Fatal(value, ack, err)
+	}
+}
