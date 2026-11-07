@@ -113,7 +113,8 @@ func TestRSPeoplePagePendingLeaseAndLIVE(t *testing.T) {
 func TestRSPeoplePageSourceDriftExpiryAndCapacity(t *testing.T) {
 	for _, mode := range []string{"person", "head", "authority", "expired", "capacity", "orphan"} {
 		t.Run(mode, func(t *testing.T) {
-			f, r := newRSPeoplePageFixture(t, false)
+			clock := time.Now()
+			f, r := newRSPeoplePageFixture(t, false, func() time.Time { return clock })
 			p := beginRSPage(t, f, r, RSPersonPageInput{})
 			if mode == "orphan" {
 				p.input.Person = 2
@@ -137,7 +138,7 @@ func TestRSPeoplePageSourceDriftExpiryAndCapacity(t *testing.T) {
 			case "authority":
 				f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
 			case "expired":
-				_ = f.authority.InterruptPreparations(nil)
+				clock = clock.Add(13 * time.Second)
 			case "capacity":
 				p.used = p.lease.PayloadBytes()
 			}
@@ -159,4 +160,37 @@ func TestRSPeoplePageSourceDriftExpiryAndCapacity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRSPeoplePageBytePointsAndFinalRevocation(t *testing.T) {
+	f, r := newRSPeoplePageFixture(t, true)
+	for _, point := range []struct {
+		name string
+		args []any
+	}{{"rs.people.page.credit", []any{int64(1), int64(0), int64(1), int64(1), int64(1)}}, {"rs.people.page.portrait", []any{int64(1), "matched"}}} {
+		_, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2}, func(scope *governor.ReadScope) error {
+			rows, _, err := queryReadScope(scope, point.name, point.args...)
+			if rows != nil || !errors.Is(err, governor.ErrSnapshotBudget) {
+				t.Fatal("payload copied without actual-byte permission", rows, err)
+			}
+			return err
+		})
+		if !errors.Is(err, governor.ErrSnapshotBudget) {
+			t.Fatal(err)
+		}
+	}
+	p := beginRSPage(t, f, r, RSPersonPageInput{})
+	r.snapshots = &rsByteBoundarySnapshots{Snapshots: f.snapshots, after: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
+	q, request, output := liveRequests("prepared-final-revoke")
+	_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+		v, _, err := r.Page(ctx, request, time.Second, out, p)
+		if !reflect.DeepEqual(v, RSPersonPage{}) || !errors.Is(err, ErrDenied) {
+			t.Fatal("fresh denial lost", v, err)
+		}
+		return err
+	})
+	if !errors.Is(err, ErrDenied) {
+		t.Fatal(err)
+	}
+	assertLiveUsage(t, f, 0, 0)
 }
