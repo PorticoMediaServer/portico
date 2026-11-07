@@ -83,6 +83,11 @@ func (r *BrowseReader) rbRelationshipExact(ctx context.Context, request governor
 	if in.View.KeepArticles {
 		name = "rb.group.relationship.keep"
 	}
+	if in.View.Kind == 6 {
+		name += ".album"
+	} else {
+		name += ".song"
+	}
 	// Four64-row quanta and one single-row exhaustion probe. All source rows,
 	// including ineligible rows, consume the raw cap. Only complete sets sort.
 	steps := make([]readStep[rbRelationshipDraft], 5)
@@ -208,11 +213,17 @@ func rbRelationshipDefinitions() []stmt.Definition {
 		if keep {
 			column, name = "sort_key_keep_articles", "keep"
 		}
-		sql := `SELECT e.id,'' AS unused,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,a.` + column + `,r.` + column + `,a.retired,a.library_id,a.kind,r.retired,r.library_id,r.kind FROM catalog_entities AS e INDEXED BY catalog_entities_library
+		for _, kind := range []int64{6, 7} {
+			parent, suffix := "e.artist_id", ".album"
+			if kind == 7 {
+				parent, suffix = "a.artist_id", ".song"
+			}
+			sql := `SELECT e.id,'' AS unused,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,a.` + column + `,r.` + column + `,a.retired,a.library_id,a.kind,r.retired,r.library_id,r.kind FROM catalog_entities AS e INDEXED BY catalog_entities_library
 LEFT JOIN catalog_entities AS a ON a.id=e.album_id
-LEFT JOIN catalog_entities AS r ON r.id=CASE WHEN e.kind=7 THEN a.artist_id ELSE e.artist_id END
+LEFT JOIN catalog_entities AS r ON r.id=` + parent + `
 WHERE e.library_id=? AND e.kind=? AND e.id>? ORDER BY e.id LIMIT ?`
-		out = append(out, stmt.Definition{ID: statementID("rb.group.relationship." + name), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/rb_group_relationship.go:BrowseReader.RBRelationshipExact"}, Kind: stmt.Read, Params: []stmt.Param{i("library"), i("kind"), i("after"), i("limit")}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), int64(7), int64(0), int64(MaxRaw)}}, {Name: "empty", Bindings: []any{int64(-1), int64(7), int64(0), int64(MaxRaw)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library"}, PrimaryKeys: []string{"catalog_entities"}, Seeks: []string{"library_id=? AND kind=? AND id>?"}}})
+			out = append(out, stmt.Definition{ID: statementID("rb.group.relationship." + name + suffix), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/rb_group_relationship.go:BrowseReader.RBRelationshipExact"}, Kind: stmt.Read, Params: []stmt.Param{i("library"), i("kind"), i("after"), i("limit")}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), kind, int64(0), int64(MaxRaw)}}, {Name: "empty", Bindings: []any{int64(-1), kind, int64(0), int64(MaxRaw)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library"}, PrimaryKeys: []string{"catalog_entities"}, Seeks: []string{"library_id=? AND kind=? AND id>?"}}})
+		}
 	}
 	return out
 }
