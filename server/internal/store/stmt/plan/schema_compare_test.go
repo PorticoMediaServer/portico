@@ -143,6 +143,14 @@ func TestPlanSchemaAuditsUseOneCurrentReference(t *testing.T) {
 	if e = CompareExactJSON(comparisonBytes(t, old), comparisonBytes(t, f)); e == nil {
 		t.Fatal("changed FK enforcement accepted")
 	}
+	forged := comparisonBytes(t, f)
+	if e = CompareExactJSON(forged, forged); e == nil {
+		t.Fatal("identical forged FK enforcement bypassed shared validation")
+	}
+	if e = CompareJSON(forged, forged); e == nil {
+		t.Fatal("identical forged FK enforcement accepted by ordinary comparison")
+	}
+
 }
 func TestPlanSchemaRecordWidthMappingIsExact(t *testing.T) {
 	mk := func(ddl string, width int64) (map[string]any, Rows) {
