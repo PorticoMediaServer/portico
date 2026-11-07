@@ -192,6 +192,8 @@ class Protocol(unittest.TestCase):
             text = ''
             if name in ('source-sha', 'actual-head'):
                 text = SOURCE
+            elif name == 'source-archive':
+                (work / 'source.tar').write_bytes(b'synthetic source archive')
             elif name == 'go-version':
                 text = 'go version go1.26.10 linux/amd64'
             elif name == 'build':
