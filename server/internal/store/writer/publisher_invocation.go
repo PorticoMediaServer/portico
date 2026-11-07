@@ -24,6 +24,10 @@ const (
 	publisherStageImage publisherCall = iota + 1
 	publisherResolveImage
 	publisherAckImage
+	publisherStageFragment
+	publisherPublishHead
+	publisherResolveCommand
+	publisherAckCommand
 )
 
 // A bounded typed protocol envelope, NOT authority, a grant, native source
@@ -34,6 +38,9 @@ type publisherInvocation struct {
 	request    PublisherReceiptRequest
 	input      *searchImageStageCommand
 	call       publisherCall
+	purpose    CommandID
+	fragment   *searchFragmentStageCommand
+	head       *searchHeadPublishCommand
 }
 
 // PB's finite receipt adapter returns only shared protocol facts and the exact
@@ -83,6 +90,12 @@ func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDi
 func validatePublisherInvocation(ctx context.Context, w *Writer, invocation *publisherInvocation) (out publisherInvocation, err error) {
 	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
 	if invocation == nil {
+		return publisherInvocation{}, ErrInvalid
+	}
+	if invocation.purpose != 0 {
+		return validateSearchPublisherInvocation(ctx, w, invocation)
+	}
+	if invocation.fragment != nil || invocation.head != nil {
 		return publisherInvocation{}, ErrInvalid
 	}
 	q := invocation.request

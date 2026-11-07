@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "searchHeadPublishResult": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "searchHeadPublishResult": true, "searchPublisherCommandResult": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -49,6 +49,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
 		needs = needs || fn.Name.Name == "searchFragmentStageFreshFacts"
 		needs = needs || fn.Name.Name == "searchHeadPublishFreshFacts" || fn.Name.Name == "searchPublisherStageFacts"
+		needs = needs || fn.Name.Name == "composeSearchPublisherCommands" || fn.Name.Name == "discloseSearchPublisher" || fn.Name.Name == "searchPublisherEngine" || fn.Name.Name == "searchPublisherTimeMS" || fn.Name.Name == "requireSearchPublisherMemory" || fn.Name.Name == "checkSearchPublisherTerminal" || fn.Name.Name == "acknowledgeSearchPublisherFacts"
 		if !needs {
 			continue
 		}
@@ -245,6 +246,9 @@ func TestEveryCommandReleaseUsesSharedFinish(t *testing.T) {
 }
 func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 	for _, body := range []string{
+		`func publisherRelease(ctx context.Context)(out searchPublisherCommandResult,err error){return out,nil}`,
+		`func searchPublisherTimeMS(ctx context.Context)(out int64,err error){return 1,nil}`,
+		`func requireSearchPublisherMemory(ctx context.Context)(err error){return nil}`,
 		`func newScanDriver(ctx context.Context)(out *ScanDriver,err error){return out,nil}`,
 		`func keepPreparation(ctx context.Context)(err error){return nil}`,
 		`func prepareWork(ctx context.Context)(out *scanDriverWork,err error){return out,nil}`,
