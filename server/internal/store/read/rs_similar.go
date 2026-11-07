@@ -29,24 +29,10 @@ func relatedRows(s *relatedState, in RelatedInput, similar bool) ([]RelatedRow, 
 	} else if !similar {
 		// Fixed presentation order: More like, two genre/tag rows, one credited
 		// person, then collection/typed parent rows, at most six nonempty rows.
-		term, person := 0, 0
 		for _, f := range s.features {
-			if f.key.Kind == 7 {
-				continue
+			if f.key.Kind != 7 {
+				keys = append(keys, f.key)
 			}
-			if f.key.Kind == 1 {
-				if term == 2 {
-					continue
-				}
-				term++
-			}
-			if f.key.Kind == 2 {
-				if person == 1 {
-					continue
-				}
-				person++
-			}
-			keys = append(keys, f.key)
 		}
 	}
 	if similar {
@@ -56,7 +42,12 @@ func relatedRows(s *relatedState, in RelatedInput, similar bool) ([]RelatedRow, 
 		return nil, ErrStale
 	}
 	var out []RelatedRow
+	termRows, personRows := 0, 0
+	matrix := in.Row == nil && !similar
 	for _, key := range keys {
+		if matrix && (key.Kind == 1 && termRows == 2 || key.Kind == 2 && personRows == 1) {
+			continue
+		}
 		fi := -1
 		if key.Kind != 0 {
 			for n, f := range s.features {
@@ -137,6 +128,12 @@ func relatedRows(s *relatedState, in RelatedInput, similar bool) ([]RelatedRow, 
 		}
 		if len(row.Entries) > 0 || in.Row != nil || similar {
 			out = append(out, row)
+			if key.Kind == 1 {
+				termRows++
+			}
+			if key.Kind == 2 {
+				personRows++
+			}
 		}
 		if len(out) == 6 {
 			break
