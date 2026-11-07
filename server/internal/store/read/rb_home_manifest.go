@@ -354,7 +354,7 @@ func homeManifestFrameRead(s *savedViewSession, q browseQuery, in BrowseInput) (
 			continue
 		}
 		d := HomeManifestDescriptor{ID: id, Title: r.name, Kind: "saved_view", ArtworkShape: homeManifestArtwork(library.Kind), LibraryID: library.ID, PolicyState: "available", ReadState: "unsupported", Reason: "stored_view_recipe_unsupported", Hideable: true, Reorderable: true, CursorCapable: true, PrivacySensitivity: "personal", TargetKind: "saved_view", Priority: 90 + n, CacheTTLMs: 60000, ResourceID: r.id, ResourceRevision: r.revision}
-		if library.Kind == "movie" && library.NativeID > 0 && library.CatalogueState == "current" {
+		if len(r.id) <= 256 && len(definition.LibraryID) <= 256 && library.Kind == "movie" && library.NativeID > 0 && library.CatalogueState == "current" {
 			target := in
 			target.Library = library.NativeID
 			target.Kind = 1
