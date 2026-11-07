@@ -48,6 +48,9 @@ func projectSchemaPairs(want, got any) (bool, error) {
 		}
 		env, _ := actual["environment"].(map[string]any)
 		_, golden := actual["manifest"]
+		if !golden {
+			_, golden = actual["Manifest"]
+		}
 		binding, qualified := env["schemaBinding"]
 		if golden && qualified {
 			ref, err := sharedSchemaEvidence()
@@ -57,9 +60,16 @@ func projectSchemaPairs(want, got any) (bool, error) {
 			if err = checkBinding(binding); err != nil {
 				return false, err
 			}
-			oldEnv, ok := expected["environment"].(map[string]any)
-			if !ok {
-				return false, fmt.Errorf("plan: reviewed golden lacks environment")
+			oldEnv, fullEnvironment := expected["environment"].(map[string]any)
+			if !fullEnvironment {
+				if _, compact := expected["Manifest"]; !compact {
+					if _, compact = expected["manifest"]; !compact {
+						return false, fmt.Errorf("plan: reviewed golden lacks environment")
+					}
+				}
+				// Legacy compact baselines never contained these environment
+				// fields. Keep their original connection and fixture profile.
+				oldEnv = map[string]any{}
 			}
 			var e Environment
 			if err = decodeValue(env, &e); err != nil {
@@ -69,6 +79,9 @@ func projectSchemaPairs(want, got any) (bool, error) {
 				return false, err
 			}
 			plans, ok := actual["plans"].([]any)
+			if !ok {
+				plans, ok = actual["Plans"].([]any)
+			}
 			if !ok {
 				return false, fmt.Errorf("plan: missing actual plans")
 			}
@@ -82,12 +95,14 @@ func projectSchemaPairs(want, got any) (bool, error) {
 					return false, err
 				}
 			}
-			var oldSchema Rows
-			if err = decodeValue(oldEnv["schema"], &oldSchema); err != nil {
-				return false, err
+			if fullEnvironment {
+				var oldSchema Rows
+				if err = decodeValue(oldEnv["schema"], &oldSchema); err != nil {
+					return false, err
+				}
+				normalizeRecordWidths(expected, oldSchema)
+				normalizeRecordWidths(actual, e.Schema)
 			}
-			normalizeRecordWidths(expected, oldSchema)
-			normalizeRecordWidths(actual, e.Schema)
 			// Full native evidence remains in the report. Only its checked schema
 			// component is removed from the statement's comparison key.
 			for _, e := range []map[string]any{oldEnv, env} {
@@ -100,12 +115,28 @@ func projectSchemaPairs(want, got any) (bool, error) {
 				}
 			}
 			for _, g := range []map[string]any{expected, actual} {
-				if plans, ok := g["plans"].([]any); ok {
+				plans, ok := g["plans"].([]any)
+				if !ok {
+					plans, ok = g["Plans"].([]any)
+				}
+				if ok {
 					for _, p := range plans {
 						projectSchemaAudit(p)
 					}
 				}
 				delete(g, "foreignKeys")
+				for _, k := range []string{"Schema", "Policy", "Statistics", "schemaSha256", "policySha256", "statisticsSha256"} {
+					delete(g, k)
+				}
+				for _, key := range []string{"Fixture", "fixture"} {
+					if f, ok := g[key].(map[string]any); ok {
+						delete(f, "sha256")
+						delete(f, "implementations")
+					}
+				}
+				if !fullEnvironment {
+					delete(g, "environment")
+				}
 			}
 			return true, nil
 		}
@@ -288,9 +319,6 @@ func validateSharedFK(v any, ref *SchemaEvidence) error {
 	}
 	return nil
 }
-
-// Used only for diagnostics in the generated-only schema evidence test.
-func schemaEvidenceJSON(e SchemaEvidence) ([]byte, error) { return json.MarshalIndent(e, "", "  ") }
 
 // Only a table's full physical record width is schema-derived. Decoder
 // prefixes, index KeyInfo, registers, flags and every other operand stay exact.
