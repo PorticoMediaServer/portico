@@ -390,7 +390,7 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 				return nil
 			}
 			row := rows[0]
-			if rsListeningAuthorKey(row[0].(string)) != p.key || p.files[p.scan]&1 == 0 {
+			if row[0].(string) != p.key || p.files[p.scan]&1 == 0 {
 				return nil
 			}
 			p.authorContext = true
