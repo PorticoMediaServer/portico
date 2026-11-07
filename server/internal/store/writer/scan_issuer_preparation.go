@@ -58,6 +58,12 @@ func (d *ScanDriver) retainIssuerPreparation(ctx context.Context, turn *commandT
 	}
 	r := d.writer.effective
 	purpose := in.lifecycle
+	if in.issuer.action == scanIssuerBasicSource {
+		if !basicSourcePreparationPurpose(in.issuer.basicPurpose) || source == nil {
+			return nil, ErrInvalid
+		}
+		purpose = in.issuer.basicPurpose
+	}
 	if purpose == 0 && in.issuer.action == scanIssuerN1Recover {
 		purpose = InventoryAccept
 	}
@@ -74,7 +80,9 @@ func (d *ScanDriver) retainIssuerPreparation(ctx context.Context, turn *commandT
 			err = errors.Join(err, r.authority.Retired(decision.Grant))
 		}
 	}()
-	if source == nil {
+	if in.issuer.action == scanIssuerBasicSource {
+		candidate, err = newScanPreparation(ctx, d.opening, d.owner, r, nativeinventory.Observer{}, expected, decision.Grant, nativeinventory.Request{}, scanBasicPreparation)
+	} else if source == nil {
 		candidate, err = newScanPreparation(ctx, d.opening, d.owner, r, nativeinventory.Observer{}, expected, decision.Grant, nativeinventory.Request{}, scanHistoryPreparation)
 	} else {
 		request := nativeinventory.Request{Root: source.source.resolvedRoot, RootIdentity: source.source.rootIdentity, RelativePath: []byte("."), FollowSymlinks: source.source.followSymlinks, Limit: 1}
