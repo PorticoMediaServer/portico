@@ -11,7 +11,7 @@ import (
 const scanInventoryLibraryRecordLengths stmt.ID = "scan.inventory_accept.library_record_lengths"
 
 // An envelope within the ONE complete profile, not a product limit or another
-// ledger. Work is included in EACH of the existing four rewrite steps, not an
+// ledger. Work is included in EACH of the existing five rewrite steps, not an
 // empty extra unit that could lend a later statement its budget. It covers
 // old-row rebuild/amplification at maxBytes from the complete profile's facts.
 type inventoryRecordEnvelope struct {
@@ -63,14 +63,14 @@ func validateInventoryRecordEnvelope(plan effectivePlan) error {
 	seen := 0
 	for _, step := range plan.steps {
 		switch step.id {
-		case scanFreshRunCAS, scanFreshJobCAS, scanFreshDirectoryCAS, scanFreshLibraryCAS:
+		case scanFreshRunCAS, scanFreshJobCAS, scanFreshDirectoryCAS, scanFreshLibraryCAS, scanFreshProgressCAS:
 			if !fits(e.work, step.work) {
 				return ErrQuantum
 			}
 			seen++
 		}
 	}
-	if seen != 4 {
+	if seen != 5 {
 		return invalid("inventory_record_rewrite_steps")
 	}
 	return nil
@@ -83,8 +83,8 @@ func inventoryLibraryRecordDefinition() stmt.Definition {
 		Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_libraries_1"}, Seeks: []string{"id=?"}}}
 }
 
-// Four current touched records have at most 64 physical columns each. This
-// bounds fixed scalar/serial-header storage (4*(64*17+9)<8KiB), separately from
+// Five current touched records have at most 64 physical columns each. This
+// bounds fixed scalar/serial-header storage (5*(64*17+9)<8KiB), separately from
 // their actual variable bytes. The native schema control checks this premise.
 const inventoryRecordFixedBytes = uint64(8 << 10)
 
@@ -110,7 +110,7 @@ func inventoryRecordActualBytes(keys []string, vectors ...scanByteVector) (uint6
 	return total, nil
 }
 
-func checkInventoryExistingRecords(ctx context.Context, turn *commandTurn, in *inventoryInvocation) (err error) {
+func checkInventoryExistingRecords(ctx context.Context, turn *commandTurn, in *inventoryInvocation, sourceRecordBytes uint64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	if in == nil || in.input == nil || in.issuer == nil || in.issuer.driver == nil || in.issuer.driver.writer == nil || turn == nil || turn.transaction == nil {
 		return ErrInvalid
@@ -137,7 +137,7 @@ func checkInventoryExistingRecords(ctx context.Context, turn *commandTurn, in *i
 	if err != nil {
 		return err
 	}
-	actual, err := inventoryRecordActualBytes([]string{c.request.scope.runID, c.request.scope.runID, c.request.directory.path}, run, job, root, library)
+	actual, err := inventoryRecordActualBytes([]string{c.request.scope.runID, c.request.scope.runID, c.request.directory.path}, run, job, root, library, scanByteVector{exists: sourceRecordBytes > 0, total: sourceRecordBytes})
 	if err != nil {
 		return err
 	}

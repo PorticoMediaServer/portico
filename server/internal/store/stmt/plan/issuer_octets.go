@@ -10,7 +10,7 @@ import (
 )
 
 const issuerSourceLengthsID stmt.ID = "scan.issuer.source_lengths"
-const issuerSourceLengthsSQL = "SELECT octet_length(id),octet_length(library_id),octet_length(kind),octet_length(root),octet_length(incarnation),octet_length(root_identity),octet_length(health),octet_length(classification) FROM library_sources WHERE id=? AND library_id=?"
+const issuerSourceLengthsSQL = "SELECT octet_length(id),octet_length(library_id),octet_length(kind),octet_length(root),octet_length(incarnation),octet_length(root_identity),octet_length(health),octet_length(classification),octet_length(name),octet_length(configured_root),octet_length(next_scan_at),octet_length(last_complete_job),octet_length(last_complete_at),octet_length(last_integrity_at),octet_length(remote_source_id),octet_length(double_check_job),octet_length(progress_last_progress_at) FROM library_sources WHERE id=? AND library_id=?"
 const issuerSourceIndex = "sqlite_autoindex_library_sources_1"
 
 func init() {
