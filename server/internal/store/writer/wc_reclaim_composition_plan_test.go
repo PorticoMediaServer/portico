@@ -78,7 +78,7 @@ func TestWCReclaimCompositionPlans(t *testing.T) {
 		}
 		g.ForeignKeys = &audit
 	}
-	if len(g.Manifest) != len(defs) || len(g.Plans) != len(defs) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
+	if len(g.Manifest) != len(defs) || len(g.Plans) != len(defs) || g.ForeignKeys == nil || plan.CheckSchemaForeignKeys(g.ForeignKeys) != nil {
 		t.Fatal("incomplete capture")
 	}
 	fk, err := json.MarshalIndent(g.ForeignKeys, "", "  ")
@@ -133,5 +133,5 @@ func TestWCReclaimCompositionPlans(t *testing.T) {
 	if err = plan.CompareExactJSON(expectedFK, fk); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("%d exact IDs/plans; complete 686FK/2058 probes, actual NORMAL; no runtime/qualification grant", len(defs))
+	t.Logf("%d exact IDs/plans; complete shared-schema FK audit, actual NORMAL; no runtime/qualification grant", len(defs))
 }

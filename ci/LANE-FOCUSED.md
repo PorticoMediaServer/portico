@@ -23,6 +23,7 @@ The original `-run` filter reaches Go unchanged; `-skip` excludes parents assign
 | Capture target | Recorded files under owning package's testdata |
 | --- | --- |
 | hn-canonical | canonical.json, canonical-fk.json.gz |
+| hn-schema-evidence | schema-evidence.json.gz (one shared native schema/FK baseline per embed) |
 | hn-issuer | issuer-source-octets.json |
 | hn-issuer-library | issuer-library-root-octets.json |
 | hn-n1-preflights | n1-byte-preflights.json |

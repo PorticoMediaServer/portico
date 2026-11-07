@@ -131,7 +131,7 @@ func captureBasicControlPlans(t *testing.T) ([]byte, []byte) {
 	// Execute an independent complete audit on the actual acquired owner
 	// connection. Never substitute a checked-in FK object for an acquisition.
 	fk, err := plan.ForeignKeys(tx.ctx, tx.conn, config)
-	if err != nil || len(fk.Plans) != 686 {
+	if err != nil || plan.CheckSchemaForeignKeys(&fk) != nil {
 		t.Fatal("independent complete FK acquisition", len(fk.Plans), err)
 	}
 	fkJSON, err := json.MarshalIndent(fk, "", "  ")
@@ -140,7 +140,7 @@ func captureBasicControlPlans(t *testing.T) ([]byte, []byte) {
 	}
 	fkPath := filepath.Join("testdata", "scan-inventory-accept-fk.json.gz")
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
-		t.Fatal("independent audit differs from merged 686FK/2058-probe reference", err)
+		t.Fatal("independent audit differs from merged shared-schema FK audit reference", err)
 	}
 	var compressed bytes.Buffer
 	z := gzip.NewWriter(&compressed)
@@ -250,6 +250,6 @@ func captureBasicControlPlans(t *testing.T) ([]byte, []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("11IDs/11cohorts/3owner populations/%dVM/%dSEARCH/%dINSERT/686FK2058probes; source/seed journal %s", vm, search, destinations, journal)
+	t.Logf("11IDs/11cohorts/3owner populations/%dVM/%dSEARCH/%dINSERT/shared-schema FK audit; source/seed journal %s", vm, search, destinations, journal)
 	return append(actual, '\n'), referenceRaw
 }

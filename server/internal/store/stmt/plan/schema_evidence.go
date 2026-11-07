@@ -216,3 +216,23 @@ func jsonEqual(a, b any) bool {
 }
 
 func schemaSQLSHA() string { return schema.SHA256 }
+
+// CheckSchemaForeignKeys checks completeness AND every native probe against the
+// one reviewed embedded-schema baseline. Harnesses must use this instead of a
+// copied FK count or a private duplicate FK snapshot.
+func CheckSchemaForeignKeys(a *ForeignKeyAudit) error {
+	if a == nil || a.SchemaBinding == nil {
+		return fmt.Errorf("plan: complete embedded-schema FK audit required")
+	}
+	if a.SchemaBinding.Version != 1 || a.SchemaBinding.SQLSHA256 != schema.SHA256 {
+		return fmt.Errorf("plan: stale FK schema binding")
+	}
+	ref, err := sharedSchemaEvidence()
+	if err != nil {
+		return err
+	}
+	if !jsonEqual(a.Plans, ref.ForeignKeys) {
+		return fmt.Errorf("plan: FK audit differs from shared schema evidence")
+	}
+	return nil
+}
