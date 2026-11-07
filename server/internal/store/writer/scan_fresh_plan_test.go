@@ -29,7 +29,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 	// These SQL-fact populations are not a valid command manifest/FS authority.
 	parts := []struct{ file, start, end, sha string }{
 		{"scan_types_test.go", "func inventoryRequestFixture(", "func inventoryTestClone(", "79ed441e7172714ff02ca6a9fdbd025a367d1a84ad7241a0b08f9a0ac45e3404"},
-		{"scan_fresh_test.go", "func inventoryFreshRequest(", "func inventoryFreshFixture(", "43fc548c10f6b063f9cd9a82c38a66c30b623bff60da1817c7c2a5c941dccbc3"},
+		{"scan_fresh_test.go", "func inventoryFreshRequest(", "func inventoryFreshFixture(", "605a8d82bb789b5491e18661cfcd3be3ad18e32ac1cbf71bb3db8f50dfdaa380"},
 		{"scan_fresh_plan_facts_test.go", "func seedInventoryFreshPlanFacts(", "func TestInventoryFreshNativeCompiledCohortPopulations(", "95d1b95d4e527ced085861bd66d89cf851779170bc911f892b134586ae975f9c"},
 	}
 	hash := sha256.New()
@@ -54,7 +54,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 		hash.Write(data)
 	}
 	fixtureSHA := hex.EncodeToString(hash.Sum(nil))
-	if fixtureSHA != "02e1bf0e5807af7bca78769a2a9007aad312d18215a46d35b67130ca16477886" || schema.SHA256 != "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2" {
+	if fixtureSHA != "dbc6b53fc422f9f6a3f4e9ead9975e4a0ea6ceb2dea7a881c8c1ffd43f43605c" || schema.SHA256 != "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2" {
 		t.Fatal("frozen fixture/schema changed; review before recording")
 	}
 	definitions := scanFreshDefinitions()
