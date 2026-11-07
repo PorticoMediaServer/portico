@@ -9,6 +9,7 @@ import (
 	"cmp"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -360,7 +361,7 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 			}
 			pos := float64(0)
 			if row[2] != nil {
-				pos = row[2].(float64)
+				pos = rsAuthorSQLiteReal(row[2].(string))
 			}
 			if pos <= 0 {
 				pos = 999999
@@ -491,4 +492,49 @@ func (r *RSAuthorBookReader) Publish(ctx context.Context, req governor.Request, 
 		err = errors.Join(err, p.close())
 	}
 	return done, err
+}
+
+// rsAuthorSQLiteReal implements SQLite REAL coercion's ASCII numeric prefix:
+// trailing text is ignored and an incomplete exponent is excluded. NULL is
+// handled by the caller; the original text remains unchanged in typed Facts.
+func rsAuthorSQLiteReal(s string) float64 {
+	start := 0
+	for start < len(s) && strings.ContainsRune(" \t\n\r\v\f", rune(s[start])) {
+		start++
+	}
+	i := start
+	if i < len(s) && (s[i] == '+' || s[i] == '-') {
+		i++
+	}
+	digits := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+		digits++
+	}
+	if i < len(s) && s[i] == '.' {
+		i++
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+			digits++
+		}
+	}
+	if digits == 0 {
+		return 0
+	}
+	end := i
+	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
+		i++
+		if i < len(s) && (s[i] == '+' || s[i] == '-') {
+			i++
+		}
+		exp := i
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i > exp {
+			end = i
+		}
+	}
+	n, _ := strconv.ParseFloat(s[start:end], 64)
+	return n
 }

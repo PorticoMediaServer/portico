@@ -2,11 +2,11 @@ package read
 
 import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
-const rsAuthorBookSQL = `SELECT e.author,e.title,CAST(e.series_position AS REAL) FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=8 AND e.retired=0`
-const rsAuthorBookOctetsSQL = `SELECT octet_length(e.author),octet_length(e.title) FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=8 AND e.retired=0`
+const rsAuthorBookSQL = `SELECT e.author,e.title,e.series_position FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=8 AND e.retired=0`
+const rsAuthorBookOctetsSQL = `SELECT octet_length(e.author),octet_length(e.title),octet_length(e.series_position) FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=8 AND e.retired=0`
 
 func init() {
-	registerRSBytePoint("rs.author.book", rsBytePoint{lengths: "rs.author.book_octets", columns: []int{0, 1}})
+	registerRSBytePoint("rs.author.book", rsBytePoint{lengths: "rs.author.book_octets", columns: []int{0, 1, 2}})
 }
 func RSAuthorBookDefinitions() []stmt.Definition {
 	out := rsAuthorBooksDefinitions()

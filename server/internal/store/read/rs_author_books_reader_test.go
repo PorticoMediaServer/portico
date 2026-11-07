@@ -361,3 +361,16 @@ func TestRSAuthorBookReaderRestrictedFiles(t *testing.T) {
 	}
 	t.Fatal("not complete")
 }
+
+func TestRSAuthorSQLiteRealOracle(t *testing.T) {
+	f := newBrowseSource(t)
+	for _, s := range []string{"", " ", "2.5", "+2", "-2", "0x10", "1x", "2e+", "2e-2", ".5", "-.5", "+.", "1.2.3", "1e9999", "-1e9999", "\t\n2.5tail", "NaN", "Inf", "\u00a02", "1\x002", "9007199254740993", "0.0000001"} {
+		var want float64
+		if e := f.conn.QueryRowContext(t.Context(), `SELECT CAST(? AS REAL)`, s).Scan(&want); e != nil {
+			t.Fatal(e)
+		}
+		if got := rsAuthorSQLiteReal(s); got != want {
+			t.Fatalf("%q: got %v want SQLite %v", s, got, want)
+		}
+	}
+}
