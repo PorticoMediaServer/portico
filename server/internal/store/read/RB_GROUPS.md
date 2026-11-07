@@ -24,14 +24,14 @@ raw row separately checks library/kind/retirement and the common item predicate.
 | --- | --- | --- |
 | Show seasons | kind=3 partial index + show_id + numeric season + entity ID | Candidate only; specials-last rotation unfinished |
 | Show episodes | show_id + entity ID | Candidate only; season number/specials order unfinished |
-| Season episodes | season_id + episode number + entity ID | Exact direct order across accepted numbering modes |
+| Season episodes | season_id + episode number + entity ID | Candidate only; public numbering/settings order unfinished |
 | Artist albums | artist_id + entity ID | Candidate only; release type/year/title unfinished |
 | Artist credited songs | artist credit + song ID, then current song point | Candidate only; appearances must merge/deduplicate with primary albums before release order |
 | Album songs | album_id + COALESCE(disc,1) + COALESCE(track,0) + entity ID | Exact direct order |
 | Author books | library + exact author name (NOCASE) + entity ID | Candidate only; series position/title/part projection unfinished |
 | Book parts | book_id + COALESCE(disc,1) + COALESCE(part,0) + entity ID | Exact direct order |
-| Collection members | collection + BINARY accepted order_key + item ID | Exact direct edge order; no ancestor lifting |
-| Own playlist entries | playlist + BINARY accepted order_key + entry ID | Exact direct occurrence order; NULL entries consume raw work |
+| Collection members | collection + BINARY accepted order_key + item ID | Candidate edge order; ancestor lifting unfinished |
+| Own playlist entries | playlist + BINARY accepted order_key + entry ID | Candidate occurrence order; lifting/dedup unfinished; NULL entries consume raw work |
 
 `SourceOrdered=false` explicitly identifies candidate streams. It must not be
 converted into a ready groupOrder page by an adapter. The accepted hierarchy
@@ -231,3 +231,5 @@ lease or DDL dependency is bundled. Parent reviews/integrates/publishes.
 The exact SEARCH expression pins need that owner review; the unfinished
 semantic/qualification queue above remains explicit. B-R04/SORT-KIND-21 is
 UNQUALIFIED, including the 13..15-statement ceiling debt and large exact completion.
+
+Parent integration limits: season, collection and playlist source windows now report `SourceOrdered=false` until settings/lifting/dedup semantics are complete. The complete-set relationship fallback charges actual retained title/key/fence bytes across snapshots before each append, with copy/vector overlap; its row ceiling alone is not a memory proof. Fixture provenance includes both the shared browse seed and group journal.

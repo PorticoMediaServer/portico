@@ -5,9 +5,25 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
+
+func TestRBGroupRelationshipChargesRetainedStrings(t *testing.T) {
+	f := rbGroupFixture(t, false)
+	wide := strings.Repeat("a", 16<<10)
+	f.exec(t, `UPDATE catalog_entities SET title=? WHERE kind=7`, wide)
+	f.exec(t, `UPDATE catalog_entities SET sort_key=? WHERE id=2004`, wide)
+	in := RBRelationshipInput{View: f.input, Sort: RBRelationshipAlbum}
+	in.View.Kind = 7
+	page, _, err := f.reader.rbRelationshipExact(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+	if !errors.Is(err, governor.ErrSnapshotBudget) || !reflect.DeepEqual(page, RBRelationshipPage{}) {
+		t.Fatal("wide retained prefix exceeded output custody", page, err)
+	}
+}
 
 func TestRBGroupRelationshipCompleteOrder(t *testing.T) {
 	f := rbGroupFixture(t, false)

@@ -20,7 +20,7 @@ func rbGroupFixture(t *testing.T, live bool) *browseFixture {
 	if live {
 		gc = readfixture.LiveConfig(time.Now)
 	}
-	return composeReadFixture(t, rbGroupSource(t), defs, gc, !live, rbGroupFixtureHash())
+	return composeReadFixture(t, rbGroupSource(t), defs, gc, !live, rbGroupFixtureHash(t))
 }
 func rbGroupRequest() governor.Request {
 	r := readfixture.ReadRequest()

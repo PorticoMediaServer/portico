@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -57,6 +58,7 @@ type rbRelationshipDraft struct {
 	exhausted bool
 	raw       int
 	fence     browseFence
+	retained  int64
 }
 
 // RBRelationshipExact is a bounded complete-set fallback for small libraries.
@@ -96,6 +98,18 @@ func (r *BrowseReader) rbRelationshipExact(ctx context.Context, request governor
 		window := window
 		steps[window] = func(ctx context.Context, q browseQuery, f browseFence, d *rbRelationshipDraft) error {
 			d.fence = f
+			if d.retained == 0 {
+				// Retained strings outlive each snapshot's native/Go row grant.
+				// Charge their actual lengths to separate output custody, including
+				// comparable fence strings and conservative vector/copy overlap.
+				d.retained = 2048
+				v := reflect.ValueOf(f)
+				for i := 0; i < v.NumField(); i++ {
+					if v.Field(i).Kind() == reflect.String {
+						d.retained += 2 * int64(v.Field(i).Len())
+					}
+				}
+			}
 			if in.After != nil && in.After.fence != f {
 				return ErrStale
 			}
@@ -143,6 +157,11 @@ func (r *BrowseReader) rbRelationshipExact(ctx context.Context, request governor
 				if !ok {
 					return ErrUnqualified
 				}
+				charge := 2 * (int64(len(item.Title)) + 2*int64(len(key)) + 128)
+				if d.retained > output.Request.Need[governor.MemoryBytes]/2-charge {
+					return governor.ErrSnapshotBudget
+				}
+				d.retained += charge
 				d.values = append(d.values, rbRelationshipValue{item, rbRelationshipFold(key)})
 			}
 			return nil
@@ -154,6 +173,9 @@ func (r *BrowseReader) rbRelationshipExact(ctx context.Context, request governor
 	}
 	if !draft.exhausted {
 		return page, result, ErrNotReady
+	}
+	if err := ctx.Err(); err != nil {
+		return page, result, err
 	}
 	sort.Slice(draft.values, func(i, j int) bool {
 		a, b := draft.values[i], draft.values[j]
@@ -170,6 +192,9 @@ func (r *BrowseReader) rbRelationshipExact(ctx context.Context, request governor
 	page.fence = draft.fence
 	page.Statements = result.LookupStatements + result.PublicationStatements
 	for _, v := range draft.values {
+		if err := ctx.Err(); err != nil {
+			return RBRelationshipPage{}, result, err
+		}
 		if in.After != nil {
 			compare := strings.Compare(v.key, in.After.key)
 			if compare == 0 {

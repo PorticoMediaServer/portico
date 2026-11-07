@@ -11,7 +11,9 @@ import (
 //go:embed rb_group_fixture_test.go
 var rbGroupJournal string
 
-func rbGroupFixtureHash() string { return fmt.Sprintf("%x", sha256.Sum256([]byte(rbGroupJournal))) }
+func rbGroupFixtureHash(t *testing.T) string {
+	return fmt.Sprintf("%x", sha256.Sum256(append([]byte(browsePlanFixtureHash(t)), []byte(rbGroupJournal)...)))
+}
 func rbGroupSource(t *testing.T) *browseFixture {
 	t.Helper()
 	f := newBrowseSource(t)

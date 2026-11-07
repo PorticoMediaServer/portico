@@ -69,7 +69,7 @@ func TestRBGroupPlans(t *testing.T) {
 		if stats == plan.Analyzed {
 			f.exec(t, "ANALYZE")
 		}
-		golden, e := plan.Capture(t.Context(), conn, cat, browsePlanFixture(cfg, rbGroupFixtureHash(), stats), policy)
+		golden, e := plan.Capture(t.Context(), conn, cat, browsePlanFixture(cfg, rbGroupFixtureHash(t), stats), policy)
 		if e != nil {
 			t.Fatal(e)
 		}
