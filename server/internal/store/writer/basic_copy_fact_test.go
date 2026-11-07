@@ -8,17 +8,37 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
+// Preserve the prerequisite fixture used by the separate chapter regressions.
 func basicCopyFactFixture(t *testing.T) (*executor, basicStreamCopyEffects) {
 	t.Helper()
-	w, in := basicPrefenceFixture(t)
-	turn := basicComponentTurn(t, w, basicPrefenceTestDefinitions())
-	p, err := prefenceBasicOrdinary(t.Context(), turn, in)
+	w, turn, in := basicCopyFactTurnFixture(t, false, basicCopyFactTestDefinitions())
+	basicMediaCommit(t, turn)
+	return w, in
+}
+
+// Raw prior rows precede actual FULL-startup Capture. Accept, prefence and
+// copy use the existing NORMAL handler frame and synthetic component forecast.
+func basicCopyFactTurnFixture(t *testing.T, replace bool, defs []stmt.Definition) (*executor, *commandTurn, basicStreamCopyEffects) {
+	t.Helper()
+	w, input := basicCompleteAcceptFixture(t)
+	in := basicStreamCopyEffects{source: input.stream.source, shapeID: input.stream.shapeID,
+		fileSizeRevision: input.snapshot.fileSizeRevision, invalidation: input.snapshot.invalidationRevision}
+	if replace {
+		basicCopySeedPrior(t, w, &in)
+	}
+	registry := nativeInventoryFixtureRegistry(t, w, defs, "basic_copy_fact.go", "basic_copy_fact_statements.go", "basic_copy_fact_test.go")
+	turn := basicHandlerTurn(t, w, BasicAccept, defs, registry)
+	accepted, err := acceptBasicOrdinaryInput(t.Context(), turn, input, 2000)
 	if err != nil {
 		t.Fatal(err)
 	}
-	basicMediaCommit(t, turn)
-	return w, basicStreamCopyEffects{source: in.input.stream.source, position: p, shapeID: in.input.stream.shapeID,
-		fileSizeRevision: in.input.snapshot.fileSizeRevision, invalidation: in.input.snapshot.invalidationRevision}
+	input.stream.changeRevision = accepted.changeRevision
+	input.snapshot.changeRevision = accepted.changeRevision
+	in.position, err = prefenceBasicOrdinary(t.Context(), turn, basicPrefenceEffects{input: input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w, turn, in
 }
 
 func basicCopyFactTestDefinitions() []stmt.Definition {
@@ -40,11 +60,7 @@ func basicCopySeedPrior(t *testing.T, w *executor, in *basicStreamCopyEffects) {
 func TestBasicCopyStreamFactInsertAndReplaceKeepFences(t *testing.T) {
 	for _, name := range []string{"insert", "replace"} {
 		t.Run(name, func(t *testing.T) {
-			w, in := basicCopyFactFixture(t)
-			if name == "replace" {
-				basicCopySeedPrior(t, w, &in)
-			}
-			turn := basicComponentTurn(t, w, basicCopyFactTestDefinitions())
+			w, turn, in := basicCopyFactTurnFixture(t, name == "replace", basicCopyFactTestDefinitions())
 			got, err := installBasicStreamFact(t.Context(), turn, in)
 			want := basicCanonicalStreamFact{in.source.factRevision, in.source.size, in.source.modifiedNS, in.source.detailVersion, in.source.fingerprint}
 			if err != nil || got != want {
@@ -76,13 +92,12 @@ func TestBasicCopyStreamFactInsertAndReplaceKeepFences(t *testing.T) {
 func TestBasicCopyStreamFactRejectsCapturedDrift(t *testing.T) {
 	for _, name := range []string{"cursor", "pending", "prior_fact", "newer_fact"} {
 		t.Run(name, func(t *testing.T) {
-			w, in := basicCopyFactFixture(t)
-			basicCopySeedPrior(t, w, &in)
+			w, turn, in := basicCopyFactTurnFixture(t, true, basicCopyFactTestDefinitions())
 			switch name {
 			case "cursor":
 				in.position.changeRevision++
 			case "pending":
-				if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_assets SET info_publication_pending=0 WHERE id=41`); err != nil {
+				if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE catalog_assets SET info_publication_pending=0 WHERE id=41`); err != nil {
 					t.Fatal(err)
 				}
 			case "prior_fact":
@@ -90,7 +105,6 @@ func TestBasicCopyStreamFactRejectsCapturedDrift(t *testing.T) {
 			case "newer_fact":
 				in.before.revision = in.source.factRevision + 1
 			}
-			turn := basicComponentTurn(t, w, basicCopyFactTestDefinitions())
 			got, err := installBasicStreamFact(t.Context(), turn, in)
 			if !errors.Is(err, ErrConflict) || got != (basicCanonicalStreamFact{}) {
 				t.Fatal(got, err)
@@ -106,17 +120,15 @@ func TestBasicCopyStreamFactRejectsCapturedDrift(t *testing.T) {
 }
 
 func TestBasicCopyStreamFactReturningFailureRollsBackNativeWrite(t *testing.T) {
-	w, in := basicCopyFactFixture(t)
-	basicCopySeedPrior(t, w, &in)
 	defs := basicCopyFactTestDefinitions()
 	for n := range defs {
 		if defs[n].ID == basicCopyFactUpdate {
 			// Actual native write, deliberately wrong native return column. The
-			// fault definition receives its own real component Capture receipt.
+			// fault definition receives its own real full-set Capture receipt.
 			defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING asset_id,revision,size,modified_ns,fingerprint,detail_version", "RETURNING asset_id,detail_version,size,modified_ns,fingerprint,revision", 1)
 		}
 	}
-	turn := basicComponentTurn(t, w, defs)
+	w, turn, in := basicCopyFactTurnFixture(t, true, defs)
 	got, err := installBasicStreamFact(t.Context(), turn, in)
 	if !errors.Is(err, ErrConflict) || got != (basicCanonicalStreamFact{}) {
 		t.Fatal(got, err)
