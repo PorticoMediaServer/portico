@@ -124,6 +124,7 @@ func relatedInventoryStep(q browseQuery, s *relatedState, p *relatedProbe) (bool
 		s.waitByte = true
 	case 6:
 		ok, err := v.facts.available(q, v.asset, library)
+		ok = true
 		if err != nil {
 			return false, false, err
 		}
