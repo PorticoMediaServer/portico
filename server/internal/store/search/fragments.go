@@ -101,8 +101,8 @@ func (p FragmentPlan) Len() int          { return len(p.fragments) }
 func (p FragmentPlan) At(i int) Fragment { return p.fragments[i] }
 
 // PrepareFragments preserves Q's exact prepared token sequences and 512+512
-// folded windows. SearchDocument's frozen 65536-byte input clip is preserved;
-// SearchFold still sees the full field. No token is split, omitted or allowed
+// folded windows. Discovery and verification use the SAME first 64 KiB of
+// normalized UTF-8 text per field. No token is split or allowed
 // to exceed a budget. An unchunkable token returns no partial plan; accepted
 // publisher intent must remain pending for an independently qualified remedy.
 func PrepareFragments(value string, budget FragmentBudget) (FragmentPlan, error) {
@@ -113,8 +113,8 @@ func PrepareFragments(value string, budget FragmentBudget) (FragmentPlan, error)
 	if err != nil || budget.PreparationBytes < need {
 		return FragmentPlan{}, fmt.Errorf("%w: %w", ErrFragmentBudget, ErrPreparationBudget)
 	}
-	// This operation sees only the frozen 65536-byte lexical input. Check all
-	// indivisible tokens now, before prefix materialization or full-field fold.
+	// Both lexical and normalized streams see the same normalized field prefix. Check all
+	// indivisible tokens now, before prefix materialization or normalized-window allocation.
 	document := facettext.SearchDocument(value)
 	for word := range strings.FieldsSeq(document) {
 		if len(word) > min(tokenColumnBytes, budget.Bytes) || lexicalWork(word) > budget.TokenWork {

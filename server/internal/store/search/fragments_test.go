@@ -9,6 +9,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/PorticoMediaServer/portico/server/internal/facettext"
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
 )
 
@@ -78,8 +79,8 @@ func TestPreparationMemoryReservation(t *testing.T) {
 		}
 		previous = need
 	}
-	// This valid field crosses the frozen lexical clip. Its full fold, including
-	// the tail, must still survive when the complete reservation is available.
+	// Full raw-source custody remains charged even though searchable normalized
+	// text stops at 64KiB. The limit is not a cheaper preparation admission.
 	var cjk strings.Builder
 	for i := 0; i < 10000; i++ {
 		fmt.Fprintf(&cjk, "%c山 ", rune(0x4e00+i))
@@ -106,8 +107,8 @@ func TestPreparationMemoryReservation(t *testing.T) {
 				_, b := plan.At(i).NormalizedRange()
 				end = max(end, b)
 			}
-			if end != utf8.RuneCountInString(strings.TrimSpace(value)) {
-				t.Fatal("full fold was clipped")
+			if end != utf8.RuneCountInString(facettext.SearchFold(value)) {
+				t.Fatal("normalized streams use different field prefixes")
 			}
 		}
 		t.Logf("source=%d allocation=%d reservation=%d", len(value), allocated, need)

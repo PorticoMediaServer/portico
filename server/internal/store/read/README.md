@@ -200,6 +200,16 @@ posting proofs must cover all five literal slots before a population is exact.
 The bounded top-K retains at most20 results; incomplete proof/frontier returns
 pending with no partial page. CJK siblings reuse `search.CJKFieldMatcher`.
 
+Searchable text is the first **64 KiB of normalized UTF-8 per logical field**,
+ending before a partial scalar. Primary-title folding, lexical/prefix/People
+postings, normalized fragments, CJK confirmation, logical counts and ranking
+all use this same prefix. A physical overlap does not reset the field byte
+position. Stored/display values and raw-source admission/custody are unchanged.
+Text outside that search prefix cannot produce a match or a confirmation; no
+census/SCAN fallback is used. Preparation-source identity changes make old banks
+stale under the existing profile check and governed rebuild protocol.
+
+
 There is **no native full-search executor installed**. The positive dispatch
 and ranking tests use explicit synthetic accepted-source data. Ordinary sibling
 tests execute real captured SQL, while native MATCH candidate selection remains
