@@ -140,6 +140,9 @@ func homeFixedActivity(frame homeFixedFrame, page HomeFixedPage, row string, _ t
 						continue
 					}
 				}
+				if homeFixedDismissed(latest.Personal[0]) || len(target.Personal) == 1 && homeFixedDismissed(target.Personal[0]) {
+					return pending("album_leaf_dismissal_policy_uncomposed")
+				}
 				active[id] = HomeFixedCard{Work: work.Identity, Target: target.Identity, ActivityAt: homeFixedStamp(latest.Personal[0][11]), Personal: homeFixedPersonal(work), EligibleLeaves: len(eligible)}
 			}
 		}
