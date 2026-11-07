@@ -76,13 +76,16 @@ func (r *ForegroundReader) iaTVLive(ctx context.Context, request governor.Reques
 // iaTVScope is private to one invocation of publishRead. It exposes only our
 // compiled exact-byte points inside the currently active shared readStep. The
 // shared fence/publication protocol still owns every snapshot and final output.
-// Each step uses at most three point pairs (six calls); no scope escapes a Read.
+// Hierarchy/link steps use at most three point pairs. The child step has a
+// closed forecast of one raw keyset plus at most 64 exact point pairs; numeric
+// denials consume raw positions before any text hydration. No scope escapes.
 type iaTVScope struct {
 	browseSnapshots
 	current         *governor.ReadScope
 	calls           int
 	copied, ceiling int64
 	counts          []iaTVSnapshotCalls
+	nextQueries     uint16
 }
 
 type iaTVSnapshotCalls struct {
@@ -92,11 +95,26 @@ type iaTVSnapshotCalls struct {
 
 func (s *iaTVScope) Read(ctx context.Context, r governor.Request, b time.Duration, fn func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
 	before := s.calls
-	result, e := s.browseSnapshots.Read(ctx, r, b, func(scope *governor.ReadScope) error {
+	queries := s.nextQueries
+	s.nextQueries = 0
+	callback := func(scope *governor.ReadScope) error {
 		s.current = scope
 		defer func() { s.current = nil }()
 		return fn(scope)
-	})
+	}
+	var result governor.SnapshotResult
+	var e error
+	if queries > 0 {
+		pool, ok := s.browseSnapshots.(interface {
+			ReadForecasted(context.Context, governor.Request, time.Duration, governor.SnapshotForecast, func(*governor.ReadScope) error) (governor.SnapshotResult, error)
+		})
+		if !ok {
+			return result, ErrUnqualified
+		}
+		result, e = pool.ReadForecasted(ctx, r, b, governor.SnapshotForecast{NativeRowBytes: s.NativeRowReservation(), MaxQueries: queries}, callback)
+	} else {
+		result, e = s.browseSnapshots.Read(ctx, r, b, callback)
+	}
 	s.counts = append(s.counts, iaTVSnapshotCalls{result.Started, s.calls - before})
 	return result, e
 }
@@ -107,6 +125,7 @@ func (s *iaTVScope) exact(name string, cols []int, args ...any) ([]any, error) {
 	s.calls += 2
 	row, e := s.current.QueryExactBytes(readStatementID("foreground.ia.tv."+name+"_octets"), readStatementID("foreground.ia.tv."+name), cols, args...)
 	if errors.Is(e, sql.ErrNoRows) {
+		s.calls-- // The length point found no row; no payload statement ran.
 		return nil, ErrDenied
 	}
 	if e != nil {
@@ -260,6 +279,9 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 			}
 			d.Hierarchy = h
 			d.Exhausted = true
+			if mode == "children" {
+				s.nextQueries = 1 + 2*MaxRaw
+			}
 			return ctx.Err()
 		})
 	}
@@ -288,19 +310,47 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 					return ErrUnqualified
 				}
 				d.Exhausted = true
+				return ctx.Err()
+			}
+			for _, raw := range keys {
+				if e := ctx.Err(); e != nil {
+					return e
+				}
+				id := raw[0].(int64)
+				d.RawPositions++
+				d.Next = &IATVCursor{fence: f, item: in.Item, last: id, source: capturedSource}
+				if raw[3].(int64) != in.View.Library {
+					return ErrDenied
+				}
+				if raw[1].(int64) != 0 || raw[2] == nil && f.allowUnrated == 0 || raw[2] != nil && f.maximumAge >= 0 && raw[2].(int64) > f.maximumAge {
+					continue
+				}
+				v, e := s.entity(id, in.View.Library, f)
+				if e != nil {
+					return e
+				}
+				show := in.Item
+				if d.Hierarchy.Item.Kind == 3 {
+					show = d.Hierarchy.Item.Show
+				}
+				if v.Parent != in.Item || (v.Kind != 3 && v.Kind != 4) || v.Show != show || d.Hierarchy.Item.Kind == 3 && (v.Kind != 4 || v.Season != in.Item) {
+					return ErrNotReady
+				}
+				d.Children = append(d.Children, v)
+				if len(d.Children) == in.View.Limit {
+					break
+				}
+			}
+			d.Exhausted = d.RawPositions == len(keys) && len(keys) < MaxRaw
+			if d.Exhausted {
+				d.Next = nil
 			}
 			return ctx.Err()
 		})
-		// Fixed bounded recipe; each occupied window proves one full hierarchy or
-		// at most three child points. Empty steps allocate/fetch no source data.
-		n := 22
 		if mode == "members" {
-			n = 8
-		}
-		for group := 0; group < n; group++ {
-			group := group
-			steps = append(steps, func(ctx context.Context, q browseQuery, f browseFence, d *IATVResult) error {
-				if mode == "members" {
+			for group := 0; group < 8; group++ {
+				group := group
+				steps = append(steps, func(ctx context.Context, q browseQuery, f browseFence, d *IATVResult) error {
 					if group >= len(keys) {
 						return nil
 					}
@@ -315,34 +365,8 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 					d.Members = append(d.Members, IATVMember{Hierarchy: h, Asset: in.Asset})
 					d.RawPositions++
 					return ctx.Err()
-				}
-				for pos := group * 3; pos < min(group*3+3, len(keys)); pos++ {
-					if len(d.Children) == in.View.Limit {
-						d.Exhausted = false
-						break
-					}
-					id := keys[pos][0].(int64)
-					d.RawPositions++
-					d.Next = &IATVCursor{fence: f, item: in.Item, last: id, source: capturedSource}
-					v, e := s.entity(id, in.View.Library, f)
-					if errors.Is(e, ErrDenied) {
-						continue
-					}
-					if e != nil {
-						return e
-					}
-					if v.Parent != in.Item || (v.Kind != 3 && v.Kind != 4) || v.Show != (func() int64 {
-						if d.Hierarchy.Item.Kind == 2 {
-							return in.Item
-						}
-						return d.Hierarchy.Item.Show
-					})() || d.Hierarchy.Item.Kind == 3 && (v.Kind != 4 || v.Season != in.Item) {
-						return ErrNotReady
-					}
-					d.Children = append(d.Children, v)
-				}
-				return ctx.Err()
-			})
+				})
+			}
 		}
 		if mode == "members" {
 			for group := 0; group < 3; group++ {
@@ -372,12 +396,7 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 				})
 			}
 		}
-		steps = append(steps, func(ctx context.Context, q browseQuery, f browseFence, d *IATVResult) error {
-			if d.Exhausted {
-				d.Next = nil
-			}
-			return ctx.Err()
-		})
+
 	}
 	page, result, e := publishRead(ctx, s, request, budget, output, in.View, steps, source)
 	for _, count := range s.counts {

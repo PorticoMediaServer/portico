@@ -99,8 +99,8 @@ func TestIATVRawCursorAndFence(t *testing.T) {
 	f, r := newIATVFixture(t)
 	in := iaTVInput(f, 2100, 3)
 	f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id BETWEEN 2201 AND 2264`)
-	d, _, e := r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, in, "children")
-	if e != nil || len(d.Children) != 0 || d.Exhausted || d.RawRows != 64 || d.RawPositions != 64 || d.Next == nil || d.Next.last != 2264 {
+	d, receipt, e := r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, in, "children")
+	if e != nil || len(d.Children) != 0 || d.Exhausted || d.RawRows != 64 || d.RawPositions != 64 || d.Next == nil || d.Next.last != 2264 || len(receipt.LookupWindows) != 3 || receipt.LookupStatements != 12 {
 		t.Fatalf("raw rejected window %+v %v", d, e)
 	}
 	in.After = d.Next
