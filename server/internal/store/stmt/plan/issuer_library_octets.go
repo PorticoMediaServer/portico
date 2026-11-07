@@ -15,7 +15,7 @@ const issuerLibraryRootLengthsSQL = "SELECT octet_length(root) FROM catalog_libr
 // This second closed issuer point does not admit octet_length to generic lint.
 // Keep the existing source-length definition and its native audit unchanged.
 func closedIssuerOctetDefinition(d stmt.Definition) bool {
-	return issuerOctetDefinition(d) || issuerLibraryOctetDefinition(d) || n1OctetDefinition(d)
+	return issuerOctetDefinition(d) || issuerLibraryOctetDefinition(d) || n1OctetDefinition(d) || directoryOctetDefinition(d)
 }
 
 func issuerLibraryOctetDefinition(d stmt.Definition) bool {
