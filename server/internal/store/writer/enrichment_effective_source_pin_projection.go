@@ -3,8 +3,8 @@ package writer
 // These decoders consume only the three CLOSED native copy projections after
 // parent admission. They do not execute copies, mint proofs or decide authority.
 // Actual Go types, NULLs, lengths and scalars must match same-snapshot preflight.
-// Copy execution is held as an exact private patch until the parent supplies
-// its real byte coverage boundary; no ungated copy method exists in this draft.
+// The private copy entry requires the same-grant reservation created by the
+// parent preflight; these pure decoders alone supply no such reservation.
 
 type effectiveEvidenceBodyPin struct {
 	evidence         string
