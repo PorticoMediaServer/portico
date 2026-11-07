@@ -1,8 +1,10 @@
 package read
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 	"strings"
@@ -108,5 +110,42 @@ func TestIAReadingScopeSQLMutant(t *testing.T) {
 				t.Fatal("scope mutant escaped", e)
 			}
 		}
+	}
+}
+func TestIAReadingFormatsAndPublicationTypes(t *testing.T) {
+	f, r := newIAReadingFixture(t)
+	in := IAReadingInput{View: f.input, Item: 4000}
+	in.View.Kind = 20
+	for _, format := range []string{"epub", "pdf", "cbz", "cb7", "mobi", "azw3", "cbr"} {
+		f.exec(t, `UPDATE reading_publications SET format=? WHERE item_id=4000`, format)
+		for _, typ := range []any{"book", "magazine", "newspaper", nil} {
+			f.exec(t, `UPDATE reading_publication_types SET publication_type=? WHERE item_id=4000`, typ)
+			d, _, e := r.iaReading(t.Context(), foregroundRequest(), time.Second, f.output, in)
+			if e != nil {
+				t.Fatal(e)
+			}
+			p := d.Publications[0]
+			if p.Format != format || (typ == nil) != (p.PublicationType == nil) || typ != nil && *p.PublicationType != typ.(string) {
+				t.Fatal("accepted format/type lost")
+			}
+		}
+	}
+}
+func TestIAReadingForegroundCustody(t *testing.T) {
+	f := composeReadFixture(t, newIAReadingSource(t), append(browseDefinitions(), IAReadingDefinitions()...), readfixture.LiveConfig(time.Now), false, iaReadingFixtureHash(t))
+	r, _ := NewForegroundReader(f.snapshots)
+	q, request, output := liveRequests("ia-reading")
+	in := IAReadingInput{View: f.input, Item: 4000}
+	in.View.Kind = 20
+	_, _, e := r.IAReadingMembership(t.Context(), request, time.Second, BrowseOutput{}, in)
+	if !errors.Is(e, ErrInput) {
+		t.Fatal("unadmitted output", e)
+	}
+	_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+		_, _, e := r.IAReadingMembership(ctx, request, time.Second, out, in)
+		return e
+	})
+	if e != nil {
+		t.Fatal(e)
 	}
 }
