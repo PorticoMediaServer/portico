@@ -436,8 +436,20 @@ func TestMGLCDraftEntryLengthPointsUseFullPK(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var size int64
-			if err := row.Scan(&size); err != nil || size != int64(len(entry.canonicalBytes())) {
+			var lengths [10]int64
+			if err := row.Scan(&lengths[0], &lengths[1], &lengths[2], &lengths[3], &lengths[4], &lengths[5], &lengths[6], &lengths[7], &lengths[8], &lengths[9]); err != nil {
+				t.Fatal(err)
+			}
+			// Compare native columns to independent canonical row encoding,
+			// without using the effect's checked addition helper.
+			size := int64(113)
+			for _, n := range lengths {
+				if n < 0 {
+					t.Fatal("negative native length", n)
+				}
+				size += n
+			}
+			if size != int64(len(entry.canonicalBytes())) {
 				t.Fatal("wrong full-PK length", entry.generation, entry.occurrence, size, err)
 			}
 		}
@@ -446,9 +458,9 @@ func TestMGLCDraftEntryLengthPointsUseFullPK(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var size int64
-			if err := row.Scan(&size); !errors.Is(err, sql.ErrNoRows) {
-				t.Fatal("partial key accepted", key, size, err)
+			var lengths [10]int64
+			if err := row.Scan(&lengths[0], &lengths[1], &lengths[2], &lengths[3], &lengths[4], &lengths[5], &lengths[6], &lengths[7], &lengths[8], &lengths[9]); !errors.Is(err, sql.ErrNoRows) {
+				t.Fatal("partial key accepted", key, lengths, err)
 			}
 		}
 
