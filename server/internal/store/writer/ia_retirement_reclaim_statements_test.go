@@ -10,7 +10,7 @@ import (
 
 func TestIARetirementReclaimClosedGrammar(t *testing.T) {
 	defs := iaRetirementReceiptReclaimDefinitions()
-	if len(defs) != 11 {
+	if len(defs) != 12 {
 		t.Fatal("closed106 inventory changed", len(defs))
 	}
 	if _, err := stmt.Describe(defs); err != nil {

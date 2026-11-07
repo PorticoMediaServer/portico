@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	iaRetirementGCSlot   stmt.ID = "ia.retirement.receipt_reclaim.slot"
-	iaRetirementGCFirst  stmt.ID = "ia.retirement.receipt_reclaim.first"
-	iaRetirementGCDelete stmt.ID = "ia.retirement.receipt_reclaim.delete"
+	iaRetirementGCSlot         stmt.ID = "ia.retirement.receipt_reclaim.slot"
+	iaRetirementGCFirst        stmt.ID = "ia.retirement.receipt_reclaim.first"
+	iaRetirementGCDelete       stmt.ID = "ia.retirement.receipt_reclaim.delete"
+	iaRetirementGCDataConflict stmt.ID = "ia.retirement.receipt_reclaim.data_conflict"
 )
 
 // Exact closed native slot order, shared only by this106 adapter's SQL/bindings.
@@ -58,6 +59,8 @@ func iaRetirementReceiptReclaimDefinitions() []stmt.Definition {
 		names[i] = p.Name
 	}
 	defs := []stmt.Definition{
+		{ID: iaRetirementGCDataConflict, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_removal_receipts WHERE original_operation_id=? AND command_incarnation=? AND result_kind=? AND result_target=? AND command_sequence=?`,
+			Params: []stmt.Param{b("original_operation"), b("incarnation"), t("kind"), t("target"), i("sequence")}, Plan: child},
 		{ID: iaRetirementGCSlot, Kind: stmt.Read, SQL: "SELECT receipt_reclaim_due_ms," + strings.Join(names, ",") + ",reclaim_slot_bytes FROM catalog_removal_progress INDEXED BY catalog_removal_operation WHERE kind=? AND target=? AND original_operation_id=? AND command_incarnation=?", Params: key, Plan: point},
 		{ID: iaRetirementGCFirst, Kind: stmt.Read, SQL: `SELECT command_sequence,command_kind,retained_bytes FROM catalog_removal_receipts
 WHERE original_operation_id=? AND command_incarnation=? AND result_kind=? AND result_target=? AND command_sequence>? AND command_sequence<=? ORDER BY command_sequence LIMIT 1`,

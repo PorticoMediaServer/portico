@@ -109,6 +109,19 @@ func lookupIARetirementReceiptReclaim(ctx context.Context, turn *commandTurn, q 
 		err = ErrConflict
 		return
 	}
+	// BEGIN/STEP and GC share this actual owner's stream. A retained data
+	// header at the requested sequence proves a DIFFERENT compiled purpose,
+	// even below ACK. Classify it before looking at/replaying the fixed slot.
+	var data int64
+	err = iaRetirementPoint(ctx, turn, iaRetirementGCDataConflict, append(iaRetirementGCChildKey(q), q.identity.Sequence), &data)
+	if err == nil {
+		err = ErrConflict
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return
+	}
+	err = nil
 	var raw iaRetirementGCNativeSlot
 	err = iaRetirementPoint(ctx, turn, iaRetirementGCSlot, iaRetirementKey(ref), raw.destinations()...)
 	if err != nil {

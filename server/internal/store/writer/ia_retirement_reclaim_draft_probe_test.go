@@ -307,6 +307,14 @@ func TestIARetirementReclaimDraftNativeLaterDataAndOldSlot(t *testing.T) {
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_removal_progress SET last_command_sequence=3,acknowledged_command_sequence=3,receipt_retained_count=1,receipt_retained_bytes=?,receipt_reclaim_due_ms=?,phase=1,job_revision=2`, n, now.UnixMilli()); err != nil {
 		t.Fatal(err)
 	}
+	turn = scanLifecycleProtocolTurn(t, w, registry, q.purpose)
+	wrongPurpose := q
+	wrongPurpose.identity = id
+	wrongPurpose.request = request
+	if out, err := lookupIARetirementReceiptReclaim(t.Context(), turn, wrongPurpose); !errors.Is(err, ErrConflict) || out.decision != 0 {
+		t.Fatal("ACK floor hid retained STEP purpose", out, err)
+	}
+	turn.transaction.rollback(nil)
 	q.identity.Sequence = 4
 	q.identity.OperationID = [16]byte{6}
 	q.request = RequestDigest{6}
