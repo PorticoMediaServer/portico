@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
+	"errors"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -16,9 +18,13 @@ import (
 //go:embed rs_artist_albums_reader_test.go
 var rsArtistAlbumReaderJournal string
 
-func artistAlbumFixture(t *testing.T) (*browseFixture, *RSArtistAlbumReader) {
+func artistAlbumFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture, *RSArtistAlbumReader) {
 	t.Helper()
-	cfg := readfixture.LiveConfig(time.Now)
+	now := time.Now
+	if len(clocks) > 0 {
+		now = clocks[0]
+	}
+	cfg := readfixture.LiveConfig(now)
 	cfg.Preparation = &governor.PreparationProfile{MaxActive: 4, MaxBytes: 16 << 20, MaxJobBytes: 4 << 20, ProtectedBytes: 32 << 20}
 	defs := append(browseDefinitions(), RSArtistAlbumDefinitions()...)
 	defs = append(defs, TitleFactsDefinitions()...)
@@ -130,5 +136,102 @@ func TestRSArtistAlbumReaderLifecycle(t *testing.T) {
 	_, _, e = r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
 	if e == nil {
 		t.Fatal("cancelled original job read")
+	}
+}
+
+func TestRSArtistAlbumReaderFenceAndCursorControls(t *testing.T) {
+	for _, mode := range []string{"source", "authority", "limit", "artist", "LIVE", "capacity"} {
+		t.Run(mode, func(t *testing.T) {
+			f, r := artistAlbumFixture(t)
+			v := f.input
+			v.Kind = 5
+			p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 2})
+			if e != nil || ref != nil {
+				t.Fatal(e, ref)
+			}
+			defer p.Close()
+			if mode == "LIVE" {
+				_, _, e = r.Page(t.Context(), foregroundRequest(), time.Second, f.output, p)
+				if !errors.Is(e, ErrInput) {
+					t.Fatal(e)
+				}
+				return
+			}
+			var cost BrowseReadResult
+			if e = r.fence(t.Context(), foregroundRequest(), f.output, p, v.Now, &cost); e != nil {
+				t.Fatal(e)
+			}
+			switch mode {
+			case "source":
+				f.exec(t, `UPDATE catalog_entities SET metadata_revision=metadata_revision+1 WHERE id=2006`)
+			case "authority":
+				f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
+			case "limit", "artist":
+				p.phase = 2
+				p.set.ids = []int64{2001}
+				p.input.After = &RSArtistAlbumCursor{identity: p.identity(), artist: 2006, library: v.Library, kind: 6, limit: 2}
+				if mode == "limit" {
+					p.input.After.limit = 3
+				} else {
+					p.input.After.artist = 1998
+				}
+			case "capacity":
+				p.used = p.lease.PayloadBytes()
+			}
+			page, _, e := r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
+			if e == nil || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
+				t.Fatal("control leaked", page, e)
+			}
+		})
+	}
+}
+func TestRSArtistAlbumReaderPublicationDrift(t *testing.T) {
+	for _, mode := range []string{"authority", "source"} {
+		t.Run(mode, func(t *testing.T) {
+			f, r := artistAlbumFixture(t)
+			v := f.input
+			v.Kind = 5
+			p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 2})
+			if e != nil || ref != nil {
+				t.Fatal(e, ref)
+			}
+			defer p.Close()
+			r.snapshots = &rsByteBoundarySnapshots{Snapshots: f.snapshots, after: func() {
+				if mode == "authority" {
+					f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
+				} else {
+					f.exec(t, `UPDATE catalog_entities SET metadata_revision=metadata_revision+1 WHERE id=2006`)
+				}
+			}}
+			q, req, out := liveRequests("artist-final-drift")
+			_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, out, func(ctx context.Context, o BrowseOutput) error {
+				page, _, err := r.Page(ctx, req, time.Second, o, p)
+				if len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
+					t.Fatal(page)
+				}
+				return err
+			})
+			if e == nil {
+				t.Fatal("publication drift accepted")
+			}
+		})
+	}
+}
+
+func TestRSArtistAlbumReaderAbsoluteExpiry(t *testing.T) {
+	var clock atomic.Int64
+	clock.Store(time.Now().UnixNano())
+	f, r := artistAlbumFixture(t, func() time.Time { return time.Unix(0, clock.Load()) })
+	v := f.input
+	v.Kind = 5
+	p, ref, e := r.Begin(t.Context(), 1, time.Unix(0, clock.Load()).Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 2})
+	if e != nil || ref != nil {
+		t.Fatal(e, ref)
+	}
+	defer p.Close()
+	clock.Add(int64(2 * time.Minute))
+	page, _, e := r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
+	if e == nil || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
+		t.Fatal("expired original lease", page, e)
 	}
 }
