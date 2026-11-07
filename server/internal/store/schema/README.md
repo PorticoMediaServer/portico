@@ -202,3 +202,27 @@ consumer/debt ordering, crash/runtime/physical qualification remain open. This
 embed enables no command, migration or startup cutover. Existing009 files fail
 the changed native-layout assertion and remain untouched; approved cutover uses
 a fresh file with no conversion or compatibility shim.
+
+
+CHANGE-012 and CHANGE-013 are adopted. The six artifacts copy canonical phase0
+at internal 70953472cc725153d6e9df1250baf455eff1ddf7 verbatim, SQL9d9aa39d. CHANGE-012 retains actual guide/
+library-channel/DVR owners, typed receipts, fixed cleanup slots and typed final
+floors. It adds seven relations and changes only G parents; R-29 remains the
+tracked follow-up in internal254. External-guide generation reclaim stays
+disabled until the actual MP physical-session pin and exit/reader release seam
+is adopted and embedded. No new codec or current-authority permission follows.
+
+CHANGE-013 adds the independent People search_incarnation BLOB16 row birth and
+the partial album_id/id inverse index, preserving the disc/track detail index.
+Writers preserve birth on updates, use existing real People revision CAS and
+read actual generated birth before binding a source intent. Artwork/token/ID
+alone cannot replace it. Equal-ID recreation is a new birth. Readers still owe
+actual bank/profile/accepted-publication/current-visible-work proof and bounded
+ID-desc raw keysets; no serving path is enabled by the schema copy.
+
+The native layout pin is 7c97f22e/2136 objects/708 tables on SQLite3.53.4. Existing
+011 files fail exact layout verification and remain untouched; no migration,
+startup repair, runtime cutover or phase2 A–F adoption is supplied. Actual
+writer/read source, receipt, custody, resource and physical qualification gates
+remain. Schema-dependent captures and exhaustive row models must match this
+combined layout; unknown drift stops the embed.

@@ -708,3 +708,48 @@ semantics widen. Every receipt write evaluates its predicate; directory refusals
 add/remove one secondary entry. Existing all-receipt and N1/Basic capture write
 programs need scoped refresh in embed; real opcode changes are itemized. No
 write-hold/physical or 1M qualification follows from the small delta controls.
+
+
+## CHANGE-012: G-only guide/DVR/library-channel custody
+
+This DATA-carrier packet changes only G tables. Existing1a writes and parent enforcement are unchanged. Closed source histories remain native per actual owner; receipt GC uses the fixed scalar slot on that owner/floor and creates no history child.
+
+For each live owner/floor, raw due discovery repeats receipt_reclaim_due_ms IS NOT NULL, forces its named *_receipt_due index, orders by due then original owner key, and uses LIMIT1. Then full original-key/incarnation/sequence points govern work. History reclaimer uses complete owner/incarnation with sequence>cursor AND sequence<=capturedACK ORDER BY sequence LIMIT1. Guide diagnostics read by the same original header key and ordinal, bounded at10 by native PK/range. Reclaim removes the whole header+0..10 diagnostics atomically; removed_count and receipt_rows count headers, physical work reserves<=11 rows, and exact combined native variable_bytes is refunded only after deletion. No child cursor, parent cascade substitute, source/current DTO reconstruction or ACK refund.
+
+Point-preflight variable_bytes on the exact saved header/diagnostic and control_variable_bytes on the exact live/floor root BEFORE TEXT/BLOB copies. Preserve stage/body cursors, seals and physical/source facts during receipt GC. Original Resolve precedes fresh source/lease; at/below ACK remains ResultRetired even if bytes or fixed slot remain.
+
+All newly selected FK parents are G-only. External playback-generation reclaim remains DISABLED until the actual MP session pin/physical-exit release closes; no G shadow session.
+
+Added release indexes and native predicates:
+
+- `CREATE UNIQUE INDEX live_generations_source_scope ON live_generations(id,source_id)`
+- `CREATE UNIQUE INDEX lc_generations_channel_scope ON lc_generations(id,channel_id)`
+- `CREATE INDEX live_sources_generation_head ON live_sources(active_generation,id)`
+- `CREATE INDEX lc_channels_generation_head ON lc_channels(active_generation_ref,id)`
+- `CREATE INDEX lc_generations_pending_base ON lc_generations(pending_base_generation,channel_id)`
+- `CREATE INDEX lc_playback_refs_generation ON lc_playback_refs(generation_id,occurrence_id,playback_id)`
+- `CREATE INDEX live_reminders_external_generation ON live_reminders(external_generation_ref,source_id,id)`
+- `CREATE INDEX live_reminders_library_generation ON live_reminders(library_generation_ref,channel_id,id)`
+- `CREATE INDEX dvr_recordings_guide_pin ON dvr_recordings(guide_pin_generation,source_id,id)`
+- `CREATE UNIQUE INDEX dvr_recordings_capture_launch ON dvr_recordings(capture_launch_id) WHERE capture_launch_id IS NOT NULL`
+- `CREATE INDEX live_allocations_source_state_channel ON live_allocations(source_id,state,channel_id,id)`
+- `CREATE INDEX dvr_recordings_share_occurrence ON dvr_recordings(source_id,channel_id,programme_id,start_ms,id)`
+- `CREATE INDEX live_operation_command_receipts_scope ON live_operation_command_receipts(source_id,request_id)`
+- `CREATE INDEX lc_generation_command_receipts_scope ON lc_generation_command_receipts(channel_id,generation_id)`
+- `CREATE INDEX dvr_capture_command_receipts_scope ON dvr_capture_command_receipts(source_id,recording_id)`
+- `CREATE INDEX live_operation_retirements_scope ON live_operation_retirements(source_id,request_id)`
+- `CREATE INDEX lc_generation_retirements_scope ON lc_generation_retirements(channel_id,generation_id)`
+- `CREATE INDEX dvr_capture_retirements_scope ON dvr_capture_retirements(source_id,recording_id)`
+- `CREATE INDEX live_operations_receipt_due ON live_operations(receipt_reclaim_due_ms,request_id) WHERE receipt_reclaim_due_ms IS NOT NULL`
+- `CREATE INDEX live_operation_retirements_receipt_due ON live_operation_retirements(receipt_reclaim_due_ms,request_id) WHERE receipt_reclaim_due_ms IS NOT NULL`
+- `CREATE INDEX lc_generations_receipt_due ON lc_generations(receipt_reclaim_due_ms,id) WHERE receipt_reclaim_due_ms IS NOT NULL`
+- `CREATE INDEX lc_generation_retirements_receipt_due ON lc_generation_retirements(receipt_reclaim_due_ms,generation_id) WHERE receipt_reclaim_due_ms IS NOT NULL`
+- `CREATE INDEX dvr_recordings_receipt_due ON dvr_recordings(receipt_reclaim_due_ms,id) WHERE receipt_reclaim_due_ms IS NOT NULL`
+- `CREATE INDEX dvr_capture_retirements_receipt_due ON dvr_capture_retirements(receipt_reclaim_due_ms,recording_id) WHERE receipt_reclaim_due_ms IS NOT NULL`
+
+
+## CHANGE-013 People source and album inverse search
+
+People search publication must bind actual catalog_people.search_incarnation BLOB16 and existing real revision; never artwork incarnation, token, current ID alone or coerced fragment TEXT revision. Default randomblob(16) is fresh row birth only; writer preserves it across updates. Equal-ID recreation receives a fresh birth. No source/read authority follows from the default.
+
+Album inverse first: SELECT id FROM catalog_entities INDEXED BY catalog_entities_album_search WHERE album_id IS NOT NULL AND album_id=? ORDER BY id DESC LIMIT ?. Continuation adds AND id<? before ORDER BY. Binds first(owner,limit), next(owner,after_id,limit); positive owner/ID, limit1..64, every raw row charged before visibility. Existing catalog_entities_album remains for disc/track detail.
