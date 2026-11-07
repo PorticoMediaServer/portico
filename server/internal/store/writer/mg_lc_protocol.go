@@ -17,10 +17,13 @@ const (
 	MGLCFinishCandidates CommandID = 862
 	MGLCStageEntries     CommandID = 863
 	MGLCPublish          CommandID = 864
+	MGLCVerifyEntries    CommandID = 865
+	MGLCSeal             CommandID = 866
+	MGLCAcknowledge      CommandID = 867
 )
 
 func mgLCDescriptors() []Descriptor {
-	return []Descriptor{{MGLCBegin, "mg.lc.begin", Normal}, {MGLCStageCandidates, "mg.lc.stage-candidates", Normal}, {MGLCFinishCandidates, "mg.lc.finish-candidates", Normal}, {MGLCStageEntries, "mg.lc.stage-entries", Normal}, {MGLCPublish, "mg.lc.publish", Normal}}
+	return []Descriptor{{MGLCBegin, "mg.lc.begin", Normal}, {MGLCStageCandidates, "mg.lc.stage-candidates", Normal}, {MGLCFinishCandidates, "mg.lc.finish-candidates", Normal}, {MGLCStageEntries, "mg.lc.stage-entries", Normal}, {MGLCPublish, "mg.lc.publish", Normal}, {MGLCVerifyEntries, "mg.lc.verify", Normal}, {MGLCSeal, "mg.lc.seal", Normal}, {MGLCAcknowledge, "mg.lc.ack", Normal}}
 }
 
 const (
@@ -31,7 +34,9 @@ const (
 	mgLCMaxWindow       int64 = 8 * 24 * 60 * 60 * 1000
 	mgLCCandidatesPhase       = "mg-lc-candidates"
 	mgLCSchedulePhase         = "mg-lc-scheduling"
-	mgLCCompletePhase         = "mg-lc-validating"
+	mgLCCompletePhase         = "mg-lc-verifying"
+	mgLCVerifiedPhase         = "mg-lc-verified"
+	mgLCSealedPhase           = "mg-lc-sealed"
 )
 
 type mgLCLibraryWitness struct {
@@ -52,6 +57,8 @@ type mgLCBuild struct {
 	channel, generation, base, config, seed, lease string
 	revision, start, end, leaseUntil, history      int64
 	libraries                                      []mgLCLibraryWitness
+	incarnation, create                            [16]byte
+	birth                                          RequestDigest
 }
 
 type mgLCCandidate struct {
@@ -63,9 +70,22 @@ type mgLCCandidate struct {
 	sort                            string
 }
 
+// These are native owner facts, not an Applied result or receipt codec.
 type mgLCProgress struct {
-	phase, after                   string
-	cursor, candidates, unresolved int64
+	phase, after, status, lease, reclaimFamily, reclaimKey                 string
+	cursor, candidates, unresolved, last, ack, revision, bytes, entries    int64
+	verified, verifyAfter, verifyEnd, leaseUntil, published, reclaimSubkey int64
+	entryDigest, verifyDigest                                              [32]byte
+	sealed                                                                 bool
+}
+
+type mgLCCommand struct {
+	identity CommandIdentity
+	request  RequestDigest
+}
+
+func (c mgLCCommand) valid(b mgLCBuild) bool {
+	return c.identity.Incarnation == b.incarnation && c.identity.Sequence > 0 && c.identity.OperationID != ([16]byte{}) && c.request != (RequestDigest{})
 }
 
 // A slot is a bounded immutable selection result from the read planner, not an
@@ -96,7 +116,7 @@ func (b mgLCBuild) valid() bool {
 		}
 		n += len(s)
 	}
-	if b.channel == "" || b.generation == "" || b.generation == b.base || b.config == "" || b.seed == "" || b.lease == "" || b.revision <= 0 || b.start < 0 || b.end <= b.start || b.end-b.start > mgLCMaxWindow || b.leaseUntil <= 0 || b.history < 0 || len(b.libraries) == 0 || len(b.libraries) > 8 {
+	if b.channel == "" || b.generation == "" || b.generation == b.base || b.config == "" || b.seed == "" || b.lease == "" || b.incarnation == ([16]byte{}) || b.create == ([16]byte{}) || b.birth == (RequestDigest{}) || b.revision <= 0 || b.start < 0 || b.end <= b.start || b.end-b.start > mgLCMaxWindow || b.leaseUntil <= 0 || b.history < 0 || len(b.libraries) == 0 || len(b.libraries) > 8 {
 		return false
 	}
 	previous := ""
@@ -126,21 +146,16 @@ func (c mgLCCandidate) valid(b mgLCBuild) bool {
 	return false
 }
 
-// Exact delta recommendation to the parent for MG-001 (NOT canonical DDL):
-// fold into lc_generations expected_candidate_count, staged_entry_count,
-// expected_entry_count, stage_sequence, stage_revision, staged_bytes,
-// expected_manifest_digest, staged_manifest_digest, sealed_manifest_digest and
-// sealed flag, with nonnegative counters and 32-byte digest shape checks.
-// Keep existing cursor_ms/candidate_count/base/lease fields as the facts they
-// already represent. Persist per-rule candidate ordinal/scan cursor and EOF
-// custody when integrating the full multi-rule reader (lc_rule_state can be
-// extended rather than introducing a second schedule).
-// Internal receipts need generation + command incarnation + sequence PK,
-// operation/request identity UNIQUE, command kind, request digest, saved exact
-// bounded result + digest, accepted cursor/count/revision/lease fences and ACK
-// watermark/non-resurrection custody. Existing lc_receipts remains the public
-// request-result relation; these effects never synthesize Applied or replay.
-// This slice's candidate-finish accepts the compiled read producer's EOF and
-// total, NOT a persisted exact manifest seal. Native cursor/phase proves only
-// timeline completeness under these exclusive effects. Durable source coverage,
-// replay, fresh disclosure/admission and receipt/COMMIT truth are parent work.
+// Draft protocol: internal 38b4c8d910948b3433fa58e612b3cf3c5a3b8162,
+// candidate SHA256 4e0751989357d1aed85467ba81f5c24ce79aa3a26f947e0fd222070891bb9262.
+// No expected counts or duplicate time/candidate counters are introduced.
+// staged_bytes counts canonical bytes of newly inserted candidate/entry rows,
+// excluding receipt/header/SQLite allocation costs (the parent's whole recipe
+// must separately admit those). entry_digest and verified_entry_digest chain
+// the SAME canonical actual-row encoding from an immutable birth seed.
+// Candidate EOF still comes from the compiled RB/RS read producer. Exact
+// config/library selection, source eligibility and retained history coverage
+// are that adapter's responsibility, never a caller-selected SQL callback.
+// Eight libraries and zero-offset cut/slate slots are explicit UNQUALIFIED
+// component limits, not public caps or full scheduler behavior. No lifecycle
+// helper here authorizes physical retirement or generation/pin reclamation.

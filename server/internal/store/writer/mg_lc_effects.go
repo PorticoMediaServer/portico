@@ -139,6 +139,22 @@ func observeMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild) (int64, er
 	}
 	return now, nil
 }
+func scanMGLCProgress(row commandRow) (mgLCProgress, error) {
+	var p mgLCProgress
+	var digest, verified []byte
+	var sealed int64
+	err := row.Scan(&p.phase, &p.after, &p.status, &p.lease, &p.reclaimFamily, &p.reclaimKey, &p.cursor, &p.candidates, &p.unresolved, &p.last, &p.ack, &p.revision, &p.bytes, &p.entries, &p.verified, &p.verifyAfter, &p.verifyEnd, &p.leaseUntil, &p.published, &p.reclaimSubkey, &digest, &verified, &sealed)
+	if err != nil {
+		return p, mgLCNoRows(err)
+	}
+	if len(digest) != 32 || len(verified) != 32 || (sealed != 0 && sealed != 1) {
+		return mgLCProgress{}, ErrConflict
+	}
+	copy(p.entryDigest[:], digest)
+	copy(p.verifyDigest[:], verified)
+	p.sealed = sealed == 1
+	return p, nil
+}
 func readMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild) (mgLCProgress, error) {
 	if _, err := observeMGLC(ctx, turn, b); err != nil {
 		return mgLCProgress{}, err
@@ -147,83 +163,128 @@ func readMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild) (mgLCProgress
 	if err != nil {
 		return mgLCProgress{}, err
 	}
-	var p mgLCProgress
-	if err := row.Scan(&p.phase, &p.cursor, &p.candidates, &p.unresolved, &p.after); err != nil {
-		return mgLCProgress{}, mgLCNoRows(err)
+	p, err := scanMGLCProgress(row)
+	if err != nil {
+		return mgLCProgress{}, err
 	}
-	if p.cursor < b.start || p.cursor > b.end || p.candidates < 0 || p.unresolved < 0 {
+	if p.cursor < b.start || p.cursor > b.end || p.candidates < 0 || p.unresolved < 0 || p.last < 1 || p.ack < 0 || p.ack > p.last || p.last-p.ack > 1 || p.revision < 1 || p.bytes < 0 || p.entries < 0 || p.verified < 0 || p.verified > p.entries || p.verifyAfter < -1 || p.verifyEnd < b.start || p.verifyEnd > p.cursor {
+		return mgLCProgress{}, ErrConflict
+	}
+	if p.verified == 0 && (p.verifyAfter != -1 || p.verifyEnd != b.start || p.verifyDigest != mgLCInitialDigest(b)) {
 		return mgLCProgress{}, ErrConflict
 	}
 	return p, nil
 }
-func advanceMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, before, after mgLCProgress) (mgLCProgress, error) {
+func freshMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before mgLCProgress) error {
+	if !c.valid(b) {
+		return ErrInvalid
+	}
+	current, err := readMGLC(ctx, turn, b)
+	if err != nil {
+		return err
+	}
+	if current != before || before.last != before.ack || before.last == math.MaxInt64 || before.revision == math.MaxInt64 || c.identity.Sequence != before.last+1 {
+		return ErrConflict
+	}
+	// An existing operation ID at another sequence must never execute fresh.
+	row, err := mgLCRow(ctx, turn, mgLCReceiptOperation, b.generation, b.incarnation[:], c.identity.OperationID[:])
+	if err != nil {
+		return err
+	}
+	var sequence int64
+	if err := row.Scan(&sequence); !errors.Is(err, sql.ErrNoRows) {
+		if err != nil {
+			return err
+		}
+		return ErrConflict
+	}
+	return nil
+}
+func advanceMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before, after mgLCProgress) (mgLCProgress, error) {
 	if _, err := mgLCTime(ctx, turn, b.leaseUntil); err != nil {
 		return mgLCProgress{}, err
 	}
-	args := append([]any{after.phase, after.cursor, after.candidates, after.unresolved, after.after}, b.values()...)
-	args = append(args, before.phase, before.cursor, before.candidates, before.unresolved, before.after)
+	after.last = c.identity.Sequence
+	after.revision = before.revision + 1
+	args := append(after.values(), b.values()...)
+	args = append(args, before.values()...)
 	row, err := mgLCRow(ctx, turn, mgLCAdvance, args...)
 	if err != nil {
 		return mgLCProgress{}, err
 	}
-	var got mgLCProgress
-	if err := row.Scan(&got.phase, &got.cursor, &got.candidates, &got.unresolved, &got.after); err != nil {
-		return mgLCProgress{}, mgLCNoRows(err)
+	got, err := scanMGLCProgress(row)
+	if err != nil {
+		return mgLCProgress{}, err
 	}
 	if got != after {
 		return mgLCProgress{}, ErrConflict
 	}
 	return got, nil
 }
-func beginMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild) (out mgLCProgress, err error) {
+func beginMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand) (out mgLCProgress, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if !c.valid(b) || c.identity.Sequence != 1 || c.identity.OperationID != b.create || c.request != b.birth {
+		return out, ErrInvalid
+	}
+	if err := excludeMGLCBirth(ctx, turn, b); err != nil {
+		return out, err
+	}
 	now, err := observeMGLC(ctx, turn, b)
 	if err != nil {
 		return out, err
 	}
-	args := append(b.values(), b.start, b.start, now)
-	if err := mgLCOne(ctx, turn, mgLCInsert, args...); err != nil {
-		return out, err
-	}
-	return readMGLC(ctx, turn, b)
-}
-
-// Stages at most eight admitted read candidates, including exact rule-local
-// ordinals and the producer's scan cursor (which includes rejected candidates).
-// No UPSERT/DO NOTHING: duplicate bodies must resolve their original receipt.
-func stageMGLCCandidates(ctx context.Context, turn *commandTurn, b mgLCBuild, before mgLCProgress, rows []mgLCCandidate, next string, scanned, unresolved int64) (out mgLCProgress, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if len(rows) > mgLCRows || scanned <= 0 || scanned > mgLCRows || unresolved < 0 || unresolved > scanned-int64(len(rows)) || !mgLCText(next) || next == before.after {
-		return out, ErrInvalid
-	}
-	bytes := len(next)
-	for _, c := range rows {
-		for _, s := range []string{c.rule, c.library, c.asset, c.source, c.title, c.sort} {
-			if len(s) > mgLCBytes-bytes {
-				return out, ErrCap
-			}
-			bytes += len(s)
-		}
-		if bytes > mgLCBytes-64 {
-			return out, ErrCap
-		}
-		bytes += 64
-		if !c.valid(b) {
-			return out, ErrInvalid
-		}
-	}
-	if bytes > mgLCBytes || before.candidates > math.MaxInt64-int64(len(rows)) || before.unresolved > math.MaxInt64-unresolved {
-		return out, ErrCap
-	}
-	current, err := readMGLC(ctx, turn, b)
+	digest := mgLCInitialDigest(b)
+	args := append(b.values(), b.start, b.start, now, digest[:], b.start, digest[:])
+	row, err := mgLCRow(ctx, turn, mgLCInsert, args...)
 	if err != nil {
 		return out, err
 	}
-	if current != before || current.phase != mgLCCandidatesPhase || current.cursor != b.start {
+	out, err = scanMGLCProgress(row)
+	if err != nil {
+		return mgLCProgress{}, err
+	}
+	expected := mgLCProgress{phase: mgLCCandidatesPhase, status: "pending", lease: b.lease, reclaimFamily: "none", cursor: b.start, last: 1, revision: 1, verifyAfter: -1, verifyEnd: b.start, leaseUntil: b.leaseUntil, entryDigest: digest, verifyDigest: digest}
+	if out != expected {
+		return mgLCProgress{}, ErrConflict
+	}
+	return out, nil
+}
+
+// At most eight raw read candidates, including filtered/unresolved rows, and
+// 256KiB canonical inserted content per effect. Actual RETURNING rows alone
+// advance candidate_count/staged_bytes. Duplicates require original receipts.
+func stageMGLCCandidates(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before mgLCProgress, input []mgLCCandidate, next string, scanned, unresolved int64) (out mgLCProgress, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if len(input) > mgLCRows || scanned <= 0 || scanned > mgLCRows || unresolved < 0 || unresolved > scanned-int64(len(input)) || len(next) > mgLCBytes || !mgLCText(next) || next == before.after {
+		return out, ErrInvalid
+	}
+	budget := 0
+	for _, v := range input {
+		// Lengths are checked before walking/copying owned text.
+		size := 113 + len(b.generation)
+		for _, s := range []string{v.rule, v.library, v.asset, v.source, v.title, v.sort} {
+			if len(s) > mgLCBytes-size {
+				return out, ErrCap
+			}
+			size += len(s)
+		}
+		if size > mgLCBytes-budget {
+			return out, ErrCap
+		}
+		budget += size
+		if !v.valid(b) {
+			return out, ErrInvalid
+		}
+	}
+	if err := freshMGLC(ctx, turn, b, c, before); err != nil {
+		return out, err
+	}
+	if before.phase != mgLCCandidatesPhase || before.sealed || before.cursor != b.start || before.candidates > math.MaxInt64-int64(len(input)) || before.unresolved > math.MaxInt64-unresolved || before.bytes > math.MaxInt64-int64(budget) {
 		return out, ErrConflict
 	}
-	for _, c := range rows {
-		row, err := mgLCRow(ctx, turn, mgLCTail, b.generation, c.rule)
+	after := before
+	for _, v := range input {
+		row, err := mgLCRow(ctx, turn, mgLCTail, b.generation, v.rule)
 		if err != nil {
 			return out, err
 		}
@@ -231,98 +292,242 @@ func stageMGLCCandidates(ctx context.Context, turn *commandTurn, b mgLCBuild, be
 		if err := row.Scan(&last); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return out, err
 		}
-		if last == math.MaxInt64 || c.ordinal != last+1 {
+		if last == math.MaxInt64 || v.ordinal != last+1 {
 			return out, ErrConflict
 		}
-		if err := mgLCOne(ctx, turn, mgLCCandidateInsert, b.generation, c.rule, c.item, c.ordinal, c.library, c.asset, c.source, c.duration, c.title, c.show, c.season, c.episode, c.weight, c.sort); err != nil {
+		row, err = mgLCRow(ctx, turn, mgLCCandidateInsert, b.generation, v.rule, v.item, v.ordinal, v.library, v.asset, v.source, v.duration, v.title, v.show, v.season, v.episode, v.weight, v.sort)
+		if err != nil {
 			return out, err
 		}
+		var actual mgLCCandidate
+		var generation string
+		if err := row.Scan(&generation, &actual.rule, &actual.item, &actual.ordinal, &actual.library, &actual.asset, &actual.source, &actual.duration, &actual.title, &actual.show, &actual.season, &actual.episode, &actual.weight, &actual.sort); err != nil {
+			return out, mgLCNoRows(err)
+		}
+		if generation != b.generation || actual != v {
+			return out, ErrConflict
+		}
+		after.candidates++
+		after.bytes += int64(len(mgLCCandidateBytes(generation, actual)))
 	}
-	after := before
-	after.candidates += int64(len(rows))
 	after.unresolved += unresolved
 	after.after = next
-	return advanceMGLC(ctx, turn, b, before, after)
+	return advanceMGLC(ctx, turn, b, c, before, after)
 }
 
-// The parent may call this only after the immutable RB/RS producer reaches its
-// exact EOF for all rules. This is a phase effect, not a durable manifest seal.
-func finishMGLCCandidates(ctx context.Context, turn *commandTurn, b mgLCBuild, before mgLCProgress, total int64) (out mgLCProgress, err error) {
+// Candidate EOF is the compiled immutable RB/RS producer's exact end, not a
+// caller-supplied expected count. No new candidate counter/manifest is invented.
+func finishMGLCCandidates(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before mgLCProgress) (out mgLCProgress, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	current, err := readMGLC(ctx, turn, b)
-	if err != nil {
+	if err := freshMGLC(ctx, turn, b, c, before); err != nil {
 		return out, err
 	}
-	if current != before || current.phase != mgLCCandidatesPhase || total < 0 || current.candidates != total || current.cursor != b.start {
+	if before.phase != mgLCCandidatesPhase || before.sealed || before.cursor != b.start {
 		return out, ErrConflict
 	}
 	after := before
 	after.phase = mgLCSchedulePhase
-	return advanceMGLC(ctx, turn, b, before, after)
+	return advanceMGLC(ctx, turn, b, c, before, after)
 }
-
-func stageMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, before mgLCProgress, slots []mgLCSlot) (out mgLCProgress, err error) {
+func stageMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before mgLCProgress, slots []mgLCSlot) (out mgLCProgress, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if len(slots) == 0 || len(slots) > mgLCRows {
 		return out, ErrInvalid
 	}
 	cursor := before.cursor
-	bytes := 0
 	for _, s := range slots {
+		if len(s.occurrence)+len(s.rule)+len(s.block) > mgLCBytes {
+			return out, ErrCap
+		}
 		if s.occurrence == "" || s.rule == "" || s.block == "" || !mgLCText(s.occurrence) || !mgLCText(s.rule) || !mgLCText(s.block) || s.item < 0 || s.start != cursor || s.end <= s.start || s.end > b.end || s.item == 0 && s.end-s.start > 30*60*1000 {
 			return out, ErrInvalid
 		}
-		bytes += len(s.occurrence) + len(s.rule) + len(s.block) + 64
 		cursor = s.end
 	}
-	if bytes > mgLCBytes {
-		return out, ErrCap
-	}
-	current, err := readMGLC(ctx, turn, b)
-	if err != nil {
+	if err := freshMGLC(ctx, turn, b, c, before); err != nil {
 		return out, err
 	}
-	if current != before || current.phase != mgLCSchedulePhase {
+	if before.phase != mgLCSchedulePhase || before.sealed || before.entries > math.MaxInt64-int64(len(slots)) {
 		return out, ErrConflict
 	}
+	after := before
+	var debit int64
 	for _, s := range slots {
-		if s.item != 0 {
+		e := mgLCEntry{generation: b.generation, occurrence: s.occurrence, channel: b.channel, start: s.start, end: s.end, item: s.item, rule: s.rule, block: s.block}
+		size := int64(113 + len(e.generation) + len(e.occurrence) + len(e.channel) + len(e.rule) + len(e.block))
+		if s.item == 0 {
+			e.title = "Unavailable program"
+			e.slate = "no-eligible-media"
+			size += int64(len(e.title) + len(e.slate))
+		} else {
 			row, err := mgLCRow(ctx, turn, mgLCCandidateRead, b.generation, s.rule, s.item)
 			if err != nil {
 				return out, err
 			}
-			var duration int64
-			if err := row.Scan(&duration); err != nil {
+			var duration, bytes int64
+			if err := row.Scan(&duration, &bytes); err != nil {
 				return out, mgLCNoRows(err)
 			}
-			if s.end-s.start > duration {
+			if duration <= 0 || s.end-s.start > duration || bytes < 0 {
 				return out, ErrConflict
 			}
+			if bytes > mgLCBytes-size {
+				return out, ErrCap
+			}
+			size += bytes
+			if size > mgLCBytes-debit {
+				return out, ErrCap
+			}
+			row, err = mgLCRow(ctx, turn, mgLCEntrySource, b.generation, s.rule, s.item)
+			if err != nil {
+				return out, err
+			}
+			if err := row.Scan(&e.asset, &e.library, &e.source, &e.title); err != nil {
+				return out, mgLCNoRows(err)
+			}
 		}
-		if err := mgLCOne(ctx, turn, mgLCEntryInsert, b.generation, s.occurrence, b.channel, s.start, s.end, s.block, b.generation, s.rule, s.item, b.generation, s.occurrence, b.channel, s.start, s.end, s.rule, s.block, s.item); err != nil {
+		if size > mgLCBytes-debit || before.bytes > math.MaxInt64-debit-size {
+			return out, ErrCap
+		}
+		row, err := mgLCRow(ctx, turn, mgLCEntryInsert, e.values()...)
+		if err != nil {
 			return out, err
 		}
+		var actual mgLCEntry
+		if err := row.Scan(&actual.generation, &actual.occurrence, &actual.channel, &actual.start, &actual.end, &actual.item, &actual.asset, &actual.library, &actual.source, &actual.title, &actual.rule, &actual.block, &actual.offset, &actual.slate); err != nil {
+			return out, mgLCNoRows(err)
+		}
+		if actual != e || int64(len(actual.canonicalBytes())) != size {
+			return out, ErrConflict
+		}
+		debit += size
+		after.entries++
+		after.entryDigest = mgLCNextDigest(after.entryDigest, actual)
 	}
-	after := before
+	after.bytes += debit
 	after.cursor = cursor
 	if cursor == b.end {
 		after.phase = mgLCCompletePhase
 	}
-	return advanceMGLC(ctx, turn, b, before, after)
+	return advanceMGLC(ctx, turn, b, c, before, after)
 }
 
-type mgLCPublication struct {
-	generation                                 string
-	through, candidates, unresolved, published int64
-}
-
-func publishMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, before mgLCProgress) (out mgLCPublication, err error) {
+// Independent stored-row proof, <=8 raw rows and <=256KiB decoded CONTENT per
+// step. The length page is bounded before hydration. A distinct empty-tail
+// step proves EOF, so extra rows cannot hide behind an exact-size final page.
+func verifyMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before mgLCProgress) (out mgLCProgress, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	current, err := readMGLC(ctx, turn, b)
+	if err := freshMGLC(ctx, turn, b, c, before); err != nil {
+		return out, err
+	}
+	if before.phase != mgLCCompletePhase || before.sealed || before.cursor != b.end {
+		return out, ErrConflict
+	}
+	lengthID := mgLCEntryLengths
+	args := []any{b.generation, before.verifyAfter}
+	if before.verified == 0 {
+		lengthID = mgLCEntryLengthsFirst
+		args = []any{b.generation}
+	}
+	step, err := mgLCStep(turn, lengthID)
 	if err != nil {
 		return out, err
 	}
-	if current != before || current.phase != mgLCCompletePhase || current.cursor != b.end {
+	rows, err := turn.query(ctx, step, args...)
+	if err != nil {
+		return out, err
+	}
+	var starts, sizes []int64
+	for rows.Next() {
+		var start, size int64
+		if err := rows.Scan(&start, &size); err != nil {
+			_ = rows.Close()
+			return out, err
+		}
+		starts = append(starts, start)
+		sizes = append(sizes, size)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return out, err
+	}
+	after := before
+	if len(starts) == 0 {
+		if before.entries == 0 || before.verified != before.entries || before.verifyEnd != before.cursor || before.verifyDigest != before.entryDigest {
+			return out, ErrConflict
+		}
+		after.phase = mgLCVerifiedPhase
+		return advanceMGLC(ctx, turn, b, c, before, after)
+	}
+	if starts[0] != before.verifyEnd {
+		return out, ErrConflict
+	}
+	count := 0
+	var bytes int64
+	for _, size := range sizes {
+		if size < 113 || size > mgLCBytes {
+			return out, ErrCap
+		}
+		if size > mgLCBytes-bytes {
+			break
+		}
+		bytes += size
+		count++
+	}
+	if count == 0 || int64(count) > before.entries-before.verified {
+		return out, ErrConflict
+	}
+	step, err = mgLCStep(turn, mgLCEntryPage)
+	if err != nil {
+		return out, err
+	}
+	rows, err = turn.query(ctx, step, b.generation, before.verifyAfter, starts[count-1], int64(count))
+	if err != nil {
+		return out, err
+	}
+	n := 0
+	for rows.Next() {
+		var e mgLCEntry
+		if err := rows.Scan(&e.generation, &e.occurrence, &e.channel, &e.start, &e.end, &e.item, &e.asset, &e.library, &e.source, &e.title, &e.rule, &e.block, &e.offset, &e.slate); err != nil {
+			_ = rows.Close()
+			return out, err
+		}
+		if n >= count || e.generation != b.generation || e.channel != b.channel || e.start != starts[n] || e.start != after.verifyEnd || e.end <= e.start || e.end > b.end || e.offset != 0 || int64(len(e.canonicalBytes())) != sizes[n] {
+			_ = rows.Close()
+			return out, ErrConflict
+		}
+		after.verifyAfter = e.start
+		after.verifyEnd = e.end
+		after.verified++
+		after.verifyDigest = mgLCNextDigest(after.verifyDigest, e)
+		n++
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return out, err
+	}
+	if n != count {
+		return out, ErrConflict
+	}
+	return advanceMGLC(ctx, turn, b, c, before, after)
+}
+func sealMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before mgLCProgress) (out mgLCProgress, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if err := freshMGLC(ctx, turn, b, c, before); err != nil {
+		return out, err
+	}
+	if before.phase != mgLCVerifiedPhase || before.sealed || before.entries == 0 || before.verified != before.entries || before.verifyDigest != before.entryDigest || before.verifyEnd != before.cursor || before.cursor != b.end {
+		return out, ErrConflict
+	}
+	after := before
+	after.sealed = true
+	after.phase = mgLCSealedPhase
+	return advanceMGLC(ctx, turn, b, c, before, after)
+}
+func publishMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before mgLCProgress) (out mgLCProgress, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if err := freshMGLC(ctx, turn, b, c, before); err != nil {
+		return out, err
+	}
+	if before.phase != mgLCSealedPhase || !before.sealed || before.entries == 0 || before.verified != before.entries || before.verifyDigest != before.entryDigest || before.verifyEnd != before.cursor || before.cursor != b.end {
 		return out, ErrConflict
 	}
 	now, err := mgLCTime(ctx, turn, b.leaseUntil)
@@ -330,37 +535,30 @@ func publishMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, before mgL
 		return out, err
 	}
 	state, health := "healthy", ""
-	if current.candidates == 0 {
+	if before.candidates == 0 {
 		state = "no-eligible-media"
-		if current.unresolved > 0 {
+		if before.unresolved > 0 {
 			state = "unresolved-duration"
 		}
 		health = state
 	}
-	row, err := mgLCRow(ctx, turn, mgLCHeadPublish, b.generation, current.cursor, state, health, b.channel, b.revision, b.config, b.base)
+	row, err := mgLCRow(ctx, turn, mgLCHeadPublish, b.generation, before.cursor, state, health, b.channel, b.revision, b.config, b.base)
 	if err != nil {
 		return out, err
 	}
-	if err := row.Scan(&out.generation, &out.through); err != nil {
-		return mgLCPublication{}, mgLCNoRows(err)
-	}
-	if out.generation != b.generation || out.through != current.cursor {
-		return mgLCPublication{}, ErrConflict
-	}
-	args := append([]any{now}, b.values()...)
-	args = append(args, current.candidates, current.unresolved)
-	row, err = mgLCRow(ctx, turn, mgLCGenerationPublish, args...)
-	if err != nil {
-		return mgLCPublication{}, err
-	}
+	var generation string
 	var through int64
-	if err := row.Scan(&through, &out.candidates, &out.unresolved, &out.published); err != nil {
-		return mgLCPublication{}, mgLCNoRows(err)
+	if err := row.Scan(&generation, &through); err != nil {
+		return out, mgLCNoRows(err)
 	}
-	if through != out.through || out.candidates != current.candidates || out.unresolved != current.unresolved || out.published != now {
-		return mgLCPublication{}, ErrConflict
+	if generation != b.generation || through != before.cursor {
+		return out, ErrConflict
 	}
-	// Values describe native effects, not Applied. No receipt, event, pin release,
-	// old-generation deletion or physical retirement is implied by this result.
-	return out, nil
+	after := before
+	after.phase = "published"
+	after.status = "published"
+	after.lease = ""
+	after.leaseUntil = 0
+	after.published = now
+	return advanceMGLC(ctx, turn, b, c, before, after)
 }

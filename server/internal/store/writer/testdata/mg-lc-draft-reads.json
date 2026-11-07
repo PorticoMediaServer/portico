@@ -1,472 +1,5 @@
 [
   {
-    "id": "writer.mg.lc.candidate",
-    "cohort": "missing-native-keys",
-    "explain": {
-      "columns": [
-        "addr",
-        "opcode",
-        "p1",
-        "p2",
-        "p3",
-        "p4",
-        "p5",
-        "comment"
-      ],
-      "values": [
-        [
-          0,
-          "Init",
-          0,
-          16,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          1,
-          "OpenRead",
-          0,
-          "\"main\".\"lc_candidates\"",
-          0,
-          "8",
-          0,
-          null
-        ],
-        [
-          2,
-          "OpenRead",
-          1,
-          "\"main\".\"sqlite_autoindex_lc_candidates_1\"",
-          0,
-          "k(3,,,)",
-          2,
-          null
-        ],
-        [
-          3,
-          "Variable",
-          1,
-          1,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          4,
-          "IsNull",
-          1,
-          15,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          5,
-          "Variable",
-          2,
-          2,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          6,
-          "IsNull",
-          2,
-          15,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          7,
-          "Variable",
-          3,
-          3,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          8,
-          "IsNull",
-          3,
-          15,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          9,
-          "Affinity",
-          1,
-          3,
-          0,
-          "BBC",
-          0,
-          null
-        ],
-        [
-          10,
-          "SeekGE",
-          1,
-          15,
-          1,
-          "3",
-          0,
-          null
-        ],
-        [
-          11,
-          "IdxGT",
-          1,
-          15,
-          1,
-          "3",
-          0,
-          null
-        ],
-        [
-          12,
-          "DeferredSeek",
-          1,
-          0,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          13,
-          "Column",
-          0,
-          7,
-          4,
-          null,
-          0,
-          null
-        ],
-        [
-          14,
-          "ResultRow",
-          4,
-          1,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          15,
-          "Halt",
-          0,
-          0,
-          0,
-          null,
-          0,
-          null
-        ],
-        [
-          16,
-          "Transaction",
-          0,
-          0,
-          "\u003cschema-cookie\u003e",
-          "0",
-          1,
-          null
-        ],
-        [
-          17,
-          "Goto",
-          0,
-          1,
-          0,
-          null,
-          0,
-          null
-        ]
-      ]
-    },
-    "queryPlan": {
-      "columns": [
-        "id",
-        "parent",
-        "notused",
-        "detail"
-      ],
-      "values": [
-        [
-          3,
-          0,
-          "\u003cnotused\u003e",
-          "SEARCH lc_candidates USING INDEX sqlite_autoindex_lc_candidates_1 (generation_id=? AND rule_id=? AND item_id=?)"
-        ]
-      ]
-    },
-    "autoIndexes": [
-      {
-        "binding": {
-          "table": "lc_candidates",
-          "name": "sqlite_autoindex_lc_candidates_1",
-          "origin": "pk",
-          "columns": [
-            {
-              "name": "generation_id",
-              "collation": "BINARY",
-              "desc": false
-            },
-            {
-              "name": "rule_id",
-              "collation": "BINARY",
-              "desc": false
-            },
-            {
-              "name": "item_id",
-              "collation": "BINARY",
-              "desc": false
-            }
-          ]
-        },
-        "alias": "lc_candidates",
-        "withoutRowid": false,
-        "index": {
-          "columns": [
-            "seq",
-            "name",
-            "unique",
-            "origin",
-            "partial"
-          ],
-          "values": [
-            [
-              4,
-              "sqlite_autoindex_lc_candidates_1",
-              1,
-              "pk",
-              0
-            ]
-          ]
-        },
-        "keyColumns": {
-          "columns": [
-            "seqno",
-            "cid",
-            "name"
-          ],
-          "values": [
-            [
-              0,
-              0,
-              "generation_id"
-            ],
-            [
-              1,
-              1,
-              "rule_id"
-            ],
-            [
-              2,
-              2,
-              "item_id"
-            ]
-          ]
-        },
-        "indexColumns": {
-          "columns": [
-            "seqno",
-            "cid",
-            "name",
-            "desc",
-            "coll",
-            "key"
-          ],
-          "values": [
-            [
-              0,
-              0,
-              "generation_id",
-              0,
-              "BINARY",
-              1
-            ],
-            [
-              1,
-              1,
-              "rule_id",
-              0,
-              "BINARY",
-              1
-            ],
-            [
-              2,
-              2,
-              "item_id",
-              0,
-              "BINARY",
-              1
-            ],
-            [
-              3,
-              -1,
-              null,
-              0,
-              "BINARY",
-              0
-            ]
-          ]
-        },
-        "tableColumns": {
-          "columns": [
-            "cid",
-            "name",
-            "type",
-            "notnull",
-            "dflt_value",
-            "pk",
-            "hidden"
-          ],
-          "values": [
-            [
-              0,
-              "generation_id",
-              "TEXT",
-              1,
-              null,
-              1,
-              0
-            ],
-            [
-              1,
-              "rule_id",
-              "TEXT",
-              1,
-              null,
-              2,
-              0
-            ],
-            [
-              2,
-              "item_id",
-              "INTEGER",
-              1,
-              null,
-              3,
-              0
-            ],
-            [
-              3,
-              "ordinal",
-              "INTEGER",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              4,
-              "library_id",
-              "TEXT",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              5,
-              "asset_id",
-              "TEXT",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              6,
-              "source_fence",
-              "TEXT",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              7,
-              "duration_ms",
-              "INTEGER",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              8,
-              "title",
-              "TEXT",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              9,
-              "show_id",
-              "INTEGER",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              10,
-              "season",
-              "INTEGER",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              11,
-              "episode",
-              "INTEGER",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              12,
-              "weight",
-              "REAL",
-              1,
-              null,
-              0,
-              0
-            ],
-            [
-              13,
-              "sort_key",
-              "TEXT",
-              1,
-              null,
-              0,
-              0
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
     "id": "writer.mg.lc.candidate-tail",
     "cohort": "missing-native-keys",
     "explain": {
@@ -952,7 +485,7 @@
           0,
           "Init",
           0,
-          40,
+          64,
           0,
           null,
           0,
@@ -964,7 +497,7 @@
           0,
           "\"main\".\"lc_generations\"",
           0,
-          "24",
+          "42",
           0,
           null
         ],
@@ -992,7 +525,7 @@
           4,
           "IsNull",
           1,
-          39,
+          63,
           0,
           null,
           0,
@@ -1012,7 +545,7 @@
           6,
           "SeekGE",
           1,
-          39,
+          63,
           1,
           "1",
           0,
@@ -1022,7 +555,7 @@
           7,
           "IdxGT",
           1,
-          39,
+          63,
           1,
           "1",
           0,
@@ -1052,7 +585,7 @@
           10,
           "Ne",
           3,
-          39,
+          63,
           2,
           "BINARY-8",
           82,
@@ -1072,7 +605,7 @@
           12,
           "Ne",
           4,
-          39,
+          63,
           2,
           "BINARY-8",
           84,
@@ -1092,7 +625,7 @@
           14,
           "Ne",
           5,
-          39,
+          63,
           2,
           "BINARY-8",
           82,
@@ -1112,7 +645,7 @@
           16,
           "Ne",
           6,
-          39,
+          63,
           2,
           "BINARY-8",
           82,
@@ -1132,7 +665,7 @@
           18,
           "Ne",
           7,
-          39,
+          63,
           2,
           "BINARY-8",
           82,
@@ -1152,7 +685,7 @@
           20,
           "Ne",
           8,
-          39,
+          63,
           2,
           "BINARY-8",
           82,
@@ -1172,7 +705,7 @@
           22,
           "Ne",
           9,
-          39,
+          63,
           2,
           "BINARY-8",
           84,
@@ -1192,7 +725,7 @@
           24,
           "Ne",
           10,
-          39,
+          63,
           2,
           "BINARY-8",
           84,
@@ -1212,7 +745,7 @@
           26,
           "Ne",
           11,
-          39,
+          63,
           2,
           "BINARY-8",
           82,
@@ -1232,7 +765,7 @@
           28,
           "Ne",
           12,
-          39,
+          63,
           2,
           "BINARY-8",
           84,
@@ -1252,7 +785,7 @@
           30,
           "Ne",
           13,
-          39,
+          63,
           2,
           "BINARY-8",
           84,
@@ -1262,7 +795,7 @@
           31,
           "Column",
           0,
-          6,
+          24,
           2,
           null,
           0,
@@ -1272,54 +805,84 @@
           32,
           "Ne",
           14,
-          39,
+          63,
           2,
           "BINARY-8",
-          82,
+          81,
           null
         ],
         [
           33,
           "Column",
           0,
-          7,
-          15,
+          25,
+          2,
           null,
           0,
           null
         ],
         [
           34,
-          "Column",
-          0,
+          "Ne",
           15,
-          16,
-          null,
-          0,
+          63,
+          2,
+          "BINARY-8",
+          81,
           null
         ],
         [
           35,
           "Column",
           0,
-          16,
-          17,
-          "0",
+          26,
+          2,
+          null,
           0,
           null
         ],
         [
           36,
-          "Column",
-          0,
-          17,
-          18,
-          "0",
-          0,
+          "Ne",
+          16,
+          63,
+          2,
+          "BINARY-8",
+          81,
           null
         ],
         [
           37,
+          "Column",
+          0,
+          6,
+          2,
+          null,
+          0,
+          null
+        ],
+        [
+          38,
+          "Ne",
+          17,
+          63,
+          2,
+          "BINARY-8",
+          82,
+          null
+        ],
+        [
+          39,
+          "Column",
+          0,
+          7,
+          18,
+          null,
+          0,
+          null
+        ],
+        [
+          40,
           "Column",
           0,
           14,
@@ -1329,17 +892,227 @@
           null
         ],
         [
+          41,
+          "Column",
+          0,
+          6,
+          20,
+          null,
+          0,
+          null
+        ],
+        [
+          42,
+          "Column",
+          0,
+          18,
+          21,
+          "",
+          0,
+          null
+        ],
+        [
+          43,
+          "Column",
+          0,
           38,
-          "ResultRow",
+          22,
+          "none",
+          0,
+          null
+        ],
+        [
+          44,
+          "Column",
+          0,
+          39,
+          23,
+          "",
+          0,
+          null
+        ],
+        [
+          45,
+          "Column",
+          0,
           15,
-          5,
+          24,
+          null,
+          0,
+          null
+        ],
+        [
+          46,
+          "Column",
+          0,
+          16,
+          25,
+          "0",
+          0,
+          null
+        ],
+        [
+          47,
+          "Column",
+          0,
+          17,
+          26,
+          "0",
+          0,
+          null
+        ],
+        [
+          48,
+          "Column",
+          0,
+          27,
+          27,
+          "1",
+          0,
+          null
+        ],
+        [
+          49,
+          "Column",
+          0,
+          28,
+          28,
+          "0",
+          0,
+          null
+        ],
+        [
+          50,
+          "Column",
+          0,
+          29,
+          29,
+          "1",
+          0,
+          null
+        ],
+        [
+          51,
+          "Column",
+          0,
+          30,
+          30,
+          "0",
+          0,
+          null
+        ],
+        [
+          52,
+          "Column",
+          0,
+          31,
+          31,
+          "0",
+          0,
+          null
+        ],
+        [
+          53,
+          "Column",
+          0,
+          33,
+          32,
+          "0",
+          0,
+          null
+        ],
+        [
+          54,
+          "Column",
+          0,
+          34,
+          33,
+          "-1",
+          0,
+          null
+        ],
+        [
+          55,
+          "Column",
+          0,
+          35,
+          34,
+          null,
+          0,
+          null
+        ],
+        [
+          56,
+          "Column",
+          0,
+          19,
+          35,
+          "0",
+          0,
+          null
+        ],
+        [
+          57,
+          "Column",
+          0,
+          21,
+          36,
+          "0",
+          0,
+          null
+        ],
+        [
+          58,
+          "Column",
+          0,
+          40,
+          37,
+          "0",
+          0,
+          null
+        ],
+        [
+          59,
+          "Column",
+          0,
+          32,
+          38,
+          null,
+          0,
+          null
+        ],
+        [
+          60,
+          "Column",
+          0,
+          36,
+          39,
+          null,
+          0,
+          null
+        ],
+        [
+          61,
+          "Column",
+          0,
+          37,
+          40,
+          "0",
+          0,
+          null
+        ],
+        [
+          62,
+          "ResultRow",
+          18,
+          23,
           0,
           null,
           0,
           null
         ],
         [
-          39,
+          63,
           "Halt",
           0,
           0,
@@ -1349,7 +1122,7 @@
           null
         ],
         [
-          40,
+          64,
           "Transaction",
           0,
           0,
@@ -1359,7 +1132,7 @@
           null
         ],
         [
-          41,
+          65,
           "Variable",
           2,
           3,
@@ -1369,7 +1142,7 @@
           null
         ],
         [
-          42,
+          66,
           "Variable",
           3,
           4,
@@ -1379,7 +1152,7 @@
           null
         ],
         [
-          43,
+          67,
           "Variable",
           4,
           5,
@@ -1389,7 +1162,7 @@
           null
         ],
         [
-          44,
+          68,
           "Variable",
           5,
           6,
@@ -1399,7 +1172,7 @@
           null
         ],
         [
-          45,
+          69,
           "Variable",
           6,
           7,
@@ -1409,7 +1182,7 @@
           null
         ],
         [
-          46,
+          70,
           "Variable",
           7,
           8,
@@ -1419,7 +1192,7 @@
           null
         ],
         [
-          47,
+          71,
           "Variable",
           8,
           9,
@@ -1429,7 +1202,7 @@
           null
         ],
         [
-          48,
+          72,
           "Variable",
           9,
           10,
@@ -1439,7 +1212,7 @@
           null
         ],
         [
-          49,
+          73,
           "Variable",
           10,
           11,
@@ -1449,7 +1222,7 @@
           null
         ],
         [
-          50,
+          74,
           "Variable",
           11,
           12,
@@ -1459,7 +1232,7 @@
           null
         ],
         [
-          51,
+          75,
           "Variable",
           12,
           13,
@@ -1469,17 +1242,47 @@
           null
         ],
         [
-          52,
+          76,
+          "Variable",
+          13,
+          14,
+          0,
+          null,
+          0,
+          null
+        ],
+        [
+          77,
+          "Variable",
+          14,
+          15,
+          0,
+          null,
+          0,
+          null
+        ],
+        [
+          78,
+          "Variable",
+          15,
+          16,
+          0,
+          null,
+          0,
+          null
+        ],
+        [
+          79,
           "String8",
           0,
-          14,
+          17,
           0,
           "pending",
           0,
           null
         ],
         [
-          53,
+          80,
           "Goto",
           0,
           1,
@@ -1532,7 +1335,7 @@
           ],
           "values": [
             [
-              3,
+              5,
               "sqlite_autoindex_lc_generations_1",
               1,
               "pk",
@@ -1808,6 +1611,168 @@
               "0",
               0,
               0
+            ],
+            [
+              24,
+              "command_incarnation",
+              "BLOB",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              25,
+              "create_operation_id",
+              "BLOB",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              26,
+              "birth_request_digest",
+              "BLOB",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              27,
+              "last_command_sequence",
+              "INTEGER",
+              1,
+              "1",
+              0,
+              0
+            ],
+            [
+              28,
+              "acknowledged_command_sequence",
+              "INTEGER",
+              1,
+              "0",
+              0,
+              0
+            ],
+            [
+              29,
+              "stage_revision",
+              "INTEGER",
+              1,
+              "1",
+              0,
+              0
+            ],
+            [
+              30,
+              "staged_bytes",
+              "INTEGER",
+              1,
+              "0",
+              0,
+              0
+            ],
+            [
+              31,
+              "entry_count",
+              "INTEGER",
+              1,
+              "0",
+              0,
+              0
+            ],
+            [
+              32,
+              "entry_digest",
+              "BLOB",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              33,
+              "verified_entry_count",
+              "INTEGER",
+              1,
+              "0",
+              0,
+              0
+            ],
+            [
+              34,
+              "verify_after_ms",
+              "INTEGER",
+              1,
+              "-1",
+              0,
+              0
+            ],
+            [
+              35,
+              "verify_end_ms",
+              "INTEGER",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              36,
+              "verified_entry_digest",
+              "BLOB",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              37,
+              "schedule_sealed",
+              "INTEGER",
+              1,
+              "0",
+              0,
+              0
+            ],
+            [
+              38,
+              "reclaim_family",
+              "TEXT",
+              1,
+              "'none'",
+              0,
+              0
+            ],
+            [
+              39,
+              "reclaim_key",
+              "TEXT",
+              1,
+              "''",
+              0,
+              0
+            ],
+            [
+              40,
+              "reclaim_subkey",
+              "INTEGER",
+              1,
+              "0",
+              0,
+              0
+            ],
+            [
+              41,
+              "pending_base_generation",
+              "TEXT",
+              0,
+              null,
+              0,
+              3
             ]
           ]
         }
@@ -1845,7 +1810,7 @@
           0,
           "\"main\".\"lc_channels\"",
           0,
-          "11",
+          "12",
           0,
           null
         ],
@@ -2173,7 +2138,7 @@
           ],
           "values": [
             [
-              1,
+              2,
               "sqlite_autoindex_lc_channels_1",
               1,
               "pk",
@@ -2332,6 +2297,15 @@
               "0",
               0,
               0
+            ],
+            [
+              11,
+              "active_generation_ref",
+              "TEXT",
+              0,
+              null,
+              0,
+              3
             ]
           ]
         }
