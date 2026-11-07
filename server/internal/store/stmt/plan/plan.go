@@ -107,6 +107,9 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 		var nativeRead *FTSReadAudit
 		var native *FTSInsertAudit
 		var retained *FTSRetainedAudit
+		if readEngineDefinition(entry.Definition) && (fixture.ConnectionPolicy.Role != sqliteconn.Reader || env.Connection.QueryOnly != 1) {
+			return g, fmt.Errorf("plan %s: actual engine point requires Reader custody", entry.ID)
+		}
 		if entry.Plan.NativeRead != nil {
 			if fixture.ConnectionPolicy.Role != sqliteconn.Reader || env.Connection.QueryOnly != 1 {
 				return g, fmt.Errorf("plan %s: FTS native reads require actual Reader custody", entry.ID)
