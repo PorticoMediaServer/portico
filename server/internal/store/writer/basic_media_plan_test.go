@@ -185,7 +185,7 @@ func TestBasicMediaStatementPlans(t *testing.T) {
 			}
 			g.ForeignKeys = &fk
 		}
-		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 671 {
+		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
 			t.Fatal("incomplete Basic statement/destination/FK audit")
 		}
 		for _, p := range g.Plans {
@@ -226,7 +226,7 @@ func TestBasicMediaStatementPlans(t *testing.T) {
 	}
 	reference := readScanFreshFK(t, filepath.Join("testdata", "scan-inventory-accept-fk.json.gz"))
 	if err := plan.CompareExactJSON(reference, fkJSON); err != nil {
-		t.Fatal("Basic changed existing complete671-FK image", err)
+		t.Fatal("Basic changed existing complete686-FK image", err)
 	}
 	actual, err := json.MarshalIndent(captures, "", "  ")
 	if err != nil {
@@ -260,7 +260,7 @@ func TestBasicMediaStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("16IDs/16cohorts/two actual component populations/%dVM/%dSEARCH/8INSERT/671FK2013probes; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
+	t.Logf("16IDs/16cohorts/two actual component populations/%dVM/%dSEARCH/8INSERT/686FK2058probes; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
 }
 
 // Exact normalized values from the owner's two native stage/seal controls.
