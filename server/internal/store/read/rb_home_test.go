@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -254,7 +255,21 @@ func TestRBHomeRecentShelfCapFromTwoCompleteStreams(t *testing.T) {
 		}
 	}
 	row, cost, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 1}, {2, 1}}})
-	if e != nil || !row.Exhausted || len(row.Items) != 100 || row.Items[0].Work.ID != 10249 || row.Items[99].Work.ID != 10100 || len(cost.LookupWindows) > 34 {
+	var want []int64
+	for n := int64(0); n < 50; n++ {
+		want = append(want, 10100+n, 10200+n)
+	}
+	wire := func(id int64) string {
+		var b [16]byte
+		binary.BigEndian.PutUint64(b[8:], uint64(id))
+		return base64.RawURLEncoding.EncodeToString(b[:])
+	}
+	slices.SortFunc(want, func(a, b int64) int { return -strings.Compare(wire(a), wire(b)) })
+	var got []int64
+	for _, card := range row.Items {
+		got = append(got, card.Work.ID)
+	}
+	if e != nil || !row.Exhausted || !slices.Equal(got, want) || len(cost.LookupWindows) > 34 {
 		t.Fatal("exact shelf cap", row, e)
 	}
 }
@@ -328,14 +343,34 @@ func TestRBHomeShelfCapAndTieOrder(t *testing.T) {
 		cards[n].Work.PublicID[15] = byte(n)
 		cards[n].Added = "2026-11-01T12:00:00.000000000Z"
 	}
+	var want []int64
+	for n := range cards {
+		want = append(want, int64(n))
+	}
+	wire := func(id int64) string {
+		var b [16]byte
+		b[15] = byte(id)
+		return base64.RawURLEncoding.EncodeToString(b[:])
+	}
+	slices.SortFunc(want, func(a, b int64) int { return -strings.Compare(wire(a), wire(b)) })
 	sortHomeCards(cards)
 	cards = cards[:min(HomeRecentMaximum, len(cards))]
-	if len(cards) != 100 || cards[0].Work.ID != 139 || cards[99].Work.ID != 40 {
-		t.Fatal("cap/tie", cards)
+	var got []int64
+	for _, card := range cards {
+		got = append(got, card.Work.ID)
 	}
-	if slices.IsSortedFunc(cards, func(a, b HomeRecentCard) int { return int(a.Work.ID - b.Work.ID) }) {
-		t.Fatal("wrong tie direction")
+	if !slices.Equal(got, want[:100]) {
+		t.Fatal("cap/wire tie", got, want[:100])
 	}
+	// Base64url lexical order differs from BLOB order: 'A' sorts after '0'.
+	var aID, bID [16]byte
+	bID[0] = 208
+	adversary := []HomeRecentCard{{Work: BrowseItem{ID: 2, PublicID: bID}}, {Work: BrowseItem{ID: 1, PublicID: aID}}}
+	sortHomeCards(adversary)
+	if adversary[0].Work.ID != 1 {
+		t.Fatal("wire tie was replaced by raw BLOB ordering", adversary)
+	}
+
 }
 
 func TestRBHomeCapturePopulations(t *testing.T) {

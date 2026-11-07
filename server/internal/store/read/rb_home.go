@@ -1,13 +1,14 @@
 package read
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/entityid"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
@@ -554,7 +555,7 @@ func sortHomeCards(cards []HomeRecentCard) {
 		if a.Added < b.Added {
 			return 1
 		}
-		return -bytes.Compare(a.Work.PublicID[:], b.Work.PublicID[:])
+		return -strings.Compare(entityid.Encode(a.Work.PublicID[:]), entityid.Encode(b.Work.PublicID[:]))
 	})
 }
 

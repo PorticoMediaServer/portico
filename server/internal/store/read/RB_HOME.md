@@ -29,7 +29,8 @@ Unsupported account policies and blocked labels still fail in the shared fence.
   candidate set must fit252. All eligible cards are composed before selecting
   the newest100. Restricted show order uses eligible child arrival dates only;
   unrestricted show order uses accepted monotonic content-added chronology.
-  Undated works sort last; public work bytes break equal chronology ties.
+  Undated works sort last; existing encoded public work IDs break equal chronology ties (base64url lexical
+  order, which differs from BLOB order).
 * `HomeActivityWindow`: current own unfinished movie/episode/song/audiobook-file
   source windows for `continue`, `listen_next`, and `continue_books`. Reuses
   `foreground.continue.*`, `personal_current_activity`, and `stateValue`.
@@ -99,7 +100,7 @@ post-merge chronology/scalar/random recaptures. Their goldens are not edited her
 
 | Family | Draft/support | Remaining semantics/owner |
 |---|---|---|
-| new_on_server | Small fully exhausted entity-work shelf, chronology/targets, exact merge/cap | Large/sparse streaming frontier and exact preparation; movie provider-edition equivalence/canonical representative; complete art/DTO projection |
+| new_on_server | Small fully exhausted entity-work shelf, chronology/targets, exact merge/cap | Large/sparse streaming frontier (finish equal-time wire-ID ties) and exact preparation; movie provider-edition equivalence/canonical representative; complete art/DTO projection |
 | recent_* / Discover recently added | Chronology primitive and movie/show target proof reusable | Album/book/Reading source chronology, screen-specific work folding and descriptor settings |
 | continue | Own unfinished movie/episode source and show navigation | On-deck after completion, season/show clearing/dismissal, per-library cutoffs/premieres/maximum, removed-title cards, full work grouping |
 | listen_next | Own unfinished song source and album navigation | Album completion/next-track continuation, exact grouping, recent-album fallback; current songs normally retain no playback position |
