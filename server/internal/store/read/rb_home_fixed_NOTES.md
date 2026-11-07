@@ -9,6 +9,8 @@ manifest, saved-view, Home, binding, shared list, schema or golden was edited.
 
 HomeFixedReader.Row returns a whole harness shelf, not a public paginated DTO.
 It derives the complete allowed library set from the current manifest/principal,
+using the frozen committed-policy projection (including actual per-field pending)
+for the current effective layout,
 then checks each actual library with the merged native fence. At most 4 libraries
 and 128 TOTAL catalogue entities (including hidden, retired and irrelevant kinds)
 fit this small-scope implementation. LIMIT129 is an overflow witness, never an

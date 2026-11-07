@@ -18,6 +18,7 @@ import (
 func homeFixedAllDefinitions() []stmt.Definition {
 	d := append(browseDefinitions(), rbSavedViewAllDraftDefinitions()...)
 	d = append(d, rbHomeManifestDefinitions()...)
+	d = append(d, rbHomeManifestSourceDefinitions()...)
 	d = append(d, rbHomeBindingDefinitions()...)
 	d = append(d, rbHomeFixedDefinitions()...)
 	return append(d, rbHomeFixedBindingByteDefinitions()...)
