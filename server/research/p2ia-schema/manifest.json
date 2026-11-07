@@ -1,0 +1,37 @@
+{
+  "baseline": "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4",
+  "candidate": "68b12e85e0a99294a38943ee4e5687ec635e75ffa444df56c32ee67d767fbc10",
+  "replacement_before": {
+    "scan_command_receipts": "061c5ec784de461c0d8f80634f0cb07fefcada699382db880c047f92655d44d2",
+    "catalog_removal_progress": "7e50ea6ef5f4382fabe16f2f6cd79889adcfb525a397d315851f760df81f1f44"
+  },
+  "replacement_after": {
+    "scan_command_receipts": "500a471de63b4305cf12e994b9d402d1b333c6866f8f708f26ac58850ac83fb8",
+    "catalog_removal_progress": "e58102b791051007baa011cb256be84743b379b23ac437a3a15df85b4a784a2c"
+  },
+  "new_tables": [
+    "scan_reconcile_members",
+    "catalog_removal_receipts",
+    "catalog_configuration_operations",
+    "catalog_configuration_receipts",
+    "catalog_configuration_sources"
+  ],
+  "new_indexes": [
+    "scan_receipt_ia_kind",
+    "catalog_removal_operation",
+    "catalog_removal_original_library",
+    "catalog_configuration_operation_kind",
+    "catalog_configuration_original_library",
+    "catalog_configuration_source_once"
+  ],
+  "unchanged_objects": [
+    "inventory_runs",
+    "inventory_directories",
+    "scan_command_results",
+    "inventory_scan_issues"
+  ],
+  "source_internal": "6b6d2113a051ebb825a199b93f586680e4a75cca",
+  "source_public": "194a9248f32195e51355b254548b3551d35fd458",
+  "native_toolchain": "go1.26.10",
+  "landing": "WAIT phase1a lock"
+}
