@@ -6,7 +6,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 )
 
@@ -103,7 +105,9 @@ VALUES(?,?,1,?,'deliberately reversed display','z','z','z','z',0,?,?, ?,?,?,?,?,
 
 func rsChildrenFixture(t *testing.T) (*browseFixture, *RSChildrenReader) {
 	t.Helper()
-	f := composeBrowseFixture(t, rsChildrenSource(t), append(browseDefinitions(), RSChildrenDefinitions()...))
+	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
+	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	f := composeReadFixture(t, rsChildrenSource(t), append(browseDefinitions(), RSChildrenDefinitions()...), gc, true, rsChildrenFixtureHash(t))
 	r, err := NewRSChildrenReader(f.snapshots)
 	if err != nil {
 		t.Fatal(err)

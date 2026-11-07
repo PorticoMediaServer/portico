@@ -26,7 +26,7 @@ func TestRSChildrenOrderedFamilies(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(page.Items) > 7 || page.RawRows > MaxRaw || page.RawPositions > page.RawRows || len(result.LookupWindows) != 2 || result.LookupStatements > 10 || result.PublicationStatements != 7 {
+				if len(page.Items) > 7 || page.RawRows > MaxRaw || page.RawPositions > page.RawRows || len(result.LookupWindows) != 2 || result.LookupStatements > 10 || result.PublicationStatements != 6 {
 					t.Fatalf("bounds page=%+v result=%+v", page, result)
 				}
 				if page.Pending == page.Exhausted || (page.Next == nil) != page.Exhausted {
