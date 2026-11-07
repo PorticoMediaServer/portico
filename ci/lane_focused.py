@@ -55,6 +55,9 @@ CAPTURES = {
     'hn-wc-progress-composition': ('writer', 'TestWCProgressCompositionPlans', 'record-wc-progress-composition-plans', ['wc-progress-composition.json', 'wc-progress-composition-fk.json.gz']),
     'hn-wc-reclaim-composition': ('writer', 'TestWCReclaimCompositionPlans', 'record-wc-reclaim-composition-plans', ['wc-reclaim-composition.json', 'wc-reclaim-composition-fk.json.gz']),
     'hn-wc-security-composition': ('writer', 'TestWCSecurityCompositionPlans', 'record-wc-security-composition-plans', ['wc-security-composition.json', 'wc-security-composition-fk.json.gz']),
+    'hn-rb-chronology': ('read', 'TestRBChronologyPlans', 'record-rb-chronology-plans', ['rb-chronology-plans.json.gz']),
+    'hn-rb-random': ('read', 'TestRBRandomPlans', 'record-rb-random-plans', ['rb-random-plans.json.gz']),
+    'hn-mg-guide-octets': ('stmt/plan', 'TestMGGuideOctetPointsGolden', 'record-mg-guide-octets', ['mg-guide-octets.json.gz']),
 }
 HARNESSES = {
     'ec5-memory': ('./internal/store/writer', '^TestEC5'),
