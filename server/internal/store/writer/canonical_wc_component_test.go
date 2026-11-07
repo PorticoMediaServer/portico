@@ -83,7 +83,17 @@ func CanonicalWCFunctionalComponent(t *testing.T, class string) *CanonicalWCComp
 		t.Fatal("closed WC class required")
 	}
 	dir, pin := canonicalN1ControlArtifact(t)
-	streamFile, err := openFirstLightOutput(filepath.Join(t.TempDir(), "wc-functional.ndjson"))
+	outputDirectory := t.TempDir()
+	if evidence := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidence != "" {
+		if !filepath.IsAbs(evidence) {
+			t.Fatal("absolute functional evidence directory required")
+		}
+		if err := os.MkdirAll(evidence, 0700); err != nil {
+			t.Fatal(err)
+		}
+		outputDirectory = evidence
+	}
+	streamFile, err := openFirstLightOutput(filepath.Join(outputDirectory, class+"-wc-functional.ndjson"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,12 +266,12 @@ func (c *CanonicalWCComponent) Observe(v CanonicalWCObservation) error {
 		c.failed = errors.Join(c.failed, errors.New("native observation ledger overflow"))
 	}
 	if v.Error != "" {
-		c.failed = errors.Join(c.failed, errors.New(v.Error))
+		c.failed = errors.Join(c.failed, fmt.Errorf("%s %s %s: %s", c.currentID, c.operation, v.Phase, v.Error))
 	}
 	if v.Refused {
 		c.failed = errors.Join(c.failed, errors.New("actual Action refusal"))
 	}
-	if v.Phase == "ACCEPT" {
+	if v.Error == "" {
 		class, classErr := commandClass(c.purpose)
 		wantSync := 1
 		wantDurability := Normal
@@ -270,10 +280,12 @@ func (c *CanonicalWCComponent) Observe(v CanonicalWCObservation) error {
 			wantDurability = Full
 		}
 		e := v.Evidence
-		if classErr != nil || e == nil || e.Purpose != c.purpose || e.Class != class || e.Durability != wantDurability || e.Policy == nil || e.Policy.Synchronous != wantSync || e.Commit != CommitSucceeded || clock.HoldNS == nil || *clock.HoldNS <= 0 {
-			c.failed = errors.Join(c.failed, errors.New("fresh mutation physical interval/class/durability binding unavailable"))
+		if classErr != nil || e == nil || e.Purpose != c.purpose || e.Class != class || e.Durability != wantDurability || e.Policy == nil || e.Policy.Synchronous != wantSync || e.Commit != CommitSucceeded || clock.HoldNS == nil || *clock.HoldNS <= 0 || v.Started == nil || v.Returned == nil || e.HoldStartedAt.Before(*v.Started) || e.PhysicalReturnedAt == nil || e.PhysicalReturnedAt.After(*v.Returned) || began != 1 || c.trace.activeRows != 0 {
+			c.failed = errors.Join(c.failed, errors.New("physical interval/class/durability binding unavailable"))
 		}
 
+	}
+	if v.Phase == "ACCEPT" {
 		if c.accepted || v.Outcome == nil || v.Requested == nil || v.Outcome.State != Applied || v.Outcome.Replayed || v.Outcome.Reference != *v.Requested {
 			c.failed = errors.Join(c.failed, ErrResolveRequired)
 		} else {
@@ -337,7 +349,10 @@ func (c *CanonicalWCComponent) Finish(primary error) error {
 		u := r.authority.Usage()
 		usage = u
 		stats := r.executor.db.Stats()
-		joined = r.executor.closed && stats.InUse == 0 && stats.OpenConnections == 0 && u == ([4]governor.Amounts{})
+		r.executor.physicalFaults.mu.Lock()
+		fault := r.executor.physicalFaults.failed
+		r.executor.physicalFaults.mu.Unlock()
+		joined = r.executor.closed && stats.InUse == 0 && stats.OpenConnections == 0 && !fault && c.trace.activeRows == 0 && u == ([4]governor.Amounts{})
 	}
 	complete := c.failed == nil && joined && c.measured == c.Attempts && c.warmup == c.Warmup && c.keeper != nil && !c.keeper.overflow && !c.trace.closeOverflow
 	c.failed = errors.Join(c.failed, c.stream.append("final", map[string]any{"complete": complete, "recipe": c.Recipe(), "measured_originals_complete": c.measured, "measured_originals_by_variant": c.variants, "warmup_originals_complete": c.warmup, "auxiliary_originals_complete": c.auxiliary, "all_offered_originals": c.offerOrdinal, "known_actual_physical_turns": c.trace.nativeBegins, "physical_attempt_ordinal_scope": "one actual W native BEGIN-attempt stream, includes fixture/auxiliary and failed attempts; no success renumbering", "native_closes": c.trace.closes[:c.trace.closeCount], "native_close_overflow": c.trace.closeOverflow, "authority_usage_after_close": usage, "native_joined": joined, "error": checkpointError(c.failed), "report": nil, "qualification": false, "qualified_profile_ready": false}))
@@ -358,6 +373,6 @@ func (c *CanonicalWCComponent) observeLineage() {
 		if p.root.capture.Receipt.Identity.Sequence > 0 {
 			reference = p.root.capture.Receipt
 		}
-		c.lineage = map[string]any{"actual_capture_reference": reference, "playback_id": c.Progress.scope.playbackID, "command_incarnation": c.Progress.scope.incarnation, "clock": p.source.proof.clockIncarnation, "accepted_report_sequence": p.root.source.lastAcceptedSequence, "source_from_ms": p.root.source.fromMS, "source_until_ms": p.root.source.untilMS, "prepared_cursor_ms": p.source.cursorMS, "native_pending_snapshot": c.lastProgress, "scope": "actual retained root at this offer; split/drain progress remains in raw before/result/after snapshots"}
+		c.lineage = map[string]any{"actual_capture_reference": reference, "playback_id": c.Progress.scope.playbackID, "command_incarnation": c.Progress.scope.incarnation, "clock": p.source.proof.clockIncarnation, "accepted_report_sequence": p.root.source.lastAcceptedSequence, "source_from_ms": p.root.source.fromMS, "source_until_ms": p.root.source.untilMS, "prepared_cursor_ms": p.source.cursorMS, "last_observed_progress_snapshot": c.lastProgress, "scope": "actual retained root at this offer; split/drain progress remains in raw before/result/after snapshots"}
 	}
 }
