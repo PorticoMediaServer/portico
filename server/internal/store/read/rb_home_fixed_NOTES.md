@@ -11,7 +11,8 @@ HomeFixedReader.Row returns a whole harness shelf, not a public paginated DTO.
 It derives the complete allowed library set from the current manifest/principal,
 using the frozen committed-policy projection (including actual per-field pending)
 for the current effective layout,
-then checks each actual library with the merged native fence. At most 4 libraries
+then checks each actual library with the merged native fence, selected by its
+own closed purpose ID32502. The purpose supplies no viewer or eligibility flag. At most 4 libraries
 and 32 TOTAL catalogue entities (including hidden, retired and irrelevant kinds)
 fit this small-scope implementation. LIMIT33 is an overflow witness, never an
 exact top-K sample. A full bounded shelf is Exact+Exhausted. Any unresolved fact
@@ -107,5 +108,5 @@ the coherent source snapshot, or borrowing unreserved transient memory. The
 last100 kernel is separately tested over103 COMPLETE values-only work facts;
 qualifying that many native source bindings belongs to parent's larger prep.
 The failed analyzed byte-point capture selected a covering entity index; the new
-own preflight pins NOT INDEXED for its exact INTEGER-primary-key SEARCH. The
+own preflight pins the existing complete UNIQUE(library_id,id) key for its exact SEARCH. The
 unchanged helper SQL and all frozen definitions stay untouched.
