@@ -257,8 +257,11 @@ func TestRSArtReadingUsesSharedEligibility(t *testing.T) {
 	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(20,'ebook',0,0,1,1,0),(21,'comic',0,0,1,1,0)`)
 	// Only a test recipe is available in this dependency base. This tests
 	// composition, not the parent's real accepted-publication eligibility proof.
+	f.exec(t, `BEGIN`)
+	f.exec(t, `PRAGMA defer_foreign_keys=ON`)
 	f.exec(t, `UPDATE catalog_subjects SET kind=20 WHERE id=1101`)
 	f.exec(t, `UPDATE catalog_entities SET kind=20 WHERE id=1101`)
+	f.exec(t, `COMMIT`)
 	rsArtSelect(t, f, 1101, "cover", "matched", 13)
 	f = composeReadFixture(t, f, append(HarnessDefinitions(), ArtworkDefinitions()...), readfixture.LiveConfig(time.Now), true, rsArtHash(t))
 	r, err := NewForegroundReader(f.snapshots)
