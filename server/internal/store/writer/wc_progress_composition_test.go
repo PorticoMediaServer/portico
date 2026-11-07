@@ -318,3 +318,21 @@ func TestWCProgressReportPolicyMatchesLegacyCompletion(t *testing.T) {
 		t.Fatal("episode threshold bypassed credits-only policy", got, err)
 	}
 }
+
+func TestWCProgressCompositionNativeCurrentTokenRequired(t *testing.T) {
+	w, d, _ := wcProgressCompositionFixture(t)
+	command, err := d.Capture(t.Context(), 0, 5, 100, "playing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, _ := ProgressReference(command)
+	// A live internal handle alone cannot replace the actual current token row.
+	// This models a missing/retired native credential, with caller scope still live.
+	d.scope.tokenHash = "missing-native-token"
+	if out, e := w.AcceptProgress(t.Context(), d.Disclosure(), command); !errors.Is(e, ErrDisclosureDenied) || !reflect.DeepEqual(out, ProgressResult{}) {
+		t.Fatal("native current credential gate missing", out, e)
+	}
+	if out, e := w.ResolveProgress(t.Context(), d.Disclosure(), original); !errors.Is(e, ErrDisclosureDenied) || !reflect.DeepEqual(out, ProgressResult{}) {
+		t.Fatal("receipt disclosure bypassed current token", out, e)
+	}
+}
