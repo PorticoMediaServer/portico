@@ -117,7 +117,7 @@ func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptComma
 			return nil, riskErr
 		}
 	}
-	decision := f.governor.Try(request)
+	decision := f.authority.TryContext(t.Context(), request)
 	f.lastAdmission = &n1Admission{Request: request, Refusal: decision.Refusal, Usage: f.authority.Usage()}
 	if decision.Grant == nil {
 		return nil, effectiveAdmissionRefusal(decision.Refusal)

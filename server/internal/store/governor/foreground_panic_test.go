@@ -21,7 +21,9 @@ func (c *foregroundPanicContext) Deadline() (time.Time, bool) {
 }
 func (c *foregroundPanicContext) Err() error {
 	c.errs++
-	if c.point == "grant" && c.errs == 2 {
+	// The fourth Err is the post-grant handoff check, after the two new
+	// bounded-admission entry/handoff checks; keep the ownership fault there.
+	if c.point == "grant" && c.errs == 4 {
 		panic(c.value)
 	}
 	return c.Context.Err()

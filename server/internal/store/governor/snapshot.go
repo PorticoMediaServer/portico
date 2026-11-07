@@ -188,7 +188,7 @@ func (s *Snapshots) read(parent context.Context, r Request, budget time.Duration
 	if err = ctx.Err(); err != nil {
 		return out, err
 	}
-	d := s.authority.trySnapshot(r, scope)
+	d := s.authority.trySnapshotContext(ctx, r, scope)
 	if d.Refusal != nil {
 		out.Refusal = d.Refusal
 		return out, nil

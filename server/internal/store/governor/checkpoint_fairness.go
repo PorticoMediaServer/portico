@@ -33,7 +33,7 @@ func (a *Authority) queueCheckpointContext(ctx context.Context, until time.Time,
 		return nil, admissionError(CauseDeadline, context.DeadlineExceeded)
 	}
 	if err := w.mu.lockUntil(ctx, until, now); err != nil {
-		return nil, admissionError(CauseDeadline, err)
+		return nil, admissionError(admissionWaitCause(err), err)
 	}
 	defer w.mu.Unlock()
 	now = a.ledger.config.Now()
@@ -76,6 +76,9 @@ func (a *Authority) cancelCheckpointTicket(t *checkpointTicket) {
 }
 func (a *Authority) tryCheckpointTurn(r Request, t *checkpointTicket) Decision {
 	return a.ledger.try(r, true, t)
+}
+func (a *Authority) tryCheckpointTurnContext(ctx context.Context, r Request, t *checkpointTicket) Decision {
+	return a.ledger.tryReservedContext(ctx, r.Deadline, r, true, t, nil, nil, nil)
 }
 
 // Cap attempted CP exclusion to 5% over repeated periods, plus one bounded

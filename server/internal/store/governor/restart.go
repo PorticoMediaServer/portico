@@ -27,7 +27,7 @@ func (w *WALGate) RestartRisk(now time.Time) (WALRestartRisk, error) {
 // RestartRiskContext bounds lock handoff by the original command deadline.
 func (w *WALGate) RestartRiskContext(ctx context.Context, now, deadline time.Time) (WALRestartRisk, error) {
 	if err := w.mu.lockUntil(ctx, deadline, now); err != nil {
-		return WALRestartRisk{}, admissionError(CauseDeadline, err)
+		return WALRestartRisk{}, admissionError(admissionWaitCause(err), err)
 	}
 	defer w.mu.Unlock()
 	if !w.fresh(now) || w.writer || (w.checkpoint && !w.policy.ConcurrentPassive) || (w.keeper != nil && !w.keeper.active(now)) {
