@@ -137,7 +137,7 @@ func TestBasicStreamStatementPlans(t *testing.T) {
 			}
 			g.ForeignKeys = &fk
 		}
-		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 671 {
+		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
 			t.Fatal("incomplete Basic statement/destination/FK audit")
 		}
 		for _, p := range g.Plans {
@@ -212,5 +212,5 @@ func TestBasicStreamStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("10IDs/10cohorts/two actual component populations/%dVM/%dSEARCH/1INSERT/671FK2013probes; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
+	t.Logf("10IDs/10cohorts/two actual component populations/%dVM/%dSEARCH/1INSERT/686FK2058probes; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
 }
