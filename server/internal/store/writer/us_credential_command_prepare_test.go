@@ -3,6 +3,7 @@ package writer
 import (
 	"bytes"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"strings"
 	"testing"
 )
@@ -92,7 +93,9 @@ func TestUSCredentialCommandWitnesses(t *testing.T) {
 		{"issue.kind", func(q *usCredentialCommandCandidate) { q.issue.kind = "key" }, "issue"},
 		{"issue.name", func(q *usCredentialCommandCandidate) { q.issue.name += "-other" }, "issue"},
 		{"issue.scopes", func(q *usCredentialCommandCandidate) { q.issue.scopes = []string{"admin"} }, "issue"},
-		{"issue.secretHash", func(q *usCredentialCommandCandidate) { q.issue.secretHash = strings.Repeat("f", 64) }, "issue"},
+		{"issue.secretHash", func(q *usCredentialCommandCandidate) {
+			q.issue.secretHash = identity.Digest("other-synthetic-credential")
+		}, "issue"},
 		{"issue.hint", func(q *usCredentialCommandCandidate) { q.issue.hint = "ghijkl" }, "issue"},
 		{"issue.family", func(q *usCredentialCommandCandidate) { q.issue.family += "-other" }, "issue"},
 		{"issue.device", func(q *usCredentialCommandCandidate) { q.issue.device += "-other" }, "issue"},
@@ -100,7 +103,9 @@ func TestUSCredentialCommandWitnesses(t *testing.T) {
 		{"revoke.kind", func(q *usCredentialCommandCandidate) { q.revoke.kind = "key" }, "revoke"},
 		{"revoke.name", func(q *usCredentialCommandCandidate) { q.revoke.name += "-other" }, "revoke"},
 		{"revoke.scopes", func(q *usCredentialCommandCandidate) { q.revoke.scopes = "admin" }, "revoke"},
-		{"revoke.secretHash", func(q *usCredentialCommandCandidate) { q.revoke.secretHash = strings.Repeat("f", 64) }, "revoke"},
+		{"revoke.secretHash", func(q *usCredentialCommandCandidate) {
+			q.revoke.secretHash = identity.Digest("other-synthetic-credential")
+		}, "revoke"},
 		{"revoke.hint", func(q *usCredentialCommandCandidate) { q.revoke.hint = "ghijkl" }, "revoke"},
 		{"revoke.family", func(q *usCredentialCommandCandidate) { q.revoke.family += "-other" }, "revoke"},
 		{"revoke.device", func(q *usCredentialCommandCandidate) { q.revoke.device += "-other" }, "revoke"},
@@ -180,9 +185,23 @@ func TestUSCredentialCommandFreezeAndRedaction(t *testing.T) {
 		t.Fatal("mutable source aliases frozen request")
 	}
 	for _, v := range []any{*p, p.request, *i, i.request, *r, r.request} {
-		for _, verb := range []string{"%v", "%+v", "%#v", "%s", "%q"} {
-			if !strings.Contains(fmt.Sprintf(verb, v), "redacted") {
-				t.Fatal("format exposed request")
+		label := strings.TrimPrefix(fmt.Sprintf("%T", v), "writer.") + "{redacted}"
+		formatter, ok := v.(fmt.Formatter)
+		if !ok {
+			t.Fatal("command wrapper lacks Format")
+		}
+		_ = formatter
+		stringer, ok := v.(fmt.Stringer)
+		if !ok || stringer.String() != label {
+			t.Fatal("command String redaction")
+		}
+		goStringer, ok := v.(fmt.GoStringer)
+		if !ok || goStringer.GoString() != label {
+			t.Fatal("command GoString redaction")
+		}
+		for _, verb := range []string{"%s", "%v", "%+v", "%#v", "%q", "%x", "%X", "%d", "%100.3s", "%#100.20v"} {
+			if fmt.Sprintf(verb, v) != label {
+				t.Fatal("command Format output differs from constant redacted label", verb)
 			}
 		}
 	}
