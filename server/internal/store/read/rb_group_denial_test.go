@@ -16,9 +16,12 @@ func TestRBGroupEveryRecipeInitialDenial(t *testing.T) {
 				f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
 				in := RBGroupInput{View: f.input, Family: spec.family, Subject: rbGroupFixtureSubject(spec.family)}
 				in.View.Kind = spec.kinds[0]
-				p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+				p, result, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
 				if !errors.Is(e, ErrDenied) || !reflect.DeepEqual(p, RBGroupPage{}) {
 					t.Fatal("initial authority denial leaked a source page", p, e)
+				}
+				if result.LookupStatements != 2 || result.PublicationStatements != 0 {
+					t.Fatal("initial denial must stop after the authority points, before business or publication SQL", result.LookupStatements, result.PublicationStatements)
 				}
 			})
 		})
