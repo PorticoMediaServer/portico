@@ -44,6 +44,7 @@ type effectivePlan struct {
 	inventoryMemory     inventoryMemoryBudget // private whole-unit partition; zero is unqualified
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
+	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
 }
 
 // No runtime registration, worker budget or callbacks are accepted. The actual
@@ -331,6 +332,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	custody.inventoryMemory = plan.inventoryMemory // immutable W profile, never a worker override
 	custody.searchImageMemory = plan.searchImageMemory
 	custody.scanLifecycleMemory = plan.scanLifecycleMemory
+	custody.basicMemory = plan.basicMemory
 	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
