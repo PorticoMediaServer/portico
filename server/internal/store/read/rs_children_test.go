@@ -308,7 +308,12 @@ func TestRSChildrenLiveCustody(t *testing.T) {
 				}
 				consumed = true
 			}
-			assertLiveUsage(t, f, 1, 0)
+			usage := f.authority.Usage()[governor.Foreground]
+			live := f.authority.ForegroundUsage()
+			want := out.Request.Need[governor.MemoryBytes] + rsListeningPreparationBytes + governor.PreparationMetadataBytes + live.BookkeepingBytes
+			if live.Live != 1 || usage[governor.Reader] != 0 || usage[governor.MemoryBytes] != want {
+				t.Fatal("output and preparation custody", usage, live, want)
+			}
 			return nil
 		})
 		if err != nil {
@@ -320,6 +325,9 @@ func TestRSChildrenLiveCustody(t *testing.T) {
 	}
 	if !consumed {
 		t.Fatal("LIVE sort did not finish")
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
 	}
 	assertLiveUsage(t, f, 0, 0)
 }
