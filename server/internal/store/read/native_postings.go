@@ -141,6 +141,7 @@ func nativePostingPoint(query browseQuery, term string, slot uint8, id int64) (b
 }
 
 type nativeSource struct {
+	scope         *fullQueryScope
 	key           search.FieldKey
 	title, fold   string
 	kind, library int64
@@ -189,11 +190,12 @@ func nativeEntitySource(query browseQuery, scope *fullQueryScope, id int64) (*na
 	if err := nativeSealed(query, p[0].(int64)); err != nil {
 		return nil, err
 	}
-	return &nativeSource{key: search.FieldKey{Subject: search.ManifestEntity, SubjectID: id, PublicationID: p[0].(int64), BankID: scope.bank, InputGeneration: p[1].(int64)}, title: p[6].(string), fold: p[7].(string), kind: p[8].(int64), library: p[9].(int64), item: item[0]}, nil
+	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestEntity, SubjectID: id, PublicationID: p[0].(int64), BankID: scope.bank, InputGeneration: p[1].(int64)}, title: p[6].(string), fold: p[7].(string), kind: p[8].(int64), library: p[9].(int64), item: item[0]}, nil
 }
 func nativePostingSource(query browseQuery, scope *fullQueryScope, slot uint8, id int64) (*nativeSource, uint16, error) {
 	if slot == 5 {
-		return nil, 0, fmt.Errorf("%w: People search birth carrier is not adopted", ErrUnqualified)
+		source, err := nativePersonSource(query, scope, id)
+		return source, 1, err
 	}
 	if slot == 1 {
 		s, err := nativeEntitySource(query, scope, id)
@@ -213,13 +215,20 @@ func nativePostingSource(query browseQuery, scope *fullQueryScope, slot uint8, i
 	if v[7] != scope.bank {
 		return nil, 0, nil
 	}
+	var s *nativeSource
 	if v[2] != nil {
-		return nil, 0, fmt.Errorf("%w: People search birth carrier is not adopted", ErrUnqualified)
+		person, ok := v[2].(int64)
+		if !ok || v[1] != nil {
+			return nil, 0, ErrUnqualified
+		}
+		s, err = nativePersonSource(query, scope, person)
+	} else {
+		entity, ok := v[1].(int64)
+		if !ok {
+			return nil, 0, ErrUnqualified
+		}
+		s, err = nativeEntitySource(query, scope, entity)
 	}
-	if v[1] == nil {
-		return nil, 0, ErrUnqualified
-	}
-	s, err := nativeEntitySource(query, scope, v[1].(int64))
 	if err != nil || s == nil {
 		return s, 0, err
 	}
@@ -227,7 +236,7 @@ func nativePostingSource(query browseQuery, scope *fullQueryScope, slot uint8, i
 		return nil, 0, nil
 	} // old/staging publication still consumes its raw position
 	field, ok := v[3].(int64)
-	if !ok || field < 1 || field > 9 {
+	if !ok || field < 1 || field > 9 || s.key.Subject == search.ManifestPerson && field > 4 {
 		return nil, 0, ErrUnqualified
 	}
 	return s, uint16(field), nil
@@ -252,6 +261,15 @@ func nativeLogicalField(ctx context.Context, query browseQuery, scope *fullQuery
 		}
 		if hit {
 			first = fullPostingKey{1, source.key.SubjectID}
+		}
+	}
+	if field == 1 && source.key.Subject == search.ManifestPerson {
+		hit, err := nativePostingPoint(query, scope.terms[term], 5, source.key.SubjectID)
+		if err != nil {
+			return empty, first, err
+		}
+		if hit {
+			first = fullPostingKey{5, source.key.SubjectID}
 		}
 	}
 	for {
