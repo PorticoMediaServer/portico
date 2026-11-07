@@ -98,3 +98,28 @@ Current native Capture must bind the actual embedded schema and source journal.
 Functional controls use virtual time; standard hosted race and Capture evidence
 are retained separately from physical-host qualification. This draft does not
 qualify large exact Home preparation or complete the remaining Home families.
+
+## Complete row-family inventory and remaining queue
+
+| Family | Draft/support | Remaining semantics/owner |
+|---|---|---|
+| new_on_server | Small fully exhausted entity-work shelf, chronology/targets, exact merge/cap | Large/sparse streaming frontier (finish equal-time wire-ID ties) and exact preparation; movie provider-edition equivalence/canonical representative; complete art/DTO projection |
+| recent_* / Discover recently added | Chronology primitive and movie/show target proof reusable | Album/book/Reading source chronology, screen-specific work folding and descriptor settings |
+| continue | Own unfinished movie/episode source and show navigation | On-deck after completion, season/show clearing/dismissal, per-library cutoffs/premieres/maximum, removed-title cards, full work grouping |
+| listen_next | Own unfinished song source and album navigation | Album completion/next-track continuation, exact grouping, recent-album fallback; current songs normally retain no playback position |
+| continue_books | Own audiobook part, current book resume state and book navigation | Native ebook/comic accepted publication/locator eligibility (RS/MP/UO), cross-format merging/grouping and Reading presentation |
+| because_you_watched | Unsupported | RS recommendation candidates/explanations; source freshness and row projection |
+| recommended | Unsupported | RS candidates and ranking |
+| recommendation family / rec:* | Unsupported | RS generators, stable family identities and candidate order |
+| trending_now | Unsupported | RS accepted trend/recommendation inputs |
+| community_watching | Unsupported | Current accepted sharing/privacy and own/community activity policy (UO/RS), no inferred permission |
+| featured_collection | Unsupported | RS collection candidates; complete allowed-member proof and collection presentation |
+| on_now | Unsupported | MG immutable guide/channel/programme facts and current permissions |
+| configured view/saved rows | Unsupported | Parent browse/filter/preparation plus current saved-resource authorization/settings |
+| suggestions, manifest/layout/descriptors | Unsupported | Current layout/settings/library projection and family capability selection; no successful fake empty unsupported row |
+
+The row methods return core identities/state, not API Home DTO parity. Caller
+selection of source streams is trusted harness composition, not a new route or
+replacement Home manifest. No exact cache/preparation lease design is owned here.
+No persistent profile catalogue, per-user import fanout or durable Home cache.
+
