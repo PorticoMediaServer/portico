@@ -1,71 +1,13 @@
-# Start preparation / prepared-media F mapping
+# Start and job bounded worker storage
 
-Continuation base: `03766f1fc90025f34f4d97eee623bef21398d8e8`. Original queue/reading commits remain on their original branch; this continuation changes only `mp_start_prep*`, `mp_transcode*` and this note. No canonical DDL, descriptors, shared birth values, expiry/version files, legacy behavior, queue/next, core-session, HLS, security, WC or personal owner changes. This is a private component draft, with no product accepting path.
+Mapped against held F packet `9f3384b406d3b35571e0faa9666351625eca8904`; no canonical schema or runtime wiring changes.
 
-Latest mapping checked against parent F packet `changes/F-media/MP-001.sql`, SHA256 `c95bb816d4328c168912cb42031dc8672642cf1a4c7a649ceb1e09c30d71a819`. The check concerns the fields used by these components, not a source/index/owner audit. Parent owns F adoption and `commands_mp.go`.
+701–705 use `mp_start_command_receipts`; 741–744 and 746–748 use `mp_job_command_receipts`. W supplies its original immutable payload and digest. These adapters add no codec or public owner. Native generated debt must equal owner UTF-8 bytes + 96 fixed BLOB bytes + payload length. Admission bounds rows/bytes and native sequence. Counter CAS repeats incarnation, owner revision, last/ACK and both debt counters, increments owner revision and records reclaim due. Original replay performs point octet preflight, requires actual admitted bytes before copy, validates purpose/request/operation and leaves digest/decode to W. No mutable response reconstruction.
 
-## Implemented coverage
+700/740 accept typed `mpStartJobUserBirth` historical root/member/profile-lifetime data and return complete typed native effects to UO/W. Native incarnation is independently supplied; last/ACK/rows/bytes start at F's zero defaults and owner revision at one. No MP birth header, table, lookup or lifetime owner remains. Fresh completion and prepare functions retain typed validation and draft commitment schemas.
 
-| Purposes | Implemented component behavior |
-|---|---|
-| 700–704 | Pending preparation birth, exact revision/execution claim and sealed input, bounded prepared commitment, current-source/queue/replacement-fenced acceptance, retirement and bounded cleanup after exact physical exit. Original session/media generation/snapshot IDs survive replay. |
-| 740–744 | Source/recipe-bound job creation, due+fully cleaned claim, exact lease renewal, cancellation retaining execution custody, immutable artifact publication with a distinct version incarnation. Publication does not release encode custody. |
-| 745 | Pin-fenced version retirement binds captured version incarnation/revision/digest/size, sets version draining/deleting, inserts exact `cleanupRequestID` into **version-owned** `mp_version_custody`. Encode custody remains exited+cleaned. |
-| 746 | Job execution cleanup only, at most 64 cursor steps; exact execution/generation/lease/exit commitment, partial custody retention, final settle/cancel/fail/retry. Any nonzero `c.version` is rejected before SQL. No version deletion statement remains. |
-| 705, 747, 748 | Parent-owned effects unchanged. Their start/job receipt scalar shapes are supported here. Use the fresh receipt constructors after those effects, especially after phase changes. |
+745 retains distinct version custody and exact cleanup request; 746 refuses version deletion. Parent owns version storage/749. Existing physical exit, execution/generation/lease, mutable stop and cleanup fences remain.
 
-`mp_start_command_receipts` and `mp_job_command_receipts` now use exact F `owner_id`, native `mp_command_*`/`mp_receipt_*` counters, field names and typed NULLs. Inserts return generated `variable_bytes`; exact old incarnation/last/ACK/rows/bytes CAS advances one retained row and its actual bytes in the same turn. No estimated column maxima, alternate receipt lifetime, generic owner, response JSON or separate birth-result table remains.
+Tiny local verification: Go 1.26.10, GOMAXPROCS=2, -p 1, `^TestMPPrepDraft` and shared finish guard (results in handoff). Native cases are prepared/unrun: `TestMPStartJobNativeOriginalPayload` checks zero counters, exact historical tuple, saved original after owner drift, actual debt/admission and request mismatch; existing native effect cases retain source/lease/custody negatives. `TestMPStartJobNativeFSQL` prepares current definitions against full F. Fixtures explicitly skip absent F and source exact current receipt DDL and root ALTERs; no `mp_start_births` dependency.
 
-`completeMPStartPrepResult` and `completeMPTranscodeResult` read the actual post-effect native row in the same fresh turn. Sealed, phase, error, selected source revision and immutable object size come from that row; common effect identity/revision/custody must match. `prepareMPStartPrepReceipt` / `prepareMPTranscodeReceipt` produce the complete hashed values. Store refuses stale/invented scalar projections. Immutable replay reads only the saved concrete receipt, verifies identity/request/purpose/version/count/digest, and never completes a result from today's domain head. Job codec/store/load reject745; the parent's version codec exclusively owns745/749.
-
-## Inline retained births and exact owner/result fields
-
-`mp_start_prep_births.go` provides two concrete creation result types, digest/store/load functions and separate public-key lookup functions. Its distinct historical `mpStartJobBirthScope`/header values intentionally avoid depending on the parent's uncommitted shared values file. They contain no current disclosure capability. Parent can explicitly copy the matching historical fields from `mpPublicBirthScope`/header without changing their meaning.
-
-Both `mp_start_births`/`mp_job_births` use BLOB16 birth ID and command incarnation, operation ID, request/result digest, original applied time, and original authority/account/profile/member incarnation/profile lifetime/installation/root/registration/family/device/key digest/issued time. **All original scope values and birth ID are bound into the creation result digest.** Native fresh store compares authority/account/profile/family/device to the actual root's original actor. W supplies the remaining admitted historical registration/lifetime facts; these components never query or create security/WC/personal owners.
-
-Creation inserts `last_sequence=1`, ACK0, result_version1 and retired0 inline. The new resource incarnation differs from the birth incarnation; its native root sequence/ACK/debt remain0. Linking `mp_birth_id` CASes that fresh root and returns actual control bytes before/after. Store returns `mpStartJobBirthDebt{rows:1,variableBytes,rootControlBefore,rootControlAfter}`. The inline row's generated bytes are the whole creation receipt debt; there is no second receipt row or birth counter owner. Parent788 owns fixed retirement sequence2, ACK/floor/due and reclaim. Public-key lookup returns only historical header/reference plus last/ACK/retired; W current disclosure/classification precedes lookup and immutable result decode.
-
-| Concrete inline result | Exact retained fields |
-|---|---|
-| Start700 | `result_session_id`, `result_media_session_id`, `result_media_generation`, `result_snapshot_id`, `result_preparation_id`, BLOB16 `result_preparation_incarnation`, pending state, revision1, deadline. |
-| Job740 | `result_next_attempt_ms`, `result_job_id`, BLOB16 `result_job_incarnation`, queued state, revision1, captured selected `result_source_revision`. |
-| Start701–705 | State/revision/execution, **sealed**, deadline, original session/media generation/snapshot IDs, stop execution, cleanup pending/cursor; actual root incarnation comes from the classified immutable receipt key. |
-| Job741–744/746–748 | BLOB16 `result_version_incarnation` (zero16 only when no version), state/revision/**phase/error/source revision**, job bytes, generation/cleaned generation, exact lease owner/generation/expiry, attempts, nullable next attempt, execution/stop, cleanup cursor, version ID/state/revision, nullable **object digest/object size**, physical pending. Job bytes and immutable object size are distinct. |
-
-## Version retirement correction and consolidated integration needs
-
-No missing/conflicting F columns were found for the implemented start/job receipt, birth or custody mappings at the packet hash above. All 16 concrete INSERT column sets exist in canonical+F. The new `mp_version_custody` fields required here are present: version ID, exact unique nonempty request ID, generation, execution ID, physical-exited, cleaned, exit digest, cursor, finished and generated variable bytes, under the actual version FK. No second job/security/personal owner is needed.
-
-`mpTranscodeVersionFence` (and thus `mpTranscodeRetireInput`) now binds `cleanupRequestID` in its request commitment. `applyMPTranscodeRetire` returns **`mpTranscodeRetirementEffect`**, containing the fresh job observation, the exact inserted cleanup request ID and actual `custodyVariableBytes` from INSERT RETURNING. These new child bytes belong to the version's domain accounting. They are not job receipt bytes. Job `cleanupPending` remains false after the already joined encode; it does not describe pending artifact deletion.
-
-Parent's same-turn version receipt capture must bind the version-owned request ID, empty initial deletion execution, generation0/cursor0/finished0 and actual initial exited1/cleaned1. Those flags describe **no deletion worker claimed yet**, and are never evidence that a new deletion execution exited. `physicalPending` for the version remains true until parent's749 claims a distinct cleanup execution, records its exact actual exit and bounded external completion, and finalizes. Parent's current `mp_version_cleanup.go` and updated version receipt codec already expose those fields; they are intentionally untouched here. W must match the version receipt owner incarnation to `retirement.job.versionIncarnation`, debit new custody bytes, and store the parent's version result; never feed retirement into the job codec.
-
-Still unimplemented here: W opaque current admission/disclosure, public constructor/buffer admission, immutable input/result closed dispatcher adoption, full ACK/floor/due/governor bookkeeping and event composition; 703's same-turn session/source-pin consequences; trusted preparer/artifact/supervisor adapters and actual file/reference-gated deletion; parent749 claim/confirm/finalize integration. Parent owns these boundaries. In particular747/748 must use `prepareMPTranscodeReceipt` after their effect to capture the new actual phase/error/source values. No component claims Applied, ACK, COMMIT, physical exit proof or personal evidence. Replay classification always remains with W. Cleanup can proceed after revocation under current cleanup-driver authority without resurrecting user evidence.
-
-## Verification and exact runner target
-
-Locally passed with Go1.26.10, GOMAXPROCS2 and `-p 1`: writer package compilation, `^TestMPPrepDraft.*` pure shape/bounds/request/result/scope/digest/native-parameter checks, and `TestEveryCommandReleaseUsesSharedFinish`. `git diff --check` passed. No native fixture, race suite, heavy fixture, live provider, capture or performance measurement was run locally.
-
-Prepared native targets use only matching explicit MP purposes. Synthetic effect frames load exact F receipt/birth/version-custody definitions rather than receipt-shaped imitation tables; they remain effect tests with minimal scope fixtures, not proof of complete authorization/FK/COMMIT behavior. They check birth/root sequence independence, original replay after domain/source drift, generated receipt debt, sealed/phase/source projection, tamper/request mismatch, distinct version publication and separate version retirement custody. `TestMPStartJobNativeFSQL` prepares receipt/birth/transcode SQL against the complete disposable canonical+F database. All native fixtures explicitly skip when F is absent; a skip is not validation.
-
-Parent standard ubuntu-24.04 runner command, Go1.26.10, after staging the exact F packet at `PORTICO_MP_F_PACKET` (omit that variable after canonical F adoption):
-
-```sh
-cd server
-PORTICO_MP_F_PACKET="$RUNNER_TEMP/MP-001.sql" GOTOOLCHAIN=go1.26.10 GOMAXPROCS=2 \
-  go test -p 1 -race ./internal/store/writer \
-  -run '^TestMP(PrepDraft.*|StartPrepNative.*|StartJobNativeFSQL|TranscodeNative.*)$' -count=1 -v
-```
-
-After canonical F adoption and parent publication of the composed source, the existing standard-runner workflow target is:
-
-```sh
-gh workflow run lane-focused.yml --repo PorticoMediaServer/portico --ref main \
-  -f source_ref="<parent-published-composed-SHA>" -f module=server -f runner=ubuntu-24.04 \
-  -f packages='./internal/store/writer' \
-  -f run='^TestMP(PrepDraft.*|StartPrepNative.*|StartJobNativeFSQL|TranscodeNative.*)$' \
-  -f race=true -f count=1 -f shards=auto
-```
-
-Before adoption the workflow has no packet input and native cases will explicitly skip; use the staged-packet runner command to obtain actual native evidence. Crash/uncertain-COMMIT/revocation/ACK/reclaim/event/session composition and HN Capture/EXPLAIN qualification remain parent runner targets. This continuation does not publish, dispatch an unpublished source, or change qualification status.
+Parent runner target after publication: Go 1.26.10 on standard ubuntu-24.04 with exact `PORTICO_MP_F_PACKET`, `go test -p 1 -race ./internal/store/writer -run '^TestMP(PrepDraft.*|StartPrepNative.*|StartJobNative.*|TranscodeNative.*)$' -count=1`. No native, race, Capture, performance, live-provider, complete authority, W codec/admission bridge or COMMIT qualification is claimed locally.

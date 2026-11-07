@@ -6,6 +6,7 @@ import (
 )
 
 type mpStartPrepBegin struct {
+	userBirth                               mpStartJobUserBirth
 	rootIncarnation                         [16]byte
 	id, item, keyDigest, bodyDigest         string
 	part, nowMS, deadlineMS, tokenExpiresMS int64
@@ -56,7 +57,7 @@ func applyMPStartPrepBegin(ctx context.Context, t *commandTurn, q mpStartPrepBeg
 	if err = mpPrepTurn(t, MPStartPrepBegin); err != nil {
 		return
 	}
-	if q.rootIncarnation == ([16]byte{}) || !mpPrepTexts(q.id, q.item) || !lowerHex(q.keyDigest, 64) || !lowerHex(q.bodyDigest, 64) || q.part < 0 || q.nowMS <= 0 || q.deadlineMS <= q.nowMS || q.deadlineMS > q.tokenExpiresMS || q.tokenExpiresMS > q.actor.horizonMS || !q.actor.valid(q.nowMS) || !q.results.valid() || !q.queue.valid() || !mpPrepText(q.replaces, true) || (q.replaces == "") != (q.replacesGeneration == 0) || q.replacesGeneration < 0 {
+	if !q.userBirth.valid() || q.rootIncarnation == ([16]byte{}) || !mpPrepTexts(q.id, q.item) || !lowerHex(q.keyDigest, 64) || !lowerHex(q.bodyDigest, 64) || q.part < 0 || q.nowMS <= 0 || q.deadlineMS <= q.nowMS || q.deadlineMS > q.tokenExpiresMS || q.tokenExpiresMS > q.actor.horizonMS || !q.actor.valid(q.nowMS) || !q.results.valid() || !q.queue.valid() || !mpPrepText(q.replaces, true) || (q.replaces == "") != (q.replacesGeneration == 0) || q.replacesGeneration < 0 {
 		return out, ErrInvalid
 	}
 	if err = checkMPPrepActor(ctx, t, q.actor); err != nil {
@@ -78,7 +79,7 @@ func applyMPStartPrepBegin(ctx context.Context, t *commandTurn, q mpStartPrepBeg
 	}
 	// A duplicate device/key is a conflict here. Receipt resolution and legacy
 	// start-key/body replay lookup MUST precede fresh effects in the dispatcher.
-	if err = mpPrepOne(ctx, t, "mp.start.begin", q.id, q.actor.device, q.keyDigest, q.bodyDigest, q.item, q.source.asset, q.part, q.replaces, q.replacesGeneration, q.tokenExpiresMS, q.nowMS, q.deadlineMS, q.rootIncarnation[:]); err != nil {
+	if err = mpPrepOne(ctx, t, "mp.start.begin", q.id, q.actor.device, q.keyDigest, q.bodyDigest, q.item, q.source.asset, q.part, q.replaces, q.replacesGeneration, q.tokenExpiresMS, q.nowMS, q.deadlineMS, q.rootIncarnation[:], q.userBirth.root, q.userBirth.member, q.userBirth.profileLifetime); err != nil {
 		return
 	}
 	if err = mpPrepOne(ctx, t, "mp.start.actor_insert", append([]any{q.id}, q.actor.args()...)...); err != nil {
@@ -295,7 +296,7 @@ func mpStartPrepDefinitions() []stmt.Definition {
 		id, sql, types string
 		kind           stmt.Kind
 	}{
-		{"mp.start.begin", `INSERT INTO playback_start_preparations(id,device_id,start_key_digest,start_body_digest,item_id,asset_id,part_index,replaces_session_id,replaces_generation,token_expires_ms,created_ms,deadline_ms,mp_command_incarnation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "ssssssisiiiib", stmt.Write},
+		{"mp.start.begin", `INSERT INTO playback_start_preparations(id,device_id,start_key_digest,start_body_digest,item_id,asset_id,part_index,replaces_session_id,replaces_generation,token_expires_ms,created_ms,deadline_ms,mp_command_incarnation,mp_user_root_id,mp_owner_member_incarnation,mp_owner_profile_lifetime) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "ssssssisiiiibsss", stmt.Write},
 		{"mp.start.actor_insert", `INSERT INTO playback_start_preparation_actor(operation_id,server_id,authority,account_id,profile_id,device_id,family_id,grant_id,session_hash,epoch,token_generation,original_horizon_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "sssssssssiii", stmt.Write},
 		{"mp.start.source_insert", `INSERT INTO playback_start_preparation_source(operation_id,library_id,library_source_id,asset_id,inventory_object_id,inventory_revision,root_identity,incarnation,remote_source_id,effective_configuration,read_policy_witness,read_authority_witness,library_generation,raw_configuration_generation,profile_revision,size,modified_ns) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "ssssssssssssiiiii", stmt.Write},
 		{"mp.start.queue_insert", `INSERT INTO playback_start_preparation_queue(operation_id,legacy_request_id,start_key_digest,start_body_digest,queue_id,queue_entry_id,queue_owner_kind,queue_owner_id,queue_revision,queue_custody_generation) VALUES(?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "ssssssssii", stmt.Write},

@@ -26,6 +26,7 @@ func (r mpTranscodeRecipe) valid() bool {
 }
 
 type mpTranscodeCreate struct {
+	userBirth       mpStartJobUserBirth
 	rootIncarnation [16]byte
 	id              string
 	item, nowMS     int64
@@ -72,7 +73,7 @@ func applyMPTranscodeCreate(ctx context.Context, t *commandTurn, q mpTranscodeCr
 	if err = mpPrepTurn(t, MPTranscodeCreate); err != nil {
 		return
 	}
-	if q.rootIncarnation == ([16]byte{}) || !mpPrepTexts(q.id) || q.item <= 0 || q.nowMS <= 0 || !q.actor.valid(q.nowMS) || !q.recipe.valid() {
+	if !q.userBirth.valid() || q.rootIncarnation == ([16]byte{}) || !mpPrepTexts(q.id) || q.item <= 0 || q.nowMS <= 0 || !q.actor.valid(q.nowMS) || !q.recipe.valid() {
 		return out, ErrInvalid
 	}
 	if err = checkMPPrepActor(ctx, t, q.actor); err != nil {
@@ -84,7 +85,7 @@ func applyMPTranscodeCreate(ctx context.Context, t *commandTurn, q mpTranscodeCr
 	if err = checkMPPrepItem(ctx, t, q.item, q.recipe.part, q.source); err != nil {
 		return
 	}
-	if err = mpPrepOne(ctx, t, "mp.transcode.create", q.id, q.item, q.source.asset, q.source.library, q.recipe.profile, q.recipe.target, q.recipe.selection, q.recipe.sourceRevision, q.nowMS, q.nowMS, q.nowMS, q.rootIncarnation[:]); err != nil {
+	if err = mpPrepOne(ctx, t, "mp.transcode.create", q.id, q.item, q.source.asset, q.source.library, q.recipe.profile, q.recipe.target, q.recipe.selection, q.recipe.sourceRevision, q.nowMS, q.nowMS, q.nowMS, q.rootIncarnation[:], q.userBirth.root, q.userBirth.member, q.userBirth.profileLifetime); err != nil {
 		return
 	}
 	args := append([]any{q.id}, q.actor.args()...)
@@ -467,7 +468,7 @@ func mpTranscodeDefinitions() []stmt.Definition {
 		id, sql, types string
 		kind           stmt.Kind
 	}{
-		{"mp.transcode.create", `INSERT INTO prepared_media_jobs(id,item_id,asset_id,library_id,profile_id,target_id,selection_json,source_revision,principal_json,state,phase,created_ms,updated_ms,job_next_attempt_ms,mp_command_incarnation) VALUES(?,?,?,?,?,?,?,?,'','queued','waiting',?,?,?,?) RETURNING 1`, "sissssssiiib", stmt.Write},
+		{"mp.transcode.create", `INSERT INTO prepared_media_jobs(id,item_id,asset_id,library_id,profile_id,target_id,selection_json,source_revision,principal_json,state,phase,created_ms,updated_ms,job_next_attempt_ms,mp_command_incarnation,mp_user_root_id,mp_owner_member_incarnation,mp_owner_profile_lifetime) VALUES(?,?,?,?,?,?,?,?,'','queued','waiting',?,?,?,?,?,?,?) RETURNING 1`, "sissssssiiibsss", stmt.Write},
 		{"mp.transcode.input_insert", `INSERT INTO mp_job_inputs(job_id,server_id,authority,account_id,actor_profile_id,device_id,family_id,grant_id,session_hash,epoch,token_generation,original_horizon_ms,library_id,library_source_id,asset_id,inventory_object_id,inventory_revision,root_identity,incarnation,remote_source_id,effective_configuration,read_policy_witness,read_authority_witness,library_generation,raw_configuration_generation,profile_revision,size,modified_ns,transformation_digest,part_index) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "sssssssssiiisssssssssssiiiiisi", stmt.Write},
 		{"mp.transcode.custody_insert", `INSERT INTO mp_job_custody(job_id,generation,execution_id,physical_exited,cleaned,exit_digest,cleanup_cursor) VALUES(?,0,'',1,1,'',0) RETURNING 1`, "s", stmt.Write},
 		{"mp.transcode.current", `SELECT j.state,j.revision,j.generation,j.cleaned_generation,j.job_lease_owner,j.job_lease_generation,j.job_lease_expires_ms,j.job_attempts,coalesce(j.job_next_attempt_ms,-1),j.version_id,j.bytes,i.server_id,i.authority,i.account_id,i.actor_profile_id,i.device_id,i.family_id,i.grant_id,i.session_hash,i.epoch,i.token_generation,i.original_horizon_ms,i.library_id,i.library_source_id,i.asset_id,i.inventory_object_id,i.inventory_revision,i.root_identity,i.incarnation,i.remote_source_id,i.effective_configuration,i.read_policy_witness,i.read_authority_witness,i.library_generation,i.raw_configuration_generation,i.profile_revision,i.size,i.modified_ns,j.profile_id,j.target_id,j.selection_json,j.source_revision,i.transformation_digest,i.part_index,c.execution_id,c.physical_exited,c.cleaned,c.cleanup_cursor,j.mp_command_incarnation,j.item_id,coalesce(v.digest,''),coalesce(v.state,''),coalesce(v.revision,0),v.mp_command_incarnation,j.phase,j.error_code,j.source_revision,coalesce(v.size,0) FROM prepared_media_jobs AS j CROSS JOIN mp_job_inputs AS i ON i.job_id=j.id CROSS JOIN mp_job_custody AS c ON c.job_id=j.id AND c.generation=j.generation LEFT JOIN prepared_media_versions AS v ON v.id=j.version_id AND v.job_id=j.id WHERE j.id=?`, "s", stmt.Read},

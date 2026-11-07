@@ -36,7 +36,12 @@ func mpNativeFixture(t *testing.T) *mpDraftNative {
 		}
 		packet = string(body)
 	}
-	if !strings.Contains(packet, "CREATE TABLE mp_start_births(") {
+	start := strings.Index(packet, "CREATE TABLE mp_start_command_receipts(")
+	if start < 0 {
+		t.Skip("F absent: set PORTICO_MP_F_PACKET to current F on runner")
+	}
+	end := strings.Index(packet[start:], ";")
+	if end < 0 || !strings.Contains(packet[start:start+end], "result_payload") {
 		t.Skip("F absent: set PORTICO_MP_F_PACKET to exact parent packet on runner")
 	}
 	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 128, Synchronous: sqliteconn.Normal}
@@ -64,17 +69,18 @@ func mpNativeFixture(t *testing.T) *mpDraftNative {
 		}
 		n.exec(text[:end+1])
 	}
-	for _, table := range []string{"playback_start_preparations", "prepared_media_jobs"} {
-		n.exec("ALTER TABLE " + table + " ADD COLUMN mp_command_incarnation BLOB")
-		n.exec("ALTER TABLE " + table + " ADD COLUMN mp_birth_id BLOB")
-		n.exec("ALTER TABLE " + table + " ADD COLUMN mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(mp_command_incarnation),0)+coalesce(length(mp_birth_id),0)) VIRTUAL")
-		n.exec("CREATE UNIQUE INDEX mp_fixture_" + table + "_inc ON " + table + "(id,mp_command_incarnation)")
-		for _, col := range []string{"mp_command_last_sequence", "mp_command_acknowledged_sequence", "mp_receipt_rows", "mp_receipt_variable_bytes"} {
-			n.exec("ALTER TABLE " + table + " ADD COLUMN " + col + " INTEGER NOT NULL DEFAULT 0")
+	for _, statement := range strings.Split(packet, ";") {
+		statement = strings.TrimSpace(statement)
+		for _, table := range []string{"playback_start_preparations", "prepared_media_jobs", "prepared_media_versions"} {
+			marker := "ALTER TABLE " + table + " ADD COLUMN "
+			if i := strings.Index(statement, marker); i >= 0 {
+				n.exec(statement[i:] + ";")
+			}
 		}
 	}
-	n.exec("ALTER TABLE prepared_media_versions ADD COLUMN mp_command_incarnation BLOB")
-	n.exec("ALTER TABLE prepared_media_versions ADD COLUMN mp_retirement_state TEXT NOT NULL DEFAULT 'live'")
+	for _, table := range []string{"playback_start_preparations", "prepared_media_jobs", "prepared_media_versions"} {
+		n.exec("CREATE UNIQUE INDEX mp_fixture_" + table + "_inc ON " + table + "(id,mp_command_incarnation)")
+	}
 	n.exec(`CREATE TABLE mp_start_execution(operation_id TEXT PRIMARY KEY,execution_id TEXT NOT NULL UNIQUE,physical_exited INTEGER NOT NULL,cleaned INTEGER NOT NULL,exit_digest TEXT NOT NULL,result_digest TEXT NOT NULL,staged_rows INTEGER NOT NULL,staged_bytes INTEGER NOT NULL,cleanup_cursor INTEGER NOT NULL);
  CREATE TABLE mp_job_inputs(job_id TEXT PRIMARY KEY,server_id TEXT,authority TEXT,account_id TEXT,actor_profile_id TEXT,device_id TEXT,family_id TEXT,grant_id TEXT,session_hash TEXT,epoch INTEGER,token_generation INTEGER,original_horizon_ms INTEGER,library_id TEXT,library_source_id TEXT,asset_id TEXT,inventory_object_id TEXT,inventory_revision TEXT,root_identity TEXT,incarnation TEXT,remote_source_id TEXT,effective_configuration TEXT,read_policy_witness TEXT,read_authority_witness TEXT,library_generation INTEGER,raw_configuration_generation INTEGER,profile_revision INTEGER,size INTEGER,modified_ns INTEGER,transformation_digest TEXT,part_index INTEGER);
  CREATE TABLE mp_job_custody(job_id TEXT PRIMARY KEY,generation INTEGER,execution_id TEXT,physical_exited INTEGER,cleaned INTEGER,exit_digest TEXT,cleanup_cursor INTEGER);
@@ -91,7 +97,7 @@ func mpNativeFixture(t *testing.T) *mpDraftNative {
  CREATE TABLE queues_v1(id TEXT PRIMARY KEY,owner_kind TEXT,owner_id TEXT,revision INTEGER,custody_generation INTEGER,current_entry_id TEXT,authority TEXT,account_id TEXT,profile_id TEXT);
  CREATE TABLE playback_v1_sessions(id TEXT PRIMARY KEY,authority TEXT,account_id TEXT,profile_id TEXT,device_id TEXT,generation INTEGER,ended_ms INTEGER);`)
 	// Use exact parent F relation definitions, never a receipt-shaped imitation.
-	for _, table := range []string{"mp_start_births", "mp_job_births", "mp_start_command_receipts", "mp_job_command_receipts", "mp_version_custody"} {
+	for _, table := range []string{"mp_start_command_receipts", "mp_job_command_receipts", "mp_version_custody"} {
 		start := strings.Index(packet, "CREATE TABLE "+table+"(")
 		if start < 0 {
 			t.Skip("F missing required relation " + table)
@@ -159,13 +165,13 @@ func (n *mpDraftNative) purpose(kind CommandID) *commandTurn {
 	return n.turn
 }
 func mpNativeStart() mpStartPrepBegin {
-	return mpStartPrepBegin{rootIncarnation: [16]byte{4}, id: "prep", item: entityid.Encode(make([]byte, 16)), keyDigest: strings.Repeat("d", 64), bodyDigest: strings.Repeat("e", 64), nowMS: 100, deadlineMS: 9000, tokenExpiresMS: 10000, actor: mpDraftActor(), source: mpDraftSource(), queue: mpPrepQueue{id: "queue", entry: "entry", ownerKind: "device", ownerID: "device", revision: 1, custody: 1}, results: mpDraftIDs()}
+	return mpStartPrepBegin{userBirth: mpDraftUserBirth(), rootIncarnation: [16]byte{4}, id: "prep", item: entityid.Encode(make([]byte, 16)), keyDigest: strings.Repeat("d", 64), bodyDigest: strings.Repeat("e", 64), nowMS: 100, deadlineMS: 9000, tokenExpiresMS: 10000, actor: mpDraftActor(), source: mpDraftSource(), queue: mpPrepQueue{id: "queue", entry: "entry", ownerKind: "device", ownerID: "device", revision: 1, custody: 1}, results: mpDraftIDs()}
 }
 func mpNativeStartFence(r mpStartPrepEffect) mpStartPrepFence {
 	return mpStartPrepFence{id: r.preparation, execution: r.execution, revision: r.revision, nowMS: 200, actor: mpDraftActor(), source: mpDraftSource(), queue: mpNativeStart().queue}
 }
 func mpNativeJob() mpTranscodeCreate {
-	return mpTranscodeCreate{rootIncarnation: [16]byte{5}, id: "job", item: 1, nowMS: 100, actor: mpDraftActor(), source: mpDraftSource(), recipe: mpDraftRecipe()}
+	return mpTranscodeCreate{userBirth: mpDraftUserBirth(), rootIncarnation: [16]byte{5}, id: "job", item: 1, nowMS: 100, actor: mpDraftActor(), source: mpDraftSource(), recipe: mpDraftRecipe()}
 }
 func mpNativeJobFence(r mpTranscodeEffect) mpTranscodeFence {
 	return mpTranscodeFence{id: r.job, execution: r.execution, revision: r.revision, generation: r.generation, leaseOwner: r.leaseOwner, leaseGeneration: r.leaseGeneration, nowMS: 200, actor: mpDraftActor(), source: mpDraftSource(), recipe: mpDraftRecipe()}
