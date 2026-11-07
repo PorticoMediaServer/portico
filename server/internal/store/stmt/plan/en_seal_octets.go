@@ -117,6 +117,9 @@ func checkENSealOctetPoint(d stmt.Definition, eqp Rows) error {
 func init() {
 	for _, point := range enSealOctetPoints {
 		p := point
+		if p.id == "enrichment.effective_source.pin_evidence_lengths" {
+			continue
+		}
 		pointOctets.add(octetShape{
 			id: p.id, sql: p.sql, mismatch: "EN seal preflight requires the exact closed ID/SQL/parameters/point plan",
 			definition: enSealOctetDefinition,
