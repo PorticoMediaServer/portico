@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"math"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -83,6 +85,46 @@ func mgSourceDefinitions() []stmt.Definition {
 	}
 	return defs
 }
+func mgSourceText(s string, required bool, max int) bool {
+	return (!required || s != "") && len(s) <= max && utf8.ValidString(s) && !strings.ContainsRune(s, 0)
+}
+func mgSourceTime(ctx context.Context, t *commandTurn) (out int64, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	if t == nil || t.transaction == nil {
+		return 0, ErrInvalid
+	}
+	tx := t.transaction
+	switch tx.descriptor.ID {
+	case MGConfigureTuner, MGSetSourceEnabled, MGRetireSource, MGSetSourceViewerAccess:
+	default:
+		return 0, ErrInvalid
+	}
+	if tx.writer == nil || tx.writer.now == nil || tx.ctx == nil || tx.conn == nil || tx.quantum == nil || tx.custody == nil {
+		return 0, ErrInvalid
+	}
+	if tx.done || !tx.begun {
+		return 0, ErrClosed
+	}
+	if err = t.checkLifetimes(ctx); err != nil {
+		return 0, err
+	}
+	deadline, ok := tx.ctx.Deadline()
+	if !ok {
+		return 0, ErrInvalid
+	}
+	defer tx.guardPanic()
+	now := tx.writer.now()
+	if now.UnixMilli() < 0 {
+		return 0, ErrInvalid
+	}
+	if err = tx.observeTime(now); err != nil {
+		return 0, err
+	}
+	if !now.Before(deadline) {
+		return 0, context.DeadlineExceeded
+	}
+	return now.UnixMilli(), nil
+}
 func mgSourcePurpose(t *commandTurn, purpose CommandID) error {
 	if t == nil || t.transaction == nil || t.transaction.descriptor.ID != purpose || !t.transaction.policyVerified {
 		return ErrInvalid
@@ -124,7 +166,7 @@ func mgReadSource(ctx context.Context, t *commandTurn, id string) (out mgSourceF
 	if err != nil {
 		return out, err
 	}
-	if out.id != id || !mgGuideReceiptText(out.name, true, 256) || out.revision <= 0 || out.tuners < 0 || out.tuners > 256 || out.physical < 0 || out.physical > 256 || out.ownerLimit < 0 || out.ownerLimit > 256 || (out.state != "active" && out.state != "disabled") || (out.viewerAccess != "owner-only" && out.viewerAccess != "server-members") || (out.removed != 0 && out.removed != 1) {
+	if out.id != id || !mgSourceText(out.name, true, 256) || out.revision <= 0 || out.tuners < 0 || out.tuners > 256 || out.physical < 0 || out.physical > 256 || out.ownerLimit < 0 || out.ownerLimit > 256 || (out.state != "active" && out.state != "disabled") || (out.viewerAccess != "owner-only" && out.viewerAccess != "server-members") || (out.removed != 0 && out.removed != 1) {
 		return out, ErrInvalid
 	}
 	if out.removed == 1 && (!out.removalRequest.Valid || out.removalRequest.String == "" || !out.removalRevision.Valid || out.removalRevision.Int64 <= 0 || !out.removedAt.Valid || out.removedAt.String == "") {
@@ -175,7 +217,7 @@ func mgSourceAdvance(ctx context.Context, t *commandTurn, before, after mgSource
 	if post != after {
 		return out, ErrConflict
 	}
-	now, err := mgGuideNativeTime(ctx, t)
+	now, err := mgSourceTime(ctx, t)
 	if err != nil {
 		return out, err
 	}
@@ -187,7 +229,7 @@ func mgConfigureSource(ctx context.Context, t *commandTurn, before mgSourceFacts
 		return out, err
 	}
 
-	if !mgGuideReceiptText(c.name, true, 256) || c.physical < 0 || c.physical > 256 || c.ownerLimit < 0 || c.ownerLimit > 256 {
+	if !mgSourceText(c.name, true, 256) || c.physical < 0 || c.physical > 256 || c.ownerLimit < 0 || c.ownerLimit > 256 {
 		return out, ErrInvalid
 	}
 	if err = mgSourceBefore(ctx, t, before); err != nil {
@@ -252,13 +294,13 @@ func mgRetireSource(ctx context.Context, t *commandTurn, before mgSourceFacts, r
 		return out, err
 	}
 
-	if !mgGuideReceiptText(request, true, 256) {
+	if !mgSourceText(request, true, 256) {
 		return out, ErrInvalid
 	}
 	if err = mgSourceBefore(ctx, t, before); err != nil {
 		return out, err
 	}
-	now, err := mgGuideNativeTime(ctx, t)
+	now, err := mgSourceTime(ctx, t)
 	if err != nil {
 		return out, err
 	}

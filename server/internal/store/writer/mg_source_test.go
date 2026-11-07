@@ -20,6 +20,19 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
+// Canonical existing source fields only: this slice needs no G DDL overlay.
+const mgSourceFixtureSQL = `INSERT INTO live_source_identities(id) VALUES('source');
+INSERT INTO live_generations(id,source_id,name,tuner_count,channel_count,programme_count,created_at) VALUES('old','source','Old',1,2,9,'before'),('new','source','Guide',1,2,9,'2026-11-07T00:00:00.000Z');
+INSERT INTO live_sources(id,name,revision,state,tuner_count,active_generation,published_at) VALUES('source','Old',7,'active',1,'old','before');`
+
+func mgSourceTestExecutor(t *testing.T) *executor {
+	t.Helper()
+	w, _ := testCanonicalExecutor(t)
+	if _, err := w.db.ExecContext(t.Context(), mgSourceFixtureSQL); err != nil {
+		t.Fatal(err)
+	}
+	return w
+}
 func mgSourceTestTurn(t *testing.T, w *executor, purpose CommandID, custom ...[]stmt.Definition) *commandTurn {
 	t.Helper()
 	clock := time.Now().Add(time.Hour)
@@ -51,7 +64,7 @@ func mgSourceTestTurn(t *testing.T, w *executor, purpose CommandID, custom ...[]
 }
 func mgSourceFixture(t *testing.T, purpose CommandID) (*executor, *commandTurn, mgSourceFacts) {
 	t.Helper()
-	w, _ := mgGuideNativeFixture(t, false, "active")
+	w := mgSourceTestExecutor(t)
 	turn := mgSourceTestTurn(t, w, purpose)
 	s, err := mgReadSource(t.Context(), turn, "source")
 	if err != nil {
@@ -122,7 +135,7 @@ func TestMGSourceSecurityPurposeAndNativeFullPolicy(t *testing.T) {
 	}
 }
 func TestMGSourceSettingsFailureRollsBackWholeFrame(t *testing.T) {
-	w, _ := mgGuideNativeFixture(t, false, "active")
+	w := mgSourceTestExecutor(t)
 	defs := mgSourceDefinitions()
 	for j := range defs {
 		if defs[j].ID == mgSourceUpdate {
@@ -170,7 +183,7 @@ func TestMGSourceRemovedAndCancelledRefuseNewEffects(t *testing.T) {
 var recordMGSourcePlans = flag.Bool("record-mg-source-plans", false, "deliberately record closed source point plans")
 
 func TestMGSourceNativeStatementCapture(t *testing.T) {
-	w, _ := mgGuideNativeFixture(t, false, "active")
+	w := mgSourceTestExecutor(t)
 	defs := mgSourceDefinitions()
 	catalogue, err := stmt.Describe(defs)
 	if err != nil {
@@ -189,8 +202,8 @@ func TestMGSourceNativeStatementCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	digest := sha256.Sum256([]byte(mgGuidePublicationDraftSQL))
-	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(digest[:]), Statistics: plan.Unanalyzed, Implementations: "Exact G source/identity selected fixture; point component facts only; not authority, lifetime, admission, COMMIT or qualification"}, policy)
+	digest := sha256.Sum256([]byte(mgSourceFixtureSQL))
+	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(digest[:]), Statistics: plan.Unanalyzed, Implementations: "Existing canonical source/identity fixture; point component facts only; not authority, lifetime, admission, COMMIT or qualification"}, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
