@@ -40,14 +40,14 @@ func TestSealNativeProjectionMatchesIndependentResultAnswers(t *testing.T) {
 				root := evidenceSealRoot{f.BuildID.Value, f.EvidenceID, f.ParserVersion, f.BuildGeneration.Value, f.ContentRevision - 1, f.SubjectID, f.VerifiedRows}
 				var result evidenceSealResult
 				result, digest, err = projectEvidenceSealResult(scope, root, actual, content)
-				got = result.sealResultFacts
+				got = result.facts
 			} else {
 				root := sourceSealRoot{publicationID: f.PublicationID.Value, evidenceID: f.EvidenceID, parser: f.ParserVersion,
 					subjectID: f.SubjectID, next: f.NextOrdinal, expected: f.VerifiedRows, upstreamOwner: f.UpstreamOwner.Value,
 					upstreamIncarnation: f.UpstreamIncarnation.Value, upstreamSequence: f.UpstreamSequence.Value, manifest: content.manifest}
 				var result creditSourceSealResult
 				result, digest, err = projectSourceSealResult(scope, root, actual, content)
-				got = result.sealResultFacts
+				got = result.facts
 			}
 			if err != nil || !reflect.DeepEqual(got, f) || hex.EncodeToString(digest[:]) != a.SHA256 {
 				t.Fatal("native projection changed a saved result field", got, f, digest, err)
@@ -125,7 +125,7 @@ func TestSealNativeProjectionBindsActualReceiptMutation(t *testing.T) {
 	if err = turn.transaction.conn.QueryRowContext(t.Context(), `SELECT seal_content_revision,accepted_revision,applied_ms,after_ordinal,after_item,result_digest FROM enrichment_command_receipts WHERE provider_operation_id=? AND command_incarnation=? AND command_sequence=?`, scope.ownerID, scope.identity.Incarnation[:], scope.identity.Sequence).Scan(&revision, &catalog, &applied, &next, &after, &savedDigest); err != nil {
 		t.Fatal(err)
 	}
-	f := result.sealResultFacts
+	f := result.facts
 	if revision != actual.revision || catalog != actual.observedCatalogRevision || applied != actual.appliedMS || next != actual.next || after != actual.afterItem ||
 		f.ContentRevision != revision || f.ObservedCatalogRevision != catalog || f.AppliedMS != applied || f.NextOrdinal != next || f.AfterItem != after || !bytes.Equal(savedDigest, digest[:]) {
 		t.Fatal("actual native result was guessed, relabelled or swapped")
