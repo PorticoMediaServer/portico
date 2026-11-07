@@ -61,6 +61,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIPPolicyResult(v)
 	case ipRefreshSavedResult:
 		return preflightIPRefreshResult(v)
+	case ipPersonSavedResult:
+		return preflightIPPersonResult(v)
 	case ipArtworkMaterialResult:
 		return preflightIPArtworkMaterialResult(v)
 	case ipReceiptReclaimResult:
@@ -126,6 +128,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIPPolicyResult(e, identity, request, v)
 	case ipRefreshSavedResult:
 		return writeIPRefreshResult(e, identity, request, v)
+	case ipPersonSavedResult:
+		return writeIPPersonResult(e, identity, request, v)
 	case ipArtworkMaterialResult:
 		return writeIPArtworkMaterialResult(e, identity, request, v)
 	case ipReceiptReclaimResult:
