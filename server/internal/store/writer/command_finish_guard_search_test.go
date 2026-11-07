@@ -4,9 +4,12 @@ func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "search",
 		resultTypes: []string{"SearchImageStageResult", "publisherReceiptLookup", "publisherInvocation", "searchFragmentStageResult", "searchHeadPublishResult", "searchPublisherCommandResult", "searchFragmentReclaimResult"},
-		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts", "searchHeadPublishFreshFacts", "searchPublisherStageFacts", "composeSearchPublisherCommands", "discloseSearchPublisher", "searchPublisherEngine", "searchPublisherTimeMS", "requireSearchPublisherMemory", "checkSearchPublisherTerminal", "acknowledgeSearchPublisherFacts", "searchFragmentReclaimFreshFacts", "readSearchReclaimOwner"},
+		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts", "searchHeadPublishFreshFacts", "searchPublisherStageFacts", "composeSearchPublisherCommands", "discloseSearchPublisher", "searchPublisherEngine", "searchPublisherTimeMS", "requireSearchPublisherMemory", "checkSearchPublisherTerminal", "acknowledgeSearchPublisherFacts", "searchFragmentReclaimFreshFacts", "readSearchReclaimOwner", "discloseSearchReclaimer", "checkSearchReclaimerFreshScope", "acknowledgeSearchReclaimer"},
 		prefixes:    []string{"checkSearchImage"},
 		bypasses: []string{
+			`func discloseSearchReclaimer(ctx context.Context)(out receiptOwnerFacts,err error){return out,nil}`,
+			`func checkSearchReclaimerFreshScope(ctx context.Context)(err error){return nil}`,
+			`func acknowledgeSearchReclaimer(ctx context.Context)(out int64,err error){return 1,nil}`,
 			`func reclaimRelease(ctx context.Context)(out searchFragmentReclaimResult,err error){return searchFragmentReclaimResult{},nil}`,
 			`func searchFragmentReclaimFreshFacts(ctx context.Context)(out searchFragmentReclaimRequest,err error){return searchFragmentReclaimRequest{},nil}`,
 			`func readSearchReclaimOwner(ctx context.Context)(out searchFragmentReclaimOwner,err error){return searchFragmentReclaimOwner{},nil}`,
