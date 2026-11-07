@@ -118,7 +118,9 @@ func testRBExactNumericFacetNativeHandoff(t *testing.T) {
 			if cost.PublicationStatements != 5 || page.Statements != 5 {
 				t.Fatal("ready evidence", page, cost)
 			}
-			assertLiveUsage(t, f, 1, 0)
+			if usage := f.authority.ForegroundUsage(); usage.Live != 1 || usage.Waiters != 0 {
+				t.Fatal("ready handoff lacks actual LIVE custody", usage)
+			}
 			got = append(got, page.Values...)
 			next = page.After
 			exhausted = page.Exhausted
