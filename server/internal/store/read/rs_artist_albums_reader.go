@@ -43,7 +43,14 @@ type RSArtistAlbumCursor struct {
 
 // MissingCanonicalFacts identifies facts unavailable in the accepted scalar
 // image, rather than manufacturing successful empty provider observations.
+type RSArtistAlbumRole string
+
+const RSArtistAlbumAppearance RSArtistAlbumRole = "appearance"
+
+// Role is populated only when current canonical facts determine it. An empty
+// role remains unavailable rather than claiming an unlinked default album.
 type RSArtistAlbumCard struct {
+	Role                  RSArtistAlbumRole
 	Facts                 TitleFacts
 	PrimaryArtist         BrowseItem
 	Artwork               ArtworkFact
@@ -406,13 +413,24 @@ func (r *RSArtistAlbumReader) hydrate(ctx context.Context, q governor.Request, o
 			e = p.charge(512 + 4*int64(len(value.Title)))
 			if e == nil {
 				card.PrimaryArtist = value
+				if value.ID != p.input.Artist {
+					card.Role = RSArtistAlbumAppearance
+				}
 			}
 		}
 
 	} else {
-		card.Artwork, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 6, id), Item: id, Role: "poster", PageSlot: true})
+		var value ArtworkFact
+		value, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 6, id), Item: id, Role: "poster", PageSlot: true})
 		if e == nil {
+			e = p.charge(artistAlbumCardBytes(RSArtistAlbumCard{Artwork: value, MissingCanonicalFacts: []string{"catalog_albums.provider_match_status", "catalog_albums.release_id", "catalog_albums.release_group_id", "catalog_albums.provider_observed_at", "albumRoleSQL"}}))
+		}
+		if e == nil {
+			card.Artwork = value
 			card.MissingCanonicalFacts = []string{"catalog_albums.provider_match_status", "catalog_albums.release_id", "catalog_albums.release_group_id", "catalog_albums.provider_observed_at", "albumRoleSQL"}
+			if card.Role == RSArtistAlbumAppearance {
+				card.MissingCanonicalFacts = card.MissingCanonicalFacts[:4]
+			}
 			p.hydrate++
 		}
 	}
