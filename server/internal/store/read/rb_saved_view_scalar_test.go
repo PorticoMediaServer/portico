@@ -33,7 +33,7 @@ func TestRBSavedViewScalar(t *testing.T) {
 	}
 	read := func(in BrowseInput, p rbScalarFilter) (BrowsePage, error) {
 		var page BrowsePage
-		_, e := f.snapshots.Read(t.Context(), homeRequest(), time.Second, func(scope *governor.ReadScope) error {
+		_, e := f.snapshots.Read(t.Context(), savedViewRequest(), time.Second, func(scope *governor.ReadScope) error {
 			q := func(name string, args ...any) ([][]any, error) { return scope.Query(readStatementID(name), args...) }
 			fence, e := readBrowseFence(q, in)
 			if e != nil {
