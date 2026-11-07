@@ -32,6 +32,7 @@ The original `-run` filter reaches Go unchanged; `-skip` excludes parents assign
 | hn-wc-progress | wc-progress-capture_start.json, wc-progress-pending_drain.json, wc-progress-fk.json.gz |
 | hn-browse | browse-plans.json.gz |
 | hn-foreground | foreground-plans.json.gz |
+| hn-fts-read | fts-read.json.gz |
 
 HN byte identity: **not fully byte-identical** at the default toolchains: Ubuntu captured 8/14 identical files; the six gzip files differ in compressed bytes but all 14 JSON payloads are byte-identical after decompression (mini-1 Go1.27.1; hosted Go1.26.10). [Pinned nine-target pilot](https://github.com/PorticoMediaServer/portico/actions/runs/42314245107), source `a055479469953f43c194615e49c568d4f1f00888`. Captures can be collected remotely for owner review; raw gzip goldens must not be silently replaced. macOS capture identity is untested.
 
