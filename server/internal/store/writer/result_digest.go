@@ -57,6 +57,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 	switch v := result.(type) {
 	case uoRootOperationResult:
 		return preflightUORootOperation(v)
+	case uoRootReclaimResult:
+		return preflightUORootReclaim(v)
 	case evidenceSealResult:
 		return preflightEnrichmentSealResult(EvidenceSeal, v.facts)
 	case creditSourceSealResult:
@@ -112,6 +114,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 	switch v := result.(type) {
 	case uoRootOperationResult:
 		return writeUORootOperation(e, identity, request, v)
+	case uoRootReclaimResult:
+		return writeUORootReclaim(e, identity, request, v)
 	case evidenceSealResult:
 		return writeEnrichmentSealResult(e, EvidenceSeal, identity, request, v.facts)
 	case creditSourceSealResult:

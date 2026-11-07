@@ -72,7 +72,11 @@ func lookupUORootCommand(ctx context.Context, turn *commandTurn, q uoRootReferen
 		}
 		return uoRootLookup{turn: turn, reference: q, owner: owner, decision: decision}, nil
 	}
-	row, err = wc008DraftQuery(ctx, turn, uoRootReceiptMeta, q.identity.OperationID[:], q.request[:], q.root, q.identity.Incarnation[:], q.identity.Sequence)
+	meta := uoRootReceiptMeta
+	if q.kind == RootReceiptReclaim {
+		meta = uoRootSlotMeta
+	}
+	row, err = wc008DraftQuery(ctx, turn, meta, q.identity.OperationID[:], q.request[:], q.root, q.identity.Incarnation[:], q.identity.Sequence)
 	if err != nil {
 		return out, err
 	}
@@ -83,7 +87,11 @@ func lookupUORootCommand(ctx context.Context, turn *commandTurn, q uoRootReferen
 		if operationMatch != 1 || requestMatch != 1 || kind != int64(q.kind) {
 			return out, ErrConflict
 		}
-		if version != 1 || count < 0 || count > 10000 || ms < 0 || size < 1 || size > uoRootPayloadCap || variable != size+118 || digestBytes != 32 {
+		cap := int64(uoRootPayloadCap)
+		if q.kind == RootReceiptReclaim {
+			cap = 4096
+		}
+		if version != 1 || count < 0 || count > 10000 || ms < 0 || size < 1 || size > cap || variable != size+118 || digestBytes != 32 {
 			return out, ErrResolveRequired
 		}
 		found = receiptFacts{exists: true, identity: expected, kind: q.kind, resultCount: count}
@@ -112,7 +120,11 @@ func readUORootPayload(ctx context.Context, turn *commandTurn, lookup uoRootLook
 		return nil, ResultDigest{}, ErrResolveRequired
 	}
 	q := lookup.reference
-	row, err := wc008DraftQuery(ctx, turn, uoRootReceiptPayload, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], lookup.payloadBytes)
+	point := uoRootReceiptPayload
+	if q.kind == RootReceiptReclaim {
+		point = uoRootSlotPayload
+	}
+	row, err := wc008DraftQuery(ctx, turn, point, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], lookup.payloadBytes)
 	if err != nil {
 		return nil, ResultDigest{}, err
 	}
@@ -187,6 +199,8 @@ const (
 	uoRootReceiptPayload stmt.ID = "uo.root.receipt.payload"
 	uoRootReceiptInsert  stmt.ID = "uo.root.receipt.insert"
 	uoRootOwnerAdvance   stmt.ID = "uo.root.owner.advance"
+	uoRootSlotMeta       stmt.ID = "uo.root.slot.meta"
+	uoRootSlotPayload    stmt.ID = "uo.root.slot.payload"
 )
 
 func uoRootDefinitions() []stmt.Definition {
@@ -197,6 +211,8 @@ func uoRootDefinitions() []stmt.Definition {
 		return stmt.Definition{ID: id, Kind: kind, SQL: sql, Params: p, Owner: "store/writer UO shared root", CallSites: []string{"store/writer/uo_root_receipts.go"}, Plan: stmt.Plan{Hot: true}}
 	}
 	return []stmt.Definition{
+		d(uoRootSlotMeta, stmt.Read, `SELECT reclaim_command_kind,reclaim_result_version,reclaim_result_count,reclaim_applied_ms,octet_length(reclaim_result_payload),control_variable_bytes,(reclaim_operation_id=?),(reclaim_request_digest=?),octet_length(reclaim_result_digest) FROM user_mutation_command_owners WHERE root_id=? AND command_incarnation=? AND reclaim_command_sequence=?`, b("operation"), b("request"), s("root"), b("incarnation"), i("sequence")),
+		d(uoRootSlotPayload, stmt.Read, `SELECT reclaim_result_payload,reclaim_result_digest FROM user_mutation_command_owners WHERE root_id=? AND command_incarnation=? AND reclaim_command_sequence=? AND reclaim_operation_id=? AND reclaim_command_kind=? AND reclaim_request_digest=? AND octet_length(reclaim_result_payload)=? AND octet_length(reclaim_result_digest)=32`, s("root"), b("incarnation"), i("sequence"), b("operation"), i("kind"), b("request"), i("payload_bytes")),
 		d(uoRootOwnerPoint, stmt.Read, `SELECT command_incarnation,last_command_sequence,acknowledged_command_sequence,revision,receipt_rows,receipt_variable_bytes,receipt_reclaim_after_sequence,receipt_reclaim_due_ms FROM user_mutation_command_owners WHERE root_id=?`, s("root")),
 		d(uoRootReceiptMeta, stmt.Read, `SELECT command_kind,result_version,result_count,applied_ms,octet_length(result_payload),variable_bytes,(operation_id=?),(request_digest=?),octet_length(result_digest) FROM user_mutation_command_receipts WHERE root_id=? AND command_incarnation=? AND command_sequence=?`, b("operation"), b("request"), s("root"), b("incarnation"), i("sequence")),
 		d(uoRootReceiptPayload, stmt.Read, `SELECT result_payload,result_digest FROM user_mutation_command_receipts WHERE root_id=? AND command_incarnation=? AND command_sequence=? AND operation_id=? AND command_kind=? AND request_digest=? AND octet_length(result_payload)=? AND octet_length(result_digest)=32`, s("root"), b("incarnation"), i("sequence"), b("operation"), i("kind"), b("request"), i("payload_bytes")),
