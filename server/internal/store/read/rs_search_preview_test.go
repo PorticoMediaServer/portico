@@ -43,10 +43,10 @@ func rsSearchTestHit(group RSSearchGroup, id, library int64) FullSearchHit {
 	return h
 }
 func TestRSSearchBoundedPreview(t *testing.T) {
-	f, _ := newRSSearchFixture(t)
 	for _, mode := range []string{"all-eight", "candidate-cap", "pending-progress"} {
 		t.Run(mode, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
+				f, _ := newRSSearchFixture(t)
 				query, _ := search.PlanQuery("hello", true)
 				view := f.input
 				view.Kind = 0
