@@ -235,7 +235,7 @@ AND (SELECT pending_subjects=0 FROM search_generations WHERE id=1)`).Scan(&intac
 }
 
 func TestInventoryFreshNativeEffectsAndHistoricalEcho(t *testing.T) {
-	e, path, c, registry := inventoryFreshFixture(t)
+	e, path, c, registry := inventoryFreshFixtureDefinitions(t, inventoryCommandDefinitions())
 	turn, a := inventoryFreshTestTurn(t, e, path, registry)
 	started := time.Now()
 	out, err := applyInventoryAccept(t.Context(), turn, c)
@@ -299,7 +299,7 @@ AND (SELECT j.source_revision=1 AND source_incarnation=e.metadata_incarnation AN
 	}
 	// Use W's existing closed historical adapter on this separately admitted
 	// test frame. Public current-disclosure routing is W's integration test.
-	historyTurn := scanObjectTestTurn(t, e, inventoryHistoryDefinitions())
+	historyTurn, _ := inventoryMemoryFixtureTurn(t, e, registry, c, inventoryMemoryBudget{4 << 20, 4 << 20})
 	request, err := c.receiptRequest()
 	if err != nil {
 		t.Fatal(err)
