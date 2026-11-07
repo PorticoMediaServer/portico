@@ -14,6 +14,17 @@ import (
 func rbChannelPlayableFixture(t *testing.T) (*browseFixture, *SharedChannelReader, *SharedChannelScope) {
 	t.Helper()
 	f, r := rbChannelFixture(t)
+	seedRBChannelPlayable(t, f)
+	s, _, _, e := r.OpenSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, rbChannelScopeInput())
+	if e != nil {
+		t.Fatal(e)
+	}
+	return f, r, s
+}
+
+// BEGIN_RB_CHANNEL_PLAYABLE_JOURNAL
+func seedRBChannelPlayable(t *testing.T, f *browseFixture) {
+	t.Helper()
 	f.exec(t, `UPDATE catalog_entities SET playback_origin_incarnation=metadata_incarnation,playback_origin_revision=1 WHERE id=1`)
 	f.exec(t, `INSERT INTO catalog_assets(id,token,library_id,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration) VALUES(1,'home-1',1,'/media/home-1',1000,1,'mkv','h264','aac',1920,1080,120)`)
 	f.exec(t, `INSERT INTO catalog_asset_links(entity_id,asset_id,library_id) VALUES(1,1,1)`)
@@ -22,12 +33,9 @@ func rbChannelPlayableFixture(t *testing.T) (*browseFixture, *SharedChannelReade
 	f.exec(t, `UPDATE catalog_assets SET playback_origin_incarnation=x'02020202020202020202020202020202',playback_origin_revision=1`)
 	f.exec(t, `UPDATE catalog_asset_links SET playback_origin_incarnation=x'03030303030303030303030303030303',playback_origin_revision=1`)
 	f.exec(t, `UPDATE libraries SET playback_origin_incarnation=x'04040404040404040404040404040404',playback_origin_revision=1 WHERE id='movies'`)
-	s, _, _, e := r.OpenSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, rbChannelScopeInput())
-	if e != nil {
-		t.Fatal(e)
-	}
-	return f, r, s
 }
+
+// END_RB_CHANNEL_PLAYABLE_JOURNAL
 
 func TestRBChannelWindowWholeBindingAndRawContinuation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

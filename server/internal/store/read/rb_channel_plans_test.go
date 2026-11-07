@@ -3,10 +3,13 @@ package read
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
@@ -17,7 +20,8 @@ import (
 
 func TestRBChannelPlans(t *testing.T) {
 	f := newRBChannelSource(t)
-	fixtureHash := rbChannelFixtureHash(t)
+	seedRBChannelPlayable(t, f)
+	fixtureHash := rbChannelPlayableFixtureHash(t)
 	contract, err := schema.ReadContract("INT-INDEX-POLICY.json")
 	if err != nil {
 		t.Fatal(err)
@@ -26,12 +30,12 @@ func TestRBChannelPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definitions := rbChannelDefinitions()
+	definitions := RBSharedChannelDefinitions()
 	catalogue, err := stmt.Describe(definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalogue.Manifest()) != 3 {
+	if len(catalogue.Manifest()) != 9 {
 		t.Fatal("review changed statement inventory")
 	}
 	path := "testdata/rb-channel-plans.json.gz"
@@ -103,8 +107,22 @@ func TestRBChannelPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capture := range captures {
-		if len(capture.Golden.Manifest) != 3 || len(capture.Golden.Plans) != 6 {
+		if len(capture.Golden.Manifest) != 9 || len(capture.Golden.Plans) != 18 {
 			t.Fatal("incomplete statement/cohort Capture coverage")
 		}
 	}
+}
+
+func rbChannelPlayableFixtureHash(t *testing.T) string {
+	t.Helper()
+	data, err := os.ReadFile("rb_channel_window_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := strings.Index(string(data), "// BEGIN_RB_CHANNEL_PLAYABLE_JOURNAL\n")
+	end := strings.Index(string(data), "// END_RB_CHANNEL_PLAYABLE_JOURNAL\n")
+	if start < 0 || end <= start {
+		t.Fatal("playable source journal")
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(append([]byte(rbChannelFixtureHash(t)), data[start:end]...)))
 }
