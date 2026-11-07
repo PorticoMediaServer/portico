@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "searchFragmentStageResult": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -47,6 +47,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle" || fn.Name.Name == "composeScanLifecycleHistory"
 		needs = needs || fn.Name.Name == "newScanDriver" || fn.Name.Name == "keepPreparation" || fn.Name.Name == "prepareWork" || fn.Name.Name == "allocateBirth" || fn.Name.Name == "prepareBirth" || fn.Name.Name == "checkBirthAbsence" || fn.Name.Name == "excludeOldWork"
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
+		needs = needs || fn.Name.Name == "searchFragmentStageFreshFacts"
 		if !needs {
 			continue
 		}
@@ -252,6 +253,8 @@ func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 		`func excludeOldWork(ctx context.Context)(err error){return nil}`,
 		`func newScanPreparation(ctx context.Context)(out *scanPreparation,err error){return &scanPreparation{},nil}`,
 		`func ObserveInventory(ctx context.Context)(value nativeinventory.Page,err error){return nativeinventory.Page{},nil}`,
+		`func fragmentRelease(ctx context.Context)(out searchFragmentStageResult,err error){return searchFragmentStageResult{},nil}`,
+		`func searchFragmentStageFreshFacts(ctx context.Context,turn *commandTurn,want searchFragmentStageSnapshot)(out searchFragmentStageSnapshot,err error){return want,nil}`,
 		`func lookupScanRunLifecycle(ctx context.Context)(value scanLifecycleReceiptLookup,err error){return scanLifecycleReceiptLookup{},nil}`,
 		`func acknowledgeScanRunLifecycle(ctx context.Context)(value int64,err error){return 1,nil}`,
 		`func composeScanLifecycleHistory(ctx context.Context)(err error){return nil}`,
