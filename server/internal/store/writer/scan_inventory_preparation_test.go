@@ -12,6 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"github.com/PorticoMediaServer/portico/server/internal/storage/objectidentity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // Constructor/retirement component only. Native source values are read from
@@ -123,4 +124,149 @@ func TestN1FreezeFinalCancellationDiscardsCommandWithoutRefund(t *testing.T) {
 func isN1CapacityRefusal(err error) bool {
 	var refusal *Refusal
 	return errors.As(err, &refusal) && refusal.Code == RefusalCapacity
+}
+
+func TestN1PreparationUsesTheIssuerAndKeepsFreshClosed(t *testing.T) {
+	f := scanIssuerRuntime(t)
+	d, r := f.driver, f.driver.writer.effective
+	// Reuse the ONE existing fixture recipe and exact same governor. Capture
+	// both finite profiles during FULL startup, before create or claim begins.
+	makePlan := func(defs []stmt.Definition) effectivePlan {
+		p := *r.issuerPlans[0]
+		p.scanLifecycleMemory = commandMemoryBudget{}
+		p.inventoryMemory = inventoryMemoryBudget{4 << 20, 4 << 20}
+		unit := p.steps[0].work
+		p.steps = nil
+		for _, def := range defs {
+			p.steps = append(p.steps, statementStep{def.ID, unit})
+		}
+		conn, err := r.executor.db.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		golden := captureEffectiveFixture(t, conn, r.executor.config, defs, "scan_inventory_preparation_test.go", "scan_run_lifecycle_test.go")
+		if err = conn.Close(); err != nil {
+			t.Fatal(err)
+		}
+		p.registration = golden.Receipt()
+		return p
+	}
+	prepPlan, historyPlan := makePlan(inventoryPreparationDefinitions()), makePlan(inventoryHistoryDefinitions())
+	if err := composeInventoryPreparation(t.Context(), d, prepPlan, historyPlan); err != nil {
+		t.Fatal(err)
+	}
+	creation, err := d.PrepareCreate(t.Context(), ScanRunInput{7, "lifecycle-library", "lifecycle-new-source", "first-import"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := creation.Reference()
+	if err != nil {
+		t.Fatal(err)
+	}
+	consume := func(operation *ScanRunOperation) {
+		result, err := operation.Apply(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = result.Snapshot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err = result.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = operation.Ack(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	consume(creation)
+	if err = creation.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	claim, err := d.PrepareClaim(t.Context(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	consume(claim)
+	ref, err = claim.Reference()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease, err := claim.Lease(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = claim.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	n, err := d.PrepareInventory(t.Context(), lease, ref, []byte("."))
+	if err != nil {
+		t.Fatal("owned N1 preparation", err)
+	}
+	snapshot, err := n.Snapshot(t.Context())
+	if err != nil || snapshot.Input.Run.AcknowledgedSequence != 2 || snapshot.Identity.Sequence != 3 || !bytes.Equal(snapshot.IdentityRoot, []byte("/retained-library-identity")) {
+		t.Fatal("current post-claim snapshot", snapshot, err)
+	}
+	_, in := n1InputForSnapshot(t, snapshot)
+	page := nativeinventory.Page{Version: 1, RootIdentity: in.Source.RootIdentity, DirectoryIdentity: in.Directory.Identity,
+		DirectoryRevision: in.Directory.Revision, NextCursor: in.Directory.NextCursor,
+		Entries: []nativeinventory.Entry{{Path: in.Files[0].AssetPath, Name: in.Files[0].RelativePath, ObjectIdentity: in.Files[0].ObjectIdentity,
+			ChangeToken: in.Files[0].ChangeToken, Size: in.Files[0].Size, ModifiedNS: in.Files[0].ModifiedNS}}}
+	raw, err := json.Marshal(page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.preparation.observer = nativeinventory.NewObserver(&scanObservationFaultTransport{page: string(raw)})
+	if _, err = n.ObserveInventory(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	command, err := n.Freeze(t.Context(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err := InventoryAcceptReference(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var refusal *Refusal
+	if value, err := n.Accept(t.Context(), command); !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || value.Outcome.State != 0 || len(value.Members) != 0 {
+		t.Fatal("unqualified composition became executable", value, err)
+	}
+	base, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ctx := &scanIssuerPublicationContext{Context: base, cancel: cancel, installed: func() bool { return n.resultPublished }}
+	if value, err := d.ResolveScan(ctx, q); !errors.Is(err, context.Canceled) || value.Outcome.State != 0 || n.resultPublished {
+		t.Fatal("discarded result advanced consumer state", value, err)
+	}
+	if value, err := d.ResolveScan(t.Context(), q); err != nil || value.Outcome.State != Pending || len(value.Members) != 0 {
+		t.Fatal("same-original recovery lost the pending decision", value, err)
+	}
+	if _, err := d.AckScan(t.Context(), q); !errors.Is(err, ErrResolveRequired) {
+		t.Fatal("pending original advanced the native floor", err)
+	}
+	if err = n.Close(context.Background()); err != nil || r.authority.Usage() != ([4]governor.Amounts{}) {
+		t.Fatal("N1 custody did not physically retire", err)
+	}
+}
+
+func n1InputForSnapshot(t *testing.T, snapshot InventoryPreparationSnapshot) (InventoryOrdinaryFilename, InventoryAcceptInput) {
+	t.Helper()
+	in := snapshot.Input
+	in.Directory.RawNames, in.Directory.NextCursor = 1, "42"
+	file := InventoryFilenameInput{RelativePath: []byte("The Film (2020).mkv"), AssetPath: []byte(string(in.Source.ResolvedRoot) + "/The Film (2020).mkv"), ObjectIdentity: "dev:7:ino:31", ChangeToken: "native-change", Size: 42, ModifiedNS: 1}
+	projection, err := ProjectOrdinaryFilename(InventoryOrdinaryFilenameInput{snapshot.IdentityRoot, file.AssetPath, file.RelativePath, "", "en-US"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := projection.Metadata
+	file.SourceKey, file.Year = projection.SourceKey, projection.Year
+	file.Title, file.SortTitle, file.SortKey, file.SortHead = m.Title, m.SortTitle, m.SortKey, m.SortHead
+	file.SortKeyKeepArticles, file.SortHeadKeepArticles, file.MetadataLanguage = m.SortKeyKeepArticles, m.SortHeadKeepArticles, m.MetadataLanguage
+	evidence := mediasource.InventoryEvidence{Kind: "local", Scope: in.Source.ID + ":" + in.Source.Incarnation,
+		Object: objectidentity.StableObjectIdentity(file.ObjectIdentity, in.Source.RootIdentity), Size: file.Size, ModifiedNS: file.ModifiedNS, ChangeToken: file.ChangeToken}
+	file.Revision, err = evidence.Revision()
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.Files = []InventoryFilenameInput{file}
+	return projection, in
 }
