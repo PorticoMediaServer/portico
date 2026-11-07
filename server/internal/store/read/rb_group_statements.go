@@ -30,7 +30,7 @@ func rbGroupSpecs() []rbGroupSpec {
 		{RBGroupSeasonEpisodes, "season-episodes", entity + "catalog_entities_season", "season_id IS NOT NULL AND e.season_id=?", "catalog_entities_season", []rbGroupKey{n("e.episode_number"), n("e.id")}, 3, []int64{4}, true},
 		{RBGroupArtistAlbums, "artist-albums", entity + "catalog_entities_artist", "artist_id IS NOT NULL AND e.artist_id=?", "catalog_entities_artist", []rbGroupKey{n("e.id")}, 5, []int64{6}, false},
 		{RBGroupAlbumSongs, "album-songs", entity + "catalog_entities_album", "album_id IS NOT NULL AND e.album_id=?", "catalog_entities_album", []rbGroupKey{n("COALESCE(e.disc_number,1)"), n("COALESCE(e.track_number,0)"), n("e.id")}, 6, []int64{7}, true},
-		{RBGroupAuthorBooks, "author-books", entity + "catalog_entities_book_author", "kind=8 AND e.library_id=? AND e.author COLLATE NOCASE=(SELECT title FROM catalog_entities WHERE id=?)", "catalog_entities_book_author", []rbGroupKey{n("e.id")}, 13, []int64{8}, false},
+		{RBGroupAuthorBooks, "author-books", entity + "catalog_entities_book_author", "kind=8 AND e.library_id=? AND e.author COLLATE NOCASE=?", "catalog_entities_book_author", []rbGroupKey{n("e.id")}, 13, []int64{8}, false},
 		{RBGroupBookParts, "book-parts", entity + "catalog_entities_book", "book_id IS NOT NULL AND e.book_id=?", "catalog_entities_book", []rbGroupKey{n("COALESCE(e.disc_number,1)"), n("COALESCE(e.part_number,0)"), n("e.id")}, 8, []int64{9}, true},
 		{RBGroupCollectionMembers, "collection-members", "catalog_collection_members AS m INDEXED BY catalog_collection_members_page CROSS JOIN catalog_entities AS e ON e.id=m.item_id", "m.collection_id=?", "catalog_collection_members_page", []rbGroupKey{s("m.order_key"), n("m.item_id")}, 10, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13}, true},
 		{RBGroupPlaylistEntries, "playlist-entries", "catalog_playlist_entries AS m INDEXED BY catalog_playlist_entries_page LEFT JOIN catalog_entities AS e ON e.id=m.item_id", "m.playlist_id=?", "catalog_playlist_entries_page", []rbGroupKey{s("m.order_key"), n("m.id")}, 0, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13}, true},
@@ -71,9 +71,10 @@ func RBGroupDefinitions() []stmt.Definition {
 				direction, op, variant = "DESC", "<", "desc."
 			}
 			var columns, order []string
-			for _, k := range spec.keys {
-				columns = append(columns, k.sql)
-				order = append(order, k.sql+" "+direction)
+			for keyIndex, k := range spec.keys {
+				alias := fmt.Sprintf("k%d", keyIndex)
+				columns = append(columns, k.sql+" AS "+alias)
+				order = append(order, alias+" "+direction)
 			}
 			base := `SELECT e.id,'' AS unused,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,e.library_id,e.kind,` + strings.Join(columns, ",") + " FROM " + spec.from + " WHERE " + spec.where
 			end := " ORDER BY " + strings.Join(order, ",") + " LIMIT ?"
@@ -81,11 +82,11 @@ func RBGroupDefinitions() []stmt.Definition {
 			subject := rbGroupFixtureSubject(spec.family)
 			bindings := []any{subject}
 			if spec.family == RBGroupAuthorBooks {
-				params = []stmt.Param{i("library"), i("subject")}
-				bindings = []any{int64(1), subject}
+				params = []stmt.Param{i("library"), text("author")}
+				bindings = []any{int64(1), "Author"}
 			}
 			plan := stmt.Plan{Hot: true, Indexes: []string{spec.index}}
-			if spec.family == RBGroupCollectionMembers || spec.family == RBGroupPlaylistEntries || spec.family == RBGroupAuthorBooks {
+			if spec.family == RBGroupCollectionMembers || spec.family == RBGroupPlaylistEntries {
 				plan.PrimaryKeys = []string{"catalog_entities"}
 			}
 			present := append(append([]any(nil), bindings...), int64(MaxRaw))
