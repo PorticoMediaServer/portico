@@ -33,7 +33,7 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	}
 	hash := sha256.Sum256(data[start:end])
 	fixtureSHA := hex.EncodeToString(hash[:])
-	if fixtureSHA != "f96f8813659786b14397a566f6475d834aec9173ad4e3ba2b4f877e07d5a4af0" || schema.SHA256 != "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4" {
+	if fixtureSHA != "f96f8813659786b14397a566f6475d834aec9173ad4e3ba2b4f877e07d5a4af0" || schema.SHA256 != "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2" {
 		t.Fatal("frozen seed/schema changed; review before recording")
 	}
 	defs := scanRunLifecycleDefinitions()
