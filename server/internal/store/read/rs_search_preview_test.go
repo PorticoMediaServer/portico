@@ -63,6 +63,9 @@ func TestRSSearchBoundedPreview(t *testing.T) {
 					if !in.Preview || in.CandidateBudget != NativePreviewCandidates-spent {
 						t.Fatal("preview work allowance lost", in.Preview, in.CandidateBudget, spent)
 					}
+					if len(in.Retained) > 0 && mode == "candidate-cap" && len(in.Retained[0].policies) != 9 {
+						t.Fatal("discarded per-group proofs retained", len(in.Retained[0].policies))
+					}
 					if len(in.Retained) > 0 && len(in.Retained[0].policies) > 99 {
 						t.Fatal("discarded preview payload retained", len(in.Retained[0].policies))
 					}
