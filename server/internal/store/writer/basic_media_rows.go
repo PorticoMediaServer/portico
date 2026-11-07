@@ -47,13 +47,6 @@ func (basicSubtitleSidecar) isBasicMediaRow()  {}
 func (basicSubtitle) isBasicMediaRow()         {}
 func (basicSubtitleEvidence) isBasicMediaRow() {}
 
-func basicBool(v bool) int64 {
-	if v {
-		return 1
-	}
-	return 0
-}
-
 // Values correspond to the exact native columns AFTER change_id. The scalar
 // debt formula is the adopted replacement of each removed staging trigger;
 // it is not a grant or physical-memory estimate. Bound every TEXT before args.
