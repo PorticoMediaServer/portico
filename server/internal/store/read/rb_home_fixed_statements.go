@@ -12,7 +12,7 @@ func rbHomeFixedDefinitions() []stmt.Definition {
 	add := func(n, sql string, p []stmt.Param, b []any, proof stmt.Plan) {
 		out = append(out, stmt.Definition{ID: readStatementID("rb.home.fixed." + n), Owner: "store/read", Kind: stmt.Read, CallSites: []string{"store/read/rb_home_fixed.go"}, SQL: sql, Params: p, Cohorts: []stmt.Cohort{{Name: "present", Bindings: b}}, Plan: proof})
 	}
-	add("members", `SELECT id FROM catalog_entities INDEXED BY catalog_entities_library_id WHERE library_id=? AND id>? ORDER BY id LIMIT ?`, []stmt.Param{i("library"), i("after"), i("limit")}, []any{int64(1), int64(0), int64(129)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library_id"}, Seeks: []string{"library_id=? AND id>?"}})
+	add("members", `SELECT id FROM catalog_entities INDEXED BY catalog_entities_library_id WHERE library_id=? AND id>? ORDER BY id LIMIT ?`, []stmt.Param{i("library"), i("after"), i("limit")}, []any{int64(1), int64(0), int64(33)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library_id"}, Seeks: []string{"library_id=? AND id>?"}})
 	// Schema checks fix catalogue timestamp width; numbering is measured only.
 	// Personal text has its own native byte point before hydration.
 	add("entity", `SELECT id,public_id,kind,retired,revision,admission_own_age,parent_id,show_id,season_id,album_id,book_id,season_number,episode_number,disc_number,track_number,part_number,
@@ -46,6 +46,9 @@ func rbHomeFixedBindingByteDefinitions() []stmt.Definition {
 			panic("binding source shape changed")
 		}
 		d.SQL = "SELECT " + fields[n] + sql[at:]
+		if n == 0 {
+			d.SQL = strings.Replace(d.SQL, "catalog_entities AS e", "catalog_entities AS e NOT INDEXED", 1)
+		}
 		if n == 0 {
 			d.Plan.PrimaryKeys = []string{"e", "k", "cl"}
 		}

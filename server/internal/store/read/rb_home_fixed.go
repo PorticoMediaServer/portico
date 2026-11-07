@@ -12,7 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
-const homeFixedMaximumEntities = 128
+const homeFixedMaximumEntities = 32
 
 // IDs and native state only; this harness does not invent a public ContentEntry,
 // artwork, file eligibility for a container, or playback authorization.
@@ -88,10 +88,10 @@ func (r *HomeFixedReader) Row(ctx context.Context, request governor.Request, bud
 		for attempt := 0; attempt < 2; attempt++ {
 			s.cost.Attempts = attempt + 1
 			var first homeFixedFrame
-			e = s.window(false, 4096, func(q browseQuery) error { var e error; first, e = readHomeFixedFrame(s, q, in); return e })
+			e = s.window(false, 2048, func(q browseQuery) error { var e error; first, e = readHomeFixedFrame(s, q, in); return e })
 			if e == nil {
 				page, prior := composeHomeFixed(first, in.RowID, s.input(in.View).Now)
-				final := s.window(true, 4096, func(q browseQuery) error {
+				final := s.window(true, 2048, func(q browseQuery) error {
 					current, e := readHomeFixedFrame(s, q, in)
 					if e != nil {
 						return e
@@ -400,16 +400,7 @@ func homeFixedRecent(frame homeFixedFrame, page HomeFixedPage) (HomeFixedPage, e
 			if !ok {
 				return HomeFixedPage{}, ErrUnqualified
 			}
-			expected := leaves[0].Identity.Kind
-			switch expected {
-			case 4:
-				expected = 2
-			case 7:
-				expected = 6
-			case 9:
-				expected = 8
-			}
-			if work.Identity.Kind != expected {
+			if !homeFixedWorkMatches(work, leaves) {
 				return HomeFixedPage{}, ErrUnqualified
 			}
 			if work.Row[0][3] != int64(0) {
@@ -478,4 +469,22 @@ func homeFixedRecent(frame homeFixedFrame, page HomeFixedPage) (HomeFixedPage, e
 	}
 	page.Exact, page.Exhausted = true, true
 	return page, nil
+}
+
+func homeFixedWorkMatches(work homeFixedEntity, leaves []homeFixedEntity) bool {
+	for _, leaf := range leaves {
+		expected := leaf.Identity.Kind
+		switch expected {
+		case 4:
+			expected = 2
+		case 7:
+			expected = 6
+		case 9:
+			expected = 8
+		}
+		if expected != work.Identity.Kind || leaf.Identity.Library != work.Identity.Library {
+			return false
+		}
+	}
+	return true
 }
