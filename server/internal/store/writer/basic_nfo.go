@@ -91,6 +91,14 @@ func prepareBasicNFOSet(source basicStreamFactStage, library string, before, aft
 			if r.locator == "" || r.digest == "" || (setIndex == 0 && r.observedAt == "") || (setIndex == 1 && r.observedAt != "") || r.size < 0 || (r.kind != "movie" && r.kind != "show" && r.kind != "episode") {
 				return nil, ErrInvalid
 			}
+			// The native sidecar locator is carried exactly. TEXT cannot store a
+			// non-UTF-8 filename; keep that typed refusal distinct from NUL.
+			if strings.IndexByte(r.locator, 0) >= 0 {
+				return nil, ErrInvalid
+			}
+			if !utf8.ValidString(r.locator) {
+				return nil, ErrFilenameUnrepresentable
+			}
 			for _, s := range basicNFOTexts(r) {
 				if !utf8.ValidString(s) {
 					return nil, ErrInvalid

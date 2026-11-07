@@ -150,3 +150,22 @@ func TestBasicNFOPreflightAndLateFailureRollback(t *testing.T) {
 		t.Fatal(locator, err)
 	}
 }
+
+func TestBasicNFONativeLocatorTypedRefusal(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		want error
+	}{
+		{string([]byte{'/', 'm', 0xff}), ErrFilenameUnrepresentable},
+		{"/media/nul\x00.nfo", ErrInvalid},
+	} {
+		row := basicNFORow{locator: tc.path, kind: "movie", coordinate: "[null,null,null]", digest: "native-digest", payload: `{}`}
+		got, err := prepareBasicNFOSet(basicStreamFactStage{}, "library", nil, []basicNFORow{row}, nil, basicNFOStatus{status: "observed"}, true)
+		if !errors.Is(err, tc.want) || got != nil {
+			t.Fatal(tc.want, got, err)
+		}
+		if tc.want == ErrInvalid && errors.Is(err, ErrFilenameUnrepresentable) {
+			t.Fatal("NUL became filename poison", err)
+		}
+	}
+}
