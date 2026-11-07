@@ -39,6 +39,7 @@ type governedTurn struct {
 	a                   *governor.Authority
 	grant               *governor.Grant
 	expected            governor.Request
+	publication         *rbPublication // opt-in phase2 resolved dependency custody
 	purpose             CommandID
 	limit               Work
 	clockHighWater      *time.Time            // same W composition mark under its existing mutex
