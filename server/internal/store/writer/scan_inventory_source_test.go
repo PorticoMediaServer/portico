@@ -47,11 +47,18 @@ func TestN1FreshSourceKeepsBothRootMeanings(t *testing.T) {
 // same-governor frame and memory partition. These private effect values do not
 // issue a driver, source capability, production profile or fresh permission.
 func TestN1FreshSourceRequiresCurrentNativeRootAndActiveRun(t *testing.T) {
-	for _, mode := range []string{"current", "logical_root_changed", "active_slot_missing"} {
+	for _, mode := range []string{"current", "logical_root_changed", "active_slot_missing", "active_slot_other_run"} {
 		t.Run(mode, func(t *testing.T) {
 			w, _, c, registry := inventoryFreshFixtureDefinitions(t, inventoryDriverCommandDefinitions())
 			if mode != "active_slot_missing" {
-				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO inventory_source_active(source_id,job_id) VALUES('fresh-source','fresh-run')`); err != nil {
+				run := "fresh-run"
+				if mode == "active_slot_other_run" {
+					run = "other-active-run"
+					if _, err := w.db.ExecContext(t.Context(), `INSERT INTO jobs(id,library_id,status,created_at) VALUES('other-active-run','fresh-library','running','2026-11-06T00:00:00Z')`); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO inventory_source_active(source_id,job_id) VALUES('fresh-source',?)`, run); err != nil {
 					t.Fatal(err)
 				}
 			}
