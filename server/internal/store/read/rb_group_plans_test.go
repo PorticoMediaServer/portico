@@ -17,6 +17,9 @@ import (
 func TestRBGroupPlans(t *testing.T) {
 	f := rbGroupSource(t)
 	definitions := RBGroupDefinitions()
+	if len(definitions) != 56 {
+		t.Fatal("review changed group inventory", len(definitions))
+	}
 	for _, d := range definitions {
 		for _, c := range d.Cohorts {
 			rows, e := f.conn.QueryContext(t.Context(), d.SQL, c.Bindings...)
