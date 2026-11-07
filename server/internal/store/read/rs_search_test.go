@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
 	"sync/atomic"
 	"testing"
@@ -12,7 +13,7 @@ import (
 
 // Fake-provider contract; no native search certification.
 func TestRSSearchComposition(t *testing.T) {
-	f, _ := newRSPeoplePageFixture(t, true)
+	f, _ := newRSSearchFixture(t)
 	query, _ := search.PlanQuery("hello", true)
 	v := f.input
 	v.Kind = 0
@@ -35,7 +36,7 @@ func TestRSSearchComposition(t *testing.T) {
 				if input.After != nil {
 					start = 100 - int(input.After.after.key.id)
 				}
-				if input.View.Limit != 20 || input.View.Kind != max(0, int64(tc.group)) {
+				if input.View.Limit != 20 || input.View.Kind != rsSearchExpectedNativeKind(tc.group) {
 					t.Fatal(input)
 				}
 				page := FullSearchPage{Disposition: SearchResults, Exhausted: start+20 >= tc.n}
@@ -54,16 +55,16 @@ func TestRSSearchComposition(t *testing.T) {
 				}
 				return page, nil, nil
 			}
-			var verify RSSearchCustody
+			var verify rsSearchCustody
 			if tc.verify {
-				verify = func(_ context.Context, _ BrowseOutput, _ FullSearchInput, _ FullSearchPage, h []FullSearchHit) error {
+				verify = func(_ context.Context, _ BrowseOutput, _ FullSearchInput, _ FullSearchPage, h []FullSearchHit, _ *FullSearchReadStamp) error {
 					if len(h) > 0 && (tc.failure == ErrStale || tc.failure == ErrDenied) {
 						return tc.failure
 					}
 					return nil
 				}
 			}
-			r, _ := NewRSSearchReaderWithRead(f.authority, provider, verify)
+			r, _ := newRSSearchReaderWithRead(f.authority, provider, verify)
 			p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(10*time.Second), 1<<20, in)
 			if e != nil || ref != nil {
 				t.Fatal(e, ref)
@@ -118,12 +119,16 @@ func TestRSSearchComposition(t *testing.T) {
 func TestRSSearchRefusalsAndExpiry(t *testing.T) {
 	var clock atomic.Int64
 	clock.Store(time.Now().UnixNano())
-	f, _ := newRSPeoplePageFixture(t, true, func() time.Time { return time.Unix(0, clock.Load()) })
+	f, _ := newRSSearchFixture(t, func() time.Time { return time.Unix(0, clock.Load()) })
 	q, _ := search.PlanQuery("hello", true)
 	v := f.input
 	v.Kind = 0
 	in := RSSearchInput{Views: []BrowseInput{v}, Query: q, Group: 1, Full: true, Order: "relevance", Capacity: 64}
 	r, _ := NewRSSearchReader(f.authority, f.snapshots)
+	// A synthetic page has no native stamp; the production custody binding refuses.
+	r.read = func(context.Context, governor.Request, time.Duration, BrowseOutput, FullSearchInput, search.Query) (FullSearchPage, *BrowseReadResult, error) {
+		return FullSearchPage{Disposition: SearchResults, Exhausted: true}, nil, nil
+	}
 	for _, change := range []func(*RSSearchInput){func(i *RSSearchInput) { i.Views = append(i.Views, v) }, func(i *RSSearchInput) { i.Group = RSSearchLiveTV }, func(i *RSSearchInput) { i.Order = "title" }} {
 		c := in
 		change(&c)
@@ -161,4 +166,26 @@ func TestRSSearchRefusalsAndExpiry(t *testing.T) {
 	if e == nil {
 		t.Fatal("released lease accepted")
 	}
+}
+
+func newRSSearchFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture, *BrowseReader) {
+	t.Helper()
+	clock := time.Now
+	if len(clocks) > 0 {
+		clock = clocks[0]
+	}
+	cfg := readfixture.LiveConfig(clock)
+	cfg.Preparation = &governor.PreparationProfile{MaxActive: 4, MaxBytes: 64 << 20, MaxJobBytes: 16 << 20, ProtectedBytes: 16 << 20}
+	for i := range cfg.Partitions {
+		cfg.Partitions[i][governor.MemoryBytes] = 128 << 20
+	}
+	f := composeReadFixture(t, newBrowseSource(t), browseDefinitions(), cfg, false)
+	return f, f.reader
+}
+
+func rsSearchExpectedNativeKind(g RSSearchGroup) int64 {
+	if g == 20 || g == 21 || g < 0 {
+		return 0
+	}
+	return int64(g)
 }
