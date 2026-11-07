@@ -26,6 +26,9 @@ type mgTunerRequest struct {
 	// Absolute parent-selected protected boundary, data rechecked at this frame's clock.
 	protectedUntil int64
 }
+
+// held is a saturated prefix/lower bound, not a total. An effective0 leaves
+// it unprobed because there is no configured hard capacity to enforce.
 type mgTunerCapacity struct{ effective, held int64 }
 
 func (a mgTunerAllocation) valid() bool {

@@ -137,7 +137,7 @@ func mgTunerSourceChannel(ctx context.Context, t *commandTurn, r mgTunerRequest)
 	if out.state != "active" || out.removed != 0 || out.generation != r.guide {
 		return out, ErrConflict
 	}
-	row, err := mgTunerRow(ctx, t, mgTunerChannel, r.guide, r.allocation.channel)
+	row, err := mgTunerRow(ctx, t, mgTunerChannel, r.guide, r.allocation.channel, r.allocation.source)
 	if err != nil {
 		return out, err
 	}
@@ -170,10 +170,9 @@ func acquireMGTuner(ctx context.Context, t *commandTurn, r mgTunerRequest) (out 
 		}
 		return out, err
 	}
-	capacity := source.ownerLimit
-	if source.physical > 0 && (capacity == 0 || source.physical < capacity) {
-		capacity = source.physical
-	}
+	// The published effective value already applies the owner's discovery
+	// choice and limit. Physical discovery metadata alone cannot override it.
+	capacity := source.tuners
 	facts, err := readMGTunerCapacity(ctx, t, a.source, capacity)
 	if err != nil {
 		return out, err

@@ -18,7 +18,7 @@
           0,
           "Init",
           0,
-          12,
+          21,
           0,
           null,
           0,
@@ -27,7 +27,7 @@
         [
           1,
           "OpenRead",
-          1,
+          2,
           "\"main\".\"sqlite_autoindex_live_channel_versions_1\"",
           0,
           "k(2,,)",
@@ -36,29 +36,29 @@
         ],
         [
           2,
-          "Variable",
+          "OpenRead",
           1,
-          1,
+          "\"main\".\"live_generations\"",
           0,
-          null,
+          "2",
           0,
           null
         ],
         [
           3,
-          "IsNull",
-          1,
-          11,
+          "OpenRead",
+          3,
+          "\"main\".\"sqlite_autoindex_live_generations_1\"",
           0,
-          null,
-          0,
+          "k(2,,)",
+          2,
           null
         ],
         [
           4,
           "Variable",
-          2,
-          2,
+          1,
+          1,
           0,
           null,
           0,
@@ -67,8 +67,8 @@
         [
           5,
           "IsNull",
-          2,
-          11,
+          1,
+          20,
           0,
           null,
           0,
@@ -76,6 +76,26 @@
         ],
         [
           6,
+          "Variable",
+          2,
+          2,
+          0,
+          null,
+          0,
+          null
+        ],
+        [
+          7,
+          "IsNull",
+          2,
+          20,
+          0,
+          null,
+          0,
+          null
+        ],
+        [
+          8,
           "Affinity",
           1,
           2,
@@ -85,39 +105,109 @@
           null
         ],
         [
-          7,
-          "SeekGE",
-          1,
-          11,
-          1,
-          "2",
-          0,
-          null
-        ],
-        [
-          8,
-          "IdxGT",
-          1,
-          11,
-          1,
-          "2",
-          0,
-          null
-        ],
-        [
           9,
-          "Column",
+          "SeekGE",
+          2,
+          20,
           1,
-          1,
-          3,
-          null,
+          "2",
           0,
           null
         ],
         [
           10,
-          "ResultRow",
+          "IdxGT",
+          2,
+          20,
+          1,
+          "2",
+          0,
+          null
+        ],
+        [
+          11,
+          "Variable",
+          1,
           3,
+          0,
+          null,
+          0,
+          null
+        ],
+        [
+          12,
+          "Affinity",
+          3,
+          1,
+          0,
+          "B",
+          0,
+          null
+        ],
+        [
+          13,
+          "SeekGE",
+          3,
+          20,
+          3,
+          "1",
+          0,
+          null
+        ],
+        [
+          14,
+          "IdxGT",
+          3,
+          20,
+          3,
+          "1",
+          0,
+          null
+        ],
+        [
+          15,
+          "DeferredSeek",
+          3,
+          0,
+          1,
+          null,
+          0,
+          null
+        ],
+        [
+          16,
+          "Column",
+          1,
+          1,
+          4,
+          null,
+          0,
+          null
+        ],
+        [
+          17,
+          "Ne",
+          5,
+          20,
+          4,
+          "BINARY-8",
+          82,
+          null
+        ],
+        [
+          18,
+          "Column",
+          2,
+          1,
+          6,
+          null,
+          0,
+          null
+        ],
+        [
+          19,
+          "ResultRow",
+          6,
           1,
           0,
           null,
@@ -125,7 +215,7 @@
           null
         ],
         [
-          11,
+          20,
           "Halt",
           0,
           0,
@@ -135,7 +225,7 @@
           null
         ],
         [
-          12,
+          21,
           "Transaction",
           0,
           0,
@@ -145,7 +235,17 @@
           null
         ],
         [
-          13,
+          22,
+          "Variable",
+          3,
+          5,
+          0,
+          null,
+          0,
+          null
+        ],
+        [
+          23,
           "Goto",
           0,
           1,
@@ -165,10 +265,16 @@
       ],
       "values": [
         [
-          2,
+          4,
           0,
           "\u003cnotused\u003e",
-          "SEARCH live_channel_versions USING COVERING INDEX sqlite_autoindex_live_channel_versions_1 (generation_id=? AND channel_id=?)"
+          "SEARCH c USING COVERING INDEX sqlite_autoindex_live_channel_versions_1 (generation_id=? AND channel_id=?)"
+        ],
+        [
+          12,
+          0,
+          "\u003cnotused\u003e",
+          "SEARCH g USING INDEX sqlite_autoindex_live_generations_1 (id=?)"
         ]
       ]
     },
@@ -191,7 +297,7 @@
             }
           ]
         },
-        "alias": "live_channel_versions",
+        "alias": "c",
         "withoutRowid": false,
         "index": {
           "columns": [
@@ -433,6 +539,203 @@
             [
               17,
               "logo_url",
+              "TEXT",
+              0,
+              null,
+              0,
+              0
+            ]
+          ]
+        }
+      },
+      {
+        "binding": {
+          "table": "live_generations",
+          "name": "sqlite_autoindex_live_generations_1",
+          "origin": "pk",
+          "columns": [
+            {
+              "name": "id",
+              "collation": "BINARY",
+              "desc": false
+            }
+          ]
+        },
+        "alias": "g",
+        "withoutRowid": false,
+        "index": {
+          "columns": [
+            "seq",
+            "name",
+            "unique",
+            "origin",
+            "partial"
+          ],
+          "values": [
+            [
+              1,
+              "sqlite_autoindex_live_generations_1",
+              1,
+              "pk",
+              0
+            ]
+          ]
+        },
+        "keyColumns": {
+          "columns": [
+            "seqno",
+            "cid",
+            "name"
+          ],
+          "values": [
+            [
+              0,
+              0,
+              "id"
+            ]
+          ]
+        },
+        "indexColumns": {
+          "columns": [
+            "seqno",
+            "cid",
+            "name",
+            "desc",
+            "coll",
+            "key"
+          ],
+          "values": [
+            [
+              0,
+              0,
+              "id",
+              0,
+              "BINARY",
+              1
+            ],
+            [
+              1,
+              -1,
+              null,
+              0,
+              "BINARY",
+              0
+            ]
+          ]
+        },
+        "tableColumns": {
+          "columns": [
+            "cid",
+            "name",
+            "type",
+            "notnull",
+            "dflt_value",
+            "pk",
+            "hidden"
+          ],
+          "values": [
+            [
+              0,
+              "id",
+              "TEXT",
+              1,
+              null,
+              1,
+              0
+            ],
+            [
+              1,
+              "source_id",
+              "TEXT",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              2,
+              "name",
+              "TEXT",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              3,
+              "tuner_count",
+              "INTEGER",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              4,
+              "channel_count",
+              "INTEGER",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              5,
+              "programme_count",
+              "INTEGER",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              6,
+              "created_at",
+              "TEXT",
+              1,
+              null,
+              0,
+              0
+            ],
+            [
+              7,
+              "has_live_import_diagnostics",
+              "INTEGER",
+              1,
+              "0",
+              0,
+              0
+            ],
+            [
+              8,
+              "diagnostic_skipped_channels",
+              "INTEGER",
+              0,
+              null,
+              0,
+              0
+            ],
+            [
+              9,
+              "diagnostic_skipped_programmes",
+              "INTEGER",
+              0,
+              null,
+              0,
+              0
+            ],
+            [
+              10,
+              "diagnostic_adjusted_programmes",
+              "INTEGER",
+              0,
+              null,
+              0,
+              0
+            ],
+            [
+              11,
+              "diagnostic_examples",
               "TEXT",
               0,
               null,

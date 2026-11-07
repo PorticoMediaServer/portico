@@ -20,7 +20,7 @@ func mgTunerDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: mgTunerRead, Kind: stmt.Read, SQL: `SELECT ` + mgTunerColumns + ` FROM live_allocations INDEXED BY sqlite_autoindex_live_allocations_1 WHERE id=?`, Params: []stmt.Param{text("id")}},
 		{ID: mgTunerResource, Kind: stmt.Read, SQL: `SELECT ` + mgTunerColumns + ` FROM live_allocations INDEXED BY sqlite_autoindex_live_allocations_2 WHERE kind=? AND resource_id=?`, Params: []stmt.Param{text("kind"), text("resource")}},
-		{ID: mgTunerChannel, Kind: stmt.Read, SQL: `SELECT channel_id FROM live_channel_versions INDEXED BY sqlite_autoindex_live_channel_versions_1 WHERE generation_id=? AND channel_id=?`, Params: []stmt.Param{text("guide"), text("channel")}},
+		{ID: mgTunerChannel, Kind: stmt.Read, SQL: `SELECT c.channel_id FROM live_channel_versions AS c INDEXED BY sqlite_autoindex_live_channel_versions_1 CROSS JOIN live_generations AS g INDEXED BY sqlite_autoindex_live_generations_1 ON g.id=c.generation_id WHERE c.generation_id=? AND c.channel_id=? AND g.source_id=?`, Params: []stmt.Param{text("guide"), text("channel"), text("source")}},
 		{ID: mgTunerShared, Kind: stmt.Read, SQL: `SELECT lease_until_ms,preempt_at_ms FROM live_allocations INDEXED BY live_allocations_source_state_channel WHERE source_id=? AND state=? AND channel_id=? ORDER BY id LIMIT 1`, Params: []stmt.Param{text("source"), text("state"), text("channel")}},
 		{ID: mgTunerNext, Kind: stmt.Read, SQL: `SELECT channel_id FROM live_allocations INDEXED BY live_allocations_source_state_channel WHERE source_id=? AND state=? AND channel_id>? ORDER BY channel_id,id LIMIT 1`, Params: []stmt.Param{text("source"), text("state"), text("after")}},
 		{ID: mgTunerInsert, Kind: stmt.Write, SQL: `INSERT INTO live_allocations(` + mgTunerColumns + `) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING ` + mgTunerColumns, Params: cols},
@@ -56,6 +56,10 @@ func mgTunerDefinitions() []stmt.Definition {
 				}
 				d.Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: table, Name: index, Origin: origin, Columns: columns}}
 			}
+		}
+		if d.ID == mgTunerChannel {
+			d.Plan.Indexes = append(d.Plan.Indexes, "sqlite_autoindex_live_generations_1")
+			d.Plan.AutoIndexes = append(d.Plan.AutoIndexes, stmt.AutoIndexBinding{Table: "live_generations", Name: "sqlite_autoindex_live_generations_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}})
 		}
 		d.Owner = "writer.mg.tuner"
 		d.CallSites = []string{"writer/mg_tuner_effects.go"}
