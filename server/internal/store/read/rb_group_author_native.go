@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -148,6 +149,9 @@ func (r *BrowseReader) rbAuthorExact(ctx context.Context, req governor.Request, 
 						v, err := strconv.ParseFloat(b[10].(string), 64)
 						if err != nil {
 							return err
+						}
+						if math.IsInf(v, 0) || math.IsNaN(v) {
+							return ErrUnqualified
 						}
 						pos = &v
 					}

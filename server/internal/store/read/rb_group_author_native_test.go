@@ -6,10 +6,12 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
-func TestRBGroupAuthorNative(t *testing.T) {
+func TestRBGroupAuthorNative(t *testing.T) { synctest.Test(t, testRBGroupAuthorNative) }
+func testRBGroupAuthorNative(t *testing.T) {
 	source := rbGroupSource(t)
 	source.exec(t, `UPDATE catalog_entities SET series='Saga',series_position='2' WHERE id=2006`)
 	for n := 0; n < 3; n++ {
