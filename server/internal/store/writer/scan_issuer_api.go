@@ -447,7 +447,7 @@ func (o *ScanRunOperation) Close(ctx context.Context) error {
 	if o == nil {
 		return nil
 	}
-	if o.self != o || ctx == nil {
+	if o.self != o || o.driver == nil || ctx == nil {
 		return ErrInvalid
 	}
 	d := o.driver
@@ -455,34 +455,50 @@ func (o *ScanRunOperation) Close(ctx context.Context) error {
 		return ErrBusy
 	}
 	defer d.mu.Unlock()
-	if o.closed {
+	if o.closed && o.cleanup == nil {
 		return nil
 	}
-	if o.result != nil && !o.result.closed {
-		if o.result.read {
-			return ErrBusy
+	if o.cleanup == nil {
+		if o.preparation == nil || d.preparation != o.preparation || d.operation != o {
+			return ErrInvalid
 		}
-		o.result.value = scanLifecycleCommandResult{}
-		o.result.closed = true
+		if o.result != nil && !o.result.closed {
+			if o.result.read {
+				return ErrBusy
+			}
+			o.result.value = scanLifecycleCommandResult{}
+			o.result.closed = true
+		}
+		if !o.historyOnly {
+			w := d.work
+			if w == nil || w.original != o.reference.Scan || w.purpose != o.reference.Purpose || w.preparation != o.preparation || !w.nativeReturned() {
+				return ErrResolveRequired
+			}
+		}
+		if !o.acknowledged && o.last.Outcome.State == Applied {
+			return ErrResolveRequired
+		}
+		proof := &scanRunCleanup{operation: o, preparation: o.preparation}
+		if o.acknowledged && !o.historyOnly {
+			v := o.last.Value
+			proof.predecessor = &scanReturnedWork{driver: d, createOperation: v.Original.CreateOperationID, incarnation: o.reference.Scan.Receipt.Identity.Incarnation,
+				sequence: o.reference.Scan.Receipt.Identity.Sequence, generation: v.LeaseGeneration}
+		}
+		o.cleanup = proof
 	}
-	if !o.historyOnly && (d.work == nil || !d.work.nativeReturned()) {
-		return ErrResolveRequired
+	proof := o.cleanup
+	if proof.operation != o || proof.preparation == nil {
+		return ErrInvalid
 	}
-	if !o.acknowledged && o.last.Outcome.State == Applied {
-		return ErrResolveRequired
-	}
-	if o.acknowledged && !o.historyOnly {
-		v := o.last.Value
-		d.predecessor = &scanReturnedWork{driver: d, createOperation: v.Original.CreateOperationID, incarnation: o.reference.Scan.Receipt.Identity.Incarnation,
-			sequence: o.reference.Scan.Receipt.Identity.Sequence, generation: v.LeaseGeneration}
-	}
-	// Drop every command/result/source root BEFORE returning its reservation.
-	o.create, o.claim, o.last, o.result = nil, nil, scanLifecycleCommandResult{}, nil
-	d.work, d.birth = nil, nil
-	if err := o.preparation.Close(ctx); err != nil {
+	// Wait failures retain the same proof, payloads, native-return state and
+	// charged preparation. Its actual refund boundary clears all payload roots.
+	if err := proof.preparation.Close(ctx); err != nil {
 		return err
 	}
-	o.preparation = nil
+	if proof.predecessor != nil {
+		d.predecessor = proof.predecessor
+	}
+	o.preparation, o.cleanup = nil, nil
 	o.reference = ScanRunReference{}
 	o.closed = true
 	d.preparation, d.operation = nil, nil
