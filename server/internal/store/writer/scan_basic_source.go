@@ -64,7 +64,6 @@ func prepareBasicSource(ctx context.Context, d *ScanDriver, lease *ScanRunLease,
 	if candidate == nil || candidate.source == nil || candidate.mode != scanBasicPreparation || candidate.expected.Key.Domain != uint16(purpose) {
 		return nil, snapshot, source, ErrInvalid
 	}
-	life = candidate.lifetime
 	if err = candidate.current(); err != nil {
 		return nil, snapshot, source, err
 	}
