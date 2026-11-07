@@ -1,7 +1,9 @@
 package read
 
 import (
+	"context"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"reflect"
 	"testing"
 	"time"
@@ -48,7 +50,7 @@ func TestRSReadingFreshDenialAndInventoryDrift(t *testing.T) {
 	}{{"revoke", `UPDATE authorization_session_families SET revoked=1`, true}, {"asset-path", `UPDATE catalog_assets SET path='/other/title.mkv' WHERE id=1`, false}, {"source-root", `UPDATE library_sources SET root='/other',configured_root='/other' WHERE id='source'`, false}, {"inventory-retire", `UPDATE inventory_objects SET retired=1 WHERE id='object'`, false}} {
 		t.Run(c.name, func(t *testing.T) {
 			f, r := rsReadingFixture(t)
-			r.snapshots = &rsChildrenBoundary{Snapshots: f.snapshots, mutate: func(phase int) {
+			r.snapshots = &rsReadingBoundary{Snapshots: f.snapshots, mutate: func(phase int) {
 				if phase == 2 {
 					f.exec(t, c.sql)
 				}
@@ -88,4 +90,23 @@ func TestRSReadingClosedLeafEligibility(t *testing.T) {
 	if err != nil || p.ID != 1101 {
 		t.Fatal("trusted compiled conversion domain", p, err)
 	}
+}
+
+type rsReadingBoundary struct {
+	*governor.Snapshots
+	mutate func(int)
+	calls  int
+}
+
+func (s *rsReadingBoundary) Read(ctx context.Context, r governor.Request, b time.Duration, fn func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	out, err := s.Snapshots.Read(ctx, r, b, fn)
+	s.calls++
+	s.mutate(s.calls)
+	return out, err
+}
+func (s *rsReadingBoundary) ReadForecasted(ctx context.Context, r governor.Request, b time.Duration, f governor.SnapshotForecast, fn func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	out, err := s.Snapshots.ReadForecasted(ctx, r, b, f, fn)
+	s.calls++
+	s.mutate(s.calls)
+	return out, err
 }
