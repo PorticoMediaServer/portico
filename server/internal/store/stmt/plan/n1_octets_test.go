@@ -36,6 +36,7 @@ func TestN1OctetPreflightClosure(t *testing.T) {
 		{"param_type", func(d *stmt.Definition) { d.Params[0].Type = stmt.Integer; d.Cohorts[0].Bindings[0] = int64(1) }},
 		{"nullable", func(d *stmt.Definition) { d.Params[0].Nullable = true }},
 		{"cold", func(d *stmt.Definition) { d.Plan.Hot = false }},
+		{"write_kind", func(d *stmt.Definition) { d.Kind = stmt.Write }},
 		{"waiver", func(d *stmt.Definition) {
 			d.Plan.Waivers = []stmt.Waiver{{StatementID: d.ID, Stage: "eqp", Form: "SCAN", Match: "SCAN anything", Reason: "not permission"}}
 		}},
