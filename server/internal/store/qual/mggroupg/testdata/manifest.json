@@ -1,22 +1,18 @@
 {
-  "format": 1,
-  "packet": "MG-001",
-  "group": "G",
-  "status": "owner draft, not adopted",
+  "status": "INT exact G draft; added fixed-slot/floor amendment not native validated yet",
+  "source_owner": "ffe803113b79214346339c20a5453f44bd0ac721",
+  "source_semantics": "d7e20bbe3d1ff71f4627c5c4a49d3a406969274e",
   "base_commit": "e57e57ba4bdf80935c7c42638d267d5d591a8012",
   "base_schema_sha256": "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2",
-  "audit_commit": "67a52899",
-  "audit_md_sha256": "721df244bec5efcb7f305f815d5bc4b6c506ecf7481ee2222a70135ef8fed8c8",
-  "audit_json_sha256": "7f86f1880a566257dd2f9ada2ca3e89144388c6485a27b4ec2fa7cf7d00401ab",
-  "candidate_sha256": "d90ece568f3fef5b21421ca939774588a272d4bf7c43c7dfed6b8d7c58990e04",
-  "delta_sha256": "0418a290969e1e198a6634c51c78c932be21a59ea4ef3e28a51602ce9403a671",
+  "candidate_sha256": "bafe20d1461b57d6aeeeb1a5e3c15988d9abd7288059c750265cb035205f4bc5",
+  "delta_sha256": "9e7299e663e1ddf224e4c95e065426c286e917a5a6030384d20c07694bd76d99",
   "objects": [
     {
       "operation": "replace",
       "type": "table",
       "name": "live_operations",
       "before_sha256": "fe93525f7d2a461c087cb19bcc20255ff346f29c3492ef2398b4aa60cd148a6d",
-      "after_sha256": "586119dccecbb887953b61b80efd531a31c8d4d2b0e0479df7271afe34f3b79f",
+      "after_sha256": "8952e1a8512a1033a7d02d0bbb0e47e035224312a95e6d4a697efc3dbda51750",
       "new_columns": [
         "command_incarnation",
         "create_operation_id",
@@ -34,7 +30,28 @@
         "stage_digest",
         "sealed",
         "reclaim_family",
-        "reclaim_cursor"
+        "reclaim_cursor",
+        "receipt_rows",
+        "receipt_variable_bytes",
+        "receipt_reclaim_after_sequence",
+        "receipt_reclaim_due_ms",
+        "reclaim_command_sequence",
+        "reclaim_operation_id",
+        "reclaim_request_digest",
+        "reclaim_command_kind",
+        "reclaim_result_version",
+        "reclaim_captured_acknowledged_sequence",
+        "reclaim_old_after_sequence",
+        "reclaim_removed_sequence",
+        "reclaim_removed_count",
+        "reclaim_removed_rows",
+        "reclaim_removed_variable_bytes",
+        "reclaim_result_after_sequence",
+        "reclaim_result_no_next",
+        "reclaim_applied_ms",
+        "reclaim_result_count",
+        "reclaim_result_digest",
+        "control_variable_bytes"
       ]
     },
     {
@@ -50,7 +67,7 @@
       "type": "table",
       "name": "lc_generations",
       "before_sha256": "dc1d9b9a26c9094b98c190bce62358b09d7de79986d67dfd57a01eb3441412f4",
-      "after_sha256": "8d9721fbdb3465debb01197e9bedc03106b46c3a821720e07de10712ceac5eb1",
+      "after_sha256": "231b88eafcccbe7929b8c600d1f913eff7e3e1a6b31461352af2926b2d6fb7be",
       "new_columns": [
         "command_incarnation",
         "create_operation_id",
@@ -69,7 +86,28 @@
         "reclaim_family",
         "reclaim_key",
         "reclaim_subkey",
-        "pending_base_generation"
+        "pending_base_generation",
+        "receipt_rows",
+        "receipt_variable_bytes",
+        "receipt_reclaim_after_sequence",
+        "receipt_reclaim_due_ms",
+        "reclaim_command_sequence",
+        "reclaim_operation_id",
+        "reclaim_request_digest",
+        "reclaim_command_kind",
+        "reclaim_result_version",
+        "reclaim_captured_acknowledged_sequence",
+        "reclaim_old_after_sequence",
+        "reclaim_removed_sequence",
+        "reclaim_removed_count",
+        "reclaim_removed_rows",
+        "reclaim_removed_variable_bytes",
+        "reclaim_result_after_sequence",
+        "reclaim_result_no_next",
+        "reclaim_applied_ms",
+        "reclaim_result_count",
+        "reclaim_result_digest",
+        "control_variable_bytes"
       ]
     },
     {
@@ -106,7 +144,7 @@
       "type": "table",
       "name": "dvr_recordings",
       "before_sha256": "4287440418f029c460f7dfa6dd36163bda019e039e552ad521156c012503647a",
-      "after_sha256": "603112c2019a4027547cddb1fcf00a0449838fa8d2235563b331a4c499617f0d",
+      "after_sha256": "d7c11bc8cef7b8dd766184fb4eec90e5dbd5c8b8683b65845b4164d51e44d08c",
       "new_columns": [
         "command_incarnation",
         "create_operation_id",
@@ -131,7 +169,28 @@
         "capture_boundary_reached",
         "capture_gap_count",
         "share_capture_claim_generation",
-        "share_capture_launch_id"
+        "share_capture_launch_id",
+        "receipt_rows",
+        "receipt_variable_bytes",
+        "receipt_reclaim_after_sequence",
+        "receipt_reclaim_due_ms",
+        "reclaim_command_sequence",
+        "reclaim_operation_id",
+        "reclaim_request_digest",
+        "reclaim_command_kind",
+        "reclaim_result_version",
+        "reclaim_captured_acknowledged_sequence",
+        "reclaim_old_after_sequence",
+        "reclaim_removed_sequence",
+        "reclaim_removed_count",
+        "reclaim_removed_rows",
+        "reclaim_removed_variable_bytes",
+        "reclaim_result_after_sequence",
+        "reclaim_result_no_next",
+        "reclaim_applied_ms",
+        "reclaim_result_count",
+        "reclaim_result_digest",
+        "control_variable_bytes"
       ]
     },
     {
@@ -139,49 +198,49 @@
       "type": "table",
       "name": "live_operation_command_receipts",
       "before_sha256": null,
-      "after_sha256": "cca9a43533047b91493d9849d2334839c3cb1c36220704aa9e6dd9a36523a882"
+      "after_sha256": "b1eebc0e8b24885dc49df8f4c166ae6ea40e1bf8ac42c044e3b85fccf119ecab"
     },
     {
       "operation": "add",
       "type": "table",
       "name": "live_operation_receipt_diagnostics",
       "before_sha256": null,
-      "after_sha256": "ffc0a6f6c53436712da71f09123ae420c2552733868c4f512424ec6828a5a1fa"
+      "after_sha256": "24395ee084fa1ca9dcd6c6b21bd34107685522ba608c95b42a73c6b915263342"
     },
     {
       "operation": "add",
       "type": "table",
       "name": "lc_generation_command_receipts",
       "before_sha256": null,
-      "after_sha256": "0f5a24d7283c7508ef47812034ecd0ab7aab2215e7a067c257a4fe39487d77ab"
+      "after_sha256": "26569f9f77dd87c3e58426204270ed18ecf2f7f5e289ea19e31b78bdf11c86ca"
     },
     {
       "operation": "add",
       "type": "table",
       "name": "dvr_capture_command_receipts",
       "before_sha256": null,
-      "after_sha256": "6d616d9694fb7371f98a251180911beed77dd25e1ad2ffa73747cd758ac4f5b2"
+      "after_sha256": "ae48e27b0b51c7a12631f3cb8cd81aa1e5e41e79866654a46af5826d58d7dc2e"
     },
     {
       "operation": "add",
       "type": "table",
       "name": "live_operation_retirements",
       "before_sha256": null,
-      "after_sha256": "936aebbdd78fb77dd1f17ee54af7057e27b11ff3d5fd5f4600a534c09ffdf482"
+      "after_sha256": "d053a62866e1b898f9ed4e8dbd9cc74aaf9c17643dcaa8b53bd6252c1b7d723a"
     },
     {
       "operation": "add",
       "type": "table",
       "name": "lc_generation_retirements",
       "before_sha256": null,
-      "after_sha256": "62c0996bcd666016f100b74cf98fe39d73140551cabb0bacfa7adbfcbff5bdab"
+      "after_sha256": "89cbb237ae90057fb0f781d86f00cf1cbba0b51729dfdde7749d87c2b4708b12"
     },
     {
       "operation": "add",
       "type": "table",
       "name": "dvr_capture_retirements",
       "before_sha256": null,
-      "after_sha256": "b6f6e5727c3f9191d7c8c8cbb89befcd99add04942faf2553176c741e536761c"
+      "after_sha256": "0aa5826915983b718b709a0e6eee195b12760f4bf38c10c852d9a0d423c21651"
     },
     {
       "operation": "add",
@@ -308,6 +367,50 @@
       "name": "dvr_capture_retirements_scope",
       "before_sha256": null,
       "after_sha256": "1e625ec53796d70643e6ec8c24c2e77a96540f56cccf02416155c170264a879a"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_operations_receipt_due",
+      "before_sha256": null,
+      "after_sha256": "af1d7fdb0e0acc38d9f65f1cd50b86c8ce679d43d99fdaa8198aa291f48c34c2"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_operation_retirements_receipt_due",
+      "before_sha256": null,
+      "after_sha256": "9e425a65f92446b265b19b2b39e1b458ad602aa201d98a542c63e5e9e43a2594"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "lc_generations_receipt_due",
+      "before_sha256": null,
+      "after_sha256": "0b02b7e97230e6a644bae62190a63020b171e4bc9bbdd38df285e54b960ba913"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "lc_generation_retirements_receipt_due",
+      "before_sha256": null,
+      "after_sha256": "a0528abf51b035cb3545713ca513ecb2d873b40570a432d8a508d1c5303a8779"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "dvr_recordings_receipt_due",
+      "before_sha256": null,
+      "after_sha256": "f9fd83a87f02ce65f302b8f39132c357146435f2dbb8c1377621e6be87b8d603"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "dvr_capture_retirements_receipt_due",
+      "before_sha256": null,
+      "after_sha256": "f6373f10bc7b69a6611607e74597a081fcb1a63ba0977be1254f8f7f4323f05a"
     }
-  ]
+  ],
+  "field_note": "reclaim_removed_count counts0/1 header cohort; reclaim_removed_rows separately preserves physical header+diagnostic row debit (guide<=11, LC/DVR=1).",
+  "native_evidence": "Prior d90ece56 /42391184645 receipt is historical for the unamended delta, not this candidate."
 }

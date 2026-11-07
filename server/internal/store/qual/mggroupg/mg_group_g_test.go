@@ -311,8 +311,8 @@ func TestGroupGPhysicalExitAndSharedReady(t *testing.T) {
 	f := native(t, candidate)
 	f.guide(t, "g-a", "source-a")
 	f.record(t, "recording", "g-a", "source-a")
-	f.exec(t, "UPDATE dvr_recordings SET state='recording',claim_generation=3,cancel_generation=1,claim_token='token',owner_instance='instance',allocation_id='allocation',capture_allocation_generation=7,capture_allocation_token='allocation-token',capture_launch_id=X'"+launch+"',capture_source_revision=2,capture_source_fence='source-fence',last_command_sequence=10 WHERE id='recording'")
-	f.exec(t, "UPDATE dvr_recordings SET state='cancelled',cancel_generation=2,lease_until_ms=0,last_command_sequence=11 WHERE id='recording'")
+	f.exec(t, "UPDATE dvr_recordings SET state='recording',claim_generation=3,cancel_generation=1,claim_token='token',owner_instance='instance',allocation_id='allocation',capture_allocation_generation=7,capture_allocation_token='allocation-token',capture_launch_id=X'"+launch+"',capture_source_revision=2,capture_source_fence='source-fence',last_command_sequence=10,acknowledged_command_sequence=9 WHERE id='recording'")
+	f.exec(t, "UPDATE dvr_recordings SET state='cancelled',cancel_generation=2,lease_until_ms=0,last_command_sequence=11,acknowledged_command_sequence=10 WHERE id='recording'")
 	f.reject(t, "UPDATE dvr_recordings SET guide_pin_generation=NULL WHERE id='recording'", "dvr_capture_pin_debt")
 	f.reject(t, "UPDATE dvr_recordings SET last_command_sequence=13,capture_writer_retired_sequence=12,capture_physical_exit_sequence=13,capture_exit_launch_id=X'"+staleLaunch+"',capture_exit_claim_generation=2,capture_exit_cancel_generation=2 WHERE id='recording'", "dvr_capture_exit")
 	f.reject(t, "UPDATE dvr_recordings SET last_command_sequence=13,capture_shared_ready_sequence=13,artifact_id='artifact',artifact_digest='digest',bytes=100,captured_start_ms=0,captured_end_ms=1000 WHERE id='recording'", "dvr_capture_shared_ready")
@@ -343,7 +343,7 @@ func TestGroupGClosedReceiptAndRetirement(t *testing.T) {
 	if err := f.insert(t, "live_operation_command_receipts", row); err == nil {
 		t.Fatal("unclosed receipt kind accepted")
 	}
-	if err := f.insert(t, "live_operation_retirements", map[string]any{"request_id": "operation", "source_id": "source-a", "final_sequence": int64(2)}); err != nil {
+	if err := f.insert(t, "live_operation_retirements", map[string]any{"request_id": "operation", "source_id": "source-a", "final_sequence": int64(2), "last_command_sequence": int64(2), "acknowledged_command_sequence": int64(2)}); err != nil {
 		t.Fatal(err)
 	}
 	f.exec(t, "DELETE FROM live_operation_command_receipts WHERE request_id='operation' AND command_sequence<=2")
@@ -399,7 +399,7 @@ func TestGroupGTwoCandidateMutants(t *testing.T) {
 			f := native(t, ddl)
 			f.guide(t, "g-a", "source-a")
 			f.record(t, "recording", "g-a", "source-a")
-			f.exec(t, "UPDATE dvr_recordings SET claim_generation=3,cancel_generation=2,capture_launch_id=X'"+launch+"',last_command_sequence=10 WHERE id='recording'")
+			f.exec(t, "UPDATE dvr_recordings SET claim_generation=3,cancel_generation=2,capture_launch_id=X'"+launch+"',last_command_sequence=10,acknowledged_command_sequence=9 WHERE id='recording'")
 			_, err := f.c.ExecContext(t.Context(), "UPDATE dvr_recordings SET capture_writer_retired_sequence=9,capture_physical_exit_sequence=10,capture_exit_launch_id=X'"+staleLaunch+"',capture_exit_claim_generation=2,capture_exit_cancel_generation=1 WHERE id='recording'")
 			if !mutant && (err == nil || !strings.Contains(err.Error(), "dvr_capture_exit")) {
 				t.Fatal("pristine source did not reject target", err)
