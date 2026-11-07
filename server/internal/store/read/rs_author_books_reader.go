@@ -320,6 +320,13 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 			if e != nil {
 				return e
 			}
+			// The book payload scope also checks its subject admission proof.
+			// That projection contains exactly one checked 16-byte incarnation;
+			// its optional publication phase is an enum of at most nine bytes.
+			// Reserve the largest actual point or fixed proof row, not just text.
+			if name == "rs.author.book_octets" {
+				n = max(n, 16)
+			}
 			return w.arm(n, 8)
 		}, func(_ context.Context, query browseQuery, f browseFence, _ *struct{}) error {
 			if p.key == "" {
