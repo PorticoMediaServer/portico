@@ -96,14 +96,23 @@ func applyUOJobLease(ctx context.Context, turn *commandTurn, job uoOperationalJo
 	if err != nil {
 		return out, err
 	}
-	if after == job.lease {
-		return after, nil
-	}
 	nullable := func(v sql.NullInt64) any {
 		if v.Valid {
 			return v.Int64
 		}
 		return nil
+	}
+	if after == job.lease {
+		args := []any{job.key1}
+		if job.family == uoJobNotice {
+			args = append(args, job.key2)
+		}
+		old := job.lease
+		args = append(args, old.owner, old.generation, old.expiresMS, old.attempts, nullable(old.nextMS), old.revision)
+		if _, err := wc008DraftInteger(ctx, turn, uoJobCurrentID(job.family), args...); err != nil {
+			return out, err
+		}
+		return after, turn.checkLifetimes(ctx)
 	}
 	args := []any{after.owner, after.generation, after.expiresMS, after.attempts, nullable(after.nextMS), after.revision, job.key1}
 	if job.family == uoJobNotice {
@@ -154,6 +163,8 @@ func uoJobLeaseID(f uoJobFamily) stmt.ID {
 	}
 }
 
+func uoJobCurrentID(f uoJobFamily) stmt.ID { return stmt.ID(string(uoJobLeaseID(f)) + ".current") }
+
 func uoJobDefinitions() []stmt.Definition {
 	var out []stmt.Definition
 	for _, f := range []uoJobFamily{uoJobPersonal, uoJobWebhook, uoJobNotice, uoJobServiceOutbox} {
@@ -168,6 +179,15 @@ func uoJobDefinitions() []stmt.Definition {
 		query += " AND job_lease_owner=? AND job_lease_generation=? AND job_lease_expires_ms=? AND job_attempts=? AND job_next_attempt_ms IS ? AND " + rev + "=? RETURNING " + rev
 		params = append(params, stmt.Param{Name: "old_owner", Type: stmt.Integer}, stmt.Param{Name: "old_generation", Type: stmt.Integer}, stmt.Param{Name: "old_expiry", Type: stmt.Integer}, stmt.Param{Name: "old_attempts", Type: stmt.Integer}, stmt.Param{Name: "old_attempt", Type: stmt.Integer, Nullable: true}, stmt.Param{Name: "old_revision", Type: stmt.Integer})
 		out = append(out, stmt.Definition{ID: uoJobLeaseID(f), Owner: "store/writer UO operations", Kind: stmt.Write, SQL: query, Params: params, CallSites: []string{"store/writer/uo_jobs.go:applyUOJobLease"}, Plan: stmt.Plan{Hot: true}})
+		point := "SELECT " + rev + " FROM " + table + " WHERE " + key1 + "=?"
+		pointParams := []stmt.Param{{Name: "key1", Type: stmt.Text}}
+		if key2 != "" {
+			point += " AND " + key2 + "=?"
+			pointParams = append(pointParams, stmt.Param{Name: "key2", Type: stmt.Text})
+		}
+		point += " AND job_lease_owner=? AND job_lease_generation=? AND job_lease_expires_ms=? AND job_attempts=? AND job_next_attempt_ms IS ? AND " + rev + "=?"
+		pointParams = append(pointParams, params[len(params)-6:]...)
+		out = append(out, stmt.Definition{ID: uoJobCurrentID(f), Owner: "store/writer UO operations", Kind: stmt.Read, SQL: point, Params: pointParams, CallSites: []string{"store/writer/uo_jobs.go:applyUOJobLease"}, Plan: stmt.Plan{Hot: true}})
 	}
 	return out
 }
