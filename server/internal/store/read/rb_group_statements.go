@@ -139,7 +139,8 @@ func RBGroupDefinitions() []stmt.Definition {
 					// no SCAN/sort/SQL-grammar permission is introduced.
 					seekPlan.Waivers = []stmt.Waiver{{StatementID: statementID("rb.group." + seekName), Stage: "eqp", Form: "UNRECOGNIZED EQP", Match: "SEARCH e USING INDEX " + spec.index + " (" + strings.Join(constraints, " AND ") + ")", Reason: "Pinned SEARCH over the canonical disc/track or disc/part expression index; exact equality prefixes and strict range, no scan or temporary sort"}}
 				}
-				add(seekName, base+" AND "+strings.Join(predicates, " AND ")+end, pp, bb, empty, seekPlan)
+				seekEnd := " ORDER BY " + strings.Join(order[level:], ",") + " LIMIT ?"
+				add(seekName, base+" AND "+strings.Join(predicates, " AND ")+seekEnd, pp, bb, empty, seekPlan)
 			}
 		}
 	}

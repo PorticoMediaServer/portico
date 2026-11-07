@@ -120,3 +120,26 @@ func TestRBGroupDefinitionLint(t *testing.T) {
 		}
 	}
 }
+
+func TestRBGroupExpressionSearchPins(t *testing.T) {
+	count := 0
+	for _, d := range RBGroupDefinitions() {
+		for _, w := range d.Plan.Waivers {
+			count++
+			if w.Stage != "eqp" || w.Form != "UNRECOGNIZED EQP" {
+				t.Fatal("unexpected grammar/scan permission", w)
+			}
+			if e := plan.CheckEQP(d, plan.Rows{Values: [][]any{{int64(1), int64(0), int64(0), w.Match}}}); e != nil {
+				t.Fatal("positive exact SEARCH pin", e)
+			}
+			for _, detail := range []string{"SCAN e USING INDEX catalog_entities_album", "USE TEMP B-TREE FOR ORDER BY", w.Match + " trailing"} {
+				if e := plan.CheckEQP(d, plan.Rows{Values: [][]any{{int64(1), int64(0), int64(0), detail}}}); e == nil {
+					t.Fatal("pin admitted different plan", detail)
+				}
+			}
+		}
+	}
+	if count != 12 {
+		t.Fatal("review expression seek inventory", count)
+	}
+}
