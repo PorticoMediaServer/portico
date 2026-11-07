@@ -56,6 +56,10 @@ func artistAlbumFixture(t *testing.T, clocks ...func() time.Time) (*browseFixtur
 	return f, r
 }
 func TestRSArtistAlbumReaderLIVEAndUnion(t *testing.T) {
+	synctest.Test(t, rsArtistAlbumLIVEAndUnion)
+}
+
+func rsArtistAlbumLIVEAndUnion(t *testing.T) {
 	f, r := artistAlbumFixture(t)
 	v := f.input
 	v.Kind = 5
