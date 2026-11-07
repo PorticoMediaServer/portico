@@ -52,14 +52,13 @@ func TestRecipeGolden(t *testing.T) {
 	}
 }
 
-func TestRecipeFrozenByteClip(t *testing.T) {
-	// The frozen lexical input clip can bisect a scalar. Do not round it or
-	// apply that clip to the separately folded substring-verification image.
+func TestRecipeNormalizedFieldClip(t *testing.T) {
 	value := strings.Repeat("x ", 32767) + "東 omega"
 	if got := search.PreparePersonName(value); got != "x" {
-		t.Fatalf("byte clip changed: %q", got)
+		t.Fatalf("outside field token was indexed: %q", got)
 	}
-	if got := search.PrepareTitle(value).Fold(); !strings.HasSuffix(got, "東 omega") {
-		t.Fatal("full fold was clipped with lexical input")
+	folded := search.PrepareTitle(value).Fold()
+	if len(folded) > 64<<10 || strings.Contains(folded, "東") || strings.Contains(folded, "omega") {
+		t.Fatal("title confirmation retained outside field text")
 	}
 }
