@@ -22,9 +22,11 @@ const (
 	scanIssuerHistory
 	scanIssuerCurrent
 	scanIssuerRecover
+	scanIssuerInventory
 )
 
 type scanIssuerInvocation struct {
+	lease     *ScanRunLease
 	driver    *ScanDriver
 	action    scanIssuerAction
 	sourceID  string
@@ -51,7 +53,7 @@ func validateScanIssuerInvocation(r *effectiveRuntime, w *Writer, in *inventoryI
 	if err := d.current(); err != nil {
 		return errors.Join(ErrDisclosureDenied, err)
 	}
-	if in.lifecycle != InventoryCreate && in.lifecycle != InventoryClaim {
+	if in.lifecycle != InventoryCreate && in.lifecycle != InventoryClaim && (in.lifecycle != InventoryAccept || v.action != scanIssuerInventory) {
 		return ErrInvalid
 	}
 	switch v.action {
@@ -62,6 +64,10 @@ func validateScanIssuerInvocation(r *effectiveRuntime, w *Writer, in *inventoryI
 	case scanIssuerRecover:
 		if v.create != nil || v.claim != nil || v.work != nil || v.retained != nil {
 			return ErrInvalid
+		}
+	case scanIssuerInventory:
+		if v.lease == nil || v.lease.self != v.lease || v.lease.driver != d || d.lease != v.lease || v.lease.revoked.Load() {
+			return ErrDisclosureDenied
 		}
 	case scanIssuerSnapshot, scanIssuerCurrent, scanIssuerHistory:
 		if v.create != nil || v.claim != nil || v.work != nil {
@@ -145,6 +151,9 @@ func runScanIssuerTurn(ctx context.Context, turn *commandTurn, in *inventoryInvo
 			_, err = v.driver.retainSourcePreparation(ctx, turn, in, out.source, 0)
 		}
 		return out, true, err
+	}
+	if v.action == scanIssuerInventory {
+		return runInventoryPreparationTurn(ctx, turn, in)
 	}
 	if err = turn.requireScanLifecycleMemory(ctx, scanLifecycleHistoryBytes); err != nil {
 		return out, false, err
