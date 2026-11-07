@@ -4,8 +4,8 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "security_progress",
-		resultTypes: []string{"SecurityResult", "SecuritySnapshot", "SecurityCommand", "wcSecurityReceiptLookup", "ProgressResult", "ProgressSnapshot", "ProgressCommand", "wcProgressLookup"},
-		names:       []string{"newWCSecurityDriver", "composeWCSecurity", "checkWCSecurityNativeDisclosure", "newWCProgressDriver", "composeWCProgress", "initializeWCProgressFixture", "checkWCProgressNativeDisclosure"},
+		resultTypes: []string{"ReclaimResult", "ReclaimSnapshot", "ReclaimCommand", "wcReclaimLookup", "wcReclaimSnapshot", "wcReclaimApplied", "SecurityResult", "SecuritySnapshot", "SecurityCommand", "wcSecurityReceiptLookup", "ProgressResult", "ProgressSnapshot", "ProgressCommand", "wcProgressLookup"},
+		names:       []string{"newWCReclaimDriver", "composeWCReclaim", "checkWCReclaimNativeDisclosure", "newWCSecurityDriver", "composeWCSecurity", "checkWCSecurityNativeDisclosure", "newWCProgressDriver", "composeWCProgress", "initializeWCProgressFixture", "checkWCProgressNativeDisclosure"},
 		bypasses: []string{
 			`func newWCProgressDriver(ctx context.Context)(out *WCProgressDriver,err error){return out,nil}`,
 			`func progressBypass(ctx context.Context)(out ProgressResult,err error){return out,nil}`,
