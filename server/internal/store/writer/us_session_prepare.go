@@ -6,12 +6,10 @@ import (
 	"time"
 )
 
-// Reserved, private and deliberately absent from the accepting registry. The
-// parent owns registration, fresh authority, receipt classification and COMMIT.
+// Compiled metadata lives in commands_us.go. These components remain private;
+// the parent owns fresh authority, concrete result schema, receipts and COMMIT.
 const (
-	usSessionRenewal           CommandID = 511
-	usSessionRefresh           CommandID = 512
-	usSessionMaxProtectedBytes           = 64 << 10
+	usSessionMaxProtectedBytes = 64 << 10
 )
 
 func usSessionDescriptors() []Descriptor {
@@ -131,7 +129,7 @@ func prepareUSSessionRotation(kind CommandID, identity CommandIdentity, in usSes
 	}
 	in.output.nonce = slices.Clone(in.output.nonce)
 	in.output.ciphertext = slices.Clone(in.output.ciphertext)
-	// No digest is invented for unregistered IDs. The parent must define stable
+	// A descriptor is metadata only. The parent must define stable complete
 	// request-vs-preparation digest semantics before enabling these purposes.
 	return &usSessionRotation{kind: kind, identity: identity, request: in, clocks: clocks}, nil
 }

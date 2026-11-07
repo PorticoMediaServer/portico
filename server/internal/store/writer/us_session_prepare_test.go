@@ -23,13 +23,16 @@ func usSessionFixture(kind CommandID) (CommandIdentity, usSessionRotationRequest
 	return identity, q, clocks
 }
 
-func TestUSSessionFrozenAndReserved(t *testing.T) {
+func TestUSSessionFrozenAndPurposes(t *testing.T) {
 	for _, descriptor := range usSessionDescriptors() {
 		if descriptor.Durability != Full || descriptor.ID != usSessionRenewal && descriptor.ID != usSessionRefresh {
 			t.Fatal(descriptor)
 		}
-		if _, err := Describe(descriptor.ID); err == nil {
-			t.Fatal("private reservation became accepting", descriptor)
+		if actual, err := Describe(descriptor.ID); err != nil || actual != descriptor {
+			t.Fatal("explicit FULL metadata differs", actual, err)
+		}
+		if isUSSecurityReceiptPurpose(descriptor.ID) {
+			t.Fatal("descriptor granted a result schema", descriptor)
 		}
 		i, q, clocks := usSessionFixture(descriptor.ID)
 		c, err := prepareUSSessionRotation(descriptor.ID, i, q, clocks)

@@ -1,13 +1,5 @@
 package writer
 
-// Draft purposes only. Root must add these explicit FULL descriptors to its
-// closed US registration; this helper does not register an accepting command.
-const (
-	usMemberRoleChange    CommandID = 501
-	usMembershipDisable   CommandID = 502
-	usAccountEpochAdvance CommandID = 503
-)
-
 func describeUSMemberCommand(id CommandID) (Descriptor, bool) {
 	switch id {
 	case usMemberRoleChange:
