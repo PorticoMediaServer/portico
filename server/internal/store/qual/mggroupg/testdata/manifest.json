@@ -1,7 +1,7 @@
 {
   "status": "INT exact G draft; added fixed-slot/floor amendment not native validated yet",
   "source_owner": "ffe803113b79214346339c20a5453f44bd0ac721",
-  "source_semantics": "d7e20bbe3d1ff71f4627c5c4a49d3a406969274e",
+  "source_semantics": "fe68b008863bac11ccb52dea8ab888aec8f8e768",
   "base_commit": "e57e57ba4bdf80935c7c42638d267d5d591a8012",
   "base_schema_sha256": "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2",
   "candidate_sha256": "0c45f419abd44265ce99092bfd4bd80b08a52bb3305d308cfbb9fe9f2f20867a",
