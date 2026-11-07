@@ -1,10 +1,12 @@
 package writer
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,13 +72,21 @@ func mgLCCapture(t *testing.T) {
 	if _, err := stmt.New(defs, g.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	actual, err := json.MarshalIndent(g, "", "  ")
+	actual, err := g.JSON()
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join("testdata", "mg-lc-native.json")
+	path := filepath.Join("testdata", "mg-lc-native.json.gz")
 	if *recordMGLCReads {
-		if err := os.WriteFile(path, append(actual, '\n'), 0644); err != nil {
+		var encoded bytes.Buffer
+		z := gzip.NewWriter(&encoded)
+		if _, err := z.Write(actual); err != nil {
+			t.Fatal(err)
+		}
+		if err := z.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, encoded.Bytes(), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -84,7 +94,18 @@ func mgLCCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := plan.CompareJSON(expected, actual); err != nil {
+	z, err := gzip.NewReader(bytes.NewReader(expected))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err = io.ReadAll(z)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := z.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Compare(expected); err != nil {
 		t.Fatal(err)
 	}
 }
