@@ -19,7 +19,7 @@ func init() {
 	// The default catalogue recipe remains closed. Each emitted container needs
 	// a currently allowed, available leaf; restricted chronology is leaf-derived.
 	registerReadPolicy(readPolicyRecipe{id: rbHomePolicy, domain: "rb-home", kinds: []int64{1, 2, 3}, validate: func(_ browseQuery, in BrowseInput, _ browseFence) (string, error) {
-		if in.policy.subject < 0 {
+		if in.policy.subject != 0 {
 			return "", ErrInput
 		}
 		return "", nil

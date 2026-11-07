@@ -7,7 +7,7 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 // RBHomeDefinitions is an inert harness composition. Every executable registry
 // still needs Capture on the actual Reader connection.
 func RBHomeDefinitions() []stmt.Definition {
-	return append(append(RBChronologyDefinitions(), rbHomeDefinitions()...), rbHomeActivityDefinitions()...)
+	return append(append(RBChronologyDefinitions(), rbHomeDefinitions()...), append(rbHomeActivityDefinitions(), rbHomeMemberDefinitions()...)...)
 }
 
 func rbHomeDefinitions() []stmt.Definition {

@@ -197,6 +197,9 @@ func (r *BrowseReader) homeActivityWindow(ctx context.Context, request governor.
 					if len(book) != 1 || book[0][12] == nil || !bytes.Equal(book[0][12].([]byte), leaf.PublicID[:]) {
 						return nil
 					}
+					if !bytes.Equal(book[0][8].([]byte), card.Work.PublicID[:]) || book[0][9] == "ended" || book[0][10] != nil && book[0][10] == book[0][11] {
+						return nil
+					}
 					card.State = stateValue(book[0])
 					if card.State.ResumePosition <= 0 || card.State.Completed || card.State.ResumeUnit != 0 {
 						return nil
