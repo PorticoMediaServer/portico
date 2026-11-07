@@ -261,8 +261,8 @@ func TestScanDirectoryTerminalStatementCapture(t *testing.T) {
 	if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	if golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 671 {
-		t.Fatal("canonical671FK audit missing")
+	if golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 686 {
+		t.Fatal("canonical686FK audit missing")
 	}
 	golden.ForeignKeys = nil
 	for _, p := range golden.Plans {
