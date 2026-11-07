@@ -42,6 +42,9 @@ func rbGroupSource(t *testing.T) *browseFixture {
 		if n%4 == 0 {
 			disc = nil
 		}
+		if n%7 == 0 {
+			disc = int64(2)
+		}
 		if n%5 == 0 {
 			part = nil
 		}
