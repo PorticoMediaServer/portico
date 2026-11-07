@@ -65,7 +65,7 @@ func seedRSRelated(t *testing.T, f *browseFixture) {
 		f.exec(t, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(?,?,?,1,1,'mkv','','',1,1,1,1)`, id, fmt.Sprint(id), fmt.Sprintf("/media/%d", id))
 		f.exec(t, `INSERT INTO catalog_asset_links(entity_id,asset_id,library_id) VALUES(?,?,1)`, id, id)
 	}
-	f.exec(t, `UPDATE catalog_asset_links SET available=0 WHERE entity_id=6`)
+	f.exec(t, `UPDATE catalog_assets SET available=0 WHERE id=6`)
 	f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating) SELECT 'p',public_id,id,library_id,2 FROM catalog_entities WHERE id=5`)
 	f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating) SELECT 'q',public_id,id,library_id,1 FROM catalog_entities WHERE id=2`)
 }
