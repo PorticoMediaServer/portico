@@ -103,10 +103,10 @@ func testRBSavedViewScalar(t *testing.T) {
 			t.Fatal(raw)
 		}
 	}
-	// Missing numeric facts under NOT remain unknown, not permission.
+	// Public indexed positive year predicates are false for missing years; NOT includes them.
 	missing, e := compileRBScalarFilter(json.RawMessage(`{"variant":"group","not":{"variant":"predicate","field":"year","operator":"less-than","value":2000}}`))
-	if e != nil || missing.matches(rbFilterFacts{year: 0}) {
-		t.Fatal("unknown became true under NOT", e)
+	if e != nil || !missing.matches(rbFilterFacts{year: 0}) {
+		t.Fatal("public NOT excluded a missing-year title", e)
 	}
 	for _, raw := range []string{
 		`{"variant":"group","not":{"variant":"predicate","field":"genre","operator":"equals","value":"drama"}}`,
