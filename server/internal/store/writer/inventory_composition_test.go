@@ -48,7 +48,7 @@ func TestInventoryCommandFiniteComposition(t *testing.T) {
 	}
 	// Metadata must not silently turn the production history-only constructor
 	// into a fresh profile, or require fresh steps for existing history calls.
-	if len(inventoryHistoryDefinitions()) != 7 {
+	if len(inventoryHistoryDefinitions()) != 11 {
 		t.Fatal("history-only set changed")
 	}
 }

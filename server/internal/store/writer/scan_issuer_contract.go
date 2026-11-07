@@ -116,7 +116,7 @@ func (d *ScanDriver) excludePredecessor(ctx context.Context, turn *commandTurn, 
 	if d.work != current || current == nil || current.frame != turn.transaction {
 		return ErrInvalid
 	}
-	actual, err := readScanRunSnapshot(ctx, turn, before.run.scope.runID)
+	actual, err := readCheckedScanRunSnapshot(ctx, turn, before.run.scope.runID)
 	if err != nil {
 		return err
 	}

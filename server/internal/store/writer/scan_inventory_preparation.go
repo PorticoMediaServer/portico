@@ -36,7 +36,7 @@ func inventoryPreparationDefinitions() []stmt.Definition {
 			defs = append(defs, def)
 		}
 	}
-	return defs
+	return append(defs, scanSnapshotByteDefinitions()...)
 }
 
 func composeInventoryPreparation(ctx context.Context, d *ScanDriver, plan effectivePlan) (err error) {
@@ -106,7 +106,7 @@ func runInventoryPreparationTurn(ctx context.Context, turn *commandTurn, in *inv
 	if err = turn.requireInventoryMemory(ctx, scanLifecycleHistoryBytes); err != nil {
 		return out, false, err
 	}
-	out.run, err = readScanRunSnapshot(ctx, turn, q.RunID)
+	out.run, err = readCheckedScanRunSnapshot(ctx, turn, q.RunID)
 	if err != nil {
 		return out, false, err
 	}
