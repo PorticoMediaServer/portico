@@ -62,7 +62,7 @@ func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptReques
 	for i := range partitions {
 		partitions[i] = p.need
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: e.now, WAL: gate})
+	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: func() time.Time { return e.now() }, WAL: gate})
 	if err != nil {
 		t.Fatal(err)
 	}

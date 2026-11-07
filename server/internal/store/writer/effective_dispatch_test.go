@@ -61,7 +61,7 @@ func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effe
 	for i := range partitions {
 		partitions[i] = plan.need
 	}
-	g, authority, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: executor.now, WAL: wal})
+	g, authority, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: func() time.Time { return executor.now() }, WAL: wal})
 	if err != nil {
 		t.Fatal(err)
 	}
