@@ -28,7 +28,7 @@ func TestSealHistoryStatementPlans(t *testing.T) {
 	defer conn.Close()
 	defs := enrichmentSealHistoryCommandDefinitions()
 	for _, d := range enrichmentSealProofLengthDefinitions() {
-		if d.ID == sealHeaderLengths {
+		if d.ID == sealEvidenceHeaderLengths {
 			defs = append(defs, d)
 		}
 	}
