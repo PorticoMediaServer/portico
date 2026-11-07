@@ -13,6 +13,7 @@ import (
 	"slices"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -241,6 +242,10 @@ func TestRSArtistAlbumReaderAbsoluteExpiry(t *testing.T) {
 // of the production enumeration statements. Each control changes current facts
 // before Begin; no cached acceptance or own-age surrogate admits an album.
 func TestRSArtistAlbumReaderCurrentPages(t *testing.T) {
+	synctest.Test(t, rsArtistAlbumCurrentPages)
+}
+
+func rsArtistAlbumCurrentPages(t *testing.T) {
 	for _, mode := range []string{"union", "retired-album", "retired-feature", "primary-context", "hidden-album", "hidden-feature", "wrong-library-album", "wrong-library-feature"} {
 		t.Run(mode, func(t *testing.T) {
 			f, r := artistAlbumFixture(t)
@@ -350,6 +355,10 @@ func TestRSArtistAlbumReaderCurrentPages(t *testing.T) {
 }
 
 func TestRSArtistAlbumReaderArtworkCapacity(t *testing.T) {
+	synctest.Test(t, rsArtistAlbumArtworkCapacity)
+}
+
+func rsArtistAlbumArtworkCapacity(t *testing.T) {
 	f, r := artistAlbumFixture(t)
 	v := f.input
 	v.Kind = 5
