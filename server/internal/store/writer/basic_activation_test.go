@@ -11,7 +11,7 @@ import (
 
 func basicActivationFixture(t *testing.T) (*executor, basicActivationEffects) {
 	t.Helper()
-	w, in := basicAcceptFixture(t)
+	w, in := basicOrdinaryInputAcceptFixture(t)
 	for _, q := range []string{
 		`INSERT INTO library_sources(id,library_id,configured_root,root,incarnation,root_identity) VALUES('basic-source','basic-library','/media','/media','basic-incarnation','native-root')`,
 		`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,revision,evidence_json,size,modified_ns) VALUES('basic-object','basic-source','basic-asset','basic-incarnation','Arrival.mkv','object:019','{"Path":"Arrival.mkv"}',42,-11)`,

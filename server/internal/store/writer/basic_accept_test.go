@@ -9,7 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-func basicAcceptFixture(t *testing.T) (*executor, basicStreamAccept) {
+func basicOrdinaryInputAcceptFixture(t *testing.T) (*executor, basicStreamAccept) {
 	t.Helper()
 	w, source := basicStreamFixture(t)
 	for _, q := range []string{
@@ -63,7 +63,7 @@ SELECT ?,'basic-asset-'||?,library_id,'/media/basic-asset-'||?||'.mkv',size,modi
 }
 
 func TestBasicAcceptNativePartsDoNotCountAsWholeVersions(t *testing.T) {
-	w, in := basicAcceptFixture(t)
+	w, in := basicOrdinaryInputAcceptFixture(t)
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_asset_links SET part_index=1 WHERE entity_id=31 AND asset_id=41`); err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestBasicAcceptNativePartsDoNotCountAsWholeVersions(t *testing.T) {
 }
 
 func TestBasicAcceptNativeWholeVersionOverflowRefusesPreparedPrefix(t *testing.T) {
-	w, in := basicAcceptFixture(t)
+	w, in := basicOrdinaryInputAcceptFixture(t)
 	// The prepared set is valid at 16; the native set has a seventeenth whole
 	// version. The bounded native read must refuse instead of trusting a prefix.
 	for id := int64(42); id <= 57; id++ {
@@ -122,7 +122,7 @@ func TestBasicAcceptNativeWholeVersionOverflowRefusesPreparedPrefix(t *testing.T
 func TestBasicAcceptNativeRequiresExactRetainedOwner(t *testing.T) {
 	for _, name := range []string{"wrong_library", "wrong_kind", "wrong_returned_id"} {
 		t.Run(name, func(t *testing.T) {
-			w, in := basicAcceptFixture(t)
+			w, in := basicOrdinaryInputAcceptFixture(t)
 			defs := basicAcceptDefinitions()
 			if name == "wrong_returned_id" {
 				for n := range defs {
@@ -166,7 +166,7 @@ func TestBasicAcceptNativeRequiresExactRetainedOwner(t *testing.T) {
 }
 
 func TestBasicAcceptNativeFreezesInputWithoutActivating(t *testing.T) {
-	w, in := basicAcceptFixture(t)
+	w, in := basicOrdinaryInputAcceptFixture(t)
 	turn := basicComponentTurn(t, w, basicAcceptDefinitions())
 	got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000)
 	if err != nil || got != (basicAcceptedPending{51, 7, 17, 14, 31, 1, 61}) {
@@ -201,7 +201,7 @@ func TestBasicAcceptNativeFreezesInputWithoutActivating(t *testing.T) {
 func TestBasicAcceptNativeRejectsIncompleteOrDriftedInput(t *testing.T) {
 	for _, name := range []string{"unsealed_family", "missing_breadth", "wrong_shape", "wrong_version_union"} {
 		t.Run(name, func(t *testing.T) {
-			w, in := basicAcceptFixture(t)
+			w, in := basicOrdinaryInputAcceptFixture(t)
 			switch name {
 			case "unsealed_family":
 				if _, e := w.db.ExecContext(t.Context(), `UPDATE catalog_info_input_families SET sealed=0 WHERE change_id=51 AND family=3`); e != nil {
@@ -235,7 +235,7 @@ func TestBasicAcceptNativeRejectsIncompleteOrDriftedInput(t *testing.T) {
 }
 
 func TestBasicAcceptRawCapRefusesBeforeNativeFreeze(t *testing.T) {
-	w, in := basicAcceptFixture(t)
+	w, in := basicOrdinaryInputAcceptFixture(t)
 	turn := basicComponentTurn(t, w, basicAcceptDefinitions())
 	in.rawShape.RawChapterCount = MaxRawChapters + 1
 	if got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000); !errors.Is(err, ErrCap) || got != (basicAcceptedPending{}) {

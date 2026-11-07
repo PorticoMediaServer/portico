@@ -9,7 +9,7 @@ import (
 
 func basicCompleteAcceptFixture(t *testing.T) (*executor, basicOrdinaryInputAccept) {
 	t.Helper()
-	w, stream := basicAcceptFixture(t)
+	w, stream := basicOrdinaryInputAcceptFixture(t)
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_info_changes SET family_mask=511 WHERE id=51`); err != nil {
 		t.Fatal(err)
 	}

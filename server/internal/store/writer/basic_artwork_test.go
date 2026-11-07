@@ -11,7 +11,7 @@ import (
 
 func basicArtworkFixture(t *testing.T) (*executor, *basicArtworkInput) {
 	t.Helper()
-	w, accepted := basicAcceptFixture(t)
+	w, accepted := basicOrdinaryInputAcceptFixture(t)
 	in, err := prepareBasicArtwork(basicArtworkInput{source: accepted.source, entityID: 31, ownerSourceRevision: 1, ownerArtworkRevision: 1, ownerArtworkIncarnation: [16]byte(bytes.Repeat([]byte{0x31}, 16)), jobID: "local-job", role: "poster", imageID: "chosen-image", origin: "local:chosen-image", locale: "und", effectiveLanguage: "en-US", sourceFence: "native-owner-fence"})
 	if err != nil {
 		t.Fatal(err)
