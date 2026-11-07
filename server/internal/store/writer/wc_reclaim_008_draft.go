@@ -28,7 +28,7 @@ func wcReclaimDefinitions() []stmt.Definition {
 			SQL: `SELECT command_sequence,command_kind,variable_bytes
  FROM playback_claim_command_receipts
  WHERE playback_id=? AND command_incarnation=? AND command_sequence>? AND command_sequence<=?
- ORDER BY command_sequence LIMIT 1`,
+ ORDER BY command_sequence DESC LIMIT 1`,
 			Params: []stmt.Param{{Name: "playback", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob},
 				{Name: "after", Type: stmt.Integer}, {Name: "ack", Type: stmt.Integer}},
 			Cohorts: []stmt.Cohort{{Name: "first", Bindings: []any{"playback-音", []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, int64(0), int64(4)}}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"playback_claim_command_receipts"}}},
