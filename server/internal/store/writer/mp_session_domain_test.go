@@ -96,14 +96,14 @@ func TestMPSessionDomainDraftNativeArity(t *testing.T) {
 func mpDomainCreateInput() mpSessionCreateInput {
 	raw := "grant-token"
 	digest := sha256.Sum256([]byte(raw))
-	return mpSessionCreateInput{mediaGeneration: 3, session: "logical", media: "physical", execution: "execution", request: "request", startKey: "key", startDigest: strings.Repeat("a", 64), engine: "native", mode: "direct", presentationURL: "/v1/media/grant-token", grantHash: mpLowerHex(digest[:]), grantToken: raw, expiresAt: "1970-01-01T00:00:09Z", sessionIncarnation: [16]byte{1}, mediaIncarnation: [16]byte{2}, birthID: [16]byte{3}, item: 1, nowMS: 100, leaseMS: 8000, durationMS: 100000, actor: mpDraftActor(), source: mpDraftSource()}
+	return mpSessionCreateInput{mediaGeneration: 3, session: "logical", media: "physical", execution: "execution", request: "request", startKey: "key", startDigest: strings.Repeat("a", 64), engine: "native", mode: "direct", presentationURL: "/v1/media/grant-token", grantHash: mpLowerHex(digest[:]), grantToken: raw, expiresAt: "1970-01-01T00:00:09Z", sessionIncarnation: [16]byte{1}, mediaIncarnation: [16]byte{2}, userRoot: strings.Repeat("u", 22), memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32), item: 1, nowMS: 100, leaseMS: 8000, durationMS: 100000, actor: mpDraftActor(), source: mpDraftSource()}
 }
 func TestMPSessionDomainDraftInputAndScopedURL(t *testing.T) {
 	q := mpDomainCreateInput()
 	if !q.valid() {
 		t.Fatal("valid create")
 	}
-	for _, mutate := range []func(*mpSessionCreateInput){func(q *mpSessionCreateInput) { q.grantHash = strings.Repeat("f", 64) }, func(q *mpSessionCreateInput) { q.leaseMS = 9500 }, func(q *mpSessionCreateInput) { q.mode = "arbitrary" }, func(q *mpSessionCreateInput) { q.positionMS = q.durationMS + 1 }, func(q *mpSessionCreateInput) { q.birthID = [16]byte{} }, func(q *mpSessionCreateInput) { q.presentationURL = "file:///media/movie.mkv" }} {
+	for _, mutate := range []func(*mpSessionCreateInput){func(q *mpSessionCreateInput) { q.grantHash = strings.Repeat("f", 64) }, func(q *mpSessionCreateInput) { q.leaseMS = 9500 }, func(q *mpSessionCreateInput) { q.mode = "arbitrary" }, func(q *mpSessionCreateInput) { q.positionMS = q.durationMS + 1 }, func(q *mpSessionCreateInput) { q.userRoot = "" }, func(q *mpSessionCreateInput) { q.presentationURL = "file:///media/movie.mkv" }} {
 		bad := q
 		mutate(&bad)
 		if bad.valid() {
@@ -254,5 +254,28 @@ func TestMPSessionDomainDraftClosedParentRecipes(t *testing.T) {
 	turn := &commandTurn{transaction: &transaction{descriptor: Descriptor{ID: MPSessionReady}}}
 	if _, err := mpMediaParentRecipe(turn); !errors.Is(err, ErrInvalid) {
 		t.Fatal("unknown parent admitted", err)
+	}
+}
+
+func TestMPSessionDomainDraftHistoricalOriginMapping(t *testing.T) {
+	for _, d := range mpSessionDomainDefinitions() {
+		if strings.Contains(d.SQL, "mp_birth_id") || strings.Contains(d.SQL, "mp_start_birth_id") {
+			t.Fatal("removed public birth graph", d.ID)
+		}
+		if d.ID == "mp.session.physical_insert" || d.ID == "mp.session.logical_insert" || d.ID == "mp.session.accepted_preparation" || d.ID == "mp.session.origin_binding" || d.ID == "mp.session.physical_origin_binding" {
+			for _, field := range []string{"mp_user_root_id", "mp_owner_member_incarnation", "mp_owner_profile_lifetime"} {
+				if !strings.Contains(d.SQL, field) {
+					t.Fatal("missing original historical scope", d.ID, field)
+				}
+			}
+		}
+	}
+	q := mpDomainCreateInput()
+	for _, mutate := range []func(*mpSessionCreateInput){func(q *mpSessionCreateInput) { q.userRoot = "short" }, func(q *mpSessionCreateInput) { q.memberIncarnation = "invalid" }, func(q *mpSessionCreateInput) { q.profileLifetime = "" }} {
+		bad := q
+		mutate(&bad)
+		if bad.valid() {
+			t.Fatal("invalid historical origin accepted")
+		}
 	}
 }

@@ -261,10 +261,12 @@ func mpPresentationURL(s string) bool {
 }
 
 type mpSessionCreateInput struct {
+	// Historical original UO root/scope only: no FK, authority or sequence credit.
+	userRoot, memberIncarnation, profileLifetime                                                                               string
 	itemPublic                                                                                                                 [16]byte
 	mediaGeneration                                                                                                            int64
 	session, media, execution, request, startKey, startDigest, engine, mode, presentationURL, grantHash, grantToken, expiresAt string
-	sessionIncarnation, mediaIncarnation, birthID                                                                              [16]byte
+	sessionIncarnation, mediaIncarnation                                                                                       [16]byte
 	item, part, nowMS, leaseMS, positionMS, durationMS                                                                         int64
 	paused                                                                                                                     bool
 	actor                                                                                                                      mpPrepActor
@@ -285,7 +287,7 @@ func (q mpSessionCreateInput) valid() bool {
 	if u == nil || strings.Split(strings.TrimPrefix(u.Path, "/v1/media/"), "/")[0] != q.grantToken {
 		return false
 	}
-	return mpPrepTexts(q.session, q.media, q.execution, q.request, q.startKey, q.grantToken, q.expiresAt) && lowerHex(q.startDigest, 64) && lowerHex(q.grantHash, 64) && mpPresentationURL(q.presentationURL) && (q.engine == "native" || q.engine == "mpv") && (q.mode == "direct" || q.mode == "remote" || q.mode == "hls") && q.sessionIncarnation != ([16]byte{}) && q.mediaIncarnation != ([16]byte{}) && q.birthID != ([16]byte{}) && q.item > 0 && mpPrepRevision(q.mediaGeneration) && q.part >= 0 && q.nowMS > 0 && q.leaseMS > q.nowMS && q.leaseMS <= q.actor.horizonMS && q.positionMS >= 0 && q.durationMS > 0 && q.positionMS <= q.durationMS && q.actor.valid(q.nowMS) && q.source.valid() && q.queue.valid()
+	return mpPrepTexts(q.session, q.media, q.execution, q.request, q.startKey, q.grantToken, q.expiresAt) && lowerHex(q.startDigest, 64) && lowerHex(q.grantHash, 64) && mpPresentationURL(q.presentationURL) && (q.engine == "native" || q.engine == "mpv") && (q.mode == "direct" || q.mode == "remote" || q.mode == "hls") && q.sessionIncarnation != ([16]byte{}) && q.mediaIncarnation != ([16]byte{}) && len(q.userRoot) == 22 && mpPrepTexts(q.userRoot) && lowerHex(q.memberIncarnation, 32) && lowerHex(q.profileLifetime, 32) && q.item > 0 && mpPrepRevision(q.mediaGeneration) && q.part >= 0 && q.nowMS > 0 && q.leaseMS > q.nowMS && q.leaseMS <= q.actor.horizonMS && q.positionMS >= 0 && q.durationMS > 0 && q.positionMS <= q.durationMS && q.actor.valid(q.nowMS) && q.source.valid() && q.queue.valid()
 }
 func applyMPSessionCreate(ctx context.Context, t *commandTurn, q mpSessionCreateInput) (out mpSessionEffect, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
@@ -306,7 +308,7 @@ func composeMPSessionFromPreparation(ctx context.Context, t *commandTurn, q mpSe
 	if !mpPrepTexts(preparation) || !mpPrepRevision(revision) {
 		return out, ErrInvalid
 	}
-	if err = mpPrepOne(ctx, t, "mp.session.accepted_preparation", preparation, revision, q.session, q.media, q.source.asset, q.actor.device, q.birthID[:], q.execution, q.mediaGeneration); err != nil {
+	if err = mpPrepOne(ctx, t, "mp.session.accepted_preparation", preparation, revision, q.session, q.media, q.source.asset, q.actor.device, q.userRoot, q.memberIncarnation, q.profileLifetime, q.execution, q.mediaGeneration); err != nil {
 		return
 	}
 	out, err = composeMPSessionCreate(ctx, t, q, true)
@@ -345,16 +347,10 @@ func composeMPSessionCreate(ctx context.Context, t *commandTurn, q mpSessionCrea
 	if err = checkMPPrepQueue(ctx, t, q.queue, q.actor); err != nil {
 		return
 	}
-	var birth, startBirth any
-	if fromStart {
-		startBirth = q.birthID[:]
-	} else {
-		birth = q.birthID[:]
-	}
-	if err = insertMPSessionPhysical(ctx, t, q, birth, startBirth); err != nil {
+	if err = insertMPSessionPhysical(ctx, t, q); err != nil {
 		return
 	}
-	if err = insertMPSessionLogical(ctx, t, q, birth, startBirth); err != nil {
+	if err = insertMPSessionLogical(ctx, t, q); err != nil {
 		return
 	}
 	return mpInstalledSessionProjection(q), nil
@@ -628,7 +624,7 @@ func applyMPSessionReconcile(ctx context.Context, t *commandTurn, f mpSessionFen
 
 // This helper composes ONLY media effects under the caller's exact703/710/714
 // purpose. It is not an execution entry point for another command ID.
-func insertMPSessionPhysical(ctx context.Context, t *commandTurn, q mpSessionCreateInput, birth, startBirth any) (err error) {
+func insertMPSessionPhysical(ctx context.Context, t *commandTurn, q mpSessionCreateInput) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
 	if t == nil || t.transaction == nil {
 		return ErrInvalid
@@ -642,7 +638,7 @@ func insertMPSessionPhysical(ctx context.Context, t *commandTurn, q mpSessionCre
 		return ErrInvalid
 	}
 
-	if err = mpPrepOne(ctx, t, "mp.session.physical_insert", q.media, q.actor.sessionHash, q.actor.account, q.actor.profile, q.item, q.source.asset, q.mediaGeneration, q.grantHash, q.grantToken, q.expiresAt, q.request, q.durationMS, q.mode, q.mediaIncarnation[:], q.execution, birth, startBirth); err != nil {
+	if err = mpPrepOne(ctx, t, "mp.session.physical_insert", q.media, q.actor.sessionHash, q.actor.account, q.actor.profile, q.item, q.source.asset, q.mediaGeneration, q.grantHash, q.grantToken, q.expiresAt, q.request, q.durationMS, q.mode, q.mediaIncarnation[:], q.execution, q.userRoot, q.memberIncarnation, q.profileLifetime); err != nil {
 		return err
 	}
 	args := append([]any{q.media}, q.actor.args()...)
@@ -762,32 +758,13 @@ func applyMPSessionPresentationFinish(ctx context.Context, t *commandTurn, f mpS
 	if err = mpPrepOne(ctx, t, "mp.session.replace_current", f.session, f.physical.media, f.physical.generation, f.generation, f.physical.execution, q.next.media, q.next.execution, q.next.mediaIncarnation[:], digest[:]); err != nil {
 		return
 	}
-	row, e := mpPrepRow(ctx, t, "mp.session.birth_binding", f.session)
-	if e != nil {
-		return out, e
-	}
-	var birth, startBirth []byte
-	if err = row.Scan(&birth, &startBirth); err != nil {
+	// Original historical UO root/scope survives replacement; it grants no
+	// current authority. Parent W/UO still supplies the accepting binding proof.
+	if err = mpPrepOne(ctx, t, "mp.session.origin_binding", f.session, q.next.userRoot, q.next.memberIncarnation, q.next.profileLifetime); err != nil {
 		return
 	}
-	if (len(birth) != 0 && len(birth) != 16) || (len(startBirth) != 0 && len(startBirth) != 16) || (len(birth) == 16) == (len(startBirth) == 16) {
-		return out, ErrResolveRequired
-	}
-	var b, sb any
-	if len(birth) == 16 {
-		if string(birth) != string(q.next.birthID[:]) {
-			return out, ErrConflict
-		}
-		b = birth
-	} else {
-		if string(startBirth) != string(q.next.birthID[:]) {
-			return out, ErrConflict
-		}
-		sb = startBirth
-	}
-	// No new native resource row until exact old physical exit AND cleanup are
-	// durable. Parent now transfers the independently verified new execution.
-	if err = insertMPSessionPhysical(ctx, t, q.next, b, sb); err != nil {
+	// No successor physical custody until exact predecessor exit AND cleanup.
+	if err = insertMPSessionPhysical(ctx, t, q.next); err != nil {
 		return
 	}
 	desired := "playing"
@@ -832,7 +809,7 @@ func applyMPSessionPresentationFinish(ctx context.Context, t *commandTurn, f mpS
 	return
 }
 
-func insertMPSessionLogical(ctx context.Context, t *commandTurn, q mpSessionCreateInput, birth, startBirth any) (err error) {
+func insertMPSessionLogical(ctx context.Context, t *commandTurn, q mpSessionCreateInput) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
 	if !q.valid() || t == nil || t.transaction == nil {
 		return ErrInvalid
@@ -847,7 +824,7 @@ func insertMPSessionLogical(ctx context.Context, t *commandTurn, q mpSessionCrea
 	if q.paused {
 		desired = "paused"
 	}
-	if err = mpPrepOne(ctx, t, "mp.session.logical_insert", q.session, q.actor.device, q.actor.account, q.actor.profile, q.actor.authority, q.startKey, q.startDigest, q.item, q.source.asset, q.part, q.queue.id, q.queue.entry, q.media, q.mediaGeneration, q.positionMS, q.positionMS, q.leaseMS, q.nowMS, q.nowMS, q.sessionIncarnation[:], q.engine, q.presentationURL, desired, birth, startBirth); err != nil {
+	if err = mpPrepOne(ctx, t, "mp.session.logical_insert", q.session, q.actor.device, q.actor.account, q.actor.profile, q.actor.authority, q.startKey, q.startDigest, q.item, q.source.asset, q.part, q.queue.id, q.queue.entry, q.media, q.mediaGeneration, q.positionMS, q.positionMS, q.leaseMS, q.nowMS, q.nowMS, q.sessionIncarnation[:], q.engine, q.presentationURL, desired, q.userRoot, q.memberIncarnation, q.profileLifetime); err != nil {
 		return err
 	}
 	return nil

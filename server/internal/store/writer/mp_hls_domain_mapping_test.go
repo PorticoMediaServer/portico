@@ -23,6 +23,9 @@ func TestMPHLSDomainDraftCanonicalWindowMapping(t *testing.T) {
 	if seen["mp.hls.window_custody_insert"] != "" || seen["mp.hls.window_restart"] != "" {
 		t.Fatal("split row initialization/restart")
 	}
+	if !strings.Contains(seen["mp.hls.window_exit"], "SET mp_writes_retired=1,mp_exit_confirmed=1") {
+		t.Fatal("actual exit must atomically retire writes")
+	}
 	reclaim := seen["mp.hls.window_reclaim"]
 	for _, fence := range []string{"mp_execution_id=?", "mp_execution_generation=?", "mp_revision=?", "mp_source_request_id=?", "mp_physical_generation=?", "mp_exit_confirmed=1", "mp_cleaned=1", "NOT EXISTS"} {
 		if !strings.Contains(reclaim, fence) {

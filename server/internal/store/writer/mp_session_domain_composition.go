@@ -152,7 +152,7 @@ func composeMPSessionDelivery(ctx context.Context, t *commandTurn, f mpPhysicalF
 }
 
 // Actual-root origin is inherited from the captured predecessor's typed public
-// session/start birth; neither760 nor762 invents a public710 birth. Parent has
+// historical original UO root; neither760 nor762 invents a public710 birth. Parent has
 // already applied its bounded queue/next selection CAS in this SAME turn.
 type mpQueueSessionInstall struct {
 	next                   mpSessionCreateInput
@@ -161,19 +161,13 @@ type mpQueueSessionInstall struct {
 	nextToken              string
 }
 
-func mpQueueInstallOrigin(ctx context.Context, t *commandTurn, q mpQueueSessionInstall) (birth, startBirth []byte, old mpSessionEffect, err error) {
-	defer func() {
-		v, e := finishCommand(ctx, commandLifetime(t), struct {
-			b, s []byte
-			o    mpSessionEffect
-		}{birth, startBirth, old}, err)
-		birth, startBirth, old, err = v.b, v.s, v.o, e
-	}()
+func mpQueueInstallOrigin(ctx context.Context, t *commandTurn, q mpQueueSessionInstall) (old mpSessionEffect, err error) {
+	defer func() { old, err = finishCommand(ctx, commandLifetime(t), old, err) }()
 	if t == nil || t.transaction == nil || (t.transaction.descriptor.ID != mpCoreQueueAdvancePurpose && t.transaction.descriptor.ID != mpCoreNextCommitPurpose) {
-		return nil, nil, old, ErrInvalid
+		return old, ErrInvalid
 	}
 	if !q.next.valid() || q.next.session == q.predecessor.session || q.next.queue.id == "" || q.next.queue.revision != q.queueRevision || q.next.queue.custody != q.custody {
-		return nil, nil, old, ErrInvalid
+		return old, ErrInvalid
 	}
 	old, err = captureMPSession(ctx, t, q.predecessor, false)
 	if err != nil {
@@ -182,11 +176,11 @@ func mpQueueInstallOrigin(ctx context.Context, t *commandTurn, q mpQueueSessionI
 	// Prepared media may have private buffering custody; publication of its NEW
 	// logical authority waits for exact predecessor physical exit, never cancel.
 	if old.physicalExit.exitedGeneration != old.mediaGeneration || old.physicalPending {
-		return nil, nil, old, ErrConflict
+		return old, ErrConflict
 	}
 	a, b := q.next.actor, q.predecessor.physical.actor
 	if a.server != b.server || a.authority != b.authority || a.account != b.account || a.profile != b.profile || a.device != b.device || a.family != b.family {
-		return nil, nil, old, ErrDisclosureDenied
+		return old, ErrDisclosureDenied
 	}
 	if err = checkMPPrepActor(ctx, t, a); err != nil {
 		return
@@ -203,25 +197,7 @@ func mpQueueInstallOrigin(ctx context.Context, t *commandTurn, q mpQueueSessionI
 	if err = mpPrepOne(ctx, t, "mp.session.queue_install_current", q.next.queue.id, q.queueRevision, q.custody, q.next.queue.entry, q.predecessor.session, q.next.session); err != nil {
 		return
 	}
-	row, e := mpPrepRow(ctx, t, "mp.session.birth_binding", q.predecessor.session)
-	if e != nil {
-		err = e
-		return
-	}
-	if err = row.Scan(&birth, &startBirth); err != nil {
-		return
-	}
-	if (len(birth) != 0 && len(birth) != 16) || (len(startBirth) != 0 && len(startBirth) != 16) || (len(birth) == 16) == (len(startBirth) == 16) {
-		err = ErrResolveRequired
-		return
-	}
-	chosen := birth
-	if len(chosen) == 0 {
-		chosen = startBirth
-	}
-	if string(chosen) != string(q.next.birthID[:]) {
-		err = ErrConflict
-	}
+	err = mpPrepOne(ctx, t, "mp.session.origin_binding", q.predecessor.session, q.next.userRoot, q.next.memberIncarnation, q.next.profileLifetime)
 	return
 }
 func composeMPSessionFromQueueAdvance(ctx context.Context, t *commandTurn, q mpQueueSessionInstall) (out mpSessionEffect, err error) {
@@ -229,23 +205,17 @@ func composeMPSessionFromQueueAdvance(ctx context.Context, t *commandTurn, q mpQ
 	if err = mpPrepTurn(t, mpCoreQueueAdvancePurpose); err != nil {
 		return
 	}
-	b, s, old, err := mpQueueInstallOrigin(ctx, t, q)
+	old, err := mpQueueInstallOrigin(ctx, t, q)
 	if err != nil {
 		return out, err
-	}
-	var birth, start any
-	if len(b) != 0 {
-		birth = b
-	} else {
-		start = s
 	}
 	if err = mpPrepOne(ctx, t, "mp.session.item_identity", q.next.item, q.next.itemPublic[:]); err != nil {
 		return
 	}
-	if err = insertMPSessionPhysical(ctx, t, q.next, birth, start); err != nil {
+	if err = insertMPSessionPhysical(ctx, t, q.next); err != nil {
 		return
 	}
-	if err = insertMPSessionLogical(ctx, t, q.next, birth, start); err != nil {
+	if err = insertMPSessionLogical(ctx, t, q.next); err != nil {
 		return
 	}
 	if old.endedMS == 0 {
@@ -265,7 +235,7 @@ func composeMPSessionFromNextCommit(ctx context.Context, t *commandTurn, q mpQue
 	if !mpPrepTexts(q.nextToken) {
 		return out, ErrInvalid
 	}
-	b, s, old, err := mpQueueInstallOrigin(ctx, t, q)
+	old, err := mpQueueInstallOrigin(ctx, t, q)
 	if err != nil {
 		return out, err
 	}
@@ -282,18 +252,15 @@ func composeMPSessionFromNextCommit(ctx context.Context, t *commandTurn, q mpQue
 	if err = mpPrepOne(ctx, t, "mp.session.item_identity", q.next.item, q.next.itemPublic[:]); err != nil {
 		return
 	}
+	if err = mpPrepOne(ctx, t, "mp.session.physical_origin_binding", q.next.media, q.next.userRoot, q.next.memberIncarnation, q.next.profileLifetime); err != nil {
+		return
+	}
 	// Private-to-public authority transfer of the SAME resource, not new physical
 	// custody and not a post-cancel release. Actual predecessor has already exited.
 	if err = mpPrepOne(ctx, t, "mp.session.next_private_transfer", q.next.media, q.predecessor.physical.media, q.next.nowMS); err != nil {
 		return
 	}
-	var birth, start any
-	if len(b) != 0 {
-		birth = b
-	} else {
-		start = s
-	}
-	if err = insertMPSessionLogical(ctx, t, q.next, birth, start); err != nil {
+	if err = insertMPSessionLogical(ctx, t, q.next); err != nil {
 		return
 	}
 	if old.endedMS == 0 {

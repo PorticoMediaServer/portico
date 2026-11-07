@@ -49,7 +49,7 @@ func mpHLSCanonicalSQL(t *testing.T) *mpHLSCanonicalSQLFixture {
 	end := strings.Index(ddl, ";\n")
 	f.exec(ddl[:end+1])
 	// Explicit queryable F projection only; no owner/header/birth graph fixture.
-	for _, column := range []string{"mp_physical_generation INTEGER NOT NULL DEFAULT 0", "mp_execution_id TEXT NOT NULL DEFAULT ''", "mp_source_request_id TEXT NOT NULL DEFAULT ''", "mp_writes_retired INTEGER NOT NULL DEFAULT 0", "mp_exit_confirmed INTEGER NOT NULL DEFAULT 0", "mp_execution_generation INTEGER NOT NULL DEFAULT 0", "mp_revision INTEGER NOT NULL DEFAULT 0", "mp_end_index INTEGER NOT NULL DEFAULT 0", "mp_plan_digest TEXT NOT NULL DEFAULT ''", "mp_cleaned INTEGER NOT NULL DEFAULT 0", "mp_exit_digest TEXT NOT NULL DEFAULT ''", "mp_cleanup_cursor INTEGER NOT NULL DEFAULT 0"} {
+	for _, column := range []string{"mp_physical_generation INTEGER NOT NULL DEFAULT 0", "mp_execution_id TEXT NOT NULL DEFAULT ''", "mp_source_request_id TEXT NOT NULL DEFAULT ''", "mp_writes_retired INTEGER NOT NULL DEFAULT 0", "mp_exit_confirmed INTEGER NOT NULL DEFAULT 0 CHECK(mp_exit_confirmed IN(0,1) AND mp_exit_confirmed<=mp_writes_retired)", "mp_execution_generation INTEGER NOT NULL DEFAULT 0", "mp_revision INTEGER NOT NULL DEFAULT 0", "mp_end_index INTEGER NOT NULL DEFAULT 0", "mp_plan_digest TEXT NOT NULL DEFAULT ''", "mp_cleaned INTEGER NOT NULL DEFAULT 0", "mp_exit_digest TEXT NOT NULL DEFAULT ''", "mp_cleanup_cursor INTEGER NOT NULL DEFAULT 0"} {
 		f.exec("ALTER TABLE playback_hls_windows ADD COLUMN " + column)
 	}
 	f.exec(`CREATE UNIQUE INDEX mp_hls_window_generation_test ON playback_hls_windows(session_id,start_index,mp_execution_generation);
@@ -136,5 +136,29 @@ func TestMPHLSDomainNativeCanonicalWindowExecutionFence(t *testing.T) {
 	}
 	if count != 1 || generation != 2 || revision != 4 || exited != 0 || cleaned != 0 || execution != "new" || status != "running" || request != "source-request" || artifacts != 0 {
 		t.Fatal(count, generation, revision, exited, cleaned, execution, status, request, artifacts)
+	}
+}
+
+// Completion is not actual exit. The confirmed-exit write must retire writes
+// atomically to satisfy F, even when no cancellation preceded normal completion.
+func TestMPHLSDomainNativeCompletedWindowExitRetiresWrites(t *testing.T) {
+	f := mpHLSCanonicalSQL(t)
+	ctx := t.Context()
+	digest := strings.Repeat("a", 64)
+	exit := strings.Repeat("b", 64)
+	if err := mpPrepOne(ctx, f.turn(MPHLSWindowClaim), "mp.hls.window_insert", "media", int64(20), int64(19), int64(100), int64(4), "completed-execution", "source-request", int64(21), digest); err != nil {
+		t.Fatal(err)
+	}
+	f.exec(`UPDATE playback_hls_windows SET status='complete',highest_produced=21 WHERE session_id='media' AND start_index=20`)
+	var retired, exited int64
+	if err := f.conn.QueryRowContext(ctx, `SELECT mp_writes_retired,mp_exit_confirmed FROM playback_hls_windows WHERE session_id='media' AND start_index=20`).Scan(&retired, &exited); err != nil || retired != 0 || exited != 0 {
+		t.Fatal(retired, exited, err)
+	}
+	// Synthetic accepted exact-execution exit proof, not status-derived exit.
+	if err := mpPrepOne(ctx, f.turn(MPHLSWindowExit), "mp.hls.window_exit", exit, int64(0), int64(1), "media", int64(20), int64(1), "completed-execution", int64(1), int64(0), exit, "source-request", int64(4)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.conn.QueryRowContext(ctx, `SELECT mp_writes_retired,mp_exit_confirmed FROM playback_hls_windows WHERE session_id='media' AND start_index=20`).Scan(&retired, &exited); err != nil || retired != 1 || exited != 1 {
+		t.Fatal(retired, exited, err)
 	}
 }
