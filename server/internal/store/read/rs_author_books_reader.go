@@ -427,7 +427,7 @@ func (r *RSAuthorBookReader) hydrate(ctx context.Context, q governor.Request, ou
 		if e == nil {
 			e = p.charge(authorBookCardBytes(*card))
 			if e == nil {
-				card.MissingCanonicalFacts = []string{"catalog_books.provider_match_status", "bookRoleSQL", "accepted effective series evidence"}
+				card.MissingCanonicalFacts = []string{"catalog_books.provider_match_status", "book_resume.item_id/position", "catalog_book_context.series_index"}
 				p.hydratedArt = true
 			}
 		}
