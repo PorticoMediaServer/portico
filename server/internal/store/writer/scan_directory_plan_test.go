@@ -60,8 +60,8 @@ func TestScanDirectoryStatementPlans(t *testing.T) {
 	if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	if golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 671 {
-		t.Fatal("canonical671-FK audit missing")
+	if golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 686 {
+		t.Fatal("canonical686-FK audit missing")
 	}
 	golden.ForeignKeys = nil // same canonical graph; no schema change in this PR
 	for _, p := range golden.Plans {
