@@ -468,3 +468,61 @@ ONCE to actual time.Now and records that temporal origin; standalone RD2 seeds
 remain unchanged. There is no renewal during the run, new issuer or repair of
 failed inputs. Original request deadlines remain absolute and unchanged; actual
 expiry remains a failed cell.
+
+## EC2 sustained component attachment
+
+`TestEC2SustainedMeasurement` reuses the merged `N1PairedComponent` fixture,
+executor, complete captured registry, governor, original Resolve/ACK progression,
+warm persistent writer and all four real foreground Actions on the same file.
+It adds the `EC2Streams` schedule and read-only typed WAL snapshots. The existing
+N1/RD2 synthetic profiles, work limits, grant recipes and 128-total-original
+fixture bound are unchanged; the target accepts 1..64 measured plus 1..64 actual
+warmup originals. There is no production issuer, profile, permit or enable.
+The original N1 owner records, raw failure prefixes and final custody/native
+joins remain authoritative. A chain's scheduler wall interval is not HOLD or
+COMMIT. Raw physical ordinals continue across warmup and every actual role.
+
+Every measured BEGIN, saved-original Resolve and ACK has an `ec2_wal_turn`
+record joining the SAME original reference, actual owner attempt ID/physical
+ordinal and before/after `WALSnapshot`. These probes execute outside HOLD and
+retain parser failures, nullable native facts, bounded file/header probes,
+allocation, salt/frame/backfill/debt and gate-event metadata. A failed pre-probe
+has a null physical ID; it does not manufacture an attempt. A returned failed
+owner turn still gets a post-probe, even after cancellation. Observer error is
+separate from the saved owner error; it stops progression. The timer observer
+is separate. Probe equality is not atomicity, reset or owner-opening proof.
+Header-sync/xSync intervals remain null with a reason. This instrumentation and
+its file/serialization cost are explicit component overhead, never subtracted
+from a physical command or attributed as header sync.
+
+Default runs skip the measurement target. Requested opt-in requires BOTH
+`-ec2-sustained=true` and `PORTICO_WRITER_EC2=1`, plus
+`PORTICO_WRITER_EC2_CONFIG` naming the existing strict five-field JSON config
+(run_id, host_epoch, source_commit, output_path, fixtures). Missing companion
+configuration fails. `-ec2-warmup=1..64`, `-ec2-cohort=timing|native-counters`,
+and `-ec2-cadence=realistic|accelerated` declare distinct populations. Writer
+spacing is 1ms..30s, the window <=2h and total scheduled offers <=65536.
+The writer pattern has exactly one inventory entry and <=32 entries; a fresh
+original is offered once per pattern. Readers remain one serial four-route
+worker; no parallel second writer is added.
+
+The default requested pattern is `inventory,security`, with concurrent CP and
+recovery requested. Current main supplies only the N1/read/WAL attachment:
+Effective, native WC and GV concurrent/recovery bindings are missing. Their
+requested offers emit failed STUBs and stop all streams. A bool or callback
+cannot open those native paths. `ec2_start` preserves requested patterns and
+missing capabilities; WAL-BOUND/WAL-RESET coverage is explicitly false.
+
+For an explicit partial component, QL may select
+`-ec2-writer-pattern=inventory -ec2-passive-every=0 -ec2-recovery-every=0`;
+this omits the missing populations by declaration, never by success filtering.
+Other spacings are `-ec2-writer-every`, `-ec2-reader-every`, `-ec2-wal-every`.
+`-ec2-checkpoint-mode=serialized|concurrent` is metadata only. A successful
+subset final is not whole EC2 coverage, a real-rate/security claim or a reset
+measurement. `ec2-sustained-component-v1` stays separate from earlier N1 waves,
+DIRECTIONAL/qualification=false, readiness=false. No new host run is requested.
+
+`TestEC2N1WALComposition` is a tiny disposable functional control for the actual
+N1 chain, all three physical WAL joins and one real reader; it does not measure
+budgets. Run focused controls on the GitHub lane-focused runner with Go1.26.10;
+its default-skipped measurement target is not execution evidence.

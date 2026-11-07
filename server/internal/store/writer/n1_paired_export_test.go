@@ -19,6 +19,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/walobserve"
 	"github.com/PorticoMediaServer/portico/server/internal/store/read"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 )
@@ -186,7 +187,7 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 		t.Fatal(err)
 	}
 	hashes := map[string]string{}
-	for _, name := range []string{"n1_paired_export_test.go", "transaction_test.go", "n1_paired_external_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "inventory_memory_test.go", "governor_turn_test.go", "scan_fresh_test.go", "../internal/readfixture/source.go", "../internal/readfixture/config.go", "../qual/workload/foreground.go"} {
+	for _, name := range []string{"n1_paired_export_test.go", "ec2_sustained_external_test.go", "../qual/workload/ec2.go", "transaction_test.go", "n1_paired_external_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "inventory_memory_test.go", "governor_turn_test.go", "scan_fresh_test.go", "../internal/readfixture/source.go", "../internal/readfixture/config.go", "../qual/workload/foreground.go"} {
 		raw, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
@@ -217,6 +218,15 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 }
 
 func (c *N1PairedComponent) RunOriginal(t *testing.T, ctx context.Context, ready time.Time, warmup bool, cohort string) error {
+	return c.runOriginal(t, ctx, ready, warmup, cohort, false)
+}
+
+// RunEC2Original adds typed read-only WAL brackets outside each actual owner
+// turn. Failed probes remain explicit; no native evidence is reconstructed.
+func (c *N1PairedComponent) RunEC2Original(t *testing.T, ctx context.Context, ready time.Time, cohort string) error {
+	return c.runOriginal(t, ctx, ready, false, cohort, true)
+}
+func (c *N1PairedComponent) runOriginal(t *testing.T, ctx context.Context, ready time.Time, warmup bool, cohort string, telemetry bool) error {
 	if c.stopped != nil {
 		return c.stopped
 	}
@@ -235,9 +245,29 @@ func (c *N1PairedComponent) RunOriginal(t *testing.T, ctx context.Context, ready
 		return err
 	}
 	for _, role := range []string{"fresh_begin", "resolve", "ack"} {
+		var before *walobserve.WALSnapshot
+		if telemetry {
+			var err error
+			before, err = c.ObserveEC2WAL(ctx)
+			if err != nil {
+				raw, _ := json.Marshal(map[string]any{"original_reference": ReceiptReference{command.identity, command.digest}, "turn_role": role, "physical_attempt_id": nil, "before": before, "after": nil, "before_error": err.Error(), "after_error": nil})
+				c.stopped = errors.Join(err, c.EmitEC2("wal_turn", raw))
+				return c.stopped
+			}
+		}
 		c.call++
 		c.summary.Turns[role].Started++
 		record := runN1SteadyTurn(t, ctx, c.stream, c.fixture, c.trace, &c.summary, c.original, c.call, population, role, cohort, c.baseline, n1SteadyControls{clock: time.Now})
+		if telemetry {
+			// Always collect after a returned physical call, even on command failure or
+			// cancellation. These finite file probes own no native rows/transaction.
+			after, observeErr := c.ObserveEC2WAL(context.WithoutCancel(ctx))
+			raw, _ := json.Marshal(map[string]any{"original_reference": record.Reference, "turn_role": role, "physical_attempt_id": record.ID, "physical_attempt_ordinal": record.PhysicalAttemptOrdinal, "before": before, "after": after, "before_error": "", "after_error": n1Error(observeErr), "header_sync_ns": nil, "header_sync_unavailable_reason": "typed native WAL IO has no isolated header-sync/xSync interval"})
+			if err := errors.Join(observeErr, c.EmitEC2("wal_turn", raw)); err != nil {
+				c.stopped = err
+				return err
+			}
+		}
 		if !record.Complete {
 			c.stopped = errors.New("incomplete N1 " + role + ": " + record.Error)
 			return c.stopped
@@ -248,6 +278,21 @@ func (c *N1PairedComponent) RunOriginal(t *testing.T, ctx context.Context, ready
 		c.summary.WarmupOriginals = append(c.summary.WarmupOriginals, ReceiptReference{command.identity, command.digest})
 	}
 	return nil
+}
+
+// ObserveEC2WAL binds advisory telemetry to this actual owner path/gate. It
+// neither publishes admission nor opens a second database or native connection.
+func (c *N1PairedComponent) ObserveEC2WAL(ctx context.Context) (*walobserve.WALSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if c.closed || c.fixture == nil {
+		return nil, errors.New("paired owner unavailable")
+	}
+	return walobserve.Observe(c.fixture.owner.path, c.fixture.owner.wal)
+}
+func (c *N1PairedComponent) EmitEC2(kind string, raw json.RawMessage) error {
+	return c.stream.append("ec2_"+kind, map[string]any{"record": raw, "qualified_profile_ready": false})
 }
 func (c *N1PairedComponent) EmitRead(id string, scheduled time.Time, raw json.RawMessage) error {
 	return c.stream.append("foreground", map[string]any{"call_id": id, "scheduled_at": scheduled, "observation": raw})
