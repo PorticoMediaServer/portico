@@ -59,6 +59,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightEnrichmentSealResult(EvidenceSeal, v.facts)
 	case creditSourceSealResult:
 		return preflightEnrichmentSealResult(CreditSourceSeal, v.facts)
+	case ProgressValue:
+		return preflightProgressValue(v)
 	case evidenceBeginResult:
 		return preflightEvidenceBeginResult(v)
 	case effectiveBeginResult:
@@ -106,6 +108,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeEnrichmentSealResult(e, EvidenceSeal, identity, request, v.facts)
 	case creditSourceSealResult:
 		return writeEnrichmentSealResult(e, CreditSourceSeal, identity, request, v.facts)
+	case ProgressValue:
+		return writeProgressValue(e, identity, request, v)
 	case evidenceBeginResult:
 		return writeEvidenceBeginResult(e, identity, request, v)
 	case effectiveBeginResult:
