@@ -257,6 +257,7 @@ func TestGroupGTypedPinsAndScope(t *testing.T) {
 		{"pending_base", func(t *testing.T) {
 			f.channel(t, "c-a")
 			f.generation(t, "l-a", "c-a", "")
+			f.exec(t, "UPDATE lc_generations SET status='published' WHERE id='l-a'")
 			f.generation(t, "l-b", "c-a", "l-a")
 			f.reject(t, "DELETE FROM lc_generations WHERE id='l-a'", "FOREIGN KEY")
 			f.exec(t, "UPDATE lc_generations SET status='cancelled' WHERE id='l-b'")
