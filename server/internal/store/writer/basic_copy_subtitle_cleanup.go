@@ -95,7 +95,13 @@ func cleanupBasicSubtitles(ctx context.Context, turn *commandTurn, in basicSubti
 			return value, e
 		}
 		tuple := basicSubtitleCleanupTuple(s.assetToken, r)
-		rows, e = basicRows(ctx, turn, basicCleanupSubtitleExact, tuple...)
+		exactID, deleteID := basicCleanupSubtitleExact, basicCleanupSubtitleDelete
+		matchArgs := tuple
+		if r.origin == "embedded" {
+			exactID, deleteID = basicCleanupSubtitleExactEmbedded, basicCleanupSubtitleDeleteEmbedded
+			matchArgs = append(append([]any{}, tuple[:5]...), tuple[6:]...)
+		}
+		rows, e = basicRows(ctx, turn, exactID, matchArgs...)
 		if e != nil {
 			return value, e
 		}
@@ -109,7 +115,7 @@ func cleanupBasicSubtitles(ctx context.Context, turn *commandTurn, in basicSubti
 		var ordinal int64
 		e = row.Scan(&ordinal)
 		if errors.Is(e, sql.ErrNoRows) {
-			rows, e = basicRows(ctx, turn, basicCleanupSubtitleDelete, tuple...)
+			rows, e = basicRows(ctx, turn, deleteID, matchArgs...)
 			if e != nil {
 				return value, e
 			}
