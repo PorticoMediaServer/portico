@@ -77,7 +77,7 @@ func TestRSArtistAlbumReaderLIVEAndUnion(t *testing.T) {
 				t.Fatal(page)
 			}
 			for _, c := range page.Cards {
-				if c.Facts.Album == nil || c.PrimaryArtist.Item.ID != c.Facts.Album.Artist || len(c.MissingCanonicalFacts) == 0 {
+				if c.Facts.Album == nil || c.PrimaryArtist.ID != c.Facts.Album.Artist || len(c.MissingCanonicalFacts) == 0 {
 					t.Fatal(c)
 				}
 			}
@@ -97,7 +97,7 @@ func TestRSArtistAlbumReaderInput(t *testing.T) {
 func TestRSArtistAlbumReaderWideBytes(t *testing.T) {
 	a := RSArtistAlbumCard{}
 	b := a
-	b.PrimaryArtist.Country = "é\x00"
+	b.PrimaryArtist.Title = "é\x00"
 	if artistAlbumCardBytes(b)-artistAlbumCardBytes(a) != 12 {
 		t.Fatal("wide bytes")
 	}
