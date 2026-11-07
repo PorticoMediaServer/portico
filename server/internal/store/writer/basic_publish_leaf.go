@@ -21,28 +21,13 @@ type basicPublishedLeaf struct{ entityID, assetID, infoEpoch, changeRevision int
 // No public result, Outcome, COMMIT or independent readiness entry exists here.
 func publishBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafPublication) (value basicPublishedLeaf, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
-	a, n := in.activation, in.settled
+	a := in.activation
 	s := a.source
-	if ctx == nil || turn == nil || turn.transaction == nil || in.entityID <= 0 || a.familyMask != 511 || a.shapeID <= 0 ||
-		a.changeRevision <= 0 || a.changeRevision == math.MaxInt64 || s.expectedEpoch <= 0 || s.expectedEpoch == math.MaxInt64 ||
-		a.fileSizeRevision <= 0 || a.invalidationRevision <= 0 || a.ownerObject.Valid || a.ownerRevision.Valid || a.ownerObject.String != "" || a.ownerRevision.String != "" ||
-		!n.duration.Valid || !n.resolution.Valid || n.duration.Float64 <= 0 || n.resolution.Int64 < 0 || n.durationKey != n.duration.Float64 || n.resolutionKey != n.resolution.Int64 ||
-		math.IsNaN(n.duration.Float64) || math.IsInf(n.duration.Float64, 0) || in.duration <= 0 || math.IsNaN(in.duration) || math.IsInf(in.duration, 0) ||
-		n.scalarRevision <= 0 || n.aggregateRevision <= 0 || n.membershipSequence <= 0 {
-		return value, ErrInvalid
-	}
-	row, err := basicStageRead(ctx, turn, basicPublishLeafProof, in.entityID, s.changeID, s.assetID, s.assetToken, s.libraryID, s.expectedEpoch, s.inputRevision, s.witnessFingerprint[:], a.changeRevision, a.shapeID,
-		s.expectedEpoch+1, s.size, s.modifiedNS, a.fileSizeRevision, a.invalidationRevision, in.duration, n.duration.Float64, n.resolution.Int64, n.membershipSequence, n.scalarRevision, n.aggregateRevision)
+	epoch, err := readBasicLeafPublicationProof(ctx, turn, in)
 	if err != nil {
 		return value, err
 	}
-	var change, epoch int64
-	if err = row.Scan(&change, &epoch); err != nil {
-		return value, basicStageError(err)
-	}
-	if change != s.changeID || epoch != s.expectedEpoch+1 {
-		return value, ErrConflict
-	}
+	n := in.settled
 	// FIRST never discharges old scalar/path obligations by clearing a flag.
 	// old_path is guarded NULL in the proof; scalar-old is a bounded PK prefix.
 	row, err = basicStageRead(ctx, turn, basicPublishScalarOld, s.changeID)
@@ -105,4 +90,32 @@ func publishBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafP
 		return value, ErrConflict
 	}
 	return value, nil
+}
+
+// Bounded native post-settlement proof, shared by OLD discharge and publication.
+func readBasicLeafPublicationProof(ctx context.Context, turn *commandTurn, in basicLeafPublication) (epoch int64, err error) {
+	defer func() { epoch, err = finishCommand(ctx, commandLifetime(turn), epoch, err) }()
+	a, n := in.activation, in.settled
+	s := a.source
+	if ctx == nil || turn == nil || turn.transaction == nil || in.entityID <= 0 || a.familyMask != 511 || a.shapeID <= 0 ||
+		a.changeRevision <= 0 || a.changeRevision == math.MaxInt64 || s.expectedEpoch <= 0 || s.expectedEpoch == math.MaxInt64 ||
+		a.fileSizeRevision <= 0 || a.invalidationRevision <= 0 || a.ownerObject.Valid || a.ownerRevision.Valid || a.ownerObject.String != "" || a.ownerRevision.String != "" ||
+		!n.duration.Valid || !n.resolution.Valid || n.duration.Float64 <= 0 || n.resolution.Int64 < 0 || n.durationKey != n.duration.Float64 || n.resolutionKey != n.resolution.Int64 ||
+		math.IsNaN(n.duration.Float64) || math.IsInf(n.duration.Float64, 0) || in.duration <= 0 || math.IsNaN(in.duration) || math.IsInf(in.duration, 0) ||
+		n.scalarRevision <= 0 || n.aggregateRevision <= 0 || n.membershipSequence <= 0 {
+		return 0, ErrInvalid
+	}
+	row, err := basicStageRead(ctx, turn, basicPublishLeafProof, in.entityID, s.changeID, s.assetID, s.assetToken, s.libraryID, s.expectedEpoch, s.inputRevision, s.witnessFingerprint[:], a.changeRevision, a.shapeID,
+		s.expectedEpoch+1, s.size, s.modifiedNS, a.fileSizeRevision, a.invalidationRevision, in.duration, n.duration.Float64, n.resolution.Int64, n.membershipSequence, n.scalarRevision, n.aggregateRevision)
+	if err != nil {
+		return 0, err
+	}
+	var change int64
+	if err = row.Scan(&change, &epoch); err != nil {
+		return 0, basicStageError(err)
+	}
+	if change != s.changeID || epoch != s.expectedEpoch+1 {
+		return 0, ErrConflict
+	}
+	return epoch, nil
 }
