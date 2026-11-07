@@ -49,6 +49,7 @@ func seedNativeSearch(t *testing.T, f *browseFixture) {
 	nativeFixtureImage(t, f, search.ManifestEntity, 4, 4, []nativeFixtureField{{1, "Independent own"}, {4, vector.Source}})
 
 	seedNativeAutomatic(t, f)
+	seedNativeAlbums(t, f)
 	f.exec(t, "COMMIT")
 }
 
@@ -79,7 +80,7 @@ func nativeFixtureImage(t *testing.T, f *browseFixture, subject search.ManifestS
 			t.Fatal(err)
 		}
 		for i := 0; i < fragments.Len(); i++ {
-			rows = append(rows, fragments.At(i).ManifestRow(field.field, int64(i), "revision-1"))
+			rows = append(rows, fragments.At(i).ManifestRow(field.field, int64(i), fmt.Sprintf("revision-field-%d", field.field)))
 		}
 	}
 	var incarnation [16]byte
@@ -142,6 +143,20 @@ func seedNativeAutomatic(t *testing.T, f *browseFixture) {
 		id    int64
 		title string
 	}{{5, "Local work"}, {6, "Included work"}, {7, "Provider work"}, {8, "Excluded local"}, {10, "Shared saga"}, {11, "Provider saga"}, {12, "Authored group"}} {
+		nativeFixtureImage(t, f, search.ManifestEntity, v.id, v.id, []nativeFixtureField{{1, v.title}})
+	}
+}
+
+func seedNativeAlbums(t *testing.T, f *browseFixture) {
+	t.Helper()
+	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(5,'artist',0,1,1,1,1),(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1)`)
+	f.exec(t, `UPDATE catalog_subjects SET kind=CASE id WHEN 20 THEN 6 WHEN 22 THEN 5 ELSE 7 END WHERE id IN(20,21,22,23)`)
+	f.exec(t, `UPDATE catalog_entities SET kind=CASE id WHEN 20 THEN 6 WHEN 22 THEN 5 ELSE 7 END,title=CASE id WHEN 20 THEN 'Moonlight collection' WHEN 21 THEN 'First track' WHEN 22 THEN 'One Artist' ELSE 'Later track' END,album_id=CASE WHEN id IN(21,23) THEN 20 ELSE NULL END,artist_id=CASE id WHEN 20 THEN 22 ELSE NULL END,disc_number=CASE id WHEN 21 THEN 1 WHEN 23 THEN 2 ELSE NULL END,track_number=CASE WHEN id IN(21,23) THEN 1 ELSE NULL END,retired=0 WHERE id IN(20,21,22,23)`)
+	f.exec(t, `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(21,22)`)
+	for _, v := range []struct {
+		id    int64
+		title string
+	}{{20, "Moonlight collection"}, {21, "First track"}, {22, "One Artist"}, {23, "Later track"}} {
 		nativeFixtureImage(t, f, search.ManifestEntity, v.id, v.id, []nativeFixtureField{{1, v.title}})
 	}
 }
@@ -222,7 +237,7 @@ func TestNativeSearchCurrentAllKindsAndMixedOwners(t *testing.T) {
 		query string
 		ids   []int64
 		tiers []uint8
-	}{{"matrix", []int64{3, 1, 2}, []uint8{0, 0, 5}}, {"matrix arrival", []int64{2}, []uint8{5}}, {"keanu", []int64{1, 2}, []uint8{3, 5}}, {"matrix keanu", []int64{2}, []uint8{5}}, {"original appearance", []int64{2}, []uint8{4}}, {"shared saga", []int64{10, 6, 5}, []uint8{0, 5, 5}}, {"provider saga", []int64{11, 7}, []uint8{0, 5}}, {"authored group", []int64{12, 6}, []uint8{0, 5}}} {
+	}{{"matrix", []int64{3, 1, 2}, []uint8{0, 0, 5}}, {"matrix arrival", []int64{2}, []uint8{5}}, {"keanu", []int64{1, 2}, []uint8{3, 5}}, {"matrix keanu", []int64{2}, []uint8{5}}, {"original appearance", []int64{2}, []uint8{4}}, {"shared saga", []int64{10, 6, 5}, []uint8{0, 5, 5}}, {"provider saga", []int64{11, 7}, []uint8{0, 5}}, {"authored group", []int64{12, 6}, []uint8{0, 5}}, {"moonlight collection", []int64{20, 23, 21}, []uint8{0, 5, 5}}, {"one artist", []int64{22, 23, 21, 20}, []uint8{0, 5, 5, 5}}} {
 		var cursor *FullSearchCursor
 		done := false
 		for n := 0; n < 100; n++ {

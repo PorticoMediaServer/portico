@@ -244,3 +244,25 @@ func TestFullCanonicalPostingPopulation(t *testing.T) {
 		t.Fatal("raw cursor repeated", e)
 	}
 }
+
+func TestFullCandidatePreservesPerFieldRevisions(t *testing.T) {
+	scope := fullScope(t, "alpha beta")
+	title := fieldProof(t, scope, search.ManifestEntity, 1, 1, "alpha")
+	alias := fieldProof(t, scope, search.ManifestEntity, 1, 4, "beta")
+	title.key.Revision = "native-title-09"
+	alias.key.Revision = "native-alias-17"
+	lead, err := chooseLead(scope, populations(t, scope, title, alias))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := []candidateSource{{proof: title, own: true}, {proof: alias, own: true}}
+	proof, yes, err := proveCandidate(scope, fullResultKey{search.ManifestEntity, 1, 1}, lead, sources, true)
+	if err != nil || !yes || proof.tier != 4 {
+		t.Fatal("distinct field witnesses lost", proof, yes, err)
+	}
+	changed := title
+	changed.key.Revision = "another-title"
+	if _, _, err = proveCandidate(scope, proof.key, lead, append(sources, candidateSource{proof: changed, own: true}), true); !errors.Is(err, ErrStale) {
+		t.Fatal("same-field witness drift accepted", err)
+	}
+}
