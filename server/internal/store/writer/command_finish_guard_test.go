@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -35,7 +35,11 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || fn.Name.Name == "scanCreateTimeMS" || fn.Name.Name == "scanClaimTimeMS" || fn.Name.Name == "requireScanLifecycleMemory"
 		needs = needs || fn.Name.Name == "applyInventoryCreate" || fn.Name.Name == "applyInventoryClaim" || fn.Name.Name == "persistScanRunLifecycleResult"
 		for _, r := range fn.Type.Results.List {
-			if typ, ok := r.Type.(*ast.Ident); ok && resultTypes[typ.Name] {
+			typ := r.Type
+			if pointer, ok := typ.(*ast.StarExpr); ok {
+				typ = pointer.X
+			}
+			if id, ok := typ.(*ast.Ident); ok && resultTypes[id.Name] {
 				needs = true
 			}
 		}
@@ -47,6 +51,8 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle" || fn.Name.Name == "composeScanLifecycleHistory"
 		needs = needs || fn.Name.Name == "newScanDriver" || fn.Name.Name == "keepPreparation" || fn.Name.Name == "prepareWork" || fn.Name.Name == "allocateBirth" || fn.Name.Name == "prepareBirth" || fn.Name.Name == "checkBirthAbsence" || fn.Name.Name == "excludeOldWork"
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
+		needs = needs || fn.Name.Name == "PrepareCreate" || fn.Name.Name == "PrepareClaim" || fn.Name.Name == "Lease" || fn.Name.Name == "retainSourcePreparation" || fn.Name.Name == "retainIssuerPreparation"
+		needs = needs || fn.Name.Name == "configureScanIssuer" || fn.Name.Name == "composeScanLifecycleProfiles" || fn.Name.Name == "excludePredecessor" || fn.Name.Name == "checkScanSourceActive"
 		if !needs {
 			continue
 		}
@@ -254,6 +260,9 @@ func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 		`func ObserveInventory(ctx context.Context)(value nativeinventory.Page,err error){return nativeinventory.Page{},nil}`,
 		`func lookupScanRunLifecycle(ctx context.Context)(value scanLifecycleReceiptLookup,err error){return scanLifecycleReceiptLookup{},nil}`,
 		`func captureScanSource(ctx context.Context)(value scanSourceFacts,err error){return scanSourceFacts{},nil}`,
+		`func PrepareCreate(ctx context.Context)(value *ScanRunOperation,err error){return &ScanRunOperation{},nil}`,
+		`func arbitraryNewEntry(ctx context.Context)(value *ScanRunResult,err error){return &ScanRunResult{},nil}`,
+		`func Snapshot(ctx context.Context)(value ScanRunSnapshot,err error){return ScanRunSnapshot{},nil}`,
 		`func acknowledgeScanRunLifecycle(ctx context.Context)(value int64,err error){return 1,nil}`,
 		`func composeScanLifecycleHistory(ctx context.Context)(err error){return nil}`,
 		`func runScanLifecycleHistory(ctx context.Context)(value scanLifecycleCommandResult,ack AckResult,err error){return value,ack,nil}`,

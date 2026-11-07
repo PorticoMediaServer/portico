@@ -26,20 +26,32 @@ type scanPreparation struct {
 	ownership                                    *stateownership.Lease
 	observer                                     nativeinventory.Observer
 	request                                      nativeinventory.Request
+	frame                                        *transaction          // SAME actual native frame
+	source                                       *scanSourceFacts      // actual native capture; owned by this reservation
 	observed                                     *nativeinventory.Page // actual read, private backing
 	key                                          string
 	scope                                        *sourceops.Scope
 	lifetime                                     context.Context
 	cancel                                       context.CancelFunc
 	stopOpening                                  func() bool
+	stopDriver                                   func() bool
+	operation                                    *ScanRunOperation
+	mode                                         scanPreparationMode
 	stopScope                                    func() bool
 	grant                                        *governor.Grant
 	expected                                     governor.Request
 	observing, failed, closed, retiring, retired bool
 }
 
+type scanPreparationMode uint8
+
+const (
+	scanNativePreparation scanPreparationMode = iota + 1
+	scanHistoryPreparation
+)
+
 func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateownership.Lock, r *effectiveRuntime,
-	observer nativeinventory.Observer, expected governor.Request, grant *governor.Grant, request nativeinventory.Request) (out *scanPreparation, err error) {
+	observer nativeinventory.Observer, expected governor.Request, grant *governor.Grant, request nativeinventory.Request, modes ...scanPreparationMode) (out *scanPreparation, err error) {
 	var candidate *scanPreparation
 	var lease *stateownership.Lease
 	lifetime := ctx
@@ -63,9 +75,25 @@ func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateo
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
 	if ctx == nil || opening == nil || opening.binding == nil || opening.executor == nil || owner == nil || r == nil || r.executor != opening.executor || r.path != opening.binding.path ||
 		expected.Writer || expected.Class != governor.ScanMinimum || expected.Owner != r.owner || grant == nil ||
-		(expected.Key.Domain != uint16(InventoryCreate) && expected.Key.Domain != uint16(InventoryAccept)) || expected.Key.ID == "" ||
+		(expected.Key.Domain != uint16(InventoryCreate) && expected.Key.Domain != uint16(InventoryClaim) && expected.Key.Domain != uint16(InventoryAccept)) || expected.Key.ID == "" ||
 		expected.Need[governor.MemoryBytes] <= 0 || len(expected.Footprint) != 1 || expected.Footprint[0].Library <= 0 ||
-		expected.Footprint[0].Domain != expected.Key.Domain || request.Limit != 1 {
+		expected.Footprint[0].Domain != expected.Key.Domain {
+		return nil, ErrInvalid
+	}
+	mode := scanNativePreparation
+	if len(modes) > 1 || len(modes) == 1 && modes[0] != scanHistoryPreparation {
+		return nil, ErrInvalid
+	}
+	if len(modes) == 1 {
+		mode = modes[0]
+	}
+	if mode == scanHistoryPreparation {
+		// Recovery has no live source/root or native observation authority.
+		if expected.Key.Domain == uint16(InventoryAccept) || len(request.Root) != 0 || len(request.RelativePath) != 0 ||
+			request.RootIdentity != "" || request.DirectoryRevision != "" || request.Cursor != "" || request.Limit != 0 || request.FollowSymlinks {
+			return nil, ErrInvalid
+		}
+	} else if request.Limit != 1 {
 		return nil, ErrInvalid
 	}
 	// Complete retained-input bytes precede scans, path conversion, clones or
@@ -95,7 +123,7 @@ func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateo
 		}
 		remaining -= uint64(len(d.DeviceID)) * 4
 	}
-	if !nativeinventory.ValidRequest(request) {
+	if mode == scanNativePreparation && !nativeinventory.ValidRequest(request) {
 		return nil, ErrInvalid
 	}
 	if err = errors.Join(ctx.Err(), opening.binding.check()); err != nil {
@@ -116,7 +144,7 @@ func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateo
 	if err != nil || wantErr != nil || path != want {
 		return nil, errors.Join(ErrInvalid, err, wantErr)
 	}
-	p := &scanPreparation{opening: opening, runtime: r, ownership: lease, observer: observer, scope: sourceops.New(), grant: grant}
+	p := &scanPreparation{opening: opening, runtime: r, ownership: lease, observer: observer, scope: sourceops.New(), grant: grant, mode: mode}
 	p.self = p
 	// Deadline is the grant's ORIGINAL funded lifetime. Child transport settings
 	// may shorten an operation, never extend this context or the grant.
@@ -245,7 +273,7 @@ func (p *scanPreparation) ObserveInventory(ctx context.Context) (value nativeinv
 func (p *scanPreparation) beginObservation() (*sourceops.Lease, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.closed || p.retiring || p.retired || p.failed || p.observing || p.observed != nil {
+	if p.closed || p.retiring || p.retired || p.failed || p.observing || p.observed != nil || p.mode == scanHistoryPreparation || p.expected.Key.Domain == uint16(InventoryClaim) {
 		return nil, ErrClosed
 	}
 	if err := p.current(); err != nil {
@@ -281,6 +309,10 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 		return ErrClosed
 	}
 	p.revokeLocked()
+	if p.frame != nil && (!p.frame.done || !p.frame.connectionReturned || !p.frame.retirementComplete || !p.frame.cleanupComplete) {
+		p.mu.Unlock()
+		return ErrResolveRequired
+	}
 	p.mu.Unlock()
 	cleanup, cancel := context.WithTimeout(ctx, nativeinventory.RetirementGrace)
 	defer cancel()
@@ -295,6 +327,9 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 	if p.retiring {
 		return ErrClosed
 	}
+	if p.operation != nil && p.operation.result != nil && !p.operation.result.closed && p.operation.result.read {
+		return ErrBusy
+	}
 	p.retiring = true // panic/error cannot authorize a second retirement attempt
 	if err := p.ownership.Close(); err != nil {
 		return err
@@ -303,14 +338,36 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 	// owned payload BEFORE returning its reservation, including data retained by
 	// closed handles outside the driver. No tombstone or cancelled Scope is a
 	// memory owner after Retired. Keep only bounded closed-custody identity.
+	if o := p.operation; o != nil {
+		if o.result != nil {
+			o.result.value = scanLifecycleCommandResult{}
+			o.result.closed = true
+		}
+		o.create, o.claim, o.last, o.result = nil, nil, scanLifecycleCommandResult{}, nil
+		o.reference = ScanRunReference{}
+		o.preparation = nil
+		o.closed = true
+		if o.driver.operation == o {
+			o.driver.operation = nil
+		}
+		p.operation = nil
+	}
 	p.request, p.observed, p.expected, p.key = nativeinventory.Request{}, nil, governor.Request{}, ""
+	if p.source != nil {
+		*p.source = scanSourceFacts{}
+		p.source = nil
+	}
 	p.observer = nativeinventory.Observer{}
+	p.frame = nil
 	if err := p.runtime.authority.Retired(p.grant); err != nil {
 		return err
 	}
 	p.retired = true
 	p.stopScope()
 	p.stopOpening()
+	if p.stopDriver != nil {
+		p.stopDriver()
+	}
 	return nil
 }
 

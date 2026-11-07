@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/stateownership"
 	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
@@ -15,22 +16,28 @@ import (
 // override. Trusted startup supplies the already-owned Writer and observer.
 // Copying the value cannot copy authority. A new opening is a new lease epoch.
 type ScanDriver struct {
-	self        *ScanDriver
-	mu          sync.Mutex
-	opening     *scanOpening
-	owner       *stateownership.Lock
-	ownership   *stateownership.Lease
-	writer      *Writer
-	observer    nativeinventory.Observer
-	lifetime    context.Context
-	cancel      context.CancelFunc
-	stopOpening func() bool
-	closed      atomic.Bool
-	released    bool
-	work        *scanDriverWork // ONE original, not a queue or resource ledger
-	birth       *scanBirth
-	retention   *scanOwnerRetention
-	preparation *scanPreparation // attached BEFORE exposing/starting the native read
+	self          *ScanDriver
+	mu            sync.Mutex
+	opening       *scanOpening
+	owner         *stateownership.Lock
+	ownership     *stateownership.Lease
+	writer        *Writer
+	observer      nativeinventory.Observer
+	lifetime      context.Context
+	cancel        context.CancelFunc
+	stopOpening   func() bool
+	closed        atomic.Bool
+	released      bool
+	work          *scanDriverWork // ONE original, not a queue or resource ledger
+	birth         *scanBirth
+	retention     *scanOwnerRetention
+	preparation   *scanPreparation // attached BEFORE exposing/starting the native read
+	leaseOwner    int64
+	leaseDuration time.Duration
+	readyPlan     scanPreparationPlan
+	lease         *ScanRunLease
+	predecessor   *scanReturnedWork
+	operation     *ScanRunOperation
 }
 
 func newScanDriver(ctx context.Context, opening *scanOpening, owner *stateownership.Lock, w *Writer, observer nativeinventory.Observer) (out *ScanDriver, err error) {
@@ -164,6 +171,13 @@ func (d *ScanDriver) Close(ctx context.Context) error {
 	d.stopOpening()
 	d.released = true
 	d.observer, d.retention = nativeinventory.Observer{}, nil
+	if d.lease != nil {
+		d.lease.revoked.Store(true)
+		d.lease = nil
+	}
+	d.readyPlan = scanPreparationPlan{}
+	d.predecessor = nil
+	d.leaseOwner, d.leaseDuration = 0, 0
 	// Only closed issuer/opening identity remains on the permanent tombstone;
 	// no preparation, birth command or frame roots survive their memory refund.
 	return nil

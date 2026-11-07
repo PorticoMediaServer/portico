@@ -97,6 +97,9 @@ func (w *scanDriverWork) bindFrame(tx *transaction) error {
 		return err
 	}
 	w.frame = tx
+	w.preparation.mu.Lock()
+	w.preparation.frame = tx
+	w.preparation.mu.Unlock()
 	w.submission = scanFrameRejected
 	deadline, ok := tx.ctx.Deadline()
 	if tx.done || !tx.begun || !ok || deadline.After(w.preparation.expected.Deadline) ||
