@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,6 +17,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
+
+var recordUOPersonalIntentPlans = flag.Bool("record-uo-personal-intent-plans", false, "record UO personal intent draft native plan golden")
 
 // Native Capture on the owned closed read definitions. This mints only the
 // statement receipt for this exact draft fixture, not performance qualification
@@ -89,7 +92,25 @@ func TestUOPersonalReadCapture(t *testing.T) {
 	if _, err = stmt.New(definitions, golden.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile("testdata/uo-personal-intent-plans.json.gz")
+	path := "testdata/uo-personal-intent-plans.json.gz"
+	if *recordUOPersonalIntentPlans {
+		data, err := json.MarshalIndent(golden, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var compressed bytes.Buffer
+		z := gzip.NewWriter(&compressed)
+		if _, err = z.Write(data); err != nil {
+			t.Fatal(err)
+		}
+		if err = z.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(path, compressed.Bytes(), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
