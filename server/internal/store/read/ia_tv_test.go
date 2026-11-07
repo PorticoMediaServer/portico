@@ -74,7 +74,7 @@ func TestIATVHierarchyAndCompleteMembership(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if !d.Exhausted || d.RawRows != 8 || len(d.Members) != 8 || d.Members[0].Hierarchy.Item.EpisodeNumber == nil || *d.Members[0].Hierarchy.Item.EpisodeNumber != 1 {
+	if !d.AssetAvailable || !d.Exhausted || d.RawRows != 8 || len(d.Members) != 8 || d.Members[0].Hierarchy.Item.EpisodeNumber == nil || *d.Members[0].Hierarchy.Item.EpisodeNumber != 1 {
 		t.Fatalf("complete cohort %+v", d)
 	}
 	for i, m := range d.Members {
@@ -82,6 +82,13 @@ func TestIATVHierarchyAndCompleteMembership(t *testing.T) {
 			t.Fatalf("member %+v", m)
 		}
 	}
+	f.exec(t, `UPDATE catalog_assets SET available=0 WHERE id=2000`)
+	f.exec(t, `UPDATE catalog_asset_links SET available=0 WHERE entity_id=2208 AND asset_id=2000`)
+	missing, _, err := r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, in, "members")
+	if err != nil || missing.AssetAvailable || len(missing.Members) != 8 || missing.Members[7].Available {
+		t.Fatal("retained unavailable membership", err)
+	}
+	f.exec(t, `UPDATE catalog_assets SET available=1 WHERE id=2000`)
 	f.exec(t, `INSERT INTO catalog_asset_links(entity_id,asset_id,library_id) VALUES(2209,2000,1)`)
 	d, _, e = r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, in, "members")
 	if !errors.Is(e, ErrUnqualified) || !reflect.DeepEqual(d, IATVResult{}) {
