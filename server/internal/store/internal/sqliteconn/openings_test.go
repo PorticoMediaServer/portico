@@ -26,7 +26,7 @@ var permittedOpenings = map[openingSite]bool{
 	// GV's shared-connector snapshot pool and exact ownership/disposal seams.
 	{"governor/snapshot_pool.go", openingStore + "governor.newSnapshotPool", "database/sql.OpenDB"}:                                                 true,
 	{"governor/snapshot_owner.go", openingStore + "governor.snapshotOwnedConnector.Connect", "database/sql/driver.Connector.Connect"}:               true,
-	{"governor/snapshot.go", openingStore + "governor.Snapshots.Read", "database/sql.Conn.Raw"}:                                                     true,
+	{"governor/snapshot.go", openingStore + "governor.Snapshots.read", "database/sql.Conn.Raw"}:                                                     true,
 	{"governor/snapshot.go", openingStore + "governor.ReadScope.closeNative", "database/sql.Conn.Raw"}:                                              true,
 	{"governor/snapshot_test.go", openingStore + "governor.snapshotConnector.Connect", "database/sql/driver.Connector.Connect"}:                     true,
 	{"governor/snapshot_replacement_test.go", openingStore + "governor.snapshotObservedConnector.Connect", "database/sql/driver.Connector.Connect"}: true,
