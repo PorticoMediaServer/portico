@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"errors"
 	"math"
 	"reflect"
 
@@ -143,6 +142,24 @@ func runInventoryPreparationTurn(ctx context.Context, turn *commandTurn, in *inv
 
 func (d *ScanDriver) PrepareInventory(ctx context.Context, lease *ScanRunLease, last ScanRunReference, directory []byte) (out *N1Preparation, err error) {
 	life := ctx
+	locked := false
+	var candidate *N1Preparation
+	defer func() {
+		if !locked {
+			return
+		}
+		if err != nil && candidate != nil {
+			// The final lifetime check discarded the capability. Keep the funded
+			// preparation reachable for ReleasePending, without an orphan wrapper
+			// that would prevent cleanup. Native/grant custody is not refunded here.
+			if d.preparation != nil && d.preparation.inventory == candidate {
+				d.preparation.inventory = nil
+			}
+			candidate.template = InventoryAcceptInput{}
+			candidate.closed, candidate.preparation = true, nil
+		}
+		d.mu.Unlock()
+	}()
 	if d != nil && d.self == d {
 		life = d.lifetime
 	}
@@ -153,7 +170,7 @@ func (d *ScanDriver) PrepareInventory(ctx context.Context, lease *ScanRunLease, 
 	if !d.mu.TryLock() {
 		return nil, ErrBusy
 	}
-	defer d.mu.Unlock()
+	locked = true
 	if d.operation != nil || d.preparation != nil || d.work != nil {
 		return nil, ErrBusy
 	}
@@ -185,17 +202,18 @@ func (d *ScanDriver) PrepareInventory(ctx context.Context, lease *ScanRunLease, 
 			LastSequence: n.run.lastSequence, AcknowledgedSequence: n.run.acknowledgedSequence, Phase: n.run.phase, ScanMode: n.run.scope.scanMode},
 		Directory: InventoryDirectoryInput{Path: []byte("."), Identity: n.root.identity, Revision: n.root.revision, ExpectedCursor: n.root.cursor, Pages: n.root.pages, Skipped: n.root.skipped, CursorKind: inventoryLinuxCursor}}}
 	out.self = out
+	candidate = out
 	p.inventory = out
 	return out, nil
 }
 
 func (p *N1Preparation) Snapshot(ctx context.Context) (value InventoryPreparationSnapshot, err error) {
 	life := ctx
-	if p != nil && p.self == p && p.preparation != nil {
-		life = p.preparation.lifetime
+	if p != nil && p.self == p && p.driver != nil {
+		life = p.driver.lifetime
 	}
 	defer func() { value, err = finishCommand(ctx, life, value, err) }()
-	if p == nil || p.self != p || p.closed {
+	if p == nil || p.self != p || p.driver == nil {
 		return value, ErrInvalid
 	}
 	d := p.driver
@@ -203,9 +221,10 @@ func (p *N1Preparation) Snapshot(ctx context.Context) (value InventoryPreparatio
 		return value, ErrBusy
 	}
 	defer d.mu.Unlock()
-	if p.read || d.preparation != p.preparation {
+	if p.closed || p.preparation == nil || p.read || d.preparation != p.preparation {
 		return value, ErrClosed
 	}
+	life = p.preparation.lifetime
 	if err = p.preparation.current(); err != nil {
 		return value, err
 	}
@@ -218,14 +237,26 @@ func (p *N1Preparation) Snapshot(ctx context.Context) (value InventoryPreparatio
 
 func (p *N1Preparation) ObserveInventory(ctx context.Context) (value nativeinventory.Page, err error) {
 	life := ctx
-	if p != nil && p.self == p && p.preparation != nil {
-		life = p.preparation.lifetime
+	if p != nil && p.self == p && p.driver != nil {
+		life = p.driver.lifetime
 	}
 	defer func() { value, err = finishCommand(ctx, life, value, err) }()
-	if p == nil || p.self != p || p.closed {
+	if p == nil || p.self != p || p.driver == nil {
 		return value, ErrInvalid
 	}
-	if err = p.driver.current(); err != nil {
+	d := p.driver
+	if !d.mu.TryLock() {
+		return value, ErrBusy
+	}
+	defer d.mu.Unlock()
+	if p.closed || p.preparation == nil || d.preparation != p.preparation {
+		return value, ErrClosed
+	}
+	life = p.preparation.lifetime
+	if err = d.current(); err != nil {
+		return value, err
+	}
+	if err = p.preparation.current(); err != nil {
 		return value, err
 	}
 	return p.preparation.ObserveInventory(ctx)
@@ -233,14 +264,26 @@ func (p *N1Preparation) ObserveInventory(ctx context.Context) (value nativeinven
 
 func (p *N1Preparation) Accept(ctx context.Context, command InventoryAcceptCommand) (value InventoryResult, err error) {
 	life := ctx
-	if p != nil && p.self == p && p.preparation != nil {
-		life = p.preparation.lifetime
+	if p != nil && p.self == p && p.driver != nil {
+		life = p.driver.lifetime
 	}
 	defer func() { value, err = finishCommand(ctx, life, value, err) }()
-	if p == nil || p.self != p || p.closed {
+	if p == nil || p.self != p || p.driver == nil {
 		return value, ErrInvalid
 	}
-	if err = p.driver.current(); err != nil {
+	d := p.driver
+	if !d.mu.TryLock() {
+		return value, ErrBusy
+	}
+	defer d.mu.Unlock()
+	if p.closed || p.preparation == nil || d.preparation != p.preparation {
+		return value, ErrClosed
+	}
+	life = p.preparation.lifetime
+	if err = d.current(); err != nil {
+		return value, err
+	}
+	if err = p.preparation.current(); err != nil {
 		return value, err
 	}
 	ref, err := InventoryAcceptReference(command)
@@ -270,10 +313,13 @@ func (p *N1Preparation) Close(ctx context.Context) error {
 	if p.closed {
 		return nil
 	}
-	p.template = InventoryAcceptInput{}
-	if err := p.preparation.Close(ctx); err != nil {
-		return errors.Join(err)
+	if p.preparation == nil {
+		return ErrClosed
 	}
+	if err := p.preparation.Close(ctx); err != nil {
+		return err
+	}
+	p.template = InventoryAcceptInput{}
 	p.closed = true
 	p.preparation = nil
 	d.preparation = nil

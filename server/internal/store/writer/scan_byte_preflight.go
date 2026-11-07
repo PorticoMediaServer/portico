@@ -192,7 +192,7 @@ type scanLifecycleByteProof struct {
 
 func readScanLifecycleByteProof(ctx context.Context, turn *commandTurn, q ScanReceiptRequest, kind CommandID) (value scanLifecycleByteProof, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
-	value.prefix, err = readScanReceiptOwnerPrefix(ctx, turn, q.RunID)
+	value.prefix, err = readScanReceiptOwnerPrefix(ctx, turn, q)
 	if err != nil {
 		return value, err
 	}
@@ -308,7 +308,7 @@ type scanReceiptPrefix struct {
 	createDigest    RequestDigest
 }
 
-func readScanReceiptOwnerPrefix(ctx context.Context, turn *commandTurn, runID string) (value scanReceiptPrefix, err error) {
+func readScanReceiptOwnerPrefix(ctx context.Context, turn *commandTurn, q ScanReceiptRequest) (value scanReceiptPrefix, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
 	if err = requireScanByteMemory(ctx, turn, scanByteFixedWorkspace); err != nil {
 		return value, err
@@ -317,7 +317,7 @@ func readScanReceiptOwnerPrefix(ctx context.Context, turn *commandTurn, runID st
 	if !ok {
 		return value, invalid("scan_byte_owner_step")
 	}
-	rows, err := turn.query(ctx, step.statementStep, runID)
+	rows, err := turn.query(ctx, step.statementStep, q.RunID, q.LibraryKey)
 	if err != nil {
 		return value, err
 	}
@@ -401,6 +401,9 @@ func readScanMemberByteProof(ctx context.Context, turn *commandTurn, q ScanRecei
 	}
 	if err = scanBytePoint(rows, &value.keys[0], &value.keys[1], &value.keys[2]); err != nil {
 		return value, errors.Join(ErrResolveRequired, err)
+	}
+	if value.keys != ([3]int64{}) {
+		return value, ErrResolveRequired // FIRST ordinary result has exactly (0,0,0)
 	}
 	value.bytes, err = readScanByteLengths(ctx, turn, scanMemberByteLengths, q.RunID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence, value.keys[0], value.keys[1], value.keys[2])
 	if err == nil && !value.bytes.exists {
