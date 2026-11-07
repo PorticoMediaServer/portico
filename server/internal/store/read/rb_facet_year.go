@@ -202,14 +202,12 @@ func (p *NumericFacetPreparation) Advance(ctx context.Context, request governor.
 			year, id := row[1].(int64), row[0].(int64)
 			next = &rbFacetPosition{year: year, id: id}
 			item := [7]any{row[0], row[1], nil, nil, row[2], nil, row[3]}
-			if !admittedItem(item[:], f) || year == 0 {
+			// Year and decade categories share the published/parser domain.
+			if !admittedItem(item[:], f) || year < 1800 || year > 2199 {
 				continue
 			}
 			value := year
 			if p.field == ExactDecade {
-				if year < 1800 || year > 2199 {
-					continue
-				}
 				value = year / 10 * 10
 			}
 			if used > 0 && grouped[used-1].Value == value {
