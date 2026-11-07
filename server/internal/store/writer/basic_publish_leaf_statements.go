@@ -17,7 +17,7 @@ func basicPublishLeafDefinitions() []stmt.Definition {
 		{ID: basicPublishLeafProof, Kind: stmt.Read, SQL: `SELECT j.id,a.info_epoch FROM catalog_info_changes AS j
 INNER JOIN catalog_assets AS a ON a.id=j.asset_id AND a.token=j.asset_token
 INNER JOIN catalog_asset_links AS l ON l.asset_id=a.id AND l.entity_id=?
-INNER JOIN catalog_entities AS e ON e.id=l.entity_id AND e.library_id=l.library_id
+INNER JOIN catalog_entities AS e INDEXED BY catalog_entities_library ON e.id=l.entity_id AND e.library_id=l.library_id
 INNER JOIN catalog_subjects AS sub ON sub.id=e.id AND sub.public_id=e.public_id AND sub.library_id=e.library_id AND sub.kind=e.kind
 INNER JOIN catalog_scalar_contributions AS c ON c.parent_id=e.id AND c.contributor_id=e.id AND c.source=0 AND c.library_id=e.library_id
 WHERE j.id=? AND j.asset_id=? AND j.asset_token=? AND a.library_id=? AND j.expected_epoch=? AND j.input_revision=? AND j.fingerprint=? AND j.job_revision=? AND j.target_shape_id=?
