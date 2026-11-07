@@ -80,7 +80,7 @@ func TestPublisherInvocationRejectsTamperedAndMixedDispatcherInputs(t *testing.T
 	}{
 		{input: &effectiveStageBeginCommand{}}, {ack: true}, {scan: &inventoryInvocation{}},
 	} {
-		out, floor, err := w.effective.runCommand(t.Context(), w, nil, EnrichmentReceiptRequest{}, c.input, c.ack, c.scan, &v)
+		out, floor, err := w.effective.runCommand(t.Context(), w, nil, EnrichmentReceiptRequest{}, c.input, c.ack, c.scan, commandInvocation{publisher: &v})
 		if !errors.Is(err, ErrInvalid) || !reflect.DeepEqual(out, commandOutput{}) || !reflect.DeepEqual(floor, AckResult{}) {
 			t.Fatal("mixed domain invocation entered execution", out, floor, err)
 		}
