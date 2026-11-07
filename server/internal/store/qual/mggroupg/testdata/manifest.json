@@ -1,0 +1,313 @@
+{
+  "format": 1,
+  "packet": "MG-001",
+  "group": "G",
+  "status": "owner draft, not adopted",
+  "base_commit": "e57e57ba4bdf80935c7c42638d267d5d591a8012",
+  "base_schema_sha256": "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2",
+  "audit_commit": "67a52899",
+  "audit_md_sha256": "721df244bec5efcb7f305f815d5bc4b6c506ecf7481ee2222a70135ef8fed8c8",
+  "audit_json_sha256": "7f86f1880a566257dd2f9ada2ca3e89144388c6485a27b4ec2fa7cf7d00401ab",
+  "candidate_sha256": "d90ece568f3fef5b21421ca939774588a272d4bf7c43c7dfed6b8d7c58990e04",
+  "delta_sha256": "0418a290969e1e198a6634c51c78c932be21a59ea4ef3e28a51602ce9403a671",
+  "objects": [
+    {
+      "operation": "replace",
+      "type": "table",
+      "name": "live_operations",
+      "before_sha256": "fe93525f7d2a461c087cb19bcc20255ff346f29c3492ef2398b4aa60cd148a6d",
+      "after_sha256": "586119dccecbb887953b61b80efd531a31c8d4d2b0e0479df7271afe34f3b79f",
+      "new_columns": [
+        "command_incarnation",
+        "create_operation_id",
+        "birth_request_digest",
+        "last_command_sequence",
+        "acknowledged_command_sequence",
+        "expected_generation",
+        "expected_choice_count",
+        "stage_revision",
+        "staged_channel_count",
+        "staged_programme_count",
+        "staged_choice_count",
+        "staged_bytes",
+        "manifest_digest",
+        "stage_digest",
+        "sealed",
+        "reclaim_family",
+        "reclaim_cursor"
+      ]
+    },
+    {
+      "operation": "replace",
+      "type": "table",
+      "name": "live_sources",
+      "before_sha256": "d871d3450d45c71973219f3e91d6312943312949bf263e836814da3ade645c80",
+      "after_sha256": "769f2bc7107e0bb874347515fb1a558f7816fa3fe0e1f9d148b72209f737eee3",
+      "new_columns": []
+    },
+    {
+      "operation": "replace",
+      "type": "table",
+      "name": "lc_generations",
+      "before_sha256": "dc1d9b9a26c9094b98c190bce62358b09d7de79986d67dfd57a01eb3441412f4",
+      "after_sha256": "8d9721fbdb3465debb01197e9bedc03106b46c3a821720e07de10712ceac5eb1",
+      "new_columns": [
+        "command_incarnation",
+        "create_operation_id",
+        "birth_request_digest",
+        "last_command_sequence",
+        "acknowledged_command_sequence",
+        "stage_revision",
+        "staged_bytes",
+        "entry_count",
+        "entry_digest",
+        "verified_entry_count",
+        "verify_after_ms",
+        "verify_end_ms",
+        "verified_entry_digest",
+        "schedule_sealed",
+        "reclaim_family",
+        "reclaim_key",
+        "reclaim_subkey",
+        "pending_base_generation"
+      ]
+    },
+    {
+      "operation": "replace",
+      "type": "table",
+      "name": "lc_channels",
+      "before_sha256": "369e08ce2a79480e0964743c224dfac3fcbbf6bec2860c6634ed07c069914e3c",
+      "after_sha256": "0f7069ebf36842fb338aad69f5587ce856b038ce54d5caac8ac9b4be29f0e1cf",
+      "new_columns": [
+        "active_generation_ref"
+      ]
+    },
+    {
+      "operation": "replace",
+      "type": "table",
+      "name": "lc_playback_refs",
+      "before_sha256": "8859d5dda57c98426f36ebfa2563b3efb2d267125c9029b17344ff715fa6bf9c",
+      "after_sha256": "4441e545d4b034ef60e4a36bba2e8c39f33981460fd73fd5532c7e9532a2bc1f",
+      "new_columns": []
+    },
+    {
+      "operation": "replace",
+      "type": "table",
+      "name": "live_reminders",
+      "before_sha256": "52fbf8746d1d20a57b7a4bd53f0327f4b7ccc603979f76a592b4d0f4161a017d",
+      "after_sha256": "7354080981f065259b326d8963657a9ed798e8fe2d48befa6db0e761876a35ac",
+      "new_columns": [
+        "external_generation_ref",
+        "library_generation_ref"
+      ]
+    },
+    {
+      "operation": "replace",
+      "type": "table",
+      "name": "dvr_recordings",
+      "before_sha256": "4287440418f029c460f7dfa6dd36163bda019e039e552ad521156c012503647a",
+      "after_sha256": "603112c2019a4027547cddb1fcf00a0449838fa8d2235563b331a4c499617f0d",
+      "new_columns": [
+        "command_incarnation",
+        "create_operation_id",
+        "birth_request_digest",
+        "command_member_incarnation",
+        "command_profile_lifetime",
+        "last_command_sequence",
+        "acknowledged_command_sequence",
+        "guide_pin_generation",
+        "capture_launch_id",
+        "capture_allocation_generation",
+        "capture_allocation_token",
+        "capture_source_revision",
+        "capture_source_fence",
+        "capture_writer_retired_sequence",
+        "capture_physical_exit_sequence",
+        "capture_exit_launch_id",
+        "capture_exit_claim_generation",
+        "capture_exit_cancel_generation",
+        "capture_shared_ready_sequence",
+        "capture_producer_succeeded",
+        "capture_boundary_reached",
+        "capture_gap_count",
+        "share_capture_claim_generation",
+        "share_capture_launch_id"
+      ]
+    },
+    {
+      "operation": "add",
+      "type": "table",
+      "name": "live_operation_command_receipts",
+      "before_sha256": null,
+      "after_sha256": "cca9a43533047b91493d9849d2334839c3cb1c36220704aa9e6dd9a36523a882"
+    },
+    {
+      "operation": "add",
+      "type": "table",
+      "name": "live_operation_receipt_diagnostics",
+      "before_sha256": null,
+      "after_sha256": "ffc0a6f6c53436712da71f09123ae420c2552733868c4f512424ec6828a5a1fa"
+    },
+    {
+      "operation": "add",
+      "type": "table",
+      "name": "lc_generation_command_receipts",
+      "before_sha256": null,
+      "after_sha256": "0f5a24d7283c7508ef47812034ecd0ab7aab2215e7a067c257a4fe39487d77ab"
+    },
+    {
+      "operation": "add",
+      "type": "table",
+      "name": "dvr_capture_command_receipts",
+      "before_sha256": null,
+      "after_sha256": "6d616d9694fb7371f98a251180911beed77dd25e1ad2ffa73747cd758ac4f5b2"
+    },
+    {
+      "operation": "add",
+      "type": "table",
+      "name": "live_operation_retirements",
+      "before_sha256": null,
+      "after_sha256": "936aebbdd78fb77dd1f17ee54af7057e27b11ff3d5fd5f4600a534c09ffdf482"
+    },
+    {
+      "operation": "add",
+      "type": "table",
+      "name": "lc_generation_retirements",
+      "before_sha256": null,
+      "after_sha256": "62c0996bcd666016f100b74cf98fe39d73140551cabb0bacfa7adbfcbff5bdab"
+    },
+    {
+      "operation": "add",
+      "type": "table",
+      "name": "dvr_capture_retirements",
+      "before_sha256": null,
+      "after_sha256": "b6f6e5727c3f9191d7c8c8cbb89befcd99add04942faf2553176c741e536761c"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_generations_source_scope",
+      "before_sha256": null,
+      "after_sha256": "852fc3b8ac1878b92ba20d1b4404bf0a343c5e7a4ab74b742235d0ca3dce89d2"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "lc_generations_channel_scope",
+      "before_sha256": null,
+      "after_sha256": "37ab8b20069b9293d34e4b4f516a299db92bf2ba4a0e5dc51fab986be14b0e34"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_sources_generation_head",
+      "before_sha256": null,
+      "after_sha256": "ea8ef377a5c07676fa64f7f9383093e612493a97ce61d5e2d773ac2872396673"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "lc_channels_generation_head",
+      "before_sha256": null,
+      "after_sha256": "def01338b6d3bb5392f0c9b645dcbee60e43e9ee438c9ba7c78963ba20f3c97c"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "lc_generations_pending_base",
+      "before_sha256": null,
+      "after_sha256": "6a5eea8d3a57caa1f82b9a71abf559158d9a9343be747069b0032e3209322375"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "lc_playback_refs_generation",
+      "before_sha256": null,
+      "after_sha256": "dbf0a96ec04a9f99cae2c40921f77795a1787ef0326e745601b61fbace054b75"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_reminders_external_generation",
+      "before_sha256": null,
+      "after_sha256": "720734370a6a1df8d00913513c65925fe940548596303678bb9fa02c16834d03"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_reminders_library_generation",
+      "before_sha256": null,
+      "after_sha256": "3f60abc18115baf86a70059673ed3db50967db000234bbadda15eb410910902b"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "dvr_recordings_guide_pin",
+      "before_sha256": null,
+      "after_sha256": "633e8d180f796aee3c400ad203f5bad79f56bd8757637339720984c90b3702de"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "dvr_recordings_capture_launch",
+      "before_sha256": null,
+      "after_sha256": "0b90220252adfcc0546543e4f7ca5c53846527cc695ae2211d61d926372d964d"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_allocations_source_state_channel",
+      "before_sha256": null,
+      "after_sha256": "099f6f7a58b36cf03c8dadf3d1b01a2e5319b8be3dcfc0eafbf44b4b9991361e"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "dvr_recordings_share_occurrence",
+      "before_sha256": null,
+      "after_sha256": "c9c03b2c46c54b3ccf995b148990a385a2e8bf00797b2365c21823af9b991bbb"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_operation_command_receipts_scope",
+      "before_sha256": null,
+      "after_sha256": "280ac2166f2914d63d5e15268a1ce96706a1694ec19ba885cf3610ea2814026e"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "lc_generation_command_receipts_scope",
+      "before_sha256": null,
+      "after_sha256": "abf34d476ce2efc619a7556330e6ee4af67446edf54f6f2c19a773059b00bcca"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "dvr_capture_command_receipts_scope",
+      "before_sha256": null,
+      "after_sha256": "a21f96a6d88cabbbdfd2d0ba3a9a242e7b12eaa64124170cc579039d75dfa360"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "live_operation_retirements_scope",
+      "before_sha256": null,
+      "after_sha256": "af223c44ef72640a740bcb5c162beb510e4851a5f0677ee5b3f63acf517800fb"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "lc_generation_retirements_scope",
+      "before_sha256": null,
+      "after_sha256": "cc1a355c9a33f29661a2e860f3373a0c3b17cfbf9aec74c6c3bd3999976b828c"
+    },
+    {
+      "operation": "add",
+      "type": "index",
+      "name": "dvr_capture_retirements_scope",
+      "before_sha256": null,
+      "after_sha256": "1e625ec53796d70643e6ec8c24c2e77a96540f56cccf02416155c170264a879a"
+    }
+  ]
+}
