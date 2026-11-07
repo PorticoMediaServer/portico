@@ -7,7 +7,7 @@ import (
 )
 
 func TestBasicCopyNewDefinitionsStayClosed(t *testing.T) {
-	for _, defs := range [][]stmt.Definition{basicCopyMediaFactsDefinitions(), basicCopySubtitlesDefinitions(), basicCopyCleanupMediaDefinitions()} {
+	for _, defs := range [][]stmt.Definition{basicCopyMediaFactsDefinitions(), basicCopySubtitlesDefinitions(), basicCopyCleanupMediaDefinitions(), basicReclaimMediaDefinitions()} {
 		if _, err := stmt.Describe(defs); err != nil {
 			t.Fatal(err)
 		}

@@ -57,7 +57,13 @@ func reclaimBasicMediaRows(ctx context.Context, turn *commandTurn, in basicMedia
 			return 0, 0, e
 		}
 		want := append([]any{s.changeID}, args...)
-		rows, e := basicRows(ctx, turn, basicReclaimMediaID(f.family), want...)
+		id := basicReclaimMediaID(f.family)
+		args = want
+		if r, ok := f.rows[n].(basicSubtitle); ok && r.origin == "embedded" {
+			id = basicReclaimMediaSubtitleEmbedded
+			args = append(append([]any{}, want[:7]...), want[8:]...)
+		}
+		rows, e := basicRows(ctx, turn, id, args...)
 		if e != nil {
 			return 0, 0, e
 		}
