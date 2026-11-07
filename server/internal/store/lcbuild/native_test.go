@@ -136,5 +136,16 @@ func TestMGLCRetainedNativeScope(t *testing.T) {
 		if err != nil || !called || size != measured || a.Usage() != before || a.Check(source.Grant, source.Request) != nil {
 			t.Fatal("native copied scope was released incorrectly", size, err)
 		}
+		called = false
+		cost, size, err := driver.WithScope(t.Context(), request, time.Second, source, read.SharedChannelScopeInput{Channel: "channel", Generation: "generation", Rule: "rule", Library: "movies", ExpectedRevision: 1}, func(_ context.Context, owned read.SharedChannelRetainedValues) error {
+			called = true
+			if owned.Scope == nil || owned.Scope == scope || owned.Info == nil || !reflect.DeepEqual(*owned.Info, info) || a.Usage()[governor.Background][governor.MemoryBytes] != before[governor.Background][governor.MemoryBytes]+measured.ChargeBytes {
+				t.Fatal("native scope read bypassed copied custody")
+			}
+			return nil
+		})
+		if err != nil || !called || size != measured || cost.Attempts == 0 || a.Usage() != before || a.Check(source.Grant, source.Request) != nil {
+			t.Fatal("native scope composition returned a false result", cost, size, err)
+		}
 	})
 }
