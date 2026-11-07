@@ -18,22 +18,24 @@ import (
 type control struct {
 	Name, SQL, Query, PlanSQL, Seek, ErrorContains string
 	Want                                           [][]any
+	Reopen                                         bool
 }
 
 func (c *control) UnmarshalJSON(b []byte) error {
 	var x struct {
-		Name  string  `json:"name"`
-		SQL   string  `json:"sql"`
-		Query string  `json:"query"`
-		Plan  string  `json:"plan_sql"`
-		Seek  string  `json:"seek"`
-		Error string  `json:"error_contains"`
-		Want  [][]any `json:"want"`
+		Name   string  `json:"name"`
+		SQL    string  `json:"sql"`
+		Query  string  `json:"query"`
+		Plan   string  `json:"plan_sql"`
+		Seek   string  `json:"seek"`
+		Error  string  `json:"error_contains"`
+		Want   [][]any `json:"want"`
+		Reopen bool    `json:"reopen"`
 	}
 	if err := json.Unmarshal(b, &x); err != nil {
 		return err
 	}
-	*c = control{x.Name, x.SQL, x.Query, x.Plan, x.Seek, x.Error, x.Want}
+	*c = control{x.Name, x.SQL, x.Query, x.Plan, x.Seek, x.Error, x.Want, x.Reopen}
 	return nil
 }
 
@@ -73,12 +75,20 @@ func nativeRows(db *sql.DB, query string) ([][]any, error) {
 }
 func suite(name, ddl string, controls []control) outcome {
 	o := outcome{Name: name, Plans: map[string][]string{}}
-	db, err := sql.Open("sqlite", ":memory:")
+	file, err := os.CreateTemp(os.Getenv("TMPDIR"), "p2ia-schema-*.sqlite")
 	if err != nil {
 		o.LoadError = err.Error()
 		return o
 	}
-	defer db.Close()
+	path := file.Name()
+	file.Close()
+	defer os.Remove(path)
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		o.LoadError = err.Error()
+		return o
+	}
+	defer func() { db.Close() }()
 	db.SetMaxOpenConns(1)
 	if _, err = db.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		o.LoadError = err.Error()
@@ -126,8 +136,26 @@ func suite(name, ddl string, controls []control) outcome {
 		}
 	}
 	for _, c := range controls {
+		if c.Reopen {
+			if err = db.Close(); err == nil {
+				db, err = sql.Open("sqlite", path)
+			}
+			if err == nil {
+				db.SetMaxOpenConns(1)
+				_, err = db.Exec("PRAGMA foreign_keys=ON")
+			}
+			if err != nil {
+				fail(c.Name + ": reopen: " + err.Error())
+				return o
+			}
+		}
 		o.Checks++
-		if c.SQL != "" {
+		if c.SQL != "" && (strings.HasPrefix(strings.TrimSpace(c.SQL), "BEGIN ") || strings.TrimSpace(c.SQL) == "ROLLBACK") {
+			if _, err = db.Exec(c.SQL); err != nil {
+				fail(c.Name + ": " + err.Error())
+				db.Exec("ROLLBACK")
+			}
+		} else if c.SQL != "" {
 			if _, err = db.Exec("SAVEPOINT ia_control"); err != nil {
 				fail(c.Name + ": " + err.Error())
 				continue
@@ -263,6 +291,23 @@ func TestIASchemaPacket(t *testing.T) {
 		t.Fatal("missing exact configuration byte mutation target")
 	}
 	out = append(out, suite("bypass_configuration_source_bytes", strings.Join(lines, "\n"), controls))
+	for _, mutation := range []struct{ name, marker string }{
+		{"accept_self_acknowledged_gc", "CONSTRAINT ia_configuration_gc_sequence CHECK"},
+		{"allow_gc_debt_drift", "CONSTRAINT ia_configuration_gc_debt CHECK"},
+	} {
+		lines = strings.Split(candidate, "\n")
+		matches = 0
+		for i, line := range lines {
+			if strings.Contains(line, mutation.marker) {
+				lines[i] = " " + strings.Split(mutation.marker, " CHECK")[0] + " CHECK(1),"
+				matches++
+			}
+		}
+		if matches != 1 {
+			t.Fatal("missing GC mutation target", mutation.name)
+		}
+		out = append(out, suite(mutation.name, strings.Join(lines, "\n"), controls))
+	}
 	report := struct {
 		Go        string
 		Candidate string
@@ -283,7 +328,7 @@ func TestIASchemaPacket(t *testing.T) {
 	if out[0].LoadError != "" || len(out[0].Problems) > 0 {
 		t.Errorf("candidate refused: %+v", out[0])
 	}
-	for i, target := range []string{"Basic slots cannot carry IA result", "retirement owner cannot disappear with retained receipt", "configuration header cannot disappear with retained sources", "configuration source exact byte debt cannot be bypassed"} {
+	for i, target := range []string{"Basic slots cannot carry IA result", "retirement owner cannot disappear with retained receipt", "configuration header cannot disappear with retained sources", "configuration source exact byte debt cannot be bypassed", "configuration GC captured floor cannot equal its own sequence", "configuration GC saved debt cannot drift"} {
 		o := out[i+1]
 		killed := false
 		for _, p := range o.Problems {

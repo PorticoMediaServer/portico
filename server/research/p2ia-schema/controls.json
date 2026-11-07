@@ -322,81 +322,6 @@
     "error_contains": "CHECK constraint failed"
   },
   {
-    "name": "reclaim acknowledged original and advance retired floor",
-    "sql": "DELETE FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence=1; UPDATE catalog_removal_progress SET receipt_reclaim_sequence=1,receipt_retained_count=1,receipt_retained_bytes=243 WHERE kind='folder' AND target='gone-source' AND acknowledged_command_sequence>=1"
-  },
-  {
-    "name": "retired original cannot be mistaken for miss",
-    "query": "SELECT receipt_reclaim_sequence,last_command_sequence,acknowledged_command_sequence,receipt_retained_count,receipt_retained_bytes FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source'",
-    "want": [
-      [
-        1,
-        2,
-        1,
-        1,
-        243
-      ]
-    ]
-  },
-  {
-    "name": "ACK step consumes no physical retirement",
-    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=2 WHERE kind='folder' AND target='gone-source'"
-  },
-  {
-    "name": "terminal step after exact child and pin proof",
-    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',3,X'00000000000000000000000000000067',zeroblob(32),'retire_step',1,4,203,'folder','gone-source',5,0,0,'raw-end',0,0,'complete',0,zeroblob(32),243); UPDATE catalog_removal_progress SET phase=5,retirement_state='complete',object_cursor='raw-end',last_command_sequence=3,job_revision=4,receipt_retained_count=2,receipt_retained_bytes=486,job_next_attempt_ms=NULL WHERE kind='folder' AND target='gone-source'"
-  },
-  {
-    "name": "terminal keeps actual existing lease and original watermarks",
-    "query": "SELECT retirement_state,phase,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,job_lease_owner,job_lease_generation,job_next_attempt_ms FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source'",
-    "want": [
-      [
-        "complete",
-        5,
-        3,
-        2,
-        1,
-        17,
-        2,
-        null
-      ]
-    ]
-  },
-  {
-    "name": "ACK terminal does not erase retained result",
-    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=3 WHERE kind='folder' AND target='gone-source'"
-  },
-  {
-    "name": "terminal receipt remains exact after ACK",
-    "query": "SELECT result_state,result_object_cursor,result_count,retained_bytes FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence=3",
-    "want": [
-      [
-        "complete",
-        "raw-end",
-        0,
-        243
-      ]
-    ]
-  },
-  {
-    "name": "GC remaining headers and retain non-resurrection watermark",
-    "sql": "DELETE FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence<=3; UPDATE catalog_removal_progress SET receipt_reclaim_sequence=3,receipt_retained_count=0,receipt_retained_bytes=0 WHERE kind='folder' AND target='gone-source' AND acknowledged_command_sequence=3"
-  },
-  {
-    "name": "terminal tombstone survives all result GC",
-    "query": "SELECT retirement_state,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source'",
-    "want": [
-      [
-        "complete",
-        3,
-        3,
-        3,
-        0,
-        0
-      ]
-    ]
-  },
-  {
     "name": "library retirement retains no invented source",
     "sql": "INSERT INTO catalog_removal_progress(kind,target,original_operation_id,original_request_digest,command_incarnation,original_library_id,original_library_key,original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms) VALUES('library','gone-library',X'dddddddddddddddddddddddddddddddd',zeroblob(32),X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',2,'gone-library','/historical',NULL,NULL,NULL,17,2,10000)"
   },
@@ -565,39 +490,6 @@
     ]
   },
   {
-    "name": "configuration one child reclaimed without retiring whole cohort",
-    "sql": "DELETE FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND ordinal=0; UPDATE catalog_configuration_operations SET receipt_retained_count=2,receipt_retained_bytes=407 WHERE original_operation_id=X'33333333333333333333333333333333'"
-  },
-  {
-    "name": "configuration partial reclaim preserves debt and floor",
-    "query": "SELECT receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333'",
-    "want": [
-      [
-        0,
-        2,
-        407
-      ]
-    ]
-  },
-  {
-    "name": "configuration source-first GC and retained original watermark",
-    "sql": "DELETE FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND ordinal=1; DELETE FROM catalog_configuration_receipts WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library'; UPDATE catalog_configuration_operations SET receipt_reclaim_sequence=1,receipt_retained_count=0,receipt_retained_bytes=0 WHERE original_operation_id=X'33333333333333333333333333333333'"
-  },
-  {
-    "name": "configuration original remains after complete history GC",
-    "query": "SELECT command_kind,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333'",
-    "want": [
-      [
-        "configure_library",
-        1,
-        1,
-        1,
-        0,
-        0
-      ]
-    ]
-  },
-  {
     "name": "configuration original operation is never reissued",
     "sql": "INSERT INTO catalog_configuration_operations(original_operation_id,original_request_digest,command_incarnation,command_kind,original_library_id,original_library_key,original_source_id) VALUES(X'33333333333333333333333333333333',zeroblob(32),X'66666666666666666666666666666666','configure_source',3,'configuration-library','source-1')",
     "error_contains": "UNIQUE constraint failed"
@@ -670,5 +562,326 @@
         392
       ]
     ]
+  },
+  {
+    "name": "configuration schedule original acknowledged cohort",
+    "sql": "UPDATE catalog_configuration_operations SET receipt_reclaim_due_ms=400 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement acknowledge source2 and schedule receipt GC",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=2,receipt_reclaim_due_ms=400 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "configuration cursor cannot advance without a GC result slot",
+    "sql": "UPDATE catalog_configuration_operations SET receipt_reclaim_ordinal=0 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "retirement cursor cannot advance without a GC result slot",
+    "sql": "UPDATE catalog_removal_progress SET receipt_reclaim_sequence=1 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration begin failed cleanup frame",
+    "sql": "BEGIN IMMEDIATE"
+  },
+  {
+    "name": "configuration tentative first exact source delete",
+    "sql": "DELETE FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND ordinal=0 AND retained_bytes=215"
+  },
+  {
+    "name": "configuration stale post-delete owner CAS",
+    "sql": "UPDATE catalog_configuration_operations SET last_command_sequence=2,receipt_retained_count=2,receipt_retained_bytes=407,receipt_reclaim_sequence=0,receipt_reclaim_due_ms=400,reclaim_command_sequence=2,reclaim_operation_id=X'0000000000000000000000000000044e',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=1,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='source',reclaim_removed_count=1,reclaim_removed_bytes=215,reclaim_result_sequence=0,reclaim_result_no_next=0,reclaim_result_rows=2,reclaim_result_bytes=407,reclaim_applied_ms=502,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=-1,reclaim_removed_ordinal=0,reclaim_result_ordinal=0,receipt_reclaim_ordinal=0 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=1 AND acknowledged_command_sequence=1 AND receipt_retained_count=99 AND receipt_retained_bytes=622 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=-1 AND reclaim_operation_id IS NULL"
+  },
+  {
+    "name": "configuration stale CAS changed zero rows",
+    "query": "SELECT changes()",
+    "want": [
+      [
+        0
+      ]
+    ]
+  },
+  {
+    "name": "configuration rollback restores physical and logical debt",
+    "sql": "ROLLBACK"
+  },
+  {
+    "name": "configuration failed cleanup retained complete original",
+    "query": "SELECT receipt_retained_count,receipt_retained_bytes,(SELECT count(*) FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library') FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        3,
+        622,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "configuration first bounded GC saves original result",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND ordinal=0 AND retained_bytes=215; UPDATE catalog_configuration_operations SET last_command_sequence=2,receipt_retained_count=2,receipt_retained_bytes=407,receipt_reclaim_sequence=0,receipt_reclaim_due_ms=400,reclaim_command_sequence=2,reclaim_operation_id=X'0000000000000000000000000000044e',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=1,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='source',reclaim_removed_count=1,reclaim_removed_bytes=215,reclaim_result_sequence=0,reclaim_result_no_next=0,reclaim_result_rows=2,reclaim_result_bytes=407,reclaim_applied_ms=502,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=-1,reclaim_removed_ordinal=0,reclaim_result_ordinal=0,receipt_reclaim_ordinal=0 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=1 AND acknowledged_command_sequence=1 AND receipt_retained_count=3 AND receipt_retained_bytes=622 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=-1 AND reclaim_operation_id IS NULL; COMMIT"
+  },
+  {
+    "name": "configuration GC committed one owner CAS",
+    "query": "SELECT changes()",
+    "want": [
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "configuration unknown-return reopen",
+    "reopen": true
+  },
+  {
+    "name": "configuration original cleanup replays saved scalar",
+    "query": "SELECT reclaim_command_sequence,reclaim_captured_acknowledged_sequence,reclaim_old_sequence,reclaim_old_ordinal,reclaim_removed_sequence,reclaim_removed_ordinal,reclaim_removed_kind,reclaim_removed_count,reclaim_removed_bytes,reclaim_result_sequence,reclaim_result_ordinal,reclaim_result_rows,reclaim_result_bytes,reclaim_result_no_next,reclaim_result_count FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND reclaim_command_sequence=2 AND reclaim_operation_id=X'0000000000000000000000000000044e' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1",
+    "want": [
+      [
+        2,
+        1,
+        0,
+        -1,
+        1,
+        0,
+        "source",
+        1,
+        215,
+        0,
+        0,
+        2,
+        407,
+        0,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "configuration replay did not delete the following source",
+    "query": "SELECT ordinal,source_id,retained_bytes FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library'",
+    "want": [
+      [
+        1,
+        "source-2",
+        212
+      ]
+    ]
+  },
+  {
+    "name": "configuration different original request has no saved result",
+    "query": "SELECT reclaim_command_sequence,reclaim_captured_acknowledged_sequence,reclaim_old_sequence,reclaim_old_ordinal,reclaim_removed_sequence,reclaim_removed_ordinal,reclaim_removed_kind,reclaim_removed_count,reclaim_removed_bytes,reclaim_result_sequence,reclaim_result_ordinal,reclaim_result_rows,reclaim_result_bytes,reclaim_result_no_next,reclaim_result_count FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND reclaim_command_sequence=2 AND reclaim_operation_id=X'0000000000000000000000000000044e' AND reclaim_request_digest=X'0101010101010101010101010101010101010101010101010101010101010101' AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1",
+    "want": []
+  },
+  {
+    "name": "configuration incomplete fixed slot refused",
+    "sql": "UPDATE catalog_configuration_operations SET reclaim_result_digest=NULL WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration GC saved debt cannot drift",
+    "sql": "UPDATE catalog_configuration_operations SET reclaim_result_bytes=1 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration unacknowledged GC cannot be overwritten",
+    "sql": "UPDATE catalog_configuration_operations SET last_command_sequence=3,receipt_retained_count=1,receipt_retained_bytes=195,receipt_reclaim_sequence=0,receipt_reclaim_due_ms=400,reclaim_command_sequence=3,reclaim_operation_id=X'0000000000000000000000000000044f',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=2,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='source',reclaim_removed_count=1,reclaim_removed_bytes=212,reclaim_result_sequence=0,reclaim_result_no_next=0,reclaim_result_rows=1,reclaim_result_bytes=195,reclaim_applied_ms=503,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=0,reclaim_removed_ordinal=1,reclaim_result_ordinal=1,receipt_reclaim_ordinal=1 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=2 AND acknowledged_command_sequence=1 AND receipt_retained_count=2 AND receipt_retained_bytes=407 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=0 AND reclaim_command_sequence=2 AND reclaim_operation_id=X'0000000000000000000000000000044e' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=1 AND reclaim_old_sequence=0 AND reclaim_removed_sequence=1 AND reclaim_removed_kind='source' AND reclaim_removed_count=1 AND reclaim_removed_bytes=215 AND reclaim_result_sequence=0 AND reclaim_result_no_next=0 AND reclaim_result_rows=2 AND reclaim_result_bytes=407 AND reclaim_applied_ms=502 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_old_ordinal=-1 AND reclaim_removed_ordinal=0 AND reclaim_result_ordinal=0 AND reclaim_command_sequence<=acknowledged_command_sequence"
+  },
+  {
+    "name": "configuration unacknowledged slot replacement changed zero",
+    "query": "SELECT changes()",
+    "want": [
+      [
+        0
+      ]
+    ]
+  },
+  {
+    "name": "configuration ACK cleanup has no slot or data refund",
+    "sql": "UPDATE catalog_configuration_operations SET acknowledged_command_sequence=2 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "configuration ACK preserves fixed-slot bytes",
+    "query": "SELECT last_command_sequence,acknowledged_command_sequence,receipt_retained_count,receipt_retained_bytes,reclaim_slot_bytes>0 FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        2,
+        2,
+        2,
+        407,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "configuration GC captured floor cannot equal its own sequence",
+    "sql": "UPDATE catalog_configuration_operations SET reclaim_captured_acknowledged_sequence=2 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration second child replaces ACKed fixed slot",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND ordinal=1 AND retained_bytes=212; UPDATE catalog_configuration_operations SET last_command_sequence=3,receipt_retained_count=1,receipt_retained_bytes=195,receipt_reclaim_sequence=0,receipt_reclaim_due_ms=400,reclaim_command_sequence=3,reclaim_operation_id=X'0000000000000000000000000000044f',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=2,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='source',reclaim_removed_count=1,reclaim_removed_bytes=212,reclaim_result_sequence=0,reclaim_result_no_next=0,reclaim_result_rows=1,reclaim_result_bytes=195,reclaim_applied_ms=503,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=0,reclaim_removed_ordinal=1,reclaim_result_ordinal=1,receipt_reclaim_ordinal=1 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=2 AND acknowledged_command_sequence=2 AND receipt_retained_count=2 AND receipt_retained_bytes=407 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=0 AND reclaim_command_sequence=2 AND reclaim_operation_id=X'0000000000000000000000000000044e' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=1 AND reclaim_old_sequence=0 AND reclaim_removed_sequence=1 AND reclaim_removed_kind='source' AND reclaim_removed_count=1 AND reclaim_removed_bytes=215 AND reclaim_result_sequence=0 AND reclaim_result_no_next=0 AND reclaim_result_rows=2 AND reclaim_result_bytes=407 AND reclaim_applied_ms=502 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_old_ordinal=-1 AND reclaim_removed_ordinal=0 AND reclaim_result_ordinal=0 AND reclaim_command_sequence<=acknowledged_command_sequence; COMMIT"
+  },
+  {
+    "name": "configuration ACK source cleanup3",
+    "sql": "UPDATE catalog_configuration_operations SET acknowledged_command_sequence=3 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "configuration empty-child header cleanup saves terminal scalar",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_configuration_receipts WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND retained_bytes=195; UPDATE catalog_configuration_operations SET last_command_sequence=4,receipt_retained_count=0,receipt_retained_bytes=0,receipt_reclaim_sequence=1,receipt_reclaim_due_ms=NULL,reclaim_command_sequence=4,reclaim_operation_id=X'00000000000000000000000000000450',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=3,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='header',reclaim_removed_count=1,reclaim_removed_bytes=195,reclaim_result_sequence=1,reclaim_result_no_next=1,reclaim_result_rows=0,reclaim_result_bytes=0,reclaim_applied_ms=504,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=1,reclaim_removed_ordinal=NULL,reclaim_result_ordinal=-1,receipt_reclaim_ordinal=-1 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=3 AND acknowledged_command_sequence=3 AND receipt_retained_count=1 AND receipt_retained_bytes=195 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=1 AND reclaim_command_sequence=3 AND reclaim_operation_id=X'0000000000000000000000000000044f' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=2 AND reclaim_old_sequence=0 AND reclaim_removed_sequence=1 AND reclaim_removed_kind='source' AND reclaim_removed_count=1 AND reclaim_removed_bytes=212 AND reclaim_result_sequence=0 AND reclaim_result_no_next=0 AND reclaim_result_rows=1 AND reclaim_result_bytes=195 AND reclaim_applied_ms=503 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_old_ordinal=0 AND reclaim_removed_ordinal=1 AND reclaim_result_ordinal=1 AND reclaim_command_sequence<=acknowledged_command_sequence; COMMIT"
+  },
+  {
+    "name": "configuration terminal slot survives history removal",
+    "query": "SELECT last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_reclaim_ordinal,receipt_retained_count,receipt_retained_bytes,reclaim_removed_kind,reclaim_result_no_next,reclaim_result_count,reclaim_slot_bytes>0 FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        4,
+        3,
+        1,
+        -1,
+        0,
+        0,
+        "header",
+        1,
+        1,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "configuration ACK terminal retains independent owner slot",
+    "sql": "UPDATE catalog_configuration_operations SET acknowledged_command_sequence=4 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement scalar cleanup occupies sequence3 fixed slot",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence=1 AND retained_bytes=238; UPDATE catalog_removal_progress SET last_command_sequence=3,receipt_retained_count=1,receipt_retained_bytes=243,receipt_reclaim_sequence=1,receipt_reclaim_due_ms=400,reclaim_command_sequence=3,reclaim_operation_id=X'000000000000000000000000000003eb',reclaim_request_digest=zeroblob(32),reclaim_command_kind='retirement_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=2,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='header',reclaim_removed_count=1,reclaim_removed_bytes=238,reclaim_result_sequence=1,reclaim_result_no_next=0,reclaim_result_rows=1,reclaim_result_bytes=243,reclaim_applied_ms=503,reclaim_result_count=1,reclaim_result_digest=zeroblob(32) WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32) AND last_command_sequence=2 AND acknowledged_command_sequence=2 AND receipt_retained_count=2 AND receipt_retained_bytes=481 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND reclaim_operation_id IS NULL; COMMIT"
+  },
+  {
+    "name": "retirement unknown-return reopen",
+    "reopen": true
+  },
+  {
+    "name": "retirement original GC result is retained before fresh checks",
+    "query": "SELECT reclaim_command_sequence,reclaim_captured_acknowledged_sequence,reclaim_removed_sequence,reclaim_removed_count,reclaim_removed_bytes,reclaim_result_sequence,reclaim_result_rows,reclaim_result_bytes,reclaim_result_no_next,reclaim_result_count FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32) AND reclaim_operation_id=X'000000000000000000000000000003eb' AND reclaim_request_digest=zeroblob(32)",
+    "want": [
+      [
+        3,
+        2,
+        1,
+        1,
+        238,
+        1,
+        1,
+        243,
+        0,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "retirement original replay leaves following receipt intact",
+    "query": "SELECT command_sequence FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source'",
+    "want": [
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "retirement ACK cleanup3 keeps slot and source debt",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=3 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement next bounded cleanup replaces ACKed slot",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence=2 AND retained_bytes=243; UPDATE catalog_removal_progress SET last_command_sequence=4,receipt_retained_count=0,receipt_retained_bytes=0,receipt_reclaim_sequence=2,receipt_reclaim_due_ms=NULL,reclaim_command_sequence=4,reclaim_operation_id=X'000000000000000000000000000003ec',reclaim_request_digest=zeroblob(32),reclaim_command_kind='retirement_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=3,reclaim_old_sequence=1,reclaim_removed_sequence=2,reclaim_removed_kind='header',reclaim_removed_count=1,reclaim_removed_bytes=243,reclaim_result_sequence=2,reclaim_result_no_next=1,reclaim_result_rows=0,reclaim_result_bytes=0,reclaim_applied_ms=504,reclaim_result_count=1,reclaim_result_digest=zeroblob(32) WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32) AND last_command_sequence=3 AND acknowledged_command_sequence=3 AND receipt_retained_count=1 AND receipt_retained_bytes=243 AND receipt_reclaim_sequence=1 AND receipt_reclaim_due_ms=400 AND reclaim_command_sequence=3 AND reclaim_operation_id=X'000000000000000000000000000003eb' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='retirement_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=2 AND reclaim_old_sequence=0 AND reclaim_removed_sequence=1 AND reclaim_removed_kind='header' AND reclaim_removed_count=1 AND reclaim_removed_bytes=238 AND reclaim_result_sequence=1 AND reclaim_result_no_next=0 AND reclaim_result_rows=1 AND reclaim_result_bytes=243 AND reclaim_applied_ms=503 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_command_sequence<=acknowledged_command_sequence; COMMIT"
+  },
+  {
+    "name": "retirement cleaned history preserves original scope and real lease",
+    "query": "SELECT original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes,reclaim_removed_sequence,reclaim_result_no_next,reclaim_slot_bytes>0 FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        "/old-source",
+        "source-inc",
+        9,
+        "native-root",
+        17,
+        2,
+        10000,
+        4,
+        3,
+        2,
+        0,
+        0,
+        2,
+        1,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "retirement ACK cleanup4",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=4 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement GC fixed slot cannot silently lose request proof",
+    "sql": "UPDATE catalog_removal_progress SET reclaim_request_digest=NULL WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration cleanup due index seek",
+    "plan_sql": "SELECT original_operation_id FROM catalog_configuration_operations INDEXED BY catalog_configuration_receipt_due WHERE receipt_reclaim_due_ms IS NOT NULL AND receipt_reclaim_due_ms<=500 ORDER BY receipt_reclaim_due_ms,original_operation_id LIMIT 1",
+    "seek": "receipt_reclaim_due_ms>? AND receipt_reclaim_due_ms<?"
+  },
+  {
+    "name": "retirement cleanup due index seek",
+    "plan_sql": "SELECT kind,target FROM catalog_removal_progress INDEXED BY catalog_removal_receipt_due WHERE receipt_reclaim_due_ms IS NOT NULL AND receipt_reclaim_due_ms<=500 ORDER BY receipt_reclaim_due_ms,kind,target LIMIT 1",
+    "seek": "receipt_reclaim_due_ms>? AND receipt_reclaim_due_ms<?"
+  },
+  {
+    "name": "retirement physical step after acknowledged GC keeps old fixed result",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',5,X'00000000000000000000000000000069',zeroblob(32),'retire_step',1,4,505,'folder','gone-source',5,0,0,'raw-end',0,0,'complete',0,zeroblob(32),243); UPDATE catalog_removal_progress SET phase=5,retirement_state='complete',object_cursor='raw-end',last_command_sequence=5,job_revision=4,receipt_retained_count=1,receipt_retained_bytes=243,job_next_attempt_ms=NULL WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement old ACKed GC result is immutable after new source work",
+    "query": "SELECT reclaim_command_sequence,reclaim_result_rows,reclaim_result_bytes,receipt_retained_count,receipt_retained_bytes FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        4,
+        0,
+        0,
+        1,
+        243
+      ]
+    ]
+  },
+  {
+    "name": "retirement acknowledge physical step5 and schedule fresh data debt",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=5,receipt_reclaim_due_ms=505 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement GC range crosses cleanup-only sequence holes",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence=5 AND retained_bytes=243; UPDATE catalog_removal_progress SET last_command_sequence=6,receipt_retained_count=0,receipt_retained_bytes=0,receipt_reclaim_sequence=5,receipt_reclaim_due_ms=NULL,reclaim_command_sequence=6,reclaim_operation_id=X'000000000000000000000000000003ee',reclaim_request_digest=zeroblob(32),reclaim_command_kind='retirement_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=5,reclaim_old_sequence=2,reclaim_removed_sequence=5,reclaim_removed_kind='header',reclaim_removed_count=1,reclaim_removed_bytes=243,reclaim_result_sequence=5,reclaim_result_no_next=1,reclaim_result_rows=0,reclaim_result_bytes=0,reclaim_applied_ms=506,reclaim_result_count=1,reclaim_result_digest=zeroblob(32) WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32) AND last_command_sequence=5 AND acknowledged_command_sequence=5 AND receipt_retained_count=1 AND receipt_retained_bytes=243 AND receipt_reclaim_sequence=2 AND receipt_reclaim_due_ms=505 AND reclaim_command_sequence=4 AND reclaim_operation_id=X'000000000000000000000000000003ec' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='retirement_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=3 AND reclaim_old_sequence=1 AND reclaim_removed_sequence=2 AND reclaim_removed_kind='header' AND reclaim_removed_count=1 AND reclaim_removed_bytes=243 AND reclaim_result_sequence=2 AND reclaim_result_no_next=1 AND reclaim_result_rows=0 AND reclaim_result_bytes=0 AND reclaim_applied_ms=504 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_command_sequence<=acknowledged_command_sequence; COMMIT"
+  },
+  {
+    "name": "retirement terminal owner retains scalar cleanup proof",
+    "query": "SELECT retirement_state,phase,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes,reclaim_command_sequence,reclaim_result_count,reclaim_slot_bytes>0 FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        "complete",
+        5,
+        6,
+        5,
+        5,
+        0,
+        0,
+        6,
+        1,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "retirement final ACK does not reap its fixed slot",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=6 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
   }
 ]

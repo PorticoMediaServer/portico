@@ -1,13 +1,13 @@
 {
   "baseline": "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4",
-  "candidate": "68b12e85e0a99294a38943ee4e5687ec635e75ffa444df56c32ee67d767fbc10",
+  "candidate": "9042f1e93d20db286dc25facb100e308afea4ca4eeea615f1538c40fcdee9aa9",
   "replacement_before": {
     "scan_command_receipts": "061c5ec784de461c0d8f80634f0cb07fefcada699382db880c047f92655d44d2",
     "catalog_removal_progress": "7e50ea6ef5f4382fabe16f2f6cd79889adcfb525a397d315851f760df81f1f44"
   },
   "replacement_after": {
     "scan_command_receipts": "500a471de63b4305cf12e994b9d402d1b333c6866f8f708f26ac58850ac83fb8",
-    "catalog_removal_progress": "e58102b791051007baa011cb256be84743b379b23ac437a3a15df85b4a784a2c"
+    "catalog_removal_progress": "6b6263bc0a244275c1968f747268bb2fbb2219c36fc1d1ad46843ddce704851c"
   },
   "new_tables": [
     "scan_reconcile_members",
@@ -22,7 +22,11 @@
     "catalog_removal_original_library",
     "catalog_configuration_operation_kind",
     "catalog_configuration_original_library",
-    "catalog_configuration_source_once"
+    "catalog_configuration_source_once",
+    "catalog_removal_reclaim_operation",
+    "catalog_removal_receipt_due",
+    "catalog_configuration_reclaim_operation",
+    "catalog_configuration_receipt_due"
   ],
   "unchanged_objects": [
     "inventory_runs",
@@ -33,5 +37,32 @@
   "source_internal": "6b6d2113a051ebb825a199b93f586680e4a75cca",
   "source_public": "194a9248f32195e51355b254548b3551d35fd458",
   "native_toolchain": "go1.26.10",
-  "landing": "WAIT phase1a lock"
+  "landing": "WAIT phase1a lock",
+  "configuration_amendment_sha256": "b50e50e4e700b90e6a312307b653e3b8ebfb19dd4e967b2ed5d278087907a1e4",
+  "configuration_new_objects": {
+    "catalog_configuration_operations": {
+      "before_absent": true,
+      "after_sha256": "98b4b9943fb69e4e940e41fba1de38b27509e15feecbc07181c98777c0e40f2d"
+    },
+    "catalog_configuration_operation_kind": {
+      "before_absent": true,
+      "after_sha256": "c0182596d104cb985bbe8a7cad9bc572aa29893e0ed317ed01fef20c87dab86a"
+    },
+    "catalog_configuration_original_library": {
+      "before_absent": true,
+      "after_sha256": "972d98b0ca4e76875b6b7a37302cb1226be352655494ef57252023ae3c61b8b3"
+    },
+    "catalog_configuration_receipts": {
+      "before_absent": true,
+      "after_sha256": "41874e75af325ff22443a04b27f25eecfa49f2154dc2f686be4a1bc37c877664"
+    },
+    "catalog_configuration_sources": {
+      "before_absent": true,
+      "after_sha256": "3335c68a507aeaffd6ccae8b9e75fa2eea2d6ecc2b68d4a677a7f9bcc6f3dd2f"
+    },
+    "catalog_configuration_source_once": {
+      "before_absent": true,
+      "after_sha256": "6806dd567fe61c251dac2876d31d5402dbcee110dd98c775f885872e876e13e1"
+    }
+  }
 }
