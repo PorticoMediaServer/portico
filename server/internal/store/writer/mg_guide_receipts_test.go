@@ -380,7 +380,7 @@ func TestMGGuideReceiptCancelledLifetime(t *testing.T) {
 }
 func TestMGGuideReceiptDefinitions(t *testing.T) {
 	defs := mgGuideReceiptDefinitions()
-	if len(defs) != 10 {
+	if len(defs) != 11 {
 		t.Fatal("finite inventory", len(defs))
 	}
 	if _, err := stmt.Describe(defs); err != nil {

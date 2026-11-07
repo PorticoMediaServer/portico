@@ -19,7 +19,7 @@ func mgGuidePublicationStep(t *commandTurn, id stmt.ID) (statementStep, error) {
 		return statementStep{}, ErrInvalid
 	}
 	switch id {
-	case mgGuideRead, mgGuideSource, mgGuideIdentity, mgGuideSealRow, mgGuidePublishSource, mgGuidePublishNewSource, mgGuidePublishOperation, mgGuideInsertChannel, mgGuideInsertProgramme, mgGuideInsertChoice, mgGuideAdvanceStage:
+	case mgGuideRead, mgGuideSource, mgGuideIdentity, mgGuideSealRow, mgGuidePublishSource, mgGuidePublishNewSource, mgGuidePublishOperation, mgGuideInsertChannel, mgGuideInsertProgramme, mgGuideInsertChoice, mgGuideAdvanceStage, mgGuideInsertIdentity, mgGuideInsertGeneration, mgGuideInsertOperation, mgGuideCapacity:
 	default:
 		return statementStep{}, ErrInvalid
 	}
@@ -204,6 +204,9 @@ func mgPublishGuideNative(ctx context.Context, t *commandTurn, before mgGuideNat
 	}
 	published := time.UnixMilli(applied).UTC().Format("2006-01-02T15:04:05.000Z")
 	if head.revision == 0 {
+		if err = mgCheckGuideCapacity(ctx, t); err != nil {
+			return out, err
+		}
 		err = mgGuidePublicationChange(ctx, t, mgGuidePublishNewSource, next.source, before.name, next.revision, next.state, before.tuner, next.generation, published)
 	} else {
 		err = mgGuidePublicationChange(ctx, t, mgGuidePublishSource, before.name, next.revision, before.tuner, next.generation, published, next.source, head.revision, head.generation, head.state)
