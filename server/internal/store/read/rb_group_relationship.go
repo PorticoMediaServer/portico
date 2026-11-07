@@ -41,6 +41,7 @@ type RBRelationshipCursor struct {
 	id    int64
 }
 type RBRelationshipPage struct {
+	fence               browseFence
 	Items               []BrowseItem
 	Next                *RBRelationshipCursor
 	Exhausted           bool
@@ -166,6 +167,7 @@ func (r *BrowseReader) rbRelationshipExact(ctx context.Context, request governor
 		return less
 	})
 	page.RawRows = draft.raw
+	page.fence = draft.fence
 	page.Statements = result.LookupStatements + result.PublicationStatements
 	for _, v := range draft.values {
 		if in.After != nil {
