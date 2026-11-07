@@ -8,8 +8,20 @@ import (
 	"testing"
 )
 
+// Abs retains the current native volume on Windows, where FromSlash("/...")
+// alone is rooted but not absolute. Concatenate the tail to preserve deliberate
+// dot segments in the ownership fixture rather than cleaning them with Join.
+func iaNativeRoot(t *testing.T, tail string) string {
+	t.Helper()
+	root, err := filepath.Abs(string(filepath.Separator))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root + filepath.FromSlash(tail)
+}
+
 func TestIALibraryRootsPreserveExactOwnedPaths(t *testing.T) {
-	paths := [][]byte{[]byte(filepath.FromSlash("/media/Cafe\u0301/../Cafe\u0301")), []byte(filepath.FromSlash("/media/資料"))}
+	paths := [][]byte{[]byte(iaNativeRoot(t, "media/Cafe\u0301/../Cafe\u0301")), []byte(iaNativeRoot(t, "media/資料"))}
 	want := []string{string(paths[0]), string(paths[1])}
 	budget := int64(len(paths[0]) + len(paths[1]))
 	roots, err := PrepareLibraryRoots(paths, budget)
@@ -46,7 +58,7 @@ func TestIALibraryRootsRefuseUnrepresentableWithoutLeakingPaths(t *testing.T) {
 }
 
 func TestIALibraryRootsInvalidAndCapacity(t *testing.T) {
-	abs := []byte(filepath.FromSlash("/media"))
+	abs := []byte(iaNativeRoot(t, "media"))
 	cases := []struct {
 		name string
 		raw  [][]byte
@@ -56,8 +68,8 @@ func TestIALibraryRootsInvalidAndCapacity(t *testing.T) {
 		{"empty batch", nil, 8192, ErrInvalid},
 		{"empty root", [][]byte{nil}, 8192, ErrInvalid},
 		{"relative", [][]byte{[]byte("media")}, 8192, ErrInvalid},
-		{"control", [][]byte{[]byte("/media\n")}, 8192, ErrInvalid},
-		{"unicode control", [][]byte{[]byte("/media\u0085")}, 8192, ErrInvalid},
+		{"control", [][]byte{append(bytes.Clone(abs), '\n')}, 8192, ErrInvalid},
+		{"unicode control", [][]byte{[]byte(string(abs) + "\u0085")}, 8192, ErrInvalid},
 		{"NUL before UTF8", [][]byte{{'/', 0xff}, {'/', 0}}, 8192, ErrInvalid},
 		{"oversized", [][]byte{append([]byte{'/'}, bytes.Repeat([]byte{'a'}, MaxLibraryRootBytes)...)}, 16384, ErrCapacity},
 		{"zero budget", [][]byte{abs}, 0, ErrCapacity},
@@ -76,13 +88,14 @@ func TestIALibraryRootsInvalidAndCapacity(t *testing.T) {
 }
 
 func TestIALibraryRootsMaximumAcceptedBoundaries(t *testing.T) {
-	root := append([]byte{'/'}, bytes.Repeat([]byte{'a'}, MaxLibraryRootBytes-1)...)
+	prefix := []byte(iaNativeRoot(t, ""))
+	root := append(prefix, bytes.Repeat([]byte{'a'}, MaxLibraryRootBytes-len(prefix))...)
 	if roots, err := PrepareLibraryRoots([][]byte{root}, MaxLibraryRootBytes); err != nil || roots.Bytes() != MaxLibraryRootBytes {
 		t.Fatalf("max root bytes=%d err=%v", roots.Bytes(), err)
 	}
 	roots := make([][]byte, MaxLibraryRoots)
 	for i := range roots {
-		roots[i] = []byte(filepath.FromSlash("/media"))
+		roots[i] = []byte(iaNativeRoot(t, "media"))
 	}
 	if got, err := PrepareLibraryRoots(roots, MaxLibraryRoots*MaxLibraryRootBytes); err != nil || got.Len() != MaxLibraryRoots {
 		t.Fatalf("max roots=%d err=%v", got.Len(), err)
