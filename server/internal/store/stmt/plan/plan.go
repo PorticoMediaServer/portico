@@ -37,6 +37,7 @@ type Rows struct {
 	Values  [][]any  `json:"values"`
 }
 type Environment struct {
+	SchemaBinding     *SchemaBinding      `json:"schemaBinding,omitempty"`
 	Connection        sqliteconn.Settings `json:"connection"`
 	IndexPolicySHA256 string              `json:"indexPolicySha256"`
 	Fixture           Fixture             `json:"fixture"`
@@ -95,6 +96,12 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 		return g, err
 	}
 	env.IndexPolicySHA256 = policy.sha256
+	if policy.sha256 == embeddedPolicySHA() {
+		if err := checkEmbeddedCatalog(env.Schema); err != nil {
+			return g, err
+		}
+		env.SchemaBinding = &SchemaBinding{Version: 1, SQLSHA256: schemaSQLSHA()}
+	}
 	g.Environment = env
 	roots, err := readRoots(ctx, conn)
 	if err != nil {

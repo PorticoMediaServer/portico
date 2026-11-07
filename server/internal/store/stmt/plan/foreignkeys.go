@@ -23,8 +23,9 @@ type ForeignKeyPlan struct {
 }
 
 type ForeignKeyAudit struct {
-	Connection sqliteconn.Settings `json:"connection"`
-	Plans      []ForeignKeyPlan    `json:"plans"`
+	SchemaBinding *SchemaBinding      `json:"schemaBinding,omitempty"`
+	Connection    sqliteconn.Settings `json:"connection"`
+	Plans         []ForeignKeyPlan    `json:"plans"`
 }
 
 // ForeignKeys checks the actual parent DELETE/key UPDATE plans with FK ON. The
@@ -133,6 +134,14 @@ func ForeignKeys(ctx context.Context, conn *sql.Conn, policy sqliteconn.Config) 
 			result = append(result, *g)
 		}
 	}
-	return ForeignKeyAudit{Connection: settings, Plans: result}, nil
+	audit := ForeignKeyAudit{Connection: settings, Plans: result}
+	catalog, err := query(ctx, conn, "SELECT type,name,tbl_name,rootpage,sql FROM main.sqlite_schema ORDER BY type,name")
+	if err != nil {
+		return ForeignKeyAudit{}, err
+	}
+	if checkEmbeddedCatalog(catalog) == nil {
+		audit.SchemaBinding = &SchemaBinding{Version: 1, SQLSHA256: schemaSQLSHA()}
+	}
+	return audit, nil
 }
 func identifier(value string) string { return `"` + strings.ReplaceAll(value, `"`, `""`) + `"` }
