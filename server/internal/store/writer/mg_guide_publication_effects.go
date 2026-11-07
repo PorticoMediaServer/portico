@@ -19,7 +19,7 @@ func mgGuidePublicationStep(t *commandTurn, id stmt.ID) (statementStep, error) {
 		return statementStep{}, ErrInvalid
 	}
 	switch id {
-	case mgGuideRead, mgGuideSource, mgGuideIdentity, mgGuideSealRow, mgGuidePublishSource, mgGuidePublishNewSource, mgGuidePublishOperation, mgGuideInsertChannel, mgGuideInsertProgramme, mgGuideInsertChoice, mgGuideAdvanceStage, mgGuideInsertIdentity, mgGuideInsertGeneration, mgGuideInsertOperation, mgGuideCapacity:
+	case mgGuideRead, mgGuideSource, mgGuideIdentity, mgGuideSealRow, mgGuidePublishSource, mgGuidePublishNewSource, mgGuidePublishOperation, mgGuideInsertChannel, mgGuideInsertProgramme, mgGuideInsertChoice, mgGuideAdvanceStage, mgGuideInsertIdentity, mgGuideInsertGeneration, mgGuideInsertOperation, mgGuideCapacity, mgGuideDiscardOperation:
 	default:
 		return statementStep{}, ErrInvalid
 	}
@@ -90,6 +90,14 @@ func mgReadGuideNative(ctx context.Context, t *commandTurn, request string) (out
 }
 func mgGuideCurrentHead(ctx context.Context, t *commandTurn, source string) (out mgGuideHead, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	out, err = mgGuideHeadFacts(ctx, t, source)
+	if err == nil && out.removed {
+		err = ErrDisclosureDenied
+	}
+	return out, err
+}
+func mgGuideHeadFacts(ctx context.Context, t *commandTurn, source string) (out mgGuideHead, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	row, err := mgGuidePublicationQuery(ctx, t, mgGuideIdentity, source)
 	if err != nil {
 		return out, err
@@ -98,9 +106,10 @@ func mgGuideCurrentHead(ctx context.Context, t *commandTurn, source string) (out
 	if err = row.Scan(&removed); err != nil {
 		return out, err
 	}
-	if removed != 0 {
-		return out, ErrDisclosureDenied
+	if removed != 0 && removed != 1 {
+		return out, ErrInvalid
 	}
+	out.removed = removed == 1
 	out.source = source
 	row, err = mgGuidePublicationQuery(ctx, t, mgGuideSource, source)
 	if err != nil {

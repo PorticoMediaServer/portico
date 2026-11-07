@@ -196,6 +196,11 @@ func mgGuideStageDefinitions() []stmt.Definition {
 		{ID: mgGuideAdvanceStage, Kind: stmt.Write, SQL: `UPDATE live_operations INDEXED BY sqlite_autoindex_live_operations_1 SET last_command_sequence=?,stage_revision=?,staged_channel_count=?,staged_programme_count=?,staged_choice_count=?,staged_bytes=?,stage_digest=? WHERE request_id=? AND command_incarnation=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND stage_revision=? AND status='staging' AND sealed=0 AND staged_channel_count=? AND staged_programme_count=? AND staged_choice_count=? AND staged_bytes=? AND stage_digest=?`, Params: []stmt.Param{integer("next_sequence"), integer("next_revision"), integer("channels"), integer("programmes"), integer("choices"), integer("bytes"), blob("chain"), txt("request"), blob("incarnation"), integer("sequence"), integer("ack"), integer("revision"), integer("before_channels"), integer("before_programmes"), integer("before_choices"), integer("before_bytes"), blob("before_chain")}},
 	}
 	for j := range defs {
+		defs[j].Plan.Hot = true
+		if defs[j].ID == mgGuideAdvanceStage {
+			defs[j].Plan.Indexes = []string{"sqlite_autoindex_live_operations_1"}
+			defs[j].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "live_operations", Name: "sqlite_autoindex_live_operations_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "request_id", Collation: "BINARY"}}}}
+		}
 		defs[j].Owner = "store/writer MG guide staging effects"
 		defs[j].CallSites = []string{"store/writer/mg_guide_stage.go"}
 		args := make([]any, len(defs[j].Params))

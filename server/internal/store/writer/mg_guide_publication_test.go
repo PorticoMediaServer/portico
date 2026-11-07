@@ -90,7 +90,7 @@ func mgGuideNativeTurn(t *testing.T, w *executor, defs ...[]stmt.Definition) *co
 	return turn
 }
 func mgGuideIdentityAfter(before mgGuideNative) CommandIdentity {
-	return CommandIdentity{Incarnation: before.incarnation, Sequence: before.progress.sequence + 1, OperationID: [16]byte{9}}
+	return CommandIdentity{Incarnation: before.incarnation, Sequence: before.progress.sequence + 1, OperationID: [16]byte{9, byte(before.progress.sequence + 1)}}
 }
 func TestMGGuideNativeSealAndPublish(t *testing.T) {
 	for _, state := range []string{"active", "disabled"} {

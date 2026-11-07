@@ -23,6 +23,7 @@ func mgGuideBirthTurn(t *testing.T, w *executor) *commandTurn {
 	defs := append(mgGuidePublicationDefinitions(), mgGuideReceiptDefinitions()...)
 	defs = append(defs, mgGuideStageDefinitions()...)
 	defs = append(defs, mgGuideBeginDefinitions()...)
+	defs = append(defs, mgGuideDiscardDefinitions()...)
 	return mgGuideReceiptTestTurn(t, w, defs)
 }
 func TestMGGuideNativeBirthReceiptAndNoResurrection(t *testing.T) {
@@ -103,5 +104,99 @@ func TestMGGuideNativeBirthRefusesEmptyAndCapacity(t *testing.T) {
 				t.Fatal("identity prefix escaped", n, err)
 			}
 		})
+	}
+}
+
+func TestMGGuideNativeBirthStageSealPublishReceipts(t *testing.T) {
+	w, b := mgGuideBirthFixture(t, false)
+	stage, err := freezeMGGuideChannels([]mgGuideChannel{{id: "born-channel", name: "Born Channel", locator: []byte("sealed locator")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// This immutable whole-input commitment is frozen before the writer turn.
+	m := b.manifest
+	initial := mgGuideInitialChain(m)
+	b.manifest.expectedChain = mgGuideNextChain(initial, mgGuideStageDelta{mgGuideChannels, m.source, m.generation, 2, 0, 1, stage.bytes + 9 + int64(len(m.generation)), stage.payload})
+	turn := mgGuideBirthTurn(t, w)
+	result, err := mgBeginGuideNative(t.Context(), turn, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accept := func(result mgGuideNativeResult, identity CommandIdentity, kind mgGuideReceiptKind) mgGuideNative {
+		t.Helper()
+		digest := RequestDigest{byte(identity.Sequence)}
+		if identity.Sequence == 1 {
+			digest = b.requestDigest
+		}
+		saved, err := mgSaveGuideReceipt(t.Context(), turn, result, identity, digest, kind, mgGuideReceiptProjectionFixture())
+		if err != nil {
+			t.Fatal(kind, err)
+		}
+		op, err := mgACKGuideReceipt(t.Context(), turn, result.operation, saved.key, saved.resultDigest)
+		if err != nil {
+			t.Fatal(kind, err)
+		}
+		return op
+	}
+	op := accept(result, b.identity, mgGuideReceiptBegin)
+	identity := mgGuideIdentityAfter(op)
+	result, err = mgStageGuideNative(t.Context(), turn, op, identity, stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op = accept(result, identity, mgGuideReceiptChannels)
+	identity = mgGuideIdentityAfter(op)
+	result, err = mgSealGuideNative(t.Context(), turn, op, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op = accept(result, identity, mgGuideReceiptSeal)
+	identity = mgGuideIdentityAfter(op)
+	result, err = mgPublishGuideNative(t.Context(), turn, op, identity, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op = accept(result, identity, mgGuideReceiptPublish)
+	if op.status != "published" || op.progress.sequence != 4 || op.acknowledged != 4 || result.head.generation != b.manifest.generation {
+		t.Fatal("final native protocol", op, result.head)
+	}
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	var receipts int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM live_operation_command_receipts WHERE request_id=?`, b.request).Scan(&receipts); err != nil || receipts != 4 {
+		t.Fatal(receipts, err)
+	}
+}
+
+func TestMGGuideOrphanReceiptBlocksNewBirth(t *testing.T) {
+	w, b := mgGuideBirthFixture(t, true)
+	turn := mgGuideBirthTurn(t, w)
+	result, err := mgBeginGuideNative(t.Context(), turn, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mgSaveGuideReceipt(t.Context(), turn, result, b.identity, b.requestDigest, mgGuideReceiptBegin, mgGuideReceiptProjectionFixture()); err != nil {
+		t.Fatal(err)
+	}
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	// Simulated damaged cleanup: history survives but both owner and floor are
+	// absent. Absence is not permission to classify a new namespace as fresh.
+	if _, err := w.db.ExecContext(t.Context(), `DELETE FROM live_operations WHERE request_id=?`, b.request); err != nil {
+		t.Fatal(err)
+	}
+	b.identity.Incarnation[0]++
+	b.manifest.generation = "orphan-rebirth"
+	turn = mgGuideBirthTurn(t, w)
+	if out, err := mgBeginGuideNative(t.Context(), turn, b); err == nil || out != (mgGuideNativeResult{}) {
+		t.Fatal("history ignored by birth", out, err)
 	}
 }

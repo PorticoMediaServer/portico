@@ -210,7 +210,7 @@ func mgGuideReceiptDefinitions() []stmt.Definition {
 		{ID: mgGuideReceiptACK, Kind: stmt.Write, SQL: `UPDATE live_operations INDEXED BY sqlite_autoindex_live_operations_1 SET acknowledged_command_sequence=? WHERE request_id=? AND command_incarnation=? AND source_id=? AND generation_id=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND stage_revision=?`, Params: []stmt.Param{i("next_ack"), s("request"), b("incarnation"), s("source"), s("generation"), i("last"), i("expected_ack"), i("revision")}},
 		{ID: mgGuideReceiptFloorRead, Kind: stmt.Read, SQL: `SELECT request_id,command_incarnation,create_operation_id,birth_request_digest,source_id,final_sequence,final_result_digest,retired_ms FROM live_operation_retirements WHERE request_id=?`, Params: header[:1]},
 		{ID: mgGuideReceiptFloorInsert, Kind: stmt.Write, SQL: `INSERT INTO live_operation_retirements(request_id,command_incarnation,create_operation_id,birth_request_digest,source_id,final_sequence,final_result_digest,retired_ms) VALUES(?,?,?,?,?,?,?,?)`, Params: []stmt.Param{s("request"), b("incarnation"), b("create_operation"), b("birth_digest"), s("source"), i("final_sequence"), b("final_digest"), i("retired")}},
-		{ID: mgGuideReceiptBirthHistory, Kind: stmt.Read, SQL: `SELECT 1 FROM live_operation_command_receipts WHERE request_id=? LIMIT 1`, Params: header[:1]},
+		{ID: mgGuideReceiptBirthHistory, Kind: stmt.Read, SQL: `SELECT 1 FROM live_operation_command_receipts INDEXED BY sqlite_autoindex_live_operation_command_receipts_1 WHERE request_id=? AND command_incarnation>=? ORDER BY command_incarnation,command_sequence LIMIT 1`, Params: []stmt.Param{header[0], b("after_incarnation")}},
 		{ID: mgGuideReceiptBirthRead, Kind: stmt.Read, SQL: `SELECT request_id FROM live_operations INDEXED BY sqlite_autoindex_live_operations_1 WHERE request_id=?`, Params: header[:1]},
 	}
 	for j := range defs {
@@ -221,6 +221,10 @@ func mgGuideReceiptDefinitions() []stmt.Definition {
 		case mgGuideReceiptInsert, mgGuideReceiptDiagnosticInsert, mgGuideReceiptFloorInsert:
 		case mgGuideReceiptBirthHistory, mgGuideReceiptRead:
 			d.Plan = stmt.Plan{Hot: true, PrimaryKeys: []string{"live_operation_command_receipts"}}
+			if d.ID == mgGuideReceiptBirthHistory {
+				d.Plan.Indexes = []string{"sqlite_autoindex_live_operation_command_receipts_1"}
+				d.Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "live_operation_command_receipts", Name: "sqlite_autoindex_live_operation_command_receipts_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "request_id", Collation: "BINARY"}, {Name: "command_incarnation", Collation: "BINARY"}, {Name: "command_sequence", Collation: "BINARY"}}}}
+			}
 		case mgGuideReceiptByOperation:
 			d.Plan = stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_live_operation_command_receipts_2"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "live_operation_command_receipts", Name: "sqlite_autoindex_live_operation_command_receipts_2", Origin: "u", Columns: []stmt.IndexColumn{{Name: "request_id", Collation: "BINARY"}, {Name: "command_incarnation", Collation: "BINARY"}, {Name: "operation_id", Collation: "BINARY"}}}}}
 		case mgGuideReceiptDiagnosticRead:
@@ -422,7 +426,12 @@ func mgSaveGuideReceipt(ctx context.Context, t *commandTurn, result mgGuideNativ
 	if actual != op {
 		return out, ErrConflict
 	}
-	head, err := mgGuideCurrentHead(ctx, t, p.manifest.source)
+	var head mgGuideHead
+	if kind == mgGuideReceiptDiscard {
+		head, err = mgGuideHeadFacts(ctx, t, p.manifest.source)
+	} else {
+		head, err = mgGuideCurrentHead(ctx, t, p.manifest.source)
+	}
 	if err != nil {
 		return out, err
 	}
@@ -437,6 +446,9 @@ func mgSaveGuideReceipt(ctx context.Context, t *commandTurn, result mgGuideNativ
 		return out, ErrConflict
 	}
 	if kind == mgGuideReceiptPublish && (op.status != "published" || op.resultRevision != head.revision || op.resultState != head.state || head.generation != p.manifest.generation || op.publishedAt != time.UnixMilli(result.appliedMS).UTC().Format("2006-01-02T15:04:05.000Z")) {
+		return out, ErrConflict
+	}
+	if kind == mgGuideReceiptDiscard && op.status != "superseded" {
 		return out, ErrConflict
 	}
 	if kind == mgGuideReceiptSeal && (op.status != "staging" || !p.sealed) {
@@ -644,7 +656,7 @@ func mgCheckGuideReceiptBirth(ctx context.Context, t *commandTurn, request strin
 	var existing string
 	err = row.Scan(&existing)
 	if errors.Is(err, sql.ErrNoRows) {
-		history, e := mgGuideReceiptQuery(ctx, t, mgGuideReceiptBirthHistory, request)
+		history, e := mgGuideReceiptQuery(ctx, t, mgGuideReceiptBirthHistory, request, []byte{})
 		if e != nil {
 			return e
 		}

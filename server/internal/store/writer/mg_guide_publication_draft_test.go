@@ -46,4 +46,7 @@ CREATE TABLE live_operations(
  CONSTRAINT live_operation_seal CHECK(sealed=0 OR (staged_channel_count>0 AND staged_choice_count=expected_choice_count AND stage_digest=manifest_digest))
 ) STRICT;
 
-CREATE UNIQUE INDEX live_generations_source_scope ON live_generations(id,source_id);`
+CREATE UNIQUE INDEX live_generations_source_scope ON live_generations(id,source_id);
+CREATE INDEX live_sources_generation_head ON live_sources(active_generation,id);
+CREATE INDEX live_operations_generation_id_fk ON live_operations(generation_id);
+CREATE INDEX live_operations_source_id_fk ON live_operations(source_id);`

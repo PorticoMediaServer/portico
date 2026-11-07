@@ -32,13 +32,14 @@ func mgGuideBeginDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: mgGuideInsertIdentity, Kind: stmt.Write, SQL: `INSERT INTO live_source_identities(id) VALUES(?)`, Params: []stmt.Param{p("source", t)}},
 		{ID: mgGuideInsertGeneration, Kind: stmt.Write, SQL: `INSERT INTO live_generations(id,source_id,name,tuner_count,channel_count,programme_count,created_at) VALUES(?,?,?,?,?,?,?)`, Params: []stmt.Param{p("generation", t), p("source", t), p("name", t), p("tuners", i), p("channels", i), p("programmes", i), p("created", t)}},
-		{ID: mgGuideInsertOperation, Kind: stmt.Write, SQL: `INSERT INTO live_operations(request_id,input_hash,source_id,generation_id,expected_revision,status,command_incarnation,create_operation_id,birth_request_digest,expected_generation,expected_choice_count,manifest_digest,stage_digest) VALUES(?,?,?,?,?,'staging',?,?,?,?,?,?,?)`, Params: []stmt.Param{p("request", t), p("input", t), p("source", t), p("generation", t), p("expected_revision", i), p("incarnation", b), p("operation", b), p("birth_digest", b), p("expected_generation", t), p("choices", i), p("manifest", b), p("initial", b)}},
+		{ID: mgGuideInsertOperation, Kind: stmt.Write, SQL: `INSERT INTO live_operations(request_id,input_hash,source_id,generation_id,expected_revision,status,command_incarnation,create_operation_id,birth_request_digest,expected_generation,expected_choice_count,manifest_digest,stage_digest) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, Params: []stmt.Param{p("request", t), p("input", t), p("source", t), p("generation", t), p("expected_revision", i), p("status", t), p("incarnation", b), p("operation", b), p("birth_digest", b), p("expected_generation", t), p("choices", i), p("manifest", b), p("initial", b)}},
 		// Existing product cap is 64 sources. Read at most 64 constant cells,
 		// through the PK range; no text hydration or full-table aggregation.
 		{ID: mgGuideCapacity, Kind: stmt.Read, SQL: `SELECT 1 FROM live_sources INDEXED BY sqlite_autoindex_live_sources_1 WHERE id>=? ORDER BY id LIMIT 64`, Params: []stmt.Param{p("first", t)}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_live_sources_1"}, Seeks: []string{"id>?"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "live_sources", Name: "sqlite_autoindex_live_sources_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}},
 	}
 	for j := range defs {
 		d := &defs[j]
+		d.Plan.Hot = true
 		d.Owner = "writer.mg.guide.begin"
 		d.CallSites = []string{"writer/mg_guide_begin.go", "writer/mg_guide_publication_effects.go"}
 		args := make([]any, len(d.Params))
@@ -133,7 +134,7 @@ func mgBeginGuideNative(ctx context.Context, t *commandTurn, b mgGuideBirth) (ou
 	if err = mgGuidePublicationChange(ctx, t, mgGuideInsertGeneration, m.generation, m.source, b.name, b.tuners, m.expected[0], m.expected[1], created); err != nil {
 		return out, err
 	}
-	if err = mgGuidePublicationChange(ctx, t, mgGuideInsertOperation, b.request, b.input, m.source, m.generation, m.expectedRevision, b.identity.Incarnation[:], b.identity.OperationID[:], b.requestDigest[:], m.previousGeneration, m.expected[2], m.expectedChain[:], p.chain[:]); err != nil {
+	if err = mgGuidePublicationChange(ctx, t, mgGuideInsertOperation, b.request, b.input, m.source, m.generation, m.expectedRevision, "staging", b.identity.Incarnation[:], b.identity.OperationID[:], b.requestDigest[:], m.previousGeneration, m.expected[2], m.expectedChain[:], p.chain[:]); err != nil {
 		return out, err
 	}
 	post, err := mgReadGuideNative(ctx, t, b.request)
