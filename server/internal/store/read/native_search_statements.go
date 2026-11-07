@@ -69,7 +69,7 @@ AND e.kind=p.kind AND e.library_id=p.library_id AND e.retired=0`, []stmt.Param{i
 	add("person.source.raw", `SELECT p.id,p.name,p.sort_name,p.revision FROM catalog_people AS p WHERE p.id=?`, []stmt.Param{i("person")}, []any{int64(1)}, point("p"))
 	personAccepted := unique(personKey)
 	personAccepted.PrimaryKeys = []string{"p", "s"}
-	add("person.accepted", `SELECT p.id,p.generation,p.title,p.title_fold,p.source_incarnation,p.source_revision,s.name
+	add("person.accepted", `SELECT p.id,p.generation,p.title,p.title_fold,p.source_incarnation,p.source_revision,s.name,s.sort_name
 FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_2
 CROSS JOIN search_publications AS p ON p.id=j.published_document_id
 CROSS JOIN catalog_people AS s ON s.id=j.person_id
@@ -86,7 +86,7 @@ AND s.search_incarnation=p.source_incarnation AND s.revision=p.source_revision`,
 	add("field.first", field+` ORDER BY f.ordinal LIMIT ?`, []stmt.Param{i("publication"), i("field"), i("limit")}, []any{int64(1), int64(4), int64(64)}, fp)
 	add("field.next", field+` AND f.ordinal>? ORDER BY f.ordinal LIMIT ?`, []stmt.Param{i("publication"), i("field"), i("after"), i("limit")}, []any{int64(1), int64(4), int64(-1), int64(64)}, fp)
 	// Common seven columns match the existing browse entity decoder exactly.
-	add("item", `SELECT e.id,e.sort_key,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,e.kind,e.library_id,e.metadata_incarnation,e.source_revision,e.credit_image_id,e.credit_owner_revision,e.album_id,e.show_id,e.artist_id,e.parent_id FROM catalog_entities AS e WHERE e.id=?`, []stmt.Param{i("entity")}, []any{int64(1)}, point("e"))
+	add("item", `SELECT e.id,e.sort_key,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,e.kind,e.library_id,e.metadata_incarnation,e.source_revision,e.credit_image_id,e.credit_owner_revision,e.album_id,e.show_id,e.artist_id,e.parent_id,e.year,e.added_at FROM catalog_entities AS e WHERE e.id=?`, []stmt.Param{i("entity")}, []any{int64(1)}, point("e"))
 
 	// Accepted credit image gate binds the current metadata incarnation and
 	// owner revision as well as the entity's current image pointer. Ordinal is

@@ -82,11 +82,7 @@ func cloneNativeContinuation(p *nativeContinuation) *nativeContinuation {
 func nativeReadFence(query browseQuery, in BrowseInput) (nativeSearchFence, SearchDisposition, error) {
 	var n nativeSearchFence
 	var err error
-	if in.Kind == 0 {
-		n.permission, err = readLibraryFence(query, in)
-	} else {
-		n.permission, err = readBrowseFence(query, in)
-	}
+	n.permission, err = readLibraryFence(query, in)
 	if err != nil {
 		return n, 0, err
 	}
@@ -174,6 +170,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	var ready bool
 	var draft FullSearchPage
 	var copies int64
+	var retained, checked []nativePolicyWitness
 	rawPositions := 0
 	calls := 0
 	lookup, lookupErr := r.snapshots.ReadForecasted(ctx, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: r.snapshots.NativeRowReservation(), MaxQueries: 4096}, func(scope *governor.ReadScope) error {
@@ -217,6 +214,19 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			return err
 		}
 		ready = true
+		retained, err = nativeRetainedPolicies(in.Retained, initial, query.Fold(), r)
+		if err != nil {
+			return err
+		}
+		for _, proof := range retained {
+			copies += 256 + int64(len(proof.witness))
+			if copies > 2<<20 {
+				return governor.ErrSnapshotBudget
+			}
+			if err = validateNativePolicy(q, in.View, initial.permission, proof); err != nil {
+				return err
+			}
+		}
 		if in.After != nil && in.After.native != nil && (in.After.native.fence != initial || in.After.native.limit != in.View.Limit) {
 			return ErrStale
 		}
@@ -254,13 +264,32 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	defer cancel()
 	finalIn := in.View
 	finalIn.Now = in.View.Now.Add(time.Since(started))
-	publication, finalErr := r.snapshots.Read(finalCtx, request, time.Until(deadline), func(scope *governor.ReadScope) error {
+	publication, finalErr := r.snapshots.ReadForecasted(finalCtx, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: r.snapshots.NativeRowReservation(), MaxQueries: 4096}, func(scope *governor.ReadScope) error {
 		q := func(name string, args ...any) ([][]any, error) {
 			cost.PublicationStatements++
 			if e := output.live.checkContext(scope.Context()); e != nil {
 				return nil, e
 			}
-			return scope.Query(readStatementID(name), args...)
+			rows, e := scope.Query(readStatementID(name), args...)
+			if e != nil {
+				return nil, e
+			}
+			copies += 4096
+			for _, row := range rows {
+				copies += 64 + int64(len(row))*32
+				for _, value := range row {
+					switch value := value.(type) {
+					case string:
+						copies += int64(len(value)) * 2
+					case []byte:
+						copies += int64(len(value)) * 3
+					}
+				}
+			}
+			if copies > 2<<20 {
+				return nil, governor.ErrSnapshotBudget
+			}
+			return rows, nil
 		}
 		current, _, e := nativeReadFence(q, finalIn)
 		if e != nil {
@@ -268,6 +297,23 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		}
 		if current != initial {
 			return ErrStale
+		}
+		checked = slices.Clone(retained)
+		for _, hit := range draft.Hits {
+			if !hit.permission.valid {
+				return ErrUnqualified
+			}
+			if !slices.Contains(checked, hit.permission) {
+				checked = append(checked, hit.permission)
+			}
+		}
+		if len(checked) > 60 {
+			return ErrInput
+		}
+		for _, proof := range checked {
+			if e := validateNativePolicy(q, finalIn, current.permission, proof); e != nil {
+				return e
+			}
 		}
 		return nil
 	})
@@ -298,7 +344,13 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	if !time.Now().Before(deadline) {
 		return FullSearchPage{}, cost, context.DeadlineExceeded
 	}
-	draft.Stamp = &FullSearchReadStamp{pool: r.pool, output: output.Grant, fence: initial, query: query.Fold(), started: started, clock: in.View.Now, deadline: deadline}
+	var policies []nativePolicyWitness
+	for _, hit := range draft.Hits {
+		if !slices.Contains(policies, hit.permission) {
+			policies = append(policies, hit.permission)
+		}
+	}
+	draft.Stamp = &FullSearchReadStamp{policies: policies, checked: checked, pool: r.pool, output: output.Grant, fence: initial, query: query.Fold(), started: started, clock: in.View.Now, deadline: deadline}
 	return draft, cost, nil
 }
 
@@ -332,7 +384,7 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 				if source == nil {
 					return FullSearchPage{}, ErrStale
 				}
-				visible, err := nativePersonVisible(q, scope, in.View, f.permission, hit.ID)
+				permission, visible, err := nativePersonVisibility(q, scope, in.View, f.permission, hit.ID)
 				if err != nil {
 					return FullSearchPage{}, err
 				}
@@ -340,6 +392,8 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 					return FullSearchPage{}, ErrStale
 				}
 				top.hits[i].PersonName = source.title
+				top.hits[i].SortKey = source.sortKey
+				top.hits[i].permission = permission
 				continue
 			}
 			source, err := nativeEntitySource(q, scope, hit.ID)
@@ -358,6 +412,9 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 			}
 			top.hits[i].Item, err = itemValue(source.item[:7])
 			if err != nil {
+				return FullSearchPage{}, err
+			}
+			if err = nativeHitFacts(&top.hits[i], source); err != nil {
 				return FullSearchPage{}, err
 			}
 		}
