@@ -78,9 +78,24 @@ func (usRestrictionsEffect) Format(s fmt.State, _ rune) {
 	formatUSPreparation(s, "usRestrictionsEffect")
 }
 
-// ownerGrant MUST be a same-turn native owner proof supplied by root, never a
-// caller flag. Descriptor equality only bounds purpose, not receipt disclosure.
-func applyUSRestrictions(ctx context.Context, turn *commandTurn, c *usRestrictionsCommand, ownerGrant bool) (out usRestrictionsEffect, err error) {
+// Additional DVR-enablement authority is a frame-bound current owner stamp,
+// never a caller boolean. Parent still owes current general manager authority.
+type usRestrictionsOwnerProof struct{ authority *usPolicyAuthorization }
+
+func (p *usRestrictionsOwnerProof) check(turn *commandTurn, issuer usPolicyIssuer) error {
+	if p == nil || p.authority == nil || p.authority.issuer != issuer {
+		return ErrDisclosureDenied
+	}
+	return p.authority.check(turn)
+}
+func (usRestrictionsOwnerProof) String() string   { return "usRestrictionsOwnerProof{redacted}" }
+func (usRestrictionsOwnerProof) GoString() string { return "usRestrictionsOwnerProof{redacted}" }
+func (usRestrictionsOwnerProof) Format(s fmt.State, _ rune) {
+	formatUSPreparation(s, "usRestrictionsOwnerProof")
+}
+
+// Descriptor equality bounds purpose; it does not establish current authority.
+func applyUSRestrictions(ctx context.Context, turn *commandTurn, c *usRestrictionsCommand, ownerProof *usRestrictionsOwnerProof) (out usRestrictionsEffect, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if turn == nil || turn.transaction == nil || c == nil {
 		return out, ErrInvalid
@@ -137,8 +152,10 @@ func applyUSRestrictions(ctx context.Context, turn *commandTurn, c *usRestrictio
 	} else if !r.target.present || current.revision != r.target.revision || current.allowDVR != r.target.currentDVR {
 		return out, ErrConflict
 	}
-	if r.allowDVR && !r.target.currentDVR && !ownerGrant {
-		return out, ErrInvalid
+	if r.allowDVR && !r.target.currentDVR {
+		if err = ownerProof.check(turn, r.issuer); err != nil {
+			return out, err
+		}
 	}
 	args := []any{r.ratingSystem, r.maximumAgeRating, int64(r.maximumAge), r.allowUnrated, r.labelsJSON, r.allowDownloads, r.allowLiveTV, r.allowDVR, r.allowWatchTogether, p.profile}
 	id := usRestrictionsInsert

@@ -167,7 +167,7 @@ func TestUSIssuerIdentityDigestEncoding(t *testing.T) {
 			if good && (err != nil || command == nil) || !good && (command != nil || !errors.Is(err, ErrInvalid)) {
 				t.Fatal("policy digest encoding", err)
 			}
-			proof, err := prepareUSOwnerAuthority(usOwnerAuthorityWitness{issuer: q.issuer, device: "device", installationID: "installation", tokenExpiry: "2026-11-07T12:00:00Z", horizon: "2026-11-08T12:00:00Z"})
+			proof, err := prepareUSOwnerAuthority(usOwnerAuthorityWitness{issuer: q.issuer, device: "device", installationID: "installation-synthetic-000000000001", tokenExpiry: "2026-11-07T12:00:00Z", horizon: "2026-11-08T12:00:00Z"})
 			if good && (err != nil || proof == nil) || !good && (proof != nil || !errors.Is(err, ErrInvalid)) {
 				t.Fatal("authority digest encoding", err)
 			}

@@ -7,15 +7,16 @@ import (
 )
 
 const (
-	usAuthorityPrincipalPIN stmt.ID = "us.authority.principal_pin"
-	usAuthorityFamily       stmt.ID = "us.authority.family"
-	usAuthorityPrincipal    stmt.ID = "us.authority.principal"
-	usAuthorityState        stmt.ID = "us.authority.state"
-	usAuthorityDevice       stmt.ID = "us.authority.device"
-	usAuthorityInstallation stmt.ID = "us.authority.installation"
-	usAuthorityGrant        stmt.ID = "us.authority.grant"
-	usAuthorityWaiting      stmt.ID = "us.authority.waiting"
-	usAuthorityFence        stmt.ID = "us.authority.fence"
+	usAuthorityCurrentServer stmt.ID = "us.authority.current_server"
+	usAuthorityPrincipalPIN  stmt.ID = "us.authority.principal_pin"
+	usAuthorityFamily        stmt.ID = "us.authority.family"
+	usAuthorityPrincipal     stmt.ID = "us.authority.principal"
+	usAuthorityState         stmt.ID = "us.authority.state"
+	usAuthorityDevice        stmt.ID = "us.authority.device"
+	usAuthorityInstallation  stmt.ID = "us.authority.installation"
+	usAuthorityGrant         stmt.ID = "us.authority.grant"
+	usAuthorityWaiting       stmt.ID = "us.authority.waiting"
+	usAuthorityFence         stmt.ID = "us.authority.fence"
 )
 
 // Owner/main-profile recipe only, unwired. Every string is compared to an owned
@@ -70,6 +71,7 @@ WHERE w.family_id=? AND w.scope_kind=? AND s.account_id=? AND s.member_incarnati
 AND s.profile_id=? AND s.profile_lifetime=? AND s.device_id=? AND s.lineage_id=?
 AND s.denied=0 AND w.confirmed_generation=s.generation`, Params: []stmt.Param{text("family"), text("kind"), text("account"), text("member"), text("profile"), text("lifetime"), text("device"), text("lineage")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"w", "s"}, Seeks: []string{"family_id=? AND scope_kind=?", "rowid=?"}}},
 	}
+	defs = append(defs, stmt.Definition{ID: usAuthorityCurrentServer, SQL: `SELECT 1 FROM configuration INDEXED BY sqlite_autoindex_configuration_1 WHERE key='id' AND value=?`, Params: []stmt.Param{text("server")}, Plan: point("configuration", "sqlite_autoindex_configuration_1", "pk", "key")})
 	// The second closed point distinguishes protected from absent principals
 	// without copying an unbounded PIN hash or extending the SQL grammar.
 	protected := defs[1]
@@ -77,14 +79,15 @@ AND s.denied=0 AND w.confirmed_generation=s.generation`, Params: []stmt.Param{te
 	protected.SQL = strings.Replace(protected.SQL, "p.pin_hash IS NULL", "p.pin_hash IS NOT NULL", 1)
 	defs = append(defs, protected)
 	cohorts := map[stmt.ID][]any{
-		usAuthorityFamily:       {"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "issuer-family", int64(1), "2026-11-08T00:00:00Z", "server", "issuer", "issuer-profile", int64(1), int64(1), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "issuer-device", "2026-11-08T00:00:00Z", "", "", "issuer-lineage"},
-		usAuthorityPrincipal:    {"issuer", int64(1), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "issuer-profile", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-		usAuthorityState:        {int64(1)},
-		usAuthorityDevice:       {"issuer-device", "issuer", "issuer-installation"},
-		usAuthorityInstallation: {"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "cccccccccccccccccccccccccccccccc"},
-		usAuthorityGrant:        {"issuer-family"},
-		usAuthorityWaiting:      {"issuer"},
-		usAuthorityFence:        {"issuer-family", "device", "issuer", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", "", "issuer-device", ""},
+		usAuthorityCurrentServer: {"server"},
+		usAuthorityFamily:        {"UwZhzs548lfFuN7ngGv2H3QswZNRnNtn9rugLkKkejA", "issuer-family", int64(1), "2026-11-08T00:00:00Z", "server", "issuer", "issuer-profile", int64(1), int64(1), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "issuer-device", "2026-11-08T00:00:00Z", "", "", "issuer-lineage"},
+		usAuthorityPrincipal:     {"issuer", int64(1), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "issuer-profile", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+		usAuthorityState:         {int64(1)},
+		usAuthorityDevice:        {"issuer-device", "issuer", "issuer-installation"},
+		usAuthorityInstallation:  {"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "cccccccccccccccccccccccccccccccc"},
+		usAuthorityGrant:         {"issuer-family"},
+		usAuthorityWaiting:       {"issuer"},
+		usAuthorityFence:         {"issuer-family", "device", "issuer", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", "", "issuer-device", ""},
 	}
 	cohorts[usAuthorityPrincipalPIN] = cohorts[usAuthorityPrincipal]
 	for n := range defs {

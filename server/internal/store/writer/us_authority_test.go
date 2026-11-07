@@ -13,7 +13,7 @@ func usOwnerAuthorityFixture(t *testing.T) (*executor, *stmt.Registry, *usLibrar
 	t.Helper()
 	w, _, input := usPolicyReceiptFixture(t)
 	now := w.now()
-	witness := usOwnerAuthorityWitness{issuer: input.request.issuer, device: "issuer-device", lineage: "issuer-lineage", installationID: "issuer-installation", tokenExpiry: now.Add(10 * time.Minute).UTC().Format(time.RFC3339), horizon: now.Add(time.Hour).UTC().Format(time.RFC3339)}
+	witness := usOwnerAuthorityWitness{issuer: input.request.issuer, device: "issuer-device", lineage: "issuer-lineage", installationID: "issuer-installation-synthetic-000001", tokenExpiry: now.Add(10 * time.Minute).UTC().Format(time.RFC3339), horizon: now.Add(time.Hour).UTC().Format(time.RFC3339)}
 	proof, err := prepareUSOwnerAuthority(witness)
 	if err != nil {
 		t.Fatal(err)
@@ -22,6 +22,7 @@ func usOwnerAuthorityFixture(t *testing.T) (*executor, *stmt.Registry, *usLibrar
 		sql  string
 		args []any
 	}{
+		{`INSERT INTO configuration(key,value) VALUES('id','server') ON CONFLICT(key) DO UPDATE SET value=excluded.value`, nil},
 		{`INSERT INTO accounts(id,username,password_hash,profile_id) VALUES('issuer','issuer',X'','issuer-profile')`, nil},
 		{`INSERT INTO direct_memberships(account_id,incarnation,role) VALUES('issuer',?,'owner')`, []any{witness.issuer.memberIncarnation}},
 		{`INSERT INTO direct_profiles(id,account_id,name,is_primary,lifetime) VALUES('issuer-profile','issuer','Issuer',1,?)`, []any{witness.issuer.profileLifetime}},
@@ -152,5 +153,19 @@ func TestUSOwnerAuthorityStoredIdentityDigest(t *testing.T) {
 	out, err = authorizeUSOwnerPolicy(t.Context(), turn, wrong, t.Context(), budget)
 	if out != nil || !errors.Is(err, ErrDisclosureDenied) {
 		t.Fatal("unmatched digest authorized", err)
+	}
+}
+
+func TestUSOwnerAuthorityCurrentServerBeforeSavedBinding(t *testing.T) {
+	w, r, input, proof := usOwnerAuthorityFixture(t)
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE configuration SET value='another-server' WHERE key='id'`); err != nil {
+		t.Fatal(err)
+	}
+	turn, synthetic, _ := usPolicyReceiptTurn(t, w, r, input)
+	delete(turn.steps, usSecurityOwner)
+	budget := usPolicyAuthorityBudget{memory: 4 << 20, receipts: 1 << 20, fixture: synthetic.nativeFixture}
+	auth, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), budget)
+	if auth != nil || !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal("old server scope reached saved owner lookup", err)
 	}
 }

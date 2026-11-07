@@ -83,7 +83,7 @@ func TestUSRestrictionsNativeCAS(t *testing.T) {
 	}
 }
 func TestUSRestrictionsZeroRelease(t *testing.T) {
-	v, err := applyUSRestrictions(t.Context(), nil, nil, false)
+	v, err := applyUSRestrictions(t.Context(), nil, nil, nil)
 	if err == nil || v != (usRestrictionsEffect{}) {
 		t.Fatal("invalid release")
 	}
@@ -92,5 +92,19 @@ func TestUSRestrictionsZeroRelease(t *testing.T) {
 	v, err = finishCommand(ctx, t.Context(), usRestrictionsEffect{profile: "private"}, nil)
 	if err == nil || v != (usRestrictionsEffect{}) {
 		t.Fatal("cancel release")
+	}
+}
+
+func TestUSRestrictionsOwnerProofRequiresCurrentFrame(t *testing.T) {
+	var proof *usRestrictionsOwnerProof
+	if err := proof.check(nil, usPolicyIssuer{}); err == nil {
+		t.Fatal("nil owner proof admitted")
+	}
+	proof = &usRestrictionsOwnerProof{authority: &usPolicyAuthorization{}}
+	if err := proof.check(nil, usPolicyIssuer{}); err == nil {
+		t.Fatal("unbound owner proof admitted")
+	}
+	if err := proof.check(nil, usPolicyIssuer{server: "another"}); err == nil {
+		t.Fatal("foreign issuer owner proof admitted")
 	}
 }
