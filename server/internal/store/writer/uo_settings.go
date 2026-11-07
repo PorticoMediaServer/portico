@@ -23,10 +23,12 @@ type uoSettingPatch struct {
 	value UOValue
 }
 type uoSettingsCommand struct {
+	expectedPolicyRevision             int64
 	expectedRevision, atMS, copyBudget int64
 	patch                              []uoSettingPatch
 }
 type uoSettingsEffect struct {
+	policyRevision                                      int64
 	revision, projectionGeneration, copiedVariableBytes int64
 	changed                                             bool
 	fields                                              []UOSettingKey
@@ -275,11 +277,42 @@ func applyUOSettings(ctx context.Context, t *commandTurn, q uoSettingsCommand) (
 			return out, ErrInvalid
 		}
 	}
+	hasCaps, changedCaps := seen[UOSettingPerAccountCap] || seen[UOSettingServerCap], false
+	if hasCaps {
+		if q.expectedPolicyRevision < 1 {
+			return out, ErrInvalid
+		}
+		out.policyRevision, err = wc008DraftInteger(ctx, t, "uo.settings.policy_revision")
+		if err != nil {
+			return out, err
+		}
+		if out.policyRevision != q.expectedPolicyRevision {
+			return out, ErrConflict
+		}
+		for _, c := range changes {
+			if c.patch.key == UOSettingPerAccountCap || c.patch.key == UOSettingServerCap {
+				changedCaps = true
+			}
+		}
+	}
 	if len(changes) == 0 {
 		return out, t.checkLifetimes(ctx)
 	}
 	if out.revision == math.MaxInt64 || out.projectionGeneration > out.revision {
 		return out, ErrResolveRequired
+	}
+	if changedCaps {
+		if out.policyRevision == math.MaxInt64 {
+			return out, ErrResolveRequired
+		}
+		n, e := wc008DraftInteger(ctx, t, "uo.settings.policy_cas", out.policyRevision)
+		if e != nil {
+			return out, e
+		}
+		if n != out.policyRevision+1 {
+			return out, ErrConflict
+		}
+		out.policyRevision = n
 	}
 	next, err := wc008DraftInteger(ctx, t, uoSettingsCAS, out.revision)
 	if err != nil {
@@ -349,6 +382,9 @@ func applyUOSettings(ctx context.Context, t *commandTurn, q uoSettingsCommand) (
 				return out, ErrInvalid
 			}
 			args := []any{native, q.atMS}
+			if k == UOSettingPerAccountCap || k == UOSettingServerCap {
+				args = []any{native, out.policyRevision}
+			}
 			if k == UOSettingName {
 				args = []any{native}
 			}
@@ -432,6 +468,9 @@ func uoSettingsDefinitions() []stmt.Definition {
 			typ = stmt.Integer
 		}
 		params := []stmt.Param{p("value", typ), p("at", stmt.Integer)}
+		if f.key == UOSettingPerAccountCap || f.key == UOSettingServerCap {
+			params[1] = p("revision", stmt.Integer)
+		}
 		if f.key == UOSettingName {
 			params = params[:1]
 		}
@@ -440,6 +479,8 @@ func uoSettingsDefinitions() []stmt.Definition {
 	}
 	add("uo.settings.log_retention_put", stmt.Write, `INSERT INTO server_log_retention(category,days) VALUES(?,?) ON CONFLICT(category) DO UPDATE SET days=excluded.days`, []stmt.Param{p("category", stmt.Text), p("days", stmt.Integer)}, "server_log_retention")
 	add("uo.settings.log_retention_delete", stmt.Write, `DELETE FROM server_log_retention WHERE category=?`, []stmt.Param{p("category", stmt.Text)}, "server_log_retention")
+	add("uo.settings.policy_revision", stmt.Read, `SELECT revision FROM playback_owner_policy WHERE singleton=1`, nil, "playback_owner_policy")
+	add("uo.settings.policy_cas", stmt.Write, `UPDATE playback_owner_policy SET revision=revision+1 WHERE singleton=1 AND revision=? RETURNING revision`, []stmt.Param{p("expected", stmt.Integer)}, "playback_owner_policy")
 	add(uoSettingsHead, stmt.Read, `SELECT r.revision,s.configuration_pending_revision FROM console_settings_revision AS r JOIN server_settings AS s ON s.singleton=r.singleton WHERE r.singleton=1`, nil, "r")
 	add(uoSettingsCAS, stmt.Write, `UPDATE console_settings_revision SET revision=revision+1 WHERE singleton=1 AND revision=? RETURNING revision`, []stmt.Param{p("expected", stmt.Integer)}, "console_settings_revision")
 	add(uoSettingsGeneration, stmt.Write, `UPDATE server_settings SET configuration_pending_revision=?,updated_ms=? WHERE singleton=1 AND configuration_pending_revision=?`, []stmt.Param{p("generation", stmt.Integer), p("at", stmt.Integer), p("expected", stmt.Integer)}, "server_settings")
@@ -455,4 +496,18 @@ func uoSettingsDefinitions() []stmt.Definition {
 	add(uoSettingsListDelete, stmt.Write, `DELETE FROM server_setting_lists WHERE setting=? AND position=?`, point, "server_setting_lists")
 	add(uoSettingsProjectionDelete, stmt.Write, `DELETE FROM server_configuration_pending WHERE field=? AND revision=? AND EXISTS(SELECT 1 FROM server_settings WHERE singleton=1 AND configuration_pending_revision=?) AND EXISTS(SELECT 1 FROM console_settings_revision WHERE singleton=1 AND revision=?)`, []stmt.Param{p("field", stmt.Text), p("pending", stmt.Integer), p("current", stmt.Integer), p("console", stmt.Integer)}, "server_configuration_pending")
 	return out
+}
+
+// Nullable ordinary resource cap. Unlimited is distinct from a positive limit.
+// MP admission and US member/security policy remain independent authorities.
+type uoNullableCap struct {
+	limited bool
+	limit   int64
+}
+
+func uoCapPatch(key UOSettingKey, cap uoNullableCap) (uoSettingPatch, error) {
+	if key != UOSettingPerAccountCap && key != UOSettingServerCap || cap.limited && (cap.limit < 1 || cap.limit > 1000000) || !cap.limited && cap.limit != 0 {
+		return uoSettingPatch{}, ErrInvalid
+	}
+	return uoSettingPatch{key, UOValue{Kind: UOInteger, Number: float64(cap.limit)}}, nil
 }

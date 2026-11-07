@@ -20,6 +20,7 @@ type uoSettingPoint struct {
 }
 type uoSettingsDocument struct {
 	Revision, ProjectionGeneration int64
+	PolicyRevision                 int64
 	Points                         []uoSettingPoint
 }
 
@@ -59,6 +60,19 @@ func uoReadSettings(ctx context.Context, s *governor.ReadScope, keys []UOSetting
 		return out, ErrUnqualified
 	}
 	out.Revision, out.ProjectionGeneration = rows[0][0].(int64), rows[0][1].(int64)
+	if seen[UOSettingPerAccountCap] || seen[UOSettingServerCap] {
+		rows, e := s.Query("read.uo.settings.policy_revision")
+		if e != nil {
+			return out, e
+		}
+		if len(rows) != 1 {
+			return out, ErrUnqualified
+		}
+		out.PolicyRevision = rows[0][0].(int64)
+		if out.PolicyRevision < 1 {
+			return out, ErrUnqualified
+		}
+	}
 	for _, k := range keys {
 		v, _ := UOSettingDefault(k)
 		if v.Kind == UORetention {
@@ -169,6 +183,7 @@ func UOSettingsDefinitions() []stmt.Definition {
 	add := func(id, sql string, params []stmt.Param, table string) {
 		out = append(out, stmt.Definition{ID: stmt.ID("read.uo.settings." + id), Owner: "store/read UO ordinary settings draft", CallSites: []string{"store/read/uo_settings.go"}, Kind: stmt.Read, SQL: sql, Params: params, Cohorts: []stmt.Cohort{{Name: "bounded_point", Bindings: uoStatementBindings(params)}}, Plan: uoSettingPointPlan(table)})
 	}
+	add("policy_revision", `SELECT revision FROM playback_owner_policy WHERE singleton=1`, nil, "playback_owner_policy")
 	add("head", `SELECT r.revision,s.configuration_pending_revision FROM console_settings_revision AS r JOIN server_settings AS s ON s.singleton=r.singleton WHERE r.singleton=1`, nil, "r")
 	field := []stmt.Param{p("field", stmt.Text)}
 	add("source_octets", `SELECT octet_length(source) FROM server_setting_sources WHERE field=?`, field, "server_setting_sources")
@@ -179,4 +194,21 @@ func UOSettingsDefinitions() []stmt.Definition {
 	add("list_octets", `SELECT octet_length(value) FROM server_setting_lists WHERE setting=? AND position=?`, point, "server_setting_lists")
 	add("list_value", `SELECT value FROM server_setting_lists WHERE setting=? AND position=?`, point, "server_setting_lists")
 	return out
+}
+
+// Zero in the finite point transport denotes native NULL (unlimited), not a zero cap.
+type uoNullableCap struct {
+	Limited bool
+	Limit   int64
+}
+
+func uoReadCap(p uoSettingPoint) (uoNullableCap, error) {
+	if p.Key != UOSettingPerAccountCap && p.Key != UOSettingServerCap {
+		return uoNullableCap{}, ErrInput
+	}
+	v, e := UOValidateSetting(p.Key, p.Value)
+	if e != nil {
+		return uoNullableCap{}, e
+	}
+	return uoNullableCap{Limited: v.Number != 0, Limit: int64(v.Number)}, nil
 }

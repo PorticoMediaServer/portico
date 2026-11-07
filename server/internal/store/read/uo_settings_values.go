@@ -6,15 +6,26 @@ import (
 	"net/url"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
 // Closed ordinary-settings vocabulary for LOCAL DRAFT 611/612. Security,
-// account authority, credentials, trust networks/proxies and caps are excluded.
+// account authority, credentials, trust networks/proxies are excluded.
 type UOSettingKey string
 
 const (
+	UOSettingPerAccountCap               UOSettingKey = "perAccountCap"
+	UOSettingServerCap                   UOSettingKey = "serverCap"
+	UOSettingRemoteBitrateLimitKbps      UOSettingKey = "remoteBitrateLimitKbps"
+	UOSettingConnectionLimit             UOSettingKey = "connectionLimit"
+	UOSettingAdvertiseUrl                UOSettingKey = "advertiseUrl"
+	UOSettingUploadCapacityKbps          UOSettingKey = "uploadCapacityKbps"
+	UOSettingPausedSessionTimeoutMinutes UOSettingKey = "pausedSessionTimeoutMinutes"
+	UOSettingAdvertisedInterface         UOSettingKey = "advertisedInterface"
+	UOSettingLanDiscoveryEnabled         UOSettingKey = "lanDiscoveryEnabled"
+
 	UOSettingLogRetention                       UOSettingKey = "logRetention"
 	UOSettingName                               UOSettingKey = "name"
 	UOSettingDownloadMaxQuality                 UOSettingKey = "downloadMaxQuality"
@@ -85,6 +96,16 @@ type uoSettingSpec struct {
 }
 
 var uoSettingSpecs = []uoSettingSpec{
+	{key: UOSettingPerAccountCap, def: UOValue{Kind: UOInteger}, low: 0, high: 1000000, ranged: true},
+	{key: UOSettingServerCap, def: UOValue{Kind: UOInteger}, low: 0, high: 1000000, ranged: true},
+	{key: UOSettingRemoteBitrateLimitKbps, def: UOValue{Kind: UOInteger}, low: 0, high: 200000, ranged: true},
+	{key: UOSettingConnectionLimit, def: UOValue{Kind: UOInteger}, low: 0, high: 65536, ranged: true},
+	{key: UOSettingAdvertiseUrl, def: UOValue{Kind: UOText}},
+	{key: UOSettingUploadCapacityKbps, def: UOValue{Kind: UOInteger}, low: 0, high: 100000000, ranged: true},
+	{key: UOSettingPausedSessionTimeoutMinutes, def: UOValue{Kind: UOInteger}, low: 0, high: 1440, ranged: true},
+	{key: UOSettingAdvertisedInterface, def: UOValue{Kind: UOText}},
+	{key: UOSettingLanDiscoveryEnabled, def: UOValue{Kind: UOBool, Bool: true}},
+
 	{key: UOSettingLogRetention, def: UOValue{Kind: UORetention, Retention: []UOLogRetention{}}},
 	{key: UOSettingName, def: UOValue{Kind: UOText, Text: "Portico"}},
 	{key: UOSettingDownloadMaxQuality, def: UOValue{Kind: UOText, Text: "original"}, options: uoDownloadQualities()},
@@ -191,6 +212,16 @@ func UOValidateSetting(k UOSettingKey, v UOValue) (UOValue, error) {
 		slices.SortFunc(v.Retention, func(a, b UOLogRetention) int { return strings.Compare(string(a.Category), string(b.Category)) })
 	case UOBool:
 	case UOInteger:
+		// Legacy remote bitrate input saturates at its endpoints; fractional and
+		// non-finite inputs still fail the typed integer contract.
+		if k == UOSettingRemoteBitrateLimitKbps && v.Number == float64(int64(v.Number)) {
+			if v.Number < 0 {
+				v.Number = 0
+			}
+			if v.Number > 200000 {
+				v.Number = 200000
+			}
+		}
 		if v.Number != float64(int64(v.Number)) || f.ranged && (v.Number < f.low || v.Number > f.high) || len(f.numbers) > 0 && !slices.Contains(f.numbers, v.Number) {
 			return UOValue{}, ErrInput
 		}
@@ -198,6 +229,23 @@ func UOValidateSetting(k UOSettingKey, v UOValue) (UOValue, error) {
 			return UOValue{}, ErrInput
 		}
 	case UOText:
+		if k == UOSettingAdvertiseUrl && v.Text != "" {
+			normalized, ok := uoAdvertiseOrigin(v.Text)
+			if !ok {
+				return UOValue{}, ErrInput
+			}
+			v.Text = normalized
+		}
+		if k == UOSettingAdvertisedInterface {
+			if len(v.Text) > 64 {
+				return UOValue{}, ErrInput
+			}
+			for _, r := range v.Text {
+				if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._:-@ ", r)) {
+					return UOValue{}, ErrInput
+				}
+			}
+		}
 		if k == UOSettingName && !uoText(v.Text, 100) {
 			return UOValue{}, ErrInput
 		}
@@ -238,6 +286,24 @@ func uoSettingURL(s string) bool {
 // Literal SQL selected by a finite compiled enum. No caller chooses a column.
 func uoSettingSQL(k UOSettingKey) (point, octets, update string) {
 	switch k {
+	case UOSettingServerCap:
+		return `SELECT coalesce(server_cap,0) FROM playback_owner_policy WHERE singleton=1`, `SELECT 0 FROM playback_owner_policy WHERE singleton=1`, `UPDATE playback_owner_policy SET server_cap=nullif(?,0) WHERE singleton=1 AND revision=?`
+	case UOSettingPerAccountCap:
+		return `SELECT coalesce(per_account_cap,0) FROM playback_owner_policy WHERE singleton=1`, `SELECT 0 FROM playback_owner_policy WHERE singleton=1`, `UPDATE playback_owner_policy SET per_account_cap=nullif(?,0) WHERE singleton=1 AND revision=?`
+	case UOSettingRemoteBitrateLimitKbps:
+		return `SELECT "remoteBitrateLimitKbps" FROM server_settings WHERE singleton=1`, `SELECT 0 FROM server_settings WHERE singleton=1`, `UPDATE server_settings SET "remoteBitrateLimitKbps"=?,updated_ms=? WHERE singleton=1`
+	case UOSettingConnectionLimit:
+		return `SELECT "connectionLimit" FROM server_settings WHERE singleton=1`, `SELECT 0 FROM server_settings WHERE singleton=1`, `UPDATE server_settings SET "connectionLimit"=?,updated_ms=? WHERE singleton=1`
+	case UOSettingAdvertiseUrl:
+		return `SELECT "advertiseUrl" FROM server_settings WHERE singleton=1`, `SELECT octet_length("advertiseUrl") FROM server_settings WHERE singleton=1`, `UPDATE server_settings SET "advertiseUrl"=?,updated_ms=? WHERE singleton=1`
+	case UOSettingUploadCapacityKbps:
+		return `SELECT "uploadCapacityKbps" FROM server_settings WHERE singleton=1`, `SELECT 0 FROM server_settings WHERE singleton=1`, `UPDATE server_settings SET "uploadCapacityKbps"=?,updated_ms=? WHERE singleton=1`
+	case UOSettingPausedSessionTimeoutMinutes:
+		return `SELECT "pausedSessionTimeoutMinutes" FROM server_settings WHERE singleton=1`, `SELECT 0 FROM server_settings WHERE singleton=1`, `UPDATE server_settings SET "pausedSessionTimeoutMinutes"=?,updated_ms=? WHERE singleton=1`
+	case UOSettingAdvertisedInterface:
+		return `SELECT "advertisedInterface" FROM server_settings WHERE singleton=1`, `SELECT octet_length("advertisedInterface") FROM server_settings WHERE singleton=1`, `UPDATE server_settings SET "advertisedInterface"=?,updated_ms=? WHERE singleton=1`
+	case UOSettingLanDiscoveryEnabled:
+		return `SELECT "lanDiscoveryEnabled" FROM server_settings WHERE singleton=1`, `SELECT 0 FROM server_settings WHERE singleton=1`, `UPDATE server_settings SET "lanDiscoveryEnabled"=?,updated_ms=? WHERE singleton=1`
 	case UOSettingName:
 		return `SELECT value FROM configuration WHERE key='name'`, `SELECT octet_length(value) FROM configuration WHERE key='name'`, `INSERT INTO configuration(key,value) VALUES('name',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`
 	case UOSettingDownloadMaxQuality:
@@ -440,6 +506,9 @@ func uoDownloadQualities() []string {
 	return out
 }
 func uoSettingValuePlan(k UOSettingKey) stmt.Plan {
+	if k == UOSettingPerAccountCap || k == UOSettingServerCap {
+		return stmt.Plan{Hot: true, PrimaryKeys: []string{"playback_owner_policy"}}
+	}
 	if k == UOSettingName {
 		return stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_configuration_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "configuration", Name: "sqlite_autoindex_configuration_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "key", Collation: "BINARY"}}}}}
 	}
@@ -448,4 +517,19 @@ func uoSettingValuePlan(k UOSettingKey) stmt.Plan {
 
 func uoLogCategories() []UOLogCategory {
 	return []UOLogCategory{UOLogClient, UOLogNetwork, UOLogPlayback, UOLogScan, UOLogServer}
+}
+
+func uoAdvertiseOrigin(raw string) (string, bool) {
+	s := strings.TrimRight(strings.TrimSpace(raw), "/")
+	u, e := url.Parse(s)
+	if e != nil || !uoSettingURL(s) || u.Hostname() == "" || u.Path != "" || u.RawPath != "" || u.RawQuery != "" || u.ForceQuery || u.Opaque != "" || len(s) > 300 || strings.ContainsAny(s, "\\\r\n\t ") {
+		return "", false
+	}
+	if u.Port() != "" {
+		n, e := strconv.Atoi(u.Port())
+		if e != nil || n < 1 || n > 65535 {
+			return "", false
+		}
+	}
+	return strings.ToLower(s), true
 }
