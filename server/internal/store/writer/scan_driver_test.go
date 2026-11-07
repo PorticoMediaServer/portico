@@ -48,6 +48,7 @@ func scanDriverFixtureOnOpening(t *testing.T, o *scanOpening, owner *stateowners
 	t.Helper()
 	path := o.binding.path
 	defs := append(scanRunLifecycleDefinitions(), scanBirthDefinitions()...)
+	defs = append(defs, scanSnapshotByteDefinitions()...)
 	if len(selections) == 1 {
 		defs = scanLifecycleCommandDefinitions()
 		if initialize {
@@ -68,7 +69,7 @@ func scanDriverFixtureOnOpening(t *testing.T, o *scanOpening, owner *stateowners
 	profile := governedFixtureProfile{recipe, 8 << 20}
 	var extra governor.Amounts
 	if len(selections) == 1 && selections[0] == scanIssuerRuntimeFixture {
-		profile.memoryBytes = int64(scanLifecycleHistoryBytes) + (8 << 20)
+		profile.memoryBytes = 8 << 20
 		extra[governor.CPUMilli], extra[governor.IOBytes] = 100, 64<<20
 	}
 	g, a, wal, request := governedFixtureResources(t, o.executor.now, extra, profile, profile)
@@ -89,8 +90,8 @@ func TestScanDriverIssuerFixtureCapturesCurrentSource(t *testing.T) {
 	// Protocol only: same actual Capture/governor and existing recipe/footprint;
 	// this supplies no production source, issuance or acceptance qualification.
 	f := newScanDriverFixture(t, scanIssuerStatementFixture)
-	if len(f.registry.Manifest()) != 30 {
-		t.Fatal("issuer fixture changed its closed 30-ID inventory")
+	if len(f.registry.Manifest()) != 36 {
+		t.Fatal("issuer fixture changed its closed 36-ID inventory")
 	}
 	turn := f.turn(t, InventoryCreate, f.create.scope.runID)
 	facts, err := captureScanSource(t.Context(), turn, 7, "lifecycle-library", "lifecycle-new-source")
@@ -368,6 +369,7 @@ func TestScanDriverRetentionRejectsUnknownAndReplacedRegistries(t *testing.T) {
 		t.Fatal(err)
 	}
 	defs := append(scanRunLifecycleDefinitions(), scanBirthDefinitions()...)
+	defs = append(defs, scanSnapshotByteDefinitions()...)
 	other := nativeInventoryFixtureRegistry(t, d.opening.executor, defs, "scan_driver_test.go", "scan_run_lifecycle_test.go")
 	if err := d.retention.check(d.opening.executor, other); err == nil {
 		t.Fatal("registry replacement preserved birth retention witness")

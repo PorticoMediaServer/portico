@@ -67,6 +67,16 @@ func lookupScanRunLifecycle(ctx context.Context, turn *commandTurn, q ScanReceip
 			return value, invalid("scan_lifecycle_history_steps")
 		}
 	}
+	proof, err := readScanLifecycleByteProof(ctx, turn, q, kind)
+	if err != nil {
+		return value, err
+	}
+	if proof.decision != receiptReplay {
+		if proof.decision == receiptFresh && kind == InventoryCreate {
+			return value, ErrResolveRequired
+		}
+		return scanLifecycleReceiptLookup{owner: proof.prefix.owner, decision: proof.decision}, nil
+	}
 	// Every compiled point must yield exactly zero or one row, including
 	// driver/projection fault controls; never silently discard a second row.
 	scanPoint := func(rows *commandRows, dest ...any) error {
@@ -119,6 +129,11 @@ func lookupScanRunLifecycle(ctx context.Context, turn *commandTurn, q ScanReceip
 	copy(original.CreateOperationID[:], createOperation)
 	copy(original.CreateRequestDigest[:], createDigest)
 	original.FollowSymlinks = follow == 1
+	if owner != proof.prefix.owner || original.CreateOperationID != proof.prefix.createOperation || original.CreateRequestDigest != proof.prefix.createDigest ||
+		!proof.run.matchesHistoryOriginal(original, inc) {
+		return value, ErrConflict
+	}
+
 	if owner.incarnation != q.Receipt.Identity.Incarnation {
 		_, err = classifyReceipt(expected, kind, owner, receiptFacts{})
 		return value, err
@@ -174,6 +189,10 @@ func lookupScanRunLifecycle(ctx context.Context, turn *commandTurn, q ScanReceip
 	if decision != receiptReplay {
 		return out, nil // floor FIRST, including a physically drained scalar body
 	}
+	if !scanReceiptIdentityMatches(proof.facts, operation, request, savedDigest, savedKind, count) ||
+		!proof.header.matchesInventoryHeader(operation, request, savedKind, sourceID, sourceIncarnation, sourceRevision, nextCursor, savedDigest) {
+		return value, ErrResolveRequired
+	}
 	if sourceRevision.Valid || nextCursor != "" || count != 0 || sourceID != original.SourceID || sourceIncarnation != original.SourceIncarnation {
 		return value, ErrResolveRequired
 	}
@@ -192,6 +211,11 @@ func lookupScanRunLifecycle(ctx context.Context, turn *commandTurn, q ScanReceip
 		&refusal[0], &refusal[1], &refusal[2], &refusal[3], &refusal[4], &refusal[5], &refusal[6], &refusal[7])
 	if err != nil {
 		return value, errors.Join(ErrResolveRequired, err)
+	}
+	if !proof.header.matches(operation, request, savedKind, sourceID, sourceIncarnation, sourceRevision, nextCursor, savedDigest,
+		texts[0], texts[1], texts[2], key, key2, key3,
+		refusal[0], refusal[1], refusal[2], refusal[3], refusal[4], refusal[5], refusal[6], refusal[7]) {
+		return value, ErrResolveRequired
 	}
 	for _, n := range numbers {
 		if !n.Valid {

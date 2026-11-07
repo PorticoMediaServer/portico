@@ -8,7 +8,7 @@ import (
 
 func TestScanLifecycleFiniteUseInventory(t *testing.T) {
 	defs := scanLifecycleCommandDefinitions()
-	if len(defs) != 30 {
+	if len(defs) != 36 {
 		t.Fatal("finite lifecycle provider changed", len(defs))
 	}
 	seen := map[stmt.ID]bool{}

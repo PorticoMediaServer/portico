@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true, "scanByteVector": true, "scanLifecycleByteProof": true, "scanReceiptPrefix": true, "scanMemberByteProof": true, "scanSnapshotByteProof": true, "scanRunSnapshot": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -31,7 +31,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		if !hasContext {
 			continue
 		}
-		needs := fn.Name.Name == "disclose" || strings.HasPrefix(fn.Name.Name, "checkInventory") || fn.Name.Name == "requireInventoryMemory" || fn.Name.Name == "inventoryTimeMS" || fn.Name.Name == "searchImageEngine"
+		needs := fn.Name.Name == "disclose" || strings.HasPrefix(fn.Name.Name, "checkInventory") || fn.Name.Name == "readScanReceiptIdentity" || fn.Name.Name == "requireScanByteMemory" || fn.Name.Name == "requireInventoryMemory" || fn.Name.Name == "inventoryTimeMS" || fn.Name.Name == "searchImageEngine"
 		needs = needs || fn.Name.Name == "scanCreateTimeMS" || fn.Name.Name == "scanClaimTimeMS" || fn.Name.Name == "requireScanLifecycleMemory"
 		needs = needs || fn.Name.Name == "applyInventoryCreate" || fn.Name.Name == "applyInventoryClaim" || fn.Name.Name == "persistScanRunLifecycleResult"
 		for _, r := range fn.Type.Results.List {
@@ -251,6 +251,9 @@ func TestEveryCommandReleaseUsesSharedFinish(t *testing.T) {
 }
 func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 	for _, body := range []string{
+		`func byteProofBypass(ctx context.Context)(out scanByteVector,err error){return out,nil}`,
+		`func readScanReceiptIdentity(ctx context.Context)(out receiptFacts,err error){return out,nil}`,
+		`func requireScanByteMemory(ctx context.Context)(err error){return nil}`,
 		`func newScanDriver(ctx context.Context)(out *ScanDriver,err error){return out,nil}`,
 		`func keepPreparation(ctx context.Context)(err error){return nil}`,
 		`func prepareWork(ctx context.Context)(out *scanDriverWork,err error){return out,nil}`,

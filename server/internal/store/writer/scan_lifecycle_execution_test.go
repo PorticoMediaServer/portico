@@ -28,6 +28,7 @@ func scanLifecycleExecutionFixture(t *testing.T) (*executor, *stmt.Registry, *in
 		t.Fatal(err)
 	}
 	defs := append(scanRunLifecycleDefinitions(), scanRunLifecycleHistoryDefinitions()...)
+	defs = append(defs, scanLifecycleByteDefinitions()...)
 	for _, def := range scanReceiptDefinitions() {
 		switch def.ID {
 		case scanReceiptLookup, scanReceiptAck, scanReceiptReclaimKey, scanReceiptReclaimHeader:

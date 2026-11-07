@@ -37,7 +37,7 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 		len(request.RunID) > maxCanonicalRequestBytes || !utf8.ValidString(request.RunID) || request.Receipt.Identity.Sequence <= 0 {
 		return inventoryReceiptLookup{}, ErrInvalid
 	}
-	for _, id := range []stmt.ID{scanReceiptOwner, scanReceiptLookup, scanReceiptResults} {
+	for _, id := range []stmt.ID{scanReceiptOwner, scanReceiptLookup, scanReceiptResults, scanReceiptIdentityPrefix, scanReceiptByteLengths, scanMemberKeys, scanMemberByteLengths} {
 		if _, ok := turn.steps[id]; !ok {
 			return inventoryReceiptLookup{}, invalid("inventory_receipt_steps")
 		}
@@ -51,44 +51,13 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 		_, err := classifyReceipt(expected, InventoryAccept, owner, receiptFacts{})
 		return inventoryReceiptLookup{}, err
 	}
-	row, err := turn.queryRow(ctx, turn.steps[scanReceiptLookup].statementStep,
-		request.RunID, expected.command.Incarnation[:], expected.command.Sequence)
+	facts, err := readScanReceiptIdentity(ctx, turn, request)
 	if err != nil {
-		return inventoryReceiptLookup{}, err
-	}
-	var operation, digest, resultDigest []byte
-	var kind string
-	var sourceRevision sql.NullString
-	v := inventoryAcceptResult{RunID: request.RunID}
-	err = row.Scan(&operation, &digest, &kind, &v.AcceptedRunRevision, &v.AppliedMS,
-		&v.SourceID, &v.SourceIncarnation, &sourceRevision, &v.NextCursor, &v.ResultCount, &resultDigest)
-	var facts receiptFacts
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	} else if err == nil {
-		if len(operation) != 16 || len(digest) != 32 || len(resultDigest) != 32 {
-			return inventoryReceiptLookup{}, ErrResolveRequired
-		}
-		facts.exists, facts.resultCount = true, v.ResultCount
-		facts.identity.command = expected.command
-		copy(facts.identity.command.OperationID[:], operation)
-		copy(facts.identity.digest[:], digest)
-		copy(facts.resultDigest[:], resultDigest)
-		switch kind {
-		case scanInventoryReceiptKind:
-			facts.kind = InventoryAccept
-		case "inventory_create":
-			facts.kind = InventoryCreate
-		case "inventory_claim":
-			facts.kind = InventoryClaim
-		}
-	}
-	if err != nil {
-		return inventoryReceiptLookup{}, err
+		return result, err
 	}
 	decision, err := classifyReceipt(expected, InventoryAccept, owner, facts)
 	if err != nil {
-		return inventoryReceiptLookup{}, err
+		return result, err
 	}
 	out := inventoryReceiptLookup{owner: owner, decision: decision}
 	if decision != receiptReplay {
@@ -97,20 +66,47 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 		}
 		return out, nil // floor precedes any possibly drained result-cohort decode
 	}
-	// Lifecycle uses a genuine SQL NULL and a distinct closed result. Classify
-	// its purpose before decoding an N1 observation revision; never coalesce it
-	// into empty TEXT or return a conversion error in place of kind conflict.
-	if !sourceRevision.Valid {
-		return inventoryReceiptLookup{}, ErrResolveRequired
+	// Only the replay branch copies saved payloads. Fixed identity and floor
+	// classification above never decode a lifecycle NULL as an N1 revision.
+	if facts.resultCount <= 0 {
+		return result, ErrResolveRequired
+	}
+	if facts.resultCount > inventoryReceiptMaxMembers {
+		return result, &Refusal{Code: RefusalUnqualified}
+	}
+	headerBytes, err := readScanByteLengths(ctx, turn, scanReceiptByteLengths, request.RunID, expected.command.Incarnation[:], expected.command.Sequence)
+	if err != nil {
+		return result, err
+	}
+	memberBytes, err := readScanMemberByteProof(ctx, turn, request, facts.resultCount)
+	if err != nil {
+		return result, err
+	}
+	required, err := scanActualByteForecast(headerBytes, memberBytes.bytes)
+	if err != nil {
+		return result, err
+	}
+	if err = requireScanByteMemory(ctx, turn, required); err != nil {
+		return result, err
+	}
+	rows, err := turn.query(ctx, turn.steps[scanReceiptLookup].statementStep, request.RunID, expected.command.Incarnation[:], expected.command.Sequence)
+	if err != nil {
+		return result, err
+	}
+	var operation, digest, savedDigest []byte
+	var kind string
+	var sourceRevision sql.NullString
+	v := inventoryAcceptResult{RunID: request.RunID}
+	if err = scanBytePoint(rows, &operation, &digest, &kind, &v.AcceptedRunRevision, &v.AppliedMS,
+		&v.SourceID, &v.SourceIncarnation, &sourceRevision, &v.NextCursor, &v.ResultCount, &savedDigest); err != nil {
+		return result, err
+	}
+	if !headerBytes.matchesInventoryHeader(operation, digest, kind, v.SourceID, v.SourceIncarnation, sourceRevision, v.NextCursor, savedDigest) ||
+		!scanReceiptIdentityMatches(facts, operation, digest, savedDigest, kind, v.ResultCount) || !sourceRevision.Valid {
+		return result, ErrResolveRequired
 	}
 	v.SourceRevision = sourceRevision.String
-	if v.ResultCount <= 0 {
-		return inventoryReceiptLookup{}, ErrResolveRequired
-	}
-	if v.ResultCount > inventoryReceiptMaxMembers {
-		return inventoryReceiptLookup{}, &Refusal{Code: RefusalUnqualified}
-	}
-	rows, err := turn.query(ctx, turn.steps[scanReceiptResults].statementStep, request.RunID,
+	rows, err = turn.query(ctx, turn.steps[scanReceiptResults].statementStep, request.RunID,
 		expected.command.Incarnation[:], expected.command.Sequence, v.ResultCount+1)
 	if err != nil {
 		return inventoryReceiptLookup{}, err
@@ -123,7 +119,8 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 				&member.LibraryID, &member.SubjectID, &member.AssetID, &member.AcceptedAssetRevision); err != nil {
 				return err
 			}
-			if int64(len(v.Members)) >= v.ResultCount || member.LibraryID != request.LibraryID {
+			if int64(len(v.Members)) >= v.ResultCount || member.LibraryID != request.LibraryID ||
+				[3]int64{member.InputOrdinal, member.ChildKind, member.ChildOrdinal} != memberBytes.keys || !memberBytes.bytes.matches(member.ObjectID) {
 				return ErrResolveRequired
 			}
 			v.Members = append(v.Members, member)

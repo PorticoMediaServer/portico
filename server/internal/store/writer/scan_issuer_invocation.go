@@ -152,7 +152,7 @@ func runScanIssuerTurn(ctx context.Context, turn *commandTurn, in *inventoryInvo
 	if v.action == scanIssuerSnapshot || v.action == scanIssuerCurrent {
 		// This is a current driver snapshot, not historical resolution or an
 		// Applied claim. The native floor must settle all preceding commands.
-		out.run, err = readScanRunSnapshot(ctx, turn, q.RunID)
+		out.run, err = readCheckedScanRunSnapshot(ctx, turn, q.RunID)
 		if err == nil && (out.run.run.scope.commandIncarnation != q.Receipt.Identity.Incarnation || out.run.run.scope.libraryID != q.LibraryID ||
 			out.run.run.scope.libraryKey != q.LibraryKey || out.run.run.acknowledgedSequence != out.run.run.lastSequence || q.Receipt.Identity.Sequence > out.run.run.acknowledgedSequence) {
 			err = ErrResolveRequired
