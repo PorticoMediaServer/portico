@@ -137,15 +137,27 @@ func TestBasicMediaStatementPlans(t *testing.T) {
 			if got, err := stageBasicStreamFact(tx.ctx, turn, in); err != nil || got != (basicFamilyProgress{51, 7, 1, 0}) {
 				t.Fatal("owner stream fact population", got, err)
 			}
+			basicMediaCommit(t, turn)
 			for _, frame := range families {
-				got, err := stageBasicMediaRows(tx.ctx, turn, frame, 0, int64(len(frame.rows)))
+				// Each existing synthetic component recipe funds one owner body,
+				// as in the owner controls; no aggregate forecast is invented here.
+				turn = basicComponentTurn(t, w, basicMediaTestDefs())
+				got, err := stageBasicMediaRows(t.Context(), turn, frame, 0, int64(len(frame.rows)))
 				if err != nil || got.rowsStaged != int64(len(frame.rows)) || got.sealed != 0 {
 					t.Fatal("owner stage population", frame.family, got, err)
 				}
-				got, err = sealBasicMediaFamily(tx.ctx, turn, frame)
+				basicMediaCommit(t, turn)
+				turn = basicComponentTurn(t, w, basicMediaTestDefs())
+				got, err = sealBasicMediaFamily(t.Context(), turn, frame)
 				if err != nil || got.rowsStaged != int64(len(frame.rows)) || got.sealed != 1 {
 					t.Fatal("owner seal population", frame.family, got, err)
 				}
+				basicMediaCommit(t, turn)
+			}
+			turn = basicComponentTurn(t, w, basicMediaTestDefs())
+			tx = turn.transaction
+			if _, err := sqliteconn.Assert(tx.ctx, tx.conn, config); err != nil {
+				t.Fatal(err)
 			}
 			name = "rows_after_owner_stage_and_seal"
 		}
