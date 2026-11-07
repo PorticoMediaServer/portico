@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"os"
 	"reflect"
 	"testing"
 	"testing/synctest"
@@ -20,6 +21,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
+
+func TestMain(m *testing.M) { os.Exit(schematest.Run(m)) }
 
 func TestMGLCRetainedNativeScope(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
