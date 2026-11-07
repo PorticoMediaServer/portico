@@ -18,10 +18,11 @@ type rsForecastSource interface {
 // Common initial/final fences retain their existing separate read recipe.
 // This adapter creates no grant, ledger, queue, pool or lifecycle authority.
 type rsByteWindow struct {
-	source  browseSnapshots
-	pending bool
-	bytes   int64
-	calls   uint16
+	source      browseSnapshots
+	pending     bool
+	bytes       int64
+	calls       uint16
+	goCopyBytes int64
 }
 
 func (w *rsByteWindow) NativeRowReservation() int64 { return w.source.NativeRowReservation() }
@@ -39,7 +40,7 @@ func (w *rsByteWindow) Read(ctx context.Context, r governor.Request, budget time
 		if !ok {
 			return governor.SnapshotResult{}, ErrInput
 		}
-		return source.ReadForecasted(ctx, r, budget, governor.SnapshotForecast{NativeRowBytes: w.bytes, MaxQueries: w.calls}, read)
+		return source.ReadForecasted(ctx, r, budget, governor.SnapshotForecast{NativeRowBytes: w.bytes, MaxQueries: w.calls, GoCopyBytes: w.goCopyBytes}, read)
 	}
 	result, err := w.source.Read(ctx, r, budget, read)
 	if err != nil || result.Refusal != nil {
