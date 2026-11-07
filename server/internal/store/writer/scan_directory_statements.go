@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	scanDirectoryActive         stmt.ID = "scan.directory.active"
 	scanDirectoryRunLengths     stmt.ID = "scan.directory.run_lengths"
 	scanDirectoryJobLengths     stmt.ID = "scan.directory.job_lengths"
 	scanDirectoryRootLengths    stmt.ID = "scan.directory.root_lengths"
@@ -32,7 +33,7 @@ func scanDirectoryDefinitions() []stmt.Definition {
 	}
 	for _, d := range scanRunLifecycleDefinitions() {
 		switch d.ID {
-		case scanLifecycleRun, scanLifecycleJob, scanLifecycleRoot, scanLifecycleActive:
+		case scanLifecycleRun, scanLifecycleJob, scanLifecycleRoot:
 			defs = append(defs, d)
 		}
 	}
@@ -79,6 +80,7 @@ func scanDirectoryOwnDefinitions() []stmt.Definition {
 	runFields := "job_id,original_library_key,original_resolved_root,source_id,root_incarnation,root_identity,phase,finished_at,scan_mode"
 	receiptFields := "source_id,source_incarnation,source_revision,next_cursor,cursor_kind,cursor_directory_path,cursor_directory_identity,cursor_directory_revision,cursor_expected_payload,cursor_next_payload,result_directory_path,result_directory_identity,result_directory_revision,result_directory_cursor,result_directory_state"
 	defs := []stmt.Definition{
+		{ID: scanDirectoryActive, Kind: stmt.Read, SQL: `SELECT 1 FROM inventory_source_active WHERE source_id=? AND job_id=?`, Params: []stmt.Param{text("source_id"), text("run_id")}, Plan: point("sqlite_autoindex_inventory_source_active_1", "source_id=?"), Cohorts: []stmt.Cohort{{Name: "active_run", Bindings: []any{"lifecycle-source", "lifecycle-run"}}, {Name: "wrong_run", Bindings: []any{"lifecycle-source", "other"}}}},
 		{ID: scanDirectoryRunLengths, Kind: stmt.Read, SQL: `SELECT ` + sumBytes(runFields) + ` FROM inventory_runs WHERE job_id=?`, Params: []stmt.Param{text("run_id")}, Plan: runPlan, Cohorts: []stmt.Cohort{{Name: "original_bytes", Bindings: []any{"lifecycle-run"}}}},
 		{ID: scanDirectoryJobLengths, Kind: stmt.Read, SQL: `SELECT ` + sumBytes("library_id,status,created_at,error") + ` FROM jobs WHERE id=?`, Params: []stmt.Param{text("run_id")}, Plan: point("sqlite_autoindex_jobs_1", "id=?"), Cohorts: []stmt.Cohort{{Name: "job_bytes", Bindings: []any{"lifecycle-run"}}}},
 		{ID: scanDirectoryRootLengths, Kind: stmt.Read, SQL: `SELECT ` + sumBytes("identity,revision,cursor,state") + ` FROM inventory_directories WHERE job_id=? AND relative_path=?`, Params: []stmt.Param{text("run_id"), text("path")}, Plan: rootPlan, Cohorts: []stmt.Cohort{{Name: "root_bytes", Bindings: []any{"lifecycle-run", "."}}}},
@@ -121,7 +123,7 @@ FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_
 
 func directoryStatementMaxUses(id stmt.ID) int {
 	switch id {
-	case inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptAck, scanLifecycleRun, scanLifecycleJob, scanLifecycleActive,
+	case inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptAck, scanLifecycleRun, scanLifecycleJob, scanDirectoryActive,
 		scanSourcePayload, scanSourcePolicy, scanLibraryRoot, inventoryFreshLibrary,
 		scanDirectoryJobLengths, scanFreshSource, scanDirectoryPath, scanDirectoryVisited, scanDirectoryInsert, scanDirectoryDiscoverCAS, scanDirectoryEOFCAS, scanDirectoryRunCAS, scanDirectoryReceiptInsert:
 		return 1
