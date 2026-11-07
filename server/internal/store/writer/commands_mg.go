@@ -1,4 +1,10 @@
 package writer
 
-// MG owns explicit CommandID constants 800–899. Add its descriptors here.
-var mgCommands = commandRegistration{owner: "MG"}
+// MG owns explicit command IDs 800–899. Descriptors declare compiled purposes;
+// no public driver, authority, recipe, SQL registration or runtime enablement.
+var mgCommands = commandRegistration{owner: "MG", descriptors: mgDomainDescriptors()}
+
+func mgDomainDescriptors() []Descriptor {
+	out := mgCaptureDescriptors()
+	return append(out, mgLCDescriptors()...)
+}
