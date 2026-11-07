@@ -26,15 +26,43 @@ The original `-run` filter reaches Go unchanged; `-skip` excludes parents assign
 | hn-issuer | issuer-source-octets.json |
 | hn-issuer-library | issuer-library-root-octets.json |
 | hn-n1-preflights | n1-byte-preflights.json |
-| hn-autoindexes | autoindexes.json |
 | hn-scan | scan-inventory-accept.json, scan-inventory-accept-fk.json.gz |
 | hn-scan-fresh | scan-inventory-fresh.json, scan-inventory-fresh-fk.json.gz |
-| hn-wc-reclaim-composition | wc-reclaim-composition.json, wc-reclaim-composition-fk.json.gz |
-| hn-wc-security-composition | wc-security-composition.json, wc-security-composition-fk.json.gz |
-| hn-wc-progress-composition | wc-progress-composition.json, wc-progress-composition-fk.json.gz |
 | hn-wc-progress | wc-progress-capture_start.json, wc-progress-pending_drain.json, wc-progress-fk.json.gz |
 | hn-browse | browse-plans.json.gz |
 | hn-foreground | foreground-plans.json.gz |
+| hn-autoindex-fences | autoindex-fences.json.gz |
+| hn-autoindex-keysets | autoindex-keysets.json.gz |
+| hn-autoindex-inclusive | autoindex-inclusive.json.gz |
+| hn-scan-object | scan-inventory-object.json, scan-inventory-object-fk.json.gz |
+| hn-disclosure | scan-inventory-disclosure.json |
+| hn-fresh-library | scan-inventory-fresh-library.json |
+| hn-lifecycle | scan-run-lifecycle.json, scan-run-lifecycle-fk.json.gz |
+| hn-lifecycle-history | scan-run-lifecycle-history.json |
+| hn-basic-stream | scan-basic-stream-stage.json, scan-basic-stream-stage-fk.json.gz |
+| hn-enrichment-stage | enrichment-stage-010.json.gz |
+| hn-search-input | search-input-intent.json, search-input-intent-fk.json.gz |
+| hn-search-image | search-image-begin.json, search-image-begin-fk.json.gz |
+| hn-search-fragment | search-fragment-stage.json, search-fragment-stage-fk.json.gz |
+| hn-wc-support | wc-progress-support-source_ack_null_due.json, wc-progress-support-source_ack_existing_due.json, wc-progress-support-api_parent_full.json, wc-progress-support-normal-fk.json.gz, wc-progress-support-full-fk.json.gz |
+| hn-wc-reclaim | wc-reclaim.json, wc-reclaim-fk.json.gz |
+| hn-wc-security | wc-security.json, wc-security-fk.json.gz |
+| hn-owner-reverse | owner-reverse-plans.json.gz |
+| hn-mp-prepared | mp-prepared-plans.json.gz |
+| hn-mp-queue | mp-queue-plans.json.gz |
+| hn-mp-session | mp-session-plans.json.gz |
+| hn-rs-collection | rs-collection-plans.json.gz |
+| hn-rs-detail | rs-detail-plans.json.gz |
+| hn-rs-people | rs-people-plans.json.gz |
+| hn-uo-personal | uo-personal-plans.json.gz |
+| hn-basic-control | scan-basic-control.json, scan-basic-control-fk.json.gz |
+| hn-fts-read | fts-read.json.gz |
+| hn-rs-children | rs-children-plans.json.gz |
+| hn-mg-source | mg-source-plans.json |
+| hn-mg-dvr-policy | mg-dvr-policy-plans.json.gz |
+| hn-wc-progress-composition | wc-progress-composition.json, wc-progress-composition-fk.json.gz |
+| hn-wc-reclaim-composition | wc-reclaim-composition.json, wc-reclaim-composition-fk.json.gz |
+| hn-wc-security-composition | wc-security-composition.json, wc-security-composition-fk.json.gz |
 
 HN byte identity: **not fully byte-identical** at the default toolchains: Ubuntu captured 8/14 identical files; the six gzip files differ in compressed bytes but all 14 JSON payloads are byte-identical after decompression (mini-1 Go1.27.1; hosted Go1.26.10). [Pinned nine-target pilot](https://github.com/PorticoMediaServer/portico/actions/runs/42314245107), source `a055479469953f43c194615e49c568d4f1f00888`. Captures can be collected remotely for owner review; raw gzip goldens must not be silently replaced. macOS capture identity is untested.
 
