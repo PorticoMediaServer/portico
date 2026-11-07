@@ -323,3 +323,22 @@ func TestRSArtistAlbumReaderCurrentPages(t *testing.T) {
 		})
 	}
 }
+
+func TestRSArtistAlbumReaderArtworkCapacity(t *testing.T) {
+	f, r := artistAlbumFixture(t)
+	v := f.input
+	v.Kind = 5
+	p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 1})
+	if e != nil || ref != nil {
+		t.Fatal(e, ref)
+	}
+	defer p.Close()
+	p.selected = []int64{1999}
+	p.cards = []RSArtistAlbumCard{{Facts: TitleFacts{Album: &AlbumFacts{}}, PrimaryArtist: BrowseItem{ID: 1998}}}
+	p.used = p.lease.PayloadBytes() - 1
+	var cost BrowseReadResult
+	e = r.hydrate(t.Context(), foregroundRequest(), f.output, p, v.Now, &cost)
+	if !errors.Is(e, governor.ErrSnapshotBudget) || p.hydrate != 0 || len(p.cards[0].MissingCanonicalFacts) != 0 {
+		t.Fatal("uncharged artwork retained", e, p.hydrate, p.cards[0])
+	}
+}
