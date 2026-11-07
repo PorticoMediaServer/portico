@@ -218,6 +218,30 @@ func TestRBHomeManifest(t *testing.T) {
 			t.Fatal("invalid list fabricated defaults or hydrated payload", doc, cost, e)
 		}
 	})
+	t.Run("native-descriptor-route-bounds", func(t *testing.T) {
+		longResource := strings.Repeat("界", 90)
+		longLibrary := strings.Repeat("l", 257)
+		f, r := homeManifestFixture(t, func(f *browseFixture) {
+			homeManifestScope(t, f, "a", "p", 1)
+			homeManifestList(t, f, "a", "p", "home.rowOrder", []string{"view:" + longResource, "view:wide-library"})
+			savedViewAdd(t, f, longResource, "Long resource identifier", "a", savedViewTestDefinition)
+			savedViewAdd(t, f, "wide-library", "Long library identifier", "a", strings.Replace(savedViewTestDefinition, "movies", longLibrary, 1))
+			f.exec(t, `INSERT INTO libraries(id,name,kind,root) VALUES(?,'Long library','movie','/media')`, longLibrary)
+			f.exec(t, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(3,?,'/media')`, longLibrary)
+			f.exec(t, `UPDATE direct_memberships SET allowed_libraries=? WHERE account_id='a'`, `["movies","`+longLibrary+`"]`)
+		})
+		doc, _, e := homeManifestRead(t, f, r)
+		if e != nil {
+			t.Fatal(e)
+		}
+		for _, id := range []string{"view:" + longResource, "view:wide-library"} {
+			row := homeManifestFind(doc.Catalogue, id)
+			if row == nil || row.ReadState != "unsupported" {
+				t.Fatal("unexecutable native route advertised", id, row)
+			}
+		}
+	})
+
 	t.Run("configured-view-authority-and-validation", func(t *testing.T) {
 		f, r := homeManifestFixture(t, func(f *browseFixture) {
 			homeManifestScope(t, f, "a", "p", 1)
