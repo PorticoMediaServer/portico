@@ -48,37 +48,12 @@ func nativeSearchSourceDefinitions() []stmt.Definition {
 
 	entityKey := key("search_publish_jobs", "sqlite_autoindex_search_publish_jobs_1", "u", "entity_id", "search_generation_id")
 	p := unique(entityKey)
-	p.PrimaryKeys = []string{"p", "e"}
-	// Accepted entity projection: job head (document, published/input generations,
-	// source incarnation/revision, job revision), then publication display and
-	// identity (title, fold, kind, library, id, generation). Both current source
-	// and published input must still match; a newer pending input yields no row.
-	add("entity.accepted", `SELECT j.published_document_id,j.published_generation,j.input_generation,j.source_incarnation,j.source_revision,j.job_revision,p.title,p.title_fold,p.kind,p.library_id,p.id,p.generation
-FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_1
-CROSS JOIN search_publications AS p ON p.id=j.published_document_id
-CROSS JOIN catalog_entities AS e ON e.id=j.entity_id
-WHERE j.entity_id=? AND j.search_generation_id=?
-AND p.entity_id=j.entity_id AND p.search_generation_id=j.search_generation_id
-AND p.generation=j.published_generation AND p.generation=j.input_generation
-AND p.source_incarnation=j.source_incarnation AND p.source_revision=j.source_revision
-AND p.recipe_version=j.recipe_version
-AND e.metadata_incarnation=p.source_incarnation AND e.revision=p.source_revision
-AND e.kind=p.kind AND e.library_id=p.library_id AND e.retired=0`, []stmt.Param{i("entity"), i("bank")}, []any{int64(1), int64(1)}, p)
+	// Complete job-key and publication PK points are checked together in Go
+	// within the same snapshot, including original source birth and generation.
+	add("entity.head.raw", `SELECT j.published_document_id,j.published_generation,j.input_generation,j.source_incarnation,j.source_revision,j.job_revision,j.recipe_version FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_1 WHERE j.entity_id=? AND j.search_generation_id=?`, []stmt.Param{i("entity"), i("bank")}, []any{int64(1), int64(1)}, p)
 	personKey := key("search_publish_jobs", "sqlite_autoindex_search_publish_jobs_2", "u", "person_id", "search_generation_id")
-	add("person.head.raw", `SELECT j.published_document_id,j.published_generation,j.input_generation,j.source_incarnation,j.source_revision,j.job_revision FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_2 WHERE j.person_id=? AND j.search_generation_id=?`, []stmt.Param{i("person"), i("bank")}, []any{int64(1), int64(1)}, unique(personKey))
-	add("person.source.raw", `SELECT p.id,p.name,p.sort_name,p.revision FROM catalog_people AS p WHERE p.id=?`, []stmt.Param{i("person")}, []any{int64(1)}, point("p"))
-	personAccepted := unique(personKey)
-	personAccepted.PrimaryKeys = []string{"p", "s"}
-	add("person.accepted", `SELECT p.id,p.generation,p.title,p.title_fold,p.source_incarnation,p.source_revision,s.name,s.sort_name
-FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_2
-CROSS JOIN search_publications AS p ON p.id=j.published_document_id
-CROSS JOIN catalog_people AS s ON s.id=j.person_id
-WHERE j.person_id=? AND j.search_generation_id=?
-AND p.person_id=j.person_id AND p.search_generation_id=j.search_generation_id
-AND p.generation=j.published_generation AND p.generation=j.input_generation
-AND p.source_incarnation=j.source_incarnation AND p.source_revision=j.source_revision
-AND p.recipe_version=j.recipe_version
-AND s.search_incarnation=p.source_incarnation AND s.revision=p.source_revision`, []stmt.Param{i("person"), i("bank")}, []any{int64(1), int64(1)}, personAccepted)
+	add("person.head.raw", `SELECT j.published_document_id,j.published_generation,j.input_generation,j.source_incarnation,j.source_revision,j.job_revision,j.recipe_version FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_2 WHERE j.person_id=? AND j.search_generation_id=?`, []stmt.Param{i("person"), i("bank")}, []any{int64(1), int64(1)}, unique(personKey))
+	add("person.source.raw", `SELECT p.id,p.name,p.sort_name,p.revision,p.search_incarnation FROM catalog_people AS p WHERE p.id=?`, []stmt.Param{i("person")}, []any{int64(1)}, point("p"))
 	add("publication", `SELECT p.id,p.entity_id,p.person_id,p.search_generation_id,p.title,p.title_fold,p.kind,p.library_id,p.generation,p.source_incarnation,p.source_revision,p.recipe_version FROM search_publications AS p WHERE p.id=?`, []stmt.Param{i("publication")}, []any{int64(1)}, point("p"))
 	add("fragment", `SELECT f.publication_id,f.owner_entity,f.owner_person,f.field,f.ordinal,f.source_revision,f.generation,f.search_generation_id FROM search_fragments AS f WHERE f.id=?`, []stmt.Param{i("fragment")}, []any{int64(1)}, point("f"))
 	field := `SELECT f.id,f.ordinal,f.prefix_tokens,f.lexical_tokens,f.normalized,f.source_revision FROM search_fragments AS f INDEXED BY search_fragment_publication WHERE f.publication_id=? AND f.field=?`
