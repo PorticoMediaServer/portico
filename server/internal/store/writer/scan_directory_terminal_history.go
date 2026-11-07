@@ -135,7 +135,10 @@ func readScanDirectoryTerminalBody(ctx context.Context, t *commandTurn, q ScanRe
 	var d [5]sql.NullString
 	var pages, skipped, blocked, protected sql.NullInt64
 	var completed, code, entry, cursor sql.NullString
-	var raw, childIdentity, childRevision, parentPath, parentIdentity, parentRevision, old, payload []byte
+	var raw, childIdentity, childRevision, parentPath, parentIdentity, parentRevision, payload []byte
+	// The native driver returns a typed nil []byte for an empty BLOB. Preserve
+	// SQL NULL presence separately: the initial cursor is a valid empty BLOB.
+	var old sql.Null[[]byte]
 	err = directoryPoint(ctx, t, scanTerminalBody, []any{q.RunID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence}, &d[0], &d[1], &d[2], &d[3], &d[4], &pages, &skipped, &completed, &blocked, &protected, &raw, &code, &entry, &childIdentity, &childRevision, &cursor, &parentPath, &parentIdentity, &parentRevision, &old, &payload)
 	if err != nil {
 		return scanDirectoryTerminalSaved{}, errors.Join(ErrResolveRequired, err)
@@ -146,18 +149,18 @@ func readScanDirectoryTerminalBody(ctx context.Context, t *commandTurn, q ScanRe
 				return scanDirectoryTerminalSaved{}, ErrResolveRequired
 			}
 		}
-		if pages.Valid || skipped.Valid || completed.Valid || blocked.Valid || protected.Valid || !code.Valid || code.String != "filename_unrepresentable" || !entry.Valid || entry.String != "directory" || !cursor.Valid || cursor.String != inventoryLinuxCursor || raw == nil || childIdentity == nil || childRevision == nil || parentPath == nil || parentIdentity == nil || parentRevision == nil || old == nil || payload == nil || string(payload) != next {
+		if pages.Valid || skipped.Valid || completed.Valid || blocked.Valid || protected.Valid || !code.Valid || code.String != "filename_unrepresentable" || !entry.Valid || entry.String != "directory" || !cursor.Valid || cursor.String != inventoryLinuxCursor || raw == nil || childIdentity == nil || childRevision == nil || parentPath == nil || parentIdentity == nil || parentRevision == nil || !old.Valid || payload == nil || string(payload) != next {
 			return scanDirectoryTerminalSaved{}, ErrResolveRequired
 		}
 		v.RefusedRelativePath, v.RefusedDirectoryIdentity, v.RefusedDirectoryRevision = raw, childIdentity, childRevision
-		v.ParentPath, v.ParentIdentity, v.ParentRevision, v.ExpectedCursor, v.NextCursor = string(parentPath), string(parentIdentity), string(parentRevision), string(old), string(payload)
+		v.ParentPath, v.ParentIdentity, v.ParentRevision, v.ExpectedCursor, v.NextCursor = string(parentPath), string(parentIdentity), string(parentRevision), string(old.V), string(payload)
 	} else if kind == InventoryTraversalComplete {
 		for _, s := range d {
 			if !s.Valid {
 				return scanDirectoryTerminalSaved{}, ErrResolveRequired
 			}
 		}
-		if !pages.Valid || !skipped.Valid || !completed.Valid || !blocked.Valid || !protected.Valid || blocked.Int64 < 0 || blocked.Int64 > 1 || protected.Int64 < 0 || protected.Int64 > 1 || code.Valid || entry.Valid || cursor.Valid || raw != nil || childIdentity != nil || childRevision != nil || parentPath != nil || parentIdentity != nil || parentRevision != nil || old != nil || payload != nil || next != "" {
+		if !pages.Valid || !skipped.Valid || !completed.Valid || !blocked.Valid || !protected.Valid || blocked.Int64 < 0 || blocked.Int64 > 1 || protected.Int64 < 0 || protected.Int64 > 1 || code.Valid || entry.Valid || cursor.Valid || raw != nil || childIdentity != nil || childRevision != nil || parentPath != nil || parentIdentity != nil || parentRevision != nil || old.Valid || payload != nil || next != "" {
 			return scanDirectoryTerminalSaved{}, ErrResolveRequired
 		}
 		v.Directory = scanRootWitness{Path: d[0].String, Identity: d[1].String, Revision: d[2].String, Cursor: d[3].String, State: d[4].String, Pages: pages.Int64, Skipped: skipped.Int64}
