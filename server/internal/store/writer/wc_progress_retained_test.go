@@ -5,7 +5,6 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-	"time"
 )
 
 func wcAssertPublicProgressRevoked(t *testing.T, w *Writer, d *WCProgressDriver, cap *ProgressDisclosure, q ProgressReceiptRequest) {
@@ -58,9 +57,9 @@ func TestWCProgressRetainedCrossQuarterRetiresEveryPiece(t *testing.T) {
 	w, d, _ := wcProgressCompositionFixture(t, principal)
 	cap := d.Disclosure()
 	// Historical source endpoints are fixture DATA, spanning a past quarter.
-	// Every executor/admission/applied/terminal clock remains real time.Now.
+	// Derive it from the same protocol clock as admission and execution.
 	// No sleeping to a wall-clock boundary or source-duration cap is needed.
-	now := time.Now().UnixMilli()
+	now := w.effective.executor.now().UnixMilli()
 	d.intervalFrom = (now/wcQuarterMS)*wcQuarterMS - wcQuarterMS - 1
 	capture, err := d.Capture(t.Context(), 0, 5, 100, "playing")
 	if err != nil {

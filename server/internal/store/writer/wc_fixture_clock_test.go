@@ -28,10 +28,10 @@ func wcCompositionFixtureClock(t *testing.T, realClock bool) (now func() time.Ti
 	origin := time.Now().Add(time.Hour)
 	var ticks atomic.Int64
 	return func() time.Time {
-			return origin.Add(time.Duration(ticks.Add(1)) * time.Microsecond)
+			return origin.Add(time.Duration(ticks.Add(1)) * 100 * time.Microsecond)
 		}, func() {
 			// A known positive playing interval, outside every command turn.
-			ticks.Add(2000)
+			ticks.Add(20)
 		}
 }
 
@@ -48,7 +48,7 @@ func TestWCCompositionFixtureClockSeparatesRunnerDelay(t *testing.T) {
 	case <-t.Context().Done():
 		t.Fatal(t.Context().Err())
 	}
-	if delta := protocolNow().Sub(protocolBefore); delta != time.Microsecond {
+	if delta := protocolNow().Sub(protocolBefore); delta != 100*time.Microsecond {
 		t.Fatal("runner delay entered protocol time", delta)
 	}
 	if delta := realNow().Sub(realBefore); delta < 25*time.Millisecond {
