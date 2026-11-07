@@ -55,6 +55,11 @@ func TestRSArtistAlbumReaderLIVEAndUnion(t *testing.T) {
 			t.Fatal(i, e)
 		}
 		if page.Complete {
+			var oracle int
+			err := f.conn.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM (SELECT a.id FROM catalog_entities a JOIN catalog_entities ar ON ar.id=a.artist_id WHERE a.kind=6 AND a.retired=0 AND a.library_id=1 AND ar.retired=0 AND (a.artist_id=2006 OR EXISTS(SELECT 1 FROM catalog_entities s JOIN catalog_song_artists sa ON sa.song_id=s.id WHERE s.album_id=a.id AND s.kind=7 AND s.retired=0 AND s.library_id=1 AND sa.artist_id=2006)))`).Scan(&oracle)
+			if err != nil || page.Total != oracle {
+				t.Fatal("independent current union oracle", page.Total, oracle, err)
+			}
 			if len(page.Cards) != 2 || page.Total < 2 || page.Next == nil {
 				t.Fatal(page)
 			}
