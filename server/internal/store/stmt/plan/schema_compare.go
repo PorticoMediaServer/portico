@@ -271,7 +271,7 @@ func validateDerivedEnvironment(e Environment) error {
 				idx, ok := r[1].(string)
 				if !ok || indexes[idx] != table {
 					// WITHOUT ROWID primary-key statistics name their table, not an index.
-					if !ok || idx != table {
+					if !ok || idx != table || !ref.Tables[table].WithoutRowid {
 						return fmt.Errorf("plan: statistics refer to unknown index")
 					}
 				}
