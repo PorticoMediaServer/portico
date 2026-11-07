@@ -13,6 +13,12 @@ const issuerSourceLengthsID stmt.ID = "scan.issuer.source_lengths"
 const issuerSourceLengthsSQL = "SELECT octet_length(id),octet_length(library_id),octet_length(kind),octet_length(root),octet_length(incarnation),octet_length(root_identity),octet_length(health),octet_length(classification) FROM library_sources WHERE id=? AND library_id=?"
 const issuerSourceIndex = "sqlite_autoindex_library_sources_1"
 
+func init() {
+	pointOctets.add(octetShape{issuerSourceLengthsID, issuerSourceLengthsSQL,
+		"issuer byte preflight requires the exact closed read definition",
+		issuerOctetDefinition, auditIssuerOctetKey, checkIssuerOctetPoint})
+}
+
 // This is one closed issuer preflight, not a function allowlist. Exact SQL bytes
 // fix every argument to a named column and fix the two point predicates. Public
 // connection-free lint still refuses octet_length; only Capture can certify it.
