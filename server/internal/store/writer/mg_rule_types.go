@@ -5,6 +5,12 @@ const (
 	MGDeleteRule CommandID = 825
 )
 
+// Today's DVR decoder accepts 384 KiB. Canonical RuleConfig permits 2,000
+// allowed plus 2,000 blocked 64-byte IDs and forty bounded keywords, including
+// JSON escaping. The transport bound covers that accepted range, not a new
+// 64 KiB restriction on the stored configuration.
+const mgRuleMaxConfigBytes = 384 << 10
+
 func mgRuleDescriptors() []Descriptor {
 	return []Descriptor{{MGSaveRule, "mg.rule.save", Normal}, {MGDeleteRule, "mg.rule.delete", Normal}}
 }
@@ -17,6 +23,18 @@ type mgRuleFacts struct {
 	id, owner, account, profile, source, series, title, channel, config string
 	revision, enabled, deleted, updated                                 int64
 }
+
+// Exact variable TEXT bytes for validated facts, for the parent's input/result
+// admission. SQLite/container overhead and receipt bytes are separate charges.
+// This counts the actual complete configuration, never columns times maxima.
+func (v mgRuleFacts) variableBytes() int64 {
+	var n int64
+	for _, s := range []string{v.id, v.owner, v.account, v.profile, v.source, v.series, v.title, v.channel, v.config} {
+		n += int64(len(s))
+	}
+	return n
+}
+
 type mgRuleRequest struct {
 	owner          mgRecordingOwner
 	before         mgRuleFacts // zero for a new ID; exact native snapshot otherwise
