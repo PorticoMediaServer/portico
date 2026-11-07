@@ -241,11 +241,31 @@ func TestRSArtistAlbumReaderAbsoluteExpiry(t *testing.T) {
 // of the production enumeration statements. Each control changes current facts
 // before Begin; no cached acceptance or own-age surrogate admits an album.
 func TestRSArtistAlbumReaderCurrentPages(t *testing.T) {
-	for _, mode := range []string{"union", "retired-album", "retired-feature", "primary-context"} {
+	for _, mode := range []string{"union", "retired-album", "retired-feature", "primary-context", "hidden-album", "hidden-feature", "wrong-library-album", "wrong-library-feature"} {
 		t.Run(mode, func(t *testing.T) {
 			f, r := artistAlbumFixture(t)
 			// Keep a small direct-only plus duplicate plus featured-only population.
 			f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE kind=6 AND id NOT IN(1999,2001,9001)`)
+			if mode == "hidden-album" || mode == "hidden-feature" {
+				f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
+				f.exec(t, `UPDATE catalog_entities SET admission_own_age=0`)
+				id := int64(1999)
+				if mode == "hidden-feature" {
+					id = 9902
+				}
+				f.exec(t, `UPDATE catalog_entities SET admission_own_age=30,admission_member_count=1,admission_unrated_members=0,admission_min_known_age=30 WHERE id=?`, id)
+			}
+			if mode == "wrong-library-album" || mode == "wrong-library-feature" {
+				id := int64(1999)
+				if mode == "wrong-library-feature" {
+					id = 9902
+				}
+				f.exec(t, `BEGIN`)
+				f.exec(t, `PRAGMA defer_foreign_keys=ON`)
+				f.exec(t, `UPDATE catalog_subjects SET library_id=2 WHERE id=?`, id)
+				f.exec(t, `UPDATE catalog_entities SET library_id=2 WHERE id=?`, id)
+				f.exec(t, `COMMIT`)
+			}
 			switch mode {
 			case "retired-album":
 				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=1999`)
@@ -264,7 +284,9 @@ func TestRSArtistAlbumReaderCurrentPages(t *testing.T) {
 				if e = rows.Scan(&id); e != nil {
 					t.Fatal(e)
 				}
-				want = append(want, id)
+				if id != 1999 || mode != "hidden-album" && mode != "hidden-feature" {
+					want = append(want, id)
+				}
 			}
 			e = rows.Err()
 			rows.Close()
