@@ -2,6 +2,7 @@ package read
 
 import (
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 	"reflect"
 	"testing"
 	"testing/synctest"
@@ -47,6 +48,8 @@ func testRBGroupArtistNative(t *testing.T) {
 	}
 	in.Feed = RBArtistCredits
 	in.View.Kind = 7
+	f.exec(t, "ANALYZE")
+	captureBrowse(t, f, RBArtistDefinitions(), plan.Analyzed)
 	f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE libraries SET data_order_revision=data_order_revision+1 WHERE id='movies'`) }}
 	p, _, e = f.reader.rbArtistSource(t.Context(), rbGroupRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrStale) || !reflect.DeepEqual(p, RBArtistCandidates{}) {
