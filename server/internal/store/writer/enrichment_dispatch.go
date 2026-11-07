@@ -207,6 +207,9 @@ func (r *effectiveRuntime) commandRegistrations(extra ...stmt.Receipt) []stmt.Re
 	if r.inventoryPlan != nil {
 		out = append(out, r.inventoryPlan.registration)
 	}
+	if r.inventoryPreparationPlan != nil {
+		out = append(out, r.inventoryPreparationPlan.registration)
+	}
 	for _, p := range r.lifecyclePlans {
 		if p != nil {
 			out = append(out, p.registration)

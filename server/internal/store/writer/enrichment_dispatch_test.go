@@ -176,3 +176,12 @@ func TestEnrichmentSharedDispatchBudgetsBeforePayloadCopy(t *testing.T) {
 		t.Fatal("capacity refusal leaked", a.Usage(), e.db.Stats())
 	}
 }
+
+func TestEnrichmentSharedRegistryKeepsEveryInstalledProfile(t *testing.T) {
+	r := &effectiveRuntime{inventoryPlan: &effectivePlan{}, inventoryPreparationPlan: &effectivePlan{}, lifecyclePlans: [2]*effectivePlan{&effectivePlan{}, &effectivePlan{}}, issuerPlans: [2]*effectivePlan{&effectivePlan{}, &effectivePlan{}}, enrichmentPlans: [4]*effectivePlan{nil, nil, &effectivePlan{}, &effectivePlan{}}}
+	// Nine installed profiles: one base, inventory+preparation, two lifecycle,
+	// two issuer and two seals. Nil stage profiles contribute nothing.
+	if got := len(r.commandRegistrations()); got != 9 {
+		t.Fatal("installed profile receipt dropped", got)
+	}
+}

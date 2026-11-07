@@ -122,18 +122,7 @@ func composeInventoryPreparation(ctx context.Context, d *ScanDriver, plan, histo
 			all = append(all, def)
 		}
 	}
-	receipts := []stmt.Receipt{r.plan.registration, plan.registration, history.registration}
-	for _, installed := range r.lifecyclePlans {
-		if installed != nil {
-			receipts = append(receipts, installed.registration)
-		}
-	}
-	for _, installed := range r.issuerPlans {
-		if installed != nil {
-			receipts = append(receipts, installed.registration)
-		}
-	}
-	registry, err := stmt.New(all, receipts...)
+	registry, err := stmt.New(all, r.commandRegistrations(plan.registration, history.registration)...)
 	if err != nil {
 		return err
 	}

@@ -57,7 +57,7 @@ func TestSealHistoryStatementPlans(t *testing.T) {
 	if err = conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "embedded010; bounded retained-seal history/dispatcher and byte-point component; no fresh producer/proof or physical qualification"}, indexes)
+	golden, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "embedded011; bounded retained-seal history/dispatcher and byte-point component; no fresh producer/proof or physical qualification"}, indexes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestSealHistoryStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join("testdata", "enrichment-seal-history-010.json.gz")
+	path := filepath.Join("testdata", "enrichment-seal-history-011.json.gz")
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		// First capture is a PROPOSAL artifact only. The owner reviews/commits it;
@@ -91,7 +91,7 @@ func TestSealHistoryStatementPlans(t *testing.T) {
 		if err = z.Close(); err != nil {
 			t.Fatal(err)
 		}
-		if err = os.WriteFile(filepath.Join(dir, "enrichment-seal-history-010.proposed.json.gz"), b.Bytes(), 0600); err != nil {
+		if err = os.WriteFile(filepath.Join(dir, "enrichment-seal-history-011.proposed.json.gz"), b.Bytes(), 0600); err != nil {
 			t.Fatal(err)
 		}
 		t.Log("proposed capture only: no reviewed baseline comparison yet")
