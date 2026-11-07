@@ -339,11 +339,11 @@ func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now, deadline time
 	if w.checkpoint || (w.writer && (!w.policy.ConcurrentPassive || (ticket != nil && ticket.recovery))) {
 		return Capacity, CauseCheckpointActive
 	}
-	if w.pendingCheckpoint != ticket {
-		return Capacity, CauseCheckpointTicket
-	}
 	if ticket != nil && (ticket.gate != w || !now.Before(ticket.expires)) {
 		return Deadline, CauseDeadline
+	}
+	if w.pendingCheckpoint != ticket {
+		return Capacity, CauseCheckpointTicket
 	}
 	w.pendingCheckpoint = nil
 	w.checkpoint = true

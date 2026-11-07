@@ -292,3 +292,16 @@ func TestCheckpointLifetimeValidationUsesOfferDeadline(t *testing.T) {
 		retire(t, a, p)
 	})
 }
+
+func TestCheckpointExpiredTicketHasDeadlineCause(t *testing.T) {
+	_, a, clock, _ := checkpointSetup(t)
+	ticket, err := a.queueCheckpoint(clock.now().Add(50*time.Millisecond), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.ms.Add(51)
+	d := a.tryCheckpointTurn(checkpointRequest(clock), ticket)
+	if d.Grant != nil || d.Refusal == nil || d.Refusal.Code != Deadline || d.Refusal.Cause != CauseDeadline {
+		t.Fatal("expired ticket reported capacity", d)
+	}
+}
