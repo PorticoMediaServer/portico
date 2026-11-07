@@ -14,6 +14,11 @@ import sys
 
 TOOLS = Path(__file__).resolve().parent
 CAPTURES = {
+    'sc-probe': ('writer', 'TestBasicProbeStatementPlans', 'record-basic-probe-plans', ['scan-basic-probe.json', 'scan-basic-probe-fk.json.gz']),
+    'sc-probe-control0': ('writer', 'TestBasicProbeReplacesSixScalarsAndCapturesOld', 'record-basic-probe-plans', []),
+    'sc-probe-control1': ('writer', 'TestBasicProbeNoopAndPreservedMaximumCounters', 'record-basic-probe-plans', []),
+    'sc-probe-control2': ('writer', 'TestBasicProbeInvalidAndStaleVectorsRefuse', 'record-basic-probe-plans', []),
+    'sc-probe-control3': ('writer', 'TestBasicProbeLateFailureRollsBackOldAndDebt', 'record-basic-probe-plans', []),
     'hn-canonical': ('stmt/plan', 'TestPlanCanonicalSchemaFKAndStatementContracts', 'record-plans', ['canonical.json', 'canonical-fk.json.gz']),
     'hn-issuer': ('stmt/plan', 'TestIssuerSourceOctetLengthsGolden', 'record-issuer-octets', ['issuer-source-octets.json']),
     'hn-issuer-library': ('stmt/plan', 'TestIssuerLibraryRootOctetLengthsGolden', 'record-issuer-library-octets', ['issuer-library-root-octets.json']),
