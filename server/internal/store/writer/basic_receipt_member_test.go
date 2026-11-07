@@ -30,25 +30,26 @@ func TestBasicReceiptMemberNativeCompleteCohort(t *testing.T) {
 	for _, scenario := range []string{"exact", "wrong_key", "extra_member", "missing", "foreign_library", "byte_capacity"} {
 		t.Run(scenario, func(t *testing.T) {
 			w, _, original, identity := basicControlFixture(t)
+			seedBasicFirstOrdinaryOwner(t, w)
 			// Synthetic immutable SQL facts, not an Applied receipt or codec proof.
 			if _, err := w.db.ExecContext(t.Context(), `INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,change_id,expected_epoch,next_family,next_copy_phase,next_copy_id,next_copy_aux,next_copy_key,next_copy_key2,next_copy_key3,after_entity) VALUES(?,?,?,?,?,'basic_accept',42,2000,'basic-source','basic-incarnation','object:019','',1,?,51,17,0,0,0,0,'','','',31)`, original.scope.runID, identity.Incarnation[:], identity.Sequence, identity.OperationID[:], make([]byte, 32), make([]byte, 32)); err != nil {
 				t.Fatal(err)
 			}
 			q := BasicReceiptRequest{Purpose: BasicPurposeAccept, Scan: ScanReceiptRequest{RunID: original.scope.runID, LibraryID: 7, LibraryKey: "basic-library", Receipt: ReceiptReference{Identity: identity}}}
 			if scenario != "missing" {
-				child, library := int64(0), int64(7)
+				input := int64(0)
 				if scenario == "wrong_key" {
-					child = 1
+					input = 1
 				}
 				if scenario == "foreign_library" {
-					library = 8
+					q.Scan.LibraryID = 8
 				}
-				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO scan_command_results VALUES(?,?,?,0,0,?,'observed'||char(0)||'原',?,31,41,18)`, q.Scan.RunID, identity.Incarnation[:], identity.Sequence, child, library); err != nil {
+				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO scan_command_results VALUES(?,?,?,?,0,0,'observed'||char(0)||'原',7,31,41,18)`, q.Scan.RunID, identity.Incarnation[:], identity.Sequence, input); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if scenario == "extra_member" {
-				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO scan_command_results VALUES(?,?,?,1,0,0,'extra',7,32,42,19)`, q.Scan.RunID, identity.Incarnation[:], identity.Sequence); err != nil {
+				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO scan_command_results VALUES(?,?,?,1,0,0,'extra',7,31,41,18)`, q.Scan.RunID, identity.Incarnation[:], identity.Sequence); err != nil {
 					t.Fatal(err)
 				}
 			}
