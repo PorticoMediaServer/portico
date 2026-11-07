@@ -578,6 +578,9 @@ func TestSearchPublisherRealClockSurface(t *testing.T) {
 			// Keep the exact prefix, including a real timing failure, before
 			// test scratch is removed. The runner owns this evidence directory.
 			if evidenceDir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidenceDir != "" {
+				if err := os.MkdirAll(evidenceDir, 0700); err != nil {
+					t.Fatal(err)
+				}
 				saved, err := os.CreateTemp(evidenceDir, "publisher-real-clock-"+class+"-*.jsonl")
 				if err != nil {
 					t.Fatal(err)
