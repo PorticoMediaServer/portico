@@ -1,8 +1,11 @@
 package read
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"flag"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -48,14 +51,33 @@ func TestUOPersonalPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := "testdata/uo-personal-plans.json"
+	path := "testdata/uo-personal-plans.json.gz"
 	if *recordUOPersonalPlans {
-		if err := os.WriteFile(path, actual, 0644); err != nil {
+		var compressed bytes.Buffer
+		z := gzip.NewWriter(&compressed)
+		if _, err := z.Write(actual); err != nil {
+			t.Fatal(err)
+		}
+		if err := z.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, compressed.Bytes(), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	expected, err := os.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
+		t.Fatal(err)
+	}
+	z, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := io.ReadAll(z)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := z.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if err := plan.CompareJSON(expected, actual); err != nil {
