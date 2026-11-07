@@ -85,6 +85,10 @@ func (r *effectiveRuntime) runEnrichment(ctx context.Context, w *Writer, in *enr
 	if ctx == nil {
 		return out, ack, ErrInvalid
 	}
+	if in != nil {
+		frozen := *in
+		in = &frozen
+	}
 	if err = validateEnrichmentInvocation(r, w, in); err != nil {
 		return out, ack, err
 	}
@@ -219,7 +223,8 @@ func (r *effectiveRuntime) commandRegistrations(extra ...stmt.Receipt) []stmt.Re
 	return append(out, extra...)
 }
 
-func discloseEnrichment(ctx context.Context, t *commandTurn, in *enrichmentInvocation) error {
+func discloseEnrichment(ctx context.Context, t *commandTurn, in *enrichmentInvocation) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
 	required := enrichmentHistoryFixedBytes + 16*uint64(len(in.request.ProviderOperationID)+len(in.disclosure.scope.libraryKey))
 	if err := t.requireCommandMemory(ctx, in.purpose, required, "enrichment_memory_partition"); err != nil {
 		return err
