@@ -89,3 +89,30 @@ func TestRSPolicyStateBindingIsClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestRSPolicyZeroLibraryInputPrecedence(t *testing.T) {
+	f := newBrowseFixture(t)
+	for _, tc := range []struct {
+		name   string
+		kind   int64
+		recipe readPolicyID
+	}{
+		{"default-catalogue", 1, 0}, {"default-reading", 20, 0}, {"unregistered-kind", 99, 0},
+		{"unknown-recipe", 1, 64999}, {"principal-wrong-kind", 20, rsTestPrincipalPolicy},
+		{"principal-missing-state", 1, rsTestPrincipalPolicy},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := f.input
+			in.Library = 0
+			in.Kind = tc.kind
+			in.policy = readPolicyBinding{recipe: tc.recipe}
+			value, cost, e := publishRead(t.Context(), f.snapshots, foregroundRequest(), time.Second, f.output, in, []readStep[bool]{func(context.Context, browseQuery, browseFence, *bool) error {
+				t.Fatal("invalid zero-library input reached business SQL")
+				return nil
+			}})
+			if !errors.Is(e, ErrInput) || value || cost.LookupStatements != 0 || cost.PublicationStatements != 0 || len(cost.LookupWindows) != 0 || len(cost.PublicationWindows) != 0 {
+				t.Fatal("zero-library error precedence changed or SQL started", value, cost, e)
+			}
+		})
+	}
+}
