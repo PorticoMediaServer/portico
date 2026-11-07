@@ -60,6 +60,12 @@ func TestMGLCDraftReceiptReopenAckGCAndBirthFloor(t *testing.T) {
 		}
 		_, _ = turn.transaction.rollback(nil)
 		p = mgLCTestAck(t, reopened, b, saved, p)
+		var retainedRows, retainedBytes int64
+		if err := reopened.db.QueryRowContext(t.Context(), `SELECT receipt_rows,receipt_variable_bytes FROM lc_generations WHERE id=?`, b.generation).Scan(&retainedRows, &retainedBytes); err != nil || retainedRows != 1 || retainedBytes <= 0 {
+			t.Fatal("ACK lost retained receipt debt", retainedRows, retainedBytes, err)
+		}
+		// Missing-receipt fault injection, not a reclaim implementation. Keep
+		// conservative debt: a vanished child must not manufacture quiescence.
 		if _, err := reopened.db.ExecContext(t.Context(), `DELETE FROM lc_generation_command_receipts WHERE generation_id=?`, b.generation); err != nil {
 			t.Fatal(err)
 		}
@@ -78,13 +84,17 @@ func TestMGLCDraftReceiptReopenAckGCAndBirthFloor(t *testing.T) {
 			t.Fatal("live generation identity recycled after ACK GC", err)
 		}
 		_, _ = turn.transaction.rollback(nil)
-		// Fixture-only retained floor stands in for the parent's bounded retirement
-		// command. It is written before deleting the owner, while the channel lives.
-		if _, err := reopened.db.ExecContext(t.Context(), `INSERT INTO lc_generation_retirements(generation_id,command_incarnation,create_operation_id,birth_request_digest,channel_id,final_sequence,final_result_digest,retired_ms,last_command_sequence,acknowledged_command_sequence) SELECT id,command_incarnation,create_operation_id,birth_request_digest,channel_id,last_command_sequence,?,1,last_command_sequence,acknowledged_command_sequence FROM lc_generations WHERE id=? AND last_command_sequence=acknowledged_command_sequence`, saved.digest[:], b.generation); err != nil {
+		// Fixture-only transfer retains all outstanding accounting in the floor
+		// before owner absence. It supplies no cleanup result or retirement grant.
+		if _, err := reopened.db.ExecContext(t.Context(), `INSERT INTO lc_generation_retirements(generation_id,command_incarnation,create_operation_id,birth_request_digest,channel_id,final_sequence,final_result_digest,retired_ms,last_command_sequence,acknowledged_command_sequence,receipt_rows,receipt_variable_bytes,receipt_reclaim_after_sequence,receipt_reclaim_due_ms) SELECT id,command_incarnation,create_operation_id,birth_request_digest,channel_id,last_command_sequence,?,1,last_command_sequence,acknowledged_command_sequence,receipt_rows,receipt_variable_bytes,receipt_reclaim_after_sequence,receipt_reclaim_due_ms FROM lc_generations WHERE id=? AND last_command_sequence=acknowledged_command_sequence`, saved.digest[:], b.generation); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := reopened.db.ExecContext(t.Context(), `DELETE FROM lc_generations WHERE id=?`, b.generation); err != nil {
 			t.Fatal(err)
+		}
+		var floorRows, floorBytes, floorControl int64
+		if err := reopened.db.QueryRowContext(t.Context(), `SELECT receipt_rows,receipt_variable_bytes,control_variable_bytes FROM lc_generation_retirements WHERE generation_id=?`, b.generation).Scan(&floorRows, &floorBytes, &floorControl); err != nil || floorRows != retainedRows || floorBytes != retainedBytes || floorControl <= 0 {
+			t.Fatal("owner absence erased floor debt", floorRows, floorBytes, floorControl, err)
 		}
 		turn = mgLCTurn(t, reopened)
 		decision, _, err = lookupMGLCReceipt(t.Context(), turn, b, c, mgLCBeginKind)

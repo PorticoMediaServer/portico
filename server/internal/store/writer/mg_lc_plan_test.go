@@ -49,7 +49,7 @@ func mgLCCapture(t *testing.T) {
 	}
 	h := sha256.New()
 	h.Write([]byte("canonical012+013:9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05"))
-	for _, name := range []string{"mg_lc_protocol.go", "mg_lc_statements.go", "mg_lc_effects.go", "mg_lc_digest.go", "mg_lc_receipts.go", "mg_lc_draft_fixture_test.go", "mg_lc_effects_test.go", "mg_lc_receipts_test.go", "mg_lc_plan_test.go"} {
+	for _, name := range []string{"mg_lc_protocol.go", "mg_lc_statements.go", "mg_lc_effects.go", "mg_lc_digest.go", "mg_lc_receipts.go", "mg_lc_receipt_debt.go", "mg_lc_draft_fixture_test.go", "mg_lc_effects_test.go", "mg_lc_receipts_test.go", "mg_lc_plan_test.go"} {
 		data, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
@@ -58,7 +58,7 @@ func mgLCCapture(t *testing.T) {
 		h.Write([]byte{0})
 		h.Write(data)
 	}
-	g, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "Canonical012+013 closed PRIVATE LC structural capture; historical selected-MG-001 results are old-head evidence; authority, receipt debt/control composition and publication remain parent-owned"}, policy)
+	g, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "Canonical012+013 closed PRIVATE LC structural capture; historical selected-MG-001 results are old-head evidence; authority, receipt reclaim/control retirement and publication remain parent-owned"}, policy)
 	if err != nil {
 		t.Fatal(err)
 	}

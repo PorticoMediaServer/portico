@@ -62,6 +62,8 @@ type mgLCSaved struct {
 	result                 mgLCNativeResult
 }
 
+const mgLCOwnerPredicate = `id=? AND command_incarnation=? AND channel_id=? AND config_revision=? AND catalog_fence=? AND play_history_fence=? AND create_operation_id=? AND birth_request_digest=?`
+
 const mgLCReceiptResultColumns = `result_candidate_count,result_entry_count,result_cursor_ms,result_staged_bytes,result_entry_digest,result_verified_entry_count,result_verify_after_ms,result_verify_end_ms,result_verified_entry_digest,result_sealed,result_phase,result_status,result_lease_token,result_lease_until_ms,result_published_ms,result_reclaim_family,result_reclaim_key,result_reclaim_subkey`
 const mgLCReceiptColumns = `operation_id,request_digest,result_digest,command_kind,applied_ms,accepted_revision,accepted_acknowledged_sequence,` + mgLCReceiptResultColumns
 
@@ -69,7 +71,7 @@ func mgLCReceiptDefinitions() []stmt.Definition {
 	p := func(n string, t stmt.Type) stmt.Param { return stmt.Param{Name: n, Type: t} }
 	t, i, x := stmt.Text, stmt.Integer, stmt.Blob
 	owner := []stmt.Param{p("generation", t), p("incarnation", x), p("channel", t), p("config_revision", i), p("catalogue", t), p("history", i), p("create", x), p("birth", x)}
-	predicate := `id=? AND command_incarnation=? AND channel_id=? AND config_revision=? AND catalog_fence=? AND play_history_fence=? AND create_operation_id=? AND birth_request_digest=?`
+	predicate := mgLCOwnerPredicate
 	identity := []stmt.Param{p("generation", t), p("incarnation", x), p("sequence", i)}
 	columns := `generation_id,command_incarnation,command_sequence,operation_id,request_digest,result_digest,applied_ms,command_kind,channel_id,config_revision,catalog_fence,play_history_fence,accepted_revision,accepted_acknowledged_sequence,` + mgLCReceiptResultColumns
 	names := strings.Split(columns, ",")
@@ -328,10 +330,14 @@ func saveMGLCReceipt(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLC
 	if !present || saved != out {
 		return mgLCSaved{}, ErrConflict
 	}
+	if err := recordMGLCReceiptDebt(ctx, turn, b, p, saved); err != nil {
+		return mgLCSaved{}, err
+	}
 	return out, nil
 }
 
-// An ACK has no fresh source/lease dependency and changes only the watermark.
+// An ACK has no fresh source/lease dependency; it advances the watermark and
+// schedules retained receipt debt without refunding its bytes.
 // It binds the exact original request/operation/kind AND saved result digest.
 func acknowledgeMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, kind mgLCKind, digest ResultDigest) (out int64, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
@@ -369,6 +375,10 @@ func acknowledgeMGLC(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLC
 	}
 	if out != c.identity.Sequence {
 		return 0, ErrConflict
+	}
+	owner.ack = out
+	if err := scheduleMGLCReceiptDebt(ctx, turn, b, owner); err != nil {
+		return 0, err
 	}
 	return out, nil
 }
