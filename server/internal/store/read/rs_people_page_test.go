@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -113,9 +114,10 @@ func TestRSPeoplePagePendingLeaseAndLIVE(t *testing.T) {
 func TestRSPeoplePageSourceDriftExpiryAndCapacity(t *testing.T) {
 	for _, mode := range []string{"person", "head", "authority", "expired", "capacity", "orphan"} {
 		t.Run(mode, func(t *testing.T) {
-			clock := time.Now()
-			f, r := newRSPeoplePageFixture(t, false, func() time.Time { return clock })
-			clock = time.Now()
+			var clock atomic.Int64
+			clock.Store(time.Now().UnixNano())
+			f, r := newRSPeoplePageFixture(t, false, func() time.Time { return time.Unix(0, clock.Load()) })
+			clock.Store(time.Now().UnixNano())
 			p := beginRSPage(t, f, r, RSPersonPageInput{})
 			if mode == "orphan" {
 				p.input.Person = 2
@@ -143,7 +145,7 @@ func TestRSPeoplePageSourceDriftExpiryAndCapacity(t *testing.T) {
 			case "authority":
 				f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
 			case "expired":
-				clock = clock.Add(13 * time.Second)
+				clock.Add(int64(13 * time.Second))
 			case "capacity":
 				p.used = p.lease.PayloadBytes()
 			}
@@ -169,7 +171,11 @@ func TestRSPeoplePageSourceDriftExpiryAndCapacity(t *testing.T) {
 
 func TestRSPeoplePageMultipleKindsAndDefaultContainerPolicy(t *testing.T) {
 	f, r := newRSPeoplePageFixture(t, false)
+	f.exec(t, `BEGIN`)
+	f.exec(t, `PRAGMA defer_foreign_keys=ON`)
+	f.exec(t, `UPDATE catalog_subjects SET kind=2 WHERE id=4`)
 	f.exec(t, `UPDATE catalog_entities SET kind=2 WHERE id=4`)
+	f.exec(t, `COMMIT`)
 	second := f.input
 	second.Kind = 2
 	in := RSPersonPageInput{Views: []BrowseInput{f.input, second}, Person: 1, Limit: 40, Kind: 2}
@@ -198,6 +204,9 @@ func TestRSPeoplePageMultipleKindsAndDefaultContainerPolicy(t *testing.T) {
 
 func TestRSPeoplePageBytePointsAndFinalRevocation(t *testing.T) {
 	f, r := newRSPeoplePageFixture(t, true)
+	if reader, err := NewRSPeoplePageReader(f.snapshots, &governor.Authority{}); reader != nil || !errors.Is(err, ErrInput) {
+		t.Fatal("foreign preparation ledger accepted", reader, err)
+	}
 	for _, point := range []struct {
 		name string
 		args []any
@@ -222,6 +231,37 @@ func TestRSPeoplePageBytePointsAndFinalRevocation(t *testing.T) {
 			t.Fatal("fresh denial lost", v, err)
 		}
 		return err
+	})
+	if !errors.Is(err, ErrDenied) {
+		t.Fatal(err)
+	}
+	assertLiveUsage(t, f, 0, 0)
+}
+
+func TestRSPeoplePagePollClockAdvancesFromOriginalCapture(t *testing.T) {
+	f, r := newRSPeoplePageFixture(t, true)
+	f.exec(t, `UPDATE authorization_family_tokens SET expires_at=?`, f.input.Now.Add(time.Second).Format(time.RFC3339Nano))
+	p := beginRSPage(t, f, r, RSPersonPageInput{})
+	q, request, output := liveRequests("person-clock-capture")
+	_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+		v, _, e := r.Page(ctx, request, time.Second, out, p)
+		if e != nil || !v.Pending {
+			t.Fatal(v, e)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate time between HTTP polls without sleeping or extending the lease.
+	p.started = p.started.Add(-2 * time.Second)
+	q, request, output = liveRequests("person-clock-expired")
+	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+		v, _, e := r.Page(ctx, request, time.Second, out, p)
+		if !reflect.DeepEqual(v, RSPersonPage{}) || !errors.Is(e, ErrDenied) {
+			t.Fatal("poll reset original authority clock", v, e)
+		}
+		return e
 	})
 	if !errors.Is(err, ErrDenied) {
 		t.Fatal(err)
