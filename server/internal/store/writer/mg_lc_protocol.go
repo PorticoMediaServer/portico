@@ -146,8 +146,9 @@ func (c mgLCCandidate) valid(b mgLCBuild) bool {
 	return false
 }
 
-// Draft protocol: internal 38b4c8d910948b3433fa58e612b3cf3c5a3b8162,
-// candidate SHA256 4e0751989357d1aed85467ba81f5c24ce79aa3a26f947e0fd222070891bb9262.
+// Native fixtures use adopted canonical012+013. Initial MG-001 design
+// provenance was internal38b4c8d9 / candidate4e075198; its old fixture success
+// does not qualify the current layout or a public command driver.
 // No expected counts or duplicate time/candidate counters are introduced.
 // staged_bytes counts canonical bytes of newly inserted candidate/entry rows,
 // excluding receipt/header/SQLite allocation costs (the parent's whole recipe

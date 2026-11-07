@@ -25,8 +25,8 @@ func TestMGLCReadCapture(t *testing.T) {
 	synctest.Test(t, mgLCCapture)
 }
 
-// mg-lc-draft-reads.json is retained historical selected-draft evidence only;
-// it is not an input or fallback for the canonical Capture.
+// The old selected-draft capture remains in historical commit445ef3c44.
+// This canonical Capture has no selected-schema fallback.
 func mgLCCapture(t *testing.T) {
 	w, _ := mgLCFixture(t)
 	conn, err := w.db.Conn(t.Context())
