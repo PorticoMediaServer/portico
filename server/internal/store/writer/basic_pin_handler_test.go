@@ -34,7 +34,9 @@ func TestBasicHandlerShapePinRequiresEverySealedFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn := basicHandlerTurn(t, e, BasicStage, basicStageCommandDefinitions(command.request))
+	defs := basicStageCommandDefinitions(command.request)
+	registry := nativeInventoryFixtureRegistry(t, e, defs, "basic_pin_handler_test.go", "basic_handlers_test.go", "basic_control_test.go", "basic_stage_test.go")
+	turn := basicHandlerTurn(t, e, BasicStage, defs, registry)
 	result, err := applyBasicStage(t.Context(), turn, command)
 	if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(result, BasicResult{}) {
 		t.Fatal(result, err)
