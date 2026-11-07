@@ -72,6 +72,7 @@ type RSAuthorBookPreparation struct {
 	entries                    []rsAuthorBookEntry
 	key                        string
 	scan, fileAfter, candidate int64
+	fileDisc, filePart         int64
 	candidateEntry             rsAuthorBookEntry
 	fileVisible                bool
 	authorContext              bool
@@ -379,7 +380,19 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 			p.fileVisible = false
 			return nil
 		}
-		rows, e := query("rs.author.files", p.input.View.Library, p.fileAfter, p.candidate)
+		var rows [][]any
+		var e error
+		if p.fileAfter == 0 {
+			rows, e = query("rs.author.files.first", p.candidate)
+		} else {
+			rows, e = query("rs.author.files.tail", p.candidate, p.fileDisc, p.filePart, p.fileAfter)
+			if e == nil && len(rows) == 0 {
+				rows, e = query("rs.author.files.part", p.candidate, p.fileDisc, p.filePart)
+			}
+			if e == nil && len(rows) == 0 {
+				rows, e = query("rs.author.files.disc", p.candidate, p.fileDisc)
+			}
+		}
 		if e != nil {
 			return e
 		}
@@ -396,8 +409,13 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 			p.candidateEntry = rsAuthorBookEntry{}
 			return nil
 		}
-		p.authorContext = true
 		p.fileAfter = rows[0][0].(int64)
+		p.fileDisc = rows[0][1].(int64)
+		p.filePart = rows[0][2].(int64)
+		if rows[0][3] != p.input.View.Library || rows[0][4] != int64(9) || rows[0][5] != int64(0) {
+			return nil
+		}
+		p.authorContext = true
 		itemFence := f
 		itemFence.container = 0
 		if _, e = rsDetailSubjectEligibility(query, p.view(at, 9, p.fileAfter), itemFence); errors.Is(e, ErrDenied) {
