@@ -107,7 +107,8 @@ func reserveUONoticeOrdinals(ctx context.Context, turn *commandTurn, count int) 
 	}
 	return last - int64(count) + 1, nil
 }
-func uoNoticeEvent(ctx context.Context, turn *commandTurn, audience, resource string, revision, now int64) (wcAPIEventEffect, error) {
+func uoNoticeEvent(ctx context.Context, turn *commandTurn, audience, resource string, revision, now int64) (out wcAPIEventEffect, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	return appendWCAPIEvent(ctx, turn, wcAPIEvent{audience: audience, eventType: "notifications.changed", resourceKind: "inbox", resourceID: resource, revision: strconv.FormatInt(revision, 10), data: "{}", atMS: now})
 }
 func applyUONoticePublish(ctx context.Context, turn *commandTurn, q uoNoticePublish) (out uoNoticeEffect, err error) {
@@ -320,6 +321,7 @@ func resolveUONativeAck(sequence, revision int64, a uoNoticeAckState, b uoNotice
 	return read, archive, nil
 }
 func loadUONoticeBulk(ctx context.Context, turn *commandTurn, principal string) (b uoNoticeBulkState, err error) {
+	defer func() { b, err = finishCommand(ctx, commandLifetime(turn), b, err) }()
 	row, err := wc008DraftQuery(ctx, turn, uoNoticeBulkRead, principal)
 	if err != nil {
 		return b, err
