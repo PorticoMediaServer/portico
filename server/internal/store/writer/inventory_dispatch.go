@@ -59,13 +59,15 @@ type scanScope struct {
 	incarnation       [16]byte
 	lifetime          context.Context
 	revoked           atomic.Bool
+	driver            *ScanDriver
 }
 
 type inventoryInvocation struct {
 	disclosure *ScanDisclosure
 	request    ScanReceiptRequest
 	input      *inventoryAcceptCommand
-	lifecycle  CommandID // zero is ordinary N1; only closed create/claim history is admitted
+	lifecycle  CommandID // zero is ordinary N1; create/claim remain distinct
+	issuer     *scanIssuerInvocation
 }
 
 func (r *effectiveRuntime) currentRunDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation) error {
@@ -73,6 +75,11 @@ func (r *effectiveRuntime) currentRunDisclosure(w *Writer, cap *EnrichmentDisclo
 		return r.currentDisclosure(w, cap, request)
 	}
 	c, q := scan.disclosure, scan.request
+	if c != nil && c.scope != nil && c.scope.driver != nil {
+		if err := c.scope.driver.current(); err != nil {
+			return errors.Join(ErrDisclosureDenied, err)
+		}
+	}
 	if c == nil || c.issuer != w || c.scope == nil || c.scope.lifetime == nil || c.scope.revoked.Load() || c.scope.lifetime.Err() != nil ||
 		q.RunID == "" || q.LibraryID <= 0 || q.LibraryKey == "" || q.Receipt.Identity.Sequence <= 0 ||
 		len(q.RunID) > maxCanonicalRequestBytes || len(q.LibraryKey) > maxCanonicalRequestBytes-len(q.RunID) ||
