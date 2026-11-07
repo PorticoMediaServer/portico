@@ -25,13 +25,13 @@ func rbGroupSpecs() []rbGroupSpec {
 	s := func(s string) rbGroupKey { return rbGroupKey{sql: s, text: true} }
 	entity := "catalog_entities AS e INDEXED BY "
 	return []rbGroupSpec{
-		{RBGroupShowSeasons, "show-seasons", entity + "catalog_entities_show_fk", "e.show_id IS NOT NULL AND e.show_id=?", "catalog_entities_show_fk", []rbGroupKey{n("e.id")}, 2, []int64{3}, false},
-		{RBGroupShowEpisodes, "show-episodes", entity + "catalog_entities_show_fk", "e.show_id IS NOT NULL AND e.show_id=?", "catalog_entities_show_fk", []rbGroupKey{n("e.id")}, 2, []int64{4}, false},
-		{RBGroupSeasonEpisodes, "season-episodes", entity + "catalog_entities_season", "e.season_id IS NOT NULL AND e.season_id=?", "catalog_entities_season", []rbGroupKey{n("e.episode_number"), n("e.id")}, 3, []int64{4}, true},
-		{RBGroupArtistAlbums, "artist-albums", entity + "catalog_entities_artist", "e.artist_id IS NOT NULL AND e.artist_id=?", "catalog_entities_artist", []rbGroupKey{n("e.id")}, 5, []int64{6}, false},
-		{RBGroupAlbumSongs, "album-songs", entity + "catalog_entities_album", "e.album_id IS NOT NULL AND e.album_id=?", "catalog_entities_album", []rbGroupKey{n("COALESCE(e.disc_number,1)"), n("COALESCE(e.track_number,0)"), n("e.id")}, 6, []int64{7}, true},
-		{RBGroupAuthorBooks, "author-books", entity + "catalog_entities_book_author", "e.kind=8 AND e.library_id=? AND e.author COLLATE NOCASE=(SELECT title FROM catalog_entities WHERE id=?)", "catalog_entities_book_author", []rbGroupKey{n("e.id")}, 13, []int64{8}, false},
-		{RBGroupBookParts, "book-parts", entity + "catalog_entities_book", "e.book_id IS NOT NULL AND e.book_id=?", "catalog_entities_book", []rbGroupKey{n("COALESCE(e.disc_number,1)"), n("COALESCE(e.part_number,0)"), n("e.id")}, 8, []int64{9}, true},
+		{RBGroupShowSeasons, "show-seasons", entity + "catalog_entities_show_fk", "show_id IS NOT NULL AND e.show_id=?", "catalog_entities_show_fk", []rbGroupKey{n("e.id")}, 2, []int64{3}, false},
+		{RBGroupShowEpisodes, "show-episodes", entity + "catalog_entities_show_fk", "show_id IS NOT NULL AND e.show_id=?", "catalog_entities_show_fk", []rbGroupKey{n("e.id")}, 2, []int64{4}, false},
+		{RBGroupSeasonEpisodes, "season-episodes", entity + "catalog_entities_season", "season_id IS NOT NULL AND e.season_id=?", "catalog_entities_season", []rbGroupKey{n("e.episode_number"), n("e.id")}, 3, []int64{4}, true},
+		{RBGroupArtistAlbums, "artist-albums", entity + "catalog_entities_artist", "artist_id IS NOT NULL AND e.artist_id=?", "catalog_entities_artist", []rbGroupKey{n("e.id")}, 5, []int64{6}, false},
+		{RBGroupAlbumSongs, "album-songs", entity + "catalog_entities_album", "album_id IS NOT NULL AND e.album_id=?", "catalog_entities_album", []rbGroupKey{n("COALESCE(e.disc_number,1)"), n("COALESCE(e.track_number,0)"), n("e.id")}, 6, []int64{7}, true},
+		{RBGroupAuthorBooks, "author-books", entity + "catalog_entities_book_author", "kind=8 AND e.library_id=? AND e.author COLLATE NOCASE=(SELECT title FROM catalog_entities WHERE id=?)", "catalog_entities_book_author", []rbGroupKey{n("e.id")}, 13, []int64{8}, false},
+		{RBGroupBookParts, "book-parts", entity + "catalog_entities_book", "book_id IS NOT NULL AND e.book_id=?", "catalog_entities_book", []rbGroupKey{n("COALESCE(e.disc_number,1)"), n("COALESCE(e.part_number,0)"), n("e.id")}, 8, []int64{9}, true},
 		{RBGroupCollectionMembers, "collection-members", "catalog_collection_members AS m INDEXED BY catalog_collection_members_page CROSS JOIN catalog_entities AS e ON e.id=m.item_id", "m.collection_id=?", "catalog_collection_members_page", []rbGroupKey{s("m.order_key"), n("m.item_id")}, 10, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13}, true},
 		{RBGroupPlaylistEntries, "playlist-entries", "catalog_playlist_entries AS m INDEXED BY catalog_playlist_entries_page LEFT JOIN catalog_entities AS e ON e.id=m.item_id", "m.playlist_id=?", "catalog_playlist_entries_page", []rbGroupKey{s("m.order_key"), n("m.id")}, 0, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13}, true},
 	}
@@ -118,7 +118,7 @@ func RBGroupDefinitions() []stmt.Definition {
 			}
 		}
 	}
-	return out
+	return append(out, rbRelationshipDefinitions()...)
 }
 
 // Fixed cohort anchors belong to the bounded group journal; they are not request
