@@ -222,6 +222,17 @@ func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput) (
 			if len(x.Personal) > 1 {
 				return frame, ErrUnqualified
 			}
+			if len(x.Personal) != len(personalSizes) {
+				return frame, ErrStale
+			}
+			for n, row := range x.Personal {
+				for k, pos := range []int{11, 16, 17, 21, 14, 22} {
+					if !homeFixedByteMatches(personalSizes[n][k], row[pos]) {
+						return frame, ErrStale
+					}
+				}
+			}
+
 			if len(x.Personal) == 1 {
 				p := x.Personal[0]
 				if !reflect.DeepEqual(p[1], b) {
@@ -253,31 +264,7 @@ func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput) (
 				// Only the compiled helper's closed recipe is composed. Trace custody
 				// includes rejected links and objects, not merely the selected binding.
 				trace := func(name string, args ...any) ([][]any, error) {
-					part := strings.TrimPrefix(name, "rb.home.binding.")
-					sizes, e := q("rb.home.fixed.binding."+part+".bytes", args...)
-					if e != nil {
-						return nil, e
-					}
-					var total int64
-					for _, row := range sizes {
-						for _, v := range row {
-							if v == nil {
-								continue
-							}
-							n, ok := v.(int64)
-							if !ok || n < 0 || n > s.nativeLimit-total {
-								return nil, governor.ErrSnapshotBudget
-							}
-							total += n
-						}
-					}
-					if 4096+3*total > s.copyLimit-s.copied {
-						return nil, governor.ErrSnapshotBudget
-					}
-					rows, e := q(name, args...)
-					if len(rows) != len(sizes) {
-						return nil, ErrStale
-					}
+					rows, e := homeFixedBindingRows(s, q, name, args...)
 					x.BindingTrace = append(x.BindingTrace, rows)
 					return rows, e
 				}
@@ -292,7 +279,7 @@ func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput) (
 					unavailable := len(x.BindingTrace) >= 2 && len(x.BindingTrace[1]) == 0
 					if len(x.BindingTrace) >= 2 && len(x.BindingTrace[1]) == 1 {
 						link := x.BindingTrace[1][0]
-						unavailable = link[6] == int64(0) || link[16] == int64(0)
+						unavailable = link[4] == nil && link[5] == int64(0) && link[15] == lib.NativeID && (link[6] == int64(0) || link[16] == int64(0))
 					}
 					if !unavailable {
 						frame.Pending = "whole_playable_binding_unresolved"

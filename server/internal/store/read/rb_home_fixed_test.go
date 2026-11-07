@@ -19,7 +19,7 @@ func homeFixedAllDefinitions() []stmt.Definition {
 	d := append(browseDefinitions(), rbSavedViewAllDraftDefinitions()...)
 	d = append(d, rbHomeManifestDefinitions()...)
 	d = append(d, rbHomeManifestSourceDefinitions()...)
-	d = append(d, rbHomeBindingDefinitions()...)
+	d = append(d, rbHomeBindingDefinitions()[1:]...)
 	d = append(d, rbHomeFixedDefinitions()...)
 	return append(d, rbHomeFixedBindingByteDefinitions()...)
 }
@@ -206,6 +206,13 @@ func TestRBHomeFixedActivity(t *testing.T) {
 		if e != nil || len(p.Items) != 1 || p.Items[0].Target.ID != 3000 {
 			t.Fatal(p, c, e)
 		}
+		f.exec(t, `UPDATE personal_items SET dismissed_playback_id=resume_playback_id WHERE item_id=3000`)
+		p, c, e = homeFixedRead(t, f, r, "listen_next")
+		if e != nil || !p.Pending || p.Exact {
+			t.Fatal("album leaf dismissal was ignored", p, c, e)
+		}
+		f.exec(t, `UPDATE personal_items SET dismissed_playback_id=NULL WHERE item_id=3000`)
+
 		homeFixedStateSeed(t, f, 2000, 0, "ended")
 		f.exec(t, `UPDATE personal_items SET container_cleared_through='2026-11-03T00:00:00Z' WHERE item_id=2000`)
 		p, c, e = homeFixedRead(t, f, r, "listen_next")
@@ -361,4 +368,23 @@ func TestRBHomeFixedHundredKernel(t *testing.T) {
 	if e != nil || !page.Exact || len(page.Items) != 100 || page.Items[0].Work.ID != 103 || page.Items[99].Work.ID != 4 {
 		t.Fatal(page, e)
 	}
+}
+
+func TestRBHomeFixedAvailabilityPublication(t *testing.T) {
+	homeFixedCase(t, "pending_unavailability_is_not_absence", func(t *testing.T) {
+		f, r := homeFixedFixture(t, func(f *browseFixture) {
+			homeFixedEntitySeed(t, f, 2000, 1, nil, nil, nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedAssetSeed(t, f, 2000)
+			f.exec(t, `UPDATE catalog_assets SET available=0,info_publication_pending=1 WHERE id=2000`)
+		})
+		p, c, e := homeFixedRead(t, f, r, "new_on_server")
+		if e != nil || !p.Pending || p.Exact || p.Exhausted {
+			t.Fatal(p, c, e)
+		}
+		f.exec(t, `UPDATE catalog_assets SET info_publication_pending=0 WHERE id=2000`)
+		p, c, e = homeFixedRead(t, f, r, "new_on_server")
+		if e != nil || !p.Exact || !p.Exhausted || p.Pending || len(p.Items) != 0 {
+			t.Fatal(p, c, e)
+		}
+	})
 }

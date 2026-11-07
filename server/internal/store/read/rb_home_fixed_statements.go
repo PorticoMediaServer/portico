@@ -33,12 +33,27 @@ func rbHomeFixedDefinitions() []stmt.Definition {
 	return out
 }
 
-// Closed actual-byte preflights share precisely the helper's keyed FROM/WHERE
-// and raw LIMIT. They materialize lengths only, before any variable payload.
+func rbHomeFixedBindingItemDefinition() stmt.Definition {
+	d := rbHomeBindingDefinitions()[0]
+	d.ID = readStatementID("rb.home.fixed.binding.item.value")
+	d.SQL = strings.Replace(d.SQL, "catalog_entities AS e", "catalog_entities AS e INDEXED BY catalog_entities_library_id", 1)
+	d.Plan.PrimaryKeys = []string{"k", "cl", "gone", "recording"}
+	d.Plan.Indexes = append(d.Plan.Indexes, "catalog_entities_library_id")
+	d.Plan.Seeks = []string{"library_id=? AND id=?"}
+	d.CallSites = []string{"store/read/rb_home_fixed_binding.go"}
+	return d
+}
+
+// Item/object lengths share the helper's exact source and raw bound. Link IDs
+// are scalar; each linked token has a separate actual asset PK byte point.
 func rbHomeFixedBindingByteDefinitions() []stmt.Definition {
 	defs := rbHomeBindingDefinitions()
-	fields := []string{"octet_length(cl.library_id)", "octet_length(a.token)", "octet_length(NULLIF(s.library_id,?)),octet_length(o.id),octet_length(o.revision),octet_length(o.source_id),octet_length(s.incarnation),octet_length(s.root),octet_length(s.configured_root)"}
+	fields := []string{"octet_length(cl.library_id)", "", "octet_length(NULLIF(s.library_id,?)),octet_length(o.id),octet_length(o.revision),octet_length(o.source_id),octet_length(s.incarnation),octet_length(s.root),octet_length(s.configured_root)"}
 	for n := range defs {
+		if n == 1 {
+			defs[n] = stmt.Definition{ID: readStatementID("rb.home.fixed.binding.links.ids"), Owner: "store/read", Kind: stmt.Read, CallSites: []string{"store/read/rb_home_fixed_binding.go"}, SQL: "SELECT asset_id,library_id FROM catalog_asset_links INDEXED BY catalog_asset_links_order WHERE entity_id=? ORDER BY part_index,asset_id LIMIT ?", Params: []stmt.Param{{Name: "item", Type: stmt.Integer}, {Name: "limit", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), int64(2)}}, {Name: "empty", Bindings: []any{int64(999999), int64(2)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_asset_links_order"}, Seeks: []string{"entity_id=?"}}}
+			continue
+		}
 		d := &defs[n]
 		sql := d.SQL
 		at := strings.Index(sql, "\n FROM ")
@@ -60,5 +75,5 @@ func rbHomeFixedBindingByteDefinitions() []stmt.Definition {
 			d.Cohorts[0].Bindings[1] = "fixed-1"
 		}
 	}
-	return defs
+	return append(append(defs, rbHomeFixedBindingItemDefinition()), stmt.Definition{ID: readStatementID("rb.home.fixed.asset.bytes"), Owner: "store/read", Kind: stmt.Read, CallSites: []string{"store/read/rb_home_fixed_binding.go"}, SQL: "SELECT octet_length(token) FROM catalog_assets WHERE id=? AND library_id=?", Params: []stmt.Param{{Name: "asset", Type: stmt.Integer}, {Name: "library", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), int64(1)}}, {Name: "empty", Bindings: []any{int64(999999), int64(1)}}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_assets"}}})
 }
