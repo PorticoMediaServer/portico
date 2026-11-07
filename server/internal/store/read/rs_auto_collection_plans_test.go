@@ -102,6 +102,9 @@ func TestRSAutoCollectionPlans(t *testing.T) {
 		}
 	}
 	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
+		if e := os.MkdirAll(dir, 0755); e != nil {
+			t.Fatal(e)
+		}
 		var compressed bytes.Buffer
 		z := gzip.NewWriter(&compressed)
 		if _, e := z.Write(actual); e != nil {

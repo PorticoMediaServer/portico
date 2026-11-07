@@ -26,6 +26,7 @@ func TestRSAutoCollectionAcceptedSet(t *testing.T) {
 	}
 }
 func TestRSAutoCollectionCurrentSources(t *testing.T) {
+	f, r := newRSAutoFixture(t, nil)
 	for _, tt := range []struct {
 		name, sql string
 		want      []int64
@@ -46,7 +47,7 @@ func TestRSAutoCollectionCurrentSources(t *testing.T) {
 		{"explicit-add-disjoint", `UPDATE catalog_automatic_member_overrides SET present=1 WHERE item_id=2`, []int64{1, 2, 4}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			f, r := newRSAutoFixture(t, func(f *browseFixture) { f.exec(t, tt.sql) })
+			f.exec(t, tt.sql)
 			p := rsBeginCollection(t, f, r)
 			rsCompleteCollection(t, f, p)
 			var got []int64
@@ -57,6 +58,21 @@ func TestRSAutoCollectionCurrentSources(t *testing.T) {
 				t.Fatal(got, tt.want)
 			}
 		})
+		// Each control starts from the SAME actually captured source. Restore its
+		// facts after the subtest's preparation and snapshots physically retire.
+		for _, sql := range []string{
+			`UPDATE metadata_providers SET enabled=1`,
+			`UPDATE metadata_provider_policy SET enabled=1,incarnation=zeroblob(16),revision=1`,
+			`UPDATE metadata_evidence SET sealed=1`,
+			`UPDATE libraries SET metadata_language='en'`,
+			`UPDATE metadata_subject_providers SET accepted_evidence_id='e1',accepted_publication_id='p1',status='matched',role='primary' WHERE entity_id=1`,
+			`UPDATE metadata_field_origins SET field='relations' WHERE entity_id=1`,
+			`UPDATE metadata_provider_operations SET status='applied'`,
+			`UPDATE catalog_entities SET automatic_collection_name='' WHERE id=1`,
+			`UPDATE catalog_automatic_member_overrides SET present=0 WHERE item_id=2`,
+		} {
+			f.exec(t, sql)
+		}
 	}
 }
 func TestRSAutoCollectionPendingStaleAndCapacity(t *testing.T) {
