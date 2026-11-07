@@ -318,6 +318,9 @@ func (a *Authority) check(p *Grant, expected Request, readyDeadline time.Time) e
 	return a.checkContext(context.Background(), p, expected, readyDeadline)
 }
 func (a *Authority) checkContext(ctx context.Context, p *Grant, expected Request, readyDeadline time.Time) error {
+	return a.checkContextUntil(ctx, p, expected, readyDeadline, time.Time{})
+}
+func (a *Authority) checkContextUntil(ctx context.Context, p *Grant, expected Request, readyDeadline, until time.Time) error {
 	g := a.ledger
 	if ctx == nil || p == nil || p.issuer != g || p.cancelled.Load() || p.epoch != g.state.Load() {
 		return ErrGrant
@@ -328,13 +331,23 @@ func (a *Authority) checkContext(ctx context.Context, p *Grant, expected Request
 	if !g.mu.TryLock() {
 		// This is already admitted authority, not a new capacity request.
 		// Immutable issuer-captured deadline prevents a caller from extending it.
-		if err := g.mu.lockWithin(p.deadline.Sub(g.config.Now()), p.cancelledDone, ctx); err != nil {
+		deadline := p.deadline
+		if !until.IsZero() {
+			deadline = minTime(deadline, until)
+		}
+		if err := g.mu.lockWithin(deadline.Sub(g.config.Now()), p.cancelledDone, ctx); err != nil {
+			if err == ErrGrant && !until.IsZero() && !p.cancelled.Load() {
+				return context.DeadlineExceeded
+			}
 			return err
 		}
 	}
 	defer g.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if !until.IsZero() && !until.After(g.config.Now()) {
+		return context.DeadlineExceeded
 	}
 	h := g.find(p)
 	if h == nil || p.cancelled.Load() || p.epoch != g.state.Load() ||
