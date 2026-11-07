@@ -11,9 +11,9 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 // in [1,64], drain all pages (including a final empty page), and refuse/pending
 // rather than treat a work budget or a full page as cohort completeness.
 //
-// Person heads are deliberately RAW: catalog_people has no dedicated immutable
-// search incarnation. Neither token nor artwork_incarnation is that carrier.
-// The executor must refuse person acceptance until the real carrier exists.
+// Person acceptance consumes CHANGE-013's dedicated immutable search birth.
+// Neither token nor artwork_incarnation is that carrier. The new point remains
+// unexecutable on a schema lacking that column; there is no fallback.
 // There are no entity/person redirect tables in this schema; none are invented.
 func nativeSearchSourceDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
@@ -42,10 +42,8 @@ func nativeSearchSourceDefinitions() []stmt.Definition {
 	}
 	add("revision", `SELECT revision,active_generation_id,building_generation_id,input_sequence FROM search_revision AS r WHERE r.singleton=?`, []stmt.Param{i("singleton")}, []any{int64(1)}, point("r"))
 	bankKey := key("search_generations", "sqlite_autoindex_search_generations_1", "u", "bank_key")
-	// bank_key is exact BINARY equality; callers bind "v1". The closed HN
-	// scalar grammar does not admit sqlite_version()/sqlite_source_id(), even
-	// in a separate scalar statement. Parent must obtain actual engine identity
-	// through the existing trusted connection preflight, not this bank record.
+	// bank_key is exact BINARY equality; callers bind "v1". Actual engine
+	// identity is the separate closed nativeEngineDefinition, not this row.
 	add("bank", `SELECT b.id,b.bank_key,b.recipe_version,b.engine_version,b.unicode_fingerprint,b.state,b.pending_subjects FROM search_generations AS b INDEXED BY sqlite_autoindex_search_generations_1 WHERE b.bank_key=?`, []stmt.Param{t("bank_key")}, []any{"v1"}, unique(bankKey))
 
 	entityKey := key("search_publish_jobs", "sqlite_autoindex_search_publish_jobs_1", "u", "entity_id", "search_generation_id")
@@ -69,6 +67,18 @@ AND e.kind=p.kind AND e.library_id=p.library_id AND e.retired=0`, []stmt.Param{i
 	personKey := key("search_publish_jobs", "sqlite_autoindex_search_publish_jobs_2", "u", "person_id", "search_generation_id")
 	add("person.head.raw", `SELECT j.published_document_id,j.published_generation,j.input_generation,j.source_incarnation,j.source_revision,j.job_revision FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_2 WHERE j.person_id=? AND j.search_generation_id=?`, []stmt.Param{i("person"), i("bank")}, []any{int64(1), int64(1)}, unique(personKey))
 	add("person.source.raw", `SELECT p.id,p.name,p.sort_name,p.revision FROM catalog_people AS p WHERE p.id=?`, []stmt.Param{i("person")}, []any{int64(1)}, point("p"))
+	personAccepted := unique(personKey)
+	personAccepted.PrimaryKeys = []string{"p", "s"}
+	add("person.accepted", `SELECT p.id,p.generation,p.title,p.title_fold,p.source_incarnation,p.source_revision,s.name
+FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_2
+CROSS JOIN search_publications AS p ON p.id=j.published_document_id
+CROSS JOIN catalog_people AS s ON s.id=j.person_id
+WHERE j.person_id=? AND j.search_generation_id=?
+AND p.person_id=j.person_id AND p.search_generation_id=j.search_generation_id
+AND p.generation=j.published_generation AND p.generation=j.input_generation
+AND p.source_incarnation=j.source_incarnation AND p.source_revision=j.source_revision
+AND p.recipe_version=j.recipe_version
+AND s.search_incarnation=p.source_incarnation AND s.revision=p.source_revision`, []stmt.Param{i("person"), i("bank")}, []any{int64(1), int64(1)}, personAccepted)
 	add("publication", `SELECT p.id,p.entity_id,p.person_id,p.search_generation_id,p.title,p.title_fold,p.kind,p.library_id,p.generation,p.source_incarnation,p.source_revision,p.recipe_version FROM search_publications AS p WHERE p.id=?`, []stmt.Param{i("publication")}, []any{int64(1)}, point("p"))
 	add("fragment", `SELECT f.publication_id,f.owner_entity,f.owner_person,f.field,f.ordinal,f.source_revision,f.generation,f.search_generation_id FROM search_fragments AS f WHERE f.id=?`, []stmt.Param{i("fragment")}, []any{int64(1)}, point("f"))
 	field := `SELECT f.id,f.ordinal,f.prefix_tokens,f.lexical_tokens,f.normalized,f.source_revision FROM search_fragments AS f INDEXED BY search_fragment_publication WHERE f.publication_id=? AND f.field=?`
@@ -89,6 +99,7 @@ WHERE e.id=? AND h.id=? AND h.entity_id=e.id AND h.entity_incarnation=e.metadata
 	cp := stmt.Plan{Hot: true, Indexes: []string{"catalog_credits_entity"}, PrimaryKeys: []string{"e", "h"}, Seeks: []string{"entity_id=? AND image_id=?"}}
 	add("credit.first", credit+` ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("limit")}, []any{int64(1), int64(1), int64(64)}, cp)
 	add("credit.next", credit+` AND c.ord>? ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("after"), i("limit")}, []any{int64(1), int64(1), int64(0), int64(64)}, cp)
+	add("credit.point", credit+` AND c.ord=? AND c.person_id=?`, []stmt.Param{i("entity"), i("image"), i("ordinal"), i("person")}, []any{int64(1), int64(1), int64(0), int64(1)}, cp)
 	// Inverses only. Existing FullSearchDefinitions owns forward/reverse owner
 	// pages; do not substitute these relationships for automatic membership.
 	sa := key("catalog_song_artists", "sqlite_autoindex_catalog_song_artists_1", "pk", "song_id", "artist_id")
@@ -104,5 +115,9 @@ WHERE e.id=? AND h.id=? AND h.entity_id=e.id AND h.entity_incarnation=e.metadata
 	}
 	add("kind", `SELECT id,name,container FROM catalog_kinds WHERE id=?`, []stmt.Param{i("kind")}, []any{int64(1)}, point("catalog_kinds"))
 	add("seal", `SELECT algorithm,sealed,expected_fragments,verified_fragments,expected_digest,chain,expected_bytes,verified_bytes FROM search_image_seals WHERE publication_id=?`, []stmt.Param{i("publication")}, []any{int64(1)}, point("search_image_seals"))
+	album := `SELECT id FROM catalog_entities INDEXED BY catalog_entities_album_search WHERE album_id IS NOT NULL AND album_id=?`
+	albumPlan := stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_album_search"}}
+	add("album.first", album+` ORDER BY id DESC LIMIT ?`, []stmt.Param{i("album"), i("limit")}, []any{int64(1), int64(64)}, albumPlan)
+	add("album.next", album+` AND id<? ORDER BY id DESC LIMIT ?`, []stmt.Param{i("album"), i("after"), i("limit")}, []any{int64(1), int64(99), int64(64)}, albumPlan)
 	return out
 }
