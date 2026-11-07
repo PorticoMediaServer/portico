@@ -2,6 +2,8 @@ package read
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -39,8 +41,9 @@ type RSPeopleDirectory struct {
 	Pending, Complete bool
 }
 type rsPeopleDirectoryEntry struct {
-	summary RSPersonSummary
-	source  []any
+	summary      RSPersonSummary
+	source       []any
+	workIdentity [32]byte
 }
 type rsPeopleDirectoryState struct {
 	input        RSPeopleDirectoryInput
@@ -138,7 +141,7 @@ func (r *RSPeoplePageReader) directory(ctx context.Context, request governor.Req
 			var entry *rsPeopleDirectoryEntry
 			if c.facts != nil {
 				f := c.facts
-				entry = &rsPeopleDirectoryEntry{summary: RSPersonSummary{ID: f.ID, Token: strings.Clone(f.Token), Name: strings.Clone(f.Name), SortName: strings.Clone(f.SortName), Roles: rsPeopleRoles(c.departments), CreditCount: c.creditCount, Portrait: rsClonePortrait(c.portrait)}, source: c.source}
+				entry = &rsPeopleDirectoryEntry{summary: RSPersonSummary{ID: f.ID, Token: strings.Clone(f.Token), Name: strings.Clone(f.Name), SortName: strings.Clone(f.SortName), Roles: rsPeopleRoles(c.departments), CreditCount: c.creditCount, Portrait: rsClonePortrait(c.portrait)}, source: c.source, workIdentity: p.identity()}
 			}
 			// Actual references are dropped before refunding the job's local
 			// sub-account. The governor reservation itself remains fully held.
@@ -149,6 +152,7 @@ func (r *RSPeoplePageReader) directory(ctx context.Context, request governor.Req
 				for _, role := range entry.summary.Roles {
 					n += int64(64 + 4*len(role))
 				}
+				n += rsPortraitBytes(entry.summary.Portrait)
 				if err = p.charge(n); err != nil {
 					return
 				}
@@ -214,13 +218,14 @@ func (p *RSPeoplePreparation) directoryPage(outputBytes int64) (RSPeopleDirector
 	in := d.input
 	// Include all person source identities in continuation provenance, as well
 	// as the canonical views' authority/data/order/artwork fences.
-	p.current.source = nil
+	h := sha256.New()
+	base := p.identity()
+	h.Write(base[:])
 	for _, entry := range d.entries {
-		p.current.source = append(p.current.source, entry.summary.ID)
-		p.current.source = append(p.current.source, entry.source...)
+		fmt.Fprintf(h, "%d/%x\n", entry.summary.ID, entry.workIdentity)
 	}
-	identity := p.identity()
-	p.current.source = nil
+	var identity [32]byte
+	copy(identity[:], h.Sum(nil))
 	if a := in.After; a != nil && (a.identity != identity || a.descending != in.Descending || a.limit != in.Limit) {
 		return RSPeopleDirectory{}, ErrStale
 	}
@@ -254,6 +259,7 @@ func (p *RSPeoplePreparation) directoryPage(outputBytes int64) (RSPeopleDirector
 		for _, role := range v.Roles {
 			n += int64(64 + 4*len(role))
 		}
+		n += rsPortraitBytes(v.Portrait)
 	}
 	if n > outputBytes {
 		return RSPeopleDirectory{}, governor.ErrSnapshotBudget
@@ -276,4 +282,11 @@ func (p *RSPeoplePreparation) directoryPage(outputBytes int64) (RSPeopleDirector
 		out.Next = &RSPeopleDirectoryCursor{identity: identity, name: v.SortName, id: v.ID, descending: in.Descending, limit: in.Limit}
 	}
 	return out, nil
+}
+
+func rsPortraitBytes(p *RSPersonPortrait) int64 {
+	if p == nil {
+		return 0
+	}
+	return int64(512 + 4*(len(p.Small)+len(p.Large)+len(p.Ambient)+len(p.MIME)))
 }

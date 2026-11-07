@@ -694,6 +694,9 @@ func (p *RSPeoplePreparation) identity() [32]byte {
 		fmt.Fprintf(h, "%#v\n", f)
 	}
 	fmt.Fprintf(h, "%#v\n", p.current.source)
+	for _, work := range p.current.order {
+		fmt.Fprintf(h, "%d/%#v\n", work.item.ID, work.source)
+	}
 	var out [32]byte
 	copy(out[:], h.Sum(nil))
 	return out
