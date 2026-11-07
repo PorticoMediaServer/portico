@@ -772,7 +772,7 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		return nil
 	}
 	add(t.cleanupCall("hold clock", measure))
-	overrun := t.limit > 0 && (t.result.hold > MaxCommandSafetyHold || t.result.hold < 0)
+	overrun := t.limit > 0 && (t.result.hold > t.limit || t.result.hold < 0)
 	if overrun {
 		t.finishErr = errors.Join(t.finishErr, ErrOverrun)
 	}
@@ -795,7 +795,7 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		add(err)
 	}
 	add(t.cleanupCall("complete hold clock", measure))
-	if t.limit > 0 && (t.result.hold > MaxCommandSafetyHold || t.result.hold < 0) {
+	if t.limit > 0 && (t.result.hold > t.limit || t.result.hold < 0) {
 		mustFence = true
 		t.finishErr = errors.Join(t.finishErr, ErrOverrun)
 	}
@@ -807,7 +807,7 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		add(t.closePool())
 	}
 	add(t.cleanupCall("final hold clock", measure))
-	if t.limit > 0 && (t.result.hold > MaxCommandSafetyHold || t.result.hold < 0) {
+	if t.limit > 0 && (t.result.hold > t.limit || t.result.hold < 0) {
 		mustFence = true
 		t.finishErr = errors.Join(t.finishErr, ErrOverrun)
 	}
