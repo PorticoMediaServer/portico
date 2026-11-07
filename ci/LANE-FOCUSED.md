@@ -22,6 +22,7 @@ The original `-run` filter reaches Go unchanged; `-skip` excludes parents assign
 
 | Capture target | Recorded files under owning package's testdata |
 | --- | --- |
+| hn-basic-media | scan-basic-media.json, scan-basic-media-fk.json.gz |
 | hn-canonical | canonical.json, canonical-fk.json.gz |
 | hn-issuer | issuer-source-octets.json |
 | hn-issuer-library | issuer-library-root-octets.json |

@@ -23,6 +23,7 @@ class LaneTests(unittest.TestCase):
         self.assertEqual(self.config(mode='capture', targets='hn-browse')['targets'], ['hn-browse'])
         self.assertEqual(self.config(mode='harness', targets='ec5-memory')['targets'], ['ec5-memory'])
         self.assertEqual(self.config(mode='capture', targets='hn-n1-preflights')['targets'], ['hn-n1-preflights'])
+        self.assertEqual(self.config(mode='capture', targets='hn-basic-media')['targets'], ['hn-basic-media'])
 
     def test_auto_splits_a_single_large_package_and_exact_lists(self):
         units = [dict(Package='same/package', Name=f'Test{i}') for i in range(76)]
