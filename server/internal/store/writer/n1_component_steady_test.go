@@ -53,32 +53,37 @@ type n1CurrentSnapshot struct {
 var n1FullPrefixCase = n1Case{"dual", "current", "absent", "domain-cap"}
 
 type n1SteadySummary struct {
-	Restart             *n1ComponentRestart      `json:"component_restart"`
-	FullPrefix          *bool                    `json:"complete_escaped_domain_cap_full_prefix"`
-	RequestedWarmup     int                      `json:"requested_warmup_originals"`
-	RequestedMeasured   int                      `json:"requested_measured_originals"`
-	OpenedDatabases     *int                     `json:"opened_databases"`
-	Warmup              n1OriginalCensus         `json:"warmup"`
-	Measured            n1OriginalCensus         `json:"measured"`
-	Turns               map[string]*n1TurnCensus `json:"turns_by_role"`
-	KnownPhysicalTurns  int                      `json:"known_physical_turns"`
-	WarmupOriginals     []ReceiptReference       `json:"completed_warmup_originals"`
-	DatabaseID          string                   `json:"database_id"`
-	RegistrySHA256      string                   `json:"captured_registry_manifest_sha256"`
-	FixtureSetup        *n1FixtureSetup          `json:"fixture_setup_facts"`
-	PoolStats           *sql.DBStats             `json:"pool_stats_after_fixture_close"`
-	Usage               *[4]governor.Amounts     `json:"authority_usage_after_fixture_close"`
-	ConnectionsOpened   *uint64                  `json:"observed_physical_connections_opened"`
-	ConnectionsClosed   *uint64                  `json:"observed_physical_connections_closed"`
-	NativeCloses        []n1NativeClose          `json:"native_closes"`
-	NativeCloseOverflow bool                     `json:"native_close_overflow"`
-	NativeJoined        *bool                    `json:"native_joined_after_fixture_close"`
-	BeforeFixture       *n1MemorySample          `json:"memory_before_fixture"`
-	AfterFixture        *n1MemorySample          `json:"memory_after_fixture_setup"`
-	BeforeClose         *n1MemorySample          `json:"memory_before_fixture_close"`
-	AfterClose          *n1MemorySample          `json:"memory_after_fixture_close"`
-	Complete            bool                     `json:"complete"`
-	StopReason          string                   `json:"stop_reason"`
+	CanonicalPopulation *QualificationPopulationManifest `json:"canonical_population,omitempty"`
+	ActualLibraryItems  *int64                           `json:"actual_target_library_items_before_warmup"`
+	CheckpointCalls     int                              `json:"checkpoint_calls"`
+	CheckpointComplete  int                              `json:"checkpoint_complete"`
+	CheckpointOverflow  bool                             `json:"checkpoint_ledger_overflow"`
+	Restart             *n1ComponentRestart              `json:"component_restart"`
+	FullPrefix          *bool                            `json:"complete_escaped_domain_cap_full_prefix"`
+	RequestedWarmup     int                              `json:"requested_warmup_originals"`
+	RequestedMeasured   int                              `json:"requested_measured_originals"`
+	OpenedDatabases     *int                             `json:"opened_databases"`
+	Warmup              n1OriginalCensus                 `json:"warmup"`
+	Measured            n1OriginalCensus                 `json:"measured"`
+	Turns               map[string]*n1TurnCensus         `json:"turns_by_role"`
+	KnownPhysicalTurns  int                              `json:"known_physical_turns"`
+	WarmupOriginals     []ReceiptReference               `json:"completed_warmup_originals"`
+	DatabaseID          string                           `json:"database_id"`
+	RegistrySHA256      string                           `json:"captured_registry_manifest_sha256"`
+	FixtureSetup        *n1FixtureSetup                  `json:"fixture_setup_facts"`
+	PoolStats           *sql.DBStats                     `json:"pool_stats_after_fixture_close"`
+	Usage               *[4]governor.Amounts             `json:"authority_usage_after_fixture_close"`
+	ConnectionsOpened   *uint64                          `json:"observed_physical_connections_opened"`
+	ConnectionsClosed   *uint64                          `json:"observed_physical_connections_closed"`
+	NativeCloses        []n1NativeClose                  `json:"native_closes"`
+	NativeCloseOverflow bool                             `json:"native_close_overflow"`
+	NativeJoined        *bool                            `json:"native_joined_after_fixture_close"`
+	BeforeFixture       *n1MemorySample                  `json:"memory_before_fixture"`
+	AfterFixture        *n1MemorySample                  `json:"memory_after_fixture_setup"`
+	BeforeClose         *n1MemorySample                  `json:"memory_before_fixture_close"`
+	AfterClose          *n1MemorySample                  `json:"memory_after_fixture_close"`
+	Complete            bool                             `json:"complete"`
+	StopReason          string                           `json:"stop_reason"`
 }
 
 type n1FixtureSetup struct {
@@ -88,9 +93,10 @@ type n1FixtureSetup struct {
 }
 
 type n1SteadyControls struct {
-	restart             bool             // component-only canonical close/reopen, no production authority
-	fullPrefix          bool             // closed target cell, not a recipe/limit selector
-	clock               func() time.Time // target ALWAYS passes time.Now; controls may freeze
+	canonical           *QualificationPopulationManifest // compiled canonical target; never an alternate opener/profile
+	restart             bool                             // component-only canonical close/reopen, no production authority
+	fullPrefix          bool                             // closed target cell, not a recipe/limit selector
+	clock               func() time.Time                 // target ALWAYS passes time.Now; controls may freeze
 	failOriginal        int
 	failRole, failQuery string // no config/flag accepts these fault controls
 }
@@ -106,6 +112,7 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 	summary.BeforeFixture = n1Memory(stream.origin)
 	trace := newN1Trace(stream.origin, cohort == "native-counters")
 	var fixture *inventoryProgressiveFixture
+	var maintenance *canonicalN1MaintenanceOwner
 	defer func() {
 		trace.armed = false
 		if fixture != nil {
@@ -114,7 +121,17 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 				summary.StopReason = n1Join(summary.StopReason, err)
 			}
 			summary.BeforeClose = n1Memory(stream.origin)
-			err := fixture.owner.executor.close()
+			var err error
+			if maintenance != nil {
+				err = maintenance.close()
+				err = errors.Join(err, maintenance.drain(stream))
+				summary.CheckpointCalls, summary.CheckpointComplete, summary.CheckpointOverflow = maintenance.started, maintenance.completed, maintenance.overflow
+				if maintenance.overflow {
+					err = errors.Join(err, errors.New("checkpoint raw ledger overflow; harness gap"))
+				}
+			} else {
+				err = fixture.owner.executor.close()
+			}
 			summary.StopReason = n1Join(summary.StopReason, err)
 			w := fixture.owner.executor
 			w.physicalFaults.mu.Lock()
@@ -142,7 +159,11 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 		summary.StopReason = err.Error()
 		return
 	}
-	if measured < 1 || measured > 64 || warmup+measured > inventoryProgressiveLimit || control.clock == nil {
+	maxMeasured, maxTotal := 64, inventoryProgressiveLimit
+	if control.canonical != nil {
+		maxMeasured, maxTotal = 1000000, 1000000+canonicalN1Warmup
+	}
+	if measured < 1 || measured > maxMeasured || warmup+measured > maxTotal || control.clock == nil {
 		summary.StopReason = ErrInvalid.Error()
 		return
 	}
@@ -150,7 +171,22 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 		summary.StopReason = err.Error()
 		return
 	}
-	fixture = newInventoryProgressiveFixture(t, warmup+measured, control.clock, trace.decorate)
+	if control.canonical != nil {
+		fixture, maintenance = newCanonicalN1Fixture(t, warmup+measured, trace)
+		summary.CanonicalPopulation = control.canonical
+		var count int64
+		if err := fixture.owner.executor.db.QueryRowContext(ctx, `SELECT count(*) FROM catalog_entities WHERE library_id=7 AND kind=1`).Scan(&count); err != nil {
+			summary.StopReason = err.Error()
+			return
+		}
+		summary.ActualLibraryItems = &count
+		if count != int64(control.canonical.Facts.Residents) {
+			summary.StopReason = "actual target library differs from pinned population"
+			return
+		}
+	} else {
+		fixture = newInventoryProgressiveFixture(t, warmup+measured, control.clock, trace.decorate)
+	}
 	if control.fullPrefix {
 		fixture.base = n1SeedCase(t, fixture.owner.executor, fixture.base, n1FullPrefixCase)
 	}
@@ -172,8 +208,20 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 	}
 	baseline := trace.conn.id
 	facts := &n1Attempt{}
-	n1ReadFixtureFacts(t, ctx, fixture.owner.executor, facts)
+	n1ReadFixtureFacts(t, ctx, fixture.owner.executor, facts, fixture.base.request.scope.libraryKey)
 	summary.FixtureSetup = &n1FixtureSetup{facts.AgeState, facts.StoredProfiles, facts.Cardinalities}
+	if maintenance != nil {
+		if err := stream.append("population_attached", map[string]any{"manifest": control.canonical, "actual_library_items": summary.ActualLibraryItems, "recipe": canonicalN1Recipe, "requested_warmup_originals": warmup, "cohort": "timing", "maintenance_policy": canonicalN1Maintenance().policy, "recovery_partition": canonicalN1Maintenance().need, "initial_opening_outside_trace": true, "observer": "existing n1 owner/decorator; native counters inside HOLD omitted", "qualified_profile_ready": false}); err != nil {
+			summary.StopReason = err.Error()
+			return
+		}
+		maintenance.results <- maintenance.step(ctx) // real startup PASSIVE, separate maintenance record
+		if err := maintenance.drain(stream); err != nil {
+			summary.StopReason = err.Error()
+			return
+		}
+		maintenance.start(ctx)
+	}
 	attemptOrdinal := 0
 	for original := 1; original <= warmup+measured; original++ {
 		if err := ctx.Err(); err != nil {
@@ -212,6 +260,12 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 			}
 			if !record.Complete || stream.err != nil {
 				summary.StopReason = n1Join("incomplete "+population+" "+role, errors.Join(errors.New(record.Error), stream.err))
+				return
+			}
+		}
+		if maintenance != nil {
+			if err := maintenance.drain(stream); err != nil {
+				summary.StopReason = err.Error()
 				return
 			}
 		}

@@ -28,19 +28,32 @@ func inventoryMemoryFixtureTurn(t *testing.T, w *executor, registry *stmt.Regist
 // The ONE fixture builder owns the unchanged synthetic recipe and grant path.
 // A progressive test retains this object, not a copied recipe or grant builder.
 type inventoryMemoryFixture struct {
-	executor  *executor
-	registry  *stmt.Registry
-	governor  governor.Governor
-	authority *governor.Authority
-	wal       *governor.WALGate
-	request   governor.Request
-	recipe    turnRecipe
-	budget    inventoryMemoryBudget
-	path      string
-	steps     []statementStep
+	executor    *executor
+	registry    *stmt.Registry
+	governor    governor.Governor
+	authority   *governor.Authority
+	wal         *governor.WALGate
+	request     governor.Request
+	recipe      turnRecipe
+	budget      inventoryMemoryBudget
+	path        string
+	maintenance bool
+	steps       []statementStep
 }
 
 func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registry, input *inventoryAcceptCommand, budget inventoryMemoryBudget, foreground ...governor.Config) *inventoryMemoryFixture {
+	t.Helper()
+	if len(foreground) > 1 {
+		t.Fatal("multiple foreground fixture configurations")
+	}
+	var fg *governor.Config
+	if len(foreground) == 1 {
+		fg = &foreground[0]
+	}
+	return newInventoryMemoryFixtureComposition(t, w, registry, input, budget, fg)
+}
+
+func newInventoryMemoryFixtureComposition(t *testing.T, w *executor, registry *stmt.Registry, input *inventoryAcceptCommand, budget inventoryMemoryBudget, foregroundConfig *governor.Config, maintenance ...governedFixtureMaintenance) *inventoryMemoryFixture {
 	t.Helper()
 	if input == nil || !input.valid || registry == nil {
 		t.Fatal("missing component input/registry")
@@ -57,14 +70,14 @@ func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registr
 	}
 	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}
 	now := w.now
-	if len(foreground) > 1 {
-		t.Fatal("multiple foreground fixture configurations")
+	if len(maintenance) > 1 {
+		t.Fatal("multiple maintenance fixture configurations")
 	}
-	var foregroundConfig *governor.Config
-	if len(foreground) == 1 {
-		foregroundConfig = &foreground[0]
+	var cp *governedFixtureMaintenance
+	if len(maintenance) == 1 {
+		cp = &maintenance[0]
 	}
-	g, a, wal, request := governedFixtureWithForeground(t, now, foregroundConfig, governedFixtureProfile{recipe, total})
+	g, a, wal, request := governedFixtureComposition(t, now, governor.Amounts{}, foregroundConfig, cp, governedFixtureProfile{recipe, total})
 	request.Key.ID = input.request.scope.runID
 	request.Footprint = []governor.Scope{{Library: input.request.scope.libraryID, Domain: uint16(InventoryAccept)}}
 	var seq int64
@@ -76,7 +89,7 @@ func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registr
 	for _, entry := range registry.Manifest() {
 		steps = append(steps, statementStep{entry.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
 	}
-	return &inventoryMemoryFixture{w, registry, g, a, wal, request, recipe, budget, path, steps}
+	return &inventoryMemoryFixture{executor: w, registry: registry, governor: g, authority: a, wal: wal, request: request, recipe: recipe, budget: budget, path: path, maintenance: cp != nil, steps: steps}
 }
 
 func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptCommand) (*commandTurn, error) {
@@ -90,6 +103,14 @@ func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptComma
 	}
 	request := f.request
 	request.Deadline = f.executor.now().Add(time.Second)
+	// Actual current gate metadata; required by merged concurrent keeper.
+	if f.maintenance {
+		var riskErr error
+		request.RestartRisk, riskErr = f.wal.RestartRisk(f.executor.now())
+		if riskErr != nil {
+			return nil, riskErr
+		}
+	}
 	decision := f.governor.Try(request)
 	if decision.Grant == nil {
 		return nil, effectiveAdmissionRefusal(decision.Refusal)

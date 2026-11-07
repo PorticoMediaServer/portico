@@ -10,6 +10,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
+type governedFixtureMaintenance struct {
+	policy governor.WALPolicy
+	need   governor.Amounts
+}
+
 type governedFixtureProfile struct {
 	recipe      turnRecipe
 	memoryBytes int64
@@ -29,6 +34,11 @@ func governedFixtureWithForeground(t *testing.T, now func() time.Time, foregroun
 
 func governedFixtureResourcesAndForeground(t *testing.T, now func() time.Time, extra governor.Amounts, foreground *governor.Config, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
 	t.Helper()
+	return governedFixtureComposition(t, now, extra, foreground, nil, profiles...)
+}
+
+func governedFixtureComposition(t *testing.T, now func() time.Time, extra governor.Amounts, foreground *governor.Config, maintenance *governedFixtureMaintenance, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
+	t.Helper()
 	profile := governedFixtureProfile{testRecipe(), 65536}
 	if len(profiles) > 2 {
 		t.Fatal("multiple test profiles")
@@ -39,7 +49,14 @@ func governedFixtureResourcesAndForeground(t *testing.T, now func() time.Time, e
 	if profile.memoryBytes <= 0 {
 		t.Fatal("invalid test memory")
 	}
-	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
+	policy := governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second}
+	if maintenance != nil {
+		if maintenance.policy.HardBytes != policy.HardBytes || maintenance.policy.ReserveBytes != policy.ReserveBytes || maintenance.policy.SoftDebtBytes != policy.SoftDebtBytes || maintenance.policy.ActivePressureBytes != policy.ActivePressureBytes || maintenance.policy.MaxSampleAge != policy.MaxSampleAge {
+			t.Fatal("maintenance changed writer WAL limits")
+		}
+		policy = maintenance.policy
+	}
+	wal, err := governor.NewWALGate(policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,6 +83,9 @@ func governedFixtureResourcesAndForeground(t *testing.T, now func() time.Time, e
 				partitions[i][resource] = n * 2
 			}
 		}
+	}
+	if maintenance != nil {
+		partitions[governor.Recovery] = maintenance.need
 	}
 	cfg := governor.Config{Partitions: partitions, MaxGrantsPerClass: 4, Now: now, WAL: wal}
 	if foreground != nil {
