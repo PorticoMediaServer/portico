@@ -97,7 +97,7 @@ func TestBasicCopySubtitleFactDriftAndReturningRollback(t *testing.T) {
 						defs[i].SQL = strings.Replace(defs[i].SQL, "RETURNING asset_id,revision,size,modified_ns,origin_us,timing_known,status,fingerprint", "RETURNING fingerprint,revision,size,modified_ns,origin_us,timing_known,status,asset_id", 1)
 					}
 					if control == "return_origin" {
-						defs[i].SQL = strings.Replace(defs[i].SQL, "RETURNING asset_id,revision,size,modified_ns,origin_us,", "RETURNING asset_id,revision,size,modified_ns,size,", 1)
+						defs[i].SQL = strings.Replace(defs[i].SQL, "RETURNING asset_id,revision,size,modified_ns,origin_us,", "RETURNING asset_id,revision,origin_us,modified_ns,size,", 1)
 					}
 				}
 			}
