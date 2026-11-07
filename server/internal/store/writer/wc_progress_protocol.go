@@ -459,7 +459,6 @@ func (w *Writer) AcceptProgress(ctx context.Context, cap *ProgressDisclosure, in
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
-	defer c.driver.abandonUncommittedProgress(c)
 	q, err := progressReference(c)
 	if err != nil {
 		return out, err
@@ -467,6 +466,9 @@ func (w *Writer) AcceptProgress(ctx context.Context, cap *ProgressDisclosure, in
 	if cap == nil || c.driver != cap.driver || c.pending != nil || q.Kind != "capture_report" {
 		return out, ErrDisclosureDenied
 	}
+	// Rejecting the wrong entrypoint is not an attempt to execute this sealed
+	// original: it must not consume a retained drain capability.
+	defer c.driver.abandonUncommittedProgress(c)
 	return w.runWCProgress(ctx, &wcProgressInvocation{disclosure: cap, request: q, input: c}, false)
 }
 
@@ -485,7 +487,6 @@ func (d *WCProgressDriver) ExecuteCurrentDrain(ctx context.Context, input Progre
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
-	defer c.driver.abandonUncommittedProgress(c)
 	q, e := progressReference(c)
 	if e != nil {
 		return out, e
@@ -493,6 +494,7 @@ func (d *WCProgressDriver) ExecuteCurrentDrain(ctx context.Context, input Progre
 	if d == nil || c.driver != d || c.pending == nil || q.Kind != "drain_piece" {
 		return out, ErrDisclosureDenied
 	}
+	defer c.driver.abandonUncommittedProgress(c)
 	out, err = d.writer.runWCProgress(ctx, &wcProgressInvocation{disclosure: d.Disclosure(), request: q, input: c, retained: c.pending, currentDrain: true}, false)
 	if err == nil && out.Outcome.State == Applied {
 		c.applied = true
@@ -511,7 +513,6 @@ func (d *WCProgressDriver) ExecuteDrain(ctx context.Context, input ProgressComma
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
-	defer c.driver.abandonUncommittedProgress(c)
 	q, e := progressReference(c)
 	if e != nil {
 		return out, e
@@ -522,6 +523,7 @@ func (d *WCProgressDriver) ExecuteDrain(ctx context.Context, input ProgressComma
 	if c.driver != d || c.pending == nil || q.Kind != "drain_piece" {
 		return out, ErrDisclosureDenied
 	}
+	defer c.driver.abandonUncommittedProgress(c)
 	out, err = d.writer.runWCProgress(ctx, &wcProgressInvocation{disclosure: d.retainedDisclosure(), request: q, input: c, retained: c.pending}, false)
 	if err != nil || out.Outcome.State != Applied {
 		return out, err
