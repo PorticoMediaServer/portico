@@ -15,7 +15,7 @@ import (
 
 func TestN1RecordWorkIsReservedOnEveryRewrite(t *testing.T) {
 	work := Work{16, 2000, 16, 65536, time.Microsecond}
-	p := effectivePlan{inventoryRecords: inventoryRecordEnvelope{65536, work}}
+	p := effectivePlan{inventoryPageSize: 4096, inventoryRecords: inventoryRecordEnvelope{32 << 10, work}}
 	for _, id := range []stmt.ID{scanFreshRunCAS, scanFreshJobCAS, scanFreshDirectoryCAS, scanFreshLibraryCAS} {
 		p.steps = append(p.steps, statementStep{id, work})
 	}
@@ -28,6 +28,29 @@ func TestN1RecordWorkIsReservedOnEveryRewrite(t *testing.T) {
 			t.Fatal("another unit lent pages to a native rewrite", p.steps[i].id, err)
 		}
 		p.steps[i].work.Pages++
+	}
+}
+
+func TestN1RecordStorageConsumesAssertedGeometry(t *testing.T) {
+	for _, size := range []int32{512, 4096, 65536} {
+		work, err := inventoryRecordStorageWork(size, 64<<10)
+		if err != nil {
+			t.Fatal(size, err)
+		}
+		usable := uint64(size) - 255
+		pages := uint64(1) + (64<<10)/(usable-4)
+		if (64<<10)%(usable-4) != 0 {
+			pages++
+		}
+		if work.Pages != pages || work.WALBytes != 32+pages*(uint64(size)+24) {
+			t.Fatal(size, work, pages)
+		}
+	}
+	if work, err := inventoryRecordStorageWork(4096, math.MaxUint64); err == nil || work != (Work{}) {
+		t.Fatal("overflow became a storage allowance", work, err)
+	}
+	if work, err := inventoryRecordStorageWork(0, 1); err == nil || work != (Work{}) {
+		t.Fatal("unobserved geometry sized a record", work, err)
 	}
 }
 

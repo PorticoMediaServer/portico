@@ -19,10 +19,46 @@ type inventoryRecordEnvelope struct {
 	work     Work
 }
 
+// One required storage component, NOT the complete statement forecast. A leaf
+// plus ceil(recordBytes/(usableFloor-4)) overflow pages safely overstates the
+// record's serialization: no local payload is subtracted. Traversal, balancing,
+// indexes, FK probes and old/new allocation work remain additional components
+// in the complete per-statement profile. Include a possible WAL header too.
+func inventoryRecordStorageWork(pageSize int32, recordBytes uint64) (Work, error) {
+	usable, err := inventoryUsablePageFloor(pageSize)
+	if err != nil {
+		return Work{}, err
+	}
+	if recordBytes == 0 {
+		return Work{}, ErrInvalid
+	}
+	payload := usable - 4
+	pages := recordBytes / payload
+	if recordBytes%payload != 0 {
+		pages++
+	}
+	if pages == math.MaxUint64 {
+		return Work{}, ErrCap
+	}
+	pages++
+	frame := uint64(pageSize) + 24
+	if pages > (math.MaxUint64-32)/frame {
+		return Work{}, ErrCap
+	}
+	return Work{Pages: pages, WALBytes: 32 + pages*frame}, nil
+}
+
 func validateInventoryRecordEnvelope(plan effectivePlan) error {
 	e := plan.inventoryRecords
 	if e.maxBytes < inventoryRecordFixedBytes || e.work.Hold <= 0 || e.work.Rows == 0 || e.work.VMOps == 0 || e.work.Pages == 0 || e.work.WALBytes < e.maxBytes {
 		return &Refusal{Code: RefusalUnqualified}
+	}
+	storage, err := inventoryRecordStorageWork(plan.inventoryPageSize, e.maxBytes)
+	if err != nil {
+		return err
+	}
+	if !fits(storage, e.work) {
+		return ErrQuantum
 	}
 	seen := 0
 	for _, step := range plan.steps {

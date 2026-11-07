@@ -96,7 +96,18 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 			p.scanLifecycleMemory = commandMemoryBudget{4 << 20, 4 << 20}
 		}
 		if len(defs) == len(inventoryDriverCommandDefinitions()) {
-			p.inventoryRecords = inventoryRecordEnvelope{maxBytes: 65536, work: Work{16, 2000, 16, 65536, 100 * time.Microsecond}}
+			unit := Work{16, 2000, 16, 65536, 100 * time.Microsecond}
+			// Derive the synthetic record envelope from the UNCHANGED unit's
+			// page/WAL funds, rather than claiming 64KiB fits 16 physical pages.
+			usable, err := inventoryUsablePageFloor(cp.w.config.WriterPageSize)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pages := min(unit.Pages, (unit.WALBytes-32)/(uint64(cp.w.config.WriterPageSize)+24))
+			if pages <= 1 {
+				t.Fatal("component has no record storage allowance")
+			}
+			p.inventoryRecords = inventoryRecordEnvelope{maxBytes: (pages - 1) * (usable - 4), work: unit}
 		}
 		for _, def := range defs {
 			p.steps = append(p.steps, statementStep{def.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
