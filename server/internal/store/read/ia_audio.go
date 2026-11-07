@@ -19,10 +19,12 @@ type IAAudioInput struct {
 	After  *IAAudioCursor
 }
 type IAAudioCursor struct {
-	fence              browseFence
-	entity             int64
-	disc, position, id int64
-	source             []any
+	fence               browseFence
+	entity              int64
+	disc, position, id  int64
+	source              []any
+	sortKey             string
+	orderVersion, limit int
 }
 type IAAudioMember struct {
 	ID, Kind, Revision                     int64
@@ -212,7 +214,7 @@ func (r *ForegroundReader) iaAudioMembership(ctx context.Context, request govern
 		if (in.View.Kind == 5 || in.View.Kind == 6 || in.View.Kind == 8) && (f.maximumAge >= 0 || f.allowUnrated == 0) {
 			return ErrUnqualified
 		}
-		if in.After != nil && (in.After.fence != f || in.After.entity != in.Entity || !equalSource(in.After.source, source)) {
+		if in.After != nil && (in.After.fence != f || in.After.entity != in.Entity || in.After.limit != in.View.Limit || in.After.orderVersion != iaAudioListeningOrderVersion || !equalSource(in.After.source, source)) {
 			return ErrStale
 		}
 		var e error
@@ -234,42 +236,43 @@ func (r *ForegroundReader) iaAudioMembership(ctx context.Context, request govern
 			return e
 		}
 		kind := int64(6)
-		var rows [][]any
+		var rows []iaAudioListeningRow
 		var e error
-		if in.View.Kind == 5 {
-			rows, e = q("foreground.ia.audio.artist", in.Entity, id, int64(MaxRaw))
+		listening := in.View.Kind != 5
+		if !listening {
+			var raw [][]any
+			raw, e = q("foreground.ia.audio.artist", in.Entity, id, int64(MaxRaw))
+			if e == nil {
+				s.copied += int64(len(raw)) * 64
+				if s.copied > s.copyLimit {
+					return governor.ErrSnapshotBudget
+				}
+				rows = make([]iaAudioListeningRow, len(raw))
+				for i, row := range raw {
+					rows[i].row = row
+				}
+			}
 		} else {
-			name := "album"
 			kind = 7
 			if in.View.Kind == 8 {
-				name = "book"
 				kind = 9
 			}
-			prefix := "foreground.ia.audio." + name
-			if in.After == nil {
-				rows, e = q(prefix+".first", in.Entity, int64(MaxRaw))
-			} else {
-				rows, e = q(prefix+".tail", in.Entity, disc, pos, id, int64(MaxRaw))
-				if e == nil && len(rows) < MaxRaw {
-					var more [][]any
-					more, e = q(prefix+".next", in.Entity, disc, pos, int64(MaxRaw-len(rows)))
-					rows = append(rows, more...)
-				}
-				if e == nil && len(rows) < MaxRaw {
-					var more [][]any
-					more, e = q(prefix+".disc", in.Entity, disc, int64(MaxRaw-len(rows)))
-					rows = append(rows, more...)
-				}
-			}
+			rows, e = s.listeningRows(ctx, q, in.Entity, in.View.Library, kind, output.Request.Need[governor.MemoryBytes])
 		}
 		if e != nil {
 			return e
 		}
 		d.RawRows = len(rows)
-		for _, row := range rows {
-			// Advance on every RAW position, including retired, wrong-kind and hidden.
+		d.Exhausted = true
+		for index, entry := range rows {
+			row := entry.row
 			id, disc, pos = row[0].(int64), row[12].(int64), row[13].(int64)
+			if listening && in.After != nil && iaAudioListeningCompare(disc, pos, entry.key, id, in.After.disc, in.After.position, in.After.sortKey, in.After.id) <= 0 {
+				continue
+			}
+			// Advance all four RAW keys before filtering rejected members.
 			d.RawPositions++
+			d.Next = &IAAudioCursor{fence: f, entity: in.Entity, disc: disc, position: pos, id: id, source: source, sortKey: entry.key, orderVersion: iaAudioListeningOrderVersion, limit: in.View.Limit}
 			if row[2] != in.View.Library {
 				return ErrDenied
 			}
@@ -292,12 +295,15 @@ func (r *ForegroundReader) iaAudioMembership(ctx context.Context, request govern
 			}
 			d.Members = append(d.Members, m)
 			if len(d.Members) == in.View.Limit {
+				d.Exhausted = index == len(rows)-1 && (listening || len(rows) < MaxRaw)
 				break
 			}
 		}
-		d.Exhausted = d.RawPositions == len(rows) && len(rows) < MaxRaw
-		if !d.Exhausted {
-			d.Next = &IAAudioCursor{fence: f, entity: in.Entity, disc: disc, position: pos, id: id, source: source}
+		if !listening && len(rows) == MaxRaw {
+			d.Exhausted = false
+		}
+		if d.Exhausted {
+			d.Next = nil
 		}
 		return ctx.Err()
 	}}
