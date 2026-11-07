@@ -344,7 +344,7 @@ func checkScanSourceActive(ctx context.Context, turn *commandTurn, source, run s
 	if err = scanSourcePoint(rows, &actual); err != nil {
 		return err
 	}
-	if actual != run {
+	if actual == "" {
 		return ErrConflict
 	}
 	return nil
