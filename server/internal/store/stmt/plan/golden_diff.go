@@ -40,23 +40,21 @@ func compareJSONForPlatform(expected, actual []byte, platform string) error {
 	if err := json.Compact(&got, actual); err != nil {
 		return fmt.Errorf("plan: invalid actual JSON: %w", err)
 	}
-	matched, err := compileOptionEquivalence(want.Bytes(), got.Bytes(), platform)
+	projectedWant, projectedGot, err := schemaComparison(want.Bytes(), got.Bytes())
+	if err != nil {
+		return fmt.Errorf("plan: schema evidence: %w", err)
+	}
+	matched, err := compileOptionEquivalence(projectedWant, projectedGot, platform)
 	if err != nil {
 		return fmt.Errorf("plan: compile-option profile: %w", err)
 	}
 	want.Reset()
 	want.Write(matched)
-	projectedWant, projectedGot, err := schemaComparison(want.Bytes(), got.Bytes())
-	if err != nil {
-		return fmt.Errorf("plan: schema evidence: %w", err)
-	}
-	if bytes.Equal(projectedWant, projectedGot) {
-		return nil
-	}
-	want.Reset()
-	want.Write(projectedWant)
 	got.Reset()
 	got.Write(projectedGot)
+	if bytes.Equal(want.Bytes(), got.Bytes()) {
+		return nil
+	}
 	decode := func(data []byte) any {
 		var value any
 		d := json.NewDecoder(bytes.NewReader(data))
