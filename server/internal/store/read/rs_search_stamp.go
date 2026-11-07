@@ -57,6 +57,14 @@ func rsSearchRetainedBytes(p *RSSearchPreparation) int64 {
 		return m
 	}
 	n += cursorBytes(p.after) + cursorBytes(p.cursorBase)
+	n += int64(cap(p.streams)) * int64(unsafe.Sizeof(rsSearchStream{}))
+	for _, s := range p.streams {
+		n += cursorBytes(s.after)
+	}
+	n += int64(cap(p.anchors)) * int64(unsafe.Sizeof((*FullSearchReadStamp)(nil)))
+	for _, anchor := range p.anchors {
+		n += 2 * anchor.MetadataBytes()
+	}
 	n += 2 * p.stamp.MetadataBytes()
 	if c := p.input.After; c != nil {
 		n += int64(unsafe.Sizeof(*c)) + cursorBytes(c.rank)

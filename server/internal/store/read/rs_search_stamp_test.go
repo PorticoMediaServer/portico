@@ -27,7 +27,7 @@ func TestRSSearchReadJoinedStampAndPending(t *testing.T) {
 			r.read = func(_ context.Context, req governor.Request, _ time.Duration, out BrowseOutput, in FullSearchInput, _ search.Query) (FullSearchPage, *BrowseReadResult, error) {
 				calls++
 				at := time.Now()
-				stamp := &FullSearchReadStamp{pool: f.snapshots, output: out.Grant, query: query.Fold(), started: at, clock: at, deadline: req.Deadline, fence: nativeSearchFence{bank: 1, revision: 1, permission: browseFence{expiresAt: at.Add(time.Hour).Format(time.RFC3339Nano), horizon: at.Add(2 * time.Hour).Format(time.RFC3339Nano)}}}
+				stamp := &FullSearchReadStamp{pool: f.snapshots, output: out.Grant, query: query.Fold(), started: at, clock: at, deadline: req.Deadline, fence: nativeSearchFence{bank: 1, revision: 1, permission: browseFence{libraryID: view.Library, expiresAt: at.Add(time.Hour).Format(time.RFC3339Nano), horizon: at.Add(2 * time.Hour).Format(time.RFC3339Nano)}}}
 				// Identical accepted time values, even though each read has its own clock.
 				if first != nil {
 					stamp.fence = first.fence

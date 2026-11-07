@@ -24,7 +24,7 @@ const (
 )
 
 type RSSearchInput struct {
-	Views     []BrowseInput // explicit authorized scope; currently exactly one library
+	Views     []BrowseInput // explicit scope; each library is independently checked
 	Query     search.Query
 	Group     RSSearchGroup // zero previews all native groups; positive entity kind
 	Full      bool          // 40/group instead of 8/group
@@ -39,6 +39,7 @@ type RSSearchCursor struct {
 	rank     *FullSearchCursor
 	order    *rsSearchOrderKey
 	anchor   *FullSearchReadStamp
+	anchors  []*FullSearchReadStamp
 }
 type RSSearchGroupPage struct {
 	Group        RSSearchGroup
@@ -105,6 +106,17 @@ type RSSearchPreparation struct {
 	candidates int
 	exhausted  bool
 	seen       map[fullResultKey]struct{}
+	library    int
+	streams    []rsSearchStream
+	anchors    []*FullSearchReadStamp
+}
+
+type rsSearchStream struct {
+	after     *FullSearchCursor
+	lastRank  *canonicalCandidateProof
+	matched   int
+	done      bool
+	exhausted bool
 }
 
 func (p *RSSearchPreparation) Close() error {
@@ -127,6 +139,8 @@ func (p *RSSearchPreparation) close() error {
 	p.input = RSSearchInput{}
 	p.cursorBase = nil
 	p.lastRank = nil
+	p.streams = nil
+	p.anchors = nil
 	_ = p.reader.authority.CancelPreparation(p.lease)
 	return p.reader.authority.RetirePreparation(p.lease)
 }
@@ -140,8 +154,13 @@ func (r *RSSearchReader) Begin(ctx context.Context, owner governor.OwnerID, dead
 	if in.Direction != "asc" && in.Direction != "desc" {
 		return nil, nil, ErrInput
 	}
-	if len(in.Views) != 1 || in.Group == RSSearchLiveTV {
+	if in.Group == RSSearchLiveTV {
 		return nil, nil, ErrUnqualified
+	}
+	// One source anchor per library plus the kept-hit stamp must fit the
+	// native call's approved 128-stamp bound. Wider scopes refuse explicitly.
+	if len(in.Views) > MaxNativeRetained-1 {
+		return nil, nil, ErrInput
 	}
 	if in.Group < RSSearchPeople || in.Group > 99 || in.Group != 0 && !rsSearchPublicGroup(in.Group) || (in.Full && in.Group == 0) {
 		return nil, nil, ErrInput
@@ -149,18 +168,30 @@ func (r *RSSearchReader) Begin(ctx context.Context, owner governor.OwnerID, dead
 	if in.Group == 21 {
 		in.Group = RSSearchReading
 	}
-	v := in.Views[0]
-	if v.Library <= 0 || v.Database == "" || v.TokenHash == "" || v.Now.IsZero() || v.After != nil || v.Kind != 0 || v.Descending || v.KeepArticles {
-		return nil, nil, ErrInput
+	in.Views = append([]BrowseInput(nil), in.Views...)
+	sort.Slice(in.Views, func(i, j int) bool { return in.Views[i].Library < in.Views[j].Library })
+	keyViews := make([]BrowseInput, len(in.Views))
+	for i, v := range in.Views {
+		base := in.Views[0]
+		if v.Library <= 0 || v.Database == "" || v.TokenHash == "" || v.Now.IsZero() || v.After != nil || v.Kind != 0 || v.Descending || v.KeepArticles || v.policy.recipe != 0 || v.Database != base.Database || v.TokenHash != base.TokenHash || !v.Now.Equal(base.Now) || i > 0 && v.Library == in.Views[i-1].Library {
+			return nil, nil, ErrInput
+		}
+		keyViews[i] = v
+		keyViews[i].Now = time.Time{}
+		keyViews[i].Limit = 0
 	}
-	keyView := v
-	keyView.Now = time.Time{}
-	keyView.Limit = 0
-	identity := sha256.Sum256([]byte(fmt.Sprintf("%d/%#v/%s/%d/%t/%s/%d", owner, keyView, in.Query.Fold(), in.Group, in.Full, in.Order+"/"+in.Direction, in.Capacity)))
+	identity := sha256.Sum256([]byte(fmt.Sprintf("%d/%#v/%s/%d/%t/%s/%d", owner, keyViews, in.Query.Fold(), in.Group, in.Full, in.Order+"/"+in.Direction, in.Capacity)))
 	if in.After != nil && (in.After.identity != identity || in.After.offset != 0 || in.After.rank != nil && (in.After.offset != 0 || in.After.rank.native != nil || in.After.rank.query != in.Query.Fold() || in.After.rank.bank <= 0 || in.After.rank.revision <= 0 || in.After.rank.input < 0)) {
 		return nil, nil, ErrStale
 	}
-	in.Views = append([]BrowseInput(nil), in.Views...)
+	if len(in.Views) > 1 && in.After != nil && (in.After.order == nil || len(in.After.anchors) != len(in.Views)) {
+		return nil, nil, ErrStale
+	}
+	if len(in.Views) > 1 && in.After != nil {
+		if in.After.anchor != nil || in.After.rank != nil || slices.Contains(in.After.anchors, nil) {
+			return nil, nil, ErrStale
+		}
+	}
 	if in.After != nil {
 		c := *in.After
 		c.rank = cloneFullCursor(c.rank)
@@ -186,7 +217,16 @@ func (r *RSSearchReader) Begin(ctx context.Context, owner governor.OwnerID, dead
 		return nil, d.Refusal, nil
 	}
 	p := &RSSearchPreparation{reader: r, lease: d.Lease, owner: owner, input: in, identity: identity, started: time.Now()}
-	if in.After != nil {
+	if len(in.Views) > 1 {
+		p.streams = make([]rsSearchStream, len(in.Views))
+		if in.Group != 0 {
+			p.anchors = make([]*FullSearchReadStamp, len(in.Views))
+			if in.After != nil {
+				copy(p.anchors, in.After.anchors)
+				p.input.After.anchors = nil
+			}
+		}
+	} else if in.After != nil {
 		p.after = cloneFullCursor(in.After.rank)
 	}
 	// Conservative bounded retained DTO capacity; actual native SQL/transient
@@ -226,7 +266,7 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 		return
 	}
 	preview := p.input.Group == 0
-	v := p.input.Views[0]
+	v := p.input.Views[p.library]
 	v.Kind = int64(p.input.Group)
 	if v.Kind < 0 || p.input.Group == RSSearchReading {
 		v.Kind = 0
@@ -236,6 +276,11 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 	input := FullSearchInput{View: v, After: cloneFullCursor(p.after), Preview: preview}
 	if preview {
 		input.CandidateBudget = NativePreviewCandidates - p.candidates
+		if len(p.streams) > 1 {
+			// Give every library a work quantum before revisiting a broad one.
+			// All MATCH and reverse-owner work still shares the same 2,000 total.
+			input.CandidateBudget = min(input.CandidateBudget, NativePreviewCandidates/len(p.streams))
+		}
 		if input.CandidateBudget <= 0 {
 			err = ErrInput
 			return
@@ -243,6 +288,11 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 	}
 	if p.stamp != nil {
 		input.Retained = append(input.Retained, p.stamp)
+	}
+	for _, anchor := range p.anchors {
+		if anchor != nil {
+			input.Retained = append(input.Retained, anchor)
+		}
 	}
 	if p.input.After != nil && p.input.After.anchor != nil {
 		input.Retained = append(input.Retained, p.input.After.anchor)
@@ -313,6 +363,9 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 			if err = p.keep(h); err != nil {
 				return
 			}
+			if len(p.streams) > 1 && rsSearchHitGroup(h) == p.input.Group && (p.input.After == nil || p.input.After.order == nil || rsSearchCompareKey(rsSearchOrderKeyFor(h), *p.input.After.order, rsSearchOrderFor(p.input.Group, p.input.Order), p.input.Direction) > 0) {
+				p.streams[p.library].matched++
+			}
 		}
 	}
 	p.exhausted = page.Exhausted
@@ -336,6 +389,22 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 		if err != nil {
 			return
 		}
+		if len(p.anchors) > 0 {
+			p.anchors[p.library], err = page.Stamp.RetainHits(nil)
+			if err != nil {
+				return
+			}
+		}
+	}
+	if len(p.streams) > 1 {
+		stream := &p.streams[p.library]
+		stream.after, stream.lastRank = p.after, p.lastRank
+		stream.exhausted = page.Exhausted
+		stream.done = page.Exhausted || preview && page.Disposition == SearchResults && page.Next == nil || !preview && p.input.Order == "relevance" && p.input.Direction == "desc" && stream.matched >= p.pageLimit()+1
+		p.exhausted = true
+		for _, s := range p.streams {
+			p.exhausted = p.exhausted && s.exhausted
+		}
 	}
 	used := rsSearchRetainedBytes(p)
 	if used > p.lease.PayloadBytes() {
@@ -343,12 +412,28 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 		return
 	}
 	stop := page.Exhausted
+	if len(p.streams) > 1 {
+		stop = true
+		for _, s := range p.streams {
+			stop = stop && s.done
+		}
+	}
 	if preview {
-		stop = stop || p.previewFilled() || p.candidates == NativePreviewCandidates || page.Disposition == SearchResults && page.Next == nil
+		stop = stop || p.previewFilled() || p.candidates == NativePreviewCandidates || len(p.streams) == 0 && page.Disposition == SearchResults && page.Next == nil
 	} else {
-		stop = stop || p.hasLookahead()
+		stop = stop || len(p.streams) == 0 && p.hasLookahead()
 	}
 	if !stop {
+		if len(p.streams) > 1 {
+			for n := 1; n <= len(p.streams); n++ {
+				i := (p.library + n) % len(p.streams)
+				if !p.streams[i].done {
+					p.library = i
+					p.after, p.lastRank = p.streams[i].after, p.streams[i].lastRank
+					break
+				}
+			}
+		}
 		result.Pending = true
 		result.NativeCandidates = p.candidates
 		return
@@ -402,7 +487,7 @@ func (p *RSSearchPreparation) keep(h FullSearchHit) error {
 			continue
 		}
 		count++
-		if hitRank(old).key == hitRank(h).key {
+		if old.Subject == h.Subject && old.ID == h.ID {
 			same = i
 		}
 		if worst < 0 || rsSearchCompare(old, p.hits[worst], order, p.input.Direction) > 0 {
@@ -495,14 +580,15 @@ func (p *RSSearchPreparation) compose() (RSSearchPage, error) {
 		}
 		if more && !preview {
 			gp.Next = &RSSearchCursor{identity: p.identity}
-			if p.stamp != nil {
+			gp.Next.anchors = slices.Clone(p.anchors)
+			if len(p.streams) == 0 && p.stamp != nil {
 				var e error
 				gp.Next.anchor, e = p.stamp.RetainHits(nil)
 				if e != nil {
 					return RSSearchPage{}, e
 				}
 			}
-			if p.input.Order == "relevance" && p.input.Direction == "desc" && p.cursorBase != nil {
+			if len(p.streams) == 0 && p.input.Order == "relevance" && p.input.Direction == "desc" && p.cursorBase != nil {
 				gp.Next.rank = cloneFullCursor(p.cursorBase)
 				gp.Next.rank.after = hitRank(hits[n-1])
 			} else {

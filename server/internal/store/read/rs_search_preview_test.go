@@ -21,7 +21,12 @@ func rsSearchTestStamp(f *browseFixture, out BrowseOutput, req governor.Request,
 		s.fence = prior.fence
 		s.checked = append(s.checked, prior.policies...)
 		s.hits = append(s.hits, prior.hits...)
+		s.libraries = append(s.libraries, prior.libraries...)
+		if _, found := nativeLibraryFence(s.libraries, prior.fence.permission.libraryID); !found {
+			s.libraries = append(s.libraries, prior.fence.permission)
+		}
 	}
+	s.fence.permission.libraryID = in.View.Library
 	for i, h := range page.Hits {
 		proof := nativePolicyWitness{valid: true, id: h.ID, library: h.Library, kind: h.Kind}
 		page.Hits[i].permission = proof
