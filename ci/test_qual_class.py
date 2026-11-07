@@ -1,4 +1,5 @@
 """Synthetic transport controls only; no database or qualification samples."""
+import gzip
 import json
 import os
 from pathlib import Path
@@ -236,6 +237,38 @@ class ClassProtocol(unittest.TestCase):
         self.assertTrue(proof['errors'])
         self.assertEqual(json.loads((temporary/'qual-class-out/receipt.json').read_text())['status'],'failed')
 
+    def test_finalize_roundtrips_compressed_raw_without_changing_verification(self):
+        for status in ('failed', 'owner-execution-complete'):
+            with self.subTest(status=status):
+                output = self.root/status; output.mkdir()
+                original = b'original synthetic prefix\n' * 1000
+                raw=output/'raw.ndjson'; raw.write_bytes(original)
+                receipt={'status':status}
+                if status == 'owner-execution-complete':
+                    receipt['wire']={'raw_sha256':c.q.file_hash(raw)}
+                c.q.atomic_json(output/'receipt.json', receipt)
+                c.finalize(output)
+                self.assertFalse(raw.exists())
+                self.assertEqual(gzip.decompress((output/'raw.ndjson.gz').read_bytes()), original)
+                storage = json.loads((output/'raw-storage.json').read_text())
+                self.assertTrue(storage['verified_roundtrip'])
+                self.assertEqual(storage['wire_verified'], status == 'owner-execution-complete')
+                self.assertEqual(storage['original_bytes'], len(original))
+                self.assertEqual(json.loads((output/'receipt.json').read_text())['status'], status)
+                inventory = json.loads((output/'files.json').read_text())
+                self.assertIn('raw.ndjson.gz', {v['path'] for v in inventory})
+                self.assertNotIn('raw.ndjson', {v['path'] for v in inventory})
+
+    def test_finalize_preserves_original_on_verified_digest_mismatch(self):
+        output = self.root/'mismatch'; output.mkdir()
+        original = b'changed after wire verification\n'
+        (output/'raw.ndjson').write_bytes(original)
+        c.q.atomic_json(output/'receipt.json', {'status':'owner-execution-complete','wire':{'raw_sha256':'0'*64}})
+        with self.assertRaises(ValueError): c.finalize(output)
+        self.assertEqual((output/'raw.ndjson').read_bytes(), original)
+        self.assertFalse((output/'raw-storage.json').exists())
+        self.assertEqual(json.loads((output/'receipt.json').read_text())['status'], 'failed')
+
     def test_finalize_retains_failure_and_file_hashes(self):
         output = self.root/'partial'
         output.mkdir()
@@ -243,7 +276,7 @@ class ClassProtocol(unittest.TestCase):
         c.finalize(output)
         self.assertEqual(json.loads((output/'receipt.json').read_text())['status'], 'failed')
         files = json.loads((output/'files.json').read_text())
-        self.assertEqual({f['path'] for f in files}, {'raw.ndjson', 'receipt.json'})
+        self.assertEqual({f['path'] for f in files}, {'raw.ndjson.gz', 'raw-storage.json', 'receipt.json'})
 
 
 if __name__ == '__main__': unittest.main()

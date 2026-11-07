@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Canonical per-class execution transport; never a qualification verdict."""
 import argparse
+import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -210,6 +212,7 @@ def run(launch_path):
     q.atomic_json(work / 'config.json', c)
     env.update(PORTICO_CANONICAL_HELD='1', PORTICO_CANONICAL_HELD_CONFIG=str(work / 'config.json'))
     receipt.update(actual_config=c, status='failed', target_uid=launch['uid'], target_gid=launch['gid'],
+                   disk_before_target=shutil.disk_usage(work)._asdict(),
                    host_scope='same cgroup/namespace as target; collector root, target unprivileged',
                    qualification_verdict=None)
     host_args = [str(host), '-source', cfg['source'], '-archive-sha256', launch['archive_sha256'],
@@ -250,6 +253,7 @@ def run(launch_path):
             q.require(receipt['remaining_cgroup_pids'] == [os.getpid()], 'unjoined descendant process remains')
         except BaseException as error:
             receipt.update(status='failed', host_after_error=f'{type(error).__name__}: {error}')
+        receipt['disk_after_target'] = shutil.disk_usage(work)._asdict()
         q.atomic_json(output / 'receipt.json', receipt)
         q.require(receipt['status'] == 'owner-execution-complete', 'cell nonpassing; see retained receipt/raw')
 
@@ -263,6 +267,37 @@ def plan():
         f.write(f"producer_artifact=qual-population-{cfg['producer_run']}-{cfg['producer_attempt']}\n")
 
 
+def pack_raw(output, receipt):
+    raw, stored = output/'raw.ndjson', output/'raw.ndjson.gz'
+    if not raw.exists():
+        return
+    q.regular(raw, MAX_STREAM_BYTES)
+    q.require(not stored.exists(), 'compressed raw path already exists; preserve originals')
+    started = time.monotonic_ns()
+    digest, size = hashlib.sha256(), 0
+    with raw.open('rb') as source, stored.open('xb') as target:
+        with gzip.GzipFile(filename='', mode='wb', fileobj=target, mtime=0, compresslevel=1) as compressed:
+            for block in iter(lambda: source.read(1 << 20), b''):
+                digest.update(block); size += len(block); compressed.write(block)
+    actual = digest.hexdigest()
+    wire = receipt.get('wire')
+    if receipt.get('status') == 'owner-execution-complete':
+        q.require(wire and wire.get('raw_sha256') == actual, 'verified raw digest changed before compression')
+    restored, restored_size = hashlib.sha256(), 0
+    with gzip.open(stored, 'rb') as source:
+        for block in iter(lambda: source.read(1 << 20), b''):
+            restored.update(block); restored_size += len(block)
+    q.require(restored_size == size and restored.hexdigest() == actual, 'compressed raw round-trip mismatch')
+    q.atomic_json(output/'raw-storage.json', dict(version=1, original_path=raw.name,
+                  original_bytes=size, original_sha256=actual, stored_path=stored.name,
+                  stored_bytes=stored.stat().st_size, stored_sha256=q.file_hash(stored),
+                  verified_roundtrip=True, wire_verified=bool(wire),
+                  compression_started_monotonic_ns=started,
+                  compression_returned_monotonic_ns=time.monotonic_ns(),
+                  disk_before_original_removal=shutil.disk_usage(output)._asdict()))
+    raw.unlink()  # only after independent round-trip and stored metadata
+
+
 def finalize(output):
     # Called after the unit/target has stopped, before artifact upload. Never
     # claim success just because an early failure omitted its normal receipt.
@@ -274,6 +309,12 @@ def finalize(output):
     if r.get('status') == 'prepared-only':
         r.update(status='failed', error='Prepared target never completed execution')
         q.atomic_json(output / 'receipt.json', r)
+    try:
+        pack_raw(output, r)
+    except (OSError, ValueError, EOFError) as error:
+        r.update(status='failed', compression_error=str(error), qualification_verdict=None)
+        q.atomic_json(output / 'receipt.json', r)
+        raise
     files = []
     for path in sorted(output.iterdir()):
         if path.name == 'files.json':
