@@ -155,9 +155,6 @@ func (s *FullSearchReadStamp) RetainHits(hits []FullSearchHit) (*FullSearchReadS
 			out.libraries = append(out.libraries, f)
 		}
 	}
-	if len(out.libraries) > 0 {
-		out.fence.permission = out.libraries[0]
-	}
 	out.libraries = nativeCloneExact(out.libraries)
 	if out.MetadataBytes() > MaxNativeStampBytes {
 		return nil, governor.ErrSnapshotBudget
