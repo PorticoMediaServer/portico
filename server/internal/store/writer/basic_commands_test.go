@@ -17,7 +17,7 @@ func basicCommandFixture() (basicStageRequest, basicSealRequest, CommandIdentity
 	begin := basicBeginEffects{source: source, shape: ScanShape{LibraryID: source.libraryID, OrdinaryOwners: 1,
 		VersionAssetIDs: []int64{41}, Streams: []Stream{{Index: 0, Class: VideoStream}, {Index: 1, Class: AudioStream}}, RawChapterCount: 2,
 		AuthoredParentIDs: []int64{31}}, counts: [9]int64{1, 2, 2, 1, 2, 1, 0, 0, 1}}
-	stage := basicStageRequest{original, BasicPurposeStage, basicStageBeginInput, begin}
+	stage := basicStageRequest{original: original, purpose: BasicPurposeStage, operation: basicStageBeginInput, begin: begin}
 	source.changeID, source.inputRevision = 51, 7
 	seal := basicSealRequest{original, BasicPurposeSeal, basicSealStreamInput, source, 13}
 	return stage, seal, identity
