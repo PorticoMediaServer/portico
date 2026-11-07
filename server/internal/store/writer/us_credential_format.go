@@ -53,9 +53,3 @@ func (usCredentialRevokePrepared) GoString() string { return "usCredentialRevoke
 func (usCredentialRevokePrepared) Format(state fmt.State, _ rune) {
 	formatUSPreparation(state, "usCredentialRevokePrepared")
 }
-
-func (usCredentialPostResult) String() string   { return "usCredentialPostResult{redacted}" }
-func (usCredentialPostResult) GoString() string { return "usCredentialPostResult{redacted}" }
-func (usCredentialPostResult) Format(state fmt.State, _ rune) {
-	formatUSPreparation(state, "usCredentialPostResult")
-}

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -39,7 +40,7 @@ func validUSCredentialTarget(t usCredentialTarget) bool {
 		t.epoch > 0 && t.epoch <= usMaxRevision &&
 		t.memberRevision > 0 && t.memberRevision <= usMaxRevision &&
 		t.profileRevision > 0 && t.profileRevision <= usMaxRevision &&
-		t.username != "" && safeUSInvitationText(t.username, 64) &&
+		t.username != "" && usCredentialSafeText(t.username, 64) &&
 		t.profileName != "" && len(t.profileName) <= 120 && utf8.ValidString(t.profileName) && strings.IndexFunc(t.profileName, func(r rune) bool { return r < 32 || r == 127 }) < 0
 }
 
@@ -115,7 +116,7 @@ func prepareUSCredentialIssue(in usCredentialIssueRequest, nowMS int64) (*usCred
 		return nil, invalid("us_credential_kind")
 	}
 	name := strings.TrimSpace(in.name)
-	if name == "" || !safeUSInvitationText(name, 80) {
+	if name == "" || !usCredentialSafeText(name, 80) {
 		return nil, invalid("name")
 	}
 	// Four closed existing scopes, in the published order. This is validation,
@@ -252,7 +253,7 @@ func prepareUSCredentialRevoke(in usCredentialRevokeRequest) (*usCredentialRevok
 		(in.kind != "key" && in.kind != "token" && in.kind != "app_password") || in.createdMS <= 0 || in.createdMS > usMaxRevision || in.expiresMS < 0 || in.expiresMS > usMaxRevision || in.revokedMS < 0 || in.revokedMS > usMaxRevision {
 		return nil, invalid("us_credential_revoke")
 	}
-	if in.name == "" || !safeUSInvitationText(in.name, 80) || len(in.scopes) > len("read,playback,library,admin") {
+	if in.name == "" || !usCredentialSafeText(in.name, 80) || len(in.scopes) > len("read,playback,library,admin") {
 		return nil, invalid("us_credential_manifest")
 	}
 	scopes, ok := usCredentialScopes(strings.Split(in.scopes, ","))
@@ -265,4 +266,17 @@ func prepareUSCredentialRevoke(in usCredentialRevokeRequest) (*usCredentialRevok
 		return nil, invalid("us_credential_ended_reason")
 	}
 	return &usCredentialRevokePrepared{request: in}, nil
+}
+
+// Existing access safeText rules, kept local to credential preparation.
+func usCredentialSafeText(v string, max int) bool {
+	if !utf8.ValidString(v) || utf8.RuneCountInString(v) > max {
+		return false
+	}
+	for _, r := range v {
+		if r < 0x20 || r == 0x7f || unicode.Is(unicode.Cf, r) {
+			return false
+		}
+	}
+	return true
 }

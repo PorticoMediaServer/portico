@@ -45,7 +45,7 @@ func usCredentialEffectDefinitions() []stmt.Definition {
 AND secret_hash=? AND hint=? AND family_id=? AND device_id=? AND created_ms=? AND expires_ms=? AND revoked_ms=? AND ended_reason=? AND parent_id IS NULL`
 	const credentialColumns = `id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms,expires_ms,revoked_ms,ended_reason`
 	credentialParams := []stmt.Param{text("id"), text("kind"), text("account"), text("profile"), text("name"), text("scopes"), text("hash"), text("hint"), text("family"), text("device"), integer("created"), integer("expires"), integer("revoked"), text("ended_reason")}
-	credentialBindings := []any{"us-credential", "token", "us-credential-account", "us-credential-profile", "Automation", "read,playback", usCredentialFixtureDigest, "abcdef", "us-credential-family", "us-credential-device", int64(1000), int64(0), int64(0), ""}
+	credentialBindings := []any{"us-credential", "token", "us-credential-account", "us-credential-profile", "Automation", "read,playback", usCredentialCaptureDigest, "abcdef", "us-credential-family", "us-credential-device", int64(1000), int64(0), int64(0), ""}
 	defs := []stmt.Definition{
 		{ID: usCredentialTargetRead, Kind: stmt.Read, SQL: `SELECT 1 FROM accounts AS a INDEXED BY sqlite_autoindex_accounts_1
 CROSS JOIN direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 ON m.account_id=a.id
@@ -61,7 +61,7 @@ AND p.id=? AND p.lifetime=? AND p.revision=? AND p.name=? AND p.deleted=?`,
 WHERE id=? AND epoch=? AND password_hash=? AND profile_id=? AND must_change=0 AND epoch>=1 AND epoch<9007199254740991
 RETURNING id,profile_id,epoch,must_change,password_hash`,
 			Params:  []stmt.Param{{Name: "next_hash", Type: stmt.Blob}, text("account"), integer("epoch"), {Name: "previous_hash", Type: stmt.Blob}, text("profile")},
-			Cohorts: []stmt.Cohort{{Name: "current", Bindings: []any{[]byte(usCredentialFixturePassword), "us-credential-account", int64(1), []byte(usCredentialFixturePassword), "us-credential-profile"}}}, Plan: point("accounts", "sqlite_autoindex_accounts_1", "id")},
+			Cohorts: []stmt.Cohort{{Name: "current", Bindings: []any{[]byte(usCredentialCapturePassword), "us-credential-account", int64(1), []byte(usCredentialCapturePassword), "us-credential-profile"}}}, Plan: point("accounts", "sqlite_autoindex_accounts_1", "id")},
 		// Deliberately stores no secret plaintext and creates no family/device.
 		// This separable native row is unusable as a complete issuance command
 		// until root supplies all preconditions listed below.
@@ -81,8 +81,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING ` + credentialColumns,
 }
 
 // Synthetic encoding/digest cohorts, never an actual credential or password.
-const usCredentialFixturePassword = "$2a$10$....................................................."
-const usCredentialFixtureDigest = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+const usCredentialCapturePassword = "$2a$10$....................................................."
+const usCredentialCaptureDigest = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
 type usPasswordPostResult struct {
 	account, profile, memberIncarnation, profileLifetime string

@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+const usCredentialFixturePassword = "$2a$10$....................................................."
+const usCredentialFixtureDigest = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+
 func usCredentialTestTarget() usCredentialTarget {
 	return usCredentialTarget{account: "us-credential-account", memberIncarnation: strings.Repeat("a", 32), profile: "us-credential-profile", profileLifetime: strings.Repeat("b", 32), username: "credential-user", profileName: "Credential profile", epoch: 1, memberRevision: 1, profileRevision: 1}
 }
