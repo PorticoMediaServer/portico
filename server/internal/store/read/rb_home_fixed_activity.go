@@ -67,16 +67,21 @@ func homeFixedActivity(frame homeFixedFrame, page HomeFixedPage, row string, _ t
 		active := map[int64]HomeFixedCard{}
 		for id, leaves := range members {
 			work, ok := byID[id]
-			if !ok || work.Row[0][3] != int64(0) {
+			if !ok || !homeFixedWorkMatches(work, leaves) {
+				return HomeFixedPage{}, ErrUnqualified
+			}
+			if work.Row[0][3] != int64(0) {
 				continue
+			}
+			if (work.Identity.Kind == 6 || work.Identity.Kind == 8) && len(work.Personal) == 1 {
+				p0 := work.Personal[0]
+				if p0[16] != nil || p0[17] != nil || p0[20] != nil || p0[21] != nil {
+					return pending("audio_container_removal_policy_uncomposed")
+				}
 			}
 			if work.Identity.Kind == 8 {
 				if len(work.Personal) != 1 {
 					continue
-				}
-				p0 := work.Personal[0]
-				if p0[16] != nil || p0[17] != nil || p0[20] != nil || p0[21] != nil {
-					return pending("book_container_removal_policy_uncomposed")
 				}
 				p := work.Personal[0]
 				if p[15] == nil || p[2].(int64) <= 0 || p[3] != int64(0) || p[4] == int64(1) || p[12] == nil || p[13] != int64(1) || homeFixedDismissed(p) {
