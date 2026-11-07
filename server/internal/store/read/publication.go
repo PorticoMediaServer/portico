@@ -141,11 +141,13 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 	started := time.Now()
 	defer func() { result.Elapsed = time.Since(started) }()
 	if snapshots == nil || len(steps) == 0 || ctx == nil || output.Authority == nil || output.Grant == nil || budget <= 0 ||
-		len(in.Database) == 0 || len(in.Database) > 256 || len(in.TokenHash) == 0 || len(in.TokenHash) > 256 || in.Library <= 0 || in.Kind <= 0 || in.Kind > 99 || in.Limit < 1 || in.Limit > MaxPage || in.Now.IsZero() {
+		len(in.Database) == 0 || len(in.Database) > 256 || len(in.TokenHash) == 0 || len(in.TokenHash) > 256 || in.Library < 0 || in.Kind <= 0 || in.Kind > 99 || in.Limit < 1 || in.Limit > MaxPage || in.Now.IsZero() {
 		return zero, result, ErrInput
 	}
-	if _, e := resolveReadPolicy(in); e != nil {
+	if recipe, e := resolveReadPolicy(in); e != nil {
 		return zero, result, e
+	} else if !validReadPolicyScope(in, recipe) {
+		return zero, result, ErrInput
 	}
 	if err := ctx.Err(); err != nil {
 		return zero, result, err
