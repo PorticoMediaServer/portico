@@ -11,8 +11,13 @@ import (
 )
 
 // Actual native admin/target births on the owned opening. No raw SQL, fake
-// custody/floors, token fallback, fake clock or product constructor.
+// custody/floors, token fallback or product constructor. Default protocol
+// tests use a deterministic clock; workload and explicit captures use real time.
 func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCProgressDriver, *governor.Authority) {
+	return wcSecurityCompositionOpeningClock(t, false, actorTier)
+}
+
+func wcSecurityCompositionOpeningClock(t *testing.T, realClock bool, actorTier string) (*Writer, *WCProgressDriver, *governor.Authority) {
 	t.Helper()
 	initial, path := testCanonicalExecutor(t)
 	if err := initial.close(); err != nil {
@@ -20,6 +25,8 @@ func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCP
 	}
 	opening := openScanFixture(t, path, scanOpeningOwner(t, path))
 	e := opening.executor
+	now, warmup := wcCompositionFixtureClock(t, realClock)
+	e.now = now
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
 	defs = append(defs, wcProgressCommandDefinitions()...)
@@ -45,7 +52,7 @@ func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCP
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 
-	golden := captureEffectiveFixture(t, conn, e.config, defs, "wc_security_composition_test.go", "wc_progress_fixture.go")
+	golden := captureEffectiveFixture(t, conn, e.config, defs, "wc_security_composition_test.go", "wc_progress_fixture.go", "wc_fixture_clock_test.go")
 	if err = conn.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +73,7 @@ func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCP
 		partitions[i] = p.need
 		partitions[i][governor.MemoryBytes] += 2 << 20
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 3, Now: time.Now, WAL: wal})
+	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 3, Now: now, WAL: wal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +98,7 @@ func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCP
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope := wcProgressScope{primary: 1, primaryProfile: "profile-one", membershipRole: actorTier, horizon: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), expires: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), playbackID: "playback-音", profileKey: "viewer-one", accountID: "account-one", profileID: "profile-one", memberBirth: member, profileBirth: profile, libraryKey: "library-one", libraryID: 7, subjectID: 11, serverID: "server", familyID: "wc-family", tokenHash: "wc-token", epoch: 1, tokenGeneration: 1, memberRevision: 1, profileRevision: 1, role: actorTier, memberLibraries: `["library-one"]`}
+	scope := wcProgressScope{primary: 1, primaryProfile: "profile-one", membershipRole: actorTier, horizon: now().Add(time.Hour).UTC().Format(time.RFC3339Nano), expires: now().Add(time.Hour).UTC().Format(time.RFC3339Nano), playbackID: "playback-音", profileKey: "viewer-one", accountID: "account-one", profileID: "profile-one", memberBirth: member, profileBirth: profile, libraryKey: "library-one", libraryID: 7, subjectID: 11, serverID: "server", familyID: "wc-family", tokenHash: "wc-token", epoch: 1, tokenGeneration: 1, memberRevision: 1, profileRevision: 1, role: actorTier, memberLibraries: `["library-one"]`}
 	scope.profileKey = wcFixturePersonalOwnerKey("local", scope.accountID, scope.profileID)
 	scope.expires = scope.horizon
 	for _, b := range []*[16]byte{&scope.incarnation, &scope.clock, &scope.subjectPublicID} {
@@ -102,7 +109,7 @@ func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCP
 	snapshot := wcSnapshot{}
 	text := func(i int, s string) { snapshot[i] = wcSnapshotCell{Kind: 2, Text: s} }
 	integer := func(i int, n int64) { snapshot[i] = wcSnapshotCell{Kind: 1, Integer: n} }
-	text(0, time.Now().UTC().Format(time.RFC3339Nano))
+	text(0, now().UTC().Format(time.RFC3339Nano))
 	text(1, "started")
 	text(2, scope.accountID)
 	text(3, scope.profileID)
@@ -118,10 +125,10 @@ func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCP
 	integer(24, 100000)
 	integer(32, scope.subjectID)
 	integer(33, 1)
-	integer(34, time.Now().UnixMilli())
+	integer(34, now().UnixMilli())
 	text(39, member)
 	text(40, profile)
-	preparation := governor.Request{Key: governor.JobKey{Domain: uint16(ProgressAccept), ID: scope.playbackID}, Owner: r.owner, Class: governor.Foreground, Deadline: time.Now().Add(time.Minute), Footprint: []governor.Scope{{Library: scope.libraryID, Domain: uint16(ProgressAccept)}}}
+	preparation := governor.Request{Key: governor.JobKey{Domain: uint16(ProgressAccept), ID: scope.playbackID}, Owner: r.owner, Class: governor.Foreground, Deadline: now().Add(time.Minute), Footprint: []governor.Scope{{Library: scope.libraryID, Domain: uint16(ProgressAccept)}}}
 	preparation.Need[governor.MemoryBytes] = 1 << 20
 	decision := g.Try(preparation)
 	if decision.Grant == nil {
@@ -140,20 +147,16 @@ func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCP
 	if err = initializeWCProgressFixture(t.Context(), d); err != nil {
 		t.Fatal(err)
 	}
-	// Establish a real positive playing interval before offering the first
-	// report. This is fixture preparation, outside every measured Action call.
-	timer := time.NewTimer(2 * time.Millisecond)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-	case <-t.Context().Done():
-		t.Fatal(t.Context().Err())
-	}
+	warmup()
 	return w, d, a
 }
 func wcSecurityCompositionFixture(t *testing.T, actorTier, targetTier string) (*Writer, *WCSecurityDriver, string) {
+	return wcSecurityCompositionFixtureClock(t, false, actorTier, targetTier)
+}
+
+func wcSecurityCompositionFixtureClock(t *testing.T, realClock bool, actorTier, targetTier string) (*Writer, *WCSecurityDriver, string) {
 	t.Helper()
-	w, actor, _ := wcSecurityCompositionOpening(t, actorTier)
+	w, actor, _ := wcSecurityCompositionOpeningClock(t, realClock, actorTier)
 	r := w.effective
 	plan := *r.wcProgressPlan
 	plan.steps = nil

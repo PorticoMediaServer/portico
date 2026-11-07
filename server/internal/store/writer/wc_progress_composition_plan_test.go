@@ -21,7 +21,7 @@ import (
 var recordWCProgressCompositionPlans = flag.Bool("record-wc-progress-composition-plans", false, "deliberately record WC progress composition plans")
 
 func TestWCProgressCompositionPlans(t *testing.T) {
-	w, _, _ := wcProgressCompositionFixture(t)
+	w, _, _ := wcProgressCompositionFixtureClock(t, *recordWCProgressCompositionPlans)
 	e := w.effective.executor
 	// Native birth executed through the shared NORMAL frame. The additional
 	// Capture is compile-only: no source acceptance or latency qualification.
@@ -36,7 +36,7 @@ func TestWCProgressCompositionPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	hash := sha256.New()
-	for _, name := range []string{"wc_progress_composition_test.go", "wc_progress_composition_plan_test.go", "wc_progress_protocol.go", "wc_progress_native.go", "wc_progress_execution.go", "wc_progress_protocol_receipt.go", "wc_progress_fixture.go", "wc_progress_report_policy.go"} {
+	for _, name := range []string{"wc_fixture_clock_test.go", "wc_progress_composition_test.go", "wc_progress_composition_plan_test.go", "wc_progress_protocol.go", "wc_progress_native.go", "wc_progress_execution.go", "wc_progress_protocol_receipt.go", "wc_progress_fixture.go", "wc_progress_report_policy.go"} {
 		data, e := os.ReadFile(name)
 		if e != nil {
 			t.Fatal(e)

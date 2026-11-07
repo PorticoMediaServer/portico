@@ -22,9 +22,14 @@ func wcFixturePersonalOwnerKey(authority, account, profile string) string {
 	return "viewer:" + base64.RawURLEncoding.EncodeToString(raw)
 }
 
-// REAL owned opening, real clocks, native birth and real grants. This is a
-// component smoke fixture with explicit prospective forecasts, not qualification.
+// Actual owned opening, native birth and governed grants. Default correctness
+// tests use protocol time; workloads and explicit captures use real time.
+// Prospective forecasts are fixture inputs, not qualification.
 func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Context) (*Writer, *WCProgressDriver, *governor.Authority) {
+	return wcProgressCompositionFixtureClock(t, false, principalLifetimes...)
+}
+
+func wcProgressCompositionFixtureClock(t *testing.T, realClock bool, principalLifetimes ...context.Context) (*Writer, *WCProgressDriver, *governor.Authority) {
 	t.Helper()
 	initial, path := testCanonicalExecutor(t)
 	if err := initial.close(); err != nil {
@@ -32,6 +37,8 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 	}
 	opening := openScanFixture(t, path, scanOpeningOwner(t, path))
 	e := opening.executor
+	now, warmup := wcCompositionFixtureClock(t, realClock)
+	e.now = now
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
 	defs = append(defs, wcProgressCommandDefinitions()...)
@@ -42,7 +49,7 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 
-	golden := captureEffectiveFixture(t, conn, e.config, defs, "wc_progress_composition_test.go", "wc_progress_fixture.go")
+	golden := captureEffectiveFixture(t, conn, e.config, defs, "wc_progress_composition_test.go", "wc_progress_fixture.go", "wc_fixture_clock_test.go")
 	if err = conn.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +70,7 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 		partitions[i] = p.need
 		partitions[i][governor.MemoryBytes] += 1 << 20
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: time.Now, WAL: wal})
+	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: now, WAL: wal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +95,7 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope := wcProgressScope{primary: 1, primaryProfile: "profile-one", membershipRole: "member", horizon: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), expires: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), playbackID: "playback-音", profileKey: "viewer-one", accountID: "account-one", profileID: "profile-one", memberBirth: member, profileBirth: profile, libraryKey: "library-one", libraryID: 7, subjectID: 11, serverID: "server", familyID: "wc-family", tokenHash: "wc-token", epoch: 1, tokenGeneration: 1, memberRevision: 1, profileRevision: 1, role: "member", memberLibraries: `["library-one"]`}
+	scope := wcProgressScope{primary: 1, primaryProfile: "profile-one", membershipRole: "member", horizon: now().Add(time.Hour).UTC().Format(time.RFC3339Nano), expires: now().Add(time.Hour).UTC().Format(time.RFC3339Nano), playbackID: "playback-音", profileKey: "viewer-one", accountID: "account-one", profileID: "profile-one", memberBirth: member, profileBirth: profile, libraryKey: "library-one", libraryID: 7, subjectID: 11, serverID: "server", familyID: "wc-family", tokenHash: "wc-token", epoch: 1, tokenGeneration: 1, memberRevision: 1, profileRevision: 1, role: "member", memberLibraries: `["library-one"]`}
 	scope.profileKey = wcFixturePersonalOwnerKey("local", scope.accountID, scope.profileID)
 	scope.expires = scope.horizon
 	for _, b := range []*[16]byte{&scope.incarnation, &scope.clock, &scope.subjectPublicID} {
@@ -99,7 +106,7 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 	snapshot := wcSnapshot{}
 	text := func(i int, s string) { snapshot[i] = wcSnapshotCell{Kind: 2, Text: s} }
 	integer := func(i int, n int64) { snapshot[i] = wcSnapshotCell{Kind: 1, Integer: n} }
-	text(0, time.Now().UTC().Format(time.RFC3339Nano))
+	text(0, now().UTC().Format(time.RFC3339Nano))
 	text(1, "started")
 	text(2, scope.accountID)
 	text(3, scope.profileID)
@@ -115,10 +122,10 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 	integer(24, 100000)
 	integer(32, scope.subjectID)
 	integer(33, 1)
-	integer(34, time.Now().UnixMilli())
+	integer(34, now().UnixMilli())
 	text(39, member)
 	text(40, profile)
-	preparation := governor.Request{Key: governor.JobKey{Domain: uint16(ProgressAccept), ID: scope.playbackID}, Owner: r.owner, Class: governor.Foreground, Deadline: time.Now().Add(time.Minute), Footprint: []governor.Scope{{Library: scope.libraryID, Domain: uint16(ProgressAccept)}}}
+	preparation := governor.Request{Key: governor.JobKey{Domain: uint16(ProgressAccept), ID: scope.playbackID}, Owner: r.owner, Class: governor.Foreground, Deadline: now().Add(time.Minute), Footprint: []governor.Scope{{Library: scope.libraryID, Domain: uint16(ProgressAccept)}}}
 	preparation.Need[governor.MemoryBytes] = 1 << 20
 	decision := g.Try(preparation)
 	if decision.Grant == nil {
@@ -140,15 +147,7 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 	if err = initializeWCProgressFixture(t.Context(), d); err != nil {
 		t.Fatal(err)
 	}
-	// Establish a real positive playing interval before offering the first
-	// report. This is fixture preparation, outside every measured Action call.
-	timer := time.NewTimer(2 * time.Millisecond)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-	case <-t.Context().Done():
-		t.Fatal(t.Context().Err())
-	}
+	warmup()
 	return w, d, a
 }
 func TestWCProgressCompositionOriginalResolveAckAndDrain(t *testing.T) {

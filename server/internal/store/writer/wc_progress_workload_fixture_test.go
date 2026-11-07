@@ -7,6 +7,6 @@ import "testing"
 // no source, SQL, custody, floor or clock override to workload callers.
 func WCProgressWorkloadFixture(t *testing.T) (*Writer, *WCProgressDriver) {
 	t.Helper()
-	w, d, _ := wcProgressCompositionFixture(t)
+	w, d, _ := wcProgressCompositionFixtureClock(t, true)
 	return w, d
 }

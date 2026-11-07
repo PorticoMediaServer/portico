@@ -21,7 +21,7 @@ import (
 var recordWCReclaimCompositionPlans = flag.Bool("record-wc-reclaim-composition-plans", false, "deliberately record WC reclaim composition plans")
 
 func TestWCReclaimCompositionPlans(t *testing.T) {
-	w, driver := wcReclaimCompositionFixture(t)
+	w, _, driver := wcReclaimCompositionProgressFixtureClock(t, *recordWCReclaimCompositionPlans)
 	if _, err := w.CurrentReclaim(t.Context(), driver.Disclosure()); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestWCReclaimCompositionPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	hash := sha256.New()
-	for _, name := range []string{"wc_reclaim_composition_test.go", "wc_reclaim_composition_plan_test.go", "wc_reclaim_composition.go", "wc_reclaim_dispatch.go", "wc_reclaim_protocol.go", "wc_reclaim_protocol_receipt.go", "wc_reclaim_codec.go", "wc_reclaim_008_draft.go", "wc_reclaim_prepare.go", "wc_progress_native.go", "wc_progress_fixture.go"} {
+	for _, name := range []string{"wc_fixture_clock_test.go", "wc_reclaim_composition_test.go", "wc_reclaim_composition_plan_test.go", "wc_reclaim_composition.go", "wc_reclaim_dispatch.go", "wc_reclaim_protocol.go", "wc_reclaim_protocol_receipt.go", "wc_reclaim_codec.go", "wc_reclaim_008_draft.go", "wc_reclaim_prepare.go", "wc_progress_native.go", "wc_progress_fixture.go"} {
 		data, e := os.ReadFile(name)
 		if e != nil {
 			t.Fatal(e)
