@@ -188,7 +188,7 @@ func TestBasicStreamCleanupLateReturningCorruptionRollsBack(t *testing.T) {
 	defs := basicCleanupStreamTestDefinitions()
 	for n := range defs {
 		if defs[n].ID == basicCleanupStreamDelete {
-			defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING asset_id,stream_index", "RETURNING asset_id,stream_index+1", 1)
+			defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING asset_id,stream_index", "RETURNING asset_id,channels", 1)
 		}
 	}
 	w, turn, fence := basicCleanupStreamFixture(t, defs)
@@ -231,7 +231,7 @@ func TestBasicStreamCleanupRetainedProofControl(t *testing.T) {
 	defs := basicCleanupStreamTestDefinitions()
 	for n := range defs {
 		if defs[n].ID == basicCleanupStreamRetained {
-			defs[n].SQL = strings.Replace(defs[n].SQL, "SELECT change_id,asset_id,stream_index ", "SELECT change_id,asset_id,stream_index+1 ", 1)
+			defs[n].SQL = strings.Replace(defs[n].SQL, "SELECT change_id,asset_id,stream_index ", "SELECT stream_index,asset_id,change_id ", 1)
 		}
 	}
 	_, turn, fence := basicCleanupStreamFixture(t, defs)
