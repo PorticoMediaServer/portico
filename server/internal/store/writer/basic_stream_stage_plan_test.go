@@ -25,8 +25,8 @@ var recordBasicStreamPlans = flag.Bool("record-basic-stream-plans", false, "deli
 // source authority, production admission or physical budget is qualified here.
 func TestBasicStreamStatementPlans(t *testing.T) {
 	parts := []struct{ name, sha string }{
-		{"basic_stage.go", "89f3e1171aaea3bf9ff5265e8cdf1e478df9630354ce9d806ca97464870300c7"},
-		{"basic_stage_test.go", "11beb315256859a2f5378cc65479086c1d3097d62df16fd9611f05c25152ca03"},
+		{"basic_stage.go", "b2adbf700ce9928f1a2b388322124455b564780b85d71a6026861342aed52b23"},
+		{"basic_stage_test.go", "8e8da49da22747d1d709405398198f8c3fd46400bc63c9fb434758c553a17966"},
 	}
 	h := sha256.New()
 	for _, p := range parts {
