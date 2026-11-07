@@ -16,6 +16,7 @@ import (
 // Trusted composition serializes Advance/Detail/Close and keeps the job context
 // alive between polls; an HTTP poll context must not own the job lifetime.
 type CollectionPreparation struct {
+	borrowed      bool // private subwork uses an already admitted enclosing lease
 	started       time.Time
 	owner         governor.OwnerID
 	reader        *CollectionReader
@@ -93,6 +94,9 @@ func (p *CollectionPreparation) Close() error {
 	p.fence = nil
 	p.cursor = rsAutoCursor{}
 	p.in = CollectionInput{}
+	if p.borrowed {
+		return nil
+	}
 	_ = p.authority.CancelPreparation(p.lease)
 	return p.authority.RetirePreparation(p.lease)
 }
@@ -400,9 +404,11 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 	p.source = source
 	p.fence = &fence
 	if c.stage == rsAutoDone {
-		if err = p.authority.ReadyPreparation(p.lease); err != nil {
-			_ = p.Close()
-			return CollectionAdvance{}, cost, err
+		if !p.borrowed {
+			if err = p.authority.ReadyPreparation(p.lease); err != nil {
+				_ = p.Close()
+				return CollectionAdvance{}, cost, err
+			}
 		}
 		p.proof = rsCollectionProof(p)
 		p.ready = true

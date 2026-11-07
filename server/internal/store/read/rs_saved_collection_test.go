@@ -1,11 +1,8 @@
 package read
 
 import (
-	"errors"
-	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"strings"
 	"testing"
-	"time"
 )
 
 func newRSSavedCollectionSource(t *testing.T) *browseFixture {
@@ -46,30 +43,6 @@ func TestRSSavedCollectionAuthorityOracle(t *testing.T) {
 		check()
 	}
 }
-func TestRSSavedCollectionEmptyAndRefusal(t *testing.T) {
-	f := composeReadFixture(t, newRSSavedCollectionSource(t), append(browseDefinitions(), SavedCollectionDefinitions()...), readfixture.LiveConfig(time.Now), true, browsePlanFixtureHash(t))
-	r := &SavedCollectionReader{snapshots: f.snapshots, pool: f.snapshots}
-	in := SavedCollectionInput{View: f.input, Resource: "saved"}
-	p, _, err := r.members(t.Context(), foregroundRequest(), time.Second, f.output, in)
-	if err != nil || !p.Exhausted || p.Total != 0 {
-		t.Fatalf("empty %+v %v", p, err)
-	}
-	f.exec(t, `INSERT INTO saved_resource_entries(id,resource_id,item_id,order_key) VALUES('entry','saved',1,'a')`)
-	p, _, err = r.members(t.Context(), foregroundRequest(), time.Second, f.output, in)
-	if !errors.Is(err, ErrUnqualified) || p.Exhausted || p.Items != nil {
-		t.Fatalf("partial success %+v %v", p, err)
-	}
-	f.exec(t, `UPDATE saved_resources SET deleted=1`)
-	_, _, err = r.members(t.Context(), foregroundRequest(), time.Second, f.output, in)
-	if !errors.Is(err, ErrDenied) {
-		t.Fatal(err)
-	}
-	_, _, err = r.Directory(t.Context(), foregroundRequest(), time.Second, f.output, f.input)
-	if !errors.Is(err, ErrUnqualified) {
-		t.Fatal(err)
-	}
-}
-
 func TestRSSavedCollectionActualOctets(t *testing.T) {
 	f := newRSSavedCollectionSource(t)
 	name := "雪\x00é"

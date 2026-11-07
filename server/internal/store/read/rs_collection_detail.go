@@ -45,7 +45,7 @@ func (p *CollectionPreparation) Detail(ctx context.Context, request governor.Req
 		_ = p.Close()
 		return CollectionDetail{}, BrowseReadResult{}, err
 	}
-	if !p.ready || offset < 0 || offset > len(p.nodes) {
+	if p.borrowed || !p.ready || offset < 0 || offset > len(p.nodes) {
 		return CollectionDetail{}, BrowseReadResult{}, ErrInput
 	}
 	return liveRead(ctx, request, budget, output, p.reader.pool, p.in.View.Now.Add(time.Since(p.started)), func(ctx context.Context, r governor.Request, b time.Duration, at time.Time) (CollectionDetail, BrowseReadResult, error) {
@@ -61,7 +61,7 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 		_ = p.Close()
 		return CollectionDetail{}, BrowseReadResult{}, err
 	}
-	if !p.ready || offset < 0 || offset > len(p.nodes) {
+	if p.borrowed || !p.ready || offset < 0 || offset > len(p.nodes) {
 		return CollectionDetail{}, BrowseReadResult{}, ErrInput
 	}
 	if p.lease.Deadline().Before(request.Deadline) {

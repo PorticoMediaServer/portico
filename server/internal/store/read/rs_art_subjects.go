@@ -40,7 +40,7 @@ func (p *CollectionPreparation) Artwork(ctx context.Context, request governor.Re
 	if err := p.check(out, request); err != nil {
 		return ArtworkFact{}, BrowseReadResult{}, err
 	}
-	if !p.ready {
+	if p.borrowed || !p.ready {
 		return ArtworkFact{}, BrowseReadResult{}, ErrInput
 	}
 	in := ArtworkInput{View: p.in.View, Item: p.in.Collection, Role: role, PageSlot: pageSlot}

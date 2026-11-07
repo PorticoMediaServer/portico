@@ -1,12 +1,14 @@
 package read
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
-	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,10 +68,32 @@ func TestRSSavedCollectionPlans(t *testing.T) {
 	}
 	// Goldens are kept in an owned Go file so this slice changes no shared fixture.
 	if os.Getenv("PORTICO_RECORD_RS_SAVED_COLLECTION") == "1" {
-		if err = os.WriteFile("rs_saved_collection_golden_test.go", []byte(fmt.Sprintf("package read\n\nconst rsSavedCollectionGolden = `%s`\n", data)), 0600); err != nil {
+		var b bytes.Buffer
+		z := gzip.NewWriter(&b)
+		_, err = z.Write(data)
+		if err != nil {
 			t.Fatal(err)
 		}
-	} else if string(data) != rsSavedCollectionGolden {
-		t.Fatal("native Capture golden drift")
+		if err = z.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile("testdata/rs-saved-collection-plans.json.gz", b.Bytes(), 0644); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		z, e := gzip.NewReader(bytes.NewReader(rsSavedCollectionGoldenGzip))
+		if e != nil {
+			t.Fatal(e)
+		}
+		expected, e := io.ReadAll(z)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = z.Close(); e != nil {
+			t.Fatal(e)
+		}
+		if !bytes.Equal(data, expected) {
+			t.Fatal("native Capture golden drift")
+		}
 	}
 }
