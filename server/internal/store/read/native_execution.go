@@ -22,9 +22,17 @@ type nativeContinuation struct {
 	counts         []uint64
 	populationDone bool
 	expansion      *nativeExpansion
-	top            []FullSearchHit
+	top            []nativeRankHit
 	more           bool
 	limit          int
+}
+
+// Pending cursors retain rank coordinates only, never a held candidate page.
+// Display payload is hydrated on the completing operation under the SAME fence.
+type nativeRankHit struct {
+	subject           search.ManifestSubject
+	id, library, kind int64
+	tier, subtier     uint8
 }
 type nativeExpansion struct {
 	source   search.FieldKey
@@ -202,6 +210,10 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			return e
 		}
 		draft, e = nativeAdvance(scope.Context(), q, scopeQuery, initial, in, &calls)
+		if errors.Is(e, errFullSearchPending) {
+			draft = FullSearchPage{Disposition: SearchPending}
+			return nil
+		}
 		return e
 	})
 	cost.Lookup = lookup
@@ -281,10 +293,32 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 		if len(state.counts) != len(scope.terms) || state.term < 0 || state.term > len(scope.terms) || state.slot < 1 || state.slot > 6 {
 			return FullSearchPage{}, ErrStale
 		}
-		top.hits = state.top
+		for _, hit := range state.top {
+			top.hits = append(top.hits, FullSearchHit{Subject: hit.subject, ID: hit.id, Library: hit.library, Kind: hit.kind, Tier: hit.tier, PeopleSubtier: hit.subtier, Item: BrowseItem{ID: hit.id}})
+		}
 		top.more = state.more
 	}
 	finish := func() (FullSearchPage, error) {
+		for i, hit := range top.hits {
+			source, err := nativeEntitySource(q, scope, hit.ID)
+			if err != nil {
+				return FullSearchPage{}, err
+			}
+			if source == nil || source.kind != hit.Kind {
+				return FullSearchPage{}, ErrStale
+			}
+			allowed, _, err := nativeEligible(q, in.View, f.permission, source)
+			if err != nil {
+				return FullSearchPage{}, err
+			}
+			if !allowed {
+				return FullSearchPage{}, ErrStale
+			}
+			top.hits[i].Item, err = itemValue(source.item[:7])
+			if err != nil {
+				return FullSearchPage{}, err
+			}
+		}
 		page, err := top.finish(true)
 		if err == nil && page.Next != nil {
 			// The next rank page may reuse exact counts only under this SAME
@@ -397,7 +431,11 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 			state.expansion = nil
 		}
 	}
-	state.top, state.more = top.hits, top.more
+	state.top = nil
+	for _, hit := range top.hits {
+		state.top = append(state.top, nativeRankHit{hit.Subject, hit.ID, hit.Library, hit.Kind, hit.Tier, hit.PeopleSubtier})
+	}
+	state.more = top.more
 	cursor := &FullSearchCursor{query: scope.query.Fold(), bank: scope.bank, revision: scope.revision, input: scope.input, native: state}
 	if in.After != nil {
 		cursor.after = in.After.after
