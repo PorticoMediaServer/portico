@@ -94,10 +94,16 @@ func (r *RSPeoplePageReader) Directory(ctx context.Context, request governor.Req
 	return page, cost, err
 }
 func (r *RSPeoplePageReader) directory(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, p *RSPeoplePreparation, at time.Time) (page RSPeopleDirectory, cost BrowseReadResult, err error) {
+	started := time.Now()
 	ctx, cancel := context.WithDeadline(ctx, minTimeRS(time.Now().Add(min(budget, time.Second)), p.lease.Deadline()))
 	defer cancel()
-	if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
+	if err = r.authority.CheckPreparation(p.lease); err != nil {
 		return
+	}
+	if !p.captured || len(p.input.Views) > 1 {
+		if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
+			return
+		}
 	}
 	d := p.directory
 	if !d.exhausted && p.current.person == 0 {
@@ -126,6 +132,8 @@ func (r *RSPeoplePageReader) directory(ctx context.Context, request governor.Req
 		}
 		if id == 0 {
 			d.exhausted = true
+			page.Pending = true
+			return
 		} else {
 			d.after = id
 			d.currentStart = p.used
@@ -160,8 +168,10 @@ func (r *RSPeoplePageReader) directory(ctx context.Context, request governor.Req
 			}
 		}
 	}
-	if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
-		return
+	if len(p.input.Views) > 1 {
+		if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
+			return
+		}
 	}
 	if !d.exhausted {
 		page.Pending = true
@@ -204,7 +214,7 @@ func (r *RSPeoplePageReader) directory(ctx context.Context, request governor.Req
 	if err != nil {
 		return RSPeopleDirectory{}, cost, err
 	}
-	if err = r.authority.HandoffPreparation(p.lease); err != nil {
+	if err = p.handoff(at.Add(time.Since(started))); err != nil {
 		return RSPeopleDirectory{}, cost, err
 	}
 	err = p.close()
@@ -233,7 +243,7 @@ func (p *RSPeoplePreparation) directoryPage(outputBytes int64) (RSPeopleDirector
 		a, b := d.entries[i].summary, d.entries[j].summary
 		less := a.SortName < b.SortName || a.SortName == b.SortName && a.ID < b.ID
 		if in.Descending {
-			return !less
+			return b.SortName < a.SortName || b.SortName == a.SortName && b.ID < a.ID
 		}
 		return less
 	})

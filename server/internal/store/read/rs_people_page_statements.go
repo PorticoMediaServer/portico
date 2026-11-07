@@ -25,7 +25,7 @@ func init() {
 }
 
 // RSPeoplePageDefinitions is inert. Composition must Capture on its actual
-// reader and include BrowseDefinitions and PersonCreditsDefinitions as well.
+// reader and include HarnessDefinitions and PersonCreditsDefinitions as well.
 func RSPeoplePageDefinitions() []stmt.Definition {
 	base := rsPeopleByteDefinitions()
 	var out []stmt.Definition
