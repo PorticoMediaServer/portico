@@ -36,7 +36,7 @@ func TestMPTranscodeNativeLeaseCancelRetry(t *testing.T) {
 		t.Fatal(r, err)
 	}
 	var exited, cleaned int64
-	if err = n.conn.QueryRowContext(t.Context(), "SELECT physical_exited,cleaned FROM prepared_media_job_custody WHERE job_id='job'").Scan(&exited, &cleaned); err != nil || exited != 0 || cleaned != 0 {
+	if err = n.conn.QueryRowContext(t.Context(), "SELECT physical_exited,cleaned FROM mp_job_custody WHERE job_id='job'").Scan(&exited, &cleaned); err != nil || exited != 0 || cleaned != 0 {
 		t.Fatal("cancel returned permits", exited, cleaned, err)
 	}
 	f := mpNativeJobFence(r)
@@ -99,7 +99,7 @@ func TestMPTranscodeNativePublishPinsRetire(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := mpNativeJobFence(r)
-	artifact := mpTranscodeVerifiedArtifact{job: r.job, execution: r.execution, version: "version", digest: strings.Repeat("d", 64), inputEvidence: "validated-source", transformation: mpDraftRecipe().transformation, facts: "{\"validated\":true}", generation: r.generation, leaseOwner: r.leaseOwner, leaseGeneration: r.leaseGeneration, size: 123, source: mpDraftSource(), recipe: mpDraftRecipe()}
+	artifact := mpTranscodeVerifiedArtifact{versionIncarnation: [16]byte{7}, job: r.job, execution: r.execution, version: "version", digest: strings.Repeat("d", 64), inputEvidence: "validated-source", transformation: mpDraftRecipe().transformation, facts: "{\"validated\":true}", generation: r.generation, leaseOwner: r.leaseOwner, leaseGeneration: r.leaseGeneration, size: 123, source: mpDraftSource(), recipe: mpDraftRecipe()}
 	bad := artifact
 	bad.source.revision = "different"
 	if out, e := applyMPTranscodePublish(t.Context(), n.purpose(MPTranscodePublish), f, bad); e == nil || out != (mpTranscodeEffect{}) {

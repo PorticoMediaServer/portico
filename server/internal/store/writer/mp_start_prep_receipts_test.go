@@ -48,7 +48,7 @@ func mpNativeReceiptTables(n *mpDraftNative) {
 		n.exec("CREATE TABLE " + table + "(" + strings.Join(defs, ",") + ")")
 	}
 	for _, table := range []string{"playback_start_preparation_birth_owners", "prepared_media_job_birth_owners"} {
-		n.exec("CREATE TABLE " + table + "(id TEXT PRIMARY KEY,command_incarnation BLOB,command_last_sequence INTEGER,command_acknowledged_sequence INTEGER,command_receipt_rows INTEGER,command_receipt_variable_bytes INTEGER)")
+		n.exec("CREATE TABLE " + table + "(id TEXT PRIMARY KEY,mp_command_incarnation BLOB,mp_command_last_sequence INTEGER,mp_command_acknowledged_sequence INTEGER,mp_receipt_rows INTEGER,mp_receipt_variable_bytes INTEGER)")
 	}
 }
 func TestMPStartPrepNativeOriginalReceipt(t *testing.T) {
@@ -71,7 +71,7 @@ func TestMPStartPrepNativeOriginalReceipt(t *testing.T) {
 		t.Fatal(debt, err)
 	}
 	var last int64
-	if err = n.conn.QueryRowContext(t.Context(), "SELECT command_last_sequence FROM playback_start_preparations WHERE id='prep'").Scan(&last); err != nil || last != 0 {
+	if err = n.conn.QueryRowContext(t.Context(), "SELECT mp_command_last_sequence FROM playback_start_preparations WHERE id='prep'").Scan(&last); err != nil || last != 0 {
 		t.Fatal("birth consumed root sequence", last, err)
 	}
 	r, err = applyMPStartPrepClaim(t.Context(), n.purpose(MPStartPrepClaim), mpNativeStartFence(r), "execution")
@@ -90,7 +90,7 @@ func TestMPStartPrepNativeOriginalReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	var retained int64
-	if err = n.conn.QueryRowContext(t.Context(), "SELECT command_receipt_variable_bytes FROM playback_start_preparations WHERE id='prep'").Scan(&retained); err != nil || retained != debt {
+	if err = n.conn.QueryRowContext(t.Context(), "SELECT mp_receipt_variable_bytes FROM playback_start_preparations WHERE id='prep'").Scan(&retained); err != nil || retained != debt {
 		t.Fatal(retained, debt, err)
 	}
 	n.exec("UPDATE playback_start_preparation_lifecycle SET revision=revision+1,state='retired'; UPDATE inventory_objects SET revision='drifted'")

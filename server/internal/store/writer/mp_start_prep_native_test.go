@@ -53,14 +53,15 @@ func mpNativeFixture(t *testing.T) *mpDraftNative {
 		n.exec(text[:end+1])
 	}
 	for _, table := range []string{"playback_start_preparations", "prepared_media_jobs"} {
-		n.exec("ALTER TABLE " + table + " ADD COLUMN command_incarnation BLOB")
-		for _, col := range []string{"command_last_sequence", "command_acknowledged_sequence", "command_receipt_rows", "command_receipt_variable_bytes"} {
+		n.exec("ALTER TABLE " + table + " ADD COLUMN mp_command_incarnation BLOB")
+		for _, col := range []string{"mp_command_last_sequence", "mp_command_acknowledged_sequence", "mp_receipt_rows", "mp_receipt_variable_bytes"} {
 			n.exec("ALTER TABLE " + table + " ADD COLUMN " + col + " INTEGER NOT NULL DEFAULT 0")
 		}
 	}
-	n.exec(`CREATE TABLE playback_start_preparation_execution(operation_id TEXT PRIMARY KEY,execution_id TEXT NOT NULL UNIQUE,physical_exited INTEGER NOT NULL,cleaned INTEGER NOT NULL,exit_digest TEXT NOT NULL,result_digest TEXT NOT NULL,staged_rows INTEGER NOT NULL,staged_bytes INTEGER NOT NULL,cleanup_cursor INTEGER NOT NULL);
- CREATE TABLE prepared_media_job_inputs(job_id TEXT PRIMARY KEY,server_id TEXT,authority TEXT,account_id TEXT,actor_profile_id TEXT,device_id TEXT,family_id TEXT,grant_id TEXT,session_hash TEXT,epoch INTEGER,token_generation INTEGER,original_horizon_ms INTEGER,library_id TEXT,library_source_id TEXT,asset_id TEXT,inventory_object_id TEXT,inventory_revision TEXT,root_identity TEXT,incarnation TEXT,remote_source_id TEXT,effective_configuration TEXT,read_policy_witness TEXT,read_authority_witness TEXT,library_generation INTEGER,raw_configuration_generation INTEGER,profile_revision INTEGER,size INTEGER,modified_ns INTEGER,transformation_digest TEXT,part_index INTEGER);
- CREATE TABLE prepared_media_job_custody(job_id TEXT PRIMARY KEY,generation INTEGER,execution_id TEXT,physical_exited INTEGER,cleaned INTEGER,exit_digest TEXT,cleanup_cursor INTEGER);
+	n.exec("ALTER TABLE prepared_media_versions ADD COLUMN mp_command_incarnation BLOB")
+	n.exec(`CREATE TABLE mp_start_execution(operation_id TEXT PRIMARY KEY,execution_id TEXT NOT NULL UNIQUE,physical_exited INTEGER NOT NULL,cleaned INTEGER NOT NULL,exit_digest TEXT NOT NULL,result_digest TEXT NOT NULL,staged_rows INTEGER NOT NULL,staged_bytes INTEGER NOT NULL,cleanup_cursor INTEGER NOT NULL);
+ CREATE TABLE mp_job_inputs(job_id TEXT PRIMARY KEY,server_id TEXT,authority TEXT,account_id TEXT,actor_profile_id TEXT,device_id TEXT,family_id TEXT,grant_id TEXT,session_hash TEXT,epoch INTEGER,token_generation INTEGER,original_horizon_ms INTEGER,library_id TEXT,library_source_id TEXT,asset_id TEXT,inventory_object_id TEXT,inventory_revision TEXT,root_identity TEXT,incarnation TEXT,remote_source_id TEXT,effective_configuration TEXT,read_policy_witness TEXT,read_authority_witness TEXT,library_generation INTEGER,raw_configuration_generation INTEGER,profile_revision INTEGER,size INTEGER,modified_ns INTEGER,transformation_digest TEXT,part_index INTEGER);
+ CREATE TABLE mp_job_custody(job_id TEXT PRIMARY KEY,generation INTEGER,execution_id TEXT,physical_exited INTEGER,cleaned INTEGER,exit_digest TEXT,cleanup_cursor INTEGER);
  CREATE INDEX prepared_media_readers ON prepared_media_session_pins(version_id);
  CREATE TABLE playback_sessions(id TEXT PRIMARY KEY);
  CREATE TABLE authorization_family_tokens(token_hash TEXT PRIMARY KEY,family_id TEXT,generation INTEGER,retired INTEGER);
@@ -191,7 +192,7 @@ func TestMPStartPrepNativeCancelPhysicalExit(t *testing.T) {
 		t.Fatal(r, err)
 	}
 	var exited, cleaned int64
-	if err = n.conn.QueryRowContext(t.Context(), "SELECT physical_exited,cleaned FROM playback_start_preparation_execution WHERE operation_id='prep'").Scan(&exited, &cleaned); err != nil || exited != 0 || cleaned != 0 {
+	if err = n.conn.QueryRowContext(t.Context(), "SELECT physical_exited,cleaned FROM mp_start_execution WHERE operation_id='prep'").Scan(&exited, &cleaned); err != nil || exited != 0 || cleaned != 0 {
 		t.Fatal("cancel released custody", exited, cleaned, err)
 	}
 	f = mpNativeStartFence(r)
