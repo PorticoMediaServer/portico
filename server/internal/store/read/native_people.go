@@ -11,43 +11,40 @@ import (
 // CHANGE-013 supplies the dedicated birth witness. The point compares that
 // witness and the real revision; artwork and token never enter this proof.
 func nativePersonSource(q browseQuery, scope *fullQueryScope, id int64) (*nativeSource, error) {
-	rows, err := q("full.native.person.accepted", id, scope.bank)
+	raw, err := q("full.native.person.source.raw", id)
 	if err != nil {
 		return nil, err
 	}
-	if len(rows) == 0 {
-		raw, e := q("full.native.person.source.raw", id)
-		if e != nil {
-			return nil, e
-		}
-		if len(raw) == 0 {
-			return nil, nil
-		}
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	if len(raw) != 1 || len(raw[0]) != 5 {
+		return nil, ErrUnqualified
+	}
+	r := raw[0]
+	p, err := nativeAcceptedPublication(q, scope, search.ManifestPerson, id)
+	if err != nil {
+		return nil, err
+	}
+	name, a := r[1].(string)
+	sortKey, b := r[2].(string)
+	revision, c := r[3].(int64)
+	birth, d := r[4].([]byte)
+	pubBirth, e := p[9].([]byte)
+	title, g := p[4].(string)
+	fold, h := p[5].(string)
+	if !a || !b || !c || !d || !e || !g || !h || r[0] != id || len(sortKey) > 65536 || len(birth) != 16 || len(pubBirth) != 16 || revision <= 0 {
+		return nil, ErrUnqualified
+	}
+	if string(birth) != string(pubBirth) || p[10] != revision || title != name {
 		return nil, errFullSearchPending
 	}
-	if len(rows) != 1 || len(rows[0]) != 8 {
-		return nil, ErrUnqualified
-	}
-	p := rows[0]
-	publication, a := p[0].(int64)
-	generation, b := p[1].(int64)
-	title, c := p[2].(string)
-	fold, d := p[3].(string)
-	birth, e := p[4].([]byte)
-	revision, g := p[5].(int64)
-	name, h := p[6].(string)
-	sortKey, sk := p[7].(string)
-	if !a || !b || !c || !d || !e || !g || !h || !sk || len(sortKey) > 65536 || publication <= 0 || generation <= 0 || len(birth) != 16 || revision <= 0 || title != name {
-		return nil, ErrUnqualified
-	}
-	if err = nativeSealed(q, publication); err != nil {
-		return nil, err
-	}
-	identity, err := nativeItemIdentity(p)
+	view := append(append([]any(nil), p...), r...)
+	identity, err := nativeItemIdentity(view)
 	if err != nil {
 		return nil, err
 	}
-	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestPerson, SubjectID: id, PublicationID: publication, BankID: scope.bank, InputGeneration: generation}, title: title, fold: fold, sortKey: sortKey, personSource: identity}, nil
+	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestPerson, SubjectID: id, PublicationID: p[0].(int64), BankID: scope.bank, InputGeneration: p[8].(int64)}, title: title, fold: fold, sortKey: sortKey, personSource: identity}, nil
 }
 
 // A People card needs one CURRENT visible credited work. A positive witness

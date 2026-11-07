@@ -29,7 +29,7 @@ func nativeDigestInteger(h hash.Hash, n uint64) {
 }
 func nativeDigestString(h hash.Hash, value string) {
 	nativeDigestInteger(h, uint64(len(value)))
-	var block [4096]byte
+	var block [256]byte
 	for len(value) > 0 {
 		n := copy(block[:], value)
 		h.Write(block[:n])
@@ -119,10 +119,13 @@ func (s *FullSearchReadStamp) RetainHits(hits []FullSearchHit) (*FullSearchReadS
 		return nil, ErrInput
 	}
 	out := *s
-	out.hits = nil
-	out.policies = nil
+	out.hits = make([]nativeStampedHit, 0, len(hits))
+	out.policies = make([]nativePolicyWitness, 0, len(hits))
 	out.checked = nil
 	for _, hit := range hits {
+		if len(hit.Item.Title) > 65536 || len(hit.PersonName) > 65536 || len(hit.SortKey) > 65536 || len(hit.AddedAt) > 30 {
+			return nil, ErrInput
+		}
 		entry := nativeStampedHit{nativeHitIdentity(hit), hit.permission}
 		if !entry.policy.valid || !slices.Contains(s.hits, entry) || !slices.Contains(s.checked, entry.policy) {
 			return nil, ErrStale
@@ -135,7 +138,7 @@ func (s *FullSearchReadStamp) RetainHits(hits []FullSearchHit) (*FullSearchReadS
 			out.policies = append(out.policies, entry.policy)
 		}
 	}
-	out.checked = slices.Clone(out.policies)
+	out.checked = nativeCloneExact(out.policies)
 	if out.MetadataBytes() > MaxNativeStampBytes {
 		return nil, governor.ErrSnapshotBudget
 	}
@@ -165,4 +168,15 @@ func (s *FullSearchReadStamp) ownWitnesses() {
 			s.hits[i].policy = s.checked[j]
 		}
 	}
+}
+
+// Keep sealed metadata's logical reservation exact: append growth can retain
+// spare full witness slots and defeat the independently enforced640KiB cap.
+func nativeCloneExact[T any](values []T) []T {
+	if values == nil {
+		return nil
+	}
+	out := make([]T, len(values))
+	copy(out, values)
+	return out
 }
