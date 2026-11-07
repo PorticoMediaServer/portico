@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"reflect"
 	"testing"
@@ -91,7 +90,7 @@ func wcReclaimCompositionOpening(t *testing.T, principalLifetimes ...context.Con
 		t.Fatal(err)
 	}
 	scope := wcProgressScope{primary: 1, primaryProfile: "profile-one", membershipRole: "member", horizon: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), expires: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), playbackID: "playback-音", profileKey: "viewer-one", accountID: "account-one", profileID: "profile-one", memberBirth: member, profileBirth: profile, libraryKey: "library-one", libraryID: 7, subjectID: 11, serverID: "server", familyID: "wc-family", tokenHash: "wc-token", epoch: 1, tokenGeneration: 1, memberRevision: 1, profileRevision: 1, role: "member", memberLibraries: `["library-one"]`}
-	scope.profileKey = persistence.PersonalOwnerKey("local", scope.accountID, scope.profileID)
+	scope.profileKey = wcFixturePersonalOwnerKey("local", scope.accountID, scope.profileID)
 	scope.expires = scope.horizon
 	for _, b := range []*[16]byte{&scope.incarnation, &scope.clock, &scope.subjectPublicID} {
 		if _, err = rand.Read(b[:]); err != nil {
