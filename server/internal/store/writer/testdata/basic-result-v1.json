@@ -1,0 +1,83 @@
+{
+  "source_sha256": "36cc611ff9eb1dfb74bc12c49c7bbef14b2975d909c579b067151b4e87603be3",
+  "source_pin": "8ec6d2cbc62313d0bfa26586d95d05507fdbb000",
+  "wire": "W scan_basic result v1; explicit LP UTF8/BE64 primitives, independently assembled in Python from SC native values",
+  "positive": [
+    {
+      "name": "basic_stage_actual_header_only",
+      "identity": {
+        "Incarnation": "01010101010101010101010101010101",
+        "Sequence": 19,
+        "OperationID": "02020202020202020202020202020202"
+      },
+      "request_digest": "0303030303030303030303030303030303030303030303030303030303030303",
+      "result": {
+        "RunID": "basic-run",
+        "AcceptedRunRevision": 42,
+        "AppliedMS": 2000,
+        "SourceID": "basic-source",
+        "SourceIncarnation": "basic-incarnation",
+        "SourceRevision": "object:019",
+        "ChangeID": 51,
+        "ExpectedEpoch": 17,
+        "Continuation": {
+          "NextCursor": "",
+          "NextFamily": 0,
+          "NextCopyPhase": 0,
+          "NextCopyID": 0,
+          "NextCopyAux": 0,
+          "NextCopyKey": "",
+          "NextCopyKey2": "",
+          "NextCopyKey3": "",
+          "AfterEntity": 0
+        },
+        "ResultCount": 0,
+        "Members": [],
+        "Purpose": "basic_stage"
+      },
+      "expect": "encode",
+      "provenance": "SQL-fact fixture values; expected canonical wire/digest remain W-owned, no accepting command claim",
+      "canonical_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d7631000001000000000000000a7363616e5f6261736963000000000000000b62617369635f737461676500000000000000076170706c696564000000000000000962617369632d72756e010101010101010101010101010101010000000000000013020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303000000000000002a00000000000007d0000000000000000c62617369632d736f75726365000000000000001162617369632d696e6361726e6174696f6e000000000000000a6f626a6563743a3031390000000000000033000000000000001100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "canonical_bytes": 358,
+      "sha256": "12613e8bfa1169b1f4a46eaa27a923ff91057d56ae10ce80ac7b8e2cd985d273"
+    },
+    {
+      "name": "basic_seal_actual_header_only",
+      "identity": {
+        "Incarnation": "01010101010101010101010101010101",
+        "Sequence": 19,
+        "OperationID": "02020202020202020202020202020202"
+      },
+      "request_digest": "0303030303030303030303030303030303030303030303030303030303030303",
+      "result": {
+        "RunID": "basic-run",
+        "AcceptedRunRevision": 42,
+        "AppliedMS": 2000,
+        "SourceID": "basic-source",
+        "SourceIncarnation": "basic-incarnation",
+        "SourceRevision": "object:019",
+        "ChangeID": 51,
+        "ExpectedEpoch": 17,
+        "Continuation": {
+          "NextCursor": "",
+          "NextFamily": 0,
+          "NextCopyPhase": 0,
+          "NextCopyID": 0,
+          "NextCopyAux": 0,
+          "NextCopyKey": "",
+          "NextCopyKey2": "",
+          "NextCopyKey3": "",
+          "AfterEntity": 0
+        },
+        "ResultCount": 0,
+        "Members": [],
+        "Purpose": "basic_seal"
+      },
+      "expect": "encode",
+      "provenance": "SQL-fact fixture values; expected canonical wire/digest remain W-owned, no accepting command claim",
+      "canonical_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d7631000001000000000000000a7363616e5f6261736963000000000000000a62617369635f7365616c00000000000000076170706c696564000000000000000962617369632d72756e010101010101010101010101010101010000000000000013020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303000000000000002a00000000000007d0000000000000000c62617369632d736f75726365000000000000001162617369632d696e6361726e6174696f6e000000000000000a6f626a6563743a3031390000000000000033000000000000001100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "canonical_bytes": 357,
+      "sha256": "697fdd83d08b58aff29577be1a021ac0a285551560bc2b0194affb2199507838"
+    }
+  ]
+}
