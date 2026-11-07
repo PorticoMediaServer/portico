@@ -56,7 +56,7 @@ func prepareUSLibraryPolicy(kind CommandID, identity CommandIdentity, in usLibra
 	i := in.issuer
 	if !usIdentifier(i.server) || !usIdentifier(i.account) || !usIdentifier(i.profile) || !usIdentifier(i.family) ||
 		!usHex(i.memberIncarnation, 32) || !usHex(i.profileLifetime, 32) || !usHex(i.installation, 32) ||
-		!usHex(i.tokenDigest, 64) || i.epoch <= 0 || i.familyGeneration <= 0 || i.authorityGeneration <= 0 {
+		!usIdentityDigest(i.tokenDigest) || i.epoch <= 0 || i.familyGeneration <= 0 || i.authorityGeneration <= 0 {
 		return nil, invalid("us_policy_issuer")
 	}
 	if len(in.libraries) > usMaxPolicyLibraries {
