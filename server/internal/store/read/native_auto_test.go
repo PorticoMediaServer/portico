@@ -60,6 +60,23 @@ func TestNativeAutomaticWorkspaceRefuses(t *testing.T) {
 	}
 }
 
+func TestNativeAutomaticAcceptedRestatesLogicalLibrary(t *testing.T) {
+	library := int64(1)
+	q := nativeAutoQuery(func(name string, args ...any) ([][]any, error) {
+		if name != "full.native.auto.accepted" || len(args) != 5 || args[0] != "movies" || args[1] != int64(7) {
+			t.Fatal("unfenced library binding", name, args)
+		}
+		return [][]any{{int64(7), library}}, nil
+	})
+	if ok, err := nativeAutoAccepted(q, 1, "movies", 7, "tmdb", "evidence1"); err != nil || !ok {
+		t.Fatal("same logical library", ok, err)
+	}
+	library = 2
+	if _, err := nativeAutoAccepted(q, 1, "movies", 7, "tmdb", "evidence1"); !errors.Is(err, ErrUnqualified) {
+		t.Fatal("mismatched bridge authorized", err)
+	}
+}
+
 // Pure lexical/declaration control. It grants no native execution or receipt.
 func TestNativeSearchOrdinaryShapes(t *testing.T) {
 	defs := NativeFullSearchDefinitions()
