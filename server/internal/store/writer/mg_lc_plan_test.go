@@ -40,30 +40,6 @@ func TestMGLCReadCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Private fixture policy for this hash-pinned draft's ONE new partial
-	// index. Capture verifies the exact native predicate. Canonical INT policy
-	// stays untouched; this is not adoption or an execution waiver.
-	var contract map[string]json.RawMessage
-	if err := json.Unmarshal(data, &contract); err != nil {
-		t.Fatal(err)
-	}
-	var entries []json.RawMessage
-	if err := json.Unmarshal(contract["indexes"], &entries); err != nil {
-		t.Fatal(err)
-	}
-	extra, err := json.Marshal(map[string]string{"index": "dvr_recordings_capture_launch", "predicate": "capture_launch_id IS NOT NULL", "choice": "repeat_exact_predicate"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	entries = append(entries, extra)
-	contract["indexes"], err = json.Marshal(entries)
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err = json.Marshal(contract)
-	if err != nil {
-		t.Fatal(err)
-	}
 	policy, err := plan.ReadIndexPolicy(data)
 	if err != nil {
 		t.Fatal(err)
