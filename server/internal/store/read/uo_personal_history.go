@@ -111,7 +111,7 @@ func UOPersonalHistoryDefinitions() []stmt.Definition {
 	add := func(name, sql string, p []stmt.Param, args []any, plan stmt.Plan) stmt.Definition {
 		return stmt.Definition{ID: readStatementID("uo.personal.history." + name), Owner: "store/read UO personal draft", Kind: stmt.Read, SQL: sql, Params: p, CallSites: []string{"store/read/uo_personal_history.go"}, Cohorts: []stmt.Cohort{{Name: "bounded", Bindings: args}}, Plan: plan}
 	}
-	out := []stmt.Definition{add("head", `SELECT revision,activity_generation,recommendation_generation,history_visible_from_id,action_sequence FROM personal_activity_revisions WHERE profile_id=? AND policy_authority=? AND policy_account_id=? AND policy_profile_id=? AND policy_member_incarnation=? AND policy_profile_lifetime=? AND history_policy_generation=?`, []stmt.Param{s("profile"), s("authority"), s("account"), s("profile_id"), s("member"), s("birth"), i("policy")}, []any{"profile-one", "local", "account-one", "profile-one", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", int64(1)}, stmt.Plan{Hot: true})}
+	out := []stmt.Definition{add("head", `SELECT revision,activity_generation,recommendation_generation,history_visible_from_id,action_sequence FROM personal_activity_revisions INDEXED BY sqlite_autoindex_personal_activity_revisions_1 WHERE profile_id=? AND policy_authority=? AND policy_account_id=? AND policy_profile_id=? AND policy_member_incarnation=? AND policy_profile_lifetime=? AND history_policy_generation=?`, []stmt.Param{s("profile"), s("authority"), s("account"), s("profile_id"), s("member"), s("birth"), i("policy")}, []any{"profile-one", "local", "account-one", "profile-one", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", int64(1)}, stmt.Plan{Hot: true})}
 	for _, name := range []string{"first", "same", "older"} {
 		where := ""
 		params := []stmt.Param{s("profile"), s("member"), s("birth"), i("cutoff"), s("account")}
@@ -131,6 +131,8 @@ func UOPersonalHistoryDefinitions() []stmt.Definition {
 		sql := `SELECT id,subject_id,position,played_ms,activity_generation,accepted_sequence,CASE WHEN profile_id=? AND membership_incarnation=? AND profile_lifetime=? AND id>=? THEN 1 ELSE 0 END FROM play_history INDEXED BY play_history_admin_user WHERE account_key=?` + where + ` ORDER BY occurred_at DESC,id DESC LIMIT ?`
 		out = append(out, add(name, sql, params, args, stmt.Plan{Hot: true, Indexes: []string{"play_history_admin_user"}}))
 	}
+	pin := stmt.AutoIndexBinding{Table: "personal_activity_revisions", Name: "sqlite_autoindex_personal_activity_revisions_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "profile_id", Collation: "BINARY"}}}
+	out[0].Plan = stmt.Plan{Hot: true, Indexes: []string{pin.Name}, AutoIndexes: []stmt.AutoIndexBinding{pin}}
 	out = append(out, add("octets", `SELECT octet_length(occurred_at) FROM play_history WHERE id=? AND account_key=?`, []stmt.Param{i("id"), s("account")}, []any{int64(1), "account-one"}, stmt.Plan{Hot: true, PrimaryKeys: []string{"play_history"}}), add("anchor", `SELECT occurred_at FROM play_history WHERE id=? AND account_key=? AND octet_length(occurred_at)=?`, []stmt.Param{i("id"), s("account"), i("bytes")}, []any{int64(1), "account-one", int64(20)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"play_history"}}))
 	return out
 }
