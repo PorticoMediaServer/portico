@@ -156,3 +156,36 @@ owner budget and cannot be counted as a normal writer hold. Read classes inherit
 B-READS, not writer ceilings. No profile or grant is widened to meet these values.
 QL owns >=3VMs/profile, >=10k actual holds/recipe, confidence bounds, failure and
 coverage accounting, Netcup quiet-max scheduling, and final qualification.
+
+## Owner admission and post-return publication
+
+The maintenance-enabled progressive test owner publishes through the existing
+production observeWriterWALAt path before admission and after each actual
+terminal return. COMMIT publishes before the next snapshot/original gate;
+rollback/error cleanup publishes after its required physical return when known.
+The same frame clock/COMMIT/physical-return floors apply. A failed or uncertain
+phase remains missing/failed, never fabricated or repaired. Ordinary nonmaintenance
+fixtures keep their prior path. There is no raw checkpoint or alternate parser.
+
+owner_admission is a call-bound private observation of the actual Request,
+pre-admission WAL publication, nullable grant-returned/actual refusal code, and
+sampled governor usage before/after Try. Observer timestamps are relative scalar
+nanoseconds from the SAME stream origin before JSON. Missing Request/decision
+phases stay null; a typed refusal alone does not prove before-custody/rollback.
+The existing bound_synthetic_request remains intent and cannot substitute for
+the actual request. Sampling overhead is retained in enclosing setup time and
+never subtracted. No grant or authority object crosses the wire.
+
+owner_post_return_wal records the actual owner publication and observer interval,
+separate from the advisory WALAfter parser/file observations. It is bound to
+THIS frame/setup entry and sampled once; a later Resolve cannot borrow it.
+Public failed facade Evidence is not resurrected. The physical-close witness
+uses actual close/native/usage facts and the close error; a previously recorded
+CP refusal still makes the whole run nonpassing without claiming that native
+close itself failed. Historical raw six-VM receipts are never relabelled.
+
+The six-VM Capacity/Busy/stale-WAL diagnosis remains GV-owned. These composition
+corrections alone are not a claim to resolve those causes, a new cap or a retry.
+No further N1 qualification dispatch is authorized until the reviewed combined
+fix and lead/QL gate are understood. Existing source/binary/epoch populations
+remain separate.

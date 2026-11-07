@@ -28,17 +28,20 @@ func inventoryMemoryFixtureTurn(t *testing.T, w *executor, registry *stmt.Regist
 // The ONE fixture builder owns the unchanged synthetic recipe and grant path.
 // A progressive test retains this object, not a copied recipe or grant builder.
 type inventoryMemoryFixture struct {
-	executor    *executor
-	registry    *stmt.Registry
-	governor    governor.Governor
-	authority   *governor.Authority
-	wal         *governor.WALGate
-	request     governor.Request
-	recipe      turnRecipe
-	budget      inventoryMemoryBudget
-	path        string
-	maintenance bool
-	steps       []statementStep
+	executor       *executor
+	registry       *stmt.Registry
+	governor       governor.Governor
+	authority      *governor.Authority
+	wal            *governor.WALGate
+	request        governor.Request
+	recipe         turnRecipe
+	budget         inventoryMemoryBudget
+	path           string
+	maintenance    bool
+	clockHighWater time.Time
+	admission      *n1FixtureAdmission
+	postReturn     *n1FixtureWALReturn
+	steps          []statementStep
 }
 
 func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registry, input *inventoryAcceptCommand, budget inventoryMemoryBudget, foreground ...governor.Config) *inventoryMemoryFixture {
@@ -92,13 +95,24 @@ func newInventoryMemoryFixtureComposition(t *testing.T, w *executor, registry *s
 	return &inventoryMemoryFixture{executor: w, registry: registry, governor: g, authority: a, wal: wal, request: request, recipe: recipe, budget: budget, path: path, maintenance: cp != nil, steps: steps}
 }
 
-func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptCommand) (*commandTurn, error) {
+func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptCommand) (out *commandTurn, err error) {
 	t.Helper()
+	if f.maintenance {
+		f.admission = &n1FixtureAdmission{Started: time.Now()}
+		defer func() { f.admission.Returned = time.Now(); f.admission.Error = checkpointError(err) }()
+	}
 	if input == nil || !input.valid || input.request.scope.runID != f.request.Key.ID ||
 		input.request.scope.libraryID != f.request.Footprint[0].Library {
 		return nil, ErrInvalid
 	}
-	if err := refreshWriterWAL(f.path, f.wal, f.executor.now); err != nil {
+	if f.maintenance {
+		var before *WALObservation
+		before, err = observeWriterWALAt(f.path, f.wal, f.executor.now, &f.clockHighWater)
+		f.admission.WALBefore = before
+		if err != nil {
+			return nil, err
+		}
+	} else if err := refreshWriterWAL(f.path, f.wal, f.executor.now); err != nil {
 		return nil, err
 	}
 	request := f.request
@@ -111,7 +125,25 @@ func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptComma
 			return nil, riskErr
 		}
 	}
+	if f.maintenance {
+		frozen := request
+		frozen.IO = append([]governor.DeviceIO(nil), request.IO...)
+		frozen.Footprint = append([]governor.Scope(nil), request.Footprint...)
+		f.admission.Request = &frozen
+		usage := f.authority.Usage()
+		f.admission.UsageBefore = &usage
+	}
 	decision := f.governor.Try(request)
+	if f.maintenance {
+		granted := decision.Grant != nil
+		f.admission.Granted = &granted
+		if decision.Refusal != nil {
+			value := *decision.Refusal
+			f.admission.Refusal = &value
+		}
+		usage := f.authority.Usage()
+		f.admission.UsageAfter = &usage
+	}
 	if decision.Grant == nil {
 		return nil, effectiveAdmissionRefusal(decision.Refusal)
 	}

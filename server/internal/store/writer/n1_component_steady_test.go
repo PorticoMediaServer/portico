@@ -121,16 +121,17 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 				summary.StopReason = n1Join(summary.StopReason, err)
 			}
 			summary.BeforeClose = n1Memory(stream.origin)
-			var err error
+			var err, closeErr error
 			if maintenance != nil {
-				err = maintenance.close()
-				err = errors.Join(err, maintenance.drain(stream))
+				closeErr = maintenance.close()
+				err = errors.Join(closeErr, maintenance.drain(stream))
 				summary.CheckpointCalls, summary.CheckpointComplete, summary.CheckpointOverflow = maintenance.started, maintenance.completed, maintenance.overflow
 				if maintenance.overflow {
 					err = errors.Join(err, errors.New("checkpoint raw ledger overflow; harness gap"))
 				}
 			} else {
-				err = fixture.owner.executor.close()
+				closeErr = fixture.owner.executor.close()
+				err = closeErr
 			}
 			summary.StopReason = n1Join(summary.StopReason, err)
 			w := fixture.owner.executor
@@ -140,7 +141,7 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 			stats := w.db.Stats()
 			usage, opened, closed := fixture.owner.authority.Usage(), trace.connections, trace.closed
 			summary.PoolStats, summary.Usage, summary.ConnectionsOpened, summary.ConnectionsClosed = &stats, &usage, &opened, &closed
-			joined := err == nil && w.closed && !failed && stats.InUse == 0 && stats.OpenConnections == 0 && trace.connections == trace.closed && fixture.owner.authority.Usage() == ([4]governor.Amounts{})
+			joined := closeErr == nil && w.closed && !failed && stats.InUse == 0 && stats.OpenConnections == 0 && trace.connections == trace.closed && fixture.owner.authority.Usage() == ([4]governor.Amounts{})
 			summary.NativeJoined = &joined
 			summary.AfterClose = n1Memory(stream.origin)
 		}
@@ -357,6 +358,14 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 				record.PhysicalAttemptOrdinal = &physical
 			}
 		}
+		// Keep production's owner publication distinct from the advisory parser.
+		// finish publishes immediately after COMMIT; this catches rollback/error
+		// returns as well, without sampling a turn twice.
+		if turn != nil {
+			record.Error = n1Join(record.Error, f.owner.observeReturned(turn.transaction))
+		}
+		record.Admission = n1BindAdmission(f.owner.admission, stream.origin, ownerStarted, time.Now())
+		record.PublishedWALAfter = n1BindWALReturn(f.owner.postReturn, stream.origin, ownerStarted, time.Now())
 		n1ObserveOwnerWindow(record, f.owner.executor, stream.origin, ownerStarted)
 		record.Continuity.observeAfter(trace)
 		expectedConnections, expectedCloses := uint64(1), 0

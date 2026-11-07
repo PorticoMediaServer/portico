@@ -273,6 +273,8 @@ func n1ReadWAL(origin time.Time, path string, gates ...*governor.WALGate) *n1WAL
 }
 
 type n1Attempt struct {
+	Admission              *n1AdmissionRecord         `json:"owner_admission"`
+	PublishedWALAfter      *n1WALReturnRecord         `json:"owner_post_return_wal"`
 	DeliberateFailure      string                     `json:"observed_deliberate_failure,omitempty"`
 	OwnerCell              string                     `json:"owner_cell,omitempty"`
 	OwnerWindow            *n1OwnerWindow             `json:"owner_window"`

@@ -254,10 +254,12 @@ func (f *inventoryProgressiveFixture) finish(turn *commandTurn) error {
 	if err := turn.closeRows(); err != nil {
 		return err
 	}
-	if _, err := turn.transaction.commit(); err != nil {
-		return err
+	_, primary := turn.transaction.commit()
+	postErr := f.owner.observeReturned(turn.transaction)
+	if primary != nil {
+		return errors.Join(primary, postErr)
 	}
-	return f.committed(turn.transaction)
+	return errors.Join(postErr, f.committed(turn.transaction))
 }
 
 func (f *inventoryProgressiveFixture) committed(tx *transaction) error {
