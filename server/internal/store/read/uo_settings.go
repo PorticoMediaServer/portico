@@ -61,7 +61,21 @@ func uoReadSettings(ctx context.Context, s *governor.ReadScope, keys []UOSetting
 	out.Revision, out.ProjectionGeneration = rows[0][0].(int64), rows[0][1].(int64)
 	for _, k := range keys {
 		v, _ := UOSettingDefault(k)
-		if v.Kind == UOList {
+		if v.Kind == UORetention {
+			v.Retention = []UOLogRetention{}
+			for _, category := range uoLogCategories() {
+				rows, e := s.Query("uo.settings.log_retention_value", string(category))
+				if e != nil {
+					return out, e
+				}
+				if len(rows) > 1 {
+					return out, ErrUnqualified
+				}
+				if len(rows) == 1 {
+					v.Retention = append(v.Retention, UOLogRetention{category, rows[0][0].(int64)})
+				}
+			}
+		} else if v.Kind == UOList {
 			positions, e := s.Query("read.uo.settings.list_positions", string(k))
 			if e != nil {
 				return out, e
