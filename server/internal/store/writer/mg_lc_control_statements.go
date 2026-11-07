@@ -58,7 +58,7 @@ func mgLCControlDefinitions() []stmt.Definition {
 	}
 	return []stmt.Definition{
 		makeDef(mgLCControlRead, stmt.Read, `SELECT `+mgLCControlColumns+` FROM lc_channels INDEXED BY sqlite_autoindex_lc_channels_1 WHERE id=?`, text),
-		makeDef(mgLCControlKeys, stmt.Read, `SELECT id FROM lc_channels INDEXED BY lc_directory WHERE enabled=? AND removed=0 ORDER BY position,id LIMIT 64`, integer),
+		makeDef(mgLCControlKeys, stmt.Read, `SELECT 1 FROM lc_channels INDEXED BY lc_directory WHERE enabled=? AND removed=0 ORDER BY position,id LIMIT 64`, integer),
 		makeDef(mgLCControlInsert, stmt.Write, `INSERT INTO lc_channels(id,revision,config_json,enabled,position,name,state) VALUES(?,?,?,?,?,?,?)`, text, integer, text, integer, integer, text, text),
 		makeDef(mgLCControlUpdate, stmt.Write, `UPDATE lc_channels INDEXED BY sqlite_autoindex_lc_channels_1 SET revision=?,config_json=?,enabled=?,position=?,name=?,state=?,health_code=?,removed=? WHERE id=? AND revision=? AND active_generation=? AND removed=0`, integer, text, integer, integer, text, text, text, integer, text, integer, text),
 		makeDef(mgLCControlPending, stmt.Read, `SELECT `+mgLCControlGenerationColumns+` FROM lc_generations INDEXED BY lc_one_job WHERE channel_id=? AND status='pending'`, text),

@@ -28,8 +28,9 @@ type mgLCControlConfig struct {
 	enabled, position int64
 }
 
-// This leaf selects the stock canonical non-null active_generation contract.
-// Nullable G draft heads require a separate selected-overlay integration.
+// G retains the stock non-null active_generation value and derives a nullable
+// foreign-key reference with NULLIF(active_generation,”). No NULL head value
+// or alternate sentinel is accepted by this component.
 type mgLCControlChannel struct {
 	id                string
 	revision          int64
@@ -210,8 +211,12 @@ func mgLCControlApply(ctx context.Context, t *commandTurn, before mgLCControlCha
 				return
 			}
 			for rows.Next() {
-				var id string
-				if e = rows.Scan(&id); e != nil {
+				var unit int64
+				if e = rows.Scan(&unit); e != nil {
+					break
+				}
+				if unit != 1 {
+					e = ErrConflict
 					break
 				}
 				total++
@@ -311,10 +316,12 @@ func mgLCControlApply(ctx context.Context, t *commandTurn, before mgLCControlCha
 	}
 	return mgLCControlResult{post, now}, nil
 }
-func mgSaveLCConfiguration(ctx context.Context, t *commandTurn, b mgLCControlChannel, c mgLCControlConfig) (mgLCControlResult, error) {
+func mgSaveLCConfiguration(ctx context.Context, t *commandTurn, b mgLCControlChannel, c mgLCControlConfig) (out mgLCControlResult, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	return mgLCControlApply(ctx, t, b, c, false)
 }
-func mgRetireLCChannel(ctx context.Context, t *commandTurn, b mgLCControlChannel) (mgLCControlResult, error) {
+func mgRetireLCChannel(ctx context.Context, t *commandTurn, b mgLCControlChannel) (out mgLCControlResult, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	return mgLCControlApply(ctx, t, b, mgLCControlConfig{}, true)
 }
 
