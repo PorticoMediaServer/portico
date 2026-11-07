@@ -380,11 +380,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		if len(checked) > MaxNativeRetained+MaxSearchTitles {
 			return ErrInput
 		}
-		for _, proof := range checked {
-			if e := validateNativePolicy(q, finalIn, current.permission, proof); e != nil {
-				return e
-			}
-		}
+
 		return nil
 	})
 	cost.Publication = publication
