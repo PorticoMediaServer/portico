@@ -205,7 +205,7 @@ func TestUOPersonalContainerUndoRestoresOriginalOrderAndWatermark(t *testing.T) 
 	uoFlagsCommit(t, turn)
 	q.expectedRevision = 2
 	q.watched = true
-	q.restore = uoPersonalIntentRestore{set: true, membership: first.membership, intent: first.intent}
+	q.restore = uoPersonalIntentRestore{set: true, membership: first.membership, intent: first.intent, generation: 1}
 	turn = uoPersonalTurn(t, w)
 	undo, err := applyUOPersonalIntent(t.Context(), turn, q)
 	if err != nil || undo.action <= second.action || undo.intent != first.intent || undo.membership != 10 {
@@ -216,4 +216,18 @@ func TestUOPersonalContainerUndoRestoresOriginalOrderAndWatermark(t *testing.T) 
 	if err = w.db.QueryRowContext(t.Context(), `SELECT action_sequence,container_intent_sequence,container_membership_sequence FROM personal_items WHERE item_id=2112`).Scan(&action, &sequence, &watermark); err != nil || action != undo.action || sequence != first.intent || watermark != first.membership {
 		t.Fatal(action, sequence, watermark, err)
 	}
+	turn = uoPersonalTurn(t, w)
+	_, err = applyUOPersonalClear(t.Context(), turn, uoPersonalClearInput{q.policy, uoClearActivity, 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uoFlagsCommit(t, turn)
+	q.activityGeneration = 2
+	q.expectedRevision = 3
+	turn = uoPersonalTurn(t, w)
+	bad, err := applyUOPersonalIntent(t.Context(), turn, q)
+	if err == nil || bad != (uoPersonalIntentEffect{}) {
+		t.Fatal("undo resurrected cleared generation", bad, err)
+	}
+	uoPersonalRollback(t, turn)
 }

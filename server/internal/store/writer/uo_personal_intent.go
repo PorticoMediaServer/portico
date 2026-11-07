@@ -93,8 +93,8 @@ func bumpUOPersonalViewer(ctx context.Context, turn *commandTurn, profile, libra
 // intent ordering and membership scope, so undo cannot consume late members or
 // overwrite a newer explicit child action. action_sequence still advances.
 type uoPersonalIntentRestore struct {
-	set                bool
-	membership, intent int64
+	set                            bool
+	membership, intent, generation int64
 }
 type uoPersonalIntentInput struct {
 	policy                                                                    uoPersonalPolicy
@@ -121,14 +121,14 @@ func applyUOPersonalIntent(ctx context.Context, turn *commandTurn, q uoPersonalI
 	if !q.policy.valid() || !uoPersonalText(q.library, 128) || !uoPersonalText(q.at, 64) || q.subjectID <= 0 || q.libraryID <= 0 || q.entityRevision <= 0 || q.admissionRevision <= 0 || q.expectedRevision < 0 || q.expectedRevision == math.MaxInt64 || q.publicID == [16]byte{} || q.activityGeneration <= 0 || q.dismiss && (q.watched || q.container) {
 		return out, ErrInvalid
 	}
-	if q.restore.set && (!q.container || q.dismiss || q.restore.membership < 0 || q.restore.intent < 0 || q.restore.intent == 0 && (q.restore.membership != 0 || q.watched)) || !q.restore.set && q.restore != (uoPersonalIntentRestore{}) {
+	if q.restore.set && (!q.container || q.dismiss || q.restore.membership < 0 || q.restore.intent < 0 || q.restore.generation <= 0 || q.restore.intent == 0 && (q.restore.membership != 0 || q.watched)) || !q.restore.set && q.restore != (uoPersonalIntentRestore{}) {
 		return out, ErrInvalid
 	}
 	h, err := readUOPersonalHead(ctx, turn, q.policy)
 	if err != nil {
 		return out, err
 	}
-	if h.activity != q.activityGeneration {
+	if h.activity != q.activityGeneration || q.restore.set && q.restore.generation != h.activity {
 		return out, ErrConflict
 	}
 	if _, err = wc008DraftInteger(ctx, turn, "uo.personal.intent.subject", q.subjectID, q.publicID[:], q.libraryID, q.entityRevision, q.admissionRevision, q.library, uoFlagInteger(q.container)); err != nil {
