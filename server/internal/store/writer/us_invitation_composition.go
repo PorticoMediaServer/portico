@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"time"
@@ -16,6 +17,12 @@ type usInvitationComposition struct {
 	digest            ResultDigest
 	chargedBytes      int64
 	changedInvitation string
+}
+
+func (usInvitationComposition) String() string   { return "usInvitationComposition{redacted}" }
+func (usInvitationComposition) GoString() string { return "usInvitationComposition{redacted}" }
+func (usInvitationComposition) Format(s fmt.State, _ rune) {
+	formatUSPreparation(s, "usInvitationComposition")
 }
 
 // Exactly one frozen input is used on a fresh request: issuance for creation,

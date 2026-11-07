@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -13,6 +14,12 @@ type usInvitationReceiptLookup struct {
 	decision receiptDecision
 	result   usInvitationSavedResult
 	digest   ResultDigest
+}
+
+func (usInvitationReceiptLookup) String() string   { return "usInvitationReceiptLookup{redacted}" }
+func (usInvitationReceiptLookup) GoString() string { return "usInvitationReceiptLookup{redacted}" }
+func (usInvitationReceiptLookup) Format(s fmt.State, _ rune) {
+	formatUSPreparation(s, "usInvitationReceiptLookup")
 }
 
 // Replay reads only immutable native receipt facts after current authority and

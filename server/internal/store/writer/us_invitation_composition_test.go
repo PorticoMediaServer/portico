@@ -6,7 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,6 +188,20 @@ func TestUSInvitationCompositionProjectionAndIdentityConflict(t *testing.T) {
 		out, err := composeUSInvitationAfterAuthority(t.Context(), turn, a, q, nil, c)
 		if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usInvitationComposition{}) {
 			t.Fatal(out, err)
+		}
+	}
+}
+
+func TestUSInvitationReceiptContainersRedactAllVerbs(t *testing.T) {
+	_, _, result := invitationResultFixture()
+	result.codeHash = "private-source-hash-marker"
+	result.code.keyID = "private-key-id-marker"
+	for _, v := range []any{usInvitationComposition{result: result}, usInvitationReceiptLookup{result: result}} {
+		for _, verb := range []string{"%s", "%v", "%#v", "%+v", "%q", "%x", "%#x", "%T"} {
+			formatted := fmt.Sprintf(verb, v)
+			if strings.Contains(formatted, "private-") || verb != "%T" && !strings.Contains(formatted, "redacted") {
+				t.Fatal("private receipt formatted", verb)
+			}
 		}
 	}
 }
