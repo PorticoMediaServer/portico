@@ -2,16 +2,24 @@ package writer
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"strings"
 	"testing"
 	"time"
 )
 
+// Match identity.Digest without importing its legacy SQLite registrations into
+// the isolated writer binary. The fixed vector is cross-checked in identity.
+func usCredentialFixtureHash(v string) string {
+	sum := sha256.Sum256([]byte(v))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
 const usCredentialFixturePassword = "$2a$10$....................................................."
 
-var usCredentialFixtureDigest = identity.Digest("synthetic-credential-fixture")
+var usCredentialFixtureDigest = usCredentialFixtureHash("synthetic-credential-fixture")
 
 func usCredentialTestTarget() usCredentialTarget {
 	return usCredentialTarget{account: "us-credential-account", memberIncarnation: strings.Repeat("a", 32), profile: "us-credential-profile", profileLifetime: strings.Repeat("b", 32), username: "credential-user", profileName: "Credential profile", epoch: 1, memberRevision: 1, profileRevision: 1}
@@ -181,8 +189,8 @@ func TestUSCredentialAppPasswordRawNameBound(t *testing.T) {
 }
 
 func TestUSCredentialCurrentDigestEncoding(t *testing.T) {
-	real := identity.Digest("pat.synthetic-only-format-control")
-	if len(real) != 43 || !usCredentialDigest(real) {
+	real := usCredentialFixtureHash("pat.synthetic-only-format-control")
+	if real != "OkT38SlHRMRlkodpCE2-xIjzwyNcb_XpF1188AFx9oM" || len(real) != 43 || !usCredentialDigest(real) {
 		t.Fatal("current identity.Digest encoding rejected")
 	}
 	issue := usCredentialTestIssue()

@@ -3,7 +3,7 @@ package writer
 import (
 	"bytes"
 	"fmt"
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
+
 	"strings"
 	"testing"
 )
@@ -96,7 +96,7 @@ func TestUSCredentialCommandWitnesses(t *testing.T) {
 		{"issue.name", func(q *usCredentialCommandCandidate) { q.issue.name += "-other" }, "issue"},
 		{"issue.scopes", func(q *usCredentialCommandCandidate) { q.issue.scopes = []string{"admin"} }, "issue"},
 		{"issue.secretHash", func(q *usCredentialCommandCandidate) {
-			q.issue.secretHash = identity.Digest("other-synthetic-credential")
+			q.issue.secretHash = usCredentialFixtureHash("other-synthetic-credential")
 		}, "issue"},
 		{"issue.hint", func(q *usCredentialCommandCandidate) { q.issue.hint = "ghijkl" }, "issue"},
 		{"issue.family", func(q *usCredentialCommandCandidate) { q.issue.family += "-other" }, "issue"},
@@ -106,7 +106,7 @@ func TestUSCredentialCommandWitnesses(t *testing.T) {
 		{"revoke.name", func(q *usCredentialCommandCandidate) { q.revoke.name += "-other" }, "revoke"},
 		{"revoke.scopes", func(q *usCredentialCommandCandidate) { q.revoke.scopes = "admin" }, "revoke"},
 		{"revoke.secretHash", func(q *usCredentialCommandCandidate) {
-			q.revoke.secretHash = identity.Digest("other-synthetic-credential")
+			q.revoke.secretHash = usCredentialFixtureHash("other-synthetic-credential")
 		}, "revoke"},
 		{"revoke.hint", func(q *usCredentialCommandCandidate) { q.revoke.hint = "ghijkl" }, "revoke"},
 		{"revoke.family", func(q *usCredentialCommandCandidate) { q.revoke.family += "-other" }, "revoke"},
