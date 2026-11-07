@@ -280,11 +280,23 @@ func publisherMeasurementReference(f *searchFragmentStageCommand, h *searchHeadP
 	return PublisherReceiptRequest{s.job.id, s.source.libraryID, s.source.entityID, ReceiptReference{identity, digest}}, s
 }
 
+// Example (config/output/scratch outside the clean checkout):
+//
+//	PORTICO_SEARCH_PUBLISHER_QUALIFICATION_CONFIG=/abs/config.json GOTOOLCHAIN=go1.26.10 \
+//	  go test -count=1 -timeout=60m -tags=portico_rar7z,portico_cb7 ./internal/store/writer \
+//	  -run '^TestSearchPublisherQualification$' -args -search-publisher-qualification
+//
+// Config: {"run_id":"ql-001","source_commit":"<full checkout HEAD>",
+// "host_profile":"<QL host profile>","output_path":"/abs/new.jsonl",
+// "command":"SearchFragmentStage","fresh_count":100,"warmup_count":5,
+// "background_count":1000}. SearchHeadPublish is the other closed class.
+// Large-population qualification requires the owner's reviewed merge gate.
+//
 // TestSearchPublisherQualification is QL's opt-in runnable target. This helper
 // does not establish production qualification, percentiles or passing bounds.
 func TestSearchPublisherQualification(t *testing.T) {
-	path := os.Getenv(publisherQualificationConfigEnv)
-	if !*publisherQualificationOptIn && path == "" {
+	path, configured := os.LookupEnv(publisherQualificationConfigEnv)
+	if !*publisherQualificationOptIn && !configured {
 		t.Skip("QL opt-in: -search-publisher-qualification and " + publisherQualificationConfigEnv)
 	}
 	if !*publisherQualificationOptIn || path == "" {
@@ -322,18 +334,8 @@ func TestSearchPublisherQualification(t *testing.T) {
 	stream := publisherMeasurementStream{file: output, base: publisherMeasurementRecord{Version: publisherMeasurementVersion, RunID: c.RunID, Command: c.Command, Purpose: c.purpose(), Class: governor.Background}}
 	complete, completed, attempts := false, 0, 0
 	var e *executor
+	var joined *bool
 	defer func() {
-		// Native close is joined before the terminal record. Registered canonical
-		// cleanup is idempotent and remains the fallback for setup FailNow.
-		var joined *bool
-		if e != nil {
-			err := e.close()
-			ok := err == nil
-			joined = &ok
-			if err != nil {
-				t.Error(err)
-			}
-		}
 		r := stream.base
 		r.Kind = "final"
 		r.NativeJoined = joined
@@ -364,6 +366,16 @@ func TestSearchPublisherQualification(t *testing.T) {
 	if !t.Run("native_population_and_calls", func(t *testing.T) {
 		p := preparePublisherPopulation(t, c.purpose(), c.FreshCount+c.WarmupCount, c.BackgroundCount)
 		e = p.e
+		// Observe the FIRST close result before idempotent registered cleanup;
+		// a later no-op close must never turn a failed join into evidence.
+		defer func() {
+			closeErr := e.close()
+			ok := closeErr == nil
+			joined = &ok
+			if closeErr != nil {
+				t.Error(closeErr)
+			}
+		}()
 		firstF, firstH, err := p.packet(0, c.purpose(), 0)
 		if err != nil {
 			t.Fatal(err)
@@ -432,7 +444,7 @@ func TestSearchPublisherQualification(t *testing.T) {
 				if phase == "resolve" && (out.Fragment != original.Fragment || out.Head != original.Head) {
 					err = errors.Join(err, errors.New("saved result differs from fresh original"))
 				}
-				r.FragmentID = out.Fragment.FragmentID
+				r.FragmentID = original.Fragment.FragmentID
 				if f.a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 || e.fenced || e.ambiguous || f.w.effective.fenced {
 					err = errors.Join(err, errors.New("physical custody not cleanly returned"))
 				}
