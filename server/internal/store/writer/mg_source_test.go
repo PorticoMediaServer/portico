@@ -20,7 +20,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
-// Canonical existing source fields only: this slice needs no G DDL overlay.
+// Native immutable old/new generations retain the original source bind; old
+// is the active head. No operation receipt or reclaim is fabricated.
 const mgSourceFixtureSQL = `INSERT INTO live_source_identities(id) VALUES('source');
 INSERT INTO live_generations(id,source_id,name,tuner_count,channel_count,programme_count,created_at) VALUES('old','source','Old',1,2,9,'before'),('new','source','Guide',1,2,9,'2026-11-07T00:00:00.000Z');
 INSERT INTO live_sources(id,name,revision,state,tuner_count,active_generation,published_at) VALUES('source','Old',7,'active',1,'old','before');`
@@ -270,5 +271,21 @@ func TestMGSourceSecurityRejectsNativeNormalFrame(t *testing.T) {
 				t.Fatal("refusal performed SQL effects", changesBefore, changesAfter, err)
 			}
 		})
+	}
+}
+
+func TestMGSourceNativeFixtureCustody(t *testing.T) {
+	w := mgSourceTestExecutor(t)
+	var n int
+	err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM live_sources s
+ JOIN live_source_identities i ON i.id=s.id
+ JOIN live_generations g ON g.id=s.active_generation AND g.source_id=s.id
+ WHERE s.id='source' AND s.active_generation='old' AND s.revision=7
+ AND g.name=s.name AND g.tuner_count=s.tuner_count AND g.created_at=s.published_at
+ AND typeof(g.id)='text' AND typeof(g.source_id)='text'
+ AND i.has_live_source_removals=0 AND i.removal_request_id IS NULL
+ AND (SELECT count(*) FROM live_generations WHERE source_id=s.id)=2`).Scan(&n)
+	if err != nil || n != 1 {
+		t.Fatal("native source/head generation custody", n, err)
 	}
 }
