@@ -51,20 +51,21 @@ type effectivePlan struct {
 // private composition must own pool/native idle memory and WAL sampling outside
 // command custody. No production profile is inferred from these descriptors.
 type effectiveRuntime struct {
-	mu             sync.Mutex
-	executor       *executor
-	governor       governor.Governor
-	authority      *governor.Authority
-	wal            *governor.WALGate
-	path           string
-	owner          governor.OwnerID
-	plan           effectivePlan
-	inventoryPlan  *effectivePlan
-	lifecyclePlans [2]*effectivePlan // private, explicitly composed create/claim history profiles
-	issuerPlans    [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
-	registry       *stmt.Registry
-	fenced         bool
-	cleanupPanics  []terminalPanic
+	mu                       sync.Mutex
+	executor                 *executor
+	governor                 governor.Governor
+	authority                *governor.Authority
+	wal                      *governor.WALGate
+	path                     string
+	owner                    governor.OwnerID
+	plan                     effectivePlan
+	inventoryPlan            *effectivePlan
+	lifecyclePlans           [2]*effectivePlan // private, explicitly composed create/claim history profiles
+	issuerPlans              [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
+	inventoryPreparationPlan *effectivePlan
+	registry                 *stmt.Registry
+	fenced                   bool
+	cleanupPanics            []terminalPanic
 
 	clockHighWater time.Time // composition custody under mu, then transferred into the frame
 }
@@ -244,7 +245,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		purpose, plan, reference, key, libraryID = InventoryAccept, r.inventoryPlan, scan.request.Receipt, scan.request.RunID, scan.request.LibraryID
 		outcome = &out.inventory.Outcome
 		if scan.lifecycle != 0 {
-			if scan.input != nil || (scan.lifecycle != InventoryCreate && scan.lifecycle != InventoryClaim) {
+			if scan.input != nil || (scan.lifecycle != InventoryCreate && scan.lifecycle != InventoryClaim && (scan.lifecycle != InventoryAccept || scan.issuer == nil)) {
 				return out, acknowledged, ErrInvalid
 			}
 			purpose = scan.lifecycle
@@ -257,15 +258,43 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	defer r.mu.Unlock()
 	if scan != nil && scan.lifecycle != 0 {
-		plan = r.lifecyclePlans[int(purpose-InventoryCreate)]
+		if purpose == InventoryAccept {
+			plan = r.inventoryPreparationPlan
+		} else {
+			plan = r.lifecyclePlans[int(purpose-InventoryCreate)]
+		}
 		if scan.issuer != nil {
 			if err = validateScanIssuerInvocation(r, w, scan); err != nil {
 				return out, acknowledged, err
 			}
-			plan = r.issuerPlans[int(purpose-InventoryCreate)]
+			if purpose == InventoryAccept {
+				plan = r.inventoryPreparationPlan
+			} else {
+				plan = r.issuerPlans[int(purpose-InventoryCreate)]
+			}
 		}
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
+		}
+	}
+	if scan != nil && scan.issuer != nil && scan.lifecycle == 0 {
+		if err = validateScanIssuerInvocation(r, w, scan); err != nil {
+			return out, acknowledged, err
+		}
+		if !isScanInventoryHistory(scan.issuer.action) {
+			return out, acknowledged, ErrInvalid
+		}
+	}
+	if purpose == InventoryAccept {
+		required, e := scanLifecycleWorkingBytes(nil, scan.request.RunID, scan.request.LibraryKey)
+		if e != nil {
+			return out, acknowledged, e
+		}
+		if plan.inventoryMemory == (inventoryMemoryBudget{}) {
+			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
+		}
+		if required > plan.inventoryMemory.preparationBytes {
+			return out, acknowledged, &Refusal{Code: RefusalCapacity}
 		}
 	}
 	defer func() {
@@ -299,8 +328,11 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if err != nil {
 		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
 	}
-	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover) {
+	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover || scan.issuer.action == scanIssuerInventory || scan.issuer.action == scanIssuerN1Recover) {
 		scan.issuer.deadline = now.Add(scan.issuer.driver.readyPlan.ready)
+		if scan.issuer.action == scanIssuerInventory && time.UnixMilli(scan.issuer.lease.expiresMS).Before(scan.issuer.deadline) {
+			scan.issuer.deadline = time.UnixMilli(scan.issuer.lease.expiresMS)
+		}
 		if stop, ok := ctx.Deadline(); ok && stop.Before(scan.issuer.deadline) {
 			scan.issuer.deadline = stop
 		}
@@ -424,9 +456,13 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	var historical bool
 	if err == nil && scan != nil && scan.issuer != nil {
-		out, historical, err = runScanIssuerTurn(ctx, turn, scan, ack)
-		if err == nil && ack {
-			acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+		if isScanInventoryHistory(scan.issuer.action) {
+			out, acknowledged, historical, err = runScanInventoryHistory(ctx, turn, scan, ack)
+		} else {
+			out, historical, err = runScanIssuerTurn(ctx, turn, scan, ack)
+			if err == nil && ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+			}
 		}
 	}
 	if err == nil && scan != nil && scan.lifecycle != 0 && scan.issuer == nil {
@@ -443,7 +479,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			}
 		}
 	}
-	if err == nil && scan != nil && scan.lifecycle == 0 {
+	if err == nil && scan != nil && scan.lifecycle == 0 && scan.issuer == nil {
 		var lookup inventoryReceiptLookup
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;

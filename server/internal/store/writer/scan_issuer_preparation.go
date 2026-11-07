@@ -46,7 +46,7 @@ func (d *ScanDriver) retainIssuerPreparation(ctx context.Context, turn *commandT
 	if d.preparation != nil || in.issuer == nil || in.issuer.deadline.IsZero() {
 		return nil, ErrBusy
 	}
-	if (source == nil) != (in.issuer.action == scanIssuerRecover) {
+	if (source == nil) != (in.issuer.action == scanIssuerRecover || in.issuer.action == scanIssuerN1Recover) {
 		return nil, ErrInvalid
 	}
 	plan := d.readyPlan
@@ -57,9 +57,13 @@ func (d *ScanDriver) retainIssuerPreparation(ctx context.Context, turn *commandT
 		return nil, &Refusal{Code: RefusalCapacity}
 	}
 	r := d.writer.effective
-	expected := governor.Request{Key: governor.JobKey{Domain: uint16(in.lifecycle), ID: in.request.RunID}, Owner: r.owner,
+	purpose := in.lifecycle
+	if purpose == 0 && in.issuer.action == scanIssuerN1Recover {
+		purpose = InventoryAccept
+	}
+	expected := governor.Request{Key: governor.JobKey{Domain: uint16(purpose), ID: in.request.RunID}, Owner: r.owner,
 		Class: governor.ScanMinimum, Writer: false, Need: plan.need, IO: plan.io, MaxHold: plan.ready,
-		Deadline: in.issuer.deadline, Budget: plan.budget, Footprint: []governor.Scope{{Library: in.request.LibraryID, Domain: uint16(in.lifecycle)}}}
+		Deadline: in.issuer.deadline, Budget: plan.budget, Footprint: []governor.Scope{{Library: in.request.LibraryID, Domain: uint16(purpose)}}}
 	decision := r.governor.Try(expected)
 	if decision.Grant == nil {
 		return nil, effectiveAdmissionRefusal(decision.Refusal)

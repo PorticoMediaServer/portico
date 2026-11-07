@@ -22,9 +22,14 @@ const (
 	scanIssuerHistory
 	scanIssuerCurrent
 	scanIssuerRecover
+	scanIssuerInventory
+	scanIssuerN1History
+	scanIssuerN1Recover
+	scanIssuerN1Apply
 )
 
 type scanIssuerInvocation struct {
+	lease     *ScanRunLease
 	driver    *ScanDriver
 	action    scanIssuerAction
 	sourceID  string
@@ -51,10 +56,32 @@ func validateScanIssuerInvocation(r *effectiveRuntime, w *Writer, in *inventoryI
 	if err := d.current(); err != nil {
 		return errors.Join(ErrDisclosureDenied, err)
 	}
-	if in.lifecycle != InventoryCreate && in.lifecycle != InventoryClaim {
+	if isScanInventoryHistory(v.action) {
+		if in.lifecycle != 0 || (in.input != nil && v.action != scanIssuerN1Apply) || v.create != nil || v.claim != nil || v.lease != nil || (v.work != nil && v.action != scanIssuerN1Apply) {
+			return ErrInvalid
+		}
+	} else if in.lifecycle != InventoryCreate && in.lifecycle != InventoryClaim && (in.lifecycle != InventoryAccept || v.action != scanIssuerInventory) {
 		return ErrInvalid
 	}
 	switch v.action {
+	case scanIssuerN1Recover:
+		if d.preparation != nil || v.retained != nil || d.operation != nil || d.work != nil {
+			return ErrBusy
+		}
+	case scanIssuerN1History, scanIssuerN1Apply:
+		if v.retained == nil || d.preparation != v.retained || v.deadline.IsZero() || v.deadline != v.retained.expected.Deadline {
+			return ErrInvalid
+		}
+		n := v.retained.inventory
+		if n == nil || n.closed || n.preparation != v.retained || n.reference != in.request {
+			return ErrConflict
+		}
+		if err := v.retained.current(); err != nil {
+			return err
+		}
+		if v.action == scanIssuerN1Apply && (n.historyOnly || n.command == nil || in.input != n.command || v.work == nil || d.work != v.work || v.work.preparation != v.retained || v.work.original != in.request || v.work.purpose != InventoryAccept) {
+			return ErrInvalid
+		}
 	case scanIssuerSource:
 		if v.sourceID == "" || v.create != nil || v.claim != nil || v.work != nil {
 			return ErrInvalid
@@ -62,6 +89,10 @@ func validateScanIssuerInvocation(r *effectiveRuntime, w *Writer, in *inventoryI
 	case scanIssuerRecover:
 		if v.create != nil || v.claim != nil || v.work != nil || v.retained != nil {
 			return ErrInvalid
+		}
+	case scanIssuerInventory:
+		if v.lease == nil || v.lease.self != v.lease || v.lease.driver != d || d.lease != v.lease || v.lease.revoked.Load() {
+			return ErrDisclosureDenied
 		}
 	case scanIssuerSnapshot, scanIssuerCurrent, scanIssuerHistory:
 		if v.create != nil || v.claim != nil || v.work != nil {
@@ -145,6 +176,9 @@ func runScanIssuerTurn(ctx context.Context, turn *commandTurn, in *inventoryInvo
 			_, err = v.driver.retainSourcePreparation(ctx, turn, in, out.source, 0)
 		}
 		return out, true, err
+	}
+	if v.action == scanIssuerInventory {
+		return runInventoryPreparationTurn(ctx, turn, in)
 	}
 	if err = turn.requireScanLifecycleMemory(ctx, scanLifecycleHistoryBytes); err != nil {
 		return out, false, err

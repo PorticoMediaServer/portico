@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true, "scanByteVector": true, "scanLifecycleByteProof": true, "scanReceiptPrefix": true, "scanMemberByteProof": true, "scanSnapshotByteProof": true, "scanRunSnapshot": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true, "scanByteVector": true, "scanLifecycleByteProof": true, "scanReceiptPrefix": true, "scanMemberByteProof": true, "scanSnapshotByteProof": true, "scanRunSnapshot": true, "InventoryAcceptCommand": true, "N1Preparation": true, "InventoryPreparationSnapshot": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -54,7 +54,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
 		needs = needs || fn.Name.Name == "searchFragmentStageFreshFacts"
 		needs = needs || fn.Name.Name == "PrepareCreate" || fn.Name.Name == "PrepareClaim" || fn.Name.Name == "Lease" || fn.Name.Name == "retainSourcePreparation" || fn.Name.Name == "retainIssuerPreparation"
-		needs = needs || fn.Name.Name == "configureScanIssuer" || fn.Name.Name == "composeScanLifecycleProfiles" || fn.Name.Name == "excludePredecessor" || fn.Name.Name == "checkScanSourceActive"
+		needs = needs || fn.Name.Name == "composeInventoryPreparation" || fn.Name.Name == "configureScanIssuer" || fn.Name.Name == "composeScanLifecycleProfiles" || fn.Name.Name == "excludePredecessor" || fn.Name.Name == "checkScanSourceActive"
 		if !needs {
 			continue
 		}
@@ -265,10 +265,20 @@ func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 		`func ObserveInventory(ctx context.Context)(value nativeinventory.Page,err error){return nativeinventory.Page{},nil}`,
 		`func fragmentRelease(ctx context.Context)(out searchFragmentStageResult,err error){return searchFragmentStageResult{},nil}`,
 		`func searchFragmentStageFreshFacts(ctx context.Context,turn *commandTurn,want searchFragmentStageSnapshot)(out searchFragmentStageSnapshot,err error){return want,nil}`,
+		`func readScanByteLengths(ctx context.Context)(value scanByteVector,err error){return value,nil}`,
+		`func readScanLifecycleByteProof(ctx context.Context)(value scanLifecycleByteProof,err error){return value,nil}`,
+		`func readScanReceiptOwnerPrefix(ctx context.Context)(value scanReceiptPrefix,err error){return value,nil}`,
+		`func readScanMemberByteProof(ctx context.Context)(value scanMemberByteProof,err error){return value,nil}`,
+		`func readScanReceiptIdentity(ctx context.Context)(value receiptFacts,err error){return value,nil}`,
+		`func readCheckedScanRunSnapshot(ctx context.Context)(value scanRunSnapshot,err error){return value,nil}`,
+		`func requireScanByteMemory(ctx context.Context)(err error){return nil}`,
+		`func Freeze(ctx context.Context)(value InventoryAcceptCommand,err error){return nil,nil}`,
 		`func lookupScanRunLifecycle(ctx context.Context)(value scanLifecycleReceiptLookup,err error){return scanLifecycleReceiptLookup{},nil}`,
 		`func captureScanSource(ctx context.Context)(value scanSourceFacts,err error){return scanSourceFacts{},nil}`,
 		`func PrepareCreate(ctx context.Context)(value *ScanRunOperation,err error){return &ScanRunOperation{},nil}`,
 		`func arbitraryNewEntry(ctx context.Context)(value *ScanRunResult,err error){return &ScanRunResult{},nil}`,
+		`func arbitraryInventoryEntry(ctx context.Context)(value *N1Preparation,err error){return &N1Preparation{},nil}`,
+		`func Snapshot(ctx context.Context)(value InventoryPreparationSnapshot,err error){return InventoryPreparationSnapshot{},nil}`,
 		`func Snapshot(ctx context.Context)(value ScanRunSnapshot,err error){return ScanRunSnapshot{},nil}`,
 		`func acknowledgeScanRunLifecycle(ctx context.Context)(value int64,err error){return 1,nil}`,
 		`func composeScanLifecycleHistory(ctx context.Context)(err error){return nil}`,
