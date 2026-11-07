@@ -84,7 +84,7 @@ AND s.search_incarnation=p.source_incarnation AND s.revision=p.source_revision`,
 	field := `SELECT f.id,f.ordinal,f.prefix_tokens,f.lexical_tokens,f.normalized,f.source_revision FROM search_fragments AS f INDEXED BY search_fragment_publication WHERE f.publication_id=? AND f.field=?`
 	fp := stmt.Plan{Hot: true, Indexes: []string{"search_fragment_publication"}, Seeks: []string{"publication_id=? AND field=?"}}
 	add("field.first", field+` ORDER BY f.ordinal LIMIT ?`, []stmt.Param{i("publication"), i("field"), i("limit")}, []any{int64(1), int64(4), int64(64)}, fp)
-	add("field.next", field+` AND f.ordinal>? ORDER BY f.ordinal LIMIT ?`, []stmt.Param{i("publication"), i("field"), i("after"), i("limit")}, []any{int64(1), int64(4), int64(0), int64(64)}, fp)
+	add("field.next", field+` AND f.ordinal>? ORDER BY f.ordinal LIMIT ?`, []stmt.Param{i("publication"), i("field"), i("after"), i("limit")}, []any{int64(1), int64(4), int64(-1), int64(64)}, fp)
 	// Common seven columns match the existing browse entity decoder exactly.
 	add("item", `SELECT e.id,e.sort_key,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,e.kind,e.library_id,e.metadata_incarnation,e.source_revision,e.credit_image_id,e.credit_owner_revision,e.album_id,e.show_id,e.artist_id,e.parent_id FROM catalog_entities AS e WHERE e.id=?`, []stmt.Param{i("entity")}, []any{int64(1)}, point("e"))
 
@@ -97,9 +97,9 @@ CROSS JOIN catalog_credit_images AS h ON h.id=e.credit_image_id
 CROSS JOIN catalog_credits AS c INDEXED BY catalog_credits_entity ON c.entity_id=e.id AND c.image_id=h.id
 WHERE e.id=? AND h.id=? AND h.entity_id=e.id AND h.entity_incarnation=e.metadata_incarnation AND h.owner_revision=e.credit_owner_revision AND h.sealed=1`
 	cp := stmt.Plan{Hot: true, Indexes: []string{"catalog_credits_entity"}, PrimaryKeys: []string{"e", "h"}, Seeks: []string{"entity_id=? AND image_id=?"}}
-	add("credit.first", credit+` ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("limit")}, []any{int64(1), int64(1), int64(64)}, cp)
-	add("credit.next", credit+` AND c.ord>? ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("after"), i("limit")}, []any{int64(1), int64(1), int64(0), int64(64)}, cp)
-	add("credit.point", credit+` AND c.ord=? AND c.person_id=?`, []stmt.Param{i("entity"), i("image"), i("ordinal"), i("person")}, []any{int64(1), int64(1), int64(0), int64(1)}, cp)
+	add("credit.first", credit+` ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("limit")}, []any{int64(2), int64(1), int64(64)}, cp)
+	add("credit.next", credit+` AND c.ord>? ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("after"), i("limit")}, []any{int64(2), int64(1), int64(-1), int64(64)}, cp)
+	add("credit.point", credit+` AND c.ord=? AND c.person_id=?`, []stmt.Param{i("entity"), i("image"), i("ordinal"), i("person")}, []any{int64(2), int64(1), int64(0), int64(1)}, cp)
 	// Inverses only. Existing FullSearchDefinitions owns forward/reverse owner
 	// pages; do not substitute these relationships for automatic membership.
 	sa := key("catalog_song_artists", "sqlite_autoindex_catalog_song_artists_1", "pk", "song_id", "artist_id")
@@ -117,7 +117,7 @@ WHERE e.id=? AND h.id=? AND h.entity_id=e.id AND h.entity_incarnation=e.metadata
 	add("seal", `SELECT algorithm,sealed,expected_fragments,verified_fragments,expected_digest,chain,expected_bytes,verified_bytes FROM search_image_seals WHERE publication_id=?`, []stmt.Param{i("publication")}, []any{int64(1)}, point("search_image_seals"))
 	album := `SELECT id FROM catalog_entities INDEXED BY catalog_entities_album_search WHERE album_id IS NOT NULL AND album_id=?`
 	albumPlan := stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_album_search"}}
-	add("album.first", album+` ORDER BY id DESC LIMIT ?`, []stmt.Param{i("album"), i("limit")}, []any{int64(1), int64(64)}, albumPlan)
-	add("album.next", album+` AND id<? ORDER BY id DESC LIMIT ?`, []stmt.Param{i("album"), i("after"), i("limit")}, []any{int64(1), int64(99), int64(64)}, albumPlan)
+	add("album.first", album+` ORDER BY id DESC LIMIT ?`, []stmt.Param{i("album"), i("limit")}, []any{int64(20), int64(64)}, albumPlan)
+	add("album.next", album+` AND id<? ORDER BY id DESC LIMIT ?`, []stmt.Param{i("album"), i("after"), i("limit")}, []any{int64(20), int64(24), int64(64)}, albumPlan)
 	return out
 }
