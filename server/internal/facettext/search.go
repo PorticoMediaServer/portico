@@ -2,6 +2,7 @@ package facettext
 
 import (
 	"github.com/PorticoMediaServer/portico/server/internal/sorttext"
+	"golang.org/x/text/unicode/norm"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -22,26 +23,44 @@ func SearchFold(value string) string { return searchFolded(searchableFoldedPrefi
 // and collapsed spaces, so folding expansion/contraction and raw whitespace do
 // not create a different prefix in discovery and confirmation.
 func searchableFoldedPrefix(value string) string {
-	folded := sorttext.Fold(value)
-	used := 0
-	space := false
-	for at, r := range folded {
-		if unicode.IsLetter(r) || unicode.IsNumber(r) {
-			size := utf8.RuneLen(r)
-			if space && used > 0 {
-				size++
+	// Find a stable normalization prefix before allocating the whole field.
+	// More raw input is read only when contraction/whitespace means it can still
+	// contribute to the first 64KiB normalized bytes. The caller still reserves
+	// its complete raw-source preparation cost.
+	window := min(len(value), SearchFieldBytes+utf8.UTFMax)
+	for {
+		end := window
+		if end < len(value) {
+			for end > 0 && !utf8.RuneStart(value[end]) {
+				end--
 			}
-			if used+size > SearchFieldBytes {
-				return folded[:at]
-			}
-			used += size
-			space = false
-		} else if unicode.IsSpace(r) && used > 0 {
-			space = true
+			end = norm.NFC.LastBoundary([]byte(value[:end]))
 		}
+		folded := sorttext.Fold(value[:end])
+		used := 0
+		space := false
+		for at, r := range folded {
+			if unicode.IsLetter(r) || unicode.IsNumber(r) {
+				size := utf8.RuneLen(r)
+				if space && used > 0 {
+					size++
+				}
+				if used+size > SearchFieldBytes {
+					return folded[:at]
+				}
+				used += size
+				space = false
+			} else if unicode.IsSpace(r) && used > 0 {
+				space = true
+			}
+		}
+		if end == len(value) || used == SearchFieldBytes {
+			return folded
+		}
+		window = min(len(value), window+max(SearchFieldBytes, window))
 	}
-	return folded
 }
+
 func searchFolded(folded string) string {
 	var b strings.Builder
 	space := false
