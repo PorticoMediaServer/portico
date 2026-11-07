@@ -16,6 +16,16 @@ func (r *effectiveRuntime) runBasic(ctx context.Context, w *Writer, disclosure *
 	if r == nil || w == nil || w.effective != r {
 		return value, acknowledged, ErrInvalid
 	}
+	// This entry owns driver.mu; trusted callers enter after releasing any
+	// preparation lock. Protect existing opaque work for submission and the
+	// physical return. Close can still cancel its independent lifetime first.
+	if disclosure != nil && disclosure.scope != nil && disclosure.scope.driver != nil {
+		d := disclosure.scope.driver
+		if !d.mu.TryLock() {
+			return value, acknowledged, ErrBusy
+		}
+		defer d.mu.Unlock()
+	}
 	if _, err = in.validate(); err != nil {
 		return value, acknowledged, err
 	}
@@ -56,6 +66,9 @@ func (r *effectiveRuntime) runBasicTurn(ctx context.Context, w *Writer, turn *co
 	}
 	if !in.fresh() {
 		return value, false, nil // honest Pending original resolution
+	}
+	if err = checkBasicFreshWork(in); err != nil {
+		return value, false, err
 	}
 	value, err = in.apply(ctx, turn)
 	if err != nil {

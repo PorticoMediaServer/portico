@@ -253,12 +253,6 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			if err != nil {
 				return out, acknowledged, err
 			}
-			// Basic ingress has no W-owned preparation/work binding yet. A
-			// live driver cannot borrow its Inventory or lifecycle preparation;
-			// in particular Close/renewal must track the actual Basic frame.
-			if scan.basic.fresh() && scan.disclosure.scope.driver != nil {
-				return out, acknowledged, &Refusal{Code: RefusalUnqualified}
-			}
 			plan = nil // one-time private profile is read only under runtime custody
 			outcome = &out.basic.Outcome
 		}
@@ -275,7 +269,15 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		return out, acknowledged, ErrBusy
 	}
 	defer r.mu.Unlock()
+	var submittedWork *scanDriverWork
+	if scan != nil && scan.issuer != nil {
+		submittedWork = scan.issuer.work
+	}
 	if scan != nil && scan.basic != nil {
+		if err = validateBasicWork(r, w, scan); err != nil {
+			return out, acknowledged, err
+		}
+		submittedWork = scan.basic.work
 		plan = r.basicPlans[int(purpose-BasicStage)]
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
@@ -334,6 +336,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if scan != nil && scan.issuer != nil && !scan.issuer.deadline.IsZero() && scan.issuer.deadline.Before(deadline) {
 		deadline = scan.issuer.deadline
 	}
+	if submittedWork != nil && submittedWork.preparation.expected.Deadline.Before(deadline) {
+		deadline = submittedWork.preparation.expected.Deadline
+	}
 	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
 		deadline = callerDeadline
 	}
@@ -345,15 +350,15 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		Class: class, Writer: true, Need: plan.need, IO: plan.io, MaxHold: plan.recipe.limit.Hold, Deadline: deadline,
 		Budget:    governor.UnitBudget{RawRows: uint32(plan.recipe.limit.Rows), VMOps: plan.recipe.limit.VMOps, Pages: uint32(plan.recipe.limit.Pages)},
 		Footprint: []governor.Scope{{Library: libraryID, Domain: uint16(purpose)}}}
-	if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-		if err = scan.issuer.work.submitting(); err != nil {
+	if submittedWork != nil {
+		if err = submittedWork.submitting(); err != nil {
 			return out, acknowledged, err
 		}
 	}
 	decision := r.governor.Try(expected)
 	if decision.Grant == nil {
-		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-			err = scan.issuer.work.refused(decision)
+		if submittedWork != nil {
+			err = submittedWork.refused(decision)
 		}
 		return out, acknowledged, errors.Join(err, effectiveAdmissionRefusal(decision.Refusal))
 	}
@@ -369,8 +374,8 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 				r.fenced = true
 			}
 			retireErr := r.retireUnused(decision.Grant, custody)
-			if retireErr == nil && scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-				scan.issuer.work.admissionReturned(custody)
+			if retireErr == nil && submittedWork != nil {
+				submittedWork.admissionReturned(custody)
 			}
 			err = errors.Join(err, retireErr)
 			if primary != nil {
@@ -396,8 +401,8 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if r.executor.fenced || r.executor.ambiguous {
 			r.fenced = true
 		}
-		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-			scan.issuer.work.admissionReturned(custody)
+		if submittedWork != nil {
+			submittedWork.admissionReturned(custody)
 		}
 		if !ack && errors.Is(err, ErrResolveRequired) {
 			outcome.State = ResolveRequired
@@ -413,10 +418,10 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			p.frame = tx
 			p.mu.Unlock()
 		}
-		if scan.issuer.work != nil {
-			if err = scan.issuer.work.bindFrame(tx); err != nil {
-				return out, acknowledged, err
-			}
+	}
+	if submittedWork != nil {
+		if err = submittedWork.bindFrame(tx); err != nil {
+			return out, acknowledged, err
 		}
 	}
 	// The frame cancels its SQL context during retirement. Keep the EXACT same
@@ -536,6 +541,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	if turn != nil {
 		err = errors.Join(err, turn.closeRows())
+	}
+	if err == nil && scan != nil && scan.basic != nil {
+		err = checkBasicWorkLifetime(ctx, scan)
 	}
 	if err == nil && scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical {
 		err = checkBasicTerminal(ctx, turn, scan.basic.request.Purpose, scan.basic.leaseExpiresMS())

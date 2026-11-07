@@ -273,7 +273,7 @@ func (p *scanPreparation) ObserveInventory(ctx context.Context) (value nativeinv
 func (p *scanPreparation) beginObservation() (*sourceops.Lease, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.closed || p.retiring || p.retired || p.failed || p.observing || p.observed != nil || p.mode == scanHistoryPreparation || p.expected.Key.Domain == uint16(InventoryClaim) {
+	if p.closed || p.retiring || p.retired || p.failed || p.observing || p.observed != nil || p.mode != scanNativePreparation || p.expected.Key.Domain == uint16(InventoryClaim) {
 		return nil, ErrClosed
 	}
 	if err := p.current(); err != nil {

@@ -9,6 +9,7 @@ type basicInvocation struct {
 	request BasicReceiptRequest
 	stage   *basicStageCommand
 	seal    *basicSealCommand
+	work    *scanDriverWork // W-owned transient envelope; never in the request digest
 }
 
 func (in *basicInvocation) validate() (CommandID, error) {
