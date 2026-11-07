@@ -2,7 +2,7 @@ package read
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/binary"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -69,9 +69,28 @@ func init() {
 		if e != nil {
 			return "", e
 		}
-		b, e := json.Marshal(v)
-		return string(b), e
+		return rbTVDefaultsWitness(v)
 	}})
+}
+
+// Preserve exact SQLite strings, including malformed UTF-8, in the source
+// witness. JSON replacement characters cannot identify an unchanged row.
+func rbTVDefaultsWitness(row []any) (string, error) {
+	var b []byte
+	for _, value := range row {
+		switch v := value.(type) {
+		case nil:
+			b = append(b, 0)
+		case int64:
+			b = binary.BigEndian.AppendUint64(append(b, 1), uint64(v))
+		case string:
+			b = binary.BigEndian.AppendUint64(append(b, 2), uint64(len(v)))
+			b = append(b, v...)
+		default:
+			return "", ErrUnqualified
+		}
+	}
+	return string(b), nil
 }
 func (r *BrowseReader) RBTVSourceDefaults(ctx context.Context, request governor.Request, budget time.Duration, out BrowseOutput, view BrowseInput, show int64) (RBTVDefaults, BrowseReadResult, error) {
 	if r == nil {
