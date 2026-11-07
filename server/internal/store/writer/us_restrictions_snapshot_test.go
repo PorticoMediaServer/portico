@@ -28,6 +28,17 @@ func TestUSRestrictionSourceReservesActualBytesBeforePayload(t *testing.T) {
 	if err != nil || !present || out.profile != "target-profile" || out.labelsJSON != string(raw) || out.revision != 1 {
 		t.Fatal(out, present, err)
 	}
+	target := usRestrictionsTarget{profile: usProfileTarget{member: usMemberTarget{account: "target", incarnation: strings.Repeat("e", 32), expectedRevision: 1, expectedEpoch: 1}, profile: "target-profile", lifetime: strings.Repeat("f", 32), revision: 1}, present: true, revision: 1}
+	role, primary, err := readUSRestrictionTarget(t.Context(), turn, a, target)
+	if err != nil || role != "member" || primary {
+		t.Fatal(role, primary, err)
+	}
+	stale := target
+	stale.profile.revision++
+	role, primary, err = readUSRestrictionTarget(t.Context(), turn, a, stale)
+	if !errors.Is(err, ErrConflict) || role != "" || primary {
+		t.Fatal("stale target admitted", role, primary, err)
+	}
 	delete(turn.steps, usRestrictionsFacts)
 	out, present, err = readUSRestrictionSource(t.Context(), turn, a, "missing-profile")
 	if err != nil || present || out != (usRestrictionsEffect{}) {
@@ -41,6 +52,12 @@ func TestUSRestrictionSourceReservesActualBytesBeforePayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.memoryBytes = 64 << 10
+	delete(turn.steps, usRestrictionsSource)
+	role, primary, err = readUSRestrictionTarget(t.Context(), turn, a, target)
+	var targetRefusal *Refusal
+	if !errors.As(err, &targetRefusal) || targetRefusal.Code != RefusalCapacity || role != "" || primary {
+		t.Fatal("target text before reservation", role, primary, err)
+	}
 	out, present, err = readUSRestrictionSource(t.Context(), turn, a, "target-profile")
 	var refusal *Refusal
 	if !errors.As(err, &refusal) || refusal.Code != RefusalCapacity || present || out != (usRestrictionsEffect{}) {

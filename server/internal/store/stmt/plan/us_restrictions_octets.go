@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"reflect"
 	"slices"
 	"strings"
 )
@@ -78,4 +79,26 @@ func auditUSRestrictionOctetKey(ctx context.Context, c *sql.Conn) error {
 		return fmt.Errorf("US restriction preflight: exact native profile_id key required")
 	}
 	return nil
+}
+
+const usRestrictionTargetOctetsSQL = `SELECT octet_length(m.role) FROM direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=m.account_id CROSS JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2 ON p.account_id=m.account_id WHERE m.account_id=? AND m.incarnation=? AND m.revision=? AND a.epoch=? AND m.disabled=0 AND p.id=? AND p.lifetime=? AND p.revision=? AND p.deleted=0`
+
+func init() {
+	pointOctets.add(octetShape{id: "us.restrictions.target.octets", sql: usRestrictionTargetOctetsSQL, mismatch: "US restriction target preflight requires the exact closed read definition", definition: usRestrictionTargetOctetDefinition, audit: func(ctx context.Context, c *sql.Conn) error { return auditUSPolicyOctetKey(ctx, c, true) }, point: func(rows Rows) error {
+		want := []string{"SEARCH m USING INDEX sqlite_autoindex_direct_memberships_1 (account_id=?)", "SEARCH a USING INDEX sqlite_autoindex_accounts_1 (id=?)", "SEARCH p USING INDEX sqlite_autoindex_direct_profiles_2 (account_id=? AND id=?)"}
+		if len(rows.Values) != len(want) {
+			return fmt.Errorf("US restriction target preflight: exact unique points required")
+		}
+		for n, row := range rows.Values {
+			if len(row) != 4 || row[3] != want[n] {
+				return fmt.Errorf("US restriction target preflight: exact unique points required")
+			}
+		}
+		return nil
+	}})
+}
+func usRestrictionTargetOctetDefinition(d stmt.Definition) bool {
+	params := []stmt.Param{{Name: "account", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Text}, {Name: "revision", Type: stmt.Integer}, {Name: "epoch", Type: stmt.Integer}, {Name: "profile", Type: stmt.Text}, {Name: "lifetime", Type: stmt.Text}, {Name: "profile_revision", Type: stmt.Integer}}
+	plan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_accounts_1", "sqlite_autoindex_direct_profiles_2"}, Seeks: []string{"account_id=?", "id=?", "account_id=? AND id=?"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "direct_memberships", Name: "sqlite_autoindex_direct_memberships_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "account_id", Collation: "BINARY"}}}, {Table: "accounts", Name: "sqlite_autoindex_accounts_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}, {Table: "direct_profiles", Name: "sqlite_autoindex_direct_profiles_2", Origin: "u", Columns: []stmt.IndexColumn{{Name: "account_id", Collation: "BINARY"}, {Name: "id", Collation: "BINARY"}}}}}
+	return d.Kind == stmt.Read && reflect.DeepEqual(d.Params, params) && reflect.DeepEqual(d.Plan, plan)
 }
