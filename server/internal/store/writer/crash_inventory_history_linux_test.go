@@ -140,12 +140,12 @@ func compareInventoryHistoryState(want, got map[string][32]byte) error {
 }
 
 func inventoryHistoryStepIDs(operation string) []stmt.ID {
-	ids := []stmt.ID{scanReceiptOwner, inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptOwner, scanReceiptLookup}
+	ids := []stmt.ID{scanReceiptOwner, inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptOwner, scanReceiptIdentityPrefix}
 	switch operation {
 	case "resolve":
-		return append(ids, scanReceiptResults)
+		return append(ids, scanReceiptByteLengths, scanMemberKeys, scanMemberByteLengths, scanReceiptLookup, scanReceiptResults)
 	case "ack":
-		return append(ids, scanReceiptResults, scanReceiptAck)
+		return append(ids, scanReceiptByteLengths, scanMemberKeys, scanMemberByteLengths, scanReceiptLookup, scanReceiptResults, scanReceiptAck)
 	case "resolve_retired", "ack_retired":
 		return ids // Floor precedes cohort decode and an idempotent ACK writes nothing.
 	default:
