@@ -413,7 +413,7 @@ func (r *RSArtistAlbumReader) hydrate(ctx context.Context, q governor.Request, o
 			e = p.charge(512 + 4*int64(len(value.Title)))
 			if e == nil {
 				card.PrimaryArtist = value
-				if value.ID != p.input.Artist {
+				if value.ID == p.input.Artist {
 					card.Role = RSArtistAlbumAppearance
 				}
 			}
