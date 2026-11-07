@@ -49,6 +49,7 @@ type effectivePlan struct {
 	wcProgressMemory    commandMemoryBudget
 	wcSecurityMemory    commandMemoryBudget
 	wcReclaimMemory     commandMemoryBudget
+	directoryMemory     commandMemoryBudget
 }
 
 // No runtime registration, worker budget or callbacks are accepted. The actual
@@ -68,6 +69,7 @@ type effectiveRuntime struct {
 	issuerPlans              [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
 	inventoryDriverPlan      *effectivePlan    // complete trusted N1 profile; nil keeps fresh effects closed
 	inventoryPreparationPlan *effectivePlan
+	directoryPlans           [2]*effectivePlan
 	registry                 *stmt.Registry
 	fenced                   bool
 	cleanupPanics            []terminalPanic
@@ -197,6 +199,7 @@ type commandOutput struct {
 	progress  ProgressResult
 	security  SecurityResult
 	reclaim   ReclaimResult
+	directory scanDirectoryCommandResult
 }
 
 // Keep W's original call contract while all typed domains use one dispatcher.
@@ -297,10 +300,10 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	purpose, plan, reference, key, libraryID := EffectiveStage, &r.plan, request.Receipt, request.ProviderOperationID, request.LibraryID
 	outcome := &out.effective.Outcome
 	if scan != nil {
-		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || (scan.directory == 0 && scan.directoryInput != nil) {
 			return out, acknowledged, ErrInvalid
 		}
-		if scan.lifecycle == 0 && r.inventoryPlan == nil {
+		if scan.lifecycle == 0 && scan.directory == 0 && r.inventoryPlan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
 		if scan.input != nil {
@@ -311,6 +314,14 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		}
 		purpose, plan, reference, key, libraryID = InventoryAccept, r.inventoryPlan, scan.request.Receipt, scan.request.RunID, scan.request.LibraryID
 		outcome = &out.inventory.Outcome
+		if scan.directory != 0 {
+			if scan.lifecycle != 0 || scan.input != nil || scan.issuer != nil || (scan.directory != InventoryDirectoryDiscover && scan.directory != InventoryDirectoryEOF) {
+				return out, acknowledged, ErrInvalid
+			}
+			purpose = scan.directory
+			plan = nil
+			outcome = &out.directory.Outcome
+		}
 		if scan.lifecycle != 0 {
 			if scan.input != nil || (scan.lifecycle != InventoryCreate && scan.lifecycle != InventoryClaim && (scan.lifecycle != InventoryAccept || scan.issuer == nil)) {
 				return out, acknowledged, ErrInvalid
@@ -407,6 +418,12 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		}
 		if required > plan.inventoryMemory.preparationBytes {
 			return out, acknowledged, &Refusal{Code: RefusalCapacity}
+		}
+	}
+	if scan != nil && scan.directory != 0 {
+		plan = r.directoryPlans[int(purpose-InventoryDirectoryDiscover)]
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
 		}
 	}
 	defer func() {
@@ -509,6 +526,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	custody.wcProgressMemory = plan.wcProgressMemory
 	custody.wcSecurityMemory = plan.wcSecurityMemory
 	custody.wcReclaimMemory = plan.wcReclaimMemory
+	custody.directoryMemory = plan.directoryMemory
 	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
@@ -558,7 +576,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		} else if wc != nil {
 			err = checkWCProgressNativeDisclosure(ctx, turn, wc)
 		} else if scan != nil {
-			if scan.lifecycle == 0 {
+			if scan.lifecycle == 0 && scan.directory == 0 {
 				_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
 			}
 			if err == nil {
@@ -609,7 +627,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			}
 		}
 	}
-	if err == nil && scan != nil && scan.lifecycle == 0 && scan.issuer == nil {
+	if err == nil && scan != nil && scan.lifecycle == 0 && scan.issuer == nil && scan.directory == 0 {
 		var lookup inventoryReceiptLookup
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;
@@ -628,6 +646,22 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 					if err == nil {
 						err = &Refusal{Code: RefusalUnqualified}
 					}
+				}
+			}
+		}
+	}
+	if err == nil && scan != nil && scan.directory != 0 {
+		var lookup scanDirectoryLookup
+		lookup, err = lookupScanDirectory(ctx, turn, scan.request, scan.directory)
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation), turn.checkLifetimes(ctx))
+		if err == nil {
+			if ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeScanDirectory(ctx, turn, scan.request, lookup)
+			} else {
+				out.directory = directoryHistoricalResult(scan.request, lookup)
+				historical = lookup.decision != receiptFresh
+				if lookup.decision == receiptFresh && scan.directoryInput != nil {
+					out.directory.Value, out.directory.Digest, err = applyScanDirectory(ctx, turn, scan.directoryInput, lookup.original)
 				}
 			}
 		}
@@ -681,6 +715,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if err == nil && scan != nil && scan.issuer != nil && scan.issuer.action == scanIssuerClaim && !historical {
 		_, err = turn.scanClaimTimeMS(ctx, scan.issuer.claimMode, scan.issuer.claim.request.Run.leaseExpiresMS, scan.issuer.expiresMS)
 	}
+	if err == nil && scan != nil && scan.directoryInput != nil && !historical {
+		_, err = turn.commandTimeMS(ctx, scan.directory, scan.directoryInput.request.Snapshot.Run.leaseExpiresMS)
+	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
 	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation)))
@@ -707,6 +744,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		} else {
 			out.effective.Value = EffectiveStageBeginResult{}
 		}
+	}
+	if scan != nil && scan.directoryInput != nil && !ack && !historical && physical.state == committed {
+		out.directory.Outcome.State = Applied
 	}
 	if !ack && !historical && !errors.Is(err, ErrDisclosureDenied) && (physical.state == commitUnknown || errors.Is(err, ErrResolveRequired)) {
 		outcome.State = ResolveRequired

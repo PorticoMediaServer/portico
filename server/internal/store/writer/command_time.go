@@ -10,7 +10,7 @@ import (
 // This factors existing policy; it does not implement clock follow-up1118.
 func (t *commandTurn) commandTimeMS(ctx context.Context, purpose CommandID, leaseExpiresMS int64) (nowMS int64, err error) {
 	defer func() { nowMS, err = finishCommand(ctx, commandLifetime(t), nowMS, err) }()
-	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim {
+	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && purpose != InventoryDirectoryDiscover && purpose != InventoryDirectoryEOF {
 		return 0, ErrInvalid
 	}
 	if ctx == nil || t == nil || t.transaction == nil ||
