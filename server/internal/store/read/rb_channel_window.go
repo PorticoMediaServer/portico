@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	librarychannels "github.com/PorticoMediaServer/portico/server/internal/livechannels/library"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
@@ -97,7 +96,7 @@ func (r *SharedChannelReader) channelWindow(ctx context.Context, request governo
 		return nil
 	}
 	result.Attempts = 1
-	err = r.channelQuantum(operation, request, deadline, out, scope, &result, false, func(q browseQuery, query librarychannels.Query) error {
+	err = r.channelQuantum(operation, request, deadline, out, scope, &result, false, func(q browseQuery, query rbChannelQuery) error {
 		if _, e := rbChannelCompileQuery(query, in.Kind); e != nil {
 			return e
 		}
@@ -168,7 +167,7 @@ func (r *SharedChannelReader) channelWindow(ctx context.Context, request governo
 		meta := observation.meta
 		var value SharedChannelPlayable
 		matched := false
-		err = r.channelQuantum(operation, request, deadline, out, scope, &result, false, func(q browseQuery, query librarychannels.Query) error {
+		err = r.channelQuantum(operation, request, deadline, out, scope, &result, false, func(q browseQuery, query rbChannelQuery) error {
 			program, e := rbChannelCompileQuery(query, in.Kind)
 			if e != nil {
 				return e
@@ -276,7 +275,7 @@ func (r *SharedChannelReader) channelWindow(ctx context.Context, request governo
 	}
 	// One snapshot contains the complete final authority, metadata traversal,
 	// positive source bindings AND negative observations. At most eight calls.
-	err = r.channelQuantum(operation, request, deadline, out, scope, &result, true, func(q browseQuery, _ librarychannels.Query) error {
+	err = r.channelQuantum(operation, request, deadline, out, scope, &result, true, func(q browseQuery, _ rbChannelQuery) error {
 		if frozen == nil {
 			rows, e := q("rb.channel.candidates", scope.library.id, in.Kind, after, int64(rbChannelRaw))
 			if e != nil {

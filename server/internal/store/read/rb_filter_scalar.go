@@ -5,15 +5,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/sorttext"
 )
 
 // This closed scalar subset is evaluated only AFTER bounded source retrieval.
-// It uses the public parser and preserves SQL's three-valued group semantics.
+// It projects the published AST and preserves SQL's three-valued group semantics.
 // Unsupported fields refuse at compile time, including inside negated groups;
 // they can never become a false predicate that NOT would turn into permission.
-type rbScalarFilter struct{ node *catalog.BrowseNode }
+type rbScalarFilter struct{ node *rbFilterNode }
 type rbFilterFacts struct {
 	title, library string
 	kind, year     int64
@@ -27,13 +26,13 @@ const (
 )
 
 func compileRBScalarFilter(raw json.RawMessage) (rbScalarFilter, error) {
-	node, err := catalog.ParseBrowseQuery(raw, "query.filter")
+	node, err := parseRBScalarNode(raw)
 	if err != nil {
-		return rbScalarFilter{}, ErrInput
+		return rbScalarFilter{}, err
 	}
 	count := 0
-	var visit func(*catalog.BrowseNode, int) error
-	visit = func(n *catalog.BrowseNode, depth int) error {
+	var visit func(*rbFilterNode, int) error
+	visit = func(n *rbFilterNode, depth int) error {
 		if n == nil {
 			return nil
 		}
@@ -72,7 +71,7 @@ func compileRBScalarFilter(raw json.RawMessage) (rbScalarFilter, error) {
 	return rbScalarFilter{node}, nil
 }
 func (p rbScalarFilter) matches(f rbFilterFacts) bool { return rbEvalScalar(p.node, f) == rbTrue }
-func rbEvalScalar(n *catalog.BrowseNode, f rbFilterFacts) rbTruth {
+func rbEvalScalar(n *rbFilterNode, f rbFilterFacts) rbTruth {
 	if n == nil {
 		return rbTrue
 	}

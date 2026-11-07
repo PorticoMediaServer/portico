@@ -11,7 +11,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	librarychannels "github.com/PorticoMediaServer/portico/server/internal/livechannels/library"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
@@ -173,7 +172,7 @@ func (r *SharedChannelReader) RevalidateSharedChannelScope(ctx context.Context, 
 	return result, nil
 }
 
-func (r *SharedChannelReader) channelSource(q browseQuery, in SharedChannelScopeInput, copyBytes int64, queryOut *librarychannels.Query) (rbChannelStamp, SharedChannelScopeInfo, error) {
+func (r *SharedChannelReader) channelSource(q browseQuery, in SharedChannelScopeInput, copyBytes int64, queryOut *rbChannelQuery) (rbChannelStamp, SharedChannelScopeInfo, error) {
 	var stamp rbChannelStamp
 	var info SharedChannelScopeInfo
 	lengths, err := q("rb.channel.octets", in.Channel, in.Generation)
@@ -215,7 +214,7 @@ func (r *SharedChannelReader) channelSource(q browseQuery, in SharedChannelScope
 	if !cfg.Enabled || v[8].(int64) <= 0 {
 		return stamp, info, ErrDenied
 	}
-	var rule *librarychannels.Rule
+	var rule *rbChannelRule
 	var libraries []string
 	for i := range cfg.Rules {
 		ruleCandidate := &cfg.Rules[i]
@@ -245,22 +244,6 @@ func (r *SharedChannelReader) channelSource(q browseQuery, in SharedChannelScope
 		*queryOut = rule.Query
 	}
 	return stamp, info, nil
-}
-func rbChannelConfig(raw, channel string) ([]byte, librarychannels.Config, error) {
-	var cfg librarychannels.Config
-	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		return nil, cfg, ErrInput
-	}
-	var err error
-	cfg, err = librarychannels.Normalize(cfg)
-	if err != nil {
-		return nil, cfg, ErrInput
-	}
-	if cfg.ID != channel || librarychannels.Validate(cfg) != nil {
-		return nil, cfg, ErrInput
-	}
-	canonical, err := json.Marshal(cfg)
-	return canonical, cfg, err
 }
 func rbReadChannelLibrary(q browseQuery, name string) (rbChannelLibrary, error) {
 	var f rbChannelLibrary
