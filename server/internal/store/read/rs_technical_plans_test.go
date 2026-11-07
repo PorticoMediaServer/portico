@@ -64,6 +64,9 @@ func TestRSTechnicalCapture(t *testing.T) {
 		captures = append(captures, g)
 	}
 	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
+		if e := os.MkdirAll(dir, 0700); e != nil {
+			t.Fatal(e)
+		}
 		b, e := json.Marshal(captures)
 		if e != nil {
 			t.Fatal(e)
