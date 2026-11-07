@@ -49,6 +49,9 @@ func runScanInventoryHistory(ctx context.Context, turn *commandTurn, in *invento
 			err = checkInventoryDriverFreshSource(ctx, turn, in)
 		}
 		if err == nil {
+			err = checkInventoryExistingRecords(ctx, turn, in)
+		}
+		if err == nil {
 			out.inventory, err = applyInventoryAccept(ctx, turn, in.input)
 		}
 		return out, floor, false, err
