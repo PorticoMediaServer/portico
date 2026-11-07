@@ -2,30 +2,32 @@ package writer
 
 // Phase 1a owns IDs 1–99. Existing wire identities are explicit and permanent.
 const (
-	InventoryAccept         CommandID = 1
-	BasicAccept             CommandID = 2
-	EvidenceStage           CommandID = 3
-	CreditStage             CommandID = 4
-	PeopleStage             CommandID = 5
-	EnrichAccept            CommandID = 6
-	ProgressAccept          CommandID = 7
-	SecurityAccept          CommandID = 8
-	SearchFragmentStage     CommandID = 9
-	SearchHeadPublish       CommandID = 10
-	SearchFragmentReclaim   CommandID = 11
-	SearchImageReclaim      CommandID = 12
-	SearchGenerationAdvance CommandID = 13
-	SearchGenerationFlip    CommandID = 14
-	PeopleHeadPublish       CommandID = 15
-	SearchImageStage        CommandID = 16
-	SearchSeal              CommandID = 17
-	EffectiveStage          CommandID = 18
-	InventoryCreate         CommandID = 19
-	InventoryClaim          CommandID = 20
-	BasicStage              CommandID = 21
-	BasicSeal               CommandID = 22
-	EvidenceSeal            CommandID = 23
-	CreditSourceSeal        CommandID = 24
+	InventoryAccept            CommandID = 1
+	BasicAccept                CommandID = 2
+	EvidenceStage              CommandID = 3
+	CreditStage                CommandID = 4
+	PeopleStage                CommandID = 5
+	EnrichAccept               CommandID = 6
+	ProgressAccept             CommandID = 7
+	SecurityAccept             CommandID = 8
+	SearchFragmentStage        CommandID = 9
+	SearchHeadPublish          CommandID = 10
+	SearchFragmentReclaim      CommandID = 11
+	SearchImageReclaim         CommandID = 12
+	SearchGenerationAdvance    CommandID = 13
+	SearchGenerationFlip       CommandID = 14
+	PeopleHeadPublish          CommandID = 15
+	SearchImageStage           CommandID = 16
+	SearchSeal                 CommandID = 17
+	EffectiveStage             CommandID = 18
+	InventoryCreate            CommandID = 19
+	InventoryClaim             CommandID = 20
+	BasicStage                 CommandID = 21
+	BasicSeal                  CommandID = 22
+	EvidenceSeal               CommandID = 23
+	CreditSourceSeal           CommandID = 24
+	InventoryDirectoryDiscover CommandID = 25
+	InventoryDirectoryEOF      CommandID = 26
 )
 
 var phase1aCommands = commandRegistration{
@@ -55,5 +57,7 @@ var phase1aCommands = commandRegistration{
 		{ID: BasicSeal, Name: "basic_seal", Durability: Normal},
 		{ID: EvidenceSeal, Name: "evidence_seal", Durability: Normal},
 		{ID: CreditSourceSeal, Name: "credit_source_seal", Durability: Normal},
+		{ID: InventoryDirectoryDiscover, Name: "inventory_directory_discover", Durability: Normal},
+		{ID: InventoryDirectoryEOF, Name: "inventory_directory_eof", Durability: Normal},
 	},
 }
