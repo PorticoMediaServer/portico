@@ -1,6 +1,9 @@
 package read
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Route order is Stream, Provider, Kind, ProviderID, Evidence (BINARY strings).
 // Mapping coordinates identify a namespace even when several namespaces map to
@@ -259,7 +262,7 @@ func nativeAutomaticOwners(query browseQuery, library, work int64) ([]nativeAuto
 						if err != nil {
 							return nil, err
 						}
-						if c != nil && len(c) == 1 && c[0] == provider && id != "" {
+						if nativeAutoCollection(c, provider) && id != "" {
 							if err = source(nativeAutomaticRoute{2, provider, "collection", id, ev}); err != nil {
 								return nil, err
 							}
@@ -432,7 +435,7 @@ func nativeAutomaticNext(query browseQuery, library, collection int64, after *na
 			if e != nil {
 				return zero, nil, false, e
 			}
-			if len(r) == 1 && r[0] == p {
+			if nativeAutoCollection(r, p) {
 				a, e := nativeAutoPoint(q, "accepted", k.V[0].I, library, p, ev)
 				if e != nil {
 					return zero, nil, false, e
@@ -487,4 +490,15 @@ func nativeAutoKeyAfter(k, after nativeAutoKey) bool {
 		}
 	}
 	return false
+}
+
+// SQLite R21 trim(name) has the default ASCII SPACE trim set. Preserve that
+// exact predicate outside the closed SQL grammar; Unicode TrimSpace would drop
+// valid legacy membership for a tab/non-ASCII-space name.
+func nativeAutoCollection(row []any, provider string) bool {
+	if len(row) != 2 || row[0] != provider {
+		return false
+	}
+	name, ok := row[1].(string)
+	return ok && strings.Trim(name, " ") != ""
 }

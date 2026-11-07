@@ -2,6 +2,8 @@ package read
 
 import (
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 	"strings"
 	"testing"
 )
@@ -55,5 +57,35 @@ func TestNativeAutomaticWorkspaceRefuses(t *testing.T) {
 	_, e := nativeAutoPoint(q, "work", int64(1), int64(1))
 	if !errors.Is(e, errFullSearchPending) || calls != 1 {
 		t.Fatalf("oversized proof returned success: %v", e)
+	}
+}
+
+// Pure lexical/declaration control. It grants no native execution or receipt.
+func TestNativeSearchOrdinaryShapes(t *testing.T) {
+	defs := NativeFullSearchDefinitions()
+	if len(defs) > 128 {
+		t.Fatal("closed Reader registry overflow", len(defs))
+	}
+	if _, err := stmt.Describe(defs); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range defs {
+		if d.Plan.NativeRead != nil || d.ID == "read.full.native.engine" {
+			continue
+		}
+		if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
+			t.Errorf("%s: %+v", d.ID, issues)
+		}
+	}
+}
+
+func TestNativeAutomaticNamePredicatePreservesR21(t *testing.T) {
+	for _, v := range []struct {
+		name string
+		want bool
+	}{{"", false}, {"   ", false}, {" \t ", true}, {"　", true}, {" Collection ", true}} {
+		if got := nativeAutoCollection([]any{"tmdb", v.name}, "tmdb"); got != v.want {
+			t.Fatal(v.name, got)
+		}
 	}
 }
