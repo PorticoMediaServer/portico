@@ -436,10 +436,6 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if err := observeTime(&r.clockHighWater, now); err != nil {
 		return out, acknowledged, errors.Join(err, r.wal.Publish(r.wal.Observation(), governor.WALState{}, time.Time{}))
 	}
-	risk, err := r.wal.RestartRisk(now)
-	if err != nil {
-		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
-	}
 	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover || scan.issuer.action == scanIssuerInventory || scan.issuer.action == scanIssuerN1Recover) {
 		scan.issuer.deadline = now.Add(scan.issuer.driver.readyPlan.ready)
 		if scan.issuer.action == scanIssuerInventory && time.UnixMilli(scan.issuer.lease.expiresMS).Before(scan.issuer.deadline) {
@@ -456,6 +452,11 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
 		deadline = callerDeadline
 	}
+	risk, err := r.wal.RestartRiskContext(ctx, now, deadline)
+	if err != nil {
+		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
+	}
+
 	class, err := commandClass(purpose)
 	if err != nil {
 		return out, acknowledged, err
@@ -815,6 +816,9 @@ func effectiveAdmissionRefusal(refusal *governor.Refusal) error {
 	if !refusal.RetryAt.IsZero() {
 		at := refusal.RetryAt
 		out.RetryAt = &at
+	}
+	if refusal.Cause != "" {
+		return &governor.AdmissionError{Cause: refusal.Cause, Err: out}
 	}
 	return out
 }

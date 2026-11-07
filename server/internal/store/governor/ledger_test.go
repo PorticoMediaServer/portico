@@ -254,7 +254,8 @@ func TestBoundedValidationAndFailFast(t *testing.T) {
 		return expiry, func() {}
 	}
 	l.mu.Lock()
-	refused(t, g, r, Capacity) // ordinary Try remains nonwaiting
+	// Admission contention now follows the same original-deadline rule;
+	// TestAdmissionContentionWaitsForOriginalDeadline covers that boundary.
 	if a.Check(nil, r) != ErrGrant {
 		l.mu.Unlock()
 		t.Fatal("nil authority must still refuse immediately")

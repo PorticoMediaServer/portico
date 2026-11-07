@@ -2,10 +2,10 @@ package governor
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -23,7 +23,7 @@ type WALState struct {
 // ReadWAL ports Q's read-only WAL-index observation. A racing/torn/unsupported
 // header fails closed; observation is advisory evidence, never SQLite authority.
 // Call outside Try, with a token from WALGate.Observation, then Publish it.
-func ReadWAL(path string) (WALState, error) {
+func readWALOnce(path string) (WALState, error) {
 	var w WALState
 	wal, err := os.Open(path + "-wal")
 	if err != nil {
@@ -156,7 +156,7 @@ type WALPolicy struct {
 // CP. Backfill never grants speculative append headroom. Complete W forecasts
 // include native/receipt/commit and restart-header work before BEGIN.
 type WALGate struct {
-	mu                       sync.Mutex
+	mu                       ledgerMutex
 	policy                   WALPolicy
 	version                  uint64
 	writer                   bool
@@ -242,37 +242,49 @@ func validWAL(s WALState) bool {
 }
 
 func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
-	return w.reserveForLedger(r, now, nil)
+	code, _ := w.reserveForLedger(r, now, nil)
+	return code
 }
 
-func (w *WALGate) reserveForLedger(r Request, now time.Time, owner *ledger) RefusalCode {
-	if !w.mu.TryLock() {
-		return Capacity
+func (w *WALGate) reserveForLedger(r Request, now time.Time, owner *ledger) (RefusalCode, RefusalCause) {
+	if err := w.mu.lockUntil(context.Background(), r.Deadline, now); err != nil {
+		return Deadline, CauseDeadline
 	}
 	defer w.mu.Unlock()
+	if owner != nil {
+		now = owner.config.Now()
+	}
+	if !r.Deadline.After(now) {
+		return Deadline, CauseDeadline
+	}
 	w.expireCheckpointTicket(now)
 	if (w.policy.ConcurrentPassive && w.keeper == nil) || (w.keeper != nil && !w.keeper.admits(owner, now)) {
-		return FailSafe
+		return FailSafe, CauseKeeper
 	}
-	if w.writer || (!w.policy.ConcurrentPassive && (w.checkpoint || w.pendingCheckpoint != nil)) {
-		return Capacity
+	if w.writer {
+		return Capacity, CauseWriterActive
+	}
+	if !w.policy.ConcurrentPassive && (w.checkpoint || w.pendingCheckpoint != nil) {
+		return Capacity, CauseCheckpointActive
 	}
 	if !w.fresh(now) {
-		return FailSafe
+		return FailSafe, CauseWALSample
 	}
 	if (w.policy.ConcurrentPassive && r.RestartRisk == (WALRestartRisk{})) || (r.RestartRisk != (WALRestartRisk{}) && r.RestartRisk != w.restartRisk()) {
-		return FailSafe
+		return FailSafe, CauseWALRisk
 	}
 	s := w.state
 	if s.PhysicalBytes > w.policy.HardBytes {
-		return FailSafe
+		return FailSafe, CauseWALPhysical
 	}
 	limit := w.policy.HardBytes
 	if r.Class == Background || r.Class == ScanMinimum {
 		limit -= w.policy.ReserveBytes
-		if s.UncheckpointedBytes >= w.policy.SoftDebtBytes ||
-			(s.ActiveBytes >= w.policy.ActivePressureBytes && s.Backfill != s.Frames) {
-			return Capacity
+		if s.UncheckpointedBytes >= w.policy.SoftDebtBytes {
+			return Capacity, CauseWALDebt
+		}
+		if s.ActiveBytes >= w.policy.ActivePressureBytes && s.Backfill != s.Frames {
+			return Capacity, CauseWALActive
 		}
 	}
 	header := int64(0)
@@ -284,7 +296,7 @@ func (w *WALGate) reserveForLedger(r Request, now time.Time, owner *ledger) Refu
 			w.blockedWAL = r.Need[WALBytes]
 			w.blockedLimit = limit
 		}
-		return Capacity
+		return Capacity, CauseWALSpace
 	}
 	w.blockedWAL, w.blockedLimit = 0, 0
 	w.writerClass = r.Class
@@ -293,7 +305,7 @@ func (w *WALGate) reserveForLedger(r Request, now time.Time, owner *ledger) Refu
 	w.writer = true
 	w.valid = false
 	w.version++
-	return 0
+	return 0, ""
 }
 
 func (w *WALGate) returned() {
@@ -312,20 +324,26 @@ func (w *WALGate) ResetCount() uint64 { w.mu.Lock(); defer w.mu.Unlock(); return
 // A checkpoint may repay pressure even while WAL observations are stale. Its
 // driver still needs a whole-prefix forecast and same-file observation. In
 // concurrent mode only CP/CP is excluded; recovery separately drains W/readers.
-func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now time.Time) RefusalCode {
-	if !w.mu.TryLock() {
-		return Capacity
+func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now, deadline time.Time) (RefusalCode, RefusalCause) {
+	if err := w.mu.lockUntil(context.Background(), deadline, now); err != nil {
+		return Deadline, CauseDeadline
 	}
 	defer w.mu.Unlock()
+	if ticket != nil && ticket.owner != nil {
+		now = ticket.owner.config.Now()
+	}
+	if !deadline.After(now) {
+		return Deadline, CauseDeadline
+	}
 	w.expireCheckpointTicket(now)
 	if w.checkpoint || (w.writer && (!w.policy.ConcurrentPassive || (ticket != nil && ticket.recovery))) {
-		return Capacity
+		return Capacity, CauseCheckpointActive
 	}
 	if w.pendingCheckpoint != ticket {
-		return Capacity
+		return Capacity, CauseCheckpointTicket
 	}
 	if ticket != nil && (ticket.gate != w || !now.Before(ticket.expires)) {
-		return Deadline
+		return Deadline, CauseDeadline
 	}
 	w.pendingCheckpoint = nil
 	w.checkpoint = true
@@ -334,7 +352,7 @@ func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now time.Time) Ref
 		w.valid = false
 		w.version++
 	}
-	return 0
+	return 0, ""
 }
 
 // Only exact private grant retirement reaches this boundary, after native
@@ -359,4 +377,55 @@ func (w *WALGate) recoveryPressure(s WALState) bool {
 	defer w.mu.Unlock()
 	return s.PhysicalBytes <= w.policy.HardBytes && (s.ActiveBytes >= w.policy.HardBytes-w.policy.ReserveBytes ||
 		(w.blockedWAL > 0 && (s.ActiveBytes > w.blockedLimit-32 || w.blockedWAL > w.blockedLimit-s.ActiveBytes-32)))
+}
+
+// ReadWAL retries only advisory unstable headers, never a writer/transaction.
+// Every attempt reopens/revalidates the files. The caller's Observation token
+// must still precede the entire read and Publish must validate that generation.
+func ReadWAL(path string) (WALState, error) { return ReadWALContext(context.Background(), path) }
+func ReadWALContext(ctx context.Context, path string) (WALState, error) {
+	return sampleWAL(ctx, func() (WALState, error) { return readWALOnce(path) })
+}
+
+const walSampleAttempts = 4
+const walSampleBudget = 2 * time.Millisecond
+
+func sampleWAL(ctx context.Context, read func() (WALState, error), clocks ...func() time.Time) (WALState, error) {
+	if ctx == nil {
+		return WALState{}, ErrWALObservation
+	}
+	now := time.Now
+	if len(clocks) > 0 {
+		now = clocks[0]
+	}
+	until := now().Add(walSampleBudget)
+	var state WALState
+	var err error
+	for n := 0; n < walSampleAttempts; n++ {
+		if e := ctx.Err(); e != nil {
+			return WALState{}, e
+		}
+		state, err = read()
+		if err == nil || !errors.Is(err, ErrWALObservation) {
+			return state, err
+		}
+		if !now().Before(until) {
+			break
+		}
+	}
+	return WALState{}, err
+}
+
+// A known writer-generation race cannot invalidate another writer's anchor.
+func (w *WALGate) observationCurrent(token uint64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return token == w.version && !w.writer
+}
+
+func (w *WALGate) checkpointPageSize(token uint64) (uint32, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	page := w.state.PageSize
+	return page, (token != w.version || w.writer) && page >= 512 && page <= 65536 && page&(page-1) == 0
 }

@@ -28,17 +28,22 @@ func inventoryMemoryFixtureTurn(t *testing.T, w *executor, registry *stmt.Regist
 // The ONE fixture builder owns the unchanged synthetic recipe and grant path.
 // A progressive test retains this object, not a copied recipe or grant builder.
 type inventoryMemoryFixture struct {
-	executor    *executor
-	registry    *stmt.Registry
-	governor    governor.Governor
-	authority   *governor.Authority
-	wal         *governor.WALGate
-	request     governor.Request
-	recipe      turnRecipe
-	budget      inventoryMemoryBudget
-	path        string
-	maintenance bool
-	steps       []statementStep
+	executor         *executor
+	registry         *stmt.Registry
+	governor         governor.Governor
+	authority        *governor.Authority
+	wal              *governor.WALGate
+	request          governor.Request
+	recipe           turnRecipe
+	budget           inventoryMemoryBudget
+	path             string
+	maintenance      bool
+	steps            []statementStep
+	lastAdmission    *n1Admission
+	observedReturn   *transaction
+	postReturnErr    error
+	postReturn       *WALObservation
+	observationClock time.Time
 }
 
 func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registry, input *inventoryAcceptCommand, budget inventoryMemoryBudget, foreground ...governor.Config) *inventoryMemoryFixture {
@@ -94,6 +99,7 @@ func newInventoryMemoryFixtureComposition(t *testing.T, w *executor, registry *s
 
 func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptCommand) (*commandTurn, error) {
 	t.Helper()
+	f.lastAdmission = nil
 	if input == nil || !input.valid || input.request.scope.runID != f.request.Key.ID ||
 		input.request.scope.libraryID != f.request.Footprint[0].Library {
 		return nil, ErrInvalid
@@ -106,12 +112,13 @@ func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptComma
 	// Actual current gate metadata; required by merged concurrent keeper.
 	if f.maintenance {
 		var riskErr error
-		request.RestartRisk, riskErr = f.wal.RestartRisk(f.executor.now())
+		request.RestartRisk, riskErr = f.wal.RestartRiskContext(t.Context(), f.executor.now(), request.Deadline)
 		if riskErr != nil {
 			return nil, riskErr
 		}
 	}
 	decision := f.governor.Try(request)
+	f.lastAdmission = &n1Admission{Request: request, Refusal: decision.Refusal, Usage: f.authority.Usage()}
 	if decision.Grant == nil {
 		return nil, effectiveAdmissionRefusal(decision.Refusal)
 	}
@@ -324,4 +331,24 @@ func TestInventoryMemoryLateCancellation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Same production post-physical-return observer; never a retry of a failed
+// command or an inference from the advisory measurement WAL sample.
+func (f *inventoryMemoryFixture) observeReturned(tx *transaction) error {
+	if !f.maintenance || tx == nil || !tx.retirementComplete || !tx.connectionReturned || tx.physicalReturnedAt.IsZero() {
+		return nil
+	}
+	if f.observedReturn == tx {
+		return f.postReturnErr
+	}
+	f.observedReturn = tx
+	f.postReturn, f.postReturnErr = observeWriterWALAt(f.path, f.wal, f.executor.now, &f.observationClock, tx.clockHighWater, tx.commitReturnedAt, tx.physicalReturnedAt)
+	return f.postReturnErr
+}
+
+type n1Admission struct {
+	Request governor.Request    `json:"request"`
+	Refusal *governor.Refusal   `json:"refusal"`
+	Usage   [4]governor.Amounts `json:"usage"`
 }

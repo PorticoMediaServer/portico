@@ -131,51 +131,55 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 
 func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicket, foreground *foregroundHolding, shutdown *CheckpointKeeper, read *ReadScope) Decision {
 	now := g.config.Now()
-	refuse := func(code RefusalCode) Decision {
+	refuse := func(code RefusalCode, cause RefusalCause) Decision {
 		retryAt := now.Add(100 * time.Millisecond)
 		if foreground != nil {
 			retryAt = minTime(retryAt, foreground.waitUntil)
 		}
-		return Decision{Refusal: &Refusal{Code: code, RetryAt: retryAt}}
+		return Decision{Refusal: &Refusal{Code: code, Cause: cause, RetryAt: retryAt}}
 	}
 	if !validRequest(r) || (r.RestartRisk != (WALRestartRisk{}) && (!r.Writer || g.config.WAL == nil)) {
-		return refuse(Invalid)
+		return refuse(Invalid, CauseInvalidRequest)
 	}
 	if !r.Deadline.After(now) {
-		return refuse(Deadline)
+		return refuse(Deadline, CauseDeadline)
 	}
 	if (r.Writer || checkpoint) && (r.MaxHold <= 0 || r.MaxHold > g.maxHold(checkpoint) ||
 		r.Budget.RawRows == 0 || r.Budget.VMOps == 0 || r.Budget.Pages == 0 || (r.Writer && r.Need[WALBytes] == 0)) {
-		return refuse(Unqualified)
+		return refuse(Unqualified, CauseUnqualified)
 	}
 	if checkpoint && (r.Writer || r.Class != Recovery || g.config.WAL == nil ||
 		r.Need[Reader] != 1 || r.Need[MemoryBytes] <= 0 || r.Need[CPUMilli] <= 0 || r.Need[IOBytes] <= 0 || r.Need[WALBytes] != 0) {
-		return refuse(Unqualified)
+		return refuse(Unqualified, CauseUnqualified)
 	}
 	if ticket != nil && ticket.owner != g {
-		return refuse(Invalid)
+		return refuse(Invalid, CauseInvalidRequest)
 	}
-	// Admission never queues behind another caller or performs external IO.
-	if !g.mu.TryLock() {
-		return refuse(Capacity)
+	// Contention consumes the original deadline; it is never false capacity.
+	if err := g.mu.lockUntil(context.Background(), r.Deadline, now); err != nil {
+		return refuse(Deadline, CauseDeadline)
 	}
 	defer g.mu.Unlock()
+	now = g.config.Now()
+	if !r.Deadline.After(now) {
+		return refuse(Deadline, CauseDeadline)
+	}
 	if shutdown != nil && (g.keeper != shutdown || !shutdown.shutdownShape(r)) {
-		return refuse(Invalid)
+		return refuse(Invalid, CauseInvalidRequest)
 	}
 	if g.resetOwner != nil && (r.Writer || r.Need[Reader] != 0) && !(checkpoint && ticket != nil && ticket.recovery && ticket.owner == g) {
-		return refuse(Capacity)
+		return refuse(Capacity, CauseRecoveryDrain)
 	}
 	state := g.state.Load()
 	if state&1 != 0 && r.Class == Background {
-		return refuse(FailSafe)
+		return refuse(FailSafe, CauseStatic)
 	}
 	limit := g.config.MaxGrantsPerClass
 	if shutdown == nil && r.Class == Recovery && g.keeper != nil && g.keeper.flags.Load()&keeperClosed == 0 {
 		limit--
 	}
 	if g.counts[r.Class] >= limit || g.sequence == math.MaxUint64 {
-		return refuse(Capacity)
+		return refuse(Capacity, CauseGrantCapacity)
 	}
 	for k, n := range r.Need {
 		available := g.config.Partitions[r.Class][k] - g.used[r.Class][k]
@@ -183,12 +187,12 @@ func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicke
 			available -= g.keeper.resources.StartupRequest.Need[k]
 		}
 		if n > available {
-			return refuse(Capacity)
+			return refuse(Capacity, CausePartition)
 		}
 	}
 	for _, h := range g.live {
 		if r.Writer && h.request.Writer {
-			return refuse(Capacity)
+			return refuse(Capacity, CauseWriterActive)
 		}
 		for _, want := range r.IO {
 			for _, held := range h.request.IO {
@@ -201,32 +205,32 @@ func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicke
 					if g.config.WAL != nil && g.config.WAL.policy.ConcurrentPassive && pairedCheckpointIO(r, checkpoint, h) {
 						continue
 					}
-					return refuse(Capacity)
+					return refuse(Capacity, CauseDeviceActive)
 				}
 			}
 		}
 	}
 	if code := g.preparationPublicationCode(r, now); code != 0 {
-		return refuse(code)
+		return refuse(code, CausePreparation)
 	}
 	if r.Writer && g.config.WAL != nil {
-		if code := g.config.WAL.reserveForLedger(r, now, g); code != 0 {
-			return refuse(code)
+		if code, cause := g.config.WAL.reserveForLedger(r, now, g); code != 0 {
+			return refuse(code, cause)
 		}
 	}
 	if checkpoint {
-		if code := g.config.WAL.reserveCheckpoint(ticket, now); code != 0 {
-			return refuse(code)
+		if code, cause := g.config.WAL.reserveCheckpoint(ticket, now, r.Deadline); code != 0 {
+			return refuse(code, cause)
 		}
 	}
 	if foreground != nil {
 		if !now.Before(foreground.waitUntil) {
-			return refuse(Deadline)
+			return refuse(Deadline, CauseDeadline)
 		}
 		g.promoteForeground(now)
 		foreground.waiting = g.foreground.live == g.foreground.capacity
 		if foreground.waiting && g.foreground.waiters == g.foreground.profile.MaxWaiters {
-			return refuse(Capacity)
+			return refuse(Capacity, CauseGrantCapacity)
 		}
 		if foreground.waiting {
 			foreground.wake = make(chan struct{})
@@ -297,7 +301,7 @@ func (g *ledger) Cancel(p *Grant) {
 
 // Check verifies exact remaining authority at a private backend entry point.
 // Admitted validation waits within the issuer-captured original deadline;
-// ordinary Try remains nonwaiting. Mutex contention is not invalid authority.
+// admission also waits within its original deadline. Contention is not refusal.
 // The expected request must come from a closed purpose registry, not a worker's
 // priority string. Cancellation/fencing during a running operation revokes new
 // operations; it cannot preempt an fsync or refund that operation's custody.

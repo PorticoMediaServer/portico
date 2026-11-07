@@ -300,6 +300,8 @@ type n1Attempt struct {
 	StoredProfiles         []n1StoredProfile          `json:"stored_search_profiles"`
 	AgeState               []int64                    `json:"age_input_published_pending"`
 	InputLengths           map[string]int             `json:"input_lengths"`
+	Admission              *n1Admission               `json:"admission"`
+	PostReturnObservation  *WALObservation            `json:"post_return_observation"`
 	BoundRequest           *governor.Request          `json:"bound_synthetic_request"`
 	MemoryPartition        map[string]uint64          `json:"synthetic_memory_partition"`
 	WorkLimit              *Work                      `json:"synthetic_work_limit"`

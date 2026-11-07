@@ -8,7 +8,8 @@ import (
 
 // One ledger lock. A channel token permits bounded admission revalidation
 // without polling, a goroutine per check or a second grant/queue authority.
-// Try still never waits. Retirement and diagnostics use ordinary Lock.
+// Admission and validation bound contention by original deadlines.
+// Retirement and diagnostics use ordinary Lock.
 // The zero value is usable, as with sync.Mutex.
 type ledgerMutex struct {
 	once  sync.Once

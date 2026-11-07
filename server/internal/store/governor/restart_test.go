@@ -1,6 +1,8 @@
 package governor
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -50,10 +52,14 @@ func TestRestartRiskIsConservativeFreshAndExactAtAdmission(t *testing.T) {
 		t.Fatal("missing sample silently returned Possible=false")
 	}
 	wal.mu.Lock()
-	if _, err := wal.RestartRisk(clock.now()); err != ErrBusy {
-		t.Fatal("risk getter waited for gate", err)
-	}
+	expiry := make(chan time.Time, 1)
+	expiry <- clock.now()
+	wal.mu.timer = func(time.Duration) (<-chan time.Time, func()) { return expiry, func() {} }
+	_, err := wal.RestartRiskContext(context.Background(), clock.now(), clock.now().Add(time.Second))
 	wal.mu.Unlock()
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("risk getter must use bounded deadline", err)
+	}
 }
 
 func TestRestartPlacementAlreadyEligibleOnlyAndImmediateFallback(t *testing.T) {

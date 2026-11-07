@@ -3,6 +3,7 @@ package governor
 import (
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -174,36 +175,42 @@ func TestCheckpointNeedsPrivateQualifiedAdmission(t *testing.T) {
 	}
 }
 
-func TestCheckpointSharedWALGateAndNonblockingContention(t *testing.T) {
-	g, a, clock, wal := checkpointSetup(t)
-	cfg := g.(*ledger).config
-	other, otherAuthority, err := New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cp := checkpointGrant(t, a, checkpointRequest(clock))
-	refused(t, other, checkpointWriter(clock, Foreground), Capacity)
-	checkpointRefused(t, otherAuthority, checkpointRequest(clock), Capacity)
-	if otherAuthority.Retired(cp) != ErrRetirement {
-		t.Fatal("shared gate bypassed ledger identity")
-	}
-	retire(t, a, cp)
-	wal.mu.Lock()
-	done := make(chan Decision, 1)
-	go func() { done <- a.tryCheckpoint(checkpointRequest(clock)) }()
-	select {
-	case d := <-done:
+func TestCheckpointSharedWALGateAndBoundedContention(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		g, a, clock, wal := checkpointSetup(t)
+		cfg := g.(*ledger).config
+		other, otherAuthority, err := New(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cp := checkpointGrant(t, a, checkpointRequest(clock))
+		refused(t, other, checkpointWriter(clock, Foreground), Capacity)
+		checkpointRefused(t, otherAuthority, checkpointRequest(clock), Capacity)
+		if otherAuthority.Retired(cp) != ErrRetirement {
+			t.Fatal("shared gate bypassed ledger identity")
+		}
+		retire(t, a, cp)
+		wal.mu.Lock()
+		done := make(chan Decision, 1)
+		go func() { done <- a.tryCheckpoint(checkpointRequest(clock)) }()
+		synctest.Wait()
+		select {
+		case d := <-done:
+			wal.mu.Unlock()
+			t.Fatal("contention became refusal", d)
+		default:
+		}
 		wal.mu.Unlock()
-		if d.Grant != nil || d.Refusal == nil || d.Refusal.Code != Capacity {
+		d := <-done
+		if d.Grant == nil || d.Refusal != nil {
 			t.Fatal(d)
 		}
-	case <-time.After(time.Second):
-		wal.mu.Unlock()
-		t.Fatal("checkpoint admission waited for WAL mutex")
-	}
-	if a.Usage() != [4]Amounts{} {
-		t.Fatal("contended admission left debt")
-	}
+		retire(t, a, d.Grant)
+
+		if a.Usage() != [4]Amounts{} {
+			t.Fatal("contended admission left debt")
+		}
+	})
 }
 
 func TestCheckpointWriterAdmissionRace(t *testing.T) {
