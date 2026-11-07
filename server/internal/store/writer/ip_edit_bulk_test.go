@@ -130,7 +130,7 @@ func TestIPEditBulkNativeRollbackAndIncompleteSeal(t *testing.T) {
 			ipPolicyTestCommit(t, turn)
 			if fault == "extra_target" {
 				ipPolicyTestExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(103,X'03000000000000000000000000000000',7,1)`)
-				ipPolicyTestExec(t, w, `INSERT INTO metadata_edit_batch_targets VALUES('bulk1',2,103,zeroblob(16),1,'captured',NULL)`)
+				ipPolicyTestExec(t, w, `INSERT INTO metadata_edit_batch_targets(operation_id,ordinal,entity_id,expected_entity_incarnation,expected_revision,state,result_revision) VALUES('bulk1',2,103,zeroblob(16),1,'captured',NULL)`)
 			}
 			q = ipBulkNext(t, w, q, ipEditBulkSeal)
 			q.AfterOrdinal = int64(len(q.Targets))

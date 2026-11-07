@@ -2,7 +2,9 @@ package writer
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	fieldmeta "github.com/PorticoMediaServer/portico/server/internal/store/metadata"
 	"testing"
 )
 
@@ -19,6 +21,9 @@ func TestIPSharedResultIndependentWires(t *testing.T) {
 	for n := range request {
 		request[n] = byte(n + 32)
 	}
+	var bulkManifest [32]byte
+	bm, _ := hex.DecodeString("2d5f7dbae8111d94c68ff52d425a4e60a55f1127d42c2608a10c2fbf8c3b35cb")
+	copy(bulkManifest[:], bm)
 	// Independent Python struct.pack/hashlib answers from the written wire
 	// orders. No result implementation was called to generate these hashes.
 	for _, tc := range []struct {
@@ -26,6 +31,11 @@ func TestIPSharedResultIndependentWires(t *testing.T) {
 		value    any
 		expected string
 	}{
+		{"bulk222", ipEditBulkSavedResult{ipEditBulkSeal, ipEditBulkResult{Revision: 4, AfterOrdinal: 2, Captured: 2, AppliedMS: 1234, Complete: true, Manifest: bulkManifest}}, "16614c82d72ad2aa9776604ed08bb8420dee7422ff139f52135f0eeaef2cc358"},
+		{"bundle285", ipTextBundleSavedResult{IPFieldEdit, ipTextBundleResult{OwnerID: 11, EntityID: 101, Revision: 18, SubjectRevision: 24, AppliedMS: 1234, History: EvidenceInteger{42, true}, Fields: []ipTextBundleFieldResult{
+			{fieldmeta.Country, fieldmeta.TextChange{State: fieldmeta.TextState{Effective: fieldmeta.Text{"US", true}, Automatic: fieldmeta.Text{"CA", true}, Locked: true}, Changed: true, EffectiveChanged: true}},
+			{fieldmeta.Title, fieldmeta.TextChange{State: fieldmeta.TextState{Effective: fieldmeta.Text{"The Voyage", true}, Automatic: fieldmeta.Text{"Title", true}, Locked: true}, Changed: true, EffectiveChanged: true}},
+		}}}, "4d5bd508dd3c72cf0e38df2a1ecfbdc7f9c5ad95e9953e6dde213967c9b7e31f"},
 		{"policy249", ipPolicyResult{incarnation: policyInc, revision: 17, appliedMS: 23, values: ipPolicyValues{enabled: 1, priority: -7, creditEnabled: 1, region: "", algorithm: "v1.é", refreshMode: "replace_unlocked"}, creditAfterItem: sql.NullInt64{Int64: 0, Valid: true}, creditAfterProvider: sql.NullString{String: "tmdb", Valid: true}}, "d19c18f6744c3b3b635bd495244f313e74e63baf0d35311e626e8d060d9dfd66"},
 		{"refresh196", ipRefreshSavedResult{IPRefreshPage, ipRefreshResult{revision: 17, generation: 19, epochMS: 23, phase: "people", afterID: 29, scheduled: 3, waiting: 0, appliedMS: 37}}, "e23760a1b8690e4eb15388bbf0c75336437198119cc7814ce1cc595943e3c360"},
 		{"artwork168", ipArtworkDiscoverySavedResult{IPArtworkDiscoveryFinish, ipArtworkDiscoveryResult{11, 13, 17, 17}}, "d1339130a40c6674d8a95f5134360eaa549c1ad4837080d93dd028004c62f715"},
