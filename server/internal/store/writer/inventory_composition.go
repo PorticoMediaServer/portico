@@ -17,14 +17,9 @@ func inventoryCommandDefinitions() []stmt.Definition {
 // override and no numerical Work forecast inferred from a definition.
 func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 	if purpose == InventoryCreate || purpose == InventoryClaim {
-		switch id {
-		case inventoryDisclosureJob, inventoryDisclosureLibrary, scanRunHistoryOwner, scanRunHistoryBody,
-			scanReceiptLookup, scanReceiptAck, scanReceiptReclaimKey, scanReceiptReclaimHeader:
-			return 1 // ACK owns its one same-turn lookup; no duplicate outer decode
-		default:
-			return 0 // fresh lifecycle effects require a separate complete composition
-		}
+		return scanLifecycleMaxUses(purpose, id)
 	}
+
 	if purpose == InventoryAccept {
 		if uses := inventoryFreshMaxUses(id); uses != 0 {
 			return uses
