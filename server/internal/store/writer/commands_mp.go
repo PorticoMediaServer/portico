@@ -50,7 +50,7 @@ var mpCommands = commandRegistration{
 		{ID: 746, Name: "mp_transcode_reconcile", Durability: Normal},
 		{ID: 747, Name: "mp_transcode_deadline", Durability: Normal},
 		{ID: 748, Name: "mp_transcode_retry", Durability: Normal},
-		{ID: 749, Name: "mp_version_reclaim", Durability: Normal},
+		{ID: 749, Name: "mp_version_finalize_retirement", Durability: Normal},
 		{ID: 750, Name: "mp_queue_create", Durability: Normal},
 		{ID: 751, Name: "mp_queue_stage", Durability: Normal},
 		{ID: 752, Name: "mp_queue_seal", Durability: Normal},
@@ -77,6 +77,5 @@ var mpCommands = commandRegistration{
 		{ID: 786, Name: "mp_queue_receipt_reclaim", Durability: Normal},
 		{ID: 787, Name: "mp_next_receipt_reclaim", Durability: Normal},
 		{ID: 788, Name: "mp_birth_retire", Durability: Normal},
-		{ID: 789, Name: "mp_history_resolve", Durability: Normal},
 	},
 }
