@@ -171,6 +171,7 @@ func TestChange013PeopleBirth(t *testing.T) {
 }
 
 func seedAlbum(t *testing.T, f *fixture) {
+	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(5,'artist',0,1,1,1,1),(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1)`)
 	f.exec(t, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(1,'music','/music')`)
 	for _, r := range []struct{ id, kind, parent, album, disc, track int }{{1, 5, 0, 0, 0, 0}, {2, 6, 1, 0, 0, 0}, {3, 6, 1, 0, 0, 0}, {10, 7, 2, 2, 9, 1}, {20, 7, 2, 2, 1, 9}, {30, 7, 2, 2, 5, 3}, {40, 7, 3, 3, 1, 1}} {
 		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,randomblob(16),1,?)`, r.id, r.kind)
