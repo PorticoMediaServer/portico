@@ -71,7 +71,8 @@ pending even if an early object looked usable.
 1. TV Continue on-deck/partial/premiere/removed-container semantics need the accepted
    native producer/interpretation of container watermark, dismissal, last child,
    settings cutoff and premiere facts. The inspected merged writer has no container
-   producer; a show/episode with actual activity therefore makes Continue pending.
+   producer; a TV/anime scope or actual show/episode therefore makes Continue pending, even
+   when no leaf activity exists; missing producer facts are not an exact empty row.
    It is never replaced by the old leaf source or an arbitrary episode sample.
 2. Explicit owner Continue configuration needs UO's qualified normalized policy
    read. Mere admin_documents presence is a precise pending boundary; no general

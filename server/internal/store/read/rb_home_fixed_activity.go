@@ -18,6 +18,12 @@ func homeFixedActivity(frame homeFixedFrame, page HomeFixedPage, row string, _ t
 		return page, nil
 	}
 	for _, lib := range frame.Libraries {
+		if row == "continue" && (lib.Library.Kind == "tv" || lib.Library.Kind == "anime") {
+			return pending("show_container_on_deck_policy_uncomposed")
+		}
+		if row == "continue" && lib.Library.Kind != "movie" {
+			continue
+		}
 		if row == "continue" && len(lib.OwnerPolicy) != 0 {
 			return pending("owner_continue_policy_uncomposed")
 		}
@@ -45,10 +51,7 @@ func homeFixedActivity(frame homeFixedFrame, page HomeFixedPage, row string, _ t
 		if row == "continue" {
 			for _, x := range lib.Entities {
 				if x.Identity.Kind == 2 || x.Identity.Kind == 4 {
-					if len(x.Personal) != 0 && x.Personal[0][11] != nil {
-						return pending("show_container_on_deck_policy_uncomposed")
-					}
-					continue
+					return pending("show_container_on_deck_policy_uncomposed")
 				}
 				if x.Identity.Kind != 1 || !homeFixedResume(x, 3000) {
 					continue
