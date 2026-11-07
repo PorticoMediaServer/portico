@@ -397,6 +397,41 @@
     ]
   },
   {
+    "name": "library retirement retains no invented source",
+    "sql": "INSERT INTO catalog_removal_progress(kind,target,original_operation_id,original_request_digest,command_incarnation,original_library_id,original_library_key,original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms) VALUES('library','gone-library',X'dddddddddddddddddddddddddddddddd',zeroblob(32),X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',2,'gone-library','/historical',NULL,NULL,NULL,17,2,10000)"
+  },
+  {
+    "name": "library original operation is independent of source operation",
+    "query": "SELECT kind,original_source_incarnation,original_source_generation,original_root_identity FROM catalog_removal_progress WHERE kind='library' AND target='gone-library'",
+    "want": [
+      [
+        "library",
+        null,
+        null,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "library zero-member BEGIN and debt",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'dddddddddddddddddddddddddddddddd',X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',1,X'ffffffffffffffffffffffffffffffff',zeroblob(32),'retire_library',1,2,300,'library','gone-library',0,0,0,'',0,0,'retiring',0,zeroblob(32),241); UPDATE catalog_removal_progress SET last_command_sequence=1,job_revision=2,receipt_retained_count=1,receipt_retained_bytes=241 WHERE kind='library' AND target='gone-library'"
+  },
+  {
+    "name": "source result cannot alias library purpose",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'dddddddddddddddddddddddddddddddd',X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',2,X'01010101010101010101010101010101',zeroblob(32),'retire_source',1,2,300,'library','gone-library',0,0,0,'',0,0,'retiring',0,zeroblob(32),241)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "byte debt cannot lie about scalar payload",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'dddddddddddddddddddddddddddddddd',X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',2,X'02020202020202020202020202020202',zeroblob(32),'retire_step',1,2,300,'library','gone-library',0,0,0,'',0,0,'retiring',0,zeroblob(32),1)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "retained original library cannot be deleted",
+    "sql": "DELETE FROM catalog_libraries WHERE id=2",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
     "name": "member FK and order seek",
     "plan_sql": "SELECT ordinal FROM scan_reconcile_members WHERE run_id='D' AND command_incarnation=X'11111111111111111111111111111111' AND command_sequence=10 AND command_kind='inventory_reconcile' ORDER BY ordinal LIMIT 64",
     "seek": "run_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"

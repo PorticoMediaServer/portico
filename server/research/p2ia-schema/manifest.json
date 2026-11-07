@@ -1,13 +1,13 @@
 {
   "baseline": "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4",
-  "candidate": "bbf0fb5d37cbfa2df54b27bab0ea698f6caf22dc06f7ea74bf77d07d5fe2e471",
+  "candidate": "f3b9a1fe8a98cea15ef87234a7b34a72fda4f7e3f2c64b211a43c60e9972b232",
   "replacement_before": {
     "scan_command_receipts": "061c5ec784de461c0d8f80634f0cb07fefcada699382db880c047f92655d44d2",
     "catalog_removal_progress": "7e50ea6ef5f4382fabe16f2f6cd79889adcfb525a397d315851f760df81f1f44"
   },
   "replacement_after": {
     "scan_command_receipts": "500a471de63b4305cf12e994b9d402d1b333c6866f8f708f26ac58850ac83fb8",
-    "catalog_removal_progress": "c4b6005263c3c2263a529154740fc89d627faab3fef307fa6fa0f16ef2dbcd95"
+    "catalog_removal_progress": "e58102b791051007baa011cb256be84743b379b23ac437a3a15df85b4a784a2c"
   },
   "new_tables": [
     "scan_reconcile_members",
