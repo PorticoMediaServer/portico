@@ -131,12 +131,6 @@ func TestRBHomeFixedRecent(t *testing.T) {
 			t.Fatal(p, c, e)
 		}
 
-		homeFixedStateSeed(t, f, 2000, 0, "ended")
-		f.exec(t, `UPDATE personal_items SET container_cleared_through='2026-11-03T00:00:00Z' WHERE item_id=2000`)
-		p, c, e = homeFixedRead(t, f, r, "listen_next")
-		if e != nil || !p.Pending || p.Exact || len(p.Items) != 0 {
-			t.Fatal("uncomposed album removal was ignored", p, c, e)
-		}
 	})
 	homeFixedCase(t, "raw_hidden_tail_pending", func(t *testing.T) {
 		f, r := homeFixedFixture(t, func(f *browseFixture) {
@@ -211,6 +205,12 @@ func TestRBHomeFixedActivity(t *testing.T) {
 		p, c, e = homeFixedRead(t, f, r, "listen_next")
 		if e != nil || len(p.Items) != 1 || p.Items[0].Target.ID != 3000 {
 			t.Fatal(p, c, e)
+		}
+		homeFixedStateSeed(t, f, 2000, 0, "ended")
+		f.exec(t, `UPDATE personal_items SET container_cleared_through='2026-11-03T00:00:00Z' WHERE item_id=2000`)
+		p, c, e = homeFixedRead(t, f, r, "listen_next")
+		if e != nil || !p.Pending || p.Exact || len(p.Items) != 0 {
+			t.Fatal("uncomposed album removal was ignored", p, c, e)
 		}
 	})
 	homeFixedCase(t, "book_actual_resume_child", func(t *testing.T) {

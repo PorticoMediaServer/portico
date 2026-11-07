@@ -53,11 +53,13 @@ func init() {
 		expected.ID = stmt.ID("read.browse.rb.home.fixed.binding." + name + ".bytes")
 		expected.SQL = sqlText
 		if n == 0 {
-			expected.SQL = strings.Replace(expected.SQL, "catalog_entities AS e", "catalog_entities AS e NOT INDEXED", 1)
+			expected.SQL = strings.Replace(expected.SQL, "catalog_entities AS e", "catalog_entities AS e INDEXED BY catalog_entities_library_id", 1)
 			sqlText = expected.SQL
 		}
 		if n == 0 {
-			expected.Plan.PrimaryKeys = []string{"e", "k", "cl"}
+			expected.Plan.PrimaryKeys = []string{"k", "cl"}
+			expected.Plan.Indexes = append(expected.Plan.Indexes, "catalog_entities_library_id")
+			expected.Plan.Seeks = []string{"library_id=? AND id=?"}
 		}
 		pointOctets.add(octetShape{id: expected.ID, sql: sqlText, mismatch: "exact bounded Home binding byte range required",
 			definition: func(d stmt.Definition) bool {
