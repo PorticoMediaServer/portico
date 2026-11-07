@@ -54,7 +54,7 @@ func applyScanDirectory(ctx context.Context, t *commandTurn, c *scanDirectoryCom
 	for _, point := range []struct {
 		id   stmt.ID
 		args []any
-	}{{scanDirectoryRunLengths, []any{o.RunID}}, {scanDirectoryJobLengths, []any{o.RunID}}, {scanDirectoryRootLengths, []any{o.RunID, "."}}, {scanDirectoryRootLengths, []any{o.RunID, q.Parent.Path}}, {scanDirectorySourceLengths, []any{o.SourceID, o.LibraryKey}}, {scanLibraryRootLengths, []any{o.LibraryID, o.LibraryKey}}} {
+	}{{scanDirectoryRunLengths, []any{o.RunID}}, {scanDirectoryJobLengths, []any{o.RunID}}, {scanDirectoryRootLengths, []any{o.RunID, "."}}, {scanDirectoryRootLengths, []any{o.RunID, q.Parent.Path}}, {scanSourceLengths, []any{o.SourceID, o.LibraryKey}}, {scanLibraryRootLengths, []any{o.LibraryID, o.LibraryKey}}} {
 		size, e := directoryNativeBytes(ctx, t, point.id, point.args...)
 		if e != nil {
 			return out, digest, errors.Join(ErrConflict, e)
