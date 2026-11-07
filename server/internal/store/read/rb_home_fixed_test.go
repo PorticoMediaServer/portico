@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -282,6 +283,20 @@ func TestRBHomeFixedPublication(t *testing.T) {
 		f, r := homeFixedFixture(t, func(f *browseFixture) { f.exec(t, `UPDATE libraries SET kind='book' WHERE id='movies'`) })
 		p, c, e := homeFixedRead(t, f, r, "continue_books")
 		if e != nil || !p.Pending || p.Exact || p.Exhausted {
+			t.Fatal(p, c, e)
+		}
+	})
+}
+
+func TestRBHomeFixedTopology(t *testing.T) {
+	homeFixedCase(t, "wrong_work_kind_refuses", func(t *testing.T) {
+		f, r := homeFixedFixture(t, func(f *browseFixture) {
+			homeFixedEntitySeed(t, f, 2000, 1, nil, nil, nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedEntitySeed(t, f, 3000, 4, nil, int64(2000), nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedAssetSeed(t, f, 3000)
+		})
+		p, c, e := homeFixedRead(t, f, r, "new_on_server")
+		if !errors.Is(e, ErrUnqualified) || len(p.Items) != 0 || p.Exact {
 			t.Fatal(p, c, e)
 		}
 	})
