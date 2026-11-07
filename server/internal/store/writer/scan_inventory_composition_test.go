@@ -229,7 +229,7 @@ func TestN1OwnerRetentionKeepsExactRegistryNormalizedDefinitions(t *testing.T) {
 			t.Fatal(err)
 		}
 		actual := catalogue.Manifest()[0].Definition
-		if !scanOwnerRetentionDefinitionMatches(actual, def) {
+		if !sameNormalizedStatementDefinition(actual, def) {
 			t.Fatal("zero-arity registry normalization rejected exact statement", def.ID)
 		}
 		for _, mutate := range []func(*stmt.Definition){
@@ -239,7 +239,7 @@ func TestN1OwnerRetentionKeepsExactRegistryNormalizedDefinitions(t *testing.T) {
 		} {
 			changed := actual
 			mutate(&changed)
-			if scanOwnerRetentionDefinitionMatches(changed, def) {
+			if sameNormalizedStatementDefinition(changed, def) {
 				t.Fatal("normalization widened the frozen definition", def.ID)
 			}
 		}
