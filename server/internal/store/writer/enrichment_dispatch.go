@@ -134,6 +134,8 @@ func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evid
 		if locked {
 			r.mu.Unlock()
 		}
+		// Publication is checked again after configuration custody is returned.
+		_, err = finishCommand(ctx, ctx, struct{}{}, err)
 	}()
 	if ctx == nil || r == nil || r.executor == nil || r.registry == nil {
 		return ErrInvalid
