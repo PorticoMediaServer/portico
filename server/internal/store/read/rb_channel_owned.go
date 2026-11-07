@@ -176,7 +176,7 @@ func (r *SharedChannelReader) CloneSharedChannelValues(ctx context.Context, out,
 	if retained.Request.Need[governor.MemoryBytes] < size.ChargeBytes {
 		return empty, governor.ErrSnapshotBudget
 	}
-	if err = r.a.CheckContext(ctx, retained.Grant, retained.Request); err != nil {
+	if err = r.channelCopyCustody(ctx, retained); err != nil {
 		return empty, err
 	}
 	owned := SharedChannelRetainedValues{Scope: rbCloneChannelScope(values.Scope)}
@@ -208,7 +208,7 @@ func (r *SharedChannelReader) CloneSharedChannelValues(ctx context.Context, out,
 		v.Items = rbCloneChannelItems(v.Items)
 		owned.Validated = &v
 	}
-	if err = errors.Join(r.channelCopyCustody(ctx, out), r.a.CheckContext(ctx, retained.Grant, retained.Request)); err != nil {
+	if err = errors.Join(r.channelCopyCustody(ctx, out), r.channelCopyCustody(ctx, retained)); err != nil {
 		return empty, err
 	}
 	return owned, nil
