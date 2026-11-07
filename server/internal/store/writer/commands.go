@@ -31,6 +31,8 @@ const (
 	CreditSourceSeal
 	InventoryDirectoryDiscover
 	InventoryDirectoryEOF
+	InventoryDirectoryRefuse
+	InventoryTraversalComplete
 )
 
 type Durability uint8
@@ -104,6 +106,10 @@ func Describe(id CommandID) (Descriptor, error) {
 		name = "inventory_directory_discover"
 	case InventoryDirectoryEOF:
 		name = "inventory_directory_eof"
+	case InventoryDirectoryRefuse:
+		name = "inventory_directory_refuse"
+	case InventoryTraversalComplete:
+		name = "inventory_traversal_complete"
 	default:
 		return Descriptor{}, invalid("command")
 	}

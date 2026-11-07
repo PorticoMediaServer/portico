@@ -18,7 +18,7 @@ func composeScanDirectories(ctx context.Context, r *effectiveRuntime, discover, 
 		_, err = finishCommand(ctx, ctx, struct{}{}, err)
 		if installed && err != nil {
 			r.registry = old
-			r.directoryPlans = [2]*effectivePlan{}
+			r.directoryPlans = [4]*effectivePlan{}
 		}
 		if executorLocked {
 			r.executor.mu.Unlock()
@@ -42,7 +42,7 @@ func composeScanDirectories(ctx context.Context, r *effectiveRuntime, discover, 
 	if r.fenced || r.executor.closed || r.executor.fenced || r.executor.ambiguous {
 		return ErrClosed
 	}
-	if r.directoryPlans != ([2]*effectivePlan{}) {
+	if r.directoryPlans != ([4]*effectivePlan{}) {
 		return ErrBusy
 	}
 	defs := scanDirectoryDefinitions()
@@ -84,7 +84,7 @@ func composeScanDirectories(ctx context.Context, r *effectiveRuntime, discover, 
 		return err
 	}
 	old, r.registry = r.registry, registry
-	r.directoryPlans = [2]*effectivePlan{&discover, &eof}
+	r.directoryPlans = [4]*effectivePlan{&discover, &eof}
 	installed = true
 	return nil
 }
