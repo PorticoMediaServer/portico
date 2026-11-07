@@ -4,14 +4,23 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
-	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"reflect"
 	"testing"
 	"time"
 )
+
+// The persisted owner tuple is JSON [authority, account, profile] encoded as
+// unpadded base64url. Keep this fixture value-only: importing legacy persistence
+// also imports dbwork and globally registers legacy SQLite scalar functions.
+func wcFixturePersonalOwnerKey(authority, account, profile string) string {
+	raw, _ := json.Marshal([3]string{authority, account, profile})
+	return "viewer:" + base64.RawURLEncoding.EncodeToString(raw)
+}
 
 // REAL owned opening, real clocks, native birth and real grants. This is a
 // component smoke fixture with explicit prospective forecasts, not qualification.
@@ -80,7 +89,7 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 		t.Fatal(err)
 	}
 	scope := wcProgressScope{primary: 1, primaryProfile: "profile-one", membershipRole: "member", horizon: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), expires: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), playbackID: "playback-音", profileKey: "viewer-one", accountID: "account-one", profileID: "profile-one", memberBirth: member, profileBirth: profile, libraryKey: "library-one", libraryID: 7, subjectID: 11, serverID: "server", familyID: "wc-family", tokenHash: "wc-token", epoch: 1, tokenGeneration: 1, memberRevision: 1, profileRevision: 1, role: "member", memberLibraries: `["library-one"]`}
-	scope.profileKey = persistence.PersonalOwnerKey("local", scope.accountID, scope.profileID)
+	scope.profileKey = wcFixturePersonalOwnerKey("local", scope.accountID, scope.profileID)
 	scope.expires = scope.horizon
 	for _, b := range []*[16]byte{&scope.incarnation, &scope.clock, &scope.subjectPublicID} {
 		if _, err = rand.Read(b[:]); err != nil {
