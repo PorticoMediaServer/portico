@@ -10,6 +10,10 @@ import (
 // current ScanDisclosure. No public driver/permission factory is introduced.
 func (r *effectiveRuntime) runBasic(ctx context.Context, w *Writer, disclosure *ScanDisclosure, in basicInvocation, ack bool) (value BasicResult, acknowledged AckResult, err error) {
 	defer func() {
+		// Driver unlock/physical cleanup happens first. Its independently canceled
+		// authority/preparation lifetime must still redact the outer publication.
+		scan := &inventoryInvocation{disclosure: disclosure, request: in.request.Scan, basic: &in}
+		err = errors.Join(err, r.currentRunDisclosure(w, nil, EnrichmentReceiptRequest{}, scan), basicWorkCurrent(scan))
 		v, e := finishCommand(ctx, ctx, commandCompletion{output: commandOutput{basic: value}, ack: acknowledged}, err)
 		value, acknowledged, err = v.output.basic, v.ack, e
 	}()
