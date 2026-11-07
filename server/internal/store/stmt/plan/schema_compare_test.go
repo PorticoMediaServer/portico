@@ -2,8 +2,10 @@ package plan
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -153,8 +155,12 @@ func TestPlanSchemaAuditsUseOneCurrentReference(t *testing.T) {
 
 }
 func TestPlanSchemaRecordWidthMappingIsExact(t *testing.T) {
-	mk := func(ddl string, width int64) (map[string]any, Rows) {
-		return map[string]any{"plans": []any{map[string]any{"explain": map[string]any{"values": []any{[]any{json.Number("0"), "OpenRead", json.Number("1"), `"main"."t"`, json.Number("0"), json.Number(strconv.FormatInt(width, 10)), json.Number("0"), nil}}}}}}, Rows{Columns: []string{"type", "name", "tbl_name", "rootpage", "sql"}, Values: [][]any{{"table", "t", "t", int64(2), ddl}}}
+	mk := func(ddl string, width any) (map[string]any, Rows) {
+		operand := width
+		if n, ok := width.(int); ok {
+			operand = json.Number(strconv.Itoa(n))
+		}
+		return map[string]any{"plans": []any{map[string]any{"explain": map[string]any{"values": []any{[]any{json.Number("0"), "OpenRead", json.Number("1"), `"main"."t"`, json.Number("0"), operand, json.Number("0"), nil}}}}}}, Rows{Columns: []string{"type", "name", "tbl_name", "rootpage", "sql"}, Values: [][]any{{"table", "t", "t", int64(2), ddl}}}
 	}
 
 	a, sa := mk("CREATE TABLE t(a INTEGER,b TEXT)", 2)
@@ -178,6 +184,48 @@ func TestPlanSchemaRecordWidthMappingIsExact(t *testing.T) {
 	normalizeRecordWidths(original, generated, so, sg)
 	if jsonEqual(original, generated) {
 		t.Fatal("unsupported generated layout mapped")
+	}
+	for _, ddl := range []string{"CREATE TABLE t(a INTEGER,b TEXT,c TEXT AS(a) STORED)", "CREATE TABLE t(a INTEGER,b TEXT,c TEXT AS(a) VIRTUAL)"} {
+		old, oldSchema := mk("CREATE TABLE t(a INTEGER,b TEXT)", 2)
+		short, newSchema := mk(ddl, 3)
+		normalizeRecordWidths(old, short, oldSchema, newSchema)
+		if jsonEqual(old, short) {
+			t.Fatal("shorthand generated layout mapped", ddl)
+		}
+	}
+	// This actual native P4 is retained by the canonical capture; its complete
+	// native VM is independently default-checked on every canonical test run.
+	g := canonicalComparisonFixture(t)
+	var native any
+	for _, p := range g["plans"].([]any) {
+		for _, r := range p.(map[string]any)["explain"].(map[string]any)["values"].([]any) {
+			row := r.([]any)
+			if row[1] == "OpenRead" && row[3] == `"main"."catalog_assets"` {
+				native = row[5]
+				break
+			}
+		}
+	}
+	if native != "32" {
+		t.Fatalf("native P4 fixture changed: %T %v", native, native)
+	}
+	ddl := func(n int) string {
+		cols := make([]string, n)
+		for i := range cols {
+			cols[i] = fmt.Sprintf("c%d TEXT", i)
+		}
+		return "CREATE TABLE t(" + strings.Join(cols, ",") + ")"
+	}
+	old, oldSchema := mk(ddl(31), "31")
+	next, newSchema := mk(ddl(32), native)
+	normalizeRecordWidths(old, next, oldSchema, newSchema)
+	if !jsonEqual(old, next) {
+		t.Fatal("native decimal P4 widths refused")
+	}
+	for _, bad := range []string{"031", " 31", "+31", "-1", "31.0", "k(31,)", "9223372036854775808"} {
+		if _, ok := recordWidthValue(bad); ok {
+			t.Fatal("noncanonical P4 width admitted", bad)
+		}
 	}
 
 }

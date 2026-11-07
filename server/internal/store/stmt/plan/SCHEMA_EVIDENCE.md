@@ -31,7 +31,7 @@ each statement baseline:
 - fixture source journal hash and implementation description (still recorded;
   native population assertions remain owned by the fixture);
 - full physical table record widths in `OpenRead`, only when exactly equal to
-  the named table's complete width. Generated/virtual declarations and decoder
+  the named table's complete width. Generated/virtual declarations (including shorthand `AS(...)`) and decoder
   prefixes keep exact comparison.
 
 Everything else stays in the statement comparison: SQL, ordered parameter and
