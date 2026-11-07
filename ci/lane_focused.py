@@ -25,6 +25,7 @@ CAPTURES = {
     'hn-wc-security-composition': ('writer', 'TestWCSecurityCompositionPlans', 'record-wc-security-composition-plans', ['wc-security-composition.json', 'wc-security-composition-fk.json.gz']),
     'hn-wc-progress-composition': ('writer', 'TestWCProgressCompositionPlans', 'record-wc-progress-composition-plans', ['wc-progress-composition.json', 'wc-progress-composition-fk.json.gz']),
     'hn-wc-progress': ('writer', 'TestWCProgressStatementPlans', 'record-wc-progress-plans', ['wc-progress-capture_start.json', 'wc-progress-pending_drain.json', 'wc-progress-fk.json.gz']),
+    'hn-basic-activation': ('writer', 'TestBasicActivationStatementPlans', 'record-basic-activation-plans', ['scan-basic-activation.json', 'scan-basic-activation-fk.json.gz']),
     'hn-browse': ('read', 'TestBrowsePlans', 'record-browse-plans', ['browse-plans.json.gz']),
     'hn-foreground': ('read', 'TestForegroundPlans', 'record-foreground-plans', ['foreground-plans.json.gz']),
 }
