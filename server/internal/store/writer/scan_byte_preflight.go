@@ -125,7 +125,35 @@ func requireScanByteMemory(ctx context.Context, turn *commandTurn, required uint
 // Same snapshot provides value stability; this echo check additionally refuses
 // projection/driver drift, including NULL versus empty and byte-count changes.
 func (v scanByteVector) matches(values ...any) bool {
-	return true // TEMPORARY hosted test mutant: bypass NULL and length echo.
+	if !v.exists || len(values) != v.count {
+		return false
+	}
+	for i, value := range values {
+		expected := v.cells[i]
+		var size int
+		present := true
+		switch x := value.(type) {
+		case nil:
+			present = false
+		case string:
+			size = len(x)
+		case []byte:
+			present = x != nil
+			size = len(x)
+		case sql.NullString:
+			present = x.Valid
+			size = len(x.String)
+			if !x.Valid && x.String != "" {
+				return false
+			}
+		default:
+			return false
+		}
+		if expected.Valid != present || present && (expected.Int64 < 0 || uint64(expected.Int64) != uint64(size)) {
+			return false
+		}
+	}
+	return true
 }
 
 func (v scanByteVector) matchesInventoryHeader(operation, request []byte, kind, source, incarnation string, revision sql.NullString, cursor string, digest []byte) bool {
