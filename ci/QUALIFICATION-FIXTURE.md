@@ -72,7 +72,7 @@ engine must report `3.53.4`. There is no alternate engine or system SQLite path.
 From `server`, the producer builds:
 
 ```text
-go test -p1 -c -o /absolute/private/work/writer.test ./internal/store/writer
+go test -p 1 -c -o /absolute/private/work/writer.test ./internal/store/writer
 ```
 
 It runs that pinned binary from `server/internal/store/writer` with
@@ -110,7 +110,7 @@ Python copy. Failed/skipped targets never publish an image, even if they wrote
 partial files. A failure receipt and command argv/logs are retained separately;
 the image artifact also includes `report/receipt.json` so its preview warning
 travels with the image (the separate receipt remains the review/pinning source).
-if setup never reached production, the fallback receipt points to GitHub job
+If setup never reached the producer, the fallback receipt points to GitHub job
 logs. Runner loss/cancellation can prevent final uploads: missing receipt,
 missing image, or unsuccessful workflow means unusable evidence. `complete`
 means local producer validation passed; artifact upload/run success must also
@@ -136,7 +136,7 @@ Example consumer workflow fragment (replace placeholders with literal pins):
 permissions:
   contents: read
   actions: read # concretely required for cross-run artifact download
-# Inside each consumer shard, after checking out the SAME producer source SHA:
+# Inside each consumer shard, after checking out its reviewed workload SHA:
 steps:
   - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
     with:
@@ -147,11 +147,12 @@ steps:
       path: population
   - name: Verify the pinned image before running the owner test
     env:
-      POPULATION_SOURCE: REVIEWED_MERGED_FULL_SHA
+      CONSUMER_SOURCE: REVIEWED_WORKLOAD_FULL_SHA
+      POPULATION_SOURCE: REVIEWED_PRODUCER_FULL_SHA
       POPULATION_SCHEMA: PINNED_SCHEMA_SHA256
       POPULATION_MANIFEST: PINNED_MANIFEST_SHA256
     run: |
-      test "$(git rev-parse HEAD)" = "$POPULATION_SOURCE"
+      test "$(git rev-parse HEAD)" = "$CONSUMER_SOURCE"
       python3 -B ci/qual_fixture.py verify --artifact "$GITHUB_WORKSPACE/population" --source "$POPULATION_SOURCE" --schema "$POPULATION_SCHEMA" --manifest-sha "$POPULATION_MANIFEST" --seed 0 --residents 1000000
 ```
 
@@ -166,10 +167,15 @@ UseQualificationPopulation(t, artifactDir, pinnedManifestSHA)
 `artifactDir` must be absolute. The API verifies the manifest pin, copies the
 immutable source image for the same test owner and leaves existing connection
 openers/policy unchanged. Shards never open or mutate the downloaded image in
-place. Use exactly the same source and embedded schema as the producer; a
-matching schema alone is not permission to reuse across source revisions.
-The Python verifier enforces the external source pin; the parent API checks
-embedded schema and the trusted manifest digest. No automatic adoption occurs.
+place. The producer source and workload consumer source are separately pinned. The
+same image can serve later reviewed class targets after QL checks that the
+population shape, projection and embedded schema are still compatible; a
+matching schema alone is not that decision. Do not rewrite the producer source
+in its manifest or relabel the old binary as the new target. If population
+semantics changed, generate a new artifact. The Python verifier checks the
+producer source pin; the parent API checks embedded schema and the trusted
+manifest digest. Each workload receipt records both identities. No automatic
+adoption across source revisions occurs.
 
 Focused local protocol controls only:
 `python3 -B -m unittest discover -s ci -p test_qual_fixture.py`.

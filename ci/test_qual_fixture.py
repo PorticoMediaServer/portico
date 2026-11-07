@@ -31,8 +31,12 @@ def synthetic(directory):
                                 BusyTimeout=0, MmapSize=0, QueryOnly=0, TempStore=1),
              dqs_ddl=0, dqs_dml=0, database_sha256=digest(image), database_bytes=len(image),
              facts=dict(version=q.SHAPE, seed=0, residents=2, library_id=7,
-                        library_key='qualification-movies', first_id=100, last_id=101,
+                        library_key='qualification-movies', first_id=1000000001, last_id=1000000002,
                         counts={'media': 2}, logical_sha256='c' * 64))
+    m['facts']['counts'] = {name: 2 for name in ('catalog_subjects', 'catalog_entities', 'catalog_assets',
+        'catalog_asset_links', 'catalog_scalar_contributions', 'catalog_asset_contributions', 'current_movies')}
+    m['facts']['counts'].update({name: 1 for name in ('libraries', 'catalog_libraries', 'catalog_kinds',
+        'catalog_membership_clock', 'catalog_age_item_counts')})
     directory.mkdir(exist_ok=True)
     (directory / 'population.sqlite').write_bytes(image)
     q.atomic_json(directory / 'population.json', m)
@@ -130,7 +134,9 @@ class Protocol(unittest.TestCase):
                      lambda m: m['facts'].update(residents=3),
                      lambda m: m['facts'].update(last_id=999),
                      lambda m: m['facts'].update(counts={'media': -1}),
-                     lambda m: m['actual_policy'].update(Synchronous=1)]
+                     lambda m: m['actual_policy'].update(Synchronous=1),
+                     lambda m: m['actual_policy'].update(CacheSize=-2048),
+                     lambda m: m['facts']['counts'].pop('catalog_entities')]
         for change in mutations:
             self.manifest = json.loads(original)
             change(self.manifest)
@@ -189,7 +195,7 @@ class Protocol(unittest.TestCase):
             elif name == 'go-version':
                 text = 'go version go1.26.10 linux/amd64'
             elif name == 'build':
-                self.assertEqual(argv, ['go', 'test', '-p1', '-c', '-o', str(work / 'writer.test'),
+                self.assertEqual(argv, ['go', 'test', '-p', '1', '-c', '-o', str(work / 'writer.test'),
                                         './internal/store/writer'])
                 self.assertEqual(cwd, module)
                 (work / 'writer.test').write_bytes(b'synthetic binary identity')

@@ -129,7 +129,7 @@ def validate_artifact(directory, *, source, schema, seed, residents, manifest_sh
     require(all(type(p[k]) is int for k in required - {'Engine', 'JournalMode'}),
             'invalid policy numeric values')
     require(p['ForeignKeys'] == 1 and p['Synchronous'] == 2
-            and p['AutoCheckpoint'] == 0 and p['CacheSize'] < 0
+            and p['AutoCheckpoint'] == 0 and p['CacheSize'] == -1024
             and p['BusyTimeout'] == p['MmapSize'] == p['QueryOnly'] == 0
             and p['TempStore'] == 1, 'invalid canonical writer policy')
     require(all(type(p.get(k, 0)) is int and p.get(k, 0) == 0 for k in ('DQSDDL', 'DQSDML')),
@@ -148,11 +148,18 @@ def validate_artifact(directory, *, source, schema, seed, residents, manifest_sh
             'population facts mismatch')
     require(bounded_int(f['first_id'], 1, 2**63-1)
             and bounded_int(f['last_id'], f['first_id'], 2**63-1)
-            and f['last_id'] - f['first_id'] + 1 == residents, 'population ID bounds mismatch')
+            and f['first_id'] == 1000000001
+            and f['last_id'] == 1000000000 + residents, 'population ID bounds mismatch')
     require(type(f['counts']) is dict and 1 <= len(f['counts']) <= 256
             and all(isinstance(k, str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,127}', k)
                     and bounded_int(v, 0, 100000000) for k, v in f['counts'].items()),
             'invalid population counts')
+    for name in ('catalog_subjects', 'catalog_entities', 'catalog_assets', 'catalog_asset_links',
+                 'catalog_scalar_contributions', 'catalog_asset_contributions', 'current_movies'):
+        require(f['counts'].get(name) == residents, 'population resident count mismatch: ' + name)
+    for name in ('libraries', 'catalog_libraries', 'catalog_kinds', 'catalog_membership_clock', 'catalog_age_item_counts'):
+        require(f['counts'].get(name) == 1, 'population singleton count mismatch: ' + name)
+
     require(bounded_int(m['database_bytes'], 1, MAX_IMAGE)
             and isinstance(m['database_sha256'], str) and re.fullmatch(SHA, m['database_sha256']),
             'invalid image bounds/hash')
@@ -283,7 +290,7 @@ def produce(source, output, work):
         receipt['cache_identity'] = identity
         receipt['cache_key'] = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         binary = work / 'writer.test'
-        run_command(['go', 'test', '-p1', '-c', '-o', str(binary), './internal/store/writer'], module, 'build', 1200)
+        run_command(['go', 'test', '-p', '1', '-c', '-o', str(binary), './internal/store/writer'], module, 'build', 1200)
         receipt['binary_sha256'] = file_hash(binary)
         metadata = run_command(['go', 'version', '-m', str(binary)], module, 'binary-build-info').read_text()
         require(re.search(r'\bmodernc.org/sqlite\s+v1\.58\.0\s', metadata)
