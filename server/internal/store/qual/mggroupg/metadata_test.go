@@ -104,6 +104,9 @@ func TestINTGroupGSelectedMetadata011(t *testing.T) {
 	if dir == "" {
 		t.Fatal("runner evidence directory required")
 	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(dir, "G-SELECTED-METADATA.json"), append(data, '\n'), 0600); err != nil {
 		t.Fatal(err)
 	}
