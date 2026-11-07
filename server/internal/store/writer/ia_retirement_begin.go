@@ -123,12 +123,12 @@ func applyIARetirementBegin(ctx context.Context, turn *commandTurn, input *iaRet
 	if err != nil {
 		return value, err
 	}
-	err = iaRetirementOneEffect(ctx, turn, iaRetirementDriverInsert, o.kind, o.target, o.operationID[:], o.requestDigest[:], input.identity.Incarnation[:], o.libraryID, o.libraryKey, o.resolvedRoot, sourceInc, sourceGeneration, rootIdentity, retained, applied)
+	err = iaRetirementOneEffect(ctx, turn, iaRetirementDriverInsert, o.kind, o.target, o.operationID[:], o.requestDigest[:], input.identity.Incarnation[:], o.libraryID, o.libraryKey, o.resolvedRoot, sourceInc, sourceGeneration, rootIdentity, int64(1), int64(1), retained, applied)
 	if err != nil {
 		return value, err
 	}
 	name, _ := iaRetirementKindName(input.purpose)
-	err = iaRetirementOneEffect(ctx, turn, iaRetirementHeaderInsert, o.operationID[:], input.identity.Incarnation[:], input.identity.OperationID[:], input.digest[:], name, applied, o.kind, o.target, digest[:], retained)
+	err = iaRetirementOneEffect(ctx, turn, iaRetirementHeaderInsert, o.operationID[:], input.identity.Incarnation[:], input.identity.Sequence, input.identity.OperationID[:], input.digest[:], name, int64(1), value.acceptedRevision, applied, o.kind, o.target, value.phase, value.entityKind, value.entityCursor, value.objectCursor, int64(0), int64(0), value.state, int64(0), digest[:], retained)
 	if err != nil {
 		return value, err
 	}

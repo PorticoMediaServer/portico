@@ -29,3 +29,20 @@ func TestIARetirementClosedStorageGrammar(t *testing.T) {
 		}
 	}
 }
+
+func TestIARetirementBeginClosedGrammar(t *testing.T) {
+	// Ordinary table INSERTs must not select the registry's FTS-only native
+	// insert escape. Catch definition errors before any native setup work.
+	defs := iaRetirementBeginDefinitions()
+	if len(defs) != 7 {
+		t.Fatal("closed BEGIN inventory changed")
+	}
+	if _, err := stmt.Describe(defs); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range defs {
+		if !d.Plan.Hot || len(plan.LintSQL(d.SQL)) != 0 {
+			t.Fatal("unbounded BEGIN grammar", d.ID, plan.LintSQL(d.SQL))
+		}
+	}
+}

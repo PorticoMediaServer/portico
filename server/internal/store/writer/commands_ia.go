@@ -19,9 +19,11 @@ const (
 	IAFinishRescan           CommandID = 123
 )
 
+// ConfigureSource includes disable/replacement, so its one static descriptor
+// uses FULL for every variant; a caller cannot downgrade a denial action.
 var iaCommands = commandRegistration{owner: "IA", descriptors: []Descriptor{
 	{IAConfigureLibrary, "ia_configure_library", Normal},
-	{IAConfigureSource, "ia_configure_source", Normal},
+	{IAConfigureSource, "ia_configure_source", Full},
 	{IARetireLibrary, "ia_retire_library", Full},
 	{IARetireSource, "ia_retire_source", Full},
 	{IARetireStep, "ia_retire_step", Normal},
