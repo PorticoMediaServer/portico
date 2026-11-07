@@ -74,9 +74,10 @@ func TestPlanSchemaComparisonNeverHidesPlanOrEnvironmentCorruption(t *testing.T)
 		"search": func(g map[string]any) {
 			g["plans"].([]any)[0].(map[string]any)["queryPlan"].(map[string]any)["values"].([]any)[0].([]any)[3] = "SCAN changed"
 		},
-		"manifest":     func(g map[string]any) { g["manifest"].([]any)[0].(map[string]any)["sql"] = "SELECT other FROM another" },
-		"schemaDigest": func(g map[string]any) { g["environment"].(map[string]any)["schemaSha256"] = "wrong" },
-		"policyDigest": func(g map[string]any) { g["environment"].(map[string]any)["indexPolicySha256"] = "wrong" },
+		"manifest":       func(g map[string]any) { g["manifest"].([]any)[0].(map[string]any)["sql"] = "SELECT other FROM another" },
+		"missingBinding": func(g map[string]any) { delete(g["environment"].(map[string]any), "schemaBinding") },
+		"schemaDigest":   func(g map[string]any) { g["environment"].(map[string]any)["schemaSha256"] = "wrong" },
+		"policyDigest":   func(g map[string]any) { g["environment"].(map[string]any)["indexPolicySha256"] = "wrong" },
 		"schemaDDL": func(g map[string]any) {
 			env := g["environment"].(map[string]any)
 			s := env["schema"].(map[string]any)
@@ -147,23 +148,30 @@ func TestPlanSchemaRecordWidthMappingIsExact(t *testing.T) {
 	mk := func(ddl string, width int64) (map[string]any, Rows) {
 		return map[string]any{"plans": []any{map[string]any{"explain": map[string]any{"values": []any{[]any{json.Number("0"), "OpenRead", json.Number("1"), `"main"."t"`, json.Number("0"), json.Number(strconv.FormatInt(width, 10)), json.Number("0"), nil}}}}}}, Rows{Columns: []string{"type", "name", "tbl_name", "rootpage", "sql"}, Values: [][]any{{"table", "t", "t", int64(2), ddl}}}
 	}
+
 	a, sa := mk("CREATE TABLE t(a INTEGER,b TEXT)", 2)
 	b, sb := mk("CREATE TABLE t(a INTEGER,b TEXT,c BLOB)", 3)
-	normalizeRecordWidths(a, sa)
-	normalizeRecordWidths(b, sb)
+	normalizeRecordWidths(a, b, sa, sb)
 	if !jsonEqual(a, b) {
 		t.Fatal("full native widths were not schema-derived")
 	}
-	wrong, sw := mk("CREATE TABLE t(a INTEGER,b TEXT,c BLOB)", 2)
-	normalizeRecordWidths(wrong, sw)
-	if jsonEqual(a, wrong) {
-		t.Fatal("decoder prefix erased")
+	original, so := mk("CREATE TABLE t(a INTEGER,b TEXT)", 2)
+	wrong, sw := mk("CREATE TABLE t(a INTEGER,b TEXT,c BLOB)", 1)
+	normalizeRecordWidths(original, wrong, so, sw)
+	if jsonEqual(original, wrong) {
+		t.Fatal("changed decoder prefix erased")
 	}
-	generated, sg := mk("CREATE TABLE t(a INTEGER,b TEXT GENERATED ALWAYS AS(a) VIRTUAL)", 2)
-	normalizeRecordWidths(generated, sg)
-	if jsonEqual(a, generated) {
+	unchanged, su := mk("CREATE TABLE t(a INTEGER,b TEXT,c BLOB)", 2)
+	normalizeRecordWidths(original, unchanged, so, su)
+	if !jsonEqual(original, unchanged) {
+		t.Fatal("unchanged decoder prefix rejected")
+	}
+	generated, sg := mk("CREATE TABLE t(a INTEGER,b TEXT,c TEXT GENERATED ALWAYS AS(a) VIRTUAL)", 3)
+	normalizeRecordWidths(original, generated, so, sg)
+	if jsonEqual(original, generated) {
 		t.Fatal("unsupported generated layout mapped")
 	}
+
 }
 
 func TestPlanSchemaCompactSnapshotsKeepTheirPlans(t *testing.T) {
