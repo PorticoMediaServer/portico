@@ -12,6 +12,17 @@ import (
 const wcProgressSnapshotOctetsID stmt.ID = "wc.progress.snapshot_octets"
 const wcProgressSnapshotOctetsSQL = "SELECT octet_length(s.state) FROM personal_items AS i INDEXED BY personal_current_live INNER JOIN personal_snapshots AS s ON s.profile_id=i.profile_id AND s.item_id=i.item_id AND s.revision=i.revision WHERE i.profile_id=? AND i.item_id=?"
 
+func init() {
+	pointOctets.add(octetShape{
+		id: wcProgressSnapshotOctetsID, sql: wcProgressSnapshotOctetsSQL,
+		mismatch:   "complete closed WC snapshot length point required",
+		definition: wcProgressSnapshotOctetDefinition,
+		audit:      auditWCProgressSnapshotOctets,
+		// Preserve WC's existing EQP enforcement in the common checkSearch.
+		point: func(Rows) error { return nil },
+	})
+}
+
 // Exactly one additional native length point. Generic SQL lint still refuses
 // function calls. Complete definition equality prevents a different projection,
 // range, aggregate or function from borrowing this permission.

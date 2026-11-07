@@ -28,6 +28,21 @@ var n1OctetPoints = []n1OctetPoint{
 	{id: "scan.inventory_accept.member_lengths", sql: "SELECT octet_length(object_id) FROM scan_command_results WHERE run_id=? AND command_incarnation=? AND command_sequence=? AND input_ordinal=? AND child_kind=? AND child_ordinal=?", table: "scan_command_results", index: "", keys: []string{"run_id", "command_incarnation", "command_sequence", "input_ordinal", "child_kind", "child_ordinal"}, params: []stmt.Param{{Name: "run_id", Type: stmt.Text}, {Name: "command_incarnation", Type: stmt.Blob}, {Name: "command_sequence", Type: stmt.Integer}, {Name: "input_ordinal", Type: stmt.Integer}, {Name: "child_kind", Type: stmt.Integer}, {Name: "child_ordinal", Type: stmt.Integer}}},
 }
 
+func init() {
+	for _, point := range n1OctetPoints {
+		definition := stmt.Definition{ID: point.id}
+		pointOctets.add(octetShape{
+			id: point.id, sql: point.sql,
+			mismatch:   "N1 byte preflight requires its exact closed point definition",
+			definition: n1OctetDefinition,
+			audit: func(ctx context.Context, conn *sql.Conn) error {
+				return auditN1OctetPoint(ctx, conn, definition)
+			},
+			point: func(eqp Rows) error { return checkN1OctetPoint(definition, eqp) },
+		})
+	}
+}
+
 func n1OctetPointFor(id stmt.ID) (n1OctetPoint, bool) {
 	for _, point := range n1OctetPoints {
 		if point.id == id {
