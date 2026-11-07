@@ -26,7 +26,7 @@ func commandClass(id CommandID) (governor.Class, error) {
 		return governor.Recovery, nil
 	case EvidenceStage, CreditStage, PeopleStage, EnrichAccept, SearchFragmentStage,
 		SearchHeadPublish, SearchFragmentReclaim, SearchImageReclaim, SearchGenerationAdvance,
-		SearchGenerationFlip, PeopleHeadPublish, SearchImageStage, SearchSeal, EffectiveStage:
+		SearchGenerationFlip, PeopleHeadPublish, SearchImageStage, SearchSeal, EffectiveStage, EvidenceSeal, CreditSourceSeal:
 		return governor.Background, nil
 	default:
 		return 0, invalid("command_class")
@@ -50,6 +50,7 @@ type governedTurn struct {
 	inventoryMemory     inventoryMemoryBudget     // installed once by closed W composition before BEGIN
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
+	enrichmentMemory    commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
 	wcProgressMemory    commandMemoryBudget
 	wcSecurityMemory    commandMemoryBudget
