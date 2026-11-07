@@ -1,7 +1,10 @@
 package read
 
 import (
+	"crypto/sha256"
+	_ "embed"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +14,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
+
+//go:embed rs_artist_albums_plans_test.go
+var rsAudioRelationsJournal string
 
 func audioRelationsFixture(t *testing.T) *browseFixture {
 	t.Helper()
@@ -53,7 +59,7 @@ func TestRSAudioRelationPlans(t *testing.T) {
 		if stats == plan.Analyzed {
 			f.exec(t, "ANALYZE")
 		}
-		g, err := plan.Capture(t.Context(), conn, cat, browsePlanFixture(cfg, rsChildrenFixtureHash(t), stats), policy)
+		g, err := plan.Capture(t.Context(), conn, cat, browsePlanFixture(cfg, fmt.Sprintf("%x", sha256.Sum256([]byte(rsChildrenFixtureHash(t)+rsAudioRelationsJournal))), stats), policy)
 		if err != nil {
 			t.Fatal(err)
 		}
