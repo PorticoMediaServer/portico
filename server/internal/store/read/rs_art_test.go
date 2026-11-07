@@ -143,7 +143,7 @@ func TestRSArtActualBytesAndLIVE(t *testing.T) {
 		d, cost, err := r.Artwork(ctx, request, time.Second, out, in)
 		// 64*3 digest bytes + 16 owner-ID bytes + role/choice + MIME per slot.
 		want := int64(64*3 + 16 + len("poster") + len("locked") + 2*len("image/jpeg") + 2*len("ready") + len("accepted-fence") + len("movies"))
-		if err != nil || !d.Present || cost.LookupWindows[2].NativeReservedBytes != want || f.authority.ForegroundUsage().Live != 1 {
+		if err != nil || !d.Present || cost.LookupWindows[2].NativeReservedBytes != want+64+64*int64(browseReaderConfig().ReadLimits.Columns) || cost.LookupWindows[2].GoReservedBytes != out.Request.Need[governor.MemoryBytes]/2 || f.authority.ForegroundUsage().Live != 1 {
 			t.Fatalf("actual bytes/LIVE %+v %+v %v", d, cost, err)
 		}
 		return nil

@@ -288,7 +288,9 @@ func TestRSRelatedActualBytesAndNoProviderRequirement(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, window := range cost.LookupWindows {
-			if window.NativeReservedBytes == exact {
+			// The governor now includes its fixed row-decode overhead in the
+			// native reservation, alongside the exact variable-row octets.
+			if window.NativeReservedBytes == exact+64+64*int64(browseReaderConfig().ReadLimits.Columns) {
 				found = true
 			}
 		}
