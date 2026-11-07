@@ -16,7 +16,7 @@
         "Columns": 128
       }
     },
-    "indexPolicySha256": "e365c8f4054dbcfc1bdae6b4703cac2d2aca3357b1fc7c85850b56fe90c487b9",
+    "indexPolicySha256": "f7859d7616bb975a81977bf07522efcca916e01d2d9195f42c6293bb3faa32bc",
     "fixture": {
       "connectionPolicy": {
         "Role": 2,
@@ -30,7 +30,7 @@
       },
       "sha256": "e4bb8a3320714f58810934d8d60e650386a6e5eeac6ab440d28cfb0f1c34824e",
       "statistics": "unanalyzed",
-      "implementations": "IA audio entity/link octet points; canonical da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4; title and edition e-acute,NUL,x"
+      "implementations": "IA audio entity/link octet points; canonical 14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2; title and edition e-acute,NUL,x"
     },
     "engine": {
       "columns": [
@@ -5085,6 +5085,13 @@
           "scan_command_receipts",
           2327,
           "CREATE UNIQUE INDEX scan_receipt_refusal_kind ON scan_command_receipts(run_id,operation_id,refused_entry_kind)"
+        ],
+        [
+          "index",
+          "scan_receipt_refused_directory_identity",
+          "scan_command_receipts",
+          2329,
+          "CREATE INDEX scan_receipt_refused_directory_identity ON scan_command_receipts(run_id,refused_directory_identity) WHERE refused_directory_identity IS NOT NULL"
         ],
         [
           "index",
@@ -14930,7 +14937,7 @@
         ]
       ]
     },
-    "schemaSha256": "04dc3883a4c21853bd452b4d384947f91ca2b0b254e34567c4618f71927d177f",
+    "schemaSha256": "bb0d3cfe5cb9b17fe2651b12b7c07c200eefba82eceb34c40d5daafd384af917",
     "statistics": {},
     "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
     "pragmas": {
