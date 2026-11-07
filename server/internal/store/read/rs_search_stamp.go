@@ -26,43 +26,42 @@ func rsSearchFenceBytes(f nativeSearchFence) int64 {
 	}
 	return n
 }
+func rsSearchHitBytes(h FullSearchHit) int64 {
+	return 2 * int64(len(h.Item.Title)+len(h.PersonName)+len(h.SortKey)+len(h.AddedAt)+len(h.permission.witness))
+}
 func rsSearchRetainedBytes(p *RSSearchPreparation) int64 {
-	// Prospective DTO slice capacity and temporary transfer overlap, not a new
-	// resource ledger. The existing lease and output grant remain sole custody.
+	// The bounded slice's old/new/output overlap is prospectively funded. Native
+	// stamp metadata is measured by its issuer, not a second resource ledger.
 	n := 4096 + 2*int64(p.input.Capacity)*int64(unsafe.Sizeof(FullSearchHit{}))
-	for _, h := range p.hits {
-		n += int64(len(h.Item.Title)+len(h.PersonName)+len(h.SortKey)+len(h.AddedAt)) * 2
+	if p.input.Group == 0 {
+		n += NativePreviewCandidates * 64
 	}
-	if c := p.after; c != nil {
-		n += int64(unsafe.Sizeof(*c) + uintptr(len(c.query)+len(c.after.lead.Revision)))
+	for _, h := range p.hits {
+		n += rsSearchHitBytes(h)
+	}
+	cursorBytes := func(c *FullSearchCursor) int64 {
+		if c == nil {
+			return 0
+		}
+		m := int64(unsafe.Sizeof(*c)) + int64(len(c.query)+len(c.after.lead.Revision))
 		if v := c.native; v != nil {
-			n += int64(unsafe.Sizeof(*v)) + rsSearchFenceBytes(v.fence) + int64(len(v.counts))*8 + int64(len(v.top))*int64(unsafe.Sizeof(nativeRankHit{}))
+			m += int64(unsafe.Sizeof(*v)) + rsSearchFenceBytes(v.fence) + int64(cap(v.counts))*8 + int64(cap(v.top))*int64(unsafe.Sizeof(nativeRankHit{}))
 			if v.expansion != nil {
-				n += int64(unsafe.Sizeof(*v.expansion)) + int64(len(v.expansion.source.Revision)) + 2*int64(unsafe.Sizeof(ownerCursor{}))
+				m += int64(unsafe.Sizeof(*v.expansion)) + int64(len(v.expansion.source.Revision)) + 2*int64(unsafe.Sizeof(ownerCursor{}))
 			}
 		}
+		return m
 	}
-	if c := p.cursorBase; c != nil {
-		n += int64(unsafe.Sizeof(*c)) + int64(len(c.query)+len(c.after.lead.Revision))
-	}
-	countStamp := func(s *FullSearchReadStamp) {
-		if s == nil {
-			return
+	n += cursorBytes(p.after) + cursorBytes(p.cursorBase)
+	n += 2 * p.stamp.MetadataBytes()
+	if c := p.input.After; c != nil {
+		n += int64(unsafe.Sizeof(*c)) + cursorBytes(c.rank)
+		if c.order != nil {
+			n += int64(unsafe.Sizeof(*c.order)) + 2*int64(len(c.order.SortKey)+len(c.order.AddedAt))
 		}
-		n += 2 * (int64(unsafe.Sizeof(*s)) + int64(len(s.query)) + rsSearchFenceBytes(s.fence))
-		for _, proof := range s.policies {
-			n += int64(unsafe.Sizeof(proof)) + int64(len(proof.witness))
-		}
-		for _, proof := range s.checked {
-			n += int64(unsafe.Sizeof(proof)) + int64(len(proof.witness))
+		if c.anchor != p.stamp {
+			n += 2 * c.anchor.MetadataBytes()
 		}
 	}
-	countStamp(p.stamp)
-	for _, s := range p.stamps {
-		if s != p.stamp {
-			countStamp(s)
-		}
-	}
-
 	return n
 }

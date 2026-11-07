@@ -10,14 +10,15 @@ import (
 // These are canonical source coordinates, not presentation labels or a stored
 // match set. A continuation never grants authority to its boundary subject.
 type rsSearchOrderKey struct {
-	Subject           search.ManifestSubject
-	ID, Library, Kind int64
-	SortKey, AddedAt  string
-	Year              int64
+	Subject             search.ManifestSubject
+	ID, Library, Kind   int64
+	SortKey, AddedAt    string
+	Year                int64
+	Tier, PeopleSubtier uint8
 }
 
 func rsSearchOrderKeyFor(h FullSearchHit) rsSearchOrderKey {
-	return rsSearchOrderKey{h.Subject, h.ID, h.Library, h.Kind, h.SortKey, h.AddedAt, h.Year}
+	return rsSearchOrderKey{Subject: h.Subject, ID: h.ID, Library: h.Library, Kind: h.Kind, SortKey: h.SortKey, AddedAt: h.AddedAt, Year: h.Year, Tier: h.Tier, PeopleSubtier: h.PeopleSubtier}
 }
 func rsSearchOrderFor(group RSSearchGroup, order string) string {
 	if order == "releaseYear" || order == "dateAdded" {
@@ -37,6 +38,8 @@ func rsSearchDefaultDirection(order string) string {
 func rsSearchCompareKey(a, b rsSearchOrderKey, order, direction string) int {
 	var c int
 	switch order {
+	case "relevance":
+		c = -compareFullRank(canonicalCandidateProof{key: fullResultKey{a.Subject, a.ID, a.Library}, tier: a.Tier, subtier: a.PeopleSubtier}, canonicalCandidateProof{key: fullResultKey{b.Subject, b.ID, b.Library}, tier: b.Tier, subtier: b.PeopleSubtier})
 	case "title":
 		if a.Subject == search.ManifestPerson {
 			c = strings.Compare(a.SortKey, b.SortKey)

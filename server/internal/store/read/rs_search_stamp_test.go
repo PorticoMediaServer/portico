@@ -64,11 +64,13 @@ func TestRSSearchReadJoinedStampAndPending(t *testing.T) {
 				if stamp != nil && stamp != first || calls == 2 {
 					for _, prior := range in.Retained {
 						stamp.checked = append(stamp.checked, prior.policies...)
+						stamp.hits = append(stamp.hits, prior.hits...)
 					}
 					for i := range page.Hits {
 						proof := nativePolicyWitness{valid: true, id: page.Hits[i].ID, library: view.Library, kind: 1}
 						page.Hits[i].permission = proof
 						stamp.policies = append(stamp.policies, proof)
+						stamp.hits = append(stamp.hits, nativeStampedHit{nativeHitIdentity(page.Hits[i]), proof})
 						stamp.checked = append(stamp.checked, proof)
 					}
 					if calls == 3 && len(in.Retained) != 1 {
@@ -189,7 +191,13 @@ func TestRSSearchRelevanceLookaheadAndKeyset(t *testing.T) {
 func TestRSSearchPublicReadingGroup(t *testing.T) {
 	p := &RSSearchPreparation{input: RSSearchInput{Capacity: 64, Group: 0}, hits: []FullSearchHit{{Subject: search.ManifestEntity, Kind: 20, ID: 9}, {Subject: search.ManifestEntity, Kind: 21, ID: 8}}}
 	page, err := p.compose()
-	if err != nil || len(page.Groups) != 1 || page.Groups[0].Group != RSSearchReading || len(page.Groups[0].Hits) != 2 {
+	var reading []FullSearchHit
+	for _, g := range page.Groups {
+		if g.Group == RSSearchReading {
+			reading = g.Hits
+		}
+	}
+	if err != nil || len(page.Groups) != len(rsSearchGroups) || len(reading) != 2 || !page.Partial {
 		t.Fatal("public Reading group split by storage kind", page, err)
 	}
 }
