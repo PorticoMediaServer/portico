@@ -97,7 +97,7 @@ func applyWCSecurity(ctx context.Context, turn *commandTurn, p wcSecurityPrepare
 	// Exact legacy devices-list vocabulary/audience from identity_devices
 	// list triggers in persistence/migrations/0001_baseline.sql. ONE hint,
 	// timestamp revision, empty payload; no target IDs, tokens or fanout.
-	out.event, err = appendWCAPIEvent(ctx, turn, wcSecurityDevicesEvent(appliedMS))
+	out.event, err = wcAPIEventEffect{}, nil // mutant omits devices hint
 	return out, err
 }
 
