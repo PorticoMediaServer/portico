@@ -41,6 +41,12 @@ func basicEffectsDefinitions(purpose CommandID) []stmt.Definition {
 	all := append(basicControlCommandDefinitions(), basicMediaDefinitions()...)
 	if purpose == BasicStage {
 		all = append(all, basicProbeDefinitions()...)
+		all = append(all, basicShapeDefinitions()...)
+		for _, def := range basicStreamAcceptDefinitions() {
+			if def.ID == basicAcceptFamilies {
+				all = append(all, def)
+			}
+		}
 	}
 	defs := make([]stmt.Definition, 0, len(all))
 	for _, def := range all {
@@ -65,6 +71,8 @@ func basicEffectsMaxUses(purpose CommandID, id stmt.ID) int {
 		switch id {
 		case basicControlChange, basicStageHeader:
 			return 2
+		case basicShapeLookup, basicShapeInsert, basicShapeRefCAS, basicShapeHeaderCAS, basicAcceptFamilies:
+			return 1
 		case basicBeginFamiliesInsert:
 			return 9
 		case basicStageAsset, basicStageWitness, basicStageFamily, basicStageBudget, basicStageBudgetCAS,

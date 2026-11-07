@@ -8,7 +8,7 @@ import (
 
 const basicControlChange stmt.ID = "scan.basic_control.change"
 
-// Stage/seal leave the native COPY cursor untouched. Check its bounded empty
+// Initial input staging and sealing require the native COPY cursor at zero. Check its bounded empty
 // state in SQL before the result decoder can allocate any returned cursor TEXT.
 // The separately captured CJR job revision is not the scan run revision.
 func checkBasicControlChange(ctx context.Context, turn *commandTurn, source basicStreamFactStage, expectedRevision int64) (err error) {

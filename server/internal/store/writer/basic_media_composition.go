@@ -9,8 +9,16 @@ func basicStageCommandDefinitions(in basicStageRequest) []stmt.Definition {
 	if in.operation == basicStageMediaInput {
 		defs = append(defs, basicMediaDefinitions()...)
 	}
-	if in.operation == basicStageProbeInput {
+	if in.operation == basicStageProbeInput || in.operation == basicStagePinShapeInput {
 		defs = append(defs, basicProbeDefinitions()...)
+	}
+	if in.operation == basicStagePinShapeInput {
+		defs = append(defs, basicShapeDefinitions()...)
+		for _, def := range basicStreamAcceptDefinitions() {
+			if def.ID == basicAcceptFamilies {
+				defs = append(defs, def)
+			}
+		}
 	}
 	filtered := make([]stmt.Definition, 0, len(defs))
 	for _, d := range defs {
@@ -39,15 +47,25 @@ func basicStageRequestMaxUses(in basicStageRequest, id stmt.ID) int {
 	if in.purpose != BasicPurposeStage {
 		return 0
 	}
-	if in.operation == basicStageProbeInput {
+	if in.operation == basicStageProbeInput || in.operation == basicStagePinShapeInput {
 		if uses := basicControlCommonMaxUses(id); uses != 0 {
 			return uses
 		}
 		switch id {
 		case basicControlChange:
+			if in.operation == basicStagePinShapeInput {
+				return 1
+			}
 			return 2
 		case basicStageHeader, basicStageAsset, basicStageWitness, basicStageBudget, basicStageBudgetCAS:
 			return 1
+		}
+		if in.operation == basicStagePinShapeInput {
+			switch id {
+			case basicProbeHeader, basicProbeAsset, basicShapeLookup, basicShapeInsert, basicShapeRefCAS, basicShapeHeaderCAS, basicAcceptFamilies:
+				return 1
+			}
+			return 0
 		}
 		return basicProbeMaxUses(id)
 	}

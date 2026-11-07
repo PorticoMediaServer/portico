@@ -2,8 +2,8 @@ package writer
 
 import "context"
 
-// W-owned resource/codec symbols are draft dependencies, deliberately not
-// replaced with local stubs. The sole dispatcher calls these bodies only AFTER
+// Purpose-specific resource checks and the sole result codec are reused,
+// with no local stubs. The sole dispatcher calls these bodies only AFTER
 // current disclosure and original historical resolution. Outcome stays zero.
 func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStageCommand) (value BasicResult, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
@@ -35,6 +35,7 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 		return value, err
 	}
 	changeRevision := command.request.changeRevision
+	expectedContinuation := BasicContinuation{}
 	switch command.request.operation {
 	case basicStageBeginInput:
 		var begun basicBegunInput
@@ -44,6 +45,17 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 	case basicStageFactInput:
 		if err = checkBasicControlChange(ctx, turn, source, command.request.changeRevision); err == nil {
 			_, err = stageBasicStreamFact(ctx, turn, source)
+		}
+	case basicStagePinShapeInput:
+		changeRevision = command.request.probe.changeRevision
+		if err = checkBasicControlChange(ctx, turn, source, changeRevision); err == nil {
+			err = checkBasicPinManifest(ctx, turn, source)
+		}
+		if err == nil {
+			var pinned basicShapeTarget
+			pinned, err = pinBasicProbeShape(ctx, turn, command.request.probe)
+			changeRevision = pinned.changeRevision
+			expectedContinuation.NextFamily = 1
 		}
 	case basicStageProbeInput:
 		changeRevision = command.request.probe.changeRevision
@@ -67,10 +79,12 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 	}
 	// BEGIN's actual allocated revision and every unchanged staging revision
 	// are proved before the native continuation can be read into the result.
-	if err = checkBasicControlChange(ctx, turn, source, changeRevision); err != nil {
-		return value, err
+	if command.request.operation != basicStagePinShapeInput {
+		if err = checkBasicControlChange(ctx, turn, source, changeRevision); err != nil {
+			return value, err
+		}
 	}
-	return completeBasicControl(ctx, turn, command.identity, command.digest, BasicPurposeStage, original, source, facts, appliedMS)
+	return completeBasicControl(ctx, turn, command.identity, command.digest, BasicPurposeStage, original, source, facts, appliedMS, expectedContinuation)
 }
 
 func applyBasicSeal(ctx context.Context, turn *commandTurn, command *basicSealCommand) (value BasicResult, err error) {
@@ -113,16 +127,19 @@ func applyBasicSeal(ctx context.Context, turn *commandTurn, command *basicSealCo
 	if err != nil {
 		return value, err
 	}
-	return completeBasicControl(ctx, turn, command.identity, command.digest, BasicPurposeSeal, original, source, facts, appliedMS)
+	return completeBasicControl(ctx, turn, command.identity, command.digest, BasicPurposeSeal, original, source, facts, appliedMS, BasicContinuation{})
 }
 
-// No physical finish, COMMIT or Applied assignment here. W rechecks the exact
-// purpose's terminal lease/current authority and owns the physical terminal.
-func completeBasicControl(ctx context.Context, turn *commandTurn, identity CommandIdentity, request RequestDigest, purpose BasicPurpose, original basicOriginalScope, source basicStreamFactStage, facts basicFreshFacts, appliedMS int64) (value BasicResult, err error) {
+// No physical finish, COMMIT or Applied assignment here. The sole dispatcher
+// rechecks the exact purpose's terminal lease and current authority.
+func completeBasicControl(ctx context.Context, turn *commandTurn, identity CommandIdentity, request RequestDigest, purpose BasicPurpose, original basicOriginalScope, source basicStreamFactStage, facts basicFreshFacts, appliedMS int64, expectedContinuation BasicContinuation) (value BasicResult, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
 	continuation, err := readBasicControlPostState(ctx, turn, source)
 	if err != nil {
 		return value, err
+	}
+	if continuation != expectedContinuation {
+		return value, ErrConflict
 	}
 	runRevision, err := advanceBasicControlRun(ctx, turn, identity, original, facts)
 	if err != nil {
@@ -171,7 +188,7 @@ func basicStageRequiredBytes(in basicStageRequest) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if in.operation == basicStageProbeInput {
+	if in.operation == basicStageProbeInput || in.operation == basicStagePinShapeInput {
 		remaining := maxCanonicalRequestBytes
 		for _, v := range [...]string{in.probe.assetPath, in.probe.before.container, in.probe.before.videoCodec, in.probe.before.audioCodec, in.probe.after.container, in.probe.after.videoCodec, in.probe.after.audioCodec} {
 			if len(v) > remaining {

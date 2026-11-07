@@ -13,6 +13,7 @@ const (
 	basicStageFactInput
 	basicStageMediaInput
 	basicStageProbeInput
+	basicStagePinShapeInput
 )
 const (
 	basicSealStreamInput basicSealOperation = iota + 1
@@ -72,19 +73,22 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 		if err = validateBasicOrdinaryCounts(source.libraryID, in.begin.shape, in.begin.counts); err != nil {
 			return nil, err
 		}
-	case basicStageFactInput, basicStageMediaInput, basicStageProbeInput:
+	case basicStageFactInput, basicStageMediaInput, basicStageProbeInput, basicStagePinShapeInput:
 		revision := in.changeRevision
-		if in.operation == basicStageProbeInput {
+		if in.operation == basicStageProbeInput || in.operation == basicStagePinShapeInput {
 			revision = in.probe.changeRevision
 		}
 		if source.changeID <= 0 || source.inputRevision <= 0 || revision <= 0 {
 			return nil, invalid("basic_stage_fact")
 		}
 	}
-	if in.operation == basicStageProbeInput {
+	if in.operation == basicStageProbeInput || in.operation == basicStagePinShapeInput {
 		if err = validateBasicProbeEffects(in.probe); err != nil {
 			return nil, err
 		}
+	}
+	if in.operation == basicStagePinShapeInput && in.probe.before != in.probe.after {
+		return nil, ErrInvalid
 	}
 	if in.operation == basicStageMediaInput {
 		in.rows, err = freezeBasicRowsRequest(source, in.rows)
@@ -100,7 +104,7 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 		in.begin.shape.VersionAssetIDs = cloneBasicRequestSlice(in.begin.shape.VersionAssetIDs)
 		in.begin.shape.Streams = cloneBasicRequestSlice(in.begin.shape.Streams)
 		in.begin.shape.AuthoredParentIDs = cloneBasicRequestSlice(in.begin.shape.AuthoredParentIDs)
-	} else if in.operation == basicStageProbeInput {
+	} else if in.operation == basicStageProbeInput || in.operation == basicStagePinShapeInput {
 		in.probe.source = cloneBasicSource(in.probe.source)
 		in.probe.assetPath = strings.Clone(in.probe.assetPath)
 		in.probe.before = cloneBasicProbeScalars(in.probe.before)
@@ -116,7 +120,7 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 }
 
 func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
-	if in.operation != basicStageProbeInput && in.probe != (basicProbeEffects{}) {
+	if in.operation != basicStageProbeInput && in.operation != basicStagePinShapeInput && in.probe != (basicProbeEffects{}) {
 		return basicStreamFactStage{}, ErrInvalid
 	}
 	if in.purpose != BasicPurposeStage {
@@ -141,7 +145,7 @@ func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
 			return basicStreamFactStage{}, err
 		}
 		return in.fact, nil
-	case basicStageProbeInput:
+	case basicStageProbeInput, basicStagePinShapeInput:
 		if !reflect.ValueOf(in.begin).IsZero() || in.fact != (basicStreamFactStage{}) || !reflect.ValueOf(in.rows).IsZero() || in.changeRevision != 0 || in.start != 0 || in.end != 0 {
 			return basicStreamFactStage{}, ErrInvalid
 		}

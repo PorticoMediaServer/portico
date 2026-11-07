@@ -2,6 +2,7 @@ package writer
 
 import (
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"testing"
 )
 
@@ -61,5 +62,31 @@ func TestBasicProbeCommandNativePathRefusalIsTyped(t *testing.T) {
 		if tc.want == ErrInvalid && errors.Is(err, ErrFilenameUnrepresentable) {
 			t.Fatal("NUL became poison", err)
 		}
+	}
+}
+
+func TestBasicShapePinRequestDoesNotAliasRawProbe(t *testing.T) {
+	in, identity := basicProbeCommandFixture()
+	in.probe.before = in.probe.after
+	probe, err := newBasicStageCommand(identity, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.operation = basicStagePinShapeInput
+	pinned, err := newBasicStageCommand(identity, in)
+	if err != nil || pinned.digest == probe.digest {
+		t.Fatal("distinct raw/progress operation was aliased", err)
+	}
+	for _, id := range []stmt.ID{basicShapeLookup, basicShapeInsert, basicShapeRefCAS, basicShapeHeaderCAS} {
+		if basicStageRequestMaxUses(in, id) != 1 {
+			t.Fatal("unforecast dictionary work", id)
+		}
+	}
+	if basicStageRequestMaxUses(in, basicProbeOldInsert) != 0 || basicStageRequestMaxUses(in, basicProbeAssetCAS) != 0 {
+		t.Fatal("pin borrowed raw replacement effects")
+	}
+	in.probe.before.width++
+	if got, err := newBasicStageCommand(identity, in); got != nil || !errors.Is(err, ErrInvalid) {
+		t.Fatal("pin accepted an unapplied raw tuple", got, err)
 	}
 }
