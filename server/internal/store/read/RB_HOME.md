@@ -81,8 +81,8 @@ each target window has at most five business calls and67 raw rows. Continuations
 also bind the complete source lifecycle envelope.
 
 The recent row uses two private publication stages: source capture and a
-cardinality-sized target stage (at most two targets per snapshot, six business
-calls and132 raw joined rows). Both share one cumulative copy counter, one
+cardinality-sized target stage (at most four movie or two show targets per
+snapshot, eight business calls and260 raw joined rows). Both share one cumulative copy counter, one
 original deadline and at most one whole-composition retry. The second stage
 compares the complete first stage's shared/source fence before business work;
 final publication rechecks it again. No spare empty snapshots are executed.

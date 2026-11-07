@@ -269,11 +269,25 @@ func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.R
 		d.RawRows = sourcePage.RawRows
 		return nil
 	}}
-	// At most two targets per snapshot: <=6 business calls, <=132 joined raw
-	// rows. Unlike fixed spare slots, this executes no empty snapshot windows.
-	for n := 0; n < len(candidates); n += 2 {
+	// Pack only complete targets within the existing eight-call quantum.
+	// Movies need at most two calls, shows at most three. The largest batch is
+	// four movie existence proofs: <=260 raw rows under the same request budget.
+	for start := 0; start < len(candidates); {
+		end, calls := start, 0
+		for end < len(candidates) {
+			cost := 2
+			if candidates[end].source.Kind == 2 {
+				cost = 3
+			}
+			if calls+cost > 8 {
+				break
+			}
+			calls += cost
+			end++
+		}
+		batch := candidates[start:end]
 		steps = append(steps, func(ctx context.Context, q browseQuery, _ browseFence, d *HomeRecentRow) error {
-			for _, c := range candidates[n:min(n+2, len(candidates))] {
+			for _, c := range batch {
 				f := fences[c.source.Library]
 				f.kind = c.source.Kind
 				rows, e := q("rb.home.item", c.id, c.source.Library, c.source.Kind)
@@ -294,6 +308,7 @@ func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.R
 			}
 			return ctx.Err()
 		})
+		start = end
 	}
 	steps = append(steps, func(ctx context.Context, _ browseQuery, _ browseFence, d *HomeRecentRow) error {
 		sortHomeCards(d.Items)
