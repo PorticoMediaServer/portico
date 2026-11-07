@@ -73,6 +73,10 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightInventoryAcceptResult(v)
 	case BasicResult:
 		return preflightBasicResult(v)
+	case inventoryDirectoryDiscoverResult:
+		return preflightDirectoryResult(InventoryDirectoryDiscover, v.facts)
+	case inventoryDirectoryEOFResult:
+		return preflightDirectoryResult(InventoryDirectoryEOF, v.facts)
 	case inventoryCreateResult:
 		return preflightScanRunLifecycleResult(InventoryCreate, identity, request, v.facts)
 	case inventoryClaimResult:
@@ -126,6 +130,10 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeInventoryAcceptResult(e, identity, request, v)
 	case BasicResult:
 		return writeBasicResult(e, identity, request, v)
+	case inventoryDirectoryDiscoverResult:
+		return writeDirectoryResult(e, InventoryDirectoryDiscover, identity, request, v.facts)
+	case inventoryDirectoryEOFResult:
+		return writeDirectoryResult(e, InventoryDirectoryEOF, identity, request, v.facts)
 	case inventoryCreateResult:
 		return writeScanRunLifecycleResult(e, InventoryCreate, identity, request, v.facts)
 	case inventoryClaimResult:
