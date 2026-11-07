@@ -2,7 +2,6 @@ package writer
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -11,7 +10,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"reflect"
 	"testing"
-	"time"
 )
 
 // The persisted owner tuple is JSON [authority, account, profile] encoded as
@@ -22,132 +20,18 @@ func wcFixturePersonalOwnerKey(authority, account, profile string) string {
 	return "viewer:" + base64.RawURLEncoding.EncodeToString(raw)
 }
 
-// Actual owned opening, native birth and governed grants. Default correctness
-// tests use protocol time; workloads and explicit captures use real time.
-// Prospective forecasts are fixture inputs, not qualification.
+// REAL owned opening, real clocks, native birth and real grants. This is a
+// component smoke fixture with explicit prospective forecasts, not qualification.
 func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Context) (*Writer, *WCProgressDriver, *governor.Authority) {
 	return wcProgressCompositionFixtureClock(t, false, principalLifetimes...)
 }
-
 func wcProgressCompositionFixtureClock(t *testing.T, realClock bool, principalLifetimes ...context.Context) (*Writer, *WCProgressDriver, *governor.Authority) {
 	t.Helper()
-	initial, path := testCanonicalExecutor(t)
-	if err := initial.close(); err != nil {
-		t.Fatal(err)
-	}
-	opening := openScanFixture(t, path, scanOpeningOwner(t, path))
-	e := opening.executor
-	now, warmup := wcCompositionFixtureClock(t, realClock)
-	e.now = now
-	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
-	defs = append(defs, effectiveDispatchDefinitions()...)
-	defs = append(defs, wcProgressCommandDefinitions()...)
-	defs = append(defs, wcProgressBirthDefinitions()...)
-	conn, err := e.db.Conn(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = conn.Close() })
-
-	golden := captureEffectiveFixture(t, conn, e.config, defs, "wc_progress_composition_test.go", "wc_progress_fixture.go", "wc_fixture_clock_test.go")
-	if err = conn.Close(); err != nil {
-		t.Fatal(err)
-	}
-	p := effectiveFixturePlan()
-	p.registration = golden.Receipt()
-	wc := p
-	wc.steps = nil
-	wc.wcProgressMemory = commandMemoryBudget{64 << 20, 64 << 20}
-	for _, d := range wcProgressCommandDefinitions() {
-		wc.steps = append(wc.steps, statementStep{d.ID, Work{16, 4000, 16, 65536, 100 * time.Microsecond}})
-	}
-	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var partitions [4]governor.Amounts
-	for i := range partitions {
-		partitions[i] = p.need
-		partitions[i][governor.MemoryBytes] += 1 << 20
-	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: now, WAL: wal})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := newEffectiveRuntime(e, path, g, a, wal, 1, p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	birth := wc
-	birth.steps = nil
-	for _, d := range wcProgressBirthDefinitions() {
-		birth.steps = append(birth.steps, statementStep{d.ID, Work{16, 4000, 16, 65536, 100 * time.Microsecond}})
-	}
-	if err = composeWCProgress(t.Context(), r, wc, birth); err != nil {
-		t.Fatal(err)
-	}
-	w := &Writer{effective: r}
-	member, err := wcRandomBirth()
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile, err := wcRandomBirth()
-	if err != nil {
-		t.Fatal(err)
-	}
-	scope := wcProgressScope{primary: 1, primaryProfile: "profile-one", membershipRole: "member", horizon: now().Add(time.Hour).UTC().Format(time.RFC3339Nano), expires: now().Add(time.Hour).UTC().Format(time.RFC3339Nano), playbackID: "playback-音", profileKey: "viewer-one", accountID: "account-one", profileID: "profile-one", memberBirth: member, profileBirth: profile, libraryKey: "library-one", libraryID: 7, subjectID: 11, serverID: "server", familyID: "wc-family", tokenHash: "wc-token", epoch: 1, tokenGeneration: 1, memberRevision: 1, profileRevision: 1, role: "member", memberLibraries: `["library-one"]`}
-	scope.profileKey = wcFixturePersonalOwnerKey("local", scope.accountID, scope.profileID)
-	scope.expires = scope.horizon
-	for _, b := range []*[16]byte{&scope.incarnation, &scope.clock, &scope.subjectPublicID} {
-		if _, err = rand.Read(b[:]); err != nil {
-			t.Fatal(err)
-		}
-	}
-	snapshot := wcSnapshot{}
-	text := func(i int, s string) { snapshot[i] = wcSnapshotCell{Kind: 2, Text: s} }
-	integer := func(i int, n int64) { snapshot[i] = wcSnapshotCell{Kind: 1, Integer: n} }
-	text(0, now().UTC().Format(time.RFC3339Nano))
-	text(1, "started")
-	text(2, scope.accountID)
-	text(3, scope.profileID)
-	text(4, scope.playbackID)
-	integer(5, 1)
-	integer(6, 0)
-	snapshot[7] = wcSnapshotCell{Kind: 3, Blob: append([]byte(nil), scope.subjectPublicID[:]...)}
-	text(8, scope.libraryKey)
-	integer(9, 1)
-	for _, i := range []int{21, 22, 23, 25, 26} {
-		integer(i, 0)
-	}
-	integer(24, 100000)
-	integer(32, scope.subjectID)
-	integer(33, 1)
-	integer(34, now().UnixMilli())
-	text(39, member)
-	text(40, profile)
-	preparation := governor.Request{Key: governor.JobKey{Domain: uint16(ProgressAccept), ID: scope.playbackID}, Owner: r.owner, Class: governor.Foreground, Deadline: now().Add(time.Minute), Footprint: []governor.Scope{{Library: scope.libraryID, Domain: uint16(ProgressAccept)}}}
-	preparation.Need[governor.MemoryBytes] = 1 << 20
-	decision := g.Try(preparation)
-	if decision.Grant == nil {
-		t.Fatal(decision.Refusal)
-	}
-	principal := t.Context()
+	opts := wcFixtureOptions{actorTier: "member", extraMemory: 1 << 20, maxGrants: 2, realClock: realClock}
 	if len(principalLifetimes) == 1 {
-		principal = principalLifetimes[0]
+		opts.principal = principalLifetimes[0]
 	}
-	d, err := newWCProgressDriver(t.Context(), principal, w, scope, snapshot, wcProgressPolicy{StartedPercent: 5, PlayedPercent: 95, VideoCompletion: "earliest"}, preparation, decision.Grant)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := d.Close(context.Background()); err != nil {
-			t.Error(err)
-		}
-	})
-	if err = initializeWCProgressFixture(t.Context(), d); err != nil {
-		t.Fatal(err)
-	}
-	warmup()
+	w, d, a, _ := wcComponentFixture(t, opts)
 	return w, d, a
 }
 func TestWCProgressCompositionOriginalResolveAckAndDrain(t *testing.T) {

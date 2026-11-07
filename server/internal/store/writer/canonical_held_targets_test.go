@@ -103,11 +103,23 @@ func decodeCanonicalHeldConfig(raw []byte) (canonicalHeldConfig, error) {
 	return c, nil
 }
 
+// Closed compiled runner variants keep workload imports outside writer (the
+// Actions themselves import writer). Neither variant is selectable by a factory
+// or callback from config; external parents receive only opaque typed drivers.
+type canonicalClassRun interface{ isCanonicalClassRun() }
+type canonicalInternalRun func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream, QualificationPopulationManifest) error
+
+func (canonicalInternalRun) isCanonicalClassRun() {}
+
+type canonicalWCFactory func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream, QualificationPopulationManifest) *CanonicalWCComponent
+
+func (canonicalWCFactory) isCanonicalClassRun() {}
+
 type canonicalHeldClass struct {
 	name, owner, kind string
 	purpose           *CommandID // compiled INTENT only, never actual grant/policy evidence
 	reason            string
-	run               func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream, QualificationPopulationManifest) error
+	run               canonicalClassRun
 }
 
 // The merged transport owns the next canonical clone for this exact t.
@@ -121,14 +133,14 @@ func attachCanonicalHeldPopulation(t *testing.T, cfg canonicalHeldConfig) Qualif
 }
 
 func canonicalHeldClasses() []canonicalHeldClass {
-	n1, basic, enrich, progress, security, fragment, flip := InventoryAccept, BasicAccept, EffectiveStage, ProgressAccept, SecurityAccept, SearchFragmentStage, SearchHeadPublish
+	n1, basic, enrich, progress, security, fragment, flip, reclaim := InventoryAccept, BasicAccept, EffectiveStage, ProgressAccept, SecurityAccept, SearchFragmentStage, SearchHeadPublish, ProgressReceiptReclaim
 	return []canonicalHeldClass{
-		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: runCanonicalHeldN1, reason: "timing cohort does not expose complete observed statement-byte totals; inspect nullable per-attempt profile facts"},
+		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: canonicalInternalRun(runCanonicalHeldN1), reason: "timing cohort does not expose complete observed statement-byte totals; inspect nullable per-attempt profile facts"},
 		{name: "basic_accept", owner: "SC/W", kind: "normal_write", purpose: &basic, reason: "canonical Basic owner Action not attached"},
 		{name: "staged_enrich", owner: "EN/W", kind: "normal_write", purpose: &enrich, reason: "canonical staged-enrich owner Action not attached"},
-		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, reason: "canonical same-owner Progress Action not attached"},
-		{name: "security", owner: "WC", kind: "normal_write", purpose: &security, reason: "canonical FULL Security Action not attached"},
-		{name: "wc_reclaim", owner: "WC", kind: "normal_write", reason: "WC reclaim purpose/typed Action not attached; no publisher-reclaim substitution"},
+		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC progress; complete observed counters remain nullable"},
+		{name: "security", owner: "WC", kind: "normal_write", purpose: &security, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC FULL security; complete observed counters remain nullable"},
+		{name: "wc_reclaim", owner: "WC", kind: "normal_write", purpose: &reclaim, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC retained Progress receipt reclaim; not publisher reclaim"},
 		{name: "publisher_fragment", owner: "PB", kind: "normal_write", purpose: &fragment, reason: "canonical publisher fragment writer composition not attached"},
 		{name: "publisher_flip", owner: "PB", kind: "normal_write", purpose: &flip, reason: "canonical publisher head flip writer composition not attached"},
 		{name: "checkpoint", owner: "GV", kind: "maintenance", reason: "canonical governed checkpointer owner Action not attached; no normal-write budget"},
@@ -172,7 +184,7 @@ func canonicalHeldIntent(c canonicalHeldClass) any {
 	}
 	return descriptor
 }
-func canonicalHeldRun(t *testing.T, class string) {
+func canonicalHeldStart(t *testing.T, class string) (canonicalHeldConfig, *n1Stream, canonicalHeldClass) {
 	t.Helper()
 	if !*canonicalHeldEnabled {
 		if os.Getenv("PORTICO_CANONICAL_HELD") != "" {
@@ -202,7 +214,12 @@ func canonicalHeldRun(t *testing.T, class string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer output.Close()
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			_ = output.Close()
+		}
+	}()
 	stream := &n1Stream{file: output, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "label": "CANONICAL PER-CLASS RAW TARGET", "qualification": false, "qualified_profile_ready": false, "run_id": cfg.RunID, "host_epoch": cfg.HostEpoch, "declared_source_commit": cfg.SourceCommit, "profile": cfg.Profile, "class": class, "process_epoch": fmt.Sprintf("%s/%d/%d", cfg.RunID, os.Getpid(), time.Now().UnixNano())}}
 	definition, _ := canonicalHeldClassFor(class)
 	if err := emitCanonicalHeldPrefix(stream, cfg, definition); err != nil {
@@ -211,8 +228,19 @@ func canonicalHeldRun(t *testing.T, class string) {
 	if definition.run == nil {
 		t.Fatal(errCanonicalHeldBinding)
 	}
+	handedOff = true
+	return cfg, stream, definition
+}
+func canonicalHeldRun(t *testing.T, class string) {
+	t.Helper()
+	cfg, stream, definition := canonicalHeldStart(t, class)
+	defer stream.file.Close()
+	run, ok := definition.run.(canonicalInternalRun)
+	if !ok {
+		t.Fatal("external WC parent required")
+	}
 	manifest := attachCanonicalHeldPopulation(t, cfg)
-	if err := definition.run(t, t.Context(), cfg, stream, manifest); err != nil {
+	if err := run(t, t.Context(), cfg, stream, manifest); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -245,9 +273,6 @@ func emitCanonicalHeldPrefix(stream *n1Stream, cfg canonicalHeldConfig, definiti
 func TestCanonicalHeldInventoryN1(t *testing.T)       { canonicalHeldRun(t, "inventory_n1") }
 func TestCanonicalHeldBasic(t *testing.T)             { canonicalHeldRun(t, "basic_accept") }
 func TestCanonicalHeldStagedEnrich(t *testing.T)      { canonicalHeldRun(t, "staged_enrich") }
-func TestCanonicalHeldProgress(t *testing.T)          { canonicalHeldRun(t, "progress") }
-func TestCanonicalHeldSecurity(t *testing.T)          { canonicalHeldRun(t, "security") }
-func TestCanonicalHeldWCReclaim(t *testing.T)         { canonicalHeldRun(t, "wc_reclaim") }
 func TestCanonicalHeldPublisherFragment(t *testing.T) { canonicalHeldRun(t, "publisher_fragment") }
 func TestCanonicalHeldPublisherFlip(t *testing.T)     { canonicalHeldRun(t, "publisher_flip") }
 func TestCanonicalHeldCheckpoint(t *testing.T)        { canonicalHeldRun(t, "checkpoint") }

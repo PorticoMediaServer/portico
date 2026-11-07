@@ -88,6 +88,7 @@ type n1Unit struct {
 }
 
 type n1Trace struct {
+	nativeBegins    uint64 // all actual native W BEGIN attempts, including fixture preparation
 	libraryVector   [6]int64
 	libraryObserved bool
 	origin          time.Time
@@ -278,6 +279,9 @@ func (c *n1MeasuredConn) ExecContext(ctx context.Context, query string, args []d
 			u.VMOps = n1Counter{Reason: "deliberate fault before native entry"}
 		}
 		return nil, err
+	}
+	if query == "BEGIN IMMEDIATE" {
+		c.trace.nativeBegins++
 	}
 	r, err := c.writerDriverConn.ExecContext(ctx, query, args)
 	if u != nil && r != nil {
