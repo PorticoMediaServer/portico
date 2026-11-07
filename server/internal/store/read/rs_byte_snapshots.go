@@ -23,6 +23,7 @@ type rsByteWindow struct {
 	bytes          int64
 	calls          uint16
 	preflightCalls uint16
+	goCopyBytes    int64
 }
 
 func (w *rsByteWindow) NativeRowReservation() int64 { return w.source.NativeRowReservation() }
@@ -37,7 +38,7 @@ func (w *rsByteWindow) Read(ctx context.Context, r governor.Request, budget time
 	var forecast *governor.SnapshotForecast
 	if w.pending {
 		w.pending = false
-		f := governor.SnapshotForecast{NativeRowBytes: w.bytes, MaxQueries: w.calls}
+		f := governor.SnapshotForecast{NativeRowBytes: w.bytes, MaxQueries: w.calls, GoCopyBytes: w.goCopyBytes}
 		forecast = &f
 	} else if w.preflightCalls > 8 {
 		// Only bounded scalar byte-point work extends the common window's call
