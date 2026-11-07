@@ -12,10 +12,10 @@ import (
 const issuerLibraryRootLengthsID stmt.ID = "scan.issuer.library_root_lengths"
 const issuerLibraryRootLengthsSQL = "SELECT octet_length(root) FROM catalog_libraries WHERE id=? AND library_id=?"
 
-// This second closed issuer point does not admit octet_length to generic lint.
-// Keep the existing source-length definition and its native audit unchanged.
-func closedIssuerOctetDefinition(d stmt.Definition) bool {
-	return issuerOctetDefinition(d) || issuerLibraryOctetDefinition(d)
+func init() {
+	pointOctets.add(octetShape{issuerLibraryRootLengthsID, issuerLibraryRootLengthsSQL,
+		"issuer library byte preflight requires the exact closed read definition",
+		issuerLibraryOctetDefinition, auditIssuerLibraryOctetKey, checkIssuerLibraryOctetPoint})
 }
 
 func issuerLibraryOctetDefinition(d stmt.Definition) bool {
