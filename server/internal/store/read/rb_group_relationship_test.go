@@ -14,14 +14,18 @@ import (
 
 func TestRBGroupRelationshipChargesRetainedStrings(t *testing.T) {
 	f := rbGroupFixture(t, false)
-	wide := strings.Repeat("a", 16<<10)
+	wide := strings.Repeat("a", 8<<10)
+	// Each 64-row source quantum fits its own 4MiB Go-copy reservation, while
+	// the complete retained prefix exceeds the separately funded output budget.
+	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) SELECT id+4000,randomblob(16),1,7 FROM catalog_entities WHERE kind=7 AND id<3040`)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,album_id) SELECT id,public_id,1,7,'Added','added','a','added','a',0,zeroblob(16),zeroblob(16),2004 FROM catalog_subjects WHERE id>=7000 AND id<7040`)
 	f.exec(t, `UPDATE catalog_entities SET title=? WHERE kind=7`, wide)
 	f.exec(t, `UPDATE catalog_entities SET sort_key=? WHERE id=2004`, wide)
 	in := RBRelationshipInput{View: f.input, Sort: RBRelationshipAlbum}
 	in.View.Kind = 7
-	page, _, err := f.reader.rbRelationshipExact(t.Context(), rbGroupRequest(), time.Second, f.output, in)
-	if !errors.Is(err, governor.ErrSnapshotBudget) || !reflect.DeepEqual(page, RBRelationshipPage{}) {
-		t.Fatal("wide retained prefix exceeded output custody", page, err)
+	page, cost, err := f.reader.rbRelationshipExact(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+	if !errors.Is(err, governor.ErrSnapshotBudget) || !reflect.DeepEqual(page, RBRelationshipPage{}) || len(cost.LookupWindows) < 2 {
+		t.Fatal("retained prefix must outgrow custody across separate quanta", page, cost, err)
 	}
 }
 
