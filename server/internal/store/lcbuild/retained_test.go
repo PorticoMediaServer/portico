@@ -20,6 +20,13 @@ type copyPort struct {
 	clone        func(read.BrowseOutput)
 	window       read.SharedChannelBatch
 	windowError  error
+	scopeError   error
+	scopeReads   int
+}
+
+func (p *copyPort) OpenSharedChannelScope(_ context.Context, _ governor.Request, _ time.Duration, _ read.BrowseOutput, in read.SharedChannelScopeInput) (*read.SharedChannelScope, read.SharedChannelScopeInfo, read.BrowseReadResult, error) {
+	p.scopeReads++
+	return &read.SharedChannelScope{}, read.SharedChannelScopeInfo{Generation: in.Generation}, read.BrowseReadResult{Attempts: 1}, p.scopeError
 }
 
 func (p *copyPort) SharedChannelWindow(context.Context, governor.Request, time.Duration, read.BrowseOutput, read.SharedChannelInput) (read.SharedChannelBatch, read.BrowseReadResult, error) {
@@ -214,4 +221,53 @@ func TestMGLCWindowKeepsRawContinuation(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestMGLCScopeReadBeforeRetainedConsumer(t *testing.T) {
+	for _, mode := range []string{"success", "read-error", "wrong-generation", "wrong-owner", "foreground", "nil-consumer"} {
+		t.Run(mode, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f := custody(t, 65536)
+				request := governor.Request{Owner: 1, Class: governor.Background}
+				in := read.SharedChannelScopeInput{Channel: "channel", Generation: "generation", Rule: "rule", Library: "movies", ExpectedRevision: 1}
+				failure := errors.New("scope refused")
+				switch mode {
+				case "read-error":
+					f.port.scopeError = failure
+				case "wrong-generation":
+					in.Generation = "other"
+				case "wrong-owner":
+					request.Owner++
+				case "foreground":
+					request.Class = governor.Foreground
+				}
+				called := false
+				consumer := func(_ context.Context, values read.SharedChannelRetainedValues) error {
+					called = true
+					if values.Scope == nil || values.Info == nil || values.Info.Generation != in.Generation || f.used() != 32768+f.port.size.ChargeBytes {
+						t.Fatal("scope consumed without admitted custody")
+					}
+					return nil
+				}
+				if mode == "nil-consumer" {
+					consumer = nil
+				}
+				cost, size, err := f.driver.WithScope(t.Context(), request, time.Second, f.source, in, consumer)
+				wantReads := 0
+				if mode == "success" || mode == "read-error" {
+					wantReads = 1
+				}
+				if f.port.scopeReads != wantReads || called != (mode == "success") || f.used() != 32768 {
+					t.Fatal("scope gate or retirement failed", called, f.port.scopeReads, f.used())
+				}
+				if mode == "success" {
+					if err != nil || size != f.port.size || cost.Attempts != 1 {
+						t.Fatal(cost, size, err)
+					}
+				} else if err == nil || size != (read.SharedChannelCopySize{}) || (mode == "read-error" && !errors.Is(err, failure)) {
+					t.Fatal("scope refusal became output", size, err)
+				}
+			})
+		})
+	}
 }

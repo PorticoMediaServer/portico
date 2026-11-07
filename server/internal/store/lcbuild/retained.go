@@ -24,9 +24,25 @@ func (e *AdmissionRefusal) Error() string {
 }
 
 type channelPort interface {
+	OpenSharedChannelScope(context.Context, governor.Request, time.Duration, read.BrowseOutput, read.SharedChannelScopeInput) (*read.SharedChannelScope, read.SharedChannelScopeInfo, read.BrowseReadResult, error)
 	SharedChannelWindow(context.Context, governor.Request, time.Duration, read.BrowseOutput, read.SharedChannelInput) (read.SharedChannelBatch, read.BrowseReadResult, error)
 	MeasureSharedChannelValues(context.Context, read.BrowseOutput, read.SharedChannelRetainedValues) (read.SharedChannelCopySize, error)
 	CloneSharedChannelValues(context.Context, read.BrowseOutput, read.BrowseOutput, read.SharedChannelRetainedValues) (read.SharedChannelRetainedValues, error)
+}
+
+// WithScope opens RB's actual stored channel/generation scope and retains its
+// copied values through the consumer. No viewer, config bytes or query supplied
+// by the worker can replace the authority that RB reads from native storage.
+func (d *Driver) WithScope(ctx context.Context, request governor.Request, budget time.Duration, source read.BrowseOutput, in read.SharedChannelScopeInput, consume func(context.Context, read.SharedChannelRetainedValues) error) (read.BrowseReadResult, read.SharedChannelCopySize, error) {
+	if d == nil || ctx == nil || d.port == nil || !d.authority.Owns(d.governor) || consume == nil || request.Class != governor.Background || request.Owner != d.owner || in.Generation != d.generation {
+		return read.BrowseReadResult{}, read.SharedChannelCopySize{}, ErrInput
+	}
+	scope, info, cost, err := d.port.OpenSharedChannelScope(ctx, request, budget, source, in)
+	if err != nil {
+		return cost, read.SharedChannelCopySize{}, err
+	}
+	size, err := d.WithValues(ctx, source, read.SharedChannelRetainedValues{Scope: scope, Info: &info}, consume)
+	return cost, size, err
 }
 
 // Driver belongs to trusted composition, not the candidate worker. Its job key
