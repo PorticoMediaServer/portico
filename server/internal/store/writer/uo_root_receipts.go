@@ -159,7 +159,7 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 	if decision, e := classifyReceipt(receiptIdentity{command: q.identity, digest: q.request}, q.kind, o.facts, receiptFacts{}); e != nil || decision != receiptFresh {
 		return out, ErrResolveRequired
 	}
-	var appliedMS int64
+	var appliedMS, resultCount int64
 	switch v := result.(type) {
 	case uoRootOperationResult:
 		if v.root != q.root || v.kind != q.kind {
@@ -171,6 +171,11 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 			return out, ErrInvalid
 		}
 		appliedMS = v.appliedMS
+	case uoRootSavedResult:
+		if v.root != q.root || v.kind != q.kind {
+			return out, ErrInvalid
+		}
+		appliedMS, resultCount = v.appliedMS, int64(len(v.entries))
 	default:
 		return out, ErrInvalid
 	}
@@ -182,7 +187,7 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 	if bytes > math.MaxInt64-o.variableBytes {
 		return out, ErrInvalid
 	}
-	actual, err := wc008DraftInteger(ctx, turn, uoRootReceiptInsert, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], digest[:], payload, appliedMS)
+	actual, err := wc008DraftInteger(ctx, turn, uoRootReceiptInsert, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], resultCount, digest[:], payload, appliedMS)
 	if err != nil {
 		return out, err
 	}
@@ -239,7 +244,7 @@ func uoRootDefinitions() []stmt.Definition {
 		d(uoRootOwnerPoint, stmt.Read, `SELECT command_incarnation,last_command_sequence,acknowledged_command_sequence,revision,receipt_rows,receipt_variable_bytes,receipt_reclaim_after_sequence,receipt_reclaim_due_ms FROM user_mutation_command_owners WHERE root_id=?`, s("root")),
 		d(uoRootReceiptMeta, stmt.Read, `SELECT command_kind,result_version,result_count,applied_ms,octet_length(result_payload),variable_bytes,(operation_id=?),(request_digest=?),octet_length(result_digest) FROM user_mutation_command_receipts WHERE root_id=? AND command_incarnation=? AND command_sequence=?`, b("operation"), b("request"), s("root"), b("incarnation"), i("sequence")),
 		d(uoRootReceiptPayload, stmt.Read, `SELECT result_payload,result_digest FROM user_mutation_command_receipts WHERE root_id=? AND command_incarnation=? AND command_sequence=? AND operation_id=? AND command_kind=? AND request_digest=? AND octet_length(result_payload)=? AND octet_length(result_digest)=32`, s("root"), b("incarnation"), i("sequence"), b("operation"), i("kind"), b("request"), i("payload_bytes")),
-		d(uoRootReceiptInsert, stmt.Write, `INSERT INTO user_mutation_command_receipts(root_id,command_incarnation,command_sequence,operation_id,command_kind,request_digest,result_version,result_count,result_digest,result_payload,applied_ms) VALUES(?,?,?,?,?,?,1,0,?,?,?) RETURNING variable_bytes`, s("root"), b("incarnation"), i("sequence"), b("operation"), i("kind"), b("request"), b("result_digest"), b("payload"), i("applied")),
+		d(uoRootReceiptInsert, stmt.Write, `INSERT INTO user_mutation_command_receipts(root_id,command_incarnation,command_sequence,operation_id,command_kind,request_digest,result_version,result_count,result_digest,result_payload,applied_ms) VALUES(?,?,?,?,?,?,1,?,?,?,?) RETURNING variable_bytes`, s("root"), b("incarnation"), i("sequence"), b("operation"), i("kind"), b("request"), i("result_count"), b("result_digest"), b("payload"), i("applied")),
 		d(uoRootOwnerAdvance, stmt.Write, `UPDATE user_mutation_command_owners SET last_command_sequence=?,receipt_rows=?,receipt_variable_bytes=?,revision=? WHERE root_id=? AND command_incarnation=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND revision=? AND receipt_rows=? AND receipt_variable_bytes=? AND receipt_reclaim_after_sequence=? AND receipt_reclaim_due_ms IS ? RETURNING last_command_sequence`, i("next_sequence"), i("next_rows"), i("next_bytes"), i("next_revision"), s("root"), b("incarnation"), i("old_sequence"), i("old_floor"), i("old_revision"), i("old_rows"), i("old_bytes"), i("old_cursor"), stmt.Param{Name: "old_due", Type: stmt.Integer, Nullable: true}),
 	}
 }

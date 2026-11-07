@@ -13,6 +13,12 @@ const RenewOperationalJob CommandID = 651
 const CompleteOperationalJob CommandID = 652
 const ReclaimOperationalJob CommandID = 653
 const RootReceiptReclaim CommandID = 654
+const CreateSavedResource CommandID = 655
+const PatchSavedResource CommandID = 656
+const DeleteSavedResource CommandID = 657
+const EditSavedResourceMembers CommandID = 658
+const ReorderSavedResource CommandID = 659
+const SetSavedResourceSharing CommandID = 660
 
 const SetWatchedIntent CommandID = 601
 const DismissContinue CommandID = 602
@@ -31,6 +37,15 @@ const ReclaimNotices CommandID = 625
 const ClaimWebhookAttempt CommandID = 641
 
 var uoCommands = commandRegistration{owner: "UO", descriptors: []Descriptor{
+	// Creation/patch/deletion can change publication or invalidate shared access.
+	// These private descriptors conservatively retain FULL security durability;
+	// current US authority and the accepting dispatcher remain separate gates.
+	{ID: CreateSavedResource, Name: "uo_create_saved_resource", Durability: Full},
+	{ID: PatchSavedResource, Name: "uo_patch_saved_resource", Durability: Full},
+	{ID: DeleteSavedResource, Name: "uo_delete_saved_resource", Durability: Full},
+	{ID: EditSavedResourceMembers, Name: "uo_edit_saved_resource_members", Durability: Normal},
+	{ID: ReorderSavedResource, Name: "uo_reorder_saved_resource", Durability: Normal},
+	{ID: SetSavedResourceSharing, Name: "uo_set_saved_resource_sharing", Durability: Full},
 	{ID: SetPersonalFlags, Name: "uo_set_personal_flags", Durability: Normal},
 	{ID: BeginPersonalJob, Name: "uo_begin_personal_job", Durability: Normal},
 	{ID: StepPersonalJob, Name: "uo_step_personal_job", Durability: Normal},

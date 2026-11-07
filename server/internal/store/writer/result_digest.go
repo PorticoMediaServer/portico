@@ -59,6 +59,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightUORootOperation(v)
 	case uoRootFlagsResult:
 		return preflightUORootFlags(v)
+	case uoRootSavedResult:
+		return preflightUORootSaved(v)
 	case uoRootReclaimResult:
 		return preflightUORootReclaim(v)
 	case evidenceSealResult:
@@ -118,6 +120,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeUORootOperation(e, identity, request, v)
 	case uoRootFlagsResult:
 		return writeUORootFlags(e, identity, request, v)
+	case uoRootSavedResult:
+		return writeUORootSaved(e, identity, request, v)
 	case uoRootReclaimResult:
 		return writeUORootReclaim(e, identity, request, v)
 	case evidenceSealResult:
