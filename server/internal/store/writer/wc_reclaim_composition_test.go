@@ -153,6 +153,11 @@ func wcReclaimCompositionOpening(t *testing.T, principalLifetimes ...context.Con
 	return w, d, a
 }
 func wcReclaimCompositionFixture(t *testing.T, principals ...context.Context) (*Writer, *WCReclaimDriver) {
+	w, _, d := wcReclaimCompositionProgressFixture(t, principals...)
+	return w, d
+}
+
+func wcReclaimCompositionProgressFixture(t *testing.T, principals ...context.Context) (*Writer, *WCProgressDriver, *WCReclaimDriver) {
 	t.Helper()
 	w, pd, _ := wcReclaimCompositionOpening(t, principals...)
 	ctx := t.Context()
@@ -189,6 +194,13 @@ func wcReclaimCompositionFixture(t *testing.T, principals ...context.Context) (*
 	if !finished {
 		t.Fatal("short native source did not finish within two actual quarters")
 	}
+	return w, pd, wcReclaimForProgressFixture(t, w, pd)
+}
+
+func wcReclaimForProgressFixture(t *testing.T, w *Writer, pd *WCProgressDriver) *WCReclaimDriver {
+	t.Helper()
+	ctx := t.Context()
+	var err error
 	r := w.effective
 	p := *r.wcProgressPlan
 	p.steps = nil
@@ -217,7 +229,7 @@ func wcReclaimCompositionFixture(t *testing.T, principals ...context.Context) (*
 			t.Error(e)
 		}
 	})
-	return w, d
+	return d
 }
 func TestWCReclaimCompositionOriginalReplayAckAndActualChildAbsence(t *testing.T) {
 	w, d := wcReclaimCompositionFixture(t)
