@@ -21,14 +21,28 @@ import (
 // they are not a qualified profile and no startup installs them in production.
 type n1CompositionFixtureProfile uint8
 
-const n1OperatingForecastFixture n1CompositionFixtureProfile = 1
+const (
+	n1OperatingForecastFixture n1CompositionFixtureProfile = 1
+	// Opt-in measurement only. Real time is chosen BEFORE the existing keeper,
+	// governor and driver are constructed; no frozen epoch is rebound later.
+	n1OperatingForecastTimingFixture n1CompositionFixtureProfile = 2
+)
 
 func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport) {
 	t.Helper()
-	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture) {
+	d, transport, _ := n1ComposedDriverFixtureState(t, selected...)
+	return d, transport
+}
+
+// The SAME fixture exposes existing owner/trace state for opt-in measurement.
+// No callback, grant constructor, profile override or second opening is added.
+func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport, *checkpointComponent) {
+	t.Helper()
+	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture && selected[0] != n1OperatingForecastTimingFixture) {
 		t.Fatal("unknown closed composition fixture profile")
 	}
-	cp := newCheckpointComponent(t, true, false)
+	realClock := len(selected) == 1 && selected[0] == n1OperatingForecastTimingFixture
+	cp := newCheckpointComponent(t, true, realClock)
 	// Explicit component input, obtained from the actual existing file. Setting
 	// the assertion changes no page size; Assert repeats the read before BEGIN.
 	if err := cp.w.db.QueryRowContext(t.Context(), "PRAGMA main.page_size").Scan(&cp.w.config.WriterPageSize); err != nil {
@@ -147,7 +161,7 @@ func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfi
 	if err = composeInventoryDriver(t.Context(), d, profile(inventoryDriverCommandDefinitions(), true)); err != nil {
 		t.Fatal(err)
 	}
-	return d, transport
+	return d, transport, cp
 }
 
 func n1ComposedDriverPrepared(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *N1Preparation, InventoryAcceptCommand, ScanReceiptRequest) {
