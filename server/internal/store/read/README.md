@@ -245,8 +245,11 @@ an opaque `Stamp`. Its `MetadataBytes()` reports owned-field bytes, capped at640
 Prospective old/new metadata overlap is charged inside output8/RB custody and
 the existing2MiB copy ceiling, never through another grant. When retaining hits across polls, trusted composition supplies
 prior stamps in `FullSearchInput.Retained` (at most128 stamps/128 distinct retained
-source-policy witnesses). This SAME native operation revalidates them in both
-windows. Inside its still-live Consume callback, current
+source-policy witnesses), including hits from several libraries. Library IDs
+come only from opaque issued evidence; this SAME native operation revalidates
+each library fence and its per-hit proofs in both windows. An empty
+`RetainHits(nil)` anchor keeps its original own source-library fence. Narrowing
+may drop discarded-hit libraries, but never the stamp's own source scope. Inside its still-live Consume callback, current
 `Stamp.ValidateRetained(ctx, out, prior)` verifies that the prior witnesses were
 actually rechecked. A prior stamp alone, including one omitted from the current
 input, grants no disclosure. RS separately owns retained payload/source-write
