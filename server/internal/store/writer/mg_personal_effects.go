@@ -140,7 +140,7 @@ func setMGPersonalPreference(ctx context.Context, t *commandTurn, r mgPersonalPr
 		hidden = 1
 	}
 	id := mgPersonalPreferenceInsert
-	args := append(r.ownerValues(), favorite, hidden)
+	args := append(r.ownerValues(), favorite, hidden, int64(1))
 	if present {
 		id = mgPersonalPreferenceUpdate
 		args = append([]any{favorite, hidden}, r.ownerValues()...)
@@ -286,7 +286,7 @@ func setMGPersonalReminder(ctx context.Context, t *commandTurn, r mgPersonalRemi
 		}
 	}
 	id := mgPersonalReminderInsert
-	args := []any{key, owner, string(want.kind), want.source, want.channel, want.generation, want.programme, start}
+	args := []any{key, owner, string(want.kind), want.source, want.channel, want.generation, want.programme, int64(1), start}
 	if present {
 		id = mgPersonalReminderUpdate
 		args = []any{key, owner, r.expected, string(want.kind), want.source, want.channel, want.generation, want.programme, start}

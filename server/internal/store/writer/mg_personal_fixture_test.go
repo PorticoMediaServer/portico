@@ -54,7 +54,7 @@ func mgPersonalFixture(t *testing.T, decorate ...func(driver.Conn) driver.Conn) 
 	w, _ := testCanonicalExecutor(t, decorate...)
 	// Select only the exact source table from the existing guide draft constant.
 	source := mgGuidePublicationDraftSQL[:strings.Index(mgGuidePublicationDraftSQL, "\n\nCREATE TABLE live_operations")]
-	overlay := `DROP TABLE live_sources;DROP TABLE live_reminders;DROP TABLE lc_playback_refs;DROP TABLE lc_generations;DROP TABLE lc_channels;` + mgLCDraftSQL + `CREATE UNIQUE INDEX live_generations_source_scope ON live_generations(id,source_id);` + source + mgPersonalReminderDraftSQL
+	overlay := `DROP TABLE live_sources;DROP TABLE live_reminders;DROP TABLE lc_playback_refs;DROP TABLE lc_generations;DROP TABLE lc_channels;` + mgLCDraftSQL + `CREATE UNIQUE INDEX live_generations_source_scope ON live_generations(id,source_id);` + source + `CREATE INDEX live_sources_generation_head ON live_sources(active_generation,id);` + mgPersonalReminderDraftSQL
 	if _, err := w.db.ExecContext(t.Context(), overlay); err != nil {
 		t.Fatal(err)
 	}
