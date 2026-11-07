@@ -55,6 +55,12 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return invalid("result_command_sequence")
 	}
 	switch v := result.(type) {
+	case ipArtworkDiscoverySavedResult:
+		return preflightIPArtworkDiscoveryResult(v)
+	case ipPolicyResult:
+		return preflightIPPolicyResult(v)
+	case ipRefreshSavedResult:
+		return preflightIPRefreshResult(v)
 	case ipTextLockResult:
 		return preflightIPTextLockResult(v)
 	case evidenceSealResult:
@@ -104,6 +110,12 @@ func encodeCanonicalResult(e *requestEncoder, identity CommandIdentity, request 
 
 func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request RequestDigest, result any) error {
 	switch v := result.(type) {
+	case ipArtworkDiscoverySavedResult:
+		return writeIPArtworkDiscoveryResult(e, identity, request, v)
+	case ipPolicyResult:
+		return writeIPPolicyResult(e, identity, request, v)
+	case ipRefreshSavedResult:
+		return writeIPRefreshResult(e, identity, request, v)
 	case ipTextLockResult:
 		return writeIPTextLockResult(e, identity, request, v)
 	case evidenceSealResult:

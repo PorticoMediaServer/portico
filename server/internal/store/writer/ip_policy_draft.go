@@ -2,11 +2,10 @@ package writer
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/binary"
 	"errors"
 	"math"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -35,6 +34,7 @@ type ipPolicyRequest struct {
 }
 
 type ipPolicyResult struct {
+	retired             bool // public mapping is ResultRetired; never a saved Applied result.
 	incarnation         [16]byte
 	revision, appliedMS int64
 	values              ipPolicyValues
@@ -55,59 +55,24 @@ func (b *ipPolicyDecode) reserve(n int64) error {
 	return nil
 }
 
-// Versioned, length-delimited, closed-domain digests. They identify original
-// requests/results only; neither this codec nor its digest is authority.
-type ipPolicyHash struct{ data []byte }
-
-func (h *ipPolicyHash) integer(v int64) { h.data = binary.BigEndian.AppendUint64(h.data, uint64(v)) }
-func (h *ipPolicyHash) bytes(v []byte)  { h.integer(int64(len(v))); h.data = append(h.data, v...) }
-func (h *ipPolicyHash) text(v string)   { h.bytes([]byte(v)) }
-func (h *ipPolicyHash) values(v ipPolicyValues) {
-	h.integer(v.enabled)
-	h.integer(v.priority)
-	h.integer(v.creditEnabled)
-	h.text(v.region)
-	h.text(v.algorithm)
-	h.text(v.refreshMode)
+// Complete original typed roots use W's shared request codec, including identity.
+func (r ipPolicyRequest) digest() (RequestDigest, error) {
+	return canonicalRequestDigest(IPPolicySet, 1, r.identity, r)
 }
-func (r ipPolicyRequest) digest() RequestDigest {
-	h := ipPolicyHash{}
-	h.text("ip.policy.set.v1")
-	h.integer(r.library)
-	h.text(r.provider)
-	h.bytes(r.policyIncarnation[:])
-	h.integer(r.revision)
-	h.integer(r.consentRevision)
-	h.integer(r.nowMS)
-	h.values(r.values)
-	return RequestDigest(sha256.Sum256(h.data))
-}
-func (r ipPolicyResult) digest() [32]byte {
-	h := ipPolicyHash{}
-	h.text("ip.policy.result.v1")
-	h.bytes(r.incarnation[:])
-	h.integer(r.revision)
-	h.integer(r.appliedMS)
-	h.values(r.values)
-	if r.creditAfterItem.Valid {
-		h.integer(1)
-		h.integer(r.creditAfterItem.Int64)
-		h.text(r.creditAfterProvider.String)
-	} else {
-		h.integer(0)
-	}
-	return sha256.Sum256(h.data)
+func (r ipPolicyResult) digest(i CommandIdentity, q RequestDigest) ([32]byte, error) {
+	d, err := canonicalResultDigest(i, q, r)
+	return [32]byte(d), err
 }
 func ipPolicyValidText(v string, max int) bool {
-	return len(v) > 0 && len(v) <= max && utf8.ValidString(v)
+	return len(v) > 0 && len(v) <= max && utf8.ValidString(v) && strings.IndexByte(v, 0) < 0
 }
 func ipPolicyValidIdentity(v CommandIdentity) bool {
 	return v.Sequence > 0 && v.Incarnation != [16]byte{} && v.OperationID != [16]byte{}
 }
 func (r ipPolicyRequest) valid() bool {
 	v := r.values
-	return r.library > 0 && ipPolicyValidText(r.provider, 64) && ipPolicyValidIdentity(r.identity) && r.revision > 0 && r.nowMS >= 0 && r.consentRevision > 0 && r.policyIncarnation != [16]byte{} &&
-		(v.enabled == 0 || v.enabled == 1) && (v.creditEnabled == 0 || v.creditEnabled == 1) && ipPolicyValidText(v.region, 32) && ipPolicyValidText(v.algorithm, 256) && (v.refreshMode == "fill_missing" || v.refreshMode == "replace_unlocked")
+	return r.library > 0 && ipPolicyValidText(r.provider, 128) && ipPolicyValidIdentity(r.identity) && r.revision > 0 && r.nowMS >= 0 && r.consentRevision > 0 && r.policyIncarnation != [16]byte{} &&
+		(v.enabled == 0 || v.enabled == 1) && (v.creditEnabled == 0 || v.creditEnabled == 1) && len(v.region) <= 32 && utf8.ValidString(v.region) && strings.IndexByte(v.region, 0) < 0 && ipPolicyValidText(v.algorithm, 256) && (v.refreshMode == "fill_missing" || v.refreshMode == "replace_unlocked")
 }
 
 func ipPolicyStep(t *commandTurn, id stmt.ID) statementStep { return t.steps[id].statementStep }
@@ -177,12 +142,16 @@ func ipPolicySetBody(ctx context.Context, t *commandTurn, r ipPolicyRequest, b *
 		copy(found.identity.digest[:], dig)
 		copy(found.resultDigest[:], savedDigest)
 	}
-	decision, err := classifyReceipt(receiptIdentity{r.identity, r.digest()}, IPPolicySet, owner, found)
+	requestDigest, err := r.digest()
+	if err != nil {
+		return out, err
+	}
+	decision, err := classifyReceipt(receiptIdentity{r.identity, requestDigest}, IPPolicySet, owner, found)
 	if err != nil {
 		return out, err
 	}
 	if decision == receiptRetired {
-		return out, ErrResolveRequired
+		return ipPolicyResult{retired: true}, nil
 	}
 	if decision == receiptReplay {
 		var n int64
@@ -201,7 +170,8 @@ func ipPolicySetBody(ctx context.Context, t *commandTurn, r ipPolicyRequest, b *
 			return out, ErrResolveRequired
 		}
 		copy(out.incarnation[:], inc)
-		if out.digest() != found.resultDigest {
+		resultDigest, err := out.digest(r.identity, requestDigest)
+		if err != nil || resultDigest != found.resultDigest {
 			return out, ErrResolveRequired
 		}
 		return out, nil
@@ -242,8 +212,11 @@ func ipPolicySetBody(ctx context.Context, t *commandTurn, r ipPolicyRequest, b *
 	if err = ipPolicyOne(ctx, t, ipPolicyUpdate, out.revision, r.values.enabled, r.values.priority, r.values.region, r.values.algorithm, r.values.refreshMode, r.values.creditEnabled, r.identity.Sequence, r.library, r.provider, r.policyIncarnation[:], r.revision, r.identity.Incarnation[:], owner.lastSequence, owner.acknowledgedSequence); err != nil {
 		return out, err
 	}
-	d := r.digest()
-	rd := out.digest()
+	d := requestDigest
+	rd, err := out.digest(r.identity, d)
+	if err != nil {
+		return out, err
+	}
 	err = ipPolicyOne(ctx, t, ipPolicyReceiptInsert, r.library, r.provider, r.identity.Incarnation[:], r.identity.Sequence, r.identity.OperationID[:], d[:], r.nowMS, rd[:], out.incarnation[:], out.revision, out.values.enabled, out.values.priority, out.values.region, out.values.algorithm, out.values.refreshMode, out.values.creditEnabled, ipPolicyNullableInt(out.creditAfterItem), ipPolicyNullableText(out.creditAfterProvider))
 	return out, err
 }

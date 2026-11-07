@@ -2,7 +2,6 @@ package writer
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"math"
@@ -51,43 +50,22 @@ func (k ipRefreshKind) text() string {
 	return ""
 }
 func (r ipRefreshRequest) valid() bool {
-	return ipPolicyValidText(r.provider, 64) && (r.purpose == "metadata" || r.purpose == "artwork") && ipPolicyValidIdentity(r.identity) && r.kind.text() != "" && r.generation > 0 && r.revision > 0 && r.afterID >= 0 && r.leaseOwner >= 0 && r.leaseGeneration >= 0 && r.leaseExpiresMS >= 0 && r.consentRevision > 0 && r.nowMS >= 0
+	return ipPolicyValidText(r.provider, 128) && (r.purpose == "metadata" || r.purpose == "artwork") && ipPolicyValidIdentity(r.identity) && r.kind.text() != "" && r.generation > 0 && r.revision > 0 && r.afterID >= 0 && r.leaseOwner >= 0 && r.leaseGeneration >= 0 && r.leaseExpiresMS >= 0 && r.consentRevision > 0 && r.nowMS >= 0
 }
-func (r ipRefreshRequest) digest() RequestDigest {
-	h := ipPolicyHash{}
-	h.text("ip.refresh.request.v1")
-	h.text(r.provider)
-	h.text(r.purpose)
-	h.text(r.kind.text())
-	h.integer(r.generation)
-	h.integer(r.revision)
-	h.integer(r.afterID)
-	h.integer(r.leaseOwner)
-	h.integer(r.leaseGeneration)
-	h.integer(r.leaseExpiresMS)
-	h.integer(r.consentRevision)
-	h.integer(r.nowMS)
-	return RequestDigest(sha256.Sum256(h.data))
+func (r ipRefreshRequest) digest() (RequestDigest, error) {
+	return canonicalRequestDigest(r.kind.command(), 1, r.identity, r)
 }
 
 type ipRefreshResult struct {
+	retired                                bool // ACK floor has no saved scalar payload to disclose.
 	revision, generation, epochMS          int64
 	phase                                  string
 	afterID, scheduled, waiting, appliedMS int64
 }
 
-func (r ipRefreshResult) digest() [32]byte {
-	h := ipPolicyHash{}
-	h.text("ip.refresh.result.v1")
-	h.integer(r.revision)
-	h.integer(r.generation)
-	h.integer(r.epochMS)
-	h.text(r.phase)
-	h.integer(r.afterID)
-	h.integer(r.scheduled)
-	h.integer(r.waiting)
-	h.integer(r.appliedMS)
-	return sha256.Sum256(h.data)
+func (r ipRefreshResult) digest(kind CommandID, i CommandIdentity, q RequestDigest) ([32]byte, error) {
+	d, err := canonicalResultDigest(i, q, ipRefreshSavedResult{kind, r})
+	return [32]byte(d), err
 }
 
 type ipRefreshFacts struct {
@@ -131,12 +109,16 @@ func ipRefreshBody(ctx context.Context, t *commandTurn, r ipRefreshRequest, b *i
 		copy(found.resultDigest[:], rd)
 		found.kind = CommandID(command)
 	}
-	decision, err := classifyReceipt(receiptIdentity{r.identity, r.digest()}, r.kind.command(), owner, found)
+	requestDigest, err := r.digest()
+	if err != nil {
+		return out, err
+	}
+	decision, err := classifyReceipt(receiptIdentity{r.identity, requestDigest}, r.kind.command(), owner, found)
 	if err != nil {
 		return out, err
 	}
 	if decision == receiptRetired {
-		return out, ErrResolveRequired
+		return ipRefreshResult{retired: true}, nil
 	}
 	if decision == receiptReplay {
 		var n int64
@@ -149,7 +131,11 @@ func ipRefreshBody(ctx context.Context, t *commandTurn, r ipRefreshRequest, b *i
 		if err = ipPolicyScan(ctx, t, ipRefreshReceiptResult, receiptKey, &out.revision, &out.generation, &out.epochMS, &out.phase, &out.afterID, &out.scheduled, &out.waiting, &out.appliedMS); err != nil {
 			return out, err
 		}
-		if n != int64(len(out.phase)) || out.revision <= 0 || out.generation <= 0 || out.epochMS < 0 || out.afterID < 0 || out.scheduled < 0 || out.scheduled > ipRefreshRawLimit || (out.waiting != 0 && out.waiting != 1) || out.appliedMS < 0 || (out.phase != "entities" && out.phase != "people" && out.phase != "complete") || out.digest() != found.resultDigest {
+		if n != int64(len(out.phase)) || out.revision <= 0 || out.generation <= 0 || out.epochMS < 0 || out.afterID < 0 || out.scheduled < 0 || out.scheduled > ipRefreshRawLimit || (out.waiting != 0 && out.waiting != 1) || out.appliedMS < 0 || (out.phase != "entities" && out.phase != "people" && out.phase != "complete") {
+			return out, ErrResolveRequired
+		}
+		resultDigest, e := out.digest(r.kind.command(), r.identity, requestDigest)
+		if e != nil || resultDigest != found.resultDigest {
 			return out, ErrResolveRequired
 		}
 		return out, nil
@@ -243,8 +229,11 @@ func ipRefreshBody(ctx context.Context, t *commandTurn, r ipRefreshRequest, b *i
 			}
 		}
 	}
-	d := r.digest()
-	resultDigest := out.digest()
+	d := requestDigest
+	resultDigest, err := out.digest(r.kind.command(), r.identity, d)
+	if err != nil {
+		return out, err
+	}
 	err = ipPolicyOne(ctx, t, ipRefreshReceiptInsert, r.provider, r.purpose, r.identity.Incarnation[:], r.identity.Sequence, r.identity.OperationID[:], d[:], r.nowMS, resultDigest[:], r.kind.text(), out.revision, out.generation, out.epochMS, out.phase, out.afterID, out.scheduled, out.waiting)
 	return out, err
 }

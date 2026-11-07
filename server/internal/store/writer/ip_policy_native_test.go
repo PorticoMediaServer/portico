@@ -230,13 +230,23 @@ func TestIPPolicyNativePlans(t *testing.T) {
 
 func TestIPPolicyDigestAndByteLedger(t *testing.T) {
 	r := ipPolicyTestRequest()
-	base := r.digest()
+	base, err := r.digest()
+	if err != nil {
+		t.Fatal(err)
+	}
 	r.values.algorithm = "ab"
 	r.values.region = "c"
-	a := r.digest()
+	a, err := r.digest()
+	if err != nil {
+		t.Fatal(err)
+	}
 	r.values.algorithm = "a"
 	r.values.region = "bc"
-	if a == r.digest() || base == r.digest() {
+	next, err := r.digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a == next || base == next {
 		t.Fatal("ambiguous digest")
 	}
 	b := &ipPolicyDecode{remaining: 3}

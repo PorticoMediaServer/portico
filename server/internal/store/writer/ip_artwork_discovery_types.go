@@ -170,19 +170,12 @@ func ipArtworkDiscoveryManifestDigest(o ipArtworkDiscoveryOwner, s ipArtworkDisc
 	return out
 }
 
-// Closed draft result codec, deliberately not an extension to W's shared codec.
-func ipArtworkDiscoveryResultDigest(kind CommandID, i CommandIdentity, q RequestDigest, r ipArtworkDiscoveryResult) ResultDigest {
-	h := sha256.New()
-	ipArtworkDiscoveryPutText(h, "portico-ip-artwork-discovery-result-v1")
-	ipArtworkDiscoveryPut(h, int64(kind))
-	_, _ = h.Write(i.Incarnation[:])
-	ipArtworkDiscoveryPut(h, i.Sequence)
-	_, _ = h.Write(i.OperationID[:])
-	_, _ = h.Write(q[:])
-	for _, n := range []int64{r.stageID, r.revision, r.count, r.afterOrdinal} {
-		ipArtworkDiscoveryPut(h, n)
-	}
-	var out ResultDigest
-	copy(out[:], h.Sum(nil))
-	return out
+// Saved results use W's sole result codec; source manifests remain a separate domain.
+type ipArtworkDiscoverySavedResult struct {
+	Kind  CommandID
+	Value ipArtworkDiscoveryResult
+}
+
+func ipArtworkDiscoveryResultDigest(kind CommandID, i CommandIdentity, q RequestDigest, r ipArtworkDiscoveryResult) (ResultDigest, error) {
+	return canonicalResultDigest(i, q, ipArtworkDiscoverySavedResult{kind, r})
 }

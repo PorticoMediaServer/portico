@@ -107,8 +107,8 @@ func ipArtworkDiscoveryLookup(ctx context.Context, turn *commandTurn, kind Comma
 		(kind != IPArtworkDiscoveryClaim && (r.stageID != q.stageID || r.revision != q.stageRevision+1)) {
 		return out, ErrResolveRequired
 	}
-	expected := ipArtworkDiscoveryResultDigest(kind, q.identity, digest, r)
-	if !bytes.Equal(expected[:], result) {
+	expected, e := ipArtworkDiscoveryResultDigest(kind, q.identity, digest, r)
+	if e != nil || !bytes.Equal(expected[:], result) {
 		return out, ErrResolveRequired
 	}
 	out.result = r
@@ -374,7 +374,10 @@ func ipArtworkDiscoveryApply(ctx context.Context, turn *commandTurn, kind Comman
 	if err != nil {
 		return out, err
 	}
-	resultDigest := ipArtworkDiscoveryResultDigest(kind, q.identity, digest, r)
+	resultDigest, e := ipArtworkDiscoveryResultDigest(kind, q.identity, digest, r)
+	if e != nil {
+		return out, e
+	}
 	command := "discovery_claim"
 	if kind == IPArtworkDiscoveryPage {
 		command = "discovery_page"
