@@ -113,3 +113,50 @@ func TestRSCollectionSetExactRanks(t *testing.T) {
 		t.Fatal("unbounded tree depth")
 	}
 }
+
+func TestRSAutoCollectionRejectedTailAndIndependentOracle(t *testing.T) {
+	f, r := newRSAutoFixture(t, nil)
+	f.exec(t, `INSERT INTO metadata_field_origins(subject_kind,provider_id,entity_id,field,provider,source_kind,source_url,confidence,observed_at,language,region,selection_revision,publication_id,evidence_id) SELECT 'movie','3',id,'relations','tmdb','fixture','fixture',1,'now','en','',1,NULL,'e3' FROM catalog_entities WHERE id BETWEEN 6 AND 80`)
+	p := rsBeginCollection(t, f, r)
+	raw, quanta := 0, 0
+	for ; quanta < 100; quanta++ {
+		step, _, e := p.advance(t.Context(), foregroundRequest(), time.Second, f.output, f.input.Now)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if step.RawPositions > 4 {
+			t.Fatal("unbounded raw source positions")
+		}
+		raw += step.RawPositions
+		if step.Ready {
+			break
+		}
+	}
+	if quanta < 20 || quanta >= 100 || raw < 80 {
+		t.Fatal("rejected tail did not advance", quanta, raw)
+	}
+	// The compound oracle is test-only; production definitions use base tables.
+	rows, e := f.conn.QueryContext(t.Context(), `SELECT item_id FROM catalog_automatic_members_current WHERE parent_id=1101 ORDER BY item_id`)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var want []int64
+	for rows.Next() {
+		var id int64
+		if e := rows.Scan(&id); e != nil {
+			t.Fatal(e)
+		}
+		want = append(want, id)
+	}
+	if e := rows.Err(); e != nil {
+		t.Fatal(e)
+	}
+	rows.Close()
+	var got []int64
+	for i := range p.nodes {
+		got = append(got, rsNodeRank(p.nodes, p.root, i))
+	}
+	if !slices.Equal(got, want) {
+		t.Fatal("source recipe differs from independent oracle", got, want)
+	}
+}

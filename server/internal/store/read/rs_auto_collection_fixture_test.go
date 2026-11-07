@@ -52,10 +52,10 @@ func rsAutoConfig() governor.Config {
 }
 func newRSAutoFixture(t *testing.T, mutate func(*browseFixture)) (*browseFixture, *CollectionReader) {
 	f := newRSAutoSource(t)
+	f = composeReadFixture(t, f, append(browseDefinitions(), AutomaticCollectionDefinitions()...), rsAutoConfig(), true, rsAutoHash(t))
 	if mutate != nil {
 		mutate(f)
 	}
-	f = composeReadFixture(t, f, append(browseDefinitions(), AutomaticCollectionDefinitions()...), rsAutoConfig(), true, rsAutoHash(t))
 	r, e := NewCollectionReader(f.snapshots)
 	if e != nil {
 		t.Fatal(e)
