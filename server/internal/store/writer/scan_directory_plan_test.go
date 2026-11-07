@@ -84,6 +84,9 @@ func TestScanDirectoryStatementPlans(t *testing.T) {
 	expected, err := os.ReadFile(file)
 	if os.IsNotExist(err) {
 		if evidence := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidence != "" {
+			if err := os.MkdirAll(evidence, 0755); err != nil {
+				t.Fatal(err)
+			}
 			if err := os.WriteFile(filepath.Join(evidence, "scan-directory.json"), append(actual, '\n'), 0644); err != nil {
 				t.Fatal(err)
 			}
