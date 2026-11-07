@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"runtime"
+	"slices"
 )
 
 // schemaComparison projects only a Capture explicitly bound to the embedded
@@ -52,6 +54,9 @@ func projectSchemaPairs(want, got any) (bool, error) {
 			_, golden = actual["Manifest"]
 		}
 		binding, qualified := env["schemaBinding"]
+		if golden && !qualified && env["indexPolicySha256"] == embeddedPolicySHA() {
+			return false, fmt.Errorf("plan: canonical Capture lost its schema binding")
+		}
 		if golden && qualified {
 			ref, err := sharedSchemaEvidence()
 			if err != nil {
@@ -207,6 +212,19 @@ func checkBinding(v any) error {
 	return nil
 }
 func validateDerivedEnvironment(e Environment) error {
+	ref, err := sharedSchemaEvidence()
+	if err != nil {
+		return err
+	}
+	if !jsonEqual(e.Engine, ref.Engine) {
+		return fmt.Errorf("plan: native engine/sourceID differs from shared evidence")
+	}
+	options, _ := json.Marshal(e.CompileOptions)
+	profile, err := identifyCompileProfile(options)
+	if err != nil || profile.platform != runtime.GOOS+"/"+runtime.GOARCH {
+		return fmt.Errorf("plan: unapproved native compile profile")
+	}
+
 	if err := checkEmbeddedCatalog(e.Schema); err != nil {
 		return err
 	}
@@ -230,11 +248,19 @@ func validateDerivedEnvironment(e Environment) error {
 		return fmt.Errorf("plan: statistics profile inconsistent")
 	}
 	for name, rows := range e.Statistics {
+		columns := []string{"tbl", "idx", "stat"}
+		if name == "sqlite_stat4" {
+			columns = []string{"tbl", "idx", "neq", "nlt", "ndlt", "sample"}
+		}
+		if !slices.Equal(rows.Columns, columns) {
+			return fmt.Errorf("plan: statistics columns changed")
+		}
+
 		if name != "sqlite_stat1" && name != "sqlite_stat4" || !tables[name] {
 			return fmt.Errorf("plan: unknown statistics table %s", name)
 		}
 		for _, r := range rows.Values {
-			if len(r) < 3 {
+			if len(r) != len(columns) {
 				return fmt.Errorf("plan: invalid statistics row")
 			}
 			table, ok := r[0].(string)
@@ -368,6 +394,10 @@ func normalizeRecordWidths(g map[string]any, catalog Rows) {
 				if t.kind != 'w' && t.kind != 'q' {
 					safe = false
 					break
+				}
+				if t.kind == 'q' {
+					count++
+					continue
 				}
 				switch nameKey(t.text) {
 				case "constraint", "primary", "unique", "foreign", "check":
