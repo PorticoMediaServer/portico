@@ -321,6 +321,7 @@ func (r *RSArtistAlbumReader) enumerate(ctx context.Context, q governor.Request,
 // Count all retained wide fields, including nested album/artist facts. Native
 // octet preflight remains in the private Facts/art recipes before copying.
 func artistAlbumCardBytes(c RSArtistAlbumCard) int64 {
+	c.PrimaryArtist = TitleFacts{}
 	return 8192 + artistAlbumWideBytes(reflect.ValueOf(c))
 }
 func artistAlbumWideBytes(v reflect.Value) int64 {
