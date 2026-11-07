@@ -794,7 +794,7 @@ func (p *RSPeoplePreparation) personPage(outputBytes int64) (RSPersonPage, error
 			return a.ordinal < b.ordinal
 		}
 		if a.added != b.added {
-			return a.added > b.added
+			return a.added < b.added
 		}
 		return a.item.ID < b.item.ID
 	})
