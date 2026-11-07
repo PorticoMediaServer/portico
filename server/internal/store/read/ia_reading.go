@@ -16,6 +16,7 @@ type IAReadingInput struct {
 }
 type IAReadingPublication struct {
 	Asset                                                                         int64
+	AssetRevision                                                                 int64
 	PublicationType, TypeFormat, TypeField, TypeObject, TypeRevision              *string
 	TypeComplete                                                                  *bool
 	ClassifierVersion                                                             *int64
@@ -231,6 +232,7 @@ func (r *ForegroundReader) iaReading(ctx context.Context, request governor.Reque
 				return e
 			}
 			p.AssetToken = a[0].(string)
+			p.AssetRevision = a[2].(int64)
 			p.AssetAvailable = a[1].(int64) != 0
 			l, e := s.exact("link", []int{6, 7}, in.Item, asset, in.View.Library)
 			if e != nil {

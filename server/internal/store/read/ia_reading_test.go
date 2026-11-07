@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 	"strings"
@@ -67,7 +69,7 @@ func TestIAReadingCompleteCohortSQLMutant(t *testing.T) {
 		t.Run(map[bool]string{false: "control", true: "limit-mutant"}[mutant], func(t *testing.T) {
 			f := newIAReadingSource(t)
 			for id := 4001; id <= 4008; id++ {
-				f.exec(t, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(?,?,'/b',1,1,'pdf','','',0,0,0,1)`, id, strings.Repeat("x", id-4000))
+				f.exec(t, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(?,?,'/b'||?,1,1,'pdf','','',0,0,0,1)`, id, strings.Repeat("x", id-4000), id)
 				f.exec(t, `INSERT INTO catalog_asset_links(entity_id,asset_id,library_id) VALUES(4000,?,1)`, id)
 				f.exec(t, `INSERT INTO reading_publications(item_id,asset_id,format) VALUES(4000,?,'pdf')`, id)
 			}
@@ -98,6 +100,16 @@ func TestIAReadingCompleteCohortSQLMutant(t *testing.T) {
 // This SQL mutant weakens the actual point scope; Capture must refuse it.
 func TestIAReadingScopeSQLMutant(t *testing.T) {
 	f := newIAReadingSource(t)
+	db, _, e := sqliteconn.Open(t.Context(), f.path, browseReaderConfig())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer db.Close()
+	conn, e := db.Conn(t.Context())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer conn.Close()
 	for _, d := range IAReadingDefinitions() {
 		if d.ID == stmt.ID("read.foreground.ia.reading.entity_octets") {
 			d.SQL = strings.Replace(d.SQL, "library_id=?", "library_id>=?", 1)
@@ -105,7 +117,7 @@ func TestIAReadingScopeSQLMutant(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			_, e = plan.Capture(t.Context(), f.conn, catalog, browsePlanFixture(browseReaderConfig(), iaReadingFixtureHash(t), plan.Unanalyzed), iaTVPolicy(t))
+			_, e = plan.Capture(t.Context(), conn, catalog, browsePlanFixture(browseReaderConfig(), iaReadingFixtureHash(t), plan.Unanalyzed), iaTVPolicy(t))
 			if e == nil || !strings.Contains(e.Error(), "exact closed point") {
 				t.Fatal("scope mutant escaped", e)
 			}
@@ -147,5 +159,28 @@ func TestIAReadingForegroundCustody(t *testing.T) {
 	})
 	if e != nil {
 		t.Fatal(e)
+	}
+}
+
+type iaReadingChangingSnapshots struct {
+	*governor.Snapshots
+	change func()
+}
+
+func (s *iaReadingChangingSnapshots) ReadForecasted(ctx context.Context, r governor.Request, b time.Duration, f governor.SnapshotForecast, fn func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	result, e := s.Snapshots.ReadForecasted(ctx, r, b, f, fn)
+	s.change()
+	return result, e
+}
+func TestIAReadingSourcePublicationFence(t *testing.T) {
+	f, r := newIAReadingFixture(t)
+	r.snapshots = &iaReadingChangingSnapshots{f.snapshots, func() {
+		f.exec(t, `UPDATE reading_publications SET path_source_revision=path_source_revision||'x' WHERE item_id=4000`)
+	}}
+	in := IAReadingInput{View: f.input, Item: 4000}
+	in.View.Kind = 20
+	d, _, e := r.iaReading(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	if !errors.Is(e, ErrStale) || len(d.Publications) != 0 {
+		t.Fatal("changed source escaped publication fence", e)
 	}
 }
