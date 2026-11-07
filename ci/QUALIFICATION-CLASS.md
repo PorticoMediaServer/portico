@@ -44,6 +44,11 @@ none and never counts CP as a writer hold. Runnable does not promise10,000
 accepted originals: actual refusal must remain a stopped, nonpassing cell.
 These are source-owned recipe facts, not limits chosen or extended here.
 
+Where maintenance is composed, preserve its actual typed result and nullable
+`checkpoint.owner_clock` intervals in the SAME origin as writer owner clocks.
+Missing time points stay null; an observed relative clock point0 is legal.
+Those joins permit observed overlap accounting, not a causal IO attribution.
+
 All six jobs download the SAME successful producer attempt and image. The
 producer workflow/API attempt, main tooling, receipt, source, manifest and full
 image hashes are checked. The consumed schema must match exactly. Known seed,
