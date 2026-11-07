@@ -45,6 +45,12 @@ func lookupUORootCommand(ctx context.Context, turn *commandTurn, q uoRootReferen
 	if err = turn.checkLifetimes(ctx); err != nil {
 		return out, err
 	}
+	// The original purpose cannot borrow another command's durability/hold.
+	// In particular, a NORMAL personal turn cannot retain a FULL sharing
+	// original merely because its header names a registered security purpose.
+	if turn.transaction.descriptor.ID != q.kind {
+		return out, ErrInvalid
+	}
 	row, err := wc008DraftQuery(ctx, turn, uoRootOwnerPoint, q.root)
 	if err != nil {
 		return out, err

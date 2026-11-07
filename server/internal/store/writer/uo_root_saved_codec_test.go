@@ -149,3 +149,12 @@ func TestUORootSavedNativeCorruptHeaderCountRefuses(t *testing.T) {
 		t.Fatal("corrupt original ACKed")
 	}
 }
+
+func TestUORootSavedCannotBorrowNormalPurpose(t *testing.T) {
+	w, root := uoRootFixture(t)
+	q := uoRootReference{root: root, kind: SetSavedResourceSharing, identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, request: RequestDigest{3}}
+	turn := wc008NativeTurn(t, w, SetPersonalFlags, uoRootAllDefinitions())
+	if _, err := lookupUORootCommand(t.Context(), turn, q); err == nil {
+		t.Fatal("FULL original borrowed a NORMAL purpose")
+	}
+}
