@@ -57,7 +57,7 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 			seen[d.ID] = true
 		}
 	}
-	if len(defs) != 83 {
+	if len(defs) != 84 {
 		t.Fatal("complete native scan union", len(defs))
 	}
 	conn, err := cp.w.db.Conn(t.Context())
@@ -94,6 +94,9 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 			p.inventoryMemory = inventoryMemoryBudget{4 << 20, 4 << 20}
 		} else {
 			p.scanLifecycleMemory = commandMemoryBudget{4 << 20, 4 << 20}
+		}
+		if len(defs) == len(inventoryDriverCommandDefinitions()) {
+			p.inventoryRecords = inventoryRecordEnvelope{maxBytes: recipe.setup.WALBytes, work: recipe.setup}
 		}
 		for _, def := range defs {
 			p.steps = append(p.steps, statementStep{def.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})

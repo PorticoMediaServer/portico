@@ -1,0 +1,94 @@
+package writer
+
+import (
+	"errors"
+	"math"
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+)
+
+func TestN1ExistingRecordByteArithmetic(t *testing.T) {
+	got, err := inventoryRecordActualBytes([]string{"run", "."}, scanByteVector{exists: true, total: 19})
+	if err != nil || got != inventoryRecordFixedBytes+23 {
+		t.Fatal(got, err)
+	}
+	for _, vectors := range [][]scanByteVector{{{}}, {{exists: true, total: math.MaxUint64}}} {
+		if got, err := inventoryRecordActualBytes(nil, vectors...); err == nil || got != 0 {
+			t.Fatal("invalid vector produced a record allowance", got, err)
+		}
+	}
+}
+
+func TestN1ExistingRecordSchemaCoverage(t *testing.T) {
+	d, _ := n1ComposedDriverFixture(t)
+	// Every variable-width physical column must be covered by a native length
+	// or an already frozen exact PK. Integer/generated scalars and headers fit
+	// the fixed term; this fails on schema additions instead of assuming zero.
+	for table, want := range map[string][]string{
+		"libraries":             {"id", "name", "kind", "root", "preference_local_tags", "preference_lyrics_source", "preference_title_source", "preference_episode_numbering", "playback_origin_incarnation", "metadata_language"},
+		"inventory_runs":        {"job_id", "original_library_key", "original_resolved_root", "source_id", "root_incarnation", "root_identity", "phase", "finished_at", "scan_mode", "create_operation_id", "create_request_digest", "command_incarnation", "reconcile_cursor", "verify_cursor", "last_turn", "pause_reason", "inventory_completed_at"},
+		"jobs":                  {"id", "library_id", "status", "created_at", "error"},
+		"inventory_directories": {"job_id", "relative_path", "identity", "revision", "cursor", "state"},
+	} {
+		rows, err := d.opening.executor.db.QueryContext(t.Context(), "PRAGMA main.table_xinfo("+table+")")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		count := 0
+		for rows.Next() {
+			var cid, notNull, pk, hidden int
+			var name, kind string
+			var defaultValue any
+			if err := rows.Scan(&cid, &name, &kind, &notNull, &defaultValue, &pk, &hidden); err != nil {
+				t.Fatal(err)
+			}
+			count++
+			switch kind {
+			case "TEXT", "BLOB":
+				names = append(names, name)
+			case "INTEGER", "REAL":
+			default:
+				t.Fatal("unbounded scalar type", table, name, kind)
+			}
+		}
+		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+			t.Fatal(err)
+		}
+		slices.Sort(names)
+		slices.Sort(want)
+		if count > 64 || !slices.Equal(names, want) {
+			t.Fatal("record formula no longer covers schema", table, count, names, want)
+		}
+	}
+}
+
+func TestN1ExistingRecordCapacityBeforeEffects(t *testing.T) {
+	for _, field := range []string{"library_name", "run_pause_reason"} {
+		t.Run(field, func(t *testing.T) {
+			d, preparation, command, original := n1ComposedDriverPrepared(t)
+			query := `UPDATE libraries SET name=? WHERE id='lifecycle-library'`
+			if field == "run_pause_reason" {
+				query = `UPDATE inventory_runs SET pause_reason=? WHERE job_id=?`
+			}
+			args := []any{strings.Repeat("x", 128<<10)}
+			if field == "run_pause_reason" {
+				args = append(args, original.RunID)
+			}
+			if _, err := d.opening.executor.db.ExecContext(t.Context(), query, args...); err != nil {
+				t.Fatal(err)
+			}
+			got, err := preparation.Accept(t.Context(), command)
+			var refusal *Refusal
+			if !errors.As(err, &refusal) || refusal.Code != RefusalCapacity || !reflect.DeepEqual(got, InventoryResult{}) {
+				t.Fatal("uncovered old row reached effects", got, err)
+			}
+			var assets, receipts int
+			if err := d.opening.executor.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM catalog_assets),(SELECT count(*) FROM scan_command_receipts WHERE run_id=? AND command_kind='inventory_accept')`, original.RunID).Scan(&assets, &receipts); err != nil || assets != 0 || receipts != 0 {
+				t.Fatal("capacity refusal left native effects", assets, receipts, err)
+			}
+		})
+	}
+}
