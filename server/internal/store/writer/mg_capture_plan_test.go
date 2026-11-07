@@ -1,9 +1,13 @@
 package writer
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
+	"io"
 	"os"
 	"testing"
 
@@ -19,11 +23,11 @@ var recordMGCapturePlans = flag.Bool("record-mg-capture-plans", false, "delibera
 // manifests. This is tiny fixture/plan evidence, never performance qualification.
 func TestMGCaptureStatementPlans(t *testing.T) {
 	defs := mgCaptureDefinitions()
-	if len(defs) != 7 {
+	if len(defs) != 11 {
 		t.Fatal("statement inventory", len(defs))
 	}
 	for _, d := range defs {
-		if !d.Plan.Hot || len(d.Plan.Waivers) != 0 {
+		if (d.ID != mgCaptureReceiptInsert && !d.Plan.Hot) || len(d.Plan.Waivers) != 0 {
 			t.Fatal("unbounded capture plan", d.ID)
 		}
 		if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
@@ -34,7 +38,7 @@ func TestMGCaptureStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := os.ReadFile("mg_capture_effects_test.go")
+	source, err := os.ReadFile("mg_capture_draft_test.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +47,20 @@ func TestMGCaptureStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	indexPolicy, err := plan.ReadIndexPolicy(contract)
+	// Test-only policy addition copied exactly from the pinned draft index;
+	// canonical policy and all production registrations remain unchanged.
+	var policyContract struct {
+		Indexes []map[string]any `json:"indexes"`
+	}
+	if err := json.Unmarshal(contract, &policyContract); err != nil {
+		t.Fatal(err)
+	}
+	policyContract.Indexes = append(policyContract.Indexes, map[string]any{"index": "dvr_recordings_capture_launch", "predicate": "capture_launch_id IS NOT NULL", "choice": "repeat_exact_predicate"})
+	draftContract, err := json.Marshal(policyContract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexPolicy, err := plan.ReadIndexPolicy(draftContract)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +74,7 @@ func TestMGCaptureStatementPlans(t *testing.T) {
 	}
 	golden, err := plan.Capture(t.Context(), turn.transaction.conn, catalogue, plan.Fixture{
 		ConnectionPolicy: policy, SHA256: hex.EncodeToString(digest[:]), Statistics: plan.Unanalyzed,
-		Implementations: "MG folded recording/allocation scalar fixture; absent-key compile cohorts; no authority, receipt, physical exit or qualification",
+		Implementations: "MG exact selected declarations from owner draft 38b4c8d9 candidate 4e075198; absent-key compile cohorts; no authority, physical exit or qualification",
 	}, indexPolicy)
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +82,7 @@ func TestMGCaptureStatementPlans(t *testing.T) {
 	if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	if len(golden.Manifest) != 7 || len(golden.Plans) != 7 {
+	if len(golden.Manifest) != 11 || len(golden.Plans) != 11 {
 		t.Fatal("incomplete capture")
 	}
 	for _, p := range golden.Plans {
@@ -80,9 +97,17 @@ func TestMGCaptureStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := "testdata/mg-capture-plans.json"
+	path := "testdata/mg-capture-plans.json.gz"
 	if *recordMGCapturePlans {
-		if err := os.WriteFile(path, append(actual, '\n'), 0644); err != nil {
+		var compressed bytes.Buffer
+		gz := gzip.NewWriter(&compressed)
+		if _, err := gz.Write(actual); err != nil {
+			t.Fatal(err)
+		}
+		if err := gz.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, compressed.Bytes(), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -90,8 +115,19 @@ func TestMGCaptureStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	gz, err := gzip.NewReader(bytes.NewReader(expected))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err = io.ReadAll(gz)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := golden.Compare(expected); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("7 finite definitions/cohorts; native SEARCH plans and full VM; no effects executed by Capture")
+	t.Log("11 finite definitions/cohorts; native SEARCH plans, receipt INSERT/FK audit and full VM; no effects executed by Capture")
 }

@@ -17,15 +17,22 @@ func mgCaptureFixture(t *testing.T) (*executor, int64) {
 	t.Helper()
 	w, _, clock := testExecutor(t)
 	now := clock.UnixMilli()
+	mgCaptureDraftFixture(t, w)
 	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO live_source_identities(id) VALUES('capture-source')`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO live_generations(id,source_id,name,tuner_count,channel_count,programme_count,created_at) VALUES('guide','capture-source','Capture',2,1,1,'2026-11-07T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO live_sources(id,name,revision,state,tuner_count,active_generation,published_at) VALUES('capture-source','Capture',3,'active',2,'guide','2026-11-07T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
 	for _, id := range []string{"leader", "fresh", "follower"} {
-		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO dvr_recordings(id,owner_key,authority,account_id,profile_id,source_id,channel_id,programme_id,guide_generation,programme_json,options_json,start_ms,end_ms,priority,revision,state,created_ms,updated_ms) VALUES(?,?,'local','account',?,'capture-source','channel','programme','guide','{}','{}',?,?,1,5,'scheduled',?,?)`, id, "owner:"+id, id, now-1000, now+600000, now, now); err != nil {
+		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO dvr_recordings(id,owner_key,authority,account_id,profile_id,source_id,channel_id,programme_id,guide_generation,programme_json,options_json,start_ms,end_ms,priority,revision,state,created_ms,updated_ms,command_incarnation,create_operation_id,birth_request_digest,command_member_incarnation,command_profile_lifetime,guide_pin_generation) VALUES(?,?,'local','account',?,'capture-source','channel','programme','guide','{}','{}',?,?,1,5,'scheduled',?,?,x'01010101010101010101010101010101',x'02020202020202020202020202020202',x'0303030303030303030303030303030303030303030303030303030303030303','11111111111111111111111111111111','22222222222222222222222222222222','guide')`, id, "owner:"+id, id, now-1000, now+600000, now, now); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := w.db.ExecContext(t.Context(), `UPDATE dvr_recordings SET state='recording',claim_token='leader-token',claim_generation=7,cancel_generation=2,owner_instance='instance',lease_until_ms=?,allocation_id='leader-allocation',artifact_id='leader-artifact' WHERE id='leader'`, now+30000); err != nil {
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE dvr_recordings SET state='recording',claim_token='leader-token',claim_generation=7,cancel_generation=2,owner_instance='instance',lease_until_ms=?,allocation_id='leader-allocation',artifact_id='leader-artifact',capture_launch_id=x'04040404040404040404040404040404',capture_allocation_generation=9,capture_allocation_token='leader-allocation-token',capture_source_revision=3,capture_source_fence='source-fence',last_command_sequence=1,acknowledged_command_sequence=1 WHERE id='leader'`, now+30000); err != nil {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"leader", "fresh"} {
@@ -82,7 +89,7 @@ func TestMGCaptureNativeEffects(t *testing.T) {
 		turn := mgCaptureTestTurn(t, w, mgCaptureDefinitions())
 		fresh := mgCaptureSnapshotFor(t, turn, "fresh")
 		a := mgCaptureAllocation("fresh", now)
-		got, err := mgClaimCapture(t.Context(), turn, fresh, mgCaptureClaimInput{"fresh-token", "instance", "fresh-artifact", a, now + 30000})
+		got, err := mgClaimCapture(t.Context(), turn, fresh, mgCaptureTestCommand(fresh, mgCaptureKindClaim), mgCaptureClaimInput{"fresh-token", "instance", "fresh-artifact", a, now + 30000, mgCaptureID{9}, 3, "source-fence"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -90,21 +97,24 @@ func TestMGCaptureNativeEffects(t *testing.T) {
 			t.Fatal(got)
 		}
 		stale := got.recording
-		got, err = mgRenewCapture(t.Context(), turn, got.recording, a, now+60000)
+		got = mgCaptureTestAccept(t, turn, got)
+		got, err = mgRenewCapture(t.Context(), turn, got.recording, mgCaptureTestCommand(got.recording, mgCaptureKindRenew), a, now+60000)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if got.recording.revision != 7 || got.recording.leaseMS != now+60000 {
 			t.Fatal(got)
 		}
+		got = mgCaptureTestAccept(t, turn, got)
 		before := got.recording
-		got, err = mgCancelCapture(t.Context(), turn, before, "owner-cancelled")
+		got, err = mgCancelCapture(t.Context(), turn, before, mgCaptureTestCommand(before, mgCaptureKindCancel), "owner-cancelled")
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := before
 		want.state, want.reason = "cancelled", "owner-cancelled"
 		want.finishedMS = now
+		want.lastSequence++
 		want.cancelGeneration++
 		want.revision++
 		if got.recording != want || got.retirement != mgCaptureRetirementPending {
@@ -115,25 +125,26 @@ func TestMGCaptureNativeEffects(t *testing.T) {
 		if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT state,lease_until_ms FROM live_allocations WHERE id=?`, a.id).Scan(&state, &lease); err != nil || state != "active" || lease != a.leaseMS {
 			t.Fatal("cancel freed allocation", state, lease, err)
 		}
-		out, err := mgRenewCapture(t.Context(), turn, stale, a, now+90000)
+		out, err := mgRenewCapture(t.Context(), turn, stale, mgCaptureTestCommand(stale, mgCaptureKindRenew), a, now+90000)
 		mgCaptureZero(t, out, err)
-		out, err = mgRenewCapture(t.Context(), turn, got.recording, a, now+90000)
+		out, err = mgRenewCapture(t.Context(), turn, got.recording, mgCaptureTestCommand(got.recording, mgCaptureKindRenew), a, now+90000)
 		mgCaptureZero(t, out, err)
 	})
 	t.Run("attach keeps waiting intent and cancel keeps link", func(t *testing.T) {
 		turn := mgCaptureTestTurn(t, w, mgCaptureDefinitions())
 		leader := mgCaptureSnapshotFor(t, turn, "leader")
 		follower := mgCaptureSnapshotFor(t, turn, "follower")
-		got, err := mgAttachCapture(t.Context(), turn, follower, leader)
+		got, err := mgAttachCapture(t.Context(), turn, follower, leader, mgCaptureTestCommand(follower, mgCaptureKindAttach))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.recording.state != "scheduled" || got.recording.itemID != 0 || got.recording.artifactID != "" || got.recording.hasShare != 1 || got.recording.leaderID.text != leader.id || got.recording.revision != 6 || got.retirement != mgCaptureSharedHold {
+		if got.recording.state != "scheduled" || got.recording.itemID != 0 || got.recording.artifactID != "" || got.recording.hasShare != 1 || got.recording.leaderID.text != leader.id || got.recording.shareClaimGeneration != leader.claimGeneration || got.recording.shareLaunch != leader.launch || got.recording.revision != 6 || got.retirement != mgCaptureSharedHold {
 			t.Fatal("attachment invented output", got)
 		}
-		out, err := mgAttachCapture(t.Context(), turn, follower, leader)
+		out, err := mgAttachCapture(t.Context(), turn, follower, leader, mgCaptureTestCommand(follower, mgCaptureKindAttach))
 		mgCaptureZero(t, out, err)
-		out, err = mgCancelCapture(t.Context(), turn, got.recording, "owner-cancelled")
+		got = mgCaptureTestAccept(t, turn, got)
+		out, err = mgCancelCapture(t.Context(), turn, got.recording, mgCaptureTestCommand(got.recording, mgCaptureKindCancel), "owner-cancelled")
 		if err != nil || out.recording.leaderID != got.recording.leaderID || out.recording.hasShare != 1 {
 			t.Fatal("cancel dropped retained link", out, err)
 		}
@@ -159,12 +170,12 @@ func TestMGCaptureStaleFences(t *testing.T) {
 			original := mgCaptureSnapshotFor(t, turn, "leader")
 			s := original
 			tc.change(&s)
-			out, err := mgRenewCapture(t.Context(), turn, s, mgCaptureAllocation("leader", now), now+60000)
+			out, err := mgRenewCapture(t.Context(), turn, s, mgCaptureTestCommand(s, mgCaptureKindRenew), mgCaptureAllocation("leader", now), now+60000)
 			if !errors.Is(err, ErrConflict) {
 				t.Fatal(err)
 			}
 			mgCaptureZero(t, out, err)
-			out, err = mgCancelCapture(t.Context(), turn, s, "owner-cancelled")
+			out, err = mgCancelCapture(t.Context(), turn, s, mgCaptureTestCommand(s, mgCaptureKindCancel), "owner-cancelled")
 			if !errors.Is(err, ErrConflict) {
 				t.Fatal(err)
 			}
@@ -180,9 +191,9 @@ func TestMGCaptureStaleFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		s := mgCaptureSnapshotFor(t, turn, "leader")
-		out, err := mgRenewCapture(t.Context(), turn, s, mgCaptureAllocation("leader", now), now+60000)
+		out, err := mgRenewCapture(t.Context(), turn, s, mgCaptureTestCommand(s, mgCaptureKindRenew), mgCaptureAllocation("leader", now), now+60000)
 		mgCaptureZero(t, out, err)
-		out, err = mgClaimCapture(t.Context(), turn, s, mgCaptureClaimInput{"replacement", "other-instance", "replacement-artifact", mgCaptureAllocation("leader", now), now + 60000})
+		out, err = mgClaimCapture(t.Context(), turn, s, mgCaptureTestCommand(s, mgCaptureKindClaim), mgCaptureClaimInput{"replacement", "other-instance", "replacement-artifact", mgCaptureAllocation("leader", now), now + 60000, mgCaptureID{9}, 3, "source-fence"})
 		mgCaptureZero(t, out, err)
 	})
 }
@@ -193,12 +204,12 @@ func TestMGCaptureSharingGuards(t *testing.T) {
 			turn := mgCaptureTestTurn(t, w, mgCaptureDefinitions())
 			switch name {
 			case "leader is follower":
-				_, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE dvr_recordings SET has_dvr_recording_shares=1,share_capture_recording_id='fresh' WHERE id='leader'`)
+				_, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE dvr_recordings SET has_dvr_recording_shares=1,share_capture_recording_id='fresh',share_capture_claim_generation=7,share_capture_launch_id=zeroblob(16) WHERE id='leader'`)
 				if err != nil {
 					t.Fatal(err)
 				}
 			case "follower has followers":
-				_, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE dvr_recordings SET has_dvr_recording_shares=1,share_capture_recording_id='follower' WHERE id='fresh'`)
+				_, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE dvr_recordings SET has_dvr_recording_shares=1,share_capture_recording_id='follower',share_capture_claim_generation=7,share_capture_launch_id=zeroblob(16) WHERE id='fresh'`)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -218,7 +229,7 @@ func TestMGCaptureSharingGuards(t *testing.T) {
 			case "different occurrence":
 				follower.channelID = "different"
 			}
-			out, err := mgAttachCapture(t.Context(), turn, follower, leader)
+			out, err := mgAttachCapture(t.Context(), turn, follower, leader, mgCaptureTestCommand(follower, mgCaptureKindAttach))
 			mgCaptureZero(t, out, err)
 			if got := mgCaptureSnapshotFor(t, turn, "follower"); got.hasShare != 0 || got.revision != 5 {
 				t.Fatal("invalid share changed follower", got)
@@ -229,25 +240,28 @@ func TestMGCaptureSharingGuards(t *testing.T) {
 		turn := mgCaptureTestTurn(t, w, mgCaptureDefinitions())
 		leader := mgCaptureSnapshotFor(t, turn, "leader")
 		follower := mgCaptureSnapshotFor(t, turn, "follower")
-		attached, err := mgAttachCapture(t.Context(), turn, follower, leader)
+		attached, err := mgAttachCapture(t.Context(), turn, follower, leader, mgCaptureTestCommand(follower, mgCaptureKindAttach))
 		if err != nil {
 			t.Fatal(err)
 		}
-		cancelled, err := mgCancelCapture(t.Context(), turn, leader, "owner-cancelled")
+		attached = mgCaptureTestAccept(t, turn, attached)
+		cancelled, err := mgCancelCapture(t.Context(), turn, leader, mgCaptureTestCommand(leader, mgCaptureKindCancel), "owner-cancelled")
 		if err != nil {
 			t.Fatal(err)
 		}
-		renewed, err := mgRenewCaptureForFollower(t.Context(), turn, cancelled.recording, attached.recording, mgCaptureAllocation("leader", now), now+60000)
+		cancelled = mgCaptureTestAccept(t, turn, cancelled)
+		renewed, err := mgRenewCaptureForFollower(t.Context(), turn, cancelled.recording, attached.recording, mgCaptureTestCommand(cancelled.recording, mgCaptureKindRenew), mgCaptureAllocation("leader", now), now+60000)
 		if err != nil || renewed.recording.state != "cancelled" || renewed.recording.cancelGeneration != cancelled.recording.cancelGeneration {
 			t.Fatal(renewed, err)
 		}
-		ended, err := mgCancelCapture(t.Context(), turn, attached.recording, "permission-denied")
+		renewed = mgCaptureTestAccept(t, turn, renewed)
+		ended, err := mgCancelCapture(t.Context(), turn, attached.recording, mgCaptureTestCommand(attached.recording, mgCaptureKindCancel), "permission-denied")
 		if err != nil {
 			t.Fatal(err)
 		}
-		out, err := mgRenewCaptureForFollower(t.Context(), turn, renewed.recording, attached.recording, mgCaptureAllocation("leader", now), now+90000)
+		out, err := mgRenewCaptureForFollower(t.Context(), turn, renewed.recording, attached.recording, mgCaptureTestCommand(renewed.recording, mgCaptureKindRenew), mgCaptureAllocation("leader", now), now+90000)
 		mgCaptureZero(t, out, err)
-		out, err = mgRenewCaptureForFollower(t.Context(), turn, renewed.recording, ended.recording, mgCaptureAllocation("leader", now), now+90000)
+		out, err = mgRenewCaptureForFollower(t.Context(), turn, renewed.recording, ended.recording, mgCaptureTestCommand(renewed.recording, mgCaptureKindRenew), mgCaptureAllocation("leader", now), now+90000)
 		mgCaptureZero(t, out, err)
 	})
 }
@@ -274,7 +288,7 @@ func TestMGCaptureAllocationFences(t *testing.T) {
 				}
 			}
 			original := mgCaptureSnapshotFor(t, turn, "leader")
-			out, err := mgRenewCapture(t.Context(), turn, original, a, now+60000)
+			out, err := mgRenewCapture(t.Context(), turn, original, mgCaptureTestCommand(original, mgCaptureKindRenew), a, now+60000)
 			mgCaptureZero(t, out, err)
 			if got := mgCaptureSnapshotFor(t, turn, "leader"); got != original {
 				t.Fatal("invalid allocation extended capture", got)
@@ -294,11 +308,12 @@ func TestMGCaptureFailureAndRollback(t *testing.T) {
 		}
 		turn := mgCaptureTestTurn(t, w, defs)
 		s := mgCaptureSnapshotFor(t, turn, "fresh")
-		claimed, err := mgClaimCapture(t.Context(), turn, s, mgCaptureClaimInput{"token", "instance", "artifact", mgCaptureAllocation("fresh", now), now + 30000})
+		claimed, err := mgClaimCapture(t.Context(), turn, s, mgCaptureTestCommand(s, mgCaptureKindClaim), mgCaptureClaimInput{"token", "instance", "artifact", mgCaptureAllocation("fresh", now), now + 30000, mgCaptureID{9}, 3, "source-fence"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		out, err := mgCancelCapture(t.Context(), turn, claimed.recording, "owner-cancelled")
+		claimed = mgCaptureTestAccept(t, turn, claimed)
+		out, err := mgCancelCapture(t.Context(), turn, claimed.recording, mgCaptureTestCommand(claimed.recording, mgCaptureKindCancel), "owner-cancelled")
 		mgCaptureZero(t, out, err)
 		if _, err := turn.transaction.rollback(nil); err != nil {
 			t.Fatal(err)
@@ -314,7 +329,7 @@ func TestMGCaptureFailureAndRollback(t *testing.T) {
 		s := mgCaptureSnapshotFor(t, turn, "leader")
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		out, err := mgCancelCapture(ctx, turn, s, "owner-cancelled")
+		out, err := mgCancelCapture(ctx, turn, s, mgCaptureTestCommand(s, mgCaptureKindCancel), "owner-cancelled")
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
@@ -328,7 +343,8 @@ func TestMGCaptureFailureAndRollback(t *testing.T) {
 			}
 		}
 		turn := mgCaptureTestTurn(t, w, defs)
-		out, err := mgCancelCapture(t.Context(), turn, mgCaptureSnapshotFor(t, turn, "leader"), "owner-cancelled")
+		s := mgCaptureSnapshotFor(t, turn, "leader")
+		out, err := mgCancelCapture(t.Context(), turn, s, mgCaptureTestCommand(s, mgCaptureKindCancel), "owner-cancelled")
 		mgCaptureZero(t, out, err)
 	})
 }
@@ -338,4 +354,22 @@ func TestMGCaptureDescriptors(t *testing.T) {
 	if err != nil || len(table) != 3 || got[0].ID != 830 || got[1].ID != 831 || got[2].ID != 835 {
 		t.Fatal(table, err)
 	}
+}
+
+func mgCaptureTestCommand(s mgCaptureSnapshot, kind mgCaptureKind) mgCaptureCommand {
+	sequence := s.lastSequence + 1
+	return mgCaptureCommand{s.id, s.incarnation, sequence, mgCaptureID{byte(sequence), byte(kind[0])}, mgCaptureDigest{byte(sequence), byte(kind[0])}, kind}
+}
+
+// Test-only stand-in for the parent's receipt/ACK sequence; no runtime ACK API.
+func mgCaptureTestAccept(t *testing.T, turn *commandTurn, f mgCaptureFacts) mgCaptureFacts {
+	t.Helper()
+	if _, err := mgSaveCaptureReceipt(t.Context(), turn, f); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE dvr_recordings SET acknowledged_command_sequence=last_command_sequence WHERE id=?`, f.recording.id); err != nil {
+		t.Fatal(err)
+	}
+	f.recording = mgCaptureSnapshotFor(t, turn, f.recording.id)
+	return f
 }
