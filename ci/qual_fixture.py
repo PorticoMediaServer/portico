@@ -259,6 +259,11 @@ def produce(source, output, work):
         actual = run_command(['git', 'rev-parse', 'HEAD'], source, 'actual-head').read_text().strip()
         require(actual == pin, 'actual HEAD mismatch')
         receipt['source_commit'] = actual
+        archive = work / 'source.tar'
+        run_command(['git', 'archive', '--format=tar', '-o', str(archive), actual], source, 'source-archive', 300)
+        receipt['source_archive_sha256'] = file_hash(archive)
+        archive.unlink()  # retain the hash and argv, never a source-tree evidence copy
+
         if cfg['purpose'] == 'qualification':
             require(os.environ.get('GITHUB_REF') == 'refs/heads/main',
                     'qualification producer tooling must also run from main')

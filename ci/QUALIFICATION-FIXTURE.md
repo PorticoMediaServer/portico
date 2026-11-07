@@ -118,6 +118,7 @@ be checked.
 
 The external receipt independently records the actual image and manifest
 hashes, binary hash and `go version -m` build identity, source/tooling/workflow,
+full `git archive` SHA-256 (archive scratch removed),
 module/sum hashes, runner image, actual policy and immutable run/artifact lookup.
 Cache identity is source SHA + schema SHA + shape version + seed + resident
 count; it is **not** an image digest. Deterministic logical content has its own
