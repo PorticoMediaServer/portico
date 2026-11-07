@@ -66,12 +66,13 @@ func enEffectiveSourceOctetDefinitions(t *testing.T) []stmt.Definition {
 func TestENEffectiveSourceOctetPointsNative(t *testing.T) {
 	c, f, policy := enSealOctetFixture(t)
 	for _, sql := range []string{
+		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0)`,
 		`INSERT INTO catalog_libraries(id,library_id,root) VALUES(7,'lib','/fixture')`,
 		`INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(101,zeroblob(16),7,1)`,
 		`INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed) VALUES('00112233445566778899aabbccddeeff',101,'tmdb','opaque:retained','2026-11-07T00:00:00Z',3,0)`,
 	} {
 		if _, err := c.ExecContext(t.Context(), sql); err != nil {
-			t.Fatal(err)
+			t.Fatalf("fixture %s: %v", sql, err)
 		}
 	}
 	f.Implementations = "embedded011 three closed Effective source pin points; native E/P unsealed with NULL proof tags, receipt deliberately absent; no verifier/authority"
