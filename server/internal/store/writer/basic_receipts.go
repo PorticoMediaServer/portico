@@ -159,7 +159,7 @@ func lookupBasic(ctx context.Context, turn *commandTurn, q BasicReceiptRequest) 
 	}
 	v := BasicResult{Purpose: q.Purpose, RunID: q.Scan.RunID, Members: []InventoryMember{}}
 	if err = basicReceiptPoint(row, &v.AcceptedRunRevision, &v.AppliedMS, &v.SourceID, &v.SourceIncarnation, &v.SourceRevision,
-		&v.Continuation.NextCursor, &v.ChangeID, &v.ExpectedEpoch); err != nil {
+		&v.Continuation.NextCursor, &v.ChangeID, &v.ExpectedEpoch, &v.Continuation.NextFamily, &v.Continuation.AfterEntity); err != nil {
 		return value, errors.Join(ErrResolveRequired, err)
 	}
 	for n, s := range [...]string{v.SourceID, v.SourceIncarnation, v.SourceRevision, v.Continuation.NextCursor} {
