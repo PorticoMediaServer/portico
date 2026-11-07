@@ -87,6 +87,10 @@ func TestUOPersonalIntentWatchedContainerAndDismiss(t *testing.T) {
 	if err = w.db.QueryRowContext(t.Context(), `SELECT evidence_fence_playback_id FROM personal_items WHERE item_id=2111`).Scan(&fence); err != nil || fence != "playing-one" {
 		t.Fatal("explicit intent failed to fence current playback", fence, err)
 	}
+	var clearedWatchTime bool
+	if err = w.db.QueryRowContext(t.Context(), `SELECT watched_at IS NULL FROM personal_items WHERE item_id=2111`).Scan(&clearedWatchTime); err != nil || !clearedWatchTime {
+		t.Fatal("unwatch retained watched timestamp", clearedWatchTime, err)
+	}
 	q.expectedRevision = 2
 	q.dismiss = true
 	turn = uoPersonalTurn(t, w)

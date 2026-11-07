@@ -179,8 +179,12 @@ func applyUOPersonalIntent(ctx context.Context, turn *commandTurn, q uoPersonalI
 	if q.expectedRevision == 0 {
 		next = 1
 	}
+	var watchedAt any
+	if q.watched {
+		watchedAt = q.at
+	}
 	id := stmt.ID("uo.personal.intent.watched")
-	args := []any{next, h.action, h.activity, h.recommendation, uoFlagInteger(q.watched), q.at, uoFlagInteger(q.container), out.membership, intent, q.policy.profile, q.subjectID, q.publicID[:], max(int64(1), q.expectedRevision)}
+	args := []any{next, h.action, h.activity, h.recommendation, uoFlagInteger(q.watched), watchedAt, uoFlagInteger(q.container), out.membership, intent, q.policy.profile, q.subjectID, q.publicID[:], max(int64(1), q.expectedRevision)}
 	if q.dismiss {
 		id = "uo.personal.intent.dismiss"
 		args = []any{next, h.action, h.activity, h.recommendation, q.at, q.policy.profile, q.subjectID, q.publicID[:], max(int64(1), q.expectedRevision)}
@@ -210,7 +214,7 @@ func uoPersonalIntentDefinitions() []stmt.Definition {
 		uoPDef("uo.personal.intent.insert", stmt.Write, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,activity_generation,recommendation_generation) VALUES(?,?,?,?,?,?) RETURNING revision`, uoPT("profile"), uoPB("public"), uoPI("subject"), uoPI("library"), uoPI("activity"), uoPI("recommendation")),
 		uoPDef("uo.personal.intent.clock", stmt.Read, `SELECT sequence FROM catalog_membership_clock WHERE singleton=1`),
 	}
-	defs = append(defs, uoPDef("uo.personal.intent.watched", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,watched=?,watched_at=?,container_membership_sequence=CASE WHEN ?=1 THEN ? ELSE NULL END,container_intent_sequence=?,evidence_fence_playback_id=resume_playback_id,resume_position=0,resume_completed=0,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPI("watched"), uoPT("at"), uoPI("container"), uoPI("membership"), stmt.Param{Name: "intent", Type: stmt.Integer, Nullable: true}, uoPT("profile"), uoPI("subject"), uoPB("public"), uoPI("old")))
+	defs = append(defs, uoPDef("uo.personal.intent.watched", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,watched=?,watched_at=?,container_membership_sequence=CASE WHEN ?=1 THEN ? ELSE NULL END,container_intent_sequence=?,evidence_fence_playback_id=resume_playback_id,resume_position=0,resume_completed=0,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPI("watched"), stmt.Param{Name: "at", Type: stmt.Text, Nullable: true}, uoPI("container"), uoPI("membership"), stmt.Param{Name: "intent", Type: stmt.Integer, Nullable: true}, uoPT("profile"), uoPI("subject"), uoPB("public"), uoPI("old")))
 	defs = append(defs, uoPDef("uo.personal.intent.dismiss", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,dismissed_playback_id=resume_playback_id,dismissed_child_public_id=resume_item_public_id,dismissed_activity_at=?,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPT("at"), uoPT("profile"), uoPI("subject"), uoPB("public"), uoPI("old")))
 	// Every generation-stale field is cleared before stamping this one row.
 	for n := range defs {
