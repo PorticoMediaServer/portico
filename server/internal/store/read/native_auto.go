@@ -242,11 +242,11 @@ func nativeAutomaticOwners(query browseQuery, library int64, libraryName string,
 			provider, a := o[0].(string)
 			ev, b := o[1].(string)
 			if a && b {
-				accepted, err := nativeAutoPoint(q, "accepted", work, library, provider, ev, libraryName)
+				accepted, err := nativeAutoAccepted(q, library, libraryName, work, provider, ev)
 				if err != nil {
 					return nil, err
 				}
-				if accepted != nil {
+				if accepted {
 					var key nativeAutoKey
 					for {
 						k, yes, err := nativeAutoSeek(q, "collections", []any{ev, "collection"}, key)
@@ -436,11 +436,11 @@ func nativeAutomaticNext(query browseQuery, library int64, libraryName string, c
 				return zero, nil, false, e
 			}
 			if nativeAutoCollection(r, p) {
-				a, e := nativeAutoPoint(q, "accepted", k.V[0].I, library, p, ev, libraryName)
+				a, e := nativeAutoAccepted(q, library, libraryName, k.V[0].I, p, ev)
 				if e != nil {
 					return zero, nil, false, e
 				}
-				if a != nil {
+				if a {
 					w, e = check(k.V[0].I, false)
 					if e != nil {
 						return zero, nil, false, e
@@ -501,4 +501,18 @@ func nativeAutoCollection(row []any, provider string) bool {
 	}
 	name, ok := row[1].(string)
 	return ok && strings.Trim(name, " ") != ""
+}
+
+// libraryName is the same-ReadScope common fence's canonical bridge value.
+// Seek the declared UNIQUE text key, then compare the returned logical numeric
+// library ID in Go. No hidden rowid witness or authority is introduced.
+func nativeAutoAccepted(q browseQuery, library int64, libraryName string, work int64, provider, evidence string) (bool, error) {
+	row, err := nativeAutoPoint(q, "accepted", libraryName, work, library, provider, evidence)
+	if err != nil || row == nil {
+		return false, err
+	}
+	if len(row) != 2 || row[0] != work || row[1] != library {
+		return false, ErrUnqualified
+	}
+	return true, nil
 }
