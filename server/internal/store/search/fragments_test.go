@@ -249,3 +249,17 @@ func TestFragmentsChargeNativePrefixAmplification(t *testing.T) {
 		t.Fatalf("native expansion was not charged: %+v", plan)
 	}
 }
+
+func TestFragmentsStreamInteriorWhitespacePreflight(t *testing.T) {
+	for _, size := range []int{1 << 20, 4 << 20} {
+		value := "abcdefghijklm " + strings.Repeat(" ", size) + "x"
+		need, err := search.PreparationMemoryBytes(int64(len(value)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err, allocated := prepareAllocated(value, search.FragmentBudget{Bytes: 12, TokenWork: 8192, PreparationBytes: need})
+		if !errors.Is(err, search.ErrFragmentBudget) || !strings.Contains(err.Error(), "lexical") || plan.Len() != 0 || allocated > 64<<10 {
+			t.Fatalf("interior whitespace materialized: source=%d allocated=%d err=%v", len(value), allocated, err)
+		}
+	}
+}

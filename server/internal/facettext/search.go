@@ -1,11 +1,16 @@
 package facettext
 
 import (
-	"github.com/PorticoMediaServer/portico/server/internal/sorttext"
-	"golang.org/x/text/unicode/norm"
+	"bufio"
+	"io"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/PorticoMediaServer/portico/server/internal/sorttext"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 // SearchFieldBytes bounds each field after normalization, on complete UTF-8
@@ -23,43 +28,123 @@ func SearchFold(value string) string { return searchFolded(searchableFoldedPrefi
 // and collapsed spaces, so folding expansion/contraction and raw whitespace do
 // not create a different prefix in discovery and confirmation.
 func searchableFoldedPrefix(value string) string {
-	value = strings.TrimSpace(value)
-	// Find a stable normalization prefix before allocating the whole field.
-	// More raw input is read only when contraction/whitespace means it can still
-	// contribute to the first 64KiB normalized bytes. The caller still reserves
-	// its complete raw-source preparation cost.
-	window := min(len(value), SearchFieldBytes+utf8.UTFMax)
-	for {
-		end := window
-		if end < len(value) {
-			for end > 0 && !utf8.RuneStart(value[end]) {
-				end--
-			}
-			end = norm.NFC.LastBoundary([]byte(value[:end]))
-		}
-		folded := sorttext.Fold(value[:end])
-		used := 0
-		space := false
-		for at, r := range folded {
-			if unicode.IsLetter(r) || unicode.IsNumber(r) {
-				size := utf8.RuneLen(r)
-				if space && used > 0 {
-					size++
-				}
-				if used+size > SearchFieldBytes {
-					return folded[:at]
-				}
-				used += size
-				space = false
-			} else if unicode.IsSpace(r) && used > 0 {
-				space = true
-			}
-		}
-		if end == len(value) || used == SearchFieldBytes {
-			return folded
-		}
-		window = min(len(value), window+max(SearchFieldBytes, window))
+	var out strings.Builder
+	if err := WalkSearchField(value, func(r rune) bool { out.WriteRune(r); return true }); err != nil {
+		return ""
 	}
+	return out.String()
+}
+
+// WalkSearchField streams the same folded 64KiB normalized prefix to a bounded
+// consumer. '-' denotes a punctuation boundary and ' ' a whitespace boundary;
+// they retain component-token semantics without retaining raw delimiter runs.
+// Returning false stops normalization immediately (used by token preflight).
+func WalkSearchField(value string, visit func(rune) bool) error {
+	used := 0
+	space := false
+	separator := rune(0)
+	emit := func(r rune) bool {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			size := utf8.RuneLen(r)
+			if space && used > 0 {
+				size++
+			}
+			if used+size > SearchFieldBytes {
+				return false
+			}
+			if !visit(r) {
+				return false
+			}
+			used += size
+			space = false
+			separator = 0
+			return used < SearchFieldBytes
+		}
+		if used == 0 {
+			return true
+		}
+		if unicode.IsSpace(r) {
+			space = true
+			if separator != ' ' {
+				separator = ' '
+				return visit(' ')
+			}
+		} else if separator == 0 {
+			separator = '-'
+			return visit('-')
+		}
+		return true
+	}
+	// Ordinary query/title values avoid the streaming buffers. This path has
+	// a fixed raw ceiling; large source fields always use bounded transformers.
+	if len(value) <= 4096 {
+		for _, r := range sorttext.Fold(value) {
+			if !emit(r) {
+				break
+			}
+		}
+		return nil
+	}
+	folded := transform.NewReader(strings.NewReader(value), transform.Chain(cases.Fold(), norm.NFD, searchMarks{}, norm.NFC))
+	reader := bufio.NewReaderSize(folded, 4096)
+	for {
+		r, _, err := reader.ReadRune()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !emit(r) {
+			return nil
+		}
+	}
+}
+
+// The streaming equivalent of sorttext.Fold's mark removal/substitutions.
+// Each transformer stage has fixed buffers; no growing raw prefix is refolded.
+type searchMarks struct{}
+
+func (searchMarks) Reset() {}
+func (searchMarks) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
+	for nSrc < len(src) {
+		if !atEOF && !utf8.FullRune(src[nSrc:]) {
+			return nDst, nSrc, transform.ErrShortSrc
+		}
+		r, size := utf8.DecodeRune(src[nSrc:])
+		if unicode.Is(unicode.Mn, r) {
+			nSrc += size
+			continue
+		}
+		replacement := ""
+		switch r {
+		case 'ø':
+			replacement = "o"
+		case 'ł':
+			replacement = "l"
+		case 'đ', 'ð':
+			replacement = "d"
+		case 'æ':
+			replacement = "ae"
+		case 'œ':
+			replacement = "oe"
+		}
+		needed := size
+		if replacement != "" {
+			needed = len(replacement)
+		}
+		if needed > len(dst)-nDst {
+			return nDst, nSrc, transform.ErrShortDst
+		}
+		if replacement != "" {
+			copy(dst[nDst:], replacement)
+		} else {
+			copy(dst[nDst:], src[nSrc:nSrc+size])
+		}
+		nDst += needed
+		nSrc += size
+	}
+	return nDst, nSrc, nil
 }
 
 func searchFolded(folded string) string {
