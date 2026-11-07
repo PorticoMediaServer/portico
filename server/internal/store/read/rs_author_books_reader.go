@@ -380,7 +380,7 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 			return e
 		}
 		if len(rows) == 0 {
-			if p.fileVisible {
+			if true {
 				if e = p.charge(int64(len(p.entries)+1) * 64); e != nil {
 					return e
 				}
