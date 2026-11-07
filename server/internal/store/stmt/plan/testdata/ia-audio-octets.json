@@ -15128,7 +15128,7 @@
       "sqlSha256": "9e9ac3014caa65946f759c0c23135866be644be52be87efe4ad533cab15426a8"
     },
     {
-      "id": "read.foreground.ia.audio.link_octets",
+      "id": "read.foreground.ia.link_octets",
       "sql": "SELECT octet_length(edition),octet_length(playback_origin_incarnation) FROM catalog_asset_links WHERE entity_id=? AND asset_id=? AND library_id=?",
       "owner": "store/read/ia_audio",
       "callSites": [
@@ -15674,7 +15674,7 @@
       }
     },
     {
-      "id": "read.foreground.ia.audio.link_octets",
+      "id": "read.foreground.ia.link_octets",
       "cohort": "present",
       "explain": {
         "columns": [
@@ -15908,7 +15908,7 @@
       }
     },
     {
-      "id": "read.foreground.ia.audio.link_octets",
+      "id": "read.foreground.ia.link_octets",
       "cohort": "empty",
       "explain": {
         "columns": [
