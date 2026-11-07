@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 )
@@ -40,6 +41,40 @@ func TestUOEventResumeBindingRestartAndForgery(t *testing.T) {
 	}
 	if _, err := c.decode(string(mutated), b); !errors.Is(err, errUOEventResync) {
 		t.Fatal("forged token", err)
+	}
+}
+
+func TestUOEventConcurrentWakeReleaseRetiresAudience(t *testing.T) {
+	h := &uoEventWakeHub{}
+	var group sync.WaitGroup
+	for worker := 0; worker < 4; worker++ {
+		group.Go(func() {
+			for n := 0; n < 25; n++ {
+				s, err := h.subscribe("profile:fixture")
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				before, err := s.observe()
+				if err != nil {
+					t.Error(err)
+					s.release()
+					return
+				}
+				h.publish("profile:fixture")
+				if err := s.wait(t.Context(), before); err != nil {
+					t.Error(err)
+				}
+				s.release()
+				s.release()
+			}
+		})
+	}
+	group.Wait()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.audiences) != 0 {
+		t.Fatal("released audiences retained", len(h.audiences))
 	}
 }
 func TestUOEventCursorExpiryRotationAndPublicLength(t *testing.T) {
