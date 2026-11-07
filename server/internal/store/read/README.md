@@ -232,8 +232,11 @@ Entities use the same current source row's `sort_key`, `year` and `added_at`;
 People use `sort_name`, year0 and empty added time. Empty `AddedAt` means SQL NULL.
 
 Every validated native page, including exhausted pages with no cursor, carries
-an opaque `Stamp`. When retaining hits across polls, trusted composition supplies
-prior stamps in `FullSearchInput.Retained` (at most40 stamps/40 distinct retained
+an opaque `Stamp`. Its `MetadataBytes()` reports owned-field bytes, capped at640KiB;
+`RetainHits(hits)` can narrow issued identity/value proofs but cannot add them.
+Prospective old/new metadata overlap is charged inside output8/RB custody and
+the existing2MiB copy ceiling, never through another grant. When retaining hits across polls, trusted composition supplies
+prior stamps in `FullSearchInput.Retained` (at most128 stamps/128 distinct retained
 source-policy witnesses). This SAME native operation revalidates them in both
 windows. Inside its still-live Consume callback, current
 `Stamp.ValidateRetained(ctx, out, prior)` verifies that the prior witnesses were
@@ -249,3 +252,13 @@ or physical-fit qualification. The rank cursor is opaque harness state, not an
 authenticated wire cursor. No INSERT receipt is READ authority, no publisher or
 runtime route is installed, and actual complete native proof/Capture controls,
 whole-route cost, maximum-body memory and ready/physical fit remain **UNQUALIFIED**.
+
+All-group preview has a fixed2,000candidate-work budget (all MATCH results,
+including population/ranking, plus reverse-owner advancement to bound fan-out), and stops earlier once every supported group has8hits.
+It does not wait for a complete population. Preview emits verified conjunction
+matches found within that bound with `Partial`, explicit lower-bound/unknown
+count status and internal `NativeCandidates` work progress. Work positions may
+include aliases or rejected sources and must never be displayed as logical
+result counts. Selected full/top40 or paging retains the exact-population and
+winner-proof path. This is a component work bound, not broad-term ready-latency
+qualification.

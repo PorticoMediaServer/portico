@@ -19,6 +19,7 @@ type FullSearchReadStamp struct {
 	query                    string
 	policies                 []nativePolicyWitness
 	checked                  []nativePolicyWitness
+	hits                     []nativeStampedHit
 	started, clock, deadline time.Time
 }
 

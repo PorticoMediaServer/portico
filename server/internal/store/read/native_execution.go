@@ -16,16 +16,19 @@ import (
 // Continuations retain only bounded values. No connection, rows, receipt,
 // query-wide seen set or permission survives a read window.
 type nativeContinuation struct {
-	fence          nativeSearchFence
-	term           int
-	slot           uint8
-	after          int64
-	counts         []uint64
-	populationDone bool
-	expansion      *nativeExpansion
-	top            []nativeRankHit
-	more           bool
-	limit          int
+	fence             nativeSearchFence
+	term              int
+	slot              uint8
+	after             int64
+	counts            []uint64
+	populationDone    bool
+	expansion         *nativeExpansion
+	top               []nativeRankHit
+	more              bool
+	limit             int
+	preview           bool
+	candidates        int
+	previewIncomplete bool
 }
 
 // Pending cursors retain rank coordinates only, never a held candidate page.
@@ -159,6 +162,30 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	if r.snapshots == nil || output.live == nil || in.View.After != nil || in.View.Library <= 0 || in.View.Limit < 1 || in.View.Limit > MaxSearchTitles || in.View.Database == "" || len(in.View.Database) > 256 || in.View.TokenHash == "" || len(in.View.TokenHash) > 256 || in.View.policy != (readPolicyBinding{}) {
 		return page, cost, ErrInput
 	}
+	if in.CandidateBudget < 0 || in.CandidateBudget > NativePreviewCandidates || !in.Preview && in.CandidateBudget != 0 {
+		return page, cost, ErrInput
+	}
+	priorCandidates := 0
+	if in.After != nil && in.After.native != nil {
+		if in.After.native.preview != in.Preview {
+			return page, cost, ErrStale
+		}
+		priorCandidates = in.After.native.candidates
+	}
+	if priorCandidates < 0 || in.Preview && priorCandidates > NativePreviewCandidates {
+		return page, cost, ErrStale
+	}
+	work := &nativeCandidateWork{}
+	if in.Preview {
+		allowance := NativePreviewCandidates - priorCandidates
+		if in.CandidateBudget > 0 {
+			allowance = min(allowance, in.CandidateBudget)
+		}
+		if allowance <= 0 {
+			return page, cost, ErrInput
+		}
+		work.limit = allowance
+	}
 	// One maximum complete candidate proof can take many point reads. This is
 	// an explicit recipe requirement, never an implicit grant enlargement.
 	if request.Budget.RawRows < 4096 || request.Need[governor.MemoryBytes]-r.snapshots.NativeRowReservation() < 4<<20 || output.Request.Need[governor.MemoryBytes] < 8<<20 {
@@ -171,6 +198,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	var draft FullSearchPage
 	var copies int64
 	var retained, checked []nativePolicyWitness
+	var retainedHits []nativeStampedHit
 	rawPositions := 0
 	calls := 0
 	lookup, lookupErr := r.snapshots.ReadForecasted(ctx, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: r.snapshots.NativeRowReservation(), MaxQueries: 4096}, func(scope *governor.ReadScope) error {
@@ -180,9 +208,18 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			if e := output.live.checkContext(scope.Context()); e != nil {
 				return nil, e
 			}
+			isMatch := strings.HasPrefix(name, "full.native.fts.")
+			if isMatch && work.limit > 0 && work.used >= work.limit {
+				return nil, errNativeCandidateBudget
+			}
 			rows, e := scope.Query(readStatementID(name), args...)
 			if e != nil {
 				return nil, e
+			}
+			if isMatch {
+				if e := work.consume(len(rows)); e != nil {
+					return nil, e
+				}
 			}
 			if strings.HasPrefix(name, "full.") && name != "full.native.revision" && name != "full.native.bank" && name != "full.native.engine" {
 				rawPositions += len(rows)
@@ -214,7 +251,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			return err
 		}
 		ready = true
-		retained, err = nativeRetainedPolicies(in.Retained, initial, query.Fold(), r)
+		retained, retainedHits, err = nativeRetainedPolicies(in.Retained, initial, query.Fold(), r)
 		if err != nil {
 			return err
 		}
@@ -230,6 +267,9 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		if in.After != nil && in.After.native != nil && (in.After.native.fence != initial || in.After.native.limit != in.View.Limit) {
 			return ErrStale
 		}
+		if in.Preview && disposition == SearchPending && initial.pending > 0 {
+			disposition = SearchResults
+		}
 		if disposition != SearchResults {
 			draft = FullSearchPage{Disposition: disposition}
 			return nil
@@ -238,7 +278,18 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		if e != nil {
 			return e
 		}
-		draft, e = nativeAdvance(scope.Context(), q, scopeQuery, initial, in, &calls)
+		scopeQuery.nativeWork = work
+		if in.Preview {
+			draft, e = nativePreviewAdvance(scope.Context(), q, scopeQuery, initial, in, &calls)
+		} else {
+			draft, e = nativeAdvance(scope.Context(), q, scopeQuery, initial, in, &calls)
+		}
+		if e == nil {
+			draft.NativeCandidates = work.used
+			if draft.Next != nil && draft.Next.native != nil {
+				draft.Next.native.candidates = priorCandidates + work.used
+			}
+		}
 		if errors.Is(e, errFullSearchPending) {
 			draft = FullSearchPage{Disposition: SearchPending}
 			return nil
@@ -307,7 +358,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 				checked = append(checked, hit.permission)
 			}
 		}
-		if len(checked) > 60 {
+		if len(checked) > MaxNativeRetained+MaxSearchTitles {
 			return ErrInput
 		}
 		for _, proof := range checked {
@@ -350,7 +401,20 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			policies = append(policies, hit.permission)
 		}
 	}
-	draft.Stamp = &FullSearchReadStamp{policies: policies, checked: checked, pool: r.pool, output: output.Grant, fence: initial, query: query.Fold(), started: started, clock: in.View.Now, deadline: deadline}
+	issued := slices.Clone(retainedHits)
+	for _, hit := range draft.Hits {
+		entry := nativeStampedHit{nativeHitIdentity(hit), hit.permission}
+		if !slices.Contains(issued, entry) {
+			issued = append(issued, entry)
+		}
+	}
+	draft.Stamp = &FullSearchReadStamp{hits: issued, policies: policies, checked: checked, pool: r.pool, output: output.Grant, fence: initial, query: query.Fold(), started: started, clock: in.View.Now, deadline: deadline}
+	draft.Stamp.ownWitnesses()
+	metadataBytes := draft.Stamp.MetadataBytes()
+	copies += metadataBytes
+	if metadataBytes > MaxNativeStampBytes || copies > 2<<20 {
+		return FullSearchPage{}, cost, governor.ErrSnapshotBudget
+	}
 	return draft, cost, nil
 }
 
@@ -393,6 +457,7 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 				}
 				top.hits[i].PersonName = source.title
 				top.hits[i].SortKey = source.sortKey
+				permission.personSource, permission.personBank = source.personSource, source.key.BankID
 				top.hits[i].permission = permission
 				continue
 			}
@@ -477,19 +542,20 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 		for i, term := range scope.terms {
 			populations[i] = exactTermPopulation{scope, term, state.counts[i]}
 		}
-		lead, e := chooseLead(scope, populations)
+		exactLead, e := chooseLead(scope, populations)
 		if e != nil {
 			return FullSearchPage{}, e
 		}
-		if lead.count == 0 {
+		if exactLead.count == 0 {
 			return finish()
 		}
-		leadIndex := slices.Index(scope.terms, lead.term)
+		lead := nativeSearchLead{exact: &exactLead}
+		leadIndex := slices.Index(scope.terms, lead.term())
 		if state.expansion == nil {
 			if state.slot == 6 {
 				return finish()
 			}
-			id, done, e := nativePosting(q, lead.term, state.slot, state.after)
+			id, done, e := nativePosting(q, lead.term(), state.slot, state.after)
 			if e != nil {
 				return FullSearchPage{}, e
 			}

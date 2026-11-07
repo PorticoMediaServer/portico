@@ -32,9 +32,12 @@ func bindNativeSearchPolicy(kind, subject int64) (readPolicyBinding, error) {
 type nativePolicyWitness struct {
 	valid                                          bool
 	id, kind, library, revision, ownAge, container int64
+	source                                         [32]byte
 	birth, public                                  [16]byte
 	binding                                        readPolicyBinding
 	witness                                        string
+	personSource                                   [32]byte
+	personBank                                     int64
 	person, image, ordinal                         int64 // People additionally prove a current credit.
 }
 
@@ -95,6 +98,10 @@ func nativePolicyForSource(q browseQuery, in BrowseInput, f browseFence, source 
 		return proof, "", false, nil
 	}
 	proof = nativePolicyWitness{valid: true, id: id, kind: kind, library: library, revision: revision, ownAge: age, container: container, binding: in.policy, witness: strings.Clone(f.policyWitness)}
+	proof.source, err = nativeItemIdentity(r)
+	if err != nil {
+		return nativePolicyWitness{}, "", false, err
+	}
 	copy(proof.birth[:], birth)
 	copy(proof.public[:], public)
 	return proof, name, true, nil
@@ -121,10 +128,25 @@ func validateNativePolicy(q browseQuery, in BrowseInput, f browseFence, prior na
 		return ErrDenied
 	}
 	current.person, current.image, current.ordinal = prior.person, prior.image, prior.ordinal
+	current.personSource, current.personBank = prior.personSource, prior.personBank
 	if current != prior {
 		return ErrStale
 	}
 	if prior.person > 0 {
+		person, err := q("full.native.person.accepted", prior.person, prior.personBank)
+		if err != nil {
+			return err
+		}
+		if len(person) != 1 || len(person[0]) != 8 {
+			return ErrStale
+		}
+		identity, err := nativeItemIdentity(person[0])
+		if err != nil {
+			return err
+		}
+		if identity != prior.personSource {
+			return ErrStale
+		}
 		if rows[0][11] != prior.image {
 			return ErrStale
 		}
@@ -166,26 +188,38 @@ func nativeHitFacts(hit *FullSearchHit, source *nativeSource) error {
 
 // Bound total retained witnesses independently of stamp count. Prior stamps
 // are comparison inputs; this read still performs all current checks itself.
-func nativeRetainedPolicies(stamps []*FullSearchReadStamp, fence nativeSearchFence, query string, pool *NativeFullSearchReader) ([]nativePolicyWitness, error) {
-	if len(stamps) > 40 {
-		return nil, ErrInput
+func nativeRetainedPolicies(stamps []*FullSearchReadStamp, fence nativeSearchFence, query string, pool *NativeFullSearchReader) ([]nativePolicyWitness, []nativeStampedHit, error) {
+	if len(stamps) > MaxNativeRetained {
+		return nil, nil, ErrInput
 	}
 	var proofs []nativePolicyWitness
+	var hits []nativeStampedHit
 	for _, stamp := range stamps {
 		if stamp == nil || stamp.pool != pool.pool || stamp.fence != fence || stamp.query != query {
-			return nil, ErrStale
+			return nil, nil, ErrStale
+		}
+		if stamp.MetadataBytes() > MaxNativeStampBytes {
+			return nil, nil, ErrInput
+		}
+		for _, hit := range stamp.hits {
+			if !slices.Contains(hits, hit) {
+				hits = append(hits, hit)
+			}
+			if len(hits) > MaxNativeRetained {
+				return nil, nil, ErrInput
+			}
 		}
 		for _, p := range stamp.policies {
 			if !p.valid || len(p.witness) > 4096 {
-				return nil, ErrInput
+				return nil, nil, ErrInput
 			}
 			if !slices.Contains(proofs, p) {
 				proofs = append(proofs, p)
 			}
-			if len(proofs) > 40 {
-				return nil, ErrInput
+			if len(proofs) > MaxNativeRetained {
+				return nil, nil, ErrInput
 			}
 		}
 	}
-	return proofs, nil
+	return proofs, hits, nil
 }
