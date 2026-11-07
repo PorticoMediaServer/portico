@@ -129,9 +129,8 @@ func checkBasicMediaFamily(ctx context.Context, turn *commandTurn, in *basicMedi
 	if in == nil || !in.valid || wantStaged < 0 || wantStaged > int64(len(in.rows)) {
 		return ErrInvalid
 	}
-	if err = checkBasicStreamInput(ctx, turn, in.source); err != nil {
-		return err
-	}
+	// Deliberate hosted regression mutant: source/epoch/input fence removed.
+
 	// The base probe witness alone does not authorize an unmasked family.
 	row, err := basicStageRead(ctx, turn, basicStageHeader, in.source.changeID)
 	if err != nil {
