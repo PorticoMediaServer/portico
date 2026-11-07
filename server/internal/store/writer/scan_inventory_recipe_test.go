@@ -26,7 +26,7 @@ func TestN1DriverPlanRequiresBoundKeeper(t *testing.T) {
 // never numerical forecasts or permission to install an accepting profile.
 func TestN1DriverCompleteDefinitionAndUseInventory(t *testing.T) {
 	defs := inventoryDriverCommandDefinitions()
-	if len(defs) != 59 {
+	if len(defs) != 60 {
 		t.Fatal("driver definition inventory", len(defs))
 	}
 	seen, uses := make(map[stmt.ID]bool), 0
@@ -37,7 +37,7 @@ func TestN1DriverCompleteDefinitionAndUseInventory(t *testing.T) {
 		}
 		seen[d.ID], uses = true, uses+n
 	}
-	if uses != 64 {
+	if uses != 65 {
 		t.Fatal("complete all-branch driver reservations", uses)
 	}
 	for _, d := range append(inventoryCommandDefinitions(), scanSourceDefinitions()...) {
@@ -61,11 +61,11 @@ func TestN1DriverReservesTheSecondFreshLibraryUse(t *testing.T) {
 	for _, d := range inventoryDriverCommandDefinitions() {
 		steps = append(steps, statementStep{d.ID, unit})
 	}
-	exact := Work{64, 64, 64, 64, 64 * time.Microsecond}
+	exact := Work{65, 65, 65, 65, 65 * time.Microsecond}
 	if left, err := reserveInventoryDriverSteps(exact, steps); err != nil || left != (Work{}) {
 		t.Fatal("complete recipe did not reserve exactly", left, err)
 	}
-	short := Work{63, 63, 63, 63, 63 * time.Microsecond}
+	short := Work{64, 64, 64, 64, 64 * time.Microsecond}
 	if left, err := reserveInventoryDriverSteps(short, steps); !errors.Is(err, ErrQuantum) || left != (Work{}) {
 		t.Fatal("source check borrowed an unreserved fresh-library use", left, err)
 	}

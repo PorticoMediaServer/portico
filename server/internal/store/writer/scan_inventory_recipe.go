@@ -12,6 +12,11 @@ func inventoryDriverCommandDefinitions() []stmt.Definition {
 			defs = append(defs, def)
 		}
 	}
+	for _, def := range scanRunLifecycleDefinitions() {
+		if def.ID == scanLifecycleActive {
+			defs = append(defs, def)
+		}
+	}
 	return defs
 }
 
@@ -29,7 +34,7 @@ func inventoryDriverMaxUses(id stmt.ID) int {
 	case inventoryDisclosureJob, inventoryDisclosureLibrary,
 		scanReceiptLookup, scanReceiptResults, scanReceiptAck,
 		scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
-		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot:
+		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot, scanLifecycleActive:
 		return 1
 	default:
 		return 0
