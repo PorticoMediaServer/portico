@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 )
@@ -64,6 +65,7 @@ type executor struct {
 	driverPanics     *driverPanicLog
 	fileBinding      *scanFileBinding // nil for existing harness frames
 	ownerObservation atomic.Pointer[ownerWindowObservation]
+	keeper           atomic.Pointer[governor.CheckpointWriterService]
 }
 
 // These are the bundled driver's contextual interfaces. Interposing only Close
@@ -292,6 +294,11 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 			return nil, ErrResolveRequired
 		}
 		return nil, ErrClosed
+	}
+	if keeper := w.keeper.Load(); keeper != nil {
+		if err := keeper.Check(); err != nil {
+			return nil, err
+		}
 	}
 	start := w.now()
 	var clockHighWater time.Time
@@ -812,13 +819,25 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 }
 
 func (w *executor) close() error {
+	if keeper := w.keeper.Load(); keeper != nil {
+		keeper.Stop() // deny new admission even if the old turn is still busy
+	}
 	if !w.mu.TryLock() {
 		return ErrBusy
 	}
 	defer w.mu.Unlock()
-	if w.closed {
-		return nil
-	}
 	w.closed = true
-	return w.db.Close()
+	err := w.db.Close()
+	if keeper := w.keeper.Load(); keeper != nil {
+		keeper.Stop()
+		w.physicalFaults.mu.Lock()
+		failed := w.physicalFaults.failed
+		w.physicalFaults.mu.Unlock()
+		stats := w.db.Stats()
+		if err != nil || failed || stats.InUse != 0 || stats.OpenConnections != 0 {
+			return errors.Join(err, ErrResolveRequired)
+		}
+		err = keeper.Retired()
+	}
+	return err
 }

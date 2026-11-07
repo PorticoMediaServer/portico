@@ -51,6 +51,7 @@ type snapshotOwnedConn struct {
 	safetyMu  sync.Mutex
 	fault     *snapshotDriverPanic
 	resources map[*snapshotCloser]struct{}
+	keeper    *CheckpointKeeper // immutable once assigned before physical publication
 }
 
 func (c *snapshotOwnedConn) Close() error {
@@ -59,7 +60,13 @@ func (c *snapshotOwnedConn) Close() error {
 	if c.closed {
 		return nil
 	}
-	err := c.closeResources()
+	var err error
+	if c.keeper != nil {
+		err = c.keeper.beforeNativeClose()
+	}
+	if err == nil {
+		err = c.closeResources()
+	}
 	if err == nil {
 		_, err = snapshotCall(c, "connection close", func() (struct{}, error) { return struct{}{}, c.Conn.Close() })
 	}
@@ -72,6 +79,20 @@ func (c *snapshotOwnedConn) Close() error {
 		delete(c.owner.failed, c)
 	}
 	return err
+}
+
+func (c *snapshotOwnedConn) SQLiteMainFileIdentity() (uint64, uint64, error) {
+	value, err := snapshotCall(c, "main file identity", func() ([2]uint64, error) {
+		getter, ok := c.Conn.(interface {
+			SQLiteMainFileIdentity() (uint64, uint64, error)
+		})
+		if !ok {
+			return [2]uint64{}, errors.New("native main-file identity unavailable")
+		}
+		device, inode, err := getter.SQLiteMainFileIdentity()
+		return [2]uint64{device, inode}, err
+	})
+	return value[0], value[1], err
 }
 func (c *snapshotOwnedConn) ExecContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
 	if native, ok := c.Conn.(driver.ExecerContext); ok {

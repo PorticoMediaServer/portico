@@ -215,6 +215,12 @@ type checkpointFaultStmt struct {
 }
 
 func (s *checkpointFaultStmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
+	if s.owner.checkpointEntered != nil {
+		close(s.owner.checkpointEntered)
+		if s.owner.checkpointRelease != nil {
+			<-s.owner.checkpointRelease
+		}
+	}
 	if s.owner.checkpointPanic.Load() {
 		panic(checkpointInjectedPanic)
 	}
@@ -234,7 +240,7 @@ func (s *checkpointFaultStmt) QueryContext(ctx context.Context, args []driver.Na
 }
 func (c *snapshotConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
 	st, err := c.Conn.(driver.ConnPrepareContext).PrepareContext(ctx, q)
-	if err == nil && q == "PRAGMA wal_checkpoint(PASSIVE)" {
+	if err == nil && (q == "PRAGMA wal_checkpoint(PASSIVE)" || q == "PRAGMA wal_checkpoint(TRUNCATE)") {
 		st = &checkpointFaultStmt{Stmt: st, owner: c.owner}
 	}
 	return st, err

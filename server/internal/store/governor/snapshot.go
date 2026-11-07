@@ -134,7 +134,9 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 		once.Do(func() {
 			var safe bool
 			physicalErr, safe = scope.closeNative(ctx.Err() != nil)
-			scope.nativeSafe.Store(safe)
+			if safe {
+				s.authority.snapshotPhysicallySafe(scope)
+			}
 			out.Ended = time.Now()
 			if !out.Started.IsZero() && out.Ended.After(deadline) {
 				s.authority.EnterStatic()
@@ -182,7 +184,7 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 	if err = ctx.Err(); err != nil {
 		return out, err
 	}
-	d := s.governor.Try(r)
+	d := s.authority.trySnapshot(r, scope)
 	if d.Refusal != nil {
 		out.Refusal = d.Refusal
 		return out, nil
@@ -268,7 +270,7 @@ func (s *Snapshots) Close() error {
 		}
 		if closeErr == nil {
 			scope.failedRaw = nil
-			scope.nativeSafe.Store(true)
+			s.authority.snapshotPhysicallySafe(scope)
 			scope.releaseSlot()
 		}
 		scope.op.Unlock()

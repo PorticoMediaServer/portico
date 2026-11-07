@@ -46,10 +46,16 @@ type holding struct {
 	grant      *Grant
 	request    Request
 	foreground *foregroundHolding
-	checkpoint bool // private native checkpoint turn; never selected by workers
+	checkpoint bool       // private native checkpoint turn; never selected by workers
+	snapshot   *ReadScope // trusted physical read path; memory can outlive native snapshot
+	keeper     *CheckpointKeeper
+	keeperRole keeperRole
 }
 
 type ledger struct {
+	resetOwner     *Checkpointer
+	changed        chan struct{}     // physical retirement notification; one bounded recovery waiter
+	keeper         *CheckpointKeeper // protected by mu; reserves its shutdown floor
 	foreground     foregroundLedger
 	foregroundWait func(context.Context, time.Time, <-chan struct{})
 	mu             sync.Mutex
@@ -106,7 +112,7 @@ func newGovernor(c Config, knownLimit int64) (Governor, *Authority, error) {
 
 func (g *ledger) Try(r Request) Decision { return g.try(r, false, nil) }
 
-// tryCheckpoint is reserved for the governor's private PASSIVE driver. The
+// tryCheckpoint is reserved for the governor's private checkpoint driver. The
 // ordinary worker/admission interface cannot select a checkpoint turn.
 func (a *Authority) tryCheckpoint(r Request) Decision { return a.ledger.try(r, true, nil) }
 
@@ -114,6 +120,10 @@ func (g *ledger) try(r Request, checkpoint bool, ticket *checkpointTicket) Decis
 	return g.tryMode(r, checkpoint, ticket, nil)
 }
 func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, foreground *foregroundHolding) Decision {
+	return g.tryReserved(r, checkpoint, ticket, foreground, nil, nil)
+}
+
+func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicket, foreground *foregroundHolding, shutdown *CheckpointKeeper, read *ReadScope) Decision {
 	now := g.config.Now()
 	refuse := func(code RefusalCode) Decision {
 		retryAt := now.Add(100 * time.Millisecond)
@@ -128,7 +138,7 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 	if !r.Deadline.After(now) {
 		return refuse(Deadline)
 	}
-	if (r.Writer || checkpoint) && (r.MaxHold <= 0 || r.MaxHold > 25*time.Millisecond ||
+	if (r.Writer || checkpoint) && (r.MaxHold <= 0 || r.MaxHold > g.maxHold(checkpoint) ||
 		r.Budget.RawRows == 0 || r.Budget.VMOps == 0 || r.Budget.Pages == 0 || (r.Writer && r.Need[WALBytes] == 0)) {
 		return refuse(Unqualified)
 	}
@@ -144,15 +154,29 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 		return refuse(Capacity)
 	}
 	defer g.mu.Unlock()
+	if shutdown != nil && (g.keeper != shutdown || !shutdown.shutdownShape(r)) {
+		return refuse(Invalid)
+	}
+	if g.resetOwner != nil && (r.Writer || r.Need[Reader] != 0) && !(checkpoint && ticket != nil && ticket.recovery && ticket.owner == g) {
+		return refuse(Capacity)
+	}
 	state := g.state.Load()
 	if state&1 != 0 && r.Class == Background {
 		return refuse(FailSafe)
 	}
-	if g.counts[r.Class] == g.config.MaxGrantsPerClass || g.sequence == math.MaxUint64 {
+	limit := g.config.MaxGrantsPerClass
+	if shutdown == nil && r.Class == Recovery && g.keeper != nil && g.keeper.flags.Load()&keeperClosed == 0 {
+		limit--
+	}
+	if g.counts[r.Class] >= limit || g.sequence == math.MaxUint64 {
 		return refuse(Capacity)
 	}
 	for k, n := range r.Need {
-		if n > g.config.Partitions[r.Class][k]-g.used[r.Class][k] {
+		available := g.config.Partitions[r.Class][k] - g.used[r.Class][k]
+		if shutdown == nil && r.Class == Recovery && g.keeper != nil && g.keeper.flags.Load()&keeperClosed == 0 {
+			available -= g.keeper.resources.StartupRequest.Need[k]
+		}
+		if n > available {
 			return refuse(Capacity)
 		}
 	}
@@ -163,13 +187,21 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 		for _, want := range r.IO {
 			for _, held := range h.request.IO {
 				if want.DeviceID == held.DeviceID {
+					// Finish the SAME quarantined native CP, under its still-held
+					// device custody plus new reserved shutdown bytes. No second stream.
+					if shutdown != nil && h.checkpoint && shutdown.cp.pending != nil && shutdown.cp.pending.grant == h.grant {
+						continue
+					}
+					if g.config.WAL != nil && g.config.WAL.policy.ConcurrentPassive && pairedCheckpointIO(r, checkpoint, h) {
+						continue
+					}
 					return refuse(Capacity)
 				}
 			}
 		}
 	}
 	if r.Writer && g.config.WAL != nil {
-		if code := g.config.WAL.reserve(r, now); code != 0 {
+		if code := g.config.WAL.reserveForLedger(r, now, g); code != 0 {
 			return refuse(code)
 		}
 	}
@@ -201,7 +233,10 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 	r.Footprint = slices.Clone(r.Footprint)
 	g.sequence++
 	p := &Grant{id: g.sequence, epoch: state, issuer: g}
-	g.live[p.id] = &holding{grant: p, request: r, checkpoint: checkpoint, foreground: foreground}
+	g.live[p.id] = &holding{grant: p, request: r, checkpoint: checkpoint, foreground: foreground, snapshot: read}
+	if shutdown != nil {
+		g.live[p.id].keeper, g.live[p.id].keeperRole = shutdown, keeperShutdown
+	}
 	if foreground != nil {
 		if foreground.waiting {
 			g.foreground.waiters++
@@ -297,6 +332,9 @@ func (a *Authority) Retired(p *Grant) error {
 	if h == nil {
 		return ErrRetirement
 	}
+	if h.keeper != nil && !h.keeper.canRetire(h.keeperRole) {
+		return ErrRetirement
+	}
 	if h.request.Writer && g.config.WAL != nil {
 		g.config.WAL.returned()
 	}
@@ -308,6 +346,10 @@ func (a *Authority) Retired(p *Grant) error {
 	}
 	g.counts[h.request.Class]--
 	delete(g.live, p.id)
+	if g.changed != nil {
+		close(g.changed)
+		g.changed = nil
+	}
 	if h.foreground != nil {
 		if h.foreground.waiting {
 			g.foreground.waiters--
@@ -369,4 +411,40 @@ func (a *Authority) Usage() [4]Amounts {
 	a.ledger.mu.Lock()
 	defer a.ledger.mu.Unlock()
 	return a.ledger.used
+}
+
+// Concurrent maintenance has a distinct contract; ordinary W remains <=25ms.
+func (g *ledger) maxHold(checkpoint bool) time.Duration {
+	if checkpoint && g.config.WAL != nil && g.config.WAL.policy.ConcurrentPassive {
+		return g.config.WAL.policy.CheckpointMaxHold
+	}
+	return 25 * time.Millisecond
+}
+func pairedCheckpointIO(r Request, checkpoint bool, h *holding) bool {
+	// Only the private CP with W or bounded foreground database reads. Never
+	// arbitrary scan/helper IO, CP/CP, or a second W stream.
+	if checkpoint == h.checkpoint {
+		return false
+	}
+	other := r
+	if checkpoint {
+		other = h.request
+	}
+	return other.Need[Helper] == 0 && (other.Writer || (other.Class == Foreground && other.Need[Reader] > 0))
+}
+
+// The read path installs its native custody witness atomically with admission.
+// It conveys no additional grant/SQL authority and never releases payload bytes.
+func (a *Authority) trySnapshot(r Request, scope *ReadScope) Decision {
+	return a.ledger.tryReserved(r, false, nil, nil, nil, scope)
+}
+func (a *Authority) snapshotPhysicallySafe(scope *ReadScope) {
+	scope.nativeSafe.Store(true)
+	g := a.ledger
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.changed != nil {
+		close(g.changed)
+		g.changed = nil
+	}
 }

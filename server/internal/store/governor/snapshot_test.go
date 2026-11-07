@@ -86,12 +86,28 @@ type snapshotConnector struct {
 	checkpointPanic           atomic.Bool
 	checkpointError           atomic.Bool
 	checkpointCancelEntered   chan struct{}
+	checkpointEntered chan struct{}
+	checkpointRelease chan struct{}
 	closeEntered              chan struct{}
+	mainIdentityError         error
 	releaseClose              chan struct{}
 }
 type snapshotConn struct {
 	driver.Conn
 	owner *snapshotConnector
+}
+
+func (c *snapshotConn) SQLiteMainFileIdentity() (uint64, uint64, error) {
+	if c.owner.mainIdentityError != nil {
+		return 0, 0, c.owner.mainIdentityError
+	}
+	getter, ok := c.Conn.(interface {
+		SQLiteMainFileIdentity() (uint64, uint64, error)
+	})
+	if !ok {
+		return 0, 0, errors.New("native identity unavailable")
+	}
+	return getter.SQLiteMainFileIdentity()
 }
 
 func (c *snapshotConnector) Connect(ctx context.Context) (driver.Conn, error) {
