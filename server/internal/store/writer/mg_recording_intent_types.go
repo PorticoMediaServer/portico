@@ -4,12 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"math"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
 const (
@@ -22,24 +20,6 @@ func mgRecordingIntentDescriptors() []Descriptor {
 	return []Descriptor{{MGScheduleRecording, "mg.recording.schedule", Normal}, {MGUpdateRecording, "mg.recording.update", Normal}, {MGKeepRecording, "mg.recording.keep", Normal}}
 }
 
-// Native expected lifetime facts only, never a principal/capability factory.
-// Parent owns opaque current authority, rating/source restrictions, original
-// public user-mutation receipt/lifetime (cross-1a HELD), events and COMMIT.
-type mgRecordingOwner struct {
-	account, profile, memberIncarnation, profileLifetime string
-	accountEpoch, memberRevision, profileRevision        int64
-}
-
-func (o mgRecordingOwner) key() string {
-	h := sha256.New()
-	for _, v := range []string{"local", o.account, o.profile} {
-		_, _ = fmt.Fprintf(h, "%d:%s", len(v), v)
-	}
-	return hex.EncodeToString(h.Sum(nil))
-}
-func (o mgRecordingOwner) valid() bool {
-	return mgRecordingText(o.account, true, 256) && mgRecordingText(o.profile, true, 256) && mgRecordingHex(o.memberIncarnation, 32) && mgRecordingHex(o.profileLifetime, 32) && o.accountEpoch > 0 && o.memberRevision > 0 && o.profileRevision > 0
-}
 func mgRecordingID(o mgRecordingOwner, source, programme string) string {
 	// Existing public DVR occurrence identity, including its original JSON shape.
 	raw, _ := json.Marshal([]string{"dvr-occurrence-v1", "local", o.account, o.profile, source, programme})
@@ -136,20 +116,6 @@ type mgRecordingFrozen struct {
 	startMS, endMS             int64
 }
 
-func mgRecordingText(s string, required bool, max int) bool {
-	return (!required || s != "") && len(s) <= max && utf8.ValidString(s) && !strings.ContainsRune(s, 0)
-}
-func mgRecordingHex(s string, n int) bool {
-	if len(s) != n {
-		return false
-	}
-	for _, c := range s {
-		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
-			return false
-		}
-	}
-	return true
-}
 func mgRecordingDecode(raw string, out any) error {
 	object := strings.TrimSpace(raw)
 	if len(object) < 2 || object[0] != '{' || object[len(object)-1] != '}' {

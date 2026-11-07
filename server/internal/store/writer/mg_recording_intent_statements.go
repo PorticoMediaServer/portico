@@ -8,7 +8,6 @@ import (
 const (
 	mgRecordingIntentRead                stmt.ID = "mg.recording.intent.read"
 	mgRecordingIntentScope               stmt.ID = "mg.recording.intent.scope"
-	mgRecordingIntentOwner               stmt.ID = "mg.recording.intent.owner"
 	mgRecordingIntentReservationRead     stmt.ID = "mg.recording.intent.reservation"
 	mgRecordingIntentOwnerRevisionRead   stmt.ID = "mg.recording.intent.owner_revision"
 	mgRecordingIntentFloorRead           stmt.ID = "mg.recording.intent.floor"

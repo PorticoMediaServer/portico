@@ -31,12 +31,8 @@ func mgRuleDefinitions() []stmt.Definition {
 		{ID: mgRuleWorkUpdate, Kind: stmt.Write, SQL: `UPDATE dvr_rule_work INDEXED BY sqlite_autoindex_dvr_rule_work_1 SET rule_revision=?,generation=?,phase='existing',cursor='',updated_ms=?,diagnostic='',job_next_attempt_ms=?,job_revision=job_revision+1 WHERE rule_id=? AND rule_revision=? AND job_revision=? AND job_revision<9223372036854775807`, Params: []stmt.Param{i("revision"), s("generation"), i("updated"), i("due"), s("id"), i("expected_revision"), i("expected_job_revision")}},
 		{ID: mgRuleWorkRead, Kind: stmt.Read, SQL: `SELECT rule_revision,generation,phase,cursor,updated_ms,diagnostic,job_revision FROM dvr_rule_work INDEXED BY sqlite_autoindex_dvr_rule_work_1 WHERE rule_id=?`, Params: []stmt.Param{s("id")}},
 	}
-	// Reuse the existing closed native owner observation, not frozen authority.
-	for _, d := range mgRecordingIntentDefinitions() {
-		if d.ID == mgRecordingIntentOwner {
-			defs = append(defs, d)
-		}
-	}
+	// Native current-lifetime observation is not an authorization grant.
+	defs = append(defs, mgOwnerDefinition())
 	for n := range defs {
 		d := &defs[n]
 		if d.ID == mgRecordingIntentOwner {

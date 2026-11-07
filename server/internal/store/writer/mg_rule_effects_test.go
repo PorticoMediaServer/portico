@@ -3,8 +3,11 @@ package writer
 import (
 	"context"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func mgRuleFixture(t *testing.T) (*executor, mgRuleRequest) {
@@ -32,7 +35,7 @@ func mgRuleFixture(t *testing.T) (*executor, mgRuleRequest) {
 }
 func TestMGRuleNativeSaveDelete(t *testing.T) {
 	w, r := mgRuleFixture(t)
-	turn := mgRecordingTestTurn(t, w, mgRuleDefinitions())
+	turn := mgRuleTestTurn(t, w, mgRuleDefinitions())
 	out, e := saveMGRule(t.Context(), turn, r)
 	if e != nil || out != r.after {
 		t.Fatal(out, e)
@@ -53,6 +56,7 @@ func TestMGRuleNativeSaveDelete(t *testing.T) {
 	r.after.revision++
 	r.after.updated++
 	r.after.deleted = 1
+	turn.transaction.descriptor.ID = MGDeleteRule
 	out, e = deleteMGRule(t.Context(), turn, r)
 	if e != nil || out != r.after {
 		t.Fatal(out, e)
@@ -95,7 +99,7 @@ func TestMGRuleNativeControls(t *testing.T) {
 				r.after.revision = 2
 				r.after.updated = 11
 			}
-			turn := mgRecordingTestTurn(t, w, mgRuleDefinitions())
+			turn := mgRuleTestTurn(t, w, mgRuleDefinitions())
 			ctx := t.Context()
 			if control == "cancel" {
 				c, cancel := context.WithCancel(ctx)
@@ -118,4 +122,35 @@ func TestMGRuleNativeControls(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mgRuleTestTurn(t *testing.T, w *executor, defs ...[]stmt.Definition) *commandTurn {
+	t.Helper()
+	all := mgRuleDefinitions()
+	if len(defs) > 0 {
+		all = defs[0]
+	}
+	registry, err := stmttest.New(t, all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Synthetic component budget only: several intent operations on one fixture
+	// frame. Parent owns actual admission/profile and measured complete hold.
+	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{8, 100, 8, 4096, time.Millisecond}, terminal: Work{8, 100, 8, 4096, time.Millisecond}}
+	tx, err := w.begin(t.Context(), InventoryAccept, recipe, &testCustody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = tx.rollback(nil) })
+	var steps []statementStep
+	for _, d := range all {
+		steps = append(steps, statementStep{d.ID, Work{16, 10000, 32, 65536, time.Microsecond}})
+	}
+	turn, err := newCommandTurn(tx, registry, steps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = turn.closeRows() })
+	turn.transaction.descriptor.ID = MGSaveRule
+	return turn
 }

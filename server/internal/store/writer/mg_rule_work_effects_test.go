@@ -15,7 +15,7 @@ func mgRuleWorkerFixture(t *testing.T) (*commandTurn, mgRuleWorkRequest) {
 			defs = append(defs, d)
 		}
 	}
-	turn := mgRecordingTestTurn(t, w, defs)
+	turn := mgRuleTestTurn(t, w, defs)
 	if _, e := saveMGRule(t.Context(), turn, r); e != nil {
 		t.Fatal(e)
 	}

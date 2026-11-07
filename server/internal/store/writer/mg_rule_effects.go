@@ -71,6 +71,13 @@ func deleteMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest) (out mgR
 }
 func mutateMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest, deleting bool) (out mgRuleFacts, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	purpose := MGSaveRule
+	if deleting {
+		purpose = MGDeleteRule
+	}
+	if t == nil || t.transaction == nil || t.transaction.descriptor.ID != purpose || !t.transaction.policyVerified {
+		return out, ErrInvalid
+	}
 	a, b := r.after, r.before
 	if !a.valid(r.owner) || r.sourceRevision < 1 || !mgRecordingHex(r.generation, 48) {
 		return out, ErrInvalid
@@ -111,7 +118,7 @@ func mutateMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest, deleting
 	var revision, removed int64
 	var generation, state string
 	if e = row.Scan(&revision, &generation, &state, &removed); e != nil {
-		return out, mgPersonalMissing(e)
+		return out, mgOwnerMissing(e)
 	}
 	if revision != r.sourceRevision || generation != r.generation || removed != 0 || (a.enabled == 1 && state != "active") {
 		return out, ErrConflict
@@ -130,7 +137,7 @@ func mutateMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest, deleting
 		}
 	} else {
 		if e != nil {
-			return out, mgPersonalMissing(e)
+			return out, mgOwnerMissing(e)
 		}
 		if actual != b {
 			return out, ErrConflict

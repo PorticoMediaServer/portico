@@ -91,28 +91,6 @@ func mgRecordingMatch(ctx context.Context, t *commandTurn, want mgRecordingSnaps
 	}
 	return nil
 }
-func mgRecordingCheckOwner(ctx context.Context, t *commandTurn, o mgRecordingOwner) error {
-	if !o.valid() {
-		return ErrInvalid
-	}
-	row, err := mgRecordingIntentQuery(ctx, t, mgRecordingIntentOwner, o.profile, o.account)
-	if err != nil {
-		return err
-	}
-	var epoch, memberRevision, disabled, profileRevision, deleted int64
-	var incarnation, lifetime string
-	err = row.Scan(&epoch, &incarnation, &memberRevision, &disabled, &lifetime, &profileRevision, &deleted)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrDisclosureDenied
-	}
-	if err != nil {
-		return err
-	}
-	if epoch != o.accountEpoch || incarnation != o.memberIncarnation || memberRevision != o.memberRevision || disabled != 0 || lifetime != o.profileLifetime || profileRevision != o.profileRevision || deleted != 0 {
-		return ErrDisclosureDenied
-	}
-	return nil
-}
 func mgRecordingCheckProgramme(ctx context.Context, t *commandTurn, scope mgRecordingScope, f mgRecordingFrozen) error {
 	if !scope.valid() || !f.valid() || scope.programme != f.programme.id || scope.channel != f.programme.channel {
 		return ErrInvalid
