@@ -88,17 +88,20 @@ layout references; well-formed unsupported native recipes stay explicitly
 unsupported.
 The saved-view code is reused as a dependency and never modified.
 
-## Genuine remaining decisions/dependencies
+## Remaining composition dependencies
 
 The native preference tables are merged, but no native UO preference writer was
 present in the inspected main source. That does not block current read-only
 facts or defaults; UO owns every settings write and acceptance path.
 
-An effective community policy is asserted only when the current source row says
-server. A file source, or absent native source, remains unresolved: the runtime
-file-effective-value authority is not represented by these DB columns. The
-stored nullable flag alone must not invent an effective owner setting. Other
-layout/library reads continue independently. RS recommendations/family/spotlight,
+This frozen descriptor core recognizes source=server and conservatively leaves
+other source cases unresolved. The separately drafted committed-policy adapter
+reads the actual normalized value/revision and per-field pending projection.
+Lead ruled that LAST COMMITTED normalized DB policy is authoritative for Home;
+the native reader never reads disk, and importing file changes is UO's settings
+command responsibility. Disk freshness is not a reader requirement or schema
+gap. The adapter retains CommittedOnly=true. Other layout/library reads continue
+independently. RS recommendations/family/spotlight,
 MG live availability/authority, broader saved-view recipes, and Home row content
 composition remain explicit unattached dependencies. No other lane is steered.
 Parent owns larger-set preparation, public DTO/wire/cache integration and route
