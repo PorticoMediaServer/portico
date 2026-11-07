@@ -82,7 +82,10 @@ Configured view IDs are taken only from actual rowOrder. Each selected view must
 have fresh actual ownership/share access and an allowed current library. Names
 of foreign private/revoked views are never projected. Valid current movie/title
 views using the unchanged native scalar parser/browse fence get a deferred
-saved-view target; unsupported stored recipes stay explicitly unsupported.
+saved-view target only inside the frozen native route ID bounds. Malformed
+definitions and unauthorized/forbidden-library references are omitted as stale
+layout references; well-formed unsupported native recipes stay explicitly
+unsupported.
 The saved-view code is reused as a dependency and never modified.
 
 ## Genuine remaining decisions/dependencies
@@ -108,3 +111,6 @@ projection/pending bounds, unversioned source drift and configured-view revocati
 Own plan controls refuse purpose/SQL/range/type/plan mutations. No unchanged
 saved-view suite or existing full/race/capture matrix is rerun, and no golden is
 refreshed or adopted here.
+
+The final route-bound refinement is checked with its new targeted subtest only;
+previous unchanged manifest/plan controls are reused from the baseline run.
