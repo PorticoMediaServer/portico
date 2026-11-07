@@ -141,7 +141,7 @@ func (s *foregroundOutput) checkContext(ctx context.Context) error {
 	return s.authority.CheckContext(ctx, s.output, s.outputRequest)
 }
 
-func (s *foregroundOutput) begin(output BrowseOutput, request governor.Request, snapshots *governor.Snapshots) error {
+func (s *foregroundOutput) begin(ctx context.Context, output BrowseOutput, request governor.Request, snapshots *governor.Snapshots) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if snapshots == nil || snapshots != s.pool || !snapshots.OwnedBy(s.authority) || s.closed || s.used || output.Authority != s.authority || output.Grant != s.output || request.Key != s.request.Key || request.Owner != s.request.Owner || request.Class != governor.Foreground {
@@ -155,10 +155,10 @@ func (s *foregroundOutput) begin(output BrowseOutput, request governor.Request, 
 		return governor.ErrSnapshotBudget
 	}
 
-	if err := s.authority.CheckContext(s.ctx, output.Grant, output.Request); err != nil {
+	if err := s.authority.CheckContext(ctx, output.Grant, output.Request); err != nil {
 		return err
 	}
-	if err := s.checkContext(s.ctx); err != nil {
+	if err := s.checkContext(ctx); err != nil {
 		return err
 	}
 	s.used = true
@@ -171,7 +171,7 @@ func liveRead[T any](ctx context.Context, request governor.Request, budget time.
 	if ctx == nil || scope == nil || budget <= 0 || now.IsZero() {
 		return page, result, ErrInput
 	}
-	if err = scope.begin(output, request, snapshots); err != nil {
+	if err = scope.begin(ctx, output, request, snapshots); err != nil {
 		return page, result, err
 	}
 	defer func() {
