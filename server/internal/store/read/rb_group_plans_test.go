@@ -109,3 +109,11 @@ func TestRBGroupPlans(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func TestRBGroupDefinitionLint(t *testing.T) {
+	for _, d := range RBGroupDefinitions() {
+		if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
+			t.Fatalf("%s: %+v\n%s", d.ID, issues, d.SQL)
+		}
+	}
+}

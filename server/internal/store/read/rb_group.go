@@ -25,6 +25,7 @@ const (
 )
 
 type RBGroupInput struct {
+	author  string
 	View    BrowseInput
 	Family  RBGroupFamily
 	Subject int64
@@ -72,9 +73,19 @@ func (r *BrowseReader) rbGroupWindow(ctx context.Context, request governor.Reque
 	// Keep fence and business in separate quanta: full authority + subject proof
 	// uses six calls; the source has up to three disjoint ordered seek legs.
 	steps := []readStep[RBGroupPage]{
-		func(_ context.Context, _ browseQuery, f browseFence, _ *RBGroupPage) error {
+		func(_ context.Context, query browseQuery, f browseFence, _ *RBGroupPage) error {
 			if in.After != nil && in.After.fence != f {
 				return ErrStale
+			}
+			if in.Family == RBGroupAuthorBooks {
+				rows, e := query("rb.group.subject", in.Subject)
+				if e != nil {
+					return e
+				}
+				if len(rows) != 1 {
+					return ErrDenied
+				}
+				in.author = rows[0][13].(string)
 			}
 			return nil
 		},
@@ -146,7 +157,7 @@ func rbReadGroup(ctx context.Context, query browseQuery, in RBGroupInput, f brow
 }
 func rbGroupScopeArgs(in RBGroupInput) []any {
 	if in.Family == RBGroupAuthorBooks {
-		return []any{in.View.Library, in.Subject}
+		return []any{in.View.Library, in.author}
 	}
 	return []any{in.Subject}
 }
