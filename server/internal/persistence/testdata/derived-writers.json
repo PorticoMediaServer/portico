@@ -4484,7 +4484,7 @@
       ]
     },
     "internal/compactcatalog/derive_search.go": {
-      "sha256": "7c41d6406116dfcb3949d1935ae3ac830d25e9240be6c985332967a6320f4fc6",
+      "sha256": "7255607bba1f2e0a5dec4e4e11d88a86165a26a1b8e4e038674ea6e78738a0b9",
       "effects": [
         {
           "table": "*",
@@ -5506,6 +5506,15 @@
         {
           "table": "*",
           "verb": "*"
+        }
+      ]
+    },
+    "internal/facettext/search.go": {
+      "sha256": "6e2e790a0cc93dfb904f9d761e5ad1ce208e2e3f6c4a2db798dc7596a1b0c67c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "SELECT"
         }
       ]
     },
