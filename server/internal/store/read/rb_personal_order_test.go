@@ -26,7 +26,6 @@ func newRBPersonalOrderSource(t *testing.T) *browseFixture {
 SELECT 'p',public_id,id,library_id,CASE id WHEN 1 THEN 0 ELSE 7 END,CASE id WHEN 1 THEN 9223372036854775806 ELSE 9 END,CASE id WHEN 1 THEN '2026-01-01T00:00:00Z' ELSE '2025-01-01T00:00:00Z' END FROM catalog_entities WHERE id IN(1,2,4)`)
 	f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating,play_count,last_played_at) SELECT 'q',public_id,id,library_id,10,100,'2030-01-01T00:00:00Z' FROM catalog_entities WHERE id=5`)
 	f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating,play_count,last_played_at) SELECT 'p',public_id,id,library_id,10,9223372036854775807,'2031-01-01T00:00:00Z' FROM catalog_entities WHERE id=9`)
-	f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating,play_count,last_played_at) SELECT 'p',zeroblob(16),id,library_id,10,99,'2030-01-01T00:00:00Z' FROM catalog_entities WHERE id=10`)
 	f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating,play_count,last_played_at) SELECT 'p',public_id,id,library_id,NULL,0,'' FROM catalog_entities WHERE id=11`)
 	return f
 }
@@ -115,8 +114,7 @@ func TestRBPersonalOrderLargeRawSetAndPublicationRefusals(t *testing.T) {
 				in := PersonalOrderInput{View: f.input, Order: PersonalPlayCountOrder}
 				want := ErrStale
 				if mode == "large-hidden" {
-					f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) SELECT id+2000,public_id,library_id,kind FROM catalog_subjects WHERE id BETWEEN 13 AND 270`)
-					f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired) SELECT id,public_id,library_id,kind,'Hidden','h','h','h','h',0,zeroblob(16),zeroblob(16),1 FROM catalog_subjects WHERE id BETWEEN 2013 AND 2270`)
+					f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired) SELECT id,public_id,library_id,kind,'Hidden','h','h','h','h',0,zeroblob(16),zeroblob(16),1 FROM catalog_subjects WHERE id BETWEEN 13 AND 270`)
 					want = ErrNotReady
 				} else {
 					f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() {
@@ -160,15 +158,33 @@ func TestRBPersonalOrderPublicLIVEAndCursorBinding(t *testing.T) {
 			assertLiveUsage(t, f, 1, 0)
 			in.After = page.After
 			in.Order = PersonalPlayCountOrder
-			bad, _, e := f.reader.PersonalOrderExact(ctx, request, time.Second, out, in)
-			if !errors.Is(e, ErrStale) || !reflect.DeepEqual(bad, PersonalOrderPage{}) {
-				t.Fatal("cross-sort cursor", bad, e)
-			}
 			return nil
 		})
 		if e != nil {
 			t.Fatal(e)
 		}
 		assertLiveUsage(t, f, 0, 0)
+		q, request, output = liveRequests("personal-other-sort")
+		_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+			bad, _, e := f.reader.PersonalOrderExact(ctx, request, time.Second, out, in)
+			if !errors.Is(e, ErrStale) || !reflect.DeepEqual(bad, PersonalOrderPage{}) {
+				t.Fatal("cross-sort cursor", bad, e)
+			}
+			return e
+		})
+		if !errors.Is(e, ErrStale) {
+			t.Fatal(e)
+		}
+		assertLiveUsage(t, f, 0, 0)
+	})
+}
+
+func TestRBPersonalOrderRejectsMismatchedNativeIdentity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := rbPersonalOrderFixture(t, false)
+		_, e := f.conn.ExecContext(t.Context(), `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating) SELECT 'p',zeroblob(16),id,library_id,10 FROM catalog_entities WHERE id=10`)
+		if e == nil {
+			t.Fatal("native personal identity FK accepted a mismatched retained subject")
+		}
 	})
 }
