@@ -17,8 +17,9 @@ import (
 //
 // The population is written only by the new layer's bounded producers. The
 // 32MiB wire limit remains unchanged. Preparation and existing-record capacity
-// checks can refuse an unusually large legal request before effects; observed
-// time overruns retain the existing zero-output/fence/physical-custody rules.
+// checks can refuse an unusually large legal request before effects. Hold is
+// the admission target only: target misses report evidence; the shared 3s
+// safety ceiling and original deadlines govern runtime failure and custody.
 // These are realistic-use forecasts, not universal worst-case IO/time claims.
 func inventoryN1Forecast(registration stmt.Receipt, engine sqliteconn.EngineIdentity, pageSize int32, device uint64) (effectivePlan, error) {
 	if runtime.GOOS != "linux" || pageSize != 4096 || registration == nil || engine.Version == "" || engine.SourceID == "" {
