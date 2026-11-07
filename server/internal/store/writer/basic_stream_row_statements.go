@@ -1,0 +1,21 @@
+package writer
+
+import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+
+const (
+	basicMediaStreamInsert  stmt.ID = "scan.basic_stage.stream_insert"
+	basicMediaStreamRows    stmt.ID = "scan.basic_seal.stream_rows"
+	basicMediaBreadthInsert stmt.ID = "scan.basic_stage.breadth_insert"
+	basicMediaBreadthRows   stmt.ID = "scan.basic_seal.breadth_rows"
+)
+
+func basicStreamRowDefinitions() []stmt.Definition {
+	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
+	t := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
+	return []stmt.Definition{
+		{ID: basicMediaStreamInsert, Kind: stmt.Write, SQL: `INSERT INTO catalog_info_new_streams(change_id,input_ordinal,asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced,color_transfer,color_primaries,detail_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING input_ordinal,asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced,color_transfer,color_primaries,detail_json`, Params: []stmt.Param{i("change_id"), i("input_ordinal"), t("asset_id"), i("stream_index"), t("type"), t("codec"), t("language"), t("title"), i("channels"), t("channel_layout"), i("is_default"), i("is_forced"), t("color_transfer"), t("color_primaries"), t("detail_json")}, Plan: stmt.Plan{Hot: true}, Cohorts: []stmt.Cohort{{Name: "normalized_video", Bindings: []any{int64(51), int64(0), "basic-asset", int64(0), "video", "h264", "", "", int64(0), "", int64(1), int64(0), "bt709", "bt709", `{"width":1920}`}}}},
+		{ID: basicMediaStreamRows, Kind: stmt.Read, SQL: `SELECT input_ordinal,asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced,color_transfer,color_primaries,detail_json FROM catalog_info_new_streams WHERE change_id=? ORDER BY input_ordinal LIMIT ?`, Params: []stmt.Param{i("change_id"), i("row_limit")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_catalog_info_new_streams_2"}, Seeks: []string{"change_id=?"}}, Cohorts: []stmt.Cohort{{Name: "complete_normalized_streams", Bindings: []any{int64(51), int64(766)}}}},
+		{ID: basicMediaBreadthInsert, Kind: stmt.Write, SQL: `INSERT INTO catalog_info_new_stream_breadth(change_id,input_ordinal,asset_id,stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version,playback_frames_revision,packet_peak_revision) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING input_ordinal,asset_id,stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version,playback_frames_revision,packet_peak_revision`, Params: []stmt.Param{i("change_id"), i("input_ordinal"), t("asset_id"), i("stream_index"), i("audio_description"), t("audio_variant"), t("chroma_subsampling"), i("fps_numerator"), i("fps_denominator"), t("frame_rate_mode"), t("interlace_analysis"), i("telecine"), i("dovi_rpu"), i("dovi_base_layer"), i("dovi_metadata_known"), t("dovi_enhancement_type"), t("dovi_cm_version"), t("playback_frames_revision"), t("packet_peak_revision")}, Plan: stmt.Plan{Hot: true}, Cohorts: []stmt.Cohort{{Name: "normalized_breadth", Bindings: []any{int64(51), int64(0), "basic-asset", int64(0), int64(0), "", "4:2:0", int64(24000), int64(1001), "constant", "progressive", int64(0), int64(0), int64(0), int64(1), "", "", "", ""}}}},
+		{ID: basicMediaBreadthRows, Kind: stmt.Read, SQL: `SELECT input_ordinal,asset_id,stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version,playback_frames_revision,packet_peak_revision FROM catalog_info_new_stream_breadth WHERE change_id=? ORDER BY input_ordinal LIMIT ?`, Params: []stmt.Param{i("change_id"), i("row_limit")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_catalog_info_new_stream_breadth_2"}, Seeks: []string{"change_id=?"}}, Cohorts: []stmt.Cohort{{Name: "complete_normalized_breadth", Bindings: []any{int64(51), int64(766)}}}},
+	}
+}

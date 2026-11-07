@@ -44,6 +44,11 @@ VALUES(51,0,0,'basic-run','basic-source',23,'basic-incarnation','basic-object','
 
 func basicStreamComponentTurn(t *testing.T, w *executor) *commandTurn {
 	t.Helper()
+	return basicComponentTurn(t, w, basicStreamStageDefinitions())
+}
+
+func basicComponentTurn(t *testing.T, w *executor, defs []stmt.Definition) *commandTurn {
+	t.Helper()
 	// This is the EXISTING BasicAccept synthetic component frame, not a new
 	// BasicStage/Seal command, grant, issuer, recipe or durable receipt. The
 	// private effect bodies are not wired; W's draft dedicated purposes and
@@ -55,7 +60,6 @@ func basicStreamComponentTurn(t *testing.T, w *executor) *commandTurn {
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
 	policy := w.config
 	policy.Synchronous = sqliteconn.Normal
-	defs := basicStreamStageDefinitions()
 	registry := nativeFixtureRegistry(t, tx.conn, policy, defs, "basic_stage_test.go")
 	var steps []statementStep
 	for _, d := range defs {
@@ -105,7 +109,7 @@ func TestBasicStreamNativeStageAndSealStayUnpublished(t *testing.T) {
 }
 
 func TestBasicStreamNativeFailureRollsBackWholeUnit(t *testing.T) {
-	for _, scenario := range []string{"foreign_library", "debt_capacity", "duplicate_row"} {
+	for _, scenario := range []string{"foreign_library", "debt_capacity", "duplicate_row", "duplicate_fact_key"} {
 		t.Run(scenario, func(t *testing.T) {
 			w, in := basicStreamFixture(t)
 			seedBytes := int64(1000)
@@ -118,9 +122,13 @@ func TestBasicStreamNativeFailureRollsBackWholeUnit(t *testing.T) {
 				if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_info_input_budget SET used_bytes=33554432 WHERE singleton=1`); err != nil {
 					t.Fatal(err)
 				}
-			case "duplicate_row":
+			case "duplicate_row", "duplicate_fact_key":
 				seedRows = 1
-				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_info_new_stream_facts VALUES(51,0,'basic-asset',31,42,-11,'probe-fingerprint',1)`); err != nil {
+				ordinal, token := int64(0), "other-asset"
+				if scenario == "duplicate_fact_key" {
+					ordinal, token = 1, "basic-asset"
+				}
+				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_info_new_stream_facts VALUES(51,?,?,31,42,-11,'probe-fingerprint',1)`, ordinal, token); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -128,6 +136,9 @@ func TestBasicStreamNativeFailureRollsBackWholeUnit(t *testing.T) {
 			got, err := stageBasicStreamFact(t.Context(), turn, in)
 			if err == nil || got != (basicFamilyProgress{}) {
 				t.Fatal("failed unit leaked output", got, err)
+			}
+			if (scenario == "duplicate_row" || scenario == "duplicate_fact_key") && !errors.Is(err, ErrConflict) {
+				t.Fatal("native duplicate must be a typed conflict", err)
 			}
 			if _, err = turn.transaction.rollback(err); err == nil {
 				t.Fatal("rollback lost failure")
@@ -206,5 +217,69 @@ func TestBasicStreamDefinitionsAreClosed(t *testing.T) {
 	catalogue, err := stmt.Describe(defs)
 	if err != nil || len(catalogue.Manifest()) != 10 {
 		t.Fatal(catalogue, err)
+	}
+}
+
+// These cases retain exactly one witness. Adding another row would test only
+// cardinality and would not detect removal of the shared value comparison.
+func TestBasicStreamNativeSoleWitnessDrift(t *testing.T) {
+	for _, operation := range []string{"stage", "seal"} {
+		t.Run(operation, func(t *testing.T) {
+			w, in := basicStreamFixture(t)
+			turn := basicStreamComponentTurn(t, w)
+			if operation == "seal" {
+				if _, err := stageBasicStreamFact(t.Context(), turn, in); err != nil {
+					t.Fatal(err)
+				}
+			}
+			in.runID = "other-run"
+			var got basicFamilyProgress
+			var err error
+			if operation == "stage" {
+				got, err = stageBasicStreamFact(t.Context(), turn, in)
+			} else {
+				got, err = sealBasicStreamFact(t.Context(), turn, in)
+			}
+			if !errors.Is(err, ErrConflict) || got != (basicFamilyProgress{}) {
+				t.Fatal("sole-witness drift admitted", got, err)
+			}
+			if _, err = turn.transaction.rollback(err); !errors.Is(err, ErrConflict) {
+				t.Fatal("rollback lost conflict", err)
+			}
+			var used, staged, sealed, rows int64
+			if err = w.db.QueryRowContext(t.Context(), `SELECT used_bytes FROM catalog_info_input_budget WHERE singleton=1`).Scan(&used); err != nil {
+				t.Fatal(err)
+			}
+			if err = w.db.QueryRowContext(t.Context(), `SELECT rows_staged,sealed FROM catalog_info_input_families WHERE change_id=51 AND family=1`).Scan(&staged, &sealed); err != nil {
+				t.Fatal(err)
+			}
+			if err = w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM catalog_info_new_stream_facts WHERE change_id=51`).Scan(&rows); err != nil {
+				t.Fatal(err)
+			}
+			if used != 1000 || staged != 0 || sealed != 0 || rows != 0 {
+				t.Fatal("witness failure leaked effects", used, staged, sealed, rows)
+			}
+		})
+	}
+}
+
+type basicFactTestError int
+
+func (e basicFactTestError) Error() string { return "native fact insert failure" }
+func (e basicFactTestError) Code() int     { return int(e) }
+
+func TestBasicStreamFactInsertErrorClassification(t *testing.T) {
+	for _, code := range []int{1555, 2067, 19, 787, 275, 5, 9, 10} {
+		native := basicFactTestError(code)
+		err := basicStreamFactInsertError(native)
+		wantConflict := code == 1555 || code == 2067
+		if errors.Is(err, ErrConflict) != wantConflict || !errors.Is(err, native) {
+			t.Fatal(code, err)
+		}
+	}
+	for _, original := range []error{nil, context.Canceled, context.DeadlineExceeded, ErrCap} {
+		if got := basicStreamFactInsertError(original); got != original {
+			t.Fatal("unrelated error changed", original, got)
+		}
 	}
 }

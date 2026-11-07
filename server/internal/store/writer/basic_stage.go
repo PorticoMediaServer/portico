@@ -107,7 +107,28 @@ func basicStageError(err error) error {
 	return err
 }
 
-func checkBasicStreamStage(ctx context.Context, turn *commandTurn, in basicStreamFactStage, wantRows int64) (err error) {
+// Only this closed INSERT's two native key constraints denote a stale or
+// duplicate fact. CHECK/FK failures and operational errors retain their type.
+func basicStreamFactInsertError(err error) error {
+	var coded interface{ Code() int }
+	if errors.As(err, &coded) {
+		switch coded.Code() {
+		case 1555, 2067: // SQLITE_CONSTRAINT_PRIMARYKEY, SQLITE_CONSTRAINT_UNIQUE
+			return errors.Join(ErrConflict, err)
+		}
+	}
+	return err
+}
+
+func checkBasicStreamInput(ctx context.Context, turn *commandTurn, in basicStreamFactStage) error {
+	return checkBasicInputAtPhase(ctx, turn, in, 0)
+}
+
+func checkBasicInputAtPhase(ctx context.Context, turn *commandTurn, in basicStreamFactStage, expectedPhase int64) (err error) {
+	if expectedPhase != 0 && expectedPhase != 1 && expectedPhase != 2 && expectedPhase != 3 {
+		return ErrInvalid
+	}
+
 	if in.changeID <= 0 || in.inputRevision <= 0 || in.libraryID <= 0 || in.assetID <= 0 || in.expectedEpoch <= 0 || in.sourceGeneration <= 0 ||
 		in.policyRevision <= 0 || in.factRevision <= 0 || in.size < 0 || in.detailVersion < 0 || in.witnessFingerprint == ([32]byte{}) {
 		return ErrInvalid
@@ -135,7 +156,7 @@ func checkBasicStreamStage(ctx context.Context, turn *commandTurn, in basicStrea
 	if err = row.Scan(&asset, &token, &slot, &phase, &epoch, &revision, &mask, &fingerprint, &aux, &fault); err != nil {
 		return basicStageError(err)
 	}
-	if asset != in.assetID || token != in.assetToken || slot != 0 || phase != 0 || epoch != in.expectedEpoch || revision != in.inputRevision ||
+	if asset != in.assetID || token != in.assetToken || slot != 0 || phase != expectedPhase || epoch != in.expectedEpoch || revision != in.inputRevision ||
 		mask < 1 || mask > 1<<18-1 || mask&1 == 0 || aux < 0 || fault != "" || len(fingerprint) != 32 || [32]byte(fingerprint) != in.witnessFingerprint {
 		return ErrConflict
 	}
@@ -180,11 +201,18 @@ func checkBasicStreamStage(ctx context.Context, turn *commandTurn, in basicStrea
 		objectRevision != in.objectRevision || policy != in.policyRevision || choice != 0 || len(fingerprint) != 32 || [32]byte(fingerprint) != in.witnessFingerprint {
 		return ErrConflict
 	}
-	row, err = basicStageRead(ctx, turn, basicStageFamily, in.changeID, int64(1))
+	return nil
+}
+
+func checkBasicStreamStage(ctx context.Context, turn *commandTurn, in basicStreamFactStage, wantRows int64) error {
+	if err := checkBasicStreamInput(ctx, turn, in); err != nil {
+		return err
+	}
+	row, err := basicStageRead(ctx, turn, basicStageFamily, in.changeID, int64(1))
 	if err != nil {
 		return err
 	}
-	var expected, staged, sealed int64
+	var ordinal, expected, staged, sealed int64
 	if err = row.Scan(&ordinal, &expected, &staged, &sealed); err != nil {
 		return basicStageError(err)
 	}
@@ -240,7 +268,7 @@ func stageBasicStreamFact(ctx context.Context, turn *commandTurn, in basicStream
 	}
 	result, err := turn.exec(ctx, step.statementStep, in.changeID, int64(0), in.assetToken, in.factRevision, in.size, in.modifiedNS, in.fingerprint, in.detailVersion)
 	if err != nil {
-		return value, err
+		return value, basicStreamFactInsertError(err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
@@ -263,6 +291,39 @@ func stageBasicStreamFact(ctx context.Context, turn *commandTurn, in basicStream
 	return value, nil
 }
 
+func checkBasicStreamFact(ctx context.Context, turn *commandTurn, in basicStreamFactStage) (err error) {
+	step, ok := turn.steps[basicSealStreamFact]
+	if !ok {
+		return invalid("unregistered_basic_step")
+	}
+	rows, err := turn.query(ctx, step.statementStep, in.changeID, int64(2))
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, rows.Close()) }()
+	if !rows.Next() {
+		if err = rows.Err(); err != nil {
+			return err
+		}
+		return ErrConflict
+	}
+	var ordinal, revision, size, modified, detail int64
+	var token, fingerprint string
+	if err = rows.Scan(&ordinal, &token, &revision, &size, &modified, &fingerprint, &detail); err != nil {
+		return basicStageError(err)
+	}
+	if rows.Next() {
+		return ErrConflict
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	if ordinal != 0 || token != in.assetToken || revision != in.factRevision || size != in.size || modified != in.modifiedNS || fingerprint != in.fingerprint || detail != in.detailVersion {
+		return ErrConflict
+	}
+	return nil
+}
+
 func sealBasicStreamFact(ctx context.Context, turn *commandTurn, in basicStreamFactStage) (value basicFamilyProgress, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
 	if ctx == nil || turn == nil || turn.transaction == nil {
@@ -271,34 +332,8 @@ func sealBasicStreamFact(ctx context.Context, turn *commandTurn, in basicStreamF
 	if err = checkBasicStreamStage(ctx, turn, in, 1); err != nil {
 		return value, err
 	}
-	step, ok := turn.steps[basicSealStreamFact]
-	if !ok {
-		return value, invalid("unregistered_basic_step")
-	}
-	rows, err := turn.query(ctx, step.statementStep, in.changeID, int64(2))
-	if err != nil {
+	if err = checkBasicStreamFact(ctx, turn, in); err != nil {
 		return value, err
-	}
-	defer func() { err = errors.Join(err, rows.Close()) }()
-	if !rows.Next() {
-		if err = rows.Err(); err != nil {
-			return value, err
-		}
-		return value, ErrConflict
-	}
-	var ordinal, revision, size, modified, detail int64
-	var token, fingerprint string
-	if err = rows.Scan(&ordinal, &token, &revision, &size, &modified, &fingerprint, &detail); err != nil {
-		return value, basicStageError(err)
-	}
-	if rows.Next() {
-		return value, ErrConflict
-	}
-	if err = rows.Err(); err != nil {
-		return value, err
-	}
-	if ordinal != 0 || token != in.assetToken || revision != in.factRevision || size != in.size || modified != in.modifiedNS || fingerprint != in.fingerprint || detail != in.detailVersion {
-		return value, ErrConflict
 	}
 	row, err := basicStageRead(ctx, turn, basicSealFamilyCAS, int64(1), in.changeID, int64(1), int64(0), int64(1), int64(1), int64(0))
 	if err != nil {
