@@ -55,6 +55,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return invalid("result_command_sequence")
 	}
 	switch v := result.(type) {
+	case ProgressValue:
+		return preflightProgressValue(v)
 	case evidenceBeginResult:
 		return preflightEvidenceBeginResult(v)
 	case effectiveBeginResult:
@@ -96,6 +98,8 @@ func encodeCanonicalResult(e *requestEncoder, identity CommandIdentity, request 
 
 func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request RequestDigest, result any) error {
 	switch v := result.(type) {
+	case ProgressValue:
+		return writeProgressValue(e, identity, request, v)
 	case evidenceBeginResult:
 		return writeEvidenceBeginResult(e, identity, request, v)
 	case effectiveBeginResult:
