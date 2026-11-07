@@ -65,12 +65,18 @@ func (r *ForegroundReader) artwork(ctx context.Context, request governor.Request
 		}
 	}
 	switch in.View.Kind {
-	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21:
+	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 20, 21:
 	default:
 		return ArtworkFact{}, BrowseReadResult{}, ErrUnqualified
 	}
 
 	windows := &rsByteWindow{source: r.snapshots}
+	switch in.View.policy.recipe {
+	case rsReadingNativePolicy, rsReadingMobiPolicy:
+		windows.preflightCalls = 768
+	case rsDetailSubjectPolicy, rsCollectionDeliveryPolicy:
+		windows.preflightCalls = 12
+	}
 	var source []any
 	var selected []any
 	var choices []rsArtCandidate
