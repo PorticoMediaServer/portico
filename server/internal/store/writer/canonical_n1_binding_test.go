@@ -35,6 +35,8 @@ type canonicalN1MaintenanceOwner struct {
 	cp                 *governor.Checkpointer
 	keeper             *governor.CheckpointKeeper
 	lifetime           *governor.Grant
+	shutdown           *governor.Grant
+	shutdownRequest    governor.Request
 	stop               chan struct{}
 	done               chan struct{}
 	results            chan canonicalN1Checkpoint
@@ -202,27 +204,49 @@ func (m *canonicalN1MaintenanceOwner) close() error {
 	m.joinWorker()
 	f := m.fixture
 	if m.keeper == nil {
+		err := f.owner.executor.close()
 		if m.cp != nil {
-			return errors.Join(f.owner.executor.close(), m.cp.Close())
+			err = errors.Join(err, m.cp.Close())
 		}
-		return f.owner.executor.close()
+		if err != nil {
+			return err
+		} // uncertain native holdings stay charged
+		for _, p := range []**governor.Grant{&m.startup, &m.lifetime} {
+			if *p != nil {
+				if e := f.owner.authority.Retired(*p); e != nil {
+					return e
+				}
+				*p = nil
+			}
+		}
+		m.closed = true
+		return nil
 	}
 	err := m.opening.close()
 	if err != nil && !errors.Is(err, ErrBusy) {
 		return err
 	}
-	r := m.request("shutdown")
-	d := m.keeper.AdmitShutdown(r)
-	if d.Grant == nil {
-		return fmt.Errorf("canonical keeper shutdown: %v", d.Refusal)
+	if m.shutdown == nil {
+		m.shutdownRequest = m.request("shutdown")
+		d := m.keeper.AdmitShutdown(m.shutdownRequest)
+		if d.Grant == nil {
+			return fmt.Errorf("canonical keeper shutdown: %v", d.Refusal)
+		}
+		m.shutdown = d.Grant
 	}
-	if err = m.keeper.Close(d.Grant, r); err != nil {
+	// On uncertain native close retain and reuse THIS same cleanup holding.
+	if err = m.keeper.Close(m.shutdown, m.shutdownRequest); err != nil {
 		return err
 	}
-	err = errors.Join(f.owner.authority.Retired(d.Grant), f.owner.authority.Retired(m.lifetime), m.opening.close())
-	if m.startup != nil {
-		err = errors.Join(err, f.owner.authority.Retired(m.startup))
+	for _, p := range []**governor.Grant{&m.shutdown, &m.lifetime, &m.startup} {
+		if *p != nil {
+			if e := f.owner.authority.Retired(*p); e != nil {
+				return e
+			}
+			*p = nil
+		}
 	}
+	err = m.opening.close()
 	m.closed = err == nil
 	return err
 }
