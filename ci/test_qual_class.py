@@ -100,6 +100,49 @@ class ClassProtocol(unittest.TestCase):
         self.assertIsNone(summary['qualification_verdict'])
         self.assertTrue(summary['protocol_errors'])
 
+    def test_supervisor_retains_failed_exit_and_requires_process_drain(self):
+        # No privileges, binaries, cgroups or host evidence are actually used.
+        original_read = Path.read_text
+        boot_path = '/proc/sys/kernel/random/boot_id'
+        def read(path, *args, **kwargs):
+            if str(path) == boot_path: return '11111111-1111-1111-1111-111111111111'
+            return original_read(path, *args, **kwargs)
+        for ordinal, (exit_code, leftovers) in enumerate(((0, False), (1, False), (0, True))):
+            root = self.root/str(ordinal)
+            root.mkdir(); work=root/'work'; work.mkdir(); output=root/'out'; output.mkdir()
+            for name in ('writer.test', 'host'): (work/name).write_bytes(b'synthetic control only')
+            cfg = dict(source='a'*40, name='inventory_n1', profile='standard', replicate=1,
+                       workflow_run=1, workflow_attempt=1, manifest='b'*64)
+            launch = dict(cfg=cfg, source=str(root/'source'), artifact=str(root/'population'),
+                          output=str(output), work=str(work), env={}, uid=1001, gid=1001,
+                          binary_sha256=c.q.file_hash(work/'writer.test'), host_sha256=c.q.file_hash(work/'host'), archive_sha256='c'*64)
+            c.q.atomic_json(work/'launch.json', launch)
+            c.q.atomic_json(output/'receipt.json', {'status':'prepared-only'})
+            def host(argv, cwd, env, report, name, timeout):
+                path=report/(name+'.log'); c.q.atomic_json(path, {'synthetic':'not real host evidence'}); return path
+            def waited(timeout):
+                self.cfg=json.loads((work/'config.json').read_text())
+                raw=self.records([{'kind':'start'}, {'kind':'final', 'complete':True}])
+                (output/'raw.ndjson').write_bytes(raw.read_bytes())
+                return exit_code
+            process=mock.Mock(pid=12345); process.wait.side_effect=waited
+            with mock.patch.object(c.os, 'geteuid', return_value=0), mock.patch.object(Path, 'read_text', read), \
+                 mock.patch.object(c.q, 'command', side_effect=host), \
+                 mock.patch.object(c.subprocess, 'Popen', return_value=process) as popen, \
+                 mock.patch.object(c, 'own_cgroup_members', return_value=[os.getpid(), 999999] if leftovers else [os.getpid()]):
+                if exit_code or leftovers:
+                    with self.assertRaises(ValueError): c.run(work/'launch.json')
+                else: c.run(work/'launch.json')
+                self.assertEqual(popen.call_args.kwargs['user'], 1001)
+                self.assertEqual(popen.call_args.kwargs['group'], 1001)
+                self.assertEqual(popen.call_args.kwargs['extra_groups'], [])
+                self.assertNotIn('shell', popen.call_args.kwargs)
+            receipt=json.loads((output/'receipt.json').read_text())
+            self.assertEqual(receipt['status'], 'failed' if exit_code or leftovers else 'owner-execution-complete')
+            self.assertEqual(receipt['target_exit_code'], exit_code)
+            self.assertIn('host_after', receipt)
+            self.assertIsNone(receipt['qualification_verdict'])
+
     def test_six_cells_keep_identity_and_reject_duplicate_vms(self):
         artifacts, output = self.root/'cells', self.root/'summary'
         artifacts.mkdir()
