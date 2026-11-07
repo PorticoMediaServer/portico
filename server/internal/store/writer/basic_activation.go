@@ -72,7 +72,7 @@ func activateBasicAsset(ctx context.Context, turn *commandTurn, in basicActivati
 	if object.Valid {
 		ownerValue, revisionValue = object.String, objectRevision.String
 	}
-	row, err = basicStageRead(ctx, turn, basicActivationAssetCAS, in.source.expectedEpoch+1, available.Int64, ownerValue, revisionValue,
+	row, err = basicStageRead(ctx, turn, basicActivationAssetCAS, in.source.expectedEpoch, available.Int64, ownerValue, revisionValue,
 		in.source.assetID, in.source.assetToken, in.source.libraryID, in.source.expectedEpoch, in.source.size, in.source.modifiedNS, int64(1), in.fileSizeRevision, in.invalidationRevision)
 	if err != nil {
 		return value, err
