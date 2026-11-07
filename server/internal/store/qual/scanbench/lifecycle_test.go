@@ -149,3 +149,28 @@ func TestEC4N1AmbiguityKeepsOriginalAndDoesNotReobserve(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEC4LifecycleOnlyDraftDoesNotStartN1(t *testing.T) {
+	journal, err := NewReceiptJournal(filepath.Join(t.TempDir(), "receipts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer journal.Close()
+	var driver writer.ScanDriver
+	_, options, manifest := draftN1()
+	manifest.Run = "" // only actual W create can fill this
+	run, err := NewEC4Target(&driver, writer.ScanRunInput{LibraryID: 7, LibraryKey: "library", SourceID: "source", ScanMode: "first-import"}, journal, options, manifest)
+	var refusal *writer.Refusal
+	if run != nil || !errors.As(err, &refusal) || refusal.Code != writer.RefusalUnqualified {
+		t.Fatal("lifecycle-only draft became N1 ingress", run, err)
+	}
+	directory, err := journal.root.Open(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer directory.Close()
+	files, err := directory.ReadDir(-1)
+	if err != nil || len(files) != 0 {
+		t.Fatal("unready ingress wrote an original", files, err)
+	}
+}
