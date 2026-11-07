@@ -18,7 +18,7 @@ import (
 
 // Observe actual native query dispatch, independently of production counters.
 // Forward all native policy/identity evidence; no execution or decoder is mocked.
-// The driver's later materialization refusal must not hide an early payload VM.
+// The driver's later materialization refusal must not hide an early payload query.
 type iaAudioPointTrace struct{ lengths, payload atomic.Int64 }
 type iaAudioPointConnector struct {
 	driver.Connector
@@ -50,14 +50,52 @@ func (c *iaAudioPointConnector) Connect(ctx context.Context) (driver.Conn, error
 	}
 	return &iaAudioPointConnection{iaAudioPointNative: native, trace: c.trace}, nil
 }
-func (c *iaAudioPointConnection) QueryContext(ctx context.Context, sql string, args []driver.NamedValue) (driver.Rows, error) {
+func (t *iaAudioPointTrace) query(sql string) {
 	switch sql {
 	case iaAudioEntityOctetsSQL, iaAudioLinkOctetsSQL:
-		c.trace.lengths.Add(1)
+		t.lengths.Add(1)
 	case iaAudioEntitySQL, iaAudioLinkSQL:
-		c.trace.payload.Add(1)
+		t.payload.Add(1)
 	}
+}
+func (c *iaAudioPointConnection) QueryContext(ctx context.Context, sql string, args []driver.NamedValue) (driver.Rows, error) {
+	c.trace.query(sql)
 	return c.iaAudioPointNative.QueryContext(ctx, sql, args)
+}
+
+type iaAudioPointStatement struct {
+	driver.Stmt
+	sql   string
+	trace *iaAudioPointTrace
+}
+
+func (c *iaAudioPointConnection) Prepare(sql string) (driver.Stmt, error) {
+	return c.PrepareContext(context.Background(), sql)
+}
+func (c *iaAudioPointConnection) PrepareContext(ctx context.Context, sql string) (driver.Stmt, error) {
+	var st driver.Stmt
+	var err error
+	if native, ok := c.iaAudioPointNative.(driver.ConnPrepareContext); ok {
+		st, err = native.PrepareContext(ctx, sql)
+	} else {
+		st, err = c.iaAudioPointNative.Prepare(sql)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := st.(driver.StmtQueryContext); !ok {
+		_ = st.Close()
+		return nil, errors.New("native point statement lacks contextual reads")
+	}
+	return &iaAudioPointStatement{Stmt: st, sql: sql, trace: c.trace}, nil
+}
+func (s *iaAudioPointStatement) Query(args []driver.Value) (driver.Rows, error) {
+	s.trace.query(s.sql)
+	return s.Stmt.Query(args)
+}
+func (s *iaAudioPointStatement) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
+	s.trace.query(s.sql)
+	return s.Stmt.(driver.StmtQueryContext).QueryContext(ctx, args)
 }
 func iaAudioPointFixture(t *testing.T) (*browseFixture, *iaAudioPointTrace) {
 	t.Helper()
@@ -127,7 +165,7 @@ func TestIAAudioPreflightBeforePayload(t *testing.T) {
 				})
 				if bound == 1024 {
 					if !errors.Is(err, governor.ErrSnapshotBudget) || row != nil || trace.lengths.Load() != 1 || trace.payload.Load() != 0 {
-						t.Fatal("payload VM started before byte preflight refused", trace.lengths.Load(), trace.payload.Load(), err)
+						t.Fatal("payload query dispatched before byte preflight refused", trace.lengths.Load(), trace.payload.Load(), err)
 					}
 					return
 				}
