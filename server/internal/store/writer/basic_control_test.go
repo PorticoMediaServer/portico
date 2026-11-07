@@ -3,6 +3,7 @@ package writer
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ VALUES('basic-run',7,'basic-library','/media',0,?,?,'basic-source',23,'basic-inc
 	return w, source, original, identity
 }
 
-func basicControlTurn(t *testing.T, w *executor) *commandTurn {
+func basicControlTurn(t *testing.T, w *executor, wrongRunReturn ...bool) *commandTurn {
 	t.Helper()
 	// Component SQL facts only, not a BasicStage/Seal runtime or funded profile.
 	tx, err := w.begin(t.Context(), BasicAccept, testRecipe(), &testCustody{})
@@ -48,6 +49,13 @@ func basicControlTurn(t *testing.T, w *executor) *commandTurn {
 	config := w.config
 	config.Synchronous = sqliteconn.Normal
 	defs := append(basicStreamStageDefinitions(), basicControlDefinitions()...)
+	if len(wrongRunReturn) > 0 && wrongRunReturn[0] {
+		for n := range defs {
+			if defs[n].ID == basicControlRunCAS {
+				defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING job_revision,last_command_sequence,discovered,analyzed,warnings", "RETURNING last_command_sequence,job_revision,discovered,analyzed,warnings", 1)
+			}
+		}
+	}
 	golden := captureEffectiveFixture(t, tx.conn, config, defs, "basic_control_test.go")
 	registry, err := stmt.New(defs, golden.Receipt())
 	if err != nil {
@@ -151,5 +159,57 @@ func TestBasicControlLateReceiptFailureRollsBackRunAndRows(t *testing.T) {
  AND (SELECT count(*)=0 FROM catalog_info_new_stream_facts)
  AND (SELECT count(*)=0 FROM scan_command_receipts)`).Scan(&exact); err != nil || !exact {
 		t.Fatal(exact, err)
+	}
+}
+
+func TestBasicControlFreshVectorDriftHasNoEffects(t *testing.T) {
+	w, source, original, identity := basicControlFixture(t)
+	for _, name := range []string{"object_revision", "original_root", "sequence_gap"} {
+		t.Run(name, func(t *testing.T) {
+			s, o, id := source, original, identity
+			want := ErrConflict
+			switch name {
+			case "object_revision":
+				s.objectRevision += "+"
+			case "original_root":
+				o.source.resolvedRoot = []byte("/other")
+			case "sequence_gap":
+				id.Sequence++
+				want = ErrInvalid
+			}
+			turn := basicControlTurn(t, w)
+			got, err := readBasicFreshFacts(t.Context(), turn, id, o, s)
+			if !errors.Is(err, want) || got != (basicFreshFacts{}) {
+				t.Fatal(name, got, err)
+			}
+			_ = turn.closeRows()
+			_, _ = turn.transaction.rollback(err)
+			var exact bool
+			if err = w.db.QueryRowContext(t.Context(), `SELECT (SELECT job_revision=41 AND last_command_sequence=18 FROM inventory_runs WHERE job_id='basic-run') AND (SELECT count(*)=0 FROM scan_command_receipts)`).Scan(&exact); err != nil || !exact {
+				t.Fatal(exact, err)
+			}
+		})
+	}
+}
+
+func TestBasicControlWrongNativeRunReturnRollsBack(t *testing.T) {
+	w, source, original, identity := basicControlFixture(t)
+	turn := basicControlTurn(t, w, true)
+	facts, err := readBasicFreshFacts(t.Context(), turn, identity, original, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := advanceBasicControlRun(t.Context(), turn, identity, original, facts)
+	if !errors.Is(err, ErrConflict) || got != 0 {
+		t.Fatal(got, err)
+	}
+	var revision int64
+	if e := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT job_revision FROM inventory_runs WHERE job_id='basic-run'`).Scan(&revision); e != nil || revision != 42 {
+		t.Fatal("fault did not follow real CAS", revision, e)
+	}
+	_ = turn.closeRows()
+	_, _ = turn.transaction.rollback(err)
+	if err = w.db.QueryRowContext(t.Context(), `SELECT job_revision FROM inventory_runs WHERE job_id='basic-run'`).Scan(&revision); err != nil || revision != 41 {
+		t.Fatal(revision, err)
 	}
 }
