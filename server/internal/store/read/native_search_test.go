@@ -523,7 +523,7 @@ func TestNativeSearchPeopleEqualIDBirth(t *testing.T) {
 	f.exec(t, "BEGIN")
 	f.exec(t, "PRAGMA defer_foreign_keys=ON")
 	f.exec(t, `DELETE FROM catalog_people WHERE id=1`)
-	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name) VALUES(1,'replacement','replacement','Keanu','keanu')`)
+	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name,artwork_incarnation,search_incarnation) VALUES(1,'replacement','replacement','Keanu','keanu',zeroblob(16),x'22222222222222222222222222222222')`)
 	f.exec(t, "COMMIT")
 	page, _, err := nativeRead(t, f, r, "keanu", nil)
 	if err != nil || page.Disposition != SearchPending || len(page.Hits) != 0 || page.Exhausted {
