@@ -38,7 +38,7 @@ func TestIAAudioPreflightBeforePayload(t *testing.T) {
 				request.Need[governor.MemoryBytes] = bound + (2 << 20)
 				var row []any
 				_, err := f.snapshots.ReadForecasted(t.Context(), request, time.Second, governor.SnapshotForecast{NativeRowBytes: bound, MaxQueries: 2}, func(scope *governor.ReadScope) error {
-					s := &iaAudioSnapshots{scope: scope, extra: []iaAudioCalls{{}}}
+					s := &iaAudioSnapshots{scope: scope, extra: []iaAudioCalls{{}}, copyLimit: 2 << 20}
 					var e error
 					row, e = s.point(point, columns, args...)
 					return e
