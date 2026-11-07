@@ -15423,3 +15423,5 @@ CREATE INDEX catalog_credit_image_source_proof ON catalog_credit_images(source_p
 -- CHANGE-010 proposed directory lifecycle and protected-directory refusal.
 CREATE UNIQUE INDEX scan_receipt_refusal_kind ON scan_command_receipts(run_id,operation_id,refused_entry_kind);
 CREATE INDEX inventory_scan_issues_refusal ON inventory_scan_issues(job_id,refusal_operation_id,refused_entry_kind);
+
+CREATE INDEX scan_receipt_refused_directory_identity ON scan_command_receipts(run_id,refused_directory_identity) WHERE refused_directory_identity IS NOT NULL;
