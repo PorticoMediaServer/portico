@@ -19,7 +19,7 @@ func basicCommandFixture() (basicStageRequest, basicSealRequest, CommandIdentity
 		AuthoredParentIDs: []int64{31}}, counts: [9]int64{1, 2, 2, 1, 2, 1, 0, 0, 1}}
 	stage := basicStageRequest{original: original, purpose: BasicPurposeStage, operation: basicStageBeginInput, begin: begin}
 	source.changeID, source.inputRevision = 51, 7
-	seal := basicSealRequest{original, BasicPurposeSeal, basicSealStreamInput, source, 13}
+	seal := basicSealRequest{original: original, purpose: BasicPurposeSeal, operation: basicSealStreamInput, source: source, changeRevision: 13}
 	return stage, seal, identity
 }
 

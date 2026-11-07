@@ -8,8 +8,12 @@ type basicSealOperation uint8
 const (
 	basicStageBeginInput basicStageOperation = iota + 1
 	basicStageFactInput
+	basicStageMediaInput
 )
-const basicSealStreamInput basicSealOperation = 1
+const (
+	basicSealStreamInput basicSealOperation = iota + 1
+	basicSealMediaInput
+)
 
 // FIRST constructors cover only these implemented closed operations. Additional
 // payloads require their own validated variant before the dispatcher enables
@@ -21,6 +25,8 @@ type basicStageRequest struct {
 	begin          basicBeginEffects
 	fact           basicStreamFactStage
 	changeRevision int64 // existing change only; allocated BEGIN revision is native
+	rows           basicRowsRequest
+	start, end     int64 // bounded staging prefix, never a receipt COPY cursor
 }
 type basicSealRequest struct {
 	original       basicOriginalScope
@@ -28,6 +34,7 @@ type basicSealRequest struct {
 	operation      basicSealOperation
 	source         basicStreamFactStage
 	changeRevision int64
+	rows           basicRowsRequest
 }
 type basicStageCommand struct {
 	identity CommandIdentity
@@ -47,6 +54,15 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 	if err != nil {
 		return nil, err
 	}
+	if _, err = basicControlRequiredBytes(in.original, source); err != nil {
+		return nil, err
+	}
+	// The shared encoder preflights the COMPLETE typed request before hashing;
+	// this precedes UTF-8 validation, family maps, clones and derived rows.
+	digest, err := canonicalRequestDigest(BasicStage, 1, identity, in)
+	if err != nil {
+		return nil, err
+	}
 	if err = basicOriginalPreflight(identity, in.original, source); err != nil {
 		return nil, err
 	}
@@ -55,14 +71,16 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 		if err = validateBasicOrdinaryCounts(source.libraryID, in.begin.shape, in.begin.counts); err != nil {
 			return nil, err
 		}
-	case basicStageFactInput:
+	case basicStageFactInput, basicStageMediaInput:
 		if source.changeID <= 0 || source.inputRevision <= 0 || in.changeRevision <= 0 {
 			return nil, invalid("basic_stage_fact")
 		}
 	}
-	digest, err := canonicalRequestDigest(BasicStage, 1, identity, in)
-	if err != nil {
-		return nil, err
+	if in.operation == basicStageMediaInput {
+		in.rows, err = freezeBasicRowsRequest(source, in.rows)
+		if err != nil {
+			return nil, err
+		}
 	}
 	in.original = cloneBasicOriginal(in.original)
 	if in.operation == basicStageBeginInput {
@@ -84,13 +102,21 @@ func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
 	}
 	switch in.operation {
 	case basicStageBeginInput:
-		if in.fact != (basicStreamFactStage{}) || in.changeRevision != 0 || in.begin.source.changeID != 0 || in.begin.source.inputRevision != 0 {
+		if in.fact != (basicStreamFactStage{}) || in.changeRevision != 0 || in.begin.source.changeID != 0 || in.begin.source.inputRevision != 0 || !reflect.ValueOf(in.rows).IsZero() || in.start != 0 || in.end != 0 {
 			return basicStreamFactStage{}, ErrInvalid
 		}
 		return in.begin.source, nil
 	case basicStageFactInput:
-		if !reflect.ValueOf(in.begin).IsZero() {
+		if !reflect.ValueOf(in.begin).IsZero() || !reflect.ValueOf(in.rows).IsZero() || in.start != 0 || in.end != 0 {
 			return basicStreamFactStage{}, ErrInvalid
+		}
+		return in.fact, nil
+	case basicStageMediaInput:
+		if !reflect.ValueOf(in.begin).IsZero() || in.start < 0 || in.end <= in.start || in.end-in.start > 8 || in.end > basicRowsCount(in.rows) {
+			return basicStreamFactStage{}, ErrInvalid
+		}
+		if _, err := basicRowsRequestBytes(in.fact, in.rows); err != nil {
+			return basicStreamFactStage{}, err
 		}
 		return in.fact, nil
 	}
@@ -98,19 +124,39 @@ func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
 }
 
 func newBasicSealCommand(identity CommandIdentity, in basicSealRequest) (*basicSealCommand, error) {
-	if err := basicOriginalPreflight(identity, in.original, in.source); err != nil {
+	if _, err := basicControlRequiredBytes(in.original, in.source); err != nil {
 		return nil, err
-	}
-	if in.purpose != BasicPurposeSeal || in.operation != basicSealStreamInput || in.source.changeID <= 0 || in.source.inputRevision <= 0 || in.changeRevision <= 0 {
-		return nil, invalid("basic_seal_operation")
 	}
 	digest, err := canonicalRequestDigest(BasicSeal, 1, identity, in)
 	if err != nil {
 		return nil, err
 	}
+	if err := basicOriginalPreflight(identity, in.original, in.source); err != nil {
+		return nil, err
+	}
+	if in.purpose != BasicPurposeSeal || in.source.changeID <= 0 || in.source.inputRevision <= 0 || in.changeRevision <= 0 {
+		return nil, invalid("basic_seal_operation")
+	}
+	switch in.operation {
+	case basicSealStreamInput:
+		if !reflect.ValueOf(in.rows).IsZero() {
+			return nil, ErrInvalid
+		}
+	case basicSealMediaInput:
+		in.rows, err = freezeBasicRowsRequest(in.source, in.rows)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, invalid("basic_seal_operation")
+	}
 	in.original = cloneBasicOriginal(in.original)
 	in.source = cloneBasicSource(in.source)
 	return &basicSealCommand{identity: identity, request: in, digest: digest, valid: true}, nil
+}
+
+func basicRowsCount(in basicRowsRequest) int64 {
+	return int64(len(in.streams) + len(in.breadth) + len(in.chapterFacts) + len(in.chapters) + len(in.subtitleFacts) + len(in.sidecars) + len(in.subtitles) + len(in.evidence))
 }
 
 func cloneBasicRequestSlice[T any](in []T) []T {

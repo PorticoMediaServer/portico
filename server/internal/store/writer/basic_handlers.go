@@ -45,6 +45,15 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 		if err = checkBasicControlChange(ctx, turn, source, command.request.changeRevision); err == nil {
 			_, err = stageBasicStreamFact(ctx, turn, source)
 		}
+	case basicStageMediaInput:
+		if err = checkBasicControlChange(ctx, turn, source, command.request.changeRevision); err != nil {
+			break
+		}
+		var family *basicMediaFamily
+		family, err = prepareBasicRowsRequest(source, command.request.rows)
+		if err == nil {
+			_, err = stageBasicMediaRows(ctx, turn, family, command.request.start, command.request.end)
+		}
 	default:
 		err = ErrInvalid
 	}
@@ -61,13 +70,21 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 
 func applyBasicSeal(ctx context.Context, turn *commandTurn, command *basicSealCommand) (value BasicResult, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
-	if ctx == nil || turn == nil || turn.transaction == nil || command == nil || !command.valid || command.request.purpose != BasicPurposeSeal || command.request.operation != basicSealStreamInput {
+	if ctx == nil || turn == nil || turn.transaction == nil || command == nil || !command.valid || command.request.purpose != BasicPurposeSeal || (command.request.operation != basicSealStreamInput && command.request.operation != basicSealMediaInput) {
 		return value, ErrInvalid
 	}
 	source, original := command.request.source, command.request.original
 	required, err := basicControlRequiredBytes(original, source)
 	if err != nil {
 		return value, err
+	}
+	if command.request.operation == basicSealMediaInput {
+		var rowsBytes uint64
+		rowsBytes, err = basicRowsRequestBytes(source, command.request.rows)
+		if err != nil {
+			return value, err
+		}
+		required += 8*rowsBytes + 256*uint64(basicRowsCount(command.request.rows))
 	}
 	if err = turn.requireBasicMemory(ctx, BasicPurposeSeal, required); err != nil {
 		return value, err
@@ -87,7 +104,16 @@ func applyBasicSeal(ctx context.Context, turn *commandTurn, command *basicSealCo
 	if err = checkBasicControlChange(ctx, turn, source, command.request.changeRevision); err != nil {
 		return value, err
 	}
-	if _, err = sealBasicStreamFact(ctx, turn, source); err != nil {
+	if command.request.operation == basicSealStreamInput {
+		_, err = sealBasicStreamFact(ctx, turn, source)
+	} else {
+		var family *basicMediaFamily
+		family, err = prepareBasicRowsRequest(source, command.request.rows)
+		if err == nil {
+			_, err = sealBasicMediaFamily(ctx, turn, family)
+		}
+	}
+	if err != nil {
 		return value, err
 	}
 	return completeBasicControl(ctx, turn, command.identity, command.digest, BasicPurposeSeal, original, source, facts, appliedMS)
@@ -147,6 +173,13 @@ func basicStageRequiredBytes(in basicStageRequest) (uint64, error) {
 	base, err := basicControlRequiredBytes(in.original, source)
 	if err != nil {
 		return 0, err
+	}
+	if in.operation == basicStageMediaInput {
+		rowsBytes, err := basicRowsRequestBytes(source, in.rows)
+		if err != nil {
+			return 0, err
+		}
+		return base + 8*rowsBytes + 256*uint64(basicRowsCount(in.rows)), nil
 	}
 	if in.operation != basicStageBeginInput {
 		return base, nil
