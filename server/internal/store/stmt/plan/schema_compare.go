@@ -105,8 +105,7 @@ func projectSchemaPairs(want, got any) (bool, error) {
 				if err = decodeValue(oldEnv["schema"], &oldSchema); err != nil {
 					return false, err
 				}
-				normalizeRecordWidths(expected, oldSchema)
-				normalizeRecordWidths(actual, e.Schema)
+				normalizeRecordWidths(expected, actual, oldSchema, e.Schema)
 			}
 			// Full native evidence remains in the report. Only its checked schema
 			// component is removed from the statement's comparison key.
@@ -349,7 +348,7 @@ func validateSharedFK(v any, ref *SchemaEvidence) error {
 // Only a table's full physical record width is schema-derived. Decoder
 // prefixes, index KeyInfo, registers, flags and every other operand stay exact.
 // Conservatively leave generated/virtual declarations on the exact VM path.
-func normalizeRecordWidths(g map[string]any, catalog Rows) {
+func physicalRecordWidths(catalog Rows) map[string]int64 {
 	widths := map[string]int64{}
 	for _, r := range catalog.Values {
 		if len(r) != 5 || r[0] != "table" {
@@ -410,25 +409,44 @@ func normalizeRecordWidths(g map[string]any, catalog Rows) {
 			widths[identifier("main")+"."+identifier(r[1].(string))] = count
 		}
 	}
-	plans, _ := g["plans"].([]any)
-	for _, p := range plans {
-		plan, _ := p.(map[string]any)
-		vm, _ := plan["explain"].(map[string]any)
-		rows, _ := vm["values"].([]any)
-		for _, r := range rows {
-			row, ok := r.([]any)
-			if !ok || len(row) != 8 || row[1] != "OpenRead" {
+	return widths
+}
+func normalizeRecordWidths(before, after map[string]any, oldSchema, newSchema Rows) {
+	oldWidths, newWidths := physicalRecordWidths(oldSchema), physicalRecordWidths(newSchema)
+	oldPlans, _ := before["plans"].([]any)
+	newPlans, _ := after["plans"].([]any)
+	if len(oldPlans) != len(newPlans) {
+		return
+	}
+	for i, oldPlan := range oldPlans {
+		a, _ := oldPlan.(map[string]any)
+		b, _ := newPlans[i].(map[string]any)
+		avm, _ := a["explain"].(map[string]any)
+		bvm, _ := b["explain"].(map[string]any)
+		arows, _ := avm["values"].([]any)
+		brows, _ := bvm["values"].([]any)
+		if len(arows) != len(brows) {
+			continue
+		}
+		for j, v := range arows {
+			x, xok := v.([]any)
+			y, yok := brows[j].([]any)
+			if !xok || !yok || len(x) != 8 || len(y) != 8 || x[1] != "OpenRead" || y[1] != "OpenRead" || x[3] != y[3] {
 				continue
 			}
-			object, ok := row[3].(string)
+			object, ok := x[3].(string)
 			if !ok {
 				continue
 			}
-			n, ok := integerValue(row[5])
-			if ok && widths[object] > 0 && n == widths[object] {
-				row[5] = "<schema-full-record-width>"
+			n, nok := integerValue(x[5])
+			m, mok := integerValue(y[5])
+			// An unchanged decoder prefix remains byte-exact even if the table grew.
+			if nok && mok && n != m && oldWidths[object] > 0 && n == oldWidths[object] && m == newWidths[object] {
+				x[5] = "<schema-full-record-width>"
+				y[5] = "<schema-full-record-width>"
 			}
 		}
 	}
 }
+
 func equalSQL(a, b string) bool { return foldName(a) == foldName(b) }
