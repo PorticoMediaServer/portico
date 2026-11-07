@@ -160,7 +160,7 @@ func validIAReceiptReclaimProbe(p iaReceiptReclaimProbe, q iaReceiptReclaimRefer
 // due/cursor facts into this result on the same W transaction. Any zero-row CAS
 // rolls back the deletion. Native slot allocation is independently admitted;
 // an old ACKed slot is not advance credit for the new physical allocation.
-func prepareIAReceiptReclaim(in iaReceiptReclaimInput) (iaReceiptReclaimResult, error) {
+func prepareIAReceiptReclaimUnit(in iaReceiptReclaimInput) (iaReceiptReclaimResult, error) {
 	q, o := in.reference, in.owner
 	zero := iaReceiptReclaimResult{}
 	decision, err := classifyIAReceiptReclaim(q, o)
@@ -214,6 +214,20 @@ func prepareIAReceiptReclaim(in iaReceiptReclaimInput) (iaReceiptReclaimResult, 
 			v.next = iaReceiptCursor{u.sequence, -1}
 		}
 	}
+	return v, nil
+}
+
+// Validate all original/OLD facts before a native child deletion. The complete
+// transition additionally requires a post-delete physical probe in the same W
+// transaction; a failed final proof rolls the deletion back.
+func prepareIAReceiptReclaim(in iaReceiptReclaimInput) (iaReceiptReclaimResult, error) {
+	v, err := prepareIAReceiptReclaimUnit(in)
+	if err != nil {
+		return iaReceiptReclaimResult{}, err
+	}
+	q, o := in.reference, in.owner
+	zero := iaReceiptReclaimResult{}
+	u := in.first.unit
 	if !validIAReceiptReclaimProbe(in.after, q, o, v.next) {
 		return zero, ErrConflict
 	}
