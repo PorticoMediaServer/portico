@@ -32,7 +32,11 @@ func (d *SearchDispatcher) permissionFence(ctx context.Context, request governor
 			return scope.Query(statementID(name), args...)
 		}
 		var e error
-		fence, e = readBrowseFence(query, in)
+		if in.Kind == 0 {
+			fence, e = readLibraryFence(query, in)
+		} else {
+			fence, e = readBrowseFence(query, in)
+		}
 		return e
 	})
 	if final {

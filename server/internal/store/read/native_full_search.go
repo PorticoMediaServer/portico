@@ -32,7 +32,9 @@ func (r *NativeFullSearchReader) Read(ctx context.Context, request governor.Requ
 	if r == nil || ctx == nil || query.Mode() != search.ReadFull || in.View.Kind < 0 || in.View.Kind > 99 {
 		return FullSearchPage{}, nil, ErrInput
 	}
-	// Draft implementation is completed by the native execution change before
-	// publication; absence of the executor cannot authorize a partial result.
-	return FullSearchPage{}, nil, ErrUnqualified
+	page, cost, err := liveRead(ctx, request, budget, output, r.snapshots, in.View.Now, func(ctx context.Context, request governor.Request, budget time.Duration, at time.Time) (FullSearchPage, BrowseReadResult, error) {
+		in.View.Now = at
+		return r.nativeWindow(ctx, request, budget, output, in, query)
+	})
+	return page, &cost, err
 }

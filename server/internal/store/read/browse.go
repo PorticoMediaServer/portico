@@ -156,25 +156,40 @@ func readPrincipalFence(query browseQuery, in BrowseInput) (browseFence, error) 
 }
 
 func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
+	return readPermissionFence(query, in, true)
+}
+
+// Common native search fences keep the principal and library checks; each
+// actual hit separately binds and validates its compiled kind policy.
+func readLibraryFence(query browseQuery, in BrowseInput) (browseFence, error) {
+	if in.policy != (readPolicyBinding{}) {
+		return browseFence{}, ErrUnqualified
+	}
+	return readPermissionFence(query, in, false)
+}
+
+func readPermissionFence(query browseQuery, in BrowseInput, withKind bool) (browseFence, error) {
 	f, err := readPrincipalFence(query, in)
 	if err != nil {
 		return browseFence{}, err
 	}
-	policy, err := resolveReadPolicy(in)
-	if err != nil {
-		return browseFence{}, err
-	}
-	if !validReadPolicyScope(in, policy) {
-		return browseFence{}, ErrInput
-	}
-	if policy.scope == readPrincipalScope {
-		if err := validateReadPolicy(query, in, &f); err != nil {
+	if withKind {
+		policy, err := resolveReadPolicy(in)
+		if err != nil {
 			return browseFence{}, err
 		}
-		if in.After != nil && in.After.fence != f {
-			return browseFence{}, ErrStale
+		if !validReadPolicyScope(in, policy) {
+			return browseFence{}, ErrInput
 		}
-		return f, nil
+		if policy.scope == readPrincipalScope {
+			if err := validateReadPolicy(query, in, &f); err != nil {
+				return browseFence{}, err
+			}
+			if in.After != nil && in.After.fence != f {
+				return browseFence{}, ErrStale
+			}
+			return f, nil
+		}
 	}
 	var allowed, profileAllowed []string
 	_ = json.Unmarshal([]byte(f.memberLibraries), &allowed)
@@ -211,12 +226,16 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	if lr[7].(int64) != 0 || lr[5] != lr[6] {
 		return browseFence{}, ErrUnqualified
 	}
-	k, err := query("kind", in.Kind)
-	if err != nil {
-		return browseFence{}, err
-	}
-	if len(k) != 1 {
-		return browseFence{}, ErrUnqualified
+	var container int64
+	if withKind {
+		k, err := query("kind", in.Kind)
+		if err != nil {
+			return browseFence{}, err
+		}
+		if len(k) != 1 {
+			return browseFence{}, ErrUnqualified
+		}
+		container = k[0][0].(int64)
 	}
 	f.library = lib
 	f.libraryID = in.Library
@@ -225,7 +244,7 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	f.metadataRevision = lr[3].(int64)
 	f.viewerRevision = lr[4].(int64)
 	f.ageRevision = lr[5].(int64)
-	f.container = k[0][0].(int64)
+	f.container = container
 
 	f.root = lr[8].(string)
 	f.bridgeRoot = bridge[0][1].(string)
@@ -235,8 +254,10 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	}
 	copy(f.originIncarnation[:], origin)
 	f.originRevision = lr[10].(int64)
-	if err := validateReadPolicy(query, in, &f); err != nil {
-		return browseFence{}, err
+	if withKind {
+		if err := validateReadPolicy(query, in, &f); err != nil {
+			return browseFence{}, err
+		}
 	}
 	if in.After != nil && in.After.fence != f {
 		return browseFence{}, ErrStale
