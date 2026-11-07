@@ -5,11 +5,14 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"math"
 	"sync"
+	"time"
 )
 
 var errUOEventResync = errors.New("event resume requires resync")
@@ -21,9 +24,19 @@ type uoEventBinding struct {
 	database         [16]byte
 	viewer, audience [32]byte
 }
-type uoEventCursorCodec struct{ aead cipher.AEAD }
 
-func newUOEventCursorCodec() (*uoEventCursorCodec, error) {
+const uoEventCursorLife = 24 * time.Hour
+const uoEventCursorKeySeals = 1 << 24
+
+type uoEventCursorCodec struct {
+	mu                sync.Mutex
+	current, previous cipher.AEAD
+	born              time.Time
+	seals             int
+	now               func() time.Time
+}
+
+func newUOEventAEAD() (cipher.AEAD, error) {
 	var key [32]byte
 	if _, err := rand.Read(key[:]); err != nil {
 		return nil, err
@@ -32,50 +45,97 @@ func newUOEventCursorCodec() (*uoEventCursorCodec, error) {
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
+	return cipher.NewGCM(block)
+}
+func newUOEventCursorCodec() (*uoEventCursorCodec, error) {
+	aead, err := newUOEventAEAD()
 	if err != nil {
 		return nil, err
 	}
-	return &uoEventCursorCodec{aead: aead}, nil
+	return &uoEventCursorCodec{current: aead, born: time.Now()}, nil
+}
+func (c *uoEventCursorCodec) clock() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+func uoEventBindingDigest(b uoEventBinding) [16]byte {
+	h := sha256.New()
+	h.Write([]byte("portico event binding v1"))
+	h.Write(b.database[:])
+	h.Write(b.viewer[:])
+	h.Write(b.audience[:])
+	var out [16]byte
+	copy(out[:], h.Sum(nil))
+	return out
 }
 func (c *uoEventCursorCodec) encode(binding uoEventBinding, after int64) (string, error) {
-	if c == nil || c.aead == nil || after < 0 || binding.database == [16]byte{} || binding.viewer == [32]byte{} || binding.audience == [32]byte{} {
+	if c == nil || after < 0 || binding.database == [16]byte{} || binding.viewer == [32]byte{} || binding.audience == [32]byte{} {
 		return "", errUOEventResync
 	}
-	var payload [89]byte
-	payload[0] = 1
-	copy(payload[1:17], binding.database[:])
-	copy(payload[17:49], binding.viewer[:])
-	copy(payload[49:81], binding.audience[:])
-	binary.BigEndian.PutUint64(payload[81:], uint64(after))
-	nonce := make([]byte, c.aead.NonceSize())
+	c.mu.Lock()
+	now := c.clock()
+	ms := now.UnixMilli()
+	if ms <= 0 || ms > math.MaxInt64-uoEventCursorLife.Milliseconds() {
+		c.mu.Unlock()
+		return "", errUOEventResync
+	}
+	if c.current == nil || c.seals >= uoEventCursorKeySeals || now.Sub(c.born) >= uoEventCursorLife {
+		aead, err := newUOEventAEAD()
+		if err != nil {
+			c.mu.Unlock()
+			return "", err
+		}
+		c.previous, c.current, c.born, c.seals = c.current, aead, now, 0
+	}
+	c.seals++
+	aead := c.current
+	c.mu.Unlock()
+	// Compact binding hash keeps the opaque public cursor below its128-byte cap.
+	var p [33]byte
+	p[0] = 1
+	digest := uoEventBindingDigest(binding)
+	copy(p[1:17], digest[:])
+	binary.BigEndian.PutUint64(p[17:25], uint64(after))
+	binary.BigEndian.PutUint64(p[25:], uint64(ms+uoEventCursorLife.Milliseconds()))
+	nonce := make([]byte, aead.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {
 		return "", err
 	}
-	sealed := c.aead.Seal(nonce, nonce, payload[:], []byte("portico-event-resume-v1"))
-	return base64.RawURLEncoding.EncodeToString(sealed), nil
+	return "e1." + base64.RawURLEncoding.EncodeToString(aead.Seal(nonce, nonce, p[:], []byte("portico-event-resume-v1"))), nil
 }
 func (c *uoEventCursorCodec) decode(token string, binding uoEventBinding) (int64, error) {
-	if c == nil || c.aead == nil || token == "" || len(token) > 256 {
+	if c == nil || len(token) < 3 || len(token) > 128 || token[:3] != "e1." || binding.database == [16]byte{} || binding.viewer == [32]byte{} || binding.audience == [32]byte{} {
 		return 0, errUOEventResync
 	}
-	sealed, err := base64.RawURLEncoding.Strict().DecodeString(token)
-	if err != nil || len(sealed) != c.aead.NonceSize()+89+c.aead.Overhead() {
+	sealed, err := base64.RawURLEncoding.Strict().DecodeString(token[3:])
+	if err != nil {
 		return 0, errUOEventResync
 	}
-	n := c.aead.NonceSize()
-	payload, err := c.aead.Open(nil, sealed[:n], sealed[n:], []byte("portico-event-resume-v1"))
-	if err != nil || len(payload) != 89 || payload[0] != 1 {
-		return 0, errUOEventResync
+	c.mu.Lock()
+	current, previous, now := c.current, c.previous, c.clock().UnixMilli()
+	c.mu.Unlock()
+	digest := uoEventBindingDigest(binding)
+	for _, aead := range []cipher.AEAD{current, previous} {
+		if aead == nil || len(sealed) != aead.NonceSize()+33+aead.Overhead() {
+			continue
+		}
+		n := aead.NonceSize()
+		p, err := aead.Open(nil, sealed[:n], sealed[n:], []byte("portico-event-resume-v1"))
+		if err != nil || len(p) != 33 || p[0] != 1 {
+			continue
+		}
+		if subtle.ConstantTimeCompare(p[1:17], digest[:]) != 1 {
+			return 0, errUOEventResync
+		}
+		position, expiry := binary.BigEndian.Uint64(p[17:25]), binary.BigEndian.Uint64(p[25:])
+		if position > math.MaxInt64 || expiry > math.MaxInt64 || int64(expiry) <= now || now <= 0 {
+			return 0, errUOEventResync
+		}
+		return int64(position), nil
 	}
-	if subtle.ConstantTimeCompare(payload[1:17], binding.database[:]) != 1 || subtle.ConstantTimeCompare(payload[17:49], binding.viewer[:]) != 1 || subtle.ConstantTimeCompare(payload[49:81], binding.audience[:]) != 1 {
-		return 0, errUOEventResync
-	}
-	position := binary.BigEndian.Uint64(payload[81:])
-	if position > uint64(^uint64(0)>>1) {
-		return 0, errUOEventResync
-	}
-	return int64(position), nil
+	return 0, errUOEventResync
 }
 
 // One channel generation per admitted audience, not per subscriber. Publishing
@@ -181,9 +241,9 @@ func (s *uoEventSubscription) release() {
 	}
 }
 
-// Retention identity uses the durable high-water even if the retained ring is
-// empty. Gaps in row IDs are legal; a cursor older than the retained floor must
-// resync rather than claim a complete zero-event page.
+// Gaps in row IDs are legal. The sole WC append/oldest-delete owner retains
+// the newest row; an empty-ring restore changes the database binding. A cursor
+// older than the retained floor must resync, never claim a complete empty page.
 func uoEventResumeWindow(after, oldestRetained, highWater int64) error {
 	if after < 0 || oldestRetained < 0 || highWater < 0 || after > highWater || oldestRetained > highWater {
 		return errUOEventResync

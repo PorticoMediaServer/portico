@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"errors"
+	"math"
 	"time"
 	"unicode/utf8"
 
@@ -10,9 +11,9 @@ import (
 )
 
 type uoEventFeedInput struct {
-	cursor                   string
-	oldest, highWater, nowMS int64
-	binding                  uoEventBinding
+	cursor  string
+	nowMS   int64
+	binding uoEventBinding
 }
 type uoEventFeedPage struct {
 	events             []uoWireEvent
@@ -27,15 +28,19 @@ type uoEventFeedPage struct {
 // an unaddressed row never copies its payload. A final US publication fence is
 // still required before releasing this owned page to the transport.
 func readUOEventFeed(ctx context.Context, query uoEventQuery, codec *uoEventCursorCodec, q uoEventFeedInput, addressed func(string) bool, redact func(string, uoStoredEvent) (uoStoredEvent, bool, error)) (out uoEventFeedPage, err error) {
-	if ctx == nil || query == nil || codec == nil || addressed == nil || redact == nil || q.nowMS <= 0 || q.oldest < 0 || q.highWater < 0 || q.oldest > q.highWater {
+	if ctx == nil || query == nil || codec == nil || addressed == nil || redact == nil || q.nowMS <= 0 {
 		return out, ErrInput
 	}
 	if err := ctx.Err(); err != nil {
 		return out, err
 	}
+	oldest, highWater, err := readUOEventBounds(ctx, query)
+	if err != nil {
+		return out, err
+	}
 	out.events = []uoWireEvent{}
 	out.wireBytes = 1024
-	out.next, err = codec.encode(q.binding, q.highWater)
+	out.next, err = codec.encode(q.binding, highWater)
 	if err != nil {
 		return uoEventFeedPage{}, err
 	}
@@ -51,10 +56,10 @@ func readUOEventFeed(ctx context.Context, query uoEventQuery, codec *uoEventCurs
 	if err != nil {
 		return resync()
 	}
-	if err := uoEventResumeWindow(after, q.oldest, q.highWater); err != nil {
+	if err := uoEventResumeWindow(after, oldest, highWater); err != nil {
 		return resync()
 	}
-	positions, err := query(uoEventRawWindow, after, q.highWater, int64(101))
+	positions, err := query(uoEventRawWindow, after, highWater, int64(101))
 	if err != nil {
 		return uoEventFeedPage{}, err
 	}
@@ -70,7 +75,7 @@ func readUOEventFeed(ctx context.Context, query uoEventQuery, codec *uoEventCurs
 			return uoEventFeedPage{}, ErrUnqualified
 		}
 		id, ok := row[0].(int64)
-		if !ok || id <= consumed || id > q.highWater {
+		if !ok || id <= consumed || id > highWater {
 			return uoEventFeedPage{}, ErrStale
 		}
 		sizes, err := query(uoEventAudienceOctets, id)
@@ -100,7 +105,7 @@ func readUOEventFeed(ctx context.Context, query uoEventQuery, codec *uoEventCurs
 			out.rawRows++
 			continue
 		}
-		page, err := readUOEventPage(ctx, query, codec, uoEventPageInput{audience: audience, after: id - 1, upper: id, oldest: q.oldest, limit: 1, wireBytes: (64 << 10) - out.wireBytes + 1024, binding: q.binding}, func(e uoStoredEvent) (uoStoredEvent, bool, error) { return redact(audience, e) })
+		page, err := readUOEventPage(ctx, query, codec, uoEventPageInput{audience: audience, after: id - 1, upper: id, oldest: oldest, limit: 1, wireBytes: (64 << 10) - out.wireBytes + 1024, binding: q.binding}, func(e uoStoredEvent) (uoStoredEvent, bool, error) { return redact(audience, e) })
 		if errors.Is(err, errUOEventResync) {
 			return resync()
 		}
@@ -120,9 +125,9 @@ func readUOEventFeed(ctx context.Context, query uoEventQuery, codec *uoEventCurs
 		out.rawRows++
 	}
 	if !out.more {
-		consumed = q.highWater
+		consumed = highWater
 	}
-	if len(out.events) > 0 && out.events[len(out.events)-1].ID != "" && consumed == q.highWater {
+	if len(out.events) > 0 && out.events[len(out.events)-1].ID != "" && consumed == highWater {
 		// Reuse exactly the last token only when it represents the final raw ID.
 		last, err := codec.decode(out.events[len(out.events)-1].ID, q.binding)
 		if err == nil && last == consumed {
@@ -198,6 +203,8 @@ func uoEventStreamFrames(page uoEventFeedPage, opened, closed, authorityChanged 
 }
 
 const (
+	uoEventOldest         stmt.ID = "read.uo.events.oldest"
+	uoEventNewest         stmt.ID = "read.uo.events.newest"
 	uoEventRawWindow      stmt.ID = "read.uo.events.raw_window"
 	uoEventAudienceOctets stmt.ID = "read.uo.events.audience_octets"
 	uoEventAudiencePoint  stmt.ID = "read.uo.events.audience_point"
@@ -209,8 +216,45 @@ func uoEventFeedDefinitions() []stmt.Definition {
 		return stmt.Definition{ID: id, Kind: stmt.Read, SQL: sql, Params: p, Owner: "store/read UO event feed", CallSites: []string{"store/read/uo_event_feed.go"}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"api_events"}}}
 	}
 	return []stmt.Definition{
+		d(uoEventOldest, `SELECT id FROM api_events WHERE id>=? ORDER BY id LIMIT 1`, i("minimum")),
+		d(uoEventNewest, `SELECT id FROM api_events WHERE id<=? ORDER BY id DESC LIMIT 1`, i("maximum")),
 		d(uoEventRawWindow, `SELECT id FROM api_events WHERE id>? AND id<=? ORDER BY id LIMIT ?`, i("after"), i("upper"), i("limit")),
 		d(uoEventAudienceOctets, `SELECT octet_length(audience) FROM api_events WHERE id=?`, i("id")),
 		d(uoEventAudiencePoint, `SELECT audience FROM api_events WHERE id=?`, i("id")),
 	}
+}
+
+// WC's sole append/oldest-delete owner ALWAYS retains the newest row. Command
+// 631 stays reserved: no standalone pruner and no sqlite_sequence access. An
+// empty-ring restore MUST issue a new database binding before serving cursors.
+func readUOEventBounds(ctx context.Context, query uoEventQuery) (oldest, highWater int64, err error) {
+	if ctx == nil || query == nil {
+		return 0, 0, ErrInput
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, 0, err
+	}
+	low, err := query(uoEventOldest, int64(1))
+	if err != nil {
+		return 0, 0, err
+	}
+	high, err := query(uoEventNewest, int64(math.MaxInt64))
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(low) == 0 && len(high) == 0 {
+		return 0, 0, ctx.Err()
+	}
+	if len(low) != 1 || len(high) != 1 || len(low[0]) != 1 || len(high[0]) != 1 {
+		return 0, 0, ErrUnqualified
+	}
+	oldest, ok1 := low[0][0].(int64)
+	highWater, ok2 := high[0][0].(int64)
+	if !ok1 || !ok2 || oldest <= 0 || highWater < oldest {
+		return 0, 0, ErrUnqualified
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, 0, err
+	}
+	return oldest, highWater, nil
 }

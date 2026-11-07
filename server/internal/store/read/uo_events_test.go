@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestUOEventResumeBindingRestartAndForgery(t *testing.T) {
@@ -39,6 +40,39 @@ func TestUOEventResumeBindingRestartAndForgery(t *testing.T) {
 	}
 	if _, err := c.decode(string(mutated), b); !errors.Is(err, errUOEventResync) {
 		t.Fatal("forged token", err)
+	}
+}
+func TestUOEventCursorExpiryRotationAndPublicLength(t *testing.T) {
+	c, err := newUOEventCursorCodec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.UnixMilli(1000)
+	c.now = func() time.Time { return now }
+	c.born = now
+	b := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+	old, err := c.encode(b, 42)
+	if err != nil || len(old) > 128 {
+		t.Fatal(len(old), err)
+	}
+	c.seals = uoEventCursorKeySeals
+	newer, err := c.encode(b, 43)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := c.decode(old, b); err != nil || n != 42 {
+		t.Fatal("previous key lost before expiry", n, err)
+	}
+	c.seals = uoEventCursorKeySeals
+	if _, err := c.encode(b, 44); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.decode(old, b); !errors.Is(err, errUOEventResync) {
+		t.Fatal("twice rotated key retained", err)
+	}
+	now = now.Add(uoEventCursorLife)
+	if _, err := c.decode(newer, b); !errors.Is(err, errUOEventResync) {
+		t.Fatal("expired cursor accepted", err)
 	}
 }
 func TestUOEventWakeClosesReadParkRace(t *testing.T) {
