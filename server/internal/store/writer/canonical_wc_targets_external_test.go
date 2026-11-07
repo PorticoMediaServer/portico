@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/store/qual/workload"
 	"github.com/PorticoMediaServer/portico/server/internal/store/writer"
+	"os"
 	"testing"
 	"time"
 )
@@ -22,6 +23,11 @@ func runCanonicalWCClass(t *testing.T, class string) {
 	runCanonicalWCComponent(t, c)
 }
 func TestCanonicalWCFunctional(t *testing.T) {
+	if value := os.Getenv("PORTICO_CANONICAL_WC_FUNCTIONAL"); value == "" {
+		t.Skip("opt-in real-clock canonical WC component control")
+	} else if value != "1" {
+		t.Fatal("PORTICO_CANONICAL_WC_FUNCTIONAL must be1")
+	}
 	for _, class := range []string{"progress", "security", "wc_reclaim"} {
 		t.Run(class, func(t *testing.T) { runCanonicalWCComponent(t, writer.CanonicalWCFunctionalComponent(t, class)) })
 	}
