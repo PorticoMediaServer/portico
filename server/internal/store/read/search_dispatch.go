@@ -109,7 +109,7 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 		in.View.After != nil || in.View.Descending || in.View.KeepArticles ||
 		len(in.View.Database) == 0 || len(in.View.Database) > 256 ||
 		len(in.View.TokenHash) == 0 || len(in.View.TokenHash) > 256 ||
-		in.View.Library <= 0 || in.View.Kind <= 0 || in.View.Kind > 99 ||
+		in.View.Library <= 0 || in.View.Kind < 0 || in.View.Kind > 99 ||
 		request.Writer || request.Deadline.IsZero() || request.Key != live.Key ||
 		request.Owner != live.Owner || request.Class != governor.Foreground ||
 		request.Need[governor.Reader] != 1 || request.Need[governor.MemoryBytes] != 12<<20 {

@@ -28,6 +28,7 @@ type FullSearchCursor struct {
 	query                 string
 	bank, revision, input int64
 	after                 canonicalCandidateProof
+	native                *nativeContinuation
 }
 type FullSearchInput struct {
 	View  BrowseInput
@@ -62,6 +63,7 @@ func cloneFullCursor(c *FullSearchCursor) *FullSearchCursor {
 	out := *c
 	out.query = strings.Clone(c.query)
 	out.after.lead.Revision = strings.Clone(c.after.lead.Revision)
+	out.native = cloneNativeContinuation(c.native)
 	return &out
 }
 func hitRank(h FullSearchHit) canonicalCandidateProof {
@@ -69,7 +71,7 @@ func hitRank(h FullSearchHit) canonicalCandidateProof {
 }
 
 func ownFullSearchPage(p FullSearchPage, limit int) (FullSearchPage, error) {
-	if p.Disposition < SearchResults || p.Disposition > SearchUnavailable || len(p.Hits) > limit || p.Exhausted && p.Next != nil || p.Disposition != SearchResults && (len(p.Hits) != 0 || p.Exhausted || p.Next != nil) {
+	if p.Disposition < SearchResults || p.Disposition > SearchUnavailable || len(p.Hits) > limit || p.Exhausted && p.Next != nil || p.Disposition != SearchResults && (len(p.Hits) != 0 || p.Exhausted || p.Next != nil && (p.Disposition != SearchPending || p.Next.native == nil)) {
 		return FullSearchPage{}, ErrInput
 	}
 	if p.Next != nil && (len(p.Next.query) > 1536 || len(p.Next.after.lead.Revision) > 4096 || p.Next.bank <= 0 || p.Next.revision <= 0 || p.Next.input < 0) {
