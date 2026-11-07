@@ -198,6 +198,19 @@ func mgGuideStageDefinitions() []stmt.Definition {
 	for j := range defs {
 		defs[j].Owner = "store/writer MG guide staging effects"
 		defs[j].CallSites = []string{"store/writer/mg_guide_stage.go"}
+		args := make([]any, len(defs[j].Params))
+		for k, p := range defs[j].Params {
+			switch p.Type {
+			case stmt.Text:
+				args[k] = "missing"
+			case stmt.Integer:
+				args[k] = int64(1)
+			case stmt.Blob:
+				args[k] = make([]byte, 32)
+			}
+		}
+		defs[j].Cohorts = []stmt.Cohort{{Name: "missing-native-keys", Bindings: args}}
+
 	}
 	return defs
 }
