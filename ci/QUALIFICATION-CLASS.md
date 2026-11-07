@@ -35,12 +35,14 @@ reducer and roll-up. No timings are pooled across VMs, profiles, recipes,
 warm/cold/error populations, sources or host epochs. Positive refusals prevent a
 pass; short populations and unavailable facts never become zero quantiles.
 
-The first N1 binding is planned as one warm persistent original chain with eight
-retained warmup originals and BEGIN/Resolve/ACK recorded separately. Its existing
-synthetic WAL profile has 64MiB soft debt / 512MiB hard limit and NO funded
-same-owner checkpointer. Runnable does not promise 10,000 accepted originals:
-actual refusal must remain a stopped, nonpassing cell. These are recipe facts
-for that source; they are not limits chosen or extended by this dispatcher.
+The N1 binding plan uses one warm persistent original chain with eight retained
+warmup originals and BEGIN/Resolve/ACK recorded separately. An earlier unbound
+recipe had64MiB soft debt /512MiB hard limit and no funded same-owner CP; later
+source drafts add separately funded maintenance. Only the reviewed, merged
+recipe defines the actual maintenance/resource composition. The dispatcher adds
+none and never counts CP as a writer hold. Runnable does not promise10,000
+accepted originals: actual refusal must remain a stopped, nonpassing cell.
+These are source-owned recipe facts, not limits chosen or extended here.
 
 All six jobs download the SAME successful producer attempt and image. The
 producer workflow/API attempt, main tooling, receipt, source, manifest and full
