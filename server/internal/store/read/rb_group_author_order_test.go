@@ -1,6 +1,7 @@
 package read
 
 import (
+	"math"
 	"reflect"
 	"testing"
 )
@@ -38,5 +39,14 @@ func TestRBGroupAuthorOrderDraft(t *testing.T) {
 	}
 	if _, e := rbAuthorOrderDraft(make([]rbAuthorOrderRow, MaxRaw+1), false); e != ErrNotReady {
 		t.Fatal("unbounded fragment", e)
+	}
+}
+
+func TestRBGroupAuthorRefusesNonfinitePositions(t *testing.T) {
+	for _, value := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		rows, e := rbAuthorOrderDraft([]rbAuthorOrderRow{{Book: 1, Part: 2, Position: &value}}, false)
+		if e != ErrUnqualified || rows != nil {
+			t.Fatal("nonfinite position established an order", rows, e)
+		}
 	}
 }
