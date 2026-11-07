@@ -41,6 +41,11 @@ func readUOPersonalMembership(q browseQuery, f browseFence, m uoPersonalMembersh
 	if limit < 1 || limit > MaxPage || m < uoMembershipMyList || m > uoMembershipNotInterested || m == uoMembershipRating && (rating < 0 || rating > 10) || m != uoMembershipRating && rating != 0 {
 		return out, ErrInput
 	}
+	// Container restriction aggregates require RB's separate typed recipe.
+	// Own-age alone cannot prove that a restricted viewer may see the container.
+	if f.container != 0 && (f.maximumAge >= 0 || f.allowUnrated == 0) {
+		return out, ErrUnqualified
+	}
 	var anchor [16]byte
 	if after != nil {
 		if after.fence != f || after.membership != m || after.rating != rating {

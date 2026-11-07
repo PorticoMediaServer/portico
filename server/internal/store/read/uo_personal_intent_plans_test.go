@@ -1,9 +1,12 @@
 package read
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -86,7 +89,28 @@ func TestUOPersonalReadCapture(t *testing.T) {
 	if _, err = stmt.New(definitions, golden.Receipt()); err != nil {
 		t.Fatal(err)
 	}
+	data, err := os.ReadFile("testdata/uo-personal-intent-plans.json.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	z, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := io.ReadAll(z)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = z.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = golden.Compare(expected); err != nil {
+		t.Fatal(err)
+	}
 	if root := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); root != "" {
+		if err = os.MkdirAll(root, 0755); err != nil {
+			t.Fatal(err)
+		}
 		data, e := json.MarshalIndent(golden, "", "  ")
 		if e != nil {
 			t.Fatal(e)
