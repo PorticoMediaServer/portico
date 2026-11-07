@@ -13,7 +13,8 @@ const (
 	usInvitationShortRead stmt.ID = "us.invitation.short.source.current"
 )
 
-// Private definitions only; adoption and the closed production plan belong to W.
+// Private definitions only; parent admission and final physical qualification
+// remain outside this source inventory.
 func usInvitationShortFreshDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: usInvitationShortKind, SQL: `SELECT 1 FROM identity_state WHERE singleton=1`, Cohorts: []stmt.Cohort{{Name: "point"}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"identity_state"}, Seeks: []string{"rowid=?"}}},

@@ -52,7 +52,7 @@ func lookupUSSecurityBinding(ctx context.Context, turn *commandTurn, a *usPolicy
 
 func isUSSecurityReceiptPurpose(id CommandID) bool {
 	switch id {
-	case usPINSet, usPINClear, USMemberLibraries, USProfileLibraries, usProfileRestrictionsEdit, usInvitationCreate, usInvitationEdit, usInvitationRevoke:
+	case usPINSet, usPINClear, USMemberLibraries, USProfileLibraries, usProfileRestrictionsEdit, usInvitationCreate, usInvitationEdit, usInvitationRevoke, usInvitationShortIssue:
 		return true
 	default:
 		return false
