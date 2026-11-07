@@ -195,3 +195,42 @@ func TestRBExactNumericFacetRevocationAndMovingSource(t *testing.T) {
 		})
 	}
 }
+
+func TestRBExactNumericFacetSharedYearBoundaries(t *testing.T) {
+	for _, field := range []ExactNumericField{ExactYear, ExactDecade} {
+		t.Run(fmt.Sprint(field), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f, r := newRBExactFacetFixture(t)
+				f.exec(t, `DELETE FROM catalog_entities WHERE id>4`)
+				f.exec(t, `UPDATE catalog_entities SET year=CASE id WHEN 1 THEN 1799 WHEN 2 THEN 1800 WHEN 3 THEN 2199 ELSE 2200 END`)
+				job, err := r.BeginNumericFacets(t.Context(), 1, 16<<20, f.input, field)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer job.Close()
+				state, err := job.Advance(t.Context(), rbFacetReadRequest(), time.Second)
+				if err != nil || !state.Ready || state.RawRows != 4 {
+					t.Fatal("boundary source did not exhaust", state, err)
+				}
+				q, request, output := liveRequests("facet-boundaries")
+				_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+					page, _, e := job.Page(ctx, request, time.Second, out, f.input, nil, 200)
+					if e != nil {
+						return e
+					}
+					want := []NumericFacetValue{{1800, 1}, {2199, 1}}
+					if field == ExactDecade {
+						want[1].Value = 2190
+					}
+					if !slices.Equal(page.Values, want) || page.ValueMemberships != 2 || !page.Exhausted || page.After != nil {
+						t.Fatal("out-of-domain years inflated categories or memberships", field, page, want)
+					}
+					return nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+			})
+		})
+	}
+}
