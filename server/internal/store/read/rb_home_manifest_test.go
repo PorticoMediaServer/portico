@@ -80,7 +80,7 @@ func homeManifestServerPolicy(t *testing.T, f *browseFixture, enabled int) {
 }
 
 func TestRBHomeManifest(t *testing.T) {
-	t.Run("actual-layout-current-libraries-and-unsupported", func(t *testing.T) {
+	savedViewRun(t, "actual-layout-current-libraries-and-unsupported", func(t *testing.T) {
 		f, r := homeManifestFixture(t, func(f *browseFixture) {
 			homeManifestScope(t, f, "a", "p", 7)
 			homeManifestList(t, f, "a", "p", "home.rowOrder", []string{"community_watching", "trending_now", "new_on_server", "continue"})
@@ -126,7 +126,7 @@ func TestRBHomeManifest(t *testing.T) {
 			captureBrowse(t, f, rbHomeManifestDefinitions(), stats, hash)
 		}
 	})
-	t.Run("defaults-and-unrepresented-file-policy", func(t *testing.T) {
+	savedViewRun(t, "defaults-and-unrepresented-file-policy", func(t *testing.T) {
 		f, r := homeManifestFixture(t, nil)
 		doc, _, e := homeManifestRead(t, f, r)
 		if e != nil || doc.Layout.Present || doc.Layout.Revision != 1 || len(doc.Layout.RowOrder) != 0 || len(doc.Layout.HiddenRowIDs) != 0 || len(doc.Libraries) != 1 || homeManifestFind(doc.Catalogue, "community_watching").PolicyState != "unresolved" {
@@ -143,7 +143,7 @@ func TestRBHomeManifest(t *testing.T) {
 			t.Fatal("file value fabricated", doc, e)
 		}
 	})
-	t.Run("unversioned-layout-drift", func(t *testing.T) {
+	savedViewRun(t, "unversioned-layout-drift", func(t *testing.T) {
 		f, r := homeManifestFixture(t, func(f *browseFixture) {
 			homeManifestScope(t, f, "a", "p", 3)
 			homeManifestList(t, f, "a", "p", "home.rowOrder", []string{"new_on_server"})
@@ -161,7 +161,7 @@ func TestRBHomeManifest(t *testing.T) {
 		}
 		savedViewSameDeadline(t, hook)
 	})
-	t.Run("unversioned-library-projection-drift", func(t *testing.T) {
+	savedViewRun(t, "unversioned-library-projection-drift", func(t *testing.T) {
 		f, r := homeManifestFixture(t, nil)
 		hook := &savedViewWindowHook{base: f.snapshots}
 		hook.hook = func(n int) {
@@ -177,7 +177,7 @@ func TestRBHomeManifest(t *testing.T) {
 		savedViewSameDeadline(t, hook)
 	})
 
-	t.Run("principal-rebirth", func(t *testing.T) {
+	savedViewRun(t, "principal-rebirth", func(t *testing.T) {
 		f, r := homeManifestFixture(t, nil)
 		hook := &savedViewWindowHook{base: f.snapshots}
 		hook.hook = func(n int) {
@@ -191,7 +191,7 @@ func TestRBHomeManifest(t *testing.T) {
 			t.Fatal("old principal published", doc, e)
 		}
 	})
-	t.Run("complete-library-authority-and-pending", func(t *testing.T) {
+	savedViewRun(t, "complete-library-authority-and-pending", func(t *testing.T) {
 		f, r := homeManifestFixture(t, func(f *browseFixture) {
 			f.exec(t, `UPDATE direct_memberships SET role='owner',allowed_libraries='[]' WHERE account_id='a'`)
 			for n := 0; n < 15; n++ {
@@ -208,7 +208,7 @@ func TestRBHomeManifest(t *testing.T) {
 			t.Fatal("profile library ceiling bypassed", doc, e)
 		}
 	})
-	t.Run("malformed-stored-preference-is-not-default", func(t *testing.T) {
+	savedViewRun(t, "malformed-stored-preference-is-not-default", func(t *testing.T) {
 		f, r := homeManifestFixture(t, func(f *browseFixture) {
 			homeManifestScope(t, f, "a", "p", 1)
 			homeManifestList(t, f, "a", "p", "home.rowOrder", []string{strings.Repeat("x", 513)})
@@ -218,7 +218,7 @@ func TestRBHomeManifest(t *testing.T) {
 			t.Fatal("invalid list fabricated defaults or hydrated payload", doc, cost, e)
 		}
 	})
-	t.Run("native-descriptor-route-bounds", func(t *testing.T) {
+	savedViewRun(t, "native-descriptor-route-bounds", func(t *testing.T) {
 		longResource := strings.Repeat("界", 90)
 		longLibrary := strings.Repeat("l", 257)
 		f, r := homeManifestFixture(t, func(f *browseFixture) {
@@ -242,7 +242,7 @@ func TestRBHomeManifest(t *testing.T) {
 		}
 	})
 
-	t.Run("configured-view-authority-and-validation", func(t *testing.T) {
+	savedViewRun(t, "configured-view-authority-and-validation", func(t *testing.T) {
 		f, r := homeManifestFixture(t, func(f *browseFixture) {
 			homeManifestScope(t, f, "a", "p", 1)
 			homeManifestList(t, f, "a", "p", "home.rowOrder", []string{"view:owned", "view:shared", "view:private"})
