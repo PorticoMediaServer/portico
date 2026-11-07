@@ -82,11 +82,17 @@ func homeFixedActivity(frame homeFixedFrame, page HomeFixedPage, row string, _ t
 				if p[15] == nil || p[2].(int64) <= 0 || p[3] != int64(0) || p[4] == int64(1) || p[12] == nil || p[13] != int64(1) || homeFixedDismissed(p) {
 					continue
 				}
+				eligibleLeaves := 0
+				for _, leaf := range leaves {
+					if leaf.Available {
+						eligibleLeaves++
+					}
+				}
 				for _, leaf := range leaves {
 					if !reflect.DeepEqual(p[15], leaf.Identity.PublicID[:]) || !homeFixedResume(leaf, 0) || float64(p[2].(int64)) >= leaf.Binding.Binding.DurationSeconds*1000 {
 						continue
 					}
-					active[id] = HomeFixedCard{Work: work.Identity, Target: leaf.Identity, ActivityAt: homeFixedStamp(leaf.Personal[0][11]), Personal: homeFixedPersonal(work), ResumePosition: p[2].(int64), EligibleLeaves: len(leaves)}
+					active[id] = HomeFixedCard{Work: work.Identity, Target: leaf.Identity, ActivityAt: homeFixedStamp(leaf.Personal[0][11]), Personal: homeFixedPersonal(work), ResumePosition: p[2].(int64), EligibleLeaves: eligibleLeaves}
 				}
 			} else if work.Identity.Kind == 6 && row == "listen_next" {
 				eligible := []homeFixedEntity{}
