@@ -3,6 +3,8 @@ package writer
 import (
 	"context"
 	"database/sql"
+	"math"
+
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -11,6 +13,7 @@ import (
 // validated original receipt classification may supply an ACK observation.
 type mpReceiptAckObservation struct {
 	ownerID                                  string
+	revision                                 int64
 	owner                                    receiptOwnerFacts
 	reference                                ReceiptReference
 	decision                                 receiptDecision
@@ -73,7 +76,7 @@ func acknowledgeMPReceipt(ctx context.Context, t *commandTurn, q mpReceiptAckObs
 		return 0, err
 	}
 	o, i := q.owner, q.reference.Identity
-	if !mpPrepTexts(q.ownerID) || !o.exists || o.incarnation == ([16]byte{}) || o.incarnation != i.Incarnation || i.Sequence <= 0 || i.OperationID == ([16]byte{}) || q.reference.RequestDigest == (RequestDigest{}) || o.lastSequence < 0 || o.acknowledgedSequence < 0 || o.acknowledgedSequence > o.lastSequence || o.lastSequence-o.acknowledgedSequence > 1 {
+	if !mpPrepTexts(q.ownerID) || q.revision <= 0 || q.revision == math.MaxInt64 || !o.exists || o.incarnation == ([16]byte{}) || o.incarnation != i.Incarnation || i.Sequence <= 0 || i.OperationID == ([16]byte{}) || q.reference.RequestDigest == (RequestDigest{}) || o.lastSequence < 0 || o.acknowledgedSequence < 0 || o.acknowledgedSequence > o.lastSequence || o.lastSequence-o.acknowledgedSequence > 1 {
 		return 0, ErrResolveRequired
 	}
 	if q.decision == receiptRetired && i.Sequence <= o.acknowledgedSequence {
@@ -82,8 +85,8 @@ func acknowledgeMPReceipt(ctx context.Context, t *commandTurn, q mpReceiptAckObs
 	if q.decision != receiptReplay || i.Sequence != o.lastSequence || i.Sequence <= o.acknowledgedSequence || q.receiptRows < 0 || q.receiptBytes < 0 || (q.receiptRows == 0) != (q.receiptBytes == 0) || q.afterSequence < 0 || q.afterSequence > o.acknowledgedSequence || q.appliedMS < 0 || q.due.Valid && q.due.Int64 < 0 || !q.due.Valid && q.due.Int64 != 0 {
 		return 0, ErrResolveRequired
 	}
-	// A fixed reclaim-slot ACK may have no source children. Preserve existing due;
-	// only source children newly eligible under this floor are newly made due.
+	// A fixed reclaim-slot ACK may have no source headers. Preserve existing due;
+	// only source headers newly eligible under this floor are newly made due.
 	var next any
 	if q.due.Valid {
 		next = q.due.Int64
@@ -95,7 +98,7 @@ func acknowledgeMPReceipt(ctx context.Context, t *commandTurn, q mpReceiptAckObs
 		}
 		next = n
 	}
-	args := []any{i.Sequence, next, q.ownerID, i.Incarnation[:], o.lastSequence, o.acknowledgedSequence, q.receiptRows, q.receiptBytes, q.afterSequence}
+	args := []any{i.Sequence, next, q.ownerID, i.Incarnation[:], q.revision, o.lastSequence, o.acknowledgedSequence, q.receiptRows, q.receiptBytes, q.afterSequence}
 	id := empty
 	if q.due.Valid {
 		id = due
@@ -116,24 +119,24 @@ func acknowledgeMPReceipt(ctx context.Context, t *commandTurn, q mpReceiptAckObs
 
 func mpReceiptAckDefinitions() []stmt.Definition {
 	return []stmt.Definition{
-		mpReceiptAckDefinition("mp.receipt.start.ack", `UPDATE playback_start_preparations SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
-		mpReceiptAckDefinition("mp.receipt.start.ack_due", `UPDATE playback_start_preparations SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
-		mpReceiptAckDefinition("mp.receipt.physical.ack", `UPDATE playback_sessions SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
-		mpReceiptAckDefinition("mp.receipt.physical.ack_due", `UPDATE playback_sessions SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
-		mpReceiptAckDefinition("mp.receipt.session.ack", `UPDATE playback_v1_sessions SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
-		mpReceiptAckDefinition("mp.receipt.session.ack_due", `UPDATE playback_v1_sessions SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
-		mpReceiptAckDefinition("mp.receipt.job.ack", `UPDATE prepared_media_jobs SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
-		mpReceiptAckDefinition("mp.receipt.job.ack_due", `UPDATE prepared_media_jobs SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
-		mpReceiptAckDefinition("mp.receipt.version.ack", `UPDATE prepared_media_versions SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
-		mpReceiptAckDefinition("mp.receipt.version.ack_due", `UPDATE prepared_media_versions SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
-		mpReceiptAckDefinition("mp.receipt.queue.ack", `UPDATE queues_v1 SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
-		mpReceiptAckDefinition("mp.receipt.queue.ack_due", `UPDATE queues_v1 SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
-		mpReceiptAckDefinition("mp.receipt.next.ack", `UPDATE playback_v1_prepared SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE token=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
-		mpReceiptAckDefinition("mp.receipt.next.ack_due", `UPDATE playback_v1_prepared SET mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE token=? AND mp_command_incarnation=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
+		mpReceiptAckDefinition("mp.receipt.start.ack", `UPDATE playback_start_preparations SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
+		mpReceiptAckDefinition("mp.receipt.start.ack_due", `UPDATE playback_start_preparations SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
+		mpReceiptAckDefinition("mp.receipt.physical.ack", `UPDATE playback_sessions SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
+		mpReceiptAckDefinition("mp.receipt.physical.ack_due", `UPDATE playback_sessions SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
+		mpReceiptAckDefinition("mp.receipt.session.ack", `UPDATE playback_v1_sessions SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
+		mpReceiptAckDefinition("mp.receipt.session.ack_due", `UPDATE playback_v1_sessions SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
+		mpReceiptAckDefinition("mp.receipt.job.ack", `UPDATE prepared_media_jobs SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
+		mpReceiptAckDefinition("mp.receipt.job.ack_due", `UPDATE prepared_media_jobs SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
+		mpReceiptAckDefinition("mp.receipt.version.ack", `UPDATE prepared_media_versions SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
+		mpReceiptAckDefinition("mp.receipt.version.ack_due", `UPDATE prepared_media_versions SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
+		mpReceiptAckDefinition("mp.receipt.queue.ack", `UPDATE queues_v1 SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
+		mpReceiptAckDefinition("mp.receipt.queue.ack_due", `UPDATE queues_v1 SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE id=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
+		mpReceiptAckDefinition("mp.receipt.next.ack", `UPDATE playback_v1_prepared SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE token=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms IS NULL RETURNING mp_command_acknowledged_sequence`, false),
+		mpReceiptAckDefinition("mp.receipt.next.ack_due", `UPDATE playback_v1_prepared SET mp_owner_revision=mp_owner_revision+1,mp_command_acknowledged_sequence=?,mp_receipt_reclaim_due_ms=? WHERE token=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_receipt_reclaim_after_sequence=? AND mp_receipt_reclaim_due_ms=? RETURNING mp_command_acknowledged_sequence`, true),
 	}
 }
 func mpReceiptAckDefinition(id, sql string, oldDue bool) stmt.Definition {
-	types := "iisbiiiii"
+	types := "iisbiiiiii"
 	if oldDue {
 		types += "i"
 	}
