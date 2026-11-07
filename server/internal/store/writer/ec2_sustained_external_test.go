@@ -144,6 +144,9 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 func TestEC2N1WALComposition(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ec2.ndjson")
 	if evidence := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidence != "" {
+		if err := os.MkdirAll(evidence, 0700); err != nil {
+			t.Fatal(err)
+		}
 		path = filepath.Join(evidence, fmt.Sprintf("ec2-functional-%d.ndjson", time.Now().UnixNano()))
 	}
 	data, _ := json.Marshal(map[string]any{"run_id": "EC2_CONTROL", "host_epoch": "CONTROL", "source_commit": strings.Repeat("a", 40), "output_path": path, "fixtures": 1})
