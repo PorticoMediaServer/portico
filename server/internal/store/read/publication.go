@@ -197,7 +197,6 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 		}
 		window, err = snapshots.Read(lookupContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
 			query := func(name string, args ...any) ([][]any, error) {
-				result.LookupStatements++
 				if output.live != nil {
 					if e := output.live.ctx.Err(); e != nil {
 						return nil, e
@@ -206,7 +205,8 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 						return nil, e
 					}
 				}
-				rows, e := scope.Query(readStatementID(name), args...)
+				rows, count, e := queryReadScope(scope, name, args...)
+				result.LookupStatements += count
 				if e != nil {
 					return nil, e
 				}
@@ -283,13 +283,14 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 
 	result.Publication, err = snapshots.Read(validationContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
 		query := func(name string, args ...any) ([][]any, error) {
-			result.PublicationStatements++
 			if output.live != nil {
 				if e := output.live.checkContext(scope.Context()); e != nil {
 					return nil, e
 				}
 			}
-			return scope.Query(readStatementID(name), args...)
+			rows, count, e := queryReadScope(scope, name, args...)
+			result.PublicationStatements += count
+			return rows, e
 		}
 		current, e := readBrowseFence(query, currentInput)
 		if e != nil {
