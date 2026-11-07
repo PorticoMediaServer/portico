@@ -62,6 +62,15 @@ result_walk_removed,result_walk_kept,result_state,result_count,result_digest,ret
 
 func TestIARetirementDraftNativeLateCancellationClearsOwner(t *testing.T) {
 	w, q, registry := iaRetirementDraftFixture(t, nil)
+	turn := scanLifecycleProtocolTurn(t, w, registry, IARetireSource)
+	delete(turn.steps, iaRetirementReceiptPoint)
+	delete(turn.steps, iaRetirementBodyPoint)
+	wrong := q
+	wrong.libraryID++
+	if got, err := lookupIARetirement(t.Context(), turn, wrong); !errors.Is(err, ErrDisclosureDenied) || got != (iaRetirementHistory{}) {
+		t.Fatal("wrong native library reached header or result", got, err)
+	}
+	turn.transaction.rollback(nil)
 	var sequence int64
 	var name, path string
 	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {

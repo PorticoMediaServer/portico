@@ -89,6 +89,14 @@ func lookupIARetirement(ctx context.Context, turn *commandTurn, q iaRetirementRe
 		value, err = classifyIARetirementHistory(q, owner, h)
 		return
 	}
+	// Match the retained native namespace before fetching even the scalar
+	// header, independently of the issuer's current opaque owner permission.
+	if owner.original.libraryID != q.libraryID || owner.original.libraryKey != q.libraryKey {
+		return value, ErrDisclosureDenied
+	}
+	if owner.original.operationID != q.originalOperation || owner.incarnation != q.identity.Incarnation {
+		return value, ErrConflict
+	}
 	args := append(iaRetirementKey(q), q.identity.Sequence)
 	var operation, request, digest []byte
 	var kind string
