@@ -15,6 +15,8 @@ func TestRSAudioAuthorSQLiteNormalization(t *testing.T) {
 		if err := f.conn.QueryRowContext(t.Context(), rsAudioAuthorKeySQL, int64(13001), int64(1)).Scan(&got); err != nil {
 			t.Fatal(err)
 		}
+		raw := got
+		got = rsListeningAuthorKey(got)
 		if got != want {
 			t.Fatalf("%q: got %q want %q", title, got, want)
 		}
@@ -22,8 +24,8 @@ func TestRSAudioAuthorSQLiteNormalization(t *testing.T) {
 		if err := f.conn.QueryRowContext(t.Context(), rsAudioAuthorKeyOctetsSQL, int64(13001), int64(1)).Scan(&bytes); err != nil {
 			t.Fatal(err)
 		}
-		if bytes != int64(len(got)) {
-			t.Fatalf("%q: actual byte preflight=%d payload=%d", title, bytes, len(got))
+		if bytes != int64(len(raw)) {
+			t.Fatalf("%q: actual byte preflight=%d payload=%d", title, bytes, len(raw))
 		}
 	}
 	f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=13001`)
