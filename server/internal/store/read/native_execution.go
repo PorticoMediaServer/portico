@@ -372,22 +372,6 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		if current != initial {
 			return ErrStale
 		}
-		for _, expected := range libraryFences {
-			if expected.libraryID == finalIn.Library {
-				continue
-			}
-			view := finalIn
-			view.Library = expected.libraryID
-			fresh, _, e := nativeReadFence(q, view)
-			if e != nil {
-				return e
-			}
-			want := initial
-			want.permission = expected
-			if fresh != want {
-				return ErrStale
-			}
-		}
 		checked = make([]nativePolicyWitness, 0, len(retained)+len(draft.Hits))
 		checked = append(checked, retained...)
 		for _, hit := range draft.Hits {
