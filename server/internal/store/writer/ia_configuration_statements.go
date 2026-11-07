@@ -35,11 +35,10 @@ FROM catalog_configuration_receipts WHERE original_operation_id=? AND command_in
 source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes
 FROM catalog_configuration_sources WHERE original_operation_id=? AND command_incarnation=? AND command_sequence=1 AND command_kind=? ORDER BY ordinal LIMIT 65`, Params: header,
 			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_sources"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"}}},
-		{ID: iaConfigurationAckCAS, Kind: stmt.Write, SQL: `UPDATE catalog_configuration_operations SET acknowledged_command_sequence=1,
-receipt_reclaim_due_ms=CASE WHEN receipt_retained_count>0 THEN coalesce(receipt_reclaim_due_ms,?) ELSE receipt_reclaim_due_ms END
+		{ID: iaConfigurationAckCAS, Kind: stmt.Write, SQL: `UPDATE catalog_configuration_operations SET acknowledged_command_sequence=1,receipt_reclaim_due_ms=?
 WHERE original_operation_id=? AND command_incarnation=? AND command_kind=? AND original_request_digest=? AND original_library_id=? AND original_library_key=?
 AND original_source_id IS ? AND last_command_sequence=1 AND acknowledged_command_sequence=0
-AND receipt_reclaim_sequence=0 AND receipt_reclaim_ordinal=-1 AND receipt_retained_count=? AND receipt_retained_bytes=?`,
+AND receipt_reclaim_sequence=0 AND receipt_reclaim_ordinal=-1 AND receipt_retained_count=? AND receipt_retained_bytes=? AND receipt_reclaim_due_ms IS NULL`,
 			Params: []stmt.Param{i("due"), b("original_operation"), b("incarnation"), s("kind"), b("original_request"), i("library"), s("library_key"), {Name: "source", Type: stmt.Text, Nullable: true}, i("rows"), i("bytes")},
 			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_operations"}, Seeks: []string{"original_operation_id=?"}}},
 	}
