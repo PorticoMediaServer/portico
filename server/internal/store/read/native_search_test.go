@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +34,7 @@ func seedNativeSearch(t *testing.T, f *browseFixture) {
 	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(4,'episode',1,0,1,1,0)`)
 	f.exec(t, `UPDATE catalog_subjects SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END WHERE id IN(1,2,3)`)
 	f.exec(t, `UPDATE catalog_entities SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END,title=CASE id WHEN 2 THEN 'Arrival' ELSE 'Matrix' END,retired=0,show_id=CASE id WHEN 1 THEN NULL ELSE 1 END,numbering=CASE id WHEN 1 THEN NULL ELSE 'seasonal' END,episode_number=CASE id WHEN 1 THEN NULL ELSE id END WHERE id IN(1,2,3)`)
-	f.exec(t, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1',?,?,?,'active',0)`, profile.RecipeVersion, profile.EngineVersion, profile.UnicodeFingerprint)
+	f.exec(t, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms,command_incarnation) VALUES(1,'v1',?,?,?,'active',0,zeroblob(16))`, profile.RecipeVersion, profile.EngineVersion, profile.UnicodeFingerprint)
 	f.exec(t, `INSERT INTO search_revision(singleton,revision,active_generation_id,input_sequence) VALUES(1,1,1,0)`)
 	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name,artwork_incarnation,search_incarnation) VALUES(1,'person','person','Keanu','keanu',zeroblob(16),x'11111111111111111111111111111111')`)
 	f.exec(t, `INSERT INTO catalog_credit_labels(id,label) VALUES(1,'Actor'),(2,'Acting')`)
@@ -101,7 +102,10 @@ func nativeFixtureImage(t *testing.T, f *browseFixture, subject search.ManifestS
 		person = id
 	}
 	f.exec(t, `INSERT INTO search_publications(id,entity_id,person_id,search_generation_id,library_id,kind,generation,source_incarnation,source_revision,recipe_version,title,title_fold,title_prefix_tokens,initial_prefix_tokens,person_name_tokens) VALUES(?,?,?,1,?,?,1,?,?,?,?,?,?,?,?)`, publication, entity, person, lib, k, inc, revision, profile.RecipeVersion, title, prepared.Fold(), prepared.PrefixTokens(), prepared.InitialTokens(), personTokens)
-	f.exec(t, `INSERT INTO search_publish_jobs(entity_id,person_id,search_generation_id,published_generation,published_document_id,input_generation,source_incarnation,source_revision,recipe_version,phase) VALUES(?,?,1,1,?,1,?,?,?,'idle')`, entity, person, publication, inc, revision, profile.RecipeVersion)
+	// Birth values are explicit fixture inputs so ANALYZE samples are repeatable.
+	var jobBirth [16]byte
+	binary.BigEndian.PutUint64(jobBirth[8:], uint64(publication))
+	f.exec(t, `INSERT INTO search_publish_jobs(entity_id,person_id,search_generation_id,published_generation,published_document_id,input_generation,source_incarnation,source_revision,recipe_version,phase,command_incarnation) VALUES(?,?,1,1,?,1,?,?,?,'idle',?)`, entity, person, publication, inc, revision, profile.RecipeVersion, jobBirth[:])
 	for i, row := range rows {
 		fragment := (publication-1)*1000 + int64(i) + 1
 		f.exec(t, `INSERT INTO search_fragments(id,owner_entity,owner_person,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized,generation,search_generation_id,publication_id) VALUES(?,?,?,?,?,?,?,?,?,1,1,?)`, fragment, entity, person, row.Field, row.Ordinal, row.Revision, row.Prefix, row.Lexical, row.Normalized, publication)
@@ -135,7 +139,7 @@ func seedNativeAutomatic(t *testing.T, f *browseFixture) {
 	f.exec(t, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(1,'tmdb','movie','m1','en','','item',zeroblob(16),1)`)
 	f.exec(t, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed) VALUES('evidence1',1,'fixture','tmdb','movie','m1','en','','item',printf('%064d',1),'2026-11-06T00:00:00Z','fixture',1)`)
 	f.exec(t, `INSERT INTO metadata_evidence_collections(evidence_id,provider,evidence_kind,collection_kind,collection_id,name) VALUES('evidence1','tmdb','movie','collection','provider','Provider saga')`)
-	f.exec(t, `INSERT INTO metadata_provider_operations(id,entity_id,provider,phase,status,generation,lease,lease_until,entity_incarnation,source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,descriptive_revision,policy_incarnation,policy_revision,consent_revision,algorithm,refresh_mode,query_title,query_artist,query_year,query_digest,input_digest,selected_id,manual,review_search,qualification,created_at,source_content_revision) SELECT 'operation1',id,'tmdb','idle','applied',1,'','2026-11-07T00:00:00Z',metadata_incarnation,1,1,1,1,1,1,zeroblob(16),1,0,'fixture','fill_missing',title,'',0,'fixture','fixture','m1',0,0,'fixture','2026-11-06T00:00:00Z',1 FROM catalog_entities WHERE id=7`)
+	f.exec(t, `INSERT INTO metadata_provider_operations(id,entity_id,provider,phase,status,generation,lease,lease_until,entity_incarnation,source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,descriptive_revision,policy_incarnation,policy_revision,consent_revision,algorithm,refresh_mode,query_title,query_artist,query_year,query_digest,input_digest,selected_id,manual,review_search,qualification,created_at,source_content_revision,command_incarnation) SELECT 'operation1',id,'tmdb','idle','applied',1,'','2026-11-07T00:00:00Z',metadata_incarnation,1,1,1,1,1,1,zeroblob(16),1,0,'fixture','fill_missing',title,'',0,'fixture','fixture','m1',0,0,'fixture','2026-11-06T00:00:00Z',1,zeroblob(16) FROM catalog_entities WHERE id=7`)
 	f.exec(t, `INSERT INTO metadata_publications(id,operation_id,entity_id,provider,subject_kind,provider_id,evidence_id,selection_revision,generation,decision,observed_at) VALUES('publication1','operation1',7,'tmdb','movie','m1','evidence1',1,1,'accepted','2026-11-06T00:00:00Z')`)
 	f.exec(t, `INSERT INTO metadata_subject_providers(entity_id,provider,role,incarnation,revision,subject_kind,provider_id,accepted_evidence_id,accepted_publication_id,status,observed_at) VALUES(7,'tmdb','primary',zeroblob(16),1,'movie','m1','evidence1','publication1','matched','2026-11-06T00:00:00Z')`)
 	f.exec(t, `INSERT INTO metadata_field_origins(subject_kind,provider_id,entity_id,field,provider,source_kind,source_url,confidence,observed_at,language,region,selection_revision,publication_id,evidence_id) VALUES('movie','m1',7,'relations','tmdb','provider','fixture',1.0,'2026-11-06T00:00:00Z','en','',1,'publication1','evidence1')`)
