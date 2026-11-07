@@ -46,9 +46,17 @@ func compareJSONForPlatform(expected, actual []byte, platform string) error {
 	}
 	want.Reset()
 	want.Write(matched)
-	if bytes.Equal(want.Bytes(), got.Bytes()) {
+	projectedWant, projectedGot, err := schemaComparison(want.Bytes(), got.Bytes())
+	if err != nil {
+		return fmt.Errorf("plan: schema evidence: %w", err)
+	}
+	if bytes.Equal(projectedWant, projectedGot) {
 		return nil
 	}
+	want.Reset()
+	want.Write(projectedWant)
+	got.Reset()
+	got.Write(projectedGot)
 	decode := func(data []byte) any {
 		var value any
 		d := json.NewDecoder(bytes.NewReader(data))
@@ -253,6 +261,11 @@ func CompareExactJSON(expected, actual []byte) error {
 	}
 	if bytes.Equal(expected, actual) {
 		return nil
+	}
+	if before, after, err := schemaComparison(expected, actual); err != nil {
+		return err
+	} else if !bytes.Equal(before, expected) || !bytes.Equal(after, actual) {
+		return CompareJSON(expected, actual)
 	}
 	if err := CompareJSON(expected, actual); err != nil {
 		return err

@@ -14,6 +14,7 @@ import sys
 
 TOOLS = Path(__file__).resolve().parent
 CAPTURES = {
+    'hn-schema-evidence': ('stmt/plan', 'TestPlanSharedSchemaEvidence', 'record-schema-evidence', ['schema-evidence.json.gz']),
     'hn-canonical': ('stmt/plan', 'TestPlanCanonicalSchemaFKAndStatementContracts', 'record-plans', ['canonical.json', 'canonical-fk.json.gz']),
     'hn-issuer': ('stmt/plan', 'TestIssuerSourceOctetLengthsGolden', 'record-issuer-octets', ['issuer-source-octets.json']),
     'hn-issuer-library': ('stmt/plan', 'TestIssuerLibraryRootOctetLengthsGolden', 'record-issuer-library-octets', ['issuer-library-root-octets.json']),
