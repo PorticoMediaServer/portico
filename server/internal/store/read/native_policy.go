@@ -212,7 +212,7 @@ func nativeRetainedPolicies(stamps []*FullSearchReadStamp, fence nativeSearchFen
 	var proofs []nativePolicyWitness
 	var hits []nativeStampedHit
 	for _, stamp := range stamps {
-		if stamp == nil || stamp.pool != pool.pool || stamp.fence != fence || stamp.query != query {
+		if stamp == nil || stamp.pool != pool.pool || nativeCommonFence(stamp.fence) != nativeCommonFence(fence) || stamp.query != query {
 			return nil, nil, ErrStale
 		}
 		if stamp.MetadataBytes() > MaxNativeStampBytes {
