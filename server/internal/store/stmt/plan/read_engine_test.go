@@ -97,6 +97,9 @@ func TestReadEngineActualPoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	if evidence := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); evidence != "" {
+		if err = os.MkdirAll(evidence, 0700); err != nil {
+			t.Fatal(err)
+		}
 		var b bytes.Buffer
 		z := gzip.NewWriter(&b)
 		if _, err = z.Write(data); err != nil {
