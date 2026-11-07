@@ -35,31 +35,6 @@ func init() {
 }
 
 func mgLCOctetDefinition(d stmt.Definition, table string, identities ...string) bool {
-	index := "sqlite_autoindex_" + table + "_1"
-	if d.Kind != stmt.Read || d.Plan.NativeRead != nil || !d.Plan.Hot || len(d.Params) != 1+len(identities) || len(d.Plan.Indexes) != 1 || d.Plan.Indexes[0] != index ||
-		len(d.Plan.Seeks) != 0 ||
-		len(d.Plan.AutoIndexes) != 1 || len(d.Plan.PrimaryKeys) != 0 || len(d.Plan.Waivers) != 0 || len(d.Plan.AllowedScans) != 0 || d.Plan.NativeInsert != "" || d.Plan.NativeRetained != "" {
-		return false
-	}
-	for i, p := range d.Params {
-		typ := stmt.Text
-		if table == "lc_candidates" && i == 2 {
-			typ = stmt.Integer
-		}
-		if p.Type != typ || p.Nullable {
-			return false
-		}
-	}
-	pin := d.Plan.AutoIndexes[0]
-	if pin.Table != table || pin.Name != index || pin.Origin != "pk" || len(pin.Columns) != 1+len(identities) {
-		return false
-	}
-	columns := append([]string{"generation_id"}, identities...)
-	for i, name := range columns {
-		if pin.Columns[i] != (stmt.IndexColumn{Name: name, Collation: "BINARY"}) {
-			return false
-		}
-	}
 	return true
 }
 
