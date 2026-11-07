@@ -5,7 +5,7 @@ func init() {
 		name:        "uo-operations",
 		resultTypes: []string{"uoNoticeEffect", "uoNoticeAckEffect", "uoNoticeReclaimEffect", "uoNoticeBulkState", "uoJobLease", "uoOperationResult", "uoRootLookup", "uoRootReclaimResult", "uoRootStoredSlot"},
 		names:       []string{"reserveUONoticeOrdinals", "uoNoticeEvent", "uoNoticeVictims", "enqueueUOWebhook", "reclaimUOWebhook", "persistUORootOperation", "readUORootPayload", "probeUORootChild"},
-		prefixes:    []string{"acknowledgeUORoot"},
+		prefixes:    []string{"acknowledgeUORoot", "applyUO", "readUOPersonal", "advanceUOPersonal", "bumpUOPersonal", "uoPreferenceCurrent", "uoSettingsCurrent", "acceptUOConfigurationProjection"},
 		bypasses:    []string{`func enqueueUOWebhook(ctx context.Context)(out string,err error){return "saved",nil}`},
 	})
 }
