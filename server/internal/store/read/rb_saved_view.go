@@ -145,11 +145,9 @@ func savedViewRowRole(row []any) string {
 	return ""
 }
 
-// An execution resource is minted only by the same-snapshot native byte-point
-// reader below. Parent composition must read it in BOTH publication snapshots,
-// compare the entire value (including definition and principal fence), and use
-// the same original LIVE deadline/copy budget. There is intentionally no public
-// execution API until that exact-byte publication bridge is integrated.
+// This value binds the exact authorized native row and the actual principal/
+// catalogue context. Execute owns its first/final byte-point publication proof;
+// standalone private kernel composition must provide that same protocol.
 type savedViewResource struct {
 	fence                               browseFence
 	id, name, summary, definition, role string
@@ -202,22 +200,30 @@ type savedViewDefinition struct {
 	Presentation string `json:"presentation"`
 }
 
-func savedViewExecutionPlan(r savedViewResource, in BrowseInput) (BrowseInput, rbScalarFilter, error) {
-	if r.fence == (browseFence{}) || r.fence != mustSavedViewInputFence(r, in) {
-		return BrowseInput{}, rbScalarFilter{}, ErrStale
-	}
+func savedViewStoredDefinition(r savedViewResource) (savedViewDefinition, error) {
 	if len(r.definition) > 32<<10 || !utf8.ValidString(r.definition) || !savedViewUniqueJSON(r.definition) {
-		return BrowseInput{}, rbScalarFilter{}, ErrUnqualified
+		return savedViewDefinition{}, ErrUnqualified
 	}
 	var d savedViewDefinition
 	dec := json.NewDecoder(bytes.NewBufferString(r.definition))
 	dec.DisallowUnknownFields()
 	if e := dec.Decode(&d); e != nil {
-		return BrowseInput{}, rbScalarFilter{}, ErrUnqualified
+		return savedViewDefinition{}, ErrUnqualified
 	}
 	var extra any
 	if e := dec.Decode(&extra); e != io.EOF {
-		return BrowseInput{}, rbScalarFilter{}, ErrUnqualified
+		return savedViewDefinition{}, ErrUnqualified
+	}
+	return d, nil
+}
+
+func savedViewExecutionPlan(r savedViewResource, in BrowseInput) (BrowseInput, rbScalarFilter, error) {
+	if r.fence == (browseFence{}) || r.fence != mustSavedViewInputFence(r, in) {
+		return BrowseInput{}, rbScalarFilter{}, ErrStale
+	}
+	d, e := savedViewStoredDefinition(r)
+	if e != nil {
+		return BrowseInput{}, rbScalarFilter{}, e
 	}
 	// Seeded ordering and multi-sort still require the general manager. The
 	// stored query uses only the shared native closed scalar AST.
@@ -251,14 +257,14 @@ func mustSavedViewInputFence(r savedViewResource, in BrowseInput) browseFence {
 	return f
 }
 
-type savedViewExecutionCursor struct {
+type SavedViewExecutionCursor struct {
 	resource savedViewResource
 	browse   *BrowseCursor
 }
 
 // readSavedViewExecution is a private draft, never a published response. It
 // reuses the actual browse authorization kernel and returns raw progress intact.
-func readSavedViewExecution(ctx context.Context, q browseQuery, f browseFence, in BrowseInput, r savedViewResource, after *savedViewExecutionCursor) (BrowsePage, *savedViewExecutionCursor, error) {
+func readSavedViewExecution(ctx context.Context, q browseQuery, f browseFence, in BrowseInput, r savedViewResource, after *SavedViewExecutionCursor) (BrowsePage, *SavedViewExecutionCursor, error) {
 	if r.fence != f || r.role == "" || r.revision <= 0 {
 		return BrowsePage{}, nil, ErrDenied
 	}
@@ -285,9 +291,9 @@ func readSavedViewExecution(ctx context.Context, q browseQuery, f browseFence, i
 	if e != nil {
 		return BrowsePage{}, nil, e
 	}
-	var next *savedViewExecutionCursor
+	var next *SavedViewExecutionCursor
 	if page.Next != nil {
-		next = &savedViewExecutionCursor{r, page.Next}
+		next = &SavedViewExecutionCursor{r, page.Next}
 	}
 	return page, next, nil
 }

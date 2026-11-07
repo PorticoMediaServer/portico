@@ -2,7 +2,6 @@ package read
 
 import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
-	"strings"
 )
 
 // Inert definitions: composition must Capture its actual merged schema/Reader.
@@ -45,6 +44,9 @@ func rbSavedViewAllDraftDefinitions() []stmt.Definition {
 		add("candidates", "SELECT r.id FROM saved_resources AS r INDEXED BY sqlite_autoindex_saved_resources_1 WHERE r.id>? ORDER BY r.id LIMIT 1", []stmt.Param{s("after")}, []any{"saved-view"}, rawPlan),
 		add("candidate", candidate, []stmt.Param{s("id"), s("token")}, []any{"saved-view", "token"}, candidatePlan),
 	}
+	libraryKey := stmt.AutoIndexBinding{Table: "catalog_libraries", Name: "sqlite_autoindex_catalog_libraries_1", Origin: "u", Columns: []stmt.IndexColumn{{Name: "library_id", Collation: "BINARY"}}}
+	out = append(out, add("library", "SELECT id FROM catalog_libraries INDEXED BY sqlite_autoindex_catalog_libraries_1 WHERE library_id=? AND retired=0", []stmt.Param{s("library")}, []any{"movies"}, stmt.Plan{Hot: true, Indexes: []string{libraryKey.Name}, AutoIndexes: []stmt.AutoIndexBinding{libraryKey}, Seeks: []string{"library_id=?"}}))
+
 	// Separate compiled owner/shared recipes avoid OR and project no foreign
 	// private payload even if an internal caller bypasses the scalar gate.
 	for _, owner := range []bool{true, false} {
@@ -75,25 +77,14 @@ func rbSavedViewAllDraftDefinitions() []stmt.Definition {
 	return out
 }
 
-// Only the scalar directory sources qualify under the present HN grammar.
+// Inert complete harness composition; actual Reader Capture remains mandatory.
 func rbSavedViewDefinitions() []stmt.Definition {
-	var out []stmt.Definition
-	for _, d := range rbSavedViewAllDraftDefinitions() {
-		if !strings.Contains(string(d.ID), ".resource.") {
-			out = append(out, d)
-		}
-	}
-	return out
+	return append(append(rbSavedViewAllDraftDefinitions(), rbSavedViewScalarDefinitions()...), rbSavedViewDirectoryDefinitions()...)
 }
 
-// Publication gate: HN must certify these exact native octet points before any
-// registry may admit execution. No ordinary length()/columns*max substitute.
+// Retained as an inventory projection; these points now use the merged closed
+// octet registry via the own domain file in stmt/plan.
 func rbSavedViewDefinitionDrafts() []stmt.Definition {
-	var out []stmt.Definition
-	for _, d := range rbSavedViewAllDraftDefinitions() {
-		if strings.Contains(string(d.ID), ".resource.") {
-			out = append(out, d)
-		}
-	}
-	return out
+	defs := rbSavedViewAllDraftDefinitions()
+	return defs[5:]
 }

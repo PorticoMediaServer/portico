@@ -105,9 +105,9 @@ func TestRBSavedView(t *testing.T) {
 		t.Fatal("generation cursor drift", e)
 	}
 
-	// Wide hydration stays closed until HN certifies the new exact octet points.
+	// Actual merged closed byte points hydrate only the currently owned row.
 	var actualFence browseFence
-	_, e = f.snapshots.Read(t.Context(), homeRequest(), time.Second, func(scope *governor.ReadScope) error {
+	_, e = f.snapshots.Read(t.Context(), savedViewRequest(), time.Second, func(scope *governor.ReadScope) error {
 		q := func(name string, args ...any) ([][]any, error) { return scope.Query(readStatementID(name), args...) }
 		var e error
 		actualFence, e = readBrowseFence(q, f.input)
@@ -115,8 +115,8 @@ func TestRBSavedView(t *testing.T) {
 			return e
 		}
 		r, e := readSavedViewResource(scope, actualFence, "saved-view")
-		if e == nil || r != (savedViewResource{}) {
-			t.Fatal("unqualified wide recipe escaped", r, e)
+		if e != nil || r.name != "é\x00actual" || r.role != "owner" {
+			t.Fatal("qualified owner point", r, e)
 		}
 		return nil
 	})
@@ -137,11 +137,6 @@ func TestRBSavedView(t *testing.T) {
 		resource.definition = bad
 		if _, e := savedViewExecutionInput(resource, f.input); !errors.Is(e, ErrUnqualified) {
 			t.Fatal("definition broadened", e)
-		}
-	}
-	for _, d := range rbSavedViewDefinitionDrafts() {
-		if strings.HasSuffix(string(d.ID), ".bytes") && len(plan.LintSQL(d.SQL)) == 0 {
-			t.Fatal("octet gate silently disappeared; deliberately qualify runtime capture", d.ID)
 		}
 	}
 
