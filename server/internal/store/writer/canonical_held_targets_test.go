@@ -123,7 +123,7 @@ func attachCanonicalHeldPopulation(t *testing.T, cfg canonicalHeldConfig) Qualif
 func canonicalHeldClasses() []canonicalHeldClass {
 	n1, basic, enrich, progress, security, fragment, flip := InventoryAccept, BasicAccept, EffectiveStage, ProgressAccept, SecurityAccept, SearchFragmentStage, SearchHeadPublish
 	return []canonicalHeldClass{
-		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: runCanonicalHeldN1, reason: "canonical 1M N1 owner/profile/original progression not attached"},
+		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: runCanonicalHeldN1, reason: "timing cohort does not expose complete observed statement-byte totals; inspect nullable per-attempt profile facts"},
 		{name: "basic_accept", owner: "SC/W", kind: "normal_write", purpose: &basic, reason: "canonical Basic owner Action not attached"},
 		{name: "staged_enrich", owner: "EN/W", kind: "normal_write", purpose: &enrich, reason: "canonical staged-enrich owner Action not attached"},
 		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, reason: "canonical same-owner Progress Action not attached"},
