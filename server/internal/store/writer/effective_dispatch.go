@@ -38,23 +38,24 @@ type effectivePlan struct {
 	recipe       turnRecipe
 	// Included in the terminal reserve and whole-command IO/WAL forecast, never
 	// an assumed built-in 5ms allowance. Qualification belongs to composition.
-	headerSync          Work
-	steps               []statementStep
-	need                governor.Amounts
-	io                  []governor.DeviceIO
-	inventoryPageSize   int32                     // frozen read-only assertion; zero cannot enable N1
-	inventoryRecords    inventoryRecordEnvelope   // extra native-record work inside the SAME grant
-	inventoryEngine     sqliteconn.EngineIdentity // exact profile implementation, observed again before BEGIN
-	inventoryMemory     inventoryMemoryBudget     // private whole-unit partition; zero is unqualified
-	searchImageMemory   searchImageMemoryBudget
-	scanLifecycleMemory commandMemoryBudget
-	enrichmentMemory    commandMemoryBudget
-	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
-	wcProgressMemory    commandMemoryBudget
-	wcSecurityMemory    commandMemoryBudget
-	wcReclaimMemory     commandMemoryBudget
-	directoryMemory     commandMemoryBudget
-	publisherMemory     commandMemoryBudget
+	headerSync            Work
+	steps                 []statementStep
+	need                  governor.Amounts
+	io                    []governor.DeviceIO
+	inventoryPageSize     int32                     // frozen read-only assertion; zero cannot enable N1
+	inventoryRecords      inventoryRecordEnvelope   // extra native-record work inside the SAME grant
+	inventoryEngine       sqliteconn.EngineIdentity // exact profile implementation, observed again before BEGIN
+	inventoryMemory       inventoryMemoryBudget     // private whole-unit partition; zero is unqualified
+	searchImageMemory     searchImageMemoryBudget
+	scanLifecycleMemory   commandMemoryBudget
+	enrichmentMemory      commandMemoryBudget
+	basicMemory           commandMemoryBudget // exact Basic variant; zero remains unqualified
+	wcProgressMemory      commandMemoryBudget
+	wcSecurityMemory      commandMemoryBudget
+	wcReclaimMemory       commandMemoryBudget
+	directoryMemory       commandMemoryBudget
+	publisherMemory       commandMemoryBudget
+	effectiveSourceMemory commandMemoryBudget // exact Effective source-proof partition; zero is unqualified
 }
 
 // No runtime registration, worker budget or callbacks are accepted. The actual
@@ -611,6 +612,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	custody.wcReclaimMemory = plan.wcReclaimMemory
 	custody.directoryMemory = plan.directoryMemory
 	custody.publisherMemory = plan.publisherMemory
+	custody.effectiveSourceMemory = plan.effectiveSourceMemory
 	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
