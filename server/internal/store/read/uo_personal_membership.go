@@ -116,7 +116,7 @@ func UOPersonalMembershipDefinitions() []stmt.Definition {
 		}
 		params = append(params, stmt.Param{Name: "after", Type: stmt.Blob}, stmt.Param{Name: "limit", Type: stmt.Integer})
 		args = append(args, make([]byte, 16), int64(64))
-		query := `SELECT p.item_id,p.item_public_id,p.revision,e.library_id,e.kind,e.revision,COALESCE(e.admission_own_age,-1),e.retired FROM personal_items p INDEXED BY ` + index + ` LEFT JOIN catalog_entities e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id=? AND ` + predicate + ` AND p.item_public_id>? ORDER BY p.item_public_id LIMIT ?`
+		query := `SELECT p.item_id,p.item_public_id,p.revision,e.library_id,e.kind,e.revision,COALESCE(e.admission_own_age,-1),e.retired FROM personal_items AS p INDEXED BY ` + index + ` LEFT JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id=? AND ` + predicate + ` AND p.item_public_id>? ORDER BY p.item_public_id LIMIT ?`
 		out = append(out, stmt.Definition{ID: readStatementID(fmt.Sprintf("uo.personal.membership.%d", m)), Owner: "store/read UO personal draft", Kind: stmt.Read, SQL: query, Params: params, CallSites: []string{"store/read/uo_personal_membership.go"}, Cohorts: []stmt.Cohort{{Name: "sparse", Bindings: args}}, Plan: stmt.Plan{Hot: true, Indexes: []string{index}, PrimaryKeys: []string{"e"}, Seeks: []string{"profile_id=?"}}})
 	}
 	return out

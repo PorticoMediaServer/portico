@@ -75,13 +75,14 @@ type uoPersonalBoundaryInput struct {
 	subjectID, libraryID, eventID, occurrence, acceptedSequence, activityGeneration, expectedRevision int64
 	publicID                                                                                          [16]byte
 	library, playback                                                                                 string
+	timestampGrantBytes                                                                               int64
 	completed                                                                                         bool
 }
-type uoPersonalBoundaryEffect struct{ revision, viewer, selection int64 }
+type uoPersonalBoundaryEffect struct{ revision, viewer, selection, timestampBytes int64 }
 
 func applyUOPersonalBoundary(ctx context.Context, turn *commandTurn, q uoPersonalBoundaryInput) (out uoPersonalBoundaryEffect, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if q.subjectID <= 0 || q.libraryID <= 0 || q.eventID <= 0 || q.occurrence <= 0 || q.acceptedSequence < 0 || q.activityGeneration <= 0 || q.expectedRevision < 0 || q.expectedRevision == math.MaxInt64 || q.publicID == [16]byte{} || !uoPersonalText(q.library, 128) || !uoPersonalText(q.playback, 128) {
+	if q.timestampGrantBytes <= 0 || q.subjectID <= 0 || q.libraryID <= 0 || q.eventID <= 0 || q.occurrence <= 0 || q.acceptedSequence < 0 || q.activityGeneration <= 0 || q.expectedRevision < 0 || q.expectedRevision == math.MaxInt64 || q.publicID == [16]byte{} || !uoPersonalText(q.library, 128) || !uoPersonalText(q.playback, 128) {
 		return out, ErrInvalid
 	}
 	h, err := readUOPersonalHead(ctx, turn, q.policy)
@@ -99,6 +100,20 @@ func applyUOPersonalBoundary(ctx context.Context, turn *commandTurn, q uoPersona
 	if _, err = wc008DraftInteger(ctx, turn, "uo.personal.history.boundary", q.eventID, kind, q.policy.account, q.policy.profileID, q.subjectID, q.publicID[:], q.library, q.playback, q.occurrence, q.acceptedSequence, h.activity, q.policy.memberBirth, q.policy.profileBirth); err != nil {
 		return out, err
 	}
+	// The trusted parent grant covers actual native timestamp copies. Check
+	// the immutable point in this same turn before UPDATE materializes text.
+	n, e := wc008DraftInteger(ctx, turn, "uo.personal.history.boundary_octets", q.eventID)
+	if e != nil {
+		return out, e
+	}
+	copies := int64(3)
+	if q.completed {
+		copies = 2
+	}
+	if n <= 0 || n > q.timestampGrantBytes/copies {
+		return out, ErrInvalid
+	}
+	out.timestampBytes = n * copies
 	if q.expectedRevision == 0 {
 		if _, err = wc008DraftInteger(ctx, turn, "uo.personal.intent.insert", q.policy.profile, q.publicID[:], q.subjectID, q.libraryID, h.activity, h.recommendation); err != nil {
 			return out, err
@@ -123,6 +138,7 @@ func applyUOPersonalBoundary(ctx context.Context, turn *commandTurn, q uoPersona
 }
 func uoPersonalHistoryDefinitions() []stmt.Definition {
 	out := []stmt.Definition{
+		uoPDef("uo.personal.history.boundary_octets", stmt.Read, `SELECT octet_length(occurred_at) FROM play_history WHERE id=?`, uoPI("event")),
 		uoPDef("uo.personal.history.highwater", stmt.Read, `SELECT COALESCE(max(id),0) FROM play_history`),
 		uoPDef("uo.personal.history.clear", stmt.Write, `UPDATE personal_activity_revisions SET revision=?,activity_generation=?,recommendation_generation=?,history_visible_from_id=?,action_sequence=? WHERE profile_id=? AND revision=? AND action_sequence=? AND activity_generation=? AND recommendation_generation=? AND history_visible_from_id=? RETURNING revision`, uoPI("next_revision"), uoPI("activity"), uoPI("recommendation"), uoPI("cutoff"), uoPI("action"), uoPT("profile"), uoPI("revision"), uoPI("old_action"), uoPI("old_activity"), uoPI("old_recommendation"), uoPI("old_cutoff")),
 		uoPDef("uo.personal.history.boundary", stmt.Read, `SELECT id FROM play_history WHERE id=? AND event_kind=? AND account_key=? AND profile_id=? AND subject_id=? AND item_public_id=? AND library_public_id=? AND playback_id=? AND occurrence_generation=? AND accepted_sequence=? AND activity_generation=? AND membership_incarnation=? AND profile_lifetime=?`, uoPI("event"), uoPT("kind"), uoPT("account"), uoPT("profile"), uoPI("subject"), uoPB("public"), uoPT("library"), uoPT("playback"), uoPI("occurrence"), uoPI("sequence"), uoPI("activity"), uoPT("member"), uoPT("birth")),
