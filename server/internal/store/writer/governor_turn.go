@@ -48,6 +48,7 @@ type governedTurn struct {
 	scanLifecycleMemory commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
 	wcProgressMemory    commandMemoryBudget
+	wcSecurityMemory    commandMemoryBudget
 	state               atomic.Uint32 // 0 active, 1 retirement attempted, 2 retired, 3 failed
 	fenced              atomic.Bool
 }
