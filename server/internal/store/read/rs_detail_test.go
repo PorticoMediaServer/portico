@@ -28,7 +28,7 @@ func TestRSDetailEveryCatalogueKind(t *testing.T) {
 		if err != nil {
 			t.Fatal(kind, err)
 		}
-		if d.Item.ID != in.Item || d.Item.Kind != kind || d.Year != 2024 || d.Item.Overview != "Accepted overview" || d.OriginalTitle != "Original" || d.Edition != "Deluxe" || d.AddedAt == nil || *d.AddedAt != "2026-11-01T00:00:00.000000000Z" || d.LastContentAddedAt == nil || cost.LookupStatements != 7 || cost.PublicationStatements != 6 {
+		if d.Item.ID != in.Item || d.Item.Kind != kind || d.Year != 2024 || d.Item.Overview != "Accepted overview" || d.OriginalTitle != "Original" || d.Edition != "Deluxe" || d.AddedAt == nil || *d.AddedAt != "2026-11-01T00:00:00.000000000Z" || d.LastContentAddedAt == nil || cost.LookupStatements != 9 || cost.PublicationStatements != 6 {
 			t.Fatalf("kind%d: %+v %+v", kind, d, cost)
 		}
 		switch kind {
