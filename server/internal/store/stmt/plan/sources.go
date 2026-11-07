@@ -152,7 +152,7 @@ func capturedSources(ctx context.Context, conn *sql.Conn, entries []stmt.Entry) 
 		if err != nil {
 			return nil, err
 		}
-		p := lintParser{tokens: tokens, issuerOctets: closedIssuerOctetDefinition(entry.Definition)}
+		p := lintParser{tokens: tokens, issuerOctets: closedOctetDefinition(entry.Definition)}
 		if err := p.statement(); err != nil {
 			return nil, err
 		}
