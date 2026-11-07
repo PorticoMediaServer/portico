@@ -202,7 +202,7 @@ func TestWCProgressCompositionOriginalResolveAckAndDrain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	drained, err := d.ExecuteDrain(ctx, drain)
+	drained, err := d.ExecuteCurrentDrain(ctx, drain)
 	if err != nil || drained.Outcome.State != Applied || drained.Value.CreditedMs.Int64 <= 0 {
 		t.Fatal(drained, err)
 	}

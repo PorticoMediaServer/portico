@@ -63,7 +63,7 @@ func executeWCProgressInvocation(ctx context.Context, t *commandTurn, v *wcProgr
 		return out, acknowledged, false, err
 	}
 	if ack {
-		if v.retained != nil {
+		if v.retained != nil && !v.retainedAck {
 			return out, acknowledged, false, ErrDisclosureDenied
 		}
 		now, e := t.commandTimeMS(ctx, ProgressAccept, 0)
@@ -71,7 +71,17 @@ func executeWCProgressInvocation(ctx context.Context, t *commandTurn, v *wcProgr
 			return out, acknowledged, false, e
 		}
 		acknowledged.AcknowledgedThrough, err = acknowledgeWCProgress(ctx, t, wcProgressAck{playbackID: v.request.PlaybackID, reference: v.request.Receipt, owner: lookup.owner, decision: lookup.decision, sourceKind: v.request.Kind, receiptRows: s.ReceiptRows, receiptVariableBytes: s.ReceiptBytes, afterSequence: s.AfterSequence, due: s.Due, appliedMS: now})
+		if err == nil && v.retainedAck {
+			after, e := readWCProgressOwner(ctx, t, v.disclosure.driver.scope)
+			if e != nil {
+				return out, acknowledged, true, e
+			}
+			out.Snapshot, err = readWCProgressSnapshot(ctx, t, v.disclosure.driver.scope, after)
+		}
 		return out, acknowledged, true, err
+	}
+	if v.retainedAck {
+		return out, acknowledged, false, ErrDisclosureDenied
 	}
 	out.Outcome.Reference = v.request.Receipt
 	switch lookup.decision {

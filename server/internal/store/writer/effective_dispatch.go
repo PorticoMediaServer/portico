@@ -590,7 +590,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if r.executor.fenced || r.executor.ambiguous {
 		r.fenced = true
 	}
-	if wc != nil && wc.snapshot {
+	if wc != nil && (wc.snapshot || wc.retainedAck) {
 		out.progress.Snapshot.Evidence = evidence
 	}
 	if ack {

@@ -88,28 +88,32 @@ type wcProgressPrepared struct {
 	State              string
 }
 type wcProgressCommand struct {
-	preparation ProgressSnapshot
-	retired     bool
-	driver      *WCProgressDriver
-	request     wcProgressPrepared
-	reference   ProgressReceiptRequest
-	pending     *wcProgressPending
+	applied, finished bool
+	preparation       ProgressSnapshot
+	retired           bool
+	driver            *WCProgressDriver
+	request           wcProgressPrepared
+	reference         ProgressReceiptRequest
+	pending           *wcProgressPending
 }
 
 // The retained capability binds one EXACT native obligation, not a general
 // user exception. Only the trusted driver can issue it after native observation.
 type wcProgressPending struct {
-	root   *wcProgressPending
-	driver *WCProgressDriver
-	source wc008ProgressCommand
+	capture ProgressReceiptRequest
+	root    *wcProgressPending
+	driver  *WCProgressDriver
+	source  wc008ProgressCommand
 }
 type wcProgressInvocation struct {
-	disclosure *ProgressDisclosure
-	request    ProgressReceiptRequest
-	input      *wcProgressCommand
-	snapshot   bool
-	birth      *wcProgressBirth
-	retained   *wcProgressPending
+	retainedAck  bool
+	currentDrain bool
+	disclosure   *ProgressDisclosure
+	request      ProgressReceiptRequest
+	input        *wcProgressCommand
+	snapshot     bool
+	birth        *wcProgressBirth
+	retained     *wcProgressPending
 }
 
 func (d *WCProgressDriver) current() error {
@@ -276,10 +280,29 @@ func checkWCProgressDisclosure(w *Writer, v *wcProgressInvocation) error {
 	if d.writer != w || v.request.PlaybackID != d.scope.playbackID || v.request.Receipt.Identity.Incarnation != d.scope.incarnation || v.request.Receipt.Identity.Sequence <= 0 || (v.request.Kind != "capture_report" && v.request.Kind != "drain_piece") {
 		return ErrDisclosureDenied
 	}
-	if v.retained == nil && (d.principalLifetime == nil || d.principalLifetime.Err() != nil) {
+	if (v.retained == nil || v.currentDrain) && (d.principalLifetime == nil || d.principalLifetime.Err() != nil) {
 		return ErrDisclosureDenied
 	}
-	if v.retained != nil && (v.retained.driver != d || v.retained.root == nil || v.retained.root != d.pending.Load() || v.request.Kind != "drain_piece" || (!v.snapshot && (v.input == nil || v.input.driver != d || v.input.pending != v.retained))) {
+	if v.retained != nil {
+		p := v.retained
+		if p.driver != d || p.root == nil || p.root != d.pending.Load() {
+			return ErrDisclosureDenied
+		}
+		if v.retainedAck {
+			if v.currentDrain || v.snapshot || v.input == nil || v.input != d.work || !v.input.applied || v.input.reference != v.request {
+				return ErrDisclosureDenied
+			}
+			if v.request.Kind == "capture_report" {
+				if p != p.root || p.capture != v.request {
+					return ErrDisclosureDenied
+				}
+			} else if v.input.pending != p || v.request.Kind != "drain_piece" {
+				return ErrDisclosureDenied
+			}
+		} else if v.request.Kind != "drain_piece" || (!v.snapshot && (v.input == nil || v.input.driver != d || v.input.pending != p)) {
+			return ErrDisclosureDenied
+		}
+	} else if v.retainedAck || v.currentDrain {
 		return ErrDisclosureDenied
 	}
 	return nil
@@ -347,6 +370,33 @@ func (w *Writer) AcceptProgress(ctx context.Context, cap *ProgressDisclosure, in
 // ExecuteDrain is a driver operation, never a revoked user disclosure exception.
 // The opaque retained capability must have been issued for this exact pending
 // obligation. Public Resolve/ACK still use Current scope independently.
+// ExecuteCurrentDrain preserves the current-user original/Resolve/ACK path.
+// It requires BOTH current native user scope and the exact retained obligation.
+func (d *WCProgressDriver) ExecuteCurrentDrain(ctx context.Context, input ProgressCommand) (out ProgressResult, err error) {
+	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
+	c, ok := input.(*wcProgressCommand)
+	if !ok || c == nil || c.driver == nil {
+		return out, ErrInvalid
+	}
+	if !c.driver.mu.TryLock() {
+		return out, ErrBusy
+	}
+	defer c.driver.mu.Unlock()
+	q, e := progressReference(c)
+	if e != nil {
+		return out, e
+	}
+	if d == nil || c.driver != d || c.pending == nil || q.Kind != "drain_piece" {
+		return out, ErrDisclosureDenied
+	}
+	out, err = d.writer.runWCProgress(ctx, &wcProgressInvocation{disclosure: d.Disclosure(), request: q, input: c, retained: c.pending, currentDrain: true}, false)
+	if err == nil && out.Outcome.State == Applied {
+		c.applied = true
+		c.finished = out.Value.Finished.Valid && out.Value.Finished.Int64 == 1
+	}
+	return out, err
+}
+
 func (d *WCProgressDriver) ExecuteDrain(ctx context.Context, input ProgressCommand) (out ProgressResult, err error) {
 	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
 	c, ok := input.(*wcProgressCommand)
@@ -357,9 +407,9 @@ func (d *WCProgressDriver) ExecuteDrain(ctx context.Context, input ProgressComma
 		return out, ErrBusy
 	}
 	defer c.driver.mu.Unlock()
-	q, err := progressReference(c)
-	if err != nil {
-		return out, err
+	q, e := progressReference(c)
+	if e != nil {
+		return out, e
 	}
 	if err = d.current(); err != nil {
 		return out, err
@@ -367,7 +417,60 @@ func (d *WCProgressDriver) ExecuteDrain(ctx context.Context, input ProgressComma
 	if c.driver != d || c.pending == nil || q.Kind != "drain_piece" {
 		return out, ErrDisclosureDenied
 	}
-	return d.writer.runWCProgress(ctx, &wcProgressInvocation{disclosure: d.retainedDisclosure(), request: q, input: c, retained: c.pending}, false)
+	out, err = d.writer.runWCProgress(ctx, &wcProgressInvocation{disclosure: d.retainedDisclosure(), request: q, input: c, retained: c.pending}, false)
+	if err != nil || out.Outcome.State != Applied {
+		return out, err
+	}
+	// This internal custodian has observed the complete saved result. Retire
+	// only this exact root-owned command; public user ACK remains independent.
+	c.applied = true
+	c.finished = out.Value.Finished.Valid && out.Value.Finished.Int64 == 1
+	ack, snapshot, e := d.acknowledgeRetainedWork(ctx, c)
+	if e != nil {
+		return ProgressResult{}, e
+	}
+	out.RetainedAcknowledgment = &ack
+	out.Snapshot = snapshot
+	return out, nil
+}
+
+func (d *WCProgressDriver) acknowledgeRetainedWork(ctx context.Context, c *wcProgressCommand) (out AckResult, snapshot ProgressSnapshot, err error) {
+	defer func() {
+		r, e := finishCommand(ctx, ctx, commandCompletion{output: commandOutput{progress: ProgressResult{Snapshot: snapshot}}, ack: out}, err)
+		out, snapshot, err = r.ack, r.output.progress.Snapshot, e
+	}()
+	root := d.pending.Load()
+	if root == nil || c == nil || d.work != c || !c.applied {
+		return out, snapshot, ErrResolveRequired
+	}
+	p := c.pending
+	if c.reference.Kind == "capture_report" {
+		p = root
+	}
+	if p == nil {
+		return out, snapshot, ErrDisclosureDenied
+	}
+	r, out, err := d.writer.effective.runCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, true, nil, &wcProgressInvocation{disclosure: d.retainedDisclosure(), request: c.reference, input: c, retained: p, retainedAck: true})
+	if err == nil && out.AcknowledgedThrough >= c.reference.Receipt.Identity.Sequence {
+		snapshot = r.progress.Snapshot
+		d.retireProgressWork(c)
+	}
+	return out, snapshot, err
+}
+
+// Caller holds d.mu, and a real native ACK has already committed. No floor is
+// manufactured here, no source is replaced, and no capture authority is added.
+func (d *WCProgressDriver) retireProgressWork(c *wcProgressCommand) {
+	if c.reference.Kind == "capture_report" {
+		d.intervalFrom = c.request.Source.untilMS
+	}
+	if c.reference.Kind == "drain_piece" && c.finished && c.pending != nil {
+		d.pending.CompareAndSwap(c.pending.root, nil)
+	}
+	c.request = wcProgressPrepared{}
+	c.pending = nil
+	c.retired = true
+	d.work = nil
 }
 
 func (w *Writer) ResolveProgress(ctx context.Context, cap *ProgressDisclosure, q ProgressReceiptRequest) (out ProgressResult, err error) {
@@ -399,13 +502,7 @@ func (w *Writer) AckProgress(ctx context.Context, cap *ProgressDisclosure, q Pro
 	}
 	_, out, err = w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, nil, &wcProgressInvocation{disclosure: cap, request: q})
 	if err == nil && d.work != nil && d.work.reference == q && out.AcknowledgedThrough >= q.Receipt.Identity.Sequence {
-		if q.Kind == "capture_report" {
-			d.intervalFrom = d.work.request.Source.untilMS
-		}
-		d.work.request = wcProgressPrepared{}
-		d.work.pending = nil
-		d.work.retired = true
-		d.work = nil
+		d.retireProgressWork(d.work)
 	}
 	return out, err
 }
@@ -510,10 +607,15 @@ func (d *WCProgressDriver) Drain(ctx context.Context) (out ProgressCommand, err 
 	}
 	defer d.mu.Unlock()
 	if d.work != nil {
-		if d.work.request.Kind == "drain_piece" {
-			return d.work, nil
+		if !d.work.applied {
+			if d.work.request.Kind == "drain_piece" {
+				return d.work, nil
+			}
+			return nil, ErrResolveRequired
 		}
-		return nil, ErrResolveRequired
+		if _, _, err = d.acknowledgeRetainedWork(ctx, d.work); err != nil {
+			return nil, err
+		}
 	}
 	var snap ProgressSnapshot
 	var result ProgressResult
@@ -542,8 +644,11 @@ func (d *WCProgressDriver) Drain(ctx context.Context) (out ProgressCommand, err 
 	}
 	return d.work, err
 }
-func (d *WCProgressDriver) retainPending(source wc008ProgressCommand) *wcProgressPending {
+func (d *WCProgressDriver) retainPending(source wc008ProgressCommand, capture ...ProgressReceiptRequest) *wcProgressPending {
 	p := &wcProgressPending{driver: d, source: source}
+	if len(capture) == 1 {
+		p.capture = capture[0]
+	}
 	p.root = p
 	d.pending.Store(p)
 	return p
@@ -558,13 +663,18 @@ func wcPendingMatches(p *wcProgressPending, s ProgressSnapshot) bool {
 
 // Called ONLY after the shared physical terminal proves the native commit.
 func recordWCProgressCompletion(v *wcProgressInvocation, out ProgressResult) {
-	if v == nil || v.input == nil || v.request.Kind != "capture_report" || out.Value.CommandKind != "capture_report" {
+	if v == nil || v.input == nil {
+		return
+	}
+	v.input.applied = true
+	v.input.finished = out.Value.Finished.Valid && out.Value.Finished.Int64 == 1
+	if v.request.Kind != "capture_report" || out.Value.CommandKind != "capture_report" {
 		return
 	}
 	source := v.input.request.Source
 	source.startEventID = out.Value.ResultStartEventId.Int64
 	source.lastAcceptedSequence = out.Value.ResultReportSequence
-	v.disclosure.driver.retainPending(source)
+	v.disclosure.driver.retainPending(source, v.request)
 }
 
 func (d *WCProgressDriver) seal(q wcProgressPrepared, pending *wcProgressPending) (*wcProgressCommand, error) {
@@ -704,6 +814,8 @@ func composeWCProgress(ctx context.Context, r *effectiveRuntime, p effectivePlan
 func wcProgressStatementMaxUses(id stmt.ID) int {
 	// Report count rollups and a drain's three paired buckets share definitions.
 	switch id {
+	case wcProgressNativeOwner:
+		return 2 // internal result retirement reads the post-ACK native owner
 	case wcAPIEventInsert, wcAPIEventOldest, wcAPIEventDelete:
 		return 3
 	case wc008ProgressItemBucketRead, wc008ProgressItemBucketUpdate, wc008ProgressItemBucket, wc008ProgressProfileBucketRead, wc008ProgressProfileBucketUpdate, wc008ProgressProfileBucket:
