@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"reflect"
 	"testing"
@@ -93,7 +92,7 @@ func wcSecurityCompositionOpening(t *testing.T, actorTier string) (*Writer, *WCP
 		t.Fatal(err)
 	}
 	scope := wcProgressScope{primary: 1, primaryProfile: "profile-one", membershipRole: actorTier, horizon: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), expires: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), playbackID: "playback-音", profileKey: "viewer-one", accountID: "account-one", profileID: "profile-one", memberBirth: member, profileBirth: profile, libraryKey: "library-one", libraryID: 7, subjectID: 11, serverID: "server", familyID: "wc-family", tokenHash: "wc-token", epoch: 1, tokenGeneration: 1, memberRevision: 1, profileRevision: 1, role: actorTier, memberLibraries: `["library-one"]`}
-	scope.profileKey = persistence.PersonalOwnerKey("local", scope.accountID, scope.profileID)
+	scope.profileKey = wcFixturePersonalOwnerKey("local", scope.accountID, scope.profileID)
 	scope.expires = scope.horizon
 	for _, b := range []*[16]byte{&scope.incarnation, &scope.clock, &scope.subjectPublicID} {
 		if _, err = rand.Read(b[:]); err != nil {
@@ -170,7 +169,7 @@ func wcSecurityCompositionFixture(t *testing.T, actorTier, targetTier string) (*
 	target.accountID, target.profileID, target.playbackID, target.familyID, target.tokenHash = "target-account", "target-profile", "target-playback", "target-family", "target-token"
 	target.primaryProfile = target.profileID
 	target.role, target.membershipRole = targetTier, targetTier
-	target.profileKey = persistence.PersonalOwnerKey("local", target.accountID, target.profileID)
+	target.profileKey = wcFixturePersonalOwnerKey("local", target.accountID, target.profileID)
 	var err error
 	target.memberBirth, err = wcRandomBirth()
 	if err != nil {
