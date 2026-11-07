@@ -187,3 +187,35 @@ func TestQualificationPopulationRejectsMissingPolicyAndSidecars(t *testing.T) {
 		}
 	})
 }
+
+func TestQualificationPopulationNativeRoundTrip(t *testing.T) {
+	// A tiny functional artifact, with deliberately synthetic source identity;
+	// never a population-size, host-profile or qualification measurement.
+	output := filepath.Join(t.TempDir(), "artifact")
+	config := qualificationPopulationExportConfig{OutputDir: output, SourceCommit: strings.Repeat("c", 40), Seed: 0, Residents: 16}
+	raw, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	if err = os.WriteFile(configPath, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PORTICO_QUAL_FIXTURE", "1")
+	t.Setenv("PORTICO_QUAL_FIXTURE_CONFIG", configPath)
+	TestExportQualificationPopulation(t)
+	raw, err = os.ReadFile(filepath.Join(output, qualificationPopulationManifestFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin := sha256.Sum256(raw)
+	manifest := UseQualificationPopulation(t, output, hex.EncodeToString(pin[:]))
+	w, _ := testCanonicalExecutor(t)
+	var count int
+	if err = w.db.QueryRowContext(t.Context(), "SELECT count(*) FROM catalog_entities WHERE library_id=7 AND kind='movie'").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 16 || manifest.Facts.Residents != 16 {
+		t.Fatalf("copied population differs: count=%d facts=%+v", count, manifest.Facts)
+	}
+}
