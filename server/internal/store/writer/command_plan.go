@@ -26,8 +26,14 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 // qualification claim. Reserve every possible registered use, setup and
 // terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) {
+	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) && !enrichmentPurpose(purpose) {
 		return effectivePlan{}, invalid("command_plan_purpose")
+	}
+	if !enrichmentPurpose(purpose) && plan.enrichmentMemory != (commandMemoryBudget{}) {
+		return effectivePlan{}, invalid("enrichment_memory_purpose")
+	}
+	if err := validateMemoryPartition(plan.enrichmentMemory, plan.need[governor.MemoryBytes], "enrichment_memory_partition"); err != nil {
+		return effectivePlan{}, err
 	}
 	if plan.inventoryPageSize != 0 && (purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions())) {
 		return effectivePlan{}, invalid("inventory_page_size_purpose")

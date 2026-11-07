@@ -46,6 +46,7 @@ type effectivePlan struct {
 	inventoryMemory     inventoryMemoryBudget   // private whole-unit partition; zero is unqualified
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
+	enrichmentMemory    commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
 	wcProgressMemory    commandMemoryBudget
 	wcSecurityMemory    commandMemoryBudget
@@ -71,6 +72,7 @@ type effectiveRuntime struct {
 	inventoryDriverPlan      *effectivePlan    // complete trusted N1 profile; nil keeps fresh effects closed
 	inventoryPreparationPlan *effectivePlan
 	directoryPlans           [4]*effectivePlan
+	enrichmentPlans          [4]*effectivePlan
 	registry                 *stmt.Registry
 	fenced                   bool
 	cleanupPanics            []terminalPanic
@@ -197,6 +199,7 @@ type commandOutput struct {
 	lifecycle         scanLifecycleCommandResult
 	source            scanSourceFacts
 	run               scanRunSnapshot
+	enrichment        enrichmentCommandResult
 	progress          ProgressResult
 	security          SecurityResult
 	reclaim           ReclaimResult
@@ -217,6 +220,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	var wc *wcProgressInvocation
 	var security *wcSecurityInvocation
 	var reclaim *wcReclaimInvocation
+	var enrichment *enrichmentInvocation
 	invalidWC := false
 	switch v := invocation.(type) {
 	case nil:
@@ -226,6 +230,8 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		security = v
 	case *wcReclaimInvocation:
 		reclaim = v
+	case *enrichmentInvocation:
+		enrichment = v
 	default:
 		invalidWC = true
 	}
@@ -299,8 +305,20 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		// entry, but no grant/BEGIN or substitute handler is manufactured.
 		return out, acknowledged, ErrNotImplemented
 	}
+	if enrichment != nil {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || publisher != nil || ack != (enrichment.action == enrichmentAcknowledge) {
+			return out, acknowledged, ErrInvalid
+		}
+		if err = validateEnrichmentInvocation(r, w, enrichment); err != nil {
+			return out, acknowledged, err
+		}
+	}
 	purpose, plan, reference, key, libraryID := EffectiveStage, &r.plan, request.Receipt, request.ProviderOperationID, request.LibraryID
 	outcome := &out.effective.Outcome
+	if enrichment != nil {
+		purpose, plan, reference, key, libraryID = enrichment.purpose, nil, enrichment.request.Receipt, enrichment.request.ProviderOperationID, enrichment.request.LibraryID
+		outcome = &out.enrichment.Outcome
+	}
 	if scan != nil {
 		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || (scan.directory == 0 && (scan.directoryInput != nil || scan.directoryTerminalInput != nil)) {
 			return out, acknowledged, ErrInvalid
@@ -364,6 +382,13 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		return out, acknowledged, ErrBusy
 	}
 	defer r.mu.Unlock()
+	if enrichment != nil {
+		i, _ := enrichmentPlanIndex(purpose)
+		plan = r.enrichmentPlans[i]
+		if plan == nil {
+			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
+		}
+	}
 	if wc != nil {
 		plan = r.wcProgressPlan
 		if wc.birth != nil {
@@ -551,6 +576,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	custody.inventoryMemory = plan.inventoryMemory // immutable W profile, never a worker override
 	custody.searchImageMemory = plan.searchImageMemory
 	custody.scanLifecycleMemory = plan.scanLifecycleMemory
+	custody.enrichmentMemory = plan.enrichmentMemory
 	custody.basicMemory = plan.basicMemory
 	custody.wcProgressMemory = plan.wcProgressMemory
 	custody.wcSecurityMemory = plan.wcSecurityMemory
@@ -604,6 +630,8 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			err = checkWCSecurityNativeDisclosure(ctx, turn, security)
 		} else if wc != nil {
 			err = checkWCProgressNativeDisclosure(ctx, turn, wc)
+		} else if enrichment != nil {
+			err = discloseEnrichment(ctx, turn, enrichment)
 		} else if scan != nil {
 			if scan.lifecycle == 0 && scan.directory == 0 {
 				_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
@@ -623,6 +651,23 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation), turn.checkLifetimes(ctx))
 	}
 	var historical bool
+	if err == nil && enrichment != nil {
+		var lookup enrichmentTurnLookup
+		lookup, err = lookupEnrichmentSealTurn(ctx, turn, enrichment)
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation), turn.checkLifetimes(ctx))
+		if err == nil {
+			if ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeEnrichment(ctx, turn, enrichment, lookup)
+			} else {
+				out.enrichment = enrichmentHistoricalResult(enrichment, lookup)
+				historical = lookup.decision != receiptFresh
+				if !historical && enrichment.payload != nil {
+					err = &Refusal{Code: RefusalUnqualified}
+				}
+			}
+		}
+	}
+
 	if err == nil && reclaim != nil {
 		out.reclaim, acknowledged, historical, err = executeWCReclaimInvocation(ctx, turn, reclaim, ack)
 	}
