@@ -1,6 +1,9 @@
 package read
 
-import "sort"
+import (
+	"math"
+	"sort"
+)
 
 // rbAuthorOrderRow is a preparation value, not an eligibility or exhaustion
 // witness. Position must come from CAST(NULLIF(series_position,”) AS REAL)
@@ -26,6 +29,9 @@ func rbAuthorOrderDraft(rows []rbAuthorOrderRow, descending bool) ([]rbAuthorOrd
 	for i := range out {
 		if out[i].Position != nil {
 			v := *out[i].Position
+			if math.IsNaN(v) || math.IsInf(v, 0) {
+				return nil, ErrUnqualified
+			}
 			out[i].Position = &v
 		}
 	}
