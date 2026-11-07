@@ -430,6 +430,11 @@ func UOSettingsPointDefinitions() []stmt.Definition {
 		}
 		point, octets, _ := uoSettingSQL(f.key)
 		for _, part := range []struct{ suffix, sql string }{{"value", point}, {"octets", octets}} {
+			// Fixed-width native scalars never copy variable payload. Keep
+			// only needed text preflights inside the bounded read manifest.
+			if part.suffix == "octets" && f.def.Kind != UOText {
+				continue
+			}
 			out = append(out, stmt.Definition{ID: uoSettingID(f.key, part.suffix), Owner: "store UO ordinary settings draft", CallSites: []string{"store/writer/uo_settings.go", "store/read/uo_settings.go"}, Kind: stmt.Read, SQL: part.sql, Cohorts: []stmt.Cohort{{Name: "singleton", Bindings: []any{}}}, Plan: uoSettingValuePlan(f.key)})
 		}
 	}
