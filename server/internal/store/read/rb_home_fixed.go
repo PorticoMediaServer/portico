@@ -395,7 +395,22 @@ func homeFixedRecent(frame homeFixedFrame, page HomeFixedPage) (HomeFixedPage, e
 		}
 		for id, leaves := range groups {
 			work, ok := byID[id]
-			if !ok || work.Row[0][3] != int64(0) {
+			if !ok {
+				return HomeFixedPage{}, ErrUnqualified
+			}
+			expected := leaves[0].Identity.Kind
+			switch expected {
+			case 4:
+				expected = 2
+			case 7:
+				expected = 6
+			case 9:
+				expected = 8
+			}
+			if work.Identity.Kind != expected {
+				return HomeFixedPage{}, ErrUnqualified
+			}
+			if work.Row[0][3] != int64(0) {
 				continue
 			}
 			slices.SortFunc(leaves, func(a, b homeFixedEntity) int {
