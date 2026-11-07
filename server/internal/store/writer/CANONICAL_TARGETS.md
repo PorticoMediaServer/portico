@@ -129,7 +129,12 @@ Wire stays portico-canonical-held-class-v1 with existing N1 attempt payloads.
 `population_attached` binds the actual manifest, observed target count, recipe,
 warmup, timing cohort and maintenance resources. `checkpoint` records preserve
 actual CheckpointResult, errors, refusal and physical-safe facts, separately from
-writer attempts. `final.steady` preserves role census, physical ordinals,
+writer attempts. checkpoint.owner_clock has nullable started_ns, native_started_ns,
+native_ended_ns, physical_returned_ns and retired_ns. These are derived with
+n1NS(stream.origin, actualTime) before JSON, using the SAME origin as the W
+owner_clock; missing zero-time phases remain null and observed relative0 remains0.
+The wall-clock typed result is retained as raw data. These joins establish no
+IO attribution, independent causality or profile pass. `final.steady` preserves role census, physical ordinals,
 connection continuity and final native-close/usage facts. The raw target always
 emits qualification=false and qualified_profile_ready=false; QL independently
 checks source/binary/artifact/host/coverage and computes qualification results.
