@@ -695,7 +695,7 @@ func (p *RSPeoplePreparation) reduce(v []any, ordinal int64) error {
 		c.order = append(c.order, w)
 	}
 	w.ordinal = min(w.ordinal, ordinal)
-	if !slices.Contains(w.roles, role) {
+	if true {
 		w.roles = append(w.roles, role)
 	}
 	if role.Department != "" {
