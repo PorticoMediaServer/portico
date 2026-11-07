@@ -25,7 +25,7 @@ func scanSourceDefinitions() []stmt.Definition {
 		{Name: "wrong_library", Bindings: []any{"lifecycle-new-source", "wrong-library"}}}
 	sourcePlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_library_sources_1"}, Seeks: []string{"id=?"}}
 	defs := []stmt.Definition{
-		{ID: scanSourceLengths, Kind: stmt.Read, SQL: `SELECT octet_length(id),octet_length(library_id),octet_length(kind),octet_length(root),octet_length(incarnation),octet_length(root_identity),octet_length(health),octet_length(classification) FROM library_sources WHERE id=? AND library_id=?`, Params: params, Cohorts: cohorts, Plan: sourcePlan},
+		{ID: scanSourceLengths, Kind: stmt.Read, SQL: `SELECT octet_length(id),octet_length(library_id),octet_length(kind),octet_length(root),octet_length(incarnation),octet_length(root_identity),octet_length(health),octet_length(classification),octet_length(name),octet_length(configured_root),octet_length(next_scan_at),octet_length(last_complete_job),octet_length(last_complete_at),octet_length(last_integrity_at),octet_length(remote_source_id),octet_length(double_check_job),octet_length(progress_last_progress_at) FROM library_sources WHERE id=? AND library_id=?`, Params: params, Cohorts: cohorts, Plan: sourcePlan},
 		{ID: scanSourcePayload, Kind: stmt.Read, SQL: `SELECT id,library_id,kind,root,incarnation,root_identity,health,classification,generation,identity_confirmed,enabled,follow_symlinks FROM library_sources WHERE id=? AND library_id=?`, Params: params, Cohorts: cohorts, Plan: sourcePlan},
 		{ID: scanSourcePolicy, Kind: stmt.Read, SQL: `SELECT revision FROM library_scan_policies WHERE library_id=?`, Params: []stmt.Param{text("library_key")}, Cohorts: []stmt.Cohort{{Name: "current_policy", Bindings: []any{"lifecycle-library"}}, {Name: "missing", Bindings: []any{"no-library"}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_library_scan_policies_1"}, Seeks: []string{"library_id=?"}}},
 	}
@@ -71,23 +71,24 @@ func captureScanSource(ctx context.Context, turn *commandTurn, libraryID int64, 
 	if err = checkInventoryFreshLibrary(ctx, turn, ScanReceiptRequest{LibraryID: libraryID, LibraryKey: libraryKey}); err != nil {
 		return value, err
 	}
-	rows, err := turn.query(ctx, turn.steps[scanSourceLengths].statementStep, sourceID, libraryKey)
-	if err != nil {
-		return value, err
-	}
-	var lengths [8]int64
-	err = scanSourcePoint(rows, &lengths[0], &lengths[1], &lengths[2], &lengths[3], &lengths[4], &lengths[5], &lengths[6], &lengths[7])
-	if err != nil {
+	lengths, err := readScanByteLengths(ctx, turn, scanSourceLengths, sourceID, libraryKey)
+	if err != nil || !lengths.exists {
 		return value, errors.Join(ErrConflict, err)
 	}
 	total := int64(0)
-	for _, n := range lengths {
+	// Only these eight fields are copied. Preserved fields remain numeric
+	// same-snapshot facts for N1's later native rewrite envelope.
+	for _, cell := range lengths.cells[:8] {
+		if !cell.Valid {
+			return value, ErrInvalid
+		}
+		n := cell.Int64
 		if n < 0 || n > int64(maxCanonicalRequestBytes)-total {
 			return value, &Refusal{Code: RefusalCapacity}
 		}
 		total += n
 	}
-	rows, err = turn.query(ctx, turn.steps[scanLibraryRootLengths].statementStep, libraryID, libraryKey)
+	rows, err := turn.query(ctx, turn.steps[scanLibraryRootLengths].statementStep, libraryID, libraryKey)
 	if err != nil {
 		return value, err
 	}
@@ -123,7 +124,7 @@ func captureScanSource(ctx context.Context, turn *commandTurn, libraryID int64, 
 		return value, errors.Join(ErrConflict, err)
 	}
 	for i, s := range texts {
-		if int64(len(s)) != lengths[i] || !utf8.ValidString(s) || strings.IndexByte(s, 0) >= 0 {
+		if int64(len(s)) != lengths.cells[i].Int64 || !utf8.ValidString(s) || strings.IndexByte(s, 0) >= 0 {
 			return value, invalid("scan_source_native_text")
 		}
 	}
@@ -150,7 +151,7 @@ func captureScanSource(ctx context.Context, turn *commandTurn, libraryID int64, 
 	if err = scanSourcePoint(rows, &policy); err != nil || policy <= 0 {
 		return value, errors.Join(ErrConflict, err)
 	}
-	return scanSourceFacts{libraryID: libraryID, libraryKey: strings.Clone(texts[1]), policyRevision: policy, identityRoot: []byte(identityRoot),
+	return scanSourceFacts{libraryID: libraryID, libraryKey: strings.Clone(texts[1]), policyRevision: policy, identityRoot: []byte(identityRoot), nativeRecordBytes: lengths.total,
 		source: inventorySource{id: strings.Clone(texts[0]), resolvedRoot: []byte(texts[3]), incarnation: strings.Clone(texts[4]), rootIdentity: strings.Clone(texts[5]), generation: generation, followSymlinks: follow == 1}}, nil
 }
 
