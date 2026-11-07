@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -93,70 +94,79 @@ func sealHistoryNativeReceipt(t *testing.T) (*executor, EnrichmentReceiptRequest
 }
 
 func TestSealHistorySnapshotReplaysSavedResult(t *testing.T) {
-	w, request, want := sealHistoryNativeReceipt(t)
-	s, a, r := sealHistorySnapshot(t, w)
-	var saved enrichmentSealHistory
-	_, err := s.ReadForecasted(t.Context(), r, time.Hour, governor.SnapshotForecast{NativeRowBytes: 64<<10 + 256, MaxQueries: 4}, func(scope *governor.ReadScope) error {
-		var err error
-		saved, err = readEnrichmentSealHistory(t.Context(), scope, EvidenceSeal, request)
-		return err
+	synctest.Test(t, func(t *testing.T) {
+		w, request, want := sealHistoryNativeReceipt(t)
+		s, a, r := sealHistorySnapshot(t, w)
+		var saved enrichmentSealHistory
+		_, err := s.ReadForecasted(t.Context(), r, time.Hour, governor.SnapshotForecast{NativeRowBytes: 64<<10 + 256, MaxQueries: 4, GoCopyBytes: 1 << 20}, func(scope *governor.ReadScope) error {
+			var err error
+			saved, err = readEnrichmentSealHistory(t.Context(), scope, EvidenceSeal, request)
+			return err
+		})
+		if err != nil || saved.decision != receiptReplay || saved.saved.facts != want || a.Usage() != [4]governor.Amounts{} {
+			t.Fatal("saved native replay/retirement", saved, err, a.Usage())
+		}
+		header := draftMovieStageHeader(t)
+		if saved.saved.facts.ObservationDigest != hex.EncodeToString(header.input.ObservationDigest[:]) {
+			t.Fatal("native digest representation drift")
+		}
+
 	})
-	if err != nil || saved.decision != receiptReplay || saved.saved.facts != want || a.Usage() != [4]governor.Amounts{} {
-		t.Fatal("saved native replay/retirement", saved, err, a.Usage())
-	}
-	header := draftMovieStageHeader(t)
-	if saved.saved.facts.ObservationDigest != hex.EncodeToString(header.input.ObservationDigest[:]) {
-		t.Fatal("native digest representation drift")
-	}
 }
 
 func TestSealHistoryFloorSkipsRetainedPayload(t *testing.T) {
-	w, request, _ := sealHistoryNativeReceipt(t)
-	for _, q := range []string{"UPDATE metadata_provider_operations SET acknowledged_command_sequence=last_command_sequence WHERE id='operation-one'", "UPDATE enrichment_command_receipts SET result_digest=zeroblob(32) WHERE command_kind='evidence_seal'"} {
-		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
-			t.Fatal(err)
+	synctest.Test(t, func(t *testing.T) {
+		w, request, _ := sealHistoryNativeReceipt(t)
+		for _, q := range []string{"UPDATE metadata_provider_operations SET acknowledged_command_sequence=last_command_sequence WHERE id='operation-one'", "UPDATE enrichment_command_receipts SET result_digest=zeroblob(32) WHERE command_kind='evidence_seal'"} {
+			if _, err := w.db.ExecContext(t.Context(), q); err != nil {
+				t.Fatal(err)
+			}
 		}
-	}
-	s, a, r := sealHistorySnapshot(t, w)
-	var got enrichmentSealHistory
-	_, err := s.ReadForecasted(t.Context(), r, time.Hour, governor.SnapshotForecast{NativeRowBytes: 512, MaxQueries: 2}, func(scope *governor.ReadScope) error {
-		var err error
-		got, err = readEnrichmentSealHistory(t.Context(), scope, EvidenceSeal, request)
-		return err
+		s, a, r := sealHistorySnapshot(t, w)
+		var got enrichmentSealHistory
+		_, err := s.ReadForecasted(t.Context(), r, time.Hour, governor.SnapshotForecast{NativeRowBytes: 512, MaxQueries: 2, GoCopyBytes: 1 << 20}, func(scope *governor.ReadScope) error {
+			var err error
+			got, err = readEnrichmentSealHistory(t.Context(), scope, EvidenceSeal, request)
+			return err
+		})
+		if err != nil || got.decision != receiptRetired || got.saved != (savedSealReceipt{}) || a.Usage() != [4]governor.Amounts{} {
+			t.Fatal("floor decoded/served retained corrupted proof", got, err, a.Usage())
+		}
+
 	})
-	if err != nil || got.decision != receiptRetired || got.saved != (savedSealReceipt{}) || a.Usage() != [4]governor.Amounts{} {
-		t.Fatal("floor decoded/served retained corrupted proof", got, err, a.Usage())
-	}
 }
 
 func TestSealHistoryRefusesPayloadBudgetAndCorruption(t *testing.T) {
-	for _, oversize := range []bool{false, true} {
-		t.Run(map[bool]string{false: "corrupt_digest", true: "before_payload_copy"}[oversize], func(t *testing.T) {
-			w, request, _ := sealHistoryNativeReceipt(t)
-			if oversize {
-				if _, err := w.db.ExecContext(t.Context(), "UPDATE enrichment_command_receipts SET after_item=? WHERE command_kind='evidence_seal'", strings.Repeat("x", 4096)); err != nil {
+	synctest.Test(t, func(t *testing.T) {
+		for _, oversize := range []bool{false, true} {
+			t.Run(map[bool]string{false: "corrupt_digest", true: "before_payload_copy"}[oversize], func(t *testing.T) {
+				w, request, _ := sealHistoryNativeReceipt(t)
+				if oversize {
+					if _, err := w.db.ExecContext(t.Context(), "UPDATE enrichment_command_receipts SET after_item=? WHERE command_kind='evidence_seal'", strings.Repeat("x", 4096)); err != nil {
+						t.Fatal(err)
+					}
+				} else if _, err := w.db.ExecContext(t.Context(), "UPDATE enrichment_command_receipts SET result_digest=zeroblob(32) WHERE command_kind='evidence_seal'"); err != nil {
 					t.Fatal(err)
 				}
-			} else if _, err := w.db.ExecContext(t.Context(), "UPDATE enrichment_command_receipts SET result_digest=zeroblob(32) WHERE command_kind='evidence_seal'"); err != nil {
-				t.Fatal(err)
-			}
-			s, a, r := sealHistorySnapshot(t, w)
-			var got enrichmentSealHistory
-			forecast := governor.SnapshotForecast{NativeRowBytes: 64<<10 + 256, MaxQueries: 4}
-			if oversize {
-				forecast.NativeRowBytes, forecast.MaxQueries = 512, 3
-			}
-			_, err := s.ReadForecasted(t.Context(), r, time.Hour, forecast, func(scope *governor.ReadScope) error {
-				var err error
-				got, err = readEnrichmentSealHistory(context.Background(), scope, EvidenceSeal, request)
-				return err
+				s, a, r := sealHistorySnapshot(t, w)
+				var got enrichmentSealHistory
+				forecast := governor.SnapshotForecast{NativeRowBytes: 64<<10 + 256, MaxQueries: 4, GoCopyBytes: 1 << 20}
+				if oversize {
+					forecast.NativeRowBytes, forecast.MaxQueries = 512, 3
+				}
+				_, err := s.ReadForecasted(t.Context(), r, time.Hour, forecast, func(scope *governor.ReadScope) error {
+					var err error
+					got, err = readEnrichmentSealHistory(context.Background(), scope, EvidenceSeal, request)
+					return err
+				})
+				if !errors.Is(err, ErrResolveRequired) || got != (enrichmentSealHistory{}) || a.Usage() != [4]governor.Amounts{} {
+					t.Fatal("bad native proof exposed partial result/leaked custody", got, err, a.Usage())
+				}
+				if oversize && !errors.Is(err, governor.ErrSnapshotBudget) {
+					t.Fatal("payload copied without byte refusal", err)
+				}
 			})
-			if !errors.Is(err, ErrResolveRequired) || got != (enrichmentSealHistory{}) || a.Usage() != [4]governor.Amounts{} {
-				t.Fatal("bad native proof exposed partial result/leaked custody", got, err, a.Usage())
-			}
-			if oversize && !errors.Is(err, governor.ErrSnapshotBudget) {
-				t.Fatal("payload copied without byte refusal", err)
-			}
-		})
-	}
+		}
+
+	})
 }
