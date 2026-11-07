@@ -43,10 +43,10 @@ merged schema, including the parent's #1450 gate. No frozen golden is rewritten.
 
 The private execution draft accepts only a resource minted from that native
 same-snapshot point, binds its entire current definition/revision/role and full
-viewer fence into its private cursor, and reuses readBrowsePage. Its explicit
+viewer fence into its private cursor, and reuses the existing age/retirement and item projection kernels. Its explicit
 subset is movies, actual same library, title asc/desc, default article handling,
-grid/list, and no query. Unknown fields, duplicate JSON members, definitions over
-32 KiB, filters, unsupported pivots/sorts/seeds/multi-sort and trailing JSON are
+grid/list, and the shared native scalar AST (year/decade/title/library/entityKind). Unknown fields, duplicate JSON members, definitions over
+32 KiB, unsupported filter fields/operators/pivots/sorts/seeds/multi-sort and trailing JSON are
 refused. This is NOT a published execution endpoint. The parent must compose
 actual resource reads and full-value comparison in first/final snapshots, with
 one original LIVE deadline/copy/output budget, before publishing any result.
@@ -59,3 +59,29 @@ profiles, raw continuation and EOF, own/shared/server-private semantics, source
 revocation between private draft and final publication without generation drift,
 generation cursor invalidation, and closed wide hydration. Definition validation
 controls are pure kernel tests, not native execution/publication qualification.
+
+
+## Shared native scalar continuation
+
+The local dependency commit stages unchanged rb_filter_parse.go,
+rb_filter_scalar.go and rb_channel_config.go from root source
+42d5d500ba4a18fa42053057bc4c03b1aad2d714. The third file supplies the existing
+rbJSONDepth dependency. Parent already owns all three; skip that dependency
+commit when integrating the following own-file saved-view change. No alternate
+configuration dialect or edits to root's parser are introduced.
+
+rbSavedViewScalarDefinitions adds six inert title first/equality-tail/next-key
+recipes in the existing asc/desc index order. The only extra fact is the native
+fixed-size year. readSavedViewScalarPage applies shared native scalar matching
+AFTER current age/retirement admission, consumes at most 64 raw positions, emits
+at most the requested 1..40 permitted matches, and retains continuations across
+filtered/hidden tails. An empty raw-cap page is pending work. A short, completely
+consumed source window alone proves EOF. No top-K sample is sorted as an exact
+answer, and no new general preparation manager is introduced.
+
+The actual Reader tests walk dense equal-title cohorts and the next-key boundary
+in both directions, verify complete reachability and non-exhausted empty raw-cap
+pages, apply current age restrictions, and preserve the shared missing-value/NOT
+semantics. They certify the native source/filter kernel, not stored-definition
+hydration or final publication; those gates above remain closed. The production
+read dependency graph has no catalog, dbwork, or livechannels/library package.
