@@ -61,9 +61,9 @@ func TestFreshFileBootstrap(t *testing.T) {
 	}
 	defer reopened.Close()
 	var tables int
-	// CHANGE-008 adds the typed playback command receipt table; CHANGE-009 adds no tables.
-	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 701 {
-		t.Fatalf("persisted tables = %d, %v; want 701", tables, err)
+	// CHANGE-012 adds seven typed guide/channel/DVR relations; CHANGE-013 adds no tables.
+	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 708 {
+		t.Fatalf("persisted tables = %d, %v; want 708", tables, err)
 	}
 }
 

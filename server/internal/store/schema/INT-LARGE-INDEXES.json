@@ -1,6 +1,6 @@
 {
-  "ddl_sha256": "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2",
-  "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
+  "ddl_sha256": "9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05",
+  "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online. CHANGE-012 also inventories affected G control index sets for complete new-key review; no claim of10M control density or change to inherited STRICT policy.",
   "tables": [
     {
       "table": "access_channel_rules",
@@ -4863,6 +4863,412 @@
       ]
     },
     {
+      "table": "dvr_capture_command_receipts",
+      "grain": "Conservative repeated command/history/floor grain may grow over time; no user count cap or per-user guide copy.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "recording_id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_capture_command_receipts_scope",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_capture_command_receipts_scope ON dvr_capture_command_receipts(source_id,recording_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "recording_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_incarnation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_sequence",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_dvr_capture_command_receipts_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "recording_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_incarnation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "operation_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_dvr_capture_command_receipts_2",
+          "origin": "u",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "dvr_capture_retirements",
+      "grain": "Conservative repeated command/history/floor grain may grow over time; no user count cap or per-user guide copy.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "receipt_reclaim_due_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "recording_id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_capture_retirements_receipt_due",
+          "origin": "c",
+          "partial": true,
+          "sql": "CREATE INDEX dvr_capture_retirements_receipt_due ON dvr_capture_retirements(receipt_reclaim_due_ms,recording_id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "recording_id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_capture_retirements_scope",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_capture_retirements_scope ON dvr_capture_retirements(source_id,recording_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "recording_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_dvr_capture_retirements_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "dvr_recordings",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "share_capture_recording_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_capture",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_recordings_capture ON dvr_recordings(share_capture_recording_id,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "capture_launch_id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_capture_launch",
+          "origin": "c",
+          "partial": true,
+          "sql": "CREATE UNIQUE INDEX dvr_recordings_capture_launch ON dvr_recordings(capture_launch_id) WHERE capture_launch_id IS NOT NULL",
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "state",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "start_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_due",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_recordings_due ON dvr_recordings(state,start_ms,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "guide_pin_generation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_guide_pin",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_recordings_guide_pin ON dvr_recordings(guide_pin_generation,source_id,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "owner_key",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "created_ms",
+              "descending": true
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": true
+            }
+          ],
+          "name": "dvr_recordings_owner_page",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_recordings_owner_page ON dvr_recordings(owner_key,created_ms DESC,id DESC)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "programme_image_url",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_programme_image",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_recordings_programme_image ON dvr_recordings(programme_image_url)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "receipt_reclaim_due_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_receipt_due",
+          "origin": "c",
+          "partial": true,
+          "sql": "CREATE INDEX dvr_recordings_receipt_due ON dvr_recordings(receipt_reclaim_due_ms,id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "rule_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "start_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_rule",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_recordings_rule ON dvr_recordings(rule_id,start_ms,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "programme_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "start_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_share_occurrence",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_recordings_share_occurrence ON dvr_recordings(source_id,channel_id,programme_id,start_ms,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            }
+          ],
+          "name": "dvr_recordings_source_id_fk",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX dvr_recordings_source_id_fk ON dvr_recordings(source_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_dvr_recordings_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "owner_key",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "programme_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_dvr_recordings_2",
+          "origin": "u",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
       "table": "enrichment_command_receipts",
       "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
       "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
@@ -5522,6 +5928,359 @@
       ]
     },
     {
+      "table": "lc_channels",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "inherited STRICT control table",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "active_generation_ref",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "lc_channels_generation_head",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_channels_generation_head ON lc_channels(active_generation_ref,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "enabled",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "removed",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "position",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "lc_directory",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_directory ON lc_channels(enabled,removed,position,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_lc_channels_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "lc_generation_command_receipts",
+      "grain": "Conservative repeated command/history/floor grain may grow over time; no user count cap or per-user guide copy.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "generation_id",
+              "descending": false
+            }
+          ],
+          "name": "lc_generation_command_receipts_scope",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_generation_command_receipts_scope ON lc_generation_command_receipts(channel_id,generation_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "generation_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_incarnation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_sequence",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_lc_generation_command_receipts_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "generation_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_incarnation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "operation_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_lc_generation_command_receipts_2",
+          "origin": "u",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "lc_generation_retirements",
+      "grain": "Conservative repeated command/history/floor grain may grow over time; no user count cap or per-user guide copy.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "receipt_reclaim_due_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "generation_id",
+              "descending": false
+            }
+          ],
+          "name": "lc_generation_retirements_receipt_due",
+          "origin": "c",
+          "partial": true,
+          "sql": "CREATE INDEX lc_generation_retirements_receipt_due ON lc_generation_retirements(receipt_reclaim_due_ms,generation_id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "generation_id",
+              "descending": false
+            }
+          ],
+          "name": "lc_generation_retirements_scope",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_generation_retirements_scope ON lc_generation_retirements(channel_id,generation_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "generation_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_lc_generation_retirements_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "lc_generations",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "inherited STRICT control table",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            }
+          ],
+          "name": "lc_generations_channel_id_fk",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_generations_channel_id_fk ON lc_generations(channel_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            }
+          ],
+          "name": "lc_generations_channel_scope",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE UNIQUE INDEX lc_generations_channel_scope ON lc_generations(id,channel_id)",
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "pending_base_generation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            }
+          ],
+          "name": "lc_generations_pending_base",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_generations_pending_base ON lc_generations(pending_base_generation,channel_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "receipt_reclaim_due_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "lc_generations_receipt_due",
+          "origin": "c",
+          "partial": true,
+          "sql": "CREATE INDEX lc_generations_receipt_due ON lc_generations(receipt_reclaim_due_ms,id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "status",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "lease_until_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "created_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "lc_jobs",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_jobs ON lc_generations(status,lease_until_ms,created_ms,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            }
+          ],
+          "name": "lc_one_job",
+          "origin": "c",
+          "partial": true,
+          "sql": "CREATE UNIQUE INDEX lc_one_job ON lc_generations(channel_id) WHERE status='pending'",
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_lc_generations_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
       "table": "lc_play_events",
       "grain": "retained history/events/replay and sparse user-by-item state",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -5620,6 +6379,73 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "lc_playback_refs",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "inherited STRICT control table",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "generation_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "occurrence_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "playback_id",
+              "descending": false
+            }
+          ],
+          "name": "lc_playback_refs_generation",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_playback_refs_generation ON lc_playback_refs(generation_id,occurrence_id,playback_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "lease_until_ms",
+              "descending": false
+            }
+          ],
+          "name": "lc_ref_channel",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX lc_ref_channel ON lc_playback_refs(channel_id,lease_until_ms)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "playback_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_lc_playback_refs_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
         }
       ]
     },
@@ -5962,6 +6788,443 @@
       ]
     },
     {
+      "table": "live_allocations",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "inherited STRICT control table",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "state",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "lease_until_ms",
+              "descending": false
+            }
+          ],
+          "name": "live_allocations_capacity",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_allocations_capacity ON live_allocations(source_id,state,lease_until_ms)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "state",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "live_allocations_source_state_channel",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_allocations_source_state_channel ON live_allocations(source_id,state,channel_id,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "authority",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "account_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "profile_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "kind",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "p2_62_purge_live_allocations",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX p2_62_purge_live_allocations ON live_allocations(authority,account_id,profile_id,kind,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_allocations_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "kind",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "resource_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_allocations_2",
+          "origin": "u",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "live_generations",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "inherited STRICT control table",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            }
+          ],
+          "name": "live_generations_source_id_fk",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_generations_source_id_fk ON live_generations(source_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            }
+          ],
+          "name": "live_generations_source_scope",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE UNIQUE INDEX live_generations_source_scope ON live_generations(id,source_id)",
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_generations_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "live_operation_command_receipts",
+      "grain": "Conservative repeated command/history/floor grain may grow over time; no user count cap or per-user guide copy.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            }
+          ],
+          "name": "live_operation_command_receipts_scope",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_operation_command_receipts_scope ON live_operation_command_receipts(source_id,request_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_incarnation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_sequence",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_operation_command_receipts_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_incarnation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "operation_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_operation_command_receipts_2",
+          "origin": "u",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "live_operation_receipt_diagnostics",
+      "grain": "Conservative repeated command/history/floor grain may grow over time; no user count cap or per-user guide copy.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_incarnation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "command_sequence",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "ordinal",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_operation_receipt_diagnostics_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "live_operation_retirements",
+      "grain": "Conservative repeated command/history/floor grain may grow over time; no user count cap or per-user guide copy.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "receipt_reclaim_due_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            }
+          ],
+          "name": "live_operation_retirements_receipt_due",
+          "origin": "c",
+          "partial": true,
+          "sql": "CREATE INDEX live_operation_retirements_receipt_due ON live_operation_retirements(receipt_reclaim_due_ms,request_id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            }
+          ],
+          "name": "live_operation_retirements_scope",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_operation_retirements_scope ON live_operation_retirements(source_id,request_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_operation_retirements_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "live_operations",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "inherited STRICT control table",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "generation_id",
+              "descending": false
+            }
+          ],
+          "name": "live_operations_generation_id_fk",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_operations_generation_id_fk ON live_operations(generation_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "receipt_reclaim_due_ms",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            }
+          ],
+          "name": "live_operations_receipt_due",
+          "origin": "c",
+          "partial": true,
+          "sql": "CREATE INDEX live_operations_receipt_due ON live_operations(receipt_reclaim_due_ms,request_id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            }
+          ],
+          "name": "live_operations_source_id_fk",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_operations_source_id_fk ON live_operations(source_id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "request_id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_operations_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
       "table": "live_programme_images",
       "grain": "guide airings and image children",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -6122,6 +7385,140 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "live_reminders",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "inherited STRICT control table",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "external_generation_ref",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "source_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "live_reminders_external_generation",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_reminders_external_generation ON live_reminders(external_generation_ref,source_id,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "library_generation_ref",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "channel_id",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "live_reminders_library_generation",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_reminders_library_generation ON live_reminders(library_generation_ref,channel_id,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "owner_key",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "live_reminders_owner",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_reminders_owner ON live_reminders(owner_key,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_reminders_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        }
+      ]
+    },
+    {
+      "table": "live_sources",
+      "grain": "G control/generation/pin target, included for complete new release-key review; not a10M control-density claim.",
+      "policy": "inherited STRICT control table",
+      "complete_release_indexes": [
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "active_generation",
+              "descending": false
+            },
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "live_sources_generation_head",
+          "origin": "c",
+          "partial": false,
+          "sql": "CREATE INDEX live_sources_generation_head ON live_sources(active_generation,id)",
+          "unique": false,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
+        },
+        {
+          "keys": [
+            {
+              "collation": "BINARY",
+              "column": "id",
+              "descending": false
+            }
+          ],
+          "name": "sqlite_autoindex_live_sources_1",
+          "origin": "pk",
+          "partial": false,
+          "sql": null,
+          "unique": true,
+          "access": "Original owner/sequence, same-scope uniqueness, typed FK reverse point or closed G raw keyset; no result-table permission authority."
         }
       ]
     },
@@ -11822,5 +13219,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "CHANGE-010 over adopted009/currentcanonicalmain34067408; same3table/2index delta. All adopted009 release-index entries preserved; issue child index declared in fullDDL/sourceaudit."
+  "change_control": "CHANGE-013: preserve all adopted012 release indexes; one catalog_entities_album_search(album_id,id) partial album_id IS NOT NULL, separate from preserved disc/track index. catalog_people gains one BLOB16 birth column and no index. No selected high-fanout index removed or reshaped."
 }
