@@ -40,13 +40,16 @@ func (d *ScanDriver) prepareWork(ctx context.Context, purpose CommandID, origina
 	if err = d.current(); err != nil {
 		return nil, err
 	}
-	if purpose != InventoryCreate && purpose != InventoryClaim && purpose != InventoryAccept {
+	if purpose != InventoryCreate && purpose != InventoryClaim && purpose != InventoryAccept && !basicPreparationPurpose(purpose) {
 		return nil, ErrInvalid
 	}
 	if original.RunID == "" || original.LibraryID <= 0 || original.LibraryKey == "" || original.Receipt.Identity.Sequence <= 0 || generation < 0 || p == nil || d.preparation != p || p.self != p ||
 		p.opening != d.opening || p.runtime != d.writer.effective || p.expected.Key.Domain != uint16(purpose) || p.expected.Key.ID != original.RunID ||
 		len(p.expected.Footprint) != 1 || p.expected.Footprint[0].Library != original.LibraryID {
 		return nil, ErrInvalid
+	}
+	if basicPreparationPurpose(purpose) && p.mode != scanBasicPreparation {
+		return nil, &Refusal{Code: RefusalUnqualified}
 	}
 	if err = p.current(); err != nil {
 		return nil, err
@@ -166,7 +169,7 @@ func (d *ScanDriver) excludeOldWork(ctx context.Context, turn *commandTurn, befo
 	if r.fenced || r.executor.fenced || r.executor.ambiguous {
 		return ErrResolveRequired
 	}
-	actual, err := readScanRunSnapshot(ctx, turn, before.run.scope.runID)
+	actual, err := readCheckedScanRunSnapshot(ctx, turn, before.run.scope.runID)
 	if err != nil || actual != before {
 		return errors.Join(ErrConflict, err)
 	}

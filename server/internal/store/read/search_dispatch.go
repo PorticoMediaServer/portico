@@ -234,7 +234,7 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 			if !active.Current() {
 				return errors.Join(ErrSearchSuperseded, ctx.Err())
 			}
-			return errors.Join(ctx.Err(), readCtx.Err(), custody.live.check())
+			return errors.Join(ctx.Err(), readCtx.Err(), custody.live.checkContext(readCtx))
 		}
 		if e = check(); e != nil {
 			return finish(e)

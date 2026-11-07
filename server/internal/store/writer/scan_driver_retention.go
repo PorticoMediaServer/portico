@@ -35,6 +35,7 @@ func scanOwnerRetentionFor(w *executor, registry *stmt.Registry) (*scanOwnerRete
 	allowed = append(allowed, scanRunLifecycleHistoryDefinitions()...)
 	allowed = append(allowed, scanBirthDefinitions()...)
 	allowed = append(allowed, scanSourceDefinitions()...)
+	allowed = append(allowed, scanBytePreflightDefinitions()...)
 	for _, def := range scanReceiptDefinitions() {
 		switch def.ID {
 		case scanReceiptLookup, scanReceiptAck, scanReceiptReclaimKey, scanReceiptReclaimHeader:
@@ -51,7 +52,7 @@ func scanOwnerRetentionFor(w *executor, registry *stmt.Registry) (*scanOwnerRete
 		}
 		matched := false
 		for _, definition := range allowed {
-			if reflect.DeepEqual(entry.Definition, definition) {
+			if entry.ID == definition.ID && sameNormalizedStatementDefinition(entry.Definition, definition) {
 				matched = true
 				break
 			}
@@ -77,7 +78,8 @@ func scanOwnerRetentionID(id stmt.ID) bool {
 		}
 	}
 	switch id {
-	case enrichmentEffectiveOwner, enrichmentEffectiveReceipt, enrichmentEffectiveEntity,
+	case scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanReceiptByteLengths, scanMemberByteLengths, scanReceiptOwnerPrefix, scanReceiptIdentityPrefix, scanMemberKeys,
+		enrichmentEffectiveOwner, enrichmentEffectiveReceipt, enrichmentEffectiveEntity,
 		enrichmentEffectiveInsert, enrichmentEffectiveAttach, enrichmentEffectiveRecord,
 		enrichmentEffectiveLibrary, enrichmentEffectiveLanguage, enrichmentEffectivePolicy,
 		enrichmentEffectiveProvider, enrichmentEffectiveConsent, enrichmentEffectiveSelection,
@@ -105,4 +107,17 @@ func (p *scanOwnerRetention) check(w *executor, registry *stmt.Registry) error {
 		return missingScanOwnerRetention("scan_owner_retention")
 	}
 	return nil
+}
+
+// Compare the registry's own normalized value representation. Describe changes
+// zero-arity Params/Bindings from nil to empty slices; it does not authorize SQL
+// or supply a Capture receipt. Every byte of SQL and all other frozen metadata
+// still participate in the exact comparison, and Lookup above proves Capture.
+func sameNormalizedStatementDefinition(actual, expected stmt.Definition) bool {
+	catalogue, err := stmt.Describe([]stmt.Definition{expected})
+	if err != nil {
+		return false
+	}
+	entries := catalogue.Manifest()
+	return len(entries) == 1 && reflect.DeepEqual(actual, entries[0].Definition)
 }

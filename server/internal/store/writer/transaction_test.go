@@ -181,6 +181,8 @@ func TestTransactionCancellationAndRevocationRollback(t *testing.T) {
 }
 
 type faultConnector struct {
+	connectObserved func(driver.Conn, time.Time, time.Time, error)
+	observeNative   func(driver.Conn) error // test-only read-only attestation; success returns actual conn unchanged
 	driver.Connector
 	beforeConnect     func() error
 	afterConnect      func() error
@@ -206,7 +208,14 @@ func (c *faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, err
 		}
 	}
+	var started time.Time
+	if c.connectObserved != nil {
+		started = time.Now()
+	}
 	conn, err := c.Connector.Connect(ctx)
+	if c.connectObserved != nil {
+		c.connectObserved(conn, started, time.Now(), err)
+	}
 	if c.afterConnect != nil {
 		if restoreErr := c.afterConnect(); restoreErr != nil {
 			if conn != nil {
@@ -218,7 +227,39 @@ func (c *faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.observeNative != nil {
+		if observationErr := c.observeNative(conn); observationErr != nil {
+			// Return a refusing handle to the existing snapshot owner so it retains
+			// native custody through its real Close, including any Close failure.
+			return &unattestedTestConn{testDriverConn: conn.(testDriverConn), err: observationErr}, nil
+		}
+		return conn, nil
+	}
 	return c.wrap(conn), nil
+}
+
+type unattestedTestConn struct {
+	testDriverConn
+	err error
+}
+
+func (c *unattestedTestConn) SQLiteDQS() (int, int, error) { return 0, 0, c.err }
+func (c *unattestedTestConn) ExecContext(context.Context, string, []driver.NamedValue) (driver.Result, error) {
+	return nil, c.err
+}
+func (c *unattestedTestConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+	return nil, c.err
+}
+func (c *unattestedTestConn) ReadBudgetSupported() bool {
+	native, ok := c.testDriverConn.(interface{ ReadBudgetSupported() bool })
+	return ok && native.ReadBudgetSupported()
+}
+func (c *unattestedTestConn) SQLiteLimit(id, value int) (int, error) {
+	native, ok := c.testDriverConn.(interface{ SQLiteLimit(int, int) (int, error) })
+	if !ok {
+		return 0, c.err
+	}
+	return native.SQLiteLimit(id, value)
 }
 
 func (c *faultConn) SQLiteMainFileIdentity() (uint64, uint64, error) {

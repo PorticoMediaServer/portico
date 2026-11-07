@@ -168,10 +168,12 @@ type Decision struct {
 // Unexported identity/epoch: only the private governor can mint grants. Caller
 // context/priority strings, a Lease, and a readiness hint cannot construct one.
 type Grant struct {
-	id        uint64
-	epoch     uint64
-	issuer    *ledger
-	cancelled atomic.Bool
+	id            uint64
+	epoch         uint64
+	issuer        *ledger
+	deadline      time.Time // immutable original issuer-captured admission deadline
+	cancelled     atomic.Bool
+	cancelledDone chan struct{} // immutable notification; Cancel closes exactly once
 }
 type Governor interface {
 	// Supervisors construct requests from private purpose registries. Workers

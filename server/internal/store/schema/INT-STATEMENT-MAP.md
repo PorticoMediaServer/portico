@@ -674,3 +674,37 @@ Directory pending/blocked prefix: inventory_directories_pending with job_id equa
 Protection prefix uses inventory_scan_issues_protected, literal protect=1 and job_id equality, LIMIT1. Typed issue child/pin lookup forces inventory_scan_issues_refusal(job_id,refusal_operation_id,refused_entry_kind), ALL3equalities; parent lookup forces scan_receipt_refusal_kind(run_id,operation_id,refused_entry_kind), ALL3equalities. Original receipt/floor remains its actual owner/nonce/sequence, with unique operation identity.
 Full-key issue/receipt deletion only after separately qualified original-consumer discharge; no CASCADE or ACK refund. Prefix ancestry/inverse/call budget and actual native producer recipes remain execution gates.
 No new partial predicate: INDEX-POLICY is exact adopted009. Full parent UNIQUE is required as SQLite's typed composite FK target and costs EVERY receipt, including non-refusal kinds. Directory source_revision is SQLNULL for all4new kinds; old kinds unchanged. No zero-member InventoryAccept/file/object alias.
+
+
+## CHANGE-011 proposed run-wide refused-directory identity point
+
+```sql
+SELECT 1 FROM scan_command_receipts
+ INDEXED BY scan_receipt_refused_directory_identity
+ WHERE run_id=:run AND refused_directory_identity=:native_identity
+ AND refused_directory_identity IS NOT NULL LIMIT 1;
+```
+
+run is native TEXT, identity is independently observed native BLOB bytes. No
+CAST on indexed columns; no command incarnation/ACK floor/lease/phase/revision
+filter. Adopted010 null coupling makes indexed non-NULL rows directory refusals.
+The one shared fixed statement is used by BOTH fresh discover and fresh directory
+refusal after original receipt resolution and fresh fences, before ANY effect.
+A hit refuses the fresh command; it never borrows another command's Applied.
+No runnable child or descendant diagnostics are created for a refused directory.
+
+Retain each such receipt AND its existing issue NO ACTION pin while the original
+run can enter or re-enter inventory/discovery. ACK only advances the public
+floor. Lease expiry/claim/restart and phase/status/timestamp changes alone do
+not permit removal. No issue pin release or receipt cleanup until separately
+qualified permanent original-run no-reentry and old-work exclusion AND all
+original protection-consumer discharge. Pending/paused/failed runs retain proof.
+If that final lifetime proof is unavailable, retain; no janitor/floor shortcut.
+Public Resolve stays floor-first ResultRetired; internal negative-membership
+lookup is a retained exclusion, never a public Applied result.
+
+Only one partial index is added. No table/column/FK/command kind/payload/receipt
+semantics widen. Every receipt write evaluates its predicate; directory refusals
+add/remove one secondary entry. Existing all-receipt and N1/Basic capture write
+programs need scoped refresh in embed; real opcode changes are itemized. No
+write-hold/physical or 1M qualification follows from the small delta controls.

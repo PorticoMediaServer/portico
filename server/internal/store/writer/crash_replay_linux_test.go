@@ -30,9 +30,12 @@ var crashClock = time.Date(2100, 11, 5, 10, 30, 0, 0, time.UTC)
 type crashCase struct{ Domain, Operation, Boundary, CommitFault string }
 
 type crashWitness struct {
+	Reclaim   *reclaimCrashSource
 	Effective *effectiveCrashOriginal
 	Passive   *passiveCrashProof
 	Opening   *scanOpeningCrashProof
+	Progress  *progressCrashSource
+	Security  *securityCrashSource
 
 	Version          int
 	SchemaSHA        string
@@ -223,6 +226,14 @@ func TestCrashReplayChild(t *testing.T) {
 	if err := json.Unmarshal([]byte(encoded), &witness.Case); err != nil {
 		t.Fatal(err)
 	}
+	if witness.Case.Domain == "wc_security" {
+		crashSecurityFixture(t, &witness)
+		return
+	}
+	if witness.Case.Domain == "wc_progress" {
+		crashProgressFixture(t, &witness)
+		return
+	}
 	if witness.Case.Domain == "passive_native" {
 		crashPassiveFixture(t, &witness)
 		return
@@ -233,6 +244,10 @@ func TestCrashReplayChild(t *testing.T) {
 	}
 	if witness.Case.Domain == "effective_steps" {
 		crashEffectiveStepsFixture(t, &witness)
+		return
+	}
+	if witness.Case.Domain == "wc_reclaim" {
+		crashReclaimFixture(t, &witness)
 		return
 	}
 	if witness.Case.Domain == "inventory" {

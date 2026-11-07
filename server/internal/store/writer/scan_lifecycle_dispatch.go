@@ -8,11 +8,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-// The original constructors admit at most 32 MiB of complete canonical input.
-// Reserve the existing whole-result copy envelope BEFORE any native original
-// or saved scalar body is decoded. This is a conservative structural forecast,
-// not a production memory allocation or permission to borrow another partition.
-const scanLifecycleHistoryBytes = uint64(64<<10) + uint64(maxCanonicalRequestBytes)*32
+// Fixed scalar preflight workspace only. Saved native payloads are forecast
+// from actual same-snapshot byte lengths before copying, under the SAME grant.
+const scanLifecycleHistoryBytes = scanByteFixedWorkspace
 
 type scanLifecycleCommandResult struct {
 	Outcome ReceiptOutcome
@@ -30,7 +28,7 @@ func scanLifecycleHistoryCommandDefinitions() []stmt.Definition {
 			defs = append(defs, def)
 		}
 	}
-	return defs
+	return append(defs, scanHistoryByteDefinitions()...)
 }
 
 // Trusted startup composes both explicit profiles into the SAME registry and
@@ -146,8 +144,8 @@ func (r *effectiveRuntime) runScanLifecycleHistory(ctx context.Context, w *Write
 	if r == nil || w == nil || w.effective != r || (purpose != InventoryCreate && purpose != InventoryClaim) {
 		return value, acknowledged, ErrInvalid
 	}
-	out, acknowledged, err := r.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack,
-		&inventoryInvocation{disclosure: cap, request: q, lifecycle: purpose})
+	out, acknowledged, err := r.dispatchCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack,
+		&inventoryInvocation{disclosure: cap, request: q, lifecycle: purpose}, nil)
 	return out.lifecycle, acknowledged, err
 }
 

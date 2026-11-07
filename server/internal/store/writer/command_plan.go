@@ -19,14 +19,14 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 			defs = append(defs, def)
 		}
 	}
-	return defs
+	return append(defs, inventoryHistoryByteDefinitions()...)
 }
 
 // freezeCommandPlan is private composition, not caller budget admission or a
 // qualification claim. Reserve every possible registered use, setup and
 // terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal {
+	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
 	if purpose != InventoryAccept && plan.inventoryMemory != (inventoryMemoryBudget{}) {
@@ -41,9 +41,6 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && plan.basicMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
-	if (purpose == BasicStage || purpose == BasicSeal) && plan.basicMemory == (commandMemoryBudget{}) {
-		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
-	}
 	if err := validateMemoryPartition(plan.basicMemory, plan.need[governor.MemoryBytes], "basic_memory_partition"); err != nil {
 		return effectivePlan{}, err
 	}
@@ -54,6 +51,24 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 		return effectivePlan{}, err
 	}
 	if err := validateMemoryPartition(plan.scanLifecycleMemory, plan.need[governor.MemoryBytes], "scan_lifecycle_memory_partition"); err != nil {
+		return effectivePlan{}, err
+	}
+	if purpose != ProgressAccept && plan.wcProgressMemory != (commandMemoryBudget{}) {
+		return effectivePlan{}, invalid("memory_purpose")
+	}
+	if err := validateMemoryPartition(plan.wcProgressMemory, plan.need[governor.MemoryBytes], "wc_progress_memory"); err != nil {
+		return effectivePlan{}, err
+	}
+	if purpose != SecurityAccept && plan.wcSecurityMemory != (commandMemoryBudget{}) {
+		return effectivePlan{}, invalid("memory_purpose")
+	}
+	if err := validateMemoryPartition(plan.wcSecurityMemory, plan.need[governor.MemoryBytes], "wc_security_memory"); err != nil {
+		return effectivePlan{}, err
+	}
+	if purpose != ProgressReceiptReclaim && plan.wcReclaimMemory != (commandMemoryBudget{}) {
+		return effectivePlan{}, invalid("memory_purpose")
+	}
+	if err := validateMemoryPartition(plan.wcReclaimMemory, plan.need[governor.MemoryBytes], "wc_reclaim_memory"); err != nil {
 		return effectivePlan{}, err
 	}
 	// Each profile must itself carry a real matching registration. Another

@@ -13,7 +13,7 @@ import (
 // The enclosing synchronous ConsumeForeground callback owns and joins these
 // windows as well as the executor/encoder; none can outlive output custody.
 func (d *SearchDispatcher) permissionFence(ctx context.Context, request governor.Request, deadline time.Time, output BrowseOutput, in BrowseInput, final bool, cost *BrowseReadResult) (fence browseFence, err error) {
-	if err = output.live.check(); err != nil {
+	if err = output.live.checkContext(ctx); err != nil {
 		return fence, err
 	}
 	request.Deadline = deadline
@@ -26,7 +26,7 @@ func (d *SearchDispatcher) permissionFence(ctx context.Context, request governor
 			} else {
 				cost.LookupStatements++
 			}
-			if e := output.live.check(); e != nil {
+			if e := output.live.checkContext(scope.Context()); e != nil {
 				return nil, e
 			}
 			return scope.Query(statementID(name), args...)
@@ -57,7 +57,7 @@ func (d *SearchDispatcher) permissionFence(ctx context.Context, request governor
 	if e1 != nil || e2 != nil || !at.Before(expires) || !at.Before(horizon) {
 		return browseFence{}, ErrDenied
 	}
-	return fence, output.live.check()
+	return fence, output.live.checkContext(ctx)
 }
 
 // Include all native executor work in addition to the dispatcher's own first

@@ -10,16 +10,34 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
+type governedFixtureMaintenance struct {
+	policy governor.WALPolicy
+	need   governor.Amounts
+}
+
 type governedFixtureProfile struct {
 	recipe      turnRecipe
 	memoryBytes int64
 }
 
 func governedFixture(t *testing.T, now func() time.Time, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
-	return governedFixtureResources(t, now, governor.Amounts{}, profiles...)
+	return governedFixtureResourcesAndForeground(t, now, governor.Amounts{}, nil, profiles...)
 }
 
 func governedFixtureResources(t *testing.T, now func() time.Time, extra governor.Amounts, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
+	return governedFixtureResourcesAndForeground(t, now, extra, nil, profiles...)
+}
+
+func governedFixtureWithForeground(t *testing.T, now func() time.Time, foreground *governor.Config, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
+	return governedFixtureResourcesAndForeground(t, now, governor.Amounts{}, foreground, profiles...)
+}
+
+func governedFixtureResourcesAndForeground(t *testing.T, now func() time.Time, extra governor.Amounts, foreground *governor.Config, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
+	t.Helper()
+	return governedFixtureComposition(t, now, extra, foreground, nil, profiles...)
+}
+
+func governedFixtureComposition(t *testing.T, now func() time.Time, extra governor.Amounts, foreground *governor.Config, maintenance *governedFixtureMaintenance, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
 	t.Helper()
 	profile := governedFixtureProfile{testRecipe(), 65536}
 	if len(profiles) > 2 {
@@ -31,7 +49,14 @@ func governedFixtureResources(t *testing.T, now func() time.Time, extra governor
 	if profile.memoryBytes <= 0 {
 		t.Fatal("invalid test memory")
 	}
-	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
+	policy := governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second}
+	if maintenance != nil {
+		if maintenance.policy.HardBytes != policy.HardBytes || maintenance.policy.ReserveBytes != policy.ReserveBytes || maintenance.policy.SoftDebtBytes != policy.SoftDebtBytes || maintenance.policy.ActivePressureBytes != policy.ActivePressureBytes || maintenance.policy.MaxSampleAge != policy.MaxSampleAge {
+			t.Fatal("maintenance changed writer WAL limits")
+		}
+		policy = maintenance.policy
+	}
+	wal, err := governor.NewWALGate(policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +84,16 @@ func governedFixtureResources(t *testing.T, now func() time.Time, extra governor
 			}
 		}
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 4, Now: now, WAL: wal})
+	if maintenance != nil {
+		partitions[governor.Recovery] = maintenance.need
+	}
+	cfg := governor.Config{Partitions: partitions, MaxGrantsPerClass: 4, Now: now, WAL: wal}
+	if foreground != nil {
+		cfg.Foreground = foreground.Foreground
+		cfg.Partitions[governor.Foreground] = foreground.Partitions[governor.Foreground]
+		cfg.MaxGrantsPerClass = foreground.MaxGrantsPerClass
+	}
+	g, a, err := governor.New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

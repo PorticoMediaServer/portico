@@ -393,3 +393,239 @@ with Wave1/2 or `n1-profile-observations-v1`.
 Counters stay raw/null, including pages/header-sync/xSync/LIVE gaps. The exact
 owner hook dependency and source epoch must be pinned for any later QL run.
 There is no automatic run, limit increase or qualification scheduling here.
+
+
+## Paired N1 and foreground component
+
+`TestN1PairedMeasurement` is a separate opt-in test target. Build/run the writer
+test binary from this package directory, set `PORTICO_WRITER_N1_PAIRED=1` and
+`PORTICO_WRITER_N1_PAIRED_CONFIG` to the same closed five-field config used above,
+and select `-test.run=^TestN1PairedMeasurement$ -n1-paired`. Explicit flag without
+its companion, or companion without flag, fails. `fixtures` means 1..64 measured
+fresh N1 originals; `-n1-paired-warmup` requires 1..64 actual warmup originals.
+`-n1-paired-every` declares the bounded1ms..1s offer interval (default100ms),
+and `-n1-paired-route=browse|detail|playback|continue|all` selects one route or a
+four-entry repeating foreground pattern. `-n1-paired-cohort=timing|native-counters`
+remains separate; `-n1-paired-cadence=realistic|accelerated` is an explicit
+population declaration. There is no native/remote run or qualification scheduling here.
+
+The composition reuses ONE existing N1 seed/executor and progressive owner,
+attaches the factored RD2 foreground seed outside custody, and captures BOTH
+complete registries on that same canonical database before measurement. Reader
+connections use ExistingFile and the bundled native main-file identity getter;
+every actual physical connection must match the owner's observed native
+device/inode. The existing test connector seam supplies the read-only
+attestation; no opening permit is added. A refused attestation stays inside
+the snapshot owner through actual native cleanup, with unobserved facts null. The
+external driver receives opaque test-only handles and typed readers, never SQL,
+connections, frames, grants or a new issuer. The actual read adapters and shared
+ConsumeForeground remain unchanged. N1 uses library7; authenticated reads use
+the existing library1 fixture on the SAME file, not the same item/library.
+
+The two existing fixture configs are composed without new resource numbers:
+N1's actual Work,25msHOLD,4MiB preparation/4MiB reserve/class amounts remain;
+RD2 retains its existing LIVE profile,80MiB+bookkeeping partition,12MiB read,
+8MiB output,1s ready and3s protected deadlines. The combined fixture uses RD2's
+existing16 grant-metadata slots; one serial N1 worker still admits one8MiB writer
+holding in its unchanged8MiB class partition. This is test composition, not a
+new qualified resource/production profile. Default standalone fixtures retain
+their old configs. Only the known foreground class may remain charged during
+N1's own joined/snapshot checks; all other holdings still stop progression.
+All class holdings must be zero after both streams and owner closes join.
+
+Foreground preparation derives original deadlines from the original scheduled
+offer, and uses its real trusted timestamp for Now. No frozen clock is accepted.
+The existing bounded scheduler runs one serial N1 chain worker and one serial
+foreground worker; it retains missed/unserved offers and errors and never retries
+to fill a successful population. N1 preserves each original's BEGIN/Resolve/ACK
+owner intervals and actual physical ordinals. Foreground results keep separate
+read/consumer/scope errors, nullable native/window facts, bounded summaries and
+scheduled-ready through full consumer/cleanup timing. The actual consumer JSON
+encodes the bounded page to a joined discard sink; this is encoding work, not
+HTTP transfer, playback start or first-frame proof. No page escapes consumption.
+
+Raw `portico-n1-component-v1` records declare
+`component_layout=n1-paired-foreground-v1`. Serialized post-custody records include
+N1 originals/turns, each foreground observation and nested unchanged sustained-v1
+scheduler records; their own IDs/ordinals/actual deadlines remain distinct.
+Source/file/config/binary/host/database identities are retained. A setup failure
+keeps a composition_start/final prefix with missing owners null; any action,
+sink, schedule, native-return or retirement gap makes the full cell incomplete.
+Reader idle Close timing is unavailable with a reason; Snapshots.Close return
+is not relabelled an independently observed native Close. Process heap/RSS/
+allocation samples include concurrent reader/observer allocations, not isolated
+N1 LIVE peaks. This population is separate from previous N1 waves/methods.
+Readiness remains false; counters stay raw/null. No reducer or qualification
+verdict is produced.
+
+The read fixture's source journals and default data are factored byte-for-byte;
+existing browse/foreground captured plans are unchanged. A bounded setup-only
+attachment is consumed by the exact test owner once, outside HOLD. The paired
+movie cell reuses N1's already-present identical kind1 and omits the existing
+two-kind seed statement; it does not add a kind2 claim or repair/delete rows.
+Paired preparation rebases the existing synthetic authority/data time offsets
+ONCE to actual time.Now and records that temporal origin; standalone RD2 seeds
+remain unchanged. There is no renewal during the run, new issuer or repair of
+failed inputs. Original request deadlines remain absolute and unchanged; actual
+expiry remains a failed cell.
+
+## EC2 sustained component attachment
+
+`TestEC2SustainedMeasurement` reuses the merged `N1PairedComponent` fixture,
+executor, complete captured registry, governor, original Resolve/ACK progression,
+warm persistent writer and all four real foreground Actions on the same file.
+It adds the `EC2Streams` schedule and read-only typed WAL snapshots. The existing
+N1/RD2 synthetic profiles, work limits, grant recipes and 128-total-original
+fixture bound are unchanged; the target accepts 1..64 measured plus 1..64 actual
+warmup originals. There is no production issuer, profile, permit or enable.
+The original N1 owner records, raw failure prefixes and final custody/native
+joins remain authoritative. A chain's scheduler wall interval is not HOLD or
+COMMIT. Raw physical ordinals continue across warmup and every actual role.
+
+Every measured BEGIN, saved-original Resolve and ACK has an `ec2_wal_turn`
+record joining the SAME original reference, actual owner attempt ID/physical
+ordinal and before/after `WALSnapshot`. These probes execute outside HOLD and
+retain parser failures, nullable native facts, bounded file/header probes,
+allocation, salt/frame/backfill/debt and gate-event metadata. A failed pre-probe
+has a null physical ID; it does not manufacture an attempt. A returned failed
+owner turn still gets a post-probe, even after cancellation. Observer error is
+separate from the saved owner error; it stops progression. The timer observer
+is separate. Probe equality is not atomicity, reset or owner-opening proof.
+Header-sync/xSync intervals remain null with a reason. This instrumentation and
+its file/serialization cost are explicit component overhead, never subtracted
+from a physical command or attributed as header sync.
+
+Default runs skip the measurement target. Requested opt-in requires BOTH
+`-ec2-sustained=true` and `PORTICO_WRITER_EC2=1`, plus
+`PORTICO_WRITER_EC2_CONFIG` naming the existing strict five-field JSON config
+(run_id, host_epoch, source_commit, output_path, fixtures). Missing companion
+configuration fails. `-ec2-warmup=1..64`, `-ec2-cohort=timing|native-counters`,
+and `-ec2-cadence=realistic|accelerated` declare distinct populations. Writer
+spacing is 1ms..30s, the window <=2h and total scheduled offers <=65536.
+The writer pattern has exactly one inventory entry and <=32 entries; a fresh
+original is offered once per pattern. Readers remain one serial four-route
+worker; no parallel second writer is added.
+
+The default requested pattern is `inventory,security`, with concurrent CP and
+recovery requested. Current main supplies only the N1/read/WAL attachment:
+Effective, native WC and GV concurrent/recovery bindings are missing. Their
+requested offers emit failed STUBs and stop all streams. A bool or callback
+cannot open those native paths. `ec2_start` preserves requested patterns and
+missing capabilities; WAL-BOUND/WAL-RESET coverage is explicitly false.
+
+For an explicit partial component, QL may select
+`-ec2-writer-pattern=inventory -ec2-passive-every=0 -ec2-recovery-every=0`;
+this omits the missing populations by declaration, never by success filtering.
+Other spacings are `-ec2-writer-every`, `-ec2-reader-every`, `-ec2-wal-every`.
+`-ec2-checkpoint-mode=serialized|concurrent` is metadata only. A successful
+subset final is not whole EC2 coverage, a real-rate/security claim or a reset
+measurement. `ec2-sustained-component-v1` stays separate from earlier N1 waves,
+DIRECTIONAL/qualification=false, readiness=false. No new host run is requested.
+
+`TestEC2N1WALComposition` is a tiny disposable functional control for the actual
+N1 chain, all three physical WAL joins and one real reader; it does not measure
+budgets. Run focused controls on the GitHub lane-focused runner with Go1.26.10;
+its default-skipped measurement target is not execution evidence.
+## EC5 component memory extension
+
+This extends QL's existing process checkpoint/host/cgroup scopes on the SAME
+`N1PairedComponent`; it does not create a second issuer, fixture, SQL path,
+connection opener, resource profile or permit. `-ec5-memory=true` requires
+`PORTICO_EC5_MEMORY=1` and the separate `native-counters` cohort. The owner
+verifies its actual cgroup with `qual.CaptureHost` before creating its fixture.
+The requested assigned cap is literally 2,000,000,000 bytes, with zero swap;
+page-rounded effective limits and ancestors are retained. This is distinct from
+physical 2GB/M=1.6GB, and leaves all existing synthetic N1/RD2 limits unchanged.
+
+The paired scheduler adds one process-only `MEMORY` stream (20ms..1s, default
+100ms) using the existing `n1Memory()` RSS/VmHWM/Go heap/allocation/GC helpers.
+Every observation has its actual interval and no HOLD/COMMIT/owner Evidence.
+Instrumentation and Go runtime pauses remain included; no GC, memory limit,
+subtraction or runtime repair is introduced. Fixture/pre-warmup and joined-close
+checkpoints remain separate. Lifetime VmHWM and sampled current heap/RSS values
+are not incremental LIVE ownership peaks.
+
+Writer SQLite cache/schema/statement CURRENT bytes use the existing per-turn
+owner snapshots OUTSIDE HOLD. No new goroutine polls native connection pointers.
+The existing test-only reader Connect seam records its actual native Connect
+interval and one synchronous current-memory snapshot before returning the
+connection to its normal snapshot owner. Counter-sampling cost is separately
+bracketed. Its bounded 16-entry open ledger preserves failed openings/null native
+facts and marks overflow incomplete. Initial writer native Connect, complete
+usable-open/Capture cost, reader idle Close and CP lifecycle/aggregate native
+peaks remain null with reasons; Setup and raw DBStatus high0 cannot supply them.
+
+`memory_fixture` states the existing small N1+foreground population, actual
+observed database table cardinalities and explicit unavailable per-library/
+scalable population. There is no 1M or whole-server claim. SC/helpers, TMDB,
+media/legacy and complete native lifecycle remain missing bindings. The merged
+EC2 composer is attached through `TestEC5SustainedMemoryMeasurement`; its native
+WC/Effective and GV concurrent/recovery requests retain their failed bindings.
+No unmerged #1285 code is imported.
+
+`ci/ec5_memory.py` runs a precompiled test binary in ONE new private cgroup-v2
+leaf on a disposable standard GitHub runner. It sets/readbacks the 2e9 cap and
+zero swap BEFORE exec, drops root to the runner UID, rejects stricter ancestors,
+and collects memory.current/peak/stat/events outside that leaf at 100ms. The leaf
+survives process exit so the final kernel charged peak includes teardown/tails.
+It preserves signals/errors/OOM/unknowns, joins the child and kernel populated
+state before deleting ONLY its own unique leaf. No global controller is enabled.
+The controller remains outside the cap; child observer costs remain inside.
+Raw charged file/kernel memory is never subtracted to manufacture a cap pass.
+Peak-vs-cap/reserve numbers are planning comparisons, not whole-server fit.
+
+`TestEC5PairedMemoryMeasurement` invokes the ONE existing paired measurement
+entrypoint/config and original deadlines/consumer/error/join behavior. Use the
+existing strict paired config with `ci/ec5_memory.py --binary ABS_TEST_BINARY
+--output OWN_ARTIFACT_DIR --target paired --config ABS_PAIRED_CONFIG`; run from
+the writer package through noninteractive sudo on a disposable runner. Default
+product/test runs skip this target. `--target sustained --config ABS_CONFIG`
+uses the merged EC2 target with its default mixed-cadence failed bindings.
+`--sustained-subset` explicitly selects the existing N1/read/WAL component only;
+it cannot claim FULL, checkpoint or reset coverage. No host measurement is
+requested by this source change.
+
+Functional proof uses the fixed lane-focused `ec5-memory` harness, Go1.26.10:
+it starts a tiny real N1/read child inside that owned cgroup and checks actual
+parent execution, cap/zero swap, kernel peak, process join and leaf removal.
+Its source and binary remain component controls, qualification=false.
+
+## EC3 user foreground-write wait
+
+The test-only EC2 attachment accepts `-ec3-foreground-write-every=1ms..1min`
+(default0/off) and a closed `-ec3-foreground-write-pattern` drawn from
+`progress_capture,progress_drain,security` (default drain/security). This creates
+one independent bounded submission stream while the scan stream and original
+four-route reader stream run. They share the SAME actual native writer/governor;
+no driver lock, priority queue, retry, issuer or second physical writer is added.
+Scan pattern must then contain only Inventory/Effective, so WC inputs are not
+concurrently reused by two workers. At most4096 planned foreground requests;
+overflow stops and retains incomplete coverage. WC's actual missing Actions
+remain failed STUBs with null owner intervals, never synthetic FULL writes.
+
+`ec3-foreground-write-wait-v1` records each original mutation's actual driver
+Action-entry submission, original scheduled offer/lag, owner HOLD start, actual
+COMMIT return and physical return. Queue is the pre-HOLD interval including
+preparation/admission/lock waiting; no mutex-only timestamp is invented.
+`QueueWaitNS + HoldToCommitNS = SubmissionToCommitNS`. Full physical HOLD can
+extend past COMMIT into terminal/retirement and is reported separately.
+Facade return and later Resolve/ACK never reconstruct missing commit evidence.
+The original typed Result, requested receipt, errors/refusals and owner Evidence
+remain raw; only the first original-mutation observation counts as that write.
+Security's actual class stays Recovery/FULL, progress Foreground/NORMAL.
+
+The report supplies nearest-rank p50/p99/max for queue, service-to-commit,
+submission-to-commit and physical HOLD, overall AND per requested operation.
+Observed-zero queue is retained. Known failed/replay tails remain in explicit
+partial distributions; null/error/refusal/unserved/missed/overflow gaps withhold
+whole-window coverage and the nullable observed-p99<=50ms comparison. A rare slow
+security write cannot be hidden by many fast progress samples. This comparison
+is descriptive, qualification=false, not a new deadline/profile/admission rule.
+
+The original read/consumer/deadline/evidence stream is unchanged.
+`ReadsUnaffected=null` until QL performs its independent paired foreground-only
+comparison. Concurrent request return order is not a writer physical ordinal:
+future WC owner-proven IDs/order must be retained; none is manufactured here.
+No native foreground-write qualification is executable until WC's same-owner
+Actions/diagnostics land. Frozen clocks, raw SQL and failed-cell p99 claims remain
+forbidden. Functional controls run on GitHub with Go1.26.10.

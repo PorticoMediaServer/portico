@@ -39,13 +39,18 @@ func inventoryFreshRequiredBytes(c *inventoryAcceptCommand) (uint64, error) {
 		}
 		payload += uint64(len(value))
 	}
-	scope := uint64(len(r.source.id)) + 1 + uint64(len(r.source.incarnation))
-	if scope > 1024 || len(f.changeToken) > 4096 {
+	return inventoryFreshWorkspaceBytes(payload, uint64(len(r.source.id))+1+uint64(len(r.source.incarnation)),
+		uint64(len(f.objectIdentity)), uint64(len(f.assetPath)), uint64(len(f.changeToken)))
+}
+
+// One allocation-free arithmetic implementation is shared with W's funded
+// pre-constructor preparation. Inputs are byte counts, never authority/budgets.
+func inventoryFreshWorkspaceBytes(payload, scope, object, assetPathBytes, changeBytes uint64) (uint64, error) {
+	if payload > maxCanonicalRequestBytes || assetPathBytes > payload || object > payload || scope > 1024 || changeBytes > 4096 || changeBytes > payload {
 		return 0, invalid("inventory_evidence_shape")
 	}
-	object := uint64(len(f.objectIdentity))
 	if object == 0 {
-		object = 5 + uint64(len(f.assetPath)) // evidence-only path: fallback
+		object = 5 + assetPathBytes // evidence-only path: fallback
 	} else if object < 24 {
 		object = 24 // longest stable ino:uint64 projection
 	}
@@ -54,10 +59,10 @@ func inventoryFreshRequiredBytes(c *inventoryAcceptCommand) (uint64, error) {
 	}
 	// Existing total-input preflight bounds every term; keep the arithmetic
 	// independently checked so widening that policy cannot wrap this forecast.
-	if object > (math.MaxUint64-296)/6-scope-5-uint64(len(f.changeToken)) {
+	if object > (math.MaxUint64-296)/6-scope-5-changeBytes {
 		return 0, inventoryRequestCapacity()
 	}
-	jsonBytes := uint64(296) + 6*(5+scope+object+uint64(len(f.changeToken)))
+	jsonBytes := uint64(296) + 6*(5+scope+object+changeBytes)
 	if jsonBytes > (math.MaxUint64-65536-4*payload)/16 {
 		return 0, inventoryRequestCapacity()
 	}
@@ -104,7 +109,7 @@ func prepareInventoryFreshObservation(c *inventoryAcceptCommand) (inventoryObjec
 		f.assetPath[len(prefix):] != f.relativePath || path.Dir(f.relativePath) != r.directory.path {
 		return zero, ErrConflict
 	}
-	gotDigest, err := canonicalRequestDigest(InventoryAccept, 1, c.identity, r)
+	gotDigest, err := canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, c.identity, r)
 	if err != nil || gotDigest != c.digest {
 		return zero, ErrConflict
 	}

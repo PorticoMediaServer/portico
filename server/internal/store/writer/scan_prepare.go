@@ -51,7 +51,7 @@ type InventoryFilenameInput struct {
 	Directory                                                                      bool
 	Size, ModifiedNS                                                               int64
 	Title, SortTitle, SortKey, SortHead, SortKeyKeepArticles, SortHeadKeepArticles string
-	Year                                                                           int64
+	Year, Part                                                                     int64 // Part0 is a whole source; positive Part is the legacy multipart link index
 	MetadataLanguage                                                               string
 }
 
@@ -76,7 +76,7 @@ func NewInventoryAcceptCommand(identity CommandIdentity, input InventoryAcceptIn
 	files := [1]inventoryFile{{sourceKey: f.SourceKey, relativePath: string(f.RelativePath), assetPath: string(f.AssetPath),
 		objectIdentity: f.ObjectIdentity, revision: f.Revision, changeToken: f.ChangeToken, directory: f.Directory, size: f.Size, modifiedNS: f.ModifiedNS,
 		title: f.Title, sortTitle: f.SortTitle, sortKey: f.SortKey, sortHead: f.SortHead, sortKeyKeepArticles: f.SortKeyKeepArticles,
-		sortHeadKeepArticles: f.SortHeadKeepArticles, year: f.Year, metadataLanguage: f.MetadataLanguage}}
+		sortHeadKeepArticles: f.SortHeadKeepArticles, year: f.Year, part: f.Part, metadataLanguage: f.MetadataLanguage}}
 	s, r, d := input.Source, input.Run, input.Directory
 	in := inventoryAcceptRequest{variant: inventoryOrdinaryBatch,
 		scope:  inventoryScope{runID: input.Scope.RunID, libraryKey: input.Scope.LibraryKey, libraryID: input.Scope.LibraryID},

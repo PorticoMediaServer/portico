@@ -81,9 +81,9 @@ RETURNING id,metadata_incarnation,revision,playback_origin_incarnation,playback_
 		},
 		{
 			ID: scanInventoryLink, Kind: stmt.Write,
-			SQL:     `INSERT INTO catalog_asset_links(library_id,entity_id,asset_id) VALUES(?,?,?)`,
-			Params:  []stmt.Param{integer("library_id"), integer("subject_id"), integer("asset_id")},
-			Cohorts: []stmt.Cohort{{Name: "ordinary_same_library_link", Bindings: []any{int64(1), int64(1), int64(1)}}},
+			SQL:     `INSERT INTO catalog_asset_links(library_id,entity_id,asset_id,part_index) VALUES(?,?,?,?) RETURNING part_index`,
+			Params:  []stmt.Param{integer("library_id"), integer("subject_id"), integer("asset_id"), integer("part_index")},
+			Cohorts: []stmt.Cohort{{Name: "ordinary_same_library_link", Bindings: []any{int64(1), int64(1), int64(1), int64(0)}}},
 		},
 	}
 	for i := range definitions {

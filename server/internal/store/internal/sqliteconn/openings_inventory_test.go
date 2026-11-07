@@ -36,7 +36,11 @@ var openingConstraints = map[string]string{
 	"internal/sqliteconn/ownership_lifetime_linux_test.go": "", // implicit _linux suffix; real SIGKILL/native lifetime witnesses are Linux-only
 
 	"writer/crash_inventory_history_linux_test.go": "", // implicit _linux suffix; history SIGKILL/reopen controls are Linux-only
+	"writer/crash_reclaim_linux_test.go":           "", // implicit _linux suffix; native cleanup SIGKILL/reopen witnesses
 	"writer/scan_opening_falsifier_linux_test.go":  "", // implicit _linux suffix; native file replacement/SIGKILL witnesses are Linux-only
+	"writer/crash_progress_linux_test.go":          "", // implicit _linux suffix; actual SIGKILL/reopen component witnesses are Linux-only
+	"writer/crash_progress_oracle_linux_test.go":   "", // implicit _linux suffix; shares the native progress witness model
+	"writer/crash_security_linux_test.go":          "", // implicit _linux suffix; native FULL SIGKILL/reopen witnesses
 }
 
 func openingPhysicalSources(root string) (map[string]bool, error) {

@@ -3,7 +3,6 @@ package read
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/schematest"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -106,27 +106,13 @@ func composeReadFixture(t *testing.T, f *browseFixture, definitions []stmt.Defin
 
 func newBrowseSource(t *testing.T) *browseFixture {
 	t.Helper()
-	f := &browseFixture{path: schematest.Clone(t), input: BrowseInput{Database: "fixture-db-1", TokenHash: "token", Library: 1, Kind: 1, Limit: 40, Now: time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC)}}
-	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
-	db, _, err := sqliteconn.Open(t.Context(), f.path, cfg)
-	if err != nil {
-		t.Fatal(err)
+	return attachReadSource(readfixture.Browse(t))
+}
+func attachReadSource(source *readfixture.Source) *browseFixture {
+	f := &browseFixture{path: source.Path(), conn: source.Conn(), input: BrowseInput{Database: "fixture-db-1", TokenHash: "token", Library: 1, Kind: 1, Limit: 40, Now: time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC)}}
+	for _, fact := range source.Facts() {
+		f.facts = append(f.facts, browseFact{fact.ID, fact.Key, fact.Keep, fact.Retired, fact.Age})
 	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Error(err)
-		}
-	})
-	f.conn, err = db.Conn(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := f.conn.Close(); err != nil {
-			t.Error(err)
-		}
-	})
-	seedBrowse(t, f)
 	return f
 }
 
@@ -135,58 +121,6 @@ func (f *browseFixture) exec(t *testing.T, q string, args ...any) {
 	if _, err := f.conn.ExecContext(t.Context(), q, args...); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func seedBrowse(t *testing.T, f *browseFixture) {
-	t.Helper()
-	for _, q := range []string{
-		`INSERT INTO identity_state(singleton,sign_in_kind) VALUES(1,'local')`,
-		`INSERT INTO accounts(id,username,password_hash,profile_id) VALUES('a','alice',x'00','p'),('b','bob',x'00','q')`,
-		`INSERT INTO direct_memberships(account_id,role,allowed_libraries) VALUES('a','member','["movies"]'),('b','member','["other"]')`,
-		`INSERT INTO direct_profiles(id,account_id,name) VALUES('p','a','Alice'),('q','b','Bob')`,
-		`INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('d','a','i','fixture','test','test','1','2026-11-05T00:00:00Z','2026-11-05T00:00:00Z')`,
-		`INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,command_member_incarnation,command_profile_lifetime,command_incarnation) SELECT 'f','s','a','p','local','member',1,'2026-11-07T00:00:00Z',1,'d',m.incarnation,p.lifetime,x'00800000000000000000000000000001' FROM direct_memberships AS m JOIN direct_profiles AS p ON p.account_id=m.account_id WHERE m.account_id='a' AND p.id='p'`,
-		`INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES('token','f',1,'2026-11-07T00:00:00Z')`,
-		`INSERT INTO libraries(id,name,kind,root) VALUES('movies','Movies','movie','/media'),('other','Other','movie','/media')`,
-		`INSERT INTO catalog_libraries(id,library_id,root) VALUES(1,'movies','/media'),(2,'other','/media')`,
-		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0),(2,'show',0,1,1,1,0)`,
-	} {
-		f.exec(t, q)
-	}
-	f.exec(t, "BEGIN")
-	for id := int64(1); id <= 1100; id++ {
-		key, keep := "a", "The A"
-		if id%2 == 0 {
-			key = "A"
-			keep = "the a"
-		}
-		if id > 1050 {
-			key = "b"
-			keep = "B"
-		}
-		if id <= 5 {
-			key = ""
-			keep = ""
-		}
-		retired := id%9 == 0
-		var age any
-		var agePtr *int64
-		if id%3 != 0 {
-			v := int64(id % 20)
-			age = v
-			agePtr = &v
-		}
-		f.facts = append(f.facts, browseFact{id: id, key: key, keep: keep, retired: retired, age: agePtr})
-		library := int64(1)
-		if id == 1040 {
-			library = 2
-		}
-		public := make([]byte, 16)
-		binary.LittleEndian.PutUint64(public, uint64(id))
-		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,?,1)`, id, public, library)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired,admission_own_age) VALUES(?,?,?,1,?,?,?,?,?,0,?,?,?,?)`, id, public, library, fmt.Sprintf("Title %d", id), key, key, keep, keep, public, public, retired, age)
-	}
-	f.exec(t, "COMMIT")
 }
 
 func (f *browseFixture) window(t *testing.T, ctx context.Context, in BrowseInput) (BrowsePage, BrowseReadResult, error) {

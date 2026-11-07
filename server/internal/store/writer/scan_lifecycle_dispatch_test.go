@@ -14,7 +14,7 @@ import (
 )
 
 // Existing native receipt populations and actual complete Capture; virtual
-// clock/resource forecasts only. The large declared copy reserve is structural
+// clock/resource forecasts only. The declared copy reserve is structural
 // fixture input, never allocated live bytes or an installed production budget.
 func scanLifecycleDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Authority, map[string]ScanReceiptRequest, effectivePlan) {
 	t.Helper()
@@ -25,10 +25,10 @@ func scanLifecycleDispatchFixture(t *testing.T) (*Writer, *executor, *governor.A
 		t.Fatal(err)
 	}
 	p := effectiveFixturePlan()
-	p.need[governor.MemoryBytes] = int64(scanLifecycleHistoryBytes) + 4<<20
+	p.need[governor.MemoryBytes] = 8 << 20
 	history := p
 	history.steps = nil
-	history.scanLifecycleMemory = commandMemoryBudget{scanLifecycleHistoryBytes, 4 << 20}
+	history.scanLifecycleMemory = commandMemoryBudget{4 << 20, 4 << 20}
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
 	for _, def := range scanLifecycleHistoryCommandDefinitions() {
@@ -151,9 +151,9 @@ func TestScanLifecycleDispatchClosedScopePlansAndMiss(t *testing.T) {
 		t.Fatal("unproved registry installed", err)
 	}
 	bad = plan
-	bad.scanLifecycleMemory = commandMemoryBudget{4 << 20, uint64(bad.need[governor.MemoryBytes]) - 4<<20}
+	bad.scanLifecycleMemory = commandMemoryBudget{scanByteFixedWorkspace - 1, uint64(bad.need[governor.MemoryBytes]) - scanByteFixedWorkspace + 1}
 	if err := composeScanLifecycleHistory(t.Context(), r, bad, plan); err == nil || r.registry != registry || r.lifecyclePlans != ([2]*effectivePlan{}) {
-		t.Fatal("underfunded complete copy envelope installed", err)
+		t.Fatal("underfunded fixed byte-preflight workspace installed", err)
 	}
 	r.lifecyclePlans = oldPlans
 	if a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {

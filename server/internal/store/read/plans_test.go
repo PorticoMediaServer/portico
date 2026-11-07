@@ -3,15 +3,14 @@ package read
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/sha256"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -179,9 +178,7 @@ func TestBrowseCaptureRejectsPlanRegressions(t *testing.T) {
 	}
 }
 
-func browseReaderConfig() sqliteconn.Config {
-	return sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 128}}
-}
+func browseReaderConfig() sqliteconn.Config { return readfixture.ReaderConfig() }
 
 func browsePlanFixture(cfg sqliteconn.Config, hash string, statistics plan.Statistics) plan.Fixture {
 	return plan.Fixture{ConnectionPolicy: cfg, SHA256: hash, Statistics: statistics, Implementations: "canonical " + schema.SHA256 + "; bundled 3.53.4 builtin functions/collations; seedBrowse source journal"}
@@ -234,15 +231,4 @@ func captureBrowse(t *testing.T, f *browseFixture, definitions []stmt.Definition
 	return golden
 }
 
-func browsePlanFixtureHash(t *testing.T) string {
-	t.Helper()
-	seed, err := os.ReadFile("browse_test.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	start, end := bytes.Index(seed, []byte("func seedBrowse(")), bytes.Index(seed, []byte("func (f *browseFixture) window("))
-	if start < 0 || end <= start {
-		t.Fatal("missing fixture journal")
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(seed[start:end]))
-}
+func browsePlanFixtureHash(t *testing.T) string { return readfixture.BrowseHash(t) }

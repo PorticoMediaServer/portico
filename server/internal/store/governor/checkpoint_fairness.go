@@ -10,10 +10,14 @@ type checkpointTicket struct {
 	owner     *ledger
 	expires   time.Time
 	ready     chan struct{}
+	recovery  bool
 	signalled bool // protected by gate.mu
 }
 
 func (a *Authority) queueCheckpoint(until time.Time, spacing time.Duration) (*checkpointTicket, error) {
+	return a.queueCheckpointMode(until, spacing, false)
+}
+func (a *Authority) queueCheckpointMode(until time.Time, spacing time.Duration, recovery bool) (*checkpointTicket, error) {
 	w := a.ledger.config.WAL
 	now := a.ledger.config.Now()
 	if w == nil || !until.After(now) || spacing <= 0 {
@@ -24,13 +28,13 @@ func (a *Authority) queueCheckpoint(until time.Time, spacing time.Duration) (*ch
 	}
 	defer w.mu.Unlock()
 	w.expireCheckpointTicket(now)
-	if now.Before(w.nextCheckpoint) {
+	if !recovery && now.Before(w.nextCheckpoint) {
 		return nil, ErrCheckpointCadence
 	}
 	if w.pendingCheckpoint != nil || w.checkpoint {
 		return nil, ErrBusy
 	}
-	ticket := &checkpointTicket{gate: w, owner: a.ledger, expires: until, ready: make(chan struct{})}
+	ticket := &checkpointTicket{gate: w, owner: a.ledger, expires: until, ready: make(chan struct{}), recovery: recovery}
 	w.pendingCheckpoint = ticket
 	// Charge the WHOLE attempted exclusion allowance, even if it is cancelled or
 	// cannot acquire resources. Reconstructing a driver cannot reset this budget.
@@ -39,7 +43,7 @@ func (a *Authority) queueCheckpoint(until time.Time, spacing time.Duration) (*ch
 	return ticket, nil
 }
 func (w *WALGate) signalCheckpointTicket() {
-	if t := w.pendingCheckpoint; t != nil && !w.writer && !w.checkpoint && !t.signalled {
+	if t := w.pendingCheckpoint; t != nil && (!w.writer || w.policy.ConcurrentPassive) && !w.checkpoint && !t.signalled {
 		t.signalled = true
 		close(t.ready)
 	}

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/stateownership"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
@@ -30,6 +31,9 @@ type CheckpointPolicy struct {
 }
 
 type CheckpointResult struct {
+	Recovery                                                         bool // exceptional exclusive TRUNCATE, never the normal PASSIVE path
+	SampleUnavailable                                                string
+	RecoveryDrainStarted, RecoveryDrainEnded                         time.Time
 	Requested                                                        time.Time
 	EligibleInterval                                                 time.Duration
 	Sequence                                                         uint64
@@ -66,6 +70,7 @@ type Checkpointer struct {
 	closed, unqualified bool
 	deadlineContext     func(context.Context, time.Time) (context.Context, context.CancelFunc)
 	pending             *ReadScope // shared reviewed physical cleanup protocol, no read callback
+	keeper              *CheckpointKeeper
 }
 
 func NewCheckpointer(connector driver.Connector, cfg sqliteconn.Config, g Governor, a *Authority, policy CheckpointPolicy) (*Checkpointer, error) {
@@ -73,14 +78,26 @@ func NewCheckpointer(connector driver.Connector, cfg sqliteconn.Config, g Govern
 		a.VerifyComposition(g, a.ledger.config.WAL) != nil || cfg.Role != sqliteconn.Checkpointer || cfg.Connections != 1 ||
 		cfg.CacheKiB <= 0 || cfg.Synchronous != sqliteconn.Normal || cfg.ReadLimits != (sqliteconn.ReadLimits{}) ||
 		!filepath.IsAbs(policy.DatabasePath) || strings.ContainsRune(policy.DatabasePath, 0) ||
-		policy.Interval < 50*time.Millisecond || policy.MaxHold <= 0 || policy.MaxHold > 25*time.Millisecond || policy.MaxWait < 50*time.Millisecond || policy.MaxWait > 75*time.Millisecond {
+		policy.Interval < 50*time.Millisecond || policy.MaxHold <= 0 || policy.MaxHold > a.ledger.maxHold(true) || policy.MaxWait < 50*time.Millisecond || policy.MaxWait > 75*time.Millisecond {
 		return nil, sqliteconn.ErrPolicy
 	}
 	owner := &snapshotOwnedConnector{Connector: connector, failed: make(map[*snapshotOwnedConn]error)}
 	return &Checkpointer{pool: newSnapshotPool(owner, 1), owner: owner, config: cfg, policy: policy, governor: g, authority: a, wal: a.ledger.config.WAL, deadlineContext: context.WithDeadline}, nil
 }
 
-func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointResult, err error) {
+func (c *Checkpointer) Step(parent context.Context, r Request) (CheckpointResult, error) {
+	return c.step(parent, r, false)
+}
+
+// RecoverWAL is recovery-only TRUNCATE, never a synthetic writer or a normal
+// checkpoint mode. It drains physical reader/writer holdings under a bounded
+// admission barrier and requires actual hard-pressure state before native entry.
+func (c *Checkpointer) RecoverWAL(parent context.Context, r Request) (CheckpointResult, error) {
+	return c.step(parent, r, true)
+}
+
+func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (out CheckpointResult, err error) {
+	out.Recovery = recovery
 	out.Key = r.Key
 	out.Budget = r.Budget
 	out.MaxHold = r.MaxHold
@@ -90,8 +107,22 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 		return out, ErrBusy
 	}
 	defer c.mu.Unlock()
+	if c.wal.policy.ConcurrentPassive && c.keeper == nil {
+		return out, ErrCheckpointKeeper
+	}
 	if c.closed {
 		return out, ErrCheckpointClosed
+	}
+	if c.keeper != nil {
+		if c.keeper.flags.Load()&(keeperBroken|keeperStopping|keeperClosed) != 0 {
+			return out, ErrCheckpointKeeper
+		}
+		if err := c.authority.Check(c.keeper.resources.Lifetime, c.keeper.resources.LifetimeRequest); err != nil {
+			if !errors.Is(err, ErrBusy) {
+				c.keeper.fail()
+			}
+			return out, err
+		}
 	}
 	if c.pending != nil {
 		return out, ErrCheckpointUncertain
@@ -99,16 +130,36 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	if c.unqualified {
 		return out, ErrCheckpointOverrun
 	}
+	if !validRequest(r) || r.Writer || r.Class != Recovery || r.MaxHold <= 0 || r.Need[Reader] != 1 {
+		return out, ErrGrant
+	}
 	if r.MaxHold > c.policy.MaxHold {
 		return out, ErrCheckpointBudget
 	}
 	out.Requested = c.authority.ledger.config.Now()
 	out.EligibleInterval = checkpointSpacing(c.policy)
-	until := minTime(out.Requested.Add(c.policy.MaxWait), r.Deadline)
+	if c.wal.policy.ConcurrentPassive {
+		out.EligibleInterval = c.policy.Interval
+	}
+	if recovery {
+		if !c.wal.policy.ConcurrentPassive {
+			return out, ErrCheckpointBudget
+		}
+		out.RecoveryDrainStarted = c.authority.ledger.config.Now()
+		release, beginErr := c.beginRecovery(parent, r.Deadline)
+		out.RecoveryDrainEnded = c.authority.ledger.config.Now()
+		if release != nil {
+			defer release()
+		}
+		if beginErr != nil {
+			return out, beginErr
+		}
+	}
+	until := minTime(c.authority.ledger.config.Now().Add(c.policy.MaxWait), r.Deadline)
 	if parentDeadline, ok := parent.Deadline(); ok {
 		until = minTime(until, parentDeadline)
 	}
-	ticket, ticketErr := c.authority.queueCheckpoint(until, out.EligibleInterval)
+	ticket, ticketErr := c.authority.queueCheckpointMode(until, out.EligibleInterval, recovery)
 	if ticketErr != nil {
 		return out, ticketErr
 	}
@@ -130,18 +181,44 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 		return out, nil
 	}
 	out.Started = turnStart
-	deadline := minTime(out.Started.Add(r.MaxHold), r.Deadline)
-	ctx, stop := c.deadlineContext(parent, deadline)
-	defer stop()
-	queries, cancel := context.WithCancel(ctx)
-	scope := &ReadScope{ctx: queries, cancel: cancel, authority: c.authority, grant: d.Grant, expected: r, config: c.config}
+	// Own the admitted unit BEFORE any fallible context/clock/driver call.
+	ctx := context.Background()
+	var stop context.CancelFunc = func() {}
+	defer func() { stop() }()
+	scope := &ReadScope{ctx: ctx, cancel: func() {}, authority: c.authority, grant: d.Grant, expected: r, config: c.config}
+	var primary any
+	var physicallySafe bool
+	c.pending = scope
+	defer func() {
+		if p := recover(); p != nil {
+			c.authority.EnterStatic()
+			if c.keeper != nil {
+				c.keeper.fail()
+			}
+			if scope.conn == nil || physicallySafe {
+				scope.nativeSafe.Store(true)
+				scope.consumerDone.Store(true)
+				if scope.retire() == nil {
+					c.pending = nil
+				}
+			} else if scope.owned != nil {
+				scope.failedRaw = scope.owned
+			}
+			if primary != nil {
+				panic(primary)
+			}
+			panic(p)
+		}
+	}()
 	scope.cleanupContext = func() (context.Context, context.CancelFunc) {
 		return c.deadlineContext(context.Background(), c.authority.ledger.config.Now().Add(25*time.Millisecond))
 	}
 	defer func() {
 		original := recover()
+		primary = original
 		c.governor.Cancel(d.Grant)
-		cleanup, safe := scope.closeNative(err != nil || ctx.Err() != nil)
+		cleanup, safe := scope.closeNative(original != nil || (!c.wal.policy.ConcurrentPassive && (err != nil || ctx.Err() != nil)))
+		physicallySafe = safe
 		out.PhysicalReturned = c.authority.ledger.config.Now()
 		out.PhysicalSafe = safe
 		err = errors.Join(err, cleanup, ctx.Err())
@@ -149,6 +226,9 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 		scope.consumerDone.Store(true)
 		if out.PhysicalReturned.Sub(out.Started) > r.MaxHold {
 			c.unqualified = true
+			if c.keeper != nil {
+				c.keeper.fail()
+			}
 			c.authority.EnterStatic()
 			err = errors.Join(err, ErrCheckpointOverrun)
 		}
@@ -158,7 +238,11 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 			if retirement != nil {
 				c.authority.EnterStatic()
 				c.pending = scope
+				if c.keeper != nil {
+					c.keeper.fail()
+				}
 			} else {
+				c.pending = nil
 				out.RetiredAt = c.authority.ledger.config.Now()
 				// A separate composition observation budget covers this work, as for W.
 				// Old headroom remains invalid on failure/staleness. Sampling is not hidden
@@ -173,7 +257,20 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 					publishErr := c.wal.Publish(token, after, c.authority.ledger.config.Now())
 					out.After = after
 					out.SampleEnded = c.authority.ledger.config.Now()
-					err = errors.Join(err, sampleErr, publishErr)
+					if c.wal.policy.ConcurrentPassive && !recovery && sampleErr == nil && errors.Is(publishErr, ErrWALObservation) {
+						// A concurrent W owns the next anchor. Never turn its
+						// valid generation race into a CP failure or invalidate it.
+						out.SampleUnavailable = "concurrent writer generation; no checkpoint anchor published"
+					} else {
+						err = errors.Join(err, sampleErr, publishErr)
+					}
+					if recovery && err == nil && !out.NativeStarted.IsZero() && (sampleErr != nil || publishErr != nil || after.ActiveBytes != 0 || after.PhysicalBytes != 0) {
+						c.authority.EnterStatic()
+						if c.keeper != nil {
+							c.keeper.fail()
+						}
+						err = errors.Join(err, ErrWALObservation)
+					}
 				}
 			}
 		} else {
@@ -190,6 +287,10 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 			}
 		}
 	}()
+	deadline := minTime(out.Started.Add(r.MaxHold), r.Deadline)
+	ctx, stop = c.deadlineContext(parent, deadline)
+	queries, cancel := context.WithCancel(ctx)
+	scope.ctx, scope.cancel = queries, cancel
 	if err = c.authority.Check(d.Grant, r); err != nil {
 		return out, err
 	}
@@ -202,6 +303,10 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 			return sqliteconn.ErrPolicy
 		}
 		scope.owned = owned
+		if c.keeper != nil && c.keeper.native != owned {
+			c.keeper.fail()
+			return ErrCheckpointKeeper
+		}
 		return nil
 	}); err != nil {
 		return out, err
@@ -225,6 +330,14 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	if sequence != 0 || name != "main" || !os.SameFile(actual, expected) {
 		return out, sqliteconn.ErrPolicy
 	}
+	if c.keeper != nil {
+		device, inode, identityErr := scope.owned.SQLiteMainFileIdentity()
+		expectedDevice, expectedInode, fileErr := stateownership.SingleLinkedFileIdentity(expected)
+		if identityErr != nil || fileErr != nil || device != expectedDevice || inode != expectedInode || device != c.keeper.device || inode != c.keeper.inode {
+			c.keeper.fail()
+			return out, errors.Join(ErrCheckpointKeeper, identityErr, fileErr)
+		}
+	}
 	out.DatabaseMatched = true
 	if err = c.authority.Check(d.Grant, r); err != nil {
 		return out, err
@@ -232,10 +345,18 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	if out.Before, err = ReadWAL(c.policy.DatabasePath); err != nil {
 		return out, err
 	}
-	// Gate exclusion stabilizes the full native input. PrefixLimit is the WAL
-	// hard cap itself: a smaller CP cap would strand otherwise admitted WAL.
-	if out.Before.ActiveBytes > out.PrefixLimit || out.Before.ActiveBytes > r.Need[IOBytes]/2 ||
-		2*uint64(out.Before.Frames)+1 > uint64(r.Budget.Pages) || c.sequence == math.MaxUint64 {
+	// Serialized mode stabilizes input. Concurrent mode reserves the entire hard
+	// prefix because a writer can append before SQLite captures its CP snapshot.
+	prefix, frames := out.Before.ActiveBytes, uint64(out.Before.Frames)
+	if c.wal.policy.ConcurrentPassive {
+		prefix = out.PrefixLimit // W may append until native CP takes its snapshot
+		frames = uint64((prefix - 32) / (int64(out.Before.PageSize) + 24))
+	}
+	if recovery && !c.wal.recoveryPressure(out.Before) {
+		return out, ErrCheckpointBudget
+	}
+	if prefix > out.PrefixLimit || prefix > r.Need[IOBytes]/2 ||
+		2*frames+1 > uint64(r.Budget.Pages) || c.sequence == math.MaxUint64 {
 		return out, ErrCheckpointBudget
 	}
 	if err = c.authority.Check(d.Grant, r); err != nil {
@@ -245,9 +366,16 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	out.Sequence = c.sequence
 	out.NativeStarted = c.authority.ledger.config.Now()
 	c.lastStart = out.NativeStarted
-	err = scope.conn.QueryRowContext(queries, "PRAGMA wal_checkpoint(PASSIVE)").Scan(&out.Busy, &out.Frames, &out.Backfilled)
+	if recovery {
+		err = scope.conn.QueryRowContext(queries, "PRAGMA wal_checkpoint(TRUNCATE)").Scan(&out.Busy, &out.Frames, &out.Backfilled)
+	} else {
+		err = scope.conn.QueryRowContext(queries, "PRAGMA wal_checkpoint(PASSIVE)").Scan(&out.Busy, &out.Frames, &out.Backfilled)
+	}
 	out.NativeEnded = c.authority.ledger.config.Now()
 	if err == nil && (out.Busy < 0 || out.Busy > 1 || out.Frames < 0 || out.Backfilled < 0 || out.Backfilled > out.Frames) {
+		err = ErrWALObservation
+	}
+	if recovery && err == nil && (out.Busy != 0 || out.Frames != 0 || out.Backfilled != 0) {
 		err = ErrWALObservation
 	}
 	return out, err
@@ -265,6 +393,17 @@ func minTime(a, b time.Time) time.Time {
 func (c *Checkpointer) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.keeper != nil && c.keeper.flags.Load()&keeperClosed == 0 && c.keeper.startupReturned.Load() {
+		return ErrCheckpointKeeper // use keeper.Close with shutdown IO, after W drain
+	}
+	err := c.closeLocked()
+	if c.keeper != nil {
+		c.keeper.closedIfSafe(err)
+	}
+	return err
+}
+
+func (c *Checkpointer) closeLocked() error {
 	c.closed = true
 	var err error
 	if scope := c.pending; scope != nil {

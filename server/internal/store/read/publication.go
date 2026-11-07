@@ -144,8 +144,8 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 		len(in.Database) == 0 || len(in.Database) > 256 || len(in.TokenHash) == 0 || len(in.TokenHash) > 256 || in.Library <= 0 || in.Kind <= 0 || in.Kind > 99 || in.Limit < 1 || in.Limit > MaxPage || in.Now.IsZero() {
 		return zero, result, ErrInput
 	}
-	if in.Kind > 10 {
-		return zero, result, ErrUnqualified
+	if _, e := resolveReadPolicy(in); e != nil {
+		return zero, result, e
 	}
 	if err := ctx.Err(); err != nil {
 		return zero, result, err
@@ -159,7 +159,7 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 			return zero, result, governor.ErrSnapshotBudget
 		}
 	}
-	if err := output.Authority.Check(output.Grant, output.Request); err != nil {
+	if err := output.Authority.CheckContext(ctx, output.Grant, output.Request); err != nil {
 		return zero, result, err
 	}
 	deadline := started.Add(min(budget, time.Second))
@@ -184,7 +184,7 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 			if e := output.live.ctx.Err(); e != nil {
 				return zero, result, e
 			}
-			if e := output.live.check(); e != nil {
+			if e := output.live.checkContext(lookupContext); e != nil {
 				return zero, result, e
 			}
 		}
@@ -195,7 +195,7 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 					if e := output.live.ctx.Err(); e != nil {
 						return nil, e
 					}
-					if e := output.live.check(); e != nil {
+					if e := output.live.checkContext(scope.Context()); e != nil {
 						return nil, e
 					}
 				}
@@ -269,7 +269,7 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 	currentInput := in
 	currentInput.Now = in.Now.Add(time.Since(started))
 	if output.live != nil {
-		if e := output.live.check(); e != nil {
+		if e := output.live.checkContext(validationContext); e != nil {
 			return zero, result, errors.Join(lookupErr, e)
 		}
 	}
@@ -278,7 +278,7 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 		query := func(name string, args ...any) ([][]any, error) {
 			result.PublicationStatements++
 			if output.live != nil {
-				if e := output.live.check(); e != nil {
+				if e := output.live.checkContext(scope.Context()); e != nil {
 					return nil, e
 				}
 			}
@@ -329,7 +329,7 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 	if !time.Now().Before(deadline) {
 		return zero, result, context.DeadlineExceeded
 	}
-	if err := output.Authority.Check(output.Grant, output.Request); err != nil {
+	if err := output.Authority.CheckContext(ctx, output.Grant, output.Request); err != nil {
 		return zero, result, err
 	}
 	return draft, result, nil

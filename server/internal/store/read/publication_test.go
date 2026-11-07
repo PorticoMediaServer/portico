@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -81,34 +82,42 @@ func TestBrowsePublicationRejectsMidPageAuthorityChanges(t *testing.T) {
 func TestBrowsePublicationCancellationNeverReleasesPage(t *testing.T) {
 	for _, phase := range []string{"after-business", "after-final-fence", "lookup-lifetime"} {
 		t.Run(phase, func(t *testing.T) {
-			f := newBrowseFixture(t)
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			observed := &browseBoundarySnapshots{Snapshots: f.snapshots}
-			switch phase {
-			case "after-business":
-				observed.afterBusiness = cancel
-			case "after-final-fence":
-				observed.afterFence = cancel
-			case "lookup-lifetime":
-				observed.cancelLookup = true
-			}
-			f.reader.snapshots = observed
-			page, _, err := f.window(t, ctx, f.input)
-			if !errors.Is(err, context.Canceled) {
-				t.Fatal("cancellation was lost at publication", err)
-			}
-			requireNoBrowsePage(t, page)
-			// A cancelled phase cannot poison a later independently authorized read.
-			f.reader.snapshots = f.snapshots
-			if _, _, err := f.window(t, t.Context(), f.input); err != nil {
-				t.Fatal("snapshot was not reusable after cancellation", err)
-			}
+			synctest.Test(t, func(t *testing.T) {
+				f := newBrowseFixture(t)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				observed := &browseBoundarySnapshots{Snapshots: f.snapshots}
+				switch phase {
+				case "after-business":
+					observed.afterBusiness = cancel
+				case "after-final-fence":
+					observed.afterFence = cancel
+				case "lookup-lifetime":
+					observed.cancelLookup = true
+				}
+				f.reader.snapshots = observed
+				page, _, err := f.window(t, ctx, f.input)
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal("cancellation was lost at publication", err)
+				}
+				requireNoBrowsePage(t, page)
+				// A cancelled phase cannot poison a later independently authorized read.
+				f.reader.snapshots = f.snapshots
+				if _, _, err := f.window(t, t.Context(), f.input); err != nil {
+					t.Fatal("snapshot was not reusable after cancellation", err)
+				}
+			})
 		})
 	}
 }
 
 func TestBrowsePublicationDenialWinsOverCancellation(t *testing.T) {
+	// Preserve the configured one-second/cleanup limits while isolating the ordering
+	// assertion from instrumentation and canonical Reader startup CPU time.
+	synctest.Test(t, testBrowsePublicationDenialWinsOverCancellation)
+}
+
+func testBrowsePublicationDenialWinsOverCancellation(t *testing.T) {
 	f := newBrowseFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -116,7 +125,10 @@ func TestBrowsePublicationDenialWinsOverCancellation(t *testing.T) {
 		f.exec(t, `UPDATE authorization_session_families SET revoked=1 WHERE id='f'`)
 		cancel()
 	}}
-	page, _, err := f.window(t, ctx, f.input)
+	page, result, err := f.window(t, ctx, f.input)
+	if result.PublicationStatements != 2 {
+		t.Fatalf("fresh authority/principal fence did not run: %+v, err=%v", result, err)
+	}
 	if !errors.Is(err, ErrDenied) {
 		t.Fatal("current denial did not win over cancellation", err)
 	}

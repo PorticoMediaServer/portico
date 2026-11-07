@@ -71,6 +71,7 @@ type StatementPlan struct {
 	AutoIndexes    []AutoIndexAudit  `json:"autoIndexes,omitempty"`
 	NativeInsert   *FTSInsertAudit   `json:"nativeInsert,omitempty"`
 	NativeRetained *FTSRetainedAudit `json:"nativeRetained,omitempty"`
+	NativeRead     *FTSReadAudit     `json:"nativeRead,omitempty"`
 }
 
 // Capture uses one caller-owned connection to prevent pool PRAGMA/statistics
@@ -103,9 +104,18 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 		if err := policy.CheckPredicates(entry.Definition, env.Schema); err != nil {
 			return g, err
 		}
+		var nativeRead *FTSReadAudit
 		var native *FTSInsertAudit
 		var retained *FTSRetainedAudit
-		if entry.Plan.NativeInsert != "" {
+		if entry.Plan.NativeRead != nil {
+			if fixture.ConnectionPolicy.Role != sqliteconn.Reader || env.Connection.QueryOnly != 1 {
+				return g, fmt.Errorf("plan %s: FTS native reads require actual Reader custody", entry.ID)
+			}
+			nativeRead, err = inspectFTSRead(ctx, conn, entry.Definition)
+			if err != nil {
+				return g, fmt.Errorf("plan %s native read audit: %w", entry.ID, err)
+			}
+		} else if entry.Plan.NativeInsert != "" {
 			if err := checkSyntax(entry.Definition); err != nil {
 				return g, err
 			}
@@ -124,13 +134,17 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 		} else if err := checkSyntaxOn(ctx, conn, entry.Definition); err != nil {
 			return g, err
 		}
-		autoIndexes, err := auditAutoindexes(ctx, conn, entry.Definition)
-		if err != nil {
-			return g, fmt.Errorf("plan %s autoindex binding: %w", entry.ID, err)
-		}
-		shape, err := dmlSQL(entry.SQL)
-		if err != nil {
-			return g, fmt.Errorf("plan %s parse: %w", entry.ID, err)
+		var autoIndexes []AutoIndexAudit
+		var shape *dmlShape
+		if nativeRead == nil {
+			autoIndexes, err = auditAutoindexes(ctx, conn, entry.Definition)
+			if err != nil {
+				return g, fmt.Errorf("plan %s autoindex binding: %w", entry.ID, err)
+			}
+			shape, err = dmlSQL(entry.SQL)
+			if err != nil {
+				return g, fmt.Errorf("plan %s parse: %w", entry.ID, err)
+			}
 		}
 		var table *dmlTable
 		if shape != nil && native == nil && retained == nil {
@@ -155,7 +169,15 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			if table != nil && !mainWriteRoot(full, table.root) {
 				return g, fmt.Errorf("plan %s: native destination does not match audited main table", entry.ID)
 			}
-			if native != nil || retained != nil {
+			if nativeRead != nil {
+				if err := checkFTSReadEQP(entry.Definition, eqp); err != nil {
+					return g, fmt.Errorf("plan %s/%s: %w", entry.ID, cohort.Name, err)
+				}
+				full, err = canonicalFTSRead(full, *entry.Plan.NativeRead, nativeRead)
+				if err != nil {
+					return g, fmt.Errorf("plan %s/%s: %w", entry.ID, cohort.Name, err)
+				}
+			} else if native != nil || retained != nil {
 				if !slices.Equal(eqp.Columns, []string{"id", "parent", "notused", "detail"}) || len(eqp.Values) != 0 {
 					return g, fmt.Errorf("plan %s: fixed FTS INSERT must have empty native EQP", entry.ID)
 				}
@@ -202,7 +224,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			if err != nil {
 				return g, fmt.Errorf("plan %s/%s EQP: %w", entry.ID, cohort.Name, err)
 			}
-			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert, AutoIndexes: autoIndexes, NativeInsert: native, NativeRetained: retained})
+			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert, AutoIndexes: autoIndexes, NativeInsert: native, NativeRetained: retained, NativeRead: nativeRead})
 		}
 	}
 	sources, err := capturedSources(ctx, conn, g.Manifest)
@@ -245,15 +267,8 @@ func Check(d stmt.Definition, _ Rows) error {
 // Only Capture may invoke this after live source, policy and DML inspection.
 // CheckEQP and the lexical lint are component checks, not qualification receipts.
 func checkCaptured(d stmt.Definition, eqp Rows, autoIndexes ...AutoIndexAudit) error {
-	if issuerLibraryOctetDefinition(d) {
-		if err := checkIssuerLibraryOctetPoint(eqp); err != nil {
-			return fmt.Errorf("plan %s: %w", d.ID, err)
-		}
-	}
-	if issuerOctetDefinition(d) {
-		if err := checkIssuerOctetPoint(eqp); err != nil {
-			return fmt.Errorf("plan %s: %w", d.ID, err)
-		}
+	if err := checkOctetPoint(d, eqp); err != nil {
+		return err
 	}
 	if err := checkBase(d, eqp); err != nil {
 		return err
@@ -279,28 +294,19 @@ func checkBase(d stmt.Definition, eqp Rows) error {
 }
 
 func checkSyntax(d stmt.Definition) error {
-	return checkSyntaxIssues(d, lintSQL(d.SQL, closedIssuerOctetDefinition(d)))
+	return checkSyntaxIssues(d, lintSQL(d.SQL, closedOctetDefinition(d)))
 }
 
 func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error {
-	if err := checkSyntaxIssues(d, lintSQLOn(ctx, conn, d.SQL, closedIssuerOctetDefinition(d))); err != nil {
+	if err := checkSyntaxIssues(d, lintSQLOn(ctx, conn, d.SQL, closedOctetDefinition(d))); err != nil {
 		return err
 	}
-	if issuerOctetDefinition(d) {
-		return auditIssuerOctetKey(ctx, conn)
-	}
-	if issuerLibraryOctetDefinition(d) {
-		return auditIssuerLibraryOctetKey(ctx, conn)
-	}
-	return nil
+	return auditOctetDefinition(ctx, conn, d)
 }
 
 func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
-	if d.ID == issuerSourceLengthsID && !issuerOctetDefinition(d) {
-		return fmt.Errorf("plan %s: issuer byte preflight requires the exact closed read definition", d.ID)
-	}
-	if d.ID == issuerLibraryRootLengthsID && !issuerLibraryOctetDefinition(d) {
-		return fmt.Errorf("plan %s: issuer library byte preflight requires the exact closed read definition", d.ID)
+	if err := checkOctetDefinition(d); err != nil {
+		return err
 	}
 	for _, issue := range issues {
 		return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)

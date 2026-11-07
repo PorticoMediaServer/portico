@@ -1,0 +1,244 @@
+[
+  {
+    "Kind": "evidence_seal",
+    "Identity": {
+      "Incarnation": "000102030405060708090a0b0c0d0e0f",
+      "Sequence": 11,
+      "OperationID": "101112131415161718191a1b1c1d1e1f"
+    },
+    "Request": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "Facts": {
+      "ProviderOperationID": "operation/雪",
+      "EntityID": 17,
+      "ObservedCatalogRevision": 19,
+      "AppliedMS": 23,
+      "AfterItem": "page/é",
+      "NextOrdinal": 3,
+      "PublicationID": {
+        "Present": false,
+        "Value": ""
+      },
+      "ImageID": {
+        "Present": false,
+        "Value": 0
+      },
+      "ImageRevision": {
+        "Present": false,
+        "Value": 0
+      },
+      "ResultCount": 0,
+      "MemberCohortLength": 0,
+      "SealVersion": 1,
+      "EvidenceID": "evidence/κ",
+      "SubjectID": 29,
+      "ParserVersion": "tmdb.movie.header-selected-credits.v1",
+      "Provider": "tmdb",
+      "SubjectKind": "movie",
+      "ProviderID": "42",
+      "Language": "en-CA",
+      "Region": "CA",
+      "RequestShape": "tmdb.movie.detail+credits.header-selected-credits.v1",
+      "ObservationDigest": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "OwnerGeneration": 31,
+      "BuildID": {
+        "Present": true,
+        "Value": "build/λ"
+      },
+      "BuildGeneration": {
+        "Present": true,
+        "Value": 37
+      },
+      "ContentRevision": 41,
+      "Algorithm": "portico.normalized-evidence.sha256.v1",
+      "Commitment": [
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95
+      ],
+      "VerifiedRows": 3,
+      "CanonicalBytes": 1232,
+      "RetainedBytes": 65537,
+      "UpstreamOwner": {
+        "Present": false,
+        "Value": ""
+      },
+      "UpstreamIncarnation": {
+        "Present": false,
+        "Value": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "UpstreamSequence": {
+        "Present": false,
+        "Value": 0
+      }
+    },
+    "WireHex": "706f727469636f2d7772697465722d726573756c742d7368613235362d7631000001000000000000000d65766964656e63655f7365616c00000000000000047365616c00000000000000076170706c696564000000000000000d6f7065726174696f6e2fe99baa000102030405060708090a0b0c0d0e0f000000000000000b101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0000000000000011000000000000001300000000000000170000000000000007706167652fc3a90000000000000003000000000000000000000000000000000000000000000000000001000000000000000b65766964656e63652fceba000000000000001d0000000000000025746d64622e6d6f7669652e6865616465722d73656c65637465642d637265646974732e76310000000000000004746d646200000000000000056d6f766965000000000000000234320000000000000005656e2d4341000000000000000243410000000000000034746d64622e6d6f7669652e64657461696c2b637265646974732e6865616465722d73656c65637465642d637265646974732e7631000000000000004030303031303230333034303530363037303830393061306230633064306530663130313131323133313431353136313731383139316131623163316431653166000000000000001f0100000000000000086275696c642fcebb01000000000000002500000000000000290000000000000025706f727469636f2e6e6f726d616c697a65642d65766964656e63652e7368613235362e7631404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f000000000000000300000000000004d00000000000010001000000",
+    "SHA256": "893a4d1cd1040ef995671869ff752f2d77008ab95d243f82245070593c1ddc57"
+  },
+  {
+    "Kind": "credit_source_seal",
+    "Identity": {
+      "Incarnation": "000102030405060708090a0b0c0d0e0f",
+      "Sequence": 11,
+      "OperationID": "101112131415161718191a1b1c1d1e1f"
+    },
+    "Request": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "Facts": {
+      "ProviderOperationID": "operation/雪",
+      "EntityID": 17,
+      "ObservedCatalogRevision": 19,
+      "AppliedMS": 23,
+      "AfterItem": "page/é",
+      "NextOrdinal": 2,
+      "PublicationID": {
+        "Present": true,
+        "Value": "00112233445566778899aabbccddeeff"
+      },
+      "ImageID": {
+        "Present": false,
+        "Value": 0
+      },
+      "ImageRevision": {
+        "Present": false,
+        "Value": 0
+      },
+      "ResultCount": 0,
+      "MemberCohortLength": 0,
+      "SealVersion": 1,
+      "EvidenceID": "evidence/κ",
+      "SubjectID": 29,
+      "ParserVersion": "tmdb.movie.header-selected-credits.v1",
+      "Provider": "tmdb",
+      "SubjectKind": "movie",
+      "ProviderID": "42",
+      "Language": "en-CA",
+      "Region": "CA",
+      "RequestShape": "tmdb.movie.detail+credits.header-selected-credits.v1",
+      "ObservationDigest": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "OwnerGeneration": 31,
+      "BuildID": {
+        "Present": false,
+        "Value": ""
+      },
+      "BuildGeneration": {
+        "Present": false,
+        "Value": 0
+      },
+      "ContentRevision": 41,
+      "Algorithm": "portico.normalized-credit-source.sha256.v1",
+      "Commitment": [
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95
+      ],
+      "VerifiedRows": 2,
+      "CanonicalBytes": 1951,
+      "RetainedBytes": 65537,
+      "UpstreamOwner": {
+        "Present": true,
+        "Value": "historical/E/λ"
+      },
+      "UpstreamIncarnation": {
+        "Present": true,
+        "Value": [
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167,
+          168,
+          169,
+          170,
+          171,
+          172,
+          173,
+          174,
+          175
+        ]
+      },
+      "UpstreamSequence": {
+        "Present": true,
+        "Value": 43
+      }
+    },
+    "WireHex": "706f727469636f2d7772697465722d726573756c742d7368613235362d763100000100000000000000126372656469745f736f757263655f7365616c00000000000000047365616c00000000000000076170706c696564000000000000000d6f7065726174696f6e2fe99baa000102030405060708090a0b0c0d0e0f000000000000000b101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0000000000000011000000000000001300000000000000170000000000000007706167652fc3a9000000000000000201000000000000002030303131323233333434353536363737383839396161626263636464656566660000000000000000000000000000000000000000000000000001000000000000000b65766964656e63652fceba000000000000001d0000000000000025746d64622e6d6f7669652e6865616465722d73656c65637465642d637265646974732e76310000000000000004746d646200000000000000056d6f766965000000000000000234320000000000000005656e2d4341000000000000000243410000000000000034746d64622e6d6f7669652e64657461696c2b637265646974732e6865616465722d73656c65637465642d637265646974732e7631000000000000004030303031303230333034303530363037303830393061306230633064306530663130313131323133313431353136313731383139316131623163316431653166000000000000001f00000000000000000029000000000000002a706f727469636f2e6e6f726d616c697a65642d6372656469742d736f757263652e7368613235362e7631404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f0000000000000002000000000000079f000000000001000101000000000000000f686973746f726963616c2f452fcebb01a0a1a2a3a4a5a6a7a8a9aaabacadaeaf01000000000000002b",
+    "SHA256": "8f1a7a30e738d90c6cb144d9057ea5260af423fccc6dcd96a7ff31bacfe67d4e"
+  }
+]

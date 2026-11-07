@@ -74,6 +74,7 @@ func TestAssertExistingRejectsLayoutChanges(t *testing.T) {
 		{"empty", false, ""},
 		{"legacy", false, "CREATE TABLE legacy(value TEXT); INSERT INTO legacy VALUES('keep')"},
 		{"missing-index", true, "DROP INDEX catalog_entities_library"},
+		{"prior-change010-layout", true, "DROP INDEX scan_receipt_refused_directory_identity"},
 		{"changed-index-same-count", true, "DROP INDEX catalog_entities_library; CREATE INDEX catalog_entities_library ON catalog_entities(title)"},
 		{"changed-table", true, "ALTER TABLE catalog_people ADD COLUMN unexpected BLOB"},
 		{"changed-view-same-count", true, "DROP VIEW search_own_content; CREATE VIEW search_own_content AS SELECT 1 AS id"},

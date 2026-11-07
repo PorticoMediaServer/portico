@@ -45,8 +45,26 @@ func inventoryFreshRequest(t *testing.T) *inventoryAcceptCommand {
 // mount-stability/byte-continuity evidence or numerical physical qualification.
 func seedInventoryFresh(t *testing.T, e *executor) *inventoryAcceptCommand {
 	t.Helper()
+	return seedInventoryFreshPopulation(t, e, false)
+}
+
+// One seed owner; the canonical population already owns its library, kind,
+// membership and age baselines. Never reinsert/repair those rows.
+func seedInventoryFreshPopulation(t *testing.T, e *executor, populated bool) *inventoryAcceptCommand {
+	t.Helper()
 	c := inventoryFreshRequest(t)
-	for _, q := range []string{
+	if populated {
+		r := inventoryTestClone(c.request)
+		r.scope.libraryKey = "qualification-movies"
+		r.source.resolvedRoot = []byte(qualificationMovieRoot)
+		r.files[0].assetPath = qualificationMovieRoot + "/" + r.files[0].relativePath
+		var err error
+		c, err = newInventoryAcceptCommand(c.identity, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, q := range []string{
 		`INSERT INTO libraries(id,name,kind,root,data_revision,data_order_revision,data_metadata_revision,age_input_revision,age_published_revision) VALUES('fresh-library','Movies','movie','/media',71,73,79,83,83)`,
 		`INSERT INTO catalog_libraries(id,library_id,root) VALUES(7,'fresh-library','/media')`,
 		`INSERT INTO catalog_kinds VALUES(1,'movie',1,0,1,1,0)`,
@@ -58,6 +76,12 @@ func seedInventoryFresh(t *testing.T, e *executor) *inventoryAcceptCommand {
 		`INSERT INTO catalog_age_item_counts VALUES(7,1,0,-1,97)`,
 		`INSERT INTO catalog_age_item_counts VALUES(7,1,1,7,101)`,
 	} {
+		if populated && (i < 3 || i >= 7) {
+			continue
+		}
+		if populated {
+			q = strings.NewReplacer("fresh-library", "qualification-movies", "/media", qualificationMovieRoot).Replace(q)
+		}
 		if _, err := e.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
@@ -68,7 +92,7 @@ func seedInventoryFresh(t *testing.T, e *executor) *inventoryAcceptCommand {
 job_lease_owner,job_lease_generation,job_lease_expires_ms,job_revision,command_incarnation,last_command_sequence,acknowledged_command_sequence,discovered,
 original_library_id,original_library_key,original_resolved_root,original_follow_symlinks,create_operation_id,create_request_digest)
 VALUES('fresh-run','fresh-source',23,'fresh-incarnation','dev:7:ino:1',7,'first-import',13,17,4000000000000,41,?,18,18,59,
-7,'fresh-library','/media',0,?,?)`, c.identity.Incarnation[:], []byte("fresh-create-op!"), bytes.Repeat([]byte{0xe1}, 32)); err != nil {
+7,?,?,0,?,?)`, c.identity.Incarnation[:], c.request.scope.libraryKey, string(c.request.source.resolvedRoot), []byte("fresh-create-op!"), bytes.Repeat([]byte{0xe1}, 32)); err != nil {
 		t.Fatal(err)
 	}
 	// Well-formed incompatible stored tuple intentionally proves RAW intent
@@ -90,10 +114,17 @@ func inventoryFreshFixture(t *testing.T, decorate ...func(driver.Conn) driver.Co
 
 func inventoryFreshFixtureDefinitions(t *testing.T, definitions []stmt.Definition, decorate ...func(driver.Conn) driver.Conn) (*executor, string, *inventoryAcceptCommand, *stmt.Registry) {
 	t.Helper()
-	e, path, _ := testExecutor(t, decorate...)
-	c := seedInventoryFresh(t, e)
+	e, path, c := inventoryFreshSeedFixture(t, decorate...)
 	registry := nativeInventoryFixtureRegistry(t, e, definitions, "scan_fresh_test.go")
 	return e, path, c, registry
+}
+
+// The one existing seed owner, before registry capture; paired read setup may
+// attach to this same canonical database outside all command custody.
+func inventoryFreshSeedFixture(t *testing.T, decorate ...func(driver.Conn) driver.Conn) (*executor, string, *inventoryAcceptCommand) {
+	t.Helper()
+	e, path, _ := testExecutor(t, decorate...)
+	return e, path, seedInventoryFresh(t, e)
 }
 
 func TestInventoryFreshClosedRecipe(t *testing.T) {
@@ -180,7 +211,7 @@ func TestInventoryFreshObservationRefusesUnsupportedOrChangedFacts(t *testing.T)
 			change(c)
 			if name != "unhashed_mutation" {
 				var err error
-				c.digest, err = canonicalRequestDigest(InventoryAccept, 1, c.identity, c.request)
+				c.digest, err = canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, c.identity, c.request)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -228,7 +259,7 @@ AND (SELECT pending_subjects=0 FROM search_generations WHERE id=1)`).Scan(&intac
 }
 
 func TestInventoryFreshNativeEffectsAndHistoricalEcho(t *testing.T) {
-	e, path, c, registry := inventoryFreshFixture(t)
+	e, path, c, registry := inventoryFreshFixtureDefinitions(t, inventoryCommandDefinitions())
 	turn, a := inventoryFreshTestTurn(t, e, path, registry)
 	started := time.Now()
 	out, err := applyInventoryAccept(t.Context(), turn, c)
@@ -292,7 +323,7 @@ AND (SELECT j.source_revision=1 AND source_incarnation=e.metadata_incarnation AN
 	}
 	// Use W's existing closed historical adapter on this separately admitted
 	// test frame. Public current-disclosure routing is W's integration test.
-	historyTurn := scanObjectTestTurn(t, e, inventoryHistoryDefinitions())
+	historyTurn, _ := inventoryMemoryFixtureTurn(t, e, registry, c, inventoryMemoryBudget{4 << 20, 4 << 20})
 	request, err := c.receiptRequest()
 	if err != nil {
 		t.Fatal(err)

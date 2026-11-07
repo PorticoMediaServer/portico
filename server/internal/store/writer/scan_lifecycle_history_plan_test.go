@@ -18,16 +18,16 @@ import (
 
 var recordScanLifecycleHistoryPlans = flag.Bool("record-scan-lifecycle-history-plans", false, "deliberately record closed lifecycle history read plans")
 
-// Actual W-owned receipt populations and complete six-ID fixture registration;
+// Actual W-owned receipt populations and complete ten-ID fixture registration;
 // this records only the two new read points, not an issuer or fresh profile.
 func TestScanLifecycleHistoryStatementPlans(t *testing.T) {
 	w, _, complete := scanLifecycleProtocolFixture(t)
-	if len(complete.Manifest()) != 6 {
-		t.Fatal("fixture must retain complete six-ID native Capture")
+	if len(complete.Manifest()) != 10 {
+		t.Fatal("fixture must retain complete ten-ID native Capture")
 	}
 	parts := []struct{ name, sha string }{
-		{"scan_lifecycle_protocol_test.go", "7edd5ab4def25d4b314fbc8944421a016e99255bcbdf1e6216b1a8854edbf358"},
-		{"scan_receipts_test.go", "82a7596dcf5619de4be293779f8e0c324dfdfb1c373f51b85328e95d99978de5"},
+		{"scan_lifecycle_protocol_test.go", "074c14744196963202a5d841972aed0f9acf0f068bb83bb7d4536d33df1c56e6"},
+		{"scan_receipts_test.go", "27c2de821f72f47109fd758a39c026b4b5d7492b2e5f0124e4b9100a13d394ae"},
 	}
 	hash := sha256.New()
 	for _, part := range parts {
@@ -45,7 +45,7 @@ func TestScanLifecycleHistoryStatementPlans(t *testing.T) {
 		hash.Write(data)
 	}
 	fixtureSHA := hex.EncodeToString(hash.Sum(nil))
-	if fixtureSHA != "faf6220202f0bea629fc3dd2dc180360659b75d18471c576fb5f2916e88782db" {
+	if fixtureSHA != "ad9cb0c0c26495f374949114cc55e4d149dff57cd64432d6b8e40ebba1eef829" {
 		t.Fatal("closed source journal changed")
 	}
 	defs := scanRunLifecycleHistoryDefinitions()

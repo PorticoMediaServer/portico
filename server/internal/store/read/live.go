@@ -63,7 +63,7 @@ func ConsumeForeground(ctx context.Context, g governor.Governor, authority *gove
 		result.Refusal = decision.Refusal
 		return result, governor.ErrBusy
 	}
-	scope := &foregroundOutput{authority: authority, pool: pool, live: decision.Grant, request: request, outputRequest: outputRequest, started: started, admission: result.AdmissionElapsed}
+	scope := &foregroundOutput{authority: authority, pool: pool, live: decision.Grant, request: request, outputRequest: outputRequest, ctx: ctx, started: started, admission: result.AdmissionElapsed}
 	defer func() {
 		primary := recover()
 		cleanup := func() {
@@ -103,7 +103,7 @@ func ConsumeForeground(ctx context.Context, g governor.Governor, authority *gove
 	if e := ctx.Err(); e != nil {
 		return result, e
 	}
-	if e := authority.CheckForeground(scope.live, request); e != nil {
+	if e := authority.CheckForegroundContext(ctx, scope.live, request); e != nil {
 		return result, e
 	}
 	output := g.Try(outputRequest)
@@ -112,7 +112,7 @@ func ConsumeForeground(ctx context.Context, g governor.Governor, authority *gove
 		return result, governor.ErrBusy
 	}
 	scope.output = output.Grant
-	if e := authority.Check(scope.output, outputRequest); e != nil {
+	if e := authority.CheckContext(ctx, scope.output, outputRequest); e != nil {
 		return result, e
 	}
 	consumerContext, cancel := context.WithDeadline(ctx, earliest(request.ProtectedDeadline, outputRequest.Deadline))
@@ -127,13 +127,21 @@ func (s *foregroundOutput) check() error {
 	if s == nil {
 		return governor.ErrGrant
 	}
-	if err := s.authority.CheckForeground(s.live, s.request); err != nil {
+	// Security fences may run under their own original-deadline context after
+	// caller cancellation. The context-free check must retain its old semantics.
+	return s.checkContext(context.Background())
+}
+func (s *foregroundOutput) checkContext(ctx context.Context) error {
+	if s == nil {
+		return governor.ErrGrant
+	}
+	if err := s.authority.CheckForegroundContext(ctx, s.live, s.request); err != nil {
 		return err
 	}
-	return s.authority.Check(s.output, s.outputRequest)
+	return s.authority.CheckContext(ctx, s.output, s.outputRequest)
 }
 
-func (s *foregroundOutput) begin(output BrowseOutput, request governor.Request, snapshots *governor.Snapshots) error {
+func (s *foregroundOutput) begin(ctx context.Context, output BrowseOutput, request governor.Request, snapshots *governor.Snapshots) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if snapshots == nil || snapshots != s.pool || !snapshots.OwnedBy(s.authority) || s.closed || s.used || output.Authority != s.authority || output.Grant != s.output || request.Key != s.request.Key || request.Owner != s.request.Owner || request.Class != governor.Foreground {
@@ -147,10 +155,10 @@ func (s *foregroundOutput) begin(output BrowseOutput, request governor.Request, 
 		return governor.ErrSnapshotBudget
 	}
 
-	if err := s.authority.Check(output.Grant, output.Request); err != nil {
+	if err := s.authority.CheckContext(ctx, output.Grant, output.Request); err != nil {
 		return err
 	}
-	if err := s.check(); err != nil {
+	if err := s.checkContext(ctx); err != nil {
 		return err
 	}
 	s.used = true
@@ -163,7 +171,7 @@ func liveRead[T any](ctx context.Context, request governor.Request, budget time.
 	if ctx == nil || scope == nil || budget <= 0 || now.IsZero() {
 		return page, result, ErrInput
 	}
-	if err = scope.begin(output, request, snapshots); err != nil {
+	if err = scope.begin(ctx, output, request, snapshots); err != nil {
 		return page, result, err
 	}
 	defer func() {
@@ -195,7 +203,7 @@ func liveRead[T any](ctx context.Context, request governor.Request, budget time.
 		var zero T
 		return zero, result, err
 	}
-	if e := errors.Join(readContext.Err(), scope.check()); e != nil {
+	if e := errors.Join(readContext.Err(), scope.checkContext(readContext)); e != nil {
 		var zero T
 		return zero, result, e
 	}

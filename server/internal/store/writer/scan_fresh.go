@@ -66,8 +66,16 @@ func applyInventoryAccept(ctx context.Context, turn *commandTurn, command *inven
 	if err != nil {
 		return value, err
 	}
-	if err = execInventoryFreshOne(ctx, turn, scanInventoryLink, r.scope.libraryID, allocated.subjectID, allocated.assetID); err != nil {
+	link, err := turn.queryRow(ctx, turn.steps[scanInventoryLink].statementStep, r.scope.libraryID, allocated.subjectID, allocated.assetID, f.part)
+	if err != nil {
 		return value, err
+	}
+	var actualPart int64
+	if err = link.Scan(&actualPart); err != nil {
+		return value, err
+	}
+	if actualPart != f.part {
+		return value, ErrConflict
 	}
 	if err = applyInventoryFreshAggregates(ctx, turn, command, &facts, &allocated); err != nil {
 		return value, err
@@ -225,7 +233,7 @@ func validateInventoryFreshUnion(ctx context.Context, turn *commandTurn, c *inve
 		return err
 	}
 	if lib != c.request.scope.libraryID || entity != a.subjectID || asset != a.assetID || cue.Valid || !start.Valid || start.Float64 != 0 || end.Valid ||
-		part != 0 || available != 1 || shape.Valid || pending.Valid || infoDuration != 0 || rows.Next() {
+		part != c.request.files[0].part || available != 1 || shape.Valid || pending.Valid || infoDuration != 0 || rows.Next() {
 		return ErrConflict
 	}
 	if err = rows.Err(); err != nil {
@@ -258,5 +266,11 @@ func validateInventoryFreshUnion(ctx context.Context, turn *commandTurn, c *inve
 	if err = rows.Close(); err != nil {
 		return err
 	}
-	return ValidateScanShape(ScanShape{LibraryID: lib, OrdinaryOwners: 1, VersionAssetIDs: []int64{asset}})
+	// Only whole sources count toward the version cap; multipart links are
+	// independently stored part indexes, as in the legacy catalogue.
+	var versions []int64
+	if part == 0 {
+		versions = []int64{asset}
+	}
+	return ValidateScanShape(ScanShape{LibraryID: lib, OrdinaryOwners: 1, VersionAssetIDs: versions})
 }

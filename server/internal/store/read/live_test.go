@@ -8,22 +8,21 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 )
 
 // Explicit test composition, not a default profile or physical-fit claim.
 func newLiveFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture, *ForegroundReader) {
 	t.Helper()
-	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 16, Foreground: &governor.ForegroundProfile{
-		AssignedBytes: 1_600_000_000, EffectiveBytes: 1_600_000_000, NonBrowseBytes: 1140 << 20,
-		MinimumLive: 4, MaxWaiters: 1, BookkeepingBytes: 4096, MaxWait: 50 * time.Millisecond,
-	}}
+	now := time.Now
 	if len(clocks) > 0 {
-		gc.Now = clocks[0]
+		now = clocks[0]
 	}
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: (80 << 20) + 5*4096, governor.QueueBytes: 5 * 4096}
+	gc := readfixture.LiveConfig(now)
 	f := composeReadFixture(t, newForegroundSource(t), HarnessDefinitions(), gc, false)
 	r, e := NewForegroundReader(f.snapshots)
 	if e != nil {
@@ -32,13 +31,7 @@ func newLiveFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture, *
 	return f, r
 }
 func liveRequests(id string) (governor.ForegroundRequest, governor.Request, governor.Request) {
-	now := time.Now()
-	q := governor.ForegroundRequest{Key: governor.JobKey{Domain: 73, ID: id}, Owner: 1, ReadyDeadline: now.Add(time.Second), ProtectedDeadline: now.Add(3 * time.Second)}
-	read := foregroundRequest()
-	read.Key = q.Key
-	read.Deadline = q.ProtectedDeadline
-	output := governor.Request{Key: governor.JobKey{Domain: 74, ID: id}, Owner: q.Owner, Class: governor.Foreground, Need: governor.Amounts{governor.MemoryBytes: 8 << 20}, Deadline: q.ProtectedDeadline}
-	return q, read, output
+	return readfixture.Requests(id, time.Now())
 }
 func assertLiveUsage(t *testing.T, f *browseFixture, live int, readers int64) {
 	t.Helper()
@@ -316,6 +309,10 @@ func TestLiveExactBindingsAndEscapedScope(t *testing.T) {
 }
 
 func TestLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline(t *testing.T) {
+	synctest.Test(t, testLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline)
+}
+
+func testLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline(t *testing.T) {
 	f, _ := newLiveFixture(t)
 	hold, _, _ := liveRequests("holder")
 	var grants []*governor.Grant
@@ -359,19 +356,15 @@ func TestLiveWaitingReservesNoPayloadAndKeepsOriginalReadyDeadline(t *testing.T)
 		})
 		done <- e
 	}()
-	until := time.NewTimer(time.Second)
-	defer until.Stop()
-	tick := time.NewTicker(time.Millisecond)
-	defer tick.Stop()
-	for f.authority.ForegroundUsage().Waiters != 1 {
-		select {
-		case <-tick.C:
-		case e := <-done:
-			t.Fatal("waiter ended early", e)
-		case <-until.C:
-			t.Fatal("waiter did not queue")
-		}
+	// Observe the blocked waiter without racing a wall-clock polling loop
+	// against its bounded admission/ready lifetime. Then advance virtual time
+	// by one millisecond to retain a nonzero admission-elapsed witness.
+	synctest.Wait()
+	if got := f.authority.ForegroundUsage().Waiters; got != 1 {
+		t.Fatalf("waiter did not queue: %d", got)
 	}
+	time.Sleep(time.Millisecond)
+
 	select {
 	case <-entered:
 		t.Fatal("queued callback allocated payload")
@@ -463,6 +456,12 @@ func TestLiveConsumerReturnJoinsActiveReadBeforeRefund(t *testing.T) {
 }
 
 func TestLivePublicationDenialWinsOverCancellation(t *testing.T) {
+	// This is an ordering control, not a wall-clock qualification: race
+	// instrumentation must not expire the Reader before the revoke boundary.
+	synctest.Test(t, testLivePublicationDenialWinsOverCancellation)
+}
+
+func testLivePublicationDenialWinsOverCancellation(t *testing.T) {
 	f, _ := newLiveFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -470,8 +469,11 @@ func TestLivePublicationDenialWinsOverCancellation(t *testing.T) {
 	q, request, output := liveRequests("denial-cancel")
 	var readErr error
 	_, e := ConsumeForeground(ctx, f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-		page, _, err := f.reader.Window(ctx, request, time.Second, out, f.input)
+		page, result, err := f.reader.Window(ctx, request, time.Second, out, f.input)
 		readErr = err
+		if result.PublicationStatements != 2 {
+			t.Fatalf("fresh authority/principal fence did not run: %+v, err=%v", result, err)
+		}
 		if !reflect.DeepEqual(page, BrowsePage{}) {
 			t.Fatal("denied output escaped")
 		}
@@ -727,4 +729,72 @@ func TestLiveUncertainOutputRetirementKeepsLIVECharged(t *testing.T) {
 		t.Fatal(e)
 	}
 	assertLiveUsage(t, f, 0, 0)
+}
+
+// A per-read child cancellation must wake entry validation even while its
+// consumer/LIVE context remains valid and another validator holds the ledger.
+func TestLiveReadOwnCancellationInterruptsEntryValidation(t *testing.T) {
+	type contention struct {
+		calls         atomic.Int32
+		held, release chan struct{}
+	}
+	var active atomic.Pointer[contention]
+	f, _ := newLiveFixture(t, func() time.Time {
+		if c := active.Load(); c != nil && c.calls.Add(1) == 1 {
+			close(c.held) // Check calls Now while holding the ledger.
+			<-c.release
+		}
+		return time.Now()
+	})
+	synctest.Test(t, func(t *testing.T) {
+		q, request, output := liveRequests("read-child-cancel")
+		_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+			c := &contention{held: make(chan struct{}), release: make(chan struct{})}
+			active.Store(c)
+			holder := make(chan error, 1)
+			go func() { holder <- f.authority.Check(out.Grant, out.Request) }()
+			<-c.held
+			defer func() {
+				close(c.release)
+				if e := <-holder; e != nil {
+					t.Error(e)
+				}
+				active.Store(nil)
+			}()
+			readCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				_, _, e := liveRead(readCtx, request, time.Second, out, f.snapshots, time.Now(), func(context.Context, governor.Request, time.Duration, time.Time) (int, BrowseReadResult, error) {
+					t.Error("cancelled entry reached read work")
+					return 1, BrowseReadResult{}, nil
+				})
+				done <- e
+			}()
+			synctest.Wait()
+			select {
+			case e := <-done:
+				t.Fatal("entry did not wait for ledger", e)
+			default:
+			}
+			cancel()
+			synctest.Wait()
+			select {
+			case e := <-done:
+				if !errors.Is(e, context.Canceled) {
+					t.Fatal(e)
+				}
+			default:
+				t.Fatal("read cancellation waited for ledger handoff")
+			}
+			if ctx.Err() != nil || out.live.used {
+				t.Fatal("child cancellation consumed the operation or cancelled its owner")
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertLiveUsage(t, f, 0, 0)
+	})
 }

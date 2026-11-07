@@ -16,15 +16,25 @@ func inventoryCommandDefinitions() []stmt.Definition {
 // SC-owned use inventory; W adds its outer history work. There is no worker
 // override and no numerical Work forecast inferred from a definition.
 func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
-	if purpose == BasicStage || purpose == BasicSeal {
-		return basicCommandMaxUses(purpose, id)
+	if purpose == ProgressReceiptReclaim {
+		return wcReclaimStatementMaxUses(id)
 	}
-
+	if purpose == SecurityAccept {
+		return wcSecurityStatementMaxUses(id)
+	}
+	if purpose == ProgressAccept {
+		return wcProgressStatementMaxUses(id)
+	}
 	if purpose == InventoryCreate || purpose == InventoryClaim {
 		return scanLifecycleMaxUses(purpose, id)
 	}
 
 	if purpose == InventoryAccept {
+		switch id {
+		case scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
+			scanLifecycleRun, scanLifecycleJob, scanLifecycleRoot, scanLifecycleActive, scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot:
+			return 1
+		}
 		if uses := inventoryFreshMaxUses(id); uses != 0 {
 			return uses
 		}

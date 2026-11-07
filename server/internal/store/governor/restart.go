@@ -22,7 +22,7 @@ func (w *WALGate) RestartRisk(now time.Time) (WALRestartRisk, error) {
 		return WALRestartRisk{}, ErrBusy
 	}
 	defer w.mu.Unlock()
-	if !w.fresh(now) || w.writer || w.checkpoint {
+	if !w.fresh(now) || w.writer || (w.checkpoint && !w.policy.ConcurrentPassive) || (w.keeper != nil && !w.keeper.active(now)) {
 		return WALRestartRisk{}, ErrWALObservation
 	}
 	return w.restartRisk(), nil
@@ -31,7 +31,7 @@ func (w *WALGate) fresh(now time.Time) bool {
 	return w.valid && !now.Before(w.at) && now.Sub(w.at) <= w.policy.MaxSampleAge
 }
 func (w *WALGate) restartRisk() WALRestartRisk {
-	r := WALRestartRisk{Observation: w.version, ObservedAt: w.at, Possible: w.state.Frames == w.state.Backfill}
+	r := WALRestartRisk{Observation: w.version, ObservedAt: w.at, Possible: w.policy.ConcurrentPassive || w.state.Frames == w.state.Backfill}
 	if r.Possible {
 		r.HeaderBytes = 32
 	}

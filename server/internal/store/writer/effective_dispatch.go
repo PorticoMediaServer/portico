@@ -45,29 +45,40 @@ type effectivePlan struct {
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
+	wcProgressMemory    commandMemoryBudget
+	wcSecurityMemory    commandMemoryBudget
+	wcReclaimMemory     commandMemoryBudget
 }
 
 // No runtime registration, worker budget or callbacks are accepted. The actual
 // private composition must own pool/native idle memory and WAL sampling outside
 // command custody. No production profile is inferred from these descriptors.
 type effectiveRuntime struct {
-	mu             sync.Mutex
-	executor       *executor
-	governor       governor.Governor
-	authority      *governor.Authority
-	wal            *governor.WALGate
-	path           string
-	owner          governor.OwnerID
-	plan           effectivePlan
-	inventoryPlan  *effectivePlan
-	lifecyclePlans [2]*effectivePlan // private, explicitly composed create/claim history profiles
-	issuerPlans    [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
-	basicPlans     [2]*effectivePlan // closed Stage/Seal; no implicit/default profile
-	registry       *stmt.Registry
-	fenced         bool
-	cleanupPanics  []terminalPanic
+	mu                       sync.Mutex
+	executor                 *executor
+	governor                 governor.Governor
+	authority                *governor.Authority
+	wal                      *governor.WALGate
+	path                     string
+	owner                    governor.OwnerID
+	plan                     effectivePlan
+	basicPlans               [2]*effectivePlan // private closed Stage/Seal profiles
+	inventoryPlan            *effectivePlan
+	lifecyclePlans           [2]*effectivePlan // private, explicitly composed create/claim history profiles
+	issuerPlans              [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
+	inventoryDriverPlan      *effectivePlan    // complete trusted N1 profile; nil keeps fresh effects closed
+	inventoryPreparationPlan *effectivePlan
+	registry                 *stmt.Registry
+	fenced                   bool
+	cleanupPanics            []terminalPanic
 
 	clockHighWater time.Time // composition custody under mu, then transferred into the frame
+
+	// Private, explicitly composed WC profiles share the same dispatcher.
+	wcProgressPlan      *effectivePlan
+	wcProgressBirthPlan *effectivePlan
+	wcSecurityPlan      *effectivePlan
+	wcReclaimPlan       *effectivePlan
 }
 
 func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *governor.Authority, wal *governor.WALGate, owner governor.OwnerID, plan effectivePlan, inventoryPlans ...effectivePlan) (*effectiveRuntime, error) {
@@ -167,7 +178,7 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 		v, err := finishCommand(ctx, ctx, commandCompletion{output: commandOutput{effective: released}, ack: releasedAck}, releaseErr)
 		released, releasedAck, releaseErr = v.output.effective, v.ack, err
 	}()
-	out, acknowledged, err := r.runCommand(ctx, w, cap, request, input, ack, nil)
+	out, acknowledged, err := r.dispatchCommand(ctx, w, cap, request, input, ack, nil, nil)
 	return out.effective, acknowledged, err
 }
 
@@ -178,15 +189,42 @@ type commandCompletion struct {
 
 type commandOutput struct {
 	effective EffectiveStageResult
-	inventory InventoryResult
 	basic     BasicResult
+	inventory InventoryResult
 	publisher SearchImageStageResult
 	lifecycle scanLifecycleCommandResult
 	source    scanSourceFacts
 	run       scanRunSnapshot
+	progress  ProgressResult
+	security  SecurityResult
+	reclaim   ReclaimResult
 }
 
+// Keep W's original call contract while all typed domains use one dispatcher.
 func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
+	defer func() {
+		result, finalErr := finishCommand(ctx, ctx, commandCompletion{out, acknowledged}, err)
+		out, acknowledged, err = result.output, result.ack, finalErr
+	}()
+	return r.dispatchCommand(ctx, w, cap, request, input, ack, scan, nil, publishers...)
+}
+
+func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, invocation wcCommandInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
+	var wc *wcProgressInvocation
+	var security *wcSecurityInvocation
+	var reclaim *wcReclaimInvocation
+	invalidWC := false
+	switch v := invocation.(type) {
+	case nil:
+	case *wcProgressInvocation:
+		wc = v
+	case *wcSecurityInvocation:
+		security = v
+	case *wcReclaimInvocation:
+		reclaim = v
+	default:
+		invalidWC = true
+	}
 	var publisher *publisherInvocation
 	if len(publishers) == 1 {
 		publisher = publishers[0]
@@ -200,24 +238,53 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if stopLifetime != nil {
 			defer stopLifetime()
 		}
-		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation))
 		if tx != nil {
 			err = errors.Join(err, tx.lifetimeErr)
 		}
 		result, finalErr := finishCommand(ctx, lifetime, commandCompletion{out, acknowledged}, err)
 		out, acknowledged, err = result.output, result.ack, finalErr
 	}()
-	if ctx == nil || len(publishers) > 1 || len(publishers) == 1 && publisher == nil {
+	// Preserve the actual terminal disposition independently of public result
+	// redaction. This defer runs after tx.rollback has joined native cleanup,
+	// including a panic inside COMMIT. Only an uncertain physical COMMIT may
+	// keep canceled/closed claim command custody indefinitely.
+	var claimReservation *wcClaimCommandReservation
+	if wc != nil {
+		if wc.input != nil && !wc.input.retired {
+			claimReservation = wc.input.custody
+		} else if ack && wc.disclosure != nil && wc.disclosure.driver != nil {
+			if c := wc.disclosure.driver.work; c != nil && c.reference == wc.request {
+				claimReservation = c.custody
+			}
+		}
+	}
+	if reclaim != nil {
+		if reclaim.input != nil && !reclaim.input.retired {
+			claimReservation = reclaim.input.custody
+		} else if ack && reclaim.disclosure != nil && reclaim.disclosure.driver != nil {
+			if c := reclaim.disclosure.driver.work; c != nil && c.reference == reclaim.request {
+				claimReservation = c.custody
+			}
+		}
+	}
+	if claimReservation != nil {
+		if err = claimReservation.begin(); err != nil {
+			return out, acknowledged, err
+		}
+		defer func() { claimReservation.finish(tx) }()
+	}
+	if invalidWC || ctx == nil || len(publishers) > 1 || len(publishers) == 1 && publisher == nil {
 		return out, acknowledged, ErrInvalid
 	}
-	if err := r.currentCommandDisclosure(w, cap, request, scan, publisher); err != nil {
+	if err := r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation); err != nil {
 		return out, acknowledged, err
 	}
 	if err := ctx.Err(); err != nil {
 		return out, acknowledged, err
 	}
 	if publisher != nil {
-		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || ack != (publisher.call == publisherAckImage) {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || invocation != nil || ack != (publisher.call == publisherAckImage) {
 			return out, acknowledged, ErrInvalid
 		}
 		if _, err := validatePublisherInvocation(ctx, w, publisher); err != nil {
@@ -253,11 +320,11 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			if err != nil {
 				return out, acknowledged, err
 			}
-			plan = nil // one-time private profile is read only under runtime custody
+			plan = nil
 			outcome = &out.basic.Outcome
 		}
 		if scan.lifecycle != 0 {
-			if scan.input != nil || (scan.lifecycle != InventoryCreate && scan.lifecycle != InventoryClaim) {
+			if scan.input != nil || (scan.lifecycle != InventoryCreate && scan.lifecycle != InventoryClaim && (scan.lifecycle != InventoryAccept || scan.issuer == nil)) {
 				return out, acknowledged, ErrInvalid
 			}
 			purpose = scan.lifecycle
@@ -265,26 +332,107 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			outcome = &out.lifecycle.Outcome
 		}
 	}
+	if wc != nil {
+		if scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
+			return out, acknowledged, ErrInvalid
+		}
+		purpose, plan, reference, key, libraryID = ProgressAccept, nil, wc.request.Receipt, wc.request.PlaybackID, wc.disclosure.driver.scope.libraryID
+		outcome = &out.progress.Outcome
+	}
+	if security != nil {
+		if scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
+			return out, acknowledged, ErrInvalid
+		}
+		purpose, plan, reference, key, libraryID = SecurityAccept, nil, security.request.Receipt, security.request.FamilyID, 0
+		outcome = &out.security.Outcome
+	}
+	if reclaim != nil {
+		if scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
+			return out, acknowledged, ErrInvalid
+		}
+		purpose, plan, reference, key, libraryID = ProgressReceiptReclaim, nil, reclaim.request.Receipt, reclaim.request.PlaybackID, reclaim.disclosure.driver.scope.libraryID
+		outcome = &out.reclaim.Outcome
+	}
 	if !r.mu.TryLock() {
 		return out, acknowledged, ErrBusy
 	}
 	defer r.mu.Unlock()
+	var submittedWork *scanDriverWork
+	if scan != nil && scan.issuer != nil {
+		submittedWork = scan.issuer.work
+	}
 	if scan != nil && scan.basic != nil {
+		if err = validateBasicWork(r, w, scan); err != nil {
+			return out, acknowledged, err
+		}
+		submittedWork = scan.basic.work
 		plan = r.basicPlans[int(purpose-BasicStage)]
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
 	}
+	if wc != nil {
+		plan = r.wcProgressPlan
+		if wc.birth != nil {
+			plan = r.wcProgressBirthPlan
+		}
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+	}
+	if security != nil {
+		plan = r.wcSecurityPlan
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+	}
+	if reclaim != nil {
+		plan = r.wcReclaimPlan
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+	}
 	if scan != nil && scan.lifecycle != 0 {
-		plan = r.lifecyclePlans[int(purpose-InventoryCreate)]
+		if purpose == InventoryAccept {
+			plan = r.inventoryPreparationPlan
+		} else {
+			plan = r.lifecyclePlans[int(purpose-InventoryCreate)]
+		}
 		if scan.issuer != nil {
 			if err = validateScanIssuerInvocation(r, w, scan); err != nil {
 				return out, acknowledged, err
 			}
-			plan = r.issuerPlans[int(purpose-InventoryCreate)]
+			if purpose == InventoryAccept {
+				plan = r.inventoryPreparationPlan
+			} else {
+				plan = r.issuerPlans[int(purpose-InventoryCreate)]
+			}
 		}
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
+		}
+	}
+	if scan != nil && scan.issuer != nil && scan.lifecycle == 0 {
+		if err = validateScanIssuerInvocation(r, w, scan); err != nil {
+			return out, acknowledged, err
+		}
+		if !isScanInventoryHistory(scan.issuer.action) {
+			return out, acknowledged, ErrInvalid
+		}
+		if scan.issuer.action == scanIssuerN1Apply && r.inventoryDriverPlan != nil {
+			plan = r.inventoryDriverPlan
+		}
+	}
+	if purpose == InventoryAccept {
+		required, e := scanLifecycleWorkingBytes(nil, scan.request.RunID, scan.request.LibraryKey)
+		if e != nil {
+			return out, acknowledged, e
+		}
+		if plan.inventoryMemory == (inventoryMemoryBudget{}) {
+			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
+		}
+		if required > plan.inventoryMemory.preparationBytes {
+			return out, acknowledged, &Refusal{Code: RefusalCapacity}
 		}
 	}
 	defer func() {
@@ -318,8 +466,11 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if err != nil {
 		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
 	}
-	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover) {
+	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover || scan.issuer.action == scanIssuerInventory || scan.issuer.action == scanIssuerN1Recover) {
 		scan.issuer.deadline = now.Add(scan.issuer.driver.readyPlan.ready)
+		if scan.issuer.action == scanIssuerInventory && time.UnixMilli(scan.issuer.lease.expiresMS).Before(scan.issuer.deadline) {
+			scan.issuer.deadline = time.UnixMilli(scan.issuer.lease.expiresMS)
+		}
 		if stop, ok := ctx.Deadline(); ok && stop.Before(scan.issuer.deadline) {
 			scan.issuer.deadline = stop
 		}
@@ -339,15 +490,15 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		Class: class, Writer: true, Need: plan.need, IO: plan.io, MaxHold: plan.recipe.limit.Hold, Deadline: deadline,
 		Budget:    governor.UnitBudget{RawRows: uint32(plan.recipe.limit.Rows), VMOps: plan.recipe.limit.VMOps, Pages: uint32(plan.recipe.limit.Pages)},
 		Footprint: []governor.Scope{{Library: libraryID, Domain: uint16(purpose)}}}
-	if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-		if err = scan.issuer.work.submitting(); err != nil {
+	if submittedWork != nil {
+		if err = submittedWork.submitting(); err != nil {
 			return out, acknowledged, err
 		}
 	}
 	decision := r.governor.Try(expected)
 	if decision.Grant == nil {
-		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-			err = scan.issuer.work.refused(decision)
+		if submittedWork != nil {
+			err = submittedWork.refused(decision)
 		}
 		return out, acknowledged, errors.Join(err, effectiveAdmissionRefusal(decision.Refusal))
 	}
@@ -363,8 +514,8 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 				r.fenced = true
 			}
 			retireErr := r.retireUnused(decision.Grant, custody)
-			if retireErr == nil && scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-				scan.issuer.work.admissionReturned(custody)
+			if retireErr == nil && submittedWork != nil {
+				submittedWork.admissionReturned(custody)
 			}
 			err = errors.Join(err, retireErr)
 			if primary != nil {
@@ -381,6 +532,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	custody.searchImageMemory = plan.searchImageMemory
 	custody.scanLifecycleMemory = plan.scanLifecycleMemory
 	custody.basicMemory = plan.basicMemory
+	custody.wcProgressMemory = plan.wcProgressMemory
+	custody.wcSecurityMemory = plan.wcSecurityMemory
+	custody.wcReclaimMemory = plan.wcReclaimMemory
 	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
@@ -390,8 +544,8 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if r.executor.fenced || r.executor.ambiguous {
 			r.fenced = true
 		}
-		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-			scan.issuer.work.admissionReturned(custody)
+		if submittedWork != nil {
+			submittedWork.admissionReturned(custody)
 		}
 		if !ack && errors.Is(err, ErrResolveRequired) {
 			outcome.State = ResolveRequired
@@ -407,10 +561,10 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			p.frame = tx
 			p.mu.Unlock()
 		}
-		if scan.issuer.work != nil {
-			if err = scan.issuer.work.bindFrame(tx); err != nil {
-				return out, acknowledged, err
-			}
+	}
+	if submittedWork != nil {
+		if err = submittedWork.bindFrame(tx); err != nil {
+			return out, acknowledged, err
 		}
 	}
 	// The frame cancels its SQL context during retirement. Keep the EXACT same
@@ -422,8 +576,21 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	lifetime, stopLifetime = commandDeadline(ctx, deadline)
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
+	if err == nil && scan != nil && scan.basic != nil {
+		var required uint64
+		required, err = basicReceiptRequiredBytes(scan.basic.request, [4]int64{})
+		if err == nil {
+			err = turn.requireBasicMemory(ctx, scan.basic.request.Purpose, required)
+		}
+	}
 	if err == nil {
-		if scan != nil {
+		if reclaim != nil {
+			err = checkWCReclaimNativeDisclosure(ctx, turn, reclaim)
+		} else if security != nil {
+			err = checkWCSecurityNativeDisclosure(ctx, turn, security)
+		} else if wc != nil {
+			err = checkWCProgressNativeDisclosure(ctx, turn, wc)
+		} else if scan != nil {
 			if scan.lifecycle == 0 && scan.basic == nil {
 				_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
 			}
@@ -439,13 +606,26 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		}
 	}
 	if err == nil {
-		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
+		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation), turn.checkLifetimes(ctx))
 	}
 	var historical bool
+	if err == nil && reclaim != nil {
+		out.reclaim, acknowledged, historical, err = executeWCReclaimInvocation(ctx, turn, reclaim, ack)
+	}
+	if err == nil && security != nil {
+		out.security, acknowledged, historical, err = executeWCSecurityInvocation(ctx, turn, security, ack)
+	}
+	if err == nil && wc != nil {
+		out.progress, acknowledged, historical, err = executeWCProgressInvocation(ctx, turn, wc, ack)
+	}
 	if err == nil && scan != nil && scan.issuer != nil {
-		out, historical, err = runScanIssuerTurn(ctx, turn, scan, ack)
-		if err == nil && ack {
-			acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+		if isScanInventoryHistory(scan.issuer.action) {
+			out, acknowledged, historical, err = runScanInventoryHistory(ctx, turn, scan, ack)
+		} else {
+			out, historical, err = runScanIssuerTurn(ctx, turn, scan, ack)
+			if err == nil && ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+			}
 		}
 	}
 	if err == nil && scan != nil && scan.lifecycle != 0 && scan.issuer == nil {
@@ -465,12 +645,12 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if err == nil && scan != nil && scan.basic != nil {
 		out.basic, historical, err = r.runBasicTurn(ctx, w, turn, scan, ack, &acknowledged)
 	}
-	if err == nil && scan != nil && scan.lifecycle == 0 && scan.basic == nil {
+	if err == nil && scan != nil && scan.lifecycle == 0 && scan.issuer == nil && scan.basic == nil {
 		var lookup inventoryReceiptLookup
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;
 		// neither a saved result nor a fresh decision escapes revocation.
-		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation), turn.checkLifetimes(ctx))
 		if err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeInventory(ctx, turn, scan.request, lookup)
@@ -488,13 +668,13 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			}
 		}
 	}
-	if err == nil && scan == nil {
+	if err == nil && scan == nil && invocation == nil {
 		expectedReceipt := receiptIdentity{request.Receipt.Identity, request.Receipt.RequestDigest}
 		var saved EffectiveStageBeginResult
 		var owner effectiveBeginOwner
 		var disposition receiptDecision
 		saved, owner, disposition, err = lookupEffectiveStageBegin(ctx, turn, request.ProviderOperationID, expectedReceipt)
-		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation))
 		if err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeEffective(ctx, turn, request, owner, disposition)
@@ -531,6 +711,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if turn != nil {
 		err = errors.Join(err, turn.closeRows())
 	}
+	if err == nil && scan != nil && scan.basic != nil {
+		err = checkBasicWorkLifetime(ctx, scan)
+	}
 	if err == nil && scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical {
 		err = checkBasicTerminal(ctx, turn, scan.basic.request.Purpose, scan.basic.leaseExpiresMS())
 	}
@@ -542,7 +725,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
-	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher)))
+	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation)))
 	out, acknowledged, err = checked.output, checked.ack, checkedErr
 	var physical turnResult
 	if err == nil {
@@ -551,15 +734,11 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		physical, err = tx.rollback(err)
 	}
 	if scan != nil && scan.issuer != nil && !ack && !historical && physical.state == committed &&
-		(scan.issuer.action == scanIssuerCreate || scan.issuer.action == scanIssuerClaim) {
+		(scan.issuer.action == scanIssuerCreate || scan.issuer.action == scanIssuerClaim || scan.issuer.action == scanIssuerN1Apply) {
 		outcome.State = Applied
 		outcome.Reference = reference
 	}
-	if scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical && physical.state == committed {
-		outcome.State = Applied
-		outcome.Reference = reference
-	}
-	if scan == nil && !ack && !historical && input != nil {
+	if scan == nil && invocation == nil && !ack && !historical && input != nil {
 		if physical.state == commitUnknown {
 			out.effective.Value = EffectiveStageBeginResult{}
 			outcome.State = ResolveRequired
@@ -575,6 +754,19 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		outcome.State = ResolveRequired
 		outcome.Reference = reference
 	}
+	if scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical && physical.state == committed {
+		outcome.State, outcome.Reference = Applied, reference
+	}
+	if wc != nil && !ack && !historical && wc.input != nil && physical.state == committed {
+		out.progress.Outcome.State = Applied
+		recordWCProgressCompletion(wc, out.progress)
+	}
+	if security != nil && !ack && !historical && security.input != nil && physical.state == committed {
+		out.security.Outcome.State = Applied
+	}
+	if reclaim != nil && !ack && !historical && reclaim.input != nil && physical.state == committed {
+		out.reclaim.Outcome.State = Applied
+	}
 	if ack && physical.state != committed {
 		acknowledged.AcknowledgedThrough = 0
 	}
@@ -588,6 +780,15 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	if r.executor.fenced || r.executor.ambiguous {
 		r.fenced = true
+	}
+	if security != nil && security.snapshot {
+		out.security.Snapshot.Evidence = evidence
+	}
+	if reclaim != nil && reclaim.snapshot {
+		out.reclaim.Snapshot.Evidence = evidence
+	}
+	if wc != nil && (wc.snapshot || wc.retainedAck) {
+		out.progress.Snapshot.Evidence = evidence
 	}
 	if ack {
 		acknowledged.Evidence = evidence

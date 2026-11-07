@@ -245,13 +245,49 @@ func TestBoundedValidationAndFailFast(t *testing.T) {
 	x := r
 	x.Deadline = c.now()
 	refused(t, g, x, Deadline)
+	p := grant(t, g, r)
 	l := g.(*ledger)
+	entered := make(chan time.Duration, 1)
+	expiry := make(chan time.Time, 1)
+	l.mu.timer = func(remaining time.Duration) (<-chan time.Time, func()) {
+		entered <- remaining
+		return expiry, func() {}
+	}
 	l.mu.Lock()
-	refused(t, g, r, Capacity)
-	if a.Check(nil, r) != ErrBusy {
-		t.Fatal("check blocked instead of refusing")
+	refused(t, g, r, Capacity) // ordinary Try remains nonwaiting
+	if a.Check(nil, r) != ErrGrant {
+		l.mu.Unlock()
+		t.Fatal("nil authority must still refuse immediately")
+	}
+	done := make(chan error, 1)
+	go func() { done <- a.Check(p, r) }()
+	select {
+	case remaining := <-entered:
+		if remaining != p.deadline.Sub(c.now()) {
+			t.Error("check did not use original issuer deadline", remaining)
+		}
+	case err := <-done:
+		l.mu.Unlock()
+		t.Fatal("admitted validation must wait through contention", err)
+	}
+	select {
+	case err := <-done:
+		l.mu.Unlock()
+		t.Fatal("check returned before its original deadline", err)
+	default:
+	}
+	c.ms.Store(1000) // deliver the ORIGINAL deadline without a wall-clock sleep
+	expiry <- c.now()
+	if err := <-done; err != ErrGrant {
+		l.mu.Unlock()
+		t.Fatal("expired check must return typed grant refusal", err)
+	}
+	if l.find(p) == nil || l.used[r.Class] != r.Need {
+		l.mu.Unlock()
+		t.Fatal("validation expiry refunded physical custody")
 	}
 	l.mu.Unlock()
+	retire(t, a, p)
 	if a.Usage() != [4]Amounts{} {
 		t.Fatal("invalid request mutated capacity")
 	}

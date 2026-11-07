@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -357,6 +358,7 @@ var n1Missing = map[string]string{
 }
 
 type n1Stream struct {
+	mu       sync.Mutex // serializes post-custody records from bounded paired streams
 	file     *os.File
 	origin   time.Time
 	base     map[string]any
@@ -365,6 +367,8 @@ type n1Stream struct {
 }
 
 func (s *n1Stream) append(kind string, fields map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.err != nil {
 		return s.err
 	}
@@ -436,10 +440,14 @@ func n1SeedCase(t *testing.T, e *executor, c *inventoryAcceptCommand, cell n1Cas
 }
 
 // Existing read-only fixture facts, outside physical custody for both layouts.
-func n1ReadFixtureFacts(t *testing.T, ctx context.Context, e *executor, record *n1Attempt) {
+func n1ReadFixtureFacts(t *testing.T, ctx context.Context, e *executor, record *n1Attempt, libraryKey ...string) {
 	t.Helper()
+	key := "fresh-library"
+	if len(libraryKey) == 1 {
+		key = libraryKey[0]
+	}
 	record.AgeState = make([]int64, 3)
-	if err := e.db.QueryRowContext(ctx, `SELECT age_input_revision,age_published_revision,age_pending_operations FROM libraries WHERE id='fresh-library'`).Scan(&record.AgeState[0], &record.AgeState[1], &record.AgeState[2]); err != nil {
+	if err := e.db.QueryRowContext(ctx, `SELECT age_input_revision,age_published_revision,age_pending_operations FROM libraries WHERE id=?`, key).Scan(&record.AgeState[0], &record.AgeState[1], &record.AgeState[2]); err != nil {
 		t.Fatal(err)
 	}
 	profiles, err := e.db.QueryContext(ctx, `SELECT id,bank_key,recipe_version,engine_version,unicode_fingerprint,state FROM search_generations ORDER BY id`)

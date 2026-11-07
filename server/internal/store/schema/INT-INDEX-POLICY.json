@@ -921,6 +921,12 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "scan_receipt_refused_directory_identity",
+      "predicate": "refused_directory_identity IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Force exact run/native BLOB identity point plus literal IS NOT NULL, LIMIT1; no command incarnation, ACK, lease, phase or revision filter. SEARCH both equalities, no temp B-tree."
+    },
+    {
       "index": "screen_metadata_fanout_governor_due",
       "predicate": "job_due_ms IS NOT NULL",
       "choice": "repeat_exact_predicate",

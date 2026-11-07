@@ -73,14 +73,20 @@ func TestScanPreparationConstructorFinalFinishCancellation(t *testing.T) {
 
 func TestScanPreparationCanceledBusyAdmissionCannotRetry(t *testing.T) {
 	var armed atomic.Bool
-	entered, release := make(chan struct{}), make(chan struct{})
+	entered, release, contended := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var clockCalls atomic.Int32
 	var releaseOnce sync.Once
 	releaseClock := func() { releaseOnce.Do(func() { close(release) }) }
 	defer releaseClock()
 	now := func() time.Time {
 		if armed.Load() {
-			close(entered)
-			<-release
+			switch clockCalls.Add(1) {
+			case 1:
+				close(entered)
+				<-release
+			case 2:
+				close(contended) // bounded-wait deadline read, outside the held mutex
+			}
 		}
 		return time.Now()
 	}
@@ -102,14 +108,22 @@ func TestScanPreparationCanceledBusyAdmissionCannotRetry(t *testing.T) {
 	<-entered // the actual ledger mutex is held by Authority.Check's clock
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	value, first := p.ObserveInventory(ctx)
+	type observation struct {
+		value nativeinventory.Page
+		err   error
+	}
+	observed := make(chan observation, 1)
+	go func() { value, err := p.ObserveInventory(ctx); observed <- observation{value, err} }()
+	<-contended
 	armed.Store(false)
 	releaseClock()
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if !errors.Is(first, context.Canceled) || !errors.Is(first, governor.ErrBusy) || value.Version != 0 {
-		t.Fatal("missed canceled/busy interleaving", value, first)
+	firstResult := <-observed
+	value, first := firstResult.value, firstResult.err
+	if !errors.Is(first, context.Canceled) || errors.Is(first, governor.ErrBusy) || value.Version != 0 {
+		t.Fatal("missed canceled/contended interleaving", value, first)
 	}
 	value, err = p.ObserveInventory(t.Context())
 	if err == nil || value.Version != 0 {

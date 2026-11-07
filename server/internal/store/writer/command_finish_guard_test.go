@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "BasicResult": true, "basicReceiptLookup": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true}
+	resultTypes := commandFinishGuardResultTypes()
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -31,9 +31,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		if !hasContext {
 			continue
 		}
-		needs := fn.Name.Name == "disclose" || strings.HasPrefix(fn.Name.Name, "checkInventory") || fn.Name.Name == "requireInventoryMemory" || fn.Name.Name == "inventoryTimeMS" || fn.Name.Name == "searchImageEngine"
-		needs = needs || fn.Name.Name == "scanCreateTimeMS" || fn.Name.Name == "scanClaimTimeMS" || fn.Name.Name == "requireScanLifecycleMemory"
-		needs = needs || fn.Name.Name == "applyInventoryCreate" || fn.Name.Name == "applyInventoryClaim" || fn.Name.Name == "persistScanRunLifecycleResult"
+		needs := commandFinishGuardNeedsName(fn.Name.Name)
 		for _, r := range fn.Type.Results.List {
 			typ := r.Type
 			if pointer, ok := typ.(*ast.StarExpr); ok {
@@ -43,17 +41,6 @@ func unguardedCommandFinishes(file *ast.File) []string {
 				needs = true
 			}
 		}
-		// Closed publisher and shared resource helpers release either a scalar
-		// timestamp or error, so result-type discovery alone cannot cover them.
-		needs = needs || strings.HasPrefix(fn.Name.Name, "checkSearchImage") || fn.Name.Name == "requireSearchImageMemory" ||
-			fn.Name.Name == "searchImageTimeMS" || fn.Name.Name == "commandTimeMS" || fn.Name.Name == "requireCommandMemory"
-		needs = needs || fn.Name.Name == "basicTimeMS" || fn.Name.Name == "requireBasicMemory" || fn.Name.Name == "checkBasicTerminal"
-		needs = needs || fn.Name.Name == "acknowledgeSearchPublisher" || fn.Name.Name == "searchImageStageFreshFacts"
-		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle" || fn.Name.Name == "composeScanLifecycleHistory" || fn.Name.Name == "acknowledgeBasic" || fn.Name.Name == "composeBasicProfiles"
-		needs = needs || fn.Name.Name == "newScanDriver" || fn.Name.Name == "keepPreparation" || fn.Name.Name == "prepareWork" || fn.Name.Name == "allocateBirth" || fn.Name.Name == "prepareBirth" || fn.Name.Name == "checkBirthAbsence" || fn.Name.Name == "excludeOldWork"
-		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
-		needs = needs || fn.Name.Name == "PrepareCreate" || fn.Name.Name == "PrepareClaim" || fn.Name.Name == "Lease" || fn.Name.Name == "retainSourcePreparation" || fn.Name.Name == "retainIssuerPreparation"
-		needs = needs || fn.Name.Name == "configureScanIssuer" || fn.Name.Name == "composeScanLifecycleProfiles" || fn.Name.Name == "excludePredecessor" || fn.Name.Name == "checkScanSourceActive"
 		if !needs {
 			continue
 		}
@@ -249,61 +236,15 @@ func TestEveryCommandReleaseUsesSharedFinish(t *testing.T) {
 	}
 }
 func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
-	for _, body := range []string{
-		`func newScanDriver(ctx context.Context)(out *ScanDriver,err error){return out,nil}`,
-		`func keepPreparation(ctx context.Context)(err error){return nil}`,
-		`func prepareWork(ctx context.Context)(out *scanDriverWork,err error){return out,nil}`,
-		`func allocateBirth(ctx context.Context)(out *scanBirth,err error){return out,nil}`,
-		`func prepareBirth(ctx context.Context)(out *inventoryCreateCommand,err error){return out,nil}`,
-		`func checkBirthAbsence(ctx context.Context)(err error){return nil}`,
-		`func excludeOldWork(ctx context.Context)(err error){return nil}`,
-		`func newScanPreparation(ctx context.Context)(out *scanPreparation,err error){return &scanPreparation{},nil}`,
-		`func ObserveInventory(ctx context.Context)(value nativeinventory.Page,err error){return nativeinventory.Page{},nil}`,
-		`func lookupScanRunLifecycle(ctx context.Context)(value scanLifecycleReceiptLookup,err error){return scanLifecycleReceiptLookup{},nil}`,
-		`func captureScanSource(ctx context.Context)(value scanSourceFacts,err error){return scanSourceFacts{},nil}`,
-		`func PrepareCreate(ctx context.Context)(value *ScanRunOperation,err error){return &ScanRunOperation{},nil}`,
-		`func arbitraryNewEntry(ctx context.Context)(value *ScanRunResult,err error){return &ScanRunResult{},nil}`,
-		`func Snapshot(ctx context.Context)(value ScanRunSnapshot,err error){return ScanRunSnapshot{},nil}`,
-		`func acknowledgeScanRunLifecycle(ctx context.Context)(value int64,err error){return 1,nil}`,
-		`func composeScanLifecycleHistory(ctx context.Context)(err error){return nil}`,
-		`func runScanLifecycleHistory(ctx context.Context)(value scanLifecycleCommandResult,ack AckResult,err error){return value,ack,nil}`,
-		`func scanCreateTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
-		`func scanClaimTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
-		`func requireScanLifecycleMemory(ctx context.Context)(err error){return nil}`,
-		`func applyInventoryCreate(ctx context.Context)(value scanRunLifecycleResult,err error){return value,nil}`,
-		`func applyInventoryClaim(ctx context.Context)(value scanRunLifecycleResult,err error){return value,nil}`,
-		`func persistScanRunLifecycleResult(ctx context.Context)(value scanRunLifecycleResult,err error){return value,nil}`,
-		`func searchImageEngine(ctx context.Context)(out searchpolicy.Engine,err error){return searchpolicy.Engine{Version:"saved"},nil}`,
-		`func acknowledgeSearchPublisher(ctx context.Context,turn *commandTurn,q PublisherReceiptRequest,lookup publisherReceiptLookup)(out int64,err error){return 1,nil}`,
-		`func searchImageStageFreshFacts(ctx context.Context,turn *commandTurn,want searchImageStageRequest)(out searchImageStageRequest,err error){return want,nil}`,
-		`func requireInventoryMemory(ctx context.Context)(err error){return nil}`,
-		`func inventoryTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
-		`func bypass(ctx context.Context)(out InventoryResult,err error){var v InventoryResult;var e error;saved:=InventoryResult{RunID:"saved"};defer func(){v,e=finishCommand(ctx,ctx,out,err);out,err=saved,e}();_=v;return saved,ErrInvalid}`,
-		`func bypass(ctx context.Context)(out InventoryResult,err error){var v InventoryResult;var e error;defer func(){v,e=finishCommand(ctx,ctx,out,err);out,err=v,nil}();_=e;return InventoryResult{RunID:"saved"},ErrInvalid}`,
-		`func checkInventoryScope(ctx context.Context)(err error){defer func(){_,err=finishCommand(ctx,ctx,InventoryResult{RunID:"saved"},err)}();return nil}`,
-		`func bypass(ctx context.Context)(out InventoryResult,err error){defer func(){var out InventoryResult;out,err=finishCommand(ctx,ctx,out,err);_=out}();return InventoryResult{RunID:"saved"},ErrInvalid}`,
-		`func bypass(ctx context.Context)(out InventoryResult,err error){var v struct{field,saved InventoryResult};var e error;defer func(){v.field,e=finishCommand(ctx,ctx,out,err);out,err=v.saved,e}();return InventoryResult{RunID:"saved"},ErrInvalid}`,
-		`func bypass(ctx context.Context)(InventoryResult,error){defer func(){_,_=finishCommand(ctx,ctx,InventoryResult{},ErrInvalid)}();return InventoryResult{RunID:"saved"},ErrInvalid}`,
-		`func bypass(ctx context.Context)(out InventoryResult,err error){defer func(){_,_=finishCommand(ctx,ctx,InventoryResult{},ErrInvalid)}();return InventoryResult{RunID:"saved"},ErrInvalid}`,
-		`func bypass(ctx context.Context)(out InventoryResult,err error){defer func(){other,otherErr:=finishCommand(ctx,ctx,out,err);_,_=other,otherErr}();return InventoryResult{RunID:"saved"},ErrInvalid}`,
-		`func bypass(ctx context.Context)(out InventoryResult,err error){defer func(){out,err:=finishCommand(ctx,ctx,out,err);_,_=out,err}();return InventoryResult{RunID:"saved"},ErrInvalid}`,
-		`func bypass(ctx context.Context)(out InventoryResult,err error){defer func(){v,e:=finishCommand(ctx,ctx,out,err);out,err=v,nil;_=e}();return InventoryResult{RunID:"saved"},ErrInvalid}`,
-		`func bypass(ctx context.Context)(InventoryResult,error){return InventoryResult{},nil}`,
-		`func bypass(ctx context.Context)(InventoryResult,error){if true{return InventoryResult{},nil};defer func(){finishCommand()}();return InventoryResult{},nil}`,
-		`func bypass(ctx context.Context)(InventoryResult,error){defer func(){}();return InventoryResult{},nil}`,
-		`func bypass(ctx context.Context)(InventoryResult,error){defer func(){finishCommand()}();return InventoryResult{},nil}`,
-		`func searchImageTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
-		`func commandTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
-		`func requireCommandMemory(ctx context.Context)(err error){return nil}`,
-		`func requireSearchImageMemory(ctx context.Context)(err error){return nil}`,
-		`func checkSearchImageTerminal(ctx context.Context)(err error){return nil}`,
-	} {
-		file, err := parser.ParseFile(token.NewFileSet(), "control.go", "package writer\n"+body, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(unguardedCommandFinishes(file)) != 1 {
-			t.Fatal("guard accepted bypass", body)
+	for _, family := range commandFinishGuardFamilies {
+		for _, body := range family.bypasses {
+			file, err := parser.ParseFile(token.NewFileSet(), "control.go", "package writer\n"+body, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(unguardedCommandFinishes(file)) != 1 {
+				t.Fatal("guard accepted bypass", body)
+			}
 		}
 	}
 }

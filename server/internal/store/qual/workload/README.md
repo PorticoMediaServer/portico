@@ -284,3 +284,30 @@ source-bound driver. Until then they stay absent, never fake zero snapshots.
 Owner Evidence/HOLD/commit/error/fence/native facts remain independent. Existing
 original ready/consumer timing is preserved; a read-only security check or
 coalesced capture does not add a FULL commit.
+
+## EC2 schedule composition
+
+`EC2Streams` builds one serial writer worker for the declared Inventory,
+Effective, Progress capture/drain and FULL-security pattern, plus one bounded
+foreground worker, optional PASSIVE/recovery workers and a typed-WAL observer.
+The foreground pattern contains up to the four real reader Actions. It reuses
+`Run`'s original offer epoch/deadlines, missed/unserved census, sticky error stop,
+join and incremental sustained-v1 records. The manifest copies the requested
+patterns and lists every missing native binding. Missing Actions remain failed,
+null-timed STUB offers; they are never removed or replaced with no-op writes.
+`MixedFULLCadence` is intended scheduling metadata. `CompleteCapabilities` says
+only that the selected Actions exist; neither establishes native authority,
+continuous coverage, a FULL commit or WAL-BOUND/WAL-RESET.
+
+The owning composition supplies the existing typed Actions on one database and
+one governor. Checkpoint mode is a declaration, not an enable or a maintenance
+budget. Only GV's actual owner can permit concurrent PASSIVE, determine hard
+pressure and drain physical reader/writer custody for recovery. A recovery
+request, checkpoint completion, token change, equal salt or absent WAL file is
+not a reset event. No raw checkpoint, synthetic maintenance write, retry,
+qualification classifier or shared reducer change is introduced here.
+
+The test-only runnable attachment and its current missing capabilities are
+documented in writer/N1_COMPONENT.md. An explicitly selected N1/read/WAL subset
+can complete its own bounded schedule; it does not execute Effective, security,
+progress, checkpoint or reset populations. Those whole-EC2 gates remain closed.
