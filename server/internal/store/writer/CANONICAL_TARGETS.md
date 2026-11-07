@@ -32,8 +32,13 @@ an accepting workload path.
 | rb.relationship_exact | TestCanonicalRBRelationshipExact | RB small complete-set fallback<=256raw;257refuses |
 | rb.resolution | TestCanonicalRBResolution | RB128fetched/64consumed/40output, NULL/zero ties |
 | rs.listening | TestCanonicalRSListening | RS album/audiobook complete512raw native+Go-sort route |
+| IA-membership-audio-artist | TestCanonicalIAAudioArtistRead | IA artist5 accepted audio membership |
+| IA-membership-audio-album | TestCanonicalIAAudioAlbumRead | IA album6 song membership/complete links |
+| IA-membership-audio-song | TestCanonicalIAAudioSongRead | IA song7 complete links/artist identities |
+| IA-membership-audiobook-book | TestCanonicalIAAudiobookBookRead | IA book8 file membership/complete links |
+| IA-membership-audiobook-file | TestCanonicalIAAudiobookFileRead | IA audiobook_file9 complete version/part/CUE links |
 
-The MP, RB, RS and UO rows are foreground reads through ConsumeForeground, NOT held
+The MP, RB, RS, UO and IA rows are foreground reads through ConsumeForeground, NOT held
 writer/COMMIT samples. Source/authority drift, byte admission, statement bytes,
 original ready/consumer timing and concurrent-scan comparisons remain required.
 Scalar RB requires raw64/output40 and actual per-domain Reader Capture receipts;
@@ -294,3 +299,39 @@ It skips by default and requires PORTICO_CANONICAL_WC_FUNCTIONAL=1. The closed
 lane-focused harness canonical-wc supplies that flag; real timing/refusal errors
 stay strict and raw, never default-suite wall-clock assertions. Native functional
 results and source pins belong in the PR/run receipt, not qualification numbers.
+
+## Closed IA audio membership recipes
+
+Five separate class identities pin the owner handoff #1484 at
+0fa81d9195c92616fe155ed90f4903620262a3d3. They name the inert
+IAAudioHarnessDefinitions and ForegroundReader.IAAudioMembership entrypoint,
+through full ConsumeForeground custody. All five runners remain nil until the
+reviewed/merged API, actual native Capture and trusted audio fixture are composed
+on the EXACT same canonical1M/library7 parent. The current movie population does
+not establish artist/album/song/book/file membership; there is no tiny unrelated
+library substitution, direct SQL seed clone, runtime import or production enable.
+The draft source pin is intent, not an execution receipt.
+
+Artist5, album6, song7, book8 and audiobook_file9 identities remain distinct.
+Nullable artist/album/book/disc/track/part order, CueOrdinal and End facts retain
+null separately from observed0. Preserve complete asset/edition/version/part/CUE
+links with their revisions/incarnations, pending/available facts and range ends;
+never flatten album into book or deduplicate distinct physical versions/parts.
+The raw64 keyset cursor advances every rejected/retired position. Full windows
+and non-exhausted empty windows retain raw continuation; a partial traversal is
+not a complete cohort. The bounded source recipe refuses more than16 complete
+links or more than64 song artist associations rather than trimming a passing
+result. Sparse/far continuation, exact boundary/overflow, wrong-library/kind,
+source/version/authority drift and cancellation remain separate cells. Restricted
+container policies fail closed, with actual policy refusal/error retained.
+
+Qualification must include exact point-octet preflights in the SAME native
+snapshot, full native lookup and fresh publication, actual byte custody and
+consumer join under the original ready deadline. Keep lookup/publication/consumer
+errors and timing/native facts separate and nullable until observed. Existing
+B-READS route budgets apply; count every point/preflight/link statement and shared
+fence. The owner's nine functional controls, two SQL mutants and both-statistics
+SEARCH goldens establish no1M latency/resource profile pass. These classes remain
+UNQUALIFIED; explicit opt-in currently emits durable failed bindings and a
+nonpassing final with no native calls. No host run or capture refresh is requested
+or enabled by this scaffold.

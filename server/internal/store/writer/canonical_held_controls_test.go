@@ -25,11 +25,11 @@ func TestCanonicalHeldClosedRegistryKeepsAllBindingsExplicit(t *testing.T) {
 		if len(canonicalHeldMissing(c)) != want || (c.run != nil) != ready {
 			t.Fatal("unmerged seed/Action opened", c)
 		}
-		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.") || strings.HasPrefix(c.name, "rs.") || strings.HasPrefix(c.name, "uo.")) && (c.kind != "foreground_read" || c.purpose != nil) {
+		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.") || strings.HasPrefix(c.name, "rs.") || strings.HasPrefix(c.name, "uo.") || strings.HasPrefix(c.name, "IA-membership-")) && (c.kind != "foreground_read" || c.purpose != nil) {
 			t.Fatal("read became writer class", c)
 		}
 	}
-	if len(seen) != 22 {
+	if len(seen) != 27 {
 		t.Fatal(seen)
 	}
 	if _, err := canonicalHeldClassFor("caller_sql"); err == nil {
@@ -61,7 +61,7 @@ func TestCanonicalHeldConfigRejectsSmallSamplingAndIdentityDrift(t *testing.T) {
 }
 
 func TestCanonicalHeldBlockedPrefixIsDurableAndNotFakeZero(t *testing.T) {
-	for _, class := range []string{"mp.queue_head", "uo.personal", "rb.numeric_advance", "rb.numeric_first_page", "rb.numeric_cached_page", "rb.group_window", "rb.relationship_exact", "rb.resolution", "rs.listening"} {
+	for _, class := range []string{"mp.queue_head", "uo.personal", "rb.numeric_advance", "rb.numeric_first_page", "rb.numeric_cached_page", "rb.group_window", "rb.relationship_exact", "rb.resolution", "rs.listening", "IA-membership-audio-artist", "IA-membership-audio-album", "IA-membership-audio-song", "IA-membership-audiobook-book", "IA-membership-audiobook-file"} {
 		t.Run(class, func(t *testing.T) { canonicalBlockedReadPrefix(t, class) })
 	}
 }
@@ -72,7 +72,7 @@ func canonicalBlockedReadPrefix(t *testing.T, class string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stream := &n1Stream{file: file, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "qualification": false}}
+	stream := &n1Stream{file: file, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "class": class, "qualification": false}}
 	definition, _ := canonicalHeldClassFor(class)
 	err = emitCanonicalHeldPrefix(stream, canonicalHeldConfig{Attempts: 10000}, definition)
 	if !errors.Is(err, errCanonicalHeldBinding) {
@@ -113,7 +113,7 @@ func canonicalBlockedReadPrefix(t *testing.T, class string) {
 	if err := json.Unmarshal([]byte(lines[2]), &last); err != nil {
 		t.Fatal(err)
 	}
-	if first["target_kind"] != "foreground_read" || first["normal_hosted_p99_ns"] != nil || first["actual_library_items"] != nil || last["complete"] != false || last["report"] != nil || last["native_calls_started"] != float64(0) {
+	if first["class"] != class || first["target_kind"] != "foreground_read" || first["normal_hosted_p99_ns"] != nil || first["actual_library_items"] != nil || last["complete"] != false || last["report"] != nil || last["native_calls_started"] != float64(0) {
 		t.Fatal(first, last)
 	}
 }

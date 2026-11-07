@@ -55,6 +55,13 @@ func canonicalReadRecipeFor(class string) *canonicalReadRecipe {
 		r.Cohorts = []string{"album/audiobook", "first/deep/sparse/repeated/import-pressure", "512raw boundary/overflow refusal/NOCASE four-key ties"}
 		r.Contracts = []string{"full native lookup+complete-window Go sort+fresh publication and joined consumer", "actual retained charge128B/raw+2actualkeybytes; no fixed forecast relabelled observed", "raw512 bound; >512 is RS-001 post-lock indexed stream, no prelock gate", "original ready deadline and separate lookup/sort/publication/consumer errors and nullable facts"}
 		r.StatementDebt = "13statements exceeds B-R10 target12; local29ms and oracle race are not qualification"
+	case "IA-membership-audio-artist", "IA-membership-audio-album", "IA-membership-audio-song", "IA-membership-audiobook-book", "IA-membership-audiobook-file":
+		r.SourceHead = "0fa81d9195c92616fe155ed90f4903620262a3d3"
+		r.Route = "ForegroundReader.IAAudioMembership /IAAudioHarnessDefinitions /ConsumeForeground /" + class
+		r.Cohorts = []string{"first/deep/sparse raw continuation/exhaustion probe", "nullable disc-track-part/CUE/end versus observed0", "complete version/edition/part/CUE links and link overflow", "source/version/authority drift and joined-consumer cancellation", "same-library/kind/retirement checks; restricted container policy refusal"}
+		r.Contracts = []string{"separate artist5/album6/song7/book8/audiobook_file9 identities; no album-book or version/part/CUE collapse", "raw64 keysets advance rejected positions; non-exhausted and full windows cannot become complete cohorts", "complete links<=16 and song artist cohort<=64; overflow refuses without trimming a passing result", "exact point octet preflight and variable payload in SAME native snapshot; actual retained bytes charged", "full native lookup+fresh current publication+ConsumeForeground/joined consumers under original deadline; separate errors and nullable timing/native facts"}
+		r.StatementDebt = "existing B-READS route budgets; count every membership/link/octet preflight and shared lookup/final fence; functional SEARCH receipts do not qualify statement/latency/resource totals"
+
 	default:
 		return nil
 	}
