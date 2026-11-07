@@ -40,6 +40,8 @@ type RBGroupCursor struct {
 }
 
 type RBGroupPage struct {
+	// Retain the exact internal publication fence even for an exhausted window.
+	fence browseFence
 	Items []BrowseItem
 	// SourceOrdered is true only when the physical stream matches the direct
 	// group's public order. False requires complete exact preparation before
@@ -129,6 +131,7 @@ func rbReadGroup(ctx context.Context, query browseQuery, in RBGroupInput, f brow
 		return RBGroupPage{}, err
 	}
 	page.RawRows = len(raw)
+	page.fence = f
 	page.SourceOrdered = spec.ordered
 	for _, row := range raw {
 		if err := ctx.Err(); err != nil {

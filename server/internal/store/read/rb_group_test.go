@@ -271,8 +271,8 @@ func TestRBGroupCreditedAppearanceSource(t *testing.T) {
 	in := RBGroupInput{View: f.input, Family: RBGroupArtistAlbums, Subject: 2010}
 	in.View.Kind = 6
 	p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
-	if e != nil || len(p.Items) != 0 || !p.Exhausted {
-		t.Fatal("featured artist unexpectedly owns album", p, e)
+	if e != nil || len(p.Items) != 0 || !p.Exhausted || p.fence.policy != rbGroupPolicy(RBGroupArtistAlbums) || p.fence.policySubject != 2010 {
+		t.Fatal("featured artist unexpectedly owns album or lost its empty-window fence", p, e)
 	}
 	in.Family = RBGroupArtistCredits
 	in.View.Kind = 7
