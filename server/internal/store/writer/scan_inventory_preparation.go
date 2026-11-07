@@ -296,12 +296,12 @@ func (p *N1Preparation) Snapshot(ctx context.Context) (value InventoryPreparatio
 
 func (p *N1Preparation) ObserveInventory(ctx context.Context) (value nativeinventory.Page, err error) {
 	life := ctx
-	locked := false
+	locked, attempted := false, false
 	// This wrapper has its own final publication boundary. Even a cancellation
 	// AFTER the inner observer returned must invalidate this preparation.
 	defer func() {
 		primary := recover()
-		if p != nil && p.self == p && (err != nil || primary != nil) {
+		if attempted && (err != nil || primary != nil) {
 			p.observationFailed.Store(true)
 		}
 		if locked {
@@ -315,7 +315,7 @@ func (p *N1Preparation) ObserveInventory(ctx context.Context) (value nativeinven
 		life = p.driver.lifetime
 	}
 	defer func() { value, err = finishCommand(ctx, life, value, err) }()
-	if p == nil || p.self != p || p.driver == nil {
+	if p == nil || p.self != p || p.driver == nil || ctx == nil {
 		return value, ErrInvalid
 	}
 	d := p.driver
@@ -323,14 +323,25 @@ func (p *N1Preparation) ObserveInventory(ctx context.Context) (value nativeinven
 		return value, ErrBusy
 	}
 	locked = true
-	if p.closed || p.observationFailed.Load() || p.preparation == nil || d.preparation != p.preparation {
+	if p.closed || p.observationFailed.Load() || p.historyOnly || p.command != nil || p.preparation == nil || d.preparation != p.preparation {
 		return value, ErrClosed
 	}
-	life = p.preparation.lifetime
+	b := p.preparation
+	life = b.lifetime
+	// A refused repeat never reaches the inner observer, whose first-attempt
+	// failure rule is deliberately sticky. Keep a completed page/frozen command
+	// intact; no new native observation or admission has happened here.
+	b.mu.Lock()
+	finalized := b.closed || b.retiring || b.retired || b.failed || b.observing || b.observed != nil
+	b.mu.Unlock()
+	if finalized {
+		return value, ErrClosed
+	}
 	if err = d.current(); err != nil {
 		return value, err
 	}
-	return p.preparation.ObserveInventory(ctx)
+	attempted = true
+	return b.ObserveInventory(ctx)
 }
 
 func (p *N1Preparation) Accept(ctx context.Context, command InventoryAcceptCommand) (value InventoryResult, err error) {
