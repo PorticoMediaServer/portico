@@ -33,6 +33,8 @@ func TestBasicControlCompositionFiniteOperationUses(t *testing.T) {
 		basicSealStreamFact:      {0, 0, 1},
 		basicSealFamilyCAS:       {0, 0, 1},
 		basicBeginExisting:       {1, 0, 0},
+		basicBeginFirstAsset:     {1, 0, 0},
+		basicBeginFirstOwners:    {1, 0, 0},
 		basicBeginChangeInsert:   {1, 0, 0},
 		basicBeginWitnessInsert:  {1, 0, 0},
 		basicBeginFamiliesInsert: {9, 0, 0}, // One literal insert for each of nine manifests.

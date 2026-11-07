@@ -45,7 +45,7 @@ RETURNING change_id,family,witness_ordinal,rows_expected,rows_staged,sealed`,
 		defs[n].Owner = "store/writer Basic domain"
 		defs[n].CallSites = []string{"store/writer/basic_begin.go"}
 	}
-	return defs
+	return append(defs, basicBeginFirstDefinitions()...)
 }
 
 // Full command composition must forecast all nine uses before admission.
@@ -54,7 +54,7 @@ func basicBeginMaxUses(id stmt.ID) int {
 	switch id {
 	case basicBeginFamiliesInsert:
 		return 9
-	case basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert:
+	case basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert, basicBeginFirstAsset, basicBeginFirstOwners:
 		return 1
 	default:
 		return 0

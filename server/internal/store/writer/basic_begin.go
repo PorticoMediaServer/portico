@@ -63,6 +63,9 @@ func beginBasicInput(ctx context.Context, turn *commandTurn, in basicBeginEffect
 	if library != s.libraryID || token != s.assetToken || size != s.size || modified != s.modifiedNS || epoch != s.expectedEpoch {
 		return value, ErrConflict
 	}
+	if err = checkBasicBeginFirst(ctx, turn, s); err != nil {
+		return value, err
+	}
 	existing, err := basicRows(ctx, turn, basicBeginExisting, s.assetID, s.assetToken, int64(3))
 	if err != nil {
 		return value, err

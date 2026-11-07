@@ -96,6 +96,7 @@ func basicHandlerFloor(t *testing.T, w *executor, original *basicOriginalScope, 
 
 func TestBasicHandlerBeginSavesActualAllocatedNativeResult(t *testing.T) {
 	w, source, original, identity := basicControlFixture(t)
+	seedBasicFirstOrdinaryOwner(t, w)
 	for _, q := range []string{`DELETE FROM catalog_info_input_families`, `DELETE FROM catalog_info_input_witnesses`, `DELETE FROM catalog_info_changes`} {
 		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)

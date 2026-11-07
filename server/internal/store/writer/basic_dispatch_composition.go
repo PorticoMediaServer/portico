@@ -76,7 +76,7 @@ func basicEffectsMaxUses(purpose CommandID, id stmt.ID) int {
 		case basicBeginFamiliesInsert:
 			return 9
 		case basicStageAsset, basicStageWitness, basicStageFamily, basicStageBudget, basicStageBudgetCAS,
-			basicStageStreamInsert, basicStageFamilyCAS, basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert:
+			basicStageStreamInsert, basicStageFamilyCAS, basicBeginExisting, basicBeginChangeInsert, basicBeginWitnessInsert, basicBeginFirstAsset, basicBeginFirstOwners:
 			return 1
 		}
 		if basicMediaInsertFamily(id) != 0 {

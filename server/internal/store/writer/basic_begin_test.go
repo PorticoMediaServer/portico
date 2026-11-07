@@ -18,6 +18,7 @@ func basicBeginFixture(t *testing.T) (*executor, basicBeginEffects) {
 			t.Fatal(err)
 		}
 	}
+	seedBasicFirstOrdinaryOwner(t, w)
 	source.changeID, source.inputRevision = 0, 0
 	return w, basicBeginEffects{source: source, shape: ScanShape{LibraryID: 7, OrdinaryOwners: 1, Streams: []Stream{{Index: 0, Class: VideoStream}}}, counts: [9]int64{1, 1, 1, 1, 0, 1, 0, 0, 1}}
 }
@@ -127,7 +128,7 @@ func TestBasicBeginWholeUnitRollbackAndZeroResult(t *testing.T) {
 
 func TestBasicBeginFiniteDefinitions(t *testing.T) {
 	defs := basicBeginDefinitions()
-	if len(defs) != 4 || basicBeginMaxUses(basicBeginFamiliesInsert) != 9 || basicBeginMaxUses(basicStageAsset) != 0 {
+	if len(defs) != 6 || basicBeginMaxUses(basicBeginFamiliesInsert) != 9 || basicBeginMaxUses(basicStageAsset) != 0 {
 		t.Fatal("wrong bounded begin recipe")
 	}
 	for _, d := range defs {
