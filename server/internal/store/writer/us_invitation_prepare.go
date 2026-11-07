@@ -155,7 +155,7 @@ func validUSInvitationScope(i CommandIdentity, scope usInvitationScope) bool {
 	return i.Incarnation != [16]byte{} && i.OperationID != [16]byte{} && i.Sequence > 0 &&
 		usIdentifier(scope.ownerID) && len(scope.operationID) >= 8 && len(scope.operationID) <= 128 && safeUSInvitationText(scope.operationID, 128) &&
 		usIdentifier(v.server) && usIdentifier(v.account) && usIdentifier(v.profile) && usIdentifier(v.family) &&
-		usHex(v.memberIncarnation, 32) && usHex(v.profileLifetime, 32) && usHex(v.installation, 32) && usHex(v.tokenDigest, 64) &&
+		usHex(v.memberIncarnation, 32) && usHex(v.profileLifetime, 32) && usHex(v.installation, 32) && usIdentityDigest(v.tokenDigest) &&
 		v.epoch > 0 && v.familyGeneration > 0 && v.authorityGeneration > 0
 }
 

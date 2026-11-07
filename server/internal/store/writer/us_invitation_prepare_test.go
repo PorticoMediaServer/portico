@@ -2,6 +2,7 @@ package writer
 
 import (
 	"fmt"
+	identitydigest "github.com/PorticoMediaServer/portico/server/internal/identity"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +13,7 @@ func usInvitationPreparationFixture() (CommandIdentity, usInvitationScope) {
 		ownerID: "us-owner", operationID: "invite-operation", issuer: usPolicyIssuer{
 			server: "server", account: "us-owner", profile: "profile", family: "family",
 			memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32), installation: strings.Repeat("c", 32),
-			tokenDigest: strings.Repeat("d", 64), epoch: 1, familyGeneration: 1, authorityGeneration: 1,
+			tokenDigest: identitydigest.Digest("invitation-issuer"), epoch: 1, familyGeneration: 1, authorityGeneration: 1,
 		},
 	}
 }

@@ -37,8 +37,8 @@ func usHostedDefinitions() []stmt.Definition {
 		{ID: usHostedRevision, SQL: `UPDATE hosted_profile_revisions INDEXED BY sqlite_autoindex_hosted_profile_revisions_1 SET pin_revision=?,profile_revision=?,trust_revision=?,account_epoch=? WHERE server_id=? AND account_id=? AND profile_id=? AND pin_revision=? AND profile_revision=? AND trust_revision=? AND account_epoch=? RETURNING profile_id`, Params: []stmt.Param{i("pin"), i("profile_revision"), i("trust"), i("epoch"), t("server"), t("account"), t("profile"), i("old_pin"), i("old_profile"), i("old_trust"), i("old_epoch")}, Plan: point("hosted_profile_revisions", "server_id", "account_id", "profile_id")},
 	}
 	samples := [][]any{
-		{strings.Repeat("a", 64), strings.Repeat("i", 32), int64(1800001800000)},
-		{strings.Repeat("a", 64), strings.Repeat("i", 32), int64(1800001800000), int64(1800000000000)},
+		{"UVb_vgjFRZlTz75UH3xmsQLrRIbc2PUTg4cKMlzYAFY", strings.Repeat("i", 32), int64(1800001800000)},
+		{"UVb_vgjFRZlTz75UH3xmsQLrRIbc2PUTg4cKMlzYAFY", strings.Repeat("i", 32), int64(1800001800000), int64(1800000000000)},
 		{strings.Repeat("n", 22), int64(1800000600000)},
 		{int64(2), int64(3), int64(4), int64(5), "server", "account", "profile", int64(1), int64(2), int64(3), int64(4)},
 	}

@@ -62,7 +62,7 @@ func prepareUSHosted(in usHostedPreparation) (*usHostedPreparation, error) {
 	}
 	switch in.kind {
 	case usHostedChallengeIssue, usHostedChallengeSpend:
-		if len(in.installation) < 32 || !usIdentifier(in.installation) || !usHex(in.challengeHash, 64) || in.challengeExpiresMS <= in.nowMS || in.challengeExpiresMS-in.nowMS > int64(30*time.Minute/time.Millisecond) {
+		if len(in.installation) < 32 || !usIdentifier(in.installation) || !usIdentityDigest(in.challengeHash) || in.challengeExpiresMS <= in.nowMS || in.challengeExpiresMS-in.nowMS > int64(30*time.Minute/time.Millisecond) {
 			return nil, invalid("us_hosted_challenge")
 		}
 		if in.kind == usHostedChallengeIssue {
