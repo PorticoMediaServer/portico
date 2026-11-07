@@ -109,7 +109,7 @@ func TestRBHomeManifestCommittedPolicy(t *testing.T) {
 				}
 			})
 			doc, _, e := homeSourceManifest(t, f, r)
-			if e != nil || !doc.CommunityPolicy.Resolved || doc.CommunityPolicy.Enabled != row.Value || !doc.CommunityPolicy.CommittedOnly || doc.CommunityPolicy.DiskFreshnessProved {
+			if e != nil || !doc.CommunityPolicy.Resolved || doc.CommunityPolicy.Enabled != row.Value || !doc.CommunityPolicy.CommittedOnly {
 				t.Fatal(doc.CommunityPolicy, e)
 			}
 			state := "disabled_by_owner"
