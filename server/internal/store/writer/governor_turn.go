@@ -45,7 +45,8 @@ type governedTurn struct {
 	inventoryMemory     inventoryMemoryBudget // installed once by closed W composition before BEGIN
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
-	state               atomic.Uint32 // 0 active, 1 retirement attempted, 2 retired, 3 failed
+	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
+	state               atomic.Uint32       // 0 active, 1 retirement attempted, 2 retired, 3 failed
 	fenced              atomic.Bool
 }
 
