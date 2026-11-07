@@ -27,10 +27,9 @@ func publishBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafP
 	if err != nil {
 		return value, err
 	}
-	n := in.settled
 	// FIRST never discharges old scalar/path obligations by clearing a flag.
 	// old_path is guarded NULL in the proof; scalar-old is a bounded PK prefix.
-	row, err = basicStageRead(ctx, turn, basicPublishScalarOld, s.changeID)
+	row, err := basicStageRead(ctx, turn, basicPublishScalarOld, s.changeID)
 	if err != nil {
 		return value, err
 	}
