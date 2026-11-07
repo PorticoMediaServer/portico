@@ -23,6 +23,7 @@ func SearchFold(value string) string { return searchFolded(searchableFoldedPrefi
 // and collapsed spaces, so folding expansion/contraction and raw whitespace do
 // not create a different prefix in discovery and confirmation.
 func searchableFoldedPrefix(value string) string {
+	value = strings.TrimSpace(value)
 	// Find a stable normalization prefix before allocating the whole field.
 	// More raw input is read only when contraction/whitespace means it can still
 	// contribute to the first 64KiB normalized bytes. The caller still reserves
