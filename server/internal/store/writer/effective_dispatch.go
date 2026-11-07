@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -41,9 +42,10 @@ type effectivePlan struct {
 	steps               []statementStep
 	need                governor.Amounts
 	io                  []governor.DeviceIO
-	inventoryPageSize   int32                   // frozen read-only assertion; zero cannot enable N1
-	inventoryRecords    inventoryRecordEnvelope // extra native-record work inside the SAME grant
-	inventoryMemory     inventoryMemoryBudget   // private whole-unit partition; zero is unqualified
+	inventoryPageSize   int32                     // frozen read-only assertion; zero cannot enable N1
+	inventoryRecords    inventoryRecordEnvelope   // extra native-record work inside the SAME grant
+	inventoryEngine     sqliteconn.EngineIdentity // exact profile implementation, observed again before BEGIN
+	inventoryMemory     inventoryMemoryBudget     // private whole-unit partition; zero is unqualified
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
@@ -563,6 +565,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		return out, acknowledged, err
 	}
 	custody.inventoryMemory = plan.inventoryMemory // immutable W profile, never a worker override
+	custody.inventoryEngine = plan.inventoryEngine
 	custody.searchImageMemory = plan.searchImageMemory
 	custody.scanLifecycleMemory = plan.scanLifecycleMemory
 	custody.basicMemory = plan.basicMemory

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
 // Class is selected only from the compiled command purpose, never a worker
@@ -44,8 +45,9 @@ type governedTurn struct {
 	publication         *rbPublication // opt-in phase2 resolved dependency custody
 	purpose             CommandID
 	limit               Work
-	clockHighWater      *time.Time            // same W composition mark under its existing mutex
-	inventoryMemory     inventoryMemoryBudget // installed once by closed W composition before BEGIN
+	clockHighWater      *time.Time                // same W composition mark under its existing mutex
+	inventoryEngine     sqliteconn.EngineIdentity // exact profile implementation, observed again before BEGIN
+	inventoryMemory     inventoryMemoryBudget     // installed once by closed W composition before BEGIN
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified

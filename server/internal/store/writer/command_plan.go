@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -28,6 +29,9 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
 	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) {
 		return effectivePlan{}, invalid("command_plan_purpose")
+	}
+	if plan.inventoryEngine != (sqliteconn.EngineIdentity{}) && (purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions())) {
+		return effectivePlan{}, invalid("inventory_engine_purpose")
 	}
 	if plan.inventoryPageSize != 0 && (purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions())) {
 		return effectivePlan{}, invalid("inventory_page_size_purpose")
