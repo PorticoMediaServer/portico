@@ -126,7 +126,7 @@ func applyScanDirectoryTerminal(ctx context.Context, t *commandTurn, c *scanDire
 		for _, p := range []struct {
 			id   stmt.ID
 			args []any
-		}{{scanTerminalIssueConflict, []any{o.RunID, display}}, {scanDirectoryVisited, []any{o.RunID, q.ChildIdentity}}} {
+		}{{scanTerminalIssueConflict, []any{o.RunID, display}}, {scanDirectoryVisited, []any{o.RunID, q.ChildIdentity}}, {scanDirectoryRefusedIdentity, []any{o.RunID, []byte(q.ChildIdentity)}}} {
 			found, e := terminalExists(ctx, t, p.id, p.args...)
 			if e != nil || found {
 				return out, digest, errors.Join(ErrConflict, e)
