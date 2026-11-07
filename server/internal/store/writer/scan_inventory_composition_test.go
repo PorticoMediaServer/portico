@@ -216,3 +216,35 @@ func TestN1ComposedDriverUsesOneKeeperAndOriginalHistory(t *testing.T) {
 		t.Fatal("original retained beyond physical retirement")
 	}
 }
+
+func TestN1OwnerRetentionKeepsExactRegistryNormalizedDefinitions(t *testing.T) {
+	seen := 0
+	for _, def := range inventoryDriverCommandDefinitions() {
+		if def.ID != "scan.inventory_accept.membership_clock" && def.ID != "search.publish.owner.revision_head" {
+			continue
+		}
+		seen++
+		catalogue, err := stmt.Describe([]stmt.Definition{def})
+		if err != nil {
+			t.Fatal(err)
+		}
+		actual := catalogue.Manifest()[0].Definition
+		if !scanOwnerRetentionDefinitionMatches(actual, def) {
+			t.Fatal("zero-arity registry normalization rejected exact statement", def.ID)
+		}
+		for _, mutate := range []func(*stmt.Definition){
+			func(d *stmt.Definition) { d.SQL += " " },
+			func(d *stmt.Definition) { d.Owner = "foreign-owner" },
+			func(d *stmt.Definition) { d.Cohorts = nil },
+		} {
+			changed := actual
+			mutate(&changed)
+			if scanOwnerRetentionDefinitionMatches(changed, def) {
+				t.Fatal("normalization widened the frozen definition", def.ID)
+			}
+		}
+	}
+	if seen != 2 {
+		t.Fatal("missing zero-arity normalization controls", seen)
+	}
+}
