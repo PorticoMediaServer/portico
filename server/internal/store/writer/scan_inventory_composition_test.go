@@ -11,6 +11,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"github.com/PorticoMediaServer/portico/server/internal/storage/objectidentity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -31,6 +32,14 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 		if _, err := cp.w.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// Same explicit RAW bank population as the existing N1 component. This
+	// is required native configuration, never a runtime initialization fallback.
+	if _, err := cp.w.db.ExecContext(t.Context(), `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'raw-active',?,?,?,'active',1000)`, searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cp.w.db.ExecContext(t.Context(), `UPDATE search_revision SET revision=103,input_sequence=107,active_generation_id=1 WHERE singleton=1`); err != nil {
+		t.Fatal(err)
 	}
 	defs := scanLifecycleCommandDefinitions()
 	seen := map[stmt.ID]bool{}
