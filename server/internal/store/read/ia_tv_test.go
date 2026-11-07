@@ -5,7 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -42,7 +45,7 @@ func newIATVSource(t *testing.T) *browseFixture {
 	return f
 }
 func newIATVFixture(t *testing.T) (*browseFixture, *ForegroundReader) {
-	f := composeBrowseFixture(t, newIATVSource(t), append(browseDefinitions(), IATVDefinitions()...))
+	f := composeReadFixture(t, newIATVSource(t), append(browseDefinitions(), IATVDefinitions()...), iaTVTestGovernorConfig(), true, iaTVFixtureHash(t))
 	r, e := NewForegroundReader(f.snapshots)
 	if e != nil {
 		t.Fatal(e)
@@ -71,7 +74,7 @@ func TestIATVHierarchyAndCompleteMembership(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if !d.Exhausted || d.RawRows != 8 || len(d.Members) != 8 {
+	if !d.Exhausted || d.RawRows != 8 || len(d.Members) != 8 || d.Members[0].Hierarchy.Item.EpisodeNumber == nil || *d.Members[0].Hierarchy.Item.EpisodeNumber != 1 {
 		t.Fatalf("complete cohort %+v", d)
 	}
 	for i, m := range d.Members {
@@ -98,7 +101,7 @@ func TestIATVRawCursorAndFence(t *testing.T) {
 	if e != nil || len(d.Children) != 6 || !d.Exhausted || d.Next != nil || d.Children[0].ID != 2265 {
 		t.Fatalf("raw tail %+v %v", d, e)
 	}
-	f.exec(t, `UPDATE library_revisions SET data_revision=data_revision+1 WHERE library_id='movies'`)
+	f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='movies'`)
 	d, _, e = r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, in, "children")
 	if !errors.Is(e, ErrStale) || !reflect.DeepEqual(d, IATVResult{}) {
 		t.Fatal("cursor drift escaped", e)
@@ -185,21 +188,21 @@ func TestIATVExactBytesAndHierarchyControls(t *testing.T) {
 // Both mutants alter the real compiled SQL family, then execute the native GV
 // recipe with its actual Capture receipt. They are not fake query callbacks.
 func TestIATVMaterialMutants(t *testing.T) {
-	for _, mutant := range []string{"truncate-membership", "cross-library-point"} {
+	for _, mutant := range []string{"truncate-membership", "wrong-episode-number"} {
 		t.Run(mutant, func(t *testing.T) {
 			source := newIATVSource(t)
 			defs := IATVDefinitions()
 			for i := range defs {
 				switch {
 				case mutant == "truncate-membership" && defs[i].ID == readStatementID("foreground.ia.tv.members"):
-					defs[i].SQL = "SELECT entity_id FROM catalog_asset_links INDEXED BY catalog_asset_links_asset WHERE asset_id=? ORDER BY entity_id LIMIT 1"
-				case mutant == "cross-library-point" && defs[i].ID == readStatementID("foreground.ia.tv.source"):
-					defs[i].SQL = "SELECT id,kind,parent_id,show_id,season_id,retired,revision,admission_own_age,tv_source_revision,tv_hierarchy_revision,tv_selection_revision,tv_descriptive_revision FROM catalog_entities WHERE id=? AND library_id<>?"
+					defs[i].SQL = strings.Replace(defs[i].SQL, "LIMIT 9", "LIMIT 1", 1)
+				case mutant == "wrong-episode-number" && defs[i].ID == readStatementID("foreground.ia.tv.entity"):
+					defs[i].SQL = strings.Replace(defs[i].SQL, "episode_number,numbering", "episode_number+100,numbering", 1)
 				}
 			}
-			f := composeBrowseFixture(t, source, append(browseDefinitions(), defs...))
+			f := composeReadFixture(t, source, append(browseDefinitions(), defs...), iaTVTestGovernorConfig(), true, iaTVFixtureHash(t))
 			r, _ := NewForegroundReader(f.snapshots)
-			in := iaTVInput(f, 3000, 2)
+			in := iaTVInput(f, 2201, 4)
 			mode := "point"
 			if mutant == "truncate-membership" {
 				in = iaTVInput(f, 0, 4)
@@ -207,17 +210,79 @@ func TestIATVMaterialMutants(t *testing.T) {
 				mode = "members"
 			}
 			d, _, e := r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, in, mode)
-			if mutant == "truncate-membership" {
-				if e != nil || len(d.Members) != 1 {
-					t.Fatal("mutant not activated", e)
-				}
-				t.Log("complete-eight-member oracle kills truncated production membership SQL")
-			} else {
-				if !errors.Is(e, ErrDenied) || !reflect.DeepEqual(d, IATVResult{}) {
-					t.Fatal("independent exact-byte same-library payload did not contain mutant", e)
-				}
-				t.Log("same-library payload contains mutated source point")
+			if e != nil {
+				t.Fatal("mutant did not reach semantic oracle", e)
 			}
+			if mutant == "truncate-membership" {
+				if len(d.Members) != 1 {
+					t.Fatal("truncation mutant not activated")
+				}
+				if len(d.Members) == 8 {
+					t.Fatal("complete-eight-member oracle survived mutant")
+				}
+			} else {
+				if d.Hierarchy.Item.EpisodeNumber == nil || *d.Hierarchy.Item.EpisodeNumber != 101 {
+					t.Fatal("numbering mutant not activated")
+				}
+				if *d.Hierarchy.Item.EpisodeNumber == 1 {
+					t.Fatal("accepted episode-number oracle survived mutant")
+				}
+			}
+			t.Log("killed native production SQL mutant with independent accepted fixture oracle:", mutant)
 		})
 	}
+}
+
+func TestIATVPublicForegroundCustody(t *testing.T) {
+	f := composeReadFixture(t, newIATVSource(t), append(browseDefinitions(), IATVDefinitions()...), readfixture.LiveConfig(time.Now), false, iaTVFixtureHash(t))
+	r, e := NewForegroundReader(f.snapshots)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, mode := range []string{"point", "children", "members"} {
+		q, request, output := liveRequests("ia-tv-" + mode)
+		in := iaTVInput(f, 2201, 4)
+		if mode == "children" {
+			in = iaTVInput(f, 2100, 3)
+		}
+		if mode == "members" {
+			in = iaTVInput(f, 0, 4)
+			in.Asset = 2000
+		}
+		call := func(ctx context.Context, out BrowseOutput) (IATVResult, BrowseReadResult, error) {
+			switch mode {
+			case "point":
+				return r.IATVPoint(ctx, request, time.Second, out, in)
+			case "children":
+				return r.IATVChildren(ctx, request, time.Second, out, in)
+			default:
+				return r.IATVEpisodeMembership(ctx, request, time.Second, out, in)
+			}
+		}
+		d, receipt, e := call(t.Context(), BrowseOutput{})
+		if !errors.Is(e, ErrInput) || !reflect.DeepEqual(d, IATVResult{}) || receipt.LookupStatements != 0 {
+			t.Fatal("public read bypassed LIVE", e)
+		}
+		_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+			d, receipt, e := call(ctx, out)
+			if e != nil {
+				return e
+			}
+			if receipt.PublicationStatements != 7 || mode == "members" && len(d.Members) != 8 || mode == "point" && d.Hierarchy.Item.ID != 2201 || mode == "children" && len(d.Children) != 40 {
+				t.Fatal("public TV recipe result", mode)
+			}
+			assertLiveUsage(t, f, 1, 0)
+			return nil
+		})
+		if e != nil {
+			t.Fatal(e)
+		}
+		assertLiveUsage(t, f, 0, 0)
+	}
+}
+
+func iaTVTestGovernorConfig() governor.Config {
+	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
+	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	return gc
 }

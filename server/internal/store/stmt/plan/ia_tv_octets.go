@@ -12,12 +12,17 @@ import (
 const iaTVEntityOctetsSQL = "SELECT octet_length(public_id),octet_length(title),octet_length(numbering),octet_length(tv_incarnation) FROM catalog_entities WHERE id=? AND library_id=?"
 const iaTVLinkOctetsSQL = "SELECT octet_length(edition),octet_length(playback_origin_incarnation) FROM catalog_asset_links WHERE entity_id=? AND asset_id=? AND library_id=?"
 
+const iaTVSourceOctetsSQL = "SELECT octet_length(public_id),octet_length(tv_incarnation) FROM catalog_entities WHERE id=? AND library_id=?"
+const iaTVAssetSourceOctetsSQL = "SELECT octet_length(playback_origin_incarnation) FROM catalog_assets WHERE id=? AND library_id=?"
+
 func init() {
 	for _, shape := range []struct {
 		name, sql, table, seek string
 		params                 []string
 	}{
 		{"entity", iaTVEntityOctetsSQL, "catalog_entities", "rowid=?", []string{"item", "library"}},
+		{"source", iaTVSourceOctetsSQL, "catalog_entities", "rowid=?", []string{"item", "library"}},
+		{"asset_source", iaTVAssetSourceOctetsSQL, "catalog_assets", "rowid=?", []string{"asset", "library"}},
 		{"link", iaTVLinkOctetsSQL, "catalog_asset_links", "entity_id=? AND asset_id=?", []string{"item", "asset", "library"}},
 	} {
 		shape := shape
