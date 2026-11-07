@@ -84,6 +84,13 @@ func (s *Snapshots) NativeRowReservation() int64 {
 	return int64(s.config.ReadLimits.Columns) * int64(s.config.ReadLimits.LengthBytes)
 }
 
+// One row's fixed decode bookkeeping is separate from its variable octets and
+// from the complete-window Go-copy allowance. Use the fixed pool column bound,
+// never a caller-supplied projection, before opening any native connection.
+func (s *Snapshots) nativeRowDecodeOverhead() int64 {
+	return 64 + 64*int64(s.config.ReadLimits.Columns)
+}
+
 // Read keeps output/consumer custody until the callback returns (including a
 // panic). Expiry independently interrupts, rolls back and returns/discards the
 // physical connection. No sql.Rows, borrowed bytes or Scanner enters a consumer.
@@ -100,6 +107,20 @@ func (s *Snapshots) read(parent context.Context, r Request, budget time.Duration
 	}
 	out.NativeReservedBytes = forecast.NativeRowBytes
 	out.GoReservedBytes = r.Need[MemoryBytes] - out.NativeReservedBytes
+	if forecast.GoCopyBytes > 0 {
+		overhead := s.nativeRowDecodeOverhead()
+		// Subtraction checks both the caller's ceiling and integer overflow
+		// before summing or granting any part of the forecast.
+		if overhead > r.Need[MemoryBytes] || forecast.NativeRowBytes > r.Need[MemoryBytes]-overhead {
+			return out, ErrSnapshotBudget
+		}
+		out.NativeReservedBytes = forecast.NativeRowBytes + overhead
+		out.GoReservedBytes = forecast.GoCopyBytes
+		if out.GoReservedBytes > r.Need[MemoryBytes]-out.NativeReservedBytes {
+			return out, ErrSnapshotBudget
+		}
+		r.Need[MemoryBytes] = out.NativeReservedBytes + out.GoReservedBytes
+	}
 	if out.GoReservedBytes <= 0 {
 		return out, ErrSnapshotBudget
 	}
@@ -194,7 +215,11 @@ func (s *Snapshots) read(parent context.Context, r Request, budget time.Duration
 		return out, nil
 	}
 	scope.grant = d.Grant
-	scope.copyBudget, err = sqlite.NewRowBudget(r.Budget.RawRows, out.GoReservedBytes)
+	if forecast.GoCopyBytes > 0 {
+		scope.copyBudget, err = sqlite.NewRowBudgetWithNativeLimit(r.Budget.RawRows, out.GoReservedBytes, forecast.NativeRowBytes)
+	} else {
+		scope.copyBudget, err = sqlite.NewRowBudget(r.Budget.RawRows, out.GoReservedBytes)
+	}
 	if err != nil {
 		return out, ErrSnapshotBudget
 	}

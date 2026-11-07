@@ -16,13 +16,17 @@ var ErrRowBudget = errors.New("SQLite read window exceeds materialization budget
 type rowBudgetKey struct{}
 
 // RowBudget counts Go allocations over a read window: driver, Scan and owner
-// payload copies plus metadata. It does not cap or claim native VM/result memory.
-// A dedicated pool must separately reserve columns times its fixed value limit.
+// payload copies plus metadata. It does not cap native VM/workspace memory.
+// An exact native-row forecast can additionally refuse excessive variable
+// octets before Go copies; trusted same-snapshot preflight and reservation are
+// separate. Without that opt-in the pool still reserves columns*value limit.
 // It never calls consumer code while the database/sql/native locks are held.
 type RowBudget struct {
-	mu    sync.Mutex
-	bytes int64
-	rows  uint32
+	mu             sync.Mutex
+	bytes          int64
+	rows           uint32
+	nativeRowBytes int64
+	limitNativeRow bool
 }
 
 func NewRowBudget(rows uint32, bytes int64) (*RowBudget, error) {
@@ -30,6 +34,21 @@ func NewRowBudget(rows uint32, bytes int64) (*RowBudget, error) {
 		return nil, ErrRowBudget
 	}
 	return &RowBudget{bytes: bytes, rows: rows}, nil
+}
+
+// NewRowBudgetWithNativeLimit keeps Go-copy accounting and adds a per-row
+// variable-octet refusal bound. It changes no SQLite pool limits and does not
+// authorize arbitrary SQL/native VM allocations. Zero permits scalar/NULL rows.
+func NewRowBudgetWithNativeLimit(rows uint32, bytes, nativeRowBytes int64) (*RowBudget, error) {
+	if nativeRowBytes < 0 {
+		return nil, ErrRowBudget
+	}
+	b, err := NewRowBudget(rows, bytes)
+	if err != nil {
+		return nil, err
+	}
+	b.nativeRowBytes, b.limitNativeRow = nativeRowBytes, true
+	return b, nil
 }
 func WithRowBudget(ctx context.Context, b *RowBudget) context.Context {
 	return context.WithValue(ctx, rowBudgetKey{}, b)
@@ -78,10 +97,17 @@ func (b *RowBudget) preflight(r *rows) error {
 		return ErrRowBudget
 	}
 	need := int64(64 + 64*len(r.columns))
+	var nativeBytes int64
 	for i := range r.columns {
 		kind := sqlite3.Xsqlite3_column_type(r.c.tls, r.pstmt, int32(i))
 		if kind == sqlite3.SQLITE_TEXT || kind == sqlite3.SQLITE_BLOB {
 			n := int64(sqlite3.Xsqlite3_column_bytes(r.c.tls, r.pstmt, int32(i)))
+			if b.limitNativeRow {
+				if n < 0 || n > b.nativeRowBytes-nativeBytes {
+					return ErrRowBudget
+				}
+				nativeBytes += n
+			}
 			if need > b.bytes || n < 0 || n > (b.bytes-need)/3 {
 				return ErrRowBudget
 			}
