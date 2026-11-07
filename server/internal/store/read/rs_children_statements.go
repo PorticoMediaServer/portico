@@ -34,8 +34,8 @@ func rsChildrenName(name string) string { return "foreground.rs.children." + nam
 // RSChildrenDefinitions is inert qualification composition. Combine with
 // HarnessDefinitions, Capture on the actual reader and pass the opaque receipt
 // to stmt.New. There is no shared registry edit or runtime registration.
-// All business outputs are bounded integers/nullable integers and schema-bound
-// 16-byte incarnations/public IDs: no wide-text actual-byte dependency is added.
+// Listening membership also returns sort_key under the existing copy/output
+// budgets. The actual-byte preflight follow-up is tracked separately in #1339.
 func RSChildrenDefinitions() []stmt.Definition {
 	i := func(name string) stmt.Param { return stmt.Param{Name: name, Type: stmt.Integer} }
 	var out []stmt.Definition
@@ -48,24 +48,6 @@ func RSChildrenDefinitions() []stmt.Definition {
 		} else {
 			p.Indexes = []string{index}
 		}
-		// The closed HN EQP vocabulary deliberately excludes expression-index
-		// wording. These exact statement-bound SEARCH-only definitions cover
-		// the canonical expression seek; no SCAN or sort exception is granted.
-		for _, family := range []string{"album", "book"} {
-			prefix := family + "_id=?"
-			var detail string
-			switch name {
-			case family + ".tail":
-				detail = prefix + " AND <expr>=? AND <expr>=? AND id>?"
-			case family + ".next_second":
-				detail = prefix + " AND <expr>=? AND <expr>>?"
-			case family + ".next":
-				detail = prefix + " AND <expr>>?"
-			}
-			if detail != "" {
-				p.Waivers = []stmt.Waiver{{StatementID: readStatementID(rsChildrenName(name)), Stage: "eqp", Form: "UNRECOGNIZED EQP", Match: "SEARCH catalog_entities USING INDEX " + index + " (" + detail + ")", Reason: "Canonical listening-order expression-index SEARCH; exact statement-bound wording, no scan or sort exception."}}
-			}
-		}
 		out = append(out, stmt.Definition{ID: readStatementID(rsChildrenName(name)), SQL: sql, Params: params, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/rs_children.go:RSChildrenReader.Window"}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: present}, {Name: "empty", Bindings: empty}}, Plan: p})
 	}
 	add("source", `SELECT e.id,e.public_id,e.library_id,e.kind,e.retired,e.revision,e.admission_own_age,e.show_id,
@@ -77,8 +59,12 @@ FROM catalog_entities AS e WHERE e.id=? AND e.library_id=? AND e.kind=?`, []stmt
 	for family := RSAlbumTracks; family <= RSArtistAlbums; family++ {
 		r, _ := rsChildrenRecipeFor(family)
 		parent := int64(2000) + int64(family)
+		sortProjection := ""
+		if r.keys == 2 {
+			sortProjection = ",sort_key"
+		}
 		base := `SELECT id,public_id,library_id,kind,retired,revision,admission_own_age,show_id,season_id,artist_id,album_id,book_id,
-disc_number,track_number,part_number,season_number,episode_number,` + r.first + ` AS rs_order_first,` + r.second + ` AS rs_order_second FROM catalog_entities INDEXED BY ` + r.index + ` WHERE ` + r.predicate
+disc_number,track_number,part_number,season_number,episode_number,` + r.first + ` AS rs_order_first,` + r.second + ` AS rs_order_second` + sortProjection + ` FROM catalog_entities INDEXED BY ` + r.index + ` WHERE ` + r.predicate
 		order := "id"
 		if r.keys > 0 {
 			order = "rs_order_first,id"
@@ -87,7 +73,14 @@ disc_number,track_number,part_number,season_number,episode_number,` + r.first + 
 			order = "rs_order_first,rs_order_second,id"
 		}
 		end := " ORDER BY " + order + " LIMIT ?"
-		add(r.name+".first", base+end, []stmt.Param{i("parent"), i("limit")}, []any{parent, int64(64)}, r.index)
+		firstLimit := int64(MaxRaw)
+		if r.keys == 2 {
+			firstLimit = RSListeningChildCap + 1
+		}
+		add(r.name+".first", base+end, []stmt.Param{i("parent"), i("limit")}, []any{parent, firstLimit}, r.index)
+		if r.keys == 2 {
+			continue
+		}
 		params := []stmt.Param{i("parent")}
 		values := []any{parent}
 		tail := ""

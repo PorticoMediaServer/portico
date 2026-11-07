@@ -74,7 +74,7 @@ func TestRSChildrenPlans(t *testing.T) {
 		if _, err = stmt.New(definitions, golden.Receipt()); err != nil {
 			t.Fatal("actual Capture receipt", err)
 		}
-		if len(golden.Manifest) != 24 || len(golden.Plans) != 48 {
+		if len(golden.Manifest) != 18 || len(golden.Plans) != 36 {
 			t.Fatalf("inventory %d/%d", len(golden.Manifest), len(golden.Plans))
 		}
 		captures = append(captures, capture{string(stats), golden})

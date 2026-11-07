@@ -60,6 +60,8 @@ type RSChildrenCursor struct {
 	limit         int
 	first, second RSChildNumber
 	id            int64
+	sortKey       string
+	orderVersion  uint8
 	source        []any
 }
 
@@ -113,6 +115,9 @@ func (r *RSChildrenReader) window(ctx context.Context, request governor.Request,
 		}
 		source = rows[0]
 		return source, nil
+	}
+	if recipe.keys == 2 {
+		return r.sortedListeningWindow(ctx, request, budget, output, in, recipe, root, &source)
 	}
 	return publishRead(ctx, r.snapshots, request, budget, output, in.View, []readStep[RSChildrenPage]{
 		func(ctx context.Context, _ browseQuery, f browseFence, _ *RSChildrenPage) error {
