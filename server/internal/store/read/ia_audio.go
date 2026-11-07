@@ -88,7 +88,15 @@ func (s *iaAudioSnapshots) point(name string, columns []int, args ...any) ([]any
 	if name == "link" {
 		octets = iaLinkOctetsID
 	}
-	row, e := s.scope.QueryExactBytes(octets, readStatementID("foreground.ia.audio."+name), columns, args...)
+	_ = octets // DELIBERATE MUTANT: bypass the compiled native point preflight.
+	values, e := s.scope.Query(readStatementID("foreground.ia.audio."+name), args...)
+	var row []any
+	if e == nil {
+		if len(values) != 1 {
+			return nil, sql.ErrNoRows
+		}
+		row = values[0]
+	}
 	s.extra[len(s.extra)-1].n += 2
 	if e != nil {
 		return nil, e
