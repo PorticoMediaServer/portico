@@ -10,20 +10,25 @@ It transports no config or viewer as authority. The existing
 remains the accepted input adapter outside native writer/plan. The native test
 uses that path; neither writer nor plan imports this package.
 
-`WithValues` asks RB to measure the frozen graph while source output custody is
+`Freeze` asks RB to measure the frozen graph while source output custody is
 live, admits a distinct memory-only background grant for actual `ChargeBytes`,
 then uses RB's owned clone. This includes opaque roots, scope and continuation.
 The copy charge is RB's logical allocator envelope, not an RSS qualification.
-The consumer must finish all use before returning, including on panic. A
-cancelled context refuses subsequent use while memory debt remains held through
-consumer exit. The driver retires its retained output only; the original output
-belongs to its caller and may be retired once the copied consumer is entered.
+The returned driver-owned handle can retain scope/continuation across read
+turns. `With` lends its frozen graph only within the callback; consumers must
+finish every alias use before returning, including on panic. Job cancellation
+or expiry refuses subsequent use without refunding the retained graph. `Stop`
+revokes new use; `Close` joins every active consumer before retirement. A
+cancelled Close wait leaves active debt held until eventual consumer exit.
+Composition must close every successful handle. `WithValues` provides that
+ownership automatically for one synchronous consumer. The original output
+belongs to its caller and can retire after Freeze completes.
 
 `WithWindow` preserves RB's raw fetched/consumed/EOF and opaque continuation.
 An empty eligible batch with a continuation is pending raw work. It cannot seal
 an empty pool, infer EOF from item count or confer publication authority.
 
-Candidate selection/staging, retained cursors across worker turns, final RB
+Candidate selection/staging, resumable worker orchestration, final RB
 revalidation and its accepting writer fence, command receipts, admission
 profiles, uncertain COMMIT and guide visibility to viewers allowed every named
 library remain composition work. No prepared source identity is physical byte
