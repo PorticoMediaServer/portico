@@ -46,7 +46,12 @@ type SongFacts struct {
 	Album       int64
 	Disc, Track *int64
 }
-type BookFacts struct{ Author, Narrator, Series, SeriesPosition string }
+type BookFacts struct {
+	Author, Narrator, Series, SeriesPosition string
+	// No remote book provider is admitted by the current provider map. Local
+	// tag acceptance does not turn a book into a remote provider match.
+	ProviderMatchStatus string
+}
 type AudioFileFacts struct {
 	Book       int64
 	Disc, Part *int64
@@ -177,7 +182,7 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 				}
 				d.Song = &SongFacts{Album: album, Disc: rsInteger(v[37]), Track: rsInteger(v[38])}
 			case 8:
-				d.Book = &BookFacts{Author: v[39].(string), Narrator: v[40].(string), Series: v[41].(string), SeriesPosition: v[42].(string)}
+				d.Book = &BookFacts{Author: v[39].(string), Narrator: v[40].(string), Series: v[41].(string), SeriesPosition: v[42].(string), ProviderMatchStatus: "deferred"}
 			case 9:
 				book, err := required(43)
 				if err != nil {

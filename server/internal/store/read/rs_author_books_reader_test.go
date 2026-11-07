@@ -105,7 +105,7 @@ func TestRSAuthorBookReaderLIVEAndMembership(t *testing.T) {
 				t.Fatal(page, ids)
 			}
 			for j, c := range page.Cards {
-				if c.Facts.Item.ID != ids[j] || c.Personal == nil {
+				if c.Facts.Item.ID != ids[j] || c.Personal == nil || c.Facts.Book == nil || c.Facts.Book.ProviderMatchStatus != "deferred" {
 					t.Fatal(c, ids)
 				}
 			}

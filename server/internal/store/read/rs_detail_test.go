@@ -58,7 +58,7 @@ func TestRSDetailEveryCatalogueKind(t *testing.T) {
 				t.Fatal(d)
 			}
 		case 8:
-			if d.Book == nil || d.Book.Author != "Author" || d.Book.Narrator != "Narrator" || d.Book.SeriesPosition != "2.5" {
+			if d.Book == nil || d.Book.Author != "Author" || d.Book.Narrator != "Narrator" || d.Book.SeriesPosition != "2.5" || d.Book.ProviderMatchStatus != "deferred" {
 				t.Fatal(d)
 			}
 		case 9:
