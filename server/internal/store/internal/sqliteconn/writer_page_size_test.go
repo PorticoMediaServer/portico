@@ -100,15 +100,11 @@ func TestWriterPageSizeNativeGeometry(t *testing.T) {
 			}
 
 			cfg.WriterPageSize = size
-			base, err := Connector(path, cfg, ExistingFile)
+			db, _, err := Open(t.Context(), path, cfg, ExistingFile)
 			if err != nil {
 				t.Fatal(err)
 			}
-			counted := &countedConnector{Connector: base}
-			db := sql.OpenDB(counted)
 			defer db.Close()
-			db.SetMaxOpenConns(1)
-			db.SetMaxIdleConns(1)
 			for generation := range 2 {
 				conn, err := db.Conn(t.Context())
 				if err != nil {
@@ -134,7 +130,16 @@ func TestWriterPageSizeNativeGeometry(t *testing.T) {
 				if err := conn.QueryRowContext(t.Context(), "SELECT value FROM geometry").Scan(&value); err != nil || value != 1473 {
 					t.Fatal("loaded content changed", generation, value, err)
 				}
+				// TEMP state belongs to the actual physical connection. Its absence
+				// after discard proves replacement without a raw pool opener.
+				var markers int
+				if err := conn.QueryRowContext(t.Context(), "SELECT count(*) FROM sqlite_temp_schema WHERE name='geometry_generation'").Scan(&markers); err != nil || markers != 0 {
+					t.Fatal("physical replacement not exercised", generation, markers, err)
+				}
 				if generation == 0 {
+					if _, err := conn.ExecContext(t.Context(), "CREATE TEMP TABLE geometry_generation(value INTEGER)"); err != nil {
+						t.Fatal(err)
+					}
 					if err := conn.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
 						t.Fatal(err)
 					}
@@ -142,9 +147,6 @@ func TestWriterPageSizeNativeGeometry(t *testing.T) {
 				if err := conn.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
 					t.Fatal(err)
 				}
-			}
-			if counted.opened.Load() != 2 {
-				t.Fatal("physical replacement not exercised", counted.opened.Load())
 			}
 		})
 	}
