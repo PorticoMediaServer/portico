@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 	"reflect"
 	"testing"
 	"testing/synctest"
@@ -71,6 +72,8 @@ func testRBGroupTVNative(t *testing.T) {
 	if e != nil || len(p.Items) != 69 {
 		t.Fatal("season membership", len(p.Items), e)
 	}
+	f.exec(t, "ANALYZE")
+	captureBrowse(t, f, RBTVDefinitions(), plan.Analyzed)
 	// An unversioned source-settings change still invalidates the private draft.
 	f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE catalog_entities SET newest_first=0 WHERE id=2001`) }}
 	p, _, e = f.reader.rbTVGroupExact(t.Context(), rbGroupRequest(), time.Second, f.output, in)
