@@ -72,7 +72,7 @@ type effectiveRuntime struct {
 	inventoryDriverPlan      *effectivePlan    // complete trusted N1 profile; nil keeps fresh effects closed
 	inventoryPreparationPlan *effectivePlan
 	directoryPlans           [4]*effectivePlan
-	publisherPlans           [2]*effectivePlan
+	publisherPlans           [3]*effectivePlan
 	registry                 *stmt.Registry
 	fenced                   bool
 	cleanupPanics            []terminalPanic
@@ -291,7 +291,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		return out, acknowledged, err
 	}
 	if publisher != nil {
-		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || invocation != nil || ack != (publisher.call == publisherAckImage || publisher.call == publisherAckCommand) {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || invocation != nil || ack != (publisher.call == publisherAckImage || publisher.call == publisherAckCommand || publisher.call == publisherAckReclaimer) {
 			return out, acknowledged, ErrInvalid
 		}
 		if _, err := validatePublisherInvocation(ctx, w, publisher); err != nil {
@@ -299,7 +299,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		}
 		// The image facade stays closed; only the explicitly installed two
 		// publisher qualification purposes may enter this SAME dispatcher.
-		if !searchPublisherPurpose(publisher.purpose) {
+		if !searchPublisherResourcePurpose(publisher.purpose) {
 			return out, acknowledged, ErrNotImplemented
 		}
 	}
@@ -366,6 +366,10 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	if publisher != nil {
 		purpose, plan, reference, key, libraryID = publisher.purpose, nil, publisher.request.Receipt, searchPublisherJobKey(publisher.request), publisher.request.LibraryID
+		if publisher.purpose == SearchFragmentReclaim {
+			q := publisher.reclaimRequest
+			reference, key, libraryID = q.Receipt, searchReclaimerJobKey(q), q.LibraryID
+		}
 		outcome = &out.search.Outcome
 	}
 	if !r.mu.TryLock() {
@@ -615,7 +619,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	var publisherOwner receiptOwnerFacts
 	if err == nil {
 		if publisher != nil {
-			if err = turn.requireSearchPublisherMemory(ctx, purpose, searchPublisherHistoryBytes); err == nil {
+			if err = turn.requireSearchPublisherMemory(ctx, purpose, searchPublisherDisclosureBytes(publisher)); err == nil {
 				publisherOwner, err = discloseSearchPublisher(ctx, turn, publisher)
 			}
 		} else if reclaim != nil {
@@ -797,6 +801,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		if publisher.head != nil {
 			lease = publisher.head.request.snapshot.stage.job.leaseExpiresMS
 		}
+		if publisher.reclaim != nil {
+			lease = publisher.reclaim.request.snapshot.owner.leaseExpiresMS
+		}
 		if lease != 0 {
 			err = checkSearchPublisherTerminal(ctx, turn, purpose, lease)
 		}
@@ -834,11 +841,11 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if scan != nil && scan.directoryTerminalInput != nil && !ack && !historical && physical.state == committed {
 		out.directoryTerminal.Outcome.State = Applied
 	}
-	if publisher != nil && !ack && !historical && (publisher.fragment != nil || publisher.head != nil) {
+	if publisher != nil && !ack && !historical && (publisher.fragment != nil || publisher.head != nil || publisher.reclaim != nil) {
 		if physical.state == committed {
 			outcome.State = Applied
 		} else {
-			out.search.Fragment, out.search.Head = searchFragmentStageResult{}, searchHeadPublishResult{}
+			out.search.Fragment, out.search.Head, out.search.Reclaim = searchFragmentStageResult{}, searchHeadPublishResult{}, searchFragmentReclaimResult{}
 		}
 	}
 	if !ack && !historical && !errors.Is(err, ErrDisclosureDenied) && (physical.state == commitUnknown || errors.Is(err, ErrResolveRequired)) {

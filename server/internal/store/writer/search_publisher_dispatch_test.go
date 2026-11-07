@@ -20,6 +20,8 @@ type publisherGovernedFixture struct {
 	q        PublisherReceiptRequest
 	fragment *searchFragmentStageCommand
 	head     *searchHeadPublishCommand
+	reclaim  *searchFragmentReclaimCommand
+	rq       searchReclaimerReceiptRequest
 	golden   plan.Golden
 }
 
@@ -52,18 +54,28 @@ func newPublisherGovernedFixture(t *testing.T, purpose CommandID, realClock bool
 	var e *executor
 	var fragment *searchFragmentStageCommand
 	var head *searchHeadPublishCommand
-	if purpose == SearchFragmentStage {
+	var reclaim *searchFragmentReclaimCommand
+	if purpose == SearchFragmentReclaim {
+		e, reclaim = searchReclaimNativeSeed(t)
+	} else if purpose == SearchFragmentStage {
 		e, fragment = searchFragmentNativeSeed(t)
 	} else {
 		e, head = searchHeadNativeSeed(t)
 	}
-	return bindPublisherGovernedFixture(t, e, purpose, fragment, head, realClock)
+	return bindPublisherGovernedFixture(t, e, purpose, fragment, head, realClock, reclaim)
 }
 
 // Uses the existing canonical executor and ONE W runtime. Population setup may
 // occur before this binding/Capture; no test callback enters an accepting turn.
-func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, fragment *searchFragmentStageCommand, head *searchHeadPublishCommand, realClock bool) *publisherGovernedFixture {
+func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, fragment *searchFragmentStageCommand, head *searchHeadPublishCommand, realClock bool, reclaims ...*searchFragmentReclaimCommand) *publisherGovernedFixture {
 	t.Helper()
+	if len(reclaims) > 1 {
+		t.Fatal("only one closed reclaimer")
+	}
+	var reclaim *searchFragmentReclaimCommand
+	if len(reclaims) == 1 {
+		reclaim = reclaims[0]
+	}
 	if realClock {
 		e.now = time.Now
 	}
@@ -74,7 +86,11 @@ func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, 
 	}
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
-	for _, p := range []CommandID{SearchFragmentStage, SearchHeadPublish} {
+	purposes := []CommandID{SearchFragmentStage, SearchHeadPublish}
+	if reclaim != nil {
+		purposes = append(purposes, SearchFragmentReclaim)
+	}
+	for _, p := range purposes {
 		for _, d := range searchPublisherCommandDefinitions(p) {
 			found := false
 			for _, old := range defs {
@@ -118,7 +134,11 @@ func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := composeSearchPublisherCommands(t.Context(), r, fp, hp); err != nil {
+	var extra []effectivePlan
+	if reclaim != nil {
+		extra = append(extra, publisherQualificationPlan(SearchFragmentReclaim, golden.Receipt()))
+	}
+	if err := composeSearchPublisherCommands(t.Context(), r, fp, hp, extra...); err != nil {
 		t.Fatal(err)
 	}
 	w := &Writer{effective: r}
@@ -131,12 +151,29 @@ func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, 
 		s := head.request.snapshot.stage
 		q = PublisherReceiptRequest{s.job.id, s.source.libraryID, s.source.entityID, ReceiptReference{head.identity, head.digest}}
 	}
-	cap := publisherFixtureCapability(t, w, q)
-	return &publisherGovernedFixture{w, e, a, cap, q, fragment, head, golden}
+	var rq searchReclaimerReceiptRequest
+	var extraScope []searchReclaimerReceiptRequest
+	if reclaim != nil {
+		s := reclaim.request.snapshot
+		rq = searchReclaimerReceiptRequest{s.owner.id, s.owner.publicationID, s.fragment.libraryID, s.fragment.entityID, ReceiptReference{reclaim.identity, reclaim.digest}}
+		extraScope = append(extraScope, rq)
+	}
+	cap := publisherFixtureCapability(t, w, q, extraScope...)
+	return &publisherGovernedFixture{w: w, e: e, a: a, cap: cap, q: q, fragment: fragment, head: head, reclaim: reclaim, rq: rq, golden: golden}
 }
 
-func publisherFixtureCapability(t *testing.T, w *Writer, q PublisherReceiptRequest) *PublisherDisclosure {
+func publisherFixtureCapability(t *testing.T, w *Writer, q PublisherReceiptRequest, reclaims ...searchReclaimerReceiptRequest) *PublisherDisclosure {
 	t.Helper()
+	if len(reclaims) > 1 {
+		t.Fatal("multiple reclaimer scopes")
+	}
+	if len(reclaims) == 1 {
+		if q != (PublisherReceiptRequest{}) {
+			t.Fatal("publisher ID cannot mint reclaimer scope")
+		}
+		r := reclaims[0]
+		return &PublisherDisclosure{issuer: w, scope: &publisherScope{kind: publisherReclaimerScope, reclaimer: publisherReclaimerBinding{r.ReclaimerID, r.PublicationID, r.Receipt.Identity.Incarnation}, libraryID: r.LibraryID, entityID: r.EntityID, libraryKey: "publisher-fixture", lifetime: t.Context()}}
+	}
 	return &PublisherDisclosure{issuer: w, scope: &publisherScope{jobID: q.JobID, libraryID: q.LibraryID, entityID: q.EntityID, libraryKey: "publisher-fixture", incarnation: q.Receipt.Identity.Incarnation, lifetime: t.Context()}}
 }
 

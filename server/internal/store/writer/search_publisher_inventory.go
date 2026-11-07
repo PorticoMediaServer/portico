@@ -11,6 +11,8 @@ func searchPublisherCommandDefinitions(purpose CommandID) []stmt.Definition {
 		defs = searchFragmentDefinitions()
 	case SearchHeadPublish:
 		defs = searchHeadDefinitions()
+	case SearchFragmentReclaim:
+		defs = append(searchFragmentReclaimDefinitions(), searchReclaimerProtocolDefinitions()...)
 	default:
 		return nil
 	}
@@ -23,7 +25,7 @@ func searchPublisherCommandDefinitions(purpose CommandID) []stmt.Definition {
 }
 
 func searchPublisherMaxUses(purpose CommandID, id stmt.ID) int {
-	if !searchPublisherPurpose(purpose) {
+	if !searchPublisherResourcePurpose(purpose) {
 		return 0
 	}
 	found := false
@@ -93,11 +95,28 @@ func searchPublisherMaxUses(purpose CommandID, id stmt.ID) int {
 			"enrichment.effective_stage.disclosure_subject":
 			found = true
 		}
+	case SearchFragmentReclaim:
+		switch id {
+		case "search.reclaim.owner.job", "search.reclaim.receipt.identity", "search.reclaim.receipt.fragment_result",
+			"search.reclaim.receipt.fragment_insert", "search.reclaim.owner.publication", "search.reclaim.owner.subject",
+			"search.reclaim.owner.bank", "search.reclaim.owner.pointers", "search.reclaim.owner.next_fragment",
+			"search.reclaim.owner.fragment", "search.reclaim.owner.seal", "search.reclaim.native.prefix_delete",
+			"search.reclaim.native.lexical_delete", "search.reclaim.native.grams_delete", "search.reclaim.cas.content_delete",
+			"search.reclaim.cas.fragment_no_due", "search.reclaim.cas.fragment_due", "search.reclaim.ack.owner",
+			"enrichment.effective_stage.disclosure_library", "enrichment.effective_stage.disclosure_subject":
+			found = true
+		}
 	}
 	if !found {
 		return 0
 	}
 	switch id {
+	case searchReclaimOwner:
+		return 4 // scope, original lookup, apply lookup, fresh vector
+	case searchReclaimIdentity:
+		return 2
+	case searchReclaimPublication:
+		return 2 // fresh authority and body vector
 	case searchPublisherOwnerID:
 		return 3 // current native scope, original lookup, fresh apply's lookup
 	case searchPublisherIdentity:
