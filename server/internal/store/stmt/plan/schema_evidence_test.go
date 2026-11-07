@@ -3,8 +3,10 @@ package plan_test
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -98,5 +100,66 @@ func TestPlanSchemaCaptureRejectsUnadoptedDDL(t *testing.T) {
 	}
 	if _, err = plan.Capture(t.Context(), conn, catalog, f, policy); err == nil {
 		t.Fatal("unadopted DDL obtained a Capture")
+	}
+}
+
+func TestPlanSchemaStatisticsTableNameRequiresWithoutRowid(t *testing.T) {
+	conn, _, f, _ := fixture(t)
+	if _, err := conn.ExecContext(t.Context(), "DROP TABLE items"); err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.InitializeEmpty(t.Context(), conn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(t.Context(), "ANALYZE"); err != nil {
+		t.Fatal(err)
+	}
+	f.Statistics = plan.Analyzed
+	data, err := schema.ReadContract("INT-INDEX-POLICY.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := plan.ReadIndexPolicy(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defs := []stmt.Definition{{ID: "test.schema.statistics", Owner: "schema-evidence-test", CallSites: []string{"schema_evidence_test.go"}, Kind: stmt.Read, SQL: "SELECT id FROM catalog_people WHERE id=?", Params: []stmt.Param{{Name: "id", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "empty", Bindings: []any{int64(1)}}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_people"}}}}
+	catalog, err := stmt.Describe(defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The adopted WITHOUT ROWID table can legitimately name its table in stat1.
+	if _, err = conn.ExecContext(t.Context(), "INSERT INTO sqlite_stat1(tbl,idx,stat) VALUES('catalog_identities','catalog_identities','0 0 0')"); err != nil {
+		t.Fatal(err)
+	}
+	good, err := plan.Capture(t.Context(), conn, catalog, f, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := good
+	bad.Environment.Statistics = map[string]plan.Rows{}
+	for name, rows := range good.Environment.Statistics {
+		bad.Environment.Statistics[name] = rows
+	}
+	stat := bad.Environment.Statistics["sqlite_stat1"]
+	stat.Values = append(append([][]any{}, stat.Values...), []any{"catalog_people", "catalog_people", "1000 10"})
+	bad.Environment.Statistics["sqlite_stat1"] = stat
+	encoded, err := json.Marshal(bad.Environment.Statistics)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad.Environment.StatisticsSHA256 = fmt.Sprintf("%x", sha256.Sum256(encoded))
+	forged, err := bad.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = bad.Compare(forged); err == nil {
+		t.Fatal("ROWID table accepted as its own statistics index")
+	}
+	if _, err = conn.ExecContext(t.Context(), "INSERT INTO sqlite_stat1(tbl,idx,stat) VALUES('catalog_people','catalog_people','1000 10')"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = plan.Capture(t.Context(), conn, catalog, f, policy); err == nil {
+		t.Fatal("invalid native statistics obtained a Capture receipt")
 	}
 }
