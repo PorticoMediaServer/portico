@@ -81,6 +81,9 @@ func finishRSPage(t *testing.T, f *browseFixture, r *RSPeoplePageReader, p *RSPe
 			t.Fatal(err, cost)
 		}
 		if page.Complete {
+			if cost.LookupStatements+cost.PublicationStatements > 15 {
+				t.Fatal("ready statement ceiling", cost)
+			}
 			return page
 		}
 		if !page.Pending || page.Person != nil || page.Total != 0 || len(page.Groups) != 0 || len(page.Credits) != 0 {

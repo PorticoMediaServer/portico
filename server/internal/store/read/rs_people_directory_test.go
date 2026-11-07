@@ -19,11 +19,14 @@ func finishRSDirectory(t *testing.T, f *browseFixture, r *RSPeoplePageReader, in
 	}
 	t.Cleanup(func() { _ = p.Close() })
 	for n := 0; n < 80; n++ {
-		out, _, err := r.directory(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
+		out, cost, err := r.directory(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if out.Complete {
+			if cost.LookupStatements+cost.PublicationStatements > 15 {
+				t.Fatal("ready statement ceiling", cost)
+			}
 			return out
 		}
 		if !out.Pending || out.Total != 0 || len(out.People) != 0 {

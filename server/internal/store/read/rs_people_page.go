@@ -218,7 +218,7 @@ func (r *RSPeoplePageReader) begin(ctx context.Context, owner governor.OwnerID, 
 }
 
 // Page advances at most FOUR raw credit positions per poll. Each payload has
-// its own two-call native scope; no 64-point business loop or longer snapshot
+// its own three-call native scope; no 64-point business loop or longer snapshot
 // is used. Pending carries no profile, groups, approximate count or credits.
 // ConsumeForeground keeps LIVE and copied output charged through serialization.
 func (r *RSPeoplePageReader) Page(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, p *RSPeoplePreparation) (RSPersonPage, BrowseReadResult, error) {
@@ -240,19 +240,22 @@ func (r *RSPeoplePageReader) Page(ctx context.Context, request governor.Request,
 }
 
 func (r *RSPeoplePageReader) page(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, p *RSPeoplePreparation, at time.Time) (page RSPersonPage, cost BrowseReadResult, err error) {
+	started := time.Now()
 	ctx, cancel := context.WithDeadline(ctx, minTimeRS(time.Now().Add(min(budget, time.Second)), p.lease.Deadline()))
 	defer cancel()
-	if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
-		return
-	}
-	if !p.current.complete {
-		err = r.peopleQuantum(ctx, request, output, p, at, &cost)
-		if err != nil {
+	if !p.captured || len(p.input.Views) > 1 {
+		if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
 			return
 		}
 	}
-	if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
+	err = r.peopleQuantum(ctx, request, output, p, at, &cost)
+	if err != nil {
 		return
+	}
+	if len(p.input.Views) > 1 {
+		if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
+			return
+		}
 	}
 	if !p.current.complete {
 		page.Pending = true
@@ -268,7 +271,7 @@ func (r *RSPeoplePageReader) page(ctx context.Context, request governor.Request,
 	if err != nil {
 		return RSPersonPage{}, cost, err
 	}
-	if err = r.authority.HandoffPreparation(p.lease); err != nil {
+	if err = p.handoff(at.Add(time.Since(started))); err != nil {
 		return RSPersonPage{}, cost, err
 	}
 	err = p.close()
@@ -276,6 +279,17 @@ func (r *RSPeoplePageReader) page(ctx context.Context, request governor.Request,
 		page = RSPersonPage{}
 	}
 	return
+}
+
+func (p *RSPeoplePreparation) handoff(at time.Time) error {
+	for _, f := range p.fences {
+		expires, e1 := time.Parse(time.RFC3339Nano, f.expiresAt)
+		horizon, e2 := time.Parse(time.RFC3339Nano, f.horizon)
+		if e1 != nil || e2 != nil || !at.Before(expires) || !at.Before(horizon) {
+			return ErrDenied
+		}
+	}
+	return p.reader.authority.HandoffPreparation(p.lease)
 }
 
 func minTimeRS(a, b time.Time) time.Time {
@@ -327,11 +341,22 @@ func (r *RSPeoplePageReader) checkPeopleFences(ctx context.Context, request gove
 				return ErrStale
 			}
 		} else {
+			if err := p.charge(rsPeopleFenceBytes(f)); err != nil {
+				return err
+			}
 			p.fences = append(p.fences, f)
 		}
 	}
 	p.captured = true
 	return r.authority.CheckPreparation(p.lease)
+}
+
+func rsPeopleFenceBytes(f browseFence) int64 {
+	n := int64(1024)
+	for _, s := range []string{f.database, f.token, f.account, f.profile, f.membership, f.lifetime, f.library, f.role, f.memberLibraries, f.profileLibraries, f.profileLabels, f.expiresAt, f.horizon, f.root, f.bridgeRoot, f.policyWitness} {
+		n += 4 * int64(len(s))
+	}
+	return n
 }
 
 func (p *RSPeoplePreparation) rowView(row []any) int {
@@ -367,7 +392,16 @@ func (r *RSPeoplePageReader) validatePeopleWorks(ctx context.Context, request go
 			c.validated++
 		}
 		return nil
-	}})
+	}}, func(q browseQuery) ([]any, error) {
+		rows, e := q("rs.people.source", c.person)
+		if e != nil {
+			return nil, e
+		}
+		if len(rows) != 1 || !equalSource(c.source, rows[0]) {
+			return nil, ErrStale
+		}
+		return rows[0], nil
+	})
 	addSearchReadCost(cost, &one)
 	if err == nil {
 		c.complete = c.validated == len(c.order)
@@ -461,7 +495,7 @@ func (r *RSPeoplePageReader) peopleQuantum(ctx context.Context, request governor
 		}
 		return ctx.Err()
 	}}
-	// Every step has at most one exact-byte point (two native statements).
+	// Every step has one exact-byte pair plus one scalar work-source point.
 	for n := 0; n < rsPeopleQuantum; n++ {
 		steps = append(steps, func(ctx context.Context, q browseQuery, _ browseFence, _ *struct{}) error {
 			if n >= len(raw) {

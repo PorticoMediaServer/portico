@@ -155,10 +155,39 @@ func TestRSPeoplePageSourceDriftExpiryAndCapacity(t *testing.T) {
 			if err == nil || !reflect.DeepEqual(out, RSPersonPage{}) {
 				t.Fatal(mode, out, err)
 			}
-			if mode == "person" && !errors.Is(err, ErrStale) || mode == "authority" && !errors.Is(err, ErrDenied) || mode == "capacity" && !errors.Is(err, governor.ErrSnapshotBudget) || mode == "orphan" && !errors.Is(err, ErrDenied) {
+			if mode == "person" && !errors.Is(err, ErrStale) || mode == "authority" && !errors.Is(err, ErrDenied) || mode == "capacity" && !errors.Is(err, governor.ErrSnapshotBudget) || mode == "orphan" && !errors.Is(err, ErrDenied) || mode == "expired" && !errors.Is(err, governor.ErrPreparationExpired) {
 				t.Fatal(mode, err)
 			}
 		})
+	}
+}
+
+func TestRSPeoplePageMultipleKindsAndDefaultContainerPolicy(t *testing.T) {
+	f, r := newRSPeoplePageFixture(t, false)
+	f.exec(t, `UPDATE catalog_entities SET kind=2 WHERE id=4`)
+	second := f.input
+	second.Kind = 2
+	in := RSPersonPageInput{Views: []BrowseInput{f.input, second}, Person: 1, Limit: 40, Kind: 2}
+	p := beginRSPage(t, f, r, in)
+	var out RSPersonPage
+	var err error
+	for n := 0; n < 30; n++ {
+		out, _, err = r.page(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.Complete {
+			break
+		}
+	}
+	if !out.Complete || out.Total != 1 || len(out.Credits) != 1 || out.Credits[0].Item.ID != 4 || out.Credits[0].Item.Kind != 2 || len(out.KnownFor) != 4 {
+		t.Fatal("incomplete multi-kind scope", out)
+	}
+	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
+	p = beginRSPage(t, f, r, in)
+	out, _, err = r.page(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
+	if !errors.Is(err, ErrUnqualified) || !reflect.DeepEqual(out, RSPersonPage{}) {
+		t.Fatal("complete container policy was bypassed", out, err)
 	}
 }
 
