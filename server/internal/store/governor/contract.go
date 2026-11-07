@@ -171,6 +171,7 @@ type Grant struct {
 	id        uint64
 	epoch     uint64
 	issuer    *ledger
+	deadline  time.Time // immutable original issuer-captured admission deadline
 	cancelled atomic.Bool
 }
 type Governor interface {

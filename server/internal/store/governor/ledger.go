@@ -6,7 +6,6 @@ import (
 	"math"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -58,7 +57,7 @@ type ledger struct {
 	keeper         *CheckpointKeeper // protected by mu; reserves its shutdown floor
 	foreground     foregroundLedger
 	foregroundWait func(context.Context, time.Time, <-chan struct{})
-	mu             sync.Mutex
+	mu             ledgerMutex
 	config         Config
 	used           [4]Amounts
 	counts         [4]int
@@ -232,7 +231,7 @@ func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicke
 	}
 	r.Footprint = slices.Clone(r.Footprint)
 	g.sequence++
-	p := &Grant{id: g.sequence, epoch: state, issuer: g}
+	p := &Grant{id: g.sequence, epoch: state, issuer: g, deadline: r.Deadline}
 	g.live[p.id] = &holding{grant: p, request: r, checkpoint: checkpoint, foreground: foreground, snapshot: read}
 	if shutdown != nil {
 		g.live[p.id].keeper, g.live[p.id].keeperRole = shutdown, keeperShutdown
@@ -292,8 +291,15 @@ func (a *Authority) Check(p *Grant, expected Request) error {
 }
 func (a *Authority) check(p *Grant, expected Request, readyDeadline time.Time) error {
 	g := a.ledger
+	if p == nil || p.issuer != g || p.cancelled.Load() || p.epoch != g.state.Load() {
+		return ErrGrant
+	}
 	if !g.mu.TryLock() {
-		return ErrBusy
+		// This is already admitted authority, not a new capacity request.
+		// Immutable issuer-captured deadline prevents a caller from extending it.
+		if !g.mu.lockWithin(p.deadline.Sub(g.config.Now())) {
+			return ErrGrant
+		}
 	}
 	defer g.mu.Unlock()
 	h := g.find(p)
