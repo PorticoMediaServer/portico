@@ -33,6 +33,10 @@ func rsSearchRetainedBytes(p *RSSearchPreparation) int64 {
 	// The bounded slice's old/new/output overlap is prospectively funded. Native
 	// stamp metadata is measured by its issuer, not a second resource ledger.
 	n := 4096 + 2*int64(p.input.Capacity)*int64(unsafe.Sizeof(FullSearchHit{}))
+	for _, v := range p.input.Views {
+		n += 4 * int64(len(v.Database)+len(v.TokenHash))
+	}
+	n += 4 * int64(len(p.input.Query.Fold()))
 	if p.input.Group == 0 {
 		n += NativePreviewCandidates * 64
 	}

@@ -72,6 +72,9 @@ type RSSearchReader struct {
 }
 
 func NewRSSearchReader(a *governor.Authority, pool *governor.Snapshots) (*RSSearchReader, error) {
+	if a == nil || pool == nil || !pool.OwnedBy(a) {
+		return nil, ErrInput
+	}
 	n, e := NewNativeFullSearchReader(pool)
 	if e != nil {
 		return nil, e
@@ -454,34 +457,36 @@ func (p *RSSearchPreparation) hasLookahead() bool {
 	return p.input.Group != 0 && p.input.Order == "relevance" && p.input.Direction == "desc" && len(p.hits) > p.pageLimit()
 }
 func (p *RSSearchPreparation) compose() (RSSearchPage, error) {
-	groups := map[RSSearchGroup][]FullSearchHit{}
-	for _, h := range p.hits {
-		g := rsSearchHitGroup(h)
-		groups[g] = append(groups[g], h)
-	}
-	if p.input.Group != 0 {
-		if groups[p.input.Group] == nil {
-			groups[p.input.Group] = nil
-		}
-	} else {
+	keys := []int{int(p.input.Group)}
+	if p.input.Group == 0 {
+		keys = keys[:0]
 		for _, g := range rsSearchGroups {
-			if groups[g] == nil {
-				groups[g] = nil
-			}
+			keys = append(keys, int(g))
 		}
+		sort.Ints(keys)
 	}
-	keys := make([]int, 0, len(groups))
-	for g := range groups {
-		keys = append(keys, int(g))
-	}
-	sort.Ints(keys)
+	// Sort the private fixed-capacity buffer in place. The output DTO copy is
+	// the only second full-hit buffer; no per-group growing slice is retained.
+	sort.Slice(p.hits, func(i, j int) bool {
+		a, b := rsSearchHitGroup(p.hits[i]), rsSearchHitGroup(p.hits[j])
+		if a != b {
+			return a < b
+		}
+		return rsSearchCompare(p.hits[i], p.hits[j], rsSearchOrderFor(a, p.input.Order), p.input.Direction) < 0
+	})
 	preview := p.input.Group == 0
 	out := RSSearchPage{Complete: true, Partial: preview, BudgetStopped: preview && p.candidates >= NativePreviewCandidates, NativeCandidates: p.candidates}
 	for _, k := range keys {
 		g := RSSearchGroup(k)
-		hits := groups[g]
-		order := rsSearchOrderFor(g, p.input.Order)
-		sort.Slice(hits, func(i, j int) bool { return rsSearchCompare(hits[i], hits[j], order, p.input.Direction) < 0 })
+		start, end := 0, 0
+		for start < len(p.hits) && rsSearchHitGroup(p.hits[start]) < g {
+			start++
+		}
+		end = start
+		for end < len(p.hits) && rsSearchHitGroup(p.hits[end]) == g {
+			end++
+		}
+		hits := p.hits[start:end]
 		n := min(p.pageLimit(), len(hits))
 		more := len(hits) > n
 		gp := RSSearchGroupPage{Group: g, Hits: append([]FullSearchHit(nil), hits[:n]...), HasMore: more, HasMoreKnown: more || !preview && p.exhausted, Count: uint64(len(hits)), CountStatus: SearchCountUnknown}
