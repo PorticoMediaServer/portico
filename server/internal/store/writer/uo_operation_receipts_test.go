@@ -36,6 +36,9 @@ func TestUOOperationCodecOriginalBindingAndCorruption(t *testing.T) {
 	if oldScope == newScope || oldKey != newKey {
 		t.Fatal("scope birth did not isolate saved original")
 	}
+	if _, err := decodeUOOperationResult(other, encoded); err == nil {
+		t.Fatal("saved payload copied across lifetime decoded")
+	}
 }
 func TestUOOperationNativeReplayHasNoNewEffects(t *testing.T) {
 	w := wc008NativeExecutor(t)
