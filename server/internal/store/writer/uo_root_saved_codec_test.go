@@ -157,4 +157,16 @@ func TestUORootSavedCannotBorrowNormalPurpose(t *testing.T) {
 	if _, err := lookupUORootCommand(t.Context(), turn, q); err == nil {
 		t.Fatal("FULL original borrowed a NORMAL purpose")
 	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	turn = wc008NativeTurn(t, w, SetSavedResourceSharing, uoRootAllDefinitions())
+	lookup, err := lookupUORootCommand(t.Context(), turn, q)
+	if err != nil {
+		t.Fatal("matching FULL purpose refused", err)
+	}
+	v := uoRootSavedResult{root: root, resource: "resourceabcdefghijklmn", kind: q.kind, revision: 2, generation: 3, changed: true, appliedMS: 100}
+	if _, err := persistUORootSaved(t.Context(), turn, lookup, v); err != nil {
+		t.Fatal(err)
+	}
 }
