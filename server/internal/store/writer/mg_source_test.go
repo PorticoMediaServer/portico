@@ -231,3 +231,44 @@ func TestMGSourceNativeStatementCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Native NORMAL observation plus a mislabeled FULL purpose must be refused.
+// This tests frame-policy binding rather than merely a wrong command name.
+func TestMGSourceSecurityRejectsNativeNormalFrame(t *testing.T) {
+	for _, purpose := range []CommandID{MGSetSourceEnabled, MGSetSourceViewerAccess, MGRetireSource} {
+		t.Run(fmt.Sprint(purpose), func(t *testing.T) {
+			_, turn, before := mgSourceFixture(t, MGConfigureTuner)
+			var native int
+			if err := turn.transaction.conn.QueryRowContext(t.Context(), `PRAGMA synchronous`).Scan(&native); err != nil {
+				t.Fatal(err)
+			}
+			if native != int(sqliteconn.Normal) || turn.transaction.settings.Synchronous != native || !turn.transaction.policyVerified {
+				t.Fatal("control did not observe native NORMAL", native, turn.transaction.settings)
+			}
+			descriptor, err := Describe(purpose)
+			if err != nil {
+				t.Fatal(err)
+			}
+			turn.transaction.descriptor = descriptor // adversarial private frame-assembly control
+			var changesBefore, changesAfter int64
+			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes()`).Scan(&changesBefore); err != nil {
+				t.Fatal(err)
+			}
+			var out mgSourceResult
+			switch purpose {
+			case MGSetSourceEnabled:
+				out, err = mgSetSourceEnabled(t.Context(), turn, before, false)
+			case MGSetSourceViewerAccess:
+				out, err = mgSetSourceAccess(t.Context(), turn, before, "server-members")
+			case MGRetireSource:
+				out, err = mgRetireSource(t.Context(), turn, before, "retire")
+			}
+			if !errors.Is(err, ErrInvalid) || out != (mgSourceResult{}) {
+				t.Fatal("native NORMAL security write accepted", out, err)
+			}
+			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes()`).Scan(&changesAfter); err != nil || changesBefore != changesAfter {
+				t.Fatal("refusal performed SQL effects", changesBefore, changesAfter, err)
+			}
+		})
+	}
+}

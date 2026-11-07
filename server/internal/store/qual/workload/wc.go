@@ -56,8 +56,9 @@ var ErrWCComposition = errors.New("WC native composition unavailable: real sourc
 
 // WCCadence builds ONE bounded serial writer pattern, with NORMAL progress and
 // intended FULL security mixed explicitly. No catch-up/retry or parallel writer.
-// Only metadata/control execution is currently available: every native Action
-// is gated until the owner Progress ACK/event + full fixture composition lands.
+// The unbound mixed cadence stays a metadata gate. Bound ProgressCapture and
+// ProgressDrain actions use the real owner protocol; security requires its own
+// separately reviewed FULL binding.
 func WCCadence(name string, every, offset time.Duration, pattern []WCPhase) (Stream, error) {
 	if name == "" || len(name) > 128 || every < time.Millisecond || offset < 0 || len(pattern) < 2 || len(pattern) > 32 {
 		return Stream{}, errors.New("invalid WC cadence")
@@ -84,17 +85,29 @@ func WCCadence(name string, every, offset time.Duration, pattern []WCPhase) (Str
 	return stream, nil
 }
 
-// These entry points intentionally cannot execute native work yet. The source-
-// bound owner fixture will be adopted after real ACK/events land and review.
-func ProgressCapture() Action {
-	intent, _ := WCIntentFor(ProgressCapturePhase)
-	return wcGatedAction(intent)
+// No binding remains an explicit closed gate. A real binding uses only the
+// opaque owner driver and the typed facade; report callbacks supply data only.
+func ProgressCapture(bindings ...ProgressBinding) Action {
+	if len(bindings) != 1 {
+		intent, _ := WCIntentFor(ProgressCapturePhase)
+		return wcGatedAction(intent)
+	}
+	return progressAction(bindings[0], false)
 }
-func ProgressDrain() Action {
-	intent, _ := WCIntentFor(ProgressDrainPhase)
-	return wcGatedAction(intent)
+func ProgressDrain(bindings ...ProgressBinding) Action {
+	if len(bindings) != 1 {
+		intent, _ := WCIntentFor(ProgressDrainPhase)
+		return wcGatedAction(intent)
+	}
+	return progressAction(bindings[0], true)
 }
-func Security() Action { intent, _ := WCIntentFor(SecurityPhase); return wcGatedAction(intent) }
+func Security(bindings ...SecurityBinding) Action {
+	if len(bindings) != 1 {
+		intent, _ := WCIntentFor(SecurityPhase)
+		return wcGatedAction(intent)
+	}
+	return securityAction(bindings[0])
+}
 func wcGatedAction(intent WCIntent) Action {
 	return func(_ context.Context, _ Offer, emit func(Observation) error) error {
 		return errors.Join(ErrWCComposition, emit(Observation{Phase: "STUB", Stub: true, Notice: ErrWCComposition.Error(), Result: intent}))

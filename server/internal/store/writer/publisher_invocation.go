@@ -70,7 +70,18 @@ func checkPublisherDisclosure(w *Writer, c *PublisherDisclosure, q PublisherRece
 	return nil
 }
 
-func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation, publisher *publisherInvocation) error {
+func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation, publisher *publisherInvocation, invocation wcCommandInvocation) error {
+	switch wc := invocation.(type) {
+	case *wcProgressInvocation:
+		return checkWCProgressDisclosure(w, wc)
+	case *wcSecurityInvocation:
+		return checkWCSecurityDisclosure(w, wc)
+	case *wcReclaimInvocation:
+		return checkWCReclaimDisclosure(w, wc)
+	case nil:
+	default:
+		return ErrInvalid
+	}
 	if publisher != nil {
 		if w == nil || w.effective != r {
 			return ErrDisclosureDenied
