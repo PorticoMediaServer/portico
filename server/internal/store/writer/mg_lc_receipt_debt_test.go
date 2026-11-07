@@ -40,9 +40,9 @@ func (c *mgLCDebtFaultConn) QueryContext(ctx context.Context, q string, a []driv
 		return r, e
 	}
 	match := *c.mode == "bytes" && strings.HasPrefix(q, "SELECT variable_bytes FROM lc_generation_command_receipts")
-	match = match || *c.mode == "returning" && strings.HasPrefix(q, "UPDATE lc_generations SET receipt_rows=")
+	match = match || *c.mode == "returning" && strings.HasPrefix(q, "UPDATE lc_generations INDEXED BY sqlite_autoindex_lc_generations_1 SET receipt_rows=")
 	if match {
-		return &mgLCDebtFaultRows{r, c.hit}, nil
+		return &mgLCDebtFaultRows{Rows: r, hit: c.hit, understate: *c.mode == "bytes"}, nil
 	}
 	return r, nil
 }
@@ -70,23 +70,28 @@ func (s *mgLCDebtFaultStmt) QueryContext(ctx context.Context, a []driver.NamedVa
 		return r, e
 	}
 	match := *s.c.mode == "bytes" && strings.HasPrefix(s.q, "SELECT variable_bytes FROM lc_generation_command_receipts")
-	match = match || *s.c.mode == "returning" && strings.HasPrefix(s.q, "UPDATE lc_generations SET receipt_rows=")
+	match = match || *s.c.mode == "returning" && strings.HasPrefix(s.q, "UPDATE lc_generations INDEXED BY sqlite_autoindex_lc_generations_1 SET receipt_rows=")
 	if match {
-		return &mgLCDebtFaultRows{r, s.c.hit}, nil
+		return &mgLCDebtFaultRows{Rows: r, hit: s.c.hit, understate: *s.c.mode == "bytes"}, nil
 	}
 	return r, nil
 }
 
 type mgLCDebtFaultRows struct {
 	driver.Rows
-	hit *bool
+	hit        *bool
+	understate bool
 }
 
 func (r *mgLCDebtFaultRows) Next(v []driver.Value) error {
 	if e := r.Rows.Next(v); e != nil {
 		return e
 	}
-	v[0] = v[0].(int64) + 1
+	delta := int64(1)
+	if r.understate {
+		delta = -1
+	}
+	v[0] = v[0].(int64) + delta
 	*r.hit = true
 	return nil
 }
