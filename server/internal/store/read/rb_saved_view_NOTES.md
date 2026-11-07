@@ -1,87 +1,120 @@
-# Saved view read draft
+# Saved view native read draft
 
-Base: helper source `8ca28aa83aeccca625feaa0f23e827a4d65e9c88` (frozen Home
-`93df103e12024dbd33e07ca1d18e53dabb8dea0b` remains untouched).
+Rebuilt helper branch: `schema-v1/p2-rb-h1-saved-view-r1`.
+Exact merged base: `4d5750346bd4dd298eea3166addb1045e943d9cc`.
+Earlier helper source and frozen Home `93df103e` remain untouched on their branch.
+Replayed own saved-view commits: `be86283fe`, `4926d4415`.
+Separate local scalar dependency: `b2291da2b` copies unchanged
+rb_filter_parse.go, rb_filter_scalar.go and rb_channel_config.go from root
+`42d5d500ba4a18fa42053057bc4c03b1aad2d714`. Parent already owns those three;
+skip that dependency commit when integrating own saved-view changes.
 
-`SavedViewReader.DirectoryCandidates` is callable only through an actual LIVE
-output grant. It uses the existing first/final principal-birth/library fence,
-actual token -> family -> owner tuple or exact local share, and current resource
-facts in BOTH snapshots. Views with server visibility grant no additional access,
-as in the public saved-resources semantics. Neither owner_key nor caller account
-or profile is used. The current source requires a genuinely authorized browse
-library anchor; it is not an account-wide directory API.
+## Actual resource execution
 
-The raw source deliberately visits every resource ID, including foreign,
-deleted, and collection rows. Each call consumes at most ONE raw ID; a rejected
-row still advances the opaque ID cursor. A separate empty seek proves EOF.
-Generation and the exact source row/access facts are rechecked, so revocation
-without a generation bump still discards/retries the earlier draft. Cursors
-contain no resource names or definitions. A candidate's ID, revision and role
-are emitted only after current access proof.
+`SavedViewReader.Execute` is a callable harness-only LIVE read. In its first
+immutable snapshot it uses the existing registered global/principal birth joins,
+proves the actual saved-resource owner tuple or exact local share, and reads its
+name, summary and complete stored definition through native octet preflights.
+It resolves the native catalogue library from the actual stored library ID and
+takes the existing full browse/library/policy fence in that SAME snapshot.
+Caller library, kind, sort preferences, account and profile cannot choose the
+execution target or authority. A denied stored library returns no page.
 
-This is always candidate-only: it has no names and makes NO public order claim.
-The public order is SQLite lower(name),id (or pin position then that order).
-The existing name COLLATE NOCASE indexes do not prove that expression order.
-Exact ordering, pins, directory DTO hydration, and account-wide principal-only
-composition remain with the parent's preparation/common-fence integration.
+The supported stored definition is movies, title asc/desc, default article
+handling, grid/list, and the existing root scalar AST: year, decade, title,
+library and entityKind. Duplicate JSON members, invalid UTF-8, trailing JSON,
+definitions over 32 KiB, unsupported fields/operators (also beneath NOT), other
+pivots/sorts/seeds/multi-sort refuse. The shared parser retains its exact public
+missing-value/three-valued semantics. No alternate configuration dialect or
+legacy production imports are introduced.
 
-The one-ID bound is intentional: HN currently permits forced autoindex range
-proofs only for single-source queries. A separate full-key point obtains current
-resource/access facts. With the five common fence calls, generation, raw seek
-and resource point, the complete first/final snapshot uses eight calls. No SCAN,
-OFFSET, silent sample sort, owner_key invention, or raw truncation success is
-substituted for the missing joined-range proof.
+A separate business snapshot streams the existing indexed title order, adding
+only native year to the common item projection. Current age/retirement admission
+precedes scalar matching. Every consumed raw position advances the cursor;
+64 raw rows without a match remain explicit non-exhausted work. Equality-tail
+and next-key seeks preserve complete reachability in both directions.
 
-`rbSavedViewDefinitionDrafts` holds inert exact owner/shared payload points and
-matching actual octet_length preflights. The current HN grammar does NOT certify
-these new octet points; they are excluded from rbSavedViewDefinitions. The
-resource helper consequently fails closed under the source-only registry.
-No ordinary length(), columns-times-max forecast, generic function exemption,
-or test-only execution registry is used. HN needs to approve these exact points
-before runtime capture/registration; source/plan captures must use the actual
-merged schema, including the parent's #1450 gate. No frozen golden is rewritten.
+The fresh final snapshot re-runs the full common fence and the same actual
+resource/access/octet/payload points. It compares the ENTIRE resource value,
+including definition bytes, revision, role and actual principal/catalogue fence.
+Unversioned definition changes cannot release an earlier page. Denial wins over
+a failed private business step; every error returns zero output. One complete
+stale retry shares the ORIGINAL LIVE deadline and cumulative 4 MiB Go copy
+counter. The output grant stays held through the actual consumer. Query direction
+comes from the stored definition and is included in the final common fence.
 
-The private execution draft accepts only a resource minted from that native
-same-snapshot point, binds its entire current definition/revision/role and full
-viewer fence into its private cursor, and reuses the existing age/retirement and item projection kernels. Its explicit
-subset is movies, actual same library, title asc/desc, default article handling,
-grid/list, and the shared native scalar AST (year/decade/title/library/entityKind). Unknown fields, duplicate JSON members, definitions over
-32 KiB, unsupported filter fields/operators/pivots/sorts/seeds/multi-sort and trailing JSON are
-refused. This is NOT a published execution endpoint. The parent must compose
-actual resource reads and full-value comparison in first/final snapshots, with
-one original LIVE deadline/copy/output budget, before publishing any result.
-Descending execution requires the common browse fence to be acquired for the
-actual stored direction. Facets and broader filters/sorts require the parent's
-existing authorization/preparation manager; none are silently broadened.
+The first snapshot is a finite 11-query forecast: principal(2), resource(3),
+native library mapping(1), full browse fence(5). Final publication is eight
+queries. Forecast windows retain the original 4 MiB Go allowance and use a 2 MiB
+whole-window variable-byte envelope implied by that allowance, rather than a
+columns-times-maximum estimate. Each resource payload independently checks actual
+native octets BEFORE allocation/query and compares every copied byte afterward.
+All windows and retries debit the same attempt-wide counter. Closed AST scratch
+and retained directory-key allocations are charged separately before allocation.
 
-`TestRBSavedView` exercises the actual source registry/Reader in both statistics
-profiles, raw continuation and EOF, own/shared/server-private semantics, source
-revocation between private draft and final publication without generation drift,
-generation cursor invalidation, and closed wide hydration. Definition validation
-controls are pure kernel tests, not native execution/publication qualification.
+## Complete bounded named/pinned directory
 
+`SavedViewReader.Directory` needs only the fresh actual principal, not a catalogue
+library anchor. It uses the SAME registered global/principal birth joins and
+retains their actual epochs, births, restrictions and revisions. The existing
+unsupported access-limit/blocked-label classes remain closed. The canonical pin
+owner key is derived solely from that fresh local principal, using the existing
+persisted authority/account/profile encoding. Caller account/profile/owner_key
+is never accepted, and this pin key is never substituted for actual resource
+owner tuple/share authorization.
 
-## Shared native scalar continuation
+The fallback proves the COMPLETE raw saved_resources universe in a bounded PK
+seek. It includes foreign, deleted and collection positions in its raw budget;
+only currently permitted live views receive payload/pin point reads. Server
+visibility grants no view access. Foreign private names/definitions are never
+selected, emitted or stored in cursors. The cold bound is 16 TOTAL raw resources,
+not 16 permitted resources and not a sampled top-K list. A 17th raw row returns
+empty, explicit pending/preparation-required work with SourceExhausted=false and
+Exhausted=false. Parent's general preparation manager owns larger sets.
 
-The local dependency commit stages unchanged rb_filter_parse.go,
-rb_filter_scalar.go and rb_channel_config.go from root source
-42d5d500ba4a18fa42053057bc4c03b1aad2d714. The third file supplies the existing
-rbJSONDepth dependency. Parent already owns all three; skip that dependency
-commit when integrating the following own-file saved-view change. No alternate
-configuration dialect or edits to root's parser are introduced.
+Only after complete membership does the reducer sort all authorized views by
+the exact public SQLite lower(name),id order, or the pinned public
+printf('%08d',COALESCE(position,99999999)) || char(31) || lower(name),id order.
+Pin filtering and order come from exact fresh principal-owned saved_pins and
+saved_pin_order points. ASCII/NUL/non-ASCII name ordering, duplicate names,
+missing arrangements, negative positions and positions wider than eight digits
+are checked against actual SQLite public-order expressions in READ tests.
+Initial and fresh final snapshots compare complete membership, each resource's
+access facts, all authorized payload bytes, pin facts, and actual principal.
+Unversioned pin changes and a universe growing across the bound invalidate the
+earlier draft; no truncated exact page is published.
 
-rbSavedViewScalarDefinitions adds six inert title first/equality-tail/next-key
-recipes in the existing asc/desc index order. The only extra fact is the native
-fixed-size year. readSavedViewScalarPage applies shared native scalar matching
-AFTER current age/retirement admission, consumes at most 64 raw positions, emits
-at most the requested 1..40 permitted matches, and retains continuations across
-filtered/hidden tails. An empty raw-cap page is pending work. A short, completely
-consumed source window alone proves EOF. No top-K sample is sorted as an exact
-answer, and no new general preparation manager is introduced.
+Exact pagination binds principal, complete binary-safe source digest, pinned
+category and limit. Only an authorized name's sort key/ID enters its opaque
+cursor. Digest encoding preserves raw UTF-8/NUL bytes without JSON replacement
+collisions. Directory metadata/key/hash construction is charged to the original
+copy allowance. Both initial/final windows have a finite 68-query maximum and
+hold 2 MiB native plus the original 4 MiB Go allowance. Original one-position
+`DirectoryCandidates` remains an explicitly candidate-only source; it makes no
+public order claim and still requires its original browse anchor.
 
-The actual Reader tests walk dense equal-title cohorts and the next-key boundary
-in both directions, verify complete reachability and non-exhausted empty raw-cap
-pages, apply current age restrictions, and preserve the shared missing-value/NOT
-semantics. They certify the native source/filter kernel, not stored-definition
-hydration or final publication; those gates above remain closed. The production
-read dependency graph has no catalog, dbwork, or livechannels/library package.
+## Merged octet contribution and qualification
+
+Own domain file: `store/stmt/plan/rb_saved_view_octets.go`. It contributes only the
+two exact owner/shared saved-resource byte points through the MERGED private
+closed registry. It pins complete definition/parameter/plan shapes, ordinary
+MAIN native primary keys, unshadowed native octet_length and exact SEARCH EQP.
+Generic SQL lint still rejects octet_length; another ID or changed SQL cannot
+borrow this purpose's authority. No registry/core shared hunks are changed.
+`rbSavedViewDefinitions` now supplies the complete inert saved-view inventory;
+actual Reader Capture remains mandatory before any registry executes it.
+
+Owned focused tests cover actual Reader Capture in both statistics profiles,
+raw EOF/continuations, initial/final resource/principal/definition/pin drift,
+actual stored-library authorization, original deadlines across retry, cumulative
+copy-budget refusal, preflight before wide payload, complete exact ordering and
+explicit over-bound pending. Plan controls reject purpose, range, projection,
+parameter, plan and key mutations. No frozen golden is rewritten. Captures bind
+the schema/Reader compiled at run time; #1450 was replaced by the unmerged #1480
+publication hold. Parent owns post-merge publication recapture. The hold does
+not prevent these local drafts or actual-current-main focused checks.
+
+Remaining semantics are explicit, rather than successful approximations:
+large-set exact preparation, broader pivots/sorts/facets, authenticated wire
+cursor integration and product route/DTO composition remain with parent. No
+provider calls, production wiring, saved-resource writes or DDL are introduced.
