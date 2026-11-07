@@ -46,7 +46,7 @@ func nativeSearchSourceDefinitions() []stmt.Definition {
 	// scalar grammar does not admit sqlite_version()/sqlite_source_id(), even
 	// in a separate scalar statement. Parent must obtain actual engine identity
 	// through the existing trusted connection preflight, not this bank record.
-	add("bank", `SELECT b.id,b.bank_key,b.recipe_version,b.engine_version,b.unicode_fingerprint,b.state FROM search_generations AS b INDEXED BY sqlite_autoindex_search_generations_1 WHERE b.bank_key=?`, []stmt.Param{t("bank_key")}, []any{"v1"}, unique(bankKey))
+	add("bank", `SELECT b.id,b.bank_key,b.recipe_version,b.engine_version,b.unicode_fingerprint,b.state,b.pending_subjects FROM search_generations AS b INDEXED BY sqlite_autoindex_search_generations_1 WHERE b.bank_key=?`, []stmt.Param{t("bank_key")}, []any{"v1"}, unique(bankKey))
 
 	entityKey := key("search_publish_jobs", "sqlite_autoindex_search_publish_jobs_1", "u", "entity_id", "search_generation_id")
 	p := unique(entityKey)
@@ -64,7 +64,7 @@ AND p.entity_id=j.entity_id AND p.search_generation_id=j.search_generation_id
 AND p.generation=j.published_generation AND p.generation=j.input_generation
 AND p.source_incarnation=j.source_incarnation AND p.source_revision=j.source_revision
 AND p.recipe_version=j.recipe_version
-AND e.metadata_incarnation=p.source_incarnation AND e.source_revision=p.source_revision
+AND e.metadata_incarnation=p.source_incarnation AND e.revision=p.source_revision
 AND e.kind=p.kind AND e.library_id=p.library_id AND e.retired=0`, []stmt.Param{i("entity"), i("bank")}, []any{int64(1), int64(1)}, p)
 	personKey := key("search_publish_jobs", "sqlite_autoindex_search_publish_jobs_2", "u", "person_id", "search_generation_id")
 	add("person.head.raw", `SELECT j.published_document_id,j.published_generation,j.input_generation,j.source_incarnation,j.source_revision,j.job_revision FROM search_publish_jobs AS j INDEXED BY sqlite_autoindex_search_publish_jobs_2 WHERE j.person_id=? AND j.search_generation_id=?`, []stmt.Param{i("person"), i("bank")}, []any{int64(1), int64(1)}, unique(personKey))
@@ -85,8 +85,7 @@ AND e.kind=p.kind AND e.library_id=p.library_id AND e.retired=0`, []stmt.Param{i
 FROM catalog_entities AS e
 CROSS JOIN catalog_credit_images AS h ON h.id=e.credit_image_id
 CROSS JOIN catalog_credits AS c INDEXED BY catalog_credits_entity ON c.entity_id=e.id AND c.image_id=h.id
-WHERE e.id=? AND h.id=? AND h.entity_id=e.id AND h.entity_incarnation=e.metadata_incarnation AND h.owner_revision=e.credit_owner_revision AND h.sealed=1
-AND c.owner_incarnation=e.metadata_incarnation AND c.owner_revision=e.credit_owner_revision`
+WHERE e.id=? AND h.id=? AND h.entity_id=e.id AND h.entity_incarnation=e.metadata_incarnation AND h.owner_revision=e.credit_owner_revision AND h.sealed=1`
 	cp := stmt.Plan{Hot: true, Indexes: []string{"catalog_credits_entity"}, PrimaryKeys: []string{"e", "h"}, Seeks: []string{"entity_id=? AND image_id=?"}}
 	add("credit.first", credit+` ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("limit")}, []any{int64(1), int64(1), int64(64)}, cp)
 	add("credit.next", credit+` AND c.ord>? ORDER BY c.ord LIMIT ?`, []stmt.Param{i("entity"), i("image"), i("after"), i("limit")}, []any{int64(1), int64(1), int64(0), int64(64)}, cp)
@@ -103,5 +102,7 @@ AND c.owner_incarnation=e.metadata_incarnation AND c.owner_revision=e.credit_own
 		add(route.name+".first", route.base+" ORDER BY "+route.order+" LIMIT ?", []stmt.Param{i("entity"), i("limit")}, []any{int64(1), int64(64)}, route.plan)
 		add(route.name+".next", route.base+" AND "+route.order+">? ORDER BY "+route.order+" LIMIT ?", []stmt.Param{i("entity"), i("after"), i("limit")}, []any{int64(1), int64(0), int64(64)}, route.plan)
 	}
+	add("kind", `SELECT id,name,container FROM catalog_kinds WHERE id=?`, []stmt.Param{i("kind")}, []any{int64(1)}, point("catalog_kinds"))
+	add("seal", `SELECT algorithm,sealed,expected_fragments,verified_fragments,expected_digest,chain,expected_bytes,verified_bytes FROM search_image_seals WHERE publication_id=?`, []stmt.Param{i("publication")}, []any{int64(1)}, point("search_image_seals"))
 	return out
 }
