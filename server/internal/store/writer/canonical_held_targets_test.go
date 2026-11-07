@@ -157,6 +157,11 @@ func canonicalHeldClasses() []canonicalHeldClass {
 		{name: "rb.relationship_exact", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full RBRelationshipExact complete<=256 /cap+1 zero ErrNotReady composition/ConsumeForeground and source-bound Capture not attached"},
 		{name: "rb.resolution", owner: "P2-RB", kind: "foreground_read", reason: "canonical library7 full ResolutionWindow128fetched/64consumed/40output /NULL-zero continuation composition/ConsumeForeground and source-bound Capture not attached"},
 		{name: "rs.listening", owner: "P2-RS", kind: "foreground_read", reason: "canonical library7 full RSChildrenReader.Window512raw /native lookup+Go sort+fresh publication composition/ConsumeForeground and source-bound Capture not attached"},
+		{name: "IA-membership-audio-artist", owner: "P2-IA", kind: "foreground_read", reason: "IAAudioMembership/artist: reviewed native API, exact IAAudioHarnessDefinitions Capture and canonical library7 trusted audio fixture/ConsumeForeground composition not attached"},
+		{name: "IA-membership-audio-album", owner: "P2-IA", kind: "foreground_read", reason: "IAAudioMembership/album: reviewed native API, exact IAAudioHarnessDefinitions Capture and canonical library7 trusted audio fixture/ConsumeForeground composition not attached"},
+		{name: "IA-membership-audio-song", owner: "P2-IA", kind: "foreground_read", reason: "IAAudioMembership/song: reviewed native API, exact IAAudioHarnessDefinitions Capture and canonical library7 trusted audio fixture/ConsumeForeground composition not attached"},
+		{name: "IA-membership-audiobook-book", owner: "P2-IA", kind: "foreground_read", reason: "IAAudioMembership/book: reviewed native API, exact IAAudioHarnessDefinitions Capture and canonical library7 trusted audio fixture/ConsumeForeground composition not attached"},
+		{name: "IA-membership-audiobook-file", owner: "P2-IA", kind: "foreground_read", reason: "IAAudioMembership/audiobook_file: reviewed native API, exact IAAudioHarnessDefinitions Capture and canonical library7 trusted audio fixture/ConsumeForeground composition not attached"},
 	}
 }
 func canonicalHeldClassFor(name string) (canonicalHeldClass, error) {
@@ -293,3 +298,13 @@ func TestCanonicalRBResolution(t *testing.T)        { canonicalHeldRun(t, "rb.re
 func TestCanonicalRSListening(t *testing.T)         { canonicalHeldRun(t, "rs.listening") }
 
 func TestCanonicalUOPersonalRead(t *testing.T) { canonicalHeldRun(t, "uo.personal") }
+
+func TestCanonicalIAAudioArtistRead(t *testing.T) { canonicalHeldRun(t, "IA-membership-audio-artist") }
+func TestCanonicalIAAudioAlbumRead(t *testing.T)  { canonicalHeldRun(t, "IA-membership-audio-album") }
+func TestCanonicalIAAudioSongRead(t *testing.T)   { canonicalHeldRun(t, "IA-membership-audio-song") }
+func TestCanonicalIAAudiobookBookRead(t *testing.T) {
+	canonicalHeldRun(t, "IA-membership-audiobook-book")
+}
+func TestCanonicalIAAudiobookFileRead(t *testing.T) {
+	canonicalHeldRun(t, "IA-membership-audiobook-file")
+}
