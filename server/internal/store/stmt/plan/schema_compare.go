@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"runtime"
 	"slices"
+	"strconv"
 )
 
 // schemaComparison projects only a Capture explicitly bound to the embedded
@@ -373,7 +374,7 @@ func physicalRecordWidths(catalog Rows) map[string]int64 {
 		start := false
 		safe := true
 		for _, t := range tokens {
-			if equalSQL(t.text, "GENERATED") {
+			if t.kind == 'w' && (equalSQL(t.text, "GENERATED") || depth == 1 && equalSQL(t.text, "AS")) {
 				safe = false
 				break
 			}
@@ -445,8 +446,8 @@ func normalizeRecordWidths(before, after map[string]any, oldSchema, newSchema Ro
 			if !ok {
 				continue
 			}
-			n, nok := integerValue(x[5])
-			m, mok := integerValue(y[5])
+			n, nok := recordWidthValue(x[5])
+			m, mok := recordWidthValue(y[5])
 			// An unchanged decoder prefix remains byte-exact even if the table grew.
 			if nok && mok && n != m && oldWidths[object] > 0 && n == oldWidths[object] && m == newWidths[object] {
 				x[5] = "<schema-full-record-width>"
@@ -457,3 +458,13 @@ func normalizeRecordWidths(before, after map[string]any, oldSchema, newSchema Ro
 }
 
 func equalSQL(a, b string) bool { return foldName(a) == foldName(b) }
+
+// P4 is text in native EXPLAIN, unlike numeric P1/P2/P3 operands. Accept
+// only canonical unsigned decimal text here; never broaden schema root types.
+func recordWidthValue(v any) (int64, bool) {
+	if s, ok := v.(string); ok {
+		n, err := strconv.ParseInt(s, 10, 64)
+		return n, err == nil && n >= 0 && strconv.FormatInt(n, 10) == s
+	}
+	return integerValue(v)
+}
