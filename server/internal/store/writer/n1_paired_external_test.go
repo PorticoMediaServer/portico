@@ -167,7 +167,11 @@ func TestN1PairedMeasurement(t *testing.T) {
 	ctx, cancel := context.WithTimeout(signalContext, 5*time.Minute)
 	defer cancel()
 	sink := &pairedSink{c: c}
-	runErr := workload.Run(ctx, cfg, []workload.Stream{{Name: "n1", Every: *pairedEvery, Pattern: []workload.Step{{Name: "fresh_begin_resolve_ack", Run: n1}}}, reads}, sink)
+	streams := []workload.Stream{{Name: "n1", Every: *pairedEvery, Pattern: []workload.Step{{Name: "fresh_begin_resolve_ack", Run: n1}}}, reads}
+	if c.MemoryEnabled() {
+		streams = append(streams, ec5MemoryStream(c))
+	}
+	runErr := workload.Run(ctx, cfg, streams, sink)
 	if runErr == nil && (!sink.finalSeen || !sink.complete) {
 		runErr = errors.New("incomplete declared paired schedule; retain missed/unserved offers")
 	}

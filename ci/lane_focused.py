@@ -25,6 +25,7 @@ CAPTURES = {
     'hn-foreground': ('read', 'TestForegroundPlans', 'record-foreground-plans', ['foreground-plans.json.gz']),
 }
 HARNESSES = {
+    'ec5-memory': ('./internal/store/writer', '^TestEC5'),
     'connections': ('./internal/store/qual', '^TestConnection'),
     'wal-protocol': ('./internal/store/governor', '^Test(NativeEmptyWALFirstGovernedWrite|WAL)'),
     'n1-protocol': ('./internal/store/writer', '^TestN1(OwnerWindowBindingAndPartials|ProfileNoRegistryOrMAXIsNotSynthesized|InputProfileEscapingKeepsObservedZero)$'),
@@ -240,6 +241,8 @@ def worker(source, output, plan_path, index):
     if index < 0 or index >= len(p['shards']) or command(['git', 'rev-parse', 'HEAD'], source).strip() != p['source_sha']:
         raise ValueError('shard/source binding mismatch')
     env = clean_env(output)
+    if cfg['mode'] == 'harness' and 'ec5-memory' in cfg['targets']:
+        env['PORTICO_EC5_FUNCTIONAL'] = '1'
     groups = {}
     for u in p['shards'][index]:
         groups.setdefault((u['Package'], u.get('run')), []).append(u)

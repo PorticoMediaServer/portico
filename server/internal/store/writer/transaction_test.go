@@ -181,7 +181,8 @@ func TestTransactionCancellationAndRevocationRollback(t *testing.T) {
 }
 
 type faultConnector struct {
-	observeNative func(driver.Conn) error // test-only read-only attestation; success returns actual conn unchanged
+	connectObserved func(driver.Conn, time.Time, time.Time, error)
+	observeNative   func(driver.Conn) error // test-only read-only attestation; success returns actual conn unchanged
 	driver.Connector
 	beforeConnect     func() error
 	afterConnect      func() error
@@ -207,7 +208,14 @@ func (c *faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, err
 		}
 	}
+	var started time.Time
+	if c.connectObserved != nil {
+		started = time.Now()
+	}
 	conn, err := c.Connector.Connect(ctx)
+	if c.connectObserved != nil {
+		c.connectObserved(conn, started, time.Now(), err)
+	}
 	if c.afterConnect != nil {
 		if restoreErr := c.afterConnect(); restoreErr != nil {
 			if conn != nil {
