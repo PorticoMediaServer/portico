@@ -39,6 +39,10 @@ type FullSearchPage struct {
 	Hits        []FullSearchHit
 	Next        *FullSearchCursor
 	Exhausted   bool
+	// Stamp is present only for a real native read joined to its fresh final
+	// fence, including pending and exhausted pages. Synthetic adapters may not
+	// manufacture one; nil cannot validate retained results from another poll.
+	Stamp *FullSearchReadStamp
 }
 
 // FullSearchRead is RD's separate full-mode seam. Trusted composition must use
@@ -94,6 +98,10 @@ func ownFullSearchPage(p FullSearchPage, limit int) (FullSearchPage, error) {
 		p.Hits[i].PersonName = strings.Clone(p.Hits[i].PersonName)
 	}
 	p.Next = cloneFullCursor(p.Next)
+	if p.Stamp != nil {
+		stamp := *p.Stamp
+		p.Stamp = &stamp
+	}
 	return p, nil
 }
 
