@@ -204,3 +204,43 @@ func TestUSOwnerAuthorityExcludesCredentialFamiliesBeforeReceipts(t *testing.T) 
 		})
 	}
 }
+
+func TestUSOwnerAuthorityRememberedForgetPersistsPastExpiry(t *testing.T) {
+	for _, forgotten := range []bool{false, true} {
+		w, r, input, seeded := usOwnerAuthorityFixture(t)
+		witness := seeded.witness
+		witness.remember = w.now().Add(-time.Minute).UTC().Format(time.RFC3339)
+		for _, q := range []struct {
+			sql  string
+			args []any
+		}{
+			{`UPDATE direct_profiles SET pin_hash=X'01' WHERE id='issuer-profile'`, nil},
+			{`UPDATE authorization_session_families SET remember_until=? WHERE id='issuer-family'`, []any{witness.remember}},
+			{`INSERT INTO identity_security_fences(id,scope_kind,account_id,member_incarnation,profile_id,profile_lifetime,lineage_id,updated_ms) VALUES(2,'profile_pin','issuer',?,'issuer-profile',?,'',0),(3,'profile_remember','issuer',?,'issuer-profile',?,'',0),(4,'profile_lineage','issuer',?,'issuer-profile',?,'issuer-lineage',0)`, []any{witness.issuer.memberIncarnation, witness.issuer.profileLifetime, witness.issuer.memberIncarnation, witness.issuer.profileLifetime, witness.issuer.memberIncarnation, witness.issuer.profileLifetime}},
+			{`INSERT INTO authorization_family_security_fences(family_id,scope_kind,fence_id,confirmed_generation) VALUES('issuer-family','profile_pin',2,1),('issuer-family','profile_remember',3,1),('issuer-family','profile_lineage',4,1)`, nil},
+		} {
+			if _, err := w.db.ExecContext(t.Context(), q.sql, q.args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if forgotten {
+			if _, err := w.db.ExecContext(t.Context(), `UPDATE identity_security_fences SET generation=2 WHERE id=3`); err != nil {
+				t.Fatal(err)
+			}
+		}
+		proof, err := prepareUSOwnerAuthority(witness)
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn, synthetic, _ := usPolicyReceiptTurn(t, w, r, input)
+		delete(turn.steps, usSecurityOwner)
+		a, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), usPolicyAuthorityBudget{memory: 4 << 20, receipts: 1 << 20, fixture: synthetic.nativeFixture})
+		if forgotten {
+			if a != nil || !errors.Is(err, ErrDisclosureDenied) {
+				t.Fatal("expired marker revived forgotten family", err)
+			}
+		} else if err != nil || a == nil {
+			t.Fatal("ordinary expired remembering denied active bearer", err)
+		}
+	}
+}

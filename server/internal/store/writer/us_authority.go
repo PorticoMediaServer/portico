@@ -186,14 +186,18 @@ func authorizeUSOwnerPolicy(ctx context.Context, turn *commandTurn, p *usOwnerAu
 		if err = usAuthorityFenceCheck(ctx, turn, w, "profile_pin"); err != nil {
 			return nil, err
 		}
-		if p.remember.After(now) {
-			if !p.manage.After(now) || w.lineage == "" {
-				return nil, ErrDisclosureDenied
-			}
+		// An explicit remembered-profile/lineage forget is a persistent PIN
+		// gate. Its deny cannot disappear merely because remember_until passed.
+		if w.remember != "" {
 			for _, kind := range []string{"profile_remember", "profile_lineage"} {
 				if err = usAuthorityFenceCheck(ctx, turn, w, kind); err != nil {
 					return nil, err
 				}
+			}
+		}
+		if p.remember.After(now) {
+			if !p.manage.After(now) || w.lineage == "" {
+				return nil, ErrDisclosureDenied
 			}
 			if p.manage.Before(until) {
 				until = p.manage
