@@ -271,12 +271,13 @@ func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.R
 		return nil
 	}}
 	// Pack only complete targets within the existing eight-call quantum.
-	// Movies need at most two calls, shows at most three. The largest batch is
-	// four movie existence proofs: <=260 raw rows under the same request budget.
+	// Movies use one bounded joined point, shows at most three calls. The largest
+	// declared batch is eight movie existence proofs (<=512 raw rows); a lower
+	// caller row budget still refuses before its own ceiling is exceeded.
 	for start := 0; start < len(candidates); {
 		end, calls := start, 0
 		for end < len(candidates) {
-			cost := 2
+			cost := 1
 			if candidates[end].source.Kind == 2 {
 				cost = 3
 			}
@@ -291,6 +292,17 @@ func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.R
 			for _, c := range batch {
 				f := fences[c.source.Library]
 				f.kind = c.source.Kind
+				if c.source.Kind == 1 {
+					card, raw, e := homeMovieTarget(ctx, q, f, c.id, managed[c.source.Library])
+					d.RawRows += raw
+					if e != nil {
+						return e
+					}
+					if card != nil {
+						d.Items = append(d.Items, *card)
+					}
+					continue
+				}
 				rows, e := q("rb.home.item", c.id, c.source.Library, c.source.Kind)
 				if e != nil {
 					return e
@@ -619,4 +631,45 @@ func homeAvailable(asset, retired any, source []any, managed bool) (bool, error)
 		return false, ErrUnqualified
 	}
 	return asset != nil && asset.(int64) != 0, nil
+}
+
+// A movie needs one current eligible available version, not a complete version
+// count. The point LIMIT caps joined raw rows; a successful existence proof is
+// exact even at that cap. An unsuccessful full window fails closed.
+func homeMovieTarget(ctx context.Context, q browseQuery, f browseFence, id int64, managed bool) (*HomeRecentCard, int, error) {
+	rows, e := q("rb.home.movie", f.library, id, f.libraryID, int64(MaxRaw))
+	if e != nil {
+		return nil, 0, e
+	}
+	if len(rows) == 0 {
+		return nil, 0, ErrStale
+	}
+	if !admittedItem(rows[0], f) {
+		return nil, len(rows), nil
+	}
+	for _, row := range rows {
+		if e := ctx.Err(); e != nil {
+			return nil, len(rows), e
+		}
+		available, e := homeAvailable(row[14], row[15], row[16:23], managed)
+		if e != nil {
+			return nil, len(rows), e
+		}
+		if !available {
+			continue
+		}
+		item, e := itemValue(row)
+		if e != nil {
+			return nil, len(rows), e
+		}
+		card := &HomeRecentCard{Work: item, Target: item, Library: f.libraryID, WorkKind: 1, TargetKind: 1, EligibleLeaves: 1}
+		if row[1] != nil {
+			card.Added = row[1].(string)
+		}
+		return card, len(rows), nil
+	}
+	if len(rows) == MaxRaw {
+		return nil, len(rows), ErrUnqualified
+	}
+	return nil, len(rows), nil
 }

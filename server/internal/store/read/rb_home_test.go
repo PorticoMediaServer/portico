@@ -269,7 +269,7 @@ func TestRBHomeRecentShelfCapFromTwoCompleteStreams(t *testing.T) {
 	for _, card := range row.Items {
 		got = append(got, card.Work.ID)
 	}
-	if e != nil || !row.Exhausted || !slices.Equal(got, want) || len(cost.LookupWindows) > 34 {
+	if e != nil || !row.Exhausted || !slices.Equal(got, want) || len(cost.LookupWindows) > 20 {
 		t.Fatal("exact shelf cap", row, e)
 	}
 }
