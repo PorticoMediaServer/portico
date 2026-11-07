@@ -329,7 +329,7 @@ func lookupEnrichmentSealTurn(ctx context.Context, t *commandTurn, in *enrichmen
 		}
 		required += 4 * uint64(v)
 	}
-	if err = t.requireCommandMemory(ctx, in.purpose, required, "enrichment_memory_partition"); err != nil {
+	if err = ctx.Err(); err != nil {
 		return out, errors.Join(ErrResolveRequired, err)
 	}
 	values, err := enrichmentReadValues(ctx, t, sealHistoryPayload, q.ProviderOperationID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence)
