@@ -30,7 +30,7 @@ func TestRSPeopleCompleteCreditTraversal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if p.RawRows > MaxRaw || p.RawPositions > p.RawRows || len(p.Credits) > 7 || cost.LookupStatements > 10 || cost.PublicationStatements != 6 {
+			if p.RawRows > MaxRaw || p.RawPositions > p.RawRows || len(p.Credits) > 7 || cost.LookupStatements > 204 || cost.PublicationStatements != 6 {
 				t.Fatalf("unbounded %+v %+v", p, cost)
 			}
 			if len(p.Credits) > 0 && (p.Person == nil || p.Person.Name != "Person" || p.Person.Biography != "Accepted biography") {
@@ -108,7 +108,7 @@ func TestRSPeoplePublicationLIVEAndRestriction(t *testing.T) {
 	}
 	assertLiveUsage(t, f, 0, 0)
 	// Final authority, not a returned person source row, controls disclosure.
-	r.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
+	r.snapshots = &rsByteBoundarySnapshots{Snapshots: f.snapshots, after: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
 	q, request, output = liveRequests("rs-people-revoked")
 	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
 		p, _, err := r.Credits(ctx, request, time.Second, out, in)

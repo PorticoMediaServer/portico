@@ -18,10 +18,11 @@ type rsForecastSource interface {
 // Common initial/final fences retain their existing separate read recipe.
 // This adapter creates no grant, ledger, queue, pool or lifecycle authority.
 type rsByteWindow struct {
-	source  browseSnapshots
-	pending bool
-	bytes   int64
-	calls   uint16
+	source         browseSnapshots
+	pending        bool
+	bytes          int64
+	calls          uint16
+	preflightCalls uint16
 }
 
 func (w *rsByteWindow) NativeRowReservation() int64 { return w.source.NativeRowReservation() }
@@ -33,20 +34,35 @@ func (w *rsByteWindow) arm(bytes int64, calls uint16) error {
 	return nil
 }
 func (w *rsByteWindow) Read(ctx context.Context, r governor.Request, budget time.Duration, read func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	var forecast *governor.SnapshotForecast
 	if w.pending {
 		w.pending = false
+		f := governor.SnapshotForecast{NativeRowBytes: w.bytes, MaxQueries: w.calls}
+		forecast = &f
+	} else if w.preflightCalls > 8 {
+		// Only bounded scalar byte-point work extends the common window's call
+		// recipe. Common fences keep their pre-existing native reservation; wide
+		// business payloads always use the actual-byte arm above.
+		f := governor.SnapshotForecast{NativeRowBytes: w.source.NativeRowReservation(), MaxQueries: w.preflightCalls}
+		forecast = &f
+	}
+	var result governor.SnapshotResult
+	var err error
+	if forecast != nil {
 		source, ok := w.source.(rsForecastSource)
 		if !ok {
-			return governor.SnapshotResult{}, ErrInput
+			return result, ErrInput
 		}
-		return source.ReadForecasted(ctx, r, budget, governor.SnapshotForecast{NativeRowBytes: w.bytes, MaxQueries: w.calls}, read)
+		result, err = source.ReadForecasted(ctx, r, budget, *forecast, read)
+	} else {
+		result, err = w.source.Read(ctx, r, budget, read)
 	}
-	result, err := w.source.Read(ctx, r, budget, read)
 	if err != nil || result.Refusal != nil {
 		w.pending = false
 	}
 	return result, err
 }
+
 func rsPointBytes(row []any) (int64, error) {
 	var total int64
 	for _, v := range row {
