@@ -302,7 +302,7 @@ func (p *N1Preparation) ObserveInventory(ctx context.Context) (value nativeinven
 	defer func() {
 		primary := recover()
 		if p != nil && p.self == p && (err != nil || primary != nil) {
-			p.observationFailed.Store(true)
+			p.observationFailed.Store(false)
 		}
 		if locked {
 			p.driver.mu.Unlock()
