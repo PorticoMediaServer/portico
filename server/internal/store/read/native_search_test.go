@@ -469,12 +469,14 @@ func TestNativeSearchAcceptedSiblingOracle(t *testing.T) {
 type nativeBoundarySnapshots struct {
 	*governor.Snapshots
 	afterBusiness func()
+	fired         bool
 }
 
 func (s *nativeBoundarySnapshots) ReadForecasted(ctx context.Context, request governor.Request, budget time.Duration, forecast governor.SnapshotForecast, read func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
 	return s.Snapshots.ReadForecasted(ctx, request, budget, forecast, func(scope *governor.ReadScope) error {
 		err := read(scope)
-		if s.afterBusiness != nil {
+		if s.afterBusiness != nil && !s.fired {
+			s.fired = true
 			s.afterBusiness()
 		}
 		return err
