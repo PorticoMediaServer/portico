@@ -59,7 +59,7 @@ func captureScanSource(ctx context.Context, turn *commandTurn, libraryID int64, 
 		return value, err
 	}
 	switch turn.transaction.descriptor.ID {
-	case InventoryCreate, InventoryClaim, InventoryAccept:
+	case InventoryCreate, InventoryClaim, InventoryAccept, InventoryDirectoryDiscover, InventoryDirectoryEOF:
 	default:
 		return value, invalid("scan_source_purpose")
 	}
@@ -106,6 +106,8 @@ func captureScanSource(ctx context.Context, turn *commandTurn, libraryID int64, 
 		err = turn.requireScanLifecycleMemory(ctx, required)
 	case InventoryAccept:
 		err = turn.requireInventoryMemory(ctx, required)
+	case InventoryDirectoryDiscover, InventoryDirectoryEOF:
+		err = turn.requireCommandMemory(ctx, turn.transaction.descriptor.ID, required, "directory_memory_partition")
 	default:
 		err = invalid("scan_source_purpose")
 	}

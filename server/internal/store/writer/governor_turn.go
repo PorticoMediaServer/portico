@@ -15,7 +15,7 @@ import (
 // field. New purposes must acquire an explicit policy here before execution.
 func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
-	case InventoryAccept, BasicAccept, BasicStage, BasicSeal, InventoryCreate, InventoryClaim:
+	case InventoryAccept, BasicAccept, BasicStage, BasicSeal, InventoryCreate, InventoryClaim, InventoryDirectoryDiscover, InventoryDirectoryEOF:
 		return governor.ScanMinimum, nil
 	case ProgressAccept:
 		return governor.Foreground, nil
@@ -52,6 +52,7 @@ type governedTurn struct {
 	wcProgressMemory    commandMemoryBudget
 	wcSecurityMemory    commandMemoryBudget
 	wcReclaimMemory     commandMemoryBudget
+	directoryMemory     commandMemoryBudget
 	state               atomic.Uint32 // 0 active, 1 retirement attempted, 2 retired, 3 failed
 	fenced              atomic.Bool
 }
