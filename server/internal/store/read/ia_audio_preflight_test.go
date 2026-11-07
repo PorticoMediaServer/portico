@@ -1,9 +1,11 @@
 package read
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
@@ -42,7 +44,17 @@ func TestIAAudioPreflightBeforePayload(t *testing.T) {
 					f.exec(t, `UPDATE catalog_entities SET title=? WHERE id=2002`, payload)
 				}
 				r.snapshots = &iaAudioNativeBound{Snapshots: f.snapshots, bound: bound}
-				page, _, err := iaAudioRead(t, f, r, in)
+				q, request, output := liveRequests("ia-audio-preflight")
+				// Keep the same generous Go/output partition for both native
+				// bounds. Otherwise the fixture's old fixed request would fail
+				// publication's partition check before either point is reached.
+				request.Need[governor.MemoryBytes] = bound + (2 << 20)
+				var page IAAudioPage
+				_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+					var e error
+					page, _, e = r.IAAudioMembership(ctx, request, time.Second, out, in)
+					return e
+				})
 				if bound == 1024 {
 					if !errors.Is(err, governor.ErrSnapshotBudget) || len(page.Members) != 0 || len(page.Links) != 0 || page.Entity.ID != 0 {
 						t.Fatal("oversize payload escaped its native point preflight", page, err)
