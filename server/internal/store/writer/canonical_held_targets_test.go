@@ -111,6 +111,12 @@ type canonicalInternalRun func(*testing.T, context.Context, canonicalHeldConfig,
 
 func (canonicalInternalRun) isCanonicalClassRun() {}
 
+// This runner owns attachment at its actual child constructor, rather than
+// leaving a parent-t attachment unconsumed when setup is a contained subtest.
+type canonicalFixtureRun func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream) error
+
+func (canonicalFixtureRun) isCanonicalClassRun() {}
+
 type canonicalWCFactory func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream, QualificationPopulationManifest) *CanonicalWCComponent
 
 func (canonicalWCFactory) isCanonicalClassRun() {}
@@ -141,8 +147,8 @@ func canonicalHeldClasses() []canonicalHeldClass {
 		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC progress; complete observed counters remain nullable"},
 		{name: "security", owner: "WC", kind: "normal_write", purpose: &security, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC FULL security; complete observed counters remain nullable"},
 		{name: "wc_reclaim", owner: "WC", kind: "normal_write", purpose: &reclaim, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC retained Progress receipt reclaim; not publisher reclaim"},
-		{name: "publisher_fragment", owner: "PB", kind: "normal_write", purpose: &fragment, reason: "canonical publisher fragment writer composition not attached"},
-		{name: "publisher_flip", owner: "PB", kind: "normal_write", purpose: &flip, reason: "canonical publisher head flip writer composition not attached"},
+		{name: "publisher_fragment", owner: "PB", kind: "normal_write", purpose: &fragment, run: canonicalFixtureRun(runCanonicalPublisher), reason: "PB fixture/loop attached; sustained keeper composition remains explicitly gated"},
+		{name: "publisher_flip", owner: "PB", kind: "normal_write", purpose: &flip, run: canonicalFixtureRun(runCanonicalPublisher), reason: "PB fixture/loop attached; sustained keeper composition remains explicitly gated"},
 		{name: "checkpoint", owner: "GV", kind: "maintenance", reason: "canonical governed checkpointer owner Action not attached; no normal-write budget"},
 		{name: "mp.queue_head", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged MediaReader/ConsumeForeground +canonical device-owned queue fixture not attached; never a writer HOLD/COMMIT"},
 		{name: "mp.session", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged SessionHead/ConsumeForeground +canonical session fixture not attached"},
@@ -240,6 +246,12 @@ func canonicalHeldRun(t *testing.T, class string) {
 	t.Helper()
 	cfg, stream, definition := canonicalHeldStart(t, class)
 	defer stream.file.Close()
+	if run, ok := definition.run.(canonicalFixtureRun); ok {
+		if err := run(t, t.Context(), cfg, stream); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
 	run, ok := definition.run.(canonicalInternalRun)
 	if !ok {
 		t.Fatal("external WC parent required")

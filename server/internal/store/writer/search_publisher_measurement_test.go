@@ -159,6 +159,7 @@ type publisherMeasurementRecord struct {
 	Error             string                        `json:"error,omitempty"`
 	Refusal           *Refusal                      `json:"refusal,omitempty"`
 	ErrorType         string                        `json:"error_type,omitempty"`
+	CallError         string                        `json:"call_error,omitempty"`
 	Complete          bool                          `json:"complete"`
 	FreshCompleted    int                           `json:"fresh_completed"`
 	CallsAttempted    int                           `json:"calls_attempted"`
@@ -388,80 +389,10 @@ func TestSearchPublisherQualification(t *testing.T) {
 		if err := stream.append(r); err != nil {
 			t.Fatal(err)
 		}
-		for n := 0; n < c.FreshCount+c.WarmupCount; n++ {
-			fragment, head, err := p.packet(n, c.purpose(), n)
-			if err != nil {
-				t.Fatal(err)
-			}
-			q, s := publisherMeasurementReference(fragment, head)
-			cap := publisherFixtureCapability(t, f.w, q)
-			var original searchPublisherCommandResult
-			for _, phase := range []string{"fresh", "resolve", "ack"} {
-				r := stream.base
-				r.Kind = "call"
-				r.Ordinal = n
-				r.Warmup = n < c.WarmupCount
-				r.Phase = phase
-				r.Request = &q
-				r.ImageID = s.image.id
-				r.ExpectedFragments = s.seal.expectedFragments
-				r.ExpectedBytes = s.seal.expectedBytes
-				if fragment != nil {
-					r.PreparedBytes = fragment.payload.bytes
-				} else {
-					r.PreparedBytes = uint64(len(head.request.old.prefix) + len(head.request.old.initial) + len(head.request.next.prefix) + len(head.request.next.initial))
-				}
-				ff, hh := fragment, head
-				if phase != "fresh" {
-					ff, hh = nil, nil
-				}
-				attempts++
-				offered := time.Now()
-				out, ack, callErr := f.w.effective.runSearchPublisher(t.Context(), f.w, cap, q, c.purpose(), ff, hh, phase == "ack")
-				returned := time.Now()
-				r.OfferedAt, r.ReturnedAt = &offered, &returned
-				r.Outcome, r.Fragment, r.Head, r.Ack = &out.Outcome, &out.Fragment, &out.Head, &ack
-				r.Evidence = out.Outcome.Evidence
-				if phase == "ack" {
-					r.Evidence = ack.Evidence
-				}
-				r.PrecommitNS, r.CommitNS, r.PhysicalHoldNS, err = publisherMeasurementEvidence(r.Evidence, c.purpose(), offered, returned)
-				if callErr != nil {
-					r.ErrorType = fmt.Sprintf("%T", callErr)
-					errors.As(callErr, &r.Refusal)
-				}
-				err = errors.Join(callErr, err)
-				if phase == "fresh" {
-					original = out
-				}
-				if phase == "ack" {
-					if ack.AcknowledgedThrough != q.Receipt.Identity.Sequence {
-						err = errors.Join(err, errors.New("ACK floor differs from original"))
-					}
-				} else if out.Outcome.State != Applied || out.Outcome.Reference != q.Receipt || out.Outcome.Replayed != (phase == "resolve") {
-					err = errors.Join(err, errors.New("missing exact applied original or saved replay"))
-				}
-				if phase == "resolve" && (out.Fragment != original.Fragment || out.Head != original.Head) {
-					err = errors.Join(err, errors.New("saved result differs from fresh original"))
-				}
-				r.FragmentID = original.Fragment.FragmentID
-				if f.a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 || e.fenced || e.ambiguous || f.w.effective.fenced {
-					err = errors.Join(err, errors.New("physical custody not cleanly returned"))
-				}
-				r.Complete = err == nil
-				if err != nil {
-					r.Error = err.Error()
-				}
-				if appendErr := stream.append(r); appendErr != nil {
-					t.Fatal(appendErr)
-				}
-				if err != nil {
-					t.Fatal("stopped at first incomplete original; retain call record:", err)
-				}
-			}
-			if n >= c.WarmupCount {
-				completed++
-			}
+		census := publisherCallCensus{}
+		defer func() { completed, attempts = census.FreshCompleted, census.CallsAttempted }()
+		if err := runPublisherMeasurementCalls(t, c, p, f, &stream, stream.base, &census); err != nil {
+			t.Fatal("stopped at first incomplete original; retain call record:", err)
 		}
 		complete = true
 	}) {
@@ -631,4 +562,100 @@ func TestSearchPublisherRealClockSurface(t *testing.T) {
 			t.Logf("retained directional functional timing failure; NOT qualification: %s", failed.Error)
 		})
 	}
+}
+
+// Test-only record sinks hold values only; they never run in writer custody.
+type publisherRecordSink interface {
+	append(publisherMeasurementRecord) error
+}
+type publisherCallCensus struct{ FreshCompleted, CallsAttempted int }
+
+func runPublisherMeasurementCalls(t *testing.T, c publisherMeasurementConfig, p *publisherPopulation, f *publisherGovernedFixture, stream publisherRecordSink, base publisherMeasurementRecord, census *publisherCallCensus) error {
+	t.Helper()
+	e := p.e
+	for n := 0; n < c.FreshCount+c.WarmupCount; n++ {
+		fragment, head, err := p.packet(n, c.purpose(), n)
+		if err != nil {
+			return err
+		}
+		q, s := publisherMeasurementReference(fragment, head)
+		cap := publisherFixtureCapability(t, f.w, q)
+		var original searchPublisherCommandResult
+		for _, phase := range []string{"fresh", "resolve", "ack"} {
+			r := base
+			r.Kind = "call"
+			r.Ordinal = n
+			r.Warmup = n < c.WarmupCount
+			r.Phase = phase
+			r.Request = &q
+			r.ImageID = s.image.id
+			r.ExpectedFragments = s.seal.expectedFragments
+			r.ExpectedBytes = s.seal.expectedBytes
+			if fragment != nil {
+				r.PreparedBytes = fragment.payload.bytes
+			} else {
+				r.PreparedBytes = uint64(len(head.request.old.prefix) + len(head.request.old.initial) + len(head.request.next.prefix) + len(head.request.next.initial))
+			}
+			ff, hh := fragment, head
+			if phase != "fresh" {
+				ff, hh = nil, nil
+			}
+			offered := time.Now()
+			if starts, ok := stream.(interface {
+				beforeCall(publisherMeasurementRecord) error
+			}); ok {
+				if err := starts.beforeCall(r); err != nil {
+					return err
+				}
+			}
+			census.CallsAttempted++
+			offered = time.Now() // preserve original facade timing; fsync is pre-custody
+			out, ack, callErr := f.w.effective.runSearchPublisher(t.Context(), f.w, cap, q, c.purpose(), ff, hh, phase == "ack")
+			returned := time.Now()
+			r.OfferedAt, r.ReturnedAt = &offered, &returned
+			r.Outcome, r.Fragment, r.Head, r.Ack = &out.Outcome, &out.Fragment, &out.Head, &ack
+			r.Evidence = out.Outcome.Evidence
+			if phase == "ack" {
+				r.Evidence = ack.Evidence
+			}
+			r.PrecommitNS, r.CommitNS, r.PhysicalHoldNS, err = publisherMeasurementEvidence(r.Evidence, c.purpose(), offered, returned)
+			if callErr != nil {
+				r.CallError = callErr.Error()
+				r.ErrorType = fmt.Sprintf("%T", callErr)
+				errors.As(callErr, &r.Refusal)
+			}
+			err = errors.Join(callErr, err)
+			if phase == "fresh" {
+				original = out
+			}
+			if phase == "ack" {
+				if ack.AcknowledgedThrough != q.Receipt.Identity.Sequence {
+					err = errors.Join(err, errors.New("ACK floor differs from original"))
+				}
+			} else if out.Outcome.State != Applied || out.Outcome.Reference != q.Receipt || out.Outcome.Replayed != (phase == "resolve") {
+				err = errors.Join(err, errors.New("missing exact applied original or saved replay"))
+			}
+			if phase == "resolve" && (out.Fragment != original.Fragment || out.Head != original.Head) {
+				err = errors.Join(err, errors.New("saved result differs from fresh original"))
+			}
+			r.FragmentID = original.Fragment.FragmentID
+			if f.a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 || e.fenced || e.ambiguous || f.w.effective.fenced {
+				err = errors.Join(err, errors.New("physical custody not cleanly returned"))
+			}
+			r.Complete = err == nil
+			if err != nil {
+				r.Error = err.Error()
+			}
+			if appendErr := stream.append(r); appendErr != nil {
+				return appendErr
+			}
+			if err != nil {
+				return err
+			}
+		}
+		if n >= c.WarmupCount {
+			census.FreshCompleted++
+		}
+	}
+	return nil
 }

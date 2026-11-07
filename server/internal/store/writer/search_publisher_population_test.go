@@ -24,6 +24,7 @@ type publisherPopulation struct {
 	rows               [3]searchmanifest.Row
 	offers, background int
 	counts             map[string]int64
+	baseline           map[string]int64
 }
 
 func publisherPopulationNonce(kind string, ordinal int) (out [16]byte) {
@@ -194,6 +195,7 @@ func preparePublisherPopulation(t *testing.T, purpose CommandID, offers, backgro
 	}
 	e := p.e
 	baseline := publisherPopulationCounts(t, e)
+	p.baseline = baseline
 	host, err := os.Hostname()
 	if err != nil {
 		t.Fatal(err)
