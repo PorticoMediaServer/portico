@@ -15797,6 +15797,49 @@
       "sqlSha256": "4fa0339411da7f97841b60262509c1649c57666501eb7cec16f8118bc5757161"
     },
     {
+      "id": "scan.directory.refused_identity",
+      "sql": "SELECT 1 FROM scan_command_receipts INDEXED BY scan_receipt_refused_directory_identity WHERE run_id=? AND refused_directory_identity=? AND refused_directory_identity IS NOT NULL LIMIT 1",
+      "owner": "store/writer directory lifecycle",
+      "callSites": [
+        "store/writer/scan_directory_effects.go",
+        "store/writer/scan_directory_history.go"
+      ],
+      "kind": "read",
+      "params": [
+        {
+          "name": "run_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "identity",
+          "type": "blob",
+          "nullable": false
+        }
+      ],
+      "cohorts": [
+        {
+          "name": "refused_identity_point",
+          "bindings": [
+            "lifecycle-run",
+            "YmFkLWNoaWxk"
+          ]
+        }
+      ],
+      "plan": {
+        "hot": true,
+        "indexes": [
+          "scan_receipt_refused_directory_identity"
+        ],
+        "primaryKeys": null,
+        "seeks": [
+          "run_id=? AND refused_directory_identity=?"
+        ],
+        "allowedScans": null
+      },
+      "sqlSha256": "06fbe6dcc558ab2198af0c174c9f98865ba69404ea4bdef1288a1bb8c25ab500"
+    },
+    {
       "id": "scan.directory.root_lengths",
       "sql": "SELECT octet_length(identity),octet_length(revision),octet_length(cursor),octet_length(state) FROM inventory_directories WHERE job_id=? AND relative_path=?",
       "owner": "store/writer directory lifecycle",
@@ -58038,6 +58081,210 @@
             0,
             "\u003cnotused\u003e",
             "SEARCH scan_command_receipts USING PRIMARY KEY (run_id=? AND command_incarnation=? AND command_sequence=?)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "scan.directory.refused_identity",
+      "cohort": "refused_identity_point",
+      "explain": {
+        "columns": [
+          "addr",
+          "opcode",
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p5",
+          "comment"
+        ],
+        "values": [
+          [
+            0,
+            "Init",
+            0,
+            15,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            1,
+            "Integer",
+            1,
+            1,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            2,
+            "OpenRead",
+            1,
+            "\"main\".\"scan_receipt_refused_directory_identity\"",
+            0,
+            "k(4,,,,)",
+            2,
+            null
+          ],
+          [
+            3,
+            "Variable",
+            1,
+            2,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            4,
+            "IsNull",
+            2,
+            14,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            5,
+            "Variable",
+            2,
+            3,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            6,
+            "IsNull",
+            3,
+            14,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            7,
+            "Affinity",
+            2,
+            1,
+            0,
+            "B",
+            0,
+            null
+          ],
+          [
+            8,
+            "SeekGE",
+            1,
+            14,
+            2,
+            "2",
+            0,
+            null
+          ],
+          [
+            9,
+            "IdxGT",
+            1,
+            14,
+            2,
+            "2",
+            0,
+            null
+          ],
+          [
+            10,
+            "Integer",
+            1,
+            4,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            11,
+            "ResultRow",
+            4,
+            1,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            12,
+            "DecrJumpZero",
+            1,
+            14,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            13,
+            "Next",
+            1,
+            9,
+            1,
+            null,
+            0,
+            null
+          ],
+          [
+            14,
+            "Halt",
+            0,
+            0,
+            0,
+            null,
+            0,
+            null
+          ],
+          [
+            15,
+            "Transaction",
+            0,
+            0,
+            "\u003cschema-cookie\u003e",
+            "0",
+            1,
+            null
+          ],
+          [
+            16,
+            "Goto",
+            0,
+            1,
+            0,
+            null,
+            0,
+            null
+          ]
+        ]
+      },
+      "queryPlan": {
+        "columns": [
+          "id",
+          "parent",
+          "notused",
+          "detail"
+        ],
+        "values": [
+          [
+            3,
+            0,
+            "\u003cnotused\u003e",
+            "SEARCH scan_command_receipts USING COVERING INDEX scan_receipt_refused_directory_identity (run_id=? AND refused_directory_identity=?)"
           ]
         ]
       }
