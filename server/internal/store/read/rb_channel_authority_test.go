@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	librarychannels "github.com/PorticoMediaServer/portico/server/internal/livechannels/library"
@@ -85,6 +86,9 @@ func rbChannelScopeInput() SharedChannelScopeInput {
 }
 
 func TestRBChannelScopeSurvivesEverySessionExpiry(t *testing.T) {
+	synctest.Test(t, testRBChannelScopeSurvivesEverySessionExpiry)
+}
+func testRBChannelScopeSurvivesEverySessionExpiry(t *testing.T) {
 	f, r := rbChannelFixture(t)
 	f.exec(t, `DELETE FROM authorization_family_tokens`)
 	f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
@@ -107,48 +111,53 @@ func TestRBChannelScopeSurvivesEverySessionExpiry(t *testing.T) {
 func TestRBChannelScopeCannotWidenOrIgnoreCurrentFacts(t *testing.T) {
 	for _, mode := range []string{"library", "rule", "generation", "revision", "disabled", "library-retired", "root", "catalogue", "config"} {
 		t.Run(mode, func(t *testing.T) {
-			f, r := rbChannelFixture(t)
-			in := rbChannelScopeInput()
-			scope, _, _, err := r.OpenSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, in)
-			if err != nil {
-				t.Fatal(err)
-			}
-			switch mode {
-			case "library":
-				in.Library = "other"
-			case "rule":
-				in.Rule = "unlisted"
-			case "generation":
-				in.Generation = "missing"
-			case "revision":
-				in.ExpectedRevision = 2
-			case "disabled":
-				f.exec(t, `UPDATE lc_channels SET enabled=0`)
-			case "library-retired":
-				f.exec(t, `UPDATE catalog_libraries SET retired=1 WHERE id=1`)
-			case "root":
-				f.exec(t, `UPDATE libraries SET root='/replaced' WHERE id='movies'`)
-			case "catalogue":
-				f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='movies'`)
-			case "config":
-				f.exec(t, `UPDATE lc_channels SET config_json=json_set(config_json,'$.name','Changed')`)
-			}
-			if mode == "catalogue" {
-				_, err = r.RevalidateSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, scope)
-			} else {
-				var out *SharedChannelScope
-				out, _, _, err = r.OpenSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, in)
-				if out != nil {
-					t.Fatal("invalid scope escaped")
+			synctest.Test(t, func(t *testing.T) {
+				f, r := rbChannelFixture(t)
+				in := rbChannelScopeInput()
+				scope, _, _, err := r.OpenSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, in)
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-			if err == nil {
-				t.Fatal("current scope change was accepted", mode)
-			}
+				switch mode {
+				case "library":
+					in.Library = "other"
+				case "rule":
+					in.Rule = "unlisted"
+				case "generation":
+					in.Generation = "missing"
+				case "revision":
+					in.ExpectedRevision = 2
+				case "disabled":
+					f.exec(t, `UPDATE lc_channels SET enabled=0`)
+				case "library-retired":
+					f.exec(t, `UPDATE catalog_libraries SET retired=1 WHERE id=1`)
+				case "root":
+					f.exec(t, `UPDATE libraries SET root='/replaced' WHERE id='movies'`)
+				case "catalogue":
+					f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='movies'`)
+				case "config":
+					f.exec(t, `UPDATE lc_channels SET config_json=json_set(config_json,'$.name','Changed')`)
+				}
+				if mode == "catalogue" {
+					_, err = r.RevalidateSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, scope)
+				} else {
+					var out *SharedChannelScope
+					out, _, _, err = r.OpenSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, in)
+					if out != nil {
+						t.Fatal("invalid scope escaped")
+					}
+				}
+				if err == nil {
+					t.Fatal("current scope change was accepted", mode)
+				}
+			})
 		})
 	}
 }
 func TestRBChannelScopeRejectsCancellationAndForegroundBypass(t *testing.T) {
+	synctest.Test(t, testRBChannelScopeRejectsCancellationAndForegroundBypass)
+}
+func testRBChannelScopeRejectsCancellationAndForegroundBypass(t *testing.T) {
 	f, r := rbChannelFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
