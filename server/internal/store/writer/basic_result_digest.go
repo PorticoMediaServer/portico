@@ -45,12 +45,13 @@ func preflightBasicResult(v BasicResult) error {
 	}
 	if v.RunID == "" || v.SourceID == "" || v.SourceIncarnation == "" || v.SourceRevision == "" ||
 		v.AcceptedRunRevision <= 0 || v.AppliedMS < 0 || v.ChangeID <= 0 || v.ExpectedEpoch <= 0 || v.Members == nil ||
-		c.NextCursor != "" || c.NextCopyKey != "" || c.NextCopyKey2 != "" || c.NextCopyKey3 != "" || c.AfterEntity < 0 {
+		c.NextCursor != "" || c.NextCopyKey2 != "" || c.NextCopyKey3 != "" || c.AfterEntity < 0 {
 		return invalid("basic_result_shape")
 	}
 	switch v.Purpose {
 	case BasicPurposeStage:
-		if v.ResultCount != 0 || len(v.Members) != 0 {
+		if v.ResultCount != 0 || len(v.Members) != 0 ||
+			(c.NextCopyKey != "" && !(c.NextFamily == 8 && c.NextCopyPhase == 1 && c.NextCopyAux == 1)) {
 			return invalid("basic_result_shape")
 		}
 		switch c.NextFamily {
@@ -71,8 +72,24 @@ func preflightBasicResult(v BasicResult) error {
 			if c.AfterEntity <= 0 || c.NextCopyPhase != 0 || c.NextCopyID != 0 || c.NextCopyAux != 0 {
 				return invalid("basic_result_shape")
 			}
-		case 7, 8:
+		case 7:
 			if c.AfterEntity <= 0 || c.NextCopyPhase != 0 || c.NextCopyID < 0 || c.NextCopyAux != 0 {
+				return invalid("basic_result_shape")
+			}
+		case 8:
+			if c.AfterEntity <= 0 || c.NextCopyID < 0 {
+				return invalid("basic_result_shape")
+			}
+			switch c.NextCopyPhase {
+			case 0: // input_ordinal remains a numeric prefix, never a text key
+				if c.NextCopyAux != 0 {
+					return invalid("basic_result_shape")
+				}
+			case 1: // actual canonical asset_subtitles.id; empty IDs stay distinct from initial
+				if c.NextCopyID != 0 || (c.NextCopyAux != 0 && c.NextCopyAux != 1) {
+					return invalid("basic_result_shape")
+				}
+			default:
 				return invalid("basic_result_shape")
 			}
 		default:
