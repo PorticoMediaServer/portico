@@ -17,7 +17,7 @@ import (
 func TestRBGroupPlans(t *testing.T) {
 	f := rbGroupSource(t)
 	definitions := RBGroupDefinitions()
-	if len(definitions) != 60 {
+	if len(definitions) != 62 {
 		t.Fatal("review changed group inventory", len(definitions))
 	}
 	for _, d := range definitions {
