@@ -59,9 +59,11 @@ func mgLCOctetDefinitions() []stmt.Definition {
 func mgLCOctetsFixture(t *testing.T) (*sql.Conn, plan.Fixture, plan.IndexPolicy) {
 	t.Helper()
 	c, f, policy := issuerOctetsFixture(t)
+	// The pending, unsealed generation is only a native parent for exact point
+	// reads. This fixture is not an accepted builder, receipt, EOF or publication.
 	for _, sql := range []string{
 		"INSERT INTO lc_channels(id,revision,config_json,enabled,position,name,state) VALUES('channel',1,'{}',1,0,'LC','ready')",
-		"INSERT INTO lc_generations(id,channel_id,config_revision,config_json,catalog_fence,seed,status,phase,base_generation,start_ms,end_ms,boundary_ms,cursor_ms,created_ms) VALUES('generation','channel',1,'{}','fence','seed','pending','candidates','',0,1000,0,0,0)",
+		"INSERT INTO lc_generations(id,channel_id,config_revision,config_json,catalog_fence,seed,status,phase,base_generation,start_ms,end_ms,boundary_ms,cursor_ms,created_ms,command_incarnation,create_operation_id,birth_request_digest,entry_digest,verify_end_ms,verified_entry_digest) VALUES('generation','channel',1,'{}','fence','seed','pending','candidates','',0,1000,0,0,0,X'01010101010101010101010101010101',X'02020202020202020202020202020202',zeroblob(32),zeroblob(32),0,zeroblob(32))",
 		"INSERT INTO lc_candidates(generation_id,rule_id,item_id,ordinal,library_id,asset_id,source_fence,duration_ms,title,show_id,season,episode,weight,sort_key) VALUES('generation','rule',1,0,'lib','asset','fence',1000,'Télé 📺',0,0,0,1.0,'sort')",
 		"INSERT INTO lc_entries(generation_id,occurrence_id,channel_id,start_ms,end_ms,item_id,asset_id,library_id,source_fence,title,rule_id,block_id,source_offset_ms,slate_reason) VALUES('generation','occurrence','channel',0,1000,1,'asset','lib','fence','Télé 📺','rule','block',0,'')",
 	} {
