@@ -378,7 +378,7 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 	}
 	// Projection is bounded by six rows * forty entries * 256 numeric reasons.
 	steps = append(steps, func(ctx context.Context, q browseQuery, f browseFence, p *RelatedPage) error {
-		p.Pending = !w.state.done
+		p.Pending = false
 		p.RawPositions = w.state.rawTotal - startRaw
 		p.Algorithm = rsRelatedAlgorithm
 		if p.Pending {
