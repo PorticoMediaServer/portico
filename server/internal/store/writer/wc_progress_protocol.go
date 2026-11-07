@@ -679,6 +679,11 @@ func composeWCProgress(ctx context.Context, r *effectiveRuntime, p effectivePlan
 			receipts = append(receipts, p.registration)
 		}
 	}
+	for _, p := range r.issuerPlans {
+		if p != nil {
+			receipts = append(receipts, p.registration)
+		}
+	}
 	registry, err := stmt.New(all, receipts...)
 	if err != nil {
 		return err
