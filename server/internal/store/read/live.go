@@ -127,7 +127,9 @@ func (s *foregroundOutput) check() error {
 	if s == nil {
 		return governor.ErrGrant
 	}
-	return s.checkContext(s.ctx)
+	// Security fences may run under their own original-deadline context after
+	// caller cancellation. The context-free check must retain its old semantics.
+	return s.checkContext(context.Background())
 }
 func (s *foregroundOutput) checkContext(ctx context.Context) error {
 	if s == nil {
@@ -156,7 +158,7 @@ func (s *foregroundOutput) begin(output BrowseOutput, request governor.Request, 
 	if err := s.authority.CheckContext(s.ctx, output.Grant, output.Request); err != nil {
 		return err
 	}
-	if err := s.check(); err != nil {
+	if err := s.checkContext(s.ctx); err != nil {
 		return err
 	}
 	s.used = true
@@ -201,7 +203,7 @@ func liveRead[T any](ctx context.Context, request governor.Request, budget time.
 		var zero T
 		return zero, result, err
 	}
-	if e := errors.Join(readContext.Err(), scope.check()); e != nil {
+	if e := errors.Join(readContext.Err(), scope.checkContext(readContext)); e != nil {
 		var zero T
 		return zero, result, e
 	}
