@@ -37,6 +37,7 @@ const (
 	basicAcceptBreadth    stmt.ID = "scan.basic_accept.breadth"
 	basicAcceptOwners     stmt.ID = "scan.basic_accept.owners"
 	basicAcceptEntity     stmt.ID = "scan.basic_accept.entity"
+	basicAcceptSubject    stmt.ID = "scan.basic_accept.subject"
 	basicAcceptVersions   stmt.ID = "scan.basic_accept.versions"
 	basicAcceptSuccessor  stmt.ID = "scan.basic_accept.successor"
 	basicAcceptAssetShape stmt.ID = "scan.basic_accept.asset_shape"
@@ -60,7 +61,8 @@ WHERE change_id=? ORDER BY asset_id,stream_index LIMIT ?`, Params: []stmt.Param{
 		{ID: basicAcceptOwners, Kind: stmt.Read, SQL: `SELECT entity_id,library_id,cue_ordinal FROM catalog_asset_links INDEXED BY catalog_asset_links_asset
 WHERE asset_id=? ORDER BY entity_id LIMIT ?`, Params: []stmt.Param{i("asset_id"), i("row_limit")}, Cohorts: []stmt.Cohort{{Name: "one_ordinary_owner", Bindings: []any{int64(41), int64(2)}}}},
 		{ID: basicAcceptEntity, Kind: stmt.Read, SQL: `SELECT library_id,kind,retired FROM catalog_entities WHERE id=?`, Params: []stmt.Param{i("entity_id")}, Cohorts: []stmt.Cohort{{Name: "current_movie_owner", Bindings: []any{int64(31)}}}},
-		{ID: basicAcceptVersions, Kind: stmt.Read, SQL: `SELECT asset_id,library_id FROM catalog_asset_links WHERE entity_id=? ORDER BY asset_id LIMIT ?`, Params: []stmt.Param{i("entity_id"), i("row_limit")}, Cohorts: []stmt.Cohort{{Name: "final_version_union", Bindings: []any{int64(31), int64(17)}}}},
+		{ID: basicAcceptSubject, Kind: stmt.Read, SQL: `SELECT id,library_id,kind FROM catalog_subjects WHERE id=?`, Params: []stmt.Param{i("subject_id")}, Cohorts: []stmt.Cohort{{Name: "retained_movie_owner", Bindings: []any{int64(31)}}}},
+		{ID: basicAcceptVersions, Kind: stmt.Read, SQL: `SELECT asset_id,library_id FROM catalog_asset_links INDEXED BY catalog_asset_links_order WHERE entity_id=? AND part_index=0 ORDER BY asset_id LIMIT ?`, Params: []stmt.Param{i("entity_id"), i("row_limit")}, Cohorts: []stmt.Cohort{{Name: "final_version_union", Bindings: []any{int64(31), int64(17)}}}},
 		{ID: basicAcceptSuccessor, Kind: stmt.Read, SQL: `SELECT id FROM catalog_info_changes WHERE asset_id=? AND asset_token=? AND slot=?`, Params: []stmt.Param{i("asset_id"), s("asset_token"), i("slot")}, Cohorts: []stmt.Cohort{{Name: "successor_absent", Bindings: []any{int64(41), "basic-asset", int64(1)}}}},
 		{ID: basicAcceptAssetShape, Kind: stmt.Read, SQL: `SELECT available,container,video_codec,height,info_owner_object,info_owner_revision FROM catalog_assets WHERE id=?`, Params: []stmt.Param{i("asset_id")}, Cohorts: []stmt.Cohort{{Name: "ordinary_asset_target", Bindings: []any{int64(41)}}}},
 		{ID: basicAcceptShape, Kind: stmt.Read, SQL: `SELECT container,video_codec,height,ref_count FROM catalog_info_shapes WHERE id=?`, Params: []stmt.Param{i("shape_id")}, Cohorts: []stmt.Cohort{{Name: "held_shape_target", Bindings: []any{int64(61)}}}},
@@ -89,6 +91,8 @@ RETURNING id,input_revision,expected_epoch,job_revision,upper_entity,target_avai
 			table, seek = "catalog_info_shapes", "rowid=?"
 		case basicAcceptEntity:
 			table, seek = "catalog_entities", "rowid=?"
+		case basicAcceptSubject:
+			table, seek = "catalog_subjects", "rowid=?"
 		case basicAcceptFamilies:
 			table, seek = "catalog_info_input_families", "change_id=?"
 		case basicAcceptStreams:
@@ -96,7 +100,8 @@ RETURNING id,input_revision,expected_epoch,job_revision,upper_entity,target_avai
 		case basicAcceptBreadth:
 			table, seek = "catalog_info_new_stream_breadth", "change_id=?"
 		case basicAcceptVersions:
-			table, seek = "catalog_asset_links", "entity_id=?"
+			defs[n].Plan.Indexes = []string{"catalog_asset_links_order"}
+			seek = "entity_id=? AND part_index=?"
 		case basicAcceptOwners:
 			defs[n].Plan.Indexes = []string{"catalog_asset_links_asset"}
 			seek = "asset_id=?"
@@ -153,6 +158,17 @@ func readBasicStreamCaps(ctx context.Context, turn *commandTurn, in basicStreamA
 		return shape, 0, basicStageError(err)
 	}
 	if library != shape.LibraryID || kind != 1 || retired != 0 {
+		return shape, 0, ErrConflict
+	}
+	row, err = basicStageRead(ctx, turn, basicAcceptSubject, owner)
+	if err != nil {
+		return shape, 0, err
+	}
+	var subject int64
+	if err = row.Scan(&subject, &library, &kind); err != nil {
+		return shape, 0, basicStageError(err)
+	}
+	if subject != owner || library != shape.LibraryID || kind != 1 {
 		return shape, 0, ErrConflict
 	}
 	shape.AuthoredParentIDs = []int64{owner}

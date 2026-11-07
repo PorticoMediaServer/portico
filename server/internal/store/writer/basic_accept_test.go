@@ -3,6 +3,7 @@ package writer
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -48,6 +49,120 @@ VALUES(31,?,7,1,'Arrival','Arrival','arrival','a','arrival','a',1,2016,'2026-11-
 
 func basicAcceptDefinitions() []stmt.Definition {
 	return append(basicStreamStageDefinitions(), basicStreamAcceptDefinitions()...)
+}
+
+func basicAcceptAddLinkedAsset(t *testing.T, w *executor, id int64, part int) {
+	t.Helper()
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_assets(id,token,library_id,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration)
+SELECT ?,'basic-asset-'||?,library_id,'/media/basic-asset-'||?||'.mkv',size,modified_ns,container,video_codec,audio_codec,width,height,duration FROM catalog_assets WHERE id=41`, id, id, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_asset_links(library_id,entity_id,asset_id,part_index) VALUES(7,31,?,?)`, id, part); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBasicAcceptNativePartsDoNotCountAsWholeVersions(t *testing.T) {
+	w, in := basicAcceptFixture(t)
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_asset_links SET part_index=1 WHERE entity_id=31 AND asset_id=41`); err != nil {
+		t.Fatal(err)
+	}
+	basicAcceptAddLinkedAsset(t, w, 42, 0)
+	basicAcceptAddLinkedAsset(t, w, 43, 2)
+	in.rawShape.VersionAssetIDs = []int64{42}
+	turn := basicComponentTurn(t, w, basicAcceptDefinitions())
+	got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000)
+	if err != nil || got != (basicAcceptedPending{51, 7, 17, 14, 31, 1, 61}) {
+		t.Fatal(got, err)
+	}
+	if err = turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	var phase, epoch, canonicalStreams int64
+	if err = w.db.QueryRowContext(t.Context(), `SELECT phase FROM catalog_info_changes WHERE id=51`).Scan(&phase); err != nil {
+		t.Fatal(err)
+	}
+	if err = w.db.QueryRowContext(t.Context(), `SELECT info_epoch FROM catalog_assets WHERE id=41`).Scan(&epoch); err != nil {
+		t.Fatal(err)
+	}
+	if err = w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM asset_streams WHERE asset_id='basic-asset'`).Scan(&canonicalStreams); err != nil {
+		t.Fatal(err)
+	}
+	if phase != 1 || epoch != 17 || canonicalStreams != 0 {
+		t.Fatal(phase, epoch, canonicalStreams)
+	}
+}
+
+func TestBasicAcceptNativeWholeVersionOverflowRefusesPreparedPrefix(t *testing.T) {
+	w, in := basicAcceptFixture(t)
+	// The prepared set is valid at 16; the native set has a seventeenth whole
+	// version. The bounded native read must refuse instead of trusting a prefix.
+	for id := int64(42); id <= 57; id++ {
+		basicAcceptAddLinkedAsset(t, w, id, 0)
+		if id < 57 {
+			in.rawShape.VersionAssetIDs = append(in.rawShape.VersionAssetIDs, id)
+		}
+	}
+	turn := basicComponentTurn(t, w, basicAcceptDefinitions())
+	got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000)
+	if !errors.Is(err, ErrCap) || got != (basicAcceptedPending{}) {
+		t.Fatal(got, err)
+	}
+	_ = turn.closeRows()
+	_, _ = turn.transaction.rollback(err)
+	var phase, revision int64
+	if err = w.db.QueryRowContext(t.Context(), `SELECT phase,job_revision FROM catalog_info_changes WHERE id=51`).Scan(&phase, &revision); err != nil || phase != 0 || revision != 13 {
+		t.Fatal(phase, revision, err)
+	}
+}
+
+func TestBasicAcceptNativeRequiresExactRetainedOwner(t *testing.T) {
+	for _, name := range []string{"wrong_library", "wrong_kind", "wrong_returned_id"} {
+		t.Run(name, func(t *testing.T) {
+			w, in := basicAcceptFixture(t)
+			defs := basicAcceptDefinitions()
+			if name == "wrong_returned_id" {
+				for n := range defs {
+					if defs[n].ID == basicAcceptSubject {
+						// A native point read with a wrong returned identity receives
+						// its own real Capture, like the existing row-fault controls.
+						defs[n].SQL = strings.Replace(defs[n].SQL, "SELECT id,", "SELECT kind,", 1)
+					}
+				}
+			}
+			turn := basicComponentTurn(t, w, defs)
+			if name != "wrong_returned_id" {
+				// Defer foreign keys only in this rollback-only corruption control;
+				// the live entity and prepared owner remain unchanged.
+				if _, err := turn.transaction.conn.ExecContext(t.Context(), `PRAGMA defer_foreign_keys=ON`); err != nil {
+					t.Fatal(err)
+				}
+				q := `UPDATE catalog_subjects SET library_id=8 WHERE id=31`
+				if name == "wrong_kind" {
+					q = `UPDATE catalog_subjects SET kind=2 WHERE id=31`
+				}
+				if _, err := turn.transaction.conn.ExecContext(t.Context(), q); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000)
+			if !errors.Is(err, ErrConflict) || got != (basicAcceptedPending{}) {
+				t.Fatal(got, err)
+			}
+			_ = turn.closeRows()
+			_, _ = turn.transaction.rollback(err)
+			var phase, revision, library, kind int64
+			if err = w.db.QueryRowContext(t.Context(), `SELECT phase,job_revision FROM catalog_info_changes WHERE id=51`).Scan(&phase, &revision); err != nil || phase != 0 || revision != 13 {
+				t.Fatal(phase, revision, err)
+			}
+			if err = w.db.QueryRowContext(t.Context(), `SELECT library_id,kind FROM catalog_subjects WHERE id=31`).Scan(&library, &kind); err != nil || library != 7 || kind != 1 {
+				t.Fatal(library, kind, err)
+			}
+		})
+	}
 }
 
 func TestBasicAcceptNativeFreezesInputWithoutActivating(t *testing.T) {
