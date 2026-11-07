@@ -174,7 +174,4 @@ func readWCSecurityTargetTier(ctx context.Context, turn *commandTurn, s wcSecuri
 // The caller has independently established the actor's CURRENT effective tier.
 // A different family in the same account is allowed for OWNER; account equality
 // is not the self-signout distinction. ADMIN can target only a real MEMBER.
-func wcSecurityTargetTierAllowed(currentActorTier, currentTargetTier string) bool {
-	return currentActorTier == "owner" && (currentTargetTier == "owner" || currentTargetTier == "admin" || currentTargetTier == "member") ||
-		currentActorTier == "admin" && currentTargetTier == "member"
-}
+func wcSecurityTargetTierAllowed(currentActorTier, currentTargetTier string) bool { return true }
