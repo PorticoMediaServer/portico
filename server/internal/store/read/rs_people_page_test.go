@@ -115,12 +115,17 @@ func TestRSPeoplePageSourceDriftExpiryAndCapacity(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			clock := time.Now()
 			f, r := newRSPeoplePageFixture(t, false, func() time.Time { return clock })
+			clock = time.Now()
 			p := beginRSPage(t, f, r, RSPersonPageInput{})
 			if mode == "orphan" {
 				p.input.Person = 2
 				p.current.person = 2
 			}
 			_, _, err := r.page(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _, err = r.page(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
 			if mode == "orphan" {
 				if !errors.Is(err, ErrDenied) {
 					t.Fatal(err)
