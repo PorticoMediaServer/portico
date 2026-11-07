@@ -60,6 +60,11 @@ func TestUONoticeIndividualArchiveTime(t *testing.T) {
 	if err != nil || state.readMS != ack.readMS || state.archivedMS != ack.archivedMS {
 		t.Fatal("bulk changed sparse individual times", state, err)
 	}
+	ack.readMS = sql.NullInt64{}
+	state, err = resolveUONoticeReadState(notice, ack, bulk)
+	if err != nil || state.readMS.Valid || state.archivedMS != ack.archivedMS {
+		t.Fatal("read-all covered archived unread notice", state, err)
+	}
 	notice.revision = 5
 	state, err = resolveUONoticeReadState(notice, ack, bulk)
 	if err != nil || state != (uoNoticeReadState{}) {
@@ -82,5 +87,9 @@ func TestUONoticeReadStateRejectsMalformedFacts(t *testing.T) {
 	state, err := resolveUONoticeReadState(notice, uoNoticeIndividualAck{}, uoNoticeReadThrough{exists: true, sequence: 1, revision: 1, readMS: -1})
 	if !errors.Is(err, ErrInput) || state != (uoNoticeReadState{}) {
 		t.Fatal("malformed bulk head accepted", state, err)
+	}
+	state, err = resolveUONoticeReadState(notice, uoNoticeIndividualAck{}, uoNoticeReadThrough{exists: true, sequence: 1, revision: 1})
+	if !errors.Is(err, ErrInput) || state != (uoNoticeReadState{}) {
+		t.Fatal("uninitialized zero-time bulk head became a read", state, err)
 	}
 }

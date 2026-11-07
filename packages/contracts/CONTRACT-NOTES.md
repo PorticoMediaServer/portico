@@ -7,3 +7,9 @@ For the schema-v1 notification inbox, an individually read notice retains its ex
 For example, read-all at t1 covers A; B then arrives; read-all at t2 covers both. A and B report t2. A notice C individually read at tc continues to report tc. Bulk-only `readAt` is not an immutable first-read event.
 
 This is the approved pre-release contract for the schema-v1 cutover. The generated `GetNotificationsInboxResponse` field remains `string | null`.
+
+Read-all excludes archived notices. An archived notice marked unread stays unread through read-all.
+
+Coverage follows **sequence plus revision ordering**: a notice must be within the read-through sequence and must not have been restated after that read-all. Producer restatement resets older individual and bulk acknowledgments. A later individual unread overrides older bulk coverage; later eligible read-all overrides that unread. Individual read timestamps remain exact under subsequent bulk coverage.
+
+A present bulk head with timestamp zero is uninitialized and requires resync rather than synthesizing a read time. An absent head supplies no bulk coverage.
