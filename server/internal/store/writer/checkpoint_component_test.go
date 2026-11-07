@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/stateownership"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -120,6 +121,7 @@ func TestDiagnosticConcurrentKeeper(t *testing.T) {
 }
 
 type checkpointComponent struct {
+	owner       *stateownership.Lock
 	readerGrant *governor.Grant
 	reader      *governor.Snapshots
 	w           *executor
@@ -152,7 +154,7 @@ func newCheckpointComponent(t *testing.T, keep, real bool) *checkpointComponent 
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &checkpointComponent{w: opening.executor, opening: opening, path: path, origin: time.Now()}
+	f := &checkpointComponent{owner: owner, w: opening.executor, opening: opening, path: path, origin: time.Now()}
 	frozen := time.Now().Add(time.Hour)
 	f.now = func() time.Time { return frozen }
 	if real {
