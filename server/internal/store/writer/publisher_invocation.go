@@ -70,7 +70,10 @@ func checkPublisherDisclosure(w *Writer, c *PublisherDisclosure, q PublisherRece
 	return nil
 }
 
-func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation, publisher *publisherInvocation) error {
+func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation, publisher *publisherInvocation, wc *wcProgressInvocation) error {
+	if wc != nil {
+		return checkWCProgressDisclosure(w, wc)
+	}
 	if publisher != nil {
 		if w == nil || w.effective != r {
 			return ErrDisclosureDenied
