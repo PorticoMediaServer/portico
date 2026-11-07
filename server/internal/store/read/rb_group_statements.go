@@ -154,7 +154,7 @@ func rbGroupFixtureSubject(f RBGroupFamily) int64 {
 	switch f {
 	case RBGroupShowSeasons, RBGroupShowEpisodes:
 		return 2001
-	case RBGroupSeasonEpisodes, RBGroupShowSeasons:
+	case RBGroupSeasonEpisodes:
 		return 2002
 	case RBGroupArtistAlbums, RBGroupArtistCredits:
 		return 2003
