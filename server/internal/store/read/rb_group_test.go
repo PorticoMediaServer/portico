@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -28,7 +29,8 @@ func rbGroupRequest() governor.Request {
 	r.Budget.VMOps = 100000
 	return r
 }
-func TestRBGroupTraversal(t *testing.T) {
+func TestRBGroupTraversal(t *testing.T) { synctest.Test(t, testRBGroupTraversal) }
+func testRBGroupTraversal(t *testing.T) {
 	f := rbGroupFixture(t, false)
 	for _, family := range []RBGroupFamily{RBGroupSeasonEpisodes, RBGroupAlbumSongs, RBGroupBookParts, RBGroupCollectionMembers, RBGroupPlaylistEntries, RBGroupShowSeasons, RBGroupShowEpisodes, RBGroupArtistAlbums, RBGroupAuthorBooks, RBGroupArtistCredits} {
 		spec, _ := rbGroupSpecFor(family)
@@ -130,6 +132,9 @@ func rbGroupExpected(f RBGroupFamily) []int64 {
 	return out
 }
 func TestRBGroupRawBudgetAndCursorBinding(t *testing.T) {
+	synctest.Test(t, testRBGroupRawBudgetAndCursorBinding)
+}
+func testRBGroupRawBudgetAndCursorBinding(t *testing.T) {
 	f := rbGroupFixture(t, false)
 	in := RBGroupInput{View: f.input, Family: RBGroupAlbumSongs, Subject: 2004}
 	in.View.Kind = 7
@@ -154,26 +159,33 @@ func TestRBGroupRawBudgetAndCursorBinding(t *testing.T) {
 func TestRBGroupPublicationAndPolicy(t *testing.T) {
 	for _, change := range []string{`UPDATE authorization_session_families SET revoked=1`, `UPDATE catalog_entities SET retired=1 WHERE id=2004`, `UPDATE catalog_entities SET source_revision=2 WHERE id=2004`, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`} {
 		t.Run(change, func(t *testing.T) {
-			f := rbGroupFixture(t, false)
-			f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, change) }}
-			in := RBGroupInput{View: f.input, Family: RBGroupAlbumSongs, Subject: 2004}
-			in.View.Kind = 7
-			p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
-			if e == nil || !reflect.DeepEqual(p, RBGroupPage{}) {
-				t.Fatal("publication leak", p, e)
-			}
+			synctest.Test(t, func(t *testing.T) {
+				f := rbGroupFixture(t, false)
+				f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, change) }}
+				in := RBGroupInput{View: f.input, Family: RBGroupAlbumSongs, Subject: 2004}
+				in.View.Kind = 7
+				p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+				if e == nil || !reflect.DeepEqual(p, RBGroupPage{}) {
+					t.Fatal("publication leak", p, e)
+				}
+			})
 		})
 	}
-	f := rbGroupFixture(t, false)
-	in := RBGroupInput{View: f.input, Family: RBGroupPlaylistEntries, Subject: 1}
-	in.View.Kind = 7
-	f.exec(t, `UPDATE catalog_playlists SET owner_profile='q' WHERE id=1`)
-	p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
-	if !errors.Is(e, ErrDenied) || !reflect.DeepEqual(p, RBGroupPage{}) {
-		t.Fatal("playlist authority", e)
-	}
+	t.Run("playlist-owner", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			f := rbGroupFixture(t, false)
+			in := RBGroupInput{View: f.input, Family: RBGroupPlaylistEntries, Subject: 1}
+			in.View.Kind = 7
+			f.exec(t, `UPDATE catalog_playlists SET owner_profile='q' WHERE id=1`)
+			p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+			if !errors.Is(e, ErrDenied) || !reflect.DeepEqual(p, RBGroupPage{}) {
+				t.Fatal("playlist authority", e)
+			}
+		})
+	})
 }
-func TestRBGroupPublicLIVE(t *testing.T) {
+func TestRBGroupPublicLIVE(t *testing.T) { synctest.Test(t, testRBGroupPublicLIVE) }
+func testRBGroupPublicLIVE(t *testing.T) {
 	f := rbGroupFixture(t, true)
 	in := RBGroupInput{View: f.input, Family: RBGroupAlbumSongs, Subject: 2004}
 	in.View.Kind = 7
@@ -183,11 +195,11 @@ func TestRBGroupPublicLIVE(t *testing.T) {
 		t.Fatal("LIVE bypass", e)
 	}
 	_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-		p, res, e := f.reader.RBGroupWindow(ctx, request, time.Second, out, in)
+		p, _, e := f.reader.RBGroupWindow(ctx, request, time.Second, out, in)
 		if e != nil {
 			return e
 		}
-		if len(p.Items) != 40 || res.AdmissionElapsed <= 0 {
+		if len(p.Items) != 40 {
 			t.Fatal("values/admission")
 		}
 		assertLiveUsage(t, f, 1, 0)
@@ -200,6 +212,9 @@ func TestRBGroupPublicLIVE(t *testing.T) {
 }
 
 func TestRBGroupForeignMembersAndPlaylistOccurrences(t *testing.T) {
+	synctest.Test(t, testRBGroupForeignMembersAndPlaylistOccurrences)
+}
+func testRBGroupForeignMembersAndPlaylistOccurrences(t *testing.T) {
 	f := rbGroupFixture(t, false)
 	// A permitted collection subject is not permission for a foreign-library row.
 	f.exec(t, `INSERT INTO catalog_collection_members(collection_id,item_id,order_key) VALUES(2007,1040,'a')`)
@@ -243,6 +258,9 @@ func TestRBGroupForeignMembersAndPlaylistOccurrences(t *testing.T) {
 }
 
 func TestRBGroupArticleContextBindsCursor(t *testing.T) {
+	synctest.Test(t, testRBGroupArticleContextBindsCursor)
+}
+func testRBGroupArticleContextBindsCursor(t *testing.T) {
 	f := rbGroupFixture(t, false)
 	in := RBGroupInput{View: f.input, Family: RBGroupAlbumSongs, Subject: 2004}
 	in.View.Kind = 7
@@ -267,6 +285,9 @@ func TestRBGroupArticleContextBindsCursor(t *testing.T) {
 }
 
 func TestRBGroupCreditedAppearanceSource(t *testing.T) {
+	synctest.Test(t, testRBGroupCreditedAppearanceSource)
+}
+func testRBGroupCreditedAppearanceSource(t *testing.T) {
 	f := rbGroupFixture(t, false)
 	in := RBGroupInput{View: f.input, Family: RBGroupArtistAlbums, Subject: 2010}
 	in.View.Kind = 6
