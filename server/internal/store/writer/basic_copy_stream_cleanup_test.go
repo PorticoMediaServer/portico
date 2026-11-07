@@ -160,6 +160,11 @@ func TestBasicStreamCleanupRetainedProofAndBoundedContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// This is a second bounded cleanup command, not a larger quantum for the
+	// combined prerequisite/copy/two-page fixture. Reuse the FULL receipt.
+	registry := turn.registry
+	basicMediaCommit(t, turn)
+	turn = basicHandlerTurn(t, w, BasicAccept, basicCleanupStreamTestDefinitions(), registry)
 	got, err = cleanupBasicStreams(t.Context(), turn, fence)
 	if err != nil || got != (basicStreamCleanupResult{18, true, false}) {
 		t.Fatal(got, err)
