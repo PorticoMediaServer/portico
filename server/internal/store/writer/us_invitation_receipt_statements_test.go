@@ -65,6 +65,17 @@ func TestUSInvitationReceiptStatementsStorage(t *testing.T) {
 					t.Fatal("purpose/byte control accepted")
 				}
 			}
+			if kind == 550 {
+				// Other protected-purpose wire widths cannot stand in for the
+				// exact 43-character long invitation Code plus its GCM tag.
+				for _, n := range []int{16, 35, 58, 60} {
+					bad := append([]any(nil), h...)
+					bad[13] = make([]byte, n)
+					if _, err := conn.ExecContext(t.Context(), defs[usInvitationReceiptInsert].SQL, bad...); err == nil {
+						t.Fatal("wrong creation wire width accepted", n)
+					}
+				}
+			}
 			var hb, count int64
 			if e = conn.QueryRowContext(t.Context(), defs[usInvitationReceiptInsert].SQL, h...).Scan(&hb, &count); e != nil {
 				t.Fatal(e)

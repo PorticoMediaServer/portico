@@ -5,8 +5,8 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 // Fixed inert native inventory only. Current authority precedes original
 // owner/binding classification and every saved-payload read.
 // Library INSERT cohort must be bound to "invitation"; HN VALUES accepts
-// parameters only. The caller validates exact 59-byte creation body and NULL
-// edit/revoke slots before writes; the draft CHECK only requires >=16 bytes.
+// parameters only. The caller and native draft CHECK both require the exact
+// 59-byte creation body and NULL edit/revoke slots before writes.
 // issuerServer comes from that retained owner, never the DTO server_id below.
 const (
 	usInvitationReceiptOctets        stmt.ID = "us.invitation.receipt.octets"

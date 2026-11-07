@@ -151,7 +151,7 @@ CREATE TABLE security_command_receipts(
   AND policy_inherits IS NULL AND result_changed IS NULL AND result_pin_revision IS NULL AND result_pin_required IS NULL
   AND result_count<=256
   AND ((command_kind=550 AND result_key_id IS NOT NULL AND length(CAST(result_key_id AS BLOB)) BETWEEN 1 AND 128
-    AND result_nonce IS NOT NULL AND length(result_nonce)=12 AND result_body IS NOT NULL AND length(result_body)>=16)
+    AND result_nonce IS NOT NULL AND length(result_nonce)=12 AND result_body IS NOT NULL AND length(result_body)=59)
    OR (command_kind IN(551,552) AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL))))
 ) WITHOUT ROWID, STRICT;
 
