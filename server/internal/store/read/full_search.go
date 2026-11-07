@@ -15,7 +15,7 @@ import (
 // harness DTO, not a wire codec, person visibility proof or native attestation.
 type FullSearchHit struct {
 	Subject             search.ManifestSubject
-	ID, Library         int64
+	ID, Library, Kind   int64
 	Tier, PeopleSubtier uint8
 	Item                BrowseItem
 	PersonName          string
