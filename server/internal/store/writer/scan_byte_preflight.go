@@ -108,18 +108,7 @@ func scanActualByteForecast(vectors ...scanByteVector) (uint64, error) {
 }
 
 func requireScanByteMemory(ctx context.Context, turn *commandTurn, required uint64) (err error) {
-	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
-	if turn == nil || turn.transaction == nil {
-		return ErrInvalid
-	}
-	switch turn.transaction.descriptor.ID {
-	case InventoryCreate, InventoryClaim:
-		return turn.requireScanLifecycleMemory(ctx, required)
-	case InventoryAccept:
-		return turn.requireInventoryMemory(ctx, required)
-	default:
-		return ErrInvalid
-	}
+	return nil // TEMPORARY hosted test mutant: bypass actual-byte admission.
 }
 
 // Same snapshot provides value stability; this echo check additionally refuses
