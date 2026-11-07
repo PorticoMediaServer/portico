@@ -58,7 +58,8 @@ func (q uoOperationReceipt) keys() (scope, key string, err error) {
 	return scope, key, nil
 }
 func encodeUOOperationResult(q uoOperationReceipt, r uoOperationResult) (string, ResultDigest, error) {
-	if _, _, err := q.keys(); err != nil {
+	scope, _, err := q.keys()
+	if err != nil {
 		return "", ResultDigest{}, err
 	}
 	if r.status < 1 || r.status > 4 || r.revision < 0 || r.cursor < 0 || r.done < 0 || r.failed < 0 || r.appliedMS <= 0 {
@@ -79,11 +80,15 @@ func encodeUOOperationResult(q uoOperationReceipt, r uoOperationResult) (string,
 	if len(p) != uoOperationPayloadBytes {
 		return "", ResultDigest{}, ErrInvalid
 	}
-	digest := sha256.Sum256(p)
+	digest := uoOperationChecksum(scope, p)
 	return base64.RawURLEncoding.EncodeToString(p) + "." + hex.EncodeToString(digest[:]), ResultDigest(digest), nil
 }
 func decodeUOOperationResult(q uoOperationReceipt, encoded string) (uoOperationResult, error) {
 	var r uoOperationResult
+	scope, _, scopeErr := q.keys()
+	if scopeErr != nil {
+		return r, ErrResolveRequired
+	}
 	const prefix = "UORES\x01\x00\x00"
 	bound := base64.RawURLEncoding.EncodedLen(uoOperationPayloadBytes)
 	if len(encoded) != bound+1+64 || encoded[bound] != '.' {
@@ -93,7 +98,7 @@ func decodeUOOperationResult(q uoOperationReceipt, encoded string) (uoOperationR
 	if err != nil || len(p) != uoOperationPayloadBytes || string(p[:8]) != prefix {
 		return r, ErrResolveRequired
 	}
-	digest := sha256.Sum256(p)
+	digest := uoOperationChecksum(scope, p)
 	if encoded[bound+1:] != hex.EncodeToString(digest[:]) {
 		return r, ErrResolveRequired
 	}
@@ -114,6 +119,20 @@ func decodeUOOperationResult(q uoOperationReceipt, encoded string) (uoOperationR
 		return uoOperationResult{}, ErrResolveRequired
 	}
 	return r, nil
+}
+
+// The lookup key and checksum both bind the exact current lifetime scope. A
+// payload copied between principals is not a valid saved result there, even if
+// its original command identity/request happened to be repeated by a caller.
+func uoOperationChecksum(scope string, p []byte) [32]byte {
+	h := sha256.New()
+	h.Write([]byte("portico UO operation result v1"))
+	h.Write(binary.BigEndian.AppendUint32(nil, uint32(len(scope))))
+	h.Write([]byte(scope))
+	h.Write(p)
+	var sum [32]byte
+	copy(sum[:], h.Sum(nil))
+	return sum
 }
 
 // Fresh-only persistence under W's SAME authorized/classified command frame.
@@ -143,19 +162,19 @@ func restoreUOOperationResult(ctx context.Context, turn *commandTurn, q uoOperat
 	if err != nil {
 		return out, err
 	}
-	row, err := wc008DraftQuery(ctx, turn, uoOperationOctets, scope, key)
+	row, err := wc008DraftQuery(ctx, turn, uoOperationOctets, hex.EncodeToString(q.request[:]), scope, key)
 	if err != nil {
 		return out, err
 	}
 	var n, expiry int64
-	var digest string
-	if err = row.Scan(&n, &expiry, &digest); err != nil {
+	var requestMatches int64
+	if err = row.Scan(&n, &expiry, &requestMatches); err != nil {
 		return out, err
 	}
 	if n != int64(base64.RawURLEncoding.EncodedLen(uoOperationPayloadBytes)+65) || expiry <= q.nowMS {
 		return out, ErrResolveRequired
 	}
-	if digest != hex.EncodeToString(q.request[:]) {
+	if requestMatches != 1 {
 		return out, ErrConflict
 	}
 	row, err = wc008DraftQuery(ctx, turn, uoOperationPoint, scope, key)
@@ -186,7 +205,7 @@ func uoOperationDefinitions() []stmt.Definition {
 	}
 	return []stmt.Definition{
 		d(uoOperationSave, stmt.Write, `INSERT INTO console_receipts(scope,key,digest,result,expires_ms) VALUES(?,?,?,?,?) RETURNING expires_ms`, s("scope"), s("key"), s("digest"), s("result"), i("expiry")),
-		d(uoOperationOctets, stmt.Read, `SELECT octet_length(result),expires_ms,digest FROM console_receipts WHERE scope=? AND key=?`, s("scope"), s("key")),
+		d(uoOperationOctets, stmt.Read, `SELECT octet_length(result),expires_ms,(digest=?) FROM console_receipts WHERE scope=? AND key=?`, s("digest"), s("scope"), s("key")),
 		d(uoOperationPoint, stmt.Read, `SELECT result FROM console_receipts WHERE scope=? AND key=?`, s("scope"), s("key")),
 	}
 }
