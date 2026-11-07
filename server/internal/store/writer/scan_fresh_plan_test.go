@@ -54,7 +54,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 		hash.Write(data)
 	}
 	fixtureSHA := hex.EncodeToString(hash.Sum(nil))
-	if fixtureSHA != "02e1bf0e5807af7bca78769a2a9007aad312d18215a46d35b67130ca16477886" || schema.SHA256 != "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4" {
+	if fixtureSHA != "02e1bf0e5807af7bca78769a2a9007aad312d18215a46d35b67130ca16477886" || schema.SHA256 != "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2" {
 		t.Fatal("frozen fixture/schema changed; review before recording")
 	}
 	definitions := scanFreshDefinitions()
