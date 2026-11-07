@@ -1,7 +1,10 @@
 package read
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,13 +24,27 @@ func iaAudioCompareGolden(t *testing.T, path string, actual []byte) {
 		if e := os.MkdirAll(dir, 0755); e != nil {
 			t.Fatal(e)
 		}
-		if e := os.WriteFile(filepath.Join(dir, filepath.Base(path)), actual, 0644); e != nil {
+		if e := os.WriteFile(filepath.Join(dir, strings.TrimSuffix(filepath.Base(path), ".gz")), actual, 0644); e != nil {
 			t.Fatal(e)
 		}
 	}
 	expected, e := os.ReadFile(path)
 	if e != nil {
 		t.Fatal(e)
+	}
+	if strings.HasSuffix(path, ".gz") {
+		z, e := gzip.NewReader(bytes.NewReader(expected))
+		if e != nil {
+			t.Fatal(e)
+		}
+		expected, e = io.ReadAll(z)
+		closeErr := z.Close()
+		if e != nil {
+			t.Fatal(e)
+		}
+		if closeErr != nil {
+			t.Fatal(closeErr)
+		}
 	}
 	if e = plan.CompareJSON(expected, actual); e != nil {
 		t.Fatal(e)
@@ -72,7 +89,7 @@ func TestIAAudioPlans(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	iaAudioCompareGolden(t, "testdata/ia-audio-plans.json", actual)
+	iaAudioCompareGolden(t, "testdata/ia-audio-plans.json.gz", actual)
 }
 func TestIAAudioCaptureRejectsMutants(t *testing.T) {
 	f := newIAAudioSource(t)
