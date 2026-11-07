@@ -34,6 +34,7 @@ func rbGroupSpecs() []rbGroupSpec {
 		{RBGroupBookParts, "book-parts", entity + "catalog_entities_book", "book_id IS NOT NULL AND e.book_id=?", "catalog_entities_book", []rbGroupKey{n("COALESCE(e.disc_number,1)"), n("COALESCE(e.part_number,0)"), n("e.id")}, 8, []int64{9}, true},
 		{RBGroupCollectionMembers, "collection-members", "catalog_collection_members AS m INDEXED BY catalog_collection_members_page CROSS JOIN catalog_entities AS e ON e.id=m.item_id", "m.collection_id=?", "catalog_collection_members_page", []rbGroupKey{s("m.order_key"), n("m.item_id")}, 10, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13}, true},
 		{RBGroupPlaylistEntries, "playlist-entries", "catalog_playlist_entries AS m INDEXED BY catalog_playlist_entries_page LEFT JOIN catalog_entities AS e ON e.id=m.item_id", "m.playlist_id=?", "catalog_playlist_entries_page", []rbGroupKey{s("m.order_key"), n("m.id")}, 0, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13}, true},
+		{RBGroupArtistCredits, "artist-credits", "catalog_song_artists AS m INDEXED BY catalog_song_artists_artist CROSS JOIN catalog_entities AS e ON e.id=m.song_id", "m.artist_id=?", "catalog_song_artists_artist", []rbGroupKey{n("m.song_id")}, 5, []int64{7}, false},
 	}
 }
 func rbGroupSpecFor(f RBGroupFamily) (rbGroupSpec, bool) {
@@ -86,7 +87,7 @@ func RBGroupDefinitions() []stmt.Definition {
 				bindings = []any{int64(1), "Author"}
 			}
 			plan := stmt.Plan{Hot: true, Indexes: []string{spec.index}}
-			if spec.family == RBGroupCollectionMembers || spec.family == RBGroupPlaylistEntries {
+			if spec.family == RBGroupCollectionMembers || spec.family == RBGroupPlaylistEntries || spec.family == RBGroupArtistCredits {
 				plan.PrimaryKeys = []string{"e"}
 			}
 			present := append(append([]any(nil), bindings...), int64(MaxRaw))
@@ -155,7 +156,7 @@ func rbGroupFixtureSubject(f RBGroupFamily) int64 {
 		return 2001
 	case RBGroupSeasonEpisodes:
 		return 2002
-	case RBGroupArtistAlbums:
+	case RBGroupArtistAlbums, RBGroupArtistCredits:
 		return 2003
 	case RBGroupAlbumSongs:
 		return 2004
