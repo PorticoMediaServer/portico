@@ -1,0 +1,432 @@
+package read
+
+import (
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+
+	"cmp"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+)
+
+// RSAuthorBookReader is an inert trusted-harness reader. Preparation never
+// owns a SQL snapshot, renews a lease, or grants cached authorization.
+type RSAuthorBookReader struct {
+	snapshots browseSnapshots
+	pool      *governor.Snapshots
+	authority *governor.Authority
+}
+
+func NewRSAuthorBookReader(s *governor.Snapshots, a *governor.Authority) (*RSAuthorBookReader, error) {
+	if s == nil || a == nil || !s.OwnedBy(a) {
+		return nil, ErrInput
+	}
+	return &RSAuthorBookReader{snapshots: s, pool: s, authority: a}, nil
+}
+
+type RSAuthorBookInput struct {
+	View   BrowseInput
+	Author int64
+	Limit  int
+	After  *RSAuthorBookCursor
+}
+type RSAuthorBookCursor struct {
+	identity                     [32]byte
+	author, library, kind, after int64
+	limit                        int
+}
+
+// MissingCanonicalFacts identifies facts unavailable in the accepted scalar
+// image, rather than manufacturing successful empty provider observations.
+type RSAuthorBookCard struct {
+	Facts TitleFacts
+
+	Artwork               ArtworkFact
+	MissingCanonicalFacts []string
+}
+type RSAuthorBookPage struct {
+	Cards             []RSAuthorBookCard
+	Total             int
+	Next              *RSAuthorBookCursor
+	Pending, Complete bool
+}
+type RSAuthorBookPreparation struct {
+	mu                         sync.Mutex
+	reader                     *RSAuthorBookReader
+	lease                      *governor.PreparationLease
+	owner                      governor.OwnerID
+	input                      RSAuthorBookInput
+	started                    time.Time
+	used                       int64
+	fence                      browseFence
+	captured, closed           bool
+	entries                    []rsAuthorBookEntry
+	key                        string
+	scan, fileAfter, candidate int64
+	candidateEntry             rsAuthorBookEntry
+	fileVisible                bool
+
+	phase    int
+	selected []int64
+	cards    []RSAuthorBookCard
+	hydrate  int
+}
+
+func (p *RSAuthorBookPreparation) charge(n int64) error {
+	if n < 0 || n > p.lease.PayloadBytes()-p.used {
+		return governor.ErrSnapshotBudget
+	}
+	p.used += n
+	return nil
+}
+func (p *RSAuthorBookPreparation) close() error {
+	if p.closed {
+		return nil
+	}
+	p.closed = true
+	p.entries = nil
+	p.cards = nil
+	p.selected = nil
+	p.input = RSAuthorBookInput{}
+	return p.reader.authority.RetirePreparation(p.lease)
+}
+func (p *RSAuthorBookPreparation) Close() error {
+	if p == nil {
+		return ErrInput
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.close()
+}
+func (r *RSAuthorBookReader) Begin(ctx context.Context, owner governor.OwnerID, deadline time.Time, reservedBytes int64, in RSAuthorBookInput) (*RSAuthorBookPreparation, *governor.Refusal, error) {
+	v := in.View
+	if r == nil || ctx == nil || owner == 0 || in.Author <= 0 || in.Limit < 1 || in.Limit > MaxPage || v.Library <= 0 || v.Kind != 13 || v.Database == "" || len(v.Database) > 256 || v.TokenHash == "" || len(v.TokenHash) > 256 || v.Now.IsZero() || v.After != nil || v.Descending || v.KeepArticles || v.policy.recipe != 0 {
+		return nil, nil, ErrInput
+	}
+	key := sha256.Sum256([]byte(fmt.Sprintf("%d/%#v", owner, in)))
+	d := r.authority.BeginPreparation(ctx, governor.PreparationRequest{Key: governor.JobKey{Domain: 74, ID: fmt.Sprintf("rs-author-books:%x", key)}, Owner: owner, Deadline: deadline, ReservedBytes: reservedBytes, Dependencies: governor.PublicationFootprint{{}}})
+	if d.Refusal != nil {
+		return nil, d.Refusal, nil
+	}
+	p := &RSAuthorBookPreparation{reader: r, lease: d.Lease, owner: owner, input: in, started: time.Now()}
+	if err := p.charge(8192 + 4*int64(len(v.Database)+len(v.TokenHash))); err != nil {
+		_ = p.close()
+		return nil, nil, err
+	}
+	p.input.View.Database = strings.Clone(v.Database)
+	p.input.View.TokenHash = strings.Clone(v.TokenHash)
+	if in.After != nil {
+		a := *in.After
+		p.input.After = &a
+	}
+	return p, nil, nil
+}
+func (r *RSAuthorBookReader) Page(ctx context.Context, request governor.Request, budget time.Duration, out BrowseOutput, p *RSAuthorBookPreparation) (RSAuthorBookPage, BrowseReadResult, error) {
+	if r == nil || p == nil || p.reader != r {
+		return RSAuthorBookPage{}, BrowseReadResult{}, ErrInput
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed || p.owner != request.Owner {
+		return RSAuthorBookPage{}, BrowseReadResult{}, ErrInput
+	}
+	page, cost, err := liveRead(ctx, request, budget, out, r.pool, p.input.View.Now.Add(time.Since(p.started)), func(ctx context.Context, q governor.Request, b time.Duration, at time.Time) (RSAuthorBookPage, BrowseReadResult, error) {
+		ctx, cancel := context.WithDeadline(ctx, minTimeRS(time.Now().Add(min(b, time.Second)), p.lease.Deadline()))
+		defer cancel()
+		return r.poll(ctx, q, out, p, at)
+	})
+	if err != nil {
+		_ = p.close()
+	}
+	return page, cost, err
+}
+func (p *RSAuthorBookPreparation) view(at time.Time, kind, id int64) BrowseInput {
+	v := p.input.View
+	v.Now = at
+	v.Kind = kind
+	v.policy = readPolicyBinding{recipe: rsDetailSubjectPolicy, subject: id}
+	return v
+}
+
+// fence checks use the author's accepted subject policy at both ends of every
+// quantum. The common source root is conservative across all catalogue writes.
+func (r *RSAuthorBookReader) fence(ctx context.Context, q governor.Request, out BrowseOutput, p *RSAuthorBookPreparation, at time.Time, cost *BrowseReadResult) error {
+	if e := r.authority.CheckPreparation(p.lease); e != nil {
+		return e
+	}
+	f, c, e := rsPeoplePublish(ctx, &rsByteWindow{source: r.snapshots, preflightCalls: 12}, q, time.Until(p.lease.Deadline()), out, p.view(at, 13, p.input.Author), []readStep[browseFence]{func(_ context.Context, _ browseQuery, f browseFence, d *browseFence) error { *d = f; return nil }})
+	addSearchReadCost(cost, &c)
+	if e != nil {
+		return e
+	}
+	if p.captured {
+		if f != p.fence {
+			return ErrStale
+		}
+	} else {
+		if e = p.charge(rsPeopleFenceBytes(f)); e != nil {
+			return e
+		}
+		p.fence = f
+		p.captured = true
+	}
+	return nil
+}
+func (p *RSAuthorBookPreparation) identity() [32]byte {
+	return sha256.Sum256([]byte(fmt.Sprintf("%#v/%v", p.fence, p.entries)))
+}
+func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out BrowseOutput, p *RSAuthorBookPreparation, at time.Time) (page RSAuthorBookPage, cost BrowseReadResult, err error) {
+	if err = r.fence(ctx, q, out, p, at, &cost); err != nil {
+		return
+	}
+	if p.phase < 2 {
+		err = r.enumerate(ctx, q, out, p, at, &cost)
+	} else if p.phase == 2 {
+		id := p.identity()
+		in := p.input
+		after := int64(0)
+		if a := in.After; a != nil {
+			if a.identity != id || a.author != in.Author || a.library != in.View.Library || a.kind != 8 || a.limit != in.Limit {
+				return page, cost, ErrStale
+			}
+			after = a.after
+		}
+		slices.SortFunc(p.entries, func(a, b rsAuthorBookEntry) int {
+			if n := cmp.Compare(a.position, b.position); n != 0 {
+				return n
+			}
+			if n := cmp.Compare(a.title, b.title); n != 0 {
+				return n
+			}
+			return cmp.Compare(a.id, b.id)
+		})
+		offset := int(after)
+		if offset < 0 || offset > len(p.entries) {
+			return page, cost, ErrStale
+		}
+		end := min(offset+in.Limit, len(p.entries))
+		if err = p.charge(int64(end-offset) * 4096); err != nil {
+			return
+		}
+		for _, entry := range p.entries[offset:end] {
+			p.selected = append(p.selected, entry.id)
+		}
+		p.cards = make([]RSAuthorBookCard, len(p.selected))
+		p.phase = 3
+	} else if p.hydrate < len(p.selected) {
+		err = r.hydrate(ctx, q, out, p, at, &cost)
+	} else {
+		p.phase = 4
+	}
+	if err != nil {
+		return
+	}
+	if err = r.fence(ctx, q, out, p, at, &cost); err != nil {
+		return
+	}
+	if p.phase != 4 {
+		page.Pending = true
+		return
+	}
+	needed := int64(4096)
+	for _, c := range p.cards {
+		needed += authorBookCardBytes(c)
+	}
+	if needed > out.Request.Need[governor.MemoryBytes]/2 {
+		return page, cost, governor.ErrSnapshotBudget
+	}
+	if err = r.authority.ReadyPreparation(p.lease); err != nil {
+		return
+	}
+	expires, e := time.Parse(time.RFC3339Nano, p.fence.expiresAt)
+	if e != nil || !p.input.View.Now.Add(time.Since(p.started)).Before(expires) {
+		return page, cost, ErrDenied
+	}
+	horizon, he := time.Parse(time.RFC3339Nano, p.fence.horizon)
+	if he != nil || !p.input.View.Now.Add(time.Since(p.started)).Before(horizon) {
+		return page, cost, ErrDenied
+	}
+	if err = r.authority.HandoffPreparation(p.lease); err != nil {
+		return
+	}
+	page = RSAuthorBookPage{Cards: p.cards, Total: len(p.entries), Complete: true}
+	offset := 0
+	if p.input.After != nil {
+		offset = int(p.input.After.after)
+	}
+	if offset+len(p.selected) < len(p.entries) {
+		page.Next = &RSAuthorBookCursor{identity: p.identity(), author: p.input.Author, library: p.input.View.Library, kind: 8, limit: p.input.Limit, after: int64(offset + len(p.selected))}
+	}
+
+	// Output now owns the charged values; retiring the preparation drops all
+	// references without mutating the consumer's copied page.
+	err = p.close()
+	if err != nil {
+		page = RSAuthorBookPage{}
+	}
+	return
+}
+
+type rsAuthorBookEntry struct {
+	id       int64
+	title    string
+	position float64
+}
+
+func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, out BrowseOutput, p *RSAuthorBookPreparation, at time.Time, cost *BrowseReadResult) error {
+	w := &rsByteWindow{source: r.snapshots, preflightCalls: 20}
+	var next int64
+	_, c, e := rsPeoplePublish(ctx, w, q, time.Until(p.lease.Deadline()), out, p.view(at, 13, p.input.Author), []readStep[struct{}]{func(_ context.Context, query browseQuery, _ browseFence, _ *struct{}) error {
+		name := "rs.audio.author_key_octets"
+		id := p.input.Author
+		if p.key != "" {
+			if p.candidate != 0 {
+				return nil
+			}
+			rows, e := query("rs.audio.books", p.input.View.Library, p.scan)
+			if e != nil {
+				return e
+			}
+			if len(rows) == 0 {
+				return nil
+			}
+			next = rows[0][0].(int64)
+			id = next
+			name = "rs.author.book_octets"
+		}
+		rows, e := query(name, id, p.input.View.Library)
+		if e != nil {
+			return e
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		n, e := rsPointBytes(rows[0])
+		if e != nil {
+			return e
+		}
+		return w.arm(n, 8)
+	}, func(_ context.Context, query browseQuery, f browseFence, _ *struct{}) error {
+		if p.key == "" {
+			rows, e := query("rs.audio.author_key", p.input.Author, p.input.View.Library)
+			if e != nil {
+				return e
+			}
+			if len(rows) != 1 {
+				return ErrDenied
+			}
+			key := rsListeningAuthorKey(rows[0][0].(string))
+			if key == "" {
+				return ErrDenied
+			}
+			if e = p.charge(int64(len(key)) * 4); e != nil {
+				return e
+			}
+			p.key = key
+			return nil
+		}
+		if p.candidate == 0 {
+			if next == 0 {
+				p.phase = 2
+				return nil
+			}
+			p.scan = next
+			rows, e := query("rs.author.book", p.scan, p.input.View.Library)
+			if e != nil {
+				return e
+			}
+			if len(rows) != 1 {
+				return nil
+			}
+			row := rows[0]
+			if rsListeningAuthorKey(row[0].(string)) != p.key {
+				return nil
+			}
+			if _, e = rsDetailSubjectEligibility(query, p.view(at, 8, p.scan), f); errors.Is(e, ErrDenied) {
+				return nil
+			} else if e != nil {
+				return e
+			}
+			pos := float64(0)
+			if row[2] != nil {
+				pos = row[2].(float64)
+			}
+			if pos <= 0 {
+				pos = 999999
+			}
+			if e = p.charge(256 + 4*int64(len(row[1].(string)))); e != nil {
+				return e
+			}
+			p.candidate = p.scan
+			p.candidateEntry = rsAuthorBookEntry{p.scan, row[1].(string), pos}
+			p.fileAfter = 0
+			p.fileVisible = false
+			return nil
+		}
+		rows, e := query("rs.author.files", p.input.View.Library, p.fileAfter, p.candidate)
+		if e != nil {
+			return e
+		}
+		if len(rows) == 0 {
+			if p.fileVisible {
+				if e = p.charge(int64(len(p.entries)+1) * 64); e != nil {
+					return e
+				}
+				entries := make([]rsAuthorBookEntry, len(p.entries), len(p.entries)+1)
+				copy(entries, p.entries)
+				p.entries = append(entries, p.candidateEntry)
+			}
+			p.candidate = 0
+			p.candidateEntry = rsAuthorBookEntry{}
+			return nil
+		}
+		p.fileAfter = rows[0][0].(int64)
+		if _, e = rsDetailSubjectEligibility(query, p.view(at, 9, p.fileAfter), f); errors.Is(e, ErrDenied) {
+			return nil
+		} else if e != nil {
+			return e
+		}
+		p.fileVisible = true
+		return nil
+	}})
+	addSearchReadCost(cost, &c)
+	return e
+}
+func authorBookCardBytes(c RSAuthorBookCard) int64 {
+	return 8192 + artistAlbumWideBytes(reflect.ValueOf(c))
+}
+func (r *RSAuthorBookReader) hydrate(ctx context.Context, q governor.Request, out BrowseOutput, p *RSAuthorBookPreparation, at time.Time, cost *BrowseReadResult) error {
+	id := p.selected[p.hydrate]
+	f := &ForegroundReader{snapshots: r.snapshots, pool: r.pool}
+	card := &p.cards[p.hydrate]
+	var c BrowseReadResult
+	var e error
+	if card.Facts.Book == nil {
+		var v TitleFacts
+		v, c, e = f.facts(ctx, q, time.Until(p.lease.Deadline()), out, TitleFactsInput{View: p.view(at, 8, id), Item: id})
+		if e == nil {
+			e = p.charge(authorBookCardBytes(RSAuthorBookCard{Facts: v}))
+			if e == nil {
+				card.Facts = v
+			}
+		}
+	} else {
+		card.Artwork, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 8, id), Item: id, Role: "poster", PageSlot: true})
+		if e == nil {
+			e = p.charge(authorBookCardBytes(*card))
+			if e == nil {
+				card.MissingCanonicalFacts = []string{"catalog_books.provider_match_status", "bookRoleSQL", "accepted effective series evidence"}
+				p.hydrate++
+			}
+		}
+	}
+	addSearchReadCost(cost, &c)
+	return e
+}
