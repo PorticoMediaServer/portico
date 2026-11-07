@@ -270,14 +270,29 @@ func TestRBHomePublicationAndLIVE(t *testing.T) {
 					f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
 				case "secondary-revision":
 					f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='other'`)
+					f.exec(t, `UPDATE catalog_entities SET title='fresh secondary',revision=revision+1 WHERE id=1040`)
 				case "secondary-viewer":
 					f.exec(t, `INSERT INTO viewer_revisions(profile_id,library_id,revision) VALUES('p','other',2)`)
+					f.exec(t, `UPDATE catalog_entities SET title='fresh secondary',revision=revision+1 WHERE id=1040`)
 				case "secondary-policy":
 					f.exec(t, `UPDATE direct_profiles SET allowed_libraries='["movies"]' WHERE id='p'`)
 				}
 			}}
-			row, _, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 1}, {2, 1}}})
-			if e == nil || !reflect.DeepEqual(row, HomeRecentRow{}) {
+			row, cost, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 1}, {2, 1}}})
+			if mode == "secondary-revision" || mode == "secondary-viewer" {
+				if e != nil || cost.Attempts != 2 {
+					t.Fatal("whole retry", row, cost, e)
+				}
+				fresh := false
+				for _, card := range row.Items {
+					if card.Work.ID == 1040 {
+						fresh = card.Work.Title == "fresh secondary" && card.Work.Revision == 2
+					}
+				}
+				if !fresh {
+					t.Fatal("earlier private target escaped retry", row, cost, e)
+				}
+			} else if e == nil || !reflect.DeepEqual(row, HomeRecentRow{}) {
 				t.Fatal("publication leak", row, e)
 			}
 		})
