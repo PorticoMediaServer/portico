@@ -14,7 +14,7 @@ import (
 const (
 	rsRelatedFeatures         = 256
 	rsRelatedCandidates       = 2048
-	rsRelatedBytes      int64 = 4 << 20 // includes state, clone/DTO overlap and Go map slack
+	rsRelatedBytes      int64 = 8 << 20 // includes state, clone/DTO overlap and Go map slack
 	rsRelatedAlgorithm        = 1
 )
 
@@ -168,22 +168,27 @@ type relatedState struct {
 	rawIndex                    int
 	// credit normalization is a bounded sequence of PK comparisons, never a
 	// GROUP BY over a broad credited name. All comparisons are resumable.
-	normalizeI, normalizeJ int
-	duplicate              []bool
-	ids                    []int64
-	hydrate                int
-	candidateID            int64
-	probe                  []relatedProbe
-	probeSeen              map[int64]bool
-	current                *relatedCandidate
-	cards                  map[int64]string
-	cardIDs                []int64
-	cardIndex              int
-	cardBytes              int64
-	sourceByte             bool
-	waitByte               bool
-	done                   bool
-	rawTotal               int
+	normalizeI, normalizeJ                                 int
+	duplicate                                              []bool
+	ids                                                    []int64
+	hydrate                                                int
+	candidateID                                            int64
+	probe                                                  []relatedProbe
+	probeSeen                                              map[int64]bool
+	current                                                *relatedCandidate
+	cards                                                  map[int64]string
+	cardIDs                                                []int64
+	cardIndex                                              int
+	orders                                                 map[RelatedKey][]int64
+	orderFeature, orderIndex, sortLow, sortHigh, sortStage int
+	orderCandidates                                        []int64
+	sortActive                                             bool
+	orderIDs                                               int
+	cardBytes                                              int64
+	sourceByte                                             bool
+	waitByte                                               bool
+	done                                                   bool
+	rawTotal                                               int
 }
 
 // RelatedWork is RB-owned preparation payload. It owns neither a scheduler nor
@@ -361,7 +366,7 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 				if err := errors.Join(ctx.Err(), w.authority.CheckPreparation(w.lease)); err != nil {
 					return err
 				}
-				if w.state.phase >= 4 {
+				if w.state.phase == 4 || w.state.phase == 5 {
 					if err := relatedCardQuantum(q, &w.state, in, w.similar, byteWindows); err != nil {
 						return err
 					}

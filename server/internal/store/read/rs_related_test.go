@@ -78,7 +78,7 @@ func rsRelatedFixture(t *testing.T) (*browseFixture, *ForegroundReader) {
 	f := newBrowseSource(t)
 	seedRSRelated(t, f)
 	gc := readfixture.LiveConfig(time.Now)
-	gc.Preparation = &governor.PreparationProfile{MaxActive: 2, MaxBytes: 16 << 20, MaxJobBytes: 8 << 20, ProtectedBytes: 32 << 20}
+	gc.Preparation = &governor.PreparationProfile{MaxActive: 2, MaxBytes: 32 << 20, MaxJobBytes: 16 << 20, ProtectedBytes: 32 << 20}
 	f = composeReadFixture(t, f, append(browseDefinitions(), RSRelatedDefinitions()...), gc, false, rsRelatedHash(t))
 	r, err := NewForegroundReader(f.snapshots)
 	if err != nil {
@@ -200,6 +200,22 @@ func TestRSRelatedMatrixAndCurrentFence(t *testing.T) {
 	for _, row := range p.Rows {
 		if row.Total != len(row.Entries) || !row.Exhausted {
 			t.Fatal("incomplete matrix")
+		}
+	}
+	for _, row := range p.Rows {
+		if row.Key.Kind == 1 {
+			if row.Entries[0].ID != 9 {
+				t.Fatal("nearest-year descending tie", row)
+			}
+		}
+		if row.Key.Kind == 3 {
+			var got []int64
+			for _, e := range row.Entries {
+				got = append(got, e.ID)
+			}
+			if !slices.Equal(got, []int64{2, 4}) {
+				t.Fatal("collection year/title order", got)
+			}
 		}
 	}
 	if err := w.Close(); err != nil {
@@ -332,9 +348,12 @@ func TestRSRelatedTypedAvailabilityBeyondRawWindow(t *testing.T) {
 	}{{6, 7, 2100, "album_id"}, {8, 9, 2101, "book_id"}} {
 		t.Run(recipe.column, func(t *testing.T) {
 			f, r := rsRelatedFixture(t)
+			f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(5,'artist',0,1,1,1,1)`)
+			f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2300,randomblob(16),1,5)`)
+			f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) SELECT id,public_id,library_id,kind,'Artist','artist','a','artist','a',0,randomblob(16),randomblob(16) FROM catalog_subjects WHERE id=2300`)
 			for _, id := range []int64{3000, 3001} {
 				f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,randomblob(16),1,?)`, id, recipe.kind)
-				f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) SELECT id,public_id,library_id,kind,'Work','work','w','work','w',0,randomblob(16),randomblob(16) FROM catalog_subjects WHERE id=?`, id)
+				f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id) SELECT id,public_id,library_id,kind,'Work','work','w','work','w',0,randomblob(16),randomblob(16),2300 FROM catalog_subjects WHERE id=?`, id)
 				f.exec(t, `INSERT INTO catalog_entity_terms(entity_id,term_id) VALUES(?,1)`, id)
 			}
 			// These typed children deliberately have no generic parent_id edge.

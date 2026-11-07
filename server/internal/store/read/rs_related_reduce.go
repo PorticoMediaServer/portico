@@ -40,6 +40,8 @@ func relatedQuantum(q browseQuery, s *relatedState, windows *rsByteWindow) error
 		return relatedCandidates(q, s, windows)
 	case 3:
 		return relatedHydrate(q, s)
+	case 6:
+		return relatedCollectionOrder(q, s)
 	default:
 		return nil
 	}
@@ -341,7 +343,7 @@ func relatedProviderEqual(q browseQuery, s *relatedState, a, b int64) (bool, err
 }
 func relatedHydrate(q browseQuery, s *relatedState) error {
 	if s.hydrate == len(s.ids) {
-		s.phase = 4
+		s.phase = 6
 		return nil
 	}
 	id := s.ids[s.hydrate]
@@ -574,6 +576,95 @@ func relatedSeedAvailability(q browseQuery, s *relatedState) error {
 		s.rootIndex++
 		s.probe = nil
 		s.probeSeen = nil
+	}
+	return nil
+}
+
+// Collection rows retain current year/title/ID order. Only native PK title
+// comparisons are needed to sort; full candidate titles are never hydrated.
+func relatedCollectionOrder(q browseQuery, s *relatedState) error {
+	if s.orders == nil {
+		s.orders = make(map[RelatedKey][]int64)
+	}
+	for s.orderFeature < len(s.features) && s.features[s.orderFeature].key.Kind != 3 {
+		s.orderFeature++
+	}
+	if s.orderFeature == len(s.features) {
+		s.orderCandidates = nil
+		s.phase = 4
+		return nil
+	}
+	key := s.features[s.orderFeature].key
+	if s.orderCandidates == nil {
+		s.orderCandidates = make([]int64, 0)
+		for _, id := range s.ids {
+			c := s.candidates[id]
+			if c.visible && relatedHas(c, s.orderFeature) {
+				s.orderCandidates = append(s.orderCandidates, id)
+			}
+		}
+		if s.orderIDs+len(s.orderCandidates) > 65536 {
+			return ErrRelatedCapacity
+		}
+		s.orderIDs += len(s.orderCandidates)
+		s.orderIndex = 0
+	}
+	if s.orderIndex == len(s.orderCandidates) {
+		s.orderFeature++
+		s.orderCandidates = nil
+		return nil
+	}
+	id := s.orderCandidates[s.orderIndex]
+	order := s.orders[key]
+	if !s.sortActive {
+		s.sortLow = 0
+		s.sortHigh = len(order)
+		s.sortStage = 0
+		s.sortActive = true
+	}
+	if s.sortLow == s.sortHigh {
+		at := s.sortLow
+		order = append(order, 0)
+		copy(order[at+1:], order[at:])
+		order[at] = id
+		s.orders[key] = order
+		s.orderIndex++
+		s.sortActive = false
+		return nil
+	}
+	mid := (s.sortLow + s.sortHigh) / 2
+	other := order[mid]
+	a, b := s.candidates[id].entity, s.candidates[other].entity
+	less := false
+	if a.row[8] != b.row[8] {
+		less = a.row[8].(int64) < b.row[8].(int64)
+	} else {
+		x, y := id, other
+		if s.sortStage == 1 {
+			x, y = y, x
+		}
+		rows, err := relatedRead(q, s, "title.less", y, x)
+		if err != nil {
+			return err
+		}
+		if len(rows) > 1 {
+			return ErrUnqualified
+		}
+		if s.sortStage == 0 && len(rows) == 0 {
+			s.sortStage = 1
+			return nil
+		}
+		if s.sortStage == 0 {
+			less = true
+		} else if len(rows) == 0 {
+			less = id < other
+		}
+	}
+	s.sortStage = 0
+	if less {
+		s.sortHigh = mid
+	} else {
+		s.sortLow = mid + 1
 	}
 	return nil
 }

@@ -82,8 +82,8 @@ func relatedCardQuantum(q browseQuery, s *relatedState, in RelatedInput, similar
 		return ErrStale
 	}
 	title := row[2].(string)
-	// Actual retained text, not column maxima. The four-MiB RB reservation
-	// covers <=one MiB text/copies plus bounded normalized reducer/map state.
+	// Actual retained text, not column maxima. The RB reservation covers
+	// <=one MiB text/copies plus bounded normalized reducer/map state.
 	if s.cardBytes+2*int64(len(title)) > 1<<20 {
 		return ErrRelatedCapacity
 	}

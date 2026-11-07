@@ -75,24 +75,48 @@ func relatedRows(s *relatedState, in RelatedInput, similar bool) ([]RelatedRow, 
 				candidates = append(candidates, c)
 			}
 		}
+		positions := map[int64]int{}
+		if key.Kind == 3 {
+			for n, id := range s.orders[key] {
+				positions[id] = n
+			}
+		}
+		seedYear := s.roots[len(s.roots)-1].row[8].(int64)
 		slices.SortFunc(candidates, func(a, b *relatedCandidate) int {
-			if relatedBefore(a, b) {
+			before := relatedBefore(a, b)
+			if key.Kind == 1 || key.Kind == 2 {
+				before = relatedNearest(a.entity, b.entity, seedYear)
+			}
+			if key.Kind == 3 {
+				before = positions[a.entity.id()] < positions[b.entity.id()]
+			}
+			if a.entity.id() == b.entity.id() {
+				return 0
+			}
+			if before {
 				return -1
 			}
-			if relatedBefore(b, a) {
-				return 1
-			}
-			return 0
+			return 1
 		})
-		row := RelatedRow{Key: key, Total: len(candidates), Exhausted: true}
-		for _, c := range candidates {
-			shared, quality := relatedShared(c), c.entity.row[9].(float64)
-			if in.After != nil {
-				a := in.After
-				if shared > a.shared || shared == a.shared && (quality > a.quality || quality == a.quality && c.entity.id() <= a.id) {
-					continue
+		start := 0
+		if in.After != nil {
+			found := false
+			for n, c := range candidates {
+				if c.entity.id() == in.After.id && relatedShared(c) == in.After.shared && c.entity.row[9] == in.After.quality {
+					start = n + 1
+					found = true
+					break
 				}
 			}
+			if !found {
+				return nil, ErrStale
+			}
+		}
+
+		row := RelatedRow{Key: key, Total: len(candidates), Exhausted: true}
+		for _, c := range candidates[start:] {
+			shared, quality := relatedShared(c), c.entity.row[9].(float64)
+
 			if len(row.Entries) == in.View.Limit {
 				row.Exhausted = false
 				break
@@ -119,4 +143,37 @@ func relatedRows(s *relatedState, in RelatedInput, similar bool) ([]RelatedRow, 
 		}
 	}
 	return out, nil
+}
+
+func relatedNearest(a, b relatedEntity, year int64) bool {
+	x, y := a.row[8].(int64), b.row[8].(int64)
+	if year > 0 {
+		dx, dy := int64(100000), int64(100000)
+		if x > 0 {
+			dx = x - year
+			if dx < 0 {
+				dx = -dx
+			}
+		}
+		if y > 0 {
+			dy = y - year
+			if dy < 0 {
+				dy = -dy
+			}
+		}
+		if dx != dy {
+			return dx < dy
+		}
+		if x != y {
+			return x > y
+		}
+		if x >= year {
+			return a.id() > b.id()
+		}
+		return a.id() < b.id()
+	}
+	if x != y {
+		return x > y
+	}
+	return a.id() < b.id()
 }
