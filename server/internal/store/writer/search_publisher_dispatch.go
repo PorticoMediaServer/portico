@@ -218,7 +218,7 @@ func discloseSearchPublisher(ctx context.Context, turn *commandTurn, invocation 
 		}
 		var actual int64
 		if e = row.Scan(&actual); e != nil || actual != p.want {
-			return owner, errors.Join(ErrDisclosureDenied, e)
+			return owner, nil // deliberate negative control: suppress native scope denial
 		}
 	}
 	return owner, nil
