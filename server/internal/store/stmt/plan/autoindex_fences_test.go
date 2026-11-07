@@ -76,6 +76,7 @@ func autoindexFenceDefinitions() []stmt.Definition {
 
 func TestPlanAutoindexRealJoinedFences(t *testing.T) {
 	type snapshot struct {
+		Environment   *plan.Environment    `json:"environment,omitempty"`
 		Fixture       plan.Fixture         `json:"fixture"`
 		Connection    sqliteconn.Settings  `json:"connection"`
 		SchemaSHA     string               `json:"schemaSha256"`
@@ -214,7 +215,7 @@ func TestPlanAutoindexRealJoinedFences(t *testing.T) {
 				}
 			}
 		}
-		snapshots = append(snapshots, snapshot{f, golden.Environment.Connection, golden.Environment.SchemaSHA256, golden.Environment.IndexPolicySHA256, golden.Environment.StatisticsSHA256, golden.Manifest, golden.Plans})
+		snapshots = append(snapshots, snapshot{&golden.Environment, f, golden.Environment.Connection, golden.Environment.SchemaSHA256, golden.Environment.IndexPolicySHA256, golden.Environment.StatisticsSHA256, golden.Manifest, golden.Plans})
 		t.Logf("%s: 2 real joined fences/4 cohorts; actual fixed Reader %+v", f.Statistics, golden.Environment.Connection)
 	}
 	data, err := json.MarshalIndent(snapshots, "", "  ")

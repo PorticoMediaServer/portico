@@ -111,7 +111,7 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 		t.Fatal("exact full-set Capture receipt refused", err)
 	}
-	if len(golden.Manifest) != 12 || len(golden.Plans) != 19 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 686 {
+	if len(golden.Manifest) != 12 || len(golden.Plans) != 19 || golden.ForeignKeys == nil || plan.CheckSchemaForeignKeys(golden.ForeignKeys) != nil {
 		t.Fatal("incomplete lifecycle Capture")
 	}
 	audits, opcodes, searches := 0, 0, 0
@@ -181,5 +181,5 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("12definitions/19cohorts/6INSERTaudits/%dVM/%dSEARCH/686FK2058probes; same frozen pre-effect seed, no production profile/authority/enable", opcodes, searches)
+	t.Logf("12definitions/19cohorts/6INSERTaudits/%dVM/%dSEARCH/shared-schema FK audit; same frozen pre-effect seed, no production profile/authority/enable", opcodes, searches)
 }

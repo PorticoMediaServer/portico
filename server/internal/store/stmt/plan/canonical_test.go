@@ -38,8 +38,8 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fk.Plans) != 686 {
-		t.Fatalf("FK coverage: %d, want 686; review schema change and full enforcement audit", len(fk.Plans))
+	if err := plan.CheckSchemaForeignKeys(&fk); err != nil {
+		t.Fatal(err)
 	}
 	checkFKGolden(t, fk)
 	registry := canonicalRegistry(t, policy)

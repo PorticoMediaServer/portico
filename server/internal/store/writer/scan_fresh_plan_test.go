@@ -136,7 +136,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(golden.Plans) != 44 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 686 {
+	if len(golden.Plans) != 44 || golden.ForeignKeys == nil || plan.CheckSchemaForeignKeys(golden.ForeignKeys) != nil {
 		t.Fatalf("incomplete scan evidence: cohorts=%d FK=%v", len(golden.Plans), golden.ForeignKeys != nil)
 	}
 	if len(golden.Manifest) != 24 {
@@ -226,7 +226,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("24new compiled definitions/44cohorts/3destination audits/%dVM opcodes/%dSEARCH rows/686FKs/2058probes; fixture journal%s; no accepting SQL executed or full43-ID command qualified", opcodes, searches, fixtureSHA)
+	t.Logf("24new compiled definitions/44cohorts/3destination audits/%dVM opcodes/%dSEARCH rows/shared-schema FK audit; fixture journal%s; no accepting SQL executed or full43-ID command qualified", opcodes, searches, fixtureSHA)
 }
 
 func readScanFreshFK(t *testing.T, path string) []byte {
