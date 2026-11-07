@@ -1,0 +1,31 @@
+{
+  "Producer": "accepted configfile.Loader.Reload + Resolve; default=false; no env binding",
+  "Blob": "8e09a3caefff32fc93db4753e884575c6cea18e2",
+  "Key": "people.community_activity",
+  "Rows": [
+    {
+      "Input": "[people]\ncommunity_activity = true\n",
+      "Value": true,
+      "Source": "file",
+      "Locked": false
+    },
+    {
+      "Input": "[people]\ncommunity_activity = false\n",
+      "Value": false,
+      "Source": "file",
+      "Locked": false
+    },
+    {
+      "Input": "people.community_activity = true\n",
+      "Value": true,
+      "Source": "file",
+      "Locked": false
+    },
+    {
+      "Input": "",
+      "Value": false,
+      "Source": "default",
+      "Locked": false
+    }
+  ]
+}
