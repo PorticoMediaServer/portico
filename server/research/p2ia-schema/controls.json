@@ -658,6 +658,17 @@
     ]
   },
   {
+    "name": "configuration fixed slot has independent native byte debt",
+    "query": "SELECT receipt_retained_bytes,reclaim_slot_bytes,receipt_retained_bytes+reclaim_slot_bytes FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        407,
+        243,
+        650
+      ]
+    ]
+  },
+  {
     "name": "configuration replay did not delete the following source",
     "query": "SELECT ordinal,source_id,retained_bytes FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library'",
     "want": [
@@ -732,7 +743,7 @@
   },
   {
     "name": "configuration terminal slot survives history removal",
-    "query": "SELECT last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_reclaim_ordinal,receipt_retained_count,receipt_retained_bytes,reclaim_removed_kind,reclaim_result_no_next,reclaim_result_count,reclaim_slot_bytes>0 FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "query": "SELECT last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_reclaim_ordinal,receipt_retained_count,receipt_retained_bytes,reclaim_removed_kind,reclaim_result_no_next,reclaim_result_count,reclaim_slot_bytes FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
     "want": [
       [
         4,
@@ -744,7 +755,7 @@
         "header",
         1,
         1,
-        1
+        235
       ]
     ]
   },
@@ -797,7 +808,7 @@
   },
   {
     "name": "retirement cleaned history preserves original scope and real lease",
-    "query": "SELECT original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes,reclaim_removed_sequence,reclaim_result_no_next,reclaim_slot_bytes>0 FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "query": "SELECT original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes,reclaim_removed_sequence,reclaim_result_no_next,reclaim_slot_bytes FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
     "want": [
       [
         "/old-source",
@@ -814,7 +825,7 @@
         0,
         2,
         1,
-        1
+        216
       ]
     ]
   },
