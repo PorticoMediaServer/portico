@@ -51,21 +51,22 @@ type effectivePlan struct {
 // private composition must own pool/native idle memory and WAL sampling outside
 // command custody. No production profile is inferred from these descriptors.
 type effectiveRuntime struct {
-	mu             sync.Mutex
-	executor       *executor
-	governor       governor.Governor
-	authority      *governor.Authority
-	wal            *governor.WALGate
-	path           string
-	owner          governor.OwnerID
-	plan           effectivePlan
-	inventoryPlan  *effectivePlan
-	wcProgressPlan *effectivePlan
-	lifecyclePlans [2]*effectivePlan // private, explicitly composed create/claim history profiles
-	issuerPlans    [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
-	registry       *stmt.Registry
-	fenced         bool
-	cleanupPanics  []terminalPanic
+	mu                  sync.Mutex
+	executor            *executor
+	governor            governor.Governor
+	authority           *governor.Authority
+	wal                 *governor.WALGate
+	path                string
+	owner               governor.OwnerID
+	plan                effectivePlan
+	inventoryPlan       *effectivePlan
+	wcProgressPlan      *effectivePlan
+	wcProgressBirthPlan *effectivePlan
+	lifecyclePlans      [2]*effectivePlan // private, explicitly composed create/claim history profiles
+	issuerPlans         [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
+	registry            *stmt.Registry
+	fenced              bool
+	cleanupPanics       []terminalPanic
 
 	clockHighWater time.Time // composition custody under mu, then transferred into the frame
 }
@@ -267,6 +268,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	defer r.mu.Unlock()
 	if wc != nil {
 		plan = r.wcProgressPlan
+		if wc.birth != nil {
+			plan = r.wcProgressBirthPlan
+		}
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
@@ -568,6 +572,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	if wc != nil && !ack && !historical && wc.input != nil && physical.state == committed {
 		out.progress.Outcome.State = Applied
+		recordWCProgressCompletion(wc, out.progress)
 	}
 	if ack && physical.state != committed {
 		acknowledged.AcknowledgedThrough = 0
@@ -582,6 +587,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	if r.executor.fenced || r.executor.ambiguous {
 		r.fenced = true
+	}
+	if wc != nil && wc.snapshot {
+		out.progress.Snapshot.Evidence = evidence
 	}
 	if ack {
 		acknowledged.Evidence = evidence

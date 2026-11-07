@@ -26,10 +26,17 @@ func wcProgressMemoryBytes(v *wcProgressInvocation) uint64 {
 	}
 	return n
 }
+
+type wcProgressCompletion struct {
+	out        ProgressResult
+	ack        AckResult
+	historical bool
+}
+
 func executeWCProgressInvocation(ctx context.Context, t *commandTurn, v *wcProgressInvocation, ack bool) (out ProgressResult, acknowledged AckResult, historical bool, err error) {
 	defer func() {
-		x, e := finishCommand(ctx, commandLifetime(t), commandCompletion{output: commandOutput{progress: out}, ack: acknowledged}, err)
-		out, acknowledged, err = x.output.progress, x.ack, e
+		x, e := finishCommand(ctx, commandLifetime(t), wcProgressCompletion{out: out, ack: acknowledged, historical: historical}, err)
+		out, acknowledged, historical, err = x.out, x.ack, x.historical, e
 	}()
 	if err = t.requireCommandMemory(ctx, ProgressAccept, wcProgressMemoryBytes(v), "wc_progress_memory"); err != nil {
 		return
@@ -42,8 +49,11 @@ func executeWCProgressInvocation(ctx context.Context, t *commandTurn, v *wcProgr
 		return out, acknowledged, false, err
 	}
 	if v.snapshot {
-		if ack || v.input != nil || v.retained != nil {
+		if ack || v.input != nil {
 			return out, acknowledged, false, ErrInvalid
+		}
+		if v.retained != nil && !wcPendingMatches(v.retained, s) {
+			return out, acknowledged, false, ErrConflict
 		}
 		out.Snapshot, err = readWCProgressSnapshot(ctx, t, v.disclosure.driver.scope, s)
 		return out, acknowledged, true, err
@@ -99,6 +109,17 @@ func executeWCProgressInvocation(ctx context.Context, t *commandTurn, v *wcProgr
 	if q.Kind == "capture_report" {
 		if v.retained != nil || s.Pending {
 			return out, acknowledged, false, ErrConflict
+		}
+		n, e := wc008DraftInteger(ctx, t, wcProgressSnapshotOctets, p.profileKey, p.subjectID)
+		if e != nil || n < 0 {
+			return out, acknowledged, false, errors.Join(ErrResolveRequired, e)
+		}
+		base := wcProgressMemoryBytes(v)
+		if uint64(n) > (^uint64(0)-base)/32 {
+			return out, acknowledged, false, ErrCap
+		}
+		if e = t.requireCommandMemory(ctx, ProgressAccept, base+uint64(n)*32, "wc_progress_memory"); e != nil {
+			return out, acknowledged, false, e
 		}
 		snapshot, e := wcRestoreSnapshot(q.Original)
 		if e != nil {
