@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -719,4 +720,72 @@ func TestLiveUncertainOutputRetirementKeepsLIVECharged(t *testing.T) {
 		t.Fatal(e)
 	}
 	assertLiveUsage(t, f, 0, 0)
+}
+
+// A per-read child cancellation must wake entry validation even while its
+// consumer/LIVE context remains valid and another validator holds the ledger.
+func TestLiveReadOwnCancellationInterruptsEntryValidation(t *testing.T) {
+	type contention struct {
+		calls         atomic.Int32
+		held, release chan struct{}
+	}
+	var active atomic.Pointer[contention]
+	f, _ := newLiveFixture(t, func() time.Time {
+		if c := active.Load(); c != nil && c.calls.Add(1) == 1 {
+			close(c.held) // Check calls Now while holding the ledger.
+			<-c.release
+		}
+		return time.Now()
+	})
+	synctest.Test(t, func(t *testing.T) {
+		q, request, output := liveRequests("read-child-cancel")
+		_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+			c := &contention{held: make(chan struct{}), release: make(chan struct{})}
+			active.Store(c)
+			holder := make(chan error, 1)
+			go func() { holder <- f.authority.Check(out.Grant, out.Request) }()
+			<-c.held
+			defer func() {
+				close(c.release)
+				if e := <-holder; e != nil {
+					t.Error(e)
+				}
+				active.Store(nil)
+			}()
+			readCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				_, _, e := liveRead(readCtx, request, time.Second, out, f.snapshots, time.Now(), func(context.Context, governor.Request, time.Duration, time.Time) (int, BrowseReadResult, error) {
+					t.Error("cancelled entry reached read work")
+					return 1, BrowseReadResult{}, nil
+				})
+				done <- e
+			}()
+			synctest.Wait()
+			select {
+			case e := <-done:
+				t.Fatal("entry did not wait for ledger", e)
+			default:
+			}
+			cancel()
+			synctest.Wait()
+			select {
+			case e := <-done:
+				if !errors.Is(e, context.Canceled) {
+					t.Fatal(e)
+				}
+			default:
+				t.Fatal("read cancellation waited for ledger handoff")
+			}
+			if ctx.Err() != nil || out.live.used {
+				t.Fatal("child cancellation consumed the operation or cancelled its owner")
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertLiveUsage(t, f, 0, 0)
+	})
 }
