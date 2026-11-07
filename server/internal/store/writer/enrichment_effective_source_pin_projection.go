@@ -2,7 +2,7 @@ package writer
 
 // These decoders consume only the three CLOSED native copy projections after
 // parent admission. They do not execute copies, mint proofs or decide authority.
-// All values AND their same-SELECT typeof/octet echoes must match preflight.
+// Actual Go types, NULLs, lengths and scalars must match same-snapshot preflight.
 // Copy execution is held as an exact private patch until the parent supplies
 // its real byte coverage boundary; no ungated copy method exists in this draft.
 
@@ -89,22 +89,12 @@ func effectiveReceiptPinFixedShape(p effectivePinProjection, ref effectiveSource
 	return nil
 }
 
-func effectivePinCopyMatches(p effectivePinProjection, layout string, values, echo []any) error {
+func effectivePinCopyMatches(p effectivePinProjection, layout string, values []any) error {
 	if len(values) != len(layout) {
 		return effectivePinMalformed()
 	}
-	echoed, err := decodeEffectivePinLengths(echo, layout)
-	if err != nil {
-		return err
-	}
-	if p.octets != echoed.octets {
-		return effectivePinMalformed()
-	}
 	for i := range layout {
-		expected, actual := p.cells[i], echoed.cells[i]
-		if expected.kind != actual.kind || expected.octets != actual.octets {
-			return effectivePinMalformed()
-		}
+		expected := p.cells[i]
 		switch expected.kind {
 		case 0:
 			if values[i] != nil {
@@ -132,8 +122,8 @@ func effectivePinCopyMatches(p effectivePinProjection, layout string, values, ec
 	return nil
 }
 
-func decodeEffectiveSourceEvidencePin(pre effectiveEvidencePinLengths, values, echo []any) (effectiveEvidenceBodyPin, error) {
-	if err := effectivePinCopyMatches(pre.projection, effectiveEvidencePinLayout, values, echo); err != nil {
+func decodeEffectiveSourceEvidencePin(pre effectiveEvidencePinLengths, values []any) (effectiveEvidenceBodyPin, error) {
+	if err := effectivePinCopyMatches(pre.projection, effectiveEvidencePinLayout, values); err != nil {
 		return effectiveEvidenceBodyPin{}, err
 	}
 	if values[0].(string) != pre.evidence || values[1].(int64) <= 0 || values[4].(int64) != 1 || values[5].(string) == "" || len(values[6].([]byte)) != 16 || values[7].(int64) <= 0 || values[8].(string) != "evidence_seal" {
@@ -145,8 +135,8 @@ func decodeEffectiveSourceEvidencePin(pre effectiveEvidencePinLengths, values, e
 	return out, nil
 }
 
-func decodeEffectiveSourcePublicationPin(pre effectivePublicationPinLengths, values, echo []any) (effectivePublicationBodyPin, error) {
-	if err := effectivePinCopyMatches(pre.projection, effectivePublicationPinLayout, values, echo); err != nil {
+func decodeEffectiveSourcePublicationPin(pre effectivePublicationPinLengths, values []any) (effectivePublicationBodyPin, error) {
+	if err := effectivePinCopyMatches(pre.projection, effectivePublicationPinLayout, values); err != nil {
 		return effectivePublicationBodyPin{}, err
 	}
 	if values[0].(string) != pre.publication || values[1].(int64) <= 0 || values[3].(int64) < 0 || values[3].(int64) > MaxCastCredits+MaxCrewCredits || values[4].(int64) != 1 || values[5].(string) == "" || len(values[6].([]byte)) != 16 || values[7].(int64) <= 0 || values[8].(string) != "credit_source_seal" {
@@ -158,14 +148,14 @@ func decodeEffectiveSourcePublicationPin(pre effectivePublicationPinLengths, val
 	return out, nil
 }
 
-func decodeEffectiveSourcePinnedReceipt(pre effectiveReceiptPinLengths, values, echo []any) (effectivePinnedSealReceipt, error) {
+func decodeEffectiveSourcePinnedReceipt(pre effectiveReceiptPinLengths, values []any) (effectivePinnedSealReceipt, error) {
 	if err := effectiveReceiptPinShape(pre.projection, pre.ref.kind); err != nil {
 		return effectivePinnedSealReceipt{}, err
 	}
 	if err := effectiveReceiptPinFixedShape(pre.projection, pre.ref); err != nil {
 		return effectivePinnedSealReceipt{}, err
 	}
-	if err := effectivePinCopyMatches(pre.projection, effectiveReceiptPinLayout, values, echo); err != nil {
+	if err := effectivePinCopyMatches(pre.projection, effectiveReceiptPinLayout, values); err != nil {
 		return effectivePinnedSealReceipt{}, err
 	}
 	// No reconstruction, alternate result hash or digest implementation here.
