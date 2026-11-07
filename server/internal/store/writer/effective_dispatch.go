@@ -176,7 +176,7 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 		v, err := finishCommand(ctx, ctx, commandCompletion{output: commandOutput{effective: released}, ack: releasedAck}, releaseErr)
 		released, releasedAck, releaseErr = v.output.effective, v.ack, err
 	}()
-	out, acknowledged, err := r.runCommand(ctx, w, cap, request, input, ack, nil, nil)
+	out, acknowledged, err := r.dispatchCommand(ctx, w, cap, request, input, ack, nil, nil)
 	return out.effective, acknowledged, err
 }
 
@@ -197,7 +197,16 @@ type commandOutput struct {
 	reclaim   ReclaimResult
 }
 
-func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, invocation wcCommandInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
+// Keep W's original call contract while all typed domains use one dispatcher.
+func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
+	defer func() {
+		result, finalErr := finishCommand(ctx, ctx, commandCompletion{out, acknowledged}, err)
+		out, acknowledged, err = result.output, result.ack, finalErr
+	}()
+	return r.dispatchCommand(ctx, w, cap, request, input, ack, scan, nil, publishers...)
+}
+
+func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, invocation wcCommandInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
 	var wc *wcProgressInvocation
 	var security *wcSecurityInvocation
 	var reclaim *wcReclaimInvocation

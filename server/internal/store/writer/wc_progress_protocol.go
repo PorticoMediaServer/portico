@@ -557,7 +557,7 @@ func (d *WCProgressDriver) acknowledgeRetainedWork(ctx context.Context, c *wcPro
 	if p == nil {
 		return out, snapshot, ErrDisclosureDenied
 	}
-	r, out, err := d.writer.effective.runCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, true, nil, &wcProgressInvocation{disclosure: d.retainedDisclosure(), request: c.reference, input: c, retained: p, retainedAck: true})
+	r, out, err := d.writer.effective.dispatchCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, true, nil, &wcProgressInvocation{disclosure: d.retainedDisclosure(), request: c.reference, input: c, retained: p, retainedAck: true})
 	if err == nil && out.AcknowledgedThrough >= c.reference.Receipt.Identity.Sequence {
 		snapshot = r.progress.Snapshot
 		d.retireProgressWork(c)
@@ -621,7 +621,7 @@ func (w *Writer) AckProgress(ctx context.Context, cap *ProgressDisclosure, q Pro
 	if err = checkWCProgressDisclosure(w, &wcProgressInvocation{disclosure: cap, request: q}); err != nil {
 		return out, err
 	}
-	_, out, err = w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, nil, &wcProgressInvocation{disclosure: cap, request: q})
+	_, out, err = w.effective.dispatchCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, nil, &wcProgressInvocation{disclosure: cap, request: q})
 	if err == nil && d.work != nil && d.work.reference == q && out.AcknowledgedThrough >= q.Receipt.Identity.Sequence {
 		d.retireProgressWork(d.work)
 	}
@@ -632,7 +632,7 @@ func (w *Writer) runWCProgress(ctx context.Context, v *wcProgressInvocation, ack
 	if w == nil || w.effective == nil {
 		return out, ErrNotImplemented
 	}
-	result, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack, nil, v)
+	result, _, err := w.effective.dispatchCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack, nil, v)
 	return result.progress, err
 }
 

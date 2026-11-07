@@ -344,6 +344,6 @@ func (w *Writer) runWCSecurity(ctx context.Context, v *wcSecurityInvocation, ack
 	if w == nil || w.effective == nil {
 		return out, floor, ErrNotImplemented
 	}
-	r, floor, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack, nil, v)
+	r, floor, err := w.effective.dispatchCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack, nil, v)
 	return r.security, floor, err
 }
