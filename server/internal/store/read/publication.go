@@ -144,8 +144,8 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 		len(in.Database) == 0 || len(in.Database) > 256 || len(in.TokenHash) == 0 || len(in.TokenHash) > 256 || in.Library <= 0 || in.Kind <= 0 || in.Kind > 99 || in.Limit < 1 || in.Limit > MaxPage || in.Now.IsZero() {
 		return zero, result, ErrInput
 	}
-	if in.Kind > 10 {
-		return zero, result, ErrUnqualified
+	if _, e := resolveReadPolicy(in); e != nil {
+		return zero, result, e
 	}
 	if err := ctx.Err(); err != nil {
 		return zero, result, err
@@ -190,7 +190,6 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 		}
 		window, err = snapshots.Read(lookupContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
 			query := func(name string, args ...any) ([][]any, error) {
-				result.LookupStatements++
 				if output.live != nil {
 					if e := output.live.ctx.Err(); e != nil {
 						return nil, e
@@ -199,7 +198,8 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 						return nil, e
 					}
 				}
-				rows, e := scope.Query(readStatementID(name), args...)
+				rows, count, e := queryReadScope(scope, name, args...)
+				result.LookupStatements += count
 				if e != nil {
 					return nil, e
 				}
@@ -276,13 +276,14 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 
 	result.Publication, err = snapshots.Read(validationContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
 		query := func(name string, args ...any) ([][]any, error) {
-			result.PublicationStatements++
 			if output.live != nil {
 				if e := output.live.check(); e != nil {
 					return nil, e
 				}
 			}
-			return scope.Query(readStatementID(name), args...)
+			rows, count, e := queryReadScope(scope, name, args...)
+			result.PublicationStatements += count
+			return rows, e
 		}
 		current, e := readBrowseFence(query, currentInput)
 		if e != nil {
