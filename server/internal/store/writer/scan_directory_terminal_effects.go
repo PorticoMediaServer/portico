@@ -218,7 +218,7 @@ func applyScanDirectoryTerminal(ctx context.Context, t *commandTurn, c *scanDire
 		var path, reason, kind string
 		var protect, warning int64
 		var operation []byte
-		err = directoryPoint(ctx, t, scanTerminalIssueInsert, []any{o.RunID, display, c.identity.OperationID[:]}, &path, &reason, &protect, &warning, &kind, &operation)
+		err = directoryPoint(ctx, t, scanTerminalIssueInsert, []any{o.RunID, display, "filename_unrepresentable", int64(0), int64(1), int64(1), "directory", c.identity.OperationID[:]}, &path, &reason, &protect, &warning, &kind, &operation)
 		if err != nil || path != display || reason != "filename_unrepresentable" || protect != 1 || warning != 1 || kind != "directory" || !bytes.Equal(operation, c.identity.OperationID[:]) {
 			return out, digest, errors.Join(ErrConflict, err)
 		}
