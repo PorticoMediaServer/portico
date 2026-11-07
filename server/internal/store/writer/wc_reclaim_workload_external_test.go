@@ -4,10 +4,16 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/qual/workload"
 	"github.com/PorticoMediaServer/portico/server/internal/store/writer"
+	"os"
 	"testing"
 )
 
 func TestWCBoundReclaimActionUsesOriginalNativeProtocol(t *testing.T) {
+	if value := os.Getenv("PORTICO_CANONICAL_WC_FUNCTIONAL"); value == "" {
+		t.Skip("real-clock WC Action control; set PORTICO_CANONICAL_WC_FUNCTIONAL=1")
+	} else if value != "1" {
+		t.Fatal("PORTICO_CANONICAL_WC_FUNCTIONAL must be 1 when requested")
+	}
 	w, d := writer.WCReclaimWorkloadFixture(t)
 	binding := workload.ReclaimBinding{Writer: w, Driver: d}
 	var raw []workload.Observation

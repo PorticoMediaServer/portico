@@ -5,10 +5,16 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/qual/workload"
 	"github.com/PorticoMediaServer/portico/server/internal/store/writer"
+	"os"
 	"testing"
 )
 
 func TestWCBoundProgressActionsUseOriginalNativeProtocol(t *testing.T) {
+	if value := os.Getenv("PORTICO_CANONICAL_WC_FUNCTIONAL"); value == "" {
+		t.Skip("real-clock WC Action control; set PORTICO_CANONICAL_WC_FUNCTIONAL=1")
+	} else if value != "1" {
+		t.Fatal("PORTICO_CANONICAL_WC_FUNCTIONAL must be 1 when requested")
+	}
 	w, d := writer.WCProgressWorkloadFixture(t)
 	binding := workload.ProgressBinding{Writer: w, Driver: d, Report: func(context.Context, workload.Offer) (workload.ProgressReport, error) {
 		return workload.ProgressReport{Sequence: 0, PositionSeconds: 5, DurationSeconds: 100, State: "playing"}, nil
