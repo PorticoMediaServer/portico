@@ -94,6 +94,9 @@ func (p *RSAuthorBookPreparation) close() error {
 	}
 	p.closed = true
 	p.entries = nil
+	p.key = ""
+	p.candidateEntry = rsAuthorBookEntry{}
+	p.fence = browseFence{}
 	p.cards = nil
 	p.selected = nil
 	p.input = RSAuthorBookInput{}
@@ -474,7 +477,7 @@ func (r *RSAuthorBookReader) Publish(ctx context.Context, req governor.Request, 
 		if e = p.charge(int64(len(bytes))); e != nil {
 			return struct{}{}, cost, e
 		}
-		if e = r.fence(ctx, q, out, p, at, &cost); e != nil {
+		if e = r.fence(ctx, q, out, p, p.input.View.Now.Add(time.Since(p.started)), &cost); e != nil {
 			return struct{}{}, cost, e
 		}
 		if e = r.authority.HandoffPreparation(p.lease); e != nil {

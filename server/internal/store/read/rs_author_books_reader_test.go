@@ -81,8 +81,26 @@ func TestRSAuthorBookReaderLIVEAndMembership(t *testing.T) {
 			t.Fatal(i, e)
 		}
 		if page.Complete {
-			if page.Total != 3 || len(page.Cards) != 2 || page.Cards[0].Facts.Book == nil {
-				t.Fatal(page)
+			rows, err := f.conn.QueryContext(t.Context(), `SELECT b.id FROM catalog_entities b WHERE b.library_id=1 AND b.kind=8 AND b.retired=0 AND lower(trim(b.author))=(SELECT lower(trim(title)) FROM catalog_entities WHERE id=13001) AND EXISTS(SELECT 1 FROM catalog_entities f WHERE f.book_id=b.id AND f.library_id=b.library_id AND f.kind=9 AND f.retired=0) ORDER BY CASE WHEN CAST(b.series_position AS REAL)>0 THEN CAST(b.series_position AS REAL) ELSE 999999 END,b.title,b.id`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ids []int64
+			for rows.Next() {
+				var id int64
+				if err = rows.Scan(&id); err != nil {
+					t.Fatal(err)
+				}
+				ids = append(ids, id)
+			}
+			rows.Close()
+			if page.Total != len(ids) || len(page.Cards) != min(2, len(ids)) {
+				t.Fatal(page, ids)
+			}
+			for j, c := range page.Cards {
+				if c.Facts.Item.ID != ids[j] || c.Personal == nil {
+					t.Fatal(c, ids)
+				}
 			}
 			return
 		}
@@ -231,4 +249,37 @@ func TestRSAuthorBookReaderAbsoluteExpiry(t *testing.T) {
 	if e == nil || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
 		t.Fatal("expired original lease", page, e)
 	}
+}
+
+func TestRSAuthorBookReaderPostEncodingFence(t *testing.T) {
+	f, r := authorBookFixture(t)
+	v := f.input
+	v.Kind = 13
+	p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSAuthorBookInput{View: v, Author: 13001, Limit: 2})
+	if e != nil || ref != nil {
+		t.Fatal(e, ref)
+	}
+	defer p.Close()
+	encoded, delivered := false, false
+	for i := 0; i < 200; i++ {
+		fg, req, out := liveRequests("author-encode")
+		_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, fg, out, func(ctx context.Context, o BrowseOutput) error {
+			_, err := r.Publish(ctx, req, time.Second, o, p, func(page RSAuthorBookPage) ([]byte, error) {
+				encoded = true
+				f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
+				return []byte("encoded"), nil
+			}, func([]byte) error { delivered = true; return nil })
+			return err
+		})
+		if encoded {
+			if e == nil || delivered || !p.closed {
+				t.Fatal("encoded revoked page delivered", e, delivered)
+			}
+			return
+		}
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	t.Fatal("no ready page")
 }
