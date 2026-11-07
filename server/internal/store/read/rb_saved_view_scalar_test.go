@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -16,7 +17,8 @@ import (
 
 // Actual Reader/source qualification only. Stored-resource octet registration
 // and first/final publication remain closed; these values mint no principal.
-func TestRBSavedViewScalar(t *testing.T) {
+func TestRBSavedViewScalar(t *testing.T) { synctest.Test(t, testRBSavedViewScalar) }
+func testRBSavedViewScalar(t *testing.T) {
 	f := newBrowseSource(t)
 	f.exec(t, `UPDATE catalog_entities SET retired=0,year=0,admission_own_age=10`)
 	f.exec(t, `UPDATE catalog_entities SET year=2020 WHERE id IN(100,1100)`)

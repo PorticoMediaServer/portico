@@ -118,3 +118,14 @@ Remaining semantics are explicit, rather than successful approximations:
 large-set exact preparation, broader pivots/sorts/facets, authenticated wire
 cursor integration and product route/DTO composition remain with parent. No
 provider calls, production wiring, saved-resource writes or DDL are introduced.
+
+## Parent fresh-main integration
+
+The directory principal purpose now registers an opt-in, private stateful
+principal-scope recipe through RS's merged sealed registry (ID32500). It calls
+the shared first/final principal checks without duplicating them. The marker
+selects only this resource-read purpose and proves no resource by itself; actual
+owner/share/current stored payload and complete frame checks remain mandatory.
+Execution separately uses the actual stored library's default catalogue recipe.
+Functional tests use virtual time within each leaf subtest. Scalar dependency
+files are byte-identical to RB's LC port; no shared fence/registry hunk changes.
