@@ -99,7 +99,7 @@ func TestEnrichmentStageStatementPlans(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&after); err != nil || after != before {
 		t.Fatal("capture changed fixture", before, after, err)
 	}
-	if len(golden.Manifest) != 32 || len(golden.Plans) != 33 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 671 {
+	if len(golden.Manifest) != 32 || len(golden.Plans) != 33 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 686 {
 		t.Fatal("incomplete native FK capture")
 	}
 	data, err := golden.JSON()

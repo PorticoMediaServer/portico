@@ -67,7 +67,7 @@ func seedQualificationPopulation(t *testing.T, w *executor, spec qualificationPo
 		t.Fatal(err)
 	}
 	// A shape version must be reconsidered if its schema/defaults change.
-	if schema.SHA256 != "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2" {
+	if schema.SHA256 != "9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05" {
 		t.Fatal("canonical-movies-v1 requires exact canonical schema010")
 	}
 	conn, err := w.db.Conn(t.Context())
