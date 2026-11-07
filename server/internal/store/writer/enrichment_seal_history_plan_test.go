@@ -64,7 +64,7 @@ func TestSealHistoryStatementPlans(t *testing.T) {
 	if err = conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&after); err != nil || before != after {
 		t.Fatal("capture changed component population", before, after, err)
 	}
-	if len(golden.Manifest) != 9 || len(golden.Plans) != 9 {
+	if len(golden.Manifest) != 9 || len(golden.Plans) != 12 {
 		t.Fatal("incomplete closed history capture", len(golden.Manifest), len(golden.Plans))
 	}
 	data, err := golden.JSON()
