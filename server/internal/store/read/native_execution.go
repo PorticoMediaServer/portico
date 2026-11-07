@@ -435,12 +435,9 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	if !time.Now().Before(deadline) {
 		return FullSearchPage{}, cost, context.DeadlineExceeded
 	}
-	policies := make([]nativePolicyWitness, 0, len(draft.Hits))
-	for _, hit := range draft.Hits {
-		if !slices.Contains(policies, hit.permission) {
-			policies = append(policies, hit.permission)
-		}
-	}
+	// The issued stamp represents new AND retained hits joined by this read.
+	// A later poll must recheck the complete issued set unless RetainHits narrows it.
+	policies := nativeCloneExact(checked)
 	issued := make([]nativeStampedHit, 0, len(retainedHits)+len(draft.Hits))
 	issued = append(issued, retainedHits...)
 	for _, hit := range draft.Hits {
