@@ -267,6 +267,11 @@ func Check(d stmt.Definition, _ Rows) error {
 // Only Capture may invoke this after live source, policy and DML inspection.
 // CheckEQP and the lexical lint are component checks, not qualification receipts.
 func checkCaptured(d stmt.Definition, eqp Rows, autoIndexes ...AutoIndexAudit) error {
+	if directoryTerminalOctetDefinition(d) {
+		if err := checkDirectoryTerminalOctetPoint(eqp); err != nil {
+			return err
+		}
+	}
 	if directoryOctetDefinition(d) {
 		if err := checkDirectoryOctetPoint(d, eqp); err != nil {
 			return err
@@ -318,6 +323,9 @@ func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error
 	if err := checkSyntaxIssues(d, lintSQLOn(ctx, conn, d.SQL, closedIssuerOctetDefinition(d))); err != nil {
 		return err
 	}
+	if directoryTerminalOctetDefinition(d) {
+		return auditDirectoryTerminalOctetPoint(ctx, conn)
+	}
 	if directoryOctetDefinition(d) {
 		return auditDirectoryOctetPoint(ctx, conn, d)
 	}
@@ -337,6 +345,9 @@ func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error
 }
 
 func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
+	if d.ID == directoryTerminalOctetID && !directoryTerminalOctetDefinition(d) {
+		return fmt.Errorf("plan %s: terminal receipt byte preflight requires its exact closed point definition", d.ID)
+	}
 	if _, found := directoryOctetPointFor(d.ID); found && !directoryOctetDefinition(d) {
 		return fmt.Errorf("plan %s: directory byte preflight requires its exact closed point definition", d.ID)
 	}
