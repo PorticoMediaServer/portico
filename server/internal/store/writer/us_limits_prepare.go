@@ -1,10 +1,8 @@
 package writer
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/securitypolicy"
-	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -37,25 +35,7 @@ type usLimitsTags struct {
 	DeniedLabels []string `json:"deniedLabels"`
 }
 
-// Limits is one member's access envelope.
-//
-// Where each limit is enforced:
-//
-//	MaxStreams           — Enforcer.AdmitPlayback, called before a playback lease
-//	                       is created; counts live playback_sessions rows plus
-//	                       live playback_v1_sessions rows (a v1 session's legacy
-//	                       presentation row is excluded, so one stream counts once).
-//	RemoteBitrateKbps    — Enforcer.AdmitPlayback returns it as a clamp, and the
-//	                       delivery policy applies it as MaxVideoBitrateBPS for a
-//	                       remote transport class.
-//	MaxContentRating     — folded into the viewer's content restrictions
-//	                       (Limits.Narrow) and applied by the one catalogue
-//	                       predicate, for lists, detail and playback alike.
-//	usLimitsTags            — the same.
-//	Schedule             — Enforcer.AdmitSession, Enforcer.AdmitPlayback and
-//	                       Enforcer.AdmitChannel.
-//	usLimitsChannels        — Enforcer.AdmitChannel, called by the v1 channel
-//	                       start path with canonical v1 ids only.
+// Complete prepared access envelope; source semantics are in access/limits.go.
 type usLimits struct {
 	AccessTokens bool   `json:"accessTokens"`
 	MaxProfiles  int    `json:"maxProfiles"`
@@ -237,7 +217,7 @@ func cloneUSLimitsInt(v *int) *int {
 
 // All normalization, including timezone database access, precedes writer hold.
 func prepareUSLimits(identity CommandIdentity, owner string, issuer usPolicyIssuer, target usLimitsTarget, input usLimits) (*usLimitsCommand, error) {
-	if !validUSSecurityIdentity(identity, owner, issuer) || !validUSMemberTarget(target.member) || target.member.expectedRevision >= usMaxRevision || target.limitsRevision < 1 || target.limitsRevision >= usMaxRevision {
+	if !validUSSecurityIdentity(identity, owner, issuer) || !validUSMemberTarget(target.member) || target.member.expectedRevision >= usMaxRevision || target.limitsRevision < 1 || target.limitsRevision >= usMaxRevision || !target.limitsPresent && target.limitsRevision != 1 {
 		return nil, invalid("us_limits_scope")
 	}
 	if target.role != "owner" && target.role != "admin" && target.role != "member" {
@@ -275,65 +255,65 @@ func prepareUSLimits(identity CommandIdentity, owner string, issuer usPolicyIssu
 	return c, nil
 }
 
-// JSON is only a cached projection, never schema authority. Exact native text
-// bytes are separately bound: encoding/json replaces malformed UTF-8. Nil/empty
-// slices remain distinguished in JSON and all nested strings are also captured.
-type usLimitsDigestPayload struct {
-	body []byte
-	text [][]byte
+// Native string bytes use byte fields in the digest projection. In particular,
+// the source ignores an arbitrary rating-system input when the rating is blank;
+// even an accepted malformed byte spelling must remain bound, not JSON-repaired.
+// The shared codec owns all type/container framing and length prefixes.
+type usLimitsDigestValue struct {
+	accessTokens                   bool
+	maxProfiles                    int
+	allowRemote                    bool
+	conversion, awayQuality        []byte
+	maxStreams                     int
+	maxStreamsMode                 []byte
+	remoteBitrateKbps              int
+	ratingSystem, maxContentRating []byte
+	maximumAge                     int
+	allowUnrated                   bool
+	timezone                       []byte
+	windows                        []usLimitsWindow
+	channelMode                    []byte
+	channels, labels               [][]byte
 }
 
+func usLimitsDigestStrings(values []string) [][]byte {
+	if values == nil {
+		return nil
+	}
+	out := make([][]byte, len(values))
+	for n, value := range values {
+		out[n] = []byte(value)
+	}
+	return out
+}
+func usLimitsDigestValues(v usLimits) usLimitsDigestValue {
+	return usLimitsDigestValue{v.AccessTokens, v.MaxProfiles, v.AllowRemote, []byte(v.Conversion), []byte(v.AwayQuality), v.MaxStreams, []byte(v.MaxStreamsMode), v.RemoteBitrateKbps, []byte(v.RatingSystem), []byte(v.MaxContentRating), v.MaximumAge, v.AllowUnrated, []byte(v.Schedule.Timezone), v.Schedule.Windows, []byte(v.Channels.Mode), usLimitsDigestStrings(v.Channels.Channels), usLimitsDigestStrings(v.Tags.DeniedLabels)}
+}
+
+type usLimitsCanonicalRequest struct {
+	identity            CommandIdentity
+	ownerID             string
+	issuer              usPolicyIssuer
+	member              usMemberTarget
+	limitsRevision      int64
+	limitsPresent       bool
+	role                string
+	current             usLimitsDigestValue
+	serverMaxStreams    *int
+	input, normalized   usLimitsDigestValue
+	effectiveMaxStreams *int
+	ownerOnlyTransition bool
+}
+
+func (c *usLimitsCommand) canonicalPayload() usLimitsCanonicalRequest {
+	r := c.request
+	return usLimitsCanonicalRequest{r.identity, r.ownerID, r.issuer, r.target.member, r.target.limitsRevision, r.target.limitsPresent, r.target.role, usLimitsDigestValues(r.target.current), r.target.serverMaxStreams, usLimitsDigestValues(r.input), usLimitsDigestValues(r.normalized), r.effectiveMaxStreams, r.ownerOnlyTransition}
+}
 func (c *usLimitsCommand) canonicalDigest() (RequestDigest, error) {
-	if c == nil {
+	if c == nil || c.request.usLimitsPayload == nil {
 		return RequestDigest{}, invalid("us_limits_nil")
 	}
-	var p usLimitsDigestPayload
-	// Reflection includes private scope and issuer witnesses, unlike json.Marshal.
-	var walk func(reflect.Value)
-	walk = func(v reflect.Value) {
-		switch v.Kind() {
-		case reflect.Struct:
-			for i := 0; i < v.NumField(); i++ {
-				walk(v.Field(i))
-			}
-		case reflect.String:
-			p.text = append(p.text, []byte(v.String()))
-		case reflect.Pointer:
-			p.body = append(p.body, byte(0))
-			if !v.IsNil() {
-				p.body[len(p.body)-1] = 1
-				walk(v.Elem())
-			}
-		case reflect.Array, reflect.Slice:
-			if v.Kind() == reflect.Slice {
-				if v.IsNil() {
-					p.body = append(p.body, 0)
-				} else {
-					p.body = append(p.body, 1)
-				}
-			}
-			b, _ := json.Marshal(v.Len())
-			p.body = append(p.body, b...)
-			p.body = append(p.body, ':')
-			for i := 0; i < v.Len(); i++ {
-				walk(v.Index(i))
-			}
-		case reflect.Bool:
-			if v.Bool() {
-				p.body = append(p.body, 't')
-			} else {
-				p.body = append(p.body, 'f')
-			}
-		case reflect.Int, reflect.Int64:
-			b, _ := json.Marshal(v.Int())
-			p.body = append(p.body, b...)
-			p.body = append(p.body, ':')
-		case reflect.Uint8:
-			p.body = append(p.body, byte(v.Uint()))
-		}
-	}
-	walk(reflect.ValueOf(c.request))
-	return canonicalRequestDigest(usMemberLimitsEdit, 1, c.request.identity, p)
+	return canonicalRequestDigest(usMemberLimitsEdit, 1, c.request.identity, c.canonicalPayload())
 }
 func validUSLimitsAwayQuality(s string) bool {
 	switch s {
@@ -368,4 +348,42 @@ func (c *usLimitsCommand) checkedDigest() (RequestDigest, error) {
 		return RequestDigest{}, invalid("us_limits_mutated")
 	}
 	return d, nil
+}
+
+func (usLimitsWindow) String() string             { return "usLimitsWindow{redacted}" }
+func (usLimitsWindow) GoString() string           { return "usLimitsWindow{redacted}" }
+func (usLimitsWindow) Format(s fmt.State, _ rune) { formatUSPreparation(s, "usLimitsWindow") }
+
+func (usLimitsSchedule) String() string             { return "usLimitsSchedule{redacted}" }
+func (usLimitsSchedule) GoString() string           { return "usLimitsSchedule{redacted}" }
+func (usLimitsSchedule) Format(s fmt.State, _ rune) { formatUSPreparation(s, "usLimitsSchedule") }
+
+func (usLimitsChannels) String() string             { return "usLimitsChannels{redacted}" }
+func (usLimitsChannels) GoString() string           { return "usLimitsChannels{redacted}" }
+func (usLimitsChannels) Format(s fmt.State, _ rune) { formatUSPreparation(s, "usLimitsChannels") }
+
+func (usLimitsTags) String() string             { return "usLimitsTags{redacted}" }
+func (usLimitsTags) GoString() string           { return "usLimitsTags{redacted}" }
+func (usLimitsTags) Format(s fmt.State, _ rune) { formatUSPreparation(s, "usLimitsTags") }
+
+func (usLimits) String() string             { return "usLimits{redacted}" }
+func (usLimits) GoString() string           { return "usLimits{redacted}" }
+func (usLimits) Format(s fmt.State, _ rune) { formatUSPreparation(s, "usLimits") }
+
+func (usLimitsTarget) String() string             { return "usLimitsTarget{redacted}" }
+func (usLimitsTarget) GoString() string           { return "usLimitsTarget{redacted}" }
+func (usLimitsTarget) Format(s fmt.State, _ rune) { formatUSPreparation(s, "usLimitsTarget") }
+
+func (usLimitsPayload) String() string             { return "usLimitsPayload{redacted}" }
+func (usLimitsPayload) GoString() string           { return "usLimitsPayload{redacted}" }
+func (usLimitsPayload) Format(s fmt.State, _ rune) { formatUSPreparation(s, "usLimitsPayload") }
+
+func (usLimitsDigestValue) String() string             { return "usLimitsDigestValue{redacted}" }
+func (usLimitsDigestValue) GoString() string           { return "usLimitsDigestValue{redacted}" }
+func (usLimitsDigestValue) Format(s fmt.State, _ rune) { formatUSPreparation(s, "usLimitsDigestValue") }
+
+func (usLimitsCanonicalRequest) String() string   { return "usLimitsCanonicalRequest{redacted}" }
+func (usLimitsCanonicalRequest) GoString() string { return "usLimitsCanonicalRequest{redacted}" }
+func (usLimitsCanonicalRequest) Format(s fmt.State, _ rune) {
+	formatUSPreparation(s, "usLimitsCanonicalRequest")
 }

@@ -14,6 +14,48 @@ func usLimitsFixture() (*usLimitsCommand, error) {
 	target := usLimitsTarget{member: f.Target.target(), limitsRevision: 1, role: "member", current: usLimits{AwayQuality: "720p-low"}}
 	return prepareUSLimits(f.Identity, f.Owner, f.Issuer.issuer(), target, v)
 }
+
+func TestUSLimitsUsesCanonicalCodecAndRedactsHeldInputs(t *testing.T) {
+	c, err := usLimitsFixture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := canonicalRequestDigest(usMemberLimitsEdit, 1, c.request.identity, c.canonicalPayload())
+	if err != nil || c.digest != want {
+		t.Fatal("domain replaced shared canonical codec", err)
+	}
+	for _, v := range []any{c.request.target, c.request.usLimitsPayload, c.request.normalized, c.request.input.Schedule, c.request.input.Channels, c.request.input.Tags, usLimitsWindow{Days: []int{1}}} {
+		for _, verb := range []string{"%s", "%v", "%#v", "%+v", "%q", "%x"} {
+			out := fmt.Sprintf(verb, v)
+			if !strings.Contains(out, "redacted") {
+				t.Fatal("held input was printable", verb)
+			}
+		}
+	}
+	for _, empty := range []*usLimitsCommand{nil, {}} {
+		if _, err := empty.checkedDigest(); err == nil {
+			t.Fatal("nil held payload accepted")
+		}
+	}
+}
+
+func TestUSLimitsBindsIgnoredNativeRatingSystemBytes(t *testing.T) {
+	c, err := usLimitsFixture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := c.request
+	left, right := r.input, r.input
+	left.RatingSystem, right.RatingSystem = string([]byte{255}), string([]byte{254})
+	a, err := prepareUSLimits(r.identity, r.ownerID, r.issuer, r.target, left)
+	if err != nil {
+		t.Fatal("source-accepted ignored bytes rejected", err)
+	}
+	b, err := prepareUSLimits(r.identity, r.ownerID, r.issuer, r.target, right)
+	if err != nil || a.digest == b.digest || a.request.normalized.RatingSystem != "" || b.request.normalized.RatingSystem != "" {
+		t.Fatal("ignored native inputs collapsed", err)
+	}
+}
 func TestUSLimitsNormalizationAndOwnership(t *testing.T) {
 	c, e := usLimitsFixture()
 	if e != nil {
@@ -141,7 +183,7 @@ func TestUSLimitsEveryFrozenWitness(t *testing.T) {
 		old.Set(w)
 		switch v.Kind() {
 		case reflect.String:
-			w.SetString(v.String() + "\xff")
+			w.SetString(v.String() + "x")
 		case reflect.Bool:
 			w.SetBool(!v.Bool())
 		case reflect.Int, reflect.Int64:
