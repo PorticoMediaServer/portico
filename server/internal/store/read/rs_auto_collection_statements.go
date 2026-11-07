@@ -73,7 +73,7 @@ func AutomaticCollectionDefinitions() []stmt.Definition {
  CROSS JOIN metadata_subject_providers AS b INDEXED BY sqlite_autoindex_metadata_subject_providers_1 ON b.entity_id=e.id AND b.provider=c.provider AND b.accepted_evidence_id=c.evidence_id AND b.accepted_publication_id=o.publication_id
  CROSS JOIN metadata_publications AS p INDEXED BY sqlite_autoindex_metadata_publications_1 ON p.id=b.accepted_publication_id AND p.entity_id=e.id AND p.evidence_id=c.evidence_id
  CROSS JOIN metadata_provider_operations AS op INDEXED BY sqlite_autoindex_metadata_provider_operations_1 ON op.id=p.operation_id AND op.entity_id=e.id AND op.provider=c.provider
- CROSS JOIN metadata_provider_policy AS policy INDEXED BY sqlite_autoindex_metadata_provider_policy_1 ON policy.library_id=e.library_id AND policy.provider=c.provider AND policy.enabled=1 AND policy.incarnation=op.policy_incarnation AND policy.revision=op.policy_revision
+ CROSS JOIN metadata_provider_policy AS policy INDEXED BY sqlite_autoindex_metadata_provider_policy_1 ON policy.library_id=e.library_id AND policy.provider=c.provider AND policy.incarnation=op.policy_incarnation AND policy.revision=op.policy_revision
  CROSS JOIN metadata_evidence AS ev INDEXED BY sqlite_autoindex_metadata_evidence_1 ON ev.id=c.evidence_id AND ev.sealed=1 AND ev.language=lib.metadata_language
  CROSS JOIN metadata_providers AS provider INDEXED BY sqlite_autoindex_metadata_providers_1 ON provider.code=c.provider AND provider.enabled=1
  LEFT JOIN catalog_automatic_member_overrides AS x INDEXED BY sqlite_autoindex_catalog_automatic_member_overrides_1 ON x.collection_id=? AND x.item_id=e.id
