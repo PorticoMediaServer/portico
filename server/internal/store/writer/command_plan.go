@@ -19,7 +19,7 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 			defs = append(defs, def)
 		}
 	}
-	return defs
+	return append(defs, inventoryHistoryByteDefinitions()...)
 }
 
 // freezeCommandPlan is private composition, not caller budget admission or a

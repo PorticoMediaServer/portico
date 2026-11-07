@@ -6,7 +6,6 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -78,7 +77,7 @@ result_discovered=?,result_processed=?,result_root_identity=?,result_root_revisi
 WHERE run_id=?`, q.Receipt.Identity.Sequence, kind, v.AcceptedRunRevision, digest[:], v.LeaseOwner, v.LeaseGeneration, v.LeaseExpiresMS,
 			v.AcknowledgedSequence, v.Discovered, v.Processed, v.RootIdentity, v.RootRevision, v.RootCursor, v.RootPages, v.RootSkipped, q.RunID)
 	}
-	defs := scanRunLifecycleHistoryDefinitions()
+	defs := append(scanRunLifecycleHistoryDefinitions(), scanHistoryByteDefinitions()...)
 	for _, def := range scanReceiptDefinitions() {
 		switch def.ID {
 		case scanReceiptLookup, scanReceiptAck, scanReceiptReclaimKey, scanReceiptReclaimHeader:
@@ -91,20 +90,7 @@ WHERE run_id=?`, q.Receipt.Identity.Sequence, kind, v.AcceptedRunRevision, diges
 
 func scanLifecycleProtocolTurn(t *testing.T, w *executor, registry *stmt.Registry, kind CommandID) *commandTurn {
 	t.Helper()
-	tx, err := w.begin(t.Context(), kind, testRecipe(), &testCustody{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { tx.rollback(nil) })
-	var steps []statementStep
-	for _, item := range registry.Manifest() {
-		steps = append(steps, statementStep{item.ID, Work{2, 200, 1, 100, time.Nanosecond}})
-	}
-	turn, err := newCommandTurn(tx, registry, steps)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return turn
+	return scanLifecycleExecutionTurn(t, w, registry, kind, commandMemoryBudget{4 << 20, 4 << 20})
 }
 
 func TestScanLifecycleHistoryAndBoundedAck(t *testing.T) {
