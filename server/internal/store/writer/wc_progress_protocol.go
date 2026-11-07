@@ -437,6 +437,9 @@ func (w *Writer) CurrentProgress(ctx context.Context, cap *ProgressDisclosure) (
 // joins Close before any retained scope or payload can be physically retired.
 func (w *Writer) currentProgress(ctx context.Context, cap *ProgressDisclosure) (out ProgressSnapshot, err error) {
 	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
+	if cap == nil || cap.driver == nil {
+		return out, ErrDisclosureDenied
+	}
 	d := cap.driver
 	q := ProgressReceiptRequest{PlaybackID: d.scope.playbackID, Kind: "capture_report", Receipt: ReceiptReference{Identity: CommandIdentity{Incarnation: d.scope.incarnation, Sequence: 1}}}
 	result, err := w.runWCProgress(ctx, &wcProgressInvocation{disclosure: cap, request: q, snapshot: true}, false)
