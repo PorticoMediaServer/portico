@@ -35,6 +35,7 @@ type BrowseInput struct {
 	Descending, KeepArticles bool
 	Now                      time.Time
 	After                    *BrowseCursor
+	policy                   readPolicyBinding
 }
 
 // BrowseCursor is an internal, values-only continuation. Its private fields
@@ -57,6 +58,9 @@ type browseFence struct {
 	root, bridgeRoot                                                                            string
 	originIncarnation                                                                           [16]byte
 	originRevision                                                                              int64
+	policy                                                                                      readPolicyID
+	policySubject                                                                               int64
+	policyWitness                                                                               string
 }
 
 type BrowseItem struct {
@@ -182,9 +186,6 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 		return browseFence{}, ErrUnqualified
 	}
 	maximum, unrated := r[12].(int64), r[13].(int64)
-	if k[0][0].(int64) != 0 && (maximum >= 0 || unrated == 0) {
-		return browseFence{}, ErrUnqualified
-	}
 	f := browseFence{database: strings.Clone(in.Database), token: strings.Clone(in.TokenHash), account: r[0].(string), profile: r[1].(string), membership: r[2].(string), lifetime: r[3].(string), library: lib,
 		epoch: r[4].(int64), authority: r[10].(int64), membershipRevision: r[11].(int64), profileRevision: r[16].(int64), restrictionRevision: r[17].(int64),
 		libraryID: in.Library, kind: in.Kind, dataRevision: lr[1].(int64), orderRevision: lr[2].(int64), metadataRevision: lr[3].(int64), viewerRevision: lr[4].(int64), ageRevision: lr[5].(int64), maximumAge: maximum, allowUnrated: unrated, container: k[0][0].(int64), role: r[5].(string), memberLibraries: r[6].(string), profileLabels: r[14].(string), expiresAt: r[8].(string), horizon: r[9].(string), profileRestricted: r[7] != nil, descending: in.Descending, keepArticles: in.KeepArticles}
@@ -199,6 +200,9 @@ func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	f.originRevision = lr[10].(int64)
 	if r[7] != nil {
 		f.profileLibraries = r[7].(string)
+	}
+	if err := validateReadPolicy(query, in, &f); err != nil {
+		return browseFence{}, err
 	}
 	if in.After != nil && in.After.fence != f {
 		return browseFence{}, ErrStale
