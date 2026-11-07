@@ -37,7 +37,7 @@ func uoRootSavedText(s string, cap int, empty bool) bool {
 	return (empty || s != "") && len(s) <= cap && utf8.ValidString(s) && !strings.ContainsRune(s, 0)
 }
 func preflightUORootSaved(v uoRootSavedResult) error {
-	if !uoRootSavedKind(v.kind) || len(v.root) != 22 || !uoRootSavedText(v.root, 22, false) || len(v.resource) != 22 || !uoRootSavedText(v.resource, 22, false) || v.revision < 1 || v.generation < 0 || v.appliedMS <= 0 || len(v.entries) > 200 || !v.entriesPresent && len(v.entries) != 0 || v.entriesPresent && v.kind != EditSavedResourceMembers || v.deleted != (v.kind == DeleteSavedResource) || v.undoUntilMS < 0 || (v.undoToken == "") != (v.undoUntilMS == 0) || v.undoToken != "" && (v.kind != EditSavedResourceMembers || len(v.undoToken) != 22 || !uoRootSavedText(v.undoToken, 22, false)) {
+	if !uoRootSavedKind(v.kind) || len(v.root) != 22 || !uoRootSavedText(v.root, 22, false) || len(v.resource) != 22 || !uoRootSavedText(v.resource, 22, false) || v.revision < 1 || v.generation < 0 || v.changed && v.generation == 0 || v.kind == CreateSavedResource && (!v.changed || v.revision != 1) || v.appliedMS <= 0 || len(v.entries) > 200 || !v.entriesPresent && len(v.entries) != 0 || v.entriesPresent != (v.kind == EditSavedResourceMembers) || v.deleted != (v.kind == DeleteSavedResource) || v.undoUntilMS < 0 || (v.undoToken == "") != (v.undoUntilMS == 0) || v.undoToken != "" && (v.kind != EditSavedResourceMembers || len(v.undoToken) != 22 || !uoRootSavedText(v.undoToken, 22, false) || v.undoUntilMS <= v.appliedMS) {
 		return ErrInvalid
 	}
 	// Prove the whole prospective size before scanning or hashing payload text.
@@ -55,7 +55,7 @@ func preflightUORootSaved(v uoRootSavedResult) error {
 		remaining -= 17 + len(e.reference) + len(e.entry)
 	}
 	for _, e := range v.entries {
-		if e.status < 1 || e.status > 4 || !uoRootSavedText(e.reference, 128, false) || !uoRootSavedText(e.entry, 22, true) || e.entry != "" && len(e.entry) != 22 || (e.status == 1 || e.status == 2) && e.entry == "" {
+		if e.status < 1 || e.status > 4 || !uoRootSavedText(e.reference, 128, false) || !uoRootSavedText(e.entry, 22, true) || e.entry != "" && len(e.entry) != 22 || (e.status == 1 || e.status == 2) && (e.entry == "" || !v.changed) {
 			return ErrInvalid
 		}
 	}

@@ -61,6 +61,28 @@ func TestUORootSavedCanonicalBindingsAndMalformed(t *testing.T) {
 	if _, _, err := encodeUORootCanonical(i, q, v); err == nil {
 		t.Fatal("unknown outcome accepted")
 	}
+	for _, mutate := range []func(*uoRootSavedResult){
+		func(v *uoRootSavedResult) { v.entriesPresent = false; v.entries = nil },
+		func(v *uoRootSavedResult) { v.changed = false },
+		func(v *uoRootSavedResult) { v.generation = 0 },
+		func(v *uoRootSavedResult) { v.undoUntilMS = v.appliedMS },
+	} {
+		v = uoSavedCodecResult(v.root)
+		mutate(&v)
+		if _, _, err := encodeUORootCanonical(i, q, v); err == nil {
+			t.Fatal("incomplete result accepted", v)
+		}
+	}
+	for _, kind := range []CommandID{CreateSavedResource, PatchSavedResource, DeleteSavedResource, ReorderSavedResource, SetSavedResourceSharing} {
+		v = uoRootSavedResult{root: v.root, resource: "resourceabcdefghijklmn", kind: kind, revision: 1, generation: 1, changed: true, deleted: kind == DeleteSavedResource, appliedMS: 100}
+		p, d, err = encodeUORootCanonical(i, q, v)
+		if err != nil {
+			t.Fatal(kind, err)
+		}
+		if got, err := decodeUORootSaved(i, q, v.root, kind, p, d); err != nil || !reflect.DeepEqual(got, v) {
+			t.Fatal(kind, got, err)
+		}
+	}
 }
 
 func TestUORootSavedNativeReplayHeaderCountAndACK(t *testing.T) {
