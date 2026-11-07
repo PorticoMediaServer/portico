@@ -154,16 +154,54 @@ func (f *observationFixture) waitApplied(ids ...string) {
 func (f *observationFixture) cloneSessions(n int) []string {
 	f.t.Helper()
 	ids := []string{f.session.ID}
-	for i := 1; i < n; i++ {
-		id := fmt.Sprintf("%s-copy-%03d", f.session.ID, i)
-		f.catalog.Exec(`CREATE TEMP TABLE IF NOT EXISTS observation_clone AS SELECT * FROM playback_v1_sessions WHERE 0`)
-		f.catalog.Exec(`DELETE FROM observation_clone`)
-		f.catalog.Exec(`INSERT INTO observation_clone SELECT * FROM playback_v1_sessions WHERE id=?`, f.session.ID)
-		f.catalog.Exec(`UPDATE observation_clone SET id=?,start_key=?`, id, fmt.Sprintf("observation-clone-key-%04d", i))
-		f.catalog.Exec(`INSERT INTO playback_v1_sessions SELECT * FROM observation_clone`)
-		ids = append(ids, id)
-	}
+	// A TEMP table belongs to one physical SQLite connection. Separate pooled
+	// Exec calls can switch connections; keep the entire seed in one transaction.
+	f.catalog.Write(func(ctx context.Context, tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `CREATE TEMP TABLE observation_clone AS SELECT * FROM playback_v1_sessions WHERE 0`); err != nil {
+			return err
+		}
+		for i := 1; i < n; i++ {
+			id := fmt.Sprintf("%s-copy-%03d", f.session.ID, i)
+			for _, statement := range []struct {
+				sql  string
+				args []any
+			}{
+				{`DELETE FROM observation_clone`, nil},
+				{`INSERT INTO observation_clone SELECT * FROM playback_v1_sessions WHERE id=?`, []any{f.session.ID}},
+				{`UPDATE observation_clone SET id=?,start_key=?`, []any{id, fmt.Sprintf("observation-clone-key-%04d", i)}},
+				{`INSERT INTO playback_v1_sessions SELECT * FROM observation_clone`, nil},
+			} {
+				if _, err := tx.ExecContext(ctx, statement.sql, statement.args...); err != nil {
+					return fmt.Errorf("%s: %w", statement.sql, err)
+				}
+			}
+			ids = append(ids, id)
+		}
+		_, err := tx.ExecContext(ctx, `DROP TABLE observation_clone`)
+		return err
+	})
 	return ids
+}
+
+func TestObservationCloneSessionsSurvivesConnectionTurnover(t *testing.T) {
+	f := newObservationFixture(t)
+	// Every pooled Exec releases its connection immediately. The old seed lost
+	// its TEMP table between CREATE and DELETE without needing a scheduling race.
+	f.catalog.DB.SetMaxIdleConns(0)
+	ids := f.cloneSessions(3)
+	if len(ids) != 3 {
+		t.Fatal("missing clone identities", ids)
+	}
+	for i, id := range ids {
+		var generation int
+		var startKey string
+		if err := f.catalog.DB.QueryRow(`SELECT generation,start_key FROM playback_v1_sessions WHERE id=?`, id).Scan(&generation, &startKey); err != nil {
+			t.Fatal(err)
+		}
+		if generation != f.generation || i > 0 && startKey != fmt.Sprintf("observation-clone-key-%04d", i) {
+			t.Fatal("clone contents changed", id, generation, startKey)
+		}
+	}
 }
 
 func establishedPlaybackTickets() uint64 {
