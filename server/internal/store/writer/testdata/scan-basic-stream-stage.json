@@ -15,7 +15,7 @@
           "QueryOnly": 0,
           "TempStore": 1
         },
-        "indexPolicySha256": "e365c8f4054dbcfc1bdae6b4703cac2d2aca3357b1fc7c85850b56fe90c487b9",
+        "indexPolicySha256": "f7859d7616bb975a81977bf07522efcca916e01d2d9195f42c6293bb3faa32bc",
         "fixture": {
           "connectionPolicy": {
             "Role": 1,
@@ -5083,6 +5083,13 @@
             ],
             [
               "index",
+              "scan_receipt_refused_directory_identity",
+              "scan_command_receipts",
+              2329,
+              "CREATE INDEX scan_receipt_refused_directory_identity ON scan_command_receipts(run_id,refused_directory_identity) WHERE refused_directory_identity IS NOT NULL"
+            ],
+            [
+              "index",
               "scan_result_asset",
               "scan_command_results",
               2243,
@@ -14925,7 +14932,7 @@
             ]
           ]
         },
-        "schemaSha256": "04dc3883a4c21853bd452b4d384947f91ca2b0b254e34567c4618f71927d177f",
+        "schemaSha256": "bb0d3cfe5cb9b17fe2651b12b7c07c200eefba82eceb34c40d5daafd384af917",
         "statistics": {},
         "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
         "pragmas": {
@@ -19468,7 +19475,7 @@
           "QueryOnly": 0,
           "TempStore": 1
         },
-        "indexPolicySha256": "e365c8f4054dbcfc1bdae6b4703cac2d2aca3357b1fc7c85850b56fe90c487b9",
+        "indexPolicySha256": "f7859d7616bb975a81977bf07522efcca916e01d2d9195f42c6293bb3faa32bc",
         "fixture": {
           "connectionPolicy": {
             "Role": 1,
@@ -24536,6 +24543,13 @@
             ],
             [
               "index",
+              "scan_receipt_refused_directory_identity",
+              "scan_command_receipts",
+              2329,
+              "CREATE INDEX scan_receipt_refused_directory_identity ON scan_command_receipts(run_id,refused_directory_identity) WHERE refused_directory_identity IS NOT NULL"
+            ],
+            [
+              "index",
               "scan_result_asset",
               "scan_command_results",
               2243,
@@ -34378,7 +34392,7 @@
             ]
           ]
         },
-        "schemaSha256": "04dc3883a4c21853bd452b4d384947f91ca2b0b254e34567c4618f71927d177f",
+        "schemaSha256": "bb0d3cfe5cb9b17fe2651b12b7c07c200eefba82eceb34c40d5daafd384af917",
         "statistics": {},
         "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
         "pragmas": {
