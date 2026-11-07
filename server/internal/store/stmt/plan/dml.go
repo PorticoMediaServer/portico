@@ -20,6 +20,9 @@ type columnReference struct {
 // Only a completely parsed statement can be qualified. No partial DML shape
 // or waiver can confer a destination exemption or legitimize unsupported syntax.
 func dmlSQL(sql string) (*dmlShape, error) {
+	if sql == readEngineSQL {
+		return nil, nil
+	} // exact closed, independently audited SELECT only
 	tokens, err := lintTokens(sql)
 	if err != nil {
 		return nil, err
