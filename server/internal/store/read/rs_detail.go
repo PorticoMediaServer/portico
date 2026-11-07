@@ -77,14 +77,39 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 	if r == nil || !validTitle(title) {
 		return TitleFacts{}, BrowseReadResult{}, ErrInput
 	}
-	var token string
 	var source []any
-	return publishRead(ctx, r.snapshots, request, budget, output, in.View, []readStep[TitleFacts]{
+	windows := &rsByteWindow{source: r.snapshots}
+	root := func(q browseQuery) ([]any, error) {
+		rows, err := q("rs.detail.source", in.Item, in.View.Library, in.View.Kind)
+		if err != nil {
+			return nil, err
+		}
+		if len(rows) != 1 {
+			return nil, ErrDenied
+		}
+		source = rows[0]
+		return rows[0], nil
+	}
+	return publishRead(ctx, windows, request, budget, output, in.View, []readStep[TitleFacts]{
 		func(ctx context.Context, q browseQuery, f browseFence, d *TitleFacts) error {
-			if !admittedItem(source[16:23], f) {
+			if source[2].(int64) != 0 || (source[3] == nil && f.allowUnrated == 0) || (source[3] != nil && f.maximumAge >= 0 && source[3].(int64) > f.maximumAge) {
 				return ErrDenied
 			}
-			return ctx.Err()
+			sizes, err := q("rs.detail.facts_octets", in.Item, in.View.Library, in.View.Kind)
+			if err != nil {
+				return err
+			}
+			if len(sizes) != 1 {
+				return ErrDenied
+			}
+			bytes, err := rsPointBytes(sizes[0])
+			if err != nil {
+				return err
+			}
+			if err = ctx.Err(); err != nil {
+				return err
+			}
+			return windows.arm(bytes, 2)
 		},
 		func(ctx context.Context, q browseQuery, f browseFence, d *TitleFacts) error {
 			rows, err := q("rs.detail.facts", in.Item, in.View.Library, in.View.Kind)
@@ -160,7 +185,7 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 			}
 			return ctx.Err()
 		},
-	}, titleSource(title, &token, &source))
+	}, root)
 }
 func rsInteger(v any) *int64 {
 	if v == nil {
