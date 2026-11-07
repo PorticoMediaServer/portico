@@ -56,7 +56,7 @@ func validateUSInvitationResult(v usInvitationSavedResult) error {
 	if _, err := usInvitationCodec(v.kind); err != nil {
 		return err
 	}
-	if v.version != 1 || !usIdentifier(v.ownerID) || !usIdentifier(v.issuerServer) || !usIdentifier(v.id) || !usHex(v.codeHash, 64) || v.count != len(v.libraries) || v.count > usInvitationMaxLibraries || v.libraries == nil || v.createdMS < 0 || v.expiresMS <= v.createdMS || v.appliedMS < v.createdMS || v.revision < 1 || v.revision > usMaxRevision {
+	if v.version != 1 || !usIdentifier(v.ownerID) || !usIdentifier(v.issuerServer) || !usIdentifier(v.id) || !usHex(v.codeHash, 64) || v.count != len(v.libraries) || v.count > usInvitationMaxLibraries || v.libraries == nil || v.createdMS < 0 || v.expiresMS <= 0 || v.appliedMS < 0 || v.revision < 1 || v.revision > usMaxRevision {
 		return ErrResolveRequired
 	}
 	// These three purposes cannot accept an invitation. Null payloads must be

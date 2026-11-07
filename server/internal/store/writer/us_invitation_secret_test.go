@@ -32,7 +32,7 @@ func TestUSInvitationExactCodeProtection(t *testing.T) {
 	if err != nil || string(plain) != code {
 		t.Fatal("exact issued wire not retained", err)
 	}
-	command, err := freezeUSInvitationIssuance(p, protected)
+	command, err := freezeUSInvitationIssuance(p, protected, usInvitationLinkBinding{mode: "portico", revision: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestUSInvitationExactCodeProtection(t *testing.T) {
 		q.body = bytes.Clone(q.body)
 		q.nonce = bytes.Clone(q.nonce)
 		change(&q)
-		next, err := freezeUSInvitationIssuance(p, q)
+		next, err := freezeUSInvitationIssuance(p, q, usInvitationLinkBinding{mode: "portico", revision: 1})
 		if err != nil || next.digest == command.digest {
 			t.Fatal("protected witness absent from full digest", err)
 		}
@@ -76,7 +76,7 @@ func TestUSInvitationExactCodeProtection(t *testing.T) {
 		if _, err := aead.Open(nil, command.request.code.nonce, command.request.code.body, aad[:]); err == nil {
 			t.Fatal("cross-manifest secret disclosure")
 		}
-		if _, err := freezeUSInvitationIssuance(&q, command.request.code); err == nil {
+		if _, err := freezeUSInvitationIssuance(&q, command.request.code, usInvitationLinkBinding{mode: "portico", revision: 1}); err == nil {
 			t.Fatal("mismatched evidence manifest frozen")
 		}
 	}

@@ -78,6 +78,7 @@ func prepareUSInvitationCode(p *usInvitationPrepared, keyID string, key, nonce [
 type usInvitationIssuanceRequest struct {
 	invitation usInvitationPrepared
 	code       usInvitationProtectedCode
+	link       usInvitationLinkBinding
 }
 type usInvitationIssuanceCommand struct {
 	request usInvitationIssuanceRequest
@@ -97,7 +98,7 @@ func (usInvitationIssuanceCommand) Format(s fmt.State, _ rune) {
 
 // Freezing binds all original prepared fields AND protected output. Validation
 // is structural, not AEAD/key/source proof; the trusted parent owns those proofs.
-func freezeUSInvitationIssuance(p *usInvitationPrepared, code usInvitationProtectedCode) (*usInvitationIssuanceCommand, error) {
+func freezeUSInvitationIssuance(p *usInvitationPrepared, code usInvitationProtectedCode, link usInvitationLinkBinding) (*usInvitationIssuanceCommand, error) {
 	native, err := freezeUSInvitation(p)
 	if err != nil {
 		return nil, err
@@ -107,7 +108,15 @@ func freezeUSInvitationIssuance(p *usInvitationPrepared, code usInvitationProtec
 	}
 	code.nonce = slices.Clone(code.nonce)
 	code.body = slices.Clone(code.body)
-	request := usInvitationIssuanceRequest{invitation: native.request, code: code}
+	var key []byte
+	if link.mode == "local" {
+		key = link.publicKey[:]
+	}
+	checked, err := prepareUSInvitationLink(link.mode, link.revision, link.serverID, key, link.keyIncarnation, link.resetGeneration)
+	if err != nil || checked != link {
+		return nil, ErrInvalid
+	}
+	request := usInvitationIssuanceRequest{invitation: native.request, code: code, link: link}
 	digest, err := canonicalRequestDigest(p.kind, 1, p.identity, request)
 	if err != nil {
 		return nil, err

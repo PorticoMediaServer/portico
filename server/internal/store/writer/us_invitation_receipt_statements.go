@@ -2,8 +2,8 @@ package writer
 
 import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
-// Fixed inert native inventory only. The caller classifies the original owner
-// and binding, then proves current authority before reading any saved payload.
+// Fixed inert native inventory only. Current authority precedes original
+// owner/binding classification and every saved-payload read.
 // Library INSERT cohort must be bound to "invitation"; HN VALUES accepts
 // parameters only. The caller validates exact 59-byte creation body and NULL
 // edit/revoke slots before writes; the draft CHECK only requires >=16 bytes.

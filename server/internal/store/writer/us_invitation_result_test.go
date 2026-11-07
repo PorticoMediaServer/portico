@@ -165,3 +165,23 @@ func TestUSInvitationResultKeepsOriginalServerDistinctFromLink(t *testing.T) {
 		t.Fatal("foreign original-server manifest accepted")
 	}
 }
+
+func TestUSInvitationResultPreservesSourceTimesAcrossClockCorrection(t *testing.T) {
+	i, r, v := invitationResultFixture()
+	v.kind = usInvitationEdit
+	v.revision = 2
+	v.serverID = ""
+	v.code = usInvitationProtectedCode{}
+	v.createdMS = 10000
+	v.appliedMS = 2000
+	v.expiresMS = 5000
+	if _, err := usInvitationResultDigest(i, r, v); err != nil {
+		t.Fatal("legal edit expiry was compared to the old creation clock", err)
+	}
+	v.kind = usInvitationRevoke
+	v.state = "revoked"
+	v.appliedMS = 1500
+	if _, err := usInvitationResultDigest(i, r, v); err != nil {
+		t.Fatal("saved revoke creation time was recomputed", err)
+	}
+}
