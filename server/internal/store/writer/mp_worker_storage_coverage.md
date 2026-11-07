@@ -47,3 +47,21 @@ ACK is floor-only; root deletion/physical custody never follows from ACK or
 source receipt deletion. Native preparation target TestMPReclaimNativeFinalFPreparation
 is prepared/unrun; opaque authority/classification, codec, terminal COMMIT
 accounting, crash/race and native behavior qualification remain integration debt.
+
+Repeat754 now captures the prepared occurrence's generation and requires exact
+native retirement/request facts before cancellation. Pending exit creates an
+independent mp_next_stop_obligations row; the original effect includes request,
+generation and pending status. A same-setting no-op does not cancel work.
+TestMPQueueRepeatNativeRetainsExactStop is prepared/unrun, covering retained
+stop facts and wrong-generation rejection before queue cancellation.
+
+composeMPQueuePreparedRetire supplies the missing private same-turn physical
+retirement component for the closed queue/next parents753/754/755/756/757/760/
+761/762/763. It checks the current actor, exact queue revision/custody/ownership,
+selected prepared token/media/generation/family and immutable physical input
+relationship, then fences the actual stop request. The parent sequences this
+before cancellation and stores its result under the parent's own receipt; no
+physical worker sequence is borrowed. Descriptor steps must explicitly compose
+the existing queue/next/session definition catalogs. This is domain effect data,
+not an opaque authority grant or an accepting facade. Source/pin/IO custody
+continues through actual exit and confirmed cleanup.

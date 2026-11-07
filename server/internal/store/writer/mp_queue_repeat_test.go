@@ -32,3 +32,19 @@ func TestMPQueueRepeatRequestBounds(t *testing.T) {
 		t.Fatal("nil turn released output", out, err)
 	}
 }
+
+func TestMPQueuePreparedRetirementClosedPurposes(t *testing.T) {
+	for _, kind := range []CommandID{700, 710, 720, 728, 740, 750, 751, 752, 758, 759, 764, 770, 780, 786} {
+		if mpQueuePreparedRetirementPurpose(kind) {
+			t.Fatal("borrowed purpose", kind)
+		}
+	}
+	for _, kind := range []CommandID{753, 754, 755, 756, 757, 760, 761, 762, 763} {
+		if !mpQueuePreparedRetirementPurpose(kind) {
+			t.Fatal("missing parent", kind)
+		}
+	}
+	if got, err := composeMPQueuePreparedRetire(t.Context(), nil, mpQueuePreparedRetirement{}); !errors.Is(err, ErrInvalid) || got != (mpSessionRetireProjection{}) {
+		t.Fatal(got, err)
+	}
+}

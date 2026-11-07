@@ -29,9 +29,11 @@ type mpQueueRepeatInvocation struct {
 	appliedMS int64 // trusted writer command clock, never client time
 }
 type mpQueueRepeatEffect struct {
-	queue, repeat, canceledToken, canceledMedia string
-	revision, custody, updatedMS                int64
-	changed                                     bool
+	queue, repeat, canceledToken, canceledMedia      string
+	revision, custody, updatedMS, canceledGeneration int64
+	canceledRequest                                  string
+	physicalPending                                  bool
+	changed                                          bool
 }
 
 func (q mpQueueRepeatRequest) validate() error {
@@ -62,7 +64,7 @@ func mpQueueRepeatRow(ctx context.Context, turn *commandTurn, id stmt.ID, args .
 }
 func applyMPQueueRepeat(ctx context.Context, turn *commandTurn, q mpQueueRepeatInvocation) (out mpQueueRepeatEffect, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != MPQueueRepeat || q.appliedMS < 0 {
+	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != MPQueueRepeat || q.appliedMS <= 0 {
 		return out, ErrInvalid
 	}
 	if err = q.request.validate(); err != nil {
@@ -107,7 +109,7 @@ func applyMPQueueRepeat(ctx context.Context, turn *commandTurn, q mpQueueRepeatI
 			err = ErrResolveRequired
 			break
 		}
-		if err = rows.Scan(&out.canceledToken, &out.canceledMedia); err != nil {
+		if err = rows.Scan(&out.canceledToken, &out.canceledMedia, &out.canceledGeneration); err != nil {
 			break
 		}
 	}
@@ -115,7 +117,38 @@ func applyMPQueueRepeat(ctx context.Context, turn *commandTurn, q mpQueueRepeatI
 		return out, err
 	}
 	if count == 1 {
-		row, err = mpQueueRepeatRow(ctx, turn, mpQueueRepeatCancel, out.canceledToken, r.queue, out.canceledMedia)
+		// W's same-turn physical retirement recipe must already have fenced
+		// this exact occurrence. Never synthesize a request from a media ID.
+		if !mpID(out.canceledToken) || !mpID(out.canceledMedia) || out.canceledGeneration <= 0 {
+			return out, ErrResolveRequired
+		}
+		row, err = mpQueueRepeatRow(ctx, turn, mpQueueRepeatStopFact, out.canceledMedia)
+		if err != nil {
+			return out, err
+		}
+		var proof mpPhysicalStopFact
+		if err = row.Scan(&proof.retired, &proof.exited, &proof.requestID, &proof.exitRequestID, &proof.supervisor, &proof.exitedMS); err != nil {
+			return out, err
+		}
+		if !mpPhysicalRetirementValid(proof, out.canceledGeneration) {
+			return out, ErrConflict
+		}
+		out.canceledRequest = proof.requestID
+		out.physicalPending = proof.exited < out.canceledGeneration
+		if out.physicalPending {
+			row, err = mpQueueRepeatRow(ctx, turn, mpQueueRepeatStopInsert, out.canceledToken, out.canceledGeneration, q.appliedMS, out.canceledMedia, out.canceledGeneration, proof.requestID)
+			if err != nil {
+				return out, err
+			}
+			var request string
+			if err = row.Scan(&request); err != nil {
+				return out, err
+			}
+			if request != proof.requestID {
+				return out, ErrResolveRequired
+			}
+		}
+		row, err = mpQueueRepeatRow(ctx, turn, mpQueueRepeatCancel, out.canceledToken, r.queue, out.canceledMedia, out.canceledGeneration)
 		if err != nil {
 			return out, err
 		}
@@ -142,8 +175,8 @@ func applyMPQueueRepeat(ctx context.Context, turn *commandTurn, q mpQueueRepeatI
 		return out, ErrResolveRequired
 	}
 	out.repeat, out.changed = r.repeat, true
-	// The native canceled row and returned media ID retain the exact physical
-	// stop obligation. The future receipt must persist it before commit; only
-	// post-commit retirement may cancel/join that exact media run.
+	// The independent native stop obligation survives receipt ACK/reclaim.
+	// W saves this complete original projection with effects before commit;
+	// external cancellation and actual-exit confirmation remain post-commit.
 	return out, turn.checkLifetimes(ctx)
 }
