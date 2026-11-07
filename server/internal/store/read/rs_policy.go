@@ -21,9 +21,10 @@ const (
 // deliberately unexported; it is neither a caller assertion nor a wire value.
 type readPolicyState interface{ readPolicyState() }
 type readPolicyBinding struct {
-	recipe  readPolicyID
-	subject int64
-	state   readPolicyState
+	recipe       readPolicyID
+	subject      int64
+	state        readPolicyState
+	nativeSearch bool
 }
 type readPolicyRecipe struct {
 	id       readPolicyID
@@ -31,6 +32,9 @@ type readPolicyRecipe struct {
 	kinds    []int64
 	stateful bool
 	scope    readPolicyScope
+	// nativeSearch selects one compiled per-hit eligibility domain per kind.
+	// It installs no SQL; trusted composition captures its owned definitions.
+	nativeSearch bool
 	// validate runs AFTER all common authority, birth, library and policy checks,
 	// in BOTH initial and final snapshots. It must prove the complete eligibility
 	// obligation of its closed domain; no caller-supplied proof flag is accepted.
@@ -65,6 +69,21 @@ func registerReadPolicy(p readPolicyRecipe) {
 			panic("invalid read policy kinds")
 		}
 	}
+	if p.nativeSearch {
+		if p.id == 0 {
+			panic("catalogue fallback cannot replace a native-search domain")
+		}
+		for _, old := range readPolicies.recipes {
+			if !old.nativeSearch {
+				continue
+			}
+			for _, kind := range p.kinds {
+				if slices.Contains(old.kinds, kind) {
+					panic("duplicate native-search domain kind")
+				}
+			}
+		}
+	}
 	readPolicies.recipes[p.id] = p
 }
 func resolveReadPolicy(in BrowseInput) (readPolicyRecipe, error) {
@@ -79,8 +98,11 @@ func resolveReadPolicy(in BrowseInput) (readPolicyRecipe, error) {
 		return readPolicyRecipe{}, ErrInput
 	}
 	// The legacy/default path has no subject-specific eligibility proof.
-	if p.id == 0 && in.policy.subject != 0 {
+	if p.id == 0 && in.policy.subject != 0 && !in.policy.nativeSearch {
 		return readPolicyRecipe{}, ErrInput
+	}
+	if in.policy.nativeSearch && (in.policy.subject <= 0 || p.id != 0 && !p.nativeSearch) {
+		return readPolicyRecipe{}, ErrUnqualified
 	}
 	return p, nil
 }

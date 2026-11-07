@@ -2,6 +2,7 @@ package read
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -16,13 +17,16 @@ type FullSearchReadStamp struct {
 	output                   *governor.Grant
 	fence                    nativeSearchFence
 	query                    string
+	policies                 []nativePolicyWitness
+	checked                  []nativePolicyWitness
 	started, clock, deadline time.Time
 }
 
 // ValidateRetained joins prior results to THIS operation's fresh read and its
 // still-live exact output custody. It performs no SQL or second reader call.
 // Call inside the current ConsumeForeground callback, after its native Read.
-// RS must retain/charge its prior values and source-write footprint separately,
+// Supply prior in FullSearchInput.Retained before the current Read so its
+// per-hit policies are actually revalidated in this operation. RS must retain/charge its prior values and source-write footprint separately,
 // and still use the shared final publication fence after response preparation.
 func (s *FullSearchReadStamp) ValidateRetained(ctx context.Context, out BrowseOutput, prior *FullSearchReadStamp) error {
 	if ctx == nil || s == nil || prior == nil || s.pool == nil || s.output == nil || out.live == nil || out.live.pool != s.pool || out.Grant != s.output || out.Authority != out.live.authority || out.Grant != out.live.output {
@@ -39,6 +43,11 @@ func (s *FullSearchReadStamp) ValidateRetained(ctx context.Context, out BrowseOu
 	}
 	if s.pool != prior.pool || s.query != prior.query || s.fence != prior.fence {
 		return ErrStale
+	}
+	for _, p := range prior.policies {
+		if !slices.Contains(s.checked, p) {
+			return ErrStale
+		}
 	}
 	if !time.Now().Before(s.deadline) {
 		return context.DeadlineExceeded
