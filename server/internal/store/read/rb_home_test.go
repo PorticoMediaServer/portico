@@ -253,8 +253,8 @@ func TestRBHomeRecentShelfCapFromTwoCompleteStreams(t *testing.T) {
 			homeFixtureAsset(t, f, id)
 		}
 	}
-	row, _, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 1}, {2, 1}}})
-	if e != nil || !row.Exhausted || len(row.Items) != 100 || row.Items[0].Work.ID != 10249 || row.Items[99].Work.ID != 10100 {
+	row, cost, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 1}, {2, 1}}})
+	if e != nil || !row.Exhausted || len(row.Items) != 100 || row.Items[0].Work.ID != 10249 || row.Items[99].Work.ID != 10100 || len(cost.LookupWindows) > 34 {
 		t.Fatal("exact shelf cap", row, e)
 	}
 }
