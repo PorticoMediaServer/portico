@@ -21,10 +21,19 @@ func TestUOEventResumeBindingRestartAndForgery(t *testing.T) {
 	if n, err := c.decode(token, b); err != nil || n != 42 {
 		t.Fatal(n, err)
 	}
-	other := b
-	other.viewer[0]++
-	if _, err := c.decode(token, other); !errors.Is(err, errUOEventResync) {
-		t.Fatal("foreign viewer", err)
+	for _, field := range []string{"database", "viewer", "audience"} {
+		other := b
+		switch field {
+		case "database":
+			other.database[0]++
+		case "viewer":
+			other.viewer[0]++
+		case "audience":
+			other.audience[0]++
+		}
+		if _, err := c.decode(token, other); !errors.Is(err, errUOEventResync) {
+			t.Fatal("foreign "+field, err)
+		}
 	}
 	restarted, err := newUOEventCursorCodec()
 	if err != nil {
