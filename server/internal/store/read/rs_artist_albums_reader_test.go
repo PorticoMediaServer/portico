@@ -266,14 +266,12 @@ func rsArtistAlbumCurrentPages(t *testing.T) {
 					f.exec(t, `UPDATE catalog_entities SET admission_own_age=30,admission_member_count=1,admission_unrated_members=0,admission_min_known_age=30 WHERE id=?`, id)
 				}
 				if mode == "wrong-library-album" || mode == "wrong-library-feature" {
-					id := int64(1999)
-					if mode == "wrong-library-feature" {
-						id = 9902
-					}
+					// Canonical composite FKs require album, primary artist and song
+					// to move together; the reverse featured edge may cross libraries.
 					f.exec(t, `BEGIN`)
 					f.exec(t, `PRAGMA defer_foreign_keys=ON`)
-					f.exec(t, `UPDATE catalog_subjects SET library_id=2 WHERE id=?`, id)
-					f.exec(t, `UPDATE catalog_entities SET library_id=2 WHERE id=?`, id)
+					f.exec(t, `UPDATE catalog_subjects SET library_id=2 WHERE id IN(1998,1999,9902)`)
+					f.exec(t, `UPDATE catalog_entities SET library_id=2 WHERE id IN(1998,1999,9902)`)
 					f.exec(t, `COMMIT`)
 				}
 				switch mode {
