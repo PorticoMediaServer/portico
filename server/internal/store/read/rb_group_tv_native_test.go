@@ -1,16 +1,24 @@
 package read
 
 import (
+	_ "embed"
+	"encoding/json"
 	"errors"
 	"reflect"
-	"slices"
 	"testing"
 	"time"
 )
 
+//go:embed testdata/rb-group-tv-contract.json
+var rbTVFrozenContract []byte
+
 // Frozen expected groupOrder tuples are independent of legacy packages. Native
 // test binaries must never import the legacy implementation as a parity oracle.
 func TestRBGroupTVNative(t *testing.T) {
+	var frozen map[string][]int64
+	if e := json.Unmarshal(rbTVFrozenContract, &frozen); e != nil {
+		t.Fatal(e)
+	}
 	source := rbGroupSource(t)
 	source.exec(t, `UPDATE catalog_entities SET season_id=2012,numbering='date',episode_number=1 WHERE id=5001`)
 	source.exec(t, `UPDATE catalog_entities SET season_id=NULL,numbering='absolute',episode_number=100 WHERE id=5003`)
@@ -27,22 +35,20 @@ func TestRBGroupTVNative(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			var want []int64
+			key := "show_all"
 			if group == RBTVSpecials {
-				want = []int64{5001}
-			} else if group == RBTVUnassignedAbsolute {
-				want = []int64{5003}
-			} else {
-				for n := int64(0); n < 80; n++ {
-					if n%9 != 0 && n != 1 && n != 3 {
-						want = append(want, 5000+n)
-					}
-				}
-				want = append(want, 5003, 5001)
+				key = "show_specials"
+			}
+			if group == RBTVUnassignedAbsolute {
+				key = "show_unassigned_absolute"
 			}
 			if desc {
-				slices.Reverse(want)
+				key += "_desc"
+			} else {
+				key += "_asc"
 			}
+			want := frozen[key]
+
 			var got []int64
 			for _, ep := range p.Items {
 				got = append(got, ep.ID)
