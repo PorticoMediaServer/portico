@@ -33,6 +33,7 @@ func rbGroupSource(t *testing.T) *browseFixture {
 	add(2001, 2, "Show", "")
 	add(2002, 3, "Season", ",show_id,season_number", int64(2001), int64(1))
 	add(2003, 5, "Artist", "")
+	add(2010, 5, "Featured Artist", "")
 	add(2004, 6, "Album", ",artist_id", int64(2003))
 	add(2005, 13, "Author", "")
 	add(2006, 8, "Book", ",author", "Author")
@@ -53,6 +54,7 @@ func rbGroupSource(t *testing.T) *browseFixture {
 			retired = 1
 		}
 		add(3000+n, 7, fmt.Sprint("Song", n), ",album_id,disc_number,track_number,retired", int64(2004), disc, part, retired)
+		f.exec(t, `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(?,2003),(?,2010)`, 3000+n, 3000+n)
 		add(4000+n, 9, fmt.Sprint("Part", n), ",book_id,disc_number,part_number,retired", int64(2006), disc, part, retired)
 		// The accepted numbering modes can share a number: preserve the ID tie.
 		add(5000+n, 4, fmt.Sprint("Episode", n), ",show_id,season_id,numbering,episode_number,retired", int64(2001), int64(2002), []string{"seasonal", "absolute", "date"}[n%3], n/3+1, retired)

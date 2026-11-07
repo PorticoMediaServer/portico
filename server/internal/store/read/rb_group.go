@@ -22,6 +22,7 @@ const (
 	RBGroupBookParts
 	RBGroupCollectionMembers
 	RBGroupPlaylistEntries
+	RBGroupArtistCredits
 )
 
 type RBGroupInput struct {

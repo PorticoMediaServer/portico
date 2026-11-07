@@ -30,7 +30,7 @@ func rbGroupRequest() governor.Request {
 }
 func TestRBGroupTraversal(t *testing.T) {
 	f := rbGroupFixture(t, false)
-	for _, family := range []RBGroupFamily{RBGroupSeasonEpisodes, RBGroupAlbumSongs, RBGroupBookParts, RBGroupCollectionMembers, RBGroupPlaylistEntries, RBGroupShowSeasons, RBGroupShowEpisodes, RBGroupArtistAlbums, RBGroupAuthorBooks} {
+	for _, family := range []RBGroupFamily{RBGroupSeasonEpisodes, RBGroupAlbumSongs, RBGroupBookParts, RBGroupCollectionMembers, RBGroupPlaylistEntries, RBGroupShowSeasons, RBGroupShowEpisodes, RBGroupArtistAlbums, RBGroupAuthorBooks, RBGroupArtistCredits} {
 		spec, _ := rbGroupSpecFor(family)
 		for _, desc := range []bool{false, true} {
 			in := RBGroupInput{View: f.input, Family: family, Subject: rbGroupFixtureSubject(family)}
@@ -263,5 +263,21 @@ func TestRBGroupArticleContextBindsCursor(t *testing.T) {
 	p, _, e = f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrStale) || !reflect.DeepEqual(p, RBGroupPage{}) {
 		t.Fatal("article context cursor reused", p, e)
+	}
+}
+
+func TestRBGroupCreditedAppearanceSource(t *testing.T) {
+	f := rbGroupFixture(t, false)
+	in := RBGroupInput{View: f.input, Family: RBGroupArtistAlbums, Subject: 2010}
+	in.View.Kind = 6
+	p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+	if e != nil || len(p.Items) != 0 || !p.Exhausted {
+		t.Fatal("featured artist unexpectedly owns album", p, e)
+	}
+	in.Family = RBGroupArtistCredits
+	in.View.Kind = 7
+	p, _, e = f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+	if e != nil || len(p.Items) != 40 || p.SourceOrdered || p.Exhausted || p.Next == nil {
+		t.Fatal("credited appearance missing/invented release order", p, e)
 	}
 }
