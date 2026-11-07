@@ -10,7 +10,22 @@ import (
 // FIRST is a trusted internal PublisherDriver, never a caller-selected system
 // flag or account role. Issuance/opening remains W-owned and is not supplied by
 // this protocol layer. Scope identities freeze at issuance; revocation is live.
+type publisherScopeKind uint8
+
+const (
+	publisherJobScope publisherScopeKind = iota
+	publisherReclaimerScope
+)
+
+// Distinct fields prevent publisher-job IDs/nonces becoming reclaimer authority.
+type publisherReclaimerBinding struct {
+	jobID, publicationID int64
+	incarnation          [16]byte
+}
+
 type publisherScope struct {
+	kind                       publisherScopeKind
+	reclaimer                  publisherReclaimerBinding
 	jobID, libraryID, entityID int64
 	libraryKey                 string
 	incarnation                [16]byte
@@ -28,19 +43,24 @@ const (
 	publisherPublishHead
 	publisherResolveCommand
 	publisherAckCommand
+	publisherReclaimFragment
+	publisherResolveReclaimer
+	publisherAckReclaimer
 )
 
 // A bounded typed protocol envelope, NOT authority, a grant, native source
 // proof or an execution hook. The dispatcher rechecks current opaque/native
 // scope and original history in its SAME turn before any fresh effects.
 type publisherInvocation struct {
-	disclosure *PublisherDisclosure
-	request    PublisherReceiptRequest
-	input      *searchImageStageCommand
-	call       publisherCall
-	purpose    CommandID
-	fragment   *searchFragmentStageCommand
-	head       *searchHeadPublishCommand
+	disclosure     *PublisherDisclosure
+	request        PublisherReceiptRequest
+	input          *searchImageStageCommand
+	call           publisherCall
+	purpose        CommandID
+	fragment       *searchFragmentStageCommand
+	head           *searchHeadPublishCommand
+	reclaim        *searchFragmentReclaimCommand
+	reclaimRequest searchReclaimerReceiptRequest
 }
 
 // PB's finite receipt adapter returns only shared protocol facts and the exact
@@ -69,6 +89,9 @@ func checkPublisherDisclosure(w *Writer, c *PublisherDisclosure, q PublisherRece
 		return err
 	}
 	s := c.scope
+	if s.kind != publisherJobScope || s.reclaimer != (publisherReclaimerBinding{}) {
+		return ErrDisclosureDenied
+	}
 	if q.JobID <= 0 || q.LibraryID <= 0 || q.EntityID <= 0 || q.Receipt.Identity.Sequence <= 0 ||
 		s.libraryKey == "" || len(s.libraryKey) > maxCanonicalRequestBytes || !utf8.ValidString(s.libraryKey) ||
 		s.jobID != q.JobID || s.libraryID != q.LibraryID || s.entityID != q.EntityID || s.incarnation != q.Receipt.Identity.Incarnation {
@@ -95,6 +118,9 @@ func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDi
 		if w == nil || w.effective != r {
 			return ErrDisclosureDenied
 		}
+		if publisher.purpose == SearchFragmentReclaim {
+			return checkSearchReclaimerDisclosure(w, publisher.disclosure, publisher.reclaimRequest)
+		}
 		return checkPublisherDisclosure(w, publisher.disclosure, publisher.request)
 	}
 	return r.currentRunDisclosure(w, cap, request, scan)
@@ -108,7 +134,7 @@ func validatePublisherInvocation(ctx context.Context, w *Writer, invocation *pub
 	if invocation.purpose != 0 {
 		return validateSearchPublisherInvocation(ctx, w, invocation)
 	}
-	if invocation.fragment != nil || invocation.head != nil {
+	if invocation.fragment != nil || invocation.head != nil || invocation.reclaim != nil || invocation.reclaimRequest != (searchReclaimerReceiptRequest{}) {
 		return publisherInvocation{}, ErrInvalid
 	}
 	q := invocation.request

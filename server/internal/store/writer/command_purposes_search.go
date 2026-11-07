@@ -9,4 +9,5 @@ var searchImageCommandPurposes = commandPurposeRegistration{owner: "search_image
 var searchPublisherCommandPurposes = commandPurposeRegistration{owner: "search_publisher", purposes: []commandPurpose{
 	{id: SearchFragmentStage, plan: true, memory: publisherPartition, clock: clockUnderLease},
 	{id: SearchHeadPublish, plan: true, memory: publisherPartition, clock: clockUnderLease},
+	{id: SearchFragmentReclaim, plan: true, memory: publisherPartition, clock: clockUnderLease},
 }}

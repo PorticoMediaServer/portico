@@ -17,24 +17,40 @@ type searchPublisherCommandResult struct {
 	Outcome  ReceiptOutcome
 	Fragment searchFragmentStageResult
 	Head     searchHeadPublishResult
+	Reclaim  searchFragmentReclaimResult
 }
 
 func searchPublisherPlanIndex(purpose CommandID) int {
-	if purpose == SearchFragmentStage {
+	switch purpose {
+	case SearchFragmentStage:
 		return 0
+	case SearchHeadPublish:
+		return 1
+	case SearchFragmentReclaim:
+		return 2
+	default:
+		return -1
 	}
-	return 1
+}
+
+func searchPublisherDisclosureBytes(v *publisherInvocation) uint64 {
+	// Scope strings are frozen by the existing issuer; charge their bind custody.
+	n := searchPublisherHistoryBytes
+	if v != nil && v.disclosure != nil && v.disclosure.scope != nil {
+		n += 4 * uint64(len(v.disclosure.scope.libraryKey))
+	}
+	return n
 }
 
 // Trusted startup installation, using the existing executor, Capture receipts,
 // plan freezer and registry. No caller can install a recipe through the facade.
-func composeSearchPublisherCommands(ctx context.Context, r *effectiveRuntime, fragment, head effectivePlan) (err error) {
+func composeSearchPublisherCommands(ctx context.Context, r *effectiveRuntime, fragment, head effectivePlan, reclaim ...effectivePlan) (err error) {
 	var locked, executorLocked, installed bool
 	var previous *stmt.Registry
 	defer func() {
 		_, err = finishCommand(ctx, ctx, struct{}{}, err)
 		if installed && err != nil {
-			r.registry, r.publisherPlans = previous, [2]*effectivePlan{}
+			r.registry, r.publisherPlans = previous, [3]*effectivePlan{}
 		}
 		if executorLocked {
 			r.executor.mu.Unlock()
@@ -44,7 +60,7 @@ func composeSearchPublisherCommands(ctx context.Context, r *effectiveRuntime, fr
 		}
 	}()
 	defer func() { _, err = finishCommand(ctx, ctx, struct{}{}, err) }()
-	if ctx == nil || r == nil || r.executor == nil || r.authority == nil || r.governor == nil || r.wal == nil {
+	if len(reclaim) > 1 || ctx == nil || r == nil || r.executor == nil || r.authority == nil || r.governor == nil || r.wal == nil {
 		return ErrInvalid
 	}
 	if !r.mu.TryLock() {
@@ -58,7 +74,7 @@ func composeSearchPublisherCommands(ctx context.Context, r *effectiveRuntime, fr
 	if r.registry == nil || r.fenced || r.executor.closed || r.executor.fenced || r.executor.ambiguous {
 		return ErrClosed
 	}
-	if r.publisherPlans != ([2]*effectivePlan{}) {
+	if r.publisherPlans != ([3]*effectivePlan{}) {
 		return ErrBusy
 	}
 	fragment, err = freezeCommandPlan(r.executor, fragment, searchPublisherCommandDefinitions(SearchFragmentStage), SearchFragmentStage)
@@ -69,7 +85,17 @@ func composeSearchPublisherCommands(ctx context.Context, r *effectiveRuntime, fr
 	if err != nil {
 		return err
 	}
-	for _, p := range []effectivePlan{fragment, head} {
+	plans := []effectivePlan{fragment, head}
+	purposes := []CommandID{SearchFragmentStage, SearchHeadPublish}
+	if len(reclaim) == 1 {
+		p, e := freezeCommandPlan(r.executor, reclaim[0], searchPublisherCommandDefinitions(SearchFragmentReclaim), SearchFragmentReclaim)
+		if e != nil {
+			return e
+		}
+		plans = append(plans, p)
+		purposes = append(purposes, SearchFragmentReclaim)
+	}
+	for _, p := range plans {
 		if p.publisherMemory.preparationBytes < searchPublisherHistoryBytes {
 			return &Refusal{Code: RefusalCapacity}
 		}
@@ -78,7 +104,7 @@ func composeSearchPublisherCommands(ctx context.Context, r *effectiveRuntime, fr
 	for _, entry := range r.registry.Manifest() {
 		all = append(all, entry.Definition)
 	}
-	for _, purpose := range []CommandID{SearchFragmentStage, SearchHeadPublish} {
+	for _, purpose := range purposes {
 		for _, d := range searchPublisherCommandDefinitions(purpose) {
 			found := false
 			for _, old := range all {
@@ -95,7 +121,11 @@ func composeSearchPublisherCommands(ctx context.Context, r *effectiveRuntime, fr
 			}
 		}
 	}
-	registry, err := stmt.New(all, r.plan.registration, fragment.registration, head.registration)
+	receipts := []stmt.Receipt{r.plan.registration}
+	for _, p := range plans {
+		receipts = append(receipts, p.registration)
+	}
+	registry, err := stmt.New(all, receipts...)
 	if err != nil {
 		return err
 	}
@@ -103,7 +133,9 @@ func composeSearchPublisherCommands(ctx context.Context, r *effectiveRuntime, fr
 		return err
 	}
 	previous, r.registry = r.registry, registry
-	r.publisherPlans = [2]*effectivePlan{&fragment, &head}
+	for i := range plans {
+		r.publisherPlans[i] = &plans[i]
+	}
 	installed = true
 	return nil
 }
@@ -166,7 +198,10 @@ func prepareSearchPublisherCommand(ctx context.Context, w *Writer, cap *Publishe
 
 func validateSearchPublisherInvocation(ctx context.Context, w *Writer, input *publisherInvocation) (out publisherInvocation, err error) {
 	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
-	if input == nil || input.input != nil {
+	if input != nil && input.purpose == SearchFragmentReclaim {
+		return validateSearchReclaimerInvocation(ctx, w, input)
+	}
+	if input == nil || input.input != nil || input.reclaim != nil || input.reclaimRequest != (searchReclaimerReceiptRequest{}) {
 		return out, ErrInvalid
 	}
 	out, err = prepareSearchPublisherCommand(ctx, w, input.disclosure, input.request, input.purpose, input.fragment, input.head, input.call == publisherAckCommand)
@@ -178,8 +213,11 @@ func validateSearchPublisherInvocation(ctx context.Context, w *Writer, input *pu
 
 func discloseSearchPublisher(ctx context.Context, turn *commandTurn, invocation *publisherInvocation) (owner receiptOwnerFacts, err error) {
 	defer func() { owner, err = finishCommand(ctx, commandLifetime(turn), owner, err) }()
-	if ctx == nil || turn == nil || turn.transaction == nil || invocation == nil || !searchPublisherPurpose(invocation.purpose) || turn.transaction.descriptor.ID != invocation.purpose {
+	if ctx == nil || turn == nil || turn.transaction == nil || invocation == nil || !searchPublisherResourcePurpose(invocation.purpose) || turn.transaction.descriptor.ID != invocation.purpose {
 		return owner, ErrInvalid
+	}
+	if invocation.purpose == SearchFragmentReclaim {
+		return discloseSearchReclaimer(ctx, turn, invocation)
 	}
 	q := invocation.request
 	step, err := searchPublisherStep(turn, searchPublisherOwnerID)
@@ -233,8 +271,11 @@ func executeSearchPublisherBody(ctx context.Context, turn *commandTurn, invocati
 		}{out, acknowledged, historical}, err)
 		out, acknowledged, historical, err = v.Out, v.Ack, v.Historical, e
 	}()
-	if ctx == nil || turn == nil || turn.transaction == nil || invocation == nil || !searchPublisherPurpose(invocation.purpose) || turn.transaction.descriptor.ID != invocation.purpose {
+	if ctx == nil || turn == nil || turn.transaction == nil || invocation == nil || !searchPublisherResourcePurpose(invocation.purpose) || turn.transaction.descriptor.ID != invocation.purpose {
 		return out, 0, false, ErrInvalid
+	}
+	if invocation.purpose == SearchFragmentReclaim {
+		return executeSearchReclaimerBody(ctx, turn, invocation, owner)
 	}
 	q := invocation.request
 	decision := receiptDecision(0)
