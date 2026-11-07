@@ -372,6 +372,13 @@ func (d *WCProgressDriver) ExecuteDrain(ctx context.Context, input ProgressComma
 
 func (w *Writer) ResolveProgress(ctx context.Context, cap *ProgressDisclosure, q ProgressReceiptRequest) (out ProgressResult, err error) {
 	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
+	if cap == nil || cap.driver == nil {
+		return out, ErrDisclosureDenied
+	}
+	if !cap.driver.mu.TryLock() {
+		return out, ErrBusy
+	}
+	defer cap.driver.mu.Unlock()
 	return w.runWCProgress(ctx, &wcProgressInvocation{disclosure: cap, request: q}, false)
 }
 func (w *Writer) AckProgress(ctx context.Context, cap *ProgressDisclosure, q ProgressReceiptRequest) (out AckResult, err error) {
@@ -379,14 +386,17 @@ func (w *Writer) AckProgress(ctx context.Context, cap *ProgressDisclosure, q Pro
 	if w == nil || w.effective == nil {
 		return out, ErrNotImplemented
 	}
-	if err = checkWCProgressDisclosure(w, &wcProgressInvocation{disclosure: cap, request: q}); err != nil {
-		return out, err
+	if cap == nil || cap.driver == nil {
+		return out, ErrDisclosureDenied
 	}
 	d := cap.driver
 	if !d.mu.TryLock() {
 		return out, ErrBusy
 	}
 	defer d.mu.Unlock()
+	if err = checkWCProgressDisclosure(w, &wcProgressInvocation{disclosure: cap, request: q}); err != nil {
+		return out, err
+	}
 	_, out, err = w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, nil, &wcProgressInvocation{disclosure: cap, request: q})
 	if err == nil && d.work != nil && d.work.reference == q && out.AcknowledgedThrough >= q.Receipt.Identity.Sequence {
 		if q.Kind == "capture_report" {
@@ -416,6 +426,18 @@ func (w *Writer) CurrentProgress(ctx context.Context, cap *ProgressDisclosure) (
 		return out, ErrDisclosureDenied
 	}
 	d := cap.driver
+	if !d.mu.TryLock() {
+		return out, ErrBusy
+	}
+	defer d.mu.Unlock()
+	return w.currentProgress(ctx, cap)
+}
+
+// currentProgress is called only while the driver mutex is held. That mutex
+// joins Close before any retained scope or payload can be physically retired.
+func (w *Writer) currentProgress(ctx context.Context, cap *ProgressDisclosure) (out ProgressSnapshot, err error) {
+	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
+	d := cap.driver
 	q := ProgressReceiptRequest{PlaybackID: d.scope.playbackID, Kind: "capture_report", Receipt: ReceiptReference{Identity: CommandIdentity{Incarnation: d.scope.incarnation, Sequence: 1}}}
 	result, err := w.runWCProgress(ctx, &wcProgressInvocation{disclosure: cap, request: q, snapshot: true}, false)
 	return result.Snapshot, err
@@ -441,7 +463,7 @@ func (d *WCProgressDriver) Capture(ctx context.Context, reportSequence int64, po
 	if d.sourceStopped {
 		return nil, ErrInvalid
 	}
-	snap, err := d.writer.CurrentProgress(ctx, d.Disclosure())
+	snap, err := d.writer.currentProgress(ctx, d.Disclosure())
 	if err != nil {
 		return nil, err
 	}
@@ -494,7 +516,7 @@ func (d *WCProgressDriver) Drain(ctx context.Context) (out ProgressCommand, err 
 	var result ProgressResult
 	root := d.pending.Load()
 	if root == nil {
-		snap, err = d.writer.CurrentProgress(ctx, d.Disclosure())
+		snap, err = d.writer.currentProgress(ctx, d.Disclosure())
 		if err == nil && snap.Pending {
 			root = d.retainPending(snap.source(d.scope))
 		}
