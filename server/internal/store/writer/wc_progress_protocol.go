@@ -88,11 +88,12 @@ type wcProgressPrepared struct {
 	State              string
 }
 type wcProgressCommand struct {
-	retired   bool
-	driver    *WCProgressDriver
-	request   wcProgressPrepared
-	reference ProgressReceiptRequest
-	pending   *wcProgressPending
+	preparation ProgressSnapshot
+	retired     bool
+	driver      *WCProgressDriver
+	request     wcProgressPrepared
+	reference   ProgressReceiptRequest
+	pending     *wcProgressPending
 }
 
 // The retained capability binds one EXACT native obligation, not a general
@@ -306,6 +307,23 @@ func progressReference(c *wcProgressCommand) (ProgressReceiptRequest, error) {
 	return c.reference, nil
 }
 
+// ProgressPreparationSnapshot exposes only the actual preparation call's native
+// snapshot/evidence. It cannot mint a command, grant, floor or physical ordinal.
+func ProgressPreparationSnapshot(input ProgressCommand) (ProgressSnapshot, error) {
+	c, ok := input.(*wcProgressCommand)
+	if !ok || c == nil || c.driver == nil {
+		return ProgressSnapshot{}, ErrInvalid
+	}
+	if !c.driver.mu.TryLock() {
+		return ProgressSnapshot{}, ErrBusy
+	}
+	defer c.driver.mu.Unlock()
+	if c.retired {
+		return ProgressSnapshot{}, ErrResolveRequired
+	}
+	return c.preparation, nil
+}
+
 func (w *Writer) AcceptProgress(ctx context.Context, cap *ProgressDisclosure, input ProgressCommand) (out ProgressResult, err error) {
 	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
 	c, ok := input.(*wcProgressCommand)
@@ -449,6 +467,9 @@ func (d *WCProgressDriver) Capture(ctx context.Context, reportSequence int64, po
 	}
 	prepared := wcProgressPrepared{Policy: d.policy, Kind: "capture_report", Source: source, Original: d.original, Position: position, Duration: duration, StartedPercent: d.policy.StartedPercent, Completed: completed, State: state}
 	d.work, err = d.seal(prepared, nil)
+	if err == nil {
+		d.work.preparation = snap
+	}
 	if err == nil && state != "playing" {
 		d.sourceStopped = true
 	}
@@ -491,6 +512,9 @@ func (d *WCProgressDriver) Drain(ctx context.Context) (out ProgressCommand, err 
 	source := snap.source(d.scope)
 	pending := &wcProgressPending{driver: d, source: source, root: root}
 	d.work, err = d.seal(wcProgressPrepared{Kind: "drain_piece", Source: source}, pending)
+	if err == nil {
+		d.work.preparation = snap
+	}
 	return d.work, err
 }
 func (d *WCProgressDriver) retainPending(source wc008ProgressCommand) *wcProgressPending {

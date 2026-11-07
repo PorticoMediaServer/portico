@@ -90,7 +90,7 @@ func executeWCProgressInvocation(ctx context.Context, t *commandTurn, v *wcProgr
 	if v.input == nil {
 		return out, acknowledged, false, nil
 	}
-	original, e := ProgressReference(v.input)
+	original, e := progressReference(v.input)
 	if e != nil || original != v.request || v.input.driver != v.disclosure.driver {
 		return out, acknowledged, false, errors.Join(ErrConflict, e)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"time"
 )
@@ -12,10 +13,17 @@ import (
 // Ordinary Accept/Resolve/ACK cannot request birth or initialize a missing owner.
 // It establishes actual native rows on the same exclusive opening, before the
 // driver escapes. This is not a product sign-in or a credential API.
+type wcProgressExistingCatalog struct {
+	libraryID, subjectID int64
+	libraryKey           string
+	publicID             [16]byte
+}
+
 type wcProgressBirth struct {
-	driver    *WCProgressDriver
-	expiresAt string
-	used      bool
+	existingCatalog *wcProgressExistingCatalog
+	driver          *WCProgressDriver
+	expiresAt       string
+	used            bool
 }
 
 func wcProgressBirthDefinitions() []stmt.Definition {
@@ -23,6 +31,7 @@ func wcProgressBirthDefinitions() []stmt.Definition {
 	integer := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	blob := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
 	defs := []stmt.Definition{
+		{ID: "wc.fixture.existing_catalog", Owner: "store/writer WC trusted fixture birth", CallSites: []string{"store/writer/wc_progress_fixture.go"}, Kind: stmt.Read, SQL: `SELECT s.kind FROM catalog_subjects AS s INNER JOIN catalog_libraries AS l ON l.id=s.library_id WHERE s.id=? AND s.public_id=? AND l.id=? AND l.library_id=?`, Params: []stmt.Param{integer("subject"), blob("public_id"), integer("library"), text("library_key")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"s", "l"}}},
 		{ID: "wc.fixture.account", Owner: "store/writer WC trusted fixture birth", CallSites: []string{"store/writer/wc_progress_fixture.go"}, Kind: stmt.Write, SQL: `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES(?,?,?,?)`, Params: []stmt.Param{text("account"), text("username"), blob("unused_password"), text("profile")}, Plan: stmt.Plan{Hot: true}},
 		{ID: "wc.fixture.member", Owner: "store/writer WC trusted fixture birth", CallSites: []string{"store/writer/wc_progress_fixture.go"}, Kind: stmt.Write, SQL: `INSERT INTO direct_memberships(account_id,incarnation,role,allowed_libraries) VALUES(?,?,?,?)`, Params: []stmt.Param{text("account"), text("birth"), text("role"), text("libraries")}, Plan: stmt.Plan{Hot: true}},
 		{ID: "wc.fixture.profile", Owner: "store/writer WC trusted fixture birth", CallSites: []string{"store/writer/wc_progress_fixture.go"}, Kind: stmt.Write, SQL: `INSERT INTO direct_profiles(id,account_id,lifetime,name,is_primary) VALUES(?,?,?,?,?)`, Params: []stmt.Param{text("profile"), text("account"), text("birth"), text("name"), integer("primary")}, Plan: stmt.Plan{Hot: true}},
@@ -54,14 +63,21 @@ func wcProgressBirthDefinitions() []stmt.Definition {
 	return defs
 }
 
-func initializeWCProgressFixture(ctx context.Context, d *WCProgressDriver) (err error) {
+func initializeWCProgressFixture(ctx context.Context, d *WCProgressDriver, existingCatalog ...wcProgressExistingCatalog) (err error) {
 	defer func() { _, err = finishCommand(ctx, ctx, struct{}{}, err) }()
+	if len(existingCatalog) > 1 {
+		return ErrInvalid
+	}
 	if err = d.current(); err != nil {
 		return err
 	}
 	// This private helper is called ONLY by the separately reviewed test fixture.
 	// Permit and actual birth witnesses are constructed before exposing d.
 	p := &wcProgressBirth{driver: d, expiresAt: d.scope.horizon}
+	if len(existingCatalog) == 1 {
+		captured := existingCatalog[0]
+		p.existingCatalog = &captured
+	}
 	q := ProgressReceiptRequest{PlaybackID: d.scope.playbackID, Kind: "capture_report", Receipt: ReceiptReference{Identity: CommandIdentity{Incarnation: d.scope.incarnation, Sequence: 1}}}
 	_, err = d.writer.runWCProgress(ctx, &wcProgressInvocation{disclosure: d.Disclosure(), request: q, birth: p}, false)
 	if err == nil {
@@ -92,6 +108,17 @@ func applyWCProgressFixtureBirth(ctx context.Context, t *commandTurn, v *wcProgr
 	if _, err = rand.Read(password[:]); err != nil {
 		return err
 	}
+
+	if p.existingCatalog != nil {
+		c := p.existingCatalog
+		if c.libraryID != s.libraryID || c.subjectID != s.subjectID || c.libraryKey != s.libraryKey || c.publicID != s.subjectPublicID {
+			return ErrConflict
+		}
+		kind, e := wc008DraftInteger(ctx, t, "wc.fixture.existing_catalog", c.subjectID, c.publicID[:], c.libraryID, c.libraryKey)
+		if e != nil || kind != 1 || p.driver.original[9].Integer != kind {
+			return errors.Join(ErrConflict, e)
+		}
+	}
 	rows := []struct {
 		id   stmt.ID
 		args []any
@@ -111,6 +138,12 @@ func applyWCProgressFixtureBirth(ctx context.Context, t *commandTurn, v *wcProgr
 		{"wc.fixture.claim", []any{s.playbackID, s.profileKey, s.subjectID, int64(1), "local", s.accountID, s.profileID, s.memberBirth, s.profileBirth, s.libraryID, s.incarnation[:], int64(1)}},
 	}
 	for _, row := range rows {
+		if p.existingCatalog != nil {
+			switch row.id {
+			case "wc.fixture.library", "wc.fixture.kind", "wc.fixture.subject":
+				continue
+			}
+		}
 		if err = wc008DraftChanged(ctx, t, row.id, row.args...); err != nil {
 			return err
 		}
