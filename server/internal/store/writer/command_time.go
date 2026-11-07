@@ -10,11 +10,11 @@ import (
 // This factors existing policy; it does not implement clock follow-up1118.
 func (t *commandTurn) commandTimeMS(ctx context.Context, purpose CommandID, leaseExpiresMS int64) (nowMS int64, err error) {
 	defer func() { nowMS, err = finishCommand(ctx, commandLifetime(t), nowMS, err) }()
-	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept {
+	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept {
 		return 0, ErrInvalid
 	}
 	if ctx == nil || t == nil || t.transaction == nil ||
-		((purpose == InventoryCreate || purpose == ProgressAccept) && leaseExpiresMS != 0) || (purpose != InventoryCreate && purpose != ProgressAccept && leaseExpiresMS <= 0) {
+		((purpose == InventoryCreate || purpose == ProgressAccept || purpose == SecurityAccept) && leaseExpiresMS != 0) || (purpose != InventoryCreate && purpose != ProgressAccept && purpose != SecurityAccept && leaseExpiresMS <= 0) {
 		return 0, ErrInvalid
 	}
 	tx := t.transaction
@@ -40,7 +40,7 @@ func (t *commandTurn) commandTimeMS(ctx context.Context, purpose CommandID, leas
 	if err := tx.observeTime(now); err != nil {
 		return 0, err
 	}
-	if purpose != InventoryCreate && purpose != ProgressAccept {
+	if purpose != InventoryCreate && purpose != ProgressAccept && purpose != SecurityAccept {
 		expires := time.UnixMilli(leaseExpiresMS)
 		if !now.Before(expires) || deadline.After(expires) {
 			return 0, ErrConflict
