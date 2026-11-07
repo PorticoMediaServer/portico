@@ -13025,7 +13025,7 @@
       ]
     },
     "internal/streamlimits/limits.go": {
-      "sha256": "16f246a466f2033fd80141fcfc44e209f06038bbbf458b225f61abec232a2f02",
+      "sha256": "f0f9f9d6828d65a73641bea580190e438d3e31fe092dcaf5fcea5101ada68d28",
       "effects": [
         {
           "table": "*",
