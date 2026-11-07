@@ -116,6 +116,7 @@ func relatedEnumerate(q browseQuery, s *relatedState) error {
 		if s.rawIndex == len(s.raw) {
 			if len(s.raw) < MaxRaw {
 				s.enumStage = 3
+				s.after = 0
 			} else {
 				s.enumStage = 2
 			}
@@ -136,18 +137,26 @@ func relatedEnumerate(q browseQuery, s *relatedState) error {
 		s.after = id
 		s.rawIndex++
 	case 3:
-		for _, p := range []struct {
-			col  int
-			kind uint8
-		}{{18, 4}, {19, 5}, {22, 6}} {
+		typed := []struct {
+			col    int
+			kind   uint8
+			target int64
+		}{{18, 4, 0}, {19, 5, 2}, {22, 6, 5}}
+		if s.after < int64(len(typed)) {
+			p := typed[s.after]
+			s.after++
 			if id := relatedInt(e.row[p.col]); id > 0 {
-				if err := relatedAddFeature(s, relatedFeature{key: RelatedKey{Kind: p.kind, ID: id}}); err != nil {
+				owner, err := relatedEntityRead(q, s.fence.profile, id)
+				if err != nil {
 					return err
 				}
+				s.rawTotal++
+				if owner.row != nil && owner.eligible(s.fence) && relatedInt(owner.row[7]) != 0 && (p.target == 0 || owner.kind() == p.target) {
+					return relatedAddFeature(s, relatedFeature{key: RelatedKey{Kind: p.kind, ID: id}})
+				}
 			}
+			return nil
 		}
-		// The local stream is optional and serves identity discovery/exclusion;
-		// it never gives a duplicate edition an artificial similarity point.
 		if err := relatedAddFeature(s, relatedFeature{key: RelatedKey{Kind: 7, ID: e.id()}}); err != nil {
 			return err
 		}
