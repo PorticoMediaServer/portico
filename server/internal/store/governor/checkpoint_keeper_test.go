@@ -37,6 +37,7 @@ func newKeeperFixtureMode(t *testing.T, concurrent bool, faults ...*snapshotConn
 		cfg.Partitions[i][MemoryBytes] = 16 << 20
 		cfg.Partitions[i][IOBytes] = 8 << 20
 		cfg.Partitions[i][CPUMilli] = 2000
+		cfg.Partitions[i][Helper] = 1
 	}
 	if concurrent {
 		p := cfg.WAL.policy
@@ -265,5 +266,30 @@ func TestKeeperFailedStartupKeepsCleanupCapability(t *testing.T) {
 	}
 	if err := a.Retired(r.Lifetime); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestKeeperShutdownFloorCannotBeSpentByOtherRecovery(t *testing.T) {
+	for _, resource := range []Resource{CPUMilli, IOBytes} {
+		t.Run(map[Resource]string{CPUMilli: "cpu", IOBytes: "io"}[resource], func(t *testing.T) {
+			f := newKeeperFixture(t)
+			f.bind(t)
+			r := f.ioRequest("other-recovery")
+			// This otherwise-valid work fits the whole Recovery partition, but would
+			// consume terminal custody required to close the already resident keeper.
+			r.Need[resource] = f.g.(*ledger).config.Partitions[Recovery][resource]
+			decision := f.g.Try(r)
+			if decision.Grant != nil {
+				retire(t, f.a, decision.Grant)
+				t.Fatal("other recovery spent reserved shutdown floor")
+			}
+			if decision.Refusal == nil || decision.Refusal.Code != Capacity {
+				t.Fatal(decision)
+			}
+			// The ordinary refusal cannot damage actual final cleanup funding.
+			if f.a.Usage()[Recovery] != f.resources.LifetimeRequest.Need {
+				t.Fatal("unused request charged resources")
+			}
+		})
 	}
 }

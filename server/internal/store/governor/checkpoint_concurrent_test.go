@@ -59,28 +59,61 @@ func TestConcurrentPassiveDoesNotExcludeWriterAndKeepsExactRisk(t *testing.T) {
 	}
 }
 func TestConcurrentPassiveIOPairDoesNotWaiveOtherStreams(t *testing.T) {
-	f := newKeeperFixtureMode(t, true)
-	f.bind(t)
-	f.sample(t)
-	r := concurrentWriter(t, f)
-	r.IO = []DeviceIO{{DeviceID: "database", Class: Seeking, Outstanding: 1, Bytes: 4096}}
-	r.Need[IOBytes] = 4096
-	cpR := concurrentCPRequest(f)
-	cpR.IO = []DeviceIO{{DeviceID: "database", Class: Sequential, Outstanding: 1, Bytes: cpR.Need[IOBytes]}}
-	cp := f.a.tryCheckpoint(cpR)
-	if cp.Grant == nil {
-		t.Fatal(cp.Refusal)
+	for _, kind := range []string{"scan", "helper"} {
+		for _, cpFirst := range []bool{true, false} {
+			name := kind + "/stream-first"
+			if cpFirst {
+				name = kind + "/checkpoint-first"
+			}
+			t.Run(name, func(t *testing.T) {
+				f := newKeeperFixtureMode(t, true)
+				f.bind(t)
+				f.sample(t)
+				cpR := concurrentCPRequest(f)
+				cpR.IO = []DeviceIO{{DeviceID: "database", Class: Sequential, Outstanding: 1, Bytes: cpR.Need[IOBytes]}}
+				other := Request{Key: JobKey{Domain: 1, ID: kind}, Owner: 1, Class: ScanMinimum, Need: Amounts{MemoryBytes: 64 << 10, IOBytes: 4096}, IO: []DeviceIO{{DeviceID: "database", Class: Seeking, Outstanding: 1, Bytes: 4096}}, Deadline: f.clock.now().Add(time.Second)}
+				if kind == "helper" {
+					other.Need[Helper] = 1
+				}
+				if cpFirst {
+					cp := f.a.tryCheckpoint(cpR)
+					if cp.Grant == nil {
+						t.Fatal(cp.Refusal)
+					}
+					// Prove the permitted W/CP pair, then physically retire W BEFORE the
+					// excluded stream test. Only CP's own device custody can deny it now.
+					r := concurrentWriter(t, f)
+					r.Need[IOBytes] = 4096
+					r.IO = other.IO
+					writer := grant(t, f.g, r)
+					retire(t, f.a, writer)
+					decision := f.g.Try(other)
+					if decision.Grant != nil {
+						retire(t, f.a, decision.Grant)
+						retire(t, f.a, cp.Grant)
+						t.Fatal("stream ignored CP device custody")
+					}
+					if decision.Refusal == nil || decision.Refusal.Code != Capacity {
+						t.Fatal(decision)
+					}
+					retire(t, f.a, cp.Grant)
+				} else {
+					stream := grant(t, f.g, other)
+					decision := f.a.tryCheckpoint(cpR)
+					if decision.Grant != nil || decision.Refusal == nil || decision.Refusal.Code != Capacity {
+						if decision.Grant != nil {
+							retire(t, f.a, decision.Grant)
+						}
+						retire(t, f.a, stream)
+						t.Fatal("CP ignored existing stream", decision)
+					}
+					retire(t, f.a, stream)
+				}
+			})
+		}
 	}
-	p := grant(t, f.g, r)
-	other := r
-	other.Writer = false
-	other.RestartRisk = WALRestartRisk{}
-	other.Class = Background
-	other.Need[WALBytes] = 0
-	refused(t, f.g, other, Capacity)
-	retire(t, f.a, p)
-	retire(t, f.a, cp.Grant)
 }
+
 func TestRecoveryTruncateDrainsPhysicalHoldingsAndActuallyResumes(t *testing.T) {
 	f := newKeeperFixtureMode(t, true)
 	f.bind(t)
@@ -196,7 +229,7 @@ func TestRecoveryBarrierWaitsForPhysicalRetirementNotCancel(t *testing.T) {
 	go func() {
 		release, err := f.cp.beginRecovery(ctx, f.clock.now().Add(time.Second))
 		if release != nil {
-			defer release()
+			release()
 		}
 		done <- err
 	}()

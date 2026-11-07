@@ -46,7 +46,7 @@ func (s *passiveCrashTrace) point(phase string) {
 }
 
 // Clock values never depend on a hook: only the declared fixture clock is
-// returned. Identify the existing Step defer's post-pool observations, without
+// returned. Identify the private step defer's post-pool observations, without
 // inspecting a ledger while its own clock callback holds the ledger lock.
 func (s *passiveCrashTrace) observeClock() {
 	if !s.armed.Load() || !s.returned.Load() {
@@ -57,7 +57,7 @@ func (s *passiveCrashTrace) observeClock() {
 		s.t.Fatal("checkpoint clock caller missing")
 	}
 	fn := runtime.FuncForPC(pc)
-	if fn == nil || !strings.Contains(fn.Name(), "governor.(*Checkpointer).Step.func") {
+	if fn == nil || !strings.Contains(fn.Name(), "governor.(*Checkpointer).step.func") {
 		return
 	}
 	switch s.clocks.Add(1) {
