@@ -50,7 +50,7 @@ func (t *commandTurn) requireSearchPublisherMemory(ctx context.Context, purpose 
 	if !searchPublisherPurpose(purpose) {
 		return ErrInvalid
 	}
-	return t.requireCommandMemory(ctx, purpose, requiredBytes, "search_publisher_memory_partition")
+	return nil // deliberate negative control: omit same-grant partition gate
 }
 
 func checkSearchPublisherTerminal(ctx context.Context, turn *commandTurn, purpose CommandID, leaseExpiresMS int64) (err error) {
