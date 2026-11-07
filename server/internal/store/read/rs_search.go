@@ -70,6 +70,7 @@ type RSSearchReader struct {
 	authority *governor.Authority
 	read      FullSearchRead
 	custody   rsSearchCustody
+	pool      *governor.Snapshots
 }
 
 func NewRSSearchReader(a *governor.Authority, pool *governor.Snapshots) (*RSSearchReader, error) {
@@ -80,13 +81,17 @@ func NewRSSearchReader(a *governor.Authority, pool *governor.Snapshots) (*RSSear
 	if e != nil {
 		return nil, e
 	}
-	return newRSSearchReaderWithRead(a, n.Read, rsNativeSearchCustody)
+	r, e := newRSSearchReaderWithRead(a, n.Read, rsNativeSearchCustody)
+	if e == nil {
+		r.pool = pool
+	}
+	return r, e
 }
 func newRSSearchReaderWithRead(a *governor.Authority, read FullSearchRead, custody rsSearchCustody) (*RSSearchReader, error) {
 	if a == nil || read == nil {
 		return nil, ErrInput
 	}
-	return &RSSearchReader{a, read, custody}, nil
+	return &RSSearchReader{authority: a, read: read, custody: custody}, nil
 }
 
 type RSSearchPreparation struct {
@@ -242,14 +247,21 @@ func (r *RSSearchReader) Begin(ctx context.Context, owner governor.OwnerID, dead
 	return p, nil, nil
 }
 
-// Poll issues ONE native read under the caller's ConsumeForeground. Preview
-// work is bounded by MATCH progress, independently of native Pending/pages.
+// Poll issues ONE native read under the caller's ConsumeForeground. Its result
+// is a trusted draft; public delivery uses Publish. The caller supplies the
+// native recipe's 4096-row request budget without implicit enlargement here.
 func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, p *RSSearchPreparation) (result RSSearchPage, cost *BrowseReadResult, err error) {
 	if r == nil || p == nil || p.reader != r || ctx == nil {
 		return result, nil, ErrInput
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	return r.pollLocked(ctx, request, budget, output, p, false)
+}
+
+// Poll is a trusted preparation interface. Publish keeps the ready lease held
+// through encoding and the fresh shared publication fence before delivery.
+func (r *RSSearchReader) pollLocked(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, p *RSSearchPreparation, keepReady bool) (result RSSearchPage, cost *BrowseReadResult, err error) {
 	if output.live == nil || output.Authority != r.authority || p.closed || p.owner != request.Owner {
 		return result, nil, ErrInput
 	}
@@ -453,6 +465,9 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 	}
 	result, err = p.compose()
 	if err != nil {
+		return
+	}
+	if keepReady {
 		return
 	}
 	if err = r.authority.HandoffPreparation(p.lease); err != nil {
