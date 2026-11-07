@@ -28,6 +28,8 @@ const (
 	CreditSourceSeal           CommandID = 24
 	InventoryDirectoryDiscover CommandID = 25
 	InventoryDirectoryEOF      CommandID = 26
+	InventoryDirectoryRefuse   CommandID = 27
+	InventoryTraversalComplete CommandID = 28
 )
 
 var phase1aCommands = commandRegistration{
@@ -59,5 +61,7 @@ var phase1aCommands = commandRegistration{
 		{ID: CreditSourceSeal, Name: "credit_source_seal", Durability: Normal},
 		{ID: InventoryDirectoryDiscover, Name: "inventory_directory_discover", Durability: Normal},
 		{ID: InventoryDirectoryEOF, Name: "inventory_directory_eof", Durability: Normal},
+		{ID: InventoryDirectoryRefuse, Name: "inventory_directory_refuse", Durability: Normal},
+		{ID: InventoryTraversalComplete, Name: "inventory_traversal_complete", Durability: Normal},
 	},
 }

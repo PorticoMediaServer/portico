@@ -61,7 +61,7 @@ type effectiveRuntime struct {
 	owner          governor.OwnerID
 	plan           effectivePlan
 	inventoryPlan  *effectivePlan
-	directoryPlans [2]*effectivePlan
+	directoryPlans [4]*effectivePlan
 	lifecyclePlans [2]*effectivePlan // private, explicitly composed create/claim history profiles
 	issuerPlans    [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
 	registry       *stmt.Registry
@@ -178,13 +178,14 @@ type commandCompletion struct {
 }
 
 type commandOutput struct {
-	effective EffectiveStageResult
-	inventory InventoryResult
-	publisher SearchImageStageResult
-	lifecycle scanLifecycleCommandResult
-	source    scanSourceFacts
-	run       scanRunSnapshot
-	directory scanDirectoryCommandResult
+	effective         EffectiveStageResult
+	inventory         InventoryResult
+	publisher         SearchImageStageResult
+	lifecycle         scanLifecycleCommandResult
+	source            scanSourceFacts
+	run               scanRunSnapshot
+	directory         scanDirectoryCommandResult
+	directoryTerminal scanDirectoryTerminalCommandResult
 }
 
 func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
@@ -232,7 +233,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	purpose, plan, reference, key, libraryID := EffectiveStage, &r.plan, request.Receipt, request.ProviderOperationID, request.LibraryID
 	outcome := &out.effective.Outcome
 	if scan != nil {
-		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || (scan.directory == 0 && scan.directoryInput != nil) {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || (scan.directory == 0 && (scan.directoryInput != nil || scan.directoryTerminalInput != nil)) {
 			return out, acknowledged, ErrInvalid
 		}
 		if scan.lifecycle == 0 && scan.directory == 0 && r.inventoryPlan == nil {
@@ -247,12 +248,18 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		purpose, plan, reference, key, libraryID = InventoryAccept, r.inventoryPlan, scan.request.Receipt, scan.request.RunID, scan.request.LibraryID
 		outcome = &out.inventory.Outcome
 		if scan.directory != 0 {
-			if scan.lifecycle != 0 || scan.input != nil || scan.issuer != nil || (scan.directory != InventoryDirectoryDiscover && scan.directory != InventoryDirectoryEOF) {
+			if scan.lifecycle != 0 || scan.input != nil || scan.issuer != nil || !scanDirectoryPurpose(scan.directory) {
+				return out, acknowledged, ErrInvalid
+			}
+			if (scanDirectoryTerminalPurpose(scan.directory) && scan.directoryInput != nil) || (!scanDirectoryTerminalPurpose(scan.directory) && scan.directoryTerminalInput != nil) {
 				return out, acknowledged, ErrInvalid
 			}
 			purpose = scan.directory
 			plan = nil
 			outcome = &out.directory.Outcome
+			if scanDirectoryTerminalPurpose(scan.directory) {
+				outcome = &out.directoryTerminal.Outcome
+			}
 		}
 		if scan.lifecycle != 0 {
 			if scan.input != nil || (scan.lifecycle != InventoryCreate && scan.lifecycle != InventoryClaim) {
@@ -289,6 +296,13 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		required := uint64(len(scan.request.RunID) + len(scan.request.LibraryKey))
 		if scan.directoryInput != nil {
 			n, e := directoryRequestBytes(scan.directoryInput.request)
+			if e != nil {
+				return out, acknowledged, e
+			}
+			required += n
+		}
+		if scan.directoryTerminalInput != nil {
+			n, e := terminalRequestBytes(scan.directoryTerminalInput.request)
 			if e != nil {
 				return out, acknowledged, e
 			}
@@ -497,7 +511,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			}
 		}
 	}
-	if err == nil && scan != nil && scan.directory != 0 {
+	if err == nil && scan != nil && (scan.directory == InventoryDirectoryDiscover || scan.directory == InventoryDirectoryEOF) {
 		var lookup scanDirectoryLookup
 		lookup, err = lookupScanDirectory(ctx, turn, scan.request, scan.directory)
 		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
@@ -509,6 +523,22 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 				historical = lookup.decision != receiptFresh
 				if lookup.decision == receiptFresh && scan.directoryInput != nil {
 					out.directory.Value, out.directory.Digest, err = applyScanDirectory(ctx, turn, scan.directoryInput, lookup.original)
+				}
+			}
+		}
+	}
+	if err == nil && scan != nil && scanDirectoryTerminalPurpose(scan.directory) {
+		var lookup scanDirectoryTerminalLookup
+		lookup, err = lookupScanDirectoryTerminal(ctx, turn, scan.request, scan.directory)
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
+		if err == nil {
+			if ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeScanDirectoryTerminal(ctx, turn, scan.request, scan.directory)
+			} else {
+				out.directoryTerminal = directoryTerminalHistoricalResult(scan.request, lookup)
+				historical = lookup.decision != receiptFresh
+				if lookup.decision == receiptFresh && scan.directoryTerminalInput != nil {
+					out.directoryTerminal.Value, out.directoryTerminal.Digest, err = applyScanDirectoryTerminal(ctx, turn, scan.directoryTerminalInput, lookup.original)
 				}
 			}
 		}
@@ -565,6 +595,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if err == nil && scan != nil && scan.directoryInput != nil && !historical {
 		_, err = turn.commandTimeMS(ctx, scan.directory, scan.directoryInput.request.Snapshot.Run.leaseExpiresMS)
 	}
+	if err == nil && scan != nil && scan.directoryTerminalInput != nil && !historical {
+		_, err = turn.commandTimeMS(ctx, scan.directory, scan.directoryTerminalInput.request.Snapshot.Run.leaseExpiresMS)
+	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
 	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher)))
@@ -594,6 +627,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	if scan != nil && scan.directoryInput != nil && !ack && !historical && physical.state == committed {
 		out.directory.Outcome.State = Applied
+	}
+	if scan != nil && scan.directoryTerminalInput != nil && !ack && !historical && physical.state == committed {
+		out.directoryTerminal.Outcome.State = Applied
 	}
 	if !ack && !historical && !errors.Is(err, ErrDisclosureDenied) && (physical.state == commitUnknown || errors.Is(err, ErrResolveRequired)) {
 		outcome.State = ResolveRequired
