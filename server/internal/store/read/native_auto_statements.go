@@ -43,6 +43,9 @@ func nativeAutomaticDefinitions() []stmt.Definition {
 	} {
 		bindings[b.Name] = b
 	}
+	bridge := auto("catalog_libraries", "library_id")
+	bridge.Origin = "u"
+	bindings[bridge.Name] = bridge
 	add := func(name, sql string, types []stmt.Type, indexes, pk []string) {
 		d := stmt.Definition{ID: stmt.ID("read.full.native.auto." + name), SQL: sql, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/native_auto.go"}, Plan: stmt.Plan{Hot: true, Indexes: indexes, PrimaryKeys: pk}}
 		var values []any
@@ -121,7 +124,7 @@ func nativeAutomaticDefinitions() []stmt.Definition {
 		case name == "collection":
 			values = []any{"evidence1", "provider"}
 		case name == "accepted":
-			values = []any{int64(7), int64(1), "tmdb", "evidence1"}
+			values = []any{int64(7), int64(1), "tmdb", "evidence1", "movies"}
 		}
 		empty := append([]any(nil), values...)
 		if _, ok := empty[0].(string); ok {
@@ -178,19 +181,19 @@ func nativeAutomaticDefinitions() []stmt.Definition {
 	add("collection", `SELECT a.provider,a.name FROM metadata_evidence_collections AS a INDEXED BY sqlite_autoindex_metadata_evidence_collections_1 WHERE a.evidence_id=? AND a.collection_kind='collection' AND a.collection_id=?`, []stmt.Type{stmt.Text, stmt.Text}, []string{"sqlite_autoindex_metadata_evidence_collections_1"}, nil)
 	add("accepted", `SELECT e.id FROM catalog_entities AS e
  CROSS JOIN metadata_field_origins AS o INDEXED BY sqlite_autoindex_metadata_field_origins_1 ON o.entity_id=e.id
- CROSS JOIN catalog_libraries AS cl ON cl.id=e.library_id
+ CROSS JOIN catalog_libraries AS cl INDEXED BY sqlite_autoindex_catalog_libraries_1 ON cl.id=e.library_id
  CROSS JOIN libraries AS lib INDEXED BY sqlite_autoindex_libraries_1 ON lib.id=cl.library_id
  CROSS JOIN metadata_subject_providers AS b INDEXED BY sqlite_autoindex_metadata_subject_providers_1 ON b.entity_id=e.id AND b.provider=o.provider
  CROSS JOIN metadata_publications AS p INDEXED BY sqlite_autoindex_metadata_publications_1 ON p.id=b.accepted_publication_id
  CROSS JOIN metadata_provider_operations AS op INDEXED BY sqlite_autoindex_metadata_provider_operations_1 ON op.id=p.operation_id
  CROSS JOIN metadata_provider_policy AS policy INDEXED BY sqlite_autoindex_metadata_provider_policy_1 ON policy.library_id=e.library_id AND policy.provider=o.provider
  CROSS JOIN metadata_evidence AS ev INDEXED BY sqlite_autoindex_metadata_evidence_1 ON ev.id=o.evidence_id
- WHERE e.id=? AND e.library_id=? AND o.provider=? AND o.evidence_id=?
+ WHERE e.id=? AND e.library_id=? AND o.provider=? AND o.evidence_id=? AND cl.library_id=?
  AND o.field='relations' AND b.role='primary' AND e.kind=1 AND e.retired=0 AND e.automatic_collection_name_key=''
  AND cl.retired=0 AND b.status='matched' AND b.accepted_evidence_id=o.evidence_id AND b.accepted_publication_id=o.publication_id
  AND p.entity_id=e.id AND p.evidence_id=o.evidence_id AND p.decision='accepted'
  AND op.entity_id=e.id AND op.provider=o.provider AND op.status='applied'
  AND policy.enabled=1 AND policy.incarnation=op.policy_incarnation AND policy.revision=op.policy_revision
- AND ev.sealed=1 AND ev.language=lib.metadata_language AND e.metadata_language=lib.metadata_language`, []stmt.Type{stmt.Integer, stmt.Integer, stmt.Text, stmt.Text}, []string{"sqlite_autoindex_libraries_1", "sqlite_autoindex_metadata_field_origins_1", "sqlite_autoindex_metadata_subject_providers_1", "sqlite_autoindex_metadata_publications_1", "sqlite_autoindex_metadata_provider_operations_1", "sqlite_autoindex_metadata_provider_policy_1", "sqlite_autoindex_metadata_evidence_1"}, []string{"e", "cl"})
+ AND ev.sealed=1 AND ev.language=lib.metadata_language AND e.metadata_language=lib.metadata_language`, []stmt.Type{stmt.Integer, stmt.Integer, stmt.Text, stmt.Text, stmt.Text}, []string{"sqlite_autoindex_catalog_libraries_1", "sqlite_autoindex_libraries_1", "sqlite_autoindex_metadata_field_origins_1", "sqlite_autoindex_metadata_subject_providers_1", "sqlite_autoindex_metadata_publications_1", "sqlite_autoindex_metadata_provider_operations_1", "sqlite_autoindex_metadata_provider_policy_1", "sqlite_autoindex_metadata_evidence_1"}, []string{"e"})
 	return out
 }
