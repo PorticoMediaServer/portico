@@ -29,6 +29,7 @@ The original `-run` filter reaches Go unchanged; `-skip` excludes parents assign
 | hn-autoindexes | autoindexes.json |
 | hn-scan | scan-inventory-accept.json, scan-inventory-accept-fk.json.gz |
 | hn-scan-fresh | scan-inventory-fresh.json, scan-inventory-fresh-fk.json.gz |
+| hn-wc-security-composition | wc-security-composition.json, wc-security-composition-fk.json.gz |
 | hn-wc-progress-composition | wc-progress-composition.json, wc-progress-composition-fk.json.gz |
 | hn-wc-progress | wc-progress-capture_start.json, wc-progress-pending_drain.json, wc-progress-fk.json.gz |
 | hn-browse | browse-plans.json.gz |
