@@ -112,6 +112,9 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if c.MemoryEnabled() {
+		streams = append(streams, ec5MemoryStream(c))
+	}
 	duration := time.Duration(c.Measured) * time.Duration(len(pattern)) * schedule.WriterEvery
 	// Bound file/observer offer volume too, without widening any owner recipe.
 	total := uint64(0)

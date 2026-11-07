@@ -558,9 +558,10 @@ peaks remain null with reasons; Setup and raw DBStatus high0 cannot supply them.
 `memory_fixture` states the existing small N1+foreground population, actual
 observed database table cardinalities and explicit unavailable per-library/
 scalable population. There is no 1M or whole-server claim. SC/helpers, TMDB,
-media/legacy, complete native lifecycle and sustained EC2 attachment are missing
-bindings. The sustained EC5 request fails explicitly instead of running a
-substitute workload. No unmerged #1280 or #1285 code is imported.
+media/legacy and complete native lifecycle remain missing bindings. The merged
+EC2 composer is attached through `TestEC5SustainedMemoryMeasurement`; its native
+WC/Effective and GV concurrent/recovery requests retain their failed bindings.
+No unmerged #1285 code is imported.
 
 `ci/ec5_memory.py` runs a precompiled test binary in ONE new private cgroup-v2
 leaf on a disposable standard GitHub runner. It sets/readbacks the 2e9 cap and
@@ -578,8 +579,11 @@ entrypoint/config and original deadlines/consumer/error/join behavior. Use the
 existing strict paired config with `ci/ec5_memory.py --binary ABS_TEST_BINARY
 --output OWN_ARTIFACT_DIR --target paired --config ABS_PAIRED_CONFIG`; run from
 the writer package through noninteractive sudo on a disposable runner. Default
-product/test runs skip this target. `--target sustained` retains an explicit
-missing-binding error. No host measurement is requested by this source change.
+product/test runs skip this target. `--target sustained --config ABS_CONFIG`
+uses the merged EC2 target with its default mixed-cadence failed bindings.
+`--sustained-subset` explicitly selects the existing N1/read/WAL component only;
+it cannot claim FULL, checkpoint or reset coverage. No host measurement is
+requested by this source change.
 
 Functional proof uses the fixed lane-focused `ec5-memory` harness, Go1.26.10:
 it starts a tiny real N1/read child inside that owned cgroup and checks actual

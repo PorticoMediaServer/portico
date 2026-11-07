@@ -82,7 +82,7 @@ def binary_hash(binary):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def run(binary, output, target, config=None):
+def run(binary, output, target, config=None, sustained_subset=False):
     if os.geteuid() != 0 or not os.environ.get('SUDO_UID'):
         raise ValueError('run this opt-in controller through sudo as the standard runner user')
     uid, gid = int(os.environ['SUDO_UID']), int(os.environ['SUDO_GID'])
@@ -100,13 +100,11 @@ def run(binary, output, target, config=None):
     group = CGROOT / identity
     created, child, killed = False, None, False
     with (owned / 'memory.ndjson').open('x') as stream:
-        emit(stream, 'start', identity=identity, target=target, binary_sha256=binary_hash(binary),
+        emit(stream, 'start', identity=identity, target=target, declared_sustained_subset=sustained_subset, binary_sha256=binary_hash(binary),
              requested_assigned_budget_bytes=BUDGET, profile='assigned M=2e9, no swap; NOT physical-2GB/M=1.6e9',
              observer_scope='controller outside measured cgroup; in-child Go/process sampler overhead included', source_archive=None, source_archive_unavailable_reason='exact Git source is retained by the external lane receipt; controller records actual binary identity',
-             missing_bindings=['sustained native composition', 'scalable library constructor', 'whole server', 'complete native lifecycle/peak'])
+             missing_bindings=['native WC/Effective and GV concurrent/recovery', 'scalable library constructor', 'whole server', 'complete native lifecycle/peak'])
         try:
-            if target == 'sustained':
-                raise ValueError('sustained EC5 attachment unavailable in this merged source; no substitute workload')
             group.mkdir(mode=0o755); created = True
             (group / 'memory.max').write_text(str(BUDGET))
             (group / 'memory.swap.max').write_text('0')
@@ -125,18 +123,24 @@ def run(binary, output, target, config=None):
             emit(stream, 'enforced', before=before, ancestors=ancestors, physical_meminfo=Path('/proc/meminfo').read_text())
             env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(owned), 'TMPDIR': str(owned), 'GOMAXPROCS': '2',
                    'PORTICO_EC5_MEMORY': '1', 'PORTICO_EC5_CGROUP': str(group), 'PORTICO_LANE_EVIDENCE_DIR': str(owned)}
-            args = [str(binary), '-test.v', '-test.timeout=90s', '-ec5-memory=true', '-n1-paired=true']
-            expected_parent = 'TestEC5MemoryChildControl' if target == 'control' else 'TestEC5PairedMemoryMeasurement'
+            args = [str(binary), '-test.v', '-test.timeout=90s', '-ec5-memory=true']
+            expected_parent = {'control': 'TestEC5MemoryChildControl', 'paired': 'TestEC5PairedMemoryMeasurement', 'sustained': 'TestEC5SustainedMemoryMeasurement'}[target]
             if target == 'control':
                 env['PORTICO_EC5_CHILD'] = '1'
-                args += ['-test.run=^TestEC5MemoryChildControl$']
+                args += ['-test.run=^TestEC5MemoryChildControl$', '-n1-paired=true']
             else:
                 # Existing strict five-field config and flags remain the ONLY
                 # workload authority. Controller supplies no profile or permit.
                 if not config:
-                    raise ValueError('paired target requires existing PORTICO_WRITER_N1_PAIRED_CONFIG')
-                env.update(PORTICO_WRITER_N1_PAIRED='1', PORTICO_WRITER_N1_PAIRED_CONFIG=str(config))
-                args += ['-test.run=^TestEC5PairedMemoryMeasurement$', '-n1-paired-route=all', '-n1-paired-cohort=native-counters']
+                    raise ValueError('existing strict --config required for paired/sustained target')
+                if target == 'paired':
+                    env.update(PORTICO_WRITER_N1_PAIRED='1', PORTICO_WRITER_N1_PAIRED_CONFIG=str(config))
+                    args += ['-test.run=^TestEC5PairedMemoryMeasurement$', '-n1-paired=true', '-n1-paired-route=all', '-n1-paired-cohort=native-counters']
+                else:
+                    env.update(PORTICO_WRITER_EC2='1', PORTICO_WRITER_EC2_CONFIG=str(config))
+                    args += ['-test.run=^TestEC5SustainedMemoryMeasurement$', '-ec2-sustained=true', '-ec2-cohort=native-counters']
+                    if sustained_subset:
+                        args += ['-ec2-writer-pattern=inventory', '-ec2-passive-every=0', '-ec2-recovery-every=0']
             def enter():
                 # Happens BEFORE exec/Go initialization. Only this freshly
                 # created leaf is mutated; no global controller is enabled.
@@ -180,7 +184,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--sustained-subset', action='store_true', help='explicit N1/read/WAL subset; no FULL/checkpoint/recovery claim')
     parser.add_argument('--config', type=Path, help='existing strict paired five-field config; required for paired target')
     parser.add_argument('--target', choices=('control', 'paired', 'sustained'), required=True)
     options = parser.parse_args()
-    run(options.binary.resolve(), options.output.resolve(), options.target, options.config.resolve() if options.config else None)
+    run(options.binary.resolve(), options.output.resolve(), options.target, options.config.resolve() if options.config else None, options.sustained_subset)

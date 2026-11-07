@@ -44,6 +44,18 @@ func TestEC5PairedMemoryMeasurement(t *testing.T) {
 	}
 	TestN1PairedMeasurement(t) // ONE existing scheduler/fixture/consumer path
 }
+func TestEC5SustainedMemoryMeasurement(t *testing.T) {
+	if !writer.EC5MemoryRequested() {
+		if os.Getenv("PORTICO_EC5_MEMORY") != "" {
+			t.Fatal("EC5 companion flag required")
+		}
+		t.Skip("opt-in EC5 sustained memory component")
+	}
+	if os.Getenv("PORTICO_EC5_MEMORY") != "1" || !*ec2Enabled || *ec5Every < 20*time.Millisecond || *ec5Every > time.Second {
+		t.Fatal("EC5 requires EC2 opt-in, companion env and bounded sampling")
+	}
+	TestEC2SustainedMeasurement(t) // merged composer, original actions/errors/gates
+}
 func TestEC5CgroupFunctional(t *testing.T) {
 	if os.Getenv("PORTICO_EC5_FUNCTIONAL") != "1" {
 		t.Skip("GitHub ec5-memory functional harness only")
