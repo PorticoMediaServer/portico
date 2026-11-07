@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"runtime"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -140,5 +143,48 @@ func TestBasicSourceRejectsWrongPurposeAndLateCancellation(t *testing.T) {
 	}
 	if d.writer.effective.authority.Usage() != ([4]governor.Amounts{}) {
 		t.Fatal("late canceled holding did not retire")
+	}
+}
+
+// Cancel only the newly issued holding at the outermost final release. The
+// caller stays live, so folding only the caller/driver contexts misses this.
+type basicSourceHoldingCancelContext struct {
+	context.Context
+	driver *ScanDriver
+	fired  atomic.Bool
+}
+
+func (c *basicSourceHoldingCancelContext) Err() error {
+	pcs := make([]uintptr, 24)
+	frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs)])
+	for {
+		f, more := frames.Next()
+		if strings.Contains(f.Function, ".prepareBasicSource.func") && c.fired.CompareAndSwap(false, true) {
+			if p := c.driver.preparation; p != nil {
+				p.cancel()
+			}
+			break
+		}
+		if !more {
+			break
+		}
+	}
+	return c.Context.Err()
+}
+func TestBasicSourceFinalHoldingCancellationKeepsCustody(t *testing.T) {
+	f, lease, last := basicSourceIssuerFixture(t)
+	ctx := &basicSourceHoldingCancelContext{Context: t.Context(), driver: f.driver}
+	p, snapshot, source, err := prepareBasicSource(ctx, f.driver, lease, last, BasicSeal)
+	if !ctx.fired.Load() || ctx.Context.Err() != nil || !errors.Is(err, context.Canceled) || p != nil || !reflect.DeepEqual(snapshot, scanRunSnapshot{}) || !reflect.DeepEqual(source, scanSourceFacts{}) {
+		t.Fatal("final holding cancellation released facts", p, snapshot, source, err)
+	}
+	if f.driver.preparation == nil || !f.driver.preparation.failed || f.driver.writer.effective.authority.Usage() == ([4]governor.Amounts{}) {
+		t.Fatal("discarded holding lost custody")
+	}
+	if err := f.driver.ReleasePending(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if f.driver.writer.effective.authority.Usage() != ([4]governor.Amounts{}) {
+		t.Fatal("holding did not retire after explicit release")
 	}
 }
