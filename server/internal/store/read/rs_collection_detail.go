@@ -2,13 +2,11 @@ package read
 
 import (
 	"context"
-	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
-// CollectionDetail contains the complete viewer-scoped count and a bounded
-// page. Automatic order is stable item-ID order; authored order is the exact
-// (order_key,item_id) order. It is an internal component, not a new HTTP DTO.
 // CollectionDetailCursor binds a continuation to the exact viewer, source and
 // query. A subsequent request prepares current membership, then proves this
 // cursor in the fresh authorized handoff; an offset alone is not a wire token.
@@ -19,9 +17,15 @@ type CollectionDetailCursor struct {
 	offset     int
 }
 
+// CollectionDetail contains the complete viewer-scoped count and a bounded
+// page. Automatic order is stable item-ID order; authored order is the exact
+// (order_key,item_id) order. Revision is the membership/order revision, while
+// Collection.Revision remains the entity revision. This is an internal component.
 type CollectionDetail struct {
 	Collection         BrowseItem
 	Next               *CollectionDetailCursor
+	LibraryID          string
+	Revision           int64
 	Origin             string
 	ExactCount         int
 	Items              []TitleItem
@@ -75,6 +79,8 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 		if p.fence == nil || *p.fence != f {
 			return ErrStale
 		}
+		d.LibraryID = f.library
+		d.Revision = p.source[2].(int64)
 		d.Origin = "owner"
 		if p.cursor.provider != "" {
 			d.Origin = "automatic"

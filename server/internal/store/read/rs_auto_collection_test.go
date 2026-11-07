@@ -2,15 +2,17 @@ package read
 
 import (
 	"errors"
-	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"reflect"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
 func TestRSAutoCollectionAcceptedSet(t *testing.T) {
 	f, r := newRSAutoFixture(t, nil)
+	f.exec(t, `UPDATE catalog_entities SET collection_revision=7 WHERE id=1101`)
 	p := rsBeginCollection(t, f, r)
 	rsCompleteCollection(t, f, p)
 	var got []int64
@@ -21,7 +23,7 @@ func TestRSAutoCollectionAcceptedSet(t *testing.T) {
 		t.Fatal("wrong effective membership", got)
 	}
 	d, _, e := p.detail(t.Context(), foregroundRequest(), time.Second, f.output, 0, f.input.Now)
-	if e != nil || d.ExactCount != 2 || d.Origin != "automatic" || len(d.Items) != 2 || !p.closed {
+	if e != nil || d.LibraryID != "movies" || d.Revision != 7 || d.ExactCount != 2 || d.Origin != "automatic" || len(d.Items) != 2 || !p.closed {
 		t.Fatal(d, e)
 	}
 }
