@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ func TestRSSearchReadJoinedStampAndPending(t *testing.T) {
 	query, _ := search.PlanQuery("hello", true)
 	view := f.input
 	view.Kind = 0
-	for _, mode := range []string{"ready", "drift", "foreign-output", "nil-final"} {
+	for _, mode := range []string{"ready", "drift", "foreign-output", "nil-final", "missing-policy-check"} {
 		t.Run(mode, func(t *testing.T) {
 			r, _ := NewRSSearchReader(f.authority, f.snapshots)
 			calls := 0
@@ -58,6 +59,24 @@ func TestRSSearchReadJoinedStampAndPending(t *testing.T) {
 				}
 				if !page.Exhausted {
 					page.Next = &FullSearchCursor{query: query.Fold(), bank: 1, revision: 1, after: hitRank(page.Hits[len(page.Hits)-1])}
+				}
+
+				if stamp != nil && stamp != first || calls == 2 {
+					for _, prior := range in.Retained {
+						stamp.checked = append(stamp.checked, prior.policies...)
+					}
+					for i := range page.Hits {
+						proof := nativePolicyWitness{valid: true, id: page.Hits[i].ID, library: view.Library, kind: 1}
+						page.Hits[i].permission = proof
+						stamp.policies = append(stamp.policies, proof)
+						stamp.checked = append(stamp.checked, proof)
+					}
+					if calls == 3 && len(in.Retained) != 1 {
+						t.Fatal("retained hit evidence omitted from the one native call", len(in.Retained))
+					}
+					if mode == "missing-policy-check" && calls == 3 {
+						stamp.checked = slices.Clone(stamp.policies)
+					}
 				}
 				return page, nil, nil
 			}

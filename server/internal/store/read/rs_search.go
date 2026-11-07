@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -83,8 +84,10 @@ type RSSearchPreparation struct {
 	owner      governor.OwnerID
 	input      RSSearchInput
 	identity   [32]byte
+	started    time.Time
 	after      *FullSearchCursor
 	stamp      *FullSearchReadStamp
+	stamps     []*FullSearchReadStamp
 	cursorBase *FullSearchCursor
 	lastRank   *canonicalCandidateProof
 	hits       []FullSearchHit
@@ -107,6 +110,7 @@ func (p *RSSearchPreparation) close() error {
 	p.hits = nil
 	p.after = nil
 	p.stamp = nil
+	p.stamps = nil
 	p.cursorBase = nil
 	p.lastRank = nil
 	_ = p.reader.authority.CancelPreparation(p.lease)
@@ -157,13 +161,13 @@ func (r *RSSearchReader) Begin(ctx context.Context, owner governor.OwnerID, dead
 	if d.Refusal != nil {
 		return nil, d.Refusal, nil
 	}
-	p := &RSSearchPreparation{reader: r, lease: d.Lease, owner: owner, input: in, identity: identity}
+	p := &RSSearchPreparation{reader: r, lease: d.Lease, owner: owner, input: in, identity: identity, started: time.Now()}
 	if in.After != nil {
 		p.after = cloneFullCursor(in.After.rank)
 	}
 	// Conservative bounded retained DTO capacity; actual native SQL/transient
 	// byte accounting remains entirely RD-owned. Wide retained pages refuse.
-	if p.lease.PayloadBytes() < 4096+int64(in.Capacity)*256 {
+	if rsSearchRetainedBytes(p) > p.lease.PayloadBytes() {
 		_ = p.close()
 		return nil, nil, governor.ErrSnapshotBudget
 	}
@@ -207,8 +211,8 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 		v.Kind = 0
 	}
 	v.Limit = 20
-	v.Now = time.Now()
-	input := FullSearchInput{View: v, After: cloneFullCursor(p.after)}
+	v.Now = v.Now.Add(time.Since(p.started))
+	input := FullSearchInput{View: v, After: cloneFullCursor(p.after), Retained: slices.Clone(p.stamps)}
 	var page FullSearchPage
 	page, cost, err = r.read(ctx, request, min(budget, time.Until(p.lease.Deadline())), output, input, p.input.Query)
 	if err != nil {
@@ -223,8 +227,14 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 		return
 	}
 	if r.custody != nil {
-		if err = r.custody(ctx, output, input, page, p.hits, p.stamp); err != nil {
-			return
+		priors := p.stamps
+		if len(priors) == 0 {
+			priors = []*FullSearchReadStamp{p.stamp}
+		}
+		for _, prior := range priors {
+			if err = r.custody(ctx, output, input, page, p.hits, prior); err != nil {
+				return
+			}
 		}
 	}
 	if p.after != nil && page.Next != nil && (p.after.bank != page.Next.bank || p.after.revision != page.Next.revision || p.after.input != page.Next.input || p.after.query != page.Next.query) {
@@ -287,6 +297,9 @@ func (r *RSSearchReader) Poll(ctx context.Context, request governor.Request, bud
 		p.hits = append(p.hits, h)
 	}
 	p.stamp = page.Stamp
+	if page.Stamp != nil && len(page.Stamp.policies) != 0 {
+		p.stamps = append(p.stamps, page.Stamp)
+	}
 	if page.Next != nil {
 		p.cursorBase = cloneFullCursor(page.Next)
 		p.cursorBase.native = nil

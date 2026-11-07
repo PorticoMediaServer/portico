@@ -29,9 +29,9 @@ func rsSearchFenceBytes(f nativeSearchFence) int64 {
 func rsSearchRetainedBytes(p *RSSearchPreparation) int64 {
 	// Prospective DTO slice capacity and temporary transfer overlap, not a new
 	// resource ledger. The existing lease and output grant remain sole custody.
-	n := int64(4096 + p.input.Capacity*256)
+	n := 4096 + 2*int64(p.input.Capacity)*int64(unsafe.Sizeof(FullSearchHit{}))
 	for _, h := range p.hits {
-		n += int64(len(h.Item.Title)+len(h.PersonName)) * 2
+		n += int64(len(h.Item.Title)+len(h.PersonName)+len(h.SortKey)+len(h.AddedAt)) * 2
 	}
 	if c := p.after; c != nil {
 		n += int64(unsafe.Sizeof(*c) + uintptr(len(c.query)+len(c.after.lead.Revision)))
@@ -45,8 +45,24 @@ func rsSearchRetainedBytes(p *RSSearchPreparation) int64 {
 	if c := p.cursorBase; c != nil {
 		n += int64(unsafe.Sizeof(*c)) + int64(len(c.query)+len(c.after.lead.Revision))
 	}
-	if s := p.stamp; s != nil {
+	countStamp := func(s *FullSearchReadStamp) {
+		if s == nil {
+			return
+		}
 		n += 2 * (int64(unsafe.Sizeof(*s)) + int64(len(s.query)) + rsSearchFenceBytes(s.fence))
+		for _, proof := range s.policies {
+			n += int64(unsafe.Sizeof(proof)) + int64(len(proof.witness))
+		}
+		for _, proof := range s.checked {
+			n += int64(unsafe.Sizeof(proof)) + int64(len(proof.witness))
+		}
 	}
+	countStamp(p.stamp)
+	for _, s := range p.stamps {
+		if s != p.stamp {
+			countStamp(s)
+		}
+	}
+
 	return n
 }
