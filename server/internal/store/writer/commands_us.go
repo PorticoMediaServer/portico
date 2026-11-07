@@ -3,6 +3,7 @@ package writer
 // US owns explicit 500–599 identities. Descriptors are preparation metadata,
 // never permission, a governor grant or physical qualification.
 const (
+	usSignInPolicyReplace     CommandID = 544
 	usMemberLimitsEdit        CommandID = 543
 	usProfileRestrictionsEdit CommandID = 542
 	usSetupCode               CommandID = 561
@@ -30,6 +31,7 @@ const (
 )
 
 var usCommands = commandRegistration{owner: "US", descriptors: []Descriptor{
+	{ID: usSignInPolicyReplace, Name: "us_sign_in_policy_replace", Durability: Full},
 	{ID: usMemberLimitsEdit, Name: "us_member_limits_edit", Durability: Full},
 	{ID: usProfileRestrictionsEdit, Name: "us_profile_restrictions_edit", Durability: Full},
 	{ID: usSetupCode, Name: "us_setup_code", Durability: Full},
