@@ -54,17 +54,12 @@ func uoPointArgs(a UOPreferenceAddress, k UOPreferenceKey) []any { return append
 // payload is copied. The budget is capacity, never a fabricated admission proof.
 func uoPreferenceCurrent(ctx context.Context, t *commandTurn, a UOPreferenceAddress, k UOPreferenceKey, budget int64) (v UOValue, exists bool, copied int64, err error) {
 	defer func() {
-		var out struct {
-			v      UOValue
-			exists bool
-			copied int64
-		}
-		out, err = finishCommand(ctx, commandLifetime(t), struct {
+		out, e := finishCommand(ctx, commandLifetime(t), struct {
 			v      UOValue
 			exists bool
 			copied int64
 		}{v, exists, copied}, err)
-		v, exists, copied = out.v, out.exists, out.copied
+		v, exists, copied, err = out.v, out.exists, out.copied, e
 	}()
 	args := uoPointArgs(a, k)
 	row, e := wc008DraftQuery(ctx, t, uoPrefLengths, args...)

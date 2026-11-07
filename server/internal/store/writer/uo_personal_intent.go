@@ -30,6 +30,7 @@ func (p uoPersonalPolicy) valid() bool {
 type uoPersonalHead struct{ revision, activity, recommendation, cutoff, action int64 }
 
 func readUOPersonalHead(ctx context.Context, turn *commandTurn, p uoPersonalPolicy) (out uoPersonalHead, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if !p.valid() {
 		return out, ErrInvalid
 	}
@@ -55,7 +56,8 @@ func readUOPersonalHead(ctx context.Context, turn *commandTurn, p uoPersonalPoli
 	}
 	return out, nil
 }
-func advanceUOPersonalHead(ctx context.Context, turn *commandTurn, p uoPersonalPolicy, h uoPersonalHead) (uoPersonalHead, error) {
+func advanceUOPersonalHead(ctx context.Context, turn *commandTurn, p uoPersonalPolicy, h uoPersonalHead) (out uoPersonalHead, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	n, err := wc008DraftInteger(ctx, turn, "uo.personal.head.advance", p.profile, h.revision, h.action, h.activity, h.recommendation, h.cutoff)
 	if err != nil {
 		return uoPersonalHead{}, err
@@ -68,6 +70,10 @@ func advanceUOPersonalHead(ctx context.Context, turn *commandTurn, p uoPersonalP
 	return h, nil
 }
 func bumpUOPersonalViewer(ctx context.Context, turn *commandTurn, profile, library string) (viewer, selection int64, err error) {
+	defer func() {
+		v, e := finishCommand(ctx, commandLifetime(turn), struct{ viewer, selection int64 }{viewer, selection}, err)
+		viewer, selection, err = v.viewer, v.selection, e
+	}()
 	row, err := wc008DraftQuery(ctx, turn, uoPersonalFlagsRevisionRead, profile, library)
 	if err != nil {
 		return 0, 0, err
@@ -198,24 +204,24 @@ func applyUOPersonalIntent(ctx context.Context, turn *commandTurn, q uoPersonalI
 }
 
 // Finite definition builders shared ONLY by these personal draft families.
-func uoPI(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
-func uoPT(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
-func uoPB(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
-func uoPDef(id string, kind stmt.Kind, query string, params ...stmt.Param) stmt.Definition {
+func uoPersonalIntegerParam(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
+func uoPersonalTextParam(n string) stmt.Param    { return stmt.Param{Name: n, Type: stmt.Text} }
+func uoPersonalBlobParam(n string) stmt.Param    { return stmt.Param{Name: n, Type: stmt.Blob} }
+func uoPersonalDefinition(id string, kind stmt.Kind, query string, params ...stmt.Param) stmt.Definition {
 	return stmt.Definition{ID: stmt.ID(id), Owner: "store/writer UO personal draft", Kind: kind, SQL: query, Params: params, CallSites: []string{"store/writer/uo_personal_intent.go", "store/writer/uo_personal_history.go", "store/writer/uo_personal_offline.go", "store/writer/uo_personal_bulk.go"}, Plan: stmt.Plan{Hot: true}}
 }
 func uoPersonalIntentDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
-		uoPDef("uo.personal.head.ensure", stmt.Write, `INSERT INTO personal_activity_revisions(profile_id,policy_authority,policy_account_id,policy_profile_id,policy_member_incarnation,policy_profile_lifetime,history_policy_generation) VALUES(?,?,?,?,?,?,?) ON CONFLICT(profile_id) DO UPDATE SET revision=revision RETURNING revision`, uoPT("profile"), uoPT("authority"), uoPT("account"), uoPT("profile_id"), uoPT("member"), uoPT("birth"), uoPI("policy")),
-		uoPDef("uo.personal.head.read", stmt.Read, `SELECT revision,activity_generation,recommendation_generation,history_visible_from_id,action_sequence FROM personal_activity_revisions WHERE profile_id=? AND policy_authority=? AND policy_account_id=? AND policy_profile_id=? AND policy_member_incarnation=? AND policy_profile_lifetime=? AND history_policy_generation=?`, uoPT("profile"), uoPT("authority"), uoPT("account"), uoPT("profile_id"), uoPT("member"), uoPT("birth"), uoPI("policy")),
-		uoPDef("uo.personal.head.advance", stmt.Write, `UPDATE personal_activity_revisions SET revision=revision+1,action_sequence=action_sequence+1 WHERE profile_id=? AND revision=? AND action_sequence=? AND activity_generation=? AND recommendation_generation=? AND history_visible_from_id=? RETURNING action_sequence`, uoPT("profile"), uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPI("cutoff")),
-		uoPDef("uo.personal.intent.subject", stmt.Read, `SELECT e.id FROM catalog_entities e CROSS JOIN catalog_subjects s ON s.id=e.id CROSS JOIN catalog_kinds k ON k.id=s.kind CROSS JOIN catalog_libraries l ON l.id=s.library_id WHERE e.id=? AND s.public_id=? AND s.library_id=? AND e.revision=? AND e.admission_revision=? AND l.library_id=? AND k.container=? AND e.public_id=s.public_id AND e.retired=0 AND l.retired=0`, uoPI("subject"), uoPB("public"), uoPI("library"), uoPI("revision"), uoPI("admission"), uoPT("library_key"), uoPI("container")),
-		uoPDef("uo.personal.intent.current", stmt.Read, `SELECT revision FROM personal_items INDEXED BY personal_current_live WHERE profile_id=? AND item_id=? AND item_public_id=?`, uoPT("profile"), uoPI("subject"), uoPB("public")),
-		uoPDef("uo.personal.intent.insert", stmt.Write, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,activity_generation,recommendation_generation) VALUES(?,?,?,?,?,?) RETURNING revision`, uoPT("profile"), uoPB("public"), uoPI("subject"), uoPI("library"), uoPI("activity"), uoPI("recommendation")),
-		uoPDef("uo.personal.intent.clock", stmt.Read, `SELECT sequence FROM catalog_membership_clock WHERE singleton=1`),
+		uoPersonalDefinition("uo.personal.head.ensure", stmt.Write, `INSERT INTO personal_activity_revisions(profile_id,policy_authority,policy_account_id,policy_profile_id,policy_member_incarnation,policy_profile_lifetime,history_policy_generation) VALUES(?,?,?,?,?,?,?) ON CONFLICT(profile_id) DO UPDATE SET revision=revision RETURNING revision`, uoPersonalTextParam("profile"), uoPersonalTextParam("authority"), uoPersonalTextParam("account"), uoPersonalTextParam("profile_id"), uoPersonalTextParam("member"), uoPersonalTextParam("birth"), uoPersonalIntegerParam("policy")),
+		uoPersonalDefinition("uo.personal.head.read", stmt.Read, `SELECT revision,activity_generation,recommendation_generation,history_visible_from_id,action_sequence FROM personal_activity_revisions WHERE profile_id=? AND policy_authority=? AND policy_account_id=? AND policy_profile_id=? AND policy_member_incarnation=? AND policy_profile_lifetime=? AND history_policy_generation=?`, uoPersonalTextParam("profile"), uoPersonalTextParam("authority"), uoPersonalTextParam("account"), uoPersonalTextParam("profile_id"), uoPersonalTextParam("member"), uoPersonalTextParam("birth"), uoPersonalIntegerParam("policy")),
+		uoPersonalDefinition("uo.personal.head.advance", stmt.Write, `UPDATE personal_activity_revisions SET revision=revision+1,action_sequence=action_sequence+1 WHERE profile_id=? AND revision=? AND action_sequence=? AND activity_generation=? AND recommendation_generation=? AND history_visible_from_id=? RETURNING action_sequence`, uoPersonalTextParam("profile"), uoPersonalIntegerParam("revision"), uoPersonalIntegerParam("action"), uoPersonalIntegerParam("activity"), uoPersonalIntegerParam("recommendation"), uoPersonalIntegerParam("cutoff")),
+		uoPersonalDefinition("uo.personal.intent.subject", stmt.Read, `SELECT e.id FROM catalog_entities e CROSS JOIN catalog_subjects s ON s.id=e.id CROSS JOIN catalog_kinds k ON k.id=s.kind CROSS JOIN catalog_libraries l ON l.id=s.library_id WHERE e.id=? AND s.public_id=? AND s.library_id=? AND e.revision=? AND e.admission_revision=? AND l.library_id=? AND k.container=? AND e.public_id=s.public_id AND e.retired=0 AND l.retired=0`, uoPersonalIntegerParam("subject"), uoPersonalBlobParam("public"), uoPersonalIntegerParam("library"), uoPersonalIntegerParam("revision"), uoPersonalIntegerParam("admission"), uoPersonalTextParam("library_key"), uoPersonalIntegerParam("container")),
+		uoPersonalDefinition("uo.personal.intent.current", stmt.Read, `SELECT revision FROM personal_items INDEXED BY personal_current_live WHERE profile_id=? AND item_id=? AND item_public_id=?`, uoPersonalTextParam("profile"), uoPersonalIntegerParam("subject"), uoPersonalBlobParam("public")),
+		uoPersonalDefinition("uo.personal.intent.insert", stmt.Write, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,activity_generation,recommendation_generation) VALUES(?,?,?,?,?,?) RETURNING revision`, uoPersonalTextParam("profile"), uoPersonalBlobParam("public"), uoPersonalIntegerParam("subject"), uoPersonalIntegerParam("library"), uoPersonalIntegerParam("activity"), uoPersonalIntegerParam("recommendation")),
+		uoPersonalDefinition("uo.personal.intent.clock", stmt.Read, `SELECT sequence FROM catalog_membership_clock WHERE singleton=1`),
 	}
-	defs = append(defs, uoPDef("uo.personal.intent.watched", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,watched=?,watched_at=?,container_membership_sequence=CASE WHEN ?=1 THEN ? ELSE NULL END,container_intent_sequence=?,evidence_fence_playback_id=resume_playback_id,resume_position=0,resume_completed=0,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPI("watched"), stmt.Param{Name: "at", Type: stmt.Text, Nullable: true}, uoPI("container"), uoPI("membership"), stmt.Param{Name: "intent", Type: stmt.Integer, Nullable: true}, uoPT("profile"), uoPI("subject"), uoPB("public"), uoPI("old")))
-	defs = append(defs, uoPDef("uo.personal.intent.dismiss", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,dismissed_playback_id=resume_playback_id,dismissed_child_public_id=resume_item_public_id,dismissed_activity_at=?,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPI("revision"), uoPI("action"), uoPI("activity"), uoPI("recommendation"), uoPT("at"), uoPT("profile"), uoPI("subject"), uoPB("public"), uoPI("old")))
+	defs = append(defs, uoPersonalDefinition("uo.personal.intent.watched", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,watched=?,watched_at=?,container_membership_sequence=CASE WHEN ?=1 THEN ? ELSE NULL END,container_intent_sequence=?,evidence_fence_playback_id=resume_playback_id,resume_position=0,resume_completed=0,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPersonalIntegerParam("revision"), uoPersonalIntegerParam("action"), uoPersonalIntegerParam("activity"), uoPersonalIntegerParam("recommendation"), uoPersonalIntegerParam("watched"), stmt.Param{Name: "at", Type: stmt.Text, Nullable: true}, uoPersonalIntegerParam("container"), uoPersonalIntegerParam("membership"), stmt.Param{Name: "intent", Type: stmt.Integer, Nullable: true}, uoPersonalTextParam("profile"), uoPersonalIntegerParam("subject"), uoPersonalBlobParam("public"), uoPersonalIntegerParam("old")))
+	defs = append(defs, uoPersonalDefinition("uo.personal.intent.dismiss", stmt.Write, `UPDATE personal_items INDEXED BY personal_current_live SET revision=?,action_sequence=?,activity_generation=?,recommendation_generation=?,dismissed_playback_id=resume_playback_id,dismissed_child_public_id=resume_item_public_id,dismissed_activity_at=?,activity_visible=0 WHERE profile_id=? AND item_id=? AND item_public_id=? AND revision=? RETURNING revision`, uoPersonalIntegerParam("revision"), uoPersonalIntegerParam("action"), uoPersonalIntegerParam("activity"), uoPersonalIntegerParam("recommendation"), uoPersonalTextParam("at"), uoPersonalTextParam("profile"), uoPersonalIntegerParam("subject"), uoPersonalBlobParam("public"), uoPersonalIntegerParam("old")))
 	// Every generation-stale field is cleared before stamping this one row.
 	for n := range defs {
 		if defs[n].ID == "uo.personal.intent.watched" {

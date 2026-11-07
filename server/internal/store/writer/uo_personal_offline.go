@@ -131,6 +131,13 @@ func applyUOPersonalOffline(ctx context.Context, turn *commandTurn, q uoPersonal
 	return out, err
 }
 func readUOPersonalScalar(ctx context.Context, turn *commandTurn, q uoPersonalIntentInput, f uoPersonalField) (revision int64, value string, err error) {
+	defer func() {
+		v, e := finishCommand(ctx, commandLifetime(turn), struct {
+			revision int64
+			value    string
+		}{revision, value}, err)
+		revision, value, err = v.revision, v.value, e
+	}()
 	row, err := wc008DraftQuery(ctx, turn, "uo.personal.offline.current", q.policy.profile, q.subjectID, q.publicID[:])
 	if err != nil {
 		return 0, "", err
@@ -164,6 +171,13 @@ func readUOPersonalScalar(ctx context.Context, turn *commandTurn, q uoPersonalIn
 	return revision, value, nil
 }
 func applyUOPersonalScalar(ctx context.Context, turn *commandTurn, q uoPersonalIntentInput, f uoPersonalField, v string) (revision int64, changed bool, err error) {
+	defer func() {
+		out, e := finishCommand(ctx, commandLifetime(turn), struct {
+			revision int64
+			changed  bool
+		}{revision, changed}, err)
+		revision, changed, err = out.revision, out.changed, e
+	}()
 	if !f.validValue(v) {
 		return 0, false, ErrInvalid
 	}
@@ -220,12 +234,12 @@ func applyUOPersonalResolve(ctx context.Context, turn *commandTurn, q uoPersonal
 }
 func uoPersonalOfflineDefinitions() []stmt.Definition {
 	return []stmt.Definition{
-		uoPDef("uo.personal.offline.device", stmt.Read, `SELECT sequence FROM personal_device_sequences WHERE profile_id=? AND device_id=?`, uoPT("profile"), uoPT("device")),
-		uoPDef("uo.personal.offline.device_insert", stmt.Write, `INSERT INTO personal_device_sequences(profile_id,device_id,sequence) VALUES(?,?,?) RETURNING sequence`, uoPT("profile"), uoPT("device"), uoPI("sequence")),
-		uoPDef("uo.personal.offline.device_update", stmt.Write, `UPDATE personal_device_sequences SET sequence=? WHERE profile_id=? AND device_id=? AND sequence=? RETURNING sequence`, uoPI("sequence"), uoPT("profile"), uoPT("device"), uoPI("old")),
-		uoPDef("uo.personal.offline.current", stmt.Read, `SELECT revision,watched,watchlisted,favorite,rating,not_interested FROM personal_items INDEXED BY personal_current_live WHERE profile_id=? AND item_id=? AND item_public_id=?`, uoPT("profile"), uoPI("subject"), uoPB("public")),
-		uoPDef("uo.personal.offline.conflict", stmt.Write, `INSERT INTO personal_conflicts(id,profile_id,item_id,field,base_revision,base_value) VALUES(?,?,?,?,?,?) RETURNING 1`, uoPT("id"), uoPT("profile"), uoPI("subject"), uoPT("field"), uoPI("base"), uoPT("value")),
-		uoPDef("uo.personal.offline.event", stmt.Write, `INSERT INTO personal_explicit_events(profile_id,item_id,operation_id,field,base_revision,base_value,value,device_id,device_mutation_id,sequence,authored_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING sequence`, uoPT("profile"), uoPI("subject"), uoPT("operation"), uoPT("field"), uoPI("base"), uoPT("base_value"), uoPT("value"), uoPT("device"), uoPT("mutation"), uoPI("sequence"), uoPT("authored"), uoPT("created")),
-		uoPDef("uo.personal.offline.resolve", stmt.Write, `UPDATE personal_conflicts SET resolved=1 WHERE id=? AND profile_id=? AND item_id=? AND field=? AND base_revision=? AND resolved=0 RETURNING 1`, uoPT("conflict"), uoPT("profile"), uoPI("subject"), uoPT("field"), uoPI("base")),
+		uoPersonalDefinition("uo.personal.offline.device", stmt.Read, `SELECT sequence FROM personal_device_sequences WHERE profile_id=? AND device_id=?`, uoPersonalTextParam("profile"), uoPersonalTextParam("device")),
+		uoPersonalDefinition("uo.personal.offline.device_insert", stmt.Write, `INSERT INTO personal_device_sequences(profile_id,device_id,sequence) VALUES(?,?,?) RETURNING sequence`, uoPersonalTextParam("profile"), uoPersonalTextParam("device"), uoPersonalIntegerParam("sequence")),
+		uoPersonalDefinition("uo.personal.offline.device_update", stmt.Write, `UPDATE personal_device_sequences SET sequence=? WHERE profile_id=? AND device_id=? AND sequence=? RETURNING sequence`, uoPersonalIntegerParam("sequence"), uoPersonalTextParam("profile"), uoPersonalTextParam("device"), uoPersonalIntegerParam("old")),
+		uoPersonalDefinition("uo.personal.offline.current", stmt.Read, `SELECT revision,watched,watchlisted,favorite,rating,not_interested FROM personal_items INDEXED BY personal_current_live WHERE profile_id=? AND item_id=? AND item_public_id=?`, uoPersonalTextParam("profile"), uoPersonalIntegerParam("subject"), uoPersonalBlobParam("public")),
+		uoPersonalDefinition("uo.personal.offline.conflict", stmt.Write, `INSERT INTO personal_conflicts(id,profile_id,item_id,field,base_revision,base_value) VALUES(?,?,?,?,?,?) RETURNING 1`, uoPersonalTextParam("id"), uoPersonalTextParam("profile"), uoPersonalIntegerParam("subject"), uoPersonalTextParam("field"), uoPersonalIntegerParam("base"), uoPersonalTextParam("value")),
+		uoPersonalDefinition("uo.personal.offline.event", stmt.Write, `INSERT INTO personal_explicit_events(profile_id,item_id,operation_id,field,base_revision,base_value,value,device_id,device_mutation_id,sequence,authored_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING sequence`, uoPersonalTextParam("profile"), uoPersonalIntegerParam("subject"), uoPersonalTextParam("operation"), uoPersonalTextParam("field"), uoPersonalIntegerParam("base"), uoPersonalTextParam("base_value"), uoPersonalTextParam("value"), uoPersonalTextParam("device"), uoPersonalTextParam("mutation"), uoPersonalIntegerParam("sequence"), uoPersonalTextParam("authored"), uoPersonalTextParam("created")),
+		uoPersonalDefinition("uo.personal.offline.resolve", stmt.Write, `UPDATE personal_conflicts SET resolved=1 WHERE id=? AND profile_id=? AND item_id=? AND field=? AND base_revision=? AND resolved=0 RETURNING 1`, uoPersonalTextParam("conflict"), uoPersonalTextParam("profile"), uoPersonalIntegerParam("subject"), uoPersonalTextParam("field"), uoPersonalIntegerParam("base")),
 	}
 }
