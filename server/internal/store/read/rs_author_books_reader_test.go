@@ -330,3 +330,34 @@ func TestRSAuthorBookReaderCrossPage(t *testing.T) {
 		t.Fatal("ordered complete traversal", got)
 	}
 }
+
+func TestRSAuthorBookReaderRestrictedFiles(t *testing.T) {
+	f, r := authorBookFixture(t)
+	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,1) ON CONFLICT(profile_id) DO UPDATE SET maximum_age=12,allow_unrated=1`)
+	v := f.input
+	v.Kind = 13
+	p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSAuthorBookInput{View: v, Author: 13001, Limit: 2})
+	if e != nil || ref != nil {
+		t.Fatal(e, ref)
+	}
+	defer p.Close()
+	for i := 0; i < 200; i++ {
+		fg, req, out := liveRequests("author-restricted")
+		var page RSAuthorBookPage
+		_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, fg, out, func(ctx context.Context, o BrowseOutput) error {
+			var err error
+			page, _, err = r.Page(ctx, req, time.Second, o, p)
+			return err
+		})
+		if e != nil {
+			t.Fatal(e)
+		}
+		if page.Complete {
+			if page.Total != 2 || len(page.Cards) != 2 || page.Next != nil {
+				t.Fatal("hidden files earned membership", page)
+			}
+			return
+		}
+	}
+	t.Fatal("not complete")
+}
