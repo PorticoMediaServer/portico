@@ -60,7 +60,7 @@ whole-library COUNT, or unbounded join fanout is used.
 
 The group recipe runs six-call common/subject fencing separately from its
 business quantum, then repeats the six-call current fence before publication.
-Each native scope stays below eight calls. Route SQL is13..15, exceeding B-R04's
+Author-name capture adds one point read in the first window. Each native scope stays below eight calls. Route SQL is13..15, exceeding B-R04's
 proposed10-call ceiling; this is qualification debt, not an exception or pass.
 Relationship exact likewise carries all windows and shared fence cost in its
 receipt, rather than reporting source SQL as route latency.
@@ -111,3 +111,10 @@ prefix parent keys, sparse allowed rows, default disc/track/part, duplicate keys
 numbering overlaps, playlist occurrences, cancellation/revocation and source
 reparent/rename between windows. B-R04/SORT-KIND-21 remain UNQUALIFIED; no runner
 functional timing is a host/read-latency qualification.
+
+The disc/track and disc/part continuation definitions pin exact SEARCH-only
+`<expr>` EQP details as `UNRECOGNIZED EQP` declarations in their own definitions.
+The generic HN recognizer accepts only plain-column constraint tokens. These
+are explicit review items for the parent/owner; no SCAN, temporary sort, SQL
+grammar or dynamic planner exception is granted. The actual Reader must match
+the complete pinned detail in both statistics profiles.
