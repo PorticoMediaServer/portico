@@ -3,10 +3,13 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "search",
-		resultTypes: []string{"SearchImageStageResult", "publisherReceiptLookup", "publisherInvocation", "searchFragmentStageResult", "searchHeadPublishResult", "searchPublisherCommandResult"},
-		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts", "searchHeadPublishFreshFacts", "searchPublisherStageFacts", "composeSearchPublisherCommands", "discloseSearchPublisher", "searchPublisherEngine", "searchPublisherTimeMS", "requireSearchPublisherMemory", "checkSearchPublisherTerminal", "acknowledgeSearchPublisherFacts"},
+		resultTypes: []string{"SearchImageStageResult", "publisherReceiptLookup", "publisherInvocation", "searchFragmentStageResult", "searchHeadPublishResult", "searchPublisherCommandResult", "searchFragmentReclaimResult"},
+		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts", "searchHeadPublishFreshFacts", "searchPublisherStageFacts", "composeSearchPublisherCommands", "discloseSearchPublisher", "searchPublisherEngine", "searchPublisherTimeMS", "requireSearchPublisherMemory", "checkSearchPublisherTerminal", "acknowledgeSearchPublisherFacts", "searchFragmentReclaimFreshFacts", "readSearchReclaimOwner"},
 		prefixes:    []string{"checkSearchImage"},
 		bypasses: []string{
+			`func reclaimRelease(ctx context.Context)(out searchFragmentReclaimResult,err error){return searchFragmentReclaimResult{},nil}`,
+			`func searchFragmentReclaimFreshFacts(ctx context.Context)(out searchFragmentReclaimRequest,err error){return searchFragmentReclaimRequest{},nil}`,
+			`func readSearchReclaimOwner(ctx context.Context)(out searchFragmentReclaimOwner,err error){return searchFragmentReclaimOwner{},nil}`,
 			`func publisherRelease(ctx context.Context)(out searchPublisherCommandResult,err error){return out,nil}`,
 			`func searchPublisherTimeMS(ctx context.Context)(out int64,err error){return 1,nil}`,
 			`func requireSearchPublisherMemory(ctx context.Context)(err error){return nil}`,
