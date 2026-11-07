@@ -10,23 +10,32 @@ import (
 )
 
 // SnapshotForecast is trusted composition data, not an issued grant or proof.
-// NativeRowBytes is a prospective maximum actual variable-row byte total, derived from closed native byte preflights or
-// an existing legal whole-row content bound. It is NOT columns*max-value-size.
+// NativeRowBytes bounds actual variable-row octets, derived from closed native
+// byte preflights or an existing legal whole-row content bound. GoCopyBytes is
+// the explicit allowance for all Go allocations over the complete window.
+// Their sum plus fixed row-decode overhead is admitted within Request.Need,
+// which is a ceiling, not an amount to hold. No Go allowance is inferred.
+// For compatibility only, a full-ceiling NativeRowBytes with zero GoCopyBytes
+// retains the old conservative reservation. A smaller forecast requires an
+// explicit positive GoCopyBytes allowance.
 // MaxQueries is the finite complete proof recipe, bounded by its raw-row budget.
 // Native VM/cache/workspace and separately retained output remain separately
 // funded; neither callback completion nor byte comparison refunds those holds.
 type SnapshotForecast struct {
 	NativeRowBytes int64
 	MaxQueries     uint16
+	GoCopyBytes    int64
 }
 
 // ReadForecasted keeps the existing ledger/native lifetime/consumer retirement
 // path. A domain must use exact-key byte points before payload Query in THIS
 // snapshot and compare every actual variable-column length after copy. The
 // forecast alone proves neither row identity nor current disclosure authority.
-// Existing Read callers retain their prior conservative reservation and8calls.
+// Existing Read callers retain their prior conservative reservation and 8 calls.
 func (s *Snapshots) ReadForecasted(parent context.Context, r Request, budget time.Duration, f SnapshotForecast, read func(*ReadScope) error) (SnapshotResult, error) {
-	if s == nil || parent == nil || f.NativeRowBytes <= 0 || f.NativeRowBytes > s.NativeRowReservation() || f.MaxQueries == 0 || uint32(f.MaxQueries) > r.Budget.RawRows || f.MaxQueries > 4096 {
+	if s == nil || parent == nil || f.NativeRowBytes < 0 || f.NativeRowBytes > s.NativeRowReservation() || f.GoCopyBytes < 0 ||
+		(f.GoCopyBytes == 0 && f.NativeRowBytes != s.NativeRowReservation()) ||
+		f.MaxQueries == 0 || uint32(f.MaxQueries) > r.Budget.RawRows || f.MaxQueries > 4096 {
 		return SnapshotResult{}, ErrSnapshotBudget
 	}
 	return s.read(parent, r, budget, f, read)
