@@ -194,7 +194,7 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 	if err != nil {
 		return out, ErrSnapshotBudget
 	}
-	if err = s.authority.Check(scope.grant, r); err != nil {
+	if err = s.authority.CheckContext(queries, scope.grant, r); err != nil {
 		return out, err
 	}
 	out.Started = time.Now()
@@ -216,7 +216,7 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 		scope.discard = true
 		return out, err
 	}
-	if err = s.authority.Check(scope.grant, r); err != nil {
+	if err = s.authority.CheckContext(queries, scope.grant, r); err != nil {
 		return out, err
 	}
 	// Manual private transaction avoids database/sql's asynchronous rollback
@@ -354,7 +354,7 @@ func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 	if err = s.ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err = s.authority.Check(s.grant, s.expected); err != nil {
+	if err = s.authority.CheckContext(s.ctx, s.grant, s.expected); err != nil {
 		return nil, err
 	}
 	if s.calls == 8 {

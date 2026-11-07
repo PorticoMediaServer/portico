@@ -214,10 +214,16 @@ func (g *ledger) waitForeground(ctx context.Context, until time.Time, wake <-cha
 // authority. The caller must carry ReadyDeadline into actual route execution;
 // admission does not restart the ready budget or qualify the <=1s ceiling.
 func (a *Authority) CheckForeground(p *Grant, q ForegroundRequest) error {
+	return a.CheckForegroundContext(context.Background(), p, q)
+}
+
+// CheckForegroundContext preserves exact LIVE binding and observes earlier
+// protected-operation cancellation. It never renews either original deadline.
+func (a *Authority) CheckForegroundContext(ctx context.Context, p *Grant, q ForegroundRequest) error {
 	if a.ledger.foreground.capacity == 0 || q.ReadyDeadline.IsZero() {
 		return ErrGrant
 	}
-	return a.check(p, a.ledger.foregroundRequest(q), q.ReadyDeadline)
+	return a.checkContext(ctx, p, a.ledger.foregroundRequest(q), q.ReadyDeadline)
 }
 
 type ForegroundUsage struct {
