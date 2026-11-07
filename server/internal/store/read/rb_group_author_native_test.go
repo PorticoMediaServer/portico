@@ -42,7 +42,7 @@ func TestRBGroupAuthorNative(t *testing.T) {
 	for _, v := range p.Items {
 		got = append(got, v.ID)
 	}
-	if !reflect.DeepEqual(got, want) || p.RawRows != 83 {
+	if !reflect.DeepEqual(got, want) || p.RawRows != 87 {
 		t.Fatal(got, want, p.RawRows)
 	}
 	f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
