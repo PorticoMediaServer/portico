@@ -177,8 +177,8 @@ func nativeAutoLess(a, b nativeAutomaticRoute) bool {
 }
 
 // A complete inverse proof or a typed refusal: never a truncated owner list.
-func nativeAutomaticOwners(query browseQuery, library, work int64) ([]nativeAutomaticOwner, error) {
-	if library <= 0 || work <= 0 {
+func nativeAutomaticOwners(query browseQuery, library int64, libraryName string, work int64) ([]nativeAutomaticOwner, error) {
+	if library <= 0 || work <= 0 || libraryName == "" {
 		return nil, ErrInput
 	}
 	q := nativeAutoQuery(query)
@@ -242,7 +242,7 @@ func nativeAutomaticOwners(query browseQuery, library, work int64) ([]nativeAuto
 			provider, a := o[0].(string)
 			ev, b := o[1].(string)
 			if a && b {
-				accepted, err := nativeAutoPoint(q, "accepted", work, library, provider, ev)
+				accepted, err := nativeAutoPoint(q, "accepted", work, library, provider, ev, libraryName)
 				if err != nil {
 					return nil, err
 				}
@@ -323,9 +323,9 @@ func nativeAutomaticOwners(query browseQuery, library, work int64) ([]nativeAuto
 
 // Each call advances at most one raw mapping, evidence, origin, local, or
 // override position. Work==0 is a progress position, not an empty membership.
-func nativeAutomaticNext(query browseQuery, library, collection int64, after *nativeAutomaticCursor) (nativeAutomaticPosition, *nativeAutomaticCursor, bool, error) {
+func nativeAutomaticNext(query browseQuery, library int64, libraryName string, collection int64, after *nativeAutomaticCursor) (nativeAutomaticPosition, *nativeAutomaticCursor, bool, error) {
 	var zero nativeAutomaticPosition
-	if library <= 0 || collection <= 0 {
+	if library <= 0 || collection <= 0 || libraryName == "" {
 		return zero, nil, false, ErrInput
 	}
 	c := nativeAutomaticCursor{Library: library, Collection: collection}
@@ -436,7 +436,7 @@ func nativeAutomaticNext(query browseQuery, library, collection int64, after *na
 				return zero, nil, false, e
 			}
 			if nativeAutoCollection(r, p) {
-				a, e := nativeAutoPoint(q, "accepted", k.V[0].I, library, p, ev)
+				a, e := nativeAutoPoint(q, "accepted", k.V[0].I, library, p, ev, libraryName)
 				if e != nil {
 					return zero, nil, false, e
 				}

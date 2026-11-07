@@ -46,7 +46,7 @@ func TestNativeAutomaticRejectedRawAdvances(t *testing.T) {
 	c.Mapping.V[0].I = 1
 	c.Mapping.V[1] = nativeAutoValue{S: "tmdb", Text: true}
 	c.Mapping.V[2] = nativeAutoValue{S: "123", Text: true}
-	p, next, done, e := nativeAutomaticNext(q, 1, 7, &c)
+	p, next, done, e := nativeAutomaticNext(q, 1, "movies", 7, &c)
 	if e != nil || done || p.Work != 0 || next == nil || next.Override.V[0].I != 42 || c.Override.N != 0 {
 		t.Fatalf("rejected raw position lost: %+v %+v %v %v", p, next, done, e)
 	}
