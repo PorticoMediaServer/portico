@@ -53,7 +53,7 @@ func validMGGuideProgress(p mgGuideProgress) bool {
 	m := p.manifest
 	if m.source == "" || m.generation == "" || m.generation == m.previousGeneration ||
 		!utf8.ValidString(m.source) || !utf8.ValidString(m.generation) || !utf8.ValidString(m.previousGeneration) ||
-		m.expectedRevision < 0 || (m.expectedRevision == 0) != (m.previousGeneration == "") ||
+		m.expected[0] <= 0 || m.expectedRevision < 0 || (m.expectedRevision == 0) != (m.previousGeneration == "") ||
 		p.bytes < 0 || p.revision <= 0 || p.sequence <= 0 {
 		return false
 	}

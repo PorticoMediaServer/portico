@@ -131,19 +131,37 @@ func TestMGGuidePublicationFencesSameRevisionRefresh(t *testing.T) {
 	}
 }
 
-func TestMGGuideManifestHeaderAndEmptyGeneration(t *testing.T) {
+func TestMGGuideManifestHeaderAndNoProgrammeGuide(t *testing.T) {
 	p, _ := mgGuideProtocolFixture()
 	changed := p
 	changed.manifest.previousGeneration = "another"
 	if validMGGuideProgress(changed) {
 		t.Fatal("initial manifest header changed without a new commitment")
 	}
-	m := mgGuideManifest{source: "source", generation: "first"}
+	// A real channel with no listings is valid; zero channels is not a guide.
+	m := mgGuideManifest{source: "source", generation: "first", expected: [3]int64{1, 0, 1}}
+	stages := []mgGuideStageDelta{
+		{mgGuideChannels, "source", "first", 2, 0, 1, 64, sha256.Sum256([]byte("channel"))},
+		{mgGuideChoices, "source", "first", 3, 0, 1, 16, sha256.Sum256([]byte("choice"))},
+	}
 	m.expectedChain = mgGuideInitialChain(m)
-	p = mgGuideProgress{manifest: m, chain: m.expectedChain, revision: 1, sequence: 1}
-	sealed, err := planMGGuideSeal(p, 2)
+	for _, d := range stages {
+		m.expectedChain = mgGuideNextChain(m.expectedChain, d)
+	}
+	p = mgGuideProgress{manifest: m, chain: mgGuideInitialChain(m), revision: 1, sequence: 1}
+	var err error
+	for _, d := range stages {
+		p, err = planMGGuideStage(p, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := planMGGuidePublication(p, mgGuideHead{source: "source"}, false); err == nil || got != (mgGuideHead{}) {
+		t.Fatal("unsealed complete generation published", got, err)
+	}
+	sealed, err := planMGGuideSeal(p, 4)
 	if err != nil {
-		t.Fatal("empty immutable generation", err)
+		t.Fatal("no-programme immutable generation", err)
 	}
 	got, err := planMGGuidePublication(sealed, mgGuideHead{source: "source"}, false)
 	if err != nil || got != (mgGuideHead{source: "source", generation: "first", state: "active", revision: 1}) {
@@ -151,5 +169,29 @@ func TestMGGuideManifestHeaderAndEmptyGeneration(t *testing.T) {
 	}
 	if got, err := planMGGuidePublication(sealed, mgGuideHead{source: "source"}, true); err == nil || got != (mgGuideHead{}) {
 		t.Fatal("refresh invented a source", got, err)
+	}
+}
+
+func TestMGGuideZeroChannelsNeverPublishes(t *testing.T) {
+	for _, refresh := range []bool{false, true} {
+		m := mgGuideManifest{source: "source", generation: "empty"}
+		head := mgGuideHead{source: "source"}
+		if refresh {
+			m.previousGeneration = "old"
+			m.expectedRevision = 7
+			head = mgGuideHead{"source", "old", "active", 7, false}
+		}
+		m.expectedChain = mgGuideInitialChain(m)
+		p := mgGuideProgress{manifest: m, chain: m.expectedChain, revision: 1, sequence: 1}
+		if validMGGuideProgress(p) {
+			t.Fatal("zero-channel source accepted", refresh)
+		}
+		if got, err := planMGGuideSeal(p, 2); err == nil || got != (mgGuideProgress{}) {
+			t.Fatal("zero-channel guide sealed", refresh, got, err)
+		}
+		p.sealed = true
+		if got, err := planMGGuidePublication(p, head, refresh); err == nil || got != (mgGuideHead{}) {
+			t.Fatal("zero-channel guide published", refresh, got, err)
+		}
 	}
 }
