@@ -243,6 +243,7 @@ func TestCommandClassesAreClosedAndExplicit(t *testing.T) {
 		{SearchGenerationAdvance, governor.Background}, {SearchGenerationFlip, governor.Background},
 		{PeopleHeadPublish, governor.Background}, {SearchImageStage, governor.Background},
 		{SearchSeal, governor.Background}, {EffectiveStage, governor.Background},
+		{EvidenceSeal, governor.Background}, {CreditSourceSeal, governor.Background},
 	} {
 		if got, err := commandClass(c.id); err != nil || got != c.class {
 			t.Fatal(c.id, got, err)

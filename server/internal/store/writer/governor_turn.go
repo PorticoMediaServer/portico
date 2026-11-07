@@ -26,7 +26,7 @@ func commandClass(id CommandID) (governor.Class, error) {
 		return governor.Recovery, nil
 	case EvidenceStage, CreditStage, PeopleStage, EnrichAccept, SearchFragmentStage,
 		SearchHeadPublish, SearchFragmentReclaim, SearchImageReclaim, SearchGenerationAdvance,
-		SearchGenerationFlip, PeopleHeadPublish, SearchImageStage, SearchSeal, EffectiveStage:
+		SearchGenerationFlip, PeopleHeadPublish, SearchImageStage, SearchSeal, EffectiveStage, EvidenceSeal, CreditSourceSeal:
 		return governor.Background, nil
 	default:
 		return 0, invalid("command_class")
@@ -56,6 +56,7 @@ type governedTurn struct {
 	wcReclaimMemory       commandMemoryBudget
 	directoryMemory       commandMemoryBudget
 	publisherMemory       commandMemoryBudget
+	enrichmentMemory      commandMemoryBudget
 	effectiveSourceMemory commandMemoryBudget // exact Effective source-proof partition; zero is unqualified
 	state                 atomic.Uint32       // 0 active, 1 retirement attempted, 2 retired, 3 failed
 	fenced                atomic.Bool
