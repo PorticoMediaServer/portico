@@ -7,12 +7,12 @@ import (
 	"unicode/utf8"
 )
 
+const iaConfigurationMaxSources, iaConfigurationMaxRootBytes = 64, 8192
+
 // Immutable observed source facts, not an inspection/permission capability.
 // The issuer first calls scan.PrepareLibraryRoots for the WHOLE raw batch,
 // before any inspection IO, then freezes actual observations here. Retrying
 // never re-observes/rebinds a root to manufacture the original command.
-const iaConfigurationMaxSources, iaConfigurationMaxRootBytes = 64, 8192
-
 type iaConfigurationSource struct {
 	id, name, incarnation                      string
 	generation                                 int64
@@ -22,8 +22,13 @@ type iaConfigurationSource struct {
 	kind, classification                       string
 	enabled, followSymlinks, identityConfirmed bool
 	intervalSeconds                            int64
-	// Retained scan/health values form a complete source result. They are
-	// captured facts, never replaced by whatever a live read returns on retry.
+}
+
+// Original current facts bind a source update. Result health/scheduling values
+// are computed/saved by the owned native turn, never accepted from a prepared
+// future timestamp. An old retiring source cannot be enabled under its old ID.
+type iaConfigurationPriorSource struct {
+	iaConfigurationSource
 	health, nextScanAt, lastCompleteAt, lastProgressAt string
 }
 
@@ -34,7 +39,7 @@ type iaConfigurationRequest struct {
 	libraryID, expectedConfigurationRevision int64
 	libraryKey, libraryName, libraryKind     string
 	action                                   string // create_library, add_source, update_source, disable_source, enable_source
-	before                                   *iaConfigurationSource
+	before                                   *iaConfigurationPriorSource
 	sources                                  []iaConfigurationSource
 }
 
@@ -47,7 +52,11 @@ type iaConfigurationCommand struct {
 }
 
 func iaConfigurationSourceTexts(s *iaConfigurationSource) []*string {
-	return []*string{&s.id, &s.name, &s.incarnation, &s.configuredRoot, &s.resolvedRoot, &s.rootIdentity, &s.kind, &s.classification, &s.health, &s.nextScanAt, &s.lastCompleteAt, &s.lastProgressAt, &s.remoteSourceID}
+	return []*string{&s.id, &s.name, &s.incarnation, &s.configuredRoot, &s.resolvedRoot, &s.rootIdentity, &s.kind, &s.classification, &s.remoteSourceID}
+}
+
+func iaConfigurationPriorTexts(s *iaConfigurationPriorSource) []*string {
+	return append(iaConfigurationSourceTexts(&s.iaConfigurationSource), &s.health, &s.nextScanAt, &s.lastCompleteAt, &s.lastProgressAt)
 }
 
 // Preparation only: private, bounded and inert. This cannot allocate an opaque
@@ -94,7 +103,7 @@ func newIAConfigurationCommand(purpose CommandID, id CommandIdentity, r iaConfig
 		texts = append(texts, iaConfigurationSourceTexts(&r.sources[i])...)
 	}
 	if r.before != nil {
-		texts = append(texts, iaConfigurationSourceTexts(r.before)...)
+		texts = append(texts, iaConfigurationPriorTexts(r.before)...)
 	}
 	remaining := maxCanonicalRequestBytes
 	for _, s := range texts {
@@ -120,7 +129,7 @@ func newIAConfigurationCommand(purpose CommandID, id CommandIdentity, r iaConfig
 	}
 	seen := make(map[string]bool, len(r.sources))
 	for _, s := range r.sources {
-		if s.id == "" || s.incarnation == "" || s.generation <= 0 || s.rootIdentity == "" || s.health == "" || s.configuredRoot == "" || s.resolvedRoot == "" || len(s.configuredRoot) > iaConfigurationMaxRootBytes || len(s.resolvedRoot) > iaConfigurationMaxRootBytes ||
+		if s.id == "" || s.incarnation == "" || s.generation <= 0 || s.rootIdentity == "" || s.configuredRoot == "" || s.resolvedRoot == "" || len(s.configuredRoot) > iaConfigurationMaxRootBytes || len(s.resolvedRoot) > iaConfigurationMaxRootBytes ||
 			(s.kind != "local" && s.kind != "remote") || (s.classification != "local" && s.classification != "network") || s.intervalSeconds < 0 || s.intervalSeconds > 0 && s.intervalSeconds < 900 || seen[s.id] {
 			return nil, invalid("ia_configuration_source_facts")
 		}
@@ -139,7 +148,7 @@ func newIAConfigurationCommand(purpose CommandID, id CommandIdentity, r iaConfig
 	}
 	if r.before != nil {
 		before, after := *r.before, r.sources[0]
-		if before.id != after.id || before.incarnation == "" || before.generation <= 0 || before.generation == 1<<63-1 || before.configuredRoot == "" || before.resolvedRoot == "" || before.rootIdentity == "" || after.generation != before.generation+1 {
+		if before.id != after.id || before.incarnation == "" || before.generation <= 0 || before.generation == 1<<63-1 || before.configuredRoot == "" || before.resolvedRoot == "" || before.rootIdentity == "" || before.health == "" || before.health == "removing" || after.generation != before.generation+1 {
 			return nil, invalid("ia_configuration_original_source")
 		}
 		switch r.action {
@@ -168,7 +177,7 @@ func newIAConfigurationCommand(purpose CommandID, id CommandIdentity, r iaConfig
 		texts = append(texts, iaConfigurationSourceTexts(&r.sources[i])...)
 	}
 	if r.before != nil {
-		texts = append(texts, iaConfigurationSourceTexts(r.before)...)
+		texts = append(texts, iaConfigurationPriorTexts(r.before)...)
 	}
 	for _, s := range texts {
 		*s = strings.Clone(*s)

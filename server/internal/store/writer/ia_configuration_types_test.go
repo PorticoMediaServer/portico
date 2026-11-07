@@ -8,7 +8,7 @@ import (
 
 func iaConfigurationRequestFixture() (CommandIdentity, iaConfigurationRequest) {
 	id, retire := iaRetirementRequestFixture()
-	s := iaConfigurationSource{id: "source", name: "Source", incarnation: "original", generation: 1, configuredRoot: "/configured/é", resolvedRoot: "/resolved/é", rootIdentity: "native", kind: "local", classification: "local", enabled: true, identityConfirmed: true, health: "ready"}
+	s := iaConfigurationSource{id: "source", name: "Source", incarnation: "original", generation: 1, configuredRoot: "/configured/é", resolvedRoot: "/resolved/é", rootIdentity: "native", kind: "local", classification: "local", enabled: true, identityConfirmed: true}
 	return id, iaConfigurationRequest{actor: retire.actor, libraryKey: "library", libraryName: "Library", libraryKind: "movie", action: "create_library", sources: []iaConfigurationSource{s}, scanAfter: true}
 }
 
@@ -50,7 +50,7 @@ func TestIAConfigurationOwnsCompleteRequest(t *testing.T) {
 func TestIAConfigurationSourceUpdatesPreserveOriginal(t *testing.T) {
 	id, r := iaConfigurationRequestFixture()
 	r.libraryID, r.expectedConfigurationRevision, r.libraryName, r.libraryKind, r.action = 7, 5, "", "", "update_source"
-	before := r.sources[0]
+	before := iaConfigurationPriorSource{iaConfigurationSource: r.sources[0], health: "ready"}
 	r.before = &before
 	r.sources[0].generation++
 	c, err := newIAConfigurationCommand(IAConfigureSource, id, r)

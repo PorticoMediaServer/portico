@@ -53,6 +53,18 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 	for at := range defs {
 		d := &defs[at]
 		d.Owner, d.CallSites = "store/writer IA retirement BEGIN", []string{"store/writer/ia_retirement_begin.go"}
+		for _, index := range d.Plan.Indexes {
+			table := ""
+			switch index {
+			case "sqlite_autoindex_library_sources_1":
+				table = "library_sources"
+			case "sqlite_autoindex_libraries_1":
+				table = "libraries"
+			}
+			if table != "" {
+				d.Plan.AutoIndexes = append(d.Plan.AutoIndexes, stmt.AutoIndexBinding{Table: table, Name: index, Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}})
+			}
+		}
 		var args []any
 		switch d.ID {
 		case iaRetirementLibraryFence:
