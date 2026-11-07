@@ -57,3 +57,24 @@ func TestBasicProbePayloadCapPrecedesNativeLookup(t *testing.T) {
 		t.Fatalf("pure payload validation must refuse oversized input: %v", err)
 	}
 }
+
+// Every individual field is legal-sized. The shared running allowance, rather
+// than an independent per-field cap or a later binder, must govern the tuple.
+func TestBasicProbePayloadCapUsesWholeScalarTuple(t *testing.T) {
+	in := basicProbeEffects{changeRevision: 1, assetPath: "/a", playbackIncarnation: [16]byte{1},
+		playbackRevision: 1, preparedRevision: 1, fileSizeRevision: 1, invalidationRevision: 1,
+		after: basicProbeScalars{videoCodec: "h264", duration: 1}}
+	in.before.container = strings.Repeat("m", maxCanonicalRequestBytes/2)
+	remaining := maxCanonicalRequestBytes - len(in.assetPath) - len(in.before.container) - len(in.after.videoCodec)
+	in.after.audioCodec = strings.Repeat("a", remaining+1)
+	if len(in.before.container) >= maxCanonicalRequestBytes || len(in.after.audioCodec) >= maxCanonicalRequestBytes {
+		t.Fatal("fixture must exercise the aggregate cap, not a per-field cap")
+	}
+	if err := validateBasicProbeEffects(in); !errors.Is(err, ErrCap) {
+		t.Fatalf("complete scalar tuple cap+1 must refuse: %v", err)
+	}
+	in.after.audioCodec = in.after.audioCodec[:remaining]
+	if err := validateBasicProbeEffects(in); err != nil {
+		t.Fatalf("exact-cap complete tuple is valid: %v", err)
+	}
+}
