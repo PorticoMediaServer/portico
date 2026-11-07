@@ -223,3 +223,13 @@ func writeIPTextBundleResult(e *requestEncoder, i CommandIdentity, q RequestDige
 	}
 	return e.err
 }
+
+// Person biography uses its native person-field key. Description is this
+// bundle's typed descriptive API field; entity description remains overview.
+// Provider automatic publication and owner edits must share the biography lock.
+func ipBundleOwnerField(s ipTextBundleSource, f fieldmeta.TextField) string {
+	if s.PersonID > 0 && f == fieldmeta.Description {
+		return "biography"
+	}
+	return string(f)
+}

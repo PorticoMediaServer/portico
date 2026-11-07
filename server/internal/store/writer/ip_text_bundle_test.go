@@ -70,7 +70,7 @@ func TestIPTextBundlePersonNamespaceIsolation(t *testing.T) {
 	w, base := ipTextFixture(t)
 	ipPolicyTestExec(t, w, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name,biography,revision,artwork_incarnation) VALUES(101,'person101','provider:101','Person','person','Biography',5,zeroblob(16))`)
 	ipPolicyTestExec(t, w, `INSERT INTO metadata_edit_owners(id,person_id,kind,revision,command_incarnation) VALUES(12,101,'person',1,X'02000000000000000000000000000000')`)
-	ipPolicyTestExec(t, w, `INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,locked,actor,observed_at,value_present,automatic_present) VALUES('person',101,'description','Biography','Provider biography',1,'prior','prior',1,1)`)
+	ipPolicyTestExec(t, w, `INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,locked,actor,observed_at,value_present,automatic_present) VALUES('person',101,'biography','Biography','Provider biography',1,'prior','prior',1,1)`)
 	q := ipTextBundleRequest{Identity: base.identity, Kind: IPFieldRestore, Source: ipTextBundleSource{OwnerID: 12, PersonID: 101, Kind: "person", Actor: "local:administrator", OwnerRevision: 1, SubjectRevision: 5}, Fields: []ipTextBundleField{{fieldmeta.Description, fieldmeta.TextState{Effective: fieldmeta.Text{"Biography", true}, Automatic: fieldmeta.Text{"Provider biography", true}, Locked: true}, fieldmeta.TextEdit{Action: fieldmeta.RestoreAutomatic}}}}
 	bad := q
 	bad.Source.OwnerID = 11

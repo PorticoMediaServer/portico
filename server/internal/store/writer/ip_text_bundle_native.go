@@ -151,7 +151,7 @@ func applyIPTextBundleBody(ctx context.Context, t *commandTurn, c ipTextBundleCo
 	// Verify the complete before-cohort before making any requested field write.
 	for j, f := range q.Fields {
 		b := f.Before
-		if err = ipTextExpectOne(ctx, t, ipTextField, s.Kind, target, string(f.Field), b.Effective.Value, b.Automatic.Value, ipTextBool(b.Effective.Present), ipTextBool(b.Automatic.Present), ipTextBool(b.Locked)); err != nil {
+		if err = ipTextExpectOne(ctx, t, ipTextField, s.Kind, target, ipBundleOwnerField(s, f.Field), b.Effective.Value, b.Automatic.Value, ipTextBool(b.Effective.Present), ipTextBool(b.Automatic.Present), ipTextBool(b.Locked)); err != nil {
 			return ipTextBundleNative{}, err
 		}
 		if !c.after[j].EffectiveChanged {
@@ -180,7 +180,7 @@ func applyIPTextBundleBody(ctx context.Context, t *commandTurn, c ipTextBundleCo
 			if !a.Changed {
 				continue
 			}
-			if err = ipTextExpectOne(ctx, t, ipTextFieldUpdate, a.State.Effective.Value, ipTextBool(a.State.Effective.Present), ipTextBool(a.State.Locked), s.Actor, stamp, s.Kind, target, string(f.Field), ipTextBool(f.Before.Locked)); err != nil {
+			if err = ipTextExpectOne(ctx, t, ipTextFieldUpdate, a.State.Effective.Value, ipTextBool(a.State.Effective.Present), ipTextBool(a.State.Locked), s.Actor, stamp, s.Kind, target, ipBundleOwnerField(s, f.Field), ipTextBool(f.Before.Locked)); err != nil {
 				return ipTextBundleNative{}, err
 			}
 			if !a.EffectiveChanged {
@@ -231,7 +231,7 @@ func applyIPTextBundleBody(ctx context.Context, t *commandTurn, c ipTextBundleCo
 		historyID = EvidenceInteger{id, true}
 		for j, f := range q.Fields {
 			b, a := f.Before, c.after[j].State
-			if err = ipTextExecOne(ctx, t, ipTextHistoryField, id, string(f.Field), b.Effective.Value, ipTextBool(b.Effective.Present), b.Automatic.Value, ipTextBool(b.Automatic.Present), ipTextBool(b.Locked), a.Effective.Value, ipTextBool(a.Effective.Present), a.Automatic.Value, ipTextBool(a.Automatic.Present), ipTextBool(a.Locked)); err != nil {
+			if err = ipTextExecOne(ctx, t, ipTextHistoryField, id, ipBundleOwnerField(s, f.Field), b.Effective.Value, ipTextBool(b.Effective.Present), b.Automatic.Value, ipTextBool(b.Automatic.Present), ipTextBool(b.Locked), a.Effective.Value, ipTextBool(a.Effective.Present), a.Automatic.Value, ipTextBool(a.Automatic.Present), ipTextBool(a.Locked)); err != nil {
 				return ipTextBundleNative{}, err
 			}
 		}

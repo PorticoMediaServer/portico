@@ -11,7 +11,7 @@ func ipBulkFixture(t *testing.T) (*executor, ipEditBulkRequest) {
 	w, _ := ipTextFixture(t)
 	for _, query := range []string{
 		`INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(102,X'01000000000000000000000000000000',7,1)`,
-		`INSERT INTO metadata_repair_cascades(id,kind,entity_id,library_id,actor,intent,base_revision,created_at,command_incarnation) VALUES('bulk1','item',101,'ip-library','local:administrator','descriptive-bulk-v1','23','now',X'02000000000000000000000000000000')`,
+		`INSERT INTO metadata_repair_cascades(id,kind,entity_id,library_id,actor,intent,base_revision,created_at,command_incarnation,descriptive_expected_count,descriptive_captured_count,descriptive_input_complete,descriptive_manifest_algorithm,descriptive_manifest_digest,descriptive_expected_bytes,descriptive_captured_bytes,descriptive_captured_digest,descriptive_reclaim_after_ordinal,descriptive_receipt_reclaim_after_sequence) VALUES('bulk1','item',101,'ip-library','local:administrator','descriptive-bulk-v1','23','now',X'02000000000000000000000000000000',2,0,0,'portico-ip-descriptive-input-sha256-v1',X'2d5f7dbae8111d94c68ff52d425a4e60a55f1127d42c2608a10c2fbf8c3b35cb',121,41,X'ffd6a9179106818b501dc6b5e929ff4906f37de92614816cf92a38dcb1b652c9',-1,0)`,
 	} {
 		ipPolicyTestExec(t, w, query)
 	}
@@ -96,6 +96,7 @@ func TestIPEditBulkNativeRollbackAndIncompleteSeal(t *testing.T) {
 			w, q := ipBulkFixture(t)
 			if fault == "wrong_manifest" {
 				q.Root.Manifest[0] ^= 1
+				ipPolicyTestExec(t, w, `UPDATE metadata_repair_cascades SET descriptive_manifest_digest=? WHERE id='bulk1'`, q.Root.Manifest[:])
 			}
 			_, turn, err := ipBulkDo(t, w, q)
 			if err != nil {
@@ -144,5 +145,40 @@ func TestIPEditBulkNativeRollbackAndIncompleteSeal(t *testing.T) {
 				t.Fatal(n)
 			}
 		})
+	}
+}
+
+func TestIPEditBulkClosedParentAndTypedChildIntent(t *testing.T) {
+	w, q := ipBulkFixture(t)
+	for _, sql := range []string{
+		`UPDATE metadata_repair_cascades SET descriptive_captured_count=NULL WHERE id='bulk1'`,
+		`UPDATE metadata_repair_cascades SET descriptive_captured_count=3 WHERE id='bulk1'`,
+		`UPDATE metadata_repair_cascades SET descriptive_captured_bytes=122 WHERE id='bulk1'`,
+		`UPDATE metadata_repair_cascades SET descriptive_input_complete=1 WHERE id='bulk1'`,
+		`UPDATE metadata_repair_cascades SET descriptive_input_complete=1,descriptive_captured_count=2,descriptive_captured_bytes=121 WHERE id='bulk1'`,
+		`UPDATE metadata_repair_cascades SET intent='other' WHERE id='bulk1'`,
+	} {
+		if _, err := w.db.ExecContext(t.Context(), sql); err == nil {
+			t.Fatal("accepted partial/mixed descriptive parent", sql)
+		}
+	}
+	ipPolicyTestExec(t, w, `INSERT INTO metadata_repair_cascades(id,kind,entity_id,library_id,actor,intent,base_revision,created_at,command_incarnation) VALUES('other1','item',101,'ip-library','local:administrator','other','23','now',X'02000000000000000000000000000000')`)
+	for _, sql := range []string{
+		`INSERT INTO metadata_edit_batch_fields(operation_id,field,action,value,lock_override) VALUES('other1','country','set','US',0)`,
+		`INSERT INTO metadata_edit_batch_targets(operation_id,ordinal,entity_id,expected_entity_incarnation,expected_revision,state) VALUES('other1',0,101,zeroblob(16),23,'captured')`,
+		`INSERT INTO metadata_edit_batch_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,applied_ms,result_digest,command_kind,accepted_revision,after_ordinal,captured_count,processed_count,failed_count,input_complete,manifest_algorithm,manifest_digest) VALUES('other1',X'02000000000000000000000000000000',1,X'31000000000000000000000000000000',zeroblob(32),0,zeroblob(32),'begin',1,0,0,0,0,0,'v1',zeroblob(32))`,
+	} {
+		if _, err := w.db.ExecContext(t.Context(), sql); err == nil {
+			t.Fatal("descriptive child crossed parent intent", sql)
+		}
+	}
+	q.Root.Operation = "other1"
+	got, turn, err := ipBulkDo(t, w, q)
+	if err == nil || got != (ipEditBulkNative{}) {
+		t.Fatal("native accepted another parent intent", got, err)
+	}
+	_, _ = turn.transaction.rollback(err)
+	if n := ipPolicyTestScalar(t, w, `SELECT count(*) FROM metadata_edit_batch_fields`); n != 0 {
+		t.Fatal(n)
 	}
 }

@@ -1,5 +1,7 @@
 package writer
 
+import "strings"
+
 // Private fixed-slot retention protocol. This slot is part of the real command
 // owner, never a second cleanup child receipt. A cleanup ACK does not redue a
 // completed slot. Source ACK makes only actual child debt due; it refunds zero.
@@ -91,10 +93,14 @@ func newIPReceiptReclaimCommand(q ipReceiptReclaimRequest) (ipReceiptReclaimComm
 		previous := *q.Previous
 		q.Previous = &previous
 	}
+	q.Scope.Provider = strings.Clone(q.Scope.Provider)
+	q.Scope.Purpose = strings.Clone(q.Scope.Purpose)
+	q.Scope.PersonOperation = strings.Clone(q.Scope.PersonOperation)
+	q.Scope.BulkOperation = strings.Clone(q.Scope.BulkOperation)
 	return ipReceiptReclaimCommand{q, digest}, nil
 }
 func preflightIPReceiptReclaimResult(r ipReceiptReclaimResult) error {
-	if r.Family < ipReceiptPolicy || r.Family > ipReceiptBulk || r.CapturedACK < 0 || r.OldCursor < 0 || r.OldCursor > r.CapturedACK || r.RemovedRows < 0 || r.RemovedRows > 12 || r.RemovedPayloadBytes < 0 || r.AfterSequence < r.OldCursor || r.AfterSequence > r.CapturedACK || r.AppliedMS < 0 || r.NoNext && r.AfterSequence != r.CapturedACK || r.RemovedRows == 0 && r.RemovedPayloadBytes != 0 || r.RemovedRows > 0 && r.AfterSequence <= r.OldCursor {
+	if r.Family < ipReceiptPolicy || r.Family > ipReceiptBulk || r.CapturedACK < 0 || r.OldCursor < 0 || r.OldCursor > r.CapturedACK || r.RemovedRows < 0 || r.RemovedRows > 12 || r.RemovedPayloadBytes < 0 || r.AfterSequence < r.OldCursor || r.AfterSequence > r.CapturedACK || r.AppliedMS < 0 || r.NoNext && r.AfterSequence != r.CapturedACK || r.RemovedRows == 0 && r.RemovedPayloadBytes != 0 || r.RemovedRows > 0 && (r.AfterSequence <= r.OldCursor || r.RemovedPayloadBytes <= 0) {
 		return ErrInvalid
 	}
 	return nil

@@ -48,10 +48,10 @@ func applyIPEditBulkCapture(ctx context.Context, t *commandTurn, c ipEditBulkCom
 	}
 	next := ipEditBulkResult{Revision: q.Revision + 1, AppliedMS: appliedMS, Manifest: r.Manifest}
 	if q.Action == ipEditBulkBegin {
-		if f.expected.Valid || f.captured.Valid || f.complete.Valid || f.expectedBytes.Valid || f.capturedBytes.Valid || len(f.manifest) != 0 || len(f.chain) != 0 {
+		if !f.expected.Valid || !f.captured.Valid || !f.complete.Valid || !f.expectedBytes.Valid || !f.capturedBytes.Valid || f.expected.Int64 != r.ExpectedCount || f.captured.Int64 != 0 || f.complete.Int64 != 0 || f.expectedBytes.Int64 != r.ExpectedBytes || f.capturedBytes.Int64 != c.fieldBytes || !bytes.Equal(f.manifest, r.Manifest[:]) || !bytes.Equal(f.chain, c.seed[:]) {
 			return ipEditBulkNative{}, ErrConflict
 		}
-		if err = ipTextExpectOne(ctx, t, ipBulkInitialize, r.ExpectedCount, r.Manifest[:], r.ExpectedBytes, c.fieldBytes, c.seed[:], i.Sequence, r.Operation, q.Revision, i.Incarnation[:], f.last, f.ack); err != nil {
+		if err = ipTextExpectOne(ctx, t, ipBulkInitialize, i.Sequence, r.Operation, q.Revision, i.Incarnation[:], f.last, f.ack, r.ExpectedCount, r.Manifest[:], r.ExpectedBytes, c.fieldBytes, c.seed[:]); err != nil {
 			return ipEditBulkNative{}, err
 		}
 		for _, field := range r.Fields {
