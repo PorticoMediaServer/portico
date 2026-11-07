@@ -77,6 +77,10 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIARetirementResult(IARetireSource, identity, request, v.facts)
 	case iaRetireStepResult:
 		return preflightIARetirementResult(IARetireStep, identity, request, v.facts)
+	case iaConfigureLibraryResult:
+		return preflightIAConfigurationResult(IAConfigureLibrary, identity, request, v.facts)
+	case iaConfigureSourceResult:
+		return preflightIAConfigurationResult(IAConfigureSource, identity, request, v.facts)
 	case iaConfigurationReceiptReclaimResult:
 		return preflightIAConfigurationReceiptReclaim(identity, v)
 	case iaRetirementReceiptReclaimResult:
@@ -134,6 +138,10 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIARetirementResult(e, IARetireSource, identity, request, v.facts)
 	case iaRetireStepResult:
 		return writeIARetirementResult(e, IARetireStep, identity, request, v.facts)
+	case iaConfigureLibraryResult:
+		return writeIAConfigurationResult(e, IAConfigureLibrary, identity, request, v.facts)
+	case iaConfigureSourceResult:
+		return writeIAConfigurationResult(e, IAConfigureSource, identity, request, v.facts)
 	case iaConfigurationReceiptReclaimResult:
 		return writeIAConfigurationReceiptReclaim(e, identity, request, v)
 	case iaRetirementReceiptReclaimResult:
