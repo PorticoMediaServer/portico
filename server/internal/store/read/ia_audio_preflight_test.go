@@ -52,7 +52,7 @@ func TestIAAudioPreflightBeforePayload(t *testing.T) {
 				if err != nil {
 					t.Fatal("legal measured payload refused", err)
 				}
-				column := 1 // entity title
+				column := 3 // entity title
 				if link {
 					column = 2 // link edition
 				}
