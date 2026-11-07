@@ -82,7 +82,7 @@ func NewRSChildrenReader(s *governor.Snapshots) (*RSChildrenReader, error) {
 // sparse retired/wrong-kind tails, NULL/defaults, source drift and slow consumer.
 // B-R10's 1M 25/75ms and 50k VM remain unqualified. On this base the five common
 // fence calls plus root, twice, cost 12 statements before the 1..3 stream calls:
-// 13..15 total exceeds B-R10's 12-statement target. Parent integration must
+// 13..15 total exceeds B-R10's 12-statement target. Whole-response composition must
 // resolve that shared-protocol cost; these functional controls do not waive it.
 func (r *RSChildrenReader) Window(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in RSChildrenInput) (RSChildrenPage, BrowseReadResult, error) {
 	if r == nil {

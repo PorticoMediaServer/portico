@@ -49,8 +49,8 @@ func RSChildrenDefinitions() []stmt.Definition {
 			p.Indexes = []string{index}
 		}
 		// The closed HN EQP vocabulary deliberately excludes expression-index
-		// wording. These exact statement-bound SEARCH-only definitions are a
-		// local approval draft for the parent; no SCAN/sort/grammar waiver.
+		// wording. These exact statement-bound SEARCH-only definitions cover
+		// the canonical expression seek; no SCAN or sort exception is granted.
 		for _, family := range []string{"album", "book"} {
 			prefix := family + "_id=?"
 			var detail string
@@ -63,7 +63,7 @@ func RSChildrenDefinitions() []stmt.Definition {
 				detail = prefix + " AND <expr>>?"
 			}
 			if detail != "" {
-				p.Waivers = []stmt.Waiver{{StatementID: readStatementID(rsChildrenName(name)), Stage: "eqp", Form: "UNRECOGNIZED EQP", Match: "SEARCH catalog_entities USING INDEX " + index + " (" + detail + ")", Reason: "Canonical listening-order expression-index SEARCH only; parent approval draft, no scan or sort exception."}}
+				p.Waivers = []stmt.Waiver{{StatementID: readStatementID(rsChildrenName(name)), Stage: "eqp", Form: "UNRECOGNIZED EQP", Match: "SEARCH catalog_entities USING INDEX " + index + " (" + detail + ")", Reason: "Canonical listening-order expression-index SEARCH; exact statement-bound wording, no scan or sort exception."}}
 			}
 		}
 		out = append(out, stmt.Definition{ID: readStatementID(rsChildrenName(name)), SQL: sql, Params: params, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/rs_children.go:RSChildrenReader.Window"}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: present}, {Name: "empty", Bindings: empty}}, Plan: p})
