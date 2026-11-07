@@ -104,3 +104,20 @@ project to7,039,050,000 bytes, so the former4GiB verifier limit could reject a
 fully observed10k-original cohort. No raw fields are trimmed to fit. Files above
 the new ceiling, oversized/truncated records and incomplete owner finals still
 fail visibly and retain their original evidence.
+
+The full wire verifier runs on each runner before a successful cell can be
+reported complete. After unit retirement, finalization gzip-compresses the
+closed raw stream, verifies its original byte count/SHA by decompressing it,
+and compares the successful verifier's digest before removing the uncompressed
+copy. Artifacts retain `raw.ndjson.gz`, `raw-storage.json` (original and stored
+length/digest, wire-verification flag and compression interval), summaries,
+host/build/policy metadata and hashes. Failed prefixes remain failed and are
+also compressed; round-trip integrity never promotes them to verified wire or
+qualification. A digest/compression error keeps the original and fails closed.
+Download the compressed representation and metadata; do not expand all six
+large streams on mini-1. JSON readers can stream through `gzip.open`.
+
+Cell receipts also record filesystem total/used/free immediately before the
+child starts and after it exits. These are checkpoints, not minimum free space
+or peak disk usage. Actions step timestamps retain compression/upload elapsed
+time; inspect these and the first redispatch's receipts for runner-disk pressure.
