@@ -144,8 +144,8 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 		len(in.Database) == 0 || len(in.Database) > 256 || len(in.TokenHash) == 0 || len(in.TokenHash) > 256 || in.Library <= 0 || in.Kind <= 0 || in.Kind > 99 || in.Limit < 1 || in.Limit > MaxPage || in.Now.IsZero() {
 		return zero, result, ErrInput
 	}
-	if in.Kind > 10 {
-		return zero, result, ErrUnqualified
+	if _, e := resolveReadPolicy(in); e != nil {
+		return zero, result, e
 	}
 	if err := ctx.Err(); err != nil {
 		return zero, result, err
