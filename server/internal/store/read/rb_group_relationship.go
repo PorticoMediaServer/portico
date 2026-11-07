@@ -222,7 +222,7 @@ func rbRelationshipDefinitions() []stmt.Definition {
 LEFT JOIN catalog_entities AS a ON a.id=e.album_id
 LEFT JOIN catalog_entities AS r ON r.id=` + parent + `
 WHERE e.library_id=? AND e.kind=? AND e.id>? ORDER BY e.id LIMIT ?`
-			out = append(out, stmt.Definition{ID: statementID("rb.group.relationship." + name + suffix), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/rb_group_relationship.go:BrowseReader.RBRelationshipExact"}, Kind: stmt.Read, Params: []stmt.Param{i("library"), i("kind"), i("after"), i("limit")}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), kind, int64(0), int64(MaxRaw)}}, {Name: "empty", Bindings: []any{int64(-1), kind, int64(0), int64(MaxRaw)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library"}, PrimaryKeys: []string{"catalog_entities"}, Seeks: []string{"library_id=? AND kind=? AND id>?"}}})
+			out = append(out, stmt.Definition{ID: statementID("rb.group.relationship." + name + suffix), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/rb_group_relationship.go:BrowseReader.RBRelationshipExact"}, Kind: stmt.Read, Params: []stmt.Param{i("library"), i("kind"), i("after"), i("limit")}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), kind, int64(0), int64(MaxRaw)}}, {Name: "empty", Bindings: []any{int64(-1), kind, int64(0), int64(MaxRaw)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library"}, PrimaryKeys: []string{"a", "r"}, Seeks: []string{"library_id=? AND kind=? AND id>?"}}})
 		}
 	}
 	return out
