@@ -116,7 +116,10 @@ package writer
 // compile: -run '^$'
 // tiny draft components:
 // -run '^TestIPArtworkMaterial(TinySmoke|RollbackAndFences|LockedEmptyRefusesWithoutEffects|Plans|CanonicalBinding|GCTokensHoldsAndReferences|ReencodeSourceRevision|UploadAcceptance|ProtectedRowsError|NoopSourceReuse)$'
-// PORTICO_IP_DDL_DRAFT points at the original combined IP-DDL-DRAFT.sql.
+// PORTICO_IP_DDL_DRAFT points at the combined IP-DDL-DRAFT.sql. The final run
+// froze the currently supplied bytes into task scratch before loading them.
+// The shared draft changed during work; earlier moving-path runs are not used
+// as the exact DDL fingerprint for this final evidence.
 // Accepting tests require the parent's two canonical result switch cases; the
 // local run uses ONLY those two cases in a temporary Go -overlay. Without them,
 // accepting tests explicitly skip; input/vector/plans/refusal remain runnable.
@@ -127,16 +130,17 @@ package writer
 // adopted locked-empty acceptance, abandoned canonical unlink, production or
 // remote/live providers. Parent owns GitHub lane-focused CI and publication.
 //
-// FINAL LOCAL EVIDENCE (ten selected parents PASS, nine tiny fixture clones):
+// FINAL LOCAL EVIDENCE (ten selected parents PASS, nine tiny fixture clones,
+// all62 inert native statement definitions prepared with SEARCH-only plans):
 // Go1.26.10; SQLite3.53.4; virtual protocol clock; canonical schema
 // da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4.
-// Combined IP DDL: 8bcf4b72a62fd44313ce941999b8ea07efd9514e5d699c25c7505c97d6f081d0.
+// Combined IP DDL: 7ccebc0abadaaf8855dc29d93d722a0af9f246f5a26a4781538df08687221ad7.
 // Two-case result_digest.go overlay source:
 // 65ea2039a530e94a8d03a099a6d36a18ac50f89357c4e9baa89bf1bfbe9a13df.
 // Fixture-source aggregate (sorted repo paths; path+NUL+bytes+NUL each):
 // 118f775a6937e562bdbf7318b31d3cabc367c5b0b9c5c201a40ec3c54bdb7737.
 // Final verbose smoke stdout SHA256:
-// c3b1911f8d4a00b27b23c3d4f2b24bb5ae63fd824bbc8171baf63df294a13fcf.
+// 24fc207f3443c8cd886781a9e3eddcb70a5968d9031e692b679eae1523a44b04.
 // Canonical fixture bootstrap DB9535488 bytes SHA256 (before IP delta):
 // 763a1b7037a28176c4f01a97af940dc79ed602b88309190bf9d6378c611eb4af.
 // No external files, production/remote DBs, live providers or captures used.
