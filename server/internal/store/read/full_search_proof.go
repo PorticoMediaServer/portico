@@ -24,6 +24,8 @@ type fullQueryScope struct {
 	terms           []string
 	bank            int64
 	revision, input int64
+	preview         bool
+	nativeWork      *nativeCandidateWork
 }
 
 func newFullQueryScope(query search.Query, bank, revision, input int64) (*fullQueryScope, error) {
@@ -33,7 +35,7 @@ func newFullQueryScope(query search.Query, bank, revision, input int64) (*fullQu
 	terms := query.Terms()
 	slices.Sort(terms)
 	terms = slices.Compact(terms)
-	return &fullQueryScope{query, terms, bank, revision, input}, nil
+	return &fullQueryScope{query: query, terms: terms, bank: bank, revision: revision, input: input}, nil
 }
 
 type logicalSourceProof struct {
@@ -333,16 +335,31 @@ type canonicalCandidateProof struct {
 // own + allowed owner-NAME cohort. It proves visibility/accepted heads first;
 // a budget-limited prefix cannot prove nonmembership or a canonical winner.
 func proveCandidate(scope *fullQueryScope, key fullResultKey, lead exactTermPopulation, sources []candidateSource, complete bool) (canonicalCandidateProof, bool, error) {
+	if scope == nil || scope.preview || lead.scope != scope {
+		return canonicalCandidateProof{}, false, ErrInput
+	}
+	return proveCandidateTerm(scope, key, lead.term, sources, complete)
+}
+
+// Preview uses a deterministic discovery term and makes no population claim.
+// Complete same-source/conjunction/best-tier validation still applies per hit.
+func provePreviewCandidate(scope *fullQueryScope, key fullResultKey, term string, sources []candidateSource, complete bool) (canonicalCandidateProof, bool, error) {
+	if scope == nil || !scope.preview {
+		return canonicalCandidateProof{}, false, ErrInput
+	}
+	return proveCandidateTerm(scope, key, term, sources, complete)
+}
+func proveCandidateTerm(scope *fullQueryScope, key fullResultKey, term string, sources []candidateSource, complete bool) (canonicalCandidateProof, bool, error) {
 	if !complete {
 		return canonicalCandidateProof{}, false, errFullSearchPending
 	}
 	if len(sources) > 512 {
 		return canonicalCandidateProof{}, false, errFullSearchPending
 	}
-	if scope == nil || lead.scope != scope || key.id <= 0 || key.family != search.ManifestEntity && key.family != search.ManifestPerson {
+	if scope == nil || key.id <= 0 || key.family != search.ManifestEntity && key.family != search.ManifestPerson {
 		return canonicalCandidateProof{}, false, ErrInput
 	}
-	leadIndex := slices.Index(scope.terms, lead.term)
+	leadIndex := slices.Index(scope.terms, term)
 	if leadIndex < 0 {
 		return canonicalCandidateProof{}, false, ErrInput
 	}

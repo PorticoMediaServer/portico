@@ -34,18 +34,37 @@ type FullSearchCursor struct {
 	after                 canonicalCandidateProof
 	native                *nativeContinuation
 }
+
+const NativePreviewCandidates = 2000
+
+type SearchCountStatus uint8
+
+const (
+	SearchCountUnknown SearchCountStatus = iota
+	SearchCountLowerBound
+	SearchCountExact
+)
+
 type FullSearchInput struct {
 	View  BrowseInput
 	After *FullSearchCursor
 	// Opaque prior results whose policies this SAME operation must revalidate.
-	// At most40 stamps/40 distinct retained source witnesses; never wire input.
+	// At most128 stamps/128 distinct retained source witnesses; never wire input.
 	Retained []*FullSearchReadStamp
+	Preview  bool
+	// Remaining MATCH candidate allowance; preview is always capped at2000.
+	CandidateBudget int
 }
 type FullSearchPage struct {
 	Disposition SearchDisposition
 	Hits        []FullSearchHit
 	Next        *FullSearchCursor
 	Exhausted   bool
+	Partial     bool
+	// Internal work progress, never an authorized logical result count.
+	NativeCandidates int
+	CountStatus      SearchCountStatus
+	Count            uint64
 	// Stamp is present only for a real native read joined to its fresh final
 	// fence, including pending and exhausted pages. Synthetic adapters may not
 	// manufacture one; nil cannot validate retained results from another poll.
@@ -82,7 +101,7 @@ func hitRank(h FullSearchHit) canonicalCandidateProof {
 }
 
 func ownFullSearchPage(p FullSearchPage, limit int) (FullSearchPage, error) {
-	if p.Disposition < SearchResults || p.Disposition > SearchUnavailable || len(p.Hits) > limit || p.Exhausted && p.Next != nil || p.Disposition != SearchResults && (len(p.Hits) != 0 || p.Exhausted || p.Next != nil && (p.Disposition != SearchPending || p.Next.native == nil)) {
+	if p.NativeCandidates < 0 || p.CountStatus > SearchCountExact || p.CountStatus == SearchCountUnknown && p.Count != 0 || p.Partial && (p.Exhausted || p.CountStatus == SearchCountExact) || p.Disposition < SearchResults || p.Disposition > SearchUnavailable || len(p.Hits) > limit || p.Exhausted && p.Next != nil || p.Disposition != SearchResults && (len(p.Hits) != 0 || p.Exhausted || p.Next != nil && (p.Disposition != SearchPending || p.Next.native == nil)) {
 		return FullSearchPage{}, ErrInput
 	}
 	if p.Next != nil && (len(p.Next.query) > 1536 || len(p.Next.after.lead.Revision) > 4096 || p.Next.bank <= 0 || p.Next.revision <= 0 || p.Next.input < 0) {
@@ -109,6 +128,7 @@ func ownFullSearchPage(p FullSearchPage, limit int) (FullSearchPage, error) {
 	p.Next = cloneFullCursor(p.Next)
 	if p.Stamp != nil {
 		stamp := *p.Stamp
+		stamp.hits = slices.Clone(stamp.hits)
 		stamp.policies = slices.Clone(stamp.policies)
 		stamp.checked = slices.Clone(stamp.checked)
 		p.Stamp = &stamp
@@ -140,7 +160,7 @@ func (p *fullSearchTop) observe(proof canonicalCandidateProof, source search.Fie
 	if hitRank(hit).key != proof.key || hit.Tier != proof.tier || hit.PeopleSubtier != proof.subtier {
 		return ErrInput
 	}
-	if source != proof.lead || route != proof.route {
+	if !p.scope.preview && (source != proof.lead || route != proof.route) {
 		return nil
 	}
 	if p.after != nil && compareFullRank(proof, p.after.after) <= 0 {

@@ -148,6 +148,7 @@ type nativeSource struct {
 	kind, library        int64
 	item                 []any
 	permission           nativePolicyWitness
+	personSource         [32]byte
 }
 
 // The accepted point uses the current entity's full revision, not its narrower
@@ -256,7 +257,7 @@ func nativeLogicalField(ctx context.Context, query browseQuery, scope *fullQuery
 	var walk *logicalFieldWalk
 	var first fullPostingKey
 	total := 0
-	if field == 1 && source.key.Subject == search.ManifestEntity {
+	if !scope.preview && field == 1 && source.key.Subject == search.ManifestEntity {
 		hit, err := nativePostingPoint(query, scope.terms[term], 1, source.key.SubjectID)
 		if err != nil {
 			return empty, first, err
@@ -265,7 +266,7 @@ func nativeLogicalField(ctx context.Context, query browseQuery, scope *fullQuery
 			first = fullPostingKey{1, source.key.SubjectID}
 		}
 	}
-	if field == 1 && source.key.Subject == search.ManifestPerson {
+	if !scope.preview && field == 1 && source.key.Subject == search.ManifestPerson {
 		hit, err := nativePostingPoint(query, scope.terms[term], 5, source.key.SubjectID)
 		if err != nil {
 			return empty, first, err
@@ -313,7 +314,7 @@ func nativeLogicalField(ctx context.Context, query browseQuery, scope *fullQuery
 			if err = walk.observe(ctx, walk.key, row[3].(string), row[4].(string)); err != nil {
 				return empty, first, err
 			}
-			for slot := uint8(2); slot <= 4; slot++ {
+			for slot := uint8(2); !scope.preview && slot <= 4; slot++ {
 				if first.slot != 0 && slot > first.slot {
 					break
 				}

@@ -59,7 +59,7 @@ func nativeSourceFields(ctx context.Context, q browseQuery, scope *fullQueryScop
 
 // Inverse relations are consumed completely before the conjunction or winner
 // is proved. A work bound refuses; it never proves an unseen owner absent.
-func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, id int64, lead exactTermPopulation) (canonicalCandidateProof, FullSearchHit, bool, error) {
+func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, id int64, lead nativeSearchLead) (canonicalCandidateProof, FullSearchHit, bool, error) {
 	var empty canonicalCandidateProof
 	var hit FullSearchHit
 	source, err := nativeEntitySource(q, scope, id)
@@ -73,7 +73,7 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 	if in.Kind != 0 && in.Kind != source.kind {
 		return empty, hit, false, nil
 	}
-	leadIndex := slices.Index(scope.terms, lead.term)
+	leadIndex := slices.Index(scope.terms, lead.term())
 	sources, err := nativeSourceFields(ctx, q, scope, source, true, fullRouteKey{}, leadIndex)
 	if err != nil {
 		return empty, hit, false, err
@@ -232,7 +232,7 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 			return empty, hit, false, err
 		}
 	}
-	proof, match, err := proveCandidate(scope, fullResultKey{search.ManifestEntity, id, source.library}, lead, sources, true)
+	proof, match, err := lead.prove(scope, fullResultKey{search.ManifestEntity, id, source.library}, sources, true)
 	if err != nil || !match {
 		return empty, hit, false, err
 	}
@@ -284,7 +284,14 @@ func nativeOwnerPage(q browseQuery, relation ownerRelation, owner int64, after *
 	pos := ownerPosition{Work: id}
 	return ownerPage{positions: []ownerPosition{pos}, after: &ownerCursor{relation, owner, pos}}, nil
 }
-func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, lead exactTermPopulation, e *nativeExpansion, top *fullSearchTop) (bool, error) {
+func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, lead nativeSearchLead, e *nativeExpansion, top *fullSearchTop) (bool, error) {
+	// Reverse fan-out must not bypass the same preview budget merely because
+	// one People/collection MATCH posting can own a million work positions.
+	if scope.nativeWork != nil && e.direct {
+		if err := scope.nativeWork.consume(1); err != nil {
+			return false, err
+		}
+	}
 	var source *nativeSource
 	var err error
 	if e.source.Subject == search.ManifestPerson {
