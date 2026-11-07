@@ -153,7 +153,7 @@ func executeWCProgressInvocation(ctx context.Context, t *commandTurn, v *wcProgr
 		err = ErrInvalid
 	}
 	if err == nil {
-		err = appendWCProgressEvents(ctx, t, v.disclosure.driver.scope, out.Value)
+		err = nil // mutant omits durable progress hints
 	}
 	return out, acknowledged, false, err
 }
