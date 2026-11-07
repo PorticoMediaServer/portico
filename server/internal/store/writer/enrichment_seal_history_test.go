@@ -89,7 +89,7 @@ func sealHistoryNativeReceipt(t *testing.T) (*executor, EnrichmentReceiptRequest
 	if _, err = turn.transaction.commit(); err != nil {
 		t.Fatal(err)
 	}
-	return w, EnrichmentReceiptRequest{ProviderOperationID: scope.ownerID, LibraryID: 7, EntityID: scope.entityID, Receipt: ReceiptReference{scope.identity, scope.request}}, result.sealResultFacts
+	return w, EnrichmentReceiptRequest{ProviderOperationID: scope.ownerID, LibraryID: 7, EntityID: scope.entityID, Receipt: ReceiptReference{scope.identity, scope.request}}, result.facts
 }
 
 func TestSealHistorySnapshotReplaysSavedResult(t *testing.T) {
