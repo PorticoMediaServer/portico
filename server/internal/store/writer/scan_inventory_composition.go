@@ -131,6 +131,11 @@ func checkInventoryDriverTurn(ctx context.Context, turn *commandTurn, in *invent
 	if turn.registry != r.registry || turn.transaction.writer != r.executor || turn.transaction.workLimit != r.inventoryDriverPlan.recipe.limit {
 		return ErrInvalid
 	}
+	// Settings came from Assert on THIS connection before its BEGIN. A positive
+	// config value alone, or an unobserved default on replacement, is not proof.
+	if r.inventoryDriverPlan.inventoryPageSize == 0 || turn.transaction.settings.WriterPageSize != r.inventoryDriverPlan.inventoryPageSize {
+		return &Refusal{Code: RefusalUnqualified}
+	}
 	keeper := r.executor.keeper.Load()
 	if keeper == nil {
 		return &Refusal{Code: RefusalUnqualified}
