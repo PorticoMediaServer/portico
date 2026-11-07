@@ -433,6 +433,15 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	lifetime, stopLifetime = commandDeadline(ctx, deadline)
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
+	if err == nil && scan != nil && scan.basic != nil {
+		// The current native scope echoes request key bytes. Cover those copies
+		// BEFORE that first SELECT, not only before decoding the saved header.
+		var required uint64
+		required, err = basicReceiptRequiredBytes(scan.basic.request, [4]int64{})
+		if err == nil {
+			err = turn.requireBasicMemory(ctx, scan.basic.request.Purpose, required)
+		}
+	}
 	if err == nil {
 		if scan != nil {
 			if scan.lifecycle == 0 && scan.basic == nil {
