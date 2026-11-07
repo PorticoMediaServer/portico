@@ -146,6 +146,9 @@ func (c *wcClaimCommandCustody) reserve(purpose CommandID, lifetime context.Cont
 
 func (c *wcClaimCommandCustody) releaseSettled(reservation *wcClaimCommandReservation) {
 	state := reservation.state.Load()
+	if state == wcClaimPrepared {
+		return
+	}
 	if state != wcClaimInFlight && state != wcClaimCommitUnknown && reservation.state.CompareAndSwap(state, wcClaimAbandoned) {
 		c.release(reservation)
 	}
