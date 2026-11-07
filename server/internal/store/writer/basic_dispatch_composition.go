@@ -39,6 +39,9 @@ func basicEffectsDefinitions(purpose CommandID) []stmt.Definition {
 		return nil
 	}
 	all := append(basicControlCommandDefinitions(), basicMediaDefinitions()...)
+	if purpose == BasicStage {
+		all = append(all, basicProbeDefinitions()...)
+	}
 	defs := make([]stmt.Definition, 0, len(all))
 	for _, def := range all {
 		if basicEffectsMaxUses(purpose, def.ID) > 0 {
@@ -56,6 +59,9 @@ func basicEffectsMaxUses(purpose CommandID, id stmt.ID) int {
 		return uses
 	}
 	if purpose == BasicStage {
+		if uses := basicProbeMaxUses(id); uses != 0 {
+			return uses
+		}
 		switch id {
 		case basicControlChange, basicStageHeader:
 			return 2

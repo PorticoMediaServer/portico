@@ -89,6 +89,8 @@ func TestBasicCommandCompleteFrozenRequest(t *testing.T) {
 				leaf.SetString(leaf.String() + "+")
 			case reflect.Int, reflect.Int64:
 				leaf.SetInt(leaf.Int() + 1)
+			case reflect.Float64:
+				leaf.SetFloat(leaf.Float() + 0.5)
 			case reflect.Uint8:
 				leaf.SetUint(leaf.Uint() ^ 1)
 			case reflect.Bool:

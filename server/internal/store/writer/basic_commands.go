@@ -1,6 +1,9 @@
 package writer
 
-import "reflect"
+import (
+	"reflect"
+	"strings"
+)
 
 type basicStageOperation uint8
 type basicSealOperation uint8
@@ -9,6 +12,7 @@ const (
 	basicStageBeginInput basicStageOperation = iota + 1
 	basicStageFactInput
 	basicStageMediaInput
+	basicStageProbeInput
 )
 const (
 	basicSealStreamInput basicSealOperation = iota + 1
@@ -27,6 +31,7 @@ type basicStageRequest struct {
 	changeRevision int64 // existing change only; allocated BEGIN revision is native
 	rows           basicRowsRequest
 	start, end     int64 // bounded staging prefix, never a receipt COPY cursor
+	probe          basicProbeEffects
 }
 type basicSealRequest struct {
 	original       basicOriginalScope
@@ -54,13 +59,9 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 	if err != nil {
 		return nil, err
 	}
-	if _, err = basicControlRequiredBytes(in.original, source); err != nil {
-		return nil, err
-	}
-	// The shared encoder preflights the COMPLETE typed request before hashing;
-	// this precedes UTF-8 validation, family maps, clones and derived rows.
-	digest, err := canonicalRequestDigest(BasicStage, 1, identity, in)
-	if err != nil {
+	// Cover the complete simultaneous native payload BEFORE policy walks,
+	// validation maps, derived rows, owned clones or the shared canonical hash.
+	if _, err = basicStageRequiredBytes(in); err != nil {
 		return nil, err
 	}
 	if err = basicOriginalPreflight(identity, in.original, source); err != nil {
@@ -71,9 +72,18 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 		if err = validateBasicOrdinaryCounts(source.libraryID, in.begin.shape, in.begin.counts); err != nil {
 			return nil, err
 		}
-	case basicStageFactInput, basicStageMediaInput:
-		if source.changeID <= 0 || source.inputRevision <= 0 || in.changeRevision <= 0 {
+	case basicStageFactInput, basicStageMediaInput, basicStageProbeInput:
+		revision := in.changeRevision
+		if in.operation == basicStageProbeInput {
+			revision = in.probe.changeRevision
+		}
+		if source.changeID <= 0 || source.inputRevision <= 0 || revision <= 0 {
 			return nil, invalid("basic_stage_fact")
+		}
+	}
+	if in.operation == basicStageProbeInput {
+		if err = validateBasicProbeEffects(in.probe); err != nil {
+			return nil, err
 		}
 	}
 	if in.operation == basicStageMediaInput {
@@ -90,13 +100,25 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 		in.begin.shape.VersionAssetIDs = cloneBasicRequestSlice(in.begin.shape.VersionAssetIDs)
 		in.begin.shape.Streams = cloneBasicRequestSlice(in.begin.shape.Streams)
 		in.begin.shape.AuthoredParentIDs = cloneBasicRequestSlice(in.begin.shape.AuthoredParentIDs)
+	} else if in.operation == basicStageProbeInput {
+		in.probe.source = cloneBasicSource(in.probe.source)
+		in.probe.assetPath = strings.Clone(in.probe.assetPath)
+		in.probe.before = cloneBasicProbeScalars(in.probe.before)
+		in.probe.after = cloneBasicProbeScalars(in.probe.after)
 	} else {
 		in.fact = cloneBasicSource(in.fact)
+	}
+	digest, err := canonicalRequestDigest(BasicStage, 1, identity, in)
+	if err != nil {
+		return nil, err
 	}
 	return &basicStageCommand{identity: identity, request: in, digest: digest, valid: true}, nil
 }
 
 func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
+	if in.operation != basicStageProbeInput && in.probe != (basicProbeEffects{}) {
+		return basicStreamFactStage{}, ErrInvalid
+	}
 	if in.purpose != BasicPurposeStage {
 		return basicStreamFactStage{}, ErrInvalid
 	}
@@ -119,16 +141,17 @@ func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
 			return basicStreamFactStage{}, err
 		}
 		return in.fact, nil
+	case basicStageProbeInput:
+		if !reflect.ValueOf(in.begin).IsZero() || in.fact != (basicStreamFactStage{}) || !reflect.ValueOf(in.rows).IsZero() || in.changeRevision != 0 || in.start != 0 || in.end != 0 {
+			return basicStreamFactStage{}, ErrInvalid
+		}
+		return in.probe.source, nil
 	}
 	return basicStreamFactStage{}, invalid("basic_stage_operation")
 }
 
 func newBasicSealCommand(identity CommandIdentity, in basicSealRequest) (*basicSealCommand, error) {
-	if _, err := basicControlRequiredBytes(in.original, in.source); err != nil {
-		return nil, err
-	}
-	digest, err := canonicalRequestDigest(BasicSeal, 1, identity, in)
-	if err != nil {
+	if _, err := basicSealRequiredBytes(in); err != nil {
 		return nil, err
 	}
 	if err := basicOriginalPreflight(identity, in.original, in.source); err != nil {
@@ -143,15 +166,20 @@ func newBasicSealCommand(identity CommandIdentity, in basicSealRequest) (*basicS
 			return nil, ErrInvalid
 		}
 	case basicSealMediaInput:
-		in.rows, err = freezeBasicRowsRequest(in.source, in.rows)
+		rows, err := freezeBasicRowsRequest(in.source, in.rows)
 		if err != nil {
 			return nil, err
 		}
+		in.rows = rows
 	default:
 		return nil, invalid("basic_seal_operation")
 	}
 	in.original = cloneBasicOriginal(in.original)
 	in.source = cloneBasicSource(in.source)
+	digest, err := canonicalRequestDigest(BasicSeal, 1, identity, in)
+	if err != nil {
+		return nil, err
+	}
 	return &basicSealCommand{identity: identity, request: in, digest: digest, valid: true}, nil
 }
 
@@ -183,4 +211,11 @@ func (c *basicSealCommand) receiptRequest() (BasicReceiptRequest, error) {
 func basicOriginalReference(scope inventoryScope, purpose BasicPurpose, identity CommandIdentity, digest RequestDigest) BasicReceiptRequest {
 	return BasicReceiptRequest{Purpose: purpose, Scan: ScanReceiptRequest{RunID: scope.runID, LibraryID: scope.libraryID, LibraryKey: scope.libraryKey,
 		Receipt: ReceiptReference{Identity: identity, RequestDigest: digest}}}
+}
+
+func cloneBasicProbeScalars(v basicProbeScalars) basicProbeScalars {
+	v.container = strings.Clone(v.container)
+	v.videoCodec = strings.Clone(v.videoCodec)
+	v.audioCodec = strings.Clone(v.audioCodec)
+	return v
 }

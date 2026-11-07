@@ -9,6 +9,9 @@ func basicStageCommandDefinitions(in basicStageRequest) []stmt.Definition {
 	if in.operation == basicStageMediaInput {
 		defs = append(defs, basicMediaDefinitions()...)
 	}
+	if in.operation == basicStageProbeInput {
+		defs = append(defs, basicProbeDefinitions()...)
+	}
 	filtered := make([]stmt.Definition, 0, len(defs))
 	for _, d := range defs {
 		if basicStageRequestMaxUses(in, d.ID) > 0 {
@@ -35,6 +38,18 @@ func basicSealCommandDefinitions(in basicSealRequest) []stmt.Definition {
 func basicStageRequestMaxUses(in basicStageRequest, id stmt.ID) int {
 	if in.purpose != BasicPurposeStage {
 		return 0
+	}
+	if in.operation == basicStageProbeInput {
+		if uses := basicControlCommonMaxUses(id); uses != 0 {
+			return uses
+		}
+		switch id {
+		case basicControlChange:
+			return 2
+		case basicStageHeader, basicStageAsset, basicStageWitness, basicStageBudget, basicStageBudgetCAS:
+			return 1
+		}
+		return basicProbeMaxUses(id)
 	}
 	if in.operation != basicStageMediaInput {
 		return basicStageCommandMaxUses(in.operation, id)

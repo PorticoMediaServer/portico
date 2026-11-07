@@ -182,6 +182,12 @@ func validateBasicProbeEffects(in basicProbeEffects) error {
 		}
 		remaining -= len(v)
 	}
+	if strings.IndexByte(in.assetPath, 0) >= 0 {
+		return ErrInvalid
+	}
+	if !utf8.ValidString(in.assetPath) {
+		return ErrFilenameUnrepresentable
+	}
 	for _, v := range [...]string{in.assetPath, in.before.container, in.before.videoCodec, in.before.audioCodec, in.after.container, in.after.videoCodec, in.after.audioCodec} {
 		if !utf8.ValidString(v) {
 			return ErrInvalid

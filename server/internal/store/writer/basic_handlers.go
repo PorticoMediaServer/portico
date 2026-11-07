@@ -45,6 +45,11 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 		if err = checkBasicControlChange(ctx, turn, source, command.request.changeRevision); err == nil {
 			_, err = stageBasicStreamFact(ctx, turn, source)
 		}
+	case basicStageProbeInput:
+		changeRevision = command.request.probe.changeRevision
+		if err = checkBasicControlChange(ctx, turn, source, changeRevision); err == nil {
+			_, err = applyBasicProbeScalars(ctx, turn, command.request.probe)
+		}
 	case basicStageMediaInput:
 		if err = checkBasicControlChange(ctx, turn, source, command.request.changeRevision); err != nil {
 			break
@@ -74,17 +79,9 @@ func applyBasicSeal(ctx context.Context, turn *commandTurn, command *basicSealCo
 		return value, ErrInvalid
 	}
 	source, original := command.request.source, command.request.original
-	required, err := basicControlRequiredBytes(original, source)
+	required, err := basicSealRequiredBytes(command.request)
 	if err != nil {
 		return value, err
-	}
-	if command.request.operation == basicSealMediaInput {
-		var rowsBytes uint64
-		rowsBytes, err = basicRowsRequestBytes(source, command.request.rows)
-		if err != nil {
-			return value, err
-		}
-		required += 8*rowsBytes + 256*uint64(basicRowsCount(command.request.rows))
 	}
 	if err = turn.requireBasicMemory(ctx, BasicPurposeSeal, required); err != nil {
 		return value, err
@@ -174,10 +171,27 @@ func basicStageRequiredBytes(in basicStageRequest) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+	if in.operation == basicStageProbeInput {
+		remaining := maxCanonicalRequestBytes
+		for _, v := range [...]string{in.probe.assetPath, in.probe.before.container, in.probe.before.videoCodec, in.probe.before.audioCodec, in.probe.after.container, in.probe.after.videoCodec, in.probe.after.audioCodec} {
+			if len(v) > remaining {
+				return 0, ErrCap
+			}
+			remaining -= len(v)
+		}
+		extra := uint64(maxCanonicalRequestBytes - remaining)
+		if (base-65536)/8+extra > maxCanonicalRequestBytes {
+			return 0, ErrCap
+		}
+		return base + 8*extra, nil
+	}
 	if in.operation == basicStageMediaInput {
 		rowsBytes, err := basicRowsRequestBytes(source, in.rows)
 		if err != nil {
 			return 0, err
+		}
+		if (base-65536)/8+rowsBytes > maxCanonicalRequestBytes {
+			return 0, ErrCap
 		}
 		return base + 8*rowsBytes + 256*uint64(basicRowsCount(in.rows)), nil
 	}
@@ -192,4 +206,22 @@ func basicStageRequiredBytes(in basicStageRequest) (uint64, error) {
 	// projection, validation-map entry and codec framing; no native reserve
 	// is borrowed. This prospective model still needs W profile admission.
 	return base + 128*uint64(len(s.CUEOrdinals)+len(s.EpisodeIDs)+len(s.VersionAssetIDs)+len(s.Streams)+len(s.AuthoredParentIDs)), nil
+}
+
+func basicSealRequiredBytes(in basicSealRequest) (uint64, error) {
+	base, err := basicControlRequiredBytes(in.original, in.source)
+	if err != nil {
+		return 0, err
+	}
+	if in.operation == basicSealMediaInput {
+		rows, err := basicRowsRequestBytes(in.source, in.rows)
+		if err != nil {
+			return 0, err
+		}
+		if (base-65536)/8+rows > maxCanonicalRequestBytes {
+			return 0, ErrCap
+		}
+		return base + 8*rows + 256*uint64(basicRowsCount(in.rows)), nil
+	}
+	return base, nil
 }
