@@ -202,7 +202,9 @@ class Protocol(unittest.TestCase):
                 self.assertEqual(cwd, module)
                 (work / 'writer.test').write_bytes(b'synthetic binary identity')
             elif name == 'binary-build-info':
-                text = '\tdep\tmodernc.org/sqlite\tv1.58.0\th1:synthetic\n'
+                text = str(work / 'writer.test') + ': go1.26.10\n\tpath\tgithub.com/PorticoMediaServer/portico/server/internal/store/writer.test\n'
+            elif name == 'sqlite-build-dependency':
+                text = '\nmodernc.org/sqlite/lib v1.58.0 ORIGINAL\ngithub.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite BUNDLED\n'
             elif name == 'export':
                 self.assertEqual(argv, [str(work / 'writer.test'), '-test.run=^TestExportQualificationPopulation$',
                                         '-test.count=1', '-test.timeout=60m', '-test.v'])
@@ -247,6 +249,20 @@ class Protocol(unittest.TestCase):
             q.failure_receipt(output)
         self.assertEqual(before, (output / 'report/receipt.json').read_bytes())
         self.assertEqual(json.loads(before)['status'], 'failed')
+
+    def test_test_binary_dependency_omission_uses_selected_build_evidence(self):
+        # Real Go1.26 test buildinfo has no dep rows; absence is not corruption.
+        metadata = '/private/writer.test: go1.26.10\n\tpath\tgithub.com/PorticoMediaServer/portico/server/internal/store/writer.test\n\tmod\tserver\t(devel)\n'
+        selected = 'modernc.org/sqlite/lib v1.58.0 ORIGINAL\ngithub.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite BUNDLED\n'
+        q.validate_sqlite_build_identity(metadata, selected)
+        for selected in ('', 'modernc.org/sqlite/lib v1.58.0 ORIGINAL',
+                         selected.replace('ORIGINAL', 'REPLACED'), selected.replace('v1.58.0', 'v1.57.0'),
+                         selected + 'modernc.org/sqlite ROOT_DRIVER\n'):
+            with self.subTest(selected=selected), self.assertRaises(ValueError):
+                q.validate_sqlite_build_identity(metadata, selected)
+        with self.assertRaises(ValueError):
+            q.validate_sqlite_build_identity(metadata.replace('go1.26.10', 'go1.27.1'),
+                                            'modernc.org/sqlite/lib v1.58.0 ORIGINAL\ngithub.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite BUNDLED\n')
 
     def test_command_uses_argv_and_timeout(self):
         report = self.root / 'report'

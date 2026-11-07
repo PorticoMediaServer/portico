@@ -65,9 +65,13 @@ is 120 minutes. Subprocesses receive argv without a shell; the watchdog kills
 their process group. Paths are absolute, private and disjoint; source subprocesses
 receive no auth tokens or Actions file-command channels. `GOTOOLCHAIN=local`,
 `GOWORK=off`, `CGO_ENABLED=0`, readonly modules and no caller build flags are used.
-Go must be exactly `go1.26.10`, matching `server/go.mod`. The binary build info
-must contain unreplaced `modernc.org/sqlite v1.58.0`; the actual bundled SQLite
-engine must report `3.53.4`. There is no alternate engine or system SQLite path.
+Go must be exactly `go1.26.10`, matching `server/go.mod`. The actual test-binary build info must identify Go1.26.10 and the writer test
+package. Go test binaries omit dependency entries from build info; a same-source,
+same-environment `go list -deps -test` separately proves the selected, unreplaced
+`modernc.org/sqlite/lib` from v1.58.0 plus the repository's bundled
+`internal/thirdparty/sqlite` driver. An upstream root driver or replaced module
+fails this check. The actual shared connection assertion
+must also report bundled SQLite engine `3.53.4`. There is no alternate engine or system SQLite path.
 
 From `server`, the producer builds:
 
