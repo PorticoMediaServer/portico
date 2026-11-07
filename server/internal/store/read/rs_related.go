@@ -291,6 +291,7 @@ func (r *ForegroundReader) relatedPublic(ctx context.Context, request governor.R
 	})
 }
 func (r *ForegroundReader) related(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in RelatedInput, w *RelatedWork) (RelatedPage, BrowseReadResult, error) {
+	in.View.policy = readPolicyBinding{recipe: rsDetailSubjectPolicy, subject: in.Item}
 	if err := w.authority.CheckPreparation(w.lease); err != nil {
 		return RelatedPage{}, BrowseReadResult{}, err
 	}
@@ -346,6 +347,9 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 	startRaw := w.state.rawTotal
 	steps := []readStep[RelatedPage]{func(ctx context.Context, q browseQuery, f browseFence, p *RelatedPage) error {
 		if err := w.authority.CheckPreparation(w.lease); err != nil {
+			return err
+		}
+		if _, err := root(q); err != nil {
 			return err
 		}
 		var flat []any
@@ -405,7 +409,19 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 		p.Rows = rows
 		return nil
 	})
-	page, result, err := publishRead(ctx, byteWindows, request, budget, output, in.View, steps, root)
+	// Policy 42 can require three points. Keep source-root proof in its own
+	// business windows so common five + policy three never includes root two.
+	steps = append(steps, func(ctx context.Context, q browseQuery, f browseFence, p *RelatedPage) error {
+		flat, err := root(q)
+		if err != nil {
+			return err
+		}
+		if !equalSource(flat, w.state.source) {
+			return ErrStale
+		}
+		return ctx.Err()
+	})
+	page, result, err := publishRead(ctx, byteWindows, request, budget, output, in.View, steps)
 	if err != nil {
 		if errors.Is(err, ErrRelatedCapacity) {
 			result.Refusal = &governor.Refusal{Code: governor.Capacity}

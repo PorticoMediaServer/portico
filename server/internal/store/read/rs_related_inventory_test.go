@@ -1,6 +1,7 @@
 package read
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -100,5 +101,23 @@ func TestRSRelatedContainerAcceptedBands(t *testing.T) {
 				t.Fatal(ok, err)
 			}
 		})
+	}
+}
+
+func TestRSRelatedRestrictedRoot(t *testing.T) {
+	f, r := rsRelatedFixture(t)
+	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
+	f.exec(t, `UPDATE catalog_entities SET admission_own_age=8 WHERE kind=1`)
+	f.exec(t, `UPDATE catalog_entities SET admission_own_age=99,admission_member_count=3,admission_unrated_members=1,admission_min_known_age=8 WHERE id=2000`)
+	in := RelatedInput{View: f.input, Item: 2000, Windows: 64}
+	in.View.Kind = 10
+	p := rsFinish(t, f, r, in, rsBegin(t, f, in, true), true)
+	if p.Pending {
+		t.Fatal("mixed accepted container did not complete")
+	}
+	f.exec(t, `UPDATE catalog_entities SET admission_unrated_members=0,admission_min_known_age=18 WHERE id=2000`)
+	_, _, err := rsPoll(t, f, r, in, rsBegin(t, f, in, true), true)
+	if err != ErrDenied && !errors.Is(err, ErrDenied) {
+		t.Fatal("hidden root admitted", err)
 	}
 }
