@@ -11,11 +11,16 @@ func searchPublisherPurpose(purpose CommandID) bool {
 	return purpose == SearchFragmentStage || purpose == SearchHeadPublish
 }
 
+// Resource eligibility is wider than the publisher-job receipt namespace.
+func searchPublisherResourcePurpose(purpose CommandID) bool {
+	return searchPublisherPurpose(purpose) || purpose == SearchFragmentReclaim
+}
+
 // Compatibility is sampled from the held, policy-verified physical connection,
 // never from preparation, a previous Capture or another command's connection.
 func (t *commandTurn) searchPublisherEngine(ctx context.Context, purpose CommandID) (out searchpolicy.Engine, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
-	if !searchPublisherPurpose(purpose) || ctx == nil || t == nil || t.transaction == nil {
+	if !searchPublisherResourcePurpose(purpose) || ctx == nil || t == nil || t.transaction == nil {
 		return out, ErrInvalid
 	}
 	tx := t.transaction
@@ -39,7 +44,7 @@ func (t *commandTurn) searchPublisherEngine(ctx context.Context, purpose Command
 
 func (t *commandTurn) searchPublisherTimeMS(ctx context.Context, purpose CommandID, leaseExpiresMS int64) (out int64, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
-	if !searchPublisherPurpose(purpose) {
+	if !searchPublisherResourcePurpose(purpose) {
 		return 0, ErrInvalid
 	}
 	return t.commandTimeMS(ctx, purpose, leaseExpiresMS)
@@ -47,7 +52,7 @@ func (t *commandTurn) searchPublisherTimeMS(ctx context.Context, purpose Command
 
 func (t *commandTurn) requireSearchPublisherMemory(ctx context.Context, purpose CommandID, requiredBytes uint64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
-	if !searchPublisherPurpose(purpose) {
+	if !searchPublisherResourcePurpose(purpose) {
 		return ErrInvalid
 	}
 	return t.requireCommandMemory(ctx, purpose, requiredBytes, "search_publisher_memory_partition")
