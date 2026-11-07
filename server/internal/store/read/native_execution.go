@@ -202,12 +202,20 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	rawPositions := 0
 	calls := 0
 	lookup, lookupErr := r.snapshots.ReadForecasted(ctx, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: r.snapshots.NativeRowReservation(), MaxQueries: 4096}, func(scope *governor.ReadScope) error {
+		kindCache := make(map[int64]nativeKindFact)
 		q := func(name string, args ...any) ([][]any, error) {
-			calls++
-			cost.LookupStatements++
 			if e := output.live.checkContext(scope.Context()); e != nil {
 				return nil, e
 			}
+			if fact, ok := nativeCachedKind(kindCache, name, args); ok {
+				if copies > (2<<20)-128 {
+					return nil, governor.ErrSnapshotBudget
+				}
+				copies += 128
+				return fact.rows(), nil
+			}
+			calls++
+			cost.LookupStatements++
 			isMatch := strings.HasPrefix(name, "full.native.fts.")
 			if isMatch && work.limit > 0 && work.used >= work.limit {
 				return nil, errNativeCandidateBudget
@@ -227,6 +235,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 					return nil, governor.ErrSnapshotBudget
 				}
 			}
+			nativeRememberKind(kindCache, name, rows)
 			copies += 4096
 			for _, row := range rows {
 				copies += 64 + int64(len(row))*32
@@ -316,15 +325,24 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	finalIn := in.View
 	finalIn.Now = in.View.Now.Add(time.Since(started))
 	publication, finalErr := r.snapshots.ReadForecasted(finalCtx, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: r.snapshots.NativeRowReservation(), MaxQueries: 4096}, func(scope *governor.ReadScope) error {
+		kindCache := make(map[int64]nativeKindFact)
 		q := func(name string, args ...any) ([][]any, error) {
-			cost.PublicationStatements++
 			if e := output.live.checkContext(scope.Context()); e != nil {
 				return nil, e
 			}
+			if fact, ok := nativeCachedKind(kindCache, name, args); ok {
+				if copies > (2<<20)-128 {
+					return nil, governor.ErrSnapshotBudget
+				}
+				copies += 128
+				return fact.rows(), nil
+			}
+			cost.PublicationStatements++
 			rows, e := scope.Query(readStatementID(name), args...)
 			if e != nil {
 				return nil, e
 			}
+			nativeRememberKind(kindCache, name, rows)
 			copies += 4096
 			for _, row := range rows {
 				copies += 64 + int64(len(row))*32
@@ -349,7 +367,8 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		if current != initial {
 			return ErrStale
 		}
-		checked = slices.Clone(retained)
+		checked = make([]nativePolicyWitness, 0, len(retained)+len(draft.Hits))
+		checked = append(checked, retained...)
 		for _, hit := range draft.Hits {
 			if !hit.permission.valid {
 				return ErrUnqualified
@@ -395,13 +414,14 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	if !time.Now().Before(deadline) {
 		return FullSearchPage{}, cost, context.DeadlineExceeded
 	}
-	var policies []nativePolicyWitness
+	policies := make([]nativePolicyWitness, 0, len(draft.Hits))
 	for _, hit := range draft.Hits {
 		if !slices.Contains(policies, hit.permission) {
 			policies = append(policies, hit.permission)
 		}
 	}
-	issued := slices.Clone(retainedHits)
+	issued := make([]nativeStampedHit, 0, len(retainedHits)+len(draft.Hits))
+	issued = append(issued, retainedHits...)
 	for _, hit := range draft.Hits {
 		entry := nativeStampedHit{nativeHitIdentity(hit), hit.permission}
 		if !slices.Contains(issued, entry) {
@@ -491,7 +511,8 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 		}
 		return page, err
 	}
-	for steps := 0; steps < 8 && *calls < 128; steps++ {
+	startCalls := *calls
+	for steps := 0; steps < 8 && *calls-startCalls < 128; steps++ {
 		if err := ctx.Err(); err != nil {
 			return FullSearchPage{}, err
 		}
