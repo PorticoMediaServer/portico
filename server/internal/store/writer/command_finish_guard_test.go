@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "scanDirectoryLookup": true, "scanDirectorySaved": true, "scanDirectoryCommandResult": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -44,7 +44,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || strings.HasPrefix(fn.Name.Name, "checkSearchImage") || fn.Name.Name == "requireSearchImageMemory" ||
 			fn.Name.Name == "searchImageTimeMS" || fn.Name.Name == "commandTimeMS" || fn.Name.Name == "requireCommandMemory"
 		needs = needs || fn.Name.Name == "acknowledgeSearchPublisher" || fn.Name.Name == "searchImageStageFreshFacts"
-		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle" || fn.Name.Name == "composeScanLifecycleHistory"
+		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle" || fn.Name.Name == "composeScanLifecycleHistory" || fn.Name.Name == "composeScanDirectories" || fn.Name.Name == "directoryMemory" || fn.Name.Name == "acknowledgeScanDirectory"
 		needs = needs || fn.Name.Name == "newScanDriver" || fn.Name.Name == "keepPreparation" || fn.Name.Name == "prepareWork" || fn.Name.Name == "allocateBirth" || fn.Name.Name == "prepareBirth" || fn.Name.Name == "checkBirthAbsence" || fn.Name.Name == "excludeOldWork"
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
 		needs = needs || fn.Name.Name == "searchFragmentStageFreshFacts"
