@@ -36,13 +36,11 @@ warm/cold/error populations, sources or host epochs. Positive refusals prevent a
 pass; short populations and unavailable facts never become zero quantiles.
 
 The N1 binding plan uses one warm persistent original chain with eight retained
-warmup originals and BEGIN/Resolve/ACK recorded separately. An earlier unbound
-recipe had64MiB soft debt /512MiB hard limit and no funded same-owner CP; later
-source drafts add separately funded maintenance. Only the reviewed, merged
-recipe defines the actual maintenance/resource composition. The dispatcher adds
-none and never counts CP as a writer hold. Runnable does not promise10,000
-accepted originals: actual refusal must remain a stopped, nonpassing cell.
-These are source-owned recipe facts, not limits chosen or extended here.
+warmup originals and BEGIN/Resolve/ACK recorded separately. The exact reviewed
+source defines its WAL profile and any separately funded maintenance. This
+dispatcher adds none, never counts CP as a writer hold and never widens a cap.
+Runnable does not promise10,000 accepted originals: actual refusal must remain
+a stopped, nonpassing cell.
 
 Where maintenance is composed, preserve its actual typed result and nullable
 `checkpoint.owner_clock` intervals in the SAME origin as writer owner clocks.
