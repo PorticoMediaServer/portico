@@ -358,16 +358,21 @@ func (k *CheckpointKeeper) shutdownShape(r Request) bool {
 // AdmitShutdown uses the SAME ordinary ledger/issuer. Only this keeper's typed
 // cleanup capability can spend the reserved floor; workers cannot select it.
 func (k *CheckpointKeeper) AdmitShutdown(r Request) Decision {
-	refuse := func() Decision { return Decision{Refusal: &Refusal{Code: Capacity}} }
-	if k == nil || k.cp == nil || !k.cp.mu.TryLock() {
-		return refuse()
+	refuse := func(code RefusalCode, cause RefusalCause) Decision {
+		return Decision{Refusal: &Refusal{Code: code, Cause: cause}}
+	}
+	if k == nil || k.cp == nil {
+		return refuse(Invalid, CauseKeeper)
+	}
+	if err := k.cp.mu.lockUntil(context.Background(), r.Deadline, k.cp.authority.ledger.config.Now()); err != nil {
+		return refuse(Deadline, CauseDeadline)
 	}
 	defer k.cp.mu.Unlock()
 	if k.shutdownGrant != nil || k.flags.Load()&keeperClosed != 0 {
-		return refuse()
+		return refuse(Capacity, CauseShutdown)
 	}
 	if service := k.service.Load(); service != nil && !service.retired.Load() {
-		return refuse()
+		return refuse(Capacity, CauseShutdown)
 	}
 	d := k.cp.authority.ledger.tryReserved(r, false, nil, nil, k, nil)
 	if d.Grant != nil {

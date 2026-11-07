@@ -1,6 +1,9 @@
 package governor
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // WALRestartRisk is values-only prospective work metadata, never authority. A
 // fully backfilled prefix MAY restart; readers can still prevent it. A zero
@@ -18,12 +21,17 @@ type WALRestartRisk struct {
 // errors, never an implicit "warm" answer. Carry the result in Request through
 // ordinary Try: reserve revalidates the generation atomically with admission.
 func (w *WALGate) RestartRisk(now time.Time) (WALRestartRisk, error) {
-	if !w.mu.TryLock() {
-		return WALRestartRisk{}, ErrBusy
+	return w.RestartRiskContext(context.Background(), now, now.Add(w.policy.MaxSampleAge))
+}
+
+// RestartRiskContext bounds lock handoff by the original command deadline.
+func (w *WALGate) RestartRiskContext(ctx context.Context, now, deadline time.Time) (WALRestartRisk, error) {
+	if err := w.mu.lockUntil(ctx, deadline, now); err != nil {
+		return WALRestartRisk{}, admissionError(CauseDeadline, err)
 	}
 	defer w.mu.Unlock()
 	if !w.fresh(now) || w.writer || (w.checkpoint && !w.policy.ConcurrentPassive) || (w.keeper != nil && !w.keeper.active(now)) {
-		return WALRestartRisk{}, ErrWALObservation
+		return WALRestartRisk{}, admissionError(CauseWALSample, ErrWALObservation)
 	}
 	return w.restartRisk(), nil
 }

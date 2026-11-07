@@ -265,6 +265,9 @@ func (f *inventoryProgressiveFixture) committed(tx *transaction) error {
 		!tx.cleanupComplete || !tx.connectionReturned || !tx.retirementComplete || tx.physicalReturnedAt.IsZero() {
 		return errors.Join(ErrResolveRequired, tx.finishErr)
 	}
+	if err := f.owner.observeReturned(tx); err != nil {
+		return err
+	}
 	return f.joined()
 }
 

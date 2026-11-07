@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/stateownership"
@@ -31,7 +30,8 @@ type CheckpointPolicy struct {
 }
 
 type CheckpointResult struct {
-	Recovery                                                         bool // exceptional exclusive TRUNCATE, never the normal PASSIVE path
+	Recovery                                                         bool   // exceptional exclusive TRUNCATE, never the normal PASSIVE path
+	BeforeUnavailable                                                string // nonempty means Before is unavailable, not a zero-sized WAL
 	SampleUnavailable                                                string
 	RecoveryDrainStarted, RecoveryDrainEnded                         time.Time
 	Requested                                                        time.Time
@@ -57,7 +57,7 @@ type CheckpointResult struct {
 // SQLite PASSIVE cannot be page-sliced or preempted: qualify the entire WAL hard
 // prefix together with MaxHold. A physical overrun fences, never refunds early.
 type Checkpointer struct {
-	mu                  sync.Mutex
+	mu                  ledgerMutex
 	pool                snapshotPool
 	owner               *snapshotOwnedConnector
 	config              sqliteconn.Config
@@ -68,6 +68,7 @@ type Checkpointer struct {
 	lastStart           time.Time
 	sequence            uint64
 	closed, unqualified bool
+	readWAL             func(context.Context, string) (WALState, error)
 	deadlineContext     func(context.Context, time.Time) (context.Context, context.CancelFunc)
 	pending             *ReadScope // shared reviewed physical cleanup protocol, no read callback
 	keeper              *CheckpointKeeper
@@ -82,7 +83,7 @@ func NewCheckpointer(connector driver.Connector, cfg sqliteconn.Config, g Govern
 		return nil, sqliteconn.ErrPolicy
 	}
 	owner := &snapshotOwnedConnector{Connector: connector, failed: make(map[*snapshotOwnedConn]error)}
-	return &Checkpointer{pool: newSnapshotPool(owner, 1), owner: owner, config: cfg, policy: policy, governor: g, authority: a, wal: a.ledger.config.WAL, deadlineContext: context.WithDeadline}, nil
+	return &Checkpointer{pool: newSnapshotPool(owner, 1), owner: owner, config: cfg, policy: policy, governor: g, authority: a, wal: a.ledger.config.WAL, deadlineContext: context.WithDeadline, readWAL: ReadWALContext}, nil
 }
 
 func (c *Checkpointer) Step(parent context.Context, r Request) (CheckpointResult, error) {
@@ -103,8 +104,8 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 	out.MaxHold = r.MaxHold
 	out.IOBytes = r.Need[IOBytes]
 	out.PrefixLimit = c.wal.policy.HardBytes
-	if !c.mu.TryLock() {
-		return out, ErrBusy
+	if err := c.mu.lockUntil(parent, r.Deadline, c.authority.ledger.config.Now()); err != nil {
+		return out, admissionError(CauseDeadline, err)
 	}
 	defer c.mu.Unlock()
 	if c.wal.policy.ConcurrentPassive && c.keeper == nil {
@@ -159,7 +160,7 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 	if parentDeadline, ok := parent.Deadline(); ok {
 		until = minTime(until, parentDeadline)
 	}
-	ticket, ticketErr := c.authority.queueCheckpointMode(until, out.EligibleInterval, recovery)
+	ticket, ticketErr := c.authority.queueCheckpointContext(parent, until, out.EligibleInterval, recovery)
 	if ticketErr != nil {
 		return out, ticketErr
 	}
@@ -250,20 +251,33 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 				if out.DatabaseMatched {
 					out.SampleStarted = c.authority.ledger.config.Now()
 					token := c.wal.Observation()
-					after, sampleErr := ReadWAL(c.policy.DatabasePath)
+					after, sampleErr := c.readWAL(parent, c.policy.DatabasePath)
 					if sampleErr != nil {
 						after = WALState{}
 					}
-					publishErr := c.wal.Publish(token, after, c.authority.ledger.config.Now())
+					var publishErr error
+					if !c.wal.policy.ConcurrentPassive || recovery {
+						publishErr = c.wal.Publish(token, after, c.authority.ledger.config.Now())
+					}
 					out.After = after
 					out.SampleEnded = c.authority.ledger.config.Now()
-					if c.wal.policy.ConcurrentPassive && !recovery && sampleErr == nil && errors.Is(publishErr, ErrWALObservation) {
-						// A concurrent W owns the next anchor. Never turn its
-						// valid generation race into a CP failure or invalidate it.
-						out.SampleUnavailable = "concurrent writer generation; no checkpoint anchor published"
+					if c.wal.policy.ConcurrentPassive && !recovery {
+						// Only the serialized writer publishes its anchor. CP observations
+						// are telemetry and cannot replace a ready writer's exact risk.
+						out.SampleUnavailable = "checkpoint telemetry only; writer owns admission anchor"
+						if sampleErr != nil && !c.wal.observationCurrent(token) {
+							out.SampleUnavailable = "concurrent writer generation; checkpoint sample unavailable"
+						} else if sampleErr != nil {
+							err = errors.Join(err, sampleErr)
+							if !errors.Is(sampleErr, context.Canceled) && !errors.Is(sampleErr, context.DeadlineExceeded) {
+								_ = c.wal.Publish(token, WALState{}, time.Time{})
+								c.authority.EnterStatic()
+							}
+						}
 					} else {
 						err = errors.Join(err, sampleErr, publishErr)
 					}
+
 					if recovery && err == nil && !out.NativeStarted.IsZero() && (sampleErr != nil || publishErr != nil || after.ActiveBytes != 0 || after.PhysicalBytes != 0) {
 						c.authority.EnterStatic()
 						if c.keeper != nil {
@@ -342,15 +356,34 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 	if err = c.authority.Check(d.Grant, r); err != nil {
 		return out, err
 	}
-	if out.Before, err = ReadWAL(c.policy.DatabasePath); err != nil {
-		return out, err
+	beforeToken := c.wal.Observation()
+	pageSize := uint32(0)
+	if out.Before, err = c.readWAL(queries, c.policy.DatabasePath); err != nil {
+		// Concurrent observations are not native authority. A known writer race
+		// can use the previously validated page size for the WHOLE-hard-prefix
+		// forecast, without inventing current frames/backfill or append credit.
+		var raced bool
+		if c.wal.policy.ConcurrentPassive && !recovery && errors.Is(err, ErrWALObservation) {
+			pageSize, raced = c.wal.checkpointPageSize(beforeToken)
+		}
+		if !raced {
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				c.authority.EnterStatic()
+				_ = c.wal.Publish(beforeToken, WALState{}, time.Time{})
+			}
+			return out, err
+		}
+		out.BeforeUnavailable = "concurrent writer generation after bounded WAL resampling; whole-hard-prefix forecast"
+		err = nil
+	} else {
+		pageSize = out.Before.PageSize
 	}
 	// Serialized mode stabilizes input. Concurrent mode reserves the entire hard
 	// prefix because a writer can append before SQLite captures its CP snapshot.
 	prefix, frames := out.Before.ActiveBytes, uint64(out.Before.Frames)
 	if c.wal.policy.ConcurrentPassive {
 		prefix = out.PrefixLimit // W may append until native CP takes its snapshot
-		frames = uint64((prefix - 32) / (int64(out.Before.PageSize) + 24))
+		frames = uint64((prefix - 32) / (int64(pageSize) + 24))
 	}
 	if recovery && !c.wal.recoveryPressure(out.Before) {
 		return out, ErrCheckpointBudget
