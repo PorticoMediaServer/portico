@@ -3,10 +3,13 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "search",
-		resultTypes: []string{"SearchImageStageResult", "publisherReceiptLookup", "publisherInvocation", "searchFragmentStageResult", "searchHeadPublishResult"},
-		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts", "searchHeadPublishFreshFacts", "searchPublisherStageFacts"},
+		resultTypes: []string{"SearchImageStageResult", "publisherReceiptLookup", "publisherInvocation", "searchFragmentStageResult", "searchHeadPublishResult", "searchPublisherCommandResult"},
+		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts", "searchHeadPublishFreshFacts", "searchPublisherStageFacts", "composeSearchPublisherCommands", "discloseSearchPublisher", "searchPublisherEngine", "searchPublisherTimeMS", "requireSearchPublisherMemory", "checkSearchPublisherTerminal", "acknowledgeSearchPublisherFacts"},
 		prefixes:    []string{"checkSearchImage"},
 		bypasses: []string{
+			`func publisherRelease(ctx context.Context)(out searchPublisherCommandResult,err error){return out,nil}`,
+			`func searchPublisherTimeMS(ctx context.Context)(out int64,err error){return 1,nil}`,
+			`func requireSearchPublisherMemory(ctx context.Context)(err error){return nil}`,
 			`func headRelease(ctx context.Context)(out searchHeadPublishResult,err error){return searchHeadPublishResult{},nil}`,
 			`func searchHeadPublishFreshFacts(ctx context.Context)(out searchHeadPublishRequest,err error){return searchHeadPublishRequest{},nil}`,
 			`func searchPublisherStageFacts(ctx context.Context)(out searchFragmentStageSnapshot,err error){return searchFragmentStageSnapshot{},nil}`,

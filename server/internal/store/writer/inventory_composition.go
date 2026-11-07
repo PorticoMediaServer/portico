@@ -25,6 +25,9 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 	if purpose == ProgressAccept {
 		return wcProgressStatementMaxUses(id)
 	}
+	if searchPublisherPurpose(purpose) {
+		return searchPublisherMaxUses(purpose, id)
+	}
 	if purpose == InventoryCreate || purpose == InventoryClaim {
 		return scanLifecycleMaxUses(purpose, id)
 	}
