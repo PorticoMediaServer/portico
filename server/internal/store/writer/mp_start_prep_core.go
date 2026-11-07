@@ -174,6 +174,14 @@ func mpPrepDefinition(id, sqlText, types string, kind stmt.Kind) stmt.Definition
 		case 'b':
 			p[i].Type = stmt.Blob
 			b[i] = []byte{1}
+		case 'n':
+			p[i].Type = stmt.Integer
+			p[i].Nullable = true
+			b[i] = nil
+		case 't':
+			p[i].Type = stmt.Text
+			p[i].Nullable = true
+			b[i] = nil
 		}
 	}
 	return stmt.Definition{ID: stmt.ID(id), SQL: sqlText, Kind: kind, Params: p, Owner: "store/writer MP draft", CallSites: []string{"store/writer/mp_start_prep_core.go", "store/writer/mp_start_prep.go", "store/writer/mp_transcode.go"}, Cohorts: []stmt.Cohort{{Name: "binding_shape_only_unqualified", Bindings: b}}, Plan: stmt.Plan{Hot: true}}

@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"database/sql"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,6 +28,17 @@ type mpDraftNative struct {
 
 func mpNativeFixture(t *testing.T) *mpDraftNative {
 	t.Helper()
+	packet := schema.SQL()
+	if path := os.Getenv("PORTICO_MP_F_PACKET"); path != "" {
+		body, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		packet = string(body)
+	}
+	if !strings.Contains(packet, "CREATE TABLE mp_start_births(") {
+		t.Skip("F absent: set PORTICO_MP_F_PACKET to exact parent packet on runner")
+	}
 	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 128, Synchronous: sqliteconn.Normal}
 	db, _, err := sqliteconn.Open(t.Context(), filepath.Join(t.TempDir(), "mp.sqlite"), cfg)
 	if err != nil {
@@ -54,11 +66,15 @@ func mpNativeFixture(t *testing.T) *mpDraftNative {
 	}
 	for _, table := range []string{"playback_start_preparations", "prepared_media_jobs"} {
 		n.exec("ALTER TABLE " + table + " ADD COLUMN mp_command_incarnation BLOB")
+		n.exec("ALTER TABLE " + table + " ADD COLUMN mp_birth_id BLOB")
+		n.exec("ALTER TABLE " + table + " ADD COLUMN mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(mp_command_incarnation),0)+coalesce(length(mp_birth_id),0)) VIRTUAL")
+		n.exec("CREATE UNIQUE INDEX mp_fixture_" + table + "_inc ON " + table + "(id,mp_command_incarnation)")
 		for _, col := range []string{"mp_command_last_sequence", "mp_command_acknowledged_sequence", "mp_receipt_rows", "mp_receipt_variable_bytes"} {
 			n.exec("ALTER TABLE " + table + " ADD COLUMN " + col + " INTEGER NOT NULL DEFAULT 0")
 		}
 	}
 	n.exec("ALTER TABLE prepared_media_versions ADD COLUMN mp_command_incarnation BLOB")
+	n.exec("ALTER TABLE prepared_media_versions ADD COLUMN mp_retirement_state TEXT NOT NULL DEFAULT 'live'")
 	n.exec(`CREATE TABLE mp_start_execution(operation_id TEXT PRIMARY KEY,execution_id TEXT NOT NULL UNIQUE,physical_exited INTEGER NOT NULL,cleaned INTEGER NOT NULL,exit_digest TEXT NOT NULL,result_digest TEXT NOT NULL,staged_rows INTEGER NOT NULL,staged_bytes INTEGER NOT NULL,cleanup_cursor INTEGER NOT NULL);
  CREATE TABLE mp_job_inputs(job_id TEXT PRIMARY KEY,server_id TEXT,authority TEXT,account_id TEXT,actor_profile_id TEXT,device_id TEXT,family_id TEXT,grant_id TEXT,session_hash TEXT,epoch INTEGER,token_generation INTEGER,original_horizon_ms INTEGER,library_id TEXT,library_source_id TEXT,asset_id TEXT,inventory_object_id TEXT,inventory_revision TEXT,root_identity TEXT,incarnation TEXT,remote_source_id TEXT,effective_configuration TEXT,read_policy_witness TEXT,read_authority_witness TEXT,library_generation INTEGER,raw_configuration_generation INTEGER,profile_revision INTEGER,size INTEGER,modified_ns INTEGER,transformation_digest TEXT,part_index INTEGER);
  CREATE TABLE mp_job_custody(job_id TEXT PRIMARY KEY,generation INTEGER,execution_id TEXT,physical_exited INTEGER,cleaned INTEGER,exit_digest TEXT,cleanup_cursor INTEGER);
@@ -74,6 +90,19 @@ func mpNativeFixture(t *testing.T) *mpDraftNative {
  CREATE TABLE catalog_asset_links(entity_id INTEGER,asset_id INTEGER,library_id INTEGER,part_index INTEGER,available INTEGER,info_pending_change INTEGER,PRIMARY KEY(entity_id,asset_id));
  CREATE TABLE queues_v1(id TEXT PRIMARY KEY,owner_kind TEXT,owner_id TEXT,revision INTEGER,custody_generation INTEGER,current_entry_id TEXT,authority TEXT,account_id TEXT,profile_id TEXT);
  CREATE TABLE playback_v1_sessions(id TEXT PRIMARY KEY,authority TEXT,account_id TEXT,profile_id TEXT,device_id TEXT,generation INTEGER,ended_ms INTEGER);`)
+	// Use exact parent F relation definitions, never a receipt-shaped imitation.
+	for _, table := range []string{"mp_start_births", "mp_job_births", "mp_start_command_receipts", "mp_job_command_receipts", "mp_version_custody"} {
+		start := strings.Index(packet, "CREATE TABLE "+table+"(")
+		if start < 0 {
+			t.Skip("F missing required relation " + table)
+		}
+		text := packet[start:]
+		end := strings.Index(text, ";")
+		if end < 0 {
+			t.Fatal(table)
+		}
+		n.exec(text[:end+1])
+	}
 	a := mpDraftActor()
 	n.exec(`INSERT INTO authorization_family_tokens VALUES(?,?,1,0)`, a.sessionHash, a.family)
 	n.exec(`INSERT INTO authorization_session_families VALUES(?,?,?,?,?,?,1,1,0,0)`, a.family, a.server, a.authority, a.account, a.profile, a.device)

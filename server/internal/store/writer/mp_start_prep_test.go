@@ -87,12 +87,12 @@ func TestMPPrepDraftMatchingPurposeAndFinish(t *testing.T) {
 }
 func TestMPPrepDraftReceiptCodec(t *testing.T) {
 	h := mpPrepReceiptHeader{identity: mpDraftIdentity(), request: RequestDigest{3}, kind: MPStartPrepClaim, appliedMS: 100}
-	v := mpStartPrepReceipt{header: h, result: mpStartPrepEffect{rootIncarnation: [16]byte{4}, preparation: "prep", state: "preparing", execution: "exec", revision: 2, deadlineMS: 9000, ids: mpDraftIDs(), cleanupPending: true}}
+	v := mpStartPrepReceipt{header: h, result: mpStartPrepEffect{rootIncarnation: [16]byte{4}, preparation: "prep", sealed: true, state: "preparing", execution: "exec", revision: 2, deadlineMS: 9000, ids: mpDraftIDs(), cleanupPending: true}}
 	d, err := mpStartPrepResultDigest(v)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, change := range []func(*mpStartPrepReceipt){func(v *mpStartPrepReceipt) { v.result.ids.session = "other" }, func(v *mpStartPrepReceipt) { v.result.stopExecution = "exec" }, func(v *mpStartPrepReceipt) { v.result.cleanupPending = false }, func(v *mpStartPrepReceipt) { v.header.appliedMS++ }, func(v *mpStartPrepReceipt) { v.header.identity.OperationID[0]++ }} {
+	for _, change := range []func(*mpStartPrepReceipt){func(v *mpStartPrepReceipt) { v.result.sealed = !v.result.sealed }, func(v *mpStartPrepReceipt) { v.result.ids.session = "other" }, func(v *mpStartPrepReceipt) { v.result.stopExecution = "exec" }, func(v *mpStartPrepReceipt) { v.result.cleanupPending = false }, func(v *mpStartPrepReceipt) { v.header.appliedMS++ }, func(v *mpStartPrepReceipt) { v.header.identity.OperationID[0]++ }} {
 		q := v
 		change(&q)
 		different, err := mpStartPrepResultDigest(q)
@@ -101,12 +101,12 @@ func TestMPPrepDraftReceiptCodec(t *testing.T) {
 		}
 	}
 	h.kind = MPTranscodeClaim
-	tr := mpTranscodeReceipt{header: h, result: mpTranscodeEffect{rootIncarnation: [16]byte{5}, job: "job", state: "running", execution: "exec", revision: 2, generation: 1, leaseOwner: 8, leaseGeneration: 1, leaseExpiresMS: 9000, attempts: 1, nextAttemptMS: -1, cleanupPending: true}}
+	tr := mpTranscodeReceipt{header: h, result: mpTranscodeEffect{rootIncarnation: [16]byte{5}, phase: "probing source", sourceRevision: mpDraftRecipe().sourceRevision, job: "job", state: "running", execution: "exec", revision: 2, generation: 1, leaseOwner: 8, leaseGeneration: 1, leaseExpiresMS: 9000, attempts: 1, nextAttemptMS: -1, cleanupPending: true}}
 	d, err = mpTranscodeResultDigest(tr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, change := range []func(*mpTranscodeReceipt){func(v *mpTranscodeReceipt) { v.result.leaseOwner++ }, func(v *mpTranscodeReceipt) { v.result.leaseGeneration++ }, func(v *mpTranscodeReceipt) { v.result.nextAttemptMS = 0 }, func(v *mpTranscodeReceipt) { v.result.cleanupCursor++ }, func(v *mpTranscodeReceipt) { v.result.cleanupPending = false }} {
+	for _, change := range []func(*mpTranscodeReceipt){func(v *mpTranscodeReceipt) { v.result.phase = "other" }, func(v *mpTranscodeReceipt) { v.result.errorCode = "fault" }, func(v *mpTranscodeReceipt) { v.result.sourceRevision = strings.Repeat("f", 64) }, func(v *mpTranscodeReceipt) { v.result.leaseOwner++ }, func(v *mpTranscodeReceipt) { v.result.leaseGeneration++ }, func(v *mpTranscodeReceipt) { v.result.nextAttemptMS = 0 }, func(v *mpTranscodeReceipt) { v.result.cleanupCursor++ }, func(v *mpTranscodeReceipt) { v.result.cleanupPending = false }} {
 		q := tr
 		change(&q)
 		different, err := mpTranscodeResultDigest(q)

@@ -43,10 +43,16 @@ type mpStartPrepEffect struct {
 	ids                           mpStartPrepStableIDs
 	stopExecution                 string
 	cleanupPending                bool
+	sealed                        bool
 }
 
 func applyMPStartPrepBegin(ctx context.Context, t *commandTurn, q mpStartPrepBegin) (out mpStartPrepEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPStartPrepResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPStartPrepBegin); err != nil {
 		return
 	}
@@ -127,6 +133,10 @@ func captureMPStartPrep(ctx context.Context, t *commandTurn, f mpStartPrepFence,
 		return out, ErrResolveRequired
 	}
 	copy(out.rootIncarnation[:], root)
+	if sealed < 0 || sealed > 1 {
+		return out, ErrResolveRequired
+	}
+	out.sealed = sealed == 1
 	if actor != f.actor {
 		return out, ErrDisclosureDenied
 	}
@@ -153,7 +163,12 @@ func captureMPStartPrep(ctx context.Context, t *commandTurn, f mpStartPrepFence,
 // Claim assigns one immutable execution, sealing its input before helper work.
 // There is no implicit takeover of an execution whose physical exit is unknown.
 func applyMPStartPrepClaim(ctx context.Context, t *commandTurn, f mpStartPrepFence, execution string) (out mpStartPrepEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPStartPrepResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPStartPrepClaim); err != nil {
 		return
 	}
@@ -187,7 +202,12 @@ type mpStartPrepCompletion struct {
 }
 
 func applyMPStartPrepSeal(ctx context.Context, t *commandTurn, f mpStartPrepFence, c mpStartPrepCompletion) (out mpStartPrepEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPStartPrepResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPStartPrepSeal); err != nil {
 		return
 	}
@@ -213,7 +233,12 @@ func applyMPStartPrepSeal(ctx context.Context, t *commandTurn, f mpStartPrepFenc
 }
 
 func applyMPStartPrepAccept(ctx context.Context, t *commandTurn, f mpStartPrepFence) (out mpStartPrepEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPStartPrepResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPStartPrepAccept); err != nil {
 		return
 	}
@@ -238,7 +263,12 @@ func applyMPStartPrepAccept(ctx context.Context, t *commandTurn, f mpStartPrepFe
 }
 
 func applyMPStartPrepRetire(ctx context.Context, t *commandTurn, f mpStartPrepFence) (out mpStartPrepEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPStartPrepResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPStartPrepRetire); err != nil {
 		return
 	}
@@ -299,7 +329,12 @@ type mpStartPrepCleanup struct {
 }
 
 func applyMPStartPrepCleanup(ctx context.Context, t *commandTurn, f mpStartPrepFence, c mpStartPrepCleanup) (out mpStartPrepEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPStartPrepResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPStartPrepRetire); err != nil {
 		return
 	}

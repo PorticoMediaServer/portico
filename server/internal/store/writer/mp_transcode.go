@@ -41,6 +41,8 @@ type mpTranscodeFence struct {
 	recipe                                                   mpTranscodeRecipe
 }
 type mpTranscodeEffect struct {
+	phase, errorCode, sourceRevision                                                                     string
+	objectSize                                                                                           int64
 	versionIncarnation                                                                                   [16]byte
 	versionState                                                                                         string
 	versionRevision                                                                                      int64
@@ -61,7 +63,12 @@ type mpTranscodeNative struct {
 }
 
 func applyMPTranscodeCreate(ctx context.Context, t *commandTurn, q mpTranscodeCreate) (out mpTranscodeEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPTranscodeResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPTranscodeCreate); err != nil {
 		return
 	}
@@ -108,7 +115,7 @@ func captureMPTranscode(ctx context.Context, t *commandTurn, f mpTranscodeFence,
 	err = r.Scan(&e.state, &e.revision, &e.generation, &e.cleanedGeneration, &e.leaseOwner, &e.leaseGeneration, &e.leaseExpiresMS, &e.attempts, &e.nextAttemptMS, &e.version, &e.size,
 		&a.server, &a.authority, &a.account, &a.profile, &a.device, &a.family, &a.grant, &a.sessionHash, &a.epoch, &a.tokenGeneration, &a.horizonMS,
 		&s.library, &s.source, &s.asset, &s.object, &s.revision, &s.root, &s.incarnation, &s.remote, &s.configuration, &s.policy, &s.authority, &s.libraryGeneration, &s.configurationGeneration, &s.profileRevision, &s.size, &s.modifiedNS,
-		&p.profile, &p.target, &p.selection, &p.sourceRevision, &p.transformation, &p.part, &e.execution, &out.exited, &out.cleaned, &e.cleanupCursor, &root, &item, &e.digest, &e.versionState, &e.versionRevision, &versionRoot)
+		&p.profile, &p.target, &p.selection, &p.sourceRevision, &p.transformation, &p.part, &e.execution, &out.exited, &out.cleaned, &e.cleanupCursor, &root, &item, &e.digest, &e.versionState, &e.versionRevision, &versionRoot, &e.phase, &e.errorCode, &e.sourceRevision, &e.objectSize)
 	if err != nil {
 		return
 	}
@@ -154,7 +161,12 @@ func captureMPTranscode(ctx context.Context, t *commandTurn, f mpTranscodeFence,
 }
 
 func applyMPTranscodeClaim(ctx context.Context, t *commandTurn, f mpTranscodeFence, owner, untilMS int64, execution string) (out mpTranscodeEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPTranscodeResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPTranscodeClaim); err != nil {
 		return
 	}
@@ -190,7 +202,12 @@ func applyMPTranscodeClaim(ctx context.Context, t *commandTurn, f mpTranscodeFen
 	return
 }
 func applyMPTranscodeRenew(ctx context.Context, t *commandTurn, f mpTranscodeFence, untilMS int64) (out mpTranscodeEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPTranscodeResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPTranscodeRenew); err != nil {
 		return
 	}
@@ -210,7 +227,12 @@ func applyMPTranscodeRenew(ctx context.Context, t *commandTurn, f mpTranscodeFen
 	return
 }
 func applyMPTranscodeCancel(ctx context.Context, t *commandTurn, f mpTranscodeFence) (out mpTranscodeEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPTranscodeResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPTranscodeCancel); err != nil {
 		return
 	}
@@ -252,7 +274,12 @@ func (a mpTranscodeVerifiedArtifact) valid(f mpTranscodeFence) bool {
 	return a.versionIncarnation != ([16]byte{}) && a.job == f.id && a.execution == f.execution && a.execution != "" && a.generation == f.generation && a.leaseOwner == f.leaseOwner && a.leaseGeneration == f.leaseGeneration && a.source == f.source && a.recipe == f.recipe && a.transformation == f.recipe.transformation && mpPrepTexts(a.version, a.inputEvidence, a.facts) && lowerHex(a.digest, 64) && lowerHex(a.transformation, 64) && a.size > 0
 }
 func applyMPTranscodePublish(ctx context.Context, t *commandTurn, f mpTranscodeFence, a mpTranscodeVerifiedArtifact) (out mpTranscodeEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPTranscodeResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPTranscodePublish); err != nil {
 		return
 	}
@@ -264,6 +291,9 @@ func applyMPTranscodePublish(ctx context.Context, t *commandTurn, f mpTranscodeF
 		return out, err
 	}
 	out = n.effect
+	if a.versionIncarnation == out.rootIncarnation {
+		return out, ErrInvalid
+	}
 	if out.state != "running" || out.leaseExpiresMS <= f.nowMS || out.leaseOwner <= 0 || out.version != "" || n.cleaned != 0 {
 		return out, ErrConflict
 	}
@@ -288,40 +318,62 @@ func applyMPTranscodePublish(ctx context.Context, t *commandTurn, f mpTranscodeF
 }
 
 type mpTranscodeVersionFence struct {
-	version, digest string
-	size, revision  int64
+	version, digest, cleanupRequestID string
+	size, revision                    int64
 }
 
-func applyMPTranscodeRetire(ctx context.Context, t *commandTurn, f mpTranscodeFence, v mpTranscodeVersionFence) (out mpTranscodeEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+// A retirement returns job observation plus actual NEW version-child debt. It
+// never uses the job physical-pending field to represent artifact cleanup.
+// W captures/stores the parent's version-owned result under745 in this turn.
+type mpTranscodeRetirementEffect struct {
+	job                  mpTranscodeEffect
+	cleanupRequestID     string
+	custodyVariableBytes int64
+}
+
+func applyMPTranscodeRetire(ctx context.Context, t *commandTurn, f mpTranscodeFence, v mpTranscodeVersionFence) (out mpTranscodeRetirementEffect, err error) {
+	defer func() {
+		if err == nil {
+			out.job, err = completeMPTranscodeResult(ctx, t, out.job)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPTranscodeRetire); err != nil {
 		return
 	}
-	if !mpPrepTexts(v.version) || !lowerHex(v.digest, 64) || v.size <= 0 || !mpPrepRevision(v.revision) {
+	if !mpPrepTexts(v.version, v.cleanupRequestID) || !lowerHex(v.digest, 64) || v.size <= 0 || !mpPrepRevision(v.revision) {
 		return out, ErrInvalid
 	}
 	n, err := captureMPTranscode(ctx, t, f, false)
 	if err != nil {
 		return out, err
 	}
-	out = n.effect
-	if n.exited != 1 || n.cleaned != 1 || out.state != "succeeded" || out.version != v.version || out.versionState != "published" || out.versionRevision != v.revision || out.digest != v.digest || out.size != v.size {
+	out.job = n.effect
+	job := &out.job
+	if n.exited != 1 || n.cleaned != 1 || job.state != "succeeded" || job.version != v.version || job.versionState != "published" || job.versionRevision != v.revision || job.digest != v.digest || job.size != v.size {
 		return out, ErrConflict
 	}
 	// Pin lookup is a single indexed NOT EXISTS, not an unbounded reader walk.
-	if err = mpPrepOne(ctx, t, "mp.transcode.retire", v.version, f.id, v.revision, v.digest, v.size); err != nil {
+	if err = mpPrepOne(ctx, t, "mp.transcode.retire", v.version, f.id, job.versionIncarnation[:], v.revision, v.digest, v.size); err != nil {
 		return
 	}
-	if err = mpPrepOne(ctx, t, "mp.transcode.retire_custody", f.id, f.generation, f.execution); err != nil {
-		return
+	row, e := mpPrepRow(ctx, t, "mp.transcode.retire_custody", v.version, v.cleanupRequestID)
+	if e != nil {
+		return out, e
 	}
-	out.version = v.version
-	out.versionState = "deleting"
-	out.versionRevision = v.revision + 1
-	out.digest = v.digest
-	out.size = v.size
-	out.cleanupPending = true
-	out.cleanupCursor = 0
+	if e = row.Scan(&out.custodyVariableBytes, &out.cleanupRequestID); e != nil {
+		return out, e
+	}
+	if out.custodyVariableBytes <= 0 || out.cleanupRequestID != v.cleanupRequestID {
+		return out, ErrResolveRequired
+	}
+	job.version = v.version
+	job.versionState = "deleting"
+	job.versionRevision = v.revision + 1
+	job.digest = v.digest
+	job.size = v.size
+	// Encode custody stays exited and cleaned. The version-owned request is
+	// pending until 749 claims a distinct execution and observes its real exit.
 	return
 }
 
@@ -334,15 +386,20 @@ type mpTranscodeCleanup struct {
 	exitDigest                                                  string
 	finished                                                    bool
 	retryAtMS                                                   int64                   // -1 means terminal failure/cancellation, otherwise explicit retry
-	version                                                     mpTranscodeVersionFence // optional completed deletion of ONE version
+	version                                                     mpTranscodeVersionFence // rejected: deletion belongs to version749
 }
 
 func applyMPTranscodeReconcile(ctx context.Context, t *commandTurn, f mpTranscodeFence, c mpTranscodeCleanup) (out mpTranscodeEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	defer func() {
+		if err == nil {
+			out, err = completeMPTranscodeResult(ctx, t, out)
+		}
+		out, err = finishCommand(ctx, commandLifetime(t), out, err)
+	}()
 	if err = mpPrepTurn(t, MPTranscodeReconcile); err != nil {
 		return
 	}
-	if c.execution == "" || c.execution != f.execution || c.generation != f.generation || c.leaseOwner != f.leaseOwner || c.leaseGeneration != f.leaseGeneration || !lowerHex(c.exitDigest, 64) || c.cursor < 0 || c.nextCursor < c.cursor || c.nextCursor-c.cursor > 64 || c.retryAtMS < -1 || (c.retryAtMS >= 0 && c.retryAtMS < f.nowMS) {
+	if c.version != (mpTranscodeVersionFence{}) || c.execution == "" || c.execution != f.execution || c.generation != f.generation || c.leaseOwner != f.leaseOwner || c.leaseGeneration != f.leaseGeneration || !lowerHex(c.exitDigest, 64) || c.cursor < 0 || c.nextCursor < c.cursor || c.nextCursor-c.cursor > 64 || c.retryAtMS < -1 || (c.retryAtMS >= 0 && c.retryAtMS < f.nowMS) {
 		return out, ErrInvalid
 	}
 	n, err := captureMPTranscode(ctx, t, f, false)
@@ -362,20 +419,6 @@ func applyMPTranscodeReconcile(ctx context.Context, t *commandTurn, f mpTranscod
 	}
 	if err = mpPrepOne(ctx, t, "mp.transcode.cleanup", c.exitDigest, c.nextCursor, done, f.id, f.generation, f.execution, c.cursor, c.exitDigest); err != nil {
 		return
-	}
-	if c.version.version != "" {
-		if c.version.version != out.version || c.version.revision != out.versionRevision || c.version.digest != out.digest || c.version.size != out.size {
-			return out, ErrConflict
-		}
-		v := c.version
-		if !c.finished || !lowerHex(v.digest, 64) || v.size <= 0 || !mpPrepRevision(v.revision) {
-			return out, ErrInvalid
-		}
-		if err = mpPrepOne(ctx, t, "mp.transcode.deleted", v.version, f.id, v.revision, v.digest, v.size); err != nil {
-			return
-		}
-		out.versionState = "deleted"
-		out.versionRevision++
 	}
 	if c.finished {
 		if out.state == "succeeded" {
@@ -427,18 +470,17 @@ func mpTranscodeDefinitions() []stmt.Definition {
 		{"mp.transcode.create", `INSERT INTO prepared_media_jobs(id,item_id,asset_id,library_id,profile_id,target_id,selection_json,source_revision,principal_json,state,phase,created_ms,updated_ms,job_next_attempt_ms,mp_command_incarnation) VALUES(?,?,?,?,?,?,?,?,'','queued','waiting',?,?,?,?) RETURNING 1`, "sissssssiiib", stmt.Write},
 		{"mp.transcode.input_insert", `INSERT INTO mp_job_inputs(job_id,server_id,authority,account_id,actor_profile_id,device_id,family_id,grant_id,session_hash,epoch,token_generation,original_horizon_ms,library_id,library_source_id,asset_id,inventory_object_id,inventory_revision,root_identity,incarnation,remote_source_id,effective_configuration,read_policy_witness,read_authority_witness,library_generation,raw_configuration_generation,profile_revision,size,modified_ns,transformation_digest,part_index) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "sssssssssiiisssssssssssiiiiisi", stmt.Write},
 		{"mp.transcode.custody_insert", `INSERT INTO mp_job_custody(job_id,generation,execution_id,physical_exited,cleaned,exit_digest,cleanup_cursor) VALUES(?,0,'',1,1,'',0) RETURNING 1`, "s", stmt.Write},
-		{"mp.transcode.current", `SELECT j.state,j.revision,j.generation,j.cleaned_generation,j.job_lease_owner,j.job_lease_generation,j.job_lease_expires_ms,j.job_attempts,coalesce(j.job_next_attempt_ms,-1),j.version_id,j.bytes,i.server_id,i.authority,i.account_id,i.actor_profile_id,i.device_id,i.family_id,i.grant_id,i.session_hash,i.epoch,i.token_generation,i.original_horizon_ms,i.library_id,i.library_source_id,i.asset_id,i.inventory_object_id,i.inventory_revision,i.root_identity,i.incarnation,i.remote_source_id,i.effective_configuration,i.read_policy_witness,i.read_authority_witness,i.library_generation,i.raw_configuration_generation,i.profile_revision,i.size,i.modified_ns,j.profile_id,j.target_id,j.selection_json,j.source_revision,i.transformation_digest,i.part_index,c.execution_id,c.physical_exited,c.cleaned,c.cleanup_cursor,j.mp_command_incarnation,j.item_id,coalesce(v.digest,''),coalesce(v.state,''),coalesce(v.revision,0),v.mp_command_incarnation FROM prepared_media_jobs AS j CROSS JOIN mp_job_inputs AS i ON i.job_id=j.id CROSS JOIN mp_job_custody AS c ON c.job_id=j.id AND c.generation=j.generation LEFT JOIN prepared_media_versions AS v ON v.id=j.version_id AND v.job_id=j.id WHERE j.id=?`, "s", stmt.Read},
+		{"mp.transcode.current", `SELECT j.state,j.revision,j.generation,j.cleaned_generation,j.job_lease_owner,j.job_lease_generation,j.job_lease_expires_ms,j.job_attempts,coalesce(j.job_next_attempt_ms,-1),j.version_id,j.bytes,i.server_id,i.authority,i.account_id,i.actor_profile_id,i.device_id,i.family_id,i.grant_id,i.session_hash,i.epoch,i.token_generation,i.original_horizon_ms,i.library_id,i.library_source_id,i.asset_id,i.inventory_object_id,i.inventory_revision,i.root_identity,i.incarnation,i.remote_source_id,i.effective_configuration,i.read_policy_witness,i.read_authority_witness,i.library_generation,i.raw_configuration_generation,i.profile_revision,i.size,i.modified_ns,j.profile_id,j.target_id,j.selection_json,j.source_revision,i.transformation_digest,i.part_index,c.execution_id,c.physical_exited,c.cleaned,c.cleanup_cursor,j.mp_command_incarnation,j.item_id,coalesce(v.digest,''),coalesce(v.state,''),coalesce(v.revision,0),v.mp_command_incarnation,j.phase,j.error_code,j.source_revision,coalesce(v.size,0) FROM prepared_media_jobs AS j CROSS JOIN mp_job_inputs AS i ON i.job_id=j.id CROSS JOIN mp_job_custody AS c ON c.job_id=j.id AND c.generation=j.generation LEFT JOIN prepared_media_versions AS v ON v.id=j.version_id AND v.job_id=j.id WHERE j.id=?`, "s", stmt.Read},
 		{"mp.transcode.claim", `UPDATE prepared_media_jobs SET state='running',phase='probing source',generation=generation+1,job_lease_owner=?,job_lease_generation=job_lease_generation+1,job_lease_expires_ms=?,job_attempts=job_attempts+1,job_next_attempt_ms=NULL,revision=revision+1,updated_ms=?,bytes=0,error_code='' WHERE id=? AND revision=? AND generation=? AND job_lease_owner=? AND job_lease_generation=? AND job_lease_expires_ms<=? AND job_next_attempt_ms<=? AND state='queued' AND cleaned_generation=generation AND job_attempts<4294967295 RETURNING 1`, "iiisiiiiii", stmt.Write},
 		{"mp.transcode.execution", `UPDATE mp_job_custody SET generation=generation+1,execution_id=?,physical_exited=0,cleaned=0,exit_digest='',cleanup_cursor=0 WHERE job_id=? AND generation=? AND physical_exited=1 AND cleaned=1 RETURNING 1`, "ssi", stmt.Write},
 		{"mp.transcode.renew", `UPDATE prepared_media_jobs SET job_lease_expires_ms=?,revision=revision+1,updated_ms=? WHERE id=? AND revision=? AND generation=? AND job_lease_owner=? AND job_lease_generation=? AND state='running' AND job_lease_expires_ms>? RETURNING 1`, "iisiiiii", stmt.Write},
 		{"mp.transcode.cancel", `UPDATE prepared_media_jobs SET state=CASE WHEN state='queued' THEN 'cancelled' ELSE 'cancelling' END,phase='cancelled',job_next_attempt_ms=NULL,revision=revision+1,updated_ms=? WHERE id=? AND revision=? AND generation=? AND job_lease_owner=? AND job_lease_generation=? AND state IN('queued','running') RETURNING 1`, "isiiii", stmt.Write},
 		{"mp.transcode.publish_version", `INSERT INTO prepared_media_versions(id,item_id,asset_id,library_id,profile_id,target_id,source_revision,selection_json,part_index,edition_id,input_evidence,transformation_digest,digest,size,facts_json,state,revision,created_ms,mp_command_incarnation,job_id) SELECT ?,j.item_id,j.asset_id,j.library_id,j.profile_id,j.target_id,j.source_revision,j.selection_json,?,NULL,?,?,?,?,?,'published',1,?,?,j.id FROM prepared_media_jobs AS j WHERE j.id=? AND j.revision=? AND j.generation=? AND j.job_lease_owner=? AND j.job_lease_generation=? AND j.job_lease_expires_ms>? AND j.state='running' AND j.version_id='' RETURNING 1`, "sisssisibsiiiii", stmt.Write},
 		{"mp.transcode.publish_job", `UPDATE prepared_media_jobs SET state='succeeded',phase='published',bytes=?,version_id=?,revision=revision+1,updated_ms=?,job_next_attempt_ms=NULL WHERE id=? AND revision=? AND generation=? AND job_lease_owner=? AND job_lease_generation=? AND job_lease_expires_ms>? AND state='running' RETURNING 1`, "isisiiiii", stmt.Write},
-		{"mp.transcode.retire", `UPDATE prepared_media_versions SET state='deleting',revision=revision+1 WHERE id=? AND job_id=? AND revision=? AND digest=? AND size=? AND state='published' AND NOT EXISTS(SELECT 1 FROM prepared_media_session_pins AS p INDEXED BY prepared_media_readers WHERE p.version_id=prepared_media_versions.id) RETURNING 1`, "ssisi", stmt.Write},
-		{"mp.transcode.retire_custody", `UPDATE mp_job_custody SET cleaned=0,cleanup_cursor=0 WHERE job_id=? AND generation=? AND execution_id=? AND physical_exited=1 AND cleaned=1 RETURNING 1`, "sis", stmt.Write},
+		{"mp.transcode.retire", `UPDATE prepared_media_versions SET state='deleting',mp_retirement_state='draining',revision=revision+1 WHERE id=? AND job_id=? AND mp_command_incarnation=? AND revision=? AND digest=? AND size=? AND state='published' AND NOT EXISTS(SELECT 1 FROM prepared_media_session_pins AS p INDEXED BY prepared_media_readers WHERE p.version_id=prepared_media_versions.id) RETURNING 1`, "ssbisi", stmt.Write},
+		{"mp.transcode.retire_custody", `INSERT INTO mp_version_custody(version_id,request_id,generation,execution_id,physical_exited,cleaned,exit_digest,cleanup_cursor,finished) VALUES(?,?,0,'',1,1,'',0,0) RETURNING variable_bytes,request_id`, "ss", stmt.Write},
 		{"mp.transcode.cleanup", `UPDATE mp_job_custody SET physical_exited=1,exit_digest=?,cleanup_cursor=?,cleaned=? WHERE job_id=? AND generation=? AND execution_id=? AND cleanup_cursor=? AND cleaned=0 AND (physical_exited=0 OR exit_digest=?) RETURNING 1`, "siisisis", stmt.Write},
 		{"mp.transcode.version_settled", `SELECT 1 FROM prepared_media_versions WHERE id=? AND job_id=? AND state IN('published','deleted')`, "ss", stmt.Read},
-		{"mp.transcode.deleted", `UPDATE prepared_media_versions SET state='deleted',revision=revision+1 WHERE id=? AND job_id=? AND revision=? AND digest=? AND size=? AND state='deleting' AND NOT EXISTS(SELECT 1 FROM prepared_media_session_pins AS p INDEXED BY prepared_media_readers WHERE p.version_id=prepared_media_versions.id) RETURNING 1`, "ssisi", stmt.Write},
 		{"mp.transcode.reconcile_job", `UPDATE prepared_media_jobs SET state=CASE WHEN state='cancelling' THEN 'cancelled' WHEN state='running' THEN CASE WHEN ? IS NULL THEN 'failed' ELSE 'queued' END ELSE state END,phase='settled',cleaned_generation=generation,job_lease_owner=0,job_lease_expires_ms=0,job_next_attempt_ms=?,revision=revision+1,updated_ms=? WHERE id=? AND revision=? AND generation=? AND job_lease_owner=? AND job_lease_generation=? AND state IN('running','cancelling','succeeded') RETURNING 1`, "iiisiiii", stmt.Write},
 		{"mp.transcode.cleanup_revision", `UPDATE prepared_media_jobs SET revision=revision+1,updated_ms=? WHERE id=? AND revision=? AND generation=? AND job_lease_owner=? AND job_lease_generation=? RETURNING 1`, "isiiii", stmt.Write},
 	}
