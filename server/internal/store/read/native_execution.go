@@ -293,6 +293,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	if !time.Now().Before(deadline) {
 		return FullSearchPage{}, cost, context.DeadlineExceeded
 	}
+	draft.Stamp = &FullSearchReadStamp{pool: r.pool, output: output.Grant, fence: initial, query: query.Fold(), started: started, clock: in.View.Now, deadline: deadline}
 	return draft, cost, nil
 }
 
