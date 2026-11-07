@@ -46,6 +46,10 @@ func (s *FullSearchReadStamp) ValidateRetained(ctx context.Context, out BrowseOu
 	if s.pool != prior.pool || s.query != prior.query || nativeCommonFence(s.fence) != nativeCommonFence(prior.fence) {
 		return ErrStale
 	}
+	anchor, ok := nativeStampLibrary(s, prior.fence.permission.libraryID)
+	if !ok || anchor != prior.fence.permission {
+		return ErrStale
+	}
 	for _, p := range prior.policies {
 		before, ok := nativeStampLibrary(prior, p.library)
 		after, current := nativeStampLibrary(s, p.library)

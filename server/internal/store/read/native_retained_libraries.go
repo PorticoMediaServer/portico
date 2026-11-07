@@ -41,12 +41,18 @@ func nativeRecheckLibraries(q browseQuery, in BrowseInput, current nativeSearchF
 		if stamp == nil {
 			return nil, ErrInput
 		}
+		expectedFences := []browseFence{stamp.fence.permission}
 		for _, proof := range stamp.policies {
-			expected, ok := nativeStampLibrary(stamp, proof.library)
+			f, ok := nativeStampLibrary(stamp, proof.library)
 			if !ok {
 				return nil, ErrStale
 			}
-			if prior, found := nativeLibraryFence(fences, proof.library); found {
+			if _, found := nativeLibraryFence(expectedFences, proof.library); !found {
+				expectedFences = append(expectedFences, f)
+			}
+		}
+		for _, expected := range expectedFences {
+			if prior, found := nativeLibraryFence(fences, expected.libraryID); found {
 				if prior != expected {
 					return nil, ErrStale
 				}

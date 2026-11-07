@@ -703,6 +703,23 @@ func TestNativeSearchRetainedLibrariesShareOneOperation(t *testing.T) {
 	if err != nil || len(kept.libraries) != 1 || kept.libraries[0].libraryID != 2 {
 		t.Fatal("narrow library evidence", err)
 	}
+	anchor, err := first.Stamp.RetainHits(nil)
+	if err != nil || len(anchor.policies) != 0 || anchor.fence.permission.libraryID != 1 {
+		t.Fatal("empty own-scope anchor", err)
+	}
+	if _, err = read(2, anchor); err != nil {
+		t.Fatal("cross-library empty anchor", err)
+	}
+	r.snapshots = &nativeBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE libraries SET root='/moved' WHERE id='movies'`) }}
+	stale, err := read(2, anchor)
+	if !errors.Is(err, ErrStale) || !reflect.DeepEqual(stale, FullSearchPage{}) {
+		t.Fatal("empty anchor source drift before release", stale, err)
+	}
+	r.snapshots = f.snapshots
+	if _, err = read(2, anchor); !errors.Is(err, ErrStale) {
+		t.Fatal("empty anchor source drift before business", err)
+	}
+	f.exec(t, `UPDATE libraries SET root='/media' WHERE id='movies'`)
 	r.snapshots = &nativeBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE catalog_libraries SET retired=1 WHERE id=1`) }}
 	denied, err := read(2, second.Stamp)
 	if !errors.Is(err, ErrDenied) || !reflect.DeepEqual(denied, FullSearchPage{}) {
