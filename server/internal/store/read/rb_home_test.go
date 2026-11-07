@@ -205,6 +205,19 @@ func TestRBHomeManagedSourceProofAndFreshFence(t *testing.T) {
 	}
 }
 
+func TestRBHomePublishedRecordingNeedsMGPolicy(t *testing.T) {
+	f := newRBHomeFixture(t)
+	f.exec(t, `INSERT INTO dvr_catalog_provenance(item_id,recording_id,asset_id,source_id,channel_id,programme_id,guide_generation,artifact_digest,captured_start_ms,captured_end_ms,state) VALUES(1,'recording','home-1','live-source','channel','programme','guide','digest',0,1,'completed')`)
+	card, _, e := homeTargetRead(t, f, 1, 1)
+	if !errors.Is(e, ErrUnqualified) || card.Work.ID != 0 {
+		t.Fatal("recording used the ordinary catalogue policy", card, e)
+	}
+	row, _, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 1}}})
+	if !errors.Is(e, ErrUnqualified) || !reflect.DeepEqual(row, HomeRecentRow{}) {
+		t.Fatal("joined movie point omitted recording policy", row, e)
+	}
+}
+
 func TestRBHomeRecentRestrictedGlobalMerge(t *testing.T) {
 	f := newRBHomeFixture(t)
 	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)

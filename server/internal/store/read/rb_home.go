@@ -451,7 +451,7 @@ func homeTarget(ctx context.Context, q browseQuery, f browseFence, source []any,
 			if row[7].(int64) != 4 || row[8].(int64) != library || !admittedItem(row, f) {
 				continue
 			}
-			available, e := homeAvailable(row[14], row[15], row[16:23], managed)
+			available, e := homeAvailable(row[14], row[15], row[16:23], row[23], managed)
 			if e != nil {
 				return nil, raw, e
 			}
@@ -581,7 +581,7 @@ func homeAssets(q browseQuery, library string, item, position int64, progress bo
 	available := false
 	maxDuration := float64(0)
 	for _, row := range rows {
-		ok, e := homeAvailable(row[1], row[2], row[6:13], managed)
+		ok, e := homeAvailable(row[1], row[2], row[6:13], row[13], managed)
 		if e != nil {
 			return false, len(rows), e
 		}
@@ -620,7 +620,10 @@ func homeLibraryRows(q browseQuery, token string, library int64) ([][]any, error
 	}
 	return rows, nil
 }
-func homeAvailable(asset, retired any, source []any, managed bool) (bool, error) {
+func homeAvailable(asset, retired any, source []any, recording any, managed bool) (bool, error) {
+	if recording != nil {
+		return false, ErrUnqualified
+	}
 	if retired != nil {
 		return false, nil
 	}
@@ -651,7 +654,7 @@ func homeMovieTarget(ctx context.Context, q browseQuery, f browseFence, id int64
 		if e := ctx.Err(); e != nil {
 			return nil, len(rows), e
 		}
-		available, e := homeAvailable(row[14], row[15], row[16:23], managed)
+		available, e := homeAvailable(row[14], row[15], row[16:23], row[23], managed)
 		if e != nil {
 			return nil, len(rows), e
 		}

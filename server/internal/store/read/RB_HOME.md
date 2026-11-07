@@ -52,7 +52,9 @@ nonretired available object, no unsupported reason, enabled source in the same
 library, matching incarnation, and health outside root_changed/removing. SQL
 returns integer NULLIF/length comparisons for potentially wide reason strings;
 it never fetches reason text, object paths, evidence JSON or Reading locators.
-DVR retirement excludes a leaf. In a library without managed sources, accepted
+DVR retirement excludes a leaf. Published DVR provenance fails closed until
+MG supplies the current recording/sharing policy; it is not treated as an ordinary
+permitted catalogue item. In a library without managed sources, accepted
 link/asset availability is used. A managed library with an unbound legacy asset
 fails closed: source-root/path fallback eligibility remains unimplemented.
 
