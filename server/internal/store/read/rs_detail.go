@@ -78,7 +78,9 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 		return TitleFacts{}, BrowseReadResult{}, ErrInput
 	}
 	var source []any
-	windows := &rsByteWindow{source: r.snapshots}
+	// Match publication's cumulative copy limit while preserving the original
+	// request ceiling for the governor's additional fixed decode overhead.
+	windows := &rsByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	root := func(q browseQuery) ([]any, error) {
 		rows, err := q("rs.detail.source", in.Item, in.View.Library, in.View.Kind)
 		if err != nil {
