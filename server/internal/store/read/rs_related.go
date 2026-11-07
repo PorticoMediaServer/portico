@@ -345,7 +345,7 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 		w.state.phase = 4
 	}
 	startRaw := w.state.rawTotal
-	steps := []readStep[RelatedPage]{func(ctx context.Context, q browseQuery, f browseFence, p *RelatedPage) error {
+	steps := []readStep[RelatedPage]{func(ctx context.Context, q browseQuery, f browseFence, p *RelatedPage) error { return ctx.Err() }, func(ctx context.Context, q browseQuery, f browseFence, p *RelatedPage) error {
 		if err := w.authority.CheckPreparation(w.lease); err != nil {
 			return err
 		}
