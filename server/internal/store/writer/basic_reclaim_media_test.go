@@ -69,7 +69,7 @@ func TestBasicReclaimMediaLateFailureRollsBackPhysicalPrefix(t *testing.T) {
 			case "returning":
 				for n := range defs {
 					if defs[n].ID == basicReclaimMediaID(5) {
-						defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING change_id,input_ordinal", "RETURNING change_id,CASE WHEN input_ordinal=1 THEN -1 ELSE input_ordinal END", 1)
+						defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING change_id,input_ordinal,asset_id,chapter_index", "RETURNING change_id,chapter_index,asset_id,input_ordinal", 1)
 					}
 				}
 			}
