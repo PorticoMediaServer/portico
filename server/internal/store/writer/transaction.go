@@ -364,6 +364,9 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		t.settings, err = sqliteconn.Assert(turnCtx, conn, cfg)
 		t.policyVerified = err == nil
 	}
+	if governed, ok := c.(*governedTurn); err == nil && ok && governed.inventoryEngine != (sqliteconn.EngineIdentity{}) {
+		t.engineIdentity, err = attestInventoryDriverEngine(turnCtx, t, governed.inventoryEngine)
+	}
 	if err == nil {
 		err = c.check(id, r.limit)
 	}
@@ -392,6 +395,7 @@ type transaction struct {
 	quantum        *Quantum
 	descriptor     Descriptor
 	settings       sqliteconn.Settings
+	engineIdentity sqliteconn.EngineIdentity // same acquired native connection, before BEGIN
 	policyVerified bool
 	start          time.Time
 	clockHighWater time.Time // same turn: setup, helper reads and statement/terminal admission

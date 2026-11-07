@@ -136,6 +136,9 @@ func checkInventoryDriverTurn(ctx context.Context, turn *commandTurn, in *invent
 	if r.inventoryDriverPlan.inventoryPageSize == 0 || turn.transaction.settings.WriterPageSize != r.inventoryDriverPlan.inventoryPageSize {
 		return &Refusal{Code: RefusalUnqualified}
 	}
+	if r.inventoryDriverPlan.inventoryEngine.Version == "" || r.inventoryDriverPlan.inventoryEngine.SourceID == "" || turn.transaction.engineIdentity != r.inventoryDriverPlan.inventoryEngine {
+		return &Refusal{Code: RefusalUnqualified}
+	}
 	keeper := r.executor.keeper.Load()
 	if keeper == nil {
 		return &Refusal{Code: RefusalUnqualified}

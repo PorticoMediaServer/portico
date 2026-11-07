@@ -80,6 +80,9 @@ func reserveInventoryDriverSteps(remaining Work, steps []statementStep) (Work, e
 	return Work{}, invalid("inventory_driver_library_step")
 }
 
+// Population invariant: all records are written only by the new layer's
+// bounded producers. Cutover starts a fresh database; this profile makes no
+// legacy-population compatibility or adoption claim.
 func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, error) {
 	if w == nil {
 		return effectivePlan{}, ErrInvalid
@@ -99,6 +102,9 @@ func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, err
 	}
 	if _, err := inventoryUsablePageFloor(w.config.WriterPageSize); err != nil {
 		return effectivePlan{}, err
+	}
+	if p.inventoryEngine.Version == "" || p.inventoryEngine.SourceID == "" {
+		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
 	}
 	p, err := freezeCommandPlan(w, p, inventoryDriverCommandDefinitions(), InventoryAccept)
 	if err != nil {
