@@ -145,6 +145,24 @@ func TestUONoticeNativeArchiveUnreadReadAll(t *testing.T) {
 		t.Fatal("subsequent bulk should cover unarchived unread", read)
 	}
 }
+
+func TestUONoticeNativeArchivePreservesEarlierReadTime(t *testing.T) {
+	w := uoNoticeFixture(t)
+	a := uoNoticePublishOne(t, w, uoNoticeDraft("a"))
+	uoNoticeActionOne(t, w, 100, uoNoticeOp(uoNoticeReadAll))
+	uoNoticeActionOne(t, w, 200, uoNoticeOp(uoNoticeArchive, a))
+	uoNoticeActionOne(t, w, 300, uoNoticeOp(uoNoticeReadAll))
+	read, archive := uoNoticeReadState(t, w, a)
+	if !read.Valid || read.Int64 != 100 || !archive.Valid || archive.Int64 != 200 {
+		t.Fatal("archive replaced earlier covering read", read, archive)
+	}
+	uoNoticeActionOne(t, w, 400, uoNoticeOp(uoNoticeUnread, a))
+	uoNoticeActionOne(t, w, 500, uoNoticeOp(uoNoticeArchive, a))
+	read, archive = uoNoticeReadState(t, w, a)
+	if !read.Valid || read.Int64 != 500 || !archive.Valid || archive.Int64 != 200 {
+		t.Fatal("re-archive failed to mark read", read, archive)
+	}
+}
 func TestUONoticeNativeOrderedEightOperationRange(t *testing.T) {
 	w := uoNoticeFixture(t)
 	a := uoNoticePublishOne(t, w, uoNoticeDraft("a"))

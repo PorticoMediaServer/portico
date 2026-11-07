@@ -338,6 +338,9 @@ func loadUONoticeBulk(ctx context.Context, turn *commandTurn, principal string) 
 	if archive != 0 || b.sequence < 0 || b.revision <= 0 || b.readMS < 0 || b.sequence > 0 && b.readMS == 0 {
 		return b, ErrResolveRequired
 	}
+	if b.sequence == 0 {
+		return uoNoticeBulkState{}, nil
+	}
 	return b, nil
 }
 func applyUONoticeAcks(ctx context.Context, turn *commandTurn, q uoNoticeAckInput) (out uoNoticeAckEffect, err error) {
@@ -436,9 +439,11 @@ func applyUONoticeAcks(ctx context.Context, turn *commandTurn, q uoNoticeAckInpu
 			case uoNoticeArchive:
 				if !archive.Valid {
 					nextArchive = sql.NullInt64{Int64: q.nowMS, Valid: true}
-					if !read.Valid {
-						nextRead = sql.NullInt64{Int64: q.nowMS, Valid: true}
-					}
+				}
+				// Match legacy COALESCE(read_ms,now), including a repeated archive
+				// after marking an already archived notice unread.
+				if !read.Valid {
+					nextRead = sql.NullInt64{Int64: q.nowMS, Valid: true}
 				}
 			case uoNoticeUnarchive:
 				nextArchive = sql.NullInt64{}
