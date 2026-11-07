@@ -2,6 +2,7 @@ package read
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
@@ -24,6 +25,16 @@ func init() {
 			return "", ErrUnqualified
 		}
 		return witness, nil
+	}})
+	registerReadPolicy(readPolicyRecipe{id: 64996, domain: "native-test-source", kinds: []int64{32}, nativeSearch: true, validate: func(q browseQuery, in BrowseInput, _ browseFence) (string, error) {
+		rows, err := q("full.native.item", in.policy.subject)
+		if err != nil {
+			return "", err
+		}
+		if len(rows) != 1 || len(rows[0]) != 19 {
+			return "", ErrDenied
+		}
+		return fmt.Sprintf("source:%v", rows[0][10]), nil
 	}})
 }
 
