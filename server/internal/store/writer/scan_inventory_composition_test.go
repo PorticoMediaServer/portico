@@ -19,8 +19,15 @@ import (
 // ONE existing native opening, GV keeper, governor and W dispatcher. All work,
 // byte amounts and the frozen clock are existing synthetic component inputs;
 // they are not a qualified profile and no startup installs them in production.
-func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTransport) {
+type n1CompositionFixtureProfile uint8
+
+const n1OperatingForecastFixture n1CompositionFixtureProfile = 1
+
+func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport) {
 	t.Helper()
+	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture) {
+		t.Fatal("unknown closed composition fixture profile")
+	}
 	cp := newCheckpointComponent(t, true, false)
 	// Explicit component input, obtained from the actual existing file. Setting
 	// the assertion changes no page size; Assert repeats the read before BEGIN.
@@ -101,6 +108,13 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 			p.scanLifecycleMemory = commandMemoryBudget{4 << 20, 4 << 20}
 		}
 		if len(defs) == len(inventoryDriverCommandDefinitions()) {
+			if len(selected) == 1 {
+				forecast, err := inventoryN1Forecast(golden.Receipt(), engine, cp.w.config.WriterPageSize, cp.opening.binding.device)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return forecast
+			}
 			p.inventoryEngine = engine
 			unit := Work{16, 2000, 16, 65536, 100 * time.Microsecond}
 			// Derive the synthetic record envelope from the UNCHANGED unit's
@@ -136,9 +150,9 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 	return d, transport
 }
 
-func n1ComposedDriverPrepared(t *testing.T) (*ScanDriver, *N1Preparation, InventoryAcceptCommand, ScanReceiptRequest) {
+func n1ComposedDriverPrepared(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *N1Preparation, InventoryAcceptCommand, ScanReceiptRequest) {
 	t.Helper()
-	d, transport := n1ComposedDriverFixture(t)
+	d, transport := n1ComposedDriverFixture(t, selected...)
 	creation, err := d.PrepareCreate(t.Context(), ScanRunInput{7, "lifecycle-library", "lifecycle-new-source", "first-import"})
 	if err != nil {
 		t.Fatal(err)
