@@ -137,6 +137,7 @@
       "why": "Paired N1 component tests hash their owner, fixture and workload source closure and capture the foreground registry from the actual read definitions",
       "reads": [
         "server/internal/store/writer/n1_paired_export_test.go",
+        "server/internal/store/writer/ec3_write_waits_external_test.go",
         "server/internal/store/writer/ec2_sustained_external_test.go",
         "server/internal/store/qual/workload/ec2.go",
         "server/internal/store/writer/transaction_test.go",

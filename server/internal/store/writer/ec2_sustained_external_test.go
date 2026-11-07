@@ -22,6 +22,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/writer"
 )
 
+var ec3WriteEvery = flag.Duration("ec3-foreground-write-every", 0, "independent progress/security submissions;0 disables;1ms..1min")
+var ec3WritePattern = flag.String("ec3-foreground-write-pattern", "progress_drain,security", "closed progress_capture/progress_drain/security pattern")
+
 var ec2Enabled = flag.Bool("ec2-sustained", false, "opt-in EC2 component; never qualification")
 var ec2Every = flag.Duration("ec2-writer-every", time.Second, "declared serial writer cycle spacing,1ms..30s")
 var ec2Readers = flag.Duration("ec2-reader-every", 250*time.Millisecond, "one bounded serial foreground worker spacing,>=1ms")
@@ -112,11 +115,32 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var writeLedger *foregroundWriteLedger
+	if *ec3WriteEvery != 0 {
+		for _, op := range pattern {
+			if op != workload.EC2Inventory && op != workload.EC2Effective {
+				t.Fatal("foreground request mode requires scan-only writer pattern; no duplicate WC worker/receipt source")
+			}
+		}
+		var phases []workload.EC2Operation
+		for _, name := range strings.Split(*ec3WritePattern, ",") {
+			phases = append(phases, workload.EC2Operation(name))
+		}
+		foreground, ledger, err := foregroundWriteStream(*ec3WriteEvery, phases, ec2Bindings(t, c, *ec2Cohort))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeLedger = ledger
+		streams = append(streams, foreground)
+	}
 	duration := time.Duration(c.Measured) * time.Duration(len(pattern)) * schedule.WriterEvery
 	// Bound file/observer offer volume too, without widening any owner recipe.
 	total := uint64(0)
 	for _, stream := range streams {
 		total += uint64((duration-1)/stream.Every) + 1
+	}
+	if writeLedger != nil && int((duration-1) / *ec3WriteEvery)+1 > foregroundWriteLimit {
+		t.Fatal("foreground write planned ledger exceeds4096; no dropped requests")
 	}
 	if duration > 2*time.Hour || total > 65536 {
 		t.Fatal("EC2 declared schedule exceeds bounded duration/offer census")
@@ -133,6 +157,11 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 	runErr := workload.Run(ctx, cfg, streams, sink)
 	if runErr == nil && (!sink.finalSeen || !sink.complete) {
 		runErr = errors.New("incomplete EC2 offered schedule; retain all missed/unserved/error prefixes")
+	}
+	if writeLedger != nil {
+		expected := int((duration-1) / *ec3WriteEvery) + 1
+		raw, _ := json.Marshal(writeLedger.report(expected, sink.finalSeen && sink.complete))
+		runErr = errors.Join(runErr, c.EmitEC2("foreground_write_report", raw))
 	}
 	if err := c.Close(runErr); err != nil {
 		t.Fatal(err)

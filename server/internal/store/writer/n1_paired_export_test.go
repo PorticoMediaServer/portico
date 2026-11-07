@@ -187,7 +187,7 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 		t.Fatal(err)
 	}
 	hashes := map[string]string{}
-	for _, name := range []string{"n1_paired_export_test.go", "ec2_sustained_external_test.go", "../qual/workload/ec2.go", "transaction_test.go", "n1_paired_external_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "inventory_memory_test.go", "governor_turn_test.go", "scan_fresh_test.go", "../internal/readfixture/source.go", "../internal/readfixture/config.go", "../qual/workload/foreground.go"} {
+	for _, name := range []string{"n1_paired_export_test.go", "ec3_write_waits_external_test.go", "ec2_sustained_external_test.go", "../qual/workload/ec2.go", "transaction_test.go", "n1_paired_external_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "inventory_memory_test.go", "governor_turn_test.go", "scan_fresh_test.go", "../internal/readfixture/source.go", "../internal/readfixture/config.go", "../qual/workload/foreground.go"} {
 		raw, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
