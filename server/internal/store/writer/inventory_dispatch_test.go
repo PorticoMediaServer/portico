@@ -42,6 +42,7 @@ func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptReques
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
 	p, scan := profile(defs), profile(inventoryHistoryDefinitions())
+	scan.inventoryMemory = inventoryMemoryBudget{64 << 20, 64 << 20}
 	// Runtime binding qualifies the COMPLETE compiled set through actual
 	// Capture. Source facts/resource profiles remain protocol fixtures only.
 	conn, err := e.db.Conn(t.Context())

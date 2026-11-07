@@ -3,10 +3,13 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "scan",
-		resultTypes: []string{"InventoryResult", "inventoryReceiptLookup", "scanLifecycleReceiptLookup", "scanLifecycleCommandResult", "scanSourceFacts", "ScanRunLease", "ScanRunOperation", "ScanRunResult", "ScanRunSnapshot"},
-		names:       []string{"disclose", "requireInventoryMemory", "inventoryTimeMS", "scanCreateTimeMS", "scanClaimTimeMS", "requireScanLifecycleMemory", "applyInventoryCreate", "applyInventoryClaim", "persistScanRunLifecycleResult", "acknowledgeScanRunLifecycle", "composeScanLifecycleHistory", "ObserveInventory", "newScanPreparation", "newScanDriver", "keepPreparation", "prepareWork", "allocateBirth", "prepareBirth", "checkBirthAbsence", "excludeOldWork", "Lease", "PrepareClaim", "PrepareCreate", "checkScanSourceActive", "composeScanLifecycleProfiles", "configureScanIssuer", "excludePredecessor", "retainIssuerPreparation", "retainSourcePreparation"},
+		resultTypes: []string{"InventoryResult", "inventoryReceiptLookup", "scanLifecycleReceiptLookup", "scanLifecycleCommandResult", "scanSourceFacts", "ScanRunLease", "ScanRunOperation", "ScanRunResult", "ScanRunSnapshot", "scanByteVector", "scanLifecycleByteProof", "scanReceiptPrefix", "scanMemberByteProof", "scanSnapshotByteProof", "scanRunSnapshot"},
+		names:       []string{"disclose", "requireInventoryMemory", "inventoryTimeMS", "scanCreateTimeMS", "scanClaimTimeMS", "requireScanLifecycleMemory", "applyInventoryCreate", "applyInventoryClaim", "persistScanRunLifecycleResult", "acknowledgeScanRunLifecycle", "composeScanLifecycleHistory", "ObserveInventory", "newScanPreparation", "newScanDriver", "keepPreparation", "prepareWork", "allocateBirth", "prepareBirth", "checkBirthAbsence", "excludeOldWork", "Lease", "PrepareClaim", "PrepareCreate", "checkScanSourceActive", "composeScanLifecycleProfiles", "configureScanIssuer", "excludePredecessor", "retainIssuerPreparation", "retainSourcePreparation", "readScanReceiptIdentity", "requireScanByteMemory"},
 		prefixes:    []string{"checkInventory"},
 		bypasses: []string{
+			`func byteProofBypass(ctx context.Context)(out scanByteVector,err error){return out,nil}`,
+			`func readScanReceiptIdentity(ctx context.Context)(out receiptFacts,err error){return out,nil}`,
+			`func requireScanByteMemory(ctx context.Context)(err error){return nil}`,
 			`func newScanDriver(ctx context.Context)(out *ScanDriver,err error){return out,nil}`,
 			`func keepPreparation(ctx context.Context)(err error){return nil}`,
 			`func prepareWork(ctx context.Context)(out *scanDriverWork,err error){return out,nil}`,

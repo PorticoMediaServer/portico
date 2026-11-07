@@ -21,6 +21,10 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 	}
 
 	if purpose == InventoryAccept {
+		switch id {
+		case scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys:
+			return 1
+		}
 		if uses := inventoryFreshMaxUses(id); uses != 0 {
 			return uses
 		}
