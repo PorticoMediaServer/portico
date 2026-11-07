@@ -34,6 +34,7 @@ func ipTextLockDefinitions() []stmt.Definition {
 		{ID: ipTextReceiptInsert, Kind: stmt.Write, SQL: `INSERT INTO metadata_edit_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,applied_ms,result_digest,command_kind,field,accepted_revision,subject_revision,value,value_present,automatic_value,automatic_present,locked,changed,effective_changed,history_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, Params: []stmt.Param{i("owner"), b("incarnation"), i("sequence"), b("operation"), b("request"), i("applied_ms"), b("result"), s("kind"), s("field"), i("accepted_revision"), i("subject_revision"), s("value"), i("value_present"), s("automatic"), i("automatic_present"), i("locked"), i("changed"), i("effective_changed"), n("history")}},
 		{ID: ipTextReceiptBody, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_edit_receipts WHERE owner_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=? AND field=? AND value=? AND value_present=? AND automatic_value=? AND automatic_present=? AND locked=? AND history_id IS ?`, Params: []stmt.Param{i("owner"), b("incarnation"), i("sequence"), s("kind"), s("field"), s("value"), i("value_present"), s("automatic"), i("automatic_present"), i("locked"), n("history")}},
 	}
+	defs = append(defs, ipTextEditDefinitions()...)
 	for x := range defs {
 		defs[x].Owner = "writer.ip.text_lock"
 		defs[x].CallSites = []string{"writer/ip_text_lock.go:applyIPTextLock"}

@@ -20,8 +20,8 @@ import (
 const (
 	ipArtworkDiscoveryManifest      = "portico-ip-artwork-discovery-sha256-v1"
 	ipArtworkDiscoveryChunk         = 16
-	ipArtworkDiscoveryMaxCandidates = 64 // complete finite manifest, not counts as proof
-	ipArtworkDiscoveryMaxBytes      = 256 << 10
+	ipArtworkDiscoveryMaxCandidates = 160 // initial native envelope covers the existing adapter page; not completeness proof
+	ipArtworkDiscoveryMaxBytes      = 4 << 20
 	ipArtworkDiscoveryMaxText       = 16 << 10
 )
 
@@ -72,6 +72,11 @@ func ipArtworkDiscoveryText(s string, limit int) bool {
 }
 
 func ipArtworkDiscoveryCandidateBytes(c ipArtworkDiscoveryCandidate) (int64, error) {
+	switch c.role {
+	case "poster", "backdrop", "still", "logo", "square", "portrait", "banner", "cover":
+	default:
+		return 0, invalid("ip_artwork_candidate_role")
+	}
 	if c.ordinal < 0 || c.sourceOrdinal < 0 || math.IsNaN(c.score) || math.IsInf(c.score, 0) ||
 		c.role == "" || c.role != strings.ToLower(strings.TrimSpace(c.role)) || c.role == "thumb" || c.role == "thumbnail" ||
 		!ipArtworkDiscoveryText(c.role, 64) || !ipArtworkDiscoveryText(c.imageID, 4096) || c.imageID == "" ||
@@ -89,7 +94,7 @@ func ipArtworkDiscoveryValidate(q ipArtworkDiscoveryRequest, kind CommandID) err
 	if o.id <= 0 || (o.entityID <= 0) == (o.personID <= 0) || o.entityID < 0 || o.personID < 0 ||
 		q.identity.Incarnation != o.incarnation || q.identity.Sequence <= 0 || o.sourceRevision <= 0 || o.revision <= 0 ||
 		o.revision == math.MaxInt64 || o.leaseOwner <= 0 || o.leaseGeneration <= 0 || o.leaseUntilMS <= 0 ||
-		!ipArtworkDiscoveryText(s.provider, 64) || s.provider == "" || s.provider != strings.ToLower(strings.TrimSpace(s.provider)) ||
+		!ipArtworkDiscoveryText(s.provider, 128) || s.provider == "" || s.provider != strings.ToLower(strings.TrimSpace(s.provider)) ||
 		!ipArtworkDiscoveryText(s.language, 64) || s.policyRevision <= 0 || s.generation <= 0 ||
 		s.expectedCount < 0 || s.expectedCount > ipArtworkDiscoveryMaxCandidates || s.expectedBytes < 0 ||
 		s.expectedBytes > ipArtworkDiscoveryMaxBytes || (s.expectedCount == 0) != (s.expectedBytes == 0) ||

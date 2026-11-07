@@ -30,12 +30,16 @@ type ipTextLockRequest struct {
 	MetadataIncarnation                            [16]byte
 	Before                                         fieldmeta.TextState
 	Locked                                         bool
+	Edit                                           fieldmeta.TextEdit
+	Projection                                     ipTextProjection
 }
 
 type ipTextLockCommand struct {
 	identity                CommandIdentity
+	kind                    CommandID
 	request                 ipTextLockRequest
 	digest                  RequestDigest
+	projection              ipTextProjection
 	after                   fieldmeta.TextChange
 	beforeAudit, afterAudit string
 }
@@ -55,6 +59,14 @@ type ipTextLockNative struct {
 }
 
 func newIPTextLockCommand(identity CommandIdentity, q ipTextLockRequest) (ipTextLockCommand, error) {
+	edit := fieldmeta.TextEdit{Action: fieldmeta.UnlockText}
+	if q.Locked {
+		edit.Action = fieldmeta.LockText
+	}
+	return newIPTextMutationCommand(identity, q, IPFieldLock, edit)
+}
+
+func newIPTextMutationCommand(identity CommandIdentity, q ipTextLockRequest, kind CommandID, edit fieldmeta.TextEdit) (ipTextLockCommand, error) {
 	if _, err := CheckSealControlStrings([]string{q.Kind, q.Actor, string(q.Field)}); err != nil {
 		return ipTextLockCommand{}, err
 	}
@@ -64,10 +76,13 @@ func newIPTextLockCommand(identity CommandIdentity, q ipTextLockRequest) (ipText
 		q.Kind == "" || q.Actor == "" || !sealNativeText(q.Kind) || !sealNativeText(q.Actor) {
 		return ipTextLockCommand{}, ErrInvalid
 	}
-	edit := fieldmeta.TextEdit{Action: fieldmeta.UnlockText}
-	if q.Locked {
-		edit.Action = fieldmeta.LockText
+	if (kind != IPFieldLock && kind != IPFieldEdit && kind != IPFieldRestore) ||
+		(kind == IPFieldEdit && edit.Action != fieldmeta.SetText) ||
+		(kind == IPFieldRestore && edit.Action != fieldmeta.RestoreAutomatic) ||
+		(kind == IPFieldLock && edit.Action != fieldmeta.LockText && edit.Action != fieldmeta.UnlockText) {
+		return ipTextLockCommand{}, ErrInvalid
 	}
+	q.Edit = edit
 	after, err := fieldmeta.PrepareTextEdit(q.Field, q.Before, edit)
 	if err != nil {
 		return ipTextLockCommand{}, errors.Join(ErrInvalid, err)
@@ -76,11 +91,17 @@ func newIPTextLockCommand(identity CommandIdentity, q ipTextLockRequest) (ipText
 	q.Field = fieldmeta.TextField(strings.Clone(string(q.Field)))
 	q.Before.Effective.Value = strings.Clone(q.Before.Effective.Value)
 	q.Before.Automatic.Value = strings.Clone(q.Before.Automatic.Value)
-	digest, err := canonicalRequestDigest(IPFieldLock, 1, identity, q)
+	digest, err := canonicalRequestDigest(kind, 1, identity, q)
 	if err != nil {
 		return ipTextLockCommand{}, err
 	}
-	// Audit format records the lock delta. Full field values live once in the
+	projection, err := ipTextPrepareProjection(q, after)
+	if err != nil {
+		return ipTextLockCommand{}, err
+	}
+	q.Edit.Value = strings.Clone(q.Edit.Value)
+	q.Projection = ipTextCloneProjection(q.Projection)
+	// Audit format records the field delta. Full field values live once in the
 	// normalized history child; they are not duplicated into audit JSON.
 	type auditField struct {
 		Field  string
@@ -97,12 +118,12 @@ func newIPTextLockCommand(identity CommandIdentity, q ipTextLockRequest) (ipText
 	if len(beforeJSON) > maxCanonicalRequestBytes-len(afterJSON) {
 		return ipTextLockCommand{}, ErrInvalid
 	}
-	return ipTextLockCommand{identity, q, digest, after, string(beforeJSON), string(afterJSON)}, nil
+	return ipTextLockCommand{identity: identity, kind: kind, request: q, digest: digest, projection: projection, after: after, beforeAudit: string(beforeJSON), afterAudit: string(afterJSON)}, nil
 }
 
 func applyIPTextLock(ctx context.Context, turn *commandTurn, command ipTextLockCommand, appliedMS int64) (out ipTextLockNative, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if turn == nil || command.digest == (RequestDigest{}) || appliedMS < 0 {
+	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != command.kind || command.digest == (RequestDigest{}) || appliedMS < 0 {
 		return out, ErrInvalid
 	}
 	if err = turn.checkLifetimes(ctx); err != nil {
@@ -111,8 +132,16 @@ func applyIPTextLock(ctx context.Context, turn *commandTurn, command ipTextLockC
 	q, i := command.request, command.identity
 	// Recompute the original complete root; possession of the cached digest
 	// neither authorizes the command nor hides a later changed implicit input.
-	digest, e := canonicalRequestDigest(IPFieldLock, 1, i, q)
+	digest, e := canonicalRequestDigest(command.kind, 1, i, q)
 	if e != nil || digest != command.digest {
+		return out, ErrInvalid
+	}
+	check, e := fieldmeta.PrepareTextEdit(q.Field, q.Before, q.Edit)
+	if e != nil || check != command.after {
+		return out, ErrInvalid
+	}
+	projection, e := ipTextPrepareProjection(q, check)
+	if e != nil || projection != command.projection {
 		return out, ErrInvalid
 	}
 	var owner receiptOwnerFacts
@@ -162,7 +191,7 @@ func applyIPTextLock(ctx context.Context, turn *commandTurn, command ipTextLockC
 		found.kind = CommandID(nativeKind)
 		found.resultCount = 1
 	}
-	decision, e := classifyReceipt(receiptIdentity{i, command.digest}, IPFieldLock, owner, found)
+	decision, e := classifyReceipt(receiptIdentity{i, command.digest}, command.kind, owner, found)
 	if e != nil {
 		return out, e
 	}
@@ -171,14 +200,14 @@ func applyIPTextLock(ctx context.Context, turn *commandTurn, command ipTextLockC
 		return out, nil
 	}
 	if decision == receiptReplay {
-		if changed < 0 || changed > 1 || effective != 0 || accepted <= 0 || subject <= 0 || at < 0 || history.Valid != (changed == 1) {
+		if changed < 0 || changed > 1 || effective != ipTextBool(command.after.EffectiveChanged) || accepted <= 0 || subject <= 0 || at < 0 || history.Valid != (changed == 1) {
 			return ipTextLockNative{}, ErrResolveRequired
 		}
 		out.value = ipTextLockResult{q.OwnerID, q.EntityID, accepted, subject, at, q.Kind, string(q.Field), command.after.State.Effective.Value, command.after.State.Automatic.Value, command.after.State.Effective.Present, command.after.State.Automatic.Present, command.after.State.Locked, changed == 1, EvidenceInteger{history.Int64, history.Valid}}
 		if err = ipTextReceiptMatches(ctx, turn, command, out.value); err != nil {
 			return ipTextLockNative{}, err
 		}
-		out.digest, err = ipTextLockResultDigest(i, command.digest, out.value)
+		out.digest, err = ipTextMutationResultDigest(command.kind, i, command.digest, out.value, command.after.EffectiveChanged)
 		if err != nil || [32]byte(out.digest) != found.resultDigest {
 			return ipTextLockNative{}, ErrResolveRequired
 		}
@@ -199,20 +228,30 @@ func applyIPTextLock(ctx context.Context, turn *commandTurn, command ipTextLockC
 	if err = ipTextExpectOne(ctx, turn, ipTextField, q.Kind, q.EntityID, string(q.Field), b.Effective.Value, b.Automatic.Value, ipTextBool(b.Effective.Present), ipTextBool(b.Automatic.Present), ipTextBool(b.Locked)); err != nil {
 		return ipTextLockNative{}, err
 	}
+	if command.after.EffectiveChanged {
+		if err = ipTextCheckProjection(ctx, turn, q, command.projection); err != nil {
+			return ipTextLockNative{}, err
+		}
+	}
 	ownerNext, subjectNext := ownerRevision, q.ExpectedSubjectRevision
 	var historyID EvidenceInteger
 	if command.after.Changed {
 		ownerNext++
 		subjectNext++
 		stamp := time.UnixMilli(appliedMS).UTC().Format(time.RFC3339Nano)
-		if err = ipTextExpectOne(ctx, turn, ipTextLockUpdate, ipTextBool(q.Locked), q.Actor, stamp, q.Kind, q.EntityID, string(q.Field), ipTextBool(b.Locked)); err != nil {
+		if err = ipTextExpectOne(ctx, turn, ipTextFieldUpdate, command.after.State.Effective.Value, ipTextBool(command.after.State.Effective.Present), ipTextBool(command.after.State.Locked), q.Actor, stamp, q.Kind, q.EntityID, string(q.Field), ipTextBool(b.Locked)); err != nil {
 			return ipTextLockNative{}, err
+		}
+		if command.after.EffectiveChanged {
+			if err = ipTextApplyProjection(ctx, turn, q, command.projection, command.after.State.Effective.Value); err != nil {
+				return ipTextLockNative{}, err
+			}
 		}
 		if err = ipTextExpectOne(ctx, turn, ipTextSubjectAdvance, q.EntityID, q.LibraryID, q.MetadataIncarnation[:], q.ExpectedSubjectRevision, q.ExpectedMetadataRevision); err != nil {
 			return ipTextLockNative{}, err
 		}
 		var id int64
-		rows, e = ipTextRows(ctx, turn, ipTextHistoryInsert, q.Kind, q.EntityID, strconv.FormatInt(ownerRevision, 10), strconv.FormatInt(ownerNext, 10), "field_lock", q.Actor, stamp, command.beforeAudit, command.afterAudit)
+		rows, e = ipTextRows(ctx, turn, ipTextHistoryInsert, q.Kind, q.EntityID, strconv.FormatInt(ownerRevision, 10), strconv.FormatInt(ownerNext, 10), ipTextCommandName(command.kind), q.Actor, stamp, command.beforeAudit, command.afterAudit)
 		if e != nil {
 			return ipTextLockNative{}, e
 		}
@@ -227,7 +266,7 @@ func applyIPTextLock(ctx context.Context, turn *commandTurn, command ipTextLockC
 		}
 	}
 	out.value = ipTextLockResult{q.OwnerID, q.EntityID, ownerNext, subjectNext, appliedMS, q.Kind, string(q.Field), command.after.State.Effective.Value, command.after.State.Automatic.Value, command.after.State.Effective.Present, command.after.State.Automatic.Present, command.after.State.Locked, command.after.Changed, historyID}
-	out.digest, err = ipTextLockResultDigest(i, command.digest, out.value)
+	out.digest, err = ipTextMutationResultDigest(command.kind, i, command.digest, out.value, command.after.EffectiveChanged)
 	if err != nil {
 		return ipTextLockNative{}, err
 	}
@@ -238,7 +277,7 @@ func applyIPTextLock(ctx context.Context, turn *commandTurn, command ipTextLockC
 	if historyID.Present {
 		historyValue = historyID.Value
 	}
-	if err = ipTextExecOne(ctx, turn, ipTextReceiptInsert, q.OwnerID, i.Incarnation[:], i.Sequence, i.OperationID[:], command.digest[:], appliedMS, out.digest[:], "field_lock", string(q.Field), ownerNext, subjectNext, out.value.Value, ipTextBool(out.value.ValuePresent), out.value.Automatic, ipTextBool(out.value.AutomaticPresent), ipTextBool(out.value.Locked), ipTextBool(out.value.Changed), int64(0), historyValue); err != nil {
+	if err = ipTextExecOne(ctx, turn, ipTextReceiptInsert, q.OwnerID, i.Incarnation[:], i.Sequence, i.OperationID[:], command.digest[:], appliedMS, out.digest[:], ipTextCommandName(command.kind), string(q.Field), ownerNext, subjectNext, out.value.Value, ipTextBool(out.value.ValuePresent), out.value.Automatic, ipTextBool(out.value.AutomaticPresent), ipTextBool(out.value.Locked), ipTextBool(out.value.Changed), ipTextBool(command.after.EffectiveChanged), historyValue); err != nil {
 		return ipTextLockNative{}, err
 	}
 	return out, turn.checkLifetimes(ctx)
@@ -310,5 +349,5 @@ func ipTextReceiptMatches(ctx context.Context, t *commandTurn, c ipTextLockComma
 	if v.HistoryID.Present {
 		history = v.HistoryID.Value
 	}
-	return ipTextExpectOne(ctx, t, ipTextReceiptBody, c.request.OwnerID, i.Incarnation[:], i.Sequence, "field_lock", string(c.request.Field), v.Value, ipTextBool(v.ValuePresent), v.Automatic, ipTextBool(v.AutomaticPresent), ipTextBool(v.Locked), history)
+	return ipTextExpectOne(ctx, t, ipTextReceiptBody, c.request.OwnerID, i.Incarnation[:], i.Sequence, ipTextCommandName(c.kind), string(c.request.Field), v.Value, ipTextBool(v.ValuePresent), v.Automatic, ipTextBool(v.AutomaticPresent), ipTextBool(v.Locked), history)
 }

@@ -38,6 +38,9 @@ func writeIPTextLockResult(e *requestEncoder, i CommandIdentity, q RequestDigest
 	e.number(uint64(i.Sequence))
 	e.bytes(i.OperationID[:])
 	e.bytes(q[:])
+	return writeIPTextResultPayload(e, v)
+}
+func writeIPTextResultPayload(e *requestEncoder, v ipTextLockResult) error {
 	for _, n := range []int64{v.OwnerID, v.EntityID, v.AcceptedRevision, v.SubjectRevision, v.AppliedMS} {
 		e.number(uint64(n))
 	}

@@ -36,7 +36,7 @@ func ipTextFixture(t *testing.T) (*executor, ipTextLockCommand) {
 	return w, c
 }
 
-func ipTextTurn(t *testing.T, w *executor) *commandTurn {
+func ipTextTurn(t *testing.T, w *executor, kinds ...CommandID) *commandTurn {
 	t.Helper()
 	defs := ipTextLockDefinitions()
 	r, err := stmttest.New(t, defs)
@@ -44,7 +44,11 @@ func ipTextTurn(t *testing.T, w *executor) *commandTurn {
 		t.Fatal(err)
 	}
 	recipe := turnRecipe{limit: Work{4096, 10000000, 4096, 64 << 20, 25 * time.Millisecond}, setup: Work{16, 1000, 16, 65536, time.Millisecond}, terminal: Work{16, 1000, 16, 65536, time.Millisecond}}
-	tx, err := w.begin(t.Context(), IPFieldLock, recipe, &testCustody{})
+	kind := IPFieldLock
+	if len(kinds) > 0 {
+		kind = kinds[0]
+	}
+	tx, err := w.begin(t.Context(), kind, recipe, &testCustody{})
 	if err != nil {
 		t.Fatal(err)
 	}
