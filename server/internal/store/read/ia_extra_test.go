@@ -117,7 +117,7 @@ func TestIAExtraSQLMutants(t *testing.T) {
 				if mode == "library" && defs[i].ID == readStatementID("foreground.ia.extra.extra") {
 					defs[i].SQL = strings.Replace(defs[i].SQL, "relative_path,l.id", "relative_path,1", 1)
 				}
-				if mode == "cohort" && defs[i].ID == readStatementID("foreground.ia.audio.links") {
+				if mode == "cohort" && defs[i].ID == readStatementID("foreground.ia.extra.links") {
 					defs[i].SQL = strings.Replace(defs[i].SQL, "LIMIT 17", "LIMIT 1", 1)
 				}
 			}

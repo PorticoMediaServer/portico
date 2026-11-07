@@ -1,17 +1,32 @@
 package read
 
-import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+import (
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"strings"
+)
 
+const iaExtraEntityOctetsSQL = `SELECT octet_length(sort_key),octet_length(public_id),octet_length(title),octet_length(metadata_incarnation),octet_length(music_incarnation),octet_length(artwork_incarnation) FROM catalog_entities WHERE id=? AND library_id=?`
 const iaExtraSQL = `SELECT x.item_id,x.library_id,x.parent_path,x.owner_id,x.kind,x.title,x.asset_id,x.relative_path,l.id FROM item_extras AS x CROSS JOIN catalog_libraries AS l ON l.library_id=x.library_id WHERE x.item_id=?`
 const iaExtraOctetsSQL = `SELECT octet_length(library_id),octet_length(parent_path),octet_length(kind),octet_length(title),octet_length(asset_id),octet_length(relative_path) FROM item_extras WHERE item_id=?`
 
 // IAExtraHarnessDefinitions is independently composable. The parent must retain
-// shared audio entity/link definitions (including iaLinkOctetsID) only once.
+// shared iaLinkOctetsID only once.
 func IAExtraHarnessDefinitions() []stmt.Definition {
 	var out []stmt.Definition
 	for _, d := range IAAudioHarnessDefinitions() {
 		switch string(d.ID) {
 		case "read.foreground.ia.audio.entity", "read.foreground.ia.audio.entity_octets", "read.foreground.ia.audio.links", "read.foreground.ia.audio.link", "read.foreground.ia.link_octets":
+			if d.ID != iaLinkOctetsID {
+				d.ID = stmt.ID(strings.Replace(string(d.ID), ".audio.", ".extra.", 1))
+				d.Owner = "store/read/ia_extra"
+				d.CallSites = []string{"store/read/ia_extra.go"}
+				if d.ID == readStatementID("foreground.ia.extra.entity") {
+					d.SQL = strings.Replace(d.SQL, "scalar_source_revision FROM", "scalar_source_revision,artwork_incarnation FROM", 1)
+				}
+				if d.ID == readStatementID("foreground.ia.extra.entity_octets") {
+					d.SQL = iaExtraEntityOctetsSQL
+				}
+			}
 			out = append(out, d)
 		}
 	}
