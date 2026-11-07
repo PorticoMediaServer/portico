@@ -38,3 +38,35 @@ func TestUSPreparationFormattingRedacts(t *testing.T) {
 		}
 	}
 }
+
+func TestUSCredentialAndProfileFormattingRedacts(t *testing.T) {
+	const secret = "private-credential-and-profile-sentinel"
+	target := usCredentialTarget{account: secret, username: secret, profileName: secret}
+	password := usPasswordReplaceRequest{target: target, previousHash: []byte(secret), nextHash: []byte(secret)}
+	issue := usCredentialIssueRequest{target: target, secretHash: secret, scopes: []string{secret}}
+	revoke := usCredentialRevokeRequest{target: target, secretHash: secret}
+	profile := usProfileTarget{profile: secret, lifetime: secret}
+	for _, v := range []any{target, password, usPasswordReplacePrepared{request: password}, issue,
+		usCredentialIssuePrepared{target: target}, usCredentialProtectedManifest{target: target}, revoke,
+		usCredentialRevokePrepared{request: revoke}, usCredentialPostResult{}, profile, usProfilePrepared{target: profile}} {
+		name := fmt.Sprintf("%T", v)
+		stringer, ok := v.(fmt.Stringer)
+		if !ok || !strings.Contains(stringer.String(), "redacted") {
+			t.Fatalf("%s String redaction", name)
+		}
+		gostringer, ok := v.(fmt.GoStringer)
+		if !ok || !strings.Contains(gostringer.GoString(), "redacted") {
+			t.Fatalf("%s GoString redaction", name)
+		}
+		if _, ok := v.(fmt.Formatter); !ok {
+			t.Fatalf("%s Format redaction", name)
+		}
+		for _, verb := range []string{"%s", "%v", "%+v", "%#v", "%q", "%x", "%X", "%d", "%100.3s", "%#100.20v"} {
+			for _, container := range []any{v, []any{v}, map[string]any{"request": v}} {
+				if strings.Contains(fmt.Sprintf(verb, container), secret) {
+					t.Errorf("%s private witness leaked with %s", name, verb)
+				}
+			}
+		}
+	}
+}

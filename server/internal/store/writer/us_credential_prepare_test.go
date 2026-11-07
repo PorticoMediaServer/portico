@@ -149,3 +149,15 @@ func TestUSCredentialPreparationRefusalsAndExpiry(t *testing.T) {
 		}
 	}
 }
+
+func TestUSCredentialTargetUsesDirectProfileNameRules(t *testing.T) {
+	target := usCredentialTestTarget()
+	target.profileName = "Profile\u200dname"
+	if !validUSCredentialTarget(target) {
+		t.Fatal("existing direct profile name rejected")
+	}
+	target.profileName = strings.Repeat("é", 61)
+	if validUSCredentialTarget(target) {
+		t.Fatal("profile name byte limit changed to rune limit")
+	}
+}

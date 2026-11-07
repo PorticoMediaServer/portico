@@ -65,11 +65,14 @@ INSERT INTO direct_profiles(account_id,id,lifetime,name,position,art,pin_hash,al
 		t.Fatal("duplicate creation replaced a lifetime", e)
 	}
 	var original usProfileEffect
-	var hash []byte
-	if err := query(usProfileMetadataFacts, "us-profile-account", "us-profile", strings.Repeat("f", 32), int64(1)).Scan(append(original.destinations(), &hash)...); err != nil {
+	if err := query(usProfileMetadataFacts, "us-profile-account", "us-profile", strings.Repeat("f", 32), int64(1)).Scan(original.destinations()...); err != nil {
 		t.Fatal(err)
 	}
-	original.pinRequired = hash != nil
+	var present int64
+	if err := query(usProfilePINPresent, "us-profile-account", "us-profile", strings.Repeat("f", 32), int64(1)).Scan(&present); err != nil || present != 1 {
+		t.Fatal("native PIN presence", err)
+	}
+	original.pinRequired = present == 1
 	if !original.pinRequired || !original.libraries.Valid || original.libraries.String != "[]" || original.avatarVersion != 3 {
 		t.Fatal("native image incomplete", original)
 	}

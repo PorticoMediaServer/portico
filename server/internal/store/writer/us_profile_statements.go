@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	usProfilePINPresent    stmt.ID = "us.profile.pin.present"
 	usProfileMemberFacts   stmt.ID = "us.profile.member.facts"
 	usProfileMetadataFacts stmt.ID = "us.profile.metadata.facts"
 	usProfileCreateWrite   stmt.ID = "us.profile.create.write"
@@ -25,10 +26,11 @@ func usProfileEffectDefinitions() []stmt.Definition {
 	bindings := []any{"us-profile-account", "us-profile", "ffffffffffffffffffffffffffffffff", int64(1)}
 	defs := []stmt.Definition{
 		{ID: usProfileMemberFacts, Kind: stmt.Read, SQL: `SELECT m.account_id,m.incarnation,m.revision,a.epoch FROM direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=m.account_id WHERE m.account_id=? AND m.incarnation=? AND m.revision=? AND a.epoch=? AND m.disabled=0`, Params: []stmt.Param{txt("account"), txt("incarnation"), integer("revision"), integer("epoch")}, Cohorts: []stmt.Cohort{{Name: "current", Bindings: []any{"us-profile-account", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", int64(1), int64(1)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_accounts_1"}, Seeks: []string{"account_id=?", "id=?"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "direct_memberships", Name: "sqlite_autoindex_direct_memberships_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "account_id", Collation: "BINARY"}}}, {Table: "accounts", Name: "sqlite_autoindex_accounts_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}},
-		{ID: usProfileMetadataFacts, Kind: stmt.Read, SQL: `SELECT ` + usProfileColumns + `,pin_hash FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2 WHERE account_id=? AND id=? AND lifetime=? AND revision=? AND deleted=0`, Params: target, Cohorts: []stmt.Cohort{{Name: "current", Bindings: bindings}}, Plan: profilePlan},
+		{ID: usProfileMetadataFacts, Kind: stmt.Read, SQL: `SELECT ` + usProfileColumns + ` FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2 WHERE account_id=? AND id=? AND lifetime=? AND revision=? AND deleted=0`, Params: target, Cohorts: []stmt.Cohort{{Name: "current", Bindings: bindings}}, Plan: profilePlan},
 		{ID: usProfileCreateWrite, Kind: stmt.Write, SQL: `INSERT INTO direct_profiles(account_id,id,lifetime,name,position,art) VALUES(?,?,?,?,?,?) RETURNING ` + usProfileColumns, Params: []stmt.Param{txt("account"), txt("profile"), txt("lifetime"), txt("name"), integer("position"), txt("art")}, Cohorts: []stmt.Cohort{{Name: "new", Bindings: []any{"us-profile-account", "us-new-profile", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "New", int64(9), "blue"}}}, Plan: stmt.Plan{Hot: true}},
 		{ID: usProfileMetadataWrite, Kind: stmt.Write, SQL: `UPDATE direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2 SET name=?,art=?,revision=revision+1 WHERE account_id=? AND id=? AND lifetime=? AND revision=? AND deleted=0 AND revision>=1 AND revision<9007199254740991 RETURNING ` + usProfileColumns, Params: append([]stmt.Param{txt("name"), txt("art")}, target...), Cohorts: []stmt.Cohort{{Name: "current", Bindings: append([]any{"Edited", "mint"}, bindings...)}}, Plan: profilePlan},
 	}
+	defs = append(defs, stmt.Definition{ID: usProfilePINPresent, Kind: stmt.Read, SQL: `SELECT 1 FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2 WHERE account_id=? AND id=? AND lifetime=? AND revision=? AND deleted=0 AND pin_hash IS NOT NULL`, Params: target, Cohorts: []stmt.Cohort{{Name: "presence", Bindings: bindings}}, Plan: profilePlan})
 	for i := range defs {
 		defs[i].Owner = "store/writer US profile draft"
 		defs[i].CallSites = []string{"store/writer/us_profile_statements.go"}
@@ -64,8 +66,8 @@ func (v *usProfileEffect) destinations() []any {
 // count < current membership.max_profiles (actual product maximum 8), and gives
 // the current max(position)+1; position is NOT capped at 8 after retirements.
 // Reserve actual point octet_length bytes for all returned variable columns
-// and the private PIN hash read (only its presence leaves this helper),
 // before reading them, in this transaction; no column-times-maximum estimate.
+// PIN presence uses a separate numeric point; PIN hash bytes are never read.
 // The position <= usMaxRevision check is a private exact-integer recipe bound,
 // not a profile-count product quota; root must refuse overflow of max+1.
 // No family/user fanout, PIN, policy, selection, retirement or avatar-file effects.
@@ -128,14 +130,26 @@ func applyUSProfile(ctx context.Context, turn *commandTurn, p *usProfilePrepared
 		if e != nil {
 			return out, e
 		}
-		var hash []byte // native only; parent preflights its actual bytes too
-		if err = row.Scan(append(want.destinations(), &hash)...); err != nil {
+		if err = row.Scan(want.destinations()...); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				err = ErrConflict
 			}
 			return out, err
 		}
-		want.pinRequired = hash != nil
+		row, e = query(usProfilePINPresent, m.account, p.target.profile, p.target.lifetime, p.target.revision)
+		if e != nil {
+			return out, e
+		}
+		var present int64
+		e = row.Scan(&present)
+		if e == nil {
+			if present != 1 {
+				return out, ErrResolveRequired
+			}
+			want.pinRequired = true
+		} else if !errors.Is(e, sql.ErrNoRows) {
+			return out, e
+		}
 		if want.account != m.account || want.profile != p.target.profile || want.lifetime != p.target.lifetime || want.revision != p.target.revision || want.deleted {
 			return out, ErrResolveRequired
 		}

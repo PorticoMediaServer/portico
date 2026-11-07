@@ -5,12 +5,6 @@ import (
 	"unicode/utf8"
 )
 
-// Reserved purposes only; root owns registration and concrete receipt admission.
-const (
-	usProfileCreate       CommandID = 530
-	usProfileMetadataEdit CommandID = 531
-)
-
 func describeUSProfileCommand(id CommandID) (Descriptor, bool) {
 	switch id {
 	case usProfileCreate:

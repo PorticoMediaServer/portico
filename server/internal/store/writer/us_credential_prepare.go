@@ -4,17 +4,11 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
-// Reserved purposes only. Root registers these in commands_us.go when its
-// authority, per-purpose saved result and FULL composition are ready.
-const (
-	usLocalPasswordReplace CommandID = 520
-	usAPICredentialIssue   CommandID = 521
-	usAPICredentialRevoke  CommandID = 522
-	// Existing access/credentials.go expiry envelope, not a new product quota.
-	usCredentialLifetimeMS int64 = int64(10 * 365 * 24 * time.Hour / time.Millisecond)
-)
+// Existing access/credentials.go expiry envelope, not a new product quota.
+const usCredentialLifetimeMS int64 = int64(10 * 365 * 24 * time.Hour / time.Millisecond)
 
 func describeUSCredentialCommand(id CommandID) (Descriptor, bool) {
 	switch id {
@@ -46,7 +40,7 @@ func validUSCredentialTarget(t usCredentialTarget) bool {
 		t.memberRevision > 0 && t.memberRevision <= usMaxRevision &&
 		t.profileRevision > 0 && t.profileRevision <= usMaxRevision &&
 		t.username != "" && safeUSInvitationText(t.username, 64) &&
-		t.profileName != "" && safeUSInvitationText(t.profileName, 120)
+		t.profileName != "" && len(t.profileName) <= 120 && utf8.ValidString(t.profileName) && strings.IndexFunc(t.profileName, func(r rune) bool { return r < 32 || r == 127 }) < 0
 }
 
 type usPasswordReplaceRequest struct {
