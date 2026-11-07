@@ -196,7 +196,7 @@ func (r *SharedChannelReader) channelSource(q browseQuery, in SharedChannelScope
 		return stamp, info, ErrDenied
 	}
 	v := rows[0]
-	if v[0] != in.ExpectedRevision || v[2] != int64(1) || v[3] != int64(0) || v[4] != in.Channel || v[5] != in.ExpectedRevision || v[7] != "building" {
+	if v[0] != in.ExpectedRevision || v[2] != int64(1) || v[3] != int64(0) || v[4] != in.Channel || v[5] != in.ExpectedRevision || v[7] != "pending" {
 		return stamp, info, ErrStale
 	}
 	channelRaw, generationRaw := v[1].(string), v[6].(string)

@@ -22,7 +22,7 @@ func newRBChannelSource(t *testing.T) *browseFixture {
 	f := newBrowseSource(t)
 	canonical := rbChannelAcceptedFixture(t, "movie")
 	f.exec(t, `INSERT INTO lc_channels(id,revision,config_json,enabled,position,name,state) VALUES('channel',1,?,1,0,'Channel','building')`, string(canonical))
-	f.exec(t, `INSERT INTO lc_generations(id,channel_id,config_revision,config_json,catalog_fence,seed,status,phase,base_generation,start_ms,end_ms,boundary_ms,cursor_ms,created_ms,command_incarnation,create_operation_id,birth_request_digest,entry_digest,verify_end_ms,verified_entry_digest) VALUES('generation','channel',1,?,'','seed','building','candidates','',0,10000,0,0,1000,x'01010101010101010101010101010101',x'02020202020202020202020202020202',zeroblob(32),zeroblob(32),0,zeroblob(32))`, string(canonical))
+	f.exec(t, `INSERT INTO lc_generations(id,channel_id,config_revision,config_json,catalog_fence,seed,status,phase,base_generation,start_ms,end_ms,boundary_ms,cursor_ms,created_ms,command_incarnation,create_operation_id,birth_request_digest,entry_digest,verify_end_ms,verified_entry_digest) VALUES('generation','channel',1,?,'','seed','pending','candidates','',0,10000,0,0,1000,x'01010101010101010101010101010101',x'02020202020202020202020202020202',zeroblob(32),zeroblob(32),0,zeroblob(32))`, string(canonical))
 	return f
 }
 
@@ -183,4 +183,24 @@ func testRBChannelScopeRejectsCancellationAndForegroundBypass(t *testing.T) {
 	if scope, _, _, err := r.OpenSharedChannelScope(t.Context(), fg, time.Second, f.output, rbChannelScopeInput()); scope != nil || !errors.Is(err, ErrInput) {
 		t.Fatal("foreground bypassed LIVE", scope, err)
 	}
+}
+
+func TestRBChannelScopePendingGeneration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := rbChannelFixture(t)
+		scope, _, _, e := r.OpenSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, rbChannelScopeInput())
+		if e != nil || scope == nil {
+			t.Fatal("actual pending MG build refused", scope, e)
+		}
+		for _, status := range []string{"building", "published", "superseded", "failed", "cancelled", "retired"} {
+			f.exec(t, `UPDATE lc_generations SET status=? WHERE id='generation'`, status)
+			denied, _, _, e := r.OpenSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, rbChannelScopeInput())
+			if !errors.Is(e, ErrStale) || denied != nil {
+				t.Fatal("non-pending generation gained authority", status, denied, e)
+			}
+			if _, e = r.RevalidateSharedChannelScope(t.Context(), rbChannelRequest(), time.Second, f.output, scope); !errors.Is(e, ErrStale) {
+				t.Fatal("pending scope survived terminal/status drift", status, e)
+			}
+		}
+	})
 }
