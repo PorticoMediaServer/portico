@@ -82,7 +82,7 @@ func nativeAutomaticDefinitions() []stmt.Definition {
 				values[1] = int64(9)
 			}
 		case strings.HasPrefix(name, "local."):
-			values[1] = "local"
+			values[1] = "shared saga"
 			if len(values) > 2 {
 				values[2] = int64(4)
 			}
@@ -113,7 +113,7 @@ func nativeAutomaticDefinitions() []stmt.Definition {
 		case name == "owner":
 			values = []any{int64(10), int64(1)}
 		case name == "map":
-			values = []any{int64(1), "nfo", "local"}
+			values = []any{int64(1), "nfo", "shared saga"}
 		case name == "override":
 			values = []any{int64(10), int64(6)}
 		case name == "origin":
