@@ -165,7 +165,7 @@ func TestRBHomeRecentExactMergeAndSourceRefusal(t *testing.T) {
 		t.Fatal(row, cost, e)
 	}
 
-	if cost.PublicationStatements != 7 {
+	if cost.PublicationStatements != 14 {
 		t.Fatal("secondary library not freshly fenced", cost)
 	}
 	for n := int64(0); n < 64; n++ {
@@ -216,6 +216,30 @@ func TestRBHomeRecentRestrictedGlobalMerge(t *testing.T) {
 	row, _, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 2}}})
 	if e != nil || len(row.Items) != 2 || row.Items[0].Work.ID != 2010 || row.Items[1].Added != "2026-11-01T11:59:00.000000000Z" {
 		t.Fatal("hidden child reordered shelf", row, e)
+	}
+}
+
+type homeStageSnapshots struct {
+	*governor.Snapshots
+	reads  int
+	after  int
+	mutate func()
+}
+
+func (s *homeStageSnapshots) Read(ctx context.Context, request governor.Request, budget time.Duration, read func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	s.reads++
+	result, e := s.Snapshots.Read(ctx, request, budget, read)
+	if s.reads == s.after {
+		s.mutate()
+	}
+	return result, e
+}
+func TestRBHomeRecentStageHandoffRechecksAuthority(t *testing.T) {
+	f := newRBHomeFixture(t)
+	f.reader.snapshots = &homeStageSnapshots{Snapshots: f.snapshots, after: 3, mutate: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
+	row, _, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 2}}})
+	if !errors.Is(e, ErrDenied) || !reflect.DeepEqual(row, HomeRecentRow{}) {
+		t.Fatal("source capture escaped the target-stage fence", row, e)
 	}
 }
 

@@ -64,6 +64,7 @@ func TestRBHomeActivityRawReachabilityAndCursor(t *testing.T) {
 	for id := int64(10000); id < 10070; id++ {
 		public := make([]byte, 16)
 		binary.BigEndian.PutUint64(public[8:], uint64(id))
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,1)`, id, public)
 		f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,resume_position,activity_at) VALUES('p',?,?,1,5000,'2026-11-03T12:00:00.000000000Z')`, public, id)
 	}
 	in := HomeActivityInput{View: f.input, Family: HomeContinueActivity}

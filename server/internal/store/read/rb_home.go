@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"time"
 
@@ -157,7 +158,42 @@ func (r *BrowseReader) homeRecentRow(ctx context.Context, request governor.Reque
 	return r.homeRecentCompose(ctx, request, budget, output, in, sources, libraries)
 }
 
-func (r *BrowseReader) homeRecentCompose(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in HomeRecentInput, sources []HomeSource, libraries []int64) (HomeRecentRow, BrowseReadResult, error) {
+// Two bounded stages let source cardinality determine the number of target
+// windows. Both use the merged publication attempt, share ONE copy counter and
+// original deadline, and retry the WHOLE composition at most once.
+func (r *BrowseReader) homeRecentCompose(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in HomeRecentInput, sources []HomeSource, libraries []int64) (page HomeRecentRow, result BrowseReadResult, err error) {
+	started := time.Now()
+	defer func() { result.Elapsed = time.Since(started) }()
+	if ctx == nil || budget <= 0 {
+		return page, result, ErrInput
+	}
+	deadline := started.Add(min(budget, time.Second))
+	if request.Deadline.Before(deadline) {
+		deadline = request.Deadline
+	}
+	request.Deadline = deadline
+	var copied int64
+	for n := 0; n < 2; n++ {
+		current := in
+		current.View.Now = in.View.Now.Add(time.Since(started))
+		var one BrowseReadResult
+		page, one, err = r.homeRecentAttempt(ctx, request, time.Until(deadline), output, current, sources, libraries, &copied)
+		mergeHomeReadResult(&result, one)
+		result.Attempts = n + 1
+		if !errors.Is(err, ErrStale) || ctx.Err() != nil || !time.Now().Before(deadline) {
+			break
+		}
+	}
+	if errors.Is(err, ErrStale) {
+		result.Refusal = &governor.Refusal{Code: governor.Conflict}
+		err = errors.Join(err, governor.ErrBusy)
+	}
+	return
+}
+
+func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in HomeRecentInput, sources []HomeSource, libraries []int64, copied *int64) (HomeRecentRow, BrowseReadResult, error) {
+	started := time.Now()
+	deadline := homeMinTime(request.Deadline, started.Add(budget))
 	type candidate struct {
 		id     int64
 		source HomeSource
@@ -166,6 +202,8 @@ func (r *BrowseReader) homeRecentCompose(ctx context.Context, request governor.R
 	secondary := map[int64][]any{}
 	managed := map[int64]bool{}
 	fences := map[int64]browseFence{}
+	var initial browseFence
+	var rootImage []any
 	root := func(q browseQuery) ([]any, error) {
 		var all []any
 		for _, library := range libraries {
@@ -179,11 +217,12 @@ func (r *BrowseReader) homeRecentCompose(ctx context.Context, request governor.R
 				all = append(all, row...)
 			}
 		}
+		rootImage = all
 		return all, nil
 	}
-	steps := []readStep[HomeRecentRow]{func(_ context.Context, _ browseQuery, f browseFence, d *HomeRecentRow) error {
-		candidates = nil
-		fences = map[int64]browseFence{in.View.Library: f}
+	steps := []readStep[HomeRecentRow]{func(_ context.Context, _ browseQuery, f browseFence, _ *HomeRecentRow) error {
+		initial = f
+		fences[in.View.Library] = f
 		for _, library := range libraries[1:] {
 			other, e := homeLibraryFence(f, library, secondary[library])
 			if e != nil {
@@ -218,33 +257,42 @@ func (r *BrowseReader) homeRecentCompose(ctx context.Context, request governor.R
 			return ctx.Err()
 		})
 	}
-	// Fixed bounded business windows, with no SQL on unused positions. No native
-	// rows or SQLite snapshot survives a step. Candidate Go copies stay under the
-	// caller's output grant until publication and consumption.
-	for n := 0; n < 252; n++ {
+	sourcePage, result, e := publishAttempt(ctx, r.snapshots, request, time.Until(deadline), output, in.View, steps, copied, root)
+	if e != nil {
+		return HomeRecentRow{}, result, e
+	}
+	baseline := append([]any(nil), rootImage...)
+	steps = []readStep[HomeRecentRow]{func(_ context.Context, _ browseQuery, f browseFence, d *HomeRecentRow) error {
+		if f != initial || !equalSource(rootImage, baseline) {
+			return ErrStale
+		}
+		d.RawRows = sourcePage.RawRows
+		return nil
+	}}
+	// At most two targets per snapshot: <=6 business calls, <=132 joined raw
+	// rows. Unlike fixed spare slots, this executes no empty snapshot windows.
+	for n := 0; n < len(candidates); n += 2 {
 		steps = append(steps, func(ctx context.Context, q browseQuery, _ browseFence, d *HomeRecentRow) error {
-			if n >= len(candidates) {
-				return nil
+			for _, c := range candidates[n:min(n+2, len(candidates))] {
+				f := fences[c.source.Library]
+				f.kind = c.source.Kind
+				rows, e := q("rb.home.item", c.id, c.source.Library, c.source.Kind)
+				if e != nil {
+					return e
+				}
+				if len(rows) != 1 {
+					return ErrStale
+				}
+				card, raw, e := homeTarget(ctx, q, f, rows[0], managed[c.source.Library])
+				d.RawRows += len(rows) + raw
+				if e != nil {
+					return e
+				}
+				if card != nil {
+					d.Items = append(d.Items, *card)
+				}
 			}
-			c := candidates[n]
-			f := fences[c.source.Library]
-			f.kind = c.source.Kind
-			rows, e := q("rb.home.item", c.id, c.source.Library, c.source.Kind)
-			if e != nil {
-				return e
-			}
-			if len(rows) != 1 {
-				return ErrStale
-			}
-			card, raw, e := homeTarget(ctx, q, f, rows[0], managed[c.source.Library])
-			d.RawRows += len(rows) + raw
-			if e != nil {
-				return e
-			}
-			if card != nil {
-				d.Items = append(d.Items, *card)
-			}
-			return nil
+			return ctx.Err()
 		})
 	}
 	steps = append(steps, func(ctx context.Context, _ browseQuery, _ browseFence, d *HomeRecentRow) error {
@@ -255,7 +303,36 @@ func (r *BrowseReader) homeRecentCompose(ctx context.Context, request governor.R
 		d.Exhausted = true
 		return ctx.Err()
 	})
-	return publishRead(ctx, r.snapshots, request, budget, output, in.View, steps, root)
+	view := in.View
+	view.Now = view.Now.Add(time.Since(started))
+	page, targetResult, e := publishAttempt(ctx, r.snapshots, request, time.Until(deadline), output, view, steps, copied, root)
+	mergeHomeReadResult(&result, targetResult)
+	return page, result, e
+}
+
+func homeMinTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
+func mergeHomeReadResult(result *BrowseReadResult, one BrowseReadResult) {
+	if len(result.PublicationWindows) == 0 && !result.Publication.Started.IsZero() {
+		result.PublicationWindows = append(result.PublicationWindows, result.Publication)
+	}
+	result.Lookup = one.Lookup
+	result.Publication = one.Publication
+	result.LookupStatements += one.LookupStatements
+	result.PublicationStatements += one.PublicationStatements
+	result.LookupWindows = append(result.LookupWindows, one.LookupWindows...)
+	if len(one.PublicationWindows) > 0 {
+		result.PublicationWindows = append(result.PublicationWindows, one.PublicationWindows...)
+	} else if !one.Publication.Started.IsZero() {
+		result.PublicationWindows = append(result.PublicationWindows, one.Publication)
+	}
+	if one.Refusal != nil {
+		result.Refusal = one.Refusal
+	}
 }
 
 func homeLibraryFence(f browseFence, library int64, row []any) (browseFence, error) {
