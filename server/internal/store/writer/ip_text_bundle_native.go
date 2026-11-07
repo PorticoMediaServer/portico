@@ -35,7 +35,7 @@ func applyIPTextBundleBody(ctx context.Context, t *commandTurn, c ipTextBundleCo
 	q := c.request
 	s := q.Source
 	i := q.Identity
-	if t == nil || t.transaction == nil || appliedMS < 0 {
+	if t == nil || t.transaction == nil || (t.transaction.descriptor.ID != q.Kind && t.transaction.descriptor.ID != IPEditBulkPage) || appliedMS < 0 {
 		return out, ErrInvalid
 	}
 	checked, e := newIPTextBundleCommand(q)
