@@ -27,8 +27,8 @@ func iaConfigurationHistoryDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: iaConfigurationOwnerPoint, Kind: stmt.Read, SQL: `SELECT original_request_digest,command_kind,original_library_id,original_library_key,original_source_id,
 last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_reclaim_ordinal,receipt_retained_count,receipt_retained_bytes
-FROM catalog_configuration_operations WHERE original_operation_id=? AND command_incarnation=?`, Params: owner,
-			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_operations"}, Seeks: []string{"original_operation_id=?"}}},
+FROM catalog_configuration_operations INDEXED BY catalog_configuration_operation_kind WHERE original_operation_id=? AND command_incarnation=?`, Params: owner,
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_configuration_operation_kind"}, Seeks: []string{"original_operation_id=? AND command_incarnation=?"}}},
 		{ID: iaConfigurationHeaderPoint, Kind: stmt.Read, SQL: `SELECT operation_id,request_digest,result_version,result_count,result_digest,retained_bytes
 FROM catalog_configuration_receipts WHERE original_operation_id=? AND command_incarnation=? AND command_sequence=1 AND command_kind=?`, Params: header,
 			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_receipts"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"}}},
@@ -39,12 +39,12 @@ FROM catalog_configuration_receipts WHERE original_operation_id=? AND command_in
 source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes
 FROM catalog_configuration_sources WHERE original_operation_id=? AND command_incarnation=? AND command_sequence=1 AND command_kind=? ORDER BY ordinal LIMIT 65`, Params: header,
 			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_sources"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"}}},
-		{ID: iaConfigurationAckCAS, Kind: stmt.Write, SQL: `UPDATE catalog_configuration_operations SET acknowledged_command_sequence=1,receipt_reclaim_due_ms=?
+		{ID: iaConfigurationAckCAS, Kind: stmt.Write, SQL: `UPDATE catalog_configuration_operations INDEXED BY catalog_configuration_operation_kind SET acknowledged_command_sequence=1,receipt_reclaim_due_ms=?
 WHERE original_operation_id=? AND command_incarnation=? AND command_kind=? AND original_request_digest=? AND original_library_id=? AND original_library_key=?
 AND original_source_id IS NULL AND last_command_sequence=1 AND acknowledged_command_sequence=0
 AND receipt_reclaim_sequence=0 AND receipt_reclaim_ordinal=-1 AND receipt_retained_count=? AND receipt_retained_bytes=? AND receipt_reclaim_due_ms IS NULL`,
 			Params: []stmt.Param{i("due"), b("original_operation"), b("incarnation"), s("kind"), b("original_request"), i("library"), s("library_key"), i("rows"), i("bytes")},
-			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_operations"}, Seeks: []string{"original_operation_id=?"}}},
+			Plan:   stmt.Plan{Hot: true, Indexes: []string{"catalog_configuration_operation_kind"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_kind=?"}}},
 	}
 	// Closed100/101 variants preserve native NULL versus source equality. IS ?
 	// is outside HN's grammar; no nullable wildcard or grammar waiver is needed.
