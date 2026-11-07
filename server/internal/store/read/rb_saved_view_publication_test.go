@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -118,7 +119,7 @@ func savedViewSameDeadline(t *testing.T, h *savedViewWindowHook) {
 }
 
 func TestRBSavedViewPublication(t *testing.T) {
-	t.Run("actual-definition-and-cursor", func(t *testing.T) {
+	savedViewRun(t, "actual-definition-and-cursor", func(t *testing.T) {
 		f, r := savedViewFixture(t, 1)
 		in := SavedViewExecutionInput{View: f.input, Resource: "view-00"}
 		in.View.Limit = 1
@@ -147,7 +148,7 @@ func TestRBSavedViewPublication(t *testing.T) {
 			t.Fatal("caller order overrode stored direction", page, e)
 		}
 	})
-	t.Run("stored-library-authorization", func(t *testing.T) {
+	savedViewRun(t, "stored-library-authorization", func(t *testing.T) {
 		f, r := savedViewFixture(t, 1)
 		f.exec(t, `UPDATE saved_resources SET definition=? WHERE id='view-00'`, strings.Replace(savedViewTestDefinition, "movies", "other", 1))
 		in := SavedViewExecutionInput{View: f.input, Resource: "view-00"}
@@ -164,7 +165,7 @@ func TestRBSavedViewPublication(t *testing.T) {
 		}
 	})
 
-	t.Run("definition-drift-without-revision", func(t *testing.T) {
+	savedViewRun(t, "definition-drift-without-revision", func(t *testing.T) {
 		f, r := savedViewFixture(t, 1)
 		in := SavedViewExecutionInput{View: f.input, Resource: "view-00"}
 		in.View.Limit = 1
@@ -184,7 +185,7 @@ func TestRBSavedViewPublication(t *testing.T) {
 	})
 	t.Run("current-share-and-birth", func(t *testing.T) {
 		for _, birth := range []bool{false, true} {
-			t.Run(fmt.Sprint(birth), func(t *testing.T) {
+			savedViewRun(t, fmt.Sprint(birth), func(t *testing.T) {
 				f, r := savedViewFixture(t, 1)
 				f.exec(t, `UPDATE saved_resources SET owner_account='foreign',visibility='server' WHERE id='view-00'`)
 				f.exec(t, `INSERT INTO saved_resource_shares(resource_id,authority,account_id,profile_id,role) VALUES('view-00','local','a','p','viewer')`)
@@ -207,7 +208,7 @@ func TestRBSavedViewPublication(t *testing.T) {
 			})
 		}
 	})
-	t.Run("cumulative-copy-budget", func(t *testing.T) {
+	savedViewRun(t, "cumulative-copy-budget", func(t *testing.T) {
 		f, r := savedViewFixture(t, 1)
 		f.exec(t, `UPDATE catalog_entities SET title=printf('%04d',id)||?,sort_key=printf('%04d',id)||?,sort_key_keep_articles=printf('%04d',id)||? WHERE id<=64`, strings.Repeat("X", 10<<10), strings.Repeat("x", 10<<10), strings.Repeat("x", 10<<10))
 		hook := &savedViewWindowHook{base: f.snapshots}
@@ -223,7 +224,7 @@ func TestRBSavedViewPublication(t *testing.T) {
 		}
 		savedViewSameDeadline(t, hook)
 	})
-	t.Run("preflight-before-wide-payload", func(t *testing.T) {
+	savedViewRun(t, "preflight-before-wide-payload", func(t *testing.T) {
 		f, r := savedViewFixture(t, 1)
 		f.exec(t, `UPDATE saved_resources SET name=? WHERE id='view-00'`, strings.Repeat("N", 2<<20))
 		page, cost, e := savedViewExecute(t, f, r, SavedViewExecutionInput{View: f.input, Resource: "view-00"})
@@ -264,7 +265,7 @@ func savedViewDirectoryOracle(t *testing.T, f *browseFixture, pinned bool) []str
 	return ids
 }
 func TestRBSavedViewDirectory(t *testing.T) {
-	t.Run("complete-public-order-and-pagination", func(t *testing.T) {
+	savedViewRun(t, "complete-public-order-and-pagination", func(t *testing.T) {
 		f, r := savedViewFixture(t, 8)
 		names := []string{"Zulu", "alpha", "A\x00B", "a\x00a", "Éclair", "_prefix", "alpha", "SECRET"}
 		for n, name := range names {
@@ -340,7 +341,7 @@ func TestRBSavedViewDirectory(t *testing.T) {
 			captureBrowse(t, f, rbSavedViewDefinitions(), stats, hash)
 		}
 	})
-	t.Run("principal-only-no-library-anchor", func(t *testing.T) {
+	savedViewRun(t, "principal-only-no-library-anchor", func(t *testing.T) {
 		f, r := savedViewFixture(t, 1)
 		f.exec(t, `UPDATE direct_memberships SET allowed_libraries='[]' WHERE account_id='a'`)
 		in := SavedViewDirectoryInput{View: f.input}
@@ -352,14 +353,14 @@ func TestRBSavedViewDirectory(t *testing.T) {
 		}
 	})
 
-	t.Run("larger-source-is-pending", func(t *testing.T) {
+	savedViewRun(t, "larger-source-is-pending", func(t *testing.T) {
 		f, r := savedViewFixture(t, savedViewDirectoryCapacity+1)
 		p, cost, e := savedViewDirectory(t, f, r, SavedViewDirectoryInput{View: f.input})
 		if e != nil || !p.Pending || p.SourceExhausted || p.Exhausted || p.Next != nil || len(p.Items) != 0 || p.RawRows != 17 || p.RawPositions != 17 || cost.LookupStatements != 4 || cost.PublicationStatements != 4 {
 			t.Fatal("truncated exact success", p, cost, e)
 		}
 	})
-	t.Run("membership-crosses-bound-before-publication", func(t *testing.T) {
+	savedViewRun(t, "membership-crosses-bound-before-publication", func(t *testing.T) {
 		f, r := savedViewFixture(t, savedViewDirectoryCapacity)
 		hook := &savedViewWindowHook{base: f.snapshots}
 		hook.hook = func(n int) {
@@ -379,7 +380,7 @@ func TestRBSavedViewDirectory(t *testing.T) {
 			}
 		}
 	})
-	t.Run("current-pin-facts-without-generation", func(t *testing.T) {
+	savedViewRun(t, "current-pin-facts-without-generation", func(t *testing.T) {
 		f, r := savedViewFixture(t, 2)
 		for n := 0; n < 2; n++ {
 			id := fmt.Sprintf("view-%02d", n)
@@ -399,4 +400,9 @@ func TestRBSavedViewDirectory(t *testing.T) {
 		}
 		savedViewSameDeadline(t, hook)
 	})
+}
+
+func savedViewRun(t *testing.T, name string, fn func(*testing.T)) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) { synctest.Test(t, fn) })
 }

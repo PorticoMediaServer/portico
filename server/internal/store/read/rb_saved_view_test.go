@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -15,7 +16,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
-func TestRBSavedView(t *testing.T) {
+func TestRBSavedView(t *testing.T) { synctest.Test(t, testRBSavedView) }
+func testRBSavedView(t *testing.T) {
 	f := newBrowseSource(t)
 	definition := `{"libraryId":"movies","pivot":"movies","query":null,"sort":[{"field":"title","direction":"asc"}],"presentation":"grid"}`
 	add := func(id, account, name, visibility string) {
