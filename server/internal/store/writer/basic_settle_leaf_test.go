@@ -1,9 +1,11 @@
 package writer
 
 import (
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"math"
+	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 func TestBasicSettleLeafComponent(t *testing.T) {
@@ -14,12 +16,12 @@ func TestBasicSettleLeafComponent(t *testing.T) {
 			a.fileSizeRevision = math.MaxInt64
 			a.invalidationRevision = math.MaxInt64
 			for _, q := range []string{
-				`UPDATE catalog_info_changes SET family_mask=511 WHERE id=51`,
+				`UPDATE catalog_info_changes SET family_mask=511,has_after=1,after_entity=31,upper_entity=31 WHERE id=51`,
 				`UPDATE catalog_assets SET duration=100,file_size_revision=9223372036854775807,info_invalidation_revision=9223372036854775807,playback_origin_revision=9223372036854775807,prepared_source_revision=9223372036854775807 WHERE id=41`,
 				`UPDATE catalog_asset_links SET info_pending_change=51,part_index=2,playback_origin_revision=9223372036854775807 WHERE entity_id=31`,
-				`UPDATE catalog_entities SET resolution_key=0,community_rating_key=7,critic_rating_key=8,metadata_revision=9223372036854775807 WHERE id=31`,
+				`UPDATE catalog_entities SET resolution_key=0,file_size_key=42,community_rating_key=7,critic_rating_key=8,metadata_revision=9223372036854775807,scalar_source_revision=17,aggregate_revision=23 WHERE id=31`,
 				`INSERT INTO catalog_membership_clock(singleton,sequence) VALUES(1,9223372036854775807) ON CONFLICT(singleton) DO UPDATE SET sequence=excluded.sequence`,
-				`INSERT INTO catalog_scalar_contributions(library_id,parent_id,contributor_id,source,contributor_revision,membership_sequence) VALUES(7,31,31,0,1,9)`,
+				`INSERT INTO catalog_scalar_contributions(library_id,parent_id,contributor_id,source,contributor_revision,membership_sequence,community_rating,critic_rating) VALUES(7,31,31,0,17,9,7,8)`,
 				`INSERT INTO catalog_asset_contributions(library_id,parent_id,asset_id,membership_refs,file_size,file_size_revision,authored_refs) VALUES(7,31,41,1,42,9223372036854775807,0)`,
 			} {
 				if _, err := w.db.ExecContext(t.Context(), q); err != nil {
@@ -27,6 +29,15 @@ func TestBasicSettleLeafComponent(t *testing.T) {
 				}
 			}
 			if scenario == "preserved_max" {
+				for _, q := range []string{
+					`INSERT INTO catalog_info_shapes(id,container,video_codec,height,ref_count) VALUES(62,'mkv','h264',2160,1)`,
+					`INSERT INTO catalog_assets(id,token,library_id,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration) VALUES(42,'other-basic-asset',7,'/media/Other.mkv',42,-11,'mkv','h264','',3840,2160,200)`,
+					`INSERT INTO catalog_asset_links(library_id,entity_id,asset_id,info_shape_id,info_duration) VALUES(7,31,42,62,200)`,
+				} {
+					if _, err := w.db.ExecContext(t.Context(), q); err != nil {
+						t.Fatal(err)
+					}
+				}
 				for _, q := range []string{`UPDATE catalog_scalar_contributions SET duration=200,resolution=2160,contributor_revision=9223372036854775807,membership_sequence=9223372036854775807`, `UPDATE catalog_entities SET duration_key=200,resolution_key=2160,scalar_source_revision=9223372036854775807,aggregate_revision=9223372036854775807,revision=9223372036854775807,playback_origin_revision=9223372036854775807 WHERE id=31`} {
 					if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 						t.Fatal(err)
@@ -37,7 +48,7 @@ func TestBasicSettleLeafComponent(t *testing.T) {
 			if scenario == "late_returning" {
 				for i := range defs {
 					if defs[i].ID == basicSettleEntityCAS {
-						defs[i].SQL = defs[i].SQL[:len(defs[i].SQL)-len("aggregate_revision")] + "aggregate_revision+1"
+						defs[i].SQL = strings.Replace(defs[i].SQL, "RETURNING id,library_id,duration_key,resolution_key,scalar_source_revision,aggregate_revision", "RETURNING id,library_id,duration_key,resolution_key,aggregate_revision,scalar_source_revision", 1)
 					}
 				}
 			}
@@ -59,11 +70,11 @@ func TestBasicSettleLeafComponent(t *testing.T) {
 				if err = w.db.QueryRowContext(t.Context(), `SELECT info_epoch FROM catalog_assets WHERE id=41`).Scan(&epoch); err != nil {
 					t.Fatal(err)
 				}
-				if err = w.db.QueryRowContext(t.Context(), `SELECT scalar_source_revision FROM catalog_entities WHERE id=31`).Scan(&rev); err != nil || epoch != 17 || rev != 1 {
+				if err = w.db.QueryRowContext(t.Context(), `SELECT scalar_source_revision FROM catalog_entities WHERE id=31`).Scan(&rev); err != nil || epoch != 17 || rev != 17 {
 					t.Fatal(epoch, rev, err)
 				}
 				var installed int64
-				if err = w.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM catalog_asset_links WHERE entity_id=31 AND (info_shape_id IS NOT NULL OR info_duration<>0))+(SELECT count(*) FROM catalog_scalar_contributions WHERE parent_id=31 AND (duration IS NOT NULL OR resolution IS NOT NULL OR contributor_revision<>1))`).Scan(&installed); err != nil || installed != 0 {
+				if err = w.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM catalog_asset_links WHERE entity_id=31 AND (info_shape_id IS NOT NULL OR info_duration<>0))+(SELECT count(*) FROM catalog_scalar_contributions WHERE parent_id=31 AND (duration IS NOT NULL OR resolution IS NOT NULL OR contributor_revision<>17))`).Scan(&installed); err != nil || installed != 0 {
 					t.Fatal(installed, err)
 				}
 
@@ -73,7 +84,7 @@ func TestBasicSettleLeafComponent(t *testing.T) {
 				t.Fatal(err)
 			}
 			if scenario == "delta" {
-				if got.scalarRevision != 2 || got.aggregateRevision != 2 || got.duration.Float64 != 100 || got.resolution.Int64 != 1080 || got.membershipSequence != 9 {
+				if got.scalarRevision != 18 || got.aggregateRevision != 24 || got.duration.Float64 != 100 || got.resolution.Int64 != 1080 || got.membershipSequence != 9 {
 					t.Fatal(got)
 				}
 			} else {

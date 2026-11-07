@@ -3,7 +3,10 @@ package writer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"math"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // A component of the parent's final BasicAccept transaction, after activation.
@@ -35,6 +38,40 @@ func settleBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafSe
 	}
 	if entity != in.entityID {
 		return value, ErrConflict
+	}
+	ownerRows, e := basicRows(ctx, turn, basicAcceptOwners, s.assetID, int64(2))
+	if e != nil {
+		return value, e
+	}
+	if e = basicMediaExactRow(ownerRows, []any{in.entityID, s.libraryID, nil}); e != nil {
+		return value, e
+	}
+	for _, point := range []struct {
+		id   stmt.ID
+		args []any
+	}{
+		{basicAcceptSuccessor, []any{s.assetID, s.assetToken, int64(1)}},
+		{basicSettleCollection, []any{in.entityID}},
+	} {
+		row, e = basicStageRead(ctx, turn, point.id, point.args...)
+		if e != nil {
+			return value, e
+		}
+		var unexpected int64
+		e = row.Scan(&unexpected)
+		if e == nil {
+			return value, &Refusal{Code: RefusalUnqualified}
+		}
+		if !errors.Is(e, sql.ErrNoRows) {
+			return value, e
+		}
+	}
+	forward, e := basicRows(ctx, turn, basicSettleForward, in.entityID)
+	if e != nil {
+		return value, e
+	}
+	if e = basicMediaExactRow(forward, []any{in.entityID, int64(0)}); e != nil {
+		return value, e
 	}
 	step, ok := turn.steps[basicSettleReverse]
 	if !ok {
