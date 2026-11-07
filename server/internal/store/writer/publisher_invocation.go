@@ -77,7 +77,11 @@ func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDi
 		}
 		return checkPublisherDisclosure(w, publisher.disclosure, publisher.request)
 	}
-	return errors.Join(r.currentRunDisclosure(w, cap, request, scan), basicWorkCurrent(scan))
+	err := r.currentRunDisclosure(w, cap, request, scan)
+	if scan != nil && scan.basic != nil {
+		return errors.Join(err, basicWorkCurrent(scan))
+	}
+	return err
 }
 
 func validatePublisherInvocation(ctx context.Context, w *Writer, invocation *publisherInvocation) (out publisherInvocation, err error) {
