@@ -78,8 +78,10 @@ Builds have20-minute limits, each Go cell75minutes with a30-second hard watchdog
 the service80minutes and each job120minutes. Fail-fast is disabled. Source-owned
 partial/error/fence facts and original identities remain untouched. A final
 process-drain check supplements, never substitutes for, owner physical-return
-and connection-close evidence. The unit is stopped before hashing/upload;
-private scratch is then removed. Missing artifacts, failed cells, bad pins,
+and connection-close evidence. Before hashing/upload, cleanup requires the own
+unit to be stopped and its cgroup absent or unpopulated. It removes only fixed
+task-owned scratch, repairs private Go module directory permissions, and retains
+cleanup.json with the artifact. Evidence is removed locally only after upload. Missing artifacts, failed cells, bad pins,
 truncated streams or incomplete finals fail the execution summary. Cleanup or
 profile failures do not disappear behind a normal target exit.
 

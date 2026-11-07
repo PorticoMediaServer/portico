@@ -429,10 +429,17 @@ func ioStat(s string) error {
 	seen := map[string]bool{}
 	for _, line := range strings.Split(s, "\n") {
 		f := strings.Fields(line)
-		if len(f) < 5 || !device(f[0]) || seen[f[0]] {
+		if len(f) == 0 || !device(f[0]) || seen[f[0]] {
 			return fmt.Errorf("bad IO stat device")
 		}
 		seen[f[0]] = true
+		// Linux blkcg_print_one_stat prints the device before conditionally
+		// emitting the core read/write fields. A bare device is a valid
+		// no-read/write record, not an incomplete populated record. Keep raw
+		// text; do not synthesize zero discard/delay/policy-specific counters.
+		if len(f) == 1 {
+			continue
+		}
 		fields := map[string]bool{}
 		for _, field := range f[1:] {
 			p := strings.SplitN(field, "=", 2)
