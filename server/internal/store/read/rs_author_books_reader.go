@@ -60,22 +60,20 @@ type RSAuthorBookPage struct {
 	Pending, Complete bool
 }
 type RSAuthorBookPreparation struct {
-	mu                         sync.Mutex
-	reader                     *RSAuthorBookReader
-	lease                      *governor.PreparationLease
-	owner                      governor.OwnerID
-	input                      RSAuthorBookInput
-	started                    time.Time
-	used                       int64
-	fence                      browseFence
-	captured, closed           bool
-	entries                    []rsAuthorBookEntry
-	key                        string
-	scan, fileAfter, candidate int64
-	fileDisc, filePart         int64
-	candidateEntry             rsAuthorBookEntry
-	fileVisible                bool
-	authorContext              bool
+	mu               sync.Mutex
+	reader           *RSAuthorBookReader
+	lease            *governor.PreparationLease
+	owner            governor.OwnerID
+	input            RSAuthorBookInput
+	started          time.Time
+	used             int64
+	fence            browseFence
+	captured, closed bool
+	entries          []rsAuthorBookEntry
+	key              string
+	scan, fileAfter  int64
+	files            map[int64]uint8
+	authorContext    bool
 
 	phase       int
 	selected    []int64
@@ -98,7 +96,7 @@ func (p *RSAuthorBookPreparation) close() error {
 	p.closed = true
 	p.entries = nil
 	p.key = ""
-	p.candidateEntry = rsAuthorBookEntry{}
+	p.files = nil
 	p.fence = browseFence{}
 	p.cards = nil
 	p.selected = nil
@@ -287,59 +285,95 @@ type rsAuthorBookEntry struct {
 	position float64
 }
 
+// First enumerate the complete current file stream once. A fixed-size map
+// records structural and visible membership; wide book text is read only from
+// exact admitted points in the subsequent complete book stream.
 func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, out BrowseOutput, p *RSAuthorBookPreparation, at time.Time, cost *BrowseReadResult) error {
 	w := &rsByteWindow{source: r.snapshots, preflightCalls: 20}
 	var next int64
-	_, c, e := rsPeoplePublish(ctx, w, q, time.Until(p.lease.Deadline()), out, p.view(at, 13, p.input.Author), []readStep[struct{}]{func(_ context.Context, query browseQuery, _ browseFence, _ *struct{}) error {
-		name := "rs.audio.author_key_octets"
-		id := p.input.Author
-		if p.key != "" {
-			if p.candidate != 0 {
-				return nil
+	_, c, e := rsPeoplePublish(ctx, w, q, time.Until(p.lease.Deadline()), out, p.view(at, 13, p.input.Author), []readStep[struct{}]{
+		func(_ context.Context, query browseQuery, _ browseFence, _ *struct{}) error {
+			name, id := "rs.audio.author_key_octets", p.input.Author
+			if p.key != "" {
+				if p.phase == 0 {
+					return nil
+				}
+				rows, e := query("rs.audio.books", p.input.View.Library, p.scan)
+				if e != nil {
+					return e
+				}
+				if len(rows) == 0 {
+					return nil
+				}
+				next = rows[0][0].(int64)
+				id = next
+				name = "rs.author.book_octets"
 			}
-			rows, e := query("rs.audio.books", p.input.View.Library, p.scan)
+			rows, e := query(name, id, p.input.View.Library)
 			if e != nil {
 				return e
 			}
 			if len(rows) == 0 {
 				return nil
 			}
-			next = rows[0][0].(int64)
-			id = next
-			name = "rs.author.book_octets"
-		}
-		rows, e := query(name, id, p.input.View.Library)
-		if e != nil {
-			return e
-		}
-		if len(rows) == 0 {
-			return nil
-		}
-		n, e := rsPointBytes(rows[0])
-		if e != nil {
-			return e
-		}
-		return w.arm(n, 8)
-	}, func(_ context.Context, query browseQuery, f browseFence, _ *struct{}) error {
-		if p.key == "" {
-			rows, e := query("rs.audio.author_key", p.input.Author, p.input.View.Library)
+			n, e := rsPointBytes(rows[0])
 			if e != nil {
 				return e
 			}
-			if len(rows) != 1 {
-				return ErrDenied
+			return w.arm(n, 8)
+		}, func(_ context.Context, query browseQuery, f browseFence, _ *struct{}) error {
+			if p.key == "" {
+				rows, e := query("rs.audio.author_key", p.input.Author, p.input.View.Library)
+				if e != nil {
+					return e
+				}
+				if len(rows) != 1 {
+					return ErrDenied
+				}
+				key := rsListeningAuthorKey(rows[0][0].(string))
+				if key == "" {
+					return ErrDenied
+				}
+				if e = p.charge(4 * int64(len(key))); e != nil {
+					return e
+				}
+				p.key = key
+				return nil
 			}
-			key := rsListeningAuthorKey(rows[0][0].(string))
-			if key == "" {
-				return ErrDenied
+			if p.phase == 0 {
+				rows, e := query("rs.author.files", p.input.View.Library, p.fileAfter)
+				if e != nil {
+					return e
+				}
+				if len(rows) == 0 {
+					p.phase = 1
+					return nil
+				}
+				row := rows[0]
+				p.fileAfter = row[0].(int64)
+				if row[1] == nil || row[2] != int64(0) {
+					return nil
+				}
+				book := row[1].(int64)
+				flags := uint8(1)
+				itemFence := f
+				itemFence.container = 0
+				if _, e = rsDetailSubjectEligibility(query, p.view(at, 9, p.fileAfter), itemFence); e == nil {
+					flags |= 2
+				} else if !errors.Is(e, ErrDenied) {
+					return e
+				}
+				if p.files[book] == 0 {
+					if e = p.charge(256); e != nil {
+						return e
+					}
+					if p.files == nil {
+						p.files = make(map[int64]uint8)
+					}
+				}
+				p.files[book] |= flags
+				return nil
 			}
-			if e = p.charge(int64(len(key)) * 4); e != nil {
-				return e
-			}
-			p.key = key
-			return nil
-		}
-		if p.candidate == 0 {
 			if next == 0 {
 				if !p.authorContext {
 					return ErrDenied
@@ -356,7 +390,11 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 				return nil
 			}
 			row := rows[0]
-			if rsListeningAuthorKey(row[0].(string)) != p.key {
+			if rsListeningAuthorKey(row[0].(string)) != p.key || p.files[p.scan]&1 == 0 {
+				return nil
+			}
+			p.authorContext = true
+			if p.files[p.scan]&2 == 0 {
 				return nil
 			}
 			if _, e = rsDetailSubjectEligibility(query, p.view(at, 8, p.scan), f); errors.Is(e, ErrDenied) {
@@ -371,64 +409,18 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 			if pos <= 0 {
 				pos = 999999
 			}
-			if e = p.charge(256 + 4*int64(len(row[1].(string)))); e != nil {
+			if e = p.charge(256 + 4*int64(len(row[1].(string))) + int64(len(p.entries)+1)*64); e != nil {
 				return e
 			}
-			p.candidate = p.scan
-			p.candidateEntry = rsAuthorBookEntry{p.scan, row[1].(string), pos}
-			p.fileAfter = 0
-			p.fileVisible = false
+			entries := make([]rsAuthorBookEntry, len(p.entries), len(p.entries)+1)
+			copy(entries, p.entries)
+			p.entries = append(entries, rsAuthorBookEntry{p.scan, row[1].(string), pos})
 			return nil
-		}
-		var rows [][]any
-		var e error
-		if p.fileAfter == 0 {
-			rows, e = query("rs.author.files.first", p.candidate)
-		} else {
-			rows, e = query("rs.author.files.tail", p.candidate, p.fileDisc, p.filePart, p.fileAfter)
-			if e == nil && len(rows) == 0 {
-				rows, e = query("rs.author.files.part", p.candidate, p.fileDisc, p.filePart)
-			}
-			if e == nil && len(rows) == 0 {
-				rows, e = query("rs.author.files.disc", p.candidate, p.fileDisc)
-			}
-		}
-		if e != nil {
-			return e
-		}
-		if len(rows) == 0 {
-			if p.fileVisible {
-				if e = p.charge(int64(len(p.entries)+1) * 64); e != nil {
-					return e
-				}
-				entries := make([]rsAuthorBookEntry, len(p.entries), len(p.entries)+1)
-				copy(entries, p.entries)
-				p.entries = append(entries, p.candidateEntry)
-			}
-			p.candidate = 0
-			p.candidateEntry = rsAuthorBookEntry{}
-			return nil
-		}
-		p.fileAfter = rows[0][0].(int64)
-		p.fileDisc = rows[0][1].(int64)
-		p.filePart = rows[0][2].(int64)
-		if rows[0][3] != p.input.View.Library || rows[0][4] != int64(9) || rows[0][5] != int64(0) {
-			return nil
-		}
-		p.authorContext = true
-		itemFence := f
-		itemFence.container = 0
-		if _, e = rsDetailSubjectEligibility(query, p.view(at, 9, p.fileAfter), itemFence); errors.Is(e, ErrDenied) {
-			return nil
-		} else if e != nil {
-			return e
-		}
-		p.fileVisible = true
-		return nil
-	}})
+		}})
 	addSearchReadCost(cost, &c)
 	return e
 }
+
 func authorBookCardBytes(c RSAuthorBookCard) int64 {
 	return 8192 + artistAlbumWideBytes(reflect.ValueOf(c))
 }
