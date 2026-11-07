@@ -9,8 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
-	"github.com/PorticoMediaServer/portico/server/internal/streamlimits"
+	"github.com/PorticoMediaServer/portico/server/internal/securitypolicy"
 )
 
 // Explicit purposes live in commands_us.go; never borrow another purpose for
@@ -44,7 +43,7 @@ type usInvitationScope struct {
 }
 
 type usInvitationAccess struct {
-	mode                      streamlimits.Mode
+	mode                      string
 	streams                   int
 	allowRemote, accessTokens bool
 	rating                    string
@@ -190,7 +189,7 @@ func prepareUSInvitationFields(notes *string, role string, libraries []string, a
 		}
 		p.notes = sql.NullString{String: strings.Clone(v), Valid: v != ""}
 	}
-	p.access = usInvitationAccess{mode: streamlimits.Inherit, allowRemote: true, accessTokens: true}
+	p.access = usInvitationAccess{mode: "inherit", allowRemote: true, accessTokens: true}
 	if access != nil {
 		p.access = *access
 		p.access.rating = strings.TrimSpace(p.access.rating)
@@ -198,13 +197,13 @@ func prepareUSInvitationFields(notes *string, role string, libraries []string, a
 			return nil, invalid("access.maxContentRating")
 		}
 		p.access.rating = strings.ToUpper(p.access.rating)
-		if !streamlimits.Valid(p.access.mode, p.access.streams) {
+		if !securitypolicy.ValidStreamMode(p.access.mode, p.access.streams) {
 			return nil, invalid("access.maxStreams")
 		}
 		if len(p.access.rating) > 32 {
 			return nil, invalid("access.maxContentRating")
 		}
-		if _, ok := identity.RatingAge(p.access.rating); p.access.rating != "" && !ok {
+		if _, ok := securitypolicy.RatingAge(p.access.rating); p.access.rating != "" && !ok {
 			return nil, invalid("access.maxContentRating")
 		}
 		p.access.rating = strings.Clone(p.access.rating)

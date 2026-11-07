@@ -119,8 +119,8 @@ CREATE TABLE security_command_receipts(
   AND result_revision IS NOT NULL AND result_revision BETWEEN 1 AND 9007199254740991
   AND result_pin_revision IS NOT NULL AND result_pin_revision>0
   AND result_pin_required IS NOT NULL AND result_pin_required IN(0,1)
-  AND (command_kind<>533 OR result_pin_required=0)
-  AND result_changed IS NOT NULL AND result_changed IN(0,1) AND policy_inherits IS NULL AND result_count=0
+  AND ((command_kind=532 AND result_pin_required=1) OR (command_kind=533 AND result_pin_required=0))
+  AND result_changed IS NOT NULL AND result_changed=1 AND policy_inherits IS NULL AND result_count=0
   AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
  OR (command_kind IN(550,551,552) AND target_account_id IS NULL AND target_member_incarnation IS NULL
   AND target_profile_id IS NULL AND target_profile_lifetime IS NULL AND result_revision IS NULL

@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/PorticoMediaServer/portico/server/internal/streamlimits"
 )
 
 func usInvitationPreparationFixture() (CommandIdentity, usInvitationScope) {
@@ -31,7 +29,7 @@ func TestUSInvitationPreparation(t *testing.T) {
 		t.Fatal("borrowed purpose")
 	}
 	note := "  " + strings.Repeat("界", 500) + "  "
-	grant := usInvitationAccess{mode: streamlimits.Limit, streams: 1000, rating: " pg-13 "}
+	grant := usInvitationAccess{mode: "limit", streams: 1000, rating: " pg-13 "}
 	libraries := []string{strings.Repeat("L", 128)}
 	p, err := prepareUSInvitationCreate(i, scope, "invite", usInvitationFixtureHash, usInvitationCreateInput{notes: &note, libraries: libraries, boundUsername: " Recipient ", access: &grant})
 	if err != nil {
@@ -45,7 +43,7 @@ func TestUSInvitationPreparation(t *testing.T) {
 		t.Fatal("input aliases frozen request")
 	}
 	defaults, err := prepareUSInvitationCreate(i, scope, "default", usInvitationFixtureHash, usInvitationCreateInput{})
-	if err != nil || defaults.librariesJSON != "[]" || defaults.notes.Valid || defaults.access.mode != streamlimits.Inherit || !defaults.access.allowRemote || !defaults.access.accessTokens {
+	if err != nil || defaults.librariesJSON != "[]" || defaults.notes.Valid || defaults.access.mode != "inherit" || !defaults.access.allowRemote || !defaults.access.accessTokens {
 		t.Fatal("default grant", err)
 	}
 	// Constructors remain usable before RD2 registers these purposes; no digest
@@ -82,8 +80,8 @@ func TestUSInvitationPreparationBounds(t *testing.T) {
 		{role: "owner"}, {role: "Member"}, {expiresInHours: -1}, {expiresInHours: 721},
 		{libraries: append(ids, "extra")}, {libraries: []string{"same", "same"}}, {libraries: []string{strings.Repeat("x", 129)}}, {libraries: []string{"has space"}},
 		{boundUsername: strings.Repeat("u", 65)}, {boundUsername: "two words"},
-		{access: &usInvitationAccess{mode: streamlimits.Limit, streams: 1001}}, {access: &usInvitationAccess{mode: streamlimits.Unlimited, streams: 1}},
-		{access: &usInvitationAccess{mode: streamlimits.Inherit, rating: "NOT-A-RATING"}},
+		{access: &usInvitationAccess{mode: "limit", streams: 1001}}, {access: &usInvitationAccess{mode: "unlimited", streams: 1}},
+		{access: &usInvitationAccess{mode: "inherit", rating: "NOT-A-RATING"}},
 	} {
 		if _, err := prepareUSInvitationCreate(i, scope, "invite", usInvitationFixtureHash, q); err == nil {
 			t.Fatal("invalid input admitted", q)
@@ -117,7 +115,7 @@ func TestUSInvitationEditPreparation(t *testing.T) {
 	if err != nil || p.replaceAccess || p.librariesJSON != "[]" || p.expiresMS != now+usInvitationMaxSpanMS {
 		t.Fatal("edit normalization", err)
 	}
-	q.access = &usInvitationAccess{mode: streamlimits.Unlimited}
+	q.access = &usInvitationAccess{mode: "unlimited"}
 	p, err = prepareUSInvitationEdit(i, scope, "invite", q, now)
 	if err != nil || !p.replaceAccess {
 		t.Fatal("access replacement", err)
