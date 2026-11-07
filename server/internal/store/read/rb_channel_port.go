@@ -11,46 +11,47 @@ import (
 // schedule builder. It is a values-only read contract, not a SQL capability or
 // permission to write catalogue facts. A native implementation is still pending.
 type SharedChannelReadPort interface {
+	OpenSharedChannelScope(context.Context, governor.Request, time.Duration, BrowseOutput, SharedChannelScopeInput) (*SharedChannelScope, SharedChannelScopeInfo, BrowseReadResult, error)
+	RevalidateSharedChannelScope(context.Context, governor.Request, time.Duration, BrowseOutput, *SharedChannelScope) (BrowseReadResult, error)
 	SharedChannelWindow(context.Context, governor.Request, time.Duration, BrowseOutput, SharedChannelInput) (SharedChannelBatch, BrowseReadResult, error)
 }
 
-// SharedChannelFilter is a bounded structured predicate, never interpolated SQL.
-// Field/operator applicability and missing-value semantics are the public browse
-// contract. A native implementation must reject unsupported combinations before
-// opening a snapshot. Shared recipes exclude personal/profile/history fields.
-// The reader owns validation, canonicalization and copying of the frozen input.
-type SharedChannelFilter struct {
-	All, Any []SharedChannelFilter
-	Not      *SharedChannelFilter
-	Field    string
-	Operator string
-	Values   []SharedChannelValue
-}
-type SharedChannelValue struct {
-	Text    *string
-	Integer *int64
-	Real    *float64
-	Boolean *bool
-}
-type SharedChannelInput struct {
-	// View is current trusted authorization, never a fabricated service viewer.
-	// Initial native support requires a current local owner and unrestricted
-	// profile. A background service-principal path needs its own closed proof.
-	View   BrowseInput
-	Filter SharedChannelFilter
-	After  *SharedChannelCursor
+// SharedChannelScopeInput names actual stored facts, not a caller's filter or
+// viewer. The generation's created_ms supplies the immutable query anchor.
+type SharedChannelScopeInput struct {
+	Channel, Generation, Rule, Library string
+	ExpectedRevision                   int64
 }
 
-// SharedChannelFence is comparable provenance for one immutable batch. The
-// private full fence includes viewer/birth/policy witnesses. It confers no
-// permission, cannot be fabricated by MG, and must match every continuation.
+// SharedChannelScope has a private issuer and immutable source proof. Copying
+// its public provenance never grants access to a different channel or library.
+type SharedChannelScope struct {
+	issuer  *SharedChannelReader
+	input   SharedChannelScopeInput
+	stamp   rbChannelStamp
+	library rbChannelLibrary
+	info    SharedChannelScopeInfo
+}
+type SharedChannelScopeInfo struct {
+	Database, Channel, Generation, Rule, Library string
+	ChannelRevision, CatalogueLibrary, CreatedMS int64
+	ConfigHash, QueryHash                        [32]byte
+	// Every named library must be authorized before showing the shared guide.
+	RequiredLibraries    [1024]string
+	RequiredLibraryCount int
+}
+type SharedChannelInput struct {
+	Scope *SharedChannelScope
+	Kind  int64
+	After *SharedChannelCursor
+}
 type SharedChannelFence struct {
-	Database                                      string
-	Library                                       int64
-	DataRevision, OrderRevision, MetadataRevision int64
-	AdmissionRevision                             int64
-	Query                                         [32]byte
-	fence                                         browseFence
+	Database, Channel, Generation, Rule, Library                     string
+	ChannelRevision, CatalogueLibrary                                int64
+	DataRevision, OrderRevision, MetadataRevision, AdmissionRevision int64
+	ConfigHash, Query                                                [32]byte
+	source                                                           rbChannelStamp
+	library                                                          rbChannelLibrary
 }
 type SharedChannelCursor struct {
 	fence             SharedChannelFence
