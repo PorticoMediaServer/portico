@@ -15,7 +15,9 @@ type usSecurityBindingLookup struct {
 // result codec/decoder. Namespace reservation grants no result-schema authority.
 func lookupUSSecurityBinding(ctx context.Context, turn *commandTurn, a *usPolicyAuthorization, q usPolicyReceiptRequest) (out usSecurityBindingLookup, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, errors.Join(err, a.check(turn))) }()
-	if err = a.check(turn); err != nil {
+	// An earlier prefix in the same frame may have advanced a deny fence.
+	// Recheck native current authority before any original owner or payload read.
+	if err = checkUSSecurityDisclosure(ctx, turn, a); err != nil {
 		return out, err
 	}
 	if !usIdentifier(q.ownerID) || q.kind != turn.transaction.descriptor.ID || q.reference.Identity.Sequence <= 0 || q.reference.Identity.Incarnation == ([16]byte{}) || q.reference.Identity.OperationID == ([16]byte{}) || q.reference.RequestDigest == (RequestDigest{}) {
@@ -50,7 +52,7 @@ func lookupUSSecurityBinding(ctx context.Context, turn *commandTurn, a *usPolicy
 
 func isUSSecurityReceiptPurpose(id CommandID) bool {
 	switch id {
-	case usPINSet, usPINClear, USMemberLibraries, USProfileLibraries, usInvitationCreate, usInvitationEdit, usInvitationRevoke:
+	case usPINSet, usPINClear, USMemberLibraries, USProfileLibraries, usProfileRestrictionsEdit, usInvitationCreate, usInvitationEdit, usInvitationRevoke:
 		return true
 	default:
 		return false
