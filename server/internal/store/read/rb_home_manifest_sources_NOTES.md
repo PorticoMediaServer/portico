@@ -35,14 +35,12 @@ comparison with one bounded stale retry. No additional principal query or
 callback is introduced by this integration; the frozen reader inherits the
 parent's actual ID32501 seam.
 
-Decision boundary: this is LAST COMMITTED NORMALIZED POLICY, matching the accepted
-runtime-settings read, not a claim that an unimported disk edit was observed.
-CommittedOnly=true and DiskFreshnessProved=false are explicit. Literal disk-at-
-publication semantics would need an agreed UO/INT native import receipt/digest
-and freshness boundary. The current canonical schema lacks the old aggregate
-server_configuration_state record, so this reader neither queries an invented
-table nor assumes a global file ACK. Per-field pending facts are used only for
-the represented field. No DDL, file I/O or settings write is added to native read.
+Lead ruling: LAST COMMITTED NORMALIZED DB POLICY is Home's authority.
+CommittedOnly=true remains explicit. The native reader never reads disk; UO's
+import/settings commands commit file changes. Disk freshness is not a reader
+requirement or schema gap. No global file ACK is invented; exact per-field
+pending facts are used only for the represented field. No DDL, file I/O or
+settings write is added to native read.
 
 ## Qualified content and UO state
 
@@ -107,3 +105,7 @@ zero-vs-unrated state, valid cross-profile isolation, unversioned personal drift
 hidden-layout refusal, unsupported-family refusal and empty raw-cap reachability.
 Reader receipts bind the actual source/schema at run time; no existing goldens or
 unchanged functional/race/Capture matrices are refreshed.
+
+Parent current-main integration supplies explicit GoCopyBytes through the shared
+saved-view session and preserves the original request ceiling, funding native
+decode overhead without shrinking the original cumulative copy allowance.
