@@ -6,6 +6,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -142,7 +143,10 @@ func (r *BrowseReader) rbAuthorExact(ctx context.Context, req governor.Request, 
 					}
 					var pos *float64
 					if b[8] != nil {
-						v := b[8].(float64)
+						v, err := strconv.ParseFloat(b[10].(string), 64)
+						if err != nil {
+							return err
+						}
 						pos = &v
 					}
 					d.rows = append(d.rows, rbAuthorOrderRow{Book: b[0].(int64), Part: item.ID, Series: b[7].(string), Position: pos, TitleKey: b[9].(string), Disc: p[9].(int64), Number: p[10].(int64)})
@@ -185,7 +189,7 @@ func RBAuthorDefinitions() []stmt.Definition {
 		if keep {
 			key, name = "sort_key_keep_articles", "keep"
 		}
-		add("books."+name, `SELECT id,'',public_id,title,retired,revision,admission_own_age,series,CAST(NULLIF(series_position,'') AS REAL),`+key+` FROM catalog_entities INDEXED BY catalog_entities_book_author WHERE kind=8 AND library_id=? AND author COLLATE NOCASE=? ORDER BY id LIMIT ?`, []stmt.Param{i("library"), s("author"), i("limit")}, []any{int64(1), "Author", int64(17)}, "catalog_entities_book_author")
+		add("books."+name, `SELECT id,'',public_id,title,retired,revision,admission_own_age,series,NULLIF(series_position,''),`+key+`,PRINTF('%!.17g',series_position) FROM catalog_entities INDEXED BY catalog_entities_book_author WHERE kind=8 AND library_id=? AND author COLLATE NOCASE=? ORDER BY id LIMIT ?`, []stmt.Param{i("library"), s("author"), i("limit")}, []any{int64(1), "Author", int64(17)}, "catalog_entities_book_author")
 	}
 	return defs
 }
