@@ -47,10 +47,12 @@ func rbHomeFixedBindingByteDefinitions() []stmt.Definition {
 		}
 		d.SQL = "SELECT " + fields[n] + sql[at:]
 		if n == 0 {
-			d.SQL = strings.Replace(d.SQL, "catalog_entities AS e", "catalog_entities AS e NOT INDEXED", 1)
+			d.SQL = strings.Replace(d.SQL, "catalog_entities AS e", "catalog_entities AS e INDEXED BY catalog_entities_library_id", 1)
 		}
 		if n == 0 {
-			d.Plan.PrimaryKeys = []string{"e", "k", "cl"}
+			d.Plan.PrimaryKeys = []string{"k", "cl"}
+			d.Plan.Indexes = append(d.Plan.Indexes, "catalog_entities_library_id")
+			d.Plan.Seeks = []string{"library_id=? AND id=?"}
 		}
 		d.ID = readStatementID("rb.home.fixed.binding." + []string{"item", "links", "objects"}[n] + ".bytes")
 		d.CallSites = []string{"store/read/rb_home_fixed.go"}
