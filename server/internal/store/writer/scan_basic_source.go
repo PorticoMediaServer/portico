@@ -1,6 +1,9 @@
 package writer
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 func basicSourcePreparationPurpose(purpose CommandID) bool {
 	return purpose == BasicStage || purpose == BasicSeal || purpose == BasicAccept
@@ -29,6 +32,9 @@ func prepareBasicSource(ctx context.Context, d *ScanDriver, lease *ScanRunLease,
 		life = d.lifetime
 	}
 	defer func() {
+		if candidate != nil {
+			err = errors.Join(err, d.current())
+		}
 		v, e := finishCommand(ctx, life, struct {
 			Preparation *scanPreparation
 			Snapshot    scanRunSnapshot
@@ -58,6 +64,7 @@ func prepareBasicSource(ctx context.Context, d *ScanDriver, lease *ScanRunLease,
 	if candidate == nil || candidate.source == nil || candidate.mode != scanBasicPreparation || candidate.expected.Key.Domain != uint16(purpose) {
 		return nil, snapshot, source, ErrInvalid
 	}
+	life = candidate.lifetime
 	if err = candidate.current(); err != nil {
 		return nil, snapshot, source, err
 	}
