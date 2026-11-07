@@ -54,6 +54,7 @@ type RSArtistAlbumCard struct {
 	Facts                 TitleFacts
 	PrimaryArtist         BrowseItem
 	Artwork               ArtworkFact
+	Provider              *RSAlbumProviderFact
 	MissingCanonicalFacts []string
 }
 type RSArtistAlbumPage struct {
@@ -78,6 +79,8 @@ type RSArtistAlbumPreparation struct {
 	selected          []int64
 	cards             []RSArtistAlbumCard
 	hydrate           int
+	hydratedArt       bool
+	providerWork      []rsAlbumProviderWork
 }
 
 func (p *RSArtistAlbumPreparation) charge(n int64) error {
@@ -94,6 +97,7 @@ func (p *RSArtistAlbumPreparation) close() error {
 	p.closed = true
 	p.set = rsArtistAlbumSet{}
 	p.cards = nil
+	p.providerWork = nil
 	p.selected = nil
 	p.input = RSArtistAlbumInput{}
 	return p.reader.authority.RetirePreparation(p.lease)
@@ -419,7 +423,7 @@ func (r *RSArtistAlbumReader) hydrate(ctx context.Context, q governor.Request, o
 			}
 		}
 
-	} else {
+	} else if !p.hydratedArt {
 		var value ArtworkFact
 		value, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 6, id), Item: id, Role: "poster", PageSlot: true})
 		if e == nil {
@@ -431,8 +435,10 @@ func (r *RSArtistAlbumReader) hydrate(ctx context.Context, q governor.Request, o
 			if card.Role == RSArtistAlbumAppearance {
 				card.MissingCanonicalFacts = card.MissingCanonicalFacts[:4]
 			}
-			p.hydrate++
+			p.hydratedArt = true
 		}
+	} else {
+		return r.provider(ctx, q, out, p, at, cost)
 	}
 	addSearchReadCost(cost, &c)
 	return e
