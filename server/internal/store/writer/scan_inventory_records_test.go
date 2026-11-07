@@ -16,7 +16,7 @@ import (
 func TestN1RecordWorkIsReservedOnEveryRewrite(t *testing.T) {
 	work := Work{16, 2000, 16, 65536, time.Microsecond}
 	p := effectivePlan{inventoryPageSize: 4096, inventoryRecords: inventoryRecordEnvelope{32 << 10, work}}
-	for _, id := range []stmt.ID{scanFreshRunCAS, scanFreshJobCAS, scanFreshDirectoryCAS, scanFreshLibraryCAS} {
+	for _, id := range []stmt.ID{scanFreshRunCAS, scanFreshJobCAS, scanFreshDirectoryCAS, scanFreshLibraryCAS, scanFreshProgressCAS} {
 		p.steps = append(p.steps, statementStep{id, work})
 	}
 	if err := validateInventoryRecordEnvelope(p); err != nil {
@@ -80,6 +80,7 @@ func TestN1ExistingRecordSchemaCoverage(t *testing.T) {
 	// or an already frozen exact PK. Integer/generated scalars and headers fit
 	// the fixed term; this fails on schema additions instead of assuming zero.
 	for table, want := range map[string][]string{
+		"library_sources":       {"id", "library_id", "kind", "root", "incarnation", "root_identity", "health", "classification", "name", "configured_root", "next_scan_at", "last_complete_job", "last_complete_at", "last_integrity_at", "remote_source_id", "double_check_job", "progress_last_progress_at"},
 		"libraries":             {"id", "name", "kind", "root", "preference_local_tags", "preference_lyrics_source", "preference_title_source", "preference_episode_numbering", "playback_origin_incarnation", "metadata_language"},
 		"inventory_runs":        {"job_id", "original_library_key", "original_resolved_root", "source_id", "root_incarnation", "root_identity", "phase", "finished_at", "scan_mode", "create_operation_id", "create_request_digest", "command_incarnation", "reconcile_cursor", "verify_cursor", "last_turn", "pause_reason", "inventory_completed_at"},
 		"jobs":                  {"id", "library_id", "status", "created_at", "error"},
