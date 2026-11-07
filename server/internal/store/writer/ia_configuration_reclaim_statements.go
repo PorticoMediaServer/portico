@@ -39,13 +39,11 @@ func iaConfigurationReceiptReclaimDefinitions() []stmt.Definition {
 	b := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
 	t := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	key := []stmt.Param{b("original_operation"), b("incarnation"), t("original_kind")}
-	absentKey := []stmt.Param{b("absent_original_operation"), b("absent_incarnation"), t("absent_original_kind")}
 	point := stmt.Plan{Hot: true, Indexes: []string{"catalog_configuration_operation_kind"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_kind=?"}}
 	sourcePlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_sources"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"}}
-	headerPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_receipts", "catalog_configuration_sources"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"}}
+	headerPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_receipts"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"}}
 	ownerKey := `original_operation_id=? AND command_incarnation=? AND command_kind=?`
 	childKey := `original_operation_id=? AND command_incarnation=? AND command_sequence=1 AND command_kind=?`
-	noSources := `NOT EXISTS (SELECT 1 FROM catalog_configuration_sources WHERE original_operation_id=? AND command_incarnation=? AND command_sequence=1 AND command_kind=?)`
 	names := []string{}
 	for _, p := range iaConfigurationGCColumns() {
 		names = append(names, p.Name)
@@ -53,9 +51,9 @@ func iaConfigurationReceiptReclaimDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: iaConfigurationGCSlot, Kind: stmt.Read, SQL: "SELECT receipt_reclaim_due_ms," + strings.Join(names, ",") + ",reclaim_slot_bytes FROM catalog_configuration_operations INDEXED BY catalog_configuration_operation_kind WHERE " + ownerKey, Params: key, Plan: point},
 		{ID: iaConfigurationGCSourceFirst, Kind: stmt.Read, SQL: "SELECT ordinal,retained_bytes FROM catalog_configuration_sources WHERE " + childKey + " AND ordinal>? ORDER BY ordinal LIMIT 1", Params: append(append([]stmt.Param(nil), key...), i("after_ordinal")), Plan: sourcePlan},
-		{ID: iaConfigurationGCHeaderFirst, Kind: stmt.Read, SQL: "SELECT result_count,retained_bytes FROM catalog_configuration_receipts WHERE " + childKey + " AND " + noSources, Params: append(append([]stmt.Param(nil), key...), absentKey...), Plan: headerPlan},
+		{ID: iaConfigurationGCHeaderFirst, Kind: stmt.Read, SQL: "SELECT result_count,retained_bytes FROM catalog_configuration_receipts WHERE " + childKey, Params: key, Plan: headerPlan},
 		{ID: iaConfigurationGCSourceDelete, Kind: stmt.Write, SQL: "DELETE FROM catalog_configuration_sources WHERE " + childKey + " AND ordinal=? AND retained_bytes=? RETURNING retained_bytes", Params: append(append([]stmt.Param(nil), key...), i("ordinal"), i("bytes")), Plan: sourcePlan},
-		{ID: iaConfigurationGCHeaderDelete, Kind: stmt.Write, SQL: "DELETE FROM catalog_configuration_receipts WHERE " + childKey + " AND result_count=? AND retained_bytes=? AND " + noSources + " RETURNING retained_bytes", Params: append(append(append([]stmt.Param(nil), key...), i("source_count"), i("bytes")), absentKey...), Plan: headerPlan},
+		{ID: iaConfigurationGCHeaderDelete, Kind: stmt.Write, SQL: "DELETE FROM catalog_configuration_receipts WHERE " + childKey + " AND result_count=? AND retained_bytes=? RETURNING retained_bytes", Params: append(append([]stmt.Param(nil), key...), i("source_count"), i("bytes")), Plan: headerPlan},
 	}
 	for _, source := range []bool{false, true} {
 		scope := ownerKey + " AND original_request_digest=? AND original_library_id=? AND original_library_key=?"

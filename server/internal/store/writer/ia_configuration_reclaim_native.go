@@ -149,8 +149,19 @@ func firstIAConfigurationGCUnit(ctx context.Context, turn *commandTurn, q iaRece
 	if !errors.Is(err, sql.ErrNoRows) {
 		return iaReceiptReclaimProbe{}, err
 	}
+	// A separate full-original first-source point proves actual absence,
+	// including any earlier rows a damaged cursor might otherwise hide.
+	// The same W transaction and immediate NO ACTION FK guard protect the
+	// following exact header point/delete; no subquery grammar is required.
+	err = iaRetirementPoint(ctx, turn, iaConfigurationGCSourceFirst, append(append([]any(nil), key...), int64(-1)), &ordinal, &bytes)
+	if err == nil {
+		return iaReceiptReclaimProbe{}, ErrResolveRequired
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return iaReceiptReclaimProbe{}, err
+	}
 	var count int64
-	err = iaRetirementPoint(ctx, turn, iaConfigurationGCHeaderFirst, append(append([]any(nil), key...), key...), &count, &bytes)
+	err = iaRetirementPoint(ctx, turn, iaConfigurationGCHeaderFirst, key, &count, &bytes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, nil
 	}
@@ -240,7 +251,7 @@ func applyIAConfigurationReceiptReclaim(ctx context.Context, turn *commandTurn, 
 	args := append(append([]any(nil), key...), unit.removedOrdinal, unit.removedBytes)
 	if unit.removedKind == "header" {
 		id = iaConfigurationGCHeaderDelete
-		args = append(append(append([]any(nil), key...), first.unit.sourceCount, unit.removedBytes), key...)
+		args = append(append([]any(nil), key...), first.unit.sourceCount, unit.removedBytes)
 	}
 	var actual int64
 	if err = iaRetirementPoint(ctx, turn, id, args, &actual); err != nil {
@@ -249,7 +260,7 @@ func applyIAConfigurationReceiptReclaim(ctx context.Context, turn *commandTurn, 
 	if actual != unit.removedBytes {
 		return value, ErrResolveRequired
 	}
-	// Header eligibility is a physical NOT EXISTS over the original sources.
+	// Header eligibility includes an actual full-original source-absence point.
 	// Probe only after deleting the selected child; missing/gapped/debt-drift
 	// evidence fails closed and rolls this transaction's deletion back.
 	if in.after, err = firstIAConfigurationGCUnit(ctx, turn, q, o, unit.next); err != nil {
