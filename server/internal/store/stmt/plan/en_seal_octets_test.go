@@ -113,6 +113,9 @@ func TestENSealOctetPointsNative(t *testing.T) {
 		if evidence == "" {
 			t.Fatal("collect and review the initial hosted EN octet golden")
 		}
+		if err := os.MkdirAll(evidence, 0700); err != nil {
+			t.Fatal(err)
+		}
 		var out bytes.Buffer
 		z := gzip.NewWriter(&out)
 		if _, err = z.Write(append(data, '\n')); err != nil {
