@@ -107,18 +107,23 @@ type canonicalHeldClass struct {
 	name, owner, kind string
 	purpose           *CommandID // compiled INTENT only, never actual grant/policy evidence
 	reason            string
-	run               func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream) error
+	run               func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream, QualificationPopulationManifest) error
 }
 
-// Filled only by a reviewed compiled adapter AFTER QL's UseQualificationPopulation
-// lands. Invoke for the exact t immediately before the existing owner constructor;
-// no artifact opens in place and no tiny library7 reinsertion is allowed.
-var attachCanonicalHeldPopulation func(*testing.T, canonicalHeldConfig)
+// The merged transport owns the next canonical clone for this exact t.
+func attachCanonicalHeldPopulation(t *testing.T, cfg canonicalHeldConfig) QualificationPopulationManifest {
+	t.Helper()
+	m, err := readQualificationPopulation(cfg.ArtifactDirectory, cfg.ManifestSHA256)
+	if err != nil || m.Facts.Residents != canonicalHeldItems {
+		t.Fatal("canonical target requires exact1M artifact", err)
+	}
+	return UseQualificationPopulation(t, cfg.ArtifactDirectory, cfg.ManifestSHA256)
+}
 
 func canonicalHeldClasses() []canonicalHeldClass {
 	n1, basic, enrich, progress, security, fragment, flip := InventoryAccept, BasicAccept, EffectiveStage, ProgressAccept, SecurityAccept, SearchFragmentStage, SearchHeadPublish
 	return []canonicalHeldClass{
-		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, reason: "canonical 1M N1 owner/profile/original progression not attached"},
+		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: runCanonicalHeldN1, reason: "canonical 1M N1 owner/profile/original progression not attached"},
 		{name: "basic_accept", owner: "SC/W", kind: "normal_write", purpose: &basic, reason: "canonical Basic owner Action not attached"},
 		{name: "staged_enrich", owner: "EN/W", kind: "normal_write", purpose: &enrich, reason: "canonical staged-enrich owner Action not attached"},
 		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, reason: "canonical same-owner Progress Action not attached"},
@@ -144,9 +149,6 @@ func canonicalHeldClassFor(name string) (canonicalHeldClass, error) {
 }
 func canonicalHeldMissing(c canonicalHeldClass) []string {
 	missing := []string{}
-	if attachCanonicalHeldPopulation == nil {
-		missing = append(missing, "QL canonical 1M seed provenance/physical fixture attachment unavailable")
-	}
 	if c.run == nil {
 		missing = append(missing, c.owner+": "+c.reason)
 	}
@@ -193,16 +195,16 @@ func canonicalHeldRun(t *testing.T, class string) {
 		t.Fatal(err)
 	}
 	defer output.Close()
-	stream := &n1Stream{file: output, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "label": "CANONICAL PER-CLASS TARGET; NOT EXECUTED", "qualification": false, "qualified_profile_ready": false, "run_id": cfg.RunID, "host_epoch": cfg.HostEpoch, "declared_source_commit": cfg.SourceCommit, "profile": cfg.Profile, "class": class}}
+	stream := &n1Stream{file: output, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "label": "CANONICAL PER-CLASS RAW TARGET", "qualification": false, "qualified_profile_ready": false, "run_id": cfg.RunID, "host_epoch": cfg.HostEpoch, "declared_source_commit": cfg.SourceCommit, "profile": cfg.Profile, "class": class, "process_epoch": fmt.Sprintf("%s/%d/%d", cfg.RunID, os.Getpid(), time.Now().UnixNano())}}
 	definition, _ := canonicalHeldClassFor(class)
 	if err := emitCanonicalHeldPrefix(stream, cfg, definition); err != nil {
 		t.Fatal(err)
 	}
-	if definition.run == nil || attachCanonicalHeldPopulation == nil {
+	if definition.run == nil {
 		t.Fatal(errCanonicalHeldBinding)
 	}
-	attachCanonicalHeldPopulation(t, cfg)
-	if err := definition.run(t, t.Context(), cfg, stream); err != nil {
+	manifest := attachCanonicalHeldPopulation(t, cfg)
+	if err := definition.run(t, t.Context(), cfg, stream, manifest); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -221,8 +223,7 @@ func emitCanonicalHeldPrefix(stream *n1Stream, cfg canonicalHeldConfig, definiti
 			return err
 		}
 	}
-	// The closed registry currently has NO runnable class. Later tiny binding PRs
-	// consume QL's ONE seed and actual typed owner Actions, not synthetic emitters.
+	// Each missing owner binding remains an explicit nonpassing target.
 	if len(missing) > 0 {
 		if err := stream.append("final", map[string]any{"complete": false, "native_calls_started": 0, "report": nil, "missing_bindings": missing, "qualification": false}); err != nil {
 			return err

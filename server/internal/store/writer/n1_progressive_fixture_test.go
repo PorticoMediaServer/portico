@@ -12,6 +12,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/mediasource"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 const inventoryProgressiveLimit = 128 // bounded future warmup + measured originals
@@ -21,19 +22,20 @@ const inventoryProgressiveLimit = 128 // bounded future warmup + measured origin
 // factored W governor/recipe survive all originals, Resolve and ACK turns.
 // Nothing here enables the opt-in target's steady/positive-warmup populations.
 type inventoryProgressiveFixture struct {
-	sharedForeground bool // only this independently owned class may coexist
-	owner            *inventoryMemoryFixture
-	base             *inventoryAcceptCommand
-	current          *inventoryAcceptCommand
-	turn             *commandTurn
-	resolveTurn      *commandTurn // observation-only private owner views
-	ackTurn          *commandTurn
-	acknowledged     *int64 // actual handler return; separate from physical outcome
-	resolved         *inventoryReceiptLookup
-	snapshot         inventoryProgressiveSnapshot
-	limit, offered   int
-	ready            bool
-	stopped          error
+	sharedMaintenance bool // only the actual attached keeper/CP may coexist
+	sharedForeground  bool // only this independently owned class may coexist
+	owner             *inventoryMemoryFixture
+	base              *inventoryAcceptCommand
+	current           *inventoryAcceptCommand
+	turn              *commandTurn
+	resolveTurn       *commandTurn // observation-only private owner views
+	ackTurn           *commandTurn
+	acknowledged      *int64 // actual handler return; separate from physical outcome
+	resolved          *inventoryReceiptLookup
+	snapshot          inventoryProgressiveSnapshot
+	limit, offered    int
+	ready             bool
+	stopped           error
 }
 
 type inventoryProgressiveSnapshot struct {
@@ -50,8 +52,13 @@ func newInventoryProgressiveFixture(t *testing.T, count int, clock func() time.T
 		t.Fatal("invalid bounded progressive fixture request")
 	}
 	e, _, original, registry := inventoryFreshFixtureDefinitions(t, inventoryCommandDefinitions(), decorate...)
+	return inventoryProgressiveOwner(t, e, original, registry, count, clock)
+}
+
+func inventoryProgressiveOwner(t *testing.T, e *executor, original *inventoryAcceptCommand, registry *stmt.Registry, count int, clock func() time.Time, maintenance ...governedFixtureMaintenance) *inventoryProgressiveFixture {
+	t.Helper()
 	e.now = clock // before the first BEGIN; protocol controls may freeze it
-	owner := newInventoryMemoryFixture(t, e, registry, original, inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20})
+	owner := newInventoryMemoryFixtureComposition(t, e, registry, original, inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20}, nil, maintenance...)
 	f := &inventoryProgressiveFixture{owner: owner, base: original, limit: count, ready: true}
 	var err error
 	f.snapshot, err = f.currentSnapshot(t)
@@ -96,7 +103,7 @@ func (f *inventoryProgressiveFixture) NextOriginal() (*inventoryAcceptCommand, e
 	binary.BigEndian.PutUint64(identity.OperationID[8:], uint64(identity.Sequence))
 	file := &r.files[0]
 	file.relativePath = fmt.Sprintf("Arrival-%d.mkv", identity.Sequence)
-	file.assetPath = "/media/" + file.relativePath
+	file.assetPath = string(r.source.resolvedRoot) + "/" + file.relativePath
 	file.sourceKey = fmt.Sprintf("progressive-source-key:%d", identity.Sequence)
 	file.objectIdentity = fmt.Sprintf("dev:7:ino:%d", 1000+identity.Sequence)
 	evidence := mediasource.InventoryEvidence{Kind: "local", Scope: r.source.id + ":" + r.source.incarnation,
@@ -329,5 +336,8 @@ func (f *inventoryProgressiveFixture) joinedUsage(usage [4]governor.Amounts) boo
 	if f.sharedForeground {
 		usage[governor.Foreground] = governor.Amounts{}
 	}
+	if f.sharedMaintenance {
+		usage[governor.Recovery] = governor.Amounts{}
+	} // CP lifetime/active/shutdown separately joined by owner
 	return usage == ([4]governor.Amounts{})
 }
