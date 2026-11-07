@@ -538,3 +538,81 @@ func TestSearchPublisherMeasurementConfig(t *testing.T) {
 		t.Fatal("overwrote evidence")
 	}
 }
+
+// Exercise the real-clock CLI and source/output binding with one original per
+// class. This is functional only: a genuine deadline/quantum overrun is retained
+// as incomplete evidence, never converted into a passing timing sample.
+func TestSearchPublisherRealClockSurface(t *testing.T) {
+	if runtime.Version() != "go1.26.10" {
+		t.Skip("real-clock surface uses the pinned Go1.26.10 runner")
+	}
+	head, err := exec.CommandContext(t.Context(), "git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, class := range []string{"SearchFragmentStage", "SearchHeadPublish"} {
+		t.Run(class, func(t *testing.T) {
+			dir := t.TempDir()
+			c := publisherMeasurementConfig{RunID: "unmerged-functional-real-clock", SourceCommit: strings.TrimSpace(string(head)), HostProfile: "functional-only-not-qualification", OutputPath: filepath.Join(dir, "calls.jsonl"), Command: class, FreshCount: 1, BackgroundCount: 1}
+			data, err := json.Marshal(c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			config := filepath.Join(dir, "config.json")
+			if err := os.WriteFile(config, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			child := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestSearchPublisherQualification$", "-test.timeout=2m", "-search-publisher-qualification")
+			for _, v := range os.Environ() {
+				if !strings.HasPrefix(v, publisherQualificationConfigEnv+"=") {
+					child.Env = append(child.Env, v)
+				}
+			}
+			child.Env = append(child.Env, publisherQualificationConfigEnv+"="+config)
+			log, runErr := child.CombinedOutput()
+			file, err := os.Open(c.OutputPath)
+			if err != nil {
+				t.Fatal(string(log), err)
+			}
+			defer file.Close()
+			d := json.NewDecoder(file)
+			var calls int
+			var failed *publisherMeasurementRecord
+			var final publisherMeasurementRecord
+			for {
+				var r publisherMeasurementRecord
+				if err := d.Decode(&r); err == io.EOF {
+					break
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				if r.Kind == "call" {
+					calls++
+					if !r.Complete {
+						v := r
+						failed = &v
+					}
+				}
+				if r.Kind == "final" {
+					final = r
+				}
+			}
+			if calls == 0 || final.Kind != "final" {
+				t.Fatal("target never reached real dispatcher", string(log))
+			}
+			if runErr == nil {
+				if !final.Complete || final.FreshCompleted != 1 || calls != 3 {
+					t.Fatal("false completion", final, calls)
+				}
+				return
+			}
+			if final.Complete || failed == nil || failed.Error == "" {
+				t.Fatal("lost incomplete call", final, string(log))
+			}
+			if !strings.Contains(failed.Error, ErrQuantum.Error()) && !strings.Contains(failed.Error, ErrOverrun.Error()) && !strings.Contains(failed.Error, context.DeadlineExceeded.Error()) {
+				t.Fatal("unexpected real-clock execution failure", failed.Error, string(log))
+			}
+			t.Logf("retained directional functional timing failure; NOT qualification: %s", failed.Error)
+		})
+	}
+}
