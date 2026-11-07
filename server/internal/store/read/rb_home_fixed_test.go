@@ -211,13 +211,15 @@ func TestRBHomeFixedActivity(t *testing.T) {
 			f.exec(t, `UPDATE libraries SET kind='audiobook' WHERE id='movies'`)
 			homeFixedEntitySeed(t, f, 2000, 8, nil, nil, nil, "2026-10-01T00:00:00.000000000Z")
 			homeFixedEntitySeed(t, f, 3000, 9, int64(2000), nil, nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedEntitySeed(t, f, 3001, 9, int64(2000), nil, nil, "2026-10-01T00:00:00.000000000Z")
+			f.exec(t, `UPDATE catalog_entities SET admission_own_age=18 WHERE id=3001`)
 			homeFixedAssetSeed(t, f, 3000)
 			homeFixedStateSeed(t, f, 2000, 7000, "in_progress")
 			homeFixedStateSeed(t, f, 3000, 7000, "in_progress")
 			f.exec(t, `UPDATE personal_items SET resume_item_public_id=(SELECT public_id FROM catalog_entities WHERE id=3000) WHERE item_id=2000`)
 		})
 		p, c, e := homeFixedRead(t, f, r, "continue_books")
-		if e != nil || !p.Exact || len(p.Items) != 1 || p.Items[0].Work.ID != 2000 || p.Items[0].Target.ID != 3000 || p.Items[0].ResumePosition != 7000 {
+		if e != nil || !p.Exact || len(p.Items) != 1 || p.Items[0].Work.ID != 2000 || p.Items[0].Target.ID != 3000 || p.Items[0].ResumePosition != 7000 || p.Items[0].EligibleLeaves != 1 {
 			t.Fatal(p, c, e)
 		}
 	})
