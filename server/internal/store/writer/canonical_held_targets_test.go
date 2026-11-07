@@ -137,6 +137,7 @@ func canonicalHeldClasses() []canonicalHeldClass {
 		{name: "mp.preparation", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged PreparedJob/ConsumeForeground +canonical prepared-job fixture not attached"},
 		{name: "rb.sorted", owner: "P2-RB", kind: "foreground_read", reason: "required reviewed/merged SortedWindow +actual RBBrowseDefinitions Capture and canonical source-order cohorts not attached"},
 		{name: "rb.chronology", owner: "P2-RB", kind: "foreground_read", reason: "required reviewed/merged ChronologyWindow +actual RBChronologyDefinitions Capture and dated/NULL/content cohorts not attached"},
+		{name: "uo.personal", owner: "P2-UO", kind: "foreground_read", reason: "merged ForegroundReader.PersonalState/UOPersonalDefinitions available; canonical profile/current-authority/source-publication/ConsumeForeground composition not attached"},
 	}
 }
 func canonicalHeldClassFor(name string) (canonicalHeldClass, error) {
@@ -250,3 +251,5 @@ func TestCanonicalPreparationRead(t *testing.T) { canonicalHeldRun(t, "mp.prepar
 
 func TestCanonicalRBSortedRead(t *testing.T)     { canonicalHeldRun(t, "rb.sorted") }
 func TestCanonicalRBChronologyRead(t *testing.T) { canonicalHeldRun(t, "rb.chronology") }
+
+func TestCanonicalUOPersonalRead(t *testing.T) { canonicalHeldRun(t, "uo.personal") }

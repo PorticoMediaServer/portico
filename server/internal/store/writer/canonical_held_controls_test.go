@@ -24,11 +24,11 @@ func TestCanonicalHeldClosedRegistryKeepsAllBindingsExplicit(t *testing.T) {
 		if len(canonicalHeldMissing(c)) != want || (c.run != nil) != (c.name == "inventory_n1") {
 			t.Fatal("unmerged seed/Action opened", c)
 		}
-		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.")) && (c.kind != "foreground_read" || c.purpose != nil) {
+		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.") || strings.HasPrefix(c.name, "uo.")) && (c.kind != "foreground_read" || c.purpose != nil) {
 			t.Fatal("read became writer class", c)
 		}
 	}
-	if len(seen) != 14 {
+	if len(seen) != 15 {
 		t.Fatal(seen)
 	}
 	if _, err := canonicalHeldClassFor("caller_sql"); err == nil {
@@ -60,36 +60,40 @@ func TestCanonicalHeldConfigRejectsSmallSamplingAndIdentityDrift(t *testing.T) {
 }
 
 func TestCanonicalHeldBlockedPrefixIsDurableAndNotFakeZero(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "class.ndjson")
-	file, err := openFirstLightOutput(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stream := &n1Stream{file: file, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "qualification": false}}
-	definition, _ := canonicalHeldClassFor("mp.queue_head")
-	err = emitCanonicalHeldPrefix(stream, canonicalHeldConfig{Attempts: 10000}, definition)
-	if !errors.Is(err, errCanonicalHeldBinding) {
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
-	if len(lines) != 3 {
-		t.Fatal(string(raw))
-	}
-	var first, last map[string]any
-	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal([]byte(lines[2]), &last); err != nil {
-		t.Fatal(err)
-	}
-	if first["target_kind"] != "foreground_read" || first["normal_hosted_p99_ns"] != nil || first["actual_library_items"] != nil || last["complete"] != false || last["report"] != nil || last["native_calls_started"] != float64(0) {
-		t.Fatal(first, last)
+	for _, class := range []string{"mp.queue_head", "uo.personal"} {
+		t.Run(class, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "class.ndjson")
+			file, err := openFirstLightOutput(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stream := &n1Stream{file: file, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "qualification": false}}
+			definition, _ := canonicalHeldClassFor(class)
+			err = emitCanonicalHeldPrefix(stream, canonicalHeldConfig{Attempts: 10000}, definition)
+			if !errors.Is(err, errCanonicalHeldBinding) {
+				t.Fatal(err)
+			}
+			if err := file.Close(); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+			if len(lines) != 3 {
+				t.Fatal(string(raw))
+			}
+			var first, last map[string]any
+			if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(lines[2]), &last); err != nil {
+				t.Fatal(err)
+			}
+			if first["target_kind"] != "foreground_read" || first["normal_hosted_p99_ns"] != nil || first["actual_library_items"] != nil || last["complete"] != false || last["report"] != nil || last["native_calls_started"] != float64(0) {
+				t.Fatal(first, last)
+			}
+		})
 	}
 }
