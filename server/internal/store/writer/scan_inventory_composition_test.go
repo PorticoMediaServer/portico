@@ -21,6 +21,11 @@ import (
 func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTransport) {
 	t.Helper()
 	cp := newCheckpointComponent(t, true, false)
+	// Explicit component input, obtained from the actual existing file. Setting
+	// the assertion changes no page size; Assert repeats the read before BEGIN.
+	if err := cp.w.db.QueryRowContext(t.Context(), "PRAGMA main.page_size").Scan(&cp.w.config.WriterPageSize); err != nil {
+		t.Fatal(err)
+	}
 	seedScanLifecycle(t, cp.w)
 	for _, q := range []string{
 		`UPDATE libraries SET metadata_language='en-US',data_revision=71,data_order_revision=73,data_metadata_revision=79,age_input_revision=83,age_published_revision=83 WHERE id='lifecycle-library'`,
@@ -111,7 +116,8 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 	return d, transport
 }
 
-func TestN1ComposedDriverUsesOneKeeperAndOriginalHistory(t *testing.T) {
+func n1ComposedDriverPrepared(t *testing.T) (*ScanDriver, *N1Preparation, InventoryAcceptCommand, ScanReceiptRequest) {
+	t.Helper()
 	d, transport := n1ComposedDriverFixture(t)
 	creation, err := d.PrepareCreate(t.Context(), ScanRunInput{7, "lifecycle-library", "lifecycle-new-source", "first-import"})
 	if err != nil {
@@ -199,6 +205,11 @@ func TestN1ComposedDriverUsesOneKeeperAndOriginalHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return d, preparation, command, original
+}
+
+func TestN1ComposedDriverUsesOneKeeperAndOriginalHistory(t *testing.T) {
+	d, preparation, command, original := n1ComposedDriverPrepared(t)
 	applied, err := preparation.Accept(t.Context(), command)
 	if err != nil || applied.Outcome.State != Applied || len(applied.Members) != 1 || applied.Outcome.Reference != original.Receipt {
 		t.Fatal("whole driver did not publish committed N1", applied, err)

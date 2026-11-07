@@ -41,6 +41,9 @@ type Config struct {
 	CacheKiB    int32
 	Synchronous SyncMode
 	ReadLimits  ReadLimits `json:",omitzero"`
+	// Zero is unobserved. A nonzero value ASSERTS the existing main database's
+	// page size on each acquired Writer connection; it never changes that size.
+	WriterPageSize int32 `json:",omitzero"`
 }
 
 var ErrPolicy = errors.New("schema-v1 connection policy mismatch")
@@ -59,6 +62,9 @@ func (c Config) validate() error {
 	}
 	if c.ReadLimits != (ReadLimits{}) && (c.Role != Reader || c.ReadLimits.LengthBytes <= 0 || c.ReadLimits.Columns <= 0) {
 		return fmt.Errorf("%w: read limits require Reader and two positive limits", ErrPolicy)
+	}
+	if c.WriterPageSize != 0 && (c.Role != Writer || c.WriterPageSize < 512 || c.WriterPageSize > 65536 || c.WriterPageSize&(c.WriterPageSize-1) != 0) {
+		return fmt.Errorf("%w: WriterPageSize requires Writer and a native power-of-two page size", ErrPolicy)
 	}
 	return nil
 }
@@ -191,6 +197,9 @@ type Settings struct {
 	// ReadLimits is actual native evidence when configured, otherwise zero
 	// (unobserved). The zero policy neither changes nor asserts native defaults.
 	ReadLimits ReadLimits `json:",omitzero"`
+	// Actual same-connection evidence only when explicitly requested. Keep
+	// zero omitted so existing callers and complete Capture JSON stay exact.
+	WriterPageSize int32 `json:",omitzero"`
 }
 
 // Assert reads, never repairs, policy. Call outside a transaction and after a
@@ -243,6 +252,14 @@ func Assert(ctx context.Context, conn *sql.Conn, c Config) (Settings, error) {
 		}
 		if limits != c.ReadLimits {
 			return s, fmt.Errorf("%w: native read limits: got %+v want %+v", ErrPolicy, limits, c.ReadLimits)
+		}
+	}
+	if c.WriterPageSize != 0 {
+		if err := conn.QueryRowContext(ctx, "PRAGMA main.page_size").Scan(&s.WriterPageSize); err != nil {
+			return s, err
+		}
+		if s.WriterPageSize != c.WriterPageSize {
+			return s, fmt.Errorf("%w: writer page size: got %d want %d", ErrPolicy, s.WriterPageSize, c.WriterPageSize)
 		}
 	}
 	return s, nil
