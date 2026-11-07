@@ -25,6 +25,8 @@ import (
 // stored manifests are derived from actual prepared rows, never a fake seal.
 func seedNativeSearch(t *testing.T, f *browseFixture) {
 	t.Helper()
+	f.exec(t, "BEGIN")
+	f.exec(t, "PRAGMA defer_foreign_keys=ON")
 	p := searchpolicy.Compiled()
 	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(4,'episode',1,0,1,1,0)`)
 	f.exec(t, `UPDATE catalog_subjects SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END WHERE id IN(1,2,3)`)
@@ -69,6 +71,7 @@ func seedNativeSearch(t *testing.T, f *browseFixture) {
 	// A raw People posting is intentionally NOT accepted without its own birth.
 	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name) VALUES(1,'person','person','Keanu','keanu')`)
 	f.exec(t, `INSERT INTO catalog_people_names(rowid,name) VALUES(1,'Keanu')`)
+	f.exec(t, "COMMIT")
 }
 func nativeFixtureHash(t *testing.T) string {
 	t.Helper()
