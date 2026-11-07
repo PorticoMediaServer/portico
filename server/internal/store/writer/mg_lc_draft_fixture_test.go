@@ -7,9 +7,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
-// PRIVATE native effects do not update canonical receipt_rows/receipt_variable_bytes
-// or compose receipt reclaim controls. Those remain a parent-owned gap; the
-// fixture never patches counters or adds a cleanup path to conceal it.
+// Native receipt saves couple child rows and exact variable-byte debt; ACK only
+// schedules it. Reclaim fixed slots and owner/floor retirement remain separate.
+// The fixture never patches counters or installs a cleanup implementation.
 // Canonical 012+013 disposable clone; historical selected-MG-001 results are not
 // evidence for this layout. Native foreign keys stay enabled.
 func mgLCDraftExecutor(t *testing.T) (*executor, string) {

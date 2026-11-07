@@ -84,6 +84,7 @@ func mgLCDefinitions() []stmt.Definition {
 		{ID: mgLCHeadPublish, Kind: stmt.Write, SQL: `UPDATE lc_channels SET active_generation=?,generated_through_ms=?,state=?,health_code=? WHERE id=? AND revision=? AND config_json=? AND active_generation=? AND enabled=1 AND removed=0 RETURNING active_generation,generated_through_ms`, Params: []stmt.Param{p("generation", t), p("through", i), p("state", t), p("health", t), p("channel", t), p("revision", i), p("config", t), p("base", t)}},
 	}
 	defs = append(defs, mgLCReceiptDefinitions()...)
+	defs = append(defs, mgLCReceiptDebtDefinitions()...)
 	for k := range defs {
 		defs[k].Owner = "writer.mg.lc"
 		defs[k].CallSites = []string{"writer/mg_lc_effects.go", "writer/mg_lc_receipts.go"}
@@ -117,7 +118,7 @@ func mgLCPlanHints(defs []stmt.Definition) []stmt.Definition {
 			table = "lc_channels"
 		case mgLCLibrary:
 			table = "libraries"
-		case mgLCRead, mgLCAdvance, mgLCReceiptOwner, mgLCAckOwner, mgLCBirthOwner:
+		case mgLCRead, mgLCAdvance, mgLCReceiptOwner, mgLCAckOwner, mgLCBirthOwner, mgLCDebtRead, mgLCDebtUpdateNull, mgLCDebtUpdateSet:
 			table = "lc_generations"
 		case mgLCTail:
 			table = "lc_candidates"
