@@ -7,10 +7,13 @@ import (
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/schematest"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
+
+func TestMain(m *testing.M) { os.Exit(schematest.Run(m)) }
 
 func iaAudioOctetsDefinitions() []stmt.Definition {
 	var defs []stmt.Definition
@@ -84,6 +87,9 @@ func TestIAAudioOctetsNativeCapture(t *testing.T) {
 	}
 	path := "testdata/ia-audio-octets.json"
 	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
+		if e = os.MkdirAll(dir, 0755); e != nil {
+			t.Fatal(e)
+		}
 		if e = os.WriteFile(filepath.Join(dir, filepath.Base(path)), actual, 0644); e != nil {
 			t.Fatal(e)
 		}
