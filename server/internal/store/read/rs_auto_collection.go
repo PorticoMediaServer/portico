@@ -27,6 +27,8 @@ type CollectionPreparation struct {
 	nodes         []rsCollectionNode
 	root          int32
 	ready, closed bool
+	nonempty      bool
+	proof         [32]byte
 }
 type rsAutoCursor struct {
 	stage                                            int
@@ -68,6 +70,7 @@ func (r *CollectionReader) BeginCollectionPreparation(ctx context.Context, a *go
 	in.View.Database = strings.Clone(in.View.Database)
 	in.View.TokenHash = strings.Clone(in.View.TokenHash)
 	p := &CollectionPreparation{owner: owner, reader: r, authority: a, lease: d.Lease, in: in, nodes: make([]rsCollectionNode, 0, capacity)}
+	p.in.View.policy = readPolicyBinding{recipe: rsCollectionComputePolicy, subject: in.Collection, state: p}
 	return p, nil, nil
 }
 func (p *CollectionPreparation) Deadline() time.Time {
@@ -169,7 +172,8 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 	var fence browseFence
 	var raw [][]any
 	var accepted []int64
-	w := &rsByteWindow{source: p.reader.snapshots}
+	nonempty := p.nonempty
+	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 40}
 	root := func(q browseQuery) ([]any, error) { var e error; source, e = p.rootRead(q); return source, e }
 	// Every quantum has one bounded source position, at most four candidate
 	// points, then a fresh authorization/source publication check.
@@ -242,7 +246,7 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 				return governor.ErrSnapshotBudget
 			}
 			found = true
-			return w.arm(max(n, 1), 2)
+			return w.arm(max(n, 1), 8)
 		}, func(ctx context.Context, q browseQuery, f browseFence, d *CollectionAdvance) error {
 			if !found {
 				return nil
@@ -355,7 +359,10 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 			if c.stage != rsAutoAuthored && rows[0][3].(int64) != 1 {
 				continue
 			}
-			visible, e := rsCollectionVisible(rows[0], f)
+			if rows[0][1].(int64) == 0 {
+				nonempty = true
+			}
+			visible, e := rsCollectionMemberEligible(q, rows[0], in, f)
 			if e != nil {
 				return e
 			}
@@ -387,6 +394,7 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 		}
 		p.root = rsNodeInsert(&p.nodes, p.root, key, id)
 	}
+	p.nonempty = nonempty
 	p.cursor = c
 	p.source = source
 	p.fence = &fence
@@ -395,6 +403,7 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 			_ = p.Close()
 			return CollectionAdvance{}, cost, err
 		}
+		p.proof = rsCollectionProof(p)
 		p.ready = true
 		result.Ready = true
 	}

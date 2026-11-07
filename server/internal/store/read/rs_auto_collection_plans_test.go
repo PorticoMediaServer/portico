@@ -51,7 +51,7 @@ func TestRSAutoCollectionPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalogue.Manifest()) != 17 {
+	if len(catalogue.Manifest()) != 20 {
 		t.Fatal("review changed statement inventory")
 	}
 	path := "testdata/rs-auto-collection-plans.json.gz"
@@ -136,7 +136,7 @@ func TestRSAutoCollectionPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capture := range captures {
-		if len(capture.Golden.Manifest) != 17 || len(capture.Golden.Plans) != 34 {
+		if len(capture.Golden.Manifest) != 20 || len(capture.Golden.Plans) != 40 {
 			t.Fatal("incomplete statement/cohort Capture coverage")
 		}
 	}

@@ -85,7 +85,7 @@ func AutomaticCollectionDefinitions() []stmt.Definition {
 	for _, v := range []struct{ n, sql string }{{"card", rsCollectionCardSQL}, {"card_octets", rsCollectionCardOctetsSQL}} {
 		add(v.n, v.sql, []stmt.Param{i("item"), i("library")}, []any{int64(1), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"e", "k"}})
 	}
-	return defs
+	return append(defs, rsDetailEligibilityDefinitions()...)
 }
 
 func rsAutomaticAcceptedPlan() stmt.Plan {

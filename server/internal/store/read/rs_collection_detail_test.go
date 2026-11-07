@@ -86,9 +86,14 @@ func TestRSCollectionDetailActualBytesAndDefaultPolicy(t *testing.T) {
 	}
 	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
 	p = rsBeginCollection(t, f, r)
-	step, _, e := p.advance(t.Context(), foregroundRequest(), time.Second, f.output, f.input.Now)
-	if !errors.Is(e, ErrUnqualified) || step.Ready || !p.closed {
-		t.Fatal("unproved container policy", e)
+	rsCompleteCollection(t, f, p)
+	d, _, e = p.detail(t.Context(), foregroundRequest(), time.Second, f.output, 0, f.input.Now)
+	if e != nil || len(d.Items) != 2 {
+		t.Fatal("complete restricted collection proof", d, e)
+	}
+	_, _, e = f.reader.window(t.Context(), foregroundRequest(), time.Second, f.output, f.input)
+	if !errors.Is(e, ErrUnqualified) {
+		t.Fatal("default browse recipe changed", e)
 	}
 }
 

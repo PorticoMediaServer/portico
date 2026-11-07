@@ -49,14 +49,14 @@ func (p *CollectionPreparation) Detail(ctx context.Context, request governor.Req
 		return CollectionDetail{}, BrowseReadResult{}, ErrInput
 	}
 	return liveRead(ctx, request, budget, output, p.reader.pool, p.in.View.Now, func(ctx context.Context, r governor.Request, b time.Duration, at time.Time) (CollectionDetail, BrowseReadResult, error) {
-		if after != nil && (p.fence == nil || after.fence != *p.fence || !equalSource(after.source, p.source) || after.collection != p.in.Collection) {
+		if after != nil && (p.fence == nil || !rsCollectionSameFence(after.fence, *p.fence) || !equalSource(after.source, p.source) || after.collection != p.in.Collection) {
 			_ = p.Close()
 			return CollectionDetail{}, BrowseReadResult{}, ErrStale
 		}
-		return p.detail(ctx, r, b, output, offset, at)
+		return p.detail(ctx, r, b, output, offset, at, after)
 	})
 }
-func (p *CollectionPreparation) detail(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, offset int, at time.Time) (CollectionDetail, BrowseReadResult, error) {
+func (p *CollectionPreparation) detail(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, offset int, at time.Time, cursors ...*CollectionDetailCursor) (CollectionDetail, BrowseReadResult, error) {
 	if err := p.check(output, request); err != nil {
 		_ = p.Close()
 		return CollectionDetail{}, BrowseReadResult{}, err
@@ -69,14 +69,18 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 	}
 	in := p.in.View
 	in.Now = at
+	in.policy = readPolicyBinding{recipe: rsCollectionDeliveryPolicy, subject: p.in.Collection, state: p}
 	ids := []int64{p.in.Collection}
 	end := min(len(p.nodes), offset+in.Limit)
 	for rank := offset; rank < end; rank++ {
 		ids = append(ids, rsNodeRank(p.nodes, p.root, rank))
 	}
-	w := &rsByteWindow{source: p.reader.snapshots}
+	w := &rsByteWindow{source: p.reader.snapshots, preflightCalls: 40}
 	steps := []readStep[CollectionDetail]{func(ctx context.Context, q browseQuery, f browseFence, d *CollectionDetail) error {
-		if p.fence == nil || *p.fence != f {
+		if p.fence == nil || !rsCollectionSameFence(*p.fence, f) {
+			return ErrStale
+		}
+		if len(cursors) > 1 || len(cursors) == 1 && cursors[0] != nil && cursors[0].fence != f {
 			return ErrStale
 		}
 		d.LibraryID = f.library
@@ -118,7 +122,7 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 			if total > output.Request.Need[governor.MemoryBytes]/8 {
 				return governor.ErrSnapshotBudget
 			}
-			return w.arm(max(largest, 1), uint16(2*len(group)))
+			return w.arm(max(largest, 1), uint16(5*len(group)))
 		}, func(ctx context.Context, q browseQuery, f browseFence, d *CollectionDetail) error {
 			for _, id := range group {
 				rows, e := q("rs.auto.card", id, in.Library)
@@ -140,7 +144,7 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 					d.Collection = item
 					continue
 				}
-				visible, e := rsCollectionVisible([]any{v[0], v[4], v[6], v[7], v[8]}, f)
+				visible, e := rsCollectionMemberEligible(q, []any{v[0], v[4], v[6], v[7], v[8]}, in, f)
 				if e != nil {
 					return e
 				}
