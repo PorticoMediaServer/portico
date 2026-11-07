@@ -101,6 +101,12 @@ func TestIATVRawCursorAndFence(t *testing.T) {
 	if e != nil || len(d.Children) != 6 || !d.Exhausted || d.Next != nil || d.Children[0].ID != 2265 {
 		t.Fatalf("raw tail %+v %v", d, e)
 	}
+	f.exec(t, `UPDATE catalog_entities SET tv_hierarchy_revision=2 WHERE id=2100`)
+	stale, _, err := r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, in, "children")
+	if !errors.Is(err, ErrStale) || !reflect.DeepEqual(stale, IATVResult{}) {
+		t.Fatal("parent source cursor drift escaped", err)
+	}
+	f.exec(t, `UPDATE catalog_entities SET tv_hierarchy_revision=1 WHERE id=2100`)
 	f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='movies'`)
 	d, _, e = r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, in, "children")
 	if !errors.Is(e, ErrStale) || !reflect.DeepEqual(d, IATVResult{}) {
@@ -169,10 +175,7 @@ func TestIATVExactBytesAndHierarchyControls(t *testing.T) {
 	f, r := newIATVFixture(t)
 	// A long multibyte source exercises actual octets, not rune count or a
 	// columns*max estimate. The native preflight and copied values must agree.
-	title := ""
-	for i := 0; i < 4000; i++ {
-		title += "é"
-	}
+	title := strings.Repeat("é", 4000)
 	f.exec(t, `UPDATE catalog_entities SET title=? WHERE id=2201`, title)
 	d, _, e := r.iaTV(t.Context(), foregroundRequest(), time.Second, f.output, iaTVInput(f, 2201, 4), "point")
 	if e != nil || d.Hierarchy.Item.Title != title {
@@ -197,7 +200,7 @@ func TestIATVMaterialMutants(t *testing.T) {
 				case mutant == "truncate-membership" && defs[i].ID == readStatementID("foreground.ia.tv.members"):
 					defs[i].SQL = strings.Replace(defs[i].SQL, "LIMIT 9", "LIMIT 1", 1)
 				case mutant == "wrong-episode-number" && defs[i].ID == readStatementID("foreground.ia.tv.entity"):
-					defs[i].SQL = strings.Replace(defs[i].SQL, "episode_number,numbering", "episode_number+100,numbering", 1)
+					defs[i].SQL = strings.Replace(defs[i].SQL, "episode_number,numbering", "show_id,numbering", 1)
 				}
 			}
 			f := composeReadFixture(t, source, append(browseDefinitions(), defs...), iaTVTestGovernorConfig(), true, iaTVFixtureHash(t))
@@ -221,7 +224,7 @@ func TestIATVMaterialMutants(t *testing.T) {
 					t.Fatal("complete-eight-member oracle survived mutant")
 				}
 			} else {
-				if d.Hierarchy.Item.EpisodeNumber == nil || *d.Hierarchy.Item.EpisodeNumber != 101 {
+				if d.Hierarchy.Item.EpisodeNumber == nil || *d.Hierarchy.Item.EpisodeNumber != 2000 {
 					t.Fatal("numbering mutant not activated")
 				}
 				if *d.Hierarchy.Item.EpisodeNumber == 1 {

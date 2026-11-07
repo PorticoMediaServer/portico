@@ -21,6 +21,7 @@ type IATVInput struct {
 type IATVCursor struct {
 	fence      browseFence
 	item, last int64
+	source     []any
 }
 type IATVEntity struct {
 	BrowseItem
@@ -216,6 +217,7 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 	}
 	s := &iaTVScope{browseSnapshots: r.snapshots, ceiling: output.Request.Need[governor.MemoryBytes] / 4}
 	var keys [][]any
+	var capturedSource []any
 	source := func(q browseQuery) ([]any, error) {
 		name, id := "source", in.Item
 		if mode == "members" {
@@ -233,6 +235,10 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 		if mode == "members" && row[1].(int64) == 0 {
 			return nil, ErrNotReady
 		}
+		if in.After != nil && !equalSource(in.After.source, row) {
+			return nil, ErrStale
+		}
+		capturedSource = row
 		return row, nil
 	}
 	steps := []readStep[IATVResult]{func(ctx context.Context, q browseQuery, f browseFence, d *IATVResult) error {
@@ -316,7 +322,7 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 					}
 					id := keys[pos][0].(int64)
 					d.RawPositions++
-					d.Next = &IATVCursor{fence: f, item: in.Item, last: id}
+					d.Next = &IATVCursor{fence: f, item: in.Item, last: id, source: capturedSource}
 					v, e := s.entity(id, in.View.Library, f)
 					if errors.Is(e, ErrDenied) {
 						continue
