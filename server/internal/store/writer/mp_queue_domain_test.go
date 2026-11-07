@@ -378,10 +378,6 @@ func TestMPQueueFReceiptCompleteDigestAndNoDTOFallback(t *testing.T) {
 	if _, err = mpQueueSavedCommitment(missing); err == nil {
 		t.Fatal("missing original header silently reconstructed")
 	}
-	fields := mpReceiptScalarFields(t, mpQueueResultDefinitions()[0].SQL, mpQueueScalarResultArgs(v))
-	if fields["owner_id"] != "queue" || fields["result_count"] != int64(3) || fields["result_step_count"] != int64(77) || fields["result_done"] != int64(1) || fields["result_automatic_advances"] != int64(7) {
-		t.Fatal(fields)
-	}
 }
 func mpTestNextSavedReceipt() mpNextSavedResult {
 	return mpNextSavedResult{token: "next", identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, requestDigest: RequestDigest{3}, kind: mpCommitNext, appliedMS: 19, effect: mpQueueEffect{queue: "queue", token: "next", entry: "snap-1", session: "logical-next", revision: 5, custody: 2, position: 1, lap: 3, changed: true, done: true}, header: mpNextReceiptHeader{state: "committed", media: "media-next", presentationURL: "/original-presentation", sessionGeneration: 1, sessionRevision: 1, mediaGeneration: 8, expires: 1000, physicalPending: true}, retireMedia: []mpReceiptRetireMedia{{media: "media-old", generation: 7, requestID: "exact old request", pending: true}}}
@@ -406,10 +402,6 @@ func TestMPNextFReceiptDigestPreservesOriginalResults(t *testing.T) {
 	if _, err = mpNextSavedCommitment(missing); err == nil {
 		t.Fatal("missing original session projection silently reconstructed")
 	}
-	fields := mpReceiptScalarFields(t, mpNextResultDefinitions()[0].SQL, mpNextScalarResultArgs(v))
-	if fields["owner_id"] != "next" || fields["result_count"] != int64(2) || fields["result_shuffle_lap"] != int64(3) || fields["result_changed"] != int64(1) {
-		t.Fatal(fields)
-	}
 	// Mutable native exit debt can finish after the immutable receipt has been
 	// saved or ACKed. The original proof, URL, requestID and pending bit survive.
 	originalChild := v.retireMedia[0]
@@ -421,72 +413,74 @@ func TestMPNextFReceiptDigestPreservesOriginalResults(t *testing.T) {
 	}
 	_ = debt
 }
-func mpReceiptScalarFields(t *testing.T, query string, args []any) map[string]any {
-	t.Helper()
-	start := strings.Index(query, "(")
-	end := strings.Index(query, ")")
-	columns := strings.Split(query[start+1:end], ",")
-	tail := query[strings.Index(query, "VALUES(")+7:]
-	values := strings.Split(strings.TrimSuffix(tail, ")"), ",")
-	if len(columns) != len(values) {
-		t.Fatal("column/value layout")
-	}
-	out := map[string]any{}
-	n := 0
-	for i, value := range values {
-		if value == "?" {
-			if n >= len(args) {
-				t.Fatal("missing argument")
+func TestMPFWorkerBindingsAndOwnerTables(t *testing.T) {
+	for _, defs := range [][]stmt.Definition{mpQueueResultDefinitions(), mpNextResultDefinitions()} {
+		if _, err := stmt.Describe(defs); err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range defs {
+			if strings.Count(d.SQL, "?") != len(d.Params) {
+				t.Fatal(d.ID, "arity")
 			}
-			out[columns[i]] = args[n]
-			n++
-		} else if value == "1" {
-			out[columns[i]] = int64(1)
-		} else {
-			t.Fatal("unexpected literal")
+			if strings.Contains(d.SQL, "receipt_segments") || strings.Contains(d.SQL, "receipt_retire_media") {
+				t.Fatal(d.ID, "obsolete child")
+			}
 		}
 	}
-	if n != len(args) {
-		t.Fatal("extra argument")
-	}
-	return out
 }
-func TestMPFScalarBindingsAndOwnerTables(t *testing.T) {
-	defs := append(mpQueueResultDefinitions(), mpNextResultDefinitions()...)
-	vectors := map[string][]any{"mp.queue.result_insert": mpQueueScalarResultArgs(mpTestQueueSavedReceipt()), "mp.next.result_insert": mpNextScalarResultArgs(mpTestNextSavedReceipt())}
-	for _, d := range defs {
-		args, ok := vectors[string(d.ID)]
-		if !ok {
-			continue
+
+func TestMPQueueNextWorkerPayloadControls(t *testing.T) {
+	h := mpPrepReceiptHeader{identity: CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1}, request: RequestDigest{3}, resultDigest: ResultDigest{4}, kind: mpQueueSave, appliedMS: 100}
+	v := mpWMediaPayload{header: h, version: 1, count: 1, payload: []byte("original")}
+	o := mpMediaWorkerBefore{incarnation: h.identity.Incarnation, revision: 1}
+	a := mpMediaWorkerAdmission{maxRows: 1, maxBytes: 1000, reclaimDueMS: 101}
+	n, err := o.admits("queue", v, a)
+	if err != nil || n != 5+96+8 {
+		t.Fatal(n, err)
+	}
+	for _, mutate := range []func(*mpMediaWorkerBefore, *mpMediaWorkerAdmission, *mpWMediaPayload){
+		func(o *mpMediaWorkerBefore, a *mpMediaWorkerAdmission, v *mpWMediaPayload) { o.incarnation[0]++ },
+		func(o *mpMediaWorkerBefore, a *mpMediaWorkerAdmission, v *mpWMediaPayload) { o.last = 1 },
+		func(o *mpMediaWorkerBefore, a *mpMediaWorkerAdmission, v *mpWMediaPayload) { a.maxBytes = n - 1 },
+		func(o *mpMediaWorkerBefore, a *mpMediaWorkerAdmission, v *mpWMediaPayload) { a.maxRows = 0 },
+		func(o *mpMediaWorkerBefore, a *mpMediaWorkerAdmission, v *mpWMediaPayload) { a.reclaimDueMS = 99 },
+		func(o *mpMediaWorkerBefore, a *mpMediaWorkerAdmission, v *mpWMediaPayload) {
+			v.payload = make([]byte, 65537)
+		},
+	} {
+		oo, aa, vv := o, a, v
+		mutate(&oo, &aa, &vv)
+		if _, err = oo.admits("queue", vv, aa); err == nil {
+			t.Fatal("invalid admission")
 		}
-		if len(args) != len(d.Params) {
-			t.Fatal(d.ID, "count")
+	}
+	for _, kind := range []CommandID{750, 761, 770, 771} {
+		v.header.kind = kind
+		if _, err = storeMPQueueWorkerPayload(t.Context(), nil, "queue", o, a, v); err == nil {
+			t.Fatal("borrowed queue purpose", kind)
 		}
-		for i, p := range d.Params {
-			if args[i] == nil && p.Nullable {
-				continue
-			}
-			switch p.Type {
-			case stmt.Text:
-				if _, ok := args[i].(string); !ok {
-					t.Fatal(d.ID, i)
+		if _, err = storeMPNextWorkerPayload(t.Context(), nil, "next", o, a, v); err == nil {
+			t.Fatal("borrowed next purpose", kind)
+		}
+	}
+	for _, group := range [][]stmt.Definition{mpQueueWorkerPayloadDefinitions(), mpNextWorkerPayloadDefinitions()} {
+		for _, d := range group {
+			if strings.HasSuffix(string(d.ID), ".advance") {
+				for _, fence := range []string{"mp_owner_revision=?", "mp_command_last_sequence=?", "mp_command_acknowledged_sequence=?", "mp_receipt_rows=?", "mp_receipt_variable_bytes=?", "mp_owner_revision=mp_owner_revision+1", "mp_receipt_reclaim_due_ms"} {
+					if !strings.Contains(d.SQL, fence) {
+						t.Fatal(d.ID, fence)
+					}
 				}
-			case stmt.Integer:
-				if _, ok := args[i].(int64); !ok {
-					t.Fatal(d.ID, i)
-				}
-			case stmt.Blob:
-				if _, ok := args[i].([]byte); !ok {
-					t.Fatal(d.ID, i)
-				}
-			default:
-				t.Fatal(d.ID, i)
 			}
 		}
 	}
-	for _, d := range defs {
-		if strings.Contains(d.SQL, "queue_v1_command_results") || strings.Contains(d.SQL, "playback_v1_next_command_results") {
-			t.Fatal("second receipt lifetime", d.ID)
-		}
+	b := mpQueueWorkerBirth{userIncarnation: [16]byte{7}, root: strings.Repeat("r", 22), member: strings.Repeat("m", 32), profileLifetime: strings.Repeat("p", 32)}
+	id, err := mpFreshQueueWorkerIncarnation(b)
+	if err != nil || id == b.userIncarnation || id == ([16]byte{}) {
+		t.Fatal(id, err)
+	}
+	b.root = ""
+	if _, err = mpFreshQueueWorkerIncarnation(b); err == nil {
+		t.Fatal("missing historical root")
 	}
 }

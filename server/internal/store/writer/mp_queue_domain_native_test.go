@@ -2,7 +2,6 @@ package writer
 
 import (
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -167,83 +166,19 @@ func mpNativeFExecutor(t *testing.T) *executor {
 	}
 	return w
 }
-func TestMPNativeFReceiptSQLAndScalarRoundTrip(t *testing.T) {
+func TestMPNativeFWorkerPayloadSQLPrepare(t *testing.T) {
 	w := mpNativeFExecutor(t)
-	defs := append(mpQueueResultDefinitions(), mpNextResultDefinitions()...)
-	defs = append(defs, mpQueueCleanupDefinitions()...)
-	defs = append(defs, mpNextDefinitions()...)
-	byID := map[string]stmt.Definition{}
-	for _, d := range defs {
-		byID[string(d.ID)] = d
-		args := make([]any, len(d.Params))
-		rows, err := w.db.QueryContext(t.Context(), "EXPLAIN "+d.SQL, args...)
+	for _, d := range append(mpQueueResultDefinitions(), mpNextResultDefinitions()...) {
+		s, err := w.db.PrepareContext(t.Context(), d.SQL)
 		if err != nil {
 			t.Fatal(d.ID, err)
 		}
-		for rows.Next() {
-		}
-		if err := rows.Err(); err != nil {
-			t.Fatal(err)
-		}
-		if err := rows.Close(); err != nil {
+		if err = s.Close(); err != nil {
 			t.Fatal(err)
 		}
 	}
-	q := mpTestQueueSavedReceipt()
-	q.digest, _ = mpQueueSavedCommitment(q)
-	n := mpTestNextSavedReceipt()
-	n.digest, _ = mpNextSavedCommitment(n)
-	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO queues_v1(id,owner_kind,owner_id,authority,account_id,profile_id,revision,created_ms,updated_ms,mp_command_incarnation) VALUES('queue','device','device','local','account','profile',4,1,19,?)`, q.identity.Incarnation[:]); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO playback_v1_prepared(token,queue_id,device_id,create_key,digest,session_id,session_generation,session_state,queue_revision,next_position,entry_id,item_id,media_session_id,request,presentation,expires_ms,state,created_ms,mp_command_incarnation) VALUES('next','queue','device','native-key','native-digest','logical-next',1,'playing',5,1,'snap-1',1,'media-next','','',1000,'committed',19,?)`, n.identity.Incarnation[:]); err != nil {
-		t.Fatal(err)
-	}
-	check := func(insert, read string, args []any, owner string, identity CommandIdentity) {
-		t.Helper()
-		if _, err := w.db.ExecContext(t.Context(), byID[insert].SQL, args...); err != nil {
-			t.Fatal(insert, err)
-		}
-		expected := mpReceiptScalarFields(t, byID[insert].SQL, args)
-		rows, err := w.db.QueryContext(t.Context(), byID[read].SQL, owner, identity.Incarnation[:], identity.Sequence)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer rows.Close()
-		columns, err := rows.Columns()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !rows.Next() {
-			t.Fatal("missing original scalar result")
-		}
-		values := make([]any, len(columns))
-		dest := make([]any, len(columns))
-		for i := range dest {
-			dest[i] = &values[i]
-		}
-		if err = rows.Scan(dest...); err != nil {
-			t.Fatal(err)
-		}
-		for i, col := range columns {
-			if !reflect.DeepEqual(values[i], expected[col]) {
-				t.Fatalf("%s field %s: got %T/%v want %T/%v", read, col, values[i], values[i], expected[col], expected[col])
-			}
-		}
-		if rows.Next() {
-			t.Fatal("duplicate scalar receipt")
-		}
-		if err = rows.Err(); err != nil {
-			t.Fatal(err)
-		}
-	}
-	check("mp.queue.result_insert", "mp.queue.result_read", mpQueueScalarResultArgs(q), q.queue, q.identity)
-	check("mp.next.result_insert", "mp.next.result_read", mpNextScalarResultArgs(n), n.token, n.identity)
 }
 
-// Prepared runner fixture: ACKed immutable result children can be reclaimed
-// while mutable exact-stop obligations still retain their queue/next/physical
-// owners. This is native SQL/FK evidence, never accepting command execution.
 func TestMPNativeFStopDebtSurvivesReceiptReclaim(t *testing.T) {
 	w := mpNativeFExecutor(t)
 	defs := append(mpQueueResultDefinitions(), mpNextResultDefinitions()...)
@@ -272,21 +207,17 @@ func TestMPNativeFStopDebtSurvivesReceiptReclaim(t *testing.T) {
 	for i, stop := range []mpReceiptRetireMedia{q.retireMedia[0], n.retireMedia[0]} {
 		exec(`INSERT INTO playback_sessions(id,session_hash,account_id,profile_id,item_id,asset_id,generation,state,grant_hash,grant_token,expires_at,request_id,duration,mp_retired_generation,mp_retire_request_id) VALUES(?,'unused','account','profile',1,'asset',?,'stopped',?,'unused','2099-01-01T00:00:00Z',?,0,?,?)`, stop.media, stop.generation, stop.media, []string{"source-request-one", "source-request-two"}[i], stop.generation, stop.requestID)
 	}
-	exec(byID["mp.queue.result_insert"].SQL, mpQueueScalarResultArgs(q)...)
-	for i, s := range q.segments {
-		exec(byID["mp.queue.result_segment_insert"].SQL, q.queue, q.identity.Incarnation[:], q.identity.Sequence, int64(i), s.id, s.snapshot, s.kind, s.label, s.sourceRevision, s.count, s.state)
-	}
-	for i, s := range q.retireMedia {
-		exec(byID["mp.queue.result_retire_insert"].SQL, q.queue, q.identity.Incarnation[:], q.identity.Sequence, int64(i), s.media, s.generation, s.requestID, mpBool(s.pending))
-	}
-	exec(byID["mp.next.result_insert"].SQL, mpNextScalarResultArgs(n)...)
-	for i, s := range n.retireMedia {
-		exec(byID["mp.next.result_retire_insert"].SQL, n.token, n.identity.Incarnation[:], n.identity.Sequence, int64(i), s.media, s.generation, s.requestID, mpBool(s.pending))
+	for _, v := range []struct {
+		family, owner string
+		identity      CommandIdentity
+		kind          CommandID
+	}{{"queue", q.queue, q.identity, q.kind}, {"next", n.token, n.identity, n.kind}} {
+		exec(byID["mp."+v.family+".worker.insert"].SQL, v.owner, v.identity.Incarnation[:], v.identity.Sequence, v.identity.OperationID[:], int64(v.kind), q.requestDigest[:], int64(1), int64(1), q.digest[:], []byte("original W fixture"), int64(19))
 	}
 	a, b := q.retireMedia[0], n.retireMedia[0]
 	exec(byID["mp.queue.stop"].SQL, q.queue, a.generation, "retired", int64(20), "logical", int64(1), a.media, a.generation)
 	exec(byID["mp.next.stop"].SQL, n.token, b.generation, "canceled", int64(20), b.media, b.generation)
-	for _, table := range []string{"mp_queue_receipt_segments", "mp_queue_receipt_retire_media", "mp_queue_command_receipts", "mp_next_receipt_retire_media", "mp_next_command_receipts"} {
+	for _, table := range []string{"mp_queue_command_receipts", "mp_next_command_receipts"} {
 		exec("DELETE FROM " + table)
 	} // closed fixture table list
 	var count int64

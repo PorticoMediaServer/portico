@@ -1,0 +1,121 @@
+package writer
+
+import (
+	"bytes"
+	"context"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+)
+
+// Concrete F worker stream. User births belong to UO; W alone encodes results.
+func storeMPNextWorkerPayload(ctx context.Context, t *commandTurn, owner string, o mpMediaWorkerBefore, a mpMediaWorkerAdmission, v mpWMediaPayload) (debt int64, err error) {
+	defer func() { debt, err = finishCommand(ctx, commandLifetime(t), debt, err) }()
+	h := v.header
+	if !mpNextRootPurpose(h.kind) {
+		return 0, ErrInvalid
+	}
+	if err = mpPrepTurn(t, h.kind); err != nil {
+		return
+	}
+	expected, e := o.admits(owner, v, a)
+	if e != nil {
+		return 0, e
+	}
+	row, e := mpPrepRow(ctx, t, "mp.next.worker.insert", owner, h.identity.Incarnation[:], h.identity.Sequence, h.identity.OperationID[:], int64(h.kind), h.request[:], v.version, v.count, h.resultDigest[:], v.payload, h.appliedMS)
+	if e != nil {
+		return 0, e
+	}
+	if err = row.Scan(&debt); err != nil {
+		return
+	}
+	if debt != expected {
+		return 0, ErrResolveRequired
+	}
+	err = mpPrepOne(ctx, t, "mp.next.worker.advance", h.identity.Sequence, o.rows+1, o.variableBytes+debt, a.reclaimDueMS, owner, o.incarnation[:], o.revision, o.last, o.ack, o.rows, o.variableBytes)
+	return
+}
+
+// Returns saved ORIGINAL W bytes after a point byte preflight. Caller must
+// supply actual admitted native bytes before copying and use W's verification/decode path;
+// no mutable source/window/session row is used to reconstruct a replay.
+func loadMPNextWorkerPayload(ctx context.Context, t *commandTurn, owner string, want mpPrepReceiptHeader, admittedVariableBytes int64) (out mpWMediaPayload, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	if !mpNextRootPurpose(want.kind) || !mpPrepTexts(owner) || want.identity.Incarnation == ([16]byte{}) || want.identity.OperationID == ([16]byte{}) || want.identity.Sequence <= 0 || want.request == (RequestDigest{}) {
+		return out, ErrInvalid
+	}
+	if err = mpPrepTurn(t, want.kind); err != nil {
+		return
+	}
+	row, e := mpPrepRow(ctx, t, "mp.next.worker.octets", owner, want.identity.Incarnation[:], want.identity.Sequence)
+	if e != nil {
+		return out, e
+	}
+	var debt, n int64
+	if err = row.Scan(&debt, &n); err != nil {
+		return
+	}
+	if n < 1 || n > 65536 || debt != int64(len(owner))+96+n || debt > admittedVariableBytes {
+		return out, ErrResolveRequired
+	}
+	row, e = mpPrepRow(ctx, t, "mp.next.worker.original", owner, want.identity.Incarnation[:], want.identity.Sequence)
+	if e != nil {
+		return out, e
+	}
+	var op, request, digest []byte
+	var kind int64
+	out.header = want
+	if err = row.Scan(&op, &kind, &request, &out.version, &out.count, &digest, &out.payload, &out.header.appliedMS); err != nil {
+		return
+	}
+	if !bytes.Equal(op, want.identity.OperationID[:]) || !bytes.Equal(request, want.request[:]) || kind != int64(want.kind) || len(digest) != 32 || out.version != 1 || out.count < 0 || out.count > 10000 || int64(len(out.payload)) != n || out.header.appliedMS < 0 {
+		return out, ErrResolveRequired
+	}
+	copy(out.header.resultDigest[:], digest)
+	if out.header.resultDigest == (ResultDigest{}) {
+		return out, ErrResolveRequired
+	}
+	return
+}
+func mpNextWorkerPayloadDefinitions() []stmt.Definition {
+	specs := []struct {
+		id, sql, types string
+		kind           stmt.Kind
+	}{
+		{"mp.next.worker.birth", `UPDATE playback_v1_prepared SET mp_command_incarnation=?,mp_user_root_id=?,mp_owner_member_incarnation=?,mp_owner_profile_lifetime=? WHERE token=? AND mp_command_incarnation IS NULL AND mp_command_last_sequence=0 AND mp_command_acknowledged_sequence=0 AND mp_owner_revision=1 AND mp_receipt_rows=0 AND mp_receipt_variable_bytes=0 AND mp_user_root_id IS NULL AND mp_owner_member_incarnation IS NULL AND mp_owner_profile_lifetime IS NULL RETURNING 1`, "bssss", stmt.Write},
+		{"mp.next.worker.insert", `INSERT INTO mp_next_command_receipts(owner_id,command_incarnation,command_sequence,operation_id,command_kind,request_digest,result_version,result_count,result_digest,result_payload,applied_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING variable_bytes`, "sbibibiibbi", stmt.Write},
+		{"mp.next.worker.advance", `UPDATE playback_v1_prepared SET mp_command_last_sequence=?,mp_receipt_rows=?,mp_receipt_variable_bytes=?,mp_receipt_reclaim_due_ms=CASE WHEN mp_receipt_reclaim_due_ms IS NULL THEN ? ELSE mp_receipt_reclaim_due_ms END,mp_owner_revision=mp_owner_revision+1 WHERE token=? AND mp_command_incarnation=? AND mp_owner_revision=? AND mp_command_last_sequence=? AND mp_command_acknowledged_sequence=? AND mp_receipt_rows=? AND mp_receipt_variable_bytes=? AND mp_retirement_state IN('live','draining') RETURNING 1`, "iiiisbiiiii", stmt.Write},
+		{"mp.next.worker.octets", `SELECT variable_bytes,octet_length(result_payload) FROM mp_next_command_receipts WHERE owner_id=? AND command_incarnation=? AND command_sequence=?`, "sbi", stmt.Read},
+		{"mp.next.worker.original", `SELECT operation_id,command_kind,request_digest,result_version,result_count,result_digest,result_payload,applied_ms FROM mp_next_command_receipts WHERE owner_id=? AND command_incarnation=? AND command_sequence=?`, "sbi", stmt.Read},
+	}
+	var defs []stmt.Definition
+	for _, s := range specs {
+		d := mpPrepDefinition(s.id, s.sql, s.types, s.kind)
+		d.CallSites = []string{"store/writer/mp_next_worker_payload.go"}
+		defs = append(defs, d)
+	}
+	return defs
+}
+
+// Point-only native preflight: no payload is copied. Outer W admission consumes
+// this exact value before load; this function grants no memory credit.
+func mpNextWorkerPayloadBytes(ctx context.Context, t *commandTurn, owner string, h mpPrepReceiptHeader) (n int64, err error) {
+	defer func() { n, err = finishCommand(ctx, commandLifetime(t), n, err) }()
+	if !mpNextRootPurpose(h.kind) || !mpPrepTexts(owner) || h.identity.Incarnation == ([16]byte{}) || h.identity.Sequence <= 0 {
+		return 0, ErrInvalid
+	}
+	if err = mpPrepTurn(t, h.kind); err != nil {
+		return
+	}
+	row, e := mpPrepRow(ctx, t, "mp.next.worker.octets", owner, h.identity.Incarnation[:], h.identity.Sequence)
+	if e != nil {
+		return 0, e
+	}
+	var payload int64
+	if err = row.Scan(&n, &payload); err != nil {
+		return
+	}
+	if payload < 1 || payload > 65536 || n != int64(len(owner))+96+payload {
+		return 0, ErrResolveRequired
+	}
+	return
+}

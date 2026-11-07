@@ -512,6 +512,7 @@ type mpQueueSnapshotBirthResult struct {
 	count              int64
 }
 type mpQueueBirthEffect struct {
-	result    mpQueueEffect
-	snapshots []mpQueueSnapshotBirthResult
+	workerIncarnation [16]byte
+	result            mpQueueEffect
+	snapshots         []mpQueueSnapshotBirthResult
 }

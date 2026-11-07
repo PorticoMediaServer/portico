@@ -18,6 +18,7 @@ func mpPurpose(t *commandTurn, id CommandID) error {
 }
 
 type mpQueueBuildInput struct {
+	birth        mpQueueWorkerBirth
 	token, queue string
 	snapshots    []mpQueueSnapshot
 	now          time.Time
@@ -30,6 +31,10 @@ func mpBeginQueue(ctx context.Context, t *commandTurn, q mpQueueBuildInput) (out
 	}
 	if !mpID(q.queue) || len(q.snapshots) < 1 || len(q.snapshots) > 16 {
 		return out, ErrInvalid
+	}
+	incarnation, err := mpFreshQueueWorkerIncarnation(q.birth)
+	if err != nil {
+		return out, err
 	}
 	a, err := mpCurrentActor(ctx, t, q.token, q.now)
 	if err != nil {
@@ -50,6 +55,10 @@ func mpBeginQueue(ctx context.Context, t *commandTurn, q mpQueueBuildInput) (out
 	if err = mpExec(ctx, t, "mp.queue.begin", q.queue, "~"+a.device, a.account, a.profile, q.now.UnixMilli(), q.now.UnixMilli()); err != nil {
 		return out, err
 	}
+	if err = mpPrepOne(ctx, t, "mp.queue.worker.birth", incarnation[:], q.birth.root, q.birth.member, q.birth.profileLifetime, q.queue); err != nil {
+		return out, err
+	}
+	out.workerIncarnation = incarnation
 	for _, s := range q.snapshots {
 		if err = mpInsertSnapshot(ctx, t, s); err != nil {
 			return out, err

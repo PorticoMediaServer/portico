@@ -163,6 +163,7 @@ func mpRebuildLap(old, next mpQueueLayout) (mpQueueLayout, error) {
 }
 
 type mpPrepareNextInput struct {
+	birth                                                                         mpQueueWorkerBirth
 	token, queue, nextToken, key, digest, media, sourceRevision                   string
 	revision, custody, sessionGeneration, mediaGeneration, item, preparedRevision int64
 	now                                                                           time.Time
@@ -175,6 +176,10 @@ func mpPrepareQueueNext(ctx context.Context, t *commandTurn, q mpPrepareNextInpu
 	}
 	if !mpID(q.nextToken) || !mpID(q.key) || len(q.digest) != 64 || q.item < 1 || q.mediaGeneration < 1 {
 		return out, ErrInvalid
+	}
+	incarnation, err := mpFreshQueueWorkerIncarnation(q.birth)
+	if err != nil {
+		return out, err
 	}
 	h, err := mpQueueBoundary(ctx, t, q.token, q.queue, q.now, false, false)
 	if err != nil {
@@ -232,6 +237,13 @@ func mpPrepareQueueNext(ctx context.Context, t *commandTurn, q mpPrepareNextInpu
 	}
 	expires := min(q.now.Add(time.Minute).UnixMilli(), a.until.UnixMilli(), s.lease)
 	err = mpExec(ctx, t, "mp.next.insert", q.nextToken, h.id, a.device, q.key, q.digest, h.session, s.generation, s.state, h.revision, next.head.position, entry, q.item, q.media, expires, q.now.UnixMilli(), a.family, h.entry, h.custody, next.head.lap, q.mediaGeneration, q.sourceRevision, q.preparedRevision, s.media, s.mediaGeneration)
+	if err == nil {
+		err = mpPrepOne(ctx, t, "mp.next.worker.birth", incarnation[:], q.birth.root, q.birth.member, q.birth.profileLifetime, q.nextToken)
+	}
+	if err == nil {
+		out.workerIncarnation = incarnation
+	}
+
 	if err != nil {
 		return out, err
 	}
