@@ -25,10 +25,32 @@ func canonicalN1Maintenance() governedFixtureMaintenance {
 	}
 }
 
-type canonicalN1Checkpoint struct {
-	Result governor.CheckpointResult `json:"result"`
-	Error  string                    `json:"error"`
+type canonicalN1CheckpointClock struct {
+	StartedNS          *int64 `json:"started_ns"`
+	NativeStartedNS    *int64 `json:"native_started_ns"`
+	NativeEndedNS      *int64 `json:"native_ended_ns"`
+	PhysicalReturnedNS *int64 `json:"physical_returned_ns"`
+	RetiredNS          *int64 `json:"retired_ns"`
 }
+
+type canonicalN1Checkpoint struct {
+	Result governor.CheckpointResult  `json:"result"`
+	Error  string                     `json:"error"`
+	Clock  canonicalN1CheckpointClock `json:"owner_clock"`
+}
+
+// Derive from the original in-process time.Time values BEFORE JSON discards
+// monotonic data. Same origin as W owner_clock; zero-time phases remain null.
+func (r *canonicalN1Checkpoint) observeClock(origin time.Time) {
+	r.Clock = canonicalN1CheckpointClock{
+		StartedNS:          n1NS(origin, r.Result.Started),
+		NativeStartedNS:    n1NS(origin, r.Result.NativeStarted),
+		NativeEndedNS:      n1NS(origin, r.Result.NativeEnded),
+		PhysicalReturnedNS: n1NS(origin, r.Result.PhysicalReturned),
+		RetiredNS:          n1NS(origin, r.Result.RetiredAt),
+	}
+}
+
 type canonicalN1MaintenanceOwner struct {
 	opening            *scanOpening
 	fixture            *inventoryProgressiveFixture
@@ -139,7 +161,7 @@ func (m *canonicalN1MaintenanceOwner) grant(t *testing.T, r governor.Request) *g
 }
 func (m *canonicalN1MaintenanceOwner) step(ctx context.Context) canonicalN1Checkpoint {
 	out, err := m.cp.Step(ctx, m.request("passive"))
-	return canonicalN1Checkpoint{out, checkpointError(err)}
+	return canonicalN1Checkpoint{Result: out, Error: checkpointError(err)}
 }
 func (m *canonicalN1MaintenanceOwner) start(ctx context.Context) {
 	m.workerStarted = true
@@ -173,6 +195,7 @@ func (m *canonicalN1MaintenanceOwner) drain(stream *n1Stream) error {
 	for {
 		select {
 		case record := <-m.results:
+			record.observeClock(stream.origin)
 			m.started++
 			if record.Error == "" && record.Result.Refusal == nil && record.Result.PhysicalSafe {
 				m.completed++

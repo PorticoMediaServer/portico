@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
 func canonicalN1ControlArtifact(t *testing.T) (string, string) {
@@ -114,6 +116,45 @@ func TestCanonicalN1MaintenanceKeepsCommandCaps(t *testing.T) {
 		c, _ = canonicalHeldClassFor(name)
 		if c.run != nil || len(canonicalHeldMissing(c)) != 1 {
 			t.Fatal("unreviewed WC path opened", name)
+		}
+	}
+}
+
+func TestCanonicalN1CheckpointClockSharesOriginAndPreservesMissing(t *testing.T) {
+	origin := time.Now() // carries the real monotonic origin, like the stream
+	record := canonicalN1Checkpoint{Result: governor.CheckpointResult{
+		Started: origin, NativeStarted: origin.Add(7 * time.Nanosecond),
+		NativeEnded: origin.Add(11 * time.Nanosecond), PhysicalReturned: origin.Add(13 * time.Nanosecond), RetiredAt: origin.Add(17 * time.Nanosecond),
+	}}
+	record.observeClock(origin)
+	for i, actual := range []*int64{record.Clock.StartedNS, record.Clock.NativeStartedNS, record.Clock.NativeEndedNS, record.Clock.PhysicalReturnedNS, record.Clock.RetiredNS} {
+		want := []int64{0, 7, 11, 13, 17}[i]
+		if actual == nil || *actual != want {
+			t.Fatalf("phase%d origin join: %v want%d", i, actual, want)
+		}
+	}
+	// A refused/partial call keeps reached phases and nulls missing phases. An
+	// observed0 at the origin must survive JSON as0, never null/omitted.
+	record.Result.NativeStarted = time.Time{}
+	record.Result.NativeEnded = time.Time{}
+	record.Result.PhysicalReturned = time.Time{}
+	record.Result.RetiredAt = time.Time{}
+	record.observeClock(origin)
+	raw, err := json.Marshal(record.Clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]*int64
+	if err = json.Unmarshal(raw, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if len(fields) != 5 || fields["started_ns"] == nil || *fields["started_ns"] != 0 {
+		t.Fatal(string(raw))
+	}
+	for _, key := range []string{"native_started_ns", "native_ended_ns", "physical_returned_ns", "retired_ns"} {
+		value, present := fields[key]
+		if !present || value != nil {
+			t.Fatal("missing phase became measured", string(raw))
 		}
 	}
 }
