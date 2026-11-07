@@ -68,11 +68,17 @@ type uoSavedEffect struct {
 }
 
 func uoSavedText(s string, n int) bool {
-	return utf8.ValidString(s) && !strings.ContainsRune(s, 0) && utf8.RuneCountInString(s) <= n
+	return len(s) <= n*4 && utf8.ValidString(s) && !strings.ContainsRune(s, 0) && utf8.RuneCountInString(s) <= n
 }
 func applyUOSaved(ctx context.Context, t *commandTurn, q uoSavedInput) (out uoSavedEffect, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	if !uoPersonalText(q.id, 128) || q.security == nil || q.revision < 0 || q.revision == math.MaxInt64 || q.nowMS < 0 || q.nowMS > math.MaxInt64-30000 {
+		return out, ErrInvalid
+	}
+	if len(q.additions) > 100 || len(q.removals) > 100 || len(q.order) > 200 || q.after != nil && *q.after != "" && !uoPersonalText(*q.after, 128) {
+		return out, ErrInvalid
+	}
+	if q.view != nil && (!uoPersonalText(q.view.kind, 128) || !uoPersonalText(q.view.sort, 128) || !uoPersonalText(q.view.library, 128)) {
 		return out, ErrInvalid
 	}
 	if q.name != nil && (!uoSavedText(*q.name, 200) || strings.TrimSpace(*q.name) == "") || q.summary != nil && !uoSavedText(*q.summary, 4000) || q.visibility != nil && *q.visibility != "private" && *q.visibility != "server" {
@@ -83,6 +89,11 @@ func applyUOSaved(ctx context.Context, t *commandTurn, q uoSavedInput) (out uoSa
 	}
 	if q.action != uoSavedShare && q.action != uoSavedUnshare && (q.targetAuthority != "" || q.targetAccount != "" || q.targetProfile != "" || q.role != "") {
 		return out, ErrInvalid
+	}
+	if q.action == uoSavedShare || q.action == uoSavedUnshare {
+		if !uoPersonalText(q.targetAuthority, 128) || !uoPersonalText(q.targetAccount, 128) || !uoPersonalText(q.targetProfile, 128) || q.action == uoSavedUnshare && q.role != "" || q.action == uoSavedShare && q.role != "viewer" && q.role != "editor" {
+			return out, ErrInvalid
+		}
 	}
 	if q.action != uoSavedCreate && q.kind != "" {
 		return out, ErrInvalid

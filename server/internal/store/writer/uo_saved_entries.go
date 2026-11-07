@@ -27,6 +27,14 @@ type uoSavedEntry struct {
 // The cap bounds pathological rank growth rather than silently truncating it.
 func readUOSavedEntry(ctx context.Context, t *commandTurn, budget uoSavedAuthority, point string, args ...any) (out uoSavedEntry, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	if budget == nil {
+		return out, ErrInvalid
+	}
+	switch point {
+	case "entry", "last", "next", "undo":
+	default:
+		return out, ErrInvalid
+	}
 	n, e := wc008DraftInteger(ctx, t, stmt.ID("uo.saved."+point+"_bytes"), args...)
 	if e != nil {
 		return out, e
@@ -122,6 +130,11 @@ func applyUOSavedEntries(ctx context.Context, t *commandTurn, q uoSavedInput) (o
 		}
 		if q.after == nil {
 			sort.Strings(keys)
+			for i := 1; i < len(keys); i++ {
+				if keys[i] == keys[i-1] {
+					return out, ErrResolveRequired
+				}
+			}
 		} else {
 			if seen[*q.after] {
 				return out, ErrInvalid

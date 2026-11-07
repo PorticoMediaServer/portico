@@ -7,7 +7,7 @@ import (
 )
 
 func uoSavedCodecResult(root string) uoRootSavedResult {
-	return uoRootSavedResult{root: root, resource: "resourceabcdefghijklmn", kind: EditSavedResourceMembers, revision: 2, generation: 3, changed: true, entriesPresent: true,
+	return uoRootSavedResult{root: root, resource: "resourceabcdefghijklmn", kind: EditSavedResourceMembers, revision: 2, generation: 3, selectionRevision: 4, changed: true, entriesPresent: true,
 		entries: []uoRootSavedEntry{{1, "public-item-one", "entryabcdefghijklmnopq"}, {4, "missing-item", ""}, {2, "old-entry", "oldentryabcdefghijklmn"}}, undoToken: "undoabcdefghijklmnopqr", undoUntilMS: 30100, appliedMS: 100}
 }
 func TestUORootSavedCanonicalBindingsAndMalformed(t *testing.T) {
@@ -74,7 +74,7 @@ func TestUORootSavedCanonicalBindingsAndMalformed(t *testing.T) {
 		}
 	}
 	for _, kind := range []CommandID{CreateSavedResource, PatchSavedResource, DeleteSavedResource, ReorderSavedResource, SetSavedResourceSharing} {
-		v = uoRootSavedResult{root: v.root, resource: "resourceabcdefghijklmn", kind: kind, revision: 1, generation: 1, changed: true, deleted: kind == DeleteSavedResource, appliedMS: 100}
+		v = uoRootSavedResult{root: v.root, resource: "resourceabcdefghijklmn", kind: kind, revision: 1, generation: 1, selectionRevision: 1, changed: true, deleted: kind == DeleteSavedResource, appliedMS: 100}
 		p, d, err = encodeUORootCanonical(i, q, v)
 		if err != nil {
 			t.Fatal(kind, err)
@@ -165,7 +165,7 @@ func TestUORootSavedCannotBorrowNormalPurpose(t *testing.T) {
 	if err != nil {
 		t.Fatal("matching FULL purpose refused", err)
 	}
-	v := uoRootSavedResult{root: root, resource: "resourceabcdefghijklmn", kind: q.kind, revision: 2, generation: 3, changed: true, appliedMS: 100}
+	v := uoRootSavedResult{root: root, resource: "resourceabcdefghijklmn", kind: q.kind, revision: 2, generation: 3, selectionRevision: 4, changed: true, appliedMS: 100}
 	if _, err := persistUORootSaved(t.Context(), turn, lookup, v); err != nil {
 		t.Fatal(err)
 	}

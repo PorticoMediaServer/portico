@@ -175,7 +175,7 @@ func TestUOSavedViewBoundary(t *testing.T) {
 	w, _ := uoFlagsFixture(t)
 	s := &uoSavedTestSecurity{}
 	n := "View"
-	q := uoSavedInput{action: uoSavedCreate, id: "view-one", kind: "view", owner: "owner", authority: "local", account: "account", profile: "profile", created: "2026-11-07T00:00:00Z", name: &n, view: &uoSavedView{kind: "movie", sort: "title"}, security: s}
+	q := uoSavedInput{action: uoSavedCreate, id: "view-one", kind: "view", owner: "owner", authority: "local", account: "account", profile: "profile", created: "2026-11-07T00:00:00Z", name: &n, view: &uoSavedView{kind: "movie", sort: "title", library: "library-one"}, security: s}
 	turn := uoSavedTestTurn(t, w)
 	if _, e := applyUOSaved(t.Context(), turn, q); e == nil {
 		t.Fatal("missing RB witness accepted")

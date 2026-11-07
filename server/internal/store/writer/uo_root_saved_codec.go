@@ -17,13 +17,14 @@ type uoRootSavedEntry struct {
 	reference, entry string
 }
 type uoRootSavedResult struct {
-	root, resource                   string
-	kind                             CommandID
-	revision, generation             int64
-	deleted, changed, entriesPresent bool
-	entries                          []uoRootSavedEntry
-	undoToken                        string
-	undoUntilMS, appliedMS           int64
+	root, resource                                   string
+	kind                                             CommandID
+	revision, generation                             int64
+	selectionRevision, reclaimedRows, reclaimedBytes int64
+	deleted, changed, entriesPresent                 bool
+	entries                                          []uoRootSavedEntry
+	undoToken                                        string
+	undoUntilMS, appliedMS                           int64
 }
 
 func uoRootSavedKind(k CommandID) bool {
@@ -37,7 +38,7 @@ func uoRootSavedText(s string, cap int, empty bool) bool {
 	return (empty || s != "") && len(s) <= cap && utf8.ValidString(s) && !strings.ContainsRune(s, 0)
 }
 func preflightUORootSaved(v uoRootSavedResult) error {
-	if !uoRootSavedKind(v.kind) || len(v.root) != 22 || !uoRootSavedText(v.root, 22, false) || len(v.resource) != 22 || !uoRootSavedText(v.resource, 22, false) || v.revision < 1 || v.generation < 0 || v.changed && v.generation == 0 || v.kind == CreateSavedResource && (!v.changed || v.revision != 1) || v.appliedMS <= 0 || len(v.entries) > 200 || !v.entriesPresent && len(v.entries) != 0 || v.entriesPresent != (v.kind == EditSavedResourceMembers) || v.deleted != (v.kind == DeleteSavedResource) || v.undoUntilMS < 0 || (v.undoToken == "") != (v.undoUntilMS == 0) || v.undoToken != "" && (v.kind != EditSavedResourceMembers || len(v.undoToken) != 22 || !uoRootSavedText(v.undoToken, 22, false) || v.undoUntilMS <= v.appliedMS) {
+	if !uoRootSavedKind(v.kind) || len(v.root) != 22 || !uoRootSavedText(v.root, 22, false) || len(v.resource) != 22 || !uoRootSavedText(v.resource, 22, false) || v.revision < 1 || v.generation < 0 || v.selectionRevision < 0 || v.reclaimedRows < 0 || v.reclaimedBytes < 0 || (v.reclaimedRows == 0) != (v.reclaimedBytes == 0) || v.changed && (v.generation == 0 || v.selectionRevision == 0) || v.kind == CreateSavedResource && (!v.changed || v.revision != 1) || v.appliedMS <= 0 || len(v.entries) > 200 || !v.entriesPresent && len(v.entries) != 0 || v.entriesPresent != (v.kind == EditSavedResourceMembers) || v.deleted != (v.kind == DeleteSavedResource) || v.undoUntilMS < 0 || (v.undoToken == "") != (v.undoUntilMS == 0) || v.undoToken != "" && (v.kind != EditSavedResourceMembers || len(v.undoToken) != 22 || !uoRootSavedText(v.undoToken, 22, false) || v.undoUntilMS <= v.appliedMS) {
 		return ErrInvalid
 	}
 	// Prove the whole prospective size before scanning or hashing payload text.
@@ -47,7 +48,7 @@ func preflightUORootSaved(v uoRootSavedResult) error {
 	if err != nil {
 		return err
 	}
-	remaining := uoRootPayloadCap - (len(canonicalResultCodec) + 2 + 8 + len(d.Name) + 8 + len("root_saved_resource") + 8 + len(v.root) + 16 + 8 + 16 + 32 + 8 + len(v.resource) + 16 + 3 + 8 + 8 + len(v.undoToken) + 16)
+	remaining := uoRootPayloadCap - (len(canonicalResultCodec) + 2 + 8 + len(d.Name) + 8 + len("root_saved_resource") + 8 + len(v.root) + 16 + 8 + 16 + 32 + 8 + len(v.resource) + 40 + 3 + 8 + 8 + len(v.undoToken) + 16)
 	for _, e := range v.entries {
 		if len(e.reference) > remaining-17 || len(e.entry) > remaining-17-len(e.reference) {
 			return ErrInvalid
@@ -78,6 +79,9 @@ func writeUORootSaved(e *requestEncoder, i CommandIdentity, q RequestDigest, v u
 	e.text(v.resource)
 	e.number(uint64(v.revision))
 	e.number(uint64(v.generation))
+	e.number(uint64(v.selectionRevision))
+	e.number(uint64(v.reclaimedRows))
+	e.number(uint64(v.reclaimedBytes))
 	e.flag(v.deleted)
 	e.flag(v.changed)
 	e.flag(v.entriesPresent)
@@ -154,6 +158,9 @@ func decodeUORootSaved(i CommandIdentity, q RequestDigest, root string, kind Com
 	v.resource = r.text(22)
 	v.revision = r.number()
 	v.generation = r.number()
+	v.selectionRevision = r.number()
+	v.reclaimedRows = r.number()
+	v.reclaimedBytes = r.number()
 	v.deleted = r.flag()
 	v.changed = r.flag()
 	v.entriesPresent = r.flag()
