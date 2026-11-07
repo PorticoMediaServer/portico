@@ -30,7 +30,7 @@ func scanIssuerRuntimeInputs(t *testing.T) (*scanDriverFixture, effectivePlan, s
 func scanIssuerRuntimePlans(t *testing.T, f *scanDriverFixture) (*scanDriverFixture, effectivePlan, scanPreparationPlan) {
 	t.Helper()
 	p := effectivePlan{recipe: f.recipe, headerSync: Work{WALBytes: 32, Hold: 5 * time.Millisecond}, registration: nil,
-		need: f.request.Need, io: f.request.IO, scanLifecycleMemory: commandMemoryBudget{scanLifecycleHistoryBytes, 8 << 20}}
+		need: f.request.Need, io: f.request.IO, scanLifecycleMemory: commandMemoryBudget{4 << 20, 4 << 20}}
 	for _, entry := range f.registry.Manifest() {
 		p.steps = append(p.steps, statementStep{entry.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
 	}

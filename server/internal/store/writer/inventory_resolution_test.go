@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -149,25 +148,19 @@ func inventoryLookupDefinitions() []stmt.Definition {
 			definitions = append(definitions, d)
 		}
 	}
-	return definitions
+	return append(definitions, inventoryHistoryByteDefinitions()...)
 }
 
 func inventoryLookupTurn(t *testing.T, w *executor, registry *stmt.Registry) (*commandTurn, *transaction) {
 	t.Helper()
-	var steps []statementStep
-	for _, d := range registry.Manifest() {
-		steps = append(steps, statementStep{d.ID, Work{2, 100, 1, 0, time.Nanosecond}})
-	}
-	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
+	request, identity := inventoryRequestFixture()
+	request.scope = inventoryScope{runID: "scan-hit", libraryID: 7, libraryKey: "scan-library"}
+	input, err := newInventoryAcceptCommand(identity, request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { tx.rollback(nil) })
-	turn, err := newCommandTurn(tx, registry, steps)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return turn, tx
+	turn, _ := inventoryMemoryFixtureTurn(t, w, registry, input, inventoryMemoryBudget{4 << 20, 4 << 20})
+	return turn, turn.transaction
 }
 
 func TestInventoryLookupOriginalHistoryAndFloors(t *testing.T) {

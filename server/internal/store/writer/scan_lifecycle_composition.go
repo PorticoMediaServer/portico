@@ -15,7 +15,7 @@ func scanLifecycleCommandDefinitions() []stmt.Definition {
 			defs = append(defs, def)
 		}
 	}
-	return defs
+	return append(defs, scanLifecycleByteDefinitions()...)
 }
 
 func scanLifecycleMaxUses(purpose CommandID, id stmt.ID) int {
@@ -28,8 +28,13 @@ func scanLifecycleMaxUses(purpose CommandID, id stmt.ID) int {
 			return 5
 		} // W exclusion +fresh vector +SC before/post +receipt post
 		return 3 // W birth absence +SC post +receipt post
-	case scanRunHistoryOwner, scanReceiptLookup, scanRunHistoryBody, scanReceiptReclaimKey:
+	case scanRunHistoryOwner, scanReceiptLookup, scanRunHistoryBody, scanReceiptReclaimKey,
+		scanReceiptByteLengths, scanReceiptOwnerPrefix, scanReceiptIdentityPrefix:
 		return 2 // original history +same-invocation ACK revalidation, conservative
+	case scanRunByteLengths:
+		return 3 // history revalidation twice, plus current-native claim exclusion
+	case scanJobByteLengths, scanRootByteLengths:
+		return 1 // one current snapshot/claim exclusion
 	case scanBirthRun, scanBirthJob, scanBirthOperation, scanBirthActive,
 		inventoryDisclosureJob, inventoryDisclosureLibrary, inventoryFreshLibrary,
 		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot,

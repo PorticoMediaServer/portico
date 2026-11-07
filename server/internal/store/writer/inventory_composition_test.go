@@ -14,7 +14,7 @@ import (
 // They execute no SQL and qualify no native/physical Work or production plan.
 func TestInventoryCommandFiniteComposition(t *testing.T) {
 	defs := inventoryCommandDefinitions()
-	if len(defs) != 50 {
+	if len(defs) != 54 {
 		t.Fatalf("complete history+N1 set has %d definitions", len(defs))
 	}
 	seen, uses := make(map[stmt.ID]bool, len(defs)), 0
@@ -25,8 +25,8 @@ func TestInventoryCommandFiniteComposition(t *testing.T) {
 		}
 		seen[def.ID], uses = true, uses+n
 	}
-	if uses != 54 {
-		t.Fatalf("all-branch reservations = %d, want 54", uses)
+	if uses != 58 {
+		t.Fatalf("all-branch reservations = %d, want 58", uses)
 	}
 	for _, id := range inventoryFreshIDs() {
 		if !seen[id] {
@@ -48,7 +48,7 @@ func TestInventoryCommandFiniteComposition(t *testing.T) {
 	}
 	// Metadata must not silently turn the production history-only constructor
 	// into a fresh profile, or require fresh steps for existing history calls.
-	if len(inventoryHistoryDefinitions()) != 7 {
+	if len(inventoryHistoryDefinitions()) != 11 {
 		t.Fatal("history-only set changed")
 	}
 }
@@ -83,7 +83,7 @@ func TestInventoryCommandCompleteBudgetHasNoPartialSuccess(t *testing.T) {
 		steps[i] = statementStep{id: def.ID, work: Work{Rows: 1, VMOps: 1, Pages: 1, WALBytes: 1, Hold: time.Microsecond}}
 	}
 	before := append([]statementStep(nil), steps...)
-	limit := Work{Rows: 54, VMOps: 54, Pages: 54, WALBytes: 54, Hold: 54 * time.Microsecond}
+	limit := Work{Rows: 58, VMOps: 58, Pages: 58, WALBytes: 58, Hold: 58 * time.Microsecond}
 	if got, err := reserveCommandSteps(limit, steps, defs, InventoryAccept); err != nil || got != (Work{}) {
 		t.Fatalf("exact complete budget: %v %v", got, err)
 	}
