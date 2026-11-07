@@ -275,6 +275,51 @@ func TestNativeSearchCurrentAllKindsAndMixedOwners(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeSearchPreviewTheReturnsPartial(t *testing.T) {
+	f := newNativeSource(t)
+	for id := int64(30); id <= 50; id++ {
+		title := fmt.Sprintf("The story %d", id)
+		f.exec(t, `UPDATE catalog_entities SET title=?,sort_key=?,retired=0 WHERE id=?`, title, strings.ToLower(title), id)
+		nativeFixtureImage(t, f, search.ManifestEntity, id, 1000+id, []nativeFixtureField{{1, title}})
+	}
+	fixture := fmt.Sprintf("%x", sha256.Sum256([]byte(nativeFixtureHash(t)+"; The preview entities30..50")))
+	f = composeReadFixture(t, f, NativeFullSearchDefinitions(), readfixture.LiveConfig(time.Now), false, fixture)
+	r, err := NewNativeFullSearchReader(f.snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.input.Kind = 0
+	f.input.Limit = 20
+	query, err := search.PlanQuery("the", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, request, output := liveRequests("preview-the")
+	request.Budget.RawRows = 4096
+	var page FullSearchPage
+	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+		var e error
+		page, _, e = r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input, Preview: true, CandidateBudget: 1}, query)
+		if e != nil {
+			return e
+		}
+		if page.Disposition != SearchResults || !page.Partial || page.Exhausted || len(page.Hits) == 0 || page.NativeCandidates != 1 || page.CountStatus != SearchCountLowerBound {
+			t.Fatal("broad preview waited for a census", page)
+		}
+		if page.Stamp == nil {
+			t.Fatal("partial preview lacks fresh custody")
+		}
+		kept, e := page.Stamp.RetainHits(page.Hits)
+		if e != nil {
+			return e
+		}
+		return page.Stamp.ValidateRetained(ctx, out, kept)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 func TestNativeSearchRefusesUnsupportedAndStaleProofs(t *testing.T) {
 	f, r := newNativeFixture(t)
 	page, _, err := nativeRead(t, f, r, "matrix", nil)
