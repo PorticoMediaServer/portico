@@ -413,8 +413,9 @@ func stageMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgL
 }
 
 // Independent stored-row proof, <=8 raw rows and <=256KiB decoded CONTENT per
-// step. The length page is bounded before hydration. A distinct empty-tail
-// step proves EOF, so extra rows cannot hide behind an exact-size final page.
+// step. A bounded key page precedes exact full-PK octet preflights, all on
+// this same command turn, before hydration. A distinct empty-tail step proves
+// EOF, so extra rows cannot hide behind an exact-size final page.
 func verifyMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, before mgLCProgress) (out mgLCProgress, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if err := freshMGLC(ctx, turn, b, c, before); err != nil {
@@ -423,13 +424,13 @@ func verifyMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mg
 	if before.phase != mgLCCompletePhase || before.sealed || before.cursor != b.end {
 		return out, ErrConflict
 	}
-	lengthID := mgLCEntryLengths
+	keyID := mgLCEntryKeys
 	args := []any{b.generation, before.verifyAfter}
 	if before.verified == 0 {
-		lengthID = mgLCEntryLengthsFirst
+		keyID = mgLCEntryKeysFirst
 		args = []any{b.generation}
 	}
-	step, err := mgLCStep(turn, lengthID)
+	step, err := mgLCStep(turn, keyID)
 	if err != nil {
 		return out, err
 	}
@@ -437,15 +438,17 @@ func verifyMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mg
 	if err != nil {
 		return out, err
 	}
-	var starts, sizes []int64
+	var starts []int64
+	var occurrences []string
 	for rows.Next() {
-		var start, size int64
-		if err := rows.Scan(&start, &size); err != nil {
+		var start int64
+		var occurrence string
+		if err := rows.Scan(&start, &occurrence); err != nil {
 			_ = rows.Close()
 			return out, err
 		}
 		starts = append(starts, start)
-		sizes = append(sizes, size)
+		occurrences = append(occurrences, occurrence)
 	}
 	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
 		return out, err
@@ -462,8 +465,17 @@ func verifyMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mg
 		return out, ErrConflict
 	}
 	count := 0
+	var sizes []int64
 	var bytes int64
-	for _, size := range sizes {
+	for _, occurrence := range occurrences {
+		point, err := mgLCRow(ctx, turn, mgLCEntryLengthsPoint, b.generation, occurrence)
+		if err != nil {
+			return out, err
+		}
+		var size int64
+		if err := point.Scan(&size); err != nil {
+			return out, mgLCNoRows(err)
+		}
 		if size < 113 || size > mgLCBytes {
 			return out, ErrCap
 		}
@@ -471,6 +483,7 @@ func verifyMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mg
 			break
 		}
 		bytes += size
+		sizes = append(sizes, size)
 		count++
 	}
 	if count == 0 || int64(count) > before.entries-before.verified {
@@ -491,7 +504,7 @@ func verifyMGLCEntries(ctx context.Context, turn *commandTurn, b mgLCBuild, c mg
 			_ = rows.Close()
 			return out, err
 		}
-		if n >= count || e.generation != b.generation || e.channel != b.channel || e.start != starts[n] || e.start != after.verifyEnd || e.end <= e.start || e.end > b.end || e.offset != 0 || int64(len(e.canonicalBytes())) != sizes[n] {
+		if n >= count || e.generation != b.generation || e.channel != b.channel || e.start != starts[n] || e.occurrence != occurrences[n] || e.start != after.verifyEnd || e.end <= e.start || e.end > b.end || e.offset != 0 || int64(len(e.canonicalBytes())) != sizes[n] {
 			_ = rows.Close()
 			return out, ErrConflict
 		}

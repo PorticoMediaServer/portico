@@ -1,8 +1,9 @@
 package writer
 
 import (
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 const (
@@ -16,8 +17,9 @@ const (
 	mgLCCandidateRead     stmt.ID = "writer.mg.lc.candidate-lengths"
 	mgLCEntrySource       stmt.ID = "writer.mg.lc.candidate-source"
 	mgLCEntryInsert       stmt.ID = "writer.mg.lc.entry-insert"
-	mgLCEntryLengthsFirst stmt.ID = "writer.mg.lc.entry-lengths-first"
-	mgLCEntryLengths      stmt.ID = "writer.mg.lc.entry-lengths"
+	mgLCEntryKeysFirst    stmt.ID = "writer.mg.lc.entry-keys-first"
+	mgLCEntryKeys         stmt.ID = "writer.mg.lc.entry-keys"
+	mgLCEntryLengthsPoint stmt.ID = "writer.mg.lc.entry-lengths-point"
 	mgLCEntryPage         stmt.ID = "writer.mg.lc.entry-page"
 	mgLCAdvance           stmt.ID = "writer.mg.lc.advance"
 	mgLCHeadPublish       stmt.ID = "writer.mg.lc.publish-head"
@@ -72,8 +74,11 @@ func mgLCDefinitions() []stmt.Definition {
 		{ID: mgLCCandidateRead, Kind: stmt.Read, SQL: `SELECT duration_ms,octet_length(asset_id)+octet_length(library_id)+octet_length(source_fence)+octet_length(title) FROM lc_candidates WHERE generation_id=? AND rule_id=? AND item_id=?`, Params: []stmt.Param{p("generation", t), p("rule", t), p("item", i)}},
 		{ID: mgLCEntrySource, Kind: stmt.Read, SQL: `SELECT asset_id,library_id,source_fence,title FROM lc_candidates WHERE generation_id=? AND rule_id=? AND item_id=?`, Params: []stmt.Param{p("generation", t), p("rule", t), p("item", i)}},
 		{ID: mgLCEntryInsert, Kind: stmt.Write, SQL: `INSERT INTO lc_entries(` + mgLCEntryColumns + `) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING ` + mgLCEntryColumns, Params: entryParams},
-		{ID: mgLCEntryLengthsFirst, Kind: stmt.Read, SQL: `SELECT start_ms,113+octet_length(generation_id)+octet_length(occurrence_id)+octet_length(channel_id)+octet_length(asset_id)+octet_length(library_id)+octet_length(source_fence)+octet_length(title)+octet_length(rule_id)+octet_length(block_id)+octet_length(slate_reason) FROM lc_entries INDEXED BY lc_schedule_window WHERE generation_id=? ORDER BY start_ms LIMIT 8`, Params: []stmt.Param{p("generation", t)}},
-		{ID: mgLCEntryLengths, Kind: stmt.Read, SQL: `SELECT start_ms,113+octet_length(generation_id)+octet_length(occurrence_id)+octet_length(channel_id)+octet_length(asset_id)+octet_length(library_id)+octet_length(source_fence)+octet_length(title)+octet_length(rule_id)+octet_length(block_id)+octet_length(slate_reason) FROM lc_entries INDEXED BY lc_schedule_window WHERE generation_id=? AND start_ms>? ORDER BY start_ms LIMIT 8`, Params: []stmt.Param{p("generation", t), p("after", i)}},
+		{ID: mgLCEntryKeysFirst, Kind: stmt.Read, SQL: `SELECT start_ms,occurrence_id FROM lc_entries INDEXED BY lc_schedule_window WHERE generation_id=? ORDER BY start_ms LIMIT 8`, Params: []stmt.Param{p("generation", t)}},
+		{ID: mgLCEntryKeys, Kind: stmt.Read, SQL: `SELECT start_ms,occurrence_id FROM lc_entries INDEXED BY lc_schedule_window WHERE generation_id=? AND start_ms>? ORDER BY start_ms LIMIT 8`, Params: []stmt.Param{p("generation", t), p("after", i)}},
+		// Exact full-PK octet point. The approved registry point shape and full
+		// Capture remain parent-owned; no range-octet grammar or waiver is added.
+		{ID: mgLCEntryLengthsPoint, Kind: stmt.Read, SQL: `SELECT 113+octet_length(generation_id)+octet_length(occurrence_id)+octet_length(channel_id)+octet_length(asset_id)+octet_length(library_id)+octet_length(source_fence)+octet_length(title)+octet_length(rule_id)+octet_length(block_id)+octet_length(slate_reason) FROM lc_entries WHERE generation_id=? AND occurrence_id=?`, Params: []stmt.Param{p("generation", t), p("occurrence", t)}},
 		{ID: mgLCEntryPage, Kind: stmt.Read, SQL: `SELECT ` + mgLCEntryColumns + ` FROM lc_entries INDEXED BY lc_schedule_window WHERE generation_id=? AND start_ms>? AND start_ms<=? ORDER BY start_ms LIMIT ?`, Params: []stmt.Param{p("generation", t), p("after", i), p("through", i), p("limit", i)}},
 		{ID: mgLCAdvance, Kind: stmt.Write, SQL: `UPDATE lc_generations SET ` + strings.Join(assigns, ",") + ` WHERE ` + predicate + ` AND ` + strings.Join(equals, " AND ") + ` RETURNING ` + mgLCProgressColumns, Params: append(append(mgLCProgressParams("new_"), header...), mgLCProgressParams("old_")...)},
 		{ID: mgLCHeadPublish, Kind: stmt.Write, SQL: `UPDATE lc_channels SET active_generation=?,generated_through_ms=?,state=?,health_code=? WHERE id=? AND revision=? AND config_json=? AND active_generation=? AND enabled=1 AND removed=0 RETURNING active_generation,generated_through_ms`, Params: []stmt.Param{p("generation", t), p("through", i), p("state", t), p("health", t), p("channel", t), p("revision", i), p("config", t), p("base", t)}},
@@ -119,6 +124,15 @@ func mgLCPlanHints(defs []stmt.Definition) []stmt.Definition {
 			index = "sqlite_autoindex_lc_candidates_2"
 			origin = "u"
 			columns = []string{"generation_id", "rule_id", "ordinal"}
+		case mgLCEntryKeysFirst, mgLCEntryKeys:
+			d.Plan = stmt.Plan{Hot: true, Indexes: []string{"lc_schedule_window"}, Seeks: []string{"generation_id=?"}}
+			if d.ID == mgLCEntryKeys {
+				d.Plan.Seeks = append(d.Plan.Seeks, "start_ms>?")
+			}
+			continue
+		case mgLCEntryLengthsPoint:
+			table = "lc_entries"
+			columns = []string{"generation_id", "occurrence_id"}
 		case mgLCCandidateRead, mgLCEntrySource:
 			table = "lc_candidates"
 			columns = []string{"generation_id", "rule_id", "item_id"}

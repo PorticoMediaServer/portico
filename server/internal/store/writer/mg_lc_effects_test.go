@@ -2,6 +2,7 @@ package writer
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"math"
@@ -374,5 +375,41 @@ func TestMGLCDraftVerificationBytePrefix(t *testing.T) {
 	}
 	if p.phase != mgLCVerifiedPhase || p.verifyDigest != p.entryDigest {
 		t.Fatal(p)
+	}
+}
+
+// Independent native point controls use the same occurrence ID in two
+// generations and distinct occurrences in one generation. Neither half of the
+// full PK may be dropped or replaced by the schedule's start-time range.
+func TestMGLCDraftEntryLengthPointsUseFullPK(t *testing.T) {
+	w, b := mgLCFixture(t)
+	mgLCEntriesFixture(t, w, b, true)
+	candidate := mgLCCandidateFixture()
+	media := mgLCEntry{generation: b.generation, occurrence: "first", channel: b.channel, start: 1000, end: 31000, item: candidate.item, asset: candidate.asset, library: candidate.library, source: candidate.source, title: candidate.title, rule: "rule", block: "default"}
+	slate := mgLCEntry{generation: b.generation, occurrence: "second", channel: b.channel, start: 31000, end: 61000, title: "Unavailable program", rule: "rule", block: "default", slate: "no-eligible-media"}
+	old := mgLCEntry{generation: b.base, occurrence: "first", channel: b.channel, start: 61000, end: 62000, title: strings.Repeat("old", 100), rule: "rule", block: "default", slate: "no-eligible-media"}
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO lc_entries(`+mgLCEntryColumns+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, old.values()...); err != nil {
+		t.Fatal(err)
+	}
+	turn := mgLCTurn(t, w)
+	for _, entry := range []mgLCEntry{media, slate, old} {
+		row, err := mgLCRow(t.Context(), turn, mgLCEntryLengthsPoint, entry.generation, entry.occurrence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var size int64
+		if err := row.Scan(&size); err != nil || size != int64(len(entry.canonicalBytes())) {
+			t.Fatal("wrong full-PK length", entry.generation, entry.occurrence, size, err)
+		}
+	}
+	for _, key := range [][2]string{{b.generation, "missing"}, {"missing", "first"}} {
+		row, err := mgLCRow(t.Context(), turn, mgLCEntryLengthsPoint, key[0], key[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var size int64
+		if err := row.Scan(&size); !errors.Is(err, sql.ErrNoRows) {
+			t.Fatal("partial key accepted", key, size, err)
+		}
 	}
 }
