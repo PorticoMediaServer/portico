@@ -367,6 +367,6 @@ func (w *Writer) runWCReclaim(ctx context.Context, v *wcReclaimInvocation, ack b
 	if w == nil || w.effective == nil {
 		return out, floor, ErrNotImplemented
 	}
-	r, floor, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack, nil, v)
+	r, floor, err := w.effective.dispatchCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, ack, nil, v)
 	return r.reclaim, floor, err
 }
