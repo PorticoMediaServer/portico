@@ -30,7 +30,7 @@ func seedNativeSearch(t *testing.T, f *browseFixture) {
 	p := searchpolicy.Compiled()
 	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(4,'episode',1,0,1,1,0)`)
 	f.exec(t, `UPDATE catalog_subjects SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END WHERE id IN(1,2,3)`)
-	f.exec(t, `UPDATE catalog_entities SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END,title=CASE id WHEN 2 THEN 'Arrival' ELSE 'Matrix' END,retired=0,show_id=CASE id WHEN 1 THEN NULL ELSE 1 END WHERE id IN(1,2,3)`)
+	f.exec(t, `UPDATE catalog_entities SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END,title=CASE id WHEN 2 THEN 'Arrival' ELSE 'Matrix' END,retired=0,show_id=CASE id WHEN 1 THEN NULL ELSE 1 END,numbering=CASE id WHEN 1 THEN NULL ELSE 'seasonal' END,episode_number=CASE id WHEN 1 THEN NULL ELSE id END WHERE id IN(1,2,3)`)
 	f.exec(t, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1',?,?,?,'active',0)`, p.RecipeVersion, p.EngineVersion, p.UnicodeFingerprint)
 	f.exec(t, `INSERT INTO search_revision(singleton,revision,active_generation_id,input_sequence) VALUES(1,1,1,0)`)
 	for _, id := range []int64{1, 2, 3} {
