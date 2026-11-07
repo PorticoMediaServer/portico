@@ -22,7 +22,7 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 	if err = turn.requireBasicMemory(ctx, BasicPurposeStage, required); err != nil {
 		return value, err
 	}
-	digest, err := canonicalRequestDigest(BasicStage, 1, command.identity, command.request)
+	digest, err := canonicalRequestDigest(BasicStage, basicStageRequestVersion, command.identity, command.request)
 	if err != nil || digest != command.digest {
 		return value, ErrConflict
 	}
@@ -37,6 +37,10 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 	changeRevision := command.request.changeRevision
 	expectedContinuation := BasicContinuation{}
 	switch command.request.operation {
+	case basicStageCopyInput:
+		var position basicCopyPosition
+		position, err = applyBasicCopy(ctx, turn, command.request.copy, appliedMS)
+		expectedContinuation = basicCopyContinuation(position)
 	case basicStageBeginInput:
 		var begun basicBegunInput
 		begun, err = beginBasicInput(ctx, turn, command.request.begin, appliedMS)
@@ -79,7 +83,7 @@ func applyBasicStage(ctx context.Context, turn *commandTurn, command *basicStage
 	}
 	// BEGIN's actual allocated revision and every unchanged staging revision
 	// are proved before the native continuation can be read into the result.
-	if command.request.operation != basicStagePinShapeInput {
+	if command.request.operation != basicStagePinShapeInput && command.request.operation != basicStageCopyInput {
 		if err = checkBasicControlChange(ctx, turn, source, changeRevision); err != nil {
 			return value, err
 		}
@@ -187,6 +191,16 @@ func basicStageRequiredBytes(in basicStageRequest) (uint64, error) {
 	base, err := basicControlRequiredBytes(in.original, source)
 	if err != nil {
 		return 0, err
+	}
+	if in.operation == basicStageCopyInput {
+		bytes, err := basicCopyRequestBytes(in.copy)
+		if err != nil {
+			return 0, err
+		}
+		if (base-65536)/8+bytes > maxCanonicalRequestBytes {
+			return 0, ErrCap
+		}
+		return base + 8*bytes + 32*uint64(in.copy.expectedRows), nil
 	}
 	if in.operation == basicStageProbeInput || in.operation == basicStagePinShapeInput {
 		remaining := maxCanonicalRequestBytes

@@ -38,8 +38,12 @@ func TestBasicCommandPurposeAndClosedOperations(t *testing.T) {
 		request any
 		digest  RequestDigest
 	}{{BasicStage, stage.request, stage.digest}, {BasicSeal, seal.request, seal.digest}} {
-		digest, err := canonicalRequestDigest(test.kind, 1, identity, test.request)
-		alias, aliasErr := canonicalRequestDigest(BasicAccept, 1, identity, test.request)
+		version := uint16(1)
+		if test.kind == BasicStage {
+			version = basicStageRequestVersion
+		}
+		digest, err := canonicalRequestDigest(test.kind, version, identity, test.request)
+		alias, aliasErr := canonicalRequestDigest(BasicAccept, version, identity, test.request)
 		if err != nil || aliasErr != nil || digest != test.digest || alias == test.digest {
 			t.Fatal("distinct Basic kind or full request lost", err, aliasErr)
 		}

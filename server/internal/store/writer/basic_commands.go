@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const basicStageRequestVersion uint16 = 2
+
 type basicStageOperation uint8
 type basicSealOperation uint8
 
@@ -14,6 +16,7 @@ const (
 	basicStageMediaInput
 	basicStageProbeInput
 	basicStagePinShapeInput
+	basicStageCopyInput
 )
 const (
 	basicSealStreamInput basicSealOperation = iota + 1
@@ -33,6 +36,7 @@ type basicStageRequest struct {
 	rows           basicRowsRequest
 	start, end     int64 // bounded staging prefix, never a receipt COPY cursor
 	probe          basicProbeEffects
+	copy           basicCopyRequest
 }
 type basicSealRequest struct {
 	original       basicOriginalScope
@@ -96,6 +100,12 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 			return nil, err
 		}
 	}
+	if in.operation == basicStageCopyInput {
+		in.copy, err = freezeBasicCopyRequest(in.copy)
+		if err != nil {
+			return nil, err
+		}
+	}
 	in.original = cloneBasicOriginal(in.original)
 	if in.operation == basicStageBeginInput {
 		in.begin.source = cloneBasicSource(in.begin.source)
@@ -112,7 +122,7 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 	} else {
 		in.fact = cloneBasicSource(in.fact)
 	}
-	digest, err := canonicalRequestDigest(BasicStage, 1, identity, in)
+	digest, err := canonicalRequestDigest(BasicStage, basicStageRequestVersion, identity, in)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +130,9 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 }
 
 func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
+	if in.operation != basicStageCopyInput && !reflect.ValueOf(in.copy).IsZero() {
+		return basicStreamFactStage{}, ErrInvalid
+	}
 	if in.operation != basicStageProbeInput && in.operation != basicStagePinShapeInput && in.probe != (basicProbeEffects{}) {
 		return basicStreamFactStage{}, ErrInvalid
 	}
@@ -127,6 +140,14 @@ func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
 		return basicStreamFactStage{}, ErrInvalid
 	}
 	switch in.operation {
+	case basicStageCopyInput:
+		if !reflect.ValueOf(in.begin).IsZero() || in.fact != (basicStreamFactStage{}) || !reflect.ValueOf(in.rows).IsZero() || in.changeRevision != 0 || in.start != 0 || in.end != 0 || in.probe != (basicProbeEffects{}) {
+			return basicStreamFactStage{}, ErrInvalid
+		}
+		if _, err := basicCopyRequestBytes(in.copy); err != nil {
+			return basicStreamFactStage{}, err
+		}
+		return in.copy.source, nil
 	case basicStageBeginInput:
 		if in.fact != (basicStreamFactStage{}) || in.changeRevision != 0 || in.begin.source.changeID != 0 || in.begin.source.inputRevision != 0 || !reflect.ValueOf(in.rows).IsZero() || in.start != 0 || in.end != 0 {
 			return basicStreamFactStage{}, ErrInvalid

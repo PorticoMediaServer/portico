@@ -115,7 +115,7 @@ func TestBasicStageFactFreezesExactRevisionFactAndReference(t *testing.T) {
 	if command.request.fact != wantFact || command.request.changeRevision != wantRevision || string(command.request.original.source.resolvedRoot) != "/media" {
 		t.Fatal("StageFact retained mutable caller input")
 	}
-	if digest, err := canonicalRequestDigest(BasicStage, 1, identity, command.request); err != nil || digest != command.digest {
+	if digest, err := canonicalRequestDigest(BasicStage, basicStageRequestVersion, identity, command.request); err != nil || digest != command.digest {
 		t.Fatal("frozen StageFact no longer matches its committed digest", err)
 	}
 	if got, err := command.receiptRequest(); err != nil || got != wantRef {
