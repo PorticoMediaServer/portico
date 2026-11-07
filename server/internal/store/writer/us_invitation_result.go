@@ -18,6 +18,7 @@ type usInvitationSavedResult struct {
 	kind                  CommandID
 	version, count        int
 	ownerID, id, serverID string
+	issuerServer          string // original immutable owner.server_id; distinct from link DTO serverId
 	notes                 sql.NullString
 	role, state           string
 	createdMS, expiresMS  int64
@@ -55,7 +56,7 @@ func validateUSInvitationResult(v usInvitationSavedResult) error {
 	if _, err := usInvitationCodec(v.kind); err != nil {
 		return err
 	}
-	if v.version != 1 || !usIdentifier(v.ownerID) || !usIdentifier(v.id) || !usHex(v.codeHash, 64) || v.count != len(v.libraries) || v.count > usInvitationMaxLibraries || v.libraries == nil || v.createdMS < 0 || v.expiresMS <= v.createdMS || v.appliedMS < v.createdMS || v.revision < 1 || v.revision > usMaxRevision {
+	if v.version != 1 || !usIdentifier(v.ownerID) || !usIdentifier(v.issuerServer) || !usIdentifier(v.id) || !usHex(v.codeHash, 64) || v.count != len(v.libraries) || v.count > usInvitationMaxLibraries || v.libraries == nil || v.createdMS < 0 || v.expiresMS <= v.createdMS || v.appliedMS < v.createdMS || v.revision < 1 || v.revision > usMaxRevision {
 		return ErrResolveRequired
 	}
 	// These three purposes cannot accept an invitation. Null payloads must be
@@ -83,7 +84,7 @@ func validateUSInvitationResult(v usInvitationSavedResult) error {
 		seen[id] = true
 	}
 	if v.kind == usInvitationCreate {
-		if !usIdentifier(v.serverID) || v.state != "pending" || v.revision != 1 || v.createdMS != v.appliedMS || v.expiresMS-v.createdMS > usInvitationMaxSpanMS || v.expiresMS-v.createdMS < usInvitationHourMS || (v.expiresMS-v.createdMS)%usInvitationHourMS != 0 || !usIdentifier(v.code.keyID) || len(v.code.nonce) != 12 || len(v.code.body) != 59 {
+		if v.serverID != "" && !usIdentifier(v.serverID) || v.state != "pending" || v.revision != 1 || v.createdMS != v.appliedMS || v.expiresMS-v.createdMS > usInvitationMaxSpanMS || v.expiresMS-v.createdMS < usInvitationHourMS || (v.expiresMS-v.createdMS)%usInvitationHourMS != 0 || !usIdentifier(v.code.keyID) || len(v.code.nonce) != 12 || len(v.code.body) != 59 {
 			return ErrResolveRequired
 		}
 	} else {
@@ -106,7 +107,7 @@ func usInvitationResultDigest(identity CommandIdentity, request RequestDigest, v
 	if err := validateUSInvitationResult(v); err != nil {
 		return ResultDigest{}, err
 	}
-	if v.kind == usInvitationCreate && v.code.manifest != usInvitationCodeAAD(identity, v.ownerID, v.serverID, v.id, v.codeHash, v.code.keyID) {
+	if v.kind == usInvitationCreate && v.code.manifest != usInvitationCodeAAD(identity, v.ownerID, v.issuerServer, v.id, v.codeHash, v.code.keyID) {
 		return ResultDigest{}, ErrResolveRequired
 	}
 	codec, _ := usInvitationCodec(v.kind)
@@ -123,6 +124,7 @@ func usInvitationResultDigest(identity CommandIdentity, request RequestDigest, v
 	e.number(uint64(v.kind))
 	e.number(uint64(v.version))
 	e.text(v.ownerID)
+	e.text(v.issuerServer)
 	e.number(uint64(v.appliedMS))
 	e.text(v.id)
 	e.text(v.serverID)
