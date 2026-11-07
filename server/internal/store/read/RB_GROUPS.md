@@ -207,3 +207,27 @@ also covers the numbered-season source and retained empty-window fences.
 Both page types retain a private exact publication fence even when exhausted
 and Next is nil, for root composition. Source DTOs still need inherited season
 title/art and lifted-target hydration; no route card/cache promise is implied.
+
+## Final handoff evidence
+
+Tested implementation/capture head:
+`acd2fdae1a60e073f5dc7a06f5a1a142c4c58cb6`.
+Go 1.26.10 full read-package run 42390102133: 96 parents PASS, 4 shards,
+zero skips/missing results. Group race run 42390104357: 12 parents PASS,
+4 shards, zero skips/missing results. Both summaries pin that exact source.
+Implementation archive SHA256 at the tested head:
+`01cd2e24e197eee239a1598f897182de9f9e83614001f63f6dfe1ba16e1c30ad`.
+The final commit after that pin records handoff evidence only.
+
+Latest fetched main at final verification:
+`03a8b8d4ac0495371af581dc809ffa8f6dba0a97`; embedded schema tree remains
+`a6bbcd0a6d9000a0b9828d2bd3fdca5e4e96ab22`, byte-identical to the tested base.
+No CHANGE-011 draft or parent-owned scalar/chronology/random capture was adopted.
+
+Own integration range begins after separate policy dependency
+`247e491af44a0e7ba80e92b991bda5b162646431`; original dependency is
+`cb0714d539d64761ced5b6ef96cdf631aea288ca`. No scalar/chronology/random,
+lease or DDL dependency is bundled. Parent reviews/integrates/publishes.
+The exact SEARCH expression pins need that owner review; the unfinished
+semantic/qualification queue above remains explicit. B-R04/SORT-KIND-21 is
+UNQUALIFIED, including the 13..15-statement ceiling debt and large exact completion.
