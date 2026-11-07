@@ -107,7 +107,7 @@ func (e relatedEntity) eligible(f browseFence) bool {
 		return false
 	}
 	if relatedInt(e.row[7]) != 0 {
-		return true
+		return f.maximumAge < 0 && f.allowUnrated != 0
 	}
 	if e.row[6] == nil {
 		return f.allowUnrated != 0
