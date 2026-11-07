@@ -147,5 +147,27 @@ func TestMGLCRetainedNativeScope(t *testing.T) {
 		if err != nil || !called || size != measured || cost.Attempts == 0 || a.Usage() != before || a.Check(source.Grant, source.Request) != nil {
 			t.Fatal("native scope composition returned a false result", cost, size, err)
 		}
+		frozen, err := driver.Freeze(t.Context(), source, values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = frozen.Close(t.Context()) }()
+		g.Cancel(source.Grant)
+		if err := a.Retired(source.Grant); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if err := frozen.With(t.Context(), func(_ context.Context, owned read.SharedChannelRetainedValues) error {
+				if owned.Scope == scope || !reflect.DeepEqual(*owned.Info, info) || a.Usage()[governor.Background][governor.MemoryBytes] != measured.ChargeBytes {
+					t.Fatal("native frozen graph depended on original output")
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := frozen.Close(t.Context()); err != nil || a.Usage()[governor.Background][governor.MemoryBytes] != 0 {
+			t.Fatal("native frozen owner did not retire", err, a.Usage())
+		}
 	})
 }

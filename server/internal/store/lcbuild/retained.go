@@ -64,65 +64,28 @@ func NewDriver(reader *read.SharedChannelReader, g governor.Governor, a *governo
 	return &Driver{reader, g, a, strings.Clone(generation), owner}, nil
 }
 
-// WithValues measures before allocating a retained copy, admits DISTINCT actual
-// memory custody, and keeps it through the synchronous consumer's last use.
-// The consumer must not retain aliases after returning. It may release the
-// original source output once invoked: the owned copy is complete at that point.
-// A cancelled context refuses use but does not refund buffers still in use.
-// Parent composition owns candidate staging, receipts and uncertain COMMIT.
+// WithValues keeps one frozen read graph through a synchronous consumer.
+// The consumer may retire source output after entry, must keep the graph frozen,
+// and must finish every use before returning. Parent composition owns candidate
+// staging, receipts and uncertain COMMIT.
 func (d *Driver) WithValues(ctx context.Context, source read.BrowseOutput, values read.SharedChannelRetainedValues, consume func(context.Context, read.SharedChannelRetainedValues) error) (size read.SharedChannelCopySize, err error) {
-	if d == nil || ctx == nil || d.port == nil || !d.authority.Owns(d.governor) || consume == nil || source.Authority != d.authority || source.Request.Owner != d.owner || source.Request.Class != governor.Background || source.Request.Writer || values.Info == nil || values.Info.Generation != d.generation {
+	if consume == nil {
 		return size, ErrInput
 	}
-	if err = d.authority.CheckContext(ctx, source.Grant, source.Request); err != nil {
-		return size, err
-	}
-	measured, err := d.port.MeasureSharedChannelValues(ctx, source, values)
+	frozen, err := d.Freeze(ctx, source, values)
 	if err != nil {
 		return size, err
 	}
-	if measured.PayloadBytes <= 0 || measured.ChargeBytes < measured.PayloadBytes {
-		return size, ErrInput
-	}
-	deadline := source.Request.Deadline
-	if until, ok := ctx.Deadline(); ok && until.Before(deadline) {
-		deadline = until
-	}
-	request := governor.Request{Key: governor.JobKey{Domain: 860, ID: d.generation}, Owner: d.owner, Class: governor.Background, Deadline: deadline,
-		Need: governor.Amounts{governor.MemoryBytes: measured.ChargeBytes}}
-	decision := d.governor.Try(request)
-	if decision.Grant == nil {
-		if decision.Refusal == nil {
-			return size, ErrInput
-		}
-		return size, &AdmissionRefusal{*decision.Refusal}
-	}
-	retained := read.BrowseOutput{Authority: d.authority, Grant: decision.Grant, Request: request}
-	var owned read.SharedChannelRetainedValues
 	defer func() {
-		// This wrapper has observed consumer return (also on panic). Discard
-		// its last usable references before attesting memory retirement.
-		owned = read.SharedChannelRetainedValues{}
-		d.governor.Cancel(retained.Grant)
-		err = errors.Join(err, d.authority.Retired(retained.Grant))
+		err = errors.Join(err, frozen.Close(context.WithoutCancel(ctx)))
 		if err != nil {
 			size = read.SharedChannelCopySize{}
 		}
 	}()
-	owned, err = d.port.CloneSharedChannelValues(ctx, source, retained, values)
-	if err != nil {
+	if err = frozen.With(ctx, consume); err != nil {
 		return size, err
 	}
-	if err = d.authority.CheckContext(ctx, retained.Grant, request); err != nil {
-		return size, err
-	}
-	if err = consume(ctx, owned); err != nil {
-		return size, err
-	}
-	if err = d.authority.CheckContext(ctx, retained.Grant, request); err != nil {
-		return size, err
-	}
-	return measured, nil
+	return frozen.Size(), nil
 }
 
 // WithWindow consumes exactly one RB window. Raw EOF, rejected raw work and the
