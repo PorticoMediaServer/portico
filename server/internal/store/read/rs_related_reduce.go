@@ -129,7 +129,11 @@ func relatedEnumerate(q browseQuery, s *relatedState) error {
 			return err
 		}
 		s.rawTotal++
-		if collection.row != nil && collection.kind() == 10 && collection.eligible(s.fence) {
+		ok, err := relatedEligibility(q, collection, s.fence)
+		if err != nil {
+			return err
+		}
+		if ok && collection.kind() == 10 && collection.eligible(s.fence) {
 			if err := relatedAddFeature(s, relatedFeature{key: RelatedKey{Kind: 3, ID: id}}); err != nil {
 				return err
 			}
@@ -151,7 +155,11 @@ func relatedEnumerate(q browseQuery, s *relatedState) error {
 					return err
 				}
 				s.rawTotal++
-				if owner.row != nil && owner.eligible(s.fence) && relatedInt(owner.row[7]) != 0 && (p.target == 0 || owner.kind() == p.target) {
+				ok, err := relatedEligibility(q, owner, s.fence)
+				if err != nil {
+					return err
+				}
+				if ok && owner.eligible(s.fence) && relatedInt(owner.row[7]) != 0 && (p.target == 0 || owner.kind() == p.target) {
 					return relatedAddFeature(s, relatedFeature{key: RelatedKey{Kind: p.kind, ID: id}})
 				}
 			}
@@ -299,7 +307,11 @@ func relatedCandidates(q browseQuery, s *relatedState, windows *rsByteWindow) er
 		return err
 	}
 	s.rawTotal++
-	if e.row != nil && e.eligible(s.fence) {
+	ok, err := relatedEligibility(q, e, s.fence)
+	if err != nil {
+		return err
+	}
+	if ok {
 		if f.key.Kind == 2 && s.candidateID == 0 && (e.image() != row[2].(int64) || e.row[16] != int64(1)) {
 			e = relatedEntity{}
 		}
@@ -363,7 +375,11 @@ func relatedHydrate(q browseQuery, s *relatedState) error {
 			return err
 		}
 		s.rawTotal++
-		if e.row == nil || !e.eligible(s.fence) || e.negative() || relatedShared(c) == 0 {
+		ok, err := relatedEligibility(q, e, s.fence)
+		if err != nil {
+			return err
+		}
+		if !ok || e.negative() || relatedShared(c) == 0 {
 			s.hydrate++
 			return nil
 		}
@@ -482,22 +498,27 @@ func relatedProbeStep(q browseQuery, s *relatedState) (bool, bool, error) {
 		p.stage = 1
 		return false, false, nil
 	}
-	if relatedInt(p.entity.row[7]) == 0 {
-		rows, err := relatedRead(q, s, "assets", p.id, p.asset, int64(MaxRaw))
+	if p.stage == 1 {
+		if p.entity.kind() < 1 || p.entity.kind() > 13 {
+			return false, false, ErrUnqualified
+		}
+		f := s.fence
+		f.container = relatedInt(p.entity.row[7])
+		_, err := rsDetailSubjectEligibility(q, BrowseInput{Library: f.libraryID, Kind: p.entity.kind(), policy: readPolicyBinding{subject: p.id}}, f)
+		if err == ErrDenied {
+			s.probe = s.probe[:len(s.probe)-1]
+			return false, false, nil
+		}
 		if err != nil {
 			return false, false, err
 		}
-		for _, row := range rows {
-			p.asset = row[0].(int64)
-			if row[1] == int64(1) && row[2] == int64(1) {
-				return true, true, nil
-			}
-		}
-		if len(rows) < MaxRaw {
-			s.probe = s.probe[:len(s.probe)-1]
-		}
+		p.stage = 2
 		return false, false, nil
 	}
+	if relatedInt(p.entity.row[7]) == 0 {
+		return relatedInventoryStep(q, s, p)
+	}
+
 	// Read one child per tick. Full windows are not necessary here: the cursor
 	// position is always an actual raw child and an empty seek proves exhaustion.
 	var rows [][]any

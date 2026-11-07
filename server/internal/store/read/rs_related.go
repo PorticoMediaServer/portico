@@ -106,8 +106,8 @@ func (e relatedEntity) eligible(f browseFence) bool {
 	if len(e.row) != 33 || e.row[2] != f.libraryID || e.row[4] != int64(0) {
 		return false
 	}
-	if relatedInt(e.row[7]) != 0 && (f.maximumAge >= 0 || f.allowUnrated == 0) {
-		return false
+	if relatedInt(e.row[7]) != 0 {
+		return true
 	}
 	if e.row[6] == nil {
 		return f.allowUnrated != 0
@@ -153,8 +153,10 @@ type relatedProbe struct {
 	exhausted        bool
 	entity           relatedEntity
 	stage            int
+	inventory        *relatedInventory
 }
 type relatedState struct {
+	windows                     *rsByteWindow
 	fence                       browseFence
 	source                      []any
 	roots                       []relatedEntity
@@ -331,6 +333,12 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 		return flat, nil
 	}
 	byteWindows := &rsByteWindow{source: r.snapshots}
+	w.state.windows = byteWindows
+	for i := range w.state.probe {
+		if v := w.state.probe[i].inventory; v != nil {
+			v.rearm()
+		}
+	}
 	w.state.sourceByte = false
 	if w.state.phase == 5 {
 		w.state.phase = 4
@@ -362,7 +370,8 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 	}}
 	for n := 0; n < in.Windows; n++ {
 		steps = append(steps, func(ctx context.Context, q browseQuery, f browseFence, p *RelatedPage) error {
-			for n := 0; n < 2 && !w.state.done; n++ {
+			w.state.windows = byteWindows
+			for n := 0; n < 1 && !w.state.done; n++ {
 				if err := errors.Join(ctx.Err(), w.authority.CheckPreparation(w.lease)); err != nil {
 					return err
 				}

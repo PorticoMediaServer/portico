@@ -109,5 +109,16 @@ WHERE e.id=?`, []stmt.Param{s("profile"), i("entity")}, []any{"p", int64(1)}, po
 		add("children."+r.name, `SELECT id,`+r.column+`,0 FROM catalog_entities INDEXED BY catalog_entities_library WHERE library_id=? AND kind=? AND id>? ORDER BY id LIMIT ?`, []stmt.Param{i("library"), i("kind"), i("after"), i("limit")}, []any{int64(1), r.kind, int64(0), int64(64)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library"}})
 	}
 	add("title.less", `SELECT a.id FROM catalog_entities AS a NOT INDEXED CROSS JOIN catalog_entities AS b NOT INDEXED ON b.id=? WHERE a.id=? AND a.title COLLATE NOCASE < b.title COLLATE NOCASE`, []stmt.Param{i("other"), i("entity")}, []any{int64(2), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"a", "b"}})
-	return append(out, rsRelatedByteDefinitions()...)
+	out = append(out, rsRelatedByteDefinitions()...)
+	out = append(out, rsDetailEligibilityDefinitions()...)
+	for _, d := range rsReadingInventoryDefinitions() {
+		switch string(d.ID) {
+		case "read.browse.rs.reading.asset", "read.browse.rs.reading.asset_octets", "read.browse.rs.reading.library_source", "read.browse.rs.reading.library_source_octets", "read.browse.rs.reading.source_ids", "read.browse.rs.reading.inventory_exists", "read.browse.rs.reading.inventory_ready", "read.browse.rs.reading.retired":
+			if string(d.ID) == "read.browse.rs.reading.source_ids" || string(d.ID) == "read.browse.rs.reading.library_source" || string(d.ID) == "read.browse.rs.reading.library_source_octets" || string(d.ID) == "read.browse.rs.reading.inventory_exists" || string(d.ID) == "read.browse.rs.reading.inventory_ready" {
+				d.Cohorts[0].Name = "empty"
+			}
+			out = append(out, d)
+		}
+	}
+	return out
 }
