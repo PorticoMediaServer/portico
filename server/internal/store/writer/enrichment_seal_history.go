@@ -53,10 +53,14 @@ type enrichmentSealHistory struct {
 // a retained ACKed proof can NEVER resurrect an Applied/public result here.
 // The caller owns a funded finite snapshot recipe and qualified compiled IDs.
 func readEnrichmentSealHistory(ctx context.Context, scope *governor.ReadScope, purpose CommandID, request EnrichmentReceiptRequest) (out enrichmentSealHistory, err error) {
+	lifetime := ctx
+	if scope != nil {
+		lifetime = scope.Context()
+	}
+	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
 	if ctx == nil || scope == nil || (purpose != EvidenceSeal && purpose != CreditSourceSeal) || request.ProviderOperationID == "" || request.LibraryID <= 0 || request.EntityID <= 0 || request.Receipt.Identity.Sequence <= 0 {
 		return out, ErrInvalid
 	}
-	defer func() { out, err = finishCommand(ctx, scope.Context(), out, err) }()
 	ownerValues, err := scope.Query(sealHistoryOwner, request.ProviderOperationID, request.EntityID)
 	if err != nil {
 		return out, err
