@@ -153,13 +153,13 @@ func TestIAConfigurationDraftNativeFullKeyMutants(t *testing.T) {
 				for i := range defs {
 					switch defs[i].ID {
 					case iaConfigurationHeaderPoint:
-						defs[i].SQL = strings.Replace(defs[i].SQL, "command_incarnation=?", "? IS NOT NULL", 1)
+						defs[i].SQL = strings.Replace(defs[i].SQL, "command_incarnation=?", "command_incarnation>=?", 1)
 						// Admit the deliberately weakened SEARCH prefix so the
 						// native full-key falsifier, rather than only Capture,
 						// has to detect the production SQL mutation.
 						defs[i].Plan.Seeks = []string{"original_operation_id=?"}
 					case iaConfigurationAckCAS:
-						defs[i].SQL = strings.Replace(defs[i].SQL, "original_request_digest=?", "? IS NOT NULL", 1)
+						defs[i].SQL = strings.Replace(defs[i].SQL, "original_request_digest=?", "original_request_digest>=?", 1)
 					}
 				}
 				registry = nativeInventoryFixtureRegistry(t, w, defs, "ia_configuration_native.go", "ia_configuration_statements.go", "ia_configuration_draft_probe_test.go")
@@ -178,7 +178,7 @@ func TestIAConfigurationDraftNativeFullKeyMutants(t *testing.T) {
 			_, o, _ := iaConfigurationHistoryFixture(t, false)
 			key, _ = iaConfigurationHeaderKey(q)
 			args := append([]any{int64(123)}, key...)
-			args = append(args, make([]byte, 32), q.original.libraryID, q.original.libraryKey, nil, o.rows, o.bytes)
+			args = append(args, make([]byte, 32), q.original.libraryID, q.original.libraryKey, o.rows, o.bytes)
 			err = iaRetirementOneEffect(t.Context(), turn, iaConfigurationAckCAS, args...)
 			if !mutant && !errors.Is(err, ErrConflict) || mutant && err != nil {
 				t.Fatal("ACK request mutant was not distinguished", err)

@@ -193,13 +193,15 @@ func acknowledgeIAConfiguration(ctx context.Context, turn *commandTurn, q iaConf
 	if err != nil {
 		return 0, err
 	}
-	var source any
-	if q.original.purpose == IAConfigureSource {
-		source = q.original.sourceID
-	}
 	args := append([]any{h.result.appliedMS}, key...)
-	args = append(args, q.original.requestDigest[:], q.original.libraryID, q.original.libraryKey, source, owner.rows, owner.bytes)
-	if err = iaRetirementOneEffect(ctx, turn, iaConfigurationAckCAS, args...); err != nil {
+	args = append(args, q.original.requestDigest[:], q.original.libraryID, q.original.libraryKey)
+	id := iaConfigurationAckCAS
+	if q.original.purpose == IAConfigureSource {
+		id = iaConfigurationSourceAckCAS
+		args = append(args, q.original.sourceID)
+	}
+	args = append(args, owner.rows, owner.bytes)
+	if err = iaRetirementOneEffect(ctx, turn, id, args...); err != nil {
 		return 0, err
 	}
 	return 1, nil

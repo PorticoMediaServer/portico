@@ -1,6 +1,9 @@
 package writer
 
-import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+import (
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"strings"
+)
 
 const (
 	iaConfigurationOwnerPoint   stmt.ID = "ia.configuration.owner"
@@ -8,6 +11,7 @@ const (
 	iaConfigurationBodyPoint    stmt.ID = "ia.configuration.body"
 	iaConfigurationSourcesPoint stmt.ID = "ia.configuration.sources"
 	iaConfigurationAckCAS       stmt.ID = "ia.configuration.ack"
+	iaConfigurationSourceAckCAS stmt.ID = "ia.configuration.source_ack"
 )
 
 // Inert group C definitions, not product registration or resource authority.
@@ -37,11 +41,18 @@ FROM catalog_configuration_sources WHERE original_operation_id=? AND command_inc
 			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_sources"}, Seeks: []string{"original_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"}}},
 		{ID: iaConfigurationAckCAS, Kind: stmt.Write, SQL: `UPDATE catalog_configuration_operations SET acknowledged_command_sequence=1,receipt_reclaim_due_ms=?
 WHERE original_operation_id=? AND command_incarnation=? AND command_kind=? AND original_request_digest=? AND original_library_id=? AND original_library_key=?
-AND original_source_id IS ? AND last_command_sequence=1 AND acknowledged_command_sequence=0
+AND original_source_id IS NULL AND last_command_sequence=1 AND acknowledged_command_sequence=0
 AND receipt_reclaim_sequence=0 AND receipt_reclaim_ordinal=-1 AND receipt_retained_count=? AND receipt_retained_bytes=? AND receipt_reclaim_due_ms IS NULL`,
-			Params: []stmt.Param{i("due"), b("original_operation"), b("incarnation"), s("kind"), b("original_request"), i("library"), s("library_key"), {Name: "source", Type: stmt.Text, Nullable: true}, i("rows"), i("bytes")},
+			Params: []stmt.Param{i("due"), b("original_operation"), b("incarnation"), s("kind"), b("original_request"), i("library"), s("library_key"), i("rows"), i("bytes")},
 			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_configuration_operations"}, Seeks: []string{"original_operation_id=?"}}},
 	}
+	// Closed100/101 variants preserve native NULL versus source equality. IS ?
+	// is outside HN's grammar; no nullable wildcard or grammar waiver is needed.
+	sourceAck := defs[len(defs)-1]
+	sourceAck.ID = iaConfigurationSourceAckCAS
+	sourceAck.SQL = strings.Replace(sourceAck.SQL, "original_source_id IS NULL", "original_source_id=?", 1)
+	sourceAck.Params = append(append(append([]stmt.Param(nil), sourceAck.Params[:7]...), s("source")), sourceAck.Params[7:]...)
+	defs = append(defs, sourceAck)
 	for n := range defs {
 		d := &defs[n]
 		d.Owner, d.CallSites = "store/writer IA configuration history", []string{"store/writer/ia_configuration_native.go"}
@@ -50,11 +61,14 @@ AND receipt_reclaim_sequence=0 AND receipt_reclaim_ordinal=-1 AND receipt_retain
 			args = append(args, "configure_library")
 		}
 		if d.ID == iaConfigurationAckCAS {
-			args = []any{int64(123), op, inc, "configure_library", make([]byte, 32), int64(7), "lib", nil, int64(2), int64(400)}
+			args = []any{int64(123), op, inc, "configure_library", make([]byte, 32), int64(7), "lib", int64(2), int64(400)}
+		}
+		if d.ID == iaConfigurationSourceAckCAS {
+			args = []any{int64(123), op, inc, "configure_source", make([]byte, 32), int64(7), "lib", "s", int64(2), int64(400)}
 		}
 		empty := append([]any(nil), args...)
 		at := 0
-		if d.ID == iaConfigurationAckCAS {
+		if d.ID == iaConfigurationAckCAS || d.ID == iaConfigurationSourceAckCAS {
 			at = 1
 		}
 		empty[at] = make([]byte, 16)
