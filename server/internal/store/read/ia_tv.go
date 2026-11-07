@@ -80,14 +80,23 @@ type iaTVScope struct {
 	current         *governor.ReadScope
 	calls           int
 	copied, ceiling int64
+	counts          []iaTVSnapshotCalls
+}
+
+type iaTVSnapshotCalls struct {
+	at    time.Time
+	calls int
 }
 
 func (s *iaTVScope) Read(ctx context.Context, r governor.Request, b time.Duration, fn func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
-	return s.browseSnapshots.Read(ctx, r, b, func(scope *governor.ReadScope) error {
+	before := s.calls
+	result, e := s.browseSnapshots.Read(ctx, r, b, func(scope *governor.ReadScope) error {
 		s.current = scope
 		defer func() { s.current = nil }()
 		return fn(scope)
 	})
+	s.counts = append(s.counts, iaTVSnapshotCalls{result.Started, s.calls - before})
+	return result, e
 }
 func (s *iaTVScope) exact(name string, cols []int, args ...any) ([]any, error) {
 	if s.current == nil {
@@ -212,17 +221,19 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 		if mode == "members" {
 			name, id = "asset_source", in.Asset
 		}
-		rows, e := q("foreground.ia.tv."+name, id, in.View.Library)
+
+		columns := []int{12, 13}
+		if mode == "members" {
+			columns = []int{4}
+		}
+		row, e := s.exact(name, columns, id, in.View.Library)
 		if e != nil {
 			return nil, e
 		}
-		if len(rows) != 1 {
-			return nil, ErrDenied
-		}
-		if mode == "members" && rows[0][1].(int64) == 0 {
+		if mode == "members" && row[1].(int64) == 0 {
 			return nil, ErrNotReady
 		}
-		return rows[0], nil
+		return row, nil
 	}
 	steps := []readStep[IATVResult]{func(ctx context.Context, q browseQuery, f browseFence, d *IATVResult) error {
 		keys = nil
@@ -362,6 +373,19 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 		})
 	}
 	page, result, e := publishRead(ctx, s, request, budget, output, in.View, steps, source)
-	result.LookupStatements += s.calls
+	for _, count := range s.counts {
+		publication := false
+		for _, window := range result.PublicationWindows {
+			if window.Started == count.at {
+				publication = true
+				break
+			}
+		}
+		if publication {
+			result.PublicationStatements += count.calls
+		} else {
+			result.LookupStatements += count.calls
+		}
+	}
 	return page, result, e
 }

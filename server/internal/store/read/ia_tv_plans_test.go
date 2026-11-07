@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
@@ -34,7 +35,7 @@ func iaTVFixtureHash(t *testing.T) string {
 func TestIATVPlans(t *testing.T) {
 	f := newIATVSource(t)
 	defs := IATVDefinitions()
-	if len(defs) != 8 {
+	if len(defs) != 10 {
 		t.Fatal("review statement inventory")
 	}
 	for _, d := range defs {
@@ -64,7 +65,7 @@ func TestIATVPlans(t *testing.T) {
 		if _, e := stmt.New(defs, golden.Receipt()); e != nil {
 			t.Fatal(e)
 		}
-		if len(golden.Manifest) != 8 || len(golden.Plans) != 16 {
+		if len(golden.Manifest) != 10 || len(golden.Plans) != 20 {
 			t.Fatal("incomplete native Capture")
 		}
 		captures = append(captures, capture{string(stats), golden})
@@ -84,6 +85,9 @@ func TestIATVPlans(t *testing.T) {
 	// lane-focused ordinary tests preserve this new domain's capture without a
 	// shared tooling edit. A missing baseline fails until the owner adopts it.
 	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
+		if e = os.MkdirAll(dir, 0755); e != nil {
+			t.Fatal(e)
+		}
 		if e = os.WriteFile(filepath.Join(dir, "ia-tv-plans.json.gz"), packed.Bytes(), 0644); e != nil {
 			t.Fatal(e)
 		}
@@ -107,6 +111,16 @@ func TestIATVPlans(t *testing.T) {
 }
 func TestIATVCaptureRejectsWeakenedControls(t *testing.T) {
 	f := newIATVSource(t)
+	db, _, e := sqliteconn.Open(t.Context(), f.path, browseReaderConfig())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer db.Close()
+	conn, e := db.Conn(t.Context())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer conn.Close()
 	for _, tc := range []struct {
 		name string
 		edit func(*stmt.Definition)
@@ -128,9 +142,12 @@ func TestIATVCaptureRejectsWeakenedControls(t *testing.T) {
 			}
 			// Use the native connection and exact policy/fixture used by positive
 			// Capture; the altered definition must never mint an executable receipt.
-			_, e = plan.Capture(t.Context(), f.conn, catalogue, browsePlanFixture(browseReaderConfig(), iaTVFixtureHash(t), plan.Unanalyzed), iaTVPolicy(t))
+			_, e = plan.Capture(t.Context(), conn, catalogue, browsePlanFixture(browseReaderConfig(), iaTVFixtureHash(t), plan.Unanalyzed), iaTVPolicy(t))
 			if e == nil {
 				t.Fatal("weakened production control minted receipt")
+			}
+			if tc.name == "unforced-child-seek" && !strings.Contains(e.Error(), "not forced in SQL") || tc.name == "forged-octet-point" && !strings.Contains(e.Error(), "exact closed point definition") {
+				t.Fatal("wrong refusal", e)
 			}
 		})
 	}
