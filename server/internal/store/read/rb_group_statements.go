@@ -87,7 +87,7 @@ func RBGroupDefinitions() []stmt.Definition {
 			}
 			plan := stmt.Plan{Hot: true, Indexes: []string{spec.index}}
 			if spec.family == RBGroupCollectionMembers || spec.family == RBGroupPlaylistEntries {
-				plan.PrimaryKeys = []string{"catalog_entities"}
+				plan.PrimaryKeys = []string{"e"}
 			}
 			present := append(append([]any(nil), bindings...), int64(MaxRaw))
 			empty := append([]any(nil), present...)
