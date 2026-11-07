@@ -54,7 +54,7 @@ CREATE TABLE security_command_owners(
 CREATE INDEX security_command_owner_retirement ON security_command_owners(retired_ms,id);
 
 -- Immutable accepted result, not a current permission/account/session source.
--- Only the seven concrete purposes below are admitted, not the reserved US
+-- Only the ten concrete purposes below are admitted, not the reserved US
 -- namespace. Policy/PIN native post-scalars and invitation DTO facts are typed;
 -- the sole protected body is creation's exact invitation Code (not a generic
 -- result/permission document). Prepare its AES-GCM image outside the writer,
@@ -68,9 +68,9 @@ CREATE TABLE security_command_receipts(
  command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
  operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
  request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
- command_kind INTEGER NOT NULL CHECK(command_kind IN(532,533,540,541,550,551,552)),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(520,521,522,532,533,540,541,550,551,552)),
  result_version INTEGER NOT NULL CHECK(result_version=1),
- result_codec TEXT NOT NULL CHECK(result_codec IN('pin_set_v1','pin_clear_v1','member_libraries_v1','profile_libraries_v1','invitation_create_v1','invitation_edit_v1','invitation_revoke_v1')),
+ result_codec TEXT NOT NULL CHECK(result_codec IN('password_replace_v1','credential_issue_v1','credential_revoke_v1','pin_set_v1','pin_clear_v1','member_libraries_v1','profile_libraries_v1','invitation_create_v1','invitation_edit_v1','invitation_revoke_v1')),
  applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
  result_digest BLOB NOT NULL CHECK(length(result_digest)=32),
  target_account_id TEXT,
@@ -93,8 +93,12 @@ CREATE TABLE security_command_receipts(
   +coalesce(length(CAST(result_key_id AS BLOB)),0)+coalesce(length(result_nonce),0)+coalesce(length(result_body),0)) VIRTUAL,
  PRIMARY KEY(owner_id,command_incarnation,command_sequence),
  UNIQUE(owner_id,command_incarnation,operation_id),
+ UNIQUE(owner_id,command_incarnation,command_sequence,command_kind),
  FOREIGN KEY(owner_id,command_incarnation) REFERENCES security_command_owners(id,command_incarnation),
- CHECK((command_kind=532 AND result_codec='pin_set_v1')
+ CHECK((command_kind=520 AND result_codec='password_replace_v1')
+  OR (command_kind=521 AND result_codec='credential_issue_v1')
+  OR (command_kind=522 AND result_codec='credential_revoke_v1')
+  OR (command_kind=532 AND result_codec='pin_set_v1')
   OR (command_kind=533 AND result_codec='pin_clear_v1')
   OR (command_kind=540 AND result_codec='member_libraries_v1')
   OR (command_kind=541 AND result_codec='profile_libraries_v1')
@@ -122,6 +126,10 @@ CREATE TABLE security_command_receipts(
   AND ((command_kind=532 AND result_pin_required=1) OR (command_kind=533 AND result_pin_required=0))
   AND result_changed IS NOT NULL AND result_changed=1 AND policy_inherits IS NULL AND result_count=0
   AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
+ OR (command_kind IN(520,521,522) AND target_account_id IS NULL AND target_member_incarnation IS NULL
+  AND target_profile_id IS NULL AND target_profile_lifetime IS NULL AND result_revision IS NULL
+  AND policy_inherits IS NULL AND result_changed IS NULL AND result_pin_revision IS NULL AND result_pin_required IS NULL
+  AND result_count=0 AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
  OR (command_kind IN(550,551,552) AND target_account_id IS NULL AND target_member_incarnation IS NULL
   AND target_profile_id IS NULL AND target_profile_lifetime IS NULL AND result_revision IS NULL
   AND policy_inherits IS NULL AND result_changed IS NULL AND result_pin_revision IS NULL AND result_pin_required IS NULL
@@ -222,3 +230,128 @@ CREATE INDEX authorization_family_security_fence_parent ON authorization_family_
 -- computed from state+fenced time, never a maintained per-user status copy.
 CREATE INDEX access_invitation_state_page ON access_invitations(state,created_ms DESC,id DESC);
 CREATE INDEX access_invitation_expiry ON access_invitations(state,expires_ms,id);
+
+
+-- 520 ordinary LOCAL password replacement has a void public response. Save the
+-- exact non-secret outcome, not either password hash, bearer or factor secret.
+-- No FK to live account/profile rows: later retirement cannot erase the result.
+CREATE TABLE security_password_results(
+ owner_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ command_kind INTEGER NOT NULL DEFAULT 520 CHECK(command_kind=520),
+ account_id TEXT NOT NULL,
+ member_incarnation TEXT NOT NULL CHECK(length(member_incarnation)=32),
+ profile_id TEXT NOT NULL,
+ profile_lifetime TEXT NOT NULL CHECK(length(profile_lifetime)=32),
+ member_revision INTEGER NOT NULL CHECK(member_revision>0),
+ profile_revision INTEGER NOT NULL CHECK(profile_revision>0),
+ previous_epoch INTEGER NOT NULL CHECK(previous_epoch BETWEEN 1 AND 9223372036854775806),
+ result_epoch INTEGER NOT NULL CHECK(result_epoch=previous_epoch+1),
+ variable_bytes INTEGER GENERATED ALWAYS AS (
+  length(CAST(owner_id AS BLOB))+length(command_incarnation)+length(CAST(account_id AS BLOB))
+  +length(CAST(member_incarnation AS BLOB))+length(CAST(profile_id AS BLOB))+length(CAST(profile_lifetime AS BLOB))) VIRTUAL,
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ FOREIGN KEY(owner_id,command_incarnation,command_sequence,command_kind)
+  REFERENCES security_command_receipts(owner_id,command_incarnation,command_sequence,command_kind)
+) WITHOUT ROWID, STRICT;
+
+-- 521/522 save the COMPLETE native Credential DTO, including captured state,
+-- nullable timestamp semantics, CredentialMember names, and ordered scopes.
+-- A replay never derives state/expiry from a later clock or current family.
+-- The creation Secret is a separate exact prefixed ASCII wire, not JSON or a
+-- normalized permission body. Existing Token() emits 43 base64url characters;
+-- pk./pat./papp. make plaintext lengths 46/47/48, plus a 16-byte GCM tag.
+-- Key ID denotes immutable key custody; secret_aad_digest binds this receipt,
+-- kind, scope/lifetimes, native secret_hash and exact source/result manifest.
+CREATE TABLE security_credential_results(
+ owner_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(521,522)),
+ credential_id TEXT NOT NULL,
+ kind TEXT NOT NULL CHECK(kind IN('key','token','app_password')),
+ name TEXT NOT NULL,
+ scope_count INTEGER NOT NULL CHECK(scope_count BETWEEN 1 AND 4),
+ hint TEXT NOT NULL,
+ created_ms INTEGER NOT NULL CHECK(created_ms>=0),
+ expires_ms INTEGER NOT NULL CHECK(expires_ms>=0),
+ last_used_ms INTEGER NOT NULL CHECK(last_used_ms>=0),
+ revoked_ms INTEGER NOT NULL CHECK(revoked_ms>=0),
+ state TEXT NOT NULL CHECK(state IN('active','expired','revoked','ended')),
+ ended_reason TEXT NOT NULL CHECK(ended_reason IN('','member_disabled','profile_deleted','unavailable')),
+ account_id TEXT NOT NULL,
+ member_incarnation TEXT NOT NULL CHECK(length(member_incarnation)=32),
+ username TEXT NOT NULL,
+ profile_id TEXT NOT NULL,
+ profile_lifetime TEXT NOT NULL CHECK(length(profile_lifetime)=32),
+ profile_name TEXT NOT NULL,
+ family_id TEXT NOT NULL,
+ family_incarnation BLOB NOT NULL CHECK(length(family_incarnation)=16),
+ device_id TEXT NOT NULL,
+ secret_hash TEXT NOT NULL CHECK(length(secret_hash)=64),
+ secret_key_id TEXT,
+ secret_nonce BLOB,
+ secret_body BLOB,
+ secret_aad_digest BLOB,
+ variable_bytes INTEGER GENERATED ALWAYS AS (
+  length(CAST(owner_id AS BLOB))+length(command_incarnation)+length(CAST(credential_id AS BLOB))+length(CAST(kind AS BLOB))
+  +length(CAST(name AS BLOB))+length(CAST(hint AS BLOB))+length(CAST(state AS BLOB))+length(CAST(ended_reason AS BLOB))
+  +length(CAST(account_id AS BLOB))+length(CAST(member_incarnation AS BLOB))+length(CAST(username AS BLOB))
+  +length(CAST(profile_id AS BLOB))+length(CAST(profile_lifetime AS BLOB))+length(CAST(profile_name AS BLOB))
+  +length(CAST(family_id AS BLOB))+length(family_incarnation)+length(CAST(device_id AS BLOB))+length(CAST(secret_hash AS BLOB))
+  +coalesce(length(CAST(secret_key_id AS BLOB)),0)+coalesce(length(secret_nonce),0)+coalesce(length(secret_body),0)+coalesce(length(secret_aad_digest),0)) VIRTUAL,
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ FOREIGN KEY(owner_id,command_incarnation,command_sequence,command_kind)
+  REFERENCES security_command_receipts(owner_id,command_incarnation,command_sequence,command_kind),
+ CHECK((state='ended')=(ended_reason<>'')),
+ CHECK((kind='app_password' AND hint='') OR (kind IN('key','token') AND length(CAST(hint AS BLOB))=6)),
+ CHECK((command_kind=521 AND state='active' AND revoked_ms=0 AND last_used_ms=0
+  AND secret_key_id IS NOT NULL AND length(CAST(secret_key_id AS BLOB)) BETWEEN 1 AND 128
+  AND secret_nonce IS NOT NULL AND length(secret_nonce)=12
+  AND secret_body IS NOT NULL AND length(secret_body)=CASE kind WHEN 'key' THEN 62 WHEN 'token' THEN 63 WHEN 'app_password' THEN 64 END
+  AND secret_aad_digest IS NOT NULL AND length(secret_aad_digest)=32)
+ OR (command_kind=522 AND secret_key_id IS NULL AND secret_nonce IS NULL AND secret_body IS NULL AND secret_aad_digest IS NULL))
+) WITHOUT ROWID, STRICT;
+
+CREATE TABLE security_credential_result_scopes(
+ owner_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 3),
+ scope TEXT NOT NULL CHECK(scope IN('read','playback','library','admin')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (
+  length(CAST(owner_id AS BLOB))+length(command_incarnation)+length(CAST(scope AS BLOB))) VIRTUAL,
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence,ordinal),
+ UNIQUE(owner_id,command_incarnation,command_sequence,scope),
+ FOREIGN KEY(owner_id,command_incarnation,command_sequence)
+  REFERENCES security_credential_results(owner_id,command_incarnation,command_sequence)
+) WITHOUT ROWID, STRICT;
+
+-- Existing owner key/app-password recovery also needs purpose-specific CURRENT
+-- protected source custody, separate from immutable issuance delivery. No token
+-- recovery and no plaintext api_credentials.secret write in the new path.
+-- Parent cutover must prove the exact digest, scope and still-current credential
+-- natively before revealing; the old source permission fields stay authoritative.
+-- Restrictive FK requires explicit bounded secret drain before source deletion.
+CREATE TABLE security_credential_secrets(
+ credential_id TEXT NOT NULL PRIMARY KEY REFERENCES api_credentials(id),
+ kind TEXT NOT NULL CHECK(kind IN('key','app_password')),
+ account_id TEXT NOT NULL,
+ member_incarnation TEXT NOT NULL CHECK(length(member_incarnation)=32),
+ profile_id TEXT NOT NULL,
+ profile_lifetime TEXT NOT NULL CHECK(length(profile_lifetime)=32),
+ family_id TEXT NOT NULL,
+ family_incarnation BLOB NOT NULL CHECK(length(family_incarnation)=16),
+ secret_hash TEXT NOT NULL CHECK(length(secret_hash)=64),
+ key_id TEXT NOT NULL CHECK(length(CAST(key_id AS BLOB)) BETWEEN 1 AND 128),
+ nonce BLOB NOT NULL CHECK(length(nonce)=12),
+ body BLOB NOT NULL,
+ aad_digest BLOB NOT NULL CHECK(length(aad_digest)=32),
+ variable_bytes INTEGER GENERATED ALWAYS AS (
+  length(CAST(credential_id AS BLOB))+length(CAST(kind AS BLOB))+length(CAST(account_id AS BLOB))
+  +length(CAST(member_incarnation AS BLOB))+length(CAST(profile_id AS BLOB))+length(CAST(profile_lifetime AS BLOB))
+  +length(CAST(family_id AS BLOB))+length(family_incarnation)+length(CAST(secret_hash AS BLOB))
+  +length(CAST(key_id AS BLOB))+length(nonce)+length(body)+length(aad_digest)) VIRTUAL,
+ CHECK(length(body)=CASE kind WHEN 'key' THEN 62 WHEN 'app_password' THEN 64 END)
+) STRICT;
