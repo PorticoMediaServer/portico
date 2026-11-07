@@ -55,3 +55,19 @@ type BasicResult struct {
 	Members                                     []InventoryMember
 	Digest                                      ResultDigest
 }
+
+// The canonical request kind and native receipt purpose are distinct for all
+// three operations. The domain's closed operation is additionally part of its
+// complete frozen payload; it never substitutes for the command identity.
+func basicPurposeForCommand(id CommandID) (BasicPurpose, error) {
+	switch id {
+	case BasicStage:
+		return BasicPurposeStage, nil
+	case BasicSeal:
+		return BasicPurposeSeal, nil
+	case BasicAccept:
+		return BasicPurposeAccept, nil
+	default:
+		return "", ErrInvalid
+	}
+}
