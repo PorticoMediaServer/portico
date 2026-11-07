@@ -64,11 +64,11 @@ func TestRSChildrenListeningSortKeyTieBreak(t *testing.T) {
 		}
 		var got []int64
 		for n := 0; n < 100; n++ {
-			p, cost, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+			p, cost, err := rsChildrenRead(t, r, f, in)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(cost.LookupWindows) != 2 || cost.LookupWindows[1].NativeReservedBytes != 5 {
+			if len(cost.LookupWindows) != 6 || cost.LookupWindows[2].NativeReservedBytes < 1 || cost.LookupWindows[2].NativeReservedBytes > 5 {
 				t.Fatal("sort keys reserve actual largest UTF8/NUL point", cost)
 			}
 			for _, c := range p.Items {
@@ -88,13 +88,13 @@ func TestRSChildrenListeningCapAndByteCharge(t *testing.T) {
 	f, r := rsChildrenFixture(t)
 	// A complete membership beyond cap must refuse, never return an ordered prefix.
 	f.exec(t, `UPDATE catalog_entities SET album_id=2001 WHERE id<2000 AND library_id=1`)
-	p, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, rsChildrenInput(f, RSAlbumTracks))
+	p, _, err := rsChildrenRead(t, r, f, rsChildrenInput(f, RSAlbumTracks))
 	if !errors.Is(err, ErrUnqualified) || !reflect.DeepEqual(p, RSChildrenPage{}) {
 		t.Fatal("overflow released prefix", p, err)
 	}
 	f.exec(t, `UPDATE catalog_entities SET album_id=NULL WHERE id<2000 AND library_id=1`)
 	f.exec(t, `UPDATE catalog_entities SET sort_key=? WHERE album_id=2001`, strings.Repeat("界", 6000))
-	p, _, err = r.window(t.Context(), foregroundRequest(), time.Second, f.output, rsChildrenInput(f, RSAlbumTracks))
+	p, _, err = rsChildrenRead(t, r, f, rsChildrenInput(f, RSAlbumTracks))
 	if !errors.Is(err, governor.ErrSnapshotBudget) || !reflect.DeepEqual(p, RSChildrenPage{}) {
 		t.Fatal("wide-key workspace exceeded grant", p, err)
 	}

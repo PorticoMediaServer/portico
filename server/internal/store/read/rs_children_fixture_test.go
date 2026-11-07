@@ -1,6 +1,7 @@
 package read
 
 import (
+	"context"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/binary"
@@ -105,8 +106,7 @@ VALUES(?,?,1,?,'deliberately reversed display','z','z','z','z',0,?,?, ?,?,?,?,?,
 
 func rsChildrenFixture(t *testing.T) (*browseFixture, *RSChildrenReader) {
 	t.Helper()
-	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	gc := rsChildrenGovernor()
 	f := composeReadFixture(t, rsChildrenSource(t), append(browseDefinitions(), RSChildrenDefinitions()...), gc, true, rsChildrenFixtureHash(t))
 	r, err := NewRSChildrenReader(f.snapshots)
 	if err != nil {
@@ -120,4 +120,41 @@ func rsChildrenInput(f *browseFixture, family RSChildrenFamily) RSChildrenInput 
 	in := RSChildrenInput{View: f.input, Parent: 2000 + int64(family), Family: family}
 	in.View.Kind = r.parentKind
 	return in
+}
+
+func rsChildrenGovernor() governor.Config {
+	gc := readfixture.LiveConfig(time.Now)
+	gc.Preparation = &governor.PreparationProfile{MaxActive: 2, MaxBytes: 16 << 20, MaxJobBytes: 8 << 20, ProtectedBytes: 32 << 20}
+	return gc
+}
+func rsChildrenRead(t *testing.T, r *RSChildrenReader, f *browseFixture, in RSChildrenInput) (RSChildrenPage, BrowseReadResult, error) {
+	t.Helper()
+	return rsChildrenReadContext(t, t.Context(), r, f, in)
+}
+func rsChildrenReadContext(t *testing.T, ctx context.Context, r *RSChildrenReader, f *browseFixture, in RSChildrenInput) (RSChildrenPage, BrowseReadResult, error) {
+	t.Helper()
+	if in.Family > RSAudiobookFiles {
+		return r.window(ctx, foregroundRequest(), time.Second, f.output, in)
+	}
+	w, refusal, err := BeginRSListeningWork(t.Context(), f.authority, 1, governor.JobKey{Domain: 79, ID: "listening-test"}, time.Now().Add(12*time.Second), in)
+	if err != nil {
+		t.Fatal(refusal, err)
+	}
+	defer func() {
+		if err := w.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	in.Work = w
+	for n := 0; n < RSListeningChildCap/rsListeningKeysPerPoll+1; n++ {
+		p, cost, err := r.window(ctx, foregroundRequest(), time.Second, f.output, in)
+		if err != nil || !p.Preparing {
+			return p, cost, err
+		}
+		if p.Next != nil || len(p.Items) != 0 || !p.Pending || p.Exhausted {
+			t.Fatal("partial sort escaped", p)
+		}
+	}
+	t.Fatal("bounded sort did not finish")
+	return RSChildrenPage{}, BrowseReadResult{}, ErrUnqualified
 }

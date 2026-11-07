@@ -3,7 +3,6 @@ package read
 import (
 	"cmp"
 	"context"
-	"slices"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -28,6 +27,7 @@ type RSChildrenInput struct {
 	Parent int64
 	Family RSChildrenFamily
 	After  *RSChildrenCursor
+	Work   *RSListeningWork
 }
 
 // RSChildNumber preserves SQL NULL separately from zero and from the effective
@@ -50,6 +50,8 @@ type RSChildrenPage struct {
 	Items                 []RSChild
 	Next                  *RSChildrenCursor
 	Exhausted, Pending    bool
+	Preparing             bool
+	PreparedRows          int
 	RawRows, RawPositions int
 }
 
@@ -85,7 +87,9 @@ func NewRSChildrenReader(s *governor.Snapshots) (*RSChildrenReader, error) {
 // sparse retired/wrong-kind tails, NULL/defaults, source drift and slow consumer.
 // B-R10's 1M 25/75ms and 50k VM remain unqualified. On this base the five common
 // fence calls plus root, twice, cost 12 statements before the 1..3 stream calls:
-// 13..15 total exceeds B-R10's 12-statement target. Whole-response composition must
+// Non-listening13..15 total exceeds B-R10's12-statement target. Listening
+// preparation records every bounded poll separately, without a12-call claim.
+// Whole-response composition must
 // resolve that shared-protocol cost; these functional controls do not waive it.
 func (r *RSChildrenReader) Window(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in RSChildrenInput) (RSChildrenPage, BrowseReadResult, error) {
 	if r == nil {
@@ -247,128 +251,7 @@ const RSListeningChildCap = 512
 // including UTF-8 and embedded NUL bytes; effective disc/track defaults are the
 // same as the existing listening routes.
 func (r *RSChildrenReader) sortedWindow(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in RSChildrenInput, recipe rsChildrenRecipe, root rootRead, source *[]any) (RSChildrenPage, BrowseReadResult, error) {
-	windows := &rsByteWindow{source: r.snapshots, preflightCalls: RSListeningChildCap + 7}
-	type candidate struct {
-		row   []any
-		key   string
-		bytes int64
-	}
-	var raw []candidate
-	var charge int64
-	return publishRead(ctx, windows, request, budget, output, in.View, []readStep[RSChildrenPage]{
-		func(ctx context.Context, q browseQuery, f browseFence, _ *RSChildrenPage) error {
-			if in.After != nil && (in.After.fence != f || in.After.parent != in.Parent || in.After.family != in.Family || in.After.limit != in.View.Limit) {
-				return ErrStale
-			}
-			if f.maximumAge >= 0 || f.allowUnrated == 0 {
-				return ErrUnqualified
-			}
-			rows, err := q(rsChildrenName(recipe.name+".first"), in.Parent, int64(RSListeningChildCap+1))
-			if err != nil {
-				return err
-			}
-			if len(rows) > RSListeningChildCap {
-				return ErrUnqualified
-			}
-			// Charge 128 bytes per candidate (slice/string/length and sorting workspace),
-			// in addition to the shared retained-row accounting. Reserve twice actual
-			// sort-key bytes for copied keys and DTO/cursor overlap. This prospective
-			// charge must fit one quarter of the already-issued output memory grant;
-			// the shared publication copier independently accounts all SQL row copies.
-			charge = int64(len(rows)) * 128
-			if charge > output.Request.Need[governor.MemoryBytes]/4 {
-				return governor.ErrSnapshotBudget
-			}
-			raw = make([]candidate, len(rows))
-			maxBytes := int64(1)
-			for n, row := range rows {
-				sizes, err := q("rs.children."+recipe.name+".sort_octets", row[0], row[2], in.Parent)
-				if err != nil {
-					return err
-				}
-				if len(sizes) != 1 {
-					return ErrStale
-				}
-				bytes, err := rsPointBytes(sizes[0])
-				if err != nil {
-					return err
-				}
-				if bytes > (output.Request.Need[governor.MemoryBytes]/4-charge)/2 {
-					return governor.ErrSnapshotBudget
-				}
-				charge += 2 * bytes
-				raw[n] = candidate{row: row, bytes: bytes}
-				maxBytes = max(maxBytes, bytes)
-			}
-			return windows.arm(maxBytes, 2*RSListeningChildCap)
-		},
-		func(ctx context.Context, q browseQuery, f browseFence, p *RSChildrenPage) error {
-			for n := range raw {
-				row := raw[n].row
-				keys, err := q("rs.children."+recipe.name+".sort_key", row[0], row[2], in.Parent)
-				if err != nil {
-					return err
-				}
-				if len(keys) != 1 {
-					return ErrStale
-				}
-				key := keys[0][0].(string)
-				if int64(len(key)) != raw[n].bytes {
-					return ErrStale
-				}
-				raw[n].key = key
-			}
-			slices.SortFunc(raw, func(a, b candidate) int {
-				for _, pair := range [][2]int64{{a.row[17].(int64), b.row[17].(int64)}, {a.row[18].(int64), b.row[18].(int64)}} {
-					if c := cmp.Compare(pair[0], pair[1]); c != 0 {
-						return c
-					}
-				}
-				if c := rsListeningKeyCompare(a.key, b.key); c != 0 {
-					return c
-				}
-				return cmp.Compare(a.row[0].(int64), b.row[0].(int64))
-			})
-			p.RawRows = len(raw)
-			for _, c := range raw {
-				row := c.row
-				if a := in.After; a != nil {
-					order := cmp.Compare(row[17].(int64), a.first.Value)
-					if order == 0 {
-						order = cmp.Compare(row[18].(int64), a.second.Value)
-					}
-					if order == 0 {
-						order = rsListeningKeyCompare(c.key, a.sortKey)
-					}
-					if order == 0 {
-						order = cmp.Compare(row[0].(int64), a.id)
-					}
-					if order <= 0 {
-						continue
-					}
-				}
-				p.RawPositions++
-				p.Next = &RSChildrenCursor{fence: f, parent: in.Parent, family: in.Family, limit: in.View.Limit, first: rsNumber(row[17]), second: rsNumber(row[18]), id: row[0].(int64), sortKey: c.key, source: *source}
-				if row[2].(int64) != in.View.Library || row[3].(int64) != recipe.childKind || row[4].(int64) != 0 {
-					continue
-				}
-				public, ok := row[1].([]byte)
-				if !ok || len(public) != 16 {
-					return ErrUnqualified
-				}
-				item := RSChild{ID: row[0].(int64), Kind: row[3].(int64), Revision: row[5].(int64), Disc: rsNumber(row[12]), Track: rsNumber(row[13]), Part: rsNumber(row[14]), Season: rsNumber(row[15]), Episode: rsNumber(row[16])}
-				copy(item.PublicID[:], public)
-				p.Items = append(p.Items, item)
-				if len(p.Items) == in.View.Limit {
-					p.Pending = true
-					return ctx.Err()
-				}
-			}
-			p.Exhausted = true
-			p.Next = nil
-			return ctx.Err()
-		},
-	}, root)
+	return r.preparedListeningWindow(ctx, request, budget, output, in, recipe, root, source)
 }
 
 // SQLite's built-in NOCASE folds ASCII only. Comparison stops at an embedded

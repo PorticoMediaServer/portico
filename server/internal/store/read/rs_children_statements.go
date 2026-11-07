@@ -48,24 +48,6 @@ func RSChildrenDefinitions() []stmt.Definition {
 		} else {
 			p.Indexes = []string{index}
 		}
-		// The closed HN EQP vocabulary deliberately excludes expression-index
-		// wording. These exact statement-bound SEARCH-only definitions cover
-		// the canonical expression seek; no SCAN or sort exception is granted.
-		for _, family := range []string{"album", "book"} {
-			prefix := family + "_id=?"
-			var detail string
-			switch name {
-			case family + ".tail":
-				detail = prefix + " AND <expr>=? AND <expr>=? AND id>?"
-			case family + ".next_second":
-				detail = prefix + " AND <expr>=? AND <expr>>?"
-			case family + ".next":
-				detail = prefix + " AND <expr>>?"
-			}
-			if detail != "" {
-				p.Waivers = []stmt.Waiver{{StatementID: readStatementID(rsChildrenName(name)), Stage: "eqp", Form: "UNRECOGNIZED EQP", Match: "SEARCH catalog_entities USING INDEX " + index + " (" + detail + ")", Reason: "Canonical listening-order expression-index SEARCH; exact statement-bound wording, no scan or sort exception."}}
-			}
-		}
 		out = append(out, stmt.Definition{ID: readStatementID(rsChildrenName(name)), SQL: sql, Params: params, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/rs_children.go:RSChildrenReader.Window"}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: present}, {Name: "empty", Bindings: empty}}, Plan: p})
 	}
 	add("source", `SELECT e.id,e.public_id,e.library_id,e.kind,e.retired,e.revision,e.admission_own_age,e.show_id,
@@ -92,6 +74,9 @@ disc_number,track_number,part_number,season_number,episode_number,` + r.first + 
 			firstLimit = RSListeningChildCap + 1
 		}
 		add(r.name+".first", base+end, []stmt.Param{i("parent"), i("limit")}, []any{parent, firstLimit}, r.index)
+		if r.keys == 2 {
+			continue
+		} // complete capped listening sort has no SQL continuation streams
 		params := []stmt.Param{i("parent")}
 		values := []any{parent}
 		tail := ""

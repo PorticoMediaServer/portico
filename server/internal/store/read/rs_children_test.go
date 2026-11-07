@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
-	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 )
 
 func TestRSChildrenOrderedFamilies(t *testing.T) {
@@ -22,11 +21,11 @@ func TestRSChildrenOrderedFamilies(t *testing.T) {
 			var got []int64
 			var saved *RSChildrenCursor
 			for n := 0; n < 30; n++ {
-				page, result, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+				page, result, err := rsChildrenRead(t, r, f, in)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(page.Items) > 7 || page.RawRows > map[bool]int{true: RSListeningChildCap, false: MaxRaw}[family <= RSAudiobookFiles] || page.RawPositions > page.RawRows || len(result.LookupWindows) != 2 || result.LookupStatements > 3*RSListeningChildCap+7 || result.PublicationStatements != 6 {
+				if len(page.Items) > 7 || page.RawRows > map[bool]int{true: RSListeningChildCap, false: MaxRaw}[family <= RSAudiobookFiles] || page.RawPositions > max(page.RawRows, page.PreparedRows) || family > RSAudiobookFiles && len(result.LookupWindows) != 2 || result.LookupStatements > 3*RSListeningChildCap+7 || result.PublicationStatements != 6 {
 					t.Fatalf("bounds page=%+v result=%+v", page, result)
 				}
 				if page.Pending == page.Exhausted || (page.Next == nil) != page.Exhausted {
@@ -103,7 +102,7 @@ func TestRSChildrenOrderedFamilies(t *testing.T) {
 			}
 			in.After = saved
 			in.View.Limit++
-			page, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+			page, _, err := rsChildrenRead(t, r, f, in)
 			if !errors.Is(err, ErrStale) || !reflect.DeepEqual(page, RSChildrenPage{}) {
 				t.Fatal("query/limit cursor mismatch", err)
 			}
@@ -117,7 +116,7 @@ func TestRSChildrenSparseRawAndNullContinuation(t *testing.T) {
 		in := rsChildrenInput(f, family)
 		recipe, _ := rsChildrenRecipeFor(family)
 		f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id>=4000 AND id<10000`)
-		page, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+		page, _, err := rsChildrenRead(t, r, f, in)
 		if family <= RSAudiobookFiles {
 			if err != nil || !page.Exhausted || page.Pending || page.RawPositions != 90 || page.Next != nil || len(page.Items) != 0 {
 				t.Fatalf("sorted sparse: %+v %v", page, err)
@@ -133,7 +132,7 @@ func TestRSChildrenSparseRawAndNullContinuation(t *testing.T) {
 			t.Fatal("hidden output")
 		}
 		in.After = page.Next
-		last, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+		last, _, err := rsChildrenRead(t, r, f, in)
 		if err != nil || !last.Exhausted || last.Next != nil {
 			t.Fatal("sparse tail lost", err, last)
 		}
@@ -157,12 +156,12 @@ func TestRSChildrenNullTailUsesRealSeek(t *testing.T) {
 	f.exec(t, `UPDATE catalog_entities SET show_id=2004,episode_number=NULL WHERE id<=70`)
 	f.exec(t, `UPDATE catalog_entities SET episode_number=-5 WHERE id=7003`)
 	in := rsChildrenInput(f, RSShowEpisodes)
-	page, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, _, err := rsChildrenRead(t, r, f, in)
 	if err != nil || len(page.Items) != 0 || page.RawRows != 64 || page.RawPositions != 64 || page.Next == nil || page.Next.first.Present || page.Exhausted {
 		t.Fatalf("NULL raw window %+v %v", page, err)
 	}
 	in.After = page.Next
-	page, _, err = r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, _, err = rsChildrenRead(t, r, f, in)
 	if err != nil || len(page.Items) != 40 || page.Items[0].ID != 7003 || page.Items[0].Episode.Value != -5 || page.RawRows > 64 {
 		t.Fatalf("NULL->negative indexed stream %+v %v", page, err)
 	}
@@ -174,18 +173,18 @@ func TestRSChildrenHierarchyAndQueryBinding(t *testing.T) {
 	// agrees with its selected season's show.
 	f.exec(t, `UPDATE catalog_entities SET show_id=2004 WHERE id=8001`)
 	in := rsChildrenInput(f, RSSeasonEpisodes)
-	page, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, _, err := rsChildrenRead(t, r, f, in)
 	if err != nil || len(page.Items) == 0 || page.Items[0].ID != 8002 {
 		t.Fatal("cross-show season member admitted", page, err)
 	}
 	in = rsChildrenInput(f, RSAlbumTracks)
-	page, _, err = r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, _, err = rsChildrenRead(t, r, f, in)
 	if err != nil || page.Next == nil {
 		t.Fatal(err)
 	}
 	other := rsChildrenInput(f, RSAudiobookFiles)
 	other.After = page.Next
-	page, _, err = r.window(t.Context(), foregroundRequest(), time.Second, f.output, other)
+	page, _, err = rsChildrenRead(t, r, f, other)
 	if !errors.Is(err, ErrStale) || !reflect.DeepEqual(page, RSChildrenPage{}) {
 		t.Fatal("another parent's continuation", err)
 	}
@@ -210,10 +209,14 @@ func TestRSChildrenSourceAndAuthorityPublication(t *testing.T) {
 					f.exec(t, mutation.sql)
 				}
 			}}
-			page, result, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+			page, result, err := rsChildrenRead(t, r, f, in)
 			if mutation.want != nil {
 				if !errors.Is(err, mutation.want) || !reflect.DeepEqual(page, RSChildrenPage{}) {
 					t.Fatal("late denial released page", err)
+				}
+			} else if in.Family <= RSAudiobookFiles {
+				if !errors.Is(err, ErrStale) || !reflect.DeepEqual(page, RSChildrenPage{}) {
+					t.Fatal("changed prepared set escaped", page, err)
 				}
 			} else if err != nil || result.Attempts != 2 || len(page.Items) != 40 {
 				t.Fatal("whole retry", result.Attempts, len(page.Items), err)
@@ -225,19 +228,19 @@ func TestRSChildrenSourceAndAuthorityPublication(t *testing.T) {
 func TestRSChildrenCursorFencesAndBoundedConflict(t *testing.T) {
 	f, r := rsChildrenFixture(t)
 	in := rsChildrenInput(f, RSAlbumTracks)
-	page, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, _, err := rsChildrenRead(t, r, f, in)
 	if err != nil {
 		t.Fatal(err)
 	}
 	in.After = page.Next
 	f.exec(t, `UPDATE catalog_entities SET music_membership_revision=2 WHERE id=2001`)
-	page, result, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, result, err := rsChildrenRead(t, r, f, in)
 	if !errors.Is(err, ErrStale) || !errors.Is(err, governor.ErrBusy) || result.Attempts != 2 || !reflect.DeepEqual(page, RSChildrenPage{}) {
 		t.Fatal("stale source cursor", result, err)
 	}
 	in.After = nil
 	r.snapshots = &rsChildrenBoundary{Snapshots: f.snapshots, mutate: func(int) { f.exec(t, `UPDATE catalog_entities SET revision=revision+1 WHERE id=2001`) }}
-	page, result, err = r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, result, err = rsChildrenRead(t, r, f, in)
 	if !errors.Is(err, ErrStale) || result.Attempts != 2 || result.Refusal == nil || result.Refusal.Code != governor.Conflict || !reflect.DeepEqual(page, RSChildrenPage{}) {
 		t.Fatal("conflict retry bound", result, err)
 	}
@@ -252,7 +255,7 @@ func TestRSChildrenDefaultRestrictionAndCancellation(t *testing.T) {
 	f, r := rsChildrenFixture(t)
 	in := rsChildrenInput(f, RSAlbumTracks)
 	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
-	page, _, err := r.window(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, _, err := rsChildrenRead(t, r, f, in)
 	if !errors.Is(err, ErrUnqualified) || !reflect.DeepEqual(page, RSChildrenPage{}) {
 		t.Fatal("restricted container enabled", err)
 	}
@@ -263,39 +266,60 @@ func TestRSChildrenDefaultRestrictionAndCancellation(t *testing.T) {
 			cancel()
 		}
 	}}
-	page, _, err = r.window(ctx, foregroundRequest(), time.Second, f.output, in)
+	page, _, err = rsChildrenReadContext(t, ctx, r, f, in)
 	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(page, RSChildrenPage{}) {
 		t.Fatal("canceled output", err)
 	}
 }
 
 func TestRSChildrenLiveCustody(t *testing.T) {
-	f := composeReadFixture(t, rsChildrenSource(t), append(browseDefinitions(), RSChildrenDefinitions()...), readfixture.LiveConfig(time.Now), false, rsChildrenFixtureHash(t))
+	f := composeReadFixture(t, rsChildrenSource(t), append(browseDefinitions(), RSChildrenDefinitions()...), rsChildrenGovernor(), false, rsChildrenFixtureHash(t))
 	r, err := NewRSChildrenReader(f.snapshots)
 	if err != nil {
 		t.Fatal(err)
 	}
 	in := rsChildrenInput(f, RSAlbumTracks)
-	q, request, output := liveRequests("rs-children")
+	_, request, _ := liveRequests("rs-children")
 	page, _, err := r.Window(t.Context(), request, time.Second, BrowseOutput{}, in)
 	if !errors.Is(err, ErrInput) || !reflect.DeepEqual(page, RSChildrenPage{}) {
 		t.Fatal("public read without LIVE", err)
 	}
+	w, refusal, err := BeginRSListeningWork(t.Context(), f.authority, 1, governor.JobKey{Domain: 79, ID: "listening-live"}, time.Now().Add(12*time.Second), in)
+	if err != nil {
+		t.Fatal(refusal, err)
+	}
+	defer w.Close()
+	in.Work = w
 	consumed := false
-	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-		page, _, err := r.Window(ctx, request, time.Second, out, in)
+	for n := 0; n < 100; n++ {
+		q, request, output := liveRequests(fmt.Sprint("rs-children-", n))
+		_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+			page, _, err := r.Window(ctx, request, time.Second, out, in)
+			if err != nil {
+				return err
+			}
+			if page.Preparing {
+				if len(page.Items) != 0 || page.Next != nil {
+					t.Fatal("partial sort published")
+				}
+			} else {
+				if len(page.Items) != 40 {
+					t.Fatal("LIVE child output")
+				}
+				consumed = true
+			}
+			assertLiveUsage(t, f, 1, 0)
+			return nil
+		})
 		if err != nil {
-			return err
+			t.Fatal(err)
 		}
-		if len(page.Items) != 40 {
-			t.Fatal("LIVE child output")
+		if consumed {
+			break
 		}
-		assertLiveUsage(t, f, 1, 0)
-		consumed = true
-		return nil
-	})
-	if err != nil || !consumed {
-		t.Fatal("LIVE consume", err)
+	}
+	if !consumed {
+		t.Fatal("LIVE sort did not finish")
 	}
 	assertLiveUsage(t, f, 0, 0)
 }
