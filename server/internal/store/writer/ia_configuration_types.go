@@ -3,6 +3,7 @@ package writer
 import (
 	"bytes"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -107,6 +108,16 @@ func newIAConfigurationCommand(purpose CommandID, id CommandIdentity, r iaConfig
 			return nil, invalid("ia_configuration_text")
 		}
 	}
+	if purpose == IAConfigureLibrary {
+		switch r.libraryKind {
+		case "movie", "tv", "anime", "music", "audiobook", "book", "comic":
+		default:
+			return nil, invalid("ia_configuration_library_kind")
+		}
+		if len(r.libraryName) > 100 || strings.TrimSpace(r.libraryName) != r.libraryName || strings.IndexFunc(r.libraryName, unicode.IsControl) >= 0 {
+			return nil, invalid("ia_configuration_library_name")
+		}
+	}
 	seen := make(map[string]bool, len(r.sources))
 	for _, s := range r.sources {
 		if s.id == "" || s.incarnation == "" || s.generation <= 0 || s.rootIdentity == "" || s.health == "" || s.configuredRoot == "" || s.resolvedRoot == "" || len(s.configuredRoot) > iaConfigurationMaxRootBytes || len(s.resolvedRoot) > iaConfigurationMaxRootBytes ||
@@ -114,6 +125,9 @@ func newIAConfigurationCommand(purpose CommandID, id CommandIdentity, r iaConfig
 			return nil, invalid("ia_configuration_source_facts")
 		}
 		seen[s.id] = true
+		if len(s.name) > 100 || strings.IndexFunc(s.name, unicode.IsControl) >= 0 || strings.IndexFunc(s.configuredRoot, unicode.IsControl) >= 0 || strings.IndexFunc(s.resolvedRoot, unicode.IsControl) >= 0 || s.intervalSeconds > 365*86400 || s.kind == "remote" && (s.classification != "network" || s.followSymlinks) {
+			return nil, invalid("ia_configuration_source_policy")
+		}
 		if (s.remoteSourceID == "") != (s.remoteSourceGeneration == 0) || s.remoteSourceGeneration < 0 || len(s.remoteSourceID) > 256 {
 			return nil, invalid("ia_configuration_remote_source")
 		}
