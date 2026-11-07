@@ -28,14 +28,9 @@ func basicDispatchPlan(purpose CommandID) effectivePlan {
 	p.recipe.limit.Rows, p.recipe.limit.VMOps, p.recipe.limit.Pages = 1<<20, 1<<32, 1<<20
 	for _, def := range basicCommandDefinitions(purpose) {
 		rows := uint64(16)
-		for family := int64(2); family <= 9; family++ {
-			if def.ID == basicMediaRowsID(family) {
-				rows = max(rows, uint64(basicMediaFamilyLimit(family)+1))
-			}
-		}
-		// Reads include the complete finite family plus its overflow row. All
-		// uses, including BEGIN's nine families and Stage's eight-row prefix,
-		// are reserved by the real freezeCommandPlan before native BEGIN.
+
+		// Every one-fact effect/history use is reserved by the real
+		// freezeCommandPlan before native BEGIN; no future operation is enabled.
 		work := Work{Rows: rows, VMOps: 10000 * rows, Pages: 16, Hold: 25 * time.Microsecond}
 		if def.Kind == stmt.Write {
 			work.WALBytes = 65536
@@ -94,7 +89,7 @@ func basicDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Authority
 	defer conn.Close()
 	// One actual FULL-startup Capture of the entire registry. Reuse its
 	// receipt on every NORMAL turn; never recapture after the first command.
-	// HN's exact four-octet header_lengths rule is a prerequisite. Keep this
+	// SC's exact four-octet domain registration is a prerequisite. Keep this
 	// fail closed when that rule is absent: no SQL rewrite, waiver or stub.
 	golden := captureEffectiveFixture(t, conn, e.config, defs,
 		"basic_dispatch_test.go", "basic_control_test.go", "basic_stage_test.go")
