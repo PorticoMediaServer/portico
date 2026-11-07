@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -68,6 +69,9 @@ func rbFacetPublicationRequest() governor.Request {
 	return governor.Request{Key: governor.JobKey{Domain: 397, ID: "facet-test-discretionary-publication"}, Owner: 2, Class: governor.Background, Writer: true, MaxHold: 25 * time.Millisecond, Deadline: time.Now().Add(time.Second), Need: governor.Amounts{governor.MemoryBytes: 4096, governor.WALBytes: 4096}, Budget: governor.UnitBudget{RawRows: 1, VMOps: 1, Pages: 1}, Footprint: []governor.Scope{{Library: 1}}}
 }
 func TestRBExactNumericFacetNativeHandoff(t *testing.T) {
+	synctest.Test(t, testRBExactNumericFacetNativeHandoff)
+}
+func testRBExactNumericFacetNativeHandoff(t *testing.T) {
 	f, r := newRBExactFacetFixture(t)
 	job, err := r.BeginNumericFacets(t.Context(), 1, 16<<20, f.input, ExactYear)
 	if err != nil {
@@ -111,9 +115,10 @@ func TestRBExactNumericFacetNativeHandoff(t *testing.T) {
 			if e != nil {
 				return e
 			}
-			if cost.PublicationStatements != 5 || page.Statements != 5 || cost.AdmissionElapsed <= 0 {
+			if cost.PublicationStatements != 5 || page.Statements != 5 {
 				t.Fatal("ready evidence", page, cost)
 			}
+			assertLiveUsage(t, f, 1, 0)
 			got = append(got, page.Values...)
 			next = page.After
 			exhausted = page.Exhausted
@@ -147,42 +152,44 @@ func TestRBExactNumericFacetNativeHandoff(t *testing.T) {
 func TestRBExactNumericFacetRevocationAndMovingSource(t *testing.T) {
 	for _, mode := range []string{"denied", "source"} {
 		t.Run(mode, func(t *testing.T) {
-			f, r := newRBExactFacetFixture(t)
-			job, err := r.BeginNumericFacets(t.Context(), 1, 16<<20, f.input, ExactDecade)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer job.Close()
-			for n := 0; n < 3; n++ {
-				state, e := job.Advance(t.Context(), rbFacetReadRequest(), time.Second)
-				if e != nil {
-					t.Fatal(e)
+			synctest.Test(t, func(t *testing.T) {
+				f, r := newRBExactFacetFixture(t)
+				job, err := r.BeginNumericFacets(t.Context(), 1, 16<<20, f.input, ExactDecade)
+				if err != nil {
+					t.Fatal(err)
 				}
-				if state.Ready {
-					break
+				defer job.Close()
+				for n := 0; n < 3; n++ {
+					state, e := job.Advance(t.Context(), rbFacetReadRequest(), time.Second)
+					if e != nil {
+						t.Fatal(e)
+					}
+					if state.Ready {
+						break
+					}
 				}
-			}
-			want := ErrStale
-			if mode == "denied" {
-				f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
-				want = ErrDenied
-			} else {
-				f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='movies'`)
-			}
-			q, request, output := liveRequests(mode)
-			_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-				page, _, e := job.Page(ctx, request, time.Second, out, f.input, nil, 200)
-				if len(page.Values) != 0 || page.ValueMemberships != 0 {
-					t.Fatal("invalid prepared values escaped", page)
+				want := ErrStale
+				if mode == "denied" {
+					f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
+					want = ErrDenied
+				} else {
+					f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='movies'`)
 				}
-				return e
+				q, request, output := liveRequests(mode)
+				_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+					page, _, e := job.Page(ctx, request, time.Second, out, f.input, nil, 200)
+					if len(page.Values) != 0 || page.ValueMemberships != 0 {
+						t.Fatal("invalid prepared values escaped", page)
+					}
+					return e
+				})
+				if !errors.Is(err, want) {
+					t.Fatal(err, want)
+				}
+				if !job.entry.closed {
+					t.Fatal("invalid prepared job retained its lease")
+				}
 			})
-			if !errors.Is(err, want) {
-				t.Fatal(err, want)
-			}
-			if !job.entry.closed {
-				t.Fatal("invalid prepared job retained its lease")
-			}
 		})
 	}
 }
