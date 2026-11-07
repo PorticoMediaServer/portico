@@ -199,7 +199,7 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 	}
 	r.Footprint = slices.Clone(r.Footprint)
 	g.sequence++
-	p := &Grant{id: g.sequence, epoch: state, issuer: g, deadline: r.Deadline}
+	p := &Grant{id: g.sequence, epoch: state, issuer: g, deadline: r.Deadline, cancelledDone: make(chan struct{})}
 	g.live[p.id] = &holding{grant: p, request: r, checkpoint: checkpoint, foreground: foreground}
 	if foreground != nil {
 		if foreground.waiting {
@@ -242,8 +242,10 @@ func validRequest(r Request) bool {
 }
 
 func (g *ledger) Cancel(p *Grant) {
-	if p != nil && p.issuer == g {
-		p.cancelled.Store(true)
+	if p != nil && p.issuer == g && p.cancelled.CompareAndSwap(false, true) {
+		if p.cancelledDone != nil {
+			close(p.cancelledDone)
+		}
 	}
 }
 
@@ -256,19 +258,34 @@ func (g *ledger) Cancel(p *Grant) {
 func (a *Authority) Check(p *Grant, expected Request) error {
 	return a.check(p, expected, time.Time{})
 }
+
+// CheckContext additionally observes an earlier operation cancellation/deadline.
+// Neither context nor a caller request can extend the issuer's grant deadline.
+func (a *Authority) CheckContext(ctx context.Context, p *Grant, expected Request) error {
+	return a.checkContext(ctx, p, expected, time.Time{})
+}
 func (a *Authority) check(p *Grant, expected Request, readyDeadline time.Time) error {
+	return a.checkContext(context.Background(), p, expected, readyDeadline)
+}
+func (a *Authority) checkContext(ctx context.Context, p *Grant, expected Request, readyDeadline time.Time) error {
 	g := a.ledger
-	if p == nil || p.issuer != g || p.cancelled.Load() || p.epoch != g.state.Load() {
+	if ctx == nil || p == nil || p.issuer != g || p.cancelled.Load() || p.epoch != g.state.Load() {
 		return ErrGrant
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if !g.mu.TryLock() {
 		// This is already admitted authority, not a new capacity request.
 		// Immutable issuer-captured deadline prevents a caller from extending it.
-		if !g.mu.lockWithin(p.deadline.Sub(g.config.Now())) {
-			return ErrGrant
+		if err := g.mu.lockWithin(p.deadline.Sub(g.config.Now()), p.cancelledDone, ctx); err != nil {
+			return err
 		}
 	}
 	defer g.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	h := g.find(p)
 	if h == nil || p.cancelled.Load() || p.epoch != g.state.Load() ||
 		!h.request.Deadline.After(g.config.Now()) || !sameRequest(h.request, expected) ||
