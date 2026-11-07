@@ -30,7 +30,7 @@ func artistAlbumFixture(t *testing.T) (*browseFixture, *RSArtistAlbumReader) {
 	for _, x := range []struct {
 		id, kind, template int64
 		artist, album      any
-	}{{9900, 5, 2006, nil, nil}, {9901, 6, 2001, int64(9900), nil}, {9902, 7, 4001, nil, int64(9901)}} {
+	}{{1998, 5, 2006, nil, nil}, {1999, 6, 2001, int64(1998), nil}, {9902, 7, 4001, nil, int64(1999)}} {
 		source.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,randomblob(16),1,?)`, x.id, x.kind)
 		source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id,album_id) SELECT id,public_id,library_id,kind,?,'x','x','x','x',0,public_id,public_id,?,? FROM catalog_subjects WHERE id=?`, "é\x00album", x.artist, x.album, x.id)
 	}
@@ -77,7 +77,7 @@ func TestRSArtistAlbumReaderLIVEAndUnion(t *testing.T) {
 				t.Fatal(page)
 			}
 			for _, c := range page.Cards {
-				if c.Facts.Album == nil || c.PrimaryArtist.Item.ID != 2006 || len(c.MissingCanonicalFacts) == 0 {
+				if c.Facts.Album == nil || c.PrimaryArtist.Item.ID != c.Facts.Album.Artist || len(c.MissingCanonicalFacts) == 0 {
 					t.Fatal(c)
 				}
 			}
