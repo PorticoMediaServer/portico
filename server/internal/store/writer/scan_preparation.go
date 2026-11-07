@@ -36,6 +36,7 @@ type scanPreparation struct {
 	stopOpening                                  func() bool
 	stopDriver                                   func() bool
 	operation                                    *ScanRunOperation
+	inventory                                    *N1Preparation
 	mode                                         scanPreparationMode
 	stopScope                                    func() bool
 	grant                                        *governor.Grant
@@ -351,6 +352,11 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 			o.driver.operation = nil
 		}
 		p.operation = nil
+	}
+	if n := p.inventory; n != nil {
+		n.template = InventoryAcceptInput{}
+		n.closed, n.preparation = true, nil
+		p.inventory = nil
 	}
 	p.request, p.observed, p.expected, p.key = nativeinventory.Request{}, nil, governor.Request{}, ""
 	if p.source != nil {

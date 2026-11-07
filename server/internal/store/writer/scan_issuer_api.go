@@ -190,6 +190,9 @@ func (d *ScanDriver) ReleasePending(ctx context.Context) error {
 		return ErrBusy
 	}
 	defer d.mu.Unlock()
+	if d.preparation != nil && d.preparation.inventory != nil {
+		return ErrBusy // the producer owns its snapshot/observation until Close
+	}
 	if d.work != nil && d.work.submission != scanPrepared && d.work.submission != scanNoGrant {
 		return ErrResolveRequired
 	}
@@ -221,22 +224,37 @@ func (o *ScanRunOperation) Reference() (ScanRunReference, error) {
 
 func (o *ScanRunOperation) Apply(ctx context.Context) (result *ScanRunResult, err error) {
 	life := ctx
-	if o != nil && o.preparation != nil {
+	defer func() { result, err = finishCommand(ctx, life, result, err) }()
+	if o == nil || o.self != o || o.driver == nil {
+		return nil, ErrInvalid
+	}
+	if !o.driver.mu.TryLock() {
+		return nil, ErrBusy
+	}
+	defer o.driver.mu.Unlock()
+	if o.preparation != nil {
 		life = o.preparation.lifetime
 	}
-	defer func() { result, err = finishCommand(ctx, life, result, err) }()
-	return o.run(ctx, false)
-}
-func (o *ScanRunOperation) Resolve(ctx context.Context) (result *ScanRunResult, err error) {
-	life := ctx
-	if o != nil && o.preparation != nil {
-		life = o.preparation.lifetime
-	}
-	defer func() { result, err = finishCommand(ctx, life, result, err) }()
-	return o.run(ctx, true)
+	return o.runLocked(ctx, false)
 }
 
-func (o *ScanRunOperation) run(ctx context.Context, resolve bool) (result *ScanRunResult, err error) {
+func (o *ScanRunOperation) Resolve(ctx context.Context) (result *ScanRunResult, err error) {
+	life := ctx
+	defer func() { result, err = finishCommand(ctx, life, result, err) }()
+	if o == nil || o.self != o || o.driver == nil {
+		return nil, ErrInvalid
+	}
+	if !o.driver.mu.TryLock() {
+		return nil, ErrBusy
+	}
+	defer o.driver.mu.Unlock()
+	if o.preparation != nil {
+		life = o.preparation.lifetime
+	}
+	return o.runLocked(ctx, true)
+}
+
+func (o *ScanRunOperation) runLocked(ctx context.Context, resolve bool) (result *ScanRunResult, err error) {
 	life := ctx
 	if o != nil && o.self == o && o.preparation != nil {
 		life = o.preparation.lifetime
@@ -246,10 +264,6 @@ func (o *ScanRunOperation) run(ctx context.Context, resolve bool) (result *ScanR
 		return nil, ErrInvalid
 	}
 	d := o.driver
-	if !d.mu.TryLock() {
-		return nil, ErrBusy
-	}
-	defer d.mu.Unlock()
 	if d.operation != o || (!o.historyOnly && d.work == nil) || (o.historyOnly && !resolve) {
 		return nil, ErrInvalid
 	}
@@ -293,9 +307,6 @@ func (o *ScanRunOperation) run(ctx context.Context, resolve bool) (result *ScanR
 
 func (r *ScanRunResult) Snapshot(ctx context.Context) (value ScanRunSnapshot, err error) {
 	life := ctx
-	if r != nil && r.self == r && r.operation != nil && r.operation.preparation != nil {
-		life = r.operation.preparation.lifetime
-	}
 	defer func() { value, err = finishCommand(ctx, life, value, err) }()
 	if r == nil || r.self != r || r.operation == nil {
 		return value, ErrInvalid
@@ -305,6 +316,9 @@ func (r *ScanRunResult) Snapshot(ctx context.Context) (value ScanRunSnapshot, er
 		return value, ErrBusy
 	}
 	defer d.mu.Unlock()
+	if r.operation.preparation != nil {
+		life = r.operation.preparation.lifetime
+	}
 	if r.closed || r.read || r.operation.closed {
 		return value, ErrClosed
 	}
@@ -354,11 +368,8 @@ func (o *ScanRunOperation) Ack(ctx context.Context) (value AckResult, err error)
 			o.driver.mu.Unlock()
 		}
 	}()
-	if o != nil && o.self == o && o.preparation != nil {
-		life = o.preparation.lifetime
-	}
 	defer func() { value, err = finishCommand(ctx, life, value, err) }()
-	if o == nil || o.self != o || o.closed {
+	if o == nil || o.self != o || o.driver == nil {
 		return value, ErrInvalid
 	}
 	d := o.driver
@@ -366,6 +377,10 @@ func (o *ScanRunOperation) Ack(ctx context.Context) (value AckResult, err error)
 		return value, ErrBusy
 	}
 	locked = true
+	if o.closed || o.preparation == nil {
+		return value, ErrClosed
+	}
+	life = o.preparation.lifetime
 	if o.result != nil && !o.result.closed {
 		return value, ErrBusy
 	}
@@ -396,11 +411,8 @@ func (o *ScanRunOperation) Lease(ctx context.Context) (value *ScanRunLease, err 
 			o.driver.mu.Unlock()
 		}
 	}()
-	if o != nil && o.self == o && o.preparation != nil {
-		life = o.preparation.lifetime
-	}
 	defer func() { value, err = finishCommand(ctx, life, value, err) }()
-	if o == nil || o.self != o || o.closed || o.historyOnly || !o.acknowledged || o.reference.Purpose != InventoryClaim {
+	if o == nil || o.self != o || o.driver == nil {
 		return nil, ErrInvalid
 	}
 	d := o.driver
@@ -408,6 +420,10 @@ func (o *ScanRunOperation) Lease(ctx context.Context) (value *ScanRunLease, err 
 		return nil, ErrBusy
 	}
 	locked = true
+	if o.closed || o.preparation == nil || o.historyOnly || !o.acknowledged || o.reference.Purpose != InventoryClaim {
+		return nil, ErrInvalid
+	}
+	life = o.preparation.lifetime
 	out, err := d.invokeIssuer(ctx, o.reference.Scan, InventoryClaim, &scanIssuerInvocation{driver: d, action: scanIssuerCurrent, retained: o.preparation, deadline: o.preparation.expected.Deadline}, false)
 	if err != nil {
 		return nil, err
