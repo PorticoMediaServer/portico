@@ -26,7 +26,7 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 // qualification claim. Reserve every possible registered use, setup and
 // terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim {
+	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
 	if purpose != InventoryAccept && plan.inventoryMemory != (inventoryMemoryBudget{}) {
@@ -40,6 +40,9 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	}
 	if purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && plan.basicMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
+	}
+	if (purpose == BasicStage || purpose == BasicSeal) && plan.basicMemory == (commandMemoryBudget{}) {
+		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
 	}
 	if err := validateMemoryPartition(plan.basicMemory, plan.need[governor.MemoryBytes], "basic_memory_partition"); err != nil {
 		return effectivePlan{}, err
