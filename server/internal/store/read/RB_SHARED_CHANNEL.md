@@ -63,3 +63,7 @@ whole binding, rejected-row continuation and raw EOF. Publication adversaries
 change prepared revision, source root, availability, retirement and the empty
 tail without changing library revisions. Standard runner race and complete
 capture evidence remain required before publication; this draft is unqualified.
+
+The admitted stored generation status is `pending`, matching MG Begin, the
+canonical typed receipt vocabulary and lc_one_job. `building` is a channel UI
+state, not an accepted generation status; it and terminal generations refuse.
