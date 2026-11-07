@@ -33,6 +33,8 @@ func composeInventoryDriver(ctx context.Context, d *ScanDriver, plan effectivePl
 			d.mu.Unlock()
 		}
 	}()
+	// Cleanup above observes the final shared-finish decision before unlocking.
+	defer func() { _, err = finishCommand(ctx, ctx, struct{}{}, err) }()
 	if ctx == nil {
 		return ErrInvalid
 	}
