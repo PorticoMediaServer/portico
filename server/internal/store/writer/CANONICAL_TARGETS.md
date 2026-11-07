@@ -361,11 +361,17 @@ population or a representative source corpus.
 
 The seeded executor must physically close with zero pool residents and no sticky
 close fault before reusing N1's attested existing-file opening on that SAME copy.
+The reopened executor must have exactly the same sqliteconn.Config as the seed.
 N1's actual keeper binder, concurrent PASSIVE worker, post-writer observations
 and shutdown/retirement sequence are reused. PB's existing WAL hard/reserve/soft/
 active caps remain unchanged. The separate maintenance partition is Reader2,
 8MiB, CPU2000 and4GiB IO: keeper lifetime plus active checkpoint and reserved
 shutdown, with each native maintenance call funded for twice the1GiB hard prefix.
+The lead-approved TEST-ONLY keeper configuration uses global MaxGrantsPerClass4,
+compared with standalone PB's2. This also changes the Background metadata-slot
+limit; it is not a Recovery-only allowance. Raw output declares both values.
+The PB command stream remains serial; command, WAL and resource caps do not change.
+A Recovery-only allowance is deferred unless a production profile needs it.
 A missing keeper emits failed_binding before accepting commands. Refused, partial
 or failed checkpoints stay raw and stop the target; no retries or cap repair.
 Constructor work is not HOLD/COMMIT throughput. No host qualification dispatch is

@@ -14,6 +14,7 @@ import (
 
 type publisherGovernedFixture struct {
 	maintenance *canonicalN1MaintenanceOwner
+	grantLimit  int
 	w           *Writer
 	e           *executor
 	a           *governor.Authority
@@ -145,7 +146,7 @@ func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, 
 		q = PublisherReceiptRequest{s.job.id, s.source.libraryID, s.source.entityID, ReceiptReference{head.identity, head.digest}}
 	}
 	cap := publisherFixtureCapability(t, w, q)
-	return &publisherGovernedFixture{w: w, e: e, a: a, cap: cap, q: q, fragment: fragment, head: head, golden: golden}
+	return &publisherGovernedFixture{grantLimit: maxGrants, w: w, e: e, a: a, cap: cap, q: q, fragment: fragment, head: head, golden: golden}
 }
 
 func publisherFixtureCapability(t *testing.T, w *Writer, q PublisherReceiptRequest) *PublisherDisclosure {
