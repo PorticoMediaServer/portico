@@ -63,12 +63,15 @@ type scanScope struct {
 }
 
 type inventoryInvocation struct {
-	disclosure *ScanDisclosure
-	request    ScanReceiptRequest
-	input      *inventoryAcceptCommand
-	lifecycle  CommandID // zero is ordinary N1; create/claim remain distinct
-	issuer     *scanIssuerInvocation
-	basic      *basicInvocation
+	disclosure             *ScanDisclosure
+	request                ScanReceiptRequest
+	input                  *inventoryAcceptCommand
+	lifecycle              CommandID // zero is ordinary N1; create/claim remain distinct
+	issuer                 *scanIssuerInvocation
+	directory              CommandID
+	directoryInput         *scanDirectoryCommand
+	directoryTerminalInput *scanDirectoryTerminalCommand
+	basic                  *basicInvocation
 }
 
 func (r *effectiveRuntime) currentRunDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation) error {

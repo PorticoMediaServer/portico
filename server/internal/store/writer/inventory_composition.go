@@ -19,6 +19,9 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 	if purpose == BasicStage || purpose == BasicSeal {
 		return basicCommandMaxUses(purpose, id)
 	}
+	if scanDirectoryTerminalPurpose(purpose) {
+		return directoryTerminalStatementMaxUses(id)
+	}
 	if purpose == ProgressReceiptReclaim {
 		return wcReclaimStatementMaxUses(id)
 	}
@@ -28,13 +31,16 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 	if purpose == ProgressAccept {
 		return wcProgressStatementMaxUses(id)
 	}
+	if purpose == InventoryDirectoryDiscover || purpose == InventoryDirectoryEOF {
+		return directoryStatementMaxUses(id)
+	}
 	if purpose == InventoryCreate || purpose == InventoryClaim {
 		return scanLifecycleMaxUses(purpose, id)
 	}
 
 	if purpose == InventoryAccept {
 		switch id {
-		case scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
+		case scanInventoryLibraryRecordLengths, scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
 			scanLifecycleRun, scanLifecycleJob, scanLifecycleRoot, scanLifecycleActive, scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot:
 			return 1
 		}

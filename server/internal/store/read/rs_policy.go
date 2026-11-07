@@ -10,14 +10,27 @@ import (
 // cannot supply a policy, register a validator or turn a refusal into permission.
 // Domain readers select their own registered recipe in their own source files.
 type readPolicyID uint16
+type readPolicyScope uint8
+
+const (
+	readLibraryScope readPolicyScope = iota
+	readPrincipalScope
+)
+
+// Stateful recipes accept only private, compiled domain work. The marker is
+// deliberately unexported; it is neither a caller assertion nor a wire value.
+type readPolicyState interface{ readPolicyState() }
 type readPolicyBinding struct {
 	recipe  readPolicyID
 	subject int64
+	state   readPolicyState
 }
 type readPolicyRecipe struct {
-	id     readPolicyID
-	domain string
-	kinds  []int64
+	id       readPolicyID
+	domain   string
+	kinds    []int64
+	stateful bool
+	scope    readPolicyScope
 	// validate runs AFTER all common authority, birth, library and policy checks,
 	// in BOTH initial and final snapshots. It must prove the complete eligibility
 	// obligation of its closed domain; no caller-supplied proof flag is accepted.
@@ -39,7 +52,7 @@ func registerReadPolicy(p readPolicyRecipe) {
 	if readPolicies.sealed {
 		panic("read policy registration after first use")
 	}
-	if p.domain == "" || p.validate == nil || len(p.kinds) == 0 {
+	if p.scope > readPrincipalScope || p.scope == readPrincipalScope && !p.stateful || p.domain == "" || p.validate == nil || len(p.kinds) == 0 {
 		panic("incomplete read policy recipe")
 	}
 	if _, exists := readPolicies.recipes[p.id]; exists {
@@ -61,6 +74,9 @@ func resolveReadPolicy(in BrowseInput) (readPolicyRecipe, error) {
 	p, ok := readPolicies.recipes[in.policy.recipe]
 	if !ok || !slices.Contains(p.kinds, in.Kind) {
 		return readPolicyRecipe{}, ErrUnqualified
+	}
+	if p.stateful != (in.policy.state != nil) {
+		return readPolicyRecipe{}, ErrInput
 	}
 	// The legacy/default path has no subject-specific eligibility proof.
 	if p.id == 0 && in.policy.subject != 0 {
@@ -84,4 +100,10 @@ func validateReadPolicy(q browseQuery, in BrowseInput, f *browseFence) error {
 	f.policySubject = in.policy.subject
 	f.policyWitness = witness
 	return nil
+}
+
+// A global principal purpose is a compiled domain recipe with private live work.
+// It never widens the default catalogue's positive-library requirement.
+func validReadPolicyScope(in BrowseInput, p readPolicyRecipe) bool {
+	return in.Library > 0 && p.scope == readLibraryScope || in.Library == 0 && p.scope == readPrincipalScope
 }

@@ -1,6 +1,7 @@
 package governor
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -65,7 +66,7 @@ func TestCheckpointTicketCancellationExpiryAndSharedPacing(t *testing.T) {
 	clock.ms.Add(51)
 	publish(t, wal, walSample(4, 4), clock.now())
 	retire(t, a, grant(t, g, checkpointWriter(clock, Foreground)))
-	if _, err := other.queueCheckpoint(clock.now().Add(50*time.Millisecond), time.Second); err != ErrCheckpointCadence {
+	if _, err := other.queueCheckpoint(clock.now().Add(50*time.Millisecond), time.Second); !errors.Is(err, ErrCheckpointCadence) {
 		t.Fatal("new driver/authority reset pacing", err)
 	}
 	clock.ms.Store(1000)
@@ -76,7 +77,7 @@ func TestCheckpointTicketCancellationExpiryAndSharedPacing(t *testing.T) {
 	a.cancelCheckpointTicket(ticket)
 	publish(t, wal, walSample(4, 4), clock.now())
 	retire(t, a, grant(t, g, checkpointWriter(clock, Foreground)))
-	if _, err = a.queueCheckpoint(clock.now().Add(50*time.Millisecond), time.Second); err != ErrCheckpointCadence {
+	if _, err = a.queueCheckpoint(clock.now().Add(50*time.Millisecond), time.Second); !errors.Is(err, ErrCheckpointCadence) {
 		t.Fatal("cancel reset budget", err)
 	}
 }

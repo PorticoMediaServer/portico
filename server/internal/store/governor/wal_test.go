@@ -123,6 +123,7 @@ func TestWALFreshnessAndObservedReset(t *testing.T) {
 	w := gate(t)
 	c := &testClock{}
 	r := request(c, Foreground)
+	r.Deadline = c.now().Add(time.Hour)
 	r.Need[WALBytes] = 1
 	s := walSample(20, 20)
 	publish(t, w, s, c.now())
@@ -189,7 +190,7 @@ func TestEmptyWALReservesInitialHeader(t *testing.T) {
 			t.Fatal(err)
 		}
 		s := WALState{PageSize: 4096}
-		r := Request{Class: class}
+		r := Request{Class: class, Deadline: time.Now().Add(time.Minute)}
 		limit := int64(100)
 		if class == ScanMinimum || class == Background {
 			limit -= 20

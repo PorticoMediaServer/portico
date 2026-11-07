@@ -31,6 +31,7 @@ type CJKFieldMatcher struct {
 	term            string
 	maxWindowBytes  int
 	matched, failed bool
+	normalizedBytes int
 }
 
 func NewCJKFieldMatcher(key FieldKey, term string, maxWindowBytes int) (*CJKFieldMatcher, error) {
@@ -61,11 +62,32 @@ func (m *CJKFieldMatcher) Observe(ctx context.Context, key FieldKey, normalized 
 		m.failed = true
 		return err
 	}
-	if m.failed || key != m.key || len(normalized) > m.maxWindowBytes {
+	if m.failed || key != m.key || len(normalized) > m.maxWindowBytes || !utf8.ValidString(normalized) {
 		m.failed = true
 		return ErrFieldContinuation
 	}
-	m.matched = m.matched || strings.Contains(normalized, m.term)
+	// Normalized windows advance by the compiled 512-scalar core and carry
+	// 512 scalars of overlap. Charge each core once, while clipping the whole
+	// observed window at the same normalized-byte boundary as native postings.
+	searchable := normalized
+	remaining := max(0, facettext.SearchFieldBytes-m.normalizedBytes)
+	if len(searchable) > remaining {
+		end := remaining
+		for end > 0 && !utf8.RuneStart(searchable[end]) {
+			end--
+		}
+		searchable = searchable[:end]
+	}
+	m.matched = m.matched || strings.Contains(searchable, m.term)
+	coreBytes, runes := 0, 0
+	for at, r := range normalized {
+		if runes == NormalizedCoreRunes {
+			break
+		}
+		coreBytes = at + utf8.RuneLen(r)
+		runes++
+	}
+	m.normalizedBytes = min(facettext.SearchFieldBytes, m.normalizedBytes+coreBytes)
 	return nil
 }
 

@@ -12,7 +12,7 @@ func usPolicyFixture() (CommandIdentity, usLibraryPolicyRequest) {
 		ownerID: "security-owner", issuer: usPolicyIssuer{
 			server: "server", account: "issuer", profile: "issuer-profile", family: "issuer-family",
 			memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32),
-			installation: strings.Repeat("c", 32), tokenDigest: strings.Repeat("d", 64),
+			installation: strings.Repeat("c", 32), tokenDigest: usCredentialFixtureHash("us-issuer-token"),
 			epoch: 1, familyGeneration: 1, authorityGeneration: 1,
 		},
 		account: "target", memberIncarnation: strings.Repeat("e", 32), expectedRevision: 1,
@@ -149,6 +149,29 @@ func TestUSPolicyDigestBindsSecurityScope(t *testing.T) {
 		other, err := prepareUSLibraryPolicy(USMemberLibraries, identity, q)
 		if err != nil || other.digest == original.digest {
 			t.Fatal("security scope omitted", n, err)
+		}
+	}
+}
+
+func TestUSIssuerStoredDigestEncoding(t *testing.T) {
+	current := usCredentialFixtureHash("pat.synthetic-only-format-control")
+	if current != "OkT38SlHRMRlkodpCE2-xIjzwyNcb_XpF1188AFx9oM" {
+		t.Fatal("identity's pinned vector differs")
+	}
+	for _, value := range []string{current, current + "=", current[:42], current + "A", strings.Repeat("a", 64), strings.Repeat("!", 43), strings.Repeat("A", 42) + "B", current[:20] + "\n" + current[21:]} {
+		i, q := usPolicyFixture()
+		q.issuer.tokenDigest = value
+		good := value == current
+		if usIdentityDigest(value) != good || validUSSecurityIdentity(i, q.ownerID, q.issuer) != good {
+			t.Fatal("issuer source encoding")
+		}
+		command, err := prepareUSLibraryPolicy(USMemberLibraries, i, q)
+		if good && (err != nil || command == nil) || !good && (command != nil || !errors.Is(err, ErrInvalid)) {
+			t.Fatal("policy issuer source encoding", err)
+		}
+		pin, err := prepareUSPINCommand(usPINSet, i, q.ownerID, q.issuer, q.memberIncarnation, usPINTestRequest())
+		if good && (err != nil || pin == nil) || !good && (pin != nil || !errors.Is(err, ErrInvalid)) {
+			t.Fatal("PIN issuer source encoding", err)
 		}
 	}
 }

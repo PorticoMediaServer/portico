@@ -9,6 +9,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/PorticoMediaServer/portico/server/internal/facettext"
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
 )
 
@@ -78,8 +79,8 @@ func TestPreparationMemoryReservation(t *testing.T) {
 		}
 		previous = need
 	}
-	// This valid field crosses the frozen lexical clip. Its full fold, including
-	// the tail, must still survive when the complete reservation is available.
+	// Full raw-source custody remains charged even though searchable normalized
+	// text stops at 64KiB. The limit is not a cheaper preparation admission.
 	var cjk strings.Builder
 	for i := 0; i < 10000; i++ {
 		fmt.Fprintf(&cjk, "%c山 ", rune(0x4e00+i))
@@ -106,8 +107,8 @@ func TestPreparationMemoryReservation(t *testing.T) {
 				_, b := plan.At(i).NormalizedRange()
 				end = max(end, b)
 			}
-			if end != utf8.RuneCountInString(strings.TrimSpace(value)) {
-				t.Fatal("full fold was clipped")
+			if end != utf8.RuneCountInString(facettext.SearchFold(value)) {
+				t.Fatal("normalized streams use different field prefixes")
 			}
 		}
 		t.Logf("source=%d allocation=%d reservation=%d", len(value), allocated, need)
@@ -246,5 +247,19 @@ func TestFragmentsChargeNativePrefixAmplification(t *testing.T) {
 	// normalized trigrams: 23-2. Raw word count (2) is not the work budget.
 	if plan.Len() != 1 || plan.At(0).TokenWork() != 129 {
 		t.Fatalf("native expansion was not charged: %+v", plan)
+	}
+}
+
+func TestFragmentsStreamInteriorWhitespacePreflight(t *testing.T) {
+	for _, size := range []int{1 << 20, 4 << 20} {
+		value := "abcdefghijklm " + strings.Repeat(" ", size) + "x"
+		need, err := search.PreparationMemoryBytes(int64(len(value)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err, allocated := prepareAllocated(value, search.FragmentBudget{Bytes: 12, TokenWork: 8192, PreparationBytes: need})
+		if !errors.Is(err, search.ErrFragmentBudget) || !strings.Contains(err.Error(), "lexical") || plan.Len() != 0 || allocated > 64<<10 {
+			t.Fatalf("interior whitespace materialized: source=%d allocated=%d err=%v", len(value), allocated, err)
+		}
 	}
 }

@@ -1,0 +1,7 @@
+# Resolution browse order
+
+Harness-only `ResolutionWindow` preserves the public missing-as-zero resolution order for movie, show, season, episode and collection source kinds, in both directions. It merges two disjoint indexed runs: non-NULL resolution/key/ID order and NULL ID order. NULL and explicit zero interleave by ID. Every continuation uses the same zero-key ID bound for both runs; positive or negative native keys retain their ordinary order.
+
+The recipe fetches at most 128 raw rows, consumes at most 64 logical positions and returns at most 40 values. Both lookahead streams are charged, including rejected rows. An empty full hidden quantum retains a raw continuation; exhaustion requires both streams to end and every fetched row to be consumed. Ten static definitions repeat the canonical partial-index predicate and use equality-tail/next-key seeks, with no expression sort or scan waiver.
+
+The full existing LIVE and first/final publication fence applies. Existing unsupported policy and restricted-container refusals remain unchanged; accepted container keys are not a claim of permitted-child aggregate support. The proposed 10-statement ready budget remains unqualified: the protocol uses 12–13 statements including both five-statement fences. Qualification must measure this distinct 128-fetched/64-consumed recipe on the canonical 1M seed, including sparse eligibility and NULL/zero far ties. No product registration, DDL or schema-held golden is changed.

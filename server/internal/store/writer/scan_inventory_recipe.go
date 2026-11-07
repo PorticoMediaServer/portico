@@ -31,7 +31,13 @@ func inventoryDriverCommandDefinitions() []stmt.Definition {
 			defs = append(defs, def)
 		}
 	}
-	return defs
+	for _, def := range scanBytePreflightDefinitions() {
+		switch def.ID {
+		case scanRunByteLengths, scanJobByteLengths, scanRootByteLengths:
+			defs = append(defs, def)
+		}
+	}
+	return append(defs, inventoryLibraryRecordDefinition())
 }
 
 // Whole driver BEGIN, including the outer original lookup, current-source
@@ -48,7 +54,7 @@ func inventoryDriverMaxUses(id stmt.ID) int {
 	case inventoryDisclosureJob, inventoryDisclosureLibrary,
 		scanReceiptLookup, scanReceiptResults, scanReceiptAck,
 		scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
-		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot, scanLifecycleActive:
+		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot, scanLifecycleActive, scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanInventoryLibraryRecordLengths:
 		return 1
 	default:
 		return 0
@@ -101,6 +107,9 @@ func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, err
 	p.inventoryPageSize = w.config.WriterPageSize
 	if p.inventoryMemory.preparationBytes < scanByteFixedWorkspace {
 		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
+	}
+	if err := validateInventoryRecordEnvelope(p); err != nil {
+		return effectivePlan{}, err
 	}
 	remaining := subtract(subtract(p.recipe.limit, p.recipe.setup), p.recipe.terminal)
 	if _, err := reserveInventoryDriverSteps(remaining, p.steps); err != nil {

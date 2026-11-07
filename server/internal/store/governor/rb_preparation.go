@@ -154,7 +154,7 @@ func PublicationCovered(declared, actual PublicationFootprint) bool {
 	return true
 }
 
-// BeginPreparation is nonblocking admission: it drains a currently conflicting
+// BeginPreparation uses deadline-bounded admission: it drains a conflicting
 // discretionary writer by refusing until that writer PHYSICALLY retires. It
 // never cancels a writer or keeps a WAL snapshot between preparation quanta.
 // ctx is the server-owned job lifetime, not an individual HTTP poll lifetime.
@@ -182,10 +182,14 @@ func (a *Authority) BeginPreparation(ctx context.Context, q PreparationRequest) 
 	if ctx.Err() != nil || !q.Deadline.After(now) {
 		return refuse(Deadline)
 	}
-	if !g.mu.TryLock() {
-		return refuse(Capacity)
+	if err := g.mu.lockUntil(ctx, q.Deadline, now); err != nil {
+		return PreparationDecision{Refusal: &Refusal{Code: Deadline, Cause: CauseDeadline}}
 	}
 	defer g.mu.Unlock()
+	now = g.config.Now()
+	if ctx.Err() != nil || !q.Deadline.After(now) {
+		return PreparationDecision{Refusal: &Refusal{Code: Deadline, Cause: CauseDeadline}}
+	}
 	g.refreshPreparations(now)
 	if g.state.Load()&1 != 0 {
 		return refuse(FailSafe)

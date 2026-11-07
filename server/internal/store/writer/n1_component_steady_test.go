@@ -122,15 +122,17 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 			}
 			summary.BeforeClose = n1Memory(stream.origin)
 			var err error
+			var physicalCloseErr error
 			if maintenance != nil {
-				err = maintenance.close()
-				err = errors.Join(err, maintenance.drain(stream))
+				physicalCloseErr = maintenance.close()
+				err = errors.Join(physicalCloseErr, maintenance.drain(stream))
 				summary.CheckpointCalls, summary.CheckpointComplete, summary.CheckpointOverflow = maintenance.started, maintenance.completed, maintenance.overflow
 				if maintenance.overflow {
 					err = errors.Join(err, errors.New("checkpoint raw ledger overflow; harness gap"))
 				}
 			} else {
-				err = fixture.owner.executor.close()
+				physicalCloseErr = fixture.owner.executor.close()
+				err = physicalCloseErr
 			}
 			summary.StopReason = n1Join(summary.StopReason, err)
 			w := fixture.owner.executor
@@ -140,7 +142,7 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 			stats := w.db.Stats()
 			usage, opened, closed := fixture.owner.authority.Usage(), trace.connections, trace.closed
 			summary.PoolStats, summary.Usage, summary.ConnectionsOpened, summary.ConnectionsClosed = &stats, &usage, &opened, &closed
-			joined := err == nil && w.closed && !failed && stats.InUse == 0 && stats.OpenConnections == 0 && trace.connections == trace.closed && fixture.owner.authority.Usage() == ([4]governor.Amounts{})
+			joined := physicalCloseErr == nil && w.closed && !failed && stats.InUse == 0 && stats.OpenConnections == 0 && trace.connections == trace.closed && fixture.owner.authority.Usage() == ([4]governor.Amounts{})
 			summary.NativeJoined = &joined
 			summary.AfterClose = n1Memory(stream.origin)
 		}
@@ -286,6 +288,7 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 
 func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inventoryProgressiveFixture, trace *n1Trace, summary *n1SteadySummary, original, ordinal int, population, role, cohort string, baseline uint64, control n1SteadyControls) (record *n1Attempt) {
 	t.Helper()
+	f.owner.lastAdmission = nil // early guards must not borrow the previous call's receipt
 	trace.nextTurn()
 	trace.failQuery = ""
 	if control.failOriginal == original && control.failRole == role {
@@ -346,6 +349,7 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 				_, rollbackErr := turn.transaction.rollback(rowsErr)
 				record.Error = n1Join(record.Error, rollbackErr)
 			}
+			record.Error = n1Join(record.Error, f.owner.observeReturned(turn.transaction))
 			n1ObserveOwner(record, turn, stream.origin)
 			// owner.begin returns a commandTurn only after native BEGIN succeeds.
 			// tx.begun is the CURRENT open state, cleared by commit/rollback.
@@ -356,6 +360,10 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 				physical := summary.KnownPhysicalTurns
 				record.PhysicalAttemptOrdinal = &physical
 			}
+		}
+		record.Admission = f.owner.lastAdmission
+		if turn != nil && f.owner.observedReturn == turn.transaction {
+			record.PostReturnObservation = f.owner.postReturn
 		}
 		n1ObserveOwnerWindow(record, f.owner.executor, stream.origin, ownerStarted)
 		record.Continuity.observeAfter(trace)

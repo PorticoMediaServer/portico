@@ -81,7 +81,7 @@ func TestQuantumRejectsUnknownBudgetsAndClockReversal(t *testing.T) {
 }
 
 func TestClosedCommandDurability(t *testing.T) {
-	for id := InventoryAccept; id <= ProgressReceiptReclaim; id++ {
+	for id := InventoryAccept; id <= InventoryTraversalComplete; id++ {
 		d, err := Describe(id)
 		if err != nil || d.ID != id || d.Name == "" {
 			t.Fatal(d, err)
@@ -94,7 +94,7 @@ func TestClosedCommandDurability(t *testing.T) {
 			t.Fatal(d)
 		}
 	}
-	for _, id := range []CommandID{0, ProgressReceiptReclaim + 1, 65535} {
+	for _, id := range []CommandID{0, InventoryTraversalComplete + 1, 65535} {
 		if _, err := Describe(id); !errors.Is(err, ErrInvalid) {
 			t.Fatal(id, err)
 		}

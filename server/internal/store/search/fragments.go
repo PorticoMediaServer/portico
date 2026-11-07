@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/facettext"
@@ -101,8 +102,8 @@ func (p FragmentPlan) Len() int          { return len(p.fragments) }
 func (p FragmentPlan) At(i int) Fragment { return p.fragments[i] }
 
 // PrepareFragments preserves Q's exact prepared token sequences and 512+512
-// folded windows. SearchDocument's frozen 65536-byte input clip is preserved;
-// SearchFold still sees the full field. No token is split, omitted or allowed
+// folded windows. Discovery and verification use the SAME first 64 KiB of
+// normalized UTF-8 text per field. No token is split or allowed
 // to exceed a budget. An unchunkable token returns no partial plan; accepted
 // publisher intent must remain pending for an independently qualified remedy.
 func PrepareFragments(value string, budget FragmentBudget) (FragmentPlan, error) {
@@ -113,8 +114,11 @@ func PrepareFragments(value string, budget FragmentBudget) (FragmentPlan, error)
 	if err != nil || budget.PreparationBytes < need {
 		return FragmentPlan{}, fmt.Errorf("%w: %w", ErrFragmentBudget, ErrPreparationBudget)
 	}
-	// This operation sees only the frozen 65536-byte lexical input. Check all
-	// indivisible tokens now, before prefix materialization or full-field fold.
+	if err := preflightSearchDocument(value, budget); err != nil {
+		return FragmentPlan{}, err
+	}
+	// Both lexical and normalized streams see the same normalized field prefix. Check all
+	// indivisible tokens now, before prefix materialization or normalized-window allocation.
 	document := facettext.SearchDocument(value)
 	for word := range strings.FieldsSeq(document) {
 		if len(word) > min(tokenColumnBytes, budget.Bytes) || lexicalWork(word) > budget.TokenWork {
@@ -179,4 +183,72 @@ func lexicalWork(word string) int { return 4 * utf8.RuneCountInString(word) }
 
 func fits(f Fragment, b FragmentBudget) bool {
 	return f.Bytes() <= b.Bytes && f.TokenWork() <= b.TokenWork
+}
+
+// Check complete normalized/component tokens while streaming, before a large
+// delimiter tail or whole document can be materialized. These are the same
+// token byte/work and scalar-hex limits used by the actual packer.
+func preflightSearchDocument(value string, b FragmentBudget) error {
+	type token struct {
+		bytes, runes            int
+		numeric, allCJK, hasCJK bool
+	}
+	empty := func() token { return token{numeric: true, allCJK: true} }
+	whole, part := empty(), empty()
+	var refused error
+	finish := func(t token) bool {
+		if t.runes == 0 || t.hasCJK && !(t.allCJK && t.runes <= 2) {
+			return true
+		}
+		limit := facettext.IndexedSearchPrefixRunes
+		if t.numeric {
+			limit = facettext.NumericSearchPrefixRunes
+		}
+		n := min(t.runes, limit)
+		if 6*n > min(tokenColumnBytes, b.Bytes) || 1+n > b.TokenWork {
+			refused = fmt.Errorf("%w: indivisible prefix token", ErrFragmentBudget)
+			return false
+		}
+		return true
+	}
+	add := func(t *token, r rune) {
+		t.bytes += utf8.RuneLen(r)
+		t.runes++
+		t.numeric = t.numeric && unicode.IsNumber(r)
+		cjk := facettext.CJK(r)
+		t.hasCJK = t.hasCJK || cjk
+		t.allCJK = t.allCJK && cjk
+	}
+	err := facettext.WalkSearchField(value, func(r rune) bool {
+		if r == ' ' || r == '-' {
+			if !finish(part) {
+				return false
+			}
+			part = empty()
+			if r == ' ' {
+				if !finish(whole) {
+					return false
+				}
+				whole = empty()
+			}
+			return true
+		}
+		add(&whole, r)
+		add(&part, r)
+		if whole.bytes > min(tokenColumnBytes, b.Bytes) || 4*whole.runes > b.TokenWork {
+			refused = fmt.Errorf("%w: indivisible lexical token", ErrFragmentBudget)
+			return false
+		}
+		return true
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrFragmentBudget, err)
+	}
+	if refused != nil {
+		return refused
+	}
+	if !finish(part) || !finish(whole) {
+		return refused
+	}
+	return nil
 }

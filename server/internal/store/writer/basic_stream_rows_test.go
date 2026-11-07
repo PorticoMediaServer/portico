@@ -12,7 +12,7 @@ func TestBasicMediaNativeStreamsAndBreadth(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	turn := basicBoundedComponentTurn(t, w, basicMediaTestDefs())
+	turn := basicComponentTurn(t, w, basicMediaTestDefs())
 	if _, err := stageBasicStreamFact(t.Context(), turn, source); err != nil {
 		t.Fatal(err)
 	}
@@ -29,13 +29,13 @@ func TestBasicMediaNativeStreamsAndBreadth(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		turn = basicBoundedComponentTurn(t, w, basicMediaTestDefs())
+		turn = basicComponentTurn(t, w, basicMediaTestDefs())
 		got, err := stageBasicMediaRows(t.Context(), turn, frame, 0, 2)
 		if err != nil || got.rowsStaged != 2 {
 			t.Fatal(family.number, got, err)
 		}
 		basicMediaCommit(t, turn)
-		turn = basicBoundedComponentTurn(t, w, basicMediaTestDefs())
+		turn = basicComponentTurn(t, w, basicMediaTestDefs())
 		got, err = sealBasicMediaFamily(t.Context(), turn, frame)
 		if err != nil || got.sealed != 1 {
 			t.Fatal(family.number, got, err)

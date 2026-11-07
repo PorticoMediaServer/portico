@@ -158,6 +158,7 @@ const (
 )
 
 type Refusal struct {
+	Cause   RefusalCause
 	Code    RefusalCode
 	RetryAt time.Time
 }
@@ -168,6 +169,7 @@ type Decision struct {
 // Unexported identity/epoch: only the private governor can mint grants. Caller
 // context/priority strings, a Lease, and a readiness hint cannot construct one.
 type Grant struct {
+	admittedAt    time.Time // issuer timestamp AFTER admission lock handoffs, before native entry
 	id            uint64
 	epoch         uint64
 	issuer        *ledger
@@ -178,7 +180,7 @@ type Grant struct {
 type Governor interface {
 	// Supervisors construct requests from private purpose registries. Workers
 	// receive only grants, never authority to choose their own class.
-	Try(Request) Decision // synchronous, bounded, no waiting or external IO/work-buffer allocation
+	Try(Request) Decision // synchronous, original-deadline bounded lock handoff; no external IO/work buffers
 	Cancel(*Grant)        // revokes new work; does NOT return physical capacity
 }
 
