@@ -54,5 +54,8 @@ func (t *transaction) checkPublicationCommit() error {
 		}
 		actual = c.publication.actual
 	}
-	return c.a.CheckPublication(c.grant, c.expected, actual)
+	// No declaration and no resolution is intentionally GLOBAL, not a resolved
+	// empty effect. Admission already excludes every active preparation. Only
+	// declared narrow footprints require an explicit resolved-effect marker.
+	return c.a.CheckPublicationContext(t.ctx, c.grant, c.expected, actual)
 }

@@ -58,6 +58,18 @@ back even if the handler ignores the resolution error. Drop custody, expand the
 request and re-admit; do not widen an existing grant. An undeclared command is
 conservatively global. Existing phase1 commands need no new call while disabled.
 
+The nil-declaration/nil-resolution case deliberately retains global conflict;
+it is not proof of no effects. With a declared footprint, missing resolution
+fails closed. The accepting check uses the original grant deadline and earlier
+transaction cancellation when waiting for the ledger, matching the admitted
+validation rule introduced by #1287.
+
+Phase1a neutrality is composition-level: its governor has Preparation disabled.
+A mixed runtime that enables Preparation for the same governor also applies
+global conflict to every undeclared phase1 command. Such a runtime must retain
+that conservative behavior or explicitly declare and resolve each command's
+footprint; it cannot claim unchanged phase1a admission or qualification.
+
 New implementation lives in `rb_preparation.go` and writer `rb_publication.go`.
 Shared hunks are limited to governor Config/ledger initialization plus the two
 admission hooks, one private governed-turn state pointer, and one commit hook.
