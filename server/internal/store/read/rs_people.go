@@ -62,7 +62,11 @@ type PersonCreditsPage struct {
 	RawRows, RawPositions int
 }
 
-// Credits visits at most64 raw credit positions per library/kind and emits at
+// rsPeopleRaw bounds byte-point work per physical operation; exhaustive people
+// pages compose resumable governed preparation rather than a long point loop.
+const rsPeopleRaw = 4
+
+// Credits visits at most4 raw credit positions per library/kind and emits at
 // most40 rows. Pending/obsolete images and hidden works consume the same bound.
 // Person facts require a currently permitted credit in this exact window.
 func (r *PersonReader) Credits(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in PersonCreditsInput) (PersonCreditsPage, BrowseReadResult, error) {
@@ -81,7 +85,7 @@ func (r *PersonReader) credits(ctx context.Context, request governor.Request, bu
 	var source []any
 	var raw [][]any
 	var exhausted bool
-	windows := &rsByteWindow{source: r.snapshots, preflightCalls: 74}
+	windows := &rsByteWindow{source: r.snapshots, preflightCalls: rsPeopleRaw + 10}
 	root := func(q browseQuery) ([]any, error) {
 		rows, err := q("rs.people.source", in.Person)
 		if err != nil {
@@ -117,7 +121,7 @@ func (r *PersonReader) credits(ctx context.Context, request governor.Request, bu
 				seeks = []seek{{"image_tail", []any{in.Person, c.work, c.ordinal, c.image}}, {"ordinal_tail", []any{in.Person, c.work, c.ordinal}}, {"next", []any{in.Person, c.work}}}
 			}
 			for _, s := range seeks {
-				limit := MaxRaw - len(raw)
+				limit := rsPeopleRaw - len(raw)
 				rows, err := q("rs.people."+s.name, append(s.args, int64(limit))...)
 				if err != nil {
 					return err
@@ -126,7 +130,7 @@ func (r *PersonReader) credits(ctx context.Context, request governor.Request, bu
 					return ErrUnqualified
 				}
 				raw = append(raw, rows...)
-				if len(raw) == MaxRaw {
+				if len(raw) == rsPeopleRaw {
 					exhausted = false
 					break
 				}
@@ -182,7 +186,7 @@ func (r *PersonReader) credits(ctx context.Context, request governor.Request, bu
 			if admitted == 0 {
 				return nil
 			}
-			return windows.arm(maxBytes, 130)
+			return windows.arm(maxBytes, 2*rsPeopleRaw+2)
 		},
 		func(ctx context.Context, q browseQuery, f browseFence, p *PersonCreditsPage) error {
 			for _, row := range raw {
