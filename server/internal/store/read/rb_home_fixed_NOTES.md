@@ -62,7 +62,7 @@ A source binding is conservative: exactly one whole link, current item/asset/lin
 incarnations and revisions, finite duration <=7days, accepted inventory object,
 current source identity/root/size/mtime, enabled matching-library source outside
 root_changed/removing. DVR stays unresolved without recording policy. A complete
-empty link range or explicitly unavailable single link proves unavailable; all
+empty link range or an explicitly unavailable single link with current info publication proves unavailable; all
 other unresolved bindings make the WHOLE shelf pending. Raw binding caps remain
 pending even if an early object looked usable.
 
@@ -111,3 +111,29 @@ qualifying that many native source bindings belongs to parent's larger prep.
 The failed analyzed byte-point capture selected a covering entity index; the new
 own preflight pins the existing complete UNIQUE(library_id,id) key for its exact SEARCH. The
 unchanged helper SQL and all frozen definitions stay untouched.
+
+Additional separate parent dependency: ad65b9bb39bc6f5308fd71c194ae4695e0abeb04
+is the byte-identical four-file binding/optional-point slice of parent's
+9ca7e3c29e8548a855c03466601b19e43cbf0b5a. It updates the already owned binding
+LINK query and imports the EXISTING shared proof unchanged; no new accepted IDs
+or shared proof semantics were authored. Root already owns this dependency, so
+integrate only the fixed-family commits when that proof is present.
+
+Own link preflight now reads <=2 scalar asset IDs, followed by direct actual
+asset PK token-length points. The unchanged corrected binding payload uses its
+parent-owned complete UNIQUE point. Own byte points never borrow that statement
+ID or extend the shared proof's IDs. Every copied personal/item/object/token
+length is compared against its same-snapshot native preflight after copy.
+
+The parent item payload also chooses SCAN on a one-entity analyzed DB. Fixed
+Home therefore has an OWN item.value recipe with identical payload/predicates
+and the existing explicit complete entity UNIQUE key. Its compiled adapter maps
+only the helper's item call to this closed recipe. No frozen helper is edited;
+only the parent link/object recipes are registered unchanged. The fixed-family
+Capture includes those actual link/object dependencies in both statistics states.
+
+Known unavailability requires current link/asset info publication, not a stale
+available=0 while publication is pending. The latter invalidates the entire
+shelf. Album current/next leaf dismissal markers without an accepted native
+container interpretation also remain pending instead of silently resurrecting
+removed activity or claiming a successful empty album row.

@@ -33,10 +33,6 @@ func rbHomeFixedExpectedBindingDefinitions() []stmt.Definition {
  LEFT JOIN dvr_catalog_retirements AS gone ON gone.item_id=e.id
  LEFT JOIN dvr_catalog_provenance AS recording ON recording.item_id=e.id
  WHERE e.id=? AND e.library_id=?`, []stmt.Param{i("item"), i("library")}, []any{int64(1), int64(1)}, []any{int64(999999), int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"e", "k", "cl", "gone", "recording"}, Indexes: []string{lib.Name}, AutoIndexes: []stmt.AutoIndexBinding{lib}}),
-		add("links", `SELECT l.asset_id,l.part_index,l.start_seconds,l.end_seconds,l.info_pending_change,a.info_publication_pending,a.available,a.playback_origin_incarnation,a.playback_origin_revision,l.playback_origin_incarnation,l.playback_origin_revision,a.prepared_source_revision,a.duration,l.info_duration,a.token,l.library_id,l.available,a.size,a.modified_ns
- FROM catalog_asset_links AS l INDEXED BY catalog_asset_links_order
- LEFT JOIN catalog_assets AS a ON a.id=l.asset_id AND a.library_id=l.library_id AND a.library_id=?
- WHERE l.entity_id=? ORDER BY l.part_index,l.asset_id LIMIT ?`, []stmt.Param{i("library"), i("item"), i("limit")}, []any{int64(1), int64(1), int64(2)}, []any{int64(1), int64(999999), int64(2)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"a"}, Indexes: []string{"catalog_asset_links_order"}, Seeks: []string{"entity_id=?"}}),
 		add("objects", `SELECT o.id,o.revision,o.source_id,s.incarnation,o.retired,length(NULLIF(o.state,'available')),length(NULLIF(o.unsupported_reason,'')),length(NULLIF(o.root_incarnation,s.incarnation)),s.enabled,length(NULLIF(s.health,'root_changed')),length(NULLIF(s.health,'removing')),s.generation,length(NULLIF(s.library_id,?)),o.size,o.modified_ns,s.root,s.configured_root,s.identity_confirmed
  FROM inventory_objects AS o INDEXED BY inventory_objects_reading_asset_object
  LEFT JOIN library_sources AS s INDEXED BY sqlite_autoindex_library_sources_1 ON s.id=o.source_id
@@ -46,9 +42,9 @@ func rbHomeFixedExpectedBindingDefinitions() []stmt.Definition {
 
 func init() {
 	for n, original := range rbHomeFixedExpectedBindingDefinitions() {
-		fields := []string{"octet_length(cl.library_id)", "octet_length(a.token)", "octet_length(NULLIF(s.library_id,?)),octet_length(o.id),octet_length(o.revision),octet_length(o.source_id),octet_length(s.incarnation),octet_length(s.root),octet_length(s.configured_root)"}
+		fields := []string{"octet_length(cl.library_id)", "octet_length(NULLIF(s.library_id,?)),octet_length(o.id),octet_length(o.revision),octet_length(o.source_id),octet_length(s.incarnation),octet_length(s.root),octet_length(s.configured_root)"}
 		sqlText := "SELECT " + fields[n] + original.SQL[strings.Index(original.SQL, "\n FROM "):]
-		name := []string{"item", "links", "objects"}[n]
+		name := []string{"item", "objects"}[n]
 		expected := original
 		expected.ID = stmt.ID("read.browse.rb.home.fixed.binding." + name + ".bytes")
 		expected.SQL = sqlText
@@ -150,6 +146,23 @@ func init() {
 	}, point: func(rows Rows) error {
 		if len(rows.Values) != 1 || rows.Values[0][3] != "SEARCH personal_items USING INDEX personal_current_live (profile_id=? AND item_id=?)" {
 			return fmt.Errorf("Home personal exact unique SEARCH required")
+		}
+		return nil
+	}})
+}
+
+func init() {
+	expected := stmt.Definition{ID: "read.browse.rb.home.fixed.asset.bytes", Owner: "store/read", Kind: stmt.Read, SQL: "SELECT octet_length(token) FROM catalog_assets WHERE id=? AND library_id=?", Params: []stmt.Param{{Name: "asset", Type: stmt.Integer}, {Name: "library", Type: stmt.Integer}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_assets"}}}
+	pointOctets.add(octetShape{id: expected.ID, sql: expected.SQL, mismatch: "exact native Home asset byte point required", definition: func(d stmt.Definition) bool {
+		return d.ID == expected.ID && d.SQL == expected.SQL && d.Owner == expected.Owner && d.Kind == expected.Kind && reflect.DeepEqual(d.Params, expected.Params) && reflect.DeepEqual(d.Plan, expected.Plan)
+	}, audit: func(ctx context.Context, c *sql.Conn) error {
+		if e := auditHomeFixedRowID(ctx, c, "catalog_assets"); e != nil {
+			return e
+		}
+		return auditClosedOctetKey(ctx, c, "library_sources", "sqlite_autoindex_library_sources_1", []string{"id"})
+	}, point: func(rows Rows) error {
+		if len(rows.Values) != 1 || rows.Values[0][3] != "SEARCH catalog_assets USING INTEGER PRIMARY KEY (rowid=?)" {
+			return fmt.Errorf("Home asset bytes require exact INTEGER primary key SEARCH")
 		}
 		return nil
 	}})

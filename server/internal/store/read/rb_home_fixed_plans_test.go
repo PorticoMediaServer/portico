@@ -19,6 +19,7 @@ func TestRBHomeFixedPlans(t *testing.T) {
 	homeFixedAssetSeed(t, f, 1)
 	homeFixedStateSeed(t, f, 1, 5000, "in_progress")
 	defs := append(rbHomeFixedDefinitions(), rbHomeFixedBindingByteDefinitions()...)
+	defs = append(defs, rbHomeBindingDefinitions()[1:]...)
 	captures := []plan.Golden{}
 	for _, stats := range []plan.Statistics{plan.Unanalyzed, plan.Analyzed} {
 		if stats == plan.Analyzed {
