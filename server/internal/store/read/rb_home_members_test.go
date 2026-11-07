@@ -4,10 +4,14 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
 func TestRBHomeLeafCompleteReachability(t *testing.T) {
+	synctest.Test(t, testRBHomeLeafCompleteReachability)
+}
+func testRBHomeLeafCompleteReachability(t *testing.T) {
 	f := newRBHomeFixture(t)
 	for n := int64(0); n < 75; n++ {
 		homeFixtureEntity(t, f, 4000+n, 1, 4, int64(2100), int64(2000), int64(2100), nil)
@@ -43,7 +47,8 @@ func TestRBHomeLeafCompleteReachability(t *testing.T) {
 	}
 }
 
-func TestRBHomeLeafPublicLIVE(t *testing.T) {
+func TestRBHomeLeafPublicLIVE(t *testing.T) { synctest.Test(t, testRBHomeLeafPublicLIVE) }
+func testRBHomeLeafPublicLIVE(t *testing.T) {
 	f := newRBHomeFixture(t)
 	in := HomeLeafInput{View: f.input, Work: 2000}
 	in.View.Kind = 2

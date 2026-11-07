@@ -5,10 +5,14 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
 func TestRBHomeActivityWorkAndCurrentBookTarget(t *testing.T) {
+	synctest.Test(t, testRBHomeActivityWorkAndCurrentBookTarget)
+}
+func testRBHomeActivityWorkAndCurrentBookTarget(t *testing.T) {
 	f := newRBHomeFixture(t)
 	for _, v := range []struct {
 		family             HomeActivityFamily
@@ -39,6 +43,9 @@ func TestRBHomeActivityWorkAndCurrentBookTarget(t *testing.T) {
 }
 
 func TestRBHomeActivityDismissalAndDuration(t *testing.T) {
+	synctest.Test(t, testRBHomeActivityDismissalAndDuration)
+}
+func testRBHomeActivityDismissalAndDuration(t *testing.T) {
 	f := newRBHomeFixture(t)
 	in := HomeActivityInput{View: f.input, Family: HomeContinueActivity}
 	f.exec(t, `UPDATE personal_items SET dismissed_playback_id=resume_playback_id WHERE item_id=1`)
@@ -60,6 +67,9 @@ func TestRBHomeActivityDismissalAndDuration(t *testing.T) {
 }
 
 func TestRBHomeActivityRawReachabilityAndCursor(t *testing.T) {
+	synctest.Test(t, testRBHomeActivityRawReachabilityAndCursor)
+}
+func testRBHomeActivityRawReachabilityAndCursor(t *testing.T) {
 	f := newRBHomeFixture(t)
 	for id := int64(10000); id < 10070; id++ {
 		public := make([]byte, 16)

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -101,7 +102,8 @@ func homeTargetRead(t *testing.T, f *browseFixture, kind, id int64) (HomeRecentC
 	return f.reader.homeRecentTarget(t.Context(), homeRequest(), time.Second, f.output, in)
 }
 
-func TestRBHomeTargetProjection(t *testing.T) {
+func TestRBHomeTargetProjection(t *testing.T) { synctest.Test(t, testRBHomeTargetProjection) }
+func testRBHomeTargetProjection(t *testing.T) {
 	f := newRBHomeFixture(t)
 	card, cost, e := homeTargetRead(t, f, 2, 2000)
 	if e != nil || card.Work.ID != 2000 || card.Target.ID != 2100 || card.TargetKind != 3 || card.EligibleLeaves != 3 {
@@ -125,6 +127,9 @@ func TestRBHomeTargetProjection(t *testing.T) {
 }
 
 func TestRBHomeRestrictedChronologyUsesEligibleLeaves(t *testing.T) {
+	synctest.Test(t, testRBHomeRestrictedChronologyUsesEligibleLeaves)
+}
+func testRBHomeRestrictedChronologyUsesEligibleLeaves(t *testing.T) {
 	f := newRBHomeFixture(t)
 	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
 	f.exec(t, `UPDATE catalog_entities SET admission_own_age=18 WHERE id=3000`)
@@ -146,6 +151,9 @@ func TestRBHomeRestrictedChronologyUsesEligibleLeaves(t *testing.T) {
 }
 
 func TestRBHomeTargetRawCapFailsClosed(t *testing.T) {
+	synctest.Test(t, testRBHomeTargetRawCapFailsClosed)
+}
+func testRBHomeTargetRawCapFailsClosed(t *testing.T) {
 	f := newRBHomeFixture(t)
 	for n := int64(0); n < 256; n++ {
 		homeFixtureEntity(t, f, 4000+n, 1, 4, int64(2100), int64(2000), int64(2100), nil)
@@ -157,6 +165,9 @@ func TestRBHomeTargetRawCapFailsClosed(t *testing.T) {
 }
 
 func TestRBHomeRecentExactMergeAndSourceRefusal(t *testing.T) {
+	synctest.Test(t, testRBHomeRecentExactMergeAndSourceRefusal)
+}
+func testRBHomeRecentExactMergeAndSourceRefusal(t *testing.T) {
 	f := newRBHomeFixture(t)
 	f.exec(t, `UPDATE direct_memberships SET allowed_libraries='["movies","other"]' WHERE account_id='a'`)
 	f.exec(t, `UPDATE catalog_entities SET added_at='2026-11-02T12:00:00.000000000Z' WHERE id=1040`)
@@ -179,6 +190,9 @@ func TestRBHomeRecentExactMergeAndSourceRefusal(t *testing.T) {
 }
 
 func TestRBHomeManagedSourceProofAndFreshFence(t *testing.T) {
+	synctest.Test(t, testRBHomeManagedSourceProofAndFreshFence)
+}
+func testRBHomeManagedSourceProofAndFreshFence(t *testing.T) {
 	f := newRBHomeFixture(t)
 	f.exec(t, `INSERT INTO library_sources(id,library_id,configured_root,root,incarnation) VALUES('home-source','movies','/media','/media','home-incarnation')`)
 	card, _, e := homeTargetRead(t, f, 2, 2000)
@@ -206,6 +220,9 @@ func TestRBHomeManagedSourceProofAndFreshFence(t *testing.T) {
 }
 
 func TestRBHomePublishedRecordingNeedsMGPolicy(t *testing.T) {
+	synctest.Test(t, testRBHomePublishedRecordingNeedsMGPolicy)
+}
+func testRBHomePublishedRecordingNeedsMGPolicy(t *testing.T) {
 	f := newRBHomeFixture(t)
 	f.exec(t, `INSERT INTO dvr_catalog_provenance(item_id,recording_id,asset_id,source_id,channel_id,programme_id,guide_generation,artifact_digest,captured_start_ms,captured_end_ms,state) VALUES(1,'recording','home-1','live-source','channel','programme','guide','digest',0,1,'completed')`)
 	card, _, e := homeTargetRead(t, f, 1, 1)
@@ -219,6 +236,9 @@ func TestRBHomePublishedRecordingNeedsMGPolicy(t *testing.T) {
 }
 
 func TestRBHomeRecentRestrictedGlobalMerge(t *testing.T) {
+	synctest.Test(t, testRBHomeRecentRestrictedGlobalMerge)
+}
+func testRBHomeRecentRestrictedGlobalMerge(t *testing.T) {
 	f := newRBHomeFixture(t)
 	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
 	f.exec(t, `UPDATE catalog_entities SET admission_own_age=18 WHERE id=3000`)
@@ -249,6 +269,9 @@ func (s *homeStageSnapshots) Read(ctx context.Context, request governor.Request,
 	return result, e
 }
 func TestRBHomeRecentStageHandoffRechecksAuthority(t *testing.T) {
+	synctest.Test(t, testRBHomeRecentStageHandoffRechecksAuthority)
+}
+func testRBHomeRecentStageHandoffRechecksAuthority(t *testing.T) {
 	f := newRBHomeFixture(t)
 	f.reader.snapshots = &homeStageSnapshots{Snapshots: f.snapshots, after: 3, mutate: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
 	row, _, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 2}}})
@@ -258,6 +281,9 @@ func TestRBHomeRecentStageHandoffRechecksAuthority(t *testing.T) {
 }
 
 func TestRBHomeRecentShelfCapFromTwoCompleteStreams(t *testing.T) {
+	synctest.Test(t, testRBHomeRecentShelfCapFromTwoCompleteStreams)
+}
+func testRBHomeRecentShelfCapFromTwoCompleteStreams(t *testing.T) {
 	f := newRBHomeFixture(t)
 	f.exec(t, `UPDATE direct_memberships SET allowed_libraries='["movies","other"]' WHERE account_id='a'`)
 	for n := int64(0); n < 50; n++ {
@@ -290,66 +316,73 @@ func TestRBHomeRecentShelfCapFromTwoCompleteStreams(t *testing.T) {
 func TestRBHomePublicationAndLIVE(t *testing.T) {
 	for _, mode := range []string{"revoke", "secondary-revision", "secondary-viewer", "secondary-policy"} {
 		t.Run(mode, func(t *testing.T) {
-			f := newRBHomeFixture(t)
-			f.exec(t, `UPDATE direct_memberships SET allowed_libraries='["movies","other"]' WHERE account_id='a'`)
-			f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() {
-				switch mode {
-				case "revoke":
-					f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
-				case "secondary-revision":
-					f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='other'`)
-					f.exec(t, `UPDATE catalog_entities SET title='fresh secondary',revision=revision+1 WHERE id=1040`)
-				case "secondary-viewer":
-					f.exec(t, `INSERT INTO viewer_revisions(profile_id,library_id,revision) VALUES('p','other',2)`)
-					f.exec(t, `UPDATE catalog_entities SET title='fresh secondary',revision=revision+1 WHERE id=1040`)
-				case "secondary-policy":
-					f.exec(t, `UPDATE direct_profiles SET allowed_libraries='["movies"]' WHERE id='p'`)
-				}
-			}}
-			row, cost, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 1}, {2, 1}}})
-			if mode == "secondary-revision" || mode == "secondary-viewer" {
-				if e != nil || cost.Attempts != 2 {
-					t.Fatal("whole retry", row, cost, e)
-				}
-				fresh := false
-				for _, card := range row.Items {
-					if card.Work.ID == 1040 {
-						fresh = card.Work.Title == "fresh secondary" && card.Work.Revision == 2
+			synctest.Test(t, func(t *testing.T) {
+				f := newRBHomeFixture(t)
+				f.exec(t, `UPDATE direct_memberships SET allowed_libraries='["movies","other"]' WHERE account_id='a'`)
+				f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() {
+					switch mode {
+					case "revoke":
+						f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
+					case "secondary-revision":
+						f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='other'`)
+						f.exec(t, `UPDATE catalog_entities SET title='fresh secondary',revision=revision+1 WHERE id=1040`)
+					case "secondary-viewer":
+						f.exec(t, `INSERT INTO viewer_revisions(profile_id,library_id,revision) VALUES('p','other',2)`)
+						f.exec(t, `UPDATE catalog_entities SET title='fresh secondary',revision=revision+1 WHERE id=1040`)
+					case "secondary-policy":
+						f.exec(t, `UPDATE direct_profiles SET allowed_libraries='["movies"]' WHERE id='p'`)
 					}
+				}}
+				row, cost, e := f.reader.homeRecentRow(t.Context(), homeRequest(), time.Second, f.output, HomeRecentInput{View: f.input, Sources: []HomeSource{{1, 1}, {2, 1}}})
+				if mode == "secondary-revision" || mode == "secondary-viewer" {
+					if e != nil || cost.Attempts != 2 {
+						t.Fatal("whole retry", row, cost, e)
+					}
+					fresh := false
+					for _, card := range row.Items {
+						if card.Work.ID == 1040 {
+							fresh = card.Work.Title == "fresh secondary" && card.Work.Revision == 2
+						}
+					}
+					if !fresh {
+						t.Fatal("earlier private target escaped retry", row, cost, e)
+					}
+				} else if e == nil || !reflect.DeepEqual(row, HomeRecentRow{}) {
+					t.Fatal("publication leak", row, e)
 				}
-				if !fresh {
-					t.Fatal("earlier private target escaped retry", row, cost, e)
-				}
-			} else if e == nil || !reflect.DeepEqual(row, HomeRecentRow{}) {
-				t.Fatal("publication leak", row, e)
-			}
+			})
 		})
 	}
-	f := composeReadFixture(t, newRBHomeSource(t), RBHomeDefinitions(), readfixture.LiveConfig(time.Now), false, rbHomeFixtureHash(t))
-	q, request, output := liveRequests("home")
-	in := HomeTargetInput{View: f.input, Work: 2000}
-	in.View.Kind = 2
-	if card, cost, e := f.reader.HomeRecentTarget(t.Context(), request, time.Second, BrowseOutput{}, in); !errors.Is(e, ErrInput) || card.Work.ID != 0 || cost.LookupStatements != 0 {
-		t.Fatal("LIVE bypass", card, cost, e)
-	}
-	_, e := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-		card, _, e := f.reader.HomeRecentTarget(ctx, request, time.Second, out, in)
-		if e != nil {
-			return e
-		}
-		if card.Target.ID != 2100 {
-			t.Fatal(card)
-		}
-		assertLiveUsage(t, f, 1, 0)
-		return nil
+	t.Run("LIVE-custody", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			f := composeReadFixture(t, newRBHomeSource(t), RBHomeDefinitions(), readfixture.LiveConfig(time.Now), false, rbHomeFixtureHash(t))
+			q, request, output := liveRequests("home")
+			in := HomeTargetInput{View: f.input, Work: 2000}
+			in.View.Kind = 2
+			if card, cost, e := f.reader.HomeRecentTarget(t.Context(), request, time.Second, BrowseOutput{}, in); !errors.Is(e, ErrInput) || card.Work.ID != 0 || cost.LookupStatements != 0 {
+				t.Fatal("LIVE bypass", card, cost, e)
+			}
+			_, e := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+				card, _, e := f.reader.HomeRecentTarget(ctx, request, time.Second, out, in)
+				if e != nil {
+					return e
+				}
+				if card.Target.ID != 2100 {
+					t.Fatal(card)
+				}
+				assertLiveUsage(t, f, 1, 0)
+				return nil
+			})
+			if e != nil {
+				t.Fatal(e)
+			}
+			assertLiveUsage(t, f, 0, 0)
+		})
 	})
-	if e != nil {
-		t.Fatal(e)
-	}
-	assertLiveUsage(t, f, 0, 0)
 }
 
-func TestRBHomeShelfCapAndTieOrder(t *testing.T) {
+func TestRBHomeShelfCapAndTieOrder(t *testing.T) { synctest.Test(t, testRBHomeShelfCapAndTieOrder) }
+func testRBHomeShelfCapAndTieOrder(t *testing.T) {
 	cards := make([]HomeRecentCard, 140)
 	for n := range cards {
 		cards[n].Work.ID = int64(n)

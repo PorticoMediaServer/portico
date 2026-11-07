@@ -7,6 +7,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
@@ -70,7 +71,8 @@ func TestRBHomePlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if *recordRBHomePlans {
+	evidence := os.Getenv("PORTICO_LANE_EVIDENCE_DIR")
+	if *recordRBHomePlans || evidence != "" {
 		var compressed bytes.Buffer
 		z := gzip.NewWriter(&compressed)
 		if _, err = z.Write(actual); err != nil {
@@ -79,8 +81,18 @@ func TestRBHomePlans(t *testing.T) {
 		if err = z.Close(); err != nil {
 			t.Fatal(err)
 		}
-		if err = os.WriteFile(path, compressed.Bytes(), 0644); err != nil {
-			t.Fatal(err)
+		if *recordRBHomePlans {
+			if err = os.WriteFile(path, compressed.Bytes(), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if evidence != "" {
+			if err = os.MkdirAll(evidence, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(filepath.Join(evidence, "rb-home-plans.json.gz"), compressed.Bytes(), 0644); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	data, err := os.ReadFile(path)
