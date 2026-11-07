@@ -42,11 +42,11 @@ func TestUSCredentialResultSchema(t *testing.T) {
 		if kind == "app_password" {
 			hint = ""
 		}
-		exec(credential, seq, int64(521), kind, hint, int64(0), "active", "", strings.Repeat("a", 32), strings.Repeat("b", 32), strings.Repeat("c", 64), "immutable-key", make([]byte, 12), make([]byte, body), make([]byte, 32))
+		exec(credential, seq, int64(521), kind, hint, int64(0), "active", "", strings.Repeat("a", 32), strings.Repeat("b", 32), usCredentialFixtureDigest, "immutable-key", make([]byte, 12), make([]byte, body), make([]byte, 32))
 		exec(`INSERT INTO security_credential_result_scopes VALUES('control-owner',zeroblob(16),?,0,'read')`, seq)
 	}
 	header(5, 522, "credential_revoke_v1")
-	exec(credential, int64(5), int64(522), "token", "abcdef", int64(2000), "revoked", "", strings.Repeat("a", 32), strings.Repeat("b", 32), strings.Repeat("c", 64), nil, nil, nil, nil)
+	exec(credential, int64(5), int64(522), "token", "abcdef", int64(2000), "revoked", "", strings.Repeat("a", 32), strings.Repeat("b", 32), usCredentialFixtureDigest, nil, nil, nil, nil)
 	refuse(`UPDATE security_credential_results SET secret_nonce=NULL WHERE command_sequence=2`)
 	refuse(`UPDATE security_credential_results SET secret_body=zeroblob(63) WHERE command_sequence=2`)
 	refuse(`UPDATE security_credential_results SET secret_key_id='key' WHERE command_sequence=5`)

@@ -82,7 +82,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING ` + credentialColumns,
 
 // Synthetic encoding/digest cohorts, never an actual credential or password.
 const usCredentialCapturePassword = "$2a$10$....................................................."
-const usCredentialCaptureDigest = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+const usCredentialCaptureDigest = "usH7UQVwFRaZZhPvF0OTB2ixxUX6nBUUo6aoJ9dWG4s"
 
 type usPasswordPostResult struct {
 	account, profile, memberIncarnation, profileLifetime string

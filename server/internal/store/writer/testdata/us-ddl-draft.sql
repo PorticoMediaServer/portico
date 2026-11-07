@@ -54,7 +54,7 @@ CREATE TABLE security_command_owners(
 CREATE INDEX security_command_owner_retirement ON security_command_owners(retired_ms,id);
 
 -- Immutable accepted result, not a current permission/account/session source.
--- Only the ten concrete purposes below are admitted, not the reserved US
+-- Only the twelve concrete purposes below are admitted, not the reserved US
 -- namespace. Policy/PIN native post-scalars and invitation DTO facts are typed;
 -- the sole protected body is creation's exact invitation Code (not a generic
 -- result/permission document). Prepare its AES-GCM image outside the writer,
@@ -68,9 +68,9 @@ CREATE TABLE security_command_receipts(
  command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
  operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
  request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
- command_kind INTEGER NOT NULL CHECK(command_kind IN(520,521,522,532,533,540,541,550,551,552)),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(511,512,520,521,522,532,533,540,541,550,551,552)),
  result_version INTEGER NOT NULL CHECK(result_version=1),
- result_codec TEXT NOT NULL CHECK(result_codec IN('password_replace_v1','credential_issue_v1','credential_revoke_v1','pin_set_v1','pin_clear_v1','member_libraries_v1','profile_libraries_v1','invitation_create_v1','invitation_edit_v1','invitation_revoke_v1')),
+ result_codec TEXT NOT NULL CHECK(result_codec IN('session_renewal_v1','session_refresh_v1','password_replace_v1','credential_issue_v1','credential_revoke_v1','pin_set_v1','pin_clear_v1','member_libraries_v1','profile_libraries_v1','invitation_create_v1','invitation_edit_v1','invitation_revoke_v1')),
  applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
  result_digest BLOB NOT NULL CHECK(length(result_digest)=32),
  target_account_id TEXT,
@@ -95,7 +95,9 @@ CREATE TABLE security_command_receipts(
  UNIQUE(owner_id,command_incarnation,operation_id),
  UNIQUE(owner_id,command_incarnation,command_sequence,command_kind),
  FOREIGN KEY(owner_id,command_incarnation) REFERENCES security_command_owners(id,command_incarnation),
- CHECK((command_kind=520 AND result_codec='password_replace_v1')
+ CHECK((command_kind=511 AND result_codec='session_renewal_v1')
+  OR (command_kind=512 AND result_codec='session_refresh_v1')
+  OR (command_kind=520 AND result_codec='password_replace_v1')
   OR (command_kind=521 AND result_codec='credential_issue_v1')
   OR (command_kind=522 AND result_codec='credential_revoke_v1')
   OR (command_kind=532 AND result_codec='pin_set_v1')
@@ -126,7 +128,7 @@ CREATE TABLE security_command_receipts(
   AND ((command_kind=532 AND result_pin_required=1) OR (command_kind=533 AND result_pin_required=0))
   AND result_changed IS NOT NULL AND result_changed=1 AND policy_inherits IS NULL AND result_count=0
   AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
- OR (command_kind IN(520,521,522) AND target_account_id IS NULL AND target_member_incarnation IS NULL
+ OR (command_kind IN(511,512,520,521,522) AND target_account_id IS NULL AND target_member_incarnation IS NULL
   AND target_profile_id IS NULL AND target_profile_lifetime IS NULL AND result_revision IS NULL
   AND policy_inherits IS NULL AND result_changed IS NULL AND result_pin_revision IS NULL AND result_pin_required IS NULL
   AND result_count=0 AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
@@ -279,7 +281,7 @@ CREATE TABLE security_credential_results(
  last_used_ms INTEGER NOT NULL CHECK(last_used_ms>=0),
  revoked_ms INTEGER NOT NULL CHECK(revoked_ms>=0),
  state TEXT NOT NULL CHECK(state IN('active','expired','revoked','ended')),
- ended_reason TEXT NOT NULL CHECK(ended_reason IN('','member_disabled','profile_deleted','unavailable')),
+ ended_reason TEXT NOT NULL CHECK(ended_reason IN('','member_disabled','member_deleted','profile_deleted','permission_removed','unavailable')),
  account_id TEXT NOT NULL,
  member_incarnation TEXT NOT NULL CHECK(length(member_incarnation)=32),
  username TEXT NOT NULL,
@@ -289,7 +291,7 @@ CREATE TABLE security_credential_results(
  family_id TEXT NOT NULL,
  family_incarnation BLOB NOT NULL CHECK(length(family_incarnation)=16),
  device_id TEXT NOT NULL,
- secret_hash TEXT NOT NULL CHECK(length(secret_hash)=64),
+ secret_hash TEXT NOT NULL CHECK(length(secret_hash)=43 AND secret_hash NOT GLOB '*[^A-Za-z0-9_-]*' AND substr(secret_hash,43,1) IN('A','E','I','M','Q','U','Y','c','g','k','o','s','w','0','4','8')),
  secret_key_id TEXT,
  secret_nonce BLOB,
  secret_body BLOB,
@@ -343,7 +345,7 @@ CREATE TABLE security_credential_secrets(
  profile_lifetime TEXT NOT NULL CHECK(length(profile_lifetime)=32),
  family_id TEXT NOT NULL,
  family_incarnation BLOB NOT NULL CHECK(length(family_incarnation)=16),
- secret_hash TEXT NOT NULL CHECK(length(secret_hash)=64),
+ secret_hash TEXT NOT NULL CHECK(length(secret_hash)=43 AND secret_hash NOT GLOB '*[^A-Za-z0-9_-]*' AND substr(secret_hash,43,1) IN('A','E','I','M','Q','U','Y','c','g','k','o','s','w','0','4','8')),
  key_id TEXT NOT NULL CHECK(length(CAST(key_id AS BLOB)) BETWEEN 1 AND 128),
  nonce BLOB NOT NULL CHECK(length(nonce)=12),
  body BLOB NOT NULL,
@@ -355,3 +357,89 @@ CREATE TABLE security_credential_secrets(
   +length(CAST(key_id AS BLOB))+length(nonce)+length(body)+length(aad_digest)) VIRTUAL,
  CHECK(length(body)=CASE kind WHEN 'key' THEN 62 WHEN 'app_password' THEN 64 END)
 ) STRICT;
+
+
+-- Legacy refresh logic already retires the one preceding recovery receipt on
+-- successor use. Enforce that invariant natively; replace the existing access
+-- path in place, without an equivalent duplicate index or a family-wide DELETE.
+-- This changes family-parent enforcement and MUST stay after phase-1a lock.
+DROP INDEX identity_refresh_receipts_family;
+CREATE UNIQUE INDEX identity_refresh_receipts_family ON identity_refresh_receipts(family_id);
+
+-- 511 saves AuthorizationEnvelope(protocolVersion=2.0, access token, expiry,
+-- horizon, family, string generation); 512 saves Envelope (same access metadata,
+-- refresh token, device/installation and complete Viewer fields). No full JSON
+-- envelope is encrypted. The TWO exact 43-character issued token wires have
+-- separate 12-byte nonces and 59-byte AES-GCM bodies. Normalized scope/generation
+-- remains native. The result codec fixes JSON string generation at the boundary.
+-- Retained immutable evidence does NOT extend legacy secret disclosure: renewal
+-- requires its exact controller/request proof; refresh requires the still-active
+-- successor-recovery window, exact predecessor/request/installation and current
+-- family/permission fences BEFORE loading/decrypting any historical token.
+CREATE TABLE security_session_rotation_results(
+ owner_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(511,512)),
+ wire_variant TEXT NOT NULL CHECK(wire_variant IN('authorization_envelope_v2','envelope_v2')),
+ protocol_version TEXT,
+ family_id TEXT NOT NULL,
+ family_incarnation BLOB NOT NULL CHECK(length(family_incarnation)=16),
+ server_id TEXT NOT NULL,
+ account_id TEXT NOT NULL,
+ member_incarnation TEXT NOT NULL CHECK(length(member_incarnation)=32),
+ profile_id TEXT NOT NULL,
+ profile_lifetime TEXT NOT NULL CHECK(length(profile_lifetime)=32),
+ device_id TEXT NOT NULL,
+ installation_id TEXT NOT NULL,
+ authority TEXT NOT NULL CHECK(authority='local'),
+ role TEXT NOT NULL CHECK(role IN('account','owner','admin','member')),
+ epoch INTEGER NOT NULL CHECK(epoch>0),
+ authority_generation INTEGER NOT NULL CHECK(authority_generation>0),
+ access_predecessor_generation INTEGER NOT NULL CHECK(access_predecessor_generation BETWEEN 1 AND 9223372036854775806),
+ generation INTEGER NOT NULL CHECK(generation=access_predecessor_generation+1),
+ access_predecessor_hash TEXT NOT NULL CHECK(length(access_predecessor_hash)=43),
+ access_hash TEXT NOT NULL CHECK(length(access_hash)=43 AND access_hash<>access_predecessor_hash),
+ access_expires_at TEXT NOT NULL,
+ authorization_horizon TEXT NOT NULL,
+ request_id TEXT NOT NULL,
+ controller_id TEXT,
+ controller_epoch TEXT,
+ refresh_predecessor_generation INTEGER,
+ refresh_predecessor_hash TEXT,
+ refresh_hash TEXT,
+ prior_receipt_hash TEXT,
+ key_id TEXT NOT NULL CHECK(length(CAST(key_id AS BLOB)) BETWEEN 1 AND 128),
+ access_nonce BLOB NOT NULL CHECK(length(access_nonce)=12),
+ access_body BLOB NOT NULL CHECK(length(access_body)=59),
+ refresh_nonce BLOB,
+ refresh_body BLOB,
+ aad_digest BLOB NOT NULL CHECK(length(aad_digest)=32),
+ variable_bytes INTEGER GENERATED ALWAYS AS (
+  length(CAST(owner_id AS BLOB))+length(command_incarnation)+length(CAST(wire_variant AS BLOB))+coalesce(length(CAST(protocol_version AS BLOB)),0)
+  +length(CAST(family_id AS BLOB))+length(family_incarnation)+length(CAST(server_id AS BLOB))+length(CAST(account_id AS BLOB))
+  +length(CAST(member_incarnation AS BLOB))+length(CAST(profile_id AS BLOB))+length(CAST(profile_lifetime AS BLOB))
+  +length(CAST(device_id AS BLOB))+length(CAST(installation_id AS BLOB))+length(CAST(authority AS BLOB))+length(CAST(role AS BLOB))
+  +length(CAST(access_predecessor_hash AS BLOB))+length(CAST(access_hash AS BLOB))+length(CAST(access_expires_at AS BLOB))
+  +length(CAST(authorization_horizon AS BLOB))+length(CAST(request_id AS BLOB))+coalesce(length(CAST(controller_id AS BLOB)),0)
+  +coalesce(length(CAST(controller_epoch AS BLOB)),0)+coalesce(length(CAST(refresh_predecessor_hash AS BLOB)),0)
+  +coalesce(length(CAST(refresh_hash AS BLOB)),0)+coalesce(length(CAST(prior_receipt_hash AS BLOB)),0)
+  +length(CAST(key_id AS BLOB))+length(access_nonce)+length(access_body)+coalesce(length(refresh_nonce),0)+coalesce(length(refresh_body),0)+length(aad_digest)) VIRTUAL,
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ FOREIGN KEY(owner_id,command_incarnation,command_sequence,command_kind)
+  REFERENCES security_command_receipts(owner_id,command_incarnation,command_sequence,command_kind),
+ CHECK((command_kind=511 AND wire_variant='authorization_envelope_v2' AND protocol_version IS NOT NULL AND protocol_version='2.0'
+  AND controller_id IS NOT NULL AND length(CAST(controller_id AS BLOB)) BETWEEN 1 AND 128
+  AND controller_epoch IS NOT NULL AND length(CAST(controller_epoch AS BLOB)) BETWEEN 1 AND 128
+  AND refresh_predecessor_generation IS NULL AND refresh_predecessor_hash IS NULL AND refresh_hash IS NULL
+  AND prior_receipt_hash IS NULL AND refresh_nonce IS NULL AND refresh_body IS NULL)
+ OR (command_kind=512 AND wire_variant='envelope_v2' AND protocol_version IS NULL AND controller_id IS NULL AND controller_epoch IS NULL
+  AND refresh_predecessor_generation IS NOT NULL AND refresh_predecessor_generation BETWEEN 1 AND access_predecessor_generation
+  AND refresh_predecessor_hash IS NOT NULL AND length(refresh_predecessor_hash)=43
+  AND refresh_hash IS NOT NULL AND length(refresh_hash)=43 AND refresh_hash<>refresh_predecessor_hash
+  AND refresh_hash<>access_hash AND refresh_hash<>access_predecessor_hash
+  AND refresh_predecessor_hash<>access_hash AND refresh_predecessor_hash<>access_predecessor_hash
+  AND (prior_receipt_hash IS NULL OR length(prior_receipt_hash)=43 AND prior_receipt_hash<>refresh_predecessor_hash)
+  AND refresh_nonce IS NOT NULL AND length(refresh_nonce)=12 AND refresh_nonce<>access_nonce
+  AND refresh_body IS NOT NULL AND length(refresh_body)=59))
+) WITHOUT ROWID, STRICT;
