@@ -3,6 +3,7 @@ package read
 import (
 	"bytes"
 	"context"
+	"errors"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -27,6 +28,7 @@ type HomeActivityCursor struct {
 	family HomeActivityFamily
 	at     string
 	public [16]byte
+	source []any
 }
 type HomeActivityCard struct {
 	Work, Target         BrowseItem
@@ -58,6 +60,39 @@ func (r *BrowseReader) homeActivityWindow(ctx context.Context, request governor.
 	if !valid || !validHomeView(in.View) {
 		return HomeActivityPage{}, BrowseReadResult{}, ErrUnqualified
 	}
+	started := time.Now()
+	if ctx == nil || budget <= 0 {
+		return HomeActivityPage{}, BrowseReadResult{}, ErrInput
+	}
+	deadline := homeMinTime(request.Deadline, started.Add(min(budget, time.Second)))
+	request.Deadline = deadline
+	var page HomeActivityPage
+	var result BrowseReadResult
+	var err error
+	var copied int64
+	for n := 0; n < 2; n++ {
+		current := in
+		current.View.Now = in.View.Now.Add(time.Since(started))
+		var one BrowseReadResult
+		page, one, err = r.homeActivityAttempt(ctx, request, time.Until(deadline), output, current, &copied)
+		mergeHomeReadResult(&result, one)
+		result.Attempts = n + 1
+		if !errors.Is(err, ErrStale) || ctx.Err() != nil || !time.Now().Before(deadline) {
+			break
+		}
+	}
+	result.Elapsed = time.Since(started)
+	if errors.Is(err, ErrStale) {
+		result.Refusal = &governor.Refusal{Code: governor.Conflict}
+		err = errors.Join(err, governor.ErrBusy)
+	}
+	return page, result, err
+}
+func (r *BrowseReader) homeActivityAttempt(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in HomeActivityInput, copied *int64) (HomeActivityPage, BrowseReadResult, error) {
+	started := time.Now()
+	deadline := homeMinTime(request.Deadline, started.Add(budget))
+	var initial browseFence
+	var rootImage []any
 	var candidates []ContinueItem
 	managed := false
 	root := func(q browseQuery) ([]any, error) {
@@ -70,11 +105,13 @@ func (r *BrowseReader) homeActivityWindow(ctx context.Context, request governor.
 		for _, row := range rows {
 			all = append(all, row...)
 		}
+		rootImage = all
 		return all, nil
 	}
 	steps := []readStep[HomeActivityPage]{func(ctx context.Context, q browseQuery, f browseFence, d *HomeActivityPage) error {
 		candidates = nil
-		if in.After != nil && (in.After.fence != f || in.After.family != in.Family) {
+		initial = f
+		if in.After != nil && (in.After.fence != f || in.After.family != in.Family || !equalSource(in.After.source, rootImage)) {
 			return ErrStale
 		}
 		var rows [][]any
@@ -101,7 +138,7 @@ func (r *BrowseReader) homeActivityWindow(ctx context.Context, request governor.
 			if !ok || len(public) != 16 {
 				return ErrUnqualified
 			}
-			cursor := &HomeActivityCursor{fence: f, family: in.Family, at: row[0].(string)}
+			cursor := &HomeActivityCursor{fence: f, family: in.Family, at: row[0].(string), source: rootImage}
 			copy(cursor.public[:], public)
 			d.Next = cursor
 			d.RawPositions++
@@ -130,102 +167,117 @@ func (r *BrowseReader) homeActivityWindow(ctx context.Context, request governor.
 		}
 		return nil
 	}}
-	for n := 0; n < MaxPage; n++ {
+	sourcePage, result, e := publishAttempt(ctx, r.snapshots, request, time.Until(deadline), output, in.View, steps, copied, root)
+	if e != nil {
+		return HomeActivityPage{}, result, e
+	}
+	baseline := append([]any(nil), rootImage...)
+	steps = []readStep[HomeActivityPage]{func(_ context.Context, _ browseQuery, f browseFence, d *HomeActivityPage) error {
+		if f != initial || !equalSource(rootImage, baseline) {
+			return ErrStale
+		}
+		*d = sourcePage
+		return nil
+	}}
+	for _, candidate := range candidates {
 		steps = append(steps, func(ctx context.Context, q browseQuery, f browseFence, d *HomeActivityPage) error {
-			if n >= len(candidates) {
-				return nil
-			}
-			candidate := candidates[n]
-			rows, e := q("rb.home.item", candidate.ID, in.View.Library, in.View.Kind)
-			if e != nil {
-				return e
-			}
-			if len(rows) != 1 || !admittedItem(rows[0], f) {
-				return nil
-			}
-			source := rows[0]
-			leaf, e := itemValue(source)
-			if e != nil {
-				return e
-			}
-			if leaf.PublicID != candidate.PublicID {
-				return ErrStale
-			}
-			stateRows, e := q("rb.home.state", f.profile, leaf.ID)
-			if e != nil {
-				return e
-			}
-			if len(stateRows) != 1 {
-				return nil
-			}
-			state := stateValue(stateRows[0])
-			s := stateRows[0]
-			if !bytes.Equal(s[8].([]byte), leaf.PublicID[:]) || state.ResumePosition <= 0 || state.Completed || state.ResumeUnit != 0 || s[9] == "ended" || s[10] != nil && s[10] == s[11] {
-				return nil
-			}
-			card := HomeActivityCard{Work: leaf, Target: leaf, WorkKind: in.View.Kind, TargetKind: in.View.Kind, State: state}
-			parent, kind := any(nil), int64(0)
-			switch in.View.Kind {
-			case 4:
-				parent, kind = source[10], 2
-			case 7:
-				parent, kind = source[12], 6
-			case 9:
-				parent, kind = source[13], 8
-			}
-			if kind != 0 {
-				if parent == nil {
-					return ErrUnqualified
-				}
-				parents, e := q("rb.home.item", parent, in.View.Library, kind)
-				if e != nil {
-					return e
-				}
-				if len(parents) != 1 || parents[0][4].(int64) != 0 {
-					return nil
-				}
-				card.Work, e = itemValue(parents[0])
-				if e != nil {
-					return e
-				}
-				card.WorkKind = kind
-				if in.View.Kind == 9 {
-					book, e := q("rb.home.state", f.profile, card.Work.ID)
-					if e != nil {
-						return e
-					}
-					if len(book) != 1 || book[0][12] == nil || !bytes.Equal(book[0][12].([]byte), leaf.PublicID[:]) {
-						return nil
-					}
-					if !bytes.Equal(book[0][8].([]byte), card.Work.PublicID[:]) || book[0][9] == "ended" || book[0][10] != nil && book[0][10] == book[0][11] {
-						return nil
-					}
-					card.State = stateValue(book[0])
-					if card.State.ResumePosition <= 0 || card.State.Completed || card.State.ResumeUnit != 0 {
-						return nil
-					}
-				}
-			}
-			position := card.State.ResumePosition
-			if in.View.Kind != 9 {
-				if position > int64(^uint64(0)>>1)-3000 {
-					return nil
-				}
-				position += 3000
-			}
-			available, raw, e := homeAssets(q, f.library, leaf.ID, position, true, managed)
-			d.RawRows += raw
-			if e != nil {
-				return e
-			}
-			if !available {
-				return nil
-			}
-			d.Items = append(d.Items, card)
-			return ctx.Err()
+			return homeActivityCandidate(ctx, q, f, in, candidate, managed, d)
 		})
 	}
-	return publishRead(ctx, r.snapshots, request, budget, output, in.View, steps, root)
+	view := in.View
+	view.Now = view.Now.Add(time.Since(started))
+	page, targetResult, e := publishAttempt(ctx, r.snapshots, request, time.Until(deadline), output, view, steps, copied, root)
+	mergeHomeReadResult(&result, targetResult)
+	return page, result, e
+}
+func homeActivityCandidate(ctx context.Context, q browseQuery, f browseFence, in HomeActivityInput, candidate ContinueItem, managed bool, d *HomeActivityPage) error {
+	rows, e := q("rb.home.item", candidate.ID, in.View.Library, in.View.Kind)
+	if e != nil {
+		return e
+	}
+	if len(rows) != 1 || !admittedItem(rows[0], f) {
+		return nil
+	}
+	source := rows[0]
+	leaf, e := itemValue(source)
+	if e != nil {
+		return e
+	}
+	if leaf.PublicID != candidate.PublicID {
+		return ErrStale
+	}
+	stateRows, e := q("rb.home.state", f.profile, leaf.ID)
+	if e != nil {
+		return e
+	}
+	if len(stateRows) != 1 {
+		return nil
+	}
+	state := stateValue(stateRows[0])
+	s := stateRows[0]
+	if !bytes.Equal(s[8].([]byte), leaf.PublicID[:]) || state.ResumePosition <= 0 || state.Completed || state.ResumeUnit != 0 || s[9] == "ended" || s[10] != nil && s[10] == s[11] {
+		return nil
+	}
+	card := HomeActivityCard{Work: leaf, Target: leaf, WorkKind: in.View.Kind, TargetKind: in.View.Kind, State: state}
+	parent, kind := any(nil), int64(0)
+	switch in.View.Kind {
+	case 4:
+		parent, kind = source[10], 2
+	case 7:
+		parent, kind = source[12], 6
+	case 9:
+		parent, kind = source[13], 8
+	}
+	if kind != 0 {
+		if parent == nil {
+			return ErrUnqualified
+		}
+		parents, e := q("rb.home.item", parent, in.View.Library, kind)
+		if e != nil {
+			return e
+		}
+		if len(parents) != 1 || parents[0][4].(int64) != 0 {
+			return nil
+		}
+		card.Work, e = itemValue(parents[0])
+		if e != nil {
+			return e
+		}
+		card.WorkKind = kind
+		if in.View.Kind == 9 {
+			book, e := q("rb.home.state", f.profile, card.Work.ID)
+			if e != nil {
+				return e
+			}
+			if len(book) != 1 || book[0][12] == nil || !bytes.Equal(book[0][12].([]byte), leaf.PublicID[:]) {
+				return nil
+			}
+			if !bytes.Equal(book[0][8].([]byte), card.Work.PublicID[:]) || book[0][9] == "ended" || book[0][10] != nil && book[0][10] == book[0][11] {
+				return nil
+			}
+			card.State = stateValue(book[0])
+			if card.State.ResumePosition <= 0 || card.State.Completed || card.State.ResumeUnit != 0 {
+				return nil
+			}
+		}
+	}
+	position := card.State.ResumePosition
+	if in.View.Kind != 9 {
+		if position > int64(^uint64(0)>>1)-3000 {
+			return nil
+		}
+		position += 3000
+	}
+	available, raw, e := homeAssets(q, f.library, leaf.ID, position, true, managed)
+	d.RawRows += raw
+	if e != nil {
+		return e
+	}
+	if !available {
+		return nil
+	}
+	d.Items = append(d.Items, card)
+	return ctx.Err()
 }
 
 func rbHomeActivityDefinitions() []stmt.Definition {

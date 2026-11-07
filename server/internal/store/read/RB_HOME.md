@@ -75,13 +75,25 @@ work remains. A successful empty nonexhausted window is pending source work.
 No arbitrary history cap changes reachability. Output candidates are at most40.
 Activity windows do not deduplicate one work across pages; exact whole-row
 grouping belongs to preparation, not this sparse source cursor.
+Activity source capture and candidate composition also share one copy counter,
+deadline and whole-operation retry. Only actual candidates create target windows;
+each target window has at most five business calls and67 raw rows. Continuations
+also bind the complete source lifecycle envelope.
 
-The ready recent draft creates up to252 target snapshot steps, including empty
-slots. This is a correctness draft, not an O(page) or B-R02 latency claim. Source
-root copies and ordinary seven-column title reads follow the merged reader's
-memory admission. No new wide display/Reading hydration is implemented. Extending
-wide root/card hydration needs the closed actual-octet preflight registration;
-no columns-times-maximum reservation is introduced here.
+The recent row uses two private publication stages: source capture and a
+cardinality-sized target stage (at most two targets per snapshot, six business
+calls and132 raw joined rows). Both share one cumulative copy counter, one
+original deadline and at most one whole-composition retry. The second stage
+compares the complete first stage's shared/source fence before business work;
+final publication rechecks it again. No spare empty snapshots are executed.
+Source root copies and ordinary seven-column title reads follow the merged
+reader's memory admission. No new wide display/Reading hydration is implemented.
+Extending wide root/card hydration needs the closed actual-octet preflight
+registration; no columns-times-maximum reservation is introduced here.
+
+CHANGE-011 embed#1373 was published but unmerged at the latest SUP2 steer.
+New captures bind to the actual merged schema at run time; parent owns the
+post-merge chronology/scalar/random recaptures. Their goldens are not edited here.
 
 ## Complete row-family inventory and remaining queue
 
