@@ -91,6 +91,15 @@ this is not a fixed-size reset or replay workload. It covers the synthetic
 single-file, active-bank/current-age/present-unrated-bucket branch, not all N1
 branches, legal-MAX, Basic or a production scan issuer.
 
+The tiny real-clock `TestCanonicalN1PopulationAndFundedKeeper` control is also
+opt-in: set `PORTICO_CANONICAL_N1_FUNCTIONAL=1` and select that exact test. Unset
+skips before artifact setup; another value fails. A loaded merge-queue runner
+can legitimately exceed the unchanged 25 ms quantum, so this measurement control
+is excluded from default correctness CI. When explicitly run, its completeness
+assertions remain strict and all refusal/error prefixes stay in the raw output
+and test log. Default CI keeps the deterministic registry/config/clock controls.
+This gate does not change the canonical qualification entrypoint or its caps.
+
 Eight retained warmup originals precede the requested10000..1000000 measured
 originals on ONE persistent measured writer connection. Every original takes
 its actual fresh BEGIN, saved-original Resolve, ACK and joined current snapshot
