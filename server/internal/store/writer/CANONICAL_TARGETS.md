@@ -23,11 +23,18 @@ an accepting workload path.
 | mp.preparation | TestCanonicalPreparationRead | MP prepared-job point read, proposed7+7 |
 | rb.sorted | TestCanonicalRBSortedRead | RB ten scalar orders/directions, proposed11/11–12SQL debt |
 | rb.chronology | TestCanonicalRBChronologyRead | RB dated/NULL/content chronology, proposed11–13SQL debt |
+| rb.numeric_advance | TestCanonicalRBNumericAdvance | RB cold exact numeric preparation quantum,1024raw |
+| rb.numeric_first_page | TestCanonicalRBNumericFirstPage | RB first exact ready Page/fresh LIVE handoff |
+| rb.numeric_cached_page | TestCanonicalRBNumericCachedPage | RB cached exact Page/fresh authorization at original expiry |
+| rb.group_window | TestCanonicalRBGroupWindow | RB ten direct source families,64raw/40output |
+| rb.relationship_exact | TestCanonicalRBRelationshipExact | RB small complete-set fallback<=256raw;257refuses |
+| rb.resolution | TestCanonicalRBResolution | RB128fetched/64consumed/40output, NULL/zero ties |
+| rs.listening | TestCanonicalRSListening | RS album/audiobook complete512raw native+Go-sort route |
 
 The MP and RB rows are foreground reads through ConsumeForeground, NOT held
 writer/COMMIT samples. Source/authority drift, byte admission, statement bytes,
 original ready/consumer timing and concurrent-scan comparisons remain required.
-RB requires raw64/output40 and actual per-domain Reader Capture receipts;
+Scalar RB requires raw64/output40 and actual per-domain Reader Capture receipts;
 phase1a lease remains OFF (#1337 is phase2-only opt-in). Hints from pending MP/RB handoffs are not observed native facts or execution pins.
 
 Default runs skip these targets. Explicit opt-in requires `-canonical-held=true`,
@@ -156,3 +163,55 @@ owner budget and cannot be counted as a normal writer hold. Read classes inherit
 B-READS, not writer ceilings. No profile or grant is widened to meet these values.
 QL owns >=3VMs/profile, >=10k actual holds/recipe, confidence bounds, failure and
 coverage accounting, Netcup quiet-max scheduling, and final qualification.
+
+## Additional closed read recipes
+
+These seven parents remain nil bindings. Default runs skip; explicit selection
+emits synced start/failed_binding/nonpassing final, with no native calls or
+fabricated ready page. `start.read_recipe_intent` records the source-bound owner
+handoff, required cohorts/contracts and statement debt. It is intent, not a
+Capture receipt, observed facts, a runnable source pin or a qualification result.
+Full route composition must use the SAME canonical1M/library7 clone, actual
+source fixture, original deadlines and ConsumeForeground, joining consumers
+before release. Lookup, preparation/Go sort, fresh publication and consumer
+errors/times remain separate and nullable until genuinely observed. Seed movies
+do not establish missing album/audiobook/group/policy ownership; a tiny unrelated
+fixture cannot substitute for the populated parent.
+
+Numeric recipes pin #1440 d3c788c173be46b106bbddb843a418e51ea13e95. Each
+full1024raw Advance remains pending until a separate exhaustion probe. Cold
+Advance, first authorized Page and cached Page are distinct cells: the original
+F04 lifetime/absolute deadline is never renewed by attachment. Ready alone does
+not release the publication conflict; first Page needs fresh LIVE, and later
+cached pages reauthorize the whole fence/token horizon. Actual preparation/cache
+and output charges, pending/errors/refusals and foreground interruption remain
+raw. Unsupported policy must refuse rather than supply a partial exact result.
+
+Group/relationship recipes pin #1444
+0748faa2c779576892feac15f90b6701c54fe171. All ten group families require
+first/far continuation and both directions; candidate SourceOrdered=false never
+becomes groupOrder success. Relationship exact covers complete sets only, at
+most four64row quanta plus an exhaustion probe. Raw257 returns ZERO ErrNotReady,
+including ineligible overflow, and earns no large-exact or top-K claim. Equal and
+prefix parent-key merge, cumulative retained bytes, sparse/NULL occurrences,
+default disc/track/part and unsupported age/label/custom/shared/restricted policy
+refusals stay explicit. The13..15route statements exceed proposed B-R04's10.
+
+Resolution pins #1446 aa957a0b6b6c6405f1a04435aa2e8ab563f49b3b. Count both
+lookahead streams in128fetched, retain64consumed/40output, and preserve raw
+continuation for empty full hidden quanta. NULL/zero interleave by ID, including
+far ties/sparse eligibility. Both streams must end and all fetched rows be
+consumed before exhaustion. Actual route12..13SQL exceeds proposed10.
+
+Listening pins merged #1430 9b3cb335877cd9f3d5c1910fcc2b7129ad76c2ab.
+Album/audiobook first/deep/sparse/repeated/import-pressure cells include native
+lookup, complete-window Go sort and fresh publication/consumer return. Observe
+actual retention128B/raw+2key bytes. Raw512 is a bounded complete-window recipe;
+>512 is RS-001's post-lock indexed stream, not a prelock gate. Route13statements
+exceeds B-R10's12; local29ms and the NOCASE oracle are not qualification evidence.
+
+Existing B-R budgets and #1357 statement debt remain; all read classes are
+UNQUALIFIED. The open RB heads are draft targets only. CHANGE-012/013 embed
+#1450 remains the golden-refresh gate: this scaffold imports no draft runtime,
+refreshes no Capture/golden and requests no host execution. QL may dispatch only
+a subsequently reviewed/merged executable recipe with actual source/binary pins.
