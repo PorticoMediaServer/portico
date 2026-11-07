@@ -62,7 +62,7 @@ func TestPrepareRuleConfigMaximum(t *testing.T) {
 	c.ChannelID = fmt.Sprintf("%064x", 1)
 	c.Name = strings.Repeat("<", 160)
 	c.Title = strings.Repeat("<", 512)
-	c.Options = dvr.Options{BeforeMs: 21600000, AfterMs: 21600000, Priority: 1000, RetentionDays: 3650, EpisodeLimit: 100000}
+	c.Options = dvr.Options{BeforeMs: 21600000, AfterMs: 21600000, Priority: -1000, RetentionDays: 3650, EpisodeLimit: 100000}
 	for i := 1; i <= 2000; i++ {
 		c.AllowedChannels = append(c.AllowedChannels, fmt.Sprintf("%064x", i))
 		c.BlockedChannels = append(c.BlockedChannels, fmt.Sprintf("%064x", i+2000))
