@@ -160,6 +160,24 @@ func readQualificationPopulation(dir, expectedManifestSHA string) (Qualification
 	if m.Facts.Version != "canonical-movies-v1" || m.Facts.Counts == nil || m.Facts.Residents < 1 || m.Facts.Residents > 1000000 || m.Facts.LibraryID != 7 || m.Facts.LibraryKey != "qualification-movies" || !qualificationPopulationSHA.MatchString(m.Facts.LogicalSHA256) {
 		return m, errors.New("invalid population facts")
 	}
+	if m.Facts.FirstID != qualificationMovieIDBase+1 || m.Facts.LastID != qualificationMovieIDBase+int64(m.Facts.Residents) {
+		return m, errors.New("population ID range mismatch")
+	}
+	for _, name := range []string{"catalog_subjects", "catalog_entities", "catalog_assets", "catalog_asset_links", "catalog_scalar_contributions", "catalog_asset_contributions", "current_movies"} {
+		if count, observed := m.Facts.Counts[name]; !observed || count != int64(m.Facts.Residents) {
+			return m, fmt.Errorf("population count mismatch: %s", name)
+		}
+	}
+	for _, name := range []string{"libraries", "catalog_libraries", "catalog_kinds", "catalog_membership_clock", "catalog_age_item_counts"} {
+		if count, observed := m.Facts.Counts[name]; !observed || count != 1 {
+			return m, fmt.Errorf("population singleton count mismatch: %s", name)
+		}
+	}
+	for name, count := range m.Facts.Counts {
+		if count < 0 {
+			return m, fmt.Errorf("negative population count: %s", name)
+		}
+	}
 	for _, suffix := range []string{"-wal", "-shm"} {
 		if _, err := os.Lstat(filepath.Join(dir, qualificationPopulationImage) + suffix); !errors.Is(err, os.ErrNotExist) {
 			return m, fmt.Errorf("population sidecar present or unreadable: %s", suffix)

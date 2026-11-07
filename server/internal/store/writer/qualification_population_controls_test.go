@@ -96,6 +96,9 @@ func qualificationPopulationTransportControl(t *testing.T) (string, Qualificatio
 		DatabaseSHA256: hex.EncodeToString(digest[:]), DatabaseBytes: int64(len(data)),
 		Facts: qualificationPopulationFacts{Version: "canonical-movies-v1", Residents: 1, LibraryID: 7, LibraryKey: "qualification-movies", FirstID: 1000000001, LastID: 1000000001, Counts: map[string]int64{"catalog_entities": 1}, LogicalSHA256: strings.Repeat("b", 64)},
 	}
+	for _, name := range []string{"catalog_subjects", "catalog_entities", "catalog_assets", "catalog_asset_links", "catalog_scalar_contributions", "catalog_asset_contributions", "current_movies", "libraries", "catalog_libraries", "catalog_kinds", "catalog_membership_clock", "catalog_age_item_counts"} {
+		m.Facts.Counts[name] = 1
+	}
 	if err := os.WriteFile(filepath.Join(dir, qualificationPopulationImage), data, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +215,7 @@ func TestQualificationPopulationNativeRoundTrip(t *testing.T) {
 	manifest := UseQualificationPopulation(t, output, hex.EncodeToString(pin[:]))
 	w, _ := testCanonicalExecutor(t)
 	var count int
-	if err = w.db.QueryRowContext(t.Context(), "SELECT count(*) FROM catalog_entities WHERE library_id=7 AND kind='movie'").Scan(&count); err != nil {
+	if err = w.db.QueryRowContext(t.Context(), "SELECT count(*) FROM catalog_entities WHERE library_id=7 AND kind=1").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 16 || manifest.Facts.Residents != 16 {
