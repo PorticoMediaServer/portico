@@ -119,6 +119,20 @@ func settleBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafSe
 	if e != nil {
 		return value, e
 	}
+	row, e = basicStageRead(ctx, turn, basicSettleShapeRead, a.shapeID)
+	if e != nil {
+		return value, e
+	}
+	var shapeRefs int64
+	if e = row.Scan(&shapeRefs); e != nil {
+		return value, basicStageError(e)
+	}
+	if shapeRefs <= 0 {
+		return value, ErrConflict
+	}
+	if shapeRefs == math.MaxInt64 {
+		return value, ErrCap
+	}
 	row, e = basicStageRead(ctx, turn, basicSettleLinkCAS, a.shapeID, in.duration, in.entityID, s.assetID, s.libraryID, s.changeID)
 	if e != nil {
 		return value, e
@@ -159,6 +173,17 @@ func settleBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafSe
 		return value, basicStageError(e)
 	}
 	if l != s.libraryID || p != in.entityID || c != in.entityID || src != 0 || d != next.duration || r != next.resolution || rev != next.scalarRevision || seq != before.membershipSequence {
+		return value, ErrConflict
+	}
+	row, e = basicStageRead(ctx, turn, basicSettleShapeCAS, shapeRefs+1, a.shapeID, shapeRefs)
+	if e != nil {
+		return value, e
+	}
+	var returnedShape, returnedRefs int64
+	if e = row.Scan(&returnedShape, &returnedRefs); e != nil {
+		return value, basicStageError(e)
+	}
+	if returnedShape != a.shapeID || returnedRefs != shapeRefs+1 {
 		return value, ErrConflict
 	}
 	row, e = basicStageRead(ctx, turn, basicSettleEntityCAS, next.durationKey, next.resolutionKey, next.scalarRevision, next.aggregateRevision, in.entityID, s.libraryID, before.durationKey, before.resolutionKey, before.scalarRevision, before.aggregateRevision)

@@ -3,6 +3,8 @@ package writer
 import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
 const (
+	basicSettleShapeRead            stmt.ID = "scan.basic_accept.settle_shape_read"
+	basicSettleShapeCAS             stmt.ID = "scan.basic_accept.settle_shape_cas"
 	basicSettleScalarBothNull       stmt.ID = "scan.basic_accept.settle_leaf_scalar_both_null"
 	basicSettleScalarDurationNull   stmt.ID = "scan.basic_accept.settle_leaf_scalar_duration_null"
 	basicSettleScalarResolutionNull stmt.ID = "scan.basic_accept.settle_leaf_scalar_resolution_null"
@@ -33,12 +35,16 @@ AND ac.library_id=a.library_id AND ac.membership_refs=1 AND ac.authored_refs=0 A
 		{ID: basicSettleEntityCAS, Kind: stmt.Write, SQL: `UPDATE catalog_entities SET duration_key=?,resolution_key=?,scalar_source_revision=?,aggregate_revision=? WHERE id=? AND library_id=? AND duration_key=? AND resolution_key=? AND scalar_source_revision=? AND aggregate_revision=? RETURNING id,library_id,duration_key,resolution_key,scalar_source_revision,aggregate_revision`, Params: []stmt.Param{{Name: "p1", Type: stmt.Real}, {Name: "p2", Type: stmt.Integer}, {Name: "p3", Type: stmt.Integer}, {Name: "p4", Type: stmt.Integer}, {Name: "p5", Type: stmt.Integer}, {Name: "p6", Type: stmt.Integer}, {Name: "p7", Type: stmt.Real}, {Name: "p8", Type: stmt.Integer}, {Name: "p9", Type: stmt.Integer}, {Name: "p10", Type: stmt.Integer}}, Owner: "store/writer Basic domain", CallSites: []string{"store/writer/basic_settle_leaf.go"}, Cohorts: []stmt.Cohort{{Name: "first_leaf", Bindings: []any{float64(100), int64(1080), int64(2), int64(2), int64(31), int64(7), float64(0), int64(0), int64(1), int64(1)}}}},
 		{ID: basicSettleForward, Kind: stmt.Read, SQL: `SELECT contributor_id,source FROM catalog_scalar_contributions WHERE parent_id=? ORDER BY contributor_id,source LIMIT 2`, Params: []stmt.Param{{Name: "parent_id", Type: stmt.Integer}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_scalar_contributions"}, Seeks: []string{"parent_id=?"}}, Cohorts: []stmt.Cohort{{Name: "sole_self_contributor", Bindings: []any{int64(31)}}}},
 		{ID: basicSettleCollection, Kind: stmt.Read, SQL: `SELECT collection_id FROM catalog_collection_members INDEXED BY catalog_collection_members_item WHERE item_id=? ORDER BY collection_id LIMIT 1`, Params: []stmt.Param{{Name: "item_id", Type: stmt.Integer}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_collection_members_item"}, Seeks: []string{"item_id=?"}}, Cohorts: []stmt.Cohort{{Name: "no_external_collection", Bindings: []any{int64(31)}}}},
+		{ID: basicSettleShapeRead, Kind: stmt.Read, SQL: `SELECT ref_count FROM catalog_info_shapes WHERE id=?`, Params: []stmt.Param{{Name: "shape_id", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "held_target_shape", Bindings: []any{int64(61)}}}},
+		{ID: basicSettleShapeCAS, Kind: stmt.Write, SQL: `UPDATE catalog_info_shapes SET ref_count=? WHERE id=? AND ref_count=? RETURNING id,ref_count`, Params: []stmt.Param{{Name: "next_ref_count", Type: stmt.Integer}, {Name: "shape_id", Type: stmt.Integer}, {Name: "old_ref_count", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "first_link_borrows_target", Bindings: []any{int64(2), int64(61), int64(1)}}}},
 	}
 	for n := range defs {
 		d := &defs[n]
 		d.Owner = "store/writer Basic domain"
 		d.CallSites = []string{"store/writer/basic_settle_leaf.go"}
 		switch d.ID {
+		case basicSettleShapeRead, basicSettleShapeCAS:
+			d.Plan = stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_info_shapes"}, Seeks: []string{"rowid=?"}}
 		case basicSettleProof:
 			d.Plan = stmt.Plan{Hot: true, PrimaryKeys: []string{"j", "a", "e", "l", "sh", "ac"}, Indexes: []string{"sqlite_autoindex_catalog_subjects_3"}, Seeks: []string{"rowid=?", "entity_id=? AND asset_id=?", "parent_id=? AND asset_id=?", "id=? AND public_id=? AND library_id=? AND kind=?"}}
 		case basicSettleBefore:

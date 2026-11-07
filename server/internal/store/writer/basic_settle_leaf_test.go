@@ -100,6 +100,10 @@ func TestBasicSettleLeafComponent(t *testing.T) {
 				t.Fatal(sizeRev, inv, member, metadata, rating, critic, err)
 			}
 			var pending, phase, epoch, link, origin int64
+			var shapeRefs int64
+			if err = w.db.QueryRowContext(t.Context(), `SELECT ref_count FROM catalog_info_shapes WHERE id=61`).Scan(&shapeRefs); err != nil || shapeRefs != 2 {
+				t.Fatal(shapeRefs, err)
+			}
 			if err = w.db.QueryRowContext(t.Context(), `SELECT a.info_publication_pending,j.phase,a.info_epoch,l.info_pending_change,l.playback_origin_revision FROM catalog_assets a JOIN catalog_info_changes j ON j.asset_id=a.id JOIN catalog_asset_links l ON l.asset_id=a.id WHERE a.id=41`).Scan(&pending, &phase, &epoch, &link, &origin); err != nil || pending != 1 || phase != 4 || epoch != 18 || link != 51 || origin != math.MaxInt64 {
 				t.Fatal(pending, phase, epoch, link, origin, err)
 			}
