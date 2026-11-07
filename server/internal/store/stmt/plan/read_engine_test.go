@@ -3,8 +3,10 @@ package plan_test
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -39,6 +41,9 @@ func engineDatabase(t *testing.T) string {
 }
 func TestReadEngineActualPoint(t *testing.T) {
 	conn, f, policy := ftsReader(t, engineDatabase(t))
+	sum := sha256.Sum256([]byte(f.SHA256 + "; engineDatabase adds search_revision(singleton=1,revision=1)"))
+	f.SHA256 = fmt.Sprintf("%x", sum)
+	f.Implementations += "; exact singleton1 revision1; measured native engine metadata"
 	d := readEngineDefinition()
 	if len(plan.LintSQL(d.SQL)) == 0 || len(plan.LintSQLOn(t.Context(), conn, d.SQL)) == 0 {
 		t.Fatal("generic lint admitted engine functions")
