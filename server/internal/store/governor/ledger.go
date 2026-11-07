@@ -283,6 +283,8 @@ func (g *ledger) Cancel(p *Grant) {
 }
 
 // Check verifies exact remaining authority at a private backend entry point.
+// Admitted validation waits within the issuer-captured original deadline;
+// ordinary Try remains nonwaiting. Mutex contention is not invalid authority.
 // The expected request must come from a closed purpose registry, not a worker's
 // priority string. Cancellation/fencing during a running operation revokes new
 // operations; it cannot preempt an fsync or refund that operation's custody.
