@@ -12,6 +12,36 @@ func mgRuleWorkDescriptors() []Descriptor {
 	return []Descriptor{{MGReconcileRule, "mg.rule.reconcile", Normal}}
 }
 
+func mgRuleWorkTime(ctx context.Context, t *commandTurn) (out int64, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	if t == nil || t.transaction == nil {
+		return 0, ErrInvalid
+	}
+	tx := t.transaction
+	if tx.descriptor.ID != MGReconcileRule || !tx.policyVerified || tx.writer == nil || tx.writer.now == nil || tx.ctx == nil {
+		return 0, ErrInvalid
+	}
+	if tx.done || !tx.begun {
+		return 0, ErrClosed
+	}
+	if err = t.checkLifetimes(ctx); err != nil {
+		return 0, err
+	}
+	defer tx.guardPanic()
+	now, err := tx.clockTime()
+	if err != nil {
+		return 0, err
+	}
+	deadline, ok := tx.ctx.Deadline()
+	if !ok || now.UnixMilli() < 0 {
+		return 0, ErrInvalid
+	}
+	if !now.Before(deadline) {
+		return 0, context.DeadlineExceeded
+	}
+	return now.UnixMilli(), nil
+}
+
 // Private ID826 component only. The parent must save the public receipt and
 // finish all acknowledged recording/reservation effects in THIS frame before
 // COMMIT. Any error requires whole-frame rollback. A logical lease is never
@@ -80,18 +110,17 @@ func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, 
 	if !mgRecordingHex(r.rule.id, 64) || !mgRecordingHex(b.generation, 48) || b.rule != r.rule.id || b.revision != r.rule.revision || !b.due.Valid || b.jobRevision < 1 || b.jobRevision == math.MaxInt64 || r.sourceRevision < 1 || r.worker < 1 || r.worker > math.MaxInt32 || !mgRuleWorkPhase(b.phase) || !mgRecordingText(b.cursor, false, 4096) {
 		return out, ErrInvalid
 	}
-	now, e := mgPersonalNow(ctx, t)
+	ms, e := mgRuleWorkTime(ctx, t)
 	if e != nil {
 		return out, e
 	}
-	ms := now.UnixMilli()
 	row, e := mgRuleWorkRow(ctx, t, mgRuleRead, r.rule.id)
 	if e != nil {
 		return out, e
 	}
 	rule, e := mgRuleScan(row)
 	if e != nil {
-		return out, mgPersonalMissing(e)
+		return out, mgOwnerMissing(e)
 	}
 	if rule != r.rule || rule.enabled != 1 || rule.deleted != 0 {
 		return out, ErrConflict
@@ -103,14 +132,14 @@ func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, 
 	var rev, removed int64
 	var gen, state string
 	if e = row.Scan(&rev, &gen, &state, &removed); e != nil {
-		return out, mgPersonalMissing(e)
+		return out, mgOwnerMissing(e)
 	}
 	if rev != r.sourceRevision || gen != b.generation || state != "active" || removed != 0 {
 		return out, ErrConflict
 	}
 	actual, e := mgRuleWorkReadNative(ctx, t, b.rule)
 	if e != nil {
-		return out, mgPersonalMissing(e)
+		return out, mgOwnerMissing(e)
 	}
 	if actual != b {
 		return out, ErrConflict
@@ -191,11 +220,11 @@ func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, 
 		return out, ErrConflict
 	}
 	// Check the live lease again after the write/readback; expiry is not success.
-	end, e := mgPersonalNow(ctx, t)
+	end, e := mgRuleWorkTime(ctx, t)
 	if e != nil {
 		return out, e
 	}
-	if end.UnixMilli() >= leaseCheck {
+	if end >= leaseCheck {
 		return out, ErrConflict
 	}
 	return actual, nil
