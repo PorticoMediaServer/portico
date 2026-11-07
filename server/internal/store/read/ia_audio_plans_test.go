@@ -18,6 +18,9 @@ import (
 func iaAudioCompareGolden(t *testing.T, path string, actual []byte) {
 	t.Helper()
 	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
+		if e := os.MkdirAll(dir, 0755); e != nil {
+			t.Fatal(e)
+		}
 		if e := os.WriteFile(filepath.Join(dir, filepath.Base(path)), actual, 0644); e != nil {
 			t.Fatal(e)
 		}
