@@ -34,6 +34,7 @@ func bindNativeSearchPolicy(kind, subject int64) (readPolicyBinding, error) {
 type nativePolicyWitness struct {
 	valid                                          bool
 	id, kind, library, revision, ownAge, container int64
+	kindSource                                     [32]byte
 	creditSource                                   [32]byte
 	source                                         [32]byte
 	birth, public                                  [16]byte
@@ -101,6 +102,10 @@ func nativePolicyForSource(q browseQuery, in BrowseInput, f browseFence, source 
 		return proof, "", false, nil
 	}
 	proof = nativePolicyWitness{valid: true, id: id, kind: kind, library: library, revision: revision, ownAge: age, container: container, binding: in.policy, witness: strings.Clone(f.policyWitness)}
+	proof.kindSource, err = nativeItemIdentity(rows[0])
+	if err != nil {
+		return nativePolicyWitness{}, "", false, err
+	}
 	proof.source, err = nativeItemIdentity(r)
 	if err != nil {
 		return nativePolicyWitness{}, "", false, err
@@ -149,18 +154,14 @@ func validateNativePolicy(q browseQuery, in BrowseInput, f browseFence, prior na
 		return ErrStale
 	}
 	if prior.person > 0 {
-		person, err := q("full.native.person.accepted", prior.person, prior.personBank)
-		if err != nil {
-			return err
-		}
-		if len(person) != 1 || len(person[0]) != 8 {
+		person, err := nativePersonSource(q, &fullQueryScope{bank: prior.personBank}, prior.person)
+		if errors.Is(err, errFullSearchPending) {
 			return ErrStale
 		}
-		identity, err := nativeItemIdentity(person[0])
 		if err != nil {
 			return err
 		}
-		if identity != prior.personSource {
+		if person == nil || person.personSource != prior.personSource {
 			return ErrStale
 		}
 		if rows[0][11] != prior.image {

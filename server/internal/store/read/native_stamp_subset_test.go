@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
@@ -12,7 +13,7 @@ import (
 
 // Metadata controls only; these do not manufacture a runtime read certificate.
 func nativeSubsetFixture(n int) (*FullSearchReadStamp, []FullSearchHit) {
-	s := &FullSearchReadStamp{pool: new(governor.Snapshots), output: new(governor.Grant)}
+	s := &FullSearchReadStamp{pool: new(governor.Snapshots), output: new(governor.Grant), policies: make([]nativePolicyWitness, 0, n), checked: make([]nativePolicyWitness, 0, n), hits: make([]nativeStampedHit, 0, n)}
 	var hits []FullSearchHit
 	for i := 1; i <= n; i++ {
 		p := nativePolicyWitness{valid: true, id: int64(i), kind: 1, library: 1, witness: fmt.Sprintf("%04d", i) + strings.Repeat("x", 4092)}
@@ -50,7 +51,7 @@ func TestNativeStampNarrowingKeepsOnlyIssuedHits(t *testing.T) {
 func TestNativeStamp128ProofsAndMetadataCap(t *testing.T) {
 	s, hits := nativeSubsetFixture(MaxNativeRetained)
 	if s.MetadataBytes() > MaxNativeStampBytes {
-		t.Fatal("bounded128proof fixture", s.MetadataBytes())
+		t.Fatalf("bounded128proof fixture bytes=%d witness=%d hit=%d caps=%d/%d/%d", s.MetadataBytes(), unsafe.Sizeof(nativePolicyWitness{}), unsafe.Sizeof(nativeStampedHit{}), cap(s.checked), cap(s.policies), cap(s.hits))
 	}
 	keep, err := s.RetainHits(hits)
 	if err != nil || len(keep.policies) != MaxNativeRetained {

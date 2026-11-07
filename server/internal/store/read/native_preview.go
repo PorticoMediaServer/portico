@@ -81,7 +81,8 @@ func nativePreviewAdvance(ctx context.Context, q browseQuery, scope *fullQuerySc
 		}
 		return ownFullSearchPage(page, in.View.Limit)
 	}
-	for steps := 0; steps < 8 && *calls < 128; steps++ {
+	startCalls := *calls
+	for steps := 0; steps < 8 && *calls-startCalls < 128; steps++ {
 		if err := ctx.Err(); err != nil {
 			return FullSearchPage{}, err
 		}

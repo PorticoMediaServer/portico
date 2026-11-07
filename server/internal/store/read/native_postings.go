@@ -154,46 +154,34 @@ type nativeSource struct {
 // The accepted point uses the current entity's full revision, not its narrower
 // source_revision; no pending input or stale native posting is promoted.
 func nativeEntitySource(query browseQuery, scope *fullQueryScope, id int64) (*nativeSource, error) {
-	rows, err := query("full.native.entity.accepted", id, scope.bank)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		// A live source with a raw posting but no matching accepted head is
-		// pending, not proof of a zero-match population. Missing/retired sources
-		// are ordinary rejected raw positions.
-		item, e := query("full.native.item", id)
-		if e != nil {
-			return nil, e
-		}
-		if len(item) == 0 || len(item) == 1 && len(item[0]) == 19 && item[0][4] == int64(1) {
-			return nil, nil
-		}
-		return nil, errFullSearchPending
-	}
-	if len(rows) != 1 || len(rows[0]) != 12 {
-		return nil, ErrUnqualified
-	}
-	p := rows[0]
-	if p[0] != p[10] || p[1] != p[2] || p[1] != p[11] {
-		return nil, ErrUnqualified
-	}
 	item, err := query("full.native.item", id)
 	if err != nil {
 		return nil, err
 	}
+	if len(item) == 0 {
+		return nil, nil
+	}
 	if len(item) != 1 || len(item[0]) != 19 {
 		return nil, ErrUnqualified
 	}
-	inc, ok := p[3].([]byte)
-	nativeInc, ok2 := item[0][9].([]byte)
-	if !ok || !ok2 || len(inc) != 16 || string(inc) != string(nativeInc) || p[4] != item[0][5] {
-		return nil, ErrStale
+	r := item[0]
+	if r[4] == int64(1) {
+		return nil, nil
 	}
-	if err := nativeSealed(query, p[0].(int64)); err != nil {
+	p, err := nativeAcceptedPublication(query, scope, search.ManifestEntity, id)
+	if err != nil {
 		return nil, err
 	}
-	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestEntity, SubjectID: id, PublicationID: p[0].(int64), BankID: scope.bank, InputGeneration: p[1].(int64)}, title: p[6].(string), fold: p[7].(string), kind: p[8].(int64), library: p[9].(int64), item: item[0]}, nil
+	inc, ok := p[9].([]byte)
+	nativeInc, ok2 := r[9].([]byte)
+	kind, kok := p[6].(int64)
+	library, lok := p[7].(int64)
+	title, tok := p[4].(string)
+	fold, fok := p[5].(string)
+	if !ok || !ok2 || !kok || !lok || !tok || !fok || len(inc) != 16 || string(inc) != string(nativeInc) || p[10] != r[5] || p[6] != r[7] || p[7] != r[8] || p[4] != r[3] {
+		return nil, errFullSearchPending
+	}
+	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestEntity, SubjectID: id, PublicationID: p[0].(int64), BankID: scope.bank, InputGeneration: p[8].(int64)}, title: title, fold: fold, kind: kind, library: library, item: r}, nil
 }
 func nativePostingSource(query browseQuery, scope *fullQueryScope, slot uint8, id int64) (*nativeSource, uint16, error) {
 	if slot == 5 {
