@@ -258,3 +258,37 @@ func TestAdmissionRefusalsKeepTypedBudgetCauses(t *testing.T) {
 	}
 	retire(t, a, p)
 }
+
+func TestCheckpointLifetimeValidationUsesOfferDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		gi, a, clock := setup(t)
+		g := gi.(*ledger)
+		r := request(clock, Recovery)
+		p := grant(t, g, r)
+		until := clock.now().Add(10 * time.Millisecond)
+		g.mu.Lock()
+		locked := true
+		defer func() {
+			if locked {
+				g.mu.Unlock()
+			}
+		}()
+		done := make(chan error, 1)
+		go func() { done <- a.checkContextUntil(context.Background(), p, r, time.Time{}, until) }()
+		synctest.Wait()
+		clock.ms.Add(10)
+		time.Sleep(10 * time.Millisecond)
+		if e := <-done; !errors.Is(e, context.DeadlineExceeded) {
+			t.Fatal(e)
+		}
+		if g.find(p) == nil || g.used[Recovery] != r.Need {
+			t.Fatal("offer expiry retired keeper lifetime")
+		}
+		g.mu.Unlock()
+		locked = false
+		if e := a.Check(p, r); e != nil {
+			t.Fatal("short offer revoked lifetime", e)
+		}
+		retire(t, a, p)
+	})
+}

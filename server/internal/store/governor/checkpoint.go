@@ -118,8 +118,8 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 		if c.keeper.flags.Load()&(keeperBroken|keeperStopping|keeperClosed) != 0 {
 			return out, ErrCheckpointKeeper
 		}
-		if err := c.authority.Check(c.keeper.resources.Lifetime, c.keeper.resources.LifetimeRequest); err != nil {
-			if !errors.Is(err, ErrBusy) {
+		if err := c.authority.checkContextUntil(parent, c.keeper.resources.Lifetime, c.keeper.resources.LifetimeRequest, time.Time{}, r.Deadline); err != nil {
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 				c.keeper.fail()
 			}
 			return out, err
@@ -305,7 +305,7 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 	ctx, stop = c.deadlineContext(parent, deadline)
 	queries, cancel := context.WithCancel(ctx)
 	scope.ctx, scope.cancel = queries, cancel
-	if err = c.authority.Check(d.Grant, r); err != nil {
+	if err = c.authority.CheckContext(queries, d.Grant, r); err != nil {
 		return out, err
 	}
 	if scope.conn, err = c.pool.Conn(queries); err != nil {
@@ -353,7 +353,7 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 		}
 	}
 	out.DatabaseMatched = true
-	if err = c.authority.Check(d.Grant, r); err != nil {
+	if err = c.authority.CheckContext(queries, d.Grant, r); err != nil {
 		return out, err
 	}
 	beforeToken := c.wal.Observation()
@@ -392,7 +392,7 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 		2*frames+1 > uint64(r.Budget.Pages) || c.sequence == math.MaxUint64 {
 		return out, ErrCheckpointBudget
 	}
-	if err = c.authority.Check(d.Grant, r); err != nil {
+	if err = c.authority.CheckContext(queries, d.Grant, r); err != nil {
 		return out, err
 	}
 	c.sequence++

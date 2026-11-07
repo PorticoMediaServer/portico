@@ -186,6 +186,10 @@ func (a *Authority) BeginPreparation(ctx context.Context, q PreparationRequest) 
 		return PreparationDecision{Refusal: &Refusal{Code: Deadline, Cause: CauseDeadline}}
 	}
 	defer g.mu.Unlock()
+	now = g.config.Now()
+	if ctx.Err() != nil || !q.Deadline.After(now) {
+		return PreparationDecision{Refusal: &Refusal{Code: Deadline, Cause: CauseDeadline}}
+	}
 	g.refreshPreparations(now)
 	if g.state.Load()&1 != 0 {
 		return refuse(FailSafe)
