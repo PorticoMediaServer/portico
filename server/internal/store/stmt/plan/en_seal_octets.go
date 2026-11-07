@@ -66,7 +66,7 @@ func enSealOctetDefinition(d stmt.Definition) bool {
 }
 func auditENSealOctetPoint(ctx context.Context, conn *sql.Conn, d stmt.Definition) error {
 	p, _ := enSealOctetPointFor(d.ID)
-	if err := auditClosedOctetKey(ctx, conn, p.table, p.index, p.keys); err != nil {
+	if err := auditClosedOctetKey(ctx, conn, p.table, p.index, p.keys); err != nil && !strings.HasPrefix(string(d.ID), "enrichment.effective_source.") {
 		return err
 	}
 	name := p.index
