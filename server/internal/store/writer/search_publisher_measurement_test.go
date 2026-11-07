@@ -639,7 +639,7 @@ func runPublisherMeasurementCalls(t *testing.T, c publisherMeasurementConfig, p 
 				err = errors.Join(err, errors.New("saved result differs from fresh original"))
 			}
 			r.FragmentID = original.Fragment.FragmentID
-			if f.a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 || e.fenced || e.ambiguous || f.w.effective.fenced {
+			if !f.joinedUsage() || e.db.Stats().InUse != 0 || e.fenced || e.ambiguous || f.w.effective.fenced {
 				err = errors.Join(err, errors.New("physical custody not cleanly returned"))
 			}
 			r.Complete = err == nil
@@ -655,6 +655,11 @@ func runPublisherMeasurementCalls(t *testing.T, c publisherMeasurementConfig, p 
 		}
 		if n >= c.WarmupCount {
 			census.FreshCompleted++
+		}
+		if observer, ok := stream.(interface{ afterOriginal() error }); ok {
+			if err := observer.afterOriginal(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -51,7 +51,14 @@ func (r *canonicalN1Checkpoint) observeClock(origin time.Time) {
 	}
 }
 
+type canonicalCheckpointShape struct {
+	domain    CommandID
+	prefix    string
+	hardBytes int64
+}
+
 type canonicalN1MaintenanceOwner struct {
+	shape              canonicalCheckpointShape
 	opening            *scanOpening
 	executor           *executor
 	governor           governor.Governor
@@ -111,9 +118,19 @@ func newCanonicalN1Fixture(t *testing.T, count int, trace *n1Trace) (*inventoryP
 }
 
 // Same lifecycle and funded keeper for other trusted canonical command owners.
-func newCanonicalCheckpointOwner(t *testing.T, opening *scanOpening, g governor.Governor, a *governor.Authority, wal *governor.WALGate, path string) *canonicalN1MaintenanceOwner {
+func newCanonicalCheckpointOwner(t *testing.T, opening *scanOpening, g governor.Governor, a *governor.Authority, wal *governor.WALGate, path string, shapes ...canonicalCheckpointShape) *canonicalN1MaintenanceOwner {
 	t.Helper()
-	m := &canonicalN1MaintenanceOwner{opening: opening, executor: opening.executor, governor: g, authority: a, stop: make(chan struct{}), done: make(chan struct{}), results: make(chan canonicalN1Checkpoint, 128)}
+	shape := canonicalCheckpointShape{InventoryAccept, "canonical-n1-cp", 1 << 29}
+	if len(shapes) > 1 {
+		t.Fatal("one compiled checkpoint shape required")
+	}
+	if len(shapes) == 1 {
+		shape = shapes[0]
+	}
+	if shape.domain == 0 || shape.prefix == "" || shape.hardBytes <= 0 || shape.hardBytes > 1<<30 {
+		t.Fatal("closed checkpoint shape invalid")
+	}
+	m := &canonicalN1MaintenanceOwner{shape: shape, opening: opening, executor: opening.executor, governor: g, authority: a, stop: make(chan struct{}), done: make(chan struct{}), results: make(chan canonicalN1Checkpoint, 128)}
 	// Installed before any fallible keeper setup; retain partial cleanup on Fatal.
 	t.Cleanup(func() {
 		if err := m.close(); err != nil {
@@ -150,12 +167,12 @@ func newCanonicalCheckpointOwner(t *testing.T, opening *scanOpening, g governor.
 	return m
 }
 func (m *canonicalN1MaintenanceOwner) request(role string) governor.Request {
-	r := governor.Request{Key: governor.JobKey{Domain: uint16(InventoryAccept), ID: "canonical-n1-cp/" + role}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.MemoryBytes: 64 << 10, governor.CPUMilli: 1000, governor.IOBytes: 2 * (1 << 29)}, Deadline: time.Now().Add(time.Hour)}
+	r := governor.Request{Key: governor.JobKey{Domain: uint16(m.shape.domain), ID: m.shape.prefix + "/" + role}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.MemoryBytes: 64 << 10, governor.CPUMilli: 1000, governor.IOBytes: 2 * m.shape.hardBytes}, Deadline: time.Now().Add(time.Hour)}
 	r.IO = []governor.DeviceIO{{DeviceID: fmt.Sprintf("filesystem-device:%d", m.opening.binding.device), Class: governor.Sequential, Outstanding: 1, Bytes: r.Need[governor.IOBytes]}}
 	if role == "passive" {
 		r.Need[governor.Reader] = 1
 		r.MaxHold = 5 * time.Second
-		r.Budget = governor.UnitBudget{RawRows: 1, VMOps: 10000000, Pages: uint32(2*((1<<29)/4120) + 1)}
+		r.Budget = governor.UnitBudget{RawRows: 1, VMOps: 10000000, Pages: uint32(2*(m.shape.hardBytes/4120) + 1)}
 		r.Deadline = time.Now().Add(6 * time.Second)
 	}
 	return r

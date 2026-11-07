@@ -13,14 +13,15 @@ import (
 )
 
 type publisherGovernedFixture struct {
-	w        *Writer
-	e        *executor
-	a        *governor.Authority
-	cap      *PublisherDisclosure
-	q        PublisherReceiptRequest
-	fragment *searchFragmentStageCommand
-	head     *searchHeadPublishCommand
-	golden   plan.Golden
+	maintenance *canonicalN1MaintenanceOwner
+	w           *Writer
+	e           *executor
+	a           *governor.Authority
+	cap         *PublisherDisclosure
+	q           PublisherReceiptRequest
+	fragment    *searchFragmentStageCommand
+	head        *searchHeadPublishCommand
+	golden      plan.Golden
 }
 
 // Compiled candidate envelope for qualification, NOT measured passing bounds.
@@ -62,16 +63,12 @@ func newPublisherGovernedFixture(t *testing.T, purpose CommandID, realClock bool
 
 // Uses the existing canonical executor and ONE W runtime. Population setup may
 // occur before this binding/Capture; no test callback enters an accepting turn.
-func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, fragment *searchFragmentStageCommand, head *searchHeadPublishCommand, realClock bool) *publisherGovernedFixture {
+func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, fragment *searchFragmentStageCommand, head *searchHeadPublishCommand, realClock bool, maintenance ...governedFixtureMaintenance) *publisherGovernedFixture {
 	t.Helper()
 	if realClock {
 		e.now = time.Now
 	}
-	var seq int64
-	var name, path string
-	if err := e.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&seq, &name, &path); err != nil {
-		t.Fatal(err)
-	}
+	path := publisherFixturePath(t, e)
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
 	for _, p := range []CommandID{SearchFragmentStage, SearchHeadPublish} {
@@ -102,7 +99,18 @@ func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, 
 	base := effectiveFixturePlan()
 	base.registration = golden.Receipt()
 	fp, hp := publisherQualificationPlan(SearchFragmentStage, golden.Receipt()), publisherQualificationPlan(SearchHeadPublish, golden.Receipt())
-	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 30, ReserveBytes: 64 << 20, SoftDebtBytes: 1 << 29, ActivePressureBytes: 3 << 28, MaxSampleAge: time.Second})
+	policy := publisherFixtureWALPolicy()
+	if len(maintenance) > 1 {
+		t.Fatal("one compiled publisher maintenance composition")
+	}
+	if len(maintenance) == 1 {
+		actual := maintenance[0].policy
+		if actual.HardBytes != policy.HardBytes || actual.ReserveBytes != policy.ReserveBytes || actual.SoftDebtBytes != policy.SoftDebtBytes || actual.ActivePressureBytes != policy.ActivePressureBytes || actual.MaxSampleAge != policy.MaxSampleAge {
+			t.Fatal("publisher maintenance changed command WAL caps")
+		}
+		policy = actual
+	}
+	wal, err := governor.NewWALGate(policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +118,12 @@ func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, 
 	for i := range partitions {
 		partitions[i] = base.need
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: e.now, WAL: wal})
+	maxGrants := 2
+	if len(maintenance) == 1 {
+		partitions[governor.Recovery] = maintenance[0].need
+		maxGrants = 4
+	}
+	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: maxGrants, Now: e.now, WAL: wal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +145,7 @@ func bindPublisherGovernedFixture(t *testing.T, e *executor, purpose CommandID, 
 		q = PublisherReceiptRequest{s.job.id, s.source.libraryID, s.source.entityID, ReceiptReference{head.identity, head.digest}}
 	}
 	cap := publisherFixtureCapability(t, w, q)
-	return &publisherGovernedFixture{w, e, a, cap, q, fragment, head, golden}
+	return &publisherGovernedFixture{w: w, e: e, a: a, cap: cap, q: q, fragment: fragment, head: head, golden: golden}
 }
 
 func publisherFixtureCapability(t *testing.T, w *Writer, q PublisherReceiptRequest) *PublisherDisclosure {
@@ -223,4 +236,25 @@ func TestSearchPublisherClosedPurposeAndCompleteInventory(t *testing.T) {
 	if !errors.Is(err, ErrInvalid) || out != (searchPublisherCommandResult{}) || f.a.Usage() != ([4]governor.Amounts{}) {
 		t.Fatal("purpose substitution", out, err)
 	}
+}
+
+func publisherFixtureWALPolicy() governor.WALPolicy {
+	return governor.WALPolicy{HardBytes: 1 << 30, ReserveBytes: 64 << 20, SoftDebtBytes: 1 << 29, ActivePressureBytes: 3 << 28, MaxSampleAge: time.Second}
+}
+func (f *publisherGovernedFixture) joinedUsage() bool {
+	usage := f.a.Usage()
+	if f.maintenance != nil {
+		usage[governor.Recovery] = governor.Amounts{}
+	} // ONLY this owned keeper, joined separately
+	return usage == ([4]governor.Amounts{})
+}
+
+func publisherFixturePath(t *testing.T, e *executor) string {
+	t.Helper()
+	var seq int64
+	var name, path string
+	if err := e.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&seq, &name, &path); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
