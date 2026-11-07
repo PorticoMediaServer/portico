@@ -23,6 +23,7 @@ import (
 // SchemaEvidence is the single regenerated schema baseline. It contains no
 // command SQL, cohorts or statement VM. Those remain in each owner's golden.
 type SchemaEvidence struct {
+	Engine            Rows                           `json:"engine"`
 	Version           int                            `json:"version"`
 	SchemaSQLSHA256   string                         `json:"schemaSQLSha256"`
 	IndexPolicySHA256 string                         `json:"indexPolicySha256"`
@@ -76,7 +77,7 @@ func embeddedPolicySHA() string {
 	return ""
 }
 func checkEvidenceIdentity(e SchemaEvidence) error {
-	if e.Version != 1 || e.SchemaSQLSHA256 != schema.SHA256 || e.IndexPolicySHA256 != embeddedPolicySHA() || len(e.Tables) == 0 || len(e.ForeignKeys) == 0 {
+	if e.Version != 1 || e.SchemaSQLSHA256 != schema.SHA256 || e.IndexPolicySHA256 != embeddedPolicySHA() || len(e.Tables) == 0 || len(e.ForeignKeys) == 0 || len(e.Engine.Values) != 1 {
 		return fmt.Errorf("plan: shared schema evidence is stale; regenerate it once with the schema embed")
 	}
 	return nil
@@ -87,6 +88,11 @@ func checkEvidenceIdentity(e SchemaEvidence) error {
 // pass again with recording disabled; no per-command environment regeneration.
 func CaptureSchemaEvidence(ctx context.Context, c *sql.Conn, policy sqliteconn.Config) (SchemaEvidence, error) {
 	e := SchemaEvidence{Version: 1, SchemaSQLSHA256: schema.SHA256, IndexPolicySHA256: embeddedPolicySHA(), Tables: map[string]schemaTableEvidence{}}
+	var err error
+	e.Engine, err = query(ctx, c, "SELECT sqlite_version(),sqlite_source_id()")
+	if err != nil {
+		return e, err
+	}
 	catalog, err := query(ctx, c, "SELECT type,name,tbl_name,rootpage,sql FROM main.sqlite_schema ORDER BY type,name")
 	if err != nil {
 		return e, err
