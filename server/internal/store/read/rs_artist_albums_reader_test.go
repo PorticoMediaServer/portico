@@ -242,114 +242,116 @@ func TestRSArtistAlbumReaderAbsoluteExpiry(t *testing.T) {
 // of the production enumeration statements. Each control changes current facts
 // before Begin; no cached acceptance or own-age surrogate admits an album.
 func TestRSArtistAlbumReaderCurrentPages(t *testing.T) {
-	synctest.Test(t, rsArtistAlbumCurrentPages)
+	rsArtistAlbumCurrentPages(t)
 }
 
 func rsArtistAlbumCurrentPages(t *testing.T) {
 	for _, mode := range []string{"union", "retired-album", "retired-feature", "primary-context", "hidden-album", "hidden-feature", "wrong-library-album", "wrong-library-feature"} {
 		t.Run(mode, func(t *testing.T) {
-			f, r := artistAlbumFixture(t)
-			// Keep a small direct-only plus duplicate plus featured-only population.
-			f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE kind=6 AND id NOT IN(1999,2001,9001)`)
-			if mode == "hidden-album" || mode == "hidden-feature" {
-				f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
-				f.exec(t, `UPDATE catalog_entities SET admission_own_age=0`)
-				id := int64(1999)
-				if mode == "hidden-feature" {
-					id = 9902
+			synctest.Test(t, func(t *testing.T) {
+				f, r := artistAlbumFixture(t)
+				// Keep a small direct-only plus duplicate plus featured-only population.
+				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE kind=6 AND id NOT IN(1999,2001,9001)`)
+				if mode == "hidden-album" || mode == "hidden-feature" {
+					f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
+					f.exec(t, `UPDATE catalog_entities SET admission_own_age=0`)
+					id := int64(1999)
+					if mode == "hidden-feature" {
+						id = 9902
+					}
+					f.exec(t, `UPDATE catalog_entities SET admission_own_age=30,admission_member_count=1,admission_unrated_members=0,admission_min_known_age=30 WHERE id=?`, id)
 				}
-				f.exec(t, `UPDATE catalog_entities SET admission_own_age=30,admission_member_count=1,admission_unrated_members=0,admission_min_known_age=30 WHERE id=?`, id)
-			}
-			if mode == "wrong-library-album" || mode == "wrong-library-feature" {
-				id := int64(1999)
-				if mode == "wrong-library-feature" {
-					id = 9902
+				if mode == "wrong-library-album" || mode == "wrong-library-feature" {
+					id := int64(1999)
+					if mode == "wrong-library-feature" {
+						id = 9902
+					}
+					f.exec(t, `BEGIN`)
+					f.exec(t, `PRAGMA defer_foreign_keys=ON`)
+					f.exec(t, `UPDATE catalog_subjects SET library_id=2 WHERE id=?`, id)
+					f.exec(t, `UPDATE catalog_entities SET library_id=2 WHERE id=?`, id)
+					f.exec(t, `COMMIT`)
 				}
-				f.exec(t, `BEGIN`)
-				f.exec(t, `PRAGMA defer_foreign_keys=ON`)
-				f.exec(t, `UPDATE catalog_subjects SET library_id=2 WHERE id=?`, id)
-				f.exec(t, `UPDATE catalog_entities SET library_id=2 WHERE id=?`, id)
-				f.exec(t, `COMMIT`)
-			}
-			switch mode {
-			case "retired-album":
-				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=1999`)
-			case "retired-feature":
-				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=9902`)
-			case "primary-context":
-				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=1998`)
-			}
-			rows, e := f.conn.QueryContext(t.Context(), `SELECT a.id FROM catalog_entities a JOIN catalog_entities ar ON ar.id=a.artist_id AND ar.kind=5 AND ar.retired=0 WHERE a.kind=6 AND a.retired=0 AND a.library_id=1 AND (a.artist_id=2006 OR EXISTS(SELECT 1 FROM catalog_entities s JOIN catalog_song_artists sa ON sa.song_id=s.id WHERE s.album_id=a.id AND s.kind=7 AND s.retired=0 AND s.library_id=1 AND sa.artist_id=2006)) ORDER BY a.id`)
-			if e != nil {
-				t.Fatal(e)
-			}
-			var want []int64
-			for rows.Next() {
-				var id int64
-				if e = rows.Scan(&id); e != nil {
+				switch mode {
+				case "retired-album":
+					f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=1999`)
+				case "retired-feature":
+					f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=9902`)
+				case "primary-context":
+					f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=1998`)
+				}
+				rows, e := f.conn.QueryContext(t.Context(), `SELECT a.id FROM catalog_entities a JOIN catalog_entities ar ON ar.id=a.artist_id AND ar.kind=5 AND ar.retired=0 WHERE a.kind=6 AND a.retired=0 AND a.library_id=1 AND (a.artist_id=2006 OR EXISTS(SELECT 1 FROM catalog_entities s JOIN catalog_song_artists sa ON sa.song_id=s.id WHERE s.album_id=a.id AND s.kind=7 AND s.retired=0 AND s.library_id=1 AND sa.artist_id=2006)) ORDER BY a.id`)
+				if e != nil {
 					t.Fatal(e)
 				}
-				if id != 1999 || mode != "hidden-album" && mode != "hidden-feature" {
-					want = append(want, id)
-				}
-			}
-			e = rows.Err()
-			rows.Close()
-			if e != nil {
-				t.Fatal(e)
-			}
-			var got []int64
-			var after *RSArtistAlbumCursor
-			for pageNo := 0; pageNo < 10; pageNo++ {
-				v := f.input
-				v.Kind = 5
-				p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 1, After: after})
-				if e != nil || ref != nil {
-					t.Fatal(e, ref)
-				}
-				var page RSArtistAlbumPage
-				for poll := 0; poll < 100; poll++ {
-					q, req, out := liveRequests("artist-current-pages")
-					_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, out, func(ctx context.Context, o BrowseOutput) error {
-						var err error
-						page, _, err = r.Page(ctx, req, time.Second, o, p)
-						return err
-					})
-					if e != nil {
-						p.Close()
+				var want []int64
+				for rows.Next() {
+					var id int64
+					if e = rows.Scan(&id); e != nil {
 						t.Fatal(e)
 					}
-					if page.Complete {
+					if id != 1999 || mode != "hidden-album" && mode != "hidden-feature" {
+						want = append(want, id)
+					}
+				}
+				e = rows.Err()
+				rows.Close()
+				if e != nil {
+					t.Fatal(e)
+				}
+				var got []int64
+				var after *RSArtistAlbumCursor
+				for pageNo := 0; pageNo < 10; pageNo++ {
+					v := f.input
+					v.Kind = 5
+					p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 1, After: after})
+					if e != nil || ref != nil {
+						t.Fatal(e, ref)
+					}
+					var page RSArtistAlbumPage
+					for poll := 0; poll < 100; poll++ {
+						q, req, out := liveRequests("artist-current-pages")
+						_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, out, func(ctx context.Context, o BrowseOutput) error {
+							var err error
+							page, _, err = r.Page(ctx, req, time.Second, o, p)
+							return err
+						})
+						if e != nil {
+							p.Close()
+							t.Fatal(e)
+						}
+						if page.Complete {
+							break
+						}
+						if !page.Pending || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
+							t.Fatal("pending leaked", page)
+						}
+					}
+					p.Close()
+					if !page.Complete || page.Total != len(want) {
+						t.Fatal("complete total", page, len(want))
+					}
+					for _, c := range page.Cards {
+						got = append(got, c.Facts.Item.ID)
+						if (c.PrimaryArtist.ID != 2006) != (c.Role == RSArtistAlbumAppearance) {
+							t.Fatal("artist relative role", c.Role, c.PrimaryArtist.ID)
+						}
+						if c.PrimaryArtist.ID != c.Facts.Album.Artist {
+							t.Fatal("primary context", c)
+						}
+						if c.Facts.Item.ID == 1999 && c.PrimaryArtist.Title != "é\x00album" {
+							t.Fatal("actual bytes", c.PrimaryArtist)
+						}
+					}
+					after = page.Next
+					if after == nil {
 						break
 					}
-					if !page.Pending || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
-						t.Fatal("pending leaked", page)
-					}
 				}
-				p.Close()
-				if !page.Complete || page.Total != len(want) {
-					t.Fatal("complete total", page, len(want))
+				if !slices.Equal(got, want) {
+					t.Fatal("exact membership/order", got, want)
 				}
-				for _, c := range page.Cards {
-					got = append(got, c.Facts.Item.ID)
-					if (c.PrimaryArtist.ID != 2006) != (c.Role == RSArtistAlbumAppearance) {
-						t.Fatal("artist relative role", c.Role, c.PrimaryArtist.ID)
-					}
-					if c.PrimaryArtist.ID != c.Facts.Album.Artist {
-						t.Fatal("primary context", c)
-					}
-					if c.Facts.Item.ID == 1999 && c.PrimaryArtist.Title != "é\x00album" {
-						t.Fatal("actual bytes", c.PrimaryArtist)
-					}
-				}
-				after = page.Next
-				if after == nil {
-					break
-				}
-			}
-			if !slices.Equal(got, want) {
-				t.Fatal("exact membership/order", got, want)
-			}
+			})
 		})
 	}
 }
