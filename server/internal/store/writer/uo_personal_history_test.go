@@ -1,7 +1,6 @@
 package writer
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -65,52 +64,52 @@ func TestUOPersonalHistoryPrivacyCutoffRetainsAuditAndSavedFlags(t *testing.T) {
 func TestUOPersonalHistoryMPBoundaryNoDuplicateTimeCredit(t *testing.T) {
 	w, q := uoPersonalFixture(t)
 	id := uoPersonalHistoryEvent(t, w, q, "started", 1)
-	b := uoPersonalBoundaryInput{policy: q.policy, subjectID: q.subjectID, libraryID: q.libraryID, eventID: id, occurrence: 1, acceptedSequence: 1, activityGeneration: 1, publicID: q.publicID, library: q.library, playback: "playing-one", timestampGrantBytes: 64}
+	// COMPONENT ONLY: stand in for WC's already accepted personal prefix. Its
+	// own native controls own occurrence/time acceptance. UO must not recount it.
+	wc008NativeExec(t, w, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,revision,started_count,play_count,played_ms,watchlisted,resume_position,resume_playback_id,last_started_at) VALUES('profile-one',?,2111,7,7,9,4,456,1,1234,'playing-one',?)`, q.publicID[:], q.at)
+	b := uoPersonalBoundaryInput{policy: q.policy, subjectID: q.subjectID, libraryID: q.libraryID, eventID: id, occurrence: 1, acceptedSequence: 1, activityGeneration: 1, expectedRevision: 7, publicID: q.publicID, library: q.library, playback: "playing-one"}
 	turn := uoPersonalTurn(t, w)
 	e, err := applyUOPersonalBoundary(t.Context(), turn, b)
-	if err != nil {
+	if err != nil || e.revision != 7 {
 		t.Fatal(e, err)
 	}
 	uoFlagsCommit(t, turn)
-	if e.revision != 2 {
-		t.Fatal(e)
+	var starts, plays, played, history, position, saved int64
+	check := func(wantPlays, wantHistory int64) {
+		t.Helper()
+		if err = w.db.QueryRowContext(t.Context(), `SELECT started_count,play_count,played_ms,(SELECT count(*) FROM play_history),resume_position,watchlisted FROM personal_items WHERE item_id=2111`).Scan(&starts, &plays, &played, &history, &position, &saved); err != nil || starts != 9 || plays != wantPlays || played != 456 || history != wantHistory || position != 1234 || saved != 1 {
+			t.Fatal("UO duplicated/rewrote source facts", starts, plays, played, history, position, saved, err)
+		}
 	}
-	var starts, plays, played, history int64
-	if err = w.db.QueryRowContext(t.Context(), `SELECT started_count,play_count,played_ms,(SELECT count(*) FROM play_history) FROM personal_items WHERE item_id=2111`).Scan(&starts, &plays, &played, &history); err != nil || starts != 1 || plays != 0 || played != 0 || history != 1 {
-		t.Fatal(starts, plays, played, history, err)
-	}
+	check(4, 1)
 	id = uoPersonalHistoryEvent(t, w, q, "completed", 2)
+	wc008NativeExec(t, w, `UPDATE personal_items SET revision=8,play_count=5,watched=1,last_completed_at=? WHERE item_id=2111`, q.at)
 	b.eventID = id
 	b.acceptedSequence = 2
-	b.expectedRevision = 2
+	b.expectedRevision = 8
 	b.completed = true
 	turn = uoPersonalTurn(t, w)
 	e, err = applyUOPersonalBoundary(t.Context(), turn, b)
-	if err != nil {
+	if err != nil || e.revision != 9 {
 		t.Fatal(e, err)
 	}
 	uoFlagsCommit(t, turn)
-	if err = w.db.QueryRowContext(t.Context(), `SELECT started_count,play_count,played_ms,(SELECT count(*) FROM play_history) FROM personal_items WHERE item_id=2111`).Scan(&starts, &plays, &played, &history); err != nil || starts != 1 || plays != 1 || played != 0 || history != 2 {
-		t.Fatal("boundary duplicated source/history/time", starts, plays, played, history, err)
-	}
-	// MP boundary exact replay is parent-owned; stale personal CAS rejects a body retry.
+	check(5, 2)
 	turn = uoPersonalTurn(t, w)
 	e, err = applyUOPersonalBoundary(t.Context(), turn, b)
 	if err == nil || e != (uoPersonalBoundaryEffect{}) {
-		t.Fatal(e, err)
+		t.Fatal("stale source row replay", e, err)
 	}
 	uoPersonalRollback(t, turn)
 }
-
-func TestUOPersonalHistoryBoundaryActualOctets(t *testing.T) {
+func TestUOPersonalHistoryBoundaryNeedsAcceptedPersonalPrefix(t *testing.T) {
 	w, q := uoPersonalFixture(t)
-	q.at = strings.Repeat("音", 30) // corruption-only event clock fixture
 	id := uoPersonalHistoryEvent(t, w, q, "started", 1)
-	b := uoPersonalBoundaryInput{policy: q.policy, subjectID: q.subjectID, libraryID: q.libraryID, eventID: id, occurrence: 1, acceptedSequence: 1, activityGeneration: 1, publicID: q.publicID, library: q.library, playback: "playing-one", timestampGrantBytes: 64}
+	b := uoPersonalBoundaryInput{policy: q.policy, subjectID: q.subjectID, libraryID: q.libraryID, eventID: id, occurrence: 1, acceptedSequence: 1, activityGeneration: 1, expectedRevision: 1, publicID: q.publicID, library: q.library, playback: "playing-one"}
 	turn := uoPersonalTurn(t, w)
 	out, err := applyUOPersonalBoundary(t.Context(), turn, b)
 	if err == nil || out != (uoPersonalBoundaryEffect{}) {
-		t.Fatal("oversize native timestamp copied", out, err)
+		t.Fatal("history row minted occurrence credit", out, err)
 	}
 	uoPersonalRollback(t, turn)
 	var rows int64

@@ -54,7 +54,7 @@ func readUOPersonalHistory(q browseQuery, account, profileID, member, birth stri
 		return out, ErrStale
 	}
 	var rows [][]any
-	prefix := []any{profileID, member, birth, head.cutoff, account}
+	prefix := []any{profileID, member, birth, account}
 	if after == nil {
 		rows, err = q("uo.personal.history.first", append(prefix, int64(MaxRaw))...)
 	} else {
@@ -78,7 +78,7 @@ func readUOPersonalHistory(q browseQuery, account, profileID, member, birth stri
 		}
 		id := r[0].(int64)
 		out.next = &uoPersonalHistoryCursor{id: id, head: head, binding: [4]string{account, profileID, member, birth}}
-		if r[6] == nil || r[1] == nil {
+		if id < head.cutoff || r[6] == nil || r[1] == nil {
 			continue
 		}
 		out.rows = append(out.rows, uoPersonalHistoryRow{id: id, subject: r[1].(int64), position: r[2].(int64), playedMS: r[3].(int64), generation: r[4].(int64)})
@@ -114,8 +114,8 @@ func UOPersonalHistoryDefinitions() []stmt.Definition {
 	out := []stmt.Definition{add("head", `SELECT revision,activity_generation,recommendation_generation,history_visible_from_id,action_sequence FROM personal_activity_revisions INDEXED BY sqlite_autoindex_personal_activity_revisions_1 WHERE profile_id=? AND policy_authority=? AND policy_account_id=? AND policy_profile_id=? AND policy_member_incarnation=? AND policy_profile_lifetime=? AND history_policy_generation=?`, []stmt.Param{s("profile"), s("authority"), s("account"), s("profile_id"), s("member"), s("birth"), i("policy")}, []any{"profile-one", "local", "account-one", "profile-one", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", int64(1)}, stmt.Plan{Hot: true})}
 	for _, name := range []string{"first", "same", "older"} {
 		where := ""
-		params := []stmt.Param{s("profile"), s("member"), s("birth"), i("cutoff"), s("account")}
-		args := []any{"profile-one", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", int64(0), "account-one"}
+		params := []stmt.Param{s("profile"), s("member"), s("birth"), s("account")}
+		args := []any{"profile-one", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "account-one"}
 		if name == "same" {
 			where = " AND h.occurred_at=? AND h.id<?"
 			params = append(params, s("time"), i("id"))
@@ -128,7 +128,7 @@ func UOPersonalHistoryDefinitions() []stmt.Definition {
 		}
 		params = append(params, i("limit"))
 		args = append(args, int64(64))
-		sql := `SELECT h.id,h.subject_id,h.position,h.played_ms,h.activity_generation,h.accepted_sequence,v.id FROM play_history AS h INDEXED BY play_history_admin_user LEFT JOIN play_history AS v ON v.id=h.id AND v.profile_id=? AND v.membership_incarnation=? AND v.profile_lifetime=? AND v.id>=? WHERE h.account_key=?` + where + ` ORDER BY h.occurred_at DESC,h.id DESC LIMIT ?`
+		sql := `SELECT h.id,h.subject_id,h.position,h.played_ms,h.activity_generation,h.accepted_sequence,v.id FROM play_history AS h INDEXED BY play_history_admin_user LEFT JOIN play_history AS v ON v.id=h.id AND v.profile_id=? AND v.membership_incarnation=? AND v.profile_lifetime=? WHERE h.account_key=?` + where + ` ORDER BY h.occurred_at DESC,h.id DESC LIMIT ?`
 		out = append(out, add(name, sql, params, args, stmt.Plan{Hot: true, Indexes: []string{"play_history_admin_user"}, PrimaryKeys: []string{"v"}}))
 	}
 	pin := stmt.AutoIndexBinding{Table: "personal_activity_revisions", Name: "sqlite_autoindex_personal_activity_revisions_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "profile_id", Collation: "BINARY"}}}
