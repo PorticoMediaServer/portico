@@ -475,6 +475,10 @@ func TestSearchPublisherMeasurementSmoke(t *testing.T) {
 	for _, purpose := range []CommandID{SearchFragmentStage, SearchHeadPublish} {
 		t.Run(fmt.Sprint(purpose), func(t *testing.T) {
 			p := preparePublisherPopulation(t, purpose, 2, 1)
+			var matched int
+			if err := p.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM search_fragment_lexical WHERE search_fragment_lexical MATCH '東京' AND rowid=?`, publisherPopulationID(2)+6).Scan(&matched); err != nil || matched != 1 {
+				t.Fatal("background native FTS posting missing", matched, err)
+			}
 			fragment, head, err := p.packet(0, purpose, 0)
 			if err != nil {
 				t.Fatal(err)
