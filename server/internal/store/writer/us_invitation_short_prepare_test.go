@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 )
@@ -172,6 +173,20 @@ func TestUSInvitationShortAADReconstruction(t *testing.T) {
 		if !strings.Contains(fmt.Sprintf(f, m), "redacted") {
 			t.Fatal("AAD formatting")
 		}
+	}
+}
+
+func TestUSInvitationShortReadOnlyRevisionRange(t *testing.T) {
+	r := shortFixture()
+	// This purpose does not increment the invitation revision. Source accepts
+	// the full native positive integer range; do not borrow an editing cap.
+	r.expectedRevision, r.invitationRevision = math.MaxInt64, math.MaxInt64
+	if _, err := prepareUSInvitationShort(r, make([]byte, 10), make([]byte, 32), make([]byte, 32), make([]byte, 12), "key"); err != nil {
+		t.Fatal("native revision was capped", err)
+	}
+	r.expectedRevision, r.invitationRevision = 0, 0
+	if _, err := prepareUSInvitationShort(r, make([]byte, 10), make([]byte, 32), make([]byte, 32), make([]byte, 12), "key"); err == nil {
+		t.Fatal("zero revision accepted")
 	}
 }
 
