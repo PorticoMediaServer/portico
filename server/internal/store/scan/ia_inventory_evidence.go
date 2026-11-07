@@ -18,6 +18,7 @@ type MediaEvidence struct {
 	file    FileObservation
 	kind    string
 	reading naming.Reading
+	book    naming.AudiobookFolder
 	bytes   int64
 }
 
@@ -29,6 +30,14 @@ func (e MediaEvidence) Bytes() int64          { return e.bytes }
 // Callers must reserve working memory for this copy as well as the retained
 // evidence. Strings are immutable; no mutable backing slice escapes.
 func (e MediaEvidence) Naming() naming.Reading { return iaCloneReading(e.reading) }
+
+// AudiobookFolder preserves structured provisional folder evidence separately
+// from generic track/album naming. File tags and sidecars can supersede every
+// field. The bool is false for non-audiobooks and paths without a book folder;
+// an empty field is never evidence to clear accepted metadata.
+func (e MediaEvidence) AudiobookFolder() (naming.AudiobookFolder, bool) {
+	return iaCloneAudiobookFolder(e.book), e.book.Title != ""
+}
 
 // PrepareMediaEvidence preserves the existing naming algorithm for non-movie
 // domains. Movie/N1 preparation remains SC's ProjectOrdinaryFilename. Input
@@ -77,6 +86,20 @@ func PrepareMediaEvidence(kind string, file FileObservation, byteBudget int64) (
 	if !iaChargeReading(reading, charge) {
 		return MediaEvidence{}, ErrCapacity
 	}
+	var book naming.AudiobookFolder
+	if kind == "audiobook" {
+		book = naming.ReadAudiobookFolder(w.RelativePath)
+		for _, value := range []string{book.Title, book.Author, book.Series, book.Sequence, book.Year, book.ASIN} {
+			if !charge(value) {
+				return MediaEvidence{}, ErrCapacity
+			}
+		}
+		for _, narrator := range book.Narrators {
+			if !charge(narrator) {
+				return MediaEvidence{}, ErrCapacity
+			}
+		}
+	}
 	w.Source.SourceID = strings.Clone(w.Source.SourceID)
 	w.Source.Incarnation = strings.Clone(w.Source.Incarnation)
 	w.Source.Revision = strings.Clone(w.Source.Revision)
@@ -85,8 +108,22 @@ func PrepareMediaEvidence(kind string, file FileObservation, byteBudget int64) (
 	w.Revision = strings.Clone(w.Revision)
 	return MediaEvidence{
 		file: FileObservation{Witness: w, SourceKey: strings.Clone(file.SourceKey)},
-		kind: strings.Clone(kind), reading: iaCloneReading(reading), bytes: byteBudget - remaining,
+		kind: strings.Clone(kind), reading: iaCloneReading(reading), book: iaCloneAudiobookFolder(book), bytes: byteBudget - remaining,
 	}, nil
+}
+
+func iaCloneAudiobookFolder(book naming.AudiobookFolder) naming.AudiobookFolder {
+	book.Title = strings.Clone(book.Title)
+	book.Author = strings.Clone(book.Author)
+	book.Series = strings.Clone(book.Series)
+	book.Sequence = strings.Clone(book.Sequence)
+	book.Year = strings.Clone(book.Year)
+	book.ASIN = strings.Clone(book.ASIN)
+	book.Narrators = slices.Clone(book.Narrators)
+	for i := range book.Narrators {
+		book.Narrators[i] = strings.Clone(book.Narrators[i])
+	}
+	return book
 }
 
 func iaMediaKind(kind string) bool {
