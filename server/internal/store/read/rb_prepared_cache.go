@@ -170,13 +170,7 @@ func (p *rbPreparedEntry) capture(f browseFence) error {
 		// Charge ACTUAL retained strings (including future policy witnesses),
 		// never columns times maximum field lengths. The separate read-window
 		// reservation owns source copies while these cache copies are made.
-		var stringsBytes int64
-		value := reflect.ValueOf(f)
-		for i := 0; i < value.NumField(); i++ {
-			if field := value.Field(i); field.Kind() == reflect.String {
-				stringsBytes += int64(field.Len())
-			}
-		}
+		stringsBytes := rbPreparedFenceBytes(f)
 		payload := p.lease.PayloadBytes() - 2*stringsBytes
 		payload = payload / 4096 * 4096
 		if payload <= 0 {
@@ -184,7 +178,7 @@ func (p *rbPreparedEntry) capture(f browseFence) error {
 			return errRBPreparationCapacity
 		}
 		// Current common-fence strings get independent exact-length backing.
-		for _, field := range []*string{&f.database, &f.token, &f.account, &f.profile, &f.membership, &f.lifetime, &f.library, &f.role, &f.memberLibraries, &f.profileLibraries, &f.profileLabels, &f.expiresAt, &f.horizon, &f.root, &f.bridgeRoot} {
+		for _, field := range []*string{&f.database, &f.token, &f.account, &f.profile, &f.membership, &f.lifetime, &f.library, &f.role, &f.memberLibraries, &f.profileLibraries, &f.profileLabels, &f.expiresAt, &f.horizon, &f.root, &f.bridgeRoot, &f.policyWitness} {
 			*field = strings.Clone(*field)
 		}
 		// Fixed vectors avoid old+new growth copies and uncharged hash maps.
@@ -359,4 +353,15 @@ func (p *rbPreparedEntry) closeLocked() error {
 		}
 	}
 	return nil
+}
+
+func rbPreparedFenceBytes(f browseFence) int64 {
+	var size int64
+	value := reflect.ValueOf(f)
+	for i := 0; i < value.NumField(); i++ {
+		if field := value.Field(i); field.Kind() == reflect.String {
+			size += int64(field.Len())
+		}
+	}
+	return size
 }
