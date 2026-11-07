@@ -35,7 +35,7 @@ func seedNativeSearch(t *testing.T, f *browseFixture) {
 	f.exec(t, `UPDATE catalog_entities SET kind=CASE id WHEN 1 THEN 2 ELSE 4 END,title=CASE id WHEN 2 THEN 'Arrival' ELSE 'Matrix' END,retired=0,show_id=CASE id WHEN 1 THEN NULL ELSE 1 END,numbering=CASE id WHEN 1 THEN NULL ELSE 'seasonal' END,episode_number=CASE id WHEN 1 THEN NULL ELSE id END WHERE id IN(1,2,3)`)
 	f.exec(t, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1',?,?,?,'active',0)`, profile.RecipeVersion, profile.EngineVersion, profile.UnicodeFingerprint)
 	f.exec(t, `INSERT INTO search_revision(singleton,revision,active_generation_id,input_sequence) VALUES(1,1,1,0)`)
-	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name,search_incarnation) VALUES(1,'person','person','Keanu','keanu',x'11111111111111111111111111111111')`)
+	f.exec(t, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name,artwork_incarnation,search_incarnation) VALUES(1,'person','person','Keanu','keanu',zeroblob(16),x'11111111111111111111111111111111')`)
 	f.exec(t, `INSERT INTO catalog_credit_labels(id,label) VALUES(1,'Actor'),(2,'Acting')`)
 	f.exec(t, `INSERT INTO catalog_credit_images(id,entity_id,entity_incarnation,source_revision,identity_revision,metadata_revision,owner_revision,policy_incarnation,policy_revision,consent_revision,metadata_language,source_manifest_digest,build_request_digest,manifest_algorithm,build_expected_count,build_expected_bytes,build_expected_digest,build_seed,build_chain,current_input_digest,command_incarnation,sealed,manifest_digest) SELECT 1,id,metadata_incarnation,1,1,1,1,zeroblob(16),0,0,'en',zeroblob(32),zeroblob(32),'test',0,0,zeroblob(32),zeroblob(32),zeroblob(32),zeroblob(32),zeroblob(16),1,zeroblob(32) FROM catalog_entities WHERE id=2`)
 	f.exec(t, `UPDATE catalog_entities SET credit_image_id=1 WHERE id=2`)
@@ -245,7 +245,7 @@ func TestNativeSearchCurrentAllKindsAndMixedOwners(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s step%d: %v cost%+v", v.query, n, err, cost)
 			}
-			if cost == nil || len(cost.LookupWindows) != 1 || len(cost.PublicationWindows) != 1 || cost.PublicationStatements != 7 {
+			if cost == nil || len(cost.LookupWindows) != 1 || len(cost.PublicationWindows) != 1 || cost.PublicationStatements < 7 || len(page.Hits) > 0 && cost.PublicationStatements <= 7 {
 				t.Fatal("whole operation evidence", cost)
 			}
 			if page.Disposition == SearchPending {
@@ -490,7 +490,7 @@ func TestNativeSearchReadJoinedStamp(t *testing.T) {
 		var page FullSearchPage
 		_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
 			var e error
-			page, _, e = r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input, After: after}, query)
+			page, _, e = r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input, After: after, Retained: []*FullSearchReadStamp{prior.Stamp}}, query)
 			if e != nil {
 				return e
 			}

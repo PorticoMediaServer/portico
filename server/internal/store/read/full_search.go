@@ -19,6 +19,10 @@ type FullSearchHit struct {
 	Tier, PeopleSubtier uint8
 	Item                BrowseItem
 	PersonName          string
+	// Canonical source values for grouping; AddedAt empty means SQL NULL.
+	SortKey, AddedAt string
+	Year             int64
+	permission       nativePolicyWitness
 }
 
 // FullSearchCursor is opaque and query/bank-bound. A future wire codec must
@@ -33,6 +37,9 @@ type FullSearchCursor struct {
 type FullSearchInput struct {
 	View  BrowseInput
 	After *FullSearchCursor
+	// Opaque prior results whose policies this SAME operation must revalidate.
+	// At most40 stamps/40 distinct retained source witnesses; never wire input.
+	Retained []*FullSearchReadStamp
 }
 type FullSearchPage struct {
 	Disposition SearchDisposition
@@ -82,7 +89,7 @@ func ownFullSearchPage(p FullSearchPage, limit int) (FullSearchPage, error) {
 		return FullSearchPage{}, ErrInput
 	}
 	for i, h := range p.Hits {
-		if h.ID <= 0 || h.Library < 0 || h.Tier > 5 || h.PeopleSubtier > 2 || h.Subject != search.ManifestEntity && h.Subject != search.ManifestPerson || h.Subject == search.ManifestPerson && h.Tier != 3 || h.Subject == search.ManifestEntity && (h.Tier == 3 || h.PeopleSubtier != 0) || len(h.Item.Title) > 65536 || len(h.PersonName) > 65536 || !utf8.ValidString(h.Item.Title) || !utf8.ValidString(h.PersonName) {
+		if h.ID <= 0 || h.Library < 0 || h.Tier > 5 || h.PeopleSubtier > 2 || h.Subject != search.ManifestEntity && h.Subject != search.ManifestPerson || h.Subject == search.ManifestPerson && h.Tier != 3 || h.Subject == search.ManifestEntity && (h.Tier == 3 || h.PeopleSubtier != 0) || len(h.Item.Title) > 65536 || len(h.PersonName) > 65536 || len(h.SortKey) > 65536 || len(h.AddedAt) > 30 || h.Year < 0 || !utf8.ValidString(h.SortKey) || !utf8.ValidString(h.Item.Title) || !utf8.ValidString(h.PersonName) {
 			return FullSearchPage{}, ErrInput
 		}
 		if h.Subject == search.ManifestEntity && (h.Item.ID != h.ID || h.PersonName != "") || h.Subject == search.ManifestPerson && h.Item != (BrowseItem{}) {
@@ -96,10 +103,14 @@ func ownFullSearchPage(p FullSearchPage, limit int) (FullSearchPage, error) {
 	for i := range p.Hits {
 		p.Hits[i].Item.Title = strings.Clone(p.Hits[i].Item.Title)
 		p.Hits[i].PersonName = strings.Clone(p.Hits[i].PersonName)
+		p.Hits[i].SortKey = strings.Clone(p.Hits[i].SortKey)
+		p.Hits[i].AddedAt = strings.Clone(p.Hits[i].AddedAt)
 	}
 	p.Next = cloneFullCursor(p.Next)
 	if p.Stamp != nil {
 		stamp := *p.Stamp
+		stamp.policies = slices.Clone(stamp.policies)
+		stamp.checked = slices.Clone(stamp.checked)
 		p.Stamp = &stamp
 	}
 	return p, nil

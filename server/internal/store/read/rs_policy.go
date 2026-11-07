@@ -11,13 +11,17 @@ import (
 // Domain readers select their own registered recipe in their own source files.
 type readPolicyID uint16
 type readPolicyBinding struct {
-	recipe  readPolicyID
-	subject int64
+	recipe       readPolicyID
+	subject      int64
+	nativeSearch bool
 }
 type readPolicyRecipe struct {
 	id     readPolicyID
 	domain string
 	kinds  []int64
+	// nativeSearch explicitly opts this closed domain into per-hit search.
+	// Catalogue recipe0 remains the fallback; only one domain may own a kind.
+	nativeSearch bool
 	// validate runs AFTER all common authority, birth, library and policy checks,
 	// in BOTH initial and final snapshots. It must prove the complete eligibility
 	// obligation of its closed domain; no caller-supplied proof flag is accepted.
@@ -52,6 +56,21 @@ func registerReadPolicy(p readPolicyRecipe) {
 			panic("invalid read policy kinds")
 		}
 	}
+	if p.nativeSearch {
+		if p.id == 0 {
+			panic("catalogue fallback cannot replace a native-search domain")
+		}
+		for _, old := range readPolicies.recipes {
+			if !old.nativeSearch {
+				continue
+			}
+			for _, kind := range p.kinds {
+				if slices.Contains(old.kinds, kind) {
+					panic("duplicate native-search domain kind")
+				}
+			}
+		}
+	}
 	readPolicies.recipes[p.id] = p
 }
 func resolveReadPolicy(in BrowseInput) (readPolicyRecipe, error) {
@@ -63,8 +82,11 @@ func resolveReadPolicy(in BrowseInput) (readPolicyRecipe, error) {
 		return readPolicyRecipe{}, ErrUnqualified
 	}
 	// The legacy/default path has no subject-specific eligibility proof.
-	if p.id == 0 && in.policy.subject != 0 {
+	if p.id == 0 && in.policy.subject != 0 && !in.policy.nativeSearch {
 		return readPolicyRecipe{}, ErrInput
+	}
+	if in.policy.nativeSearch && (in.policy.subject <= 0 || p.id != 0 && !p.nativeSearch) {
+		return readPolicyRecipe{}, ErrUnqualified
 	}
 	return p, nil
 }

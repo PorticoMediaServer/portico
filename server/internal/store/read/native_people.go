@@ -25,7 +25,7 @@ func nativePersonSource(q browseQuery, scope *fullQueryScope, id int64) (*native
 		}
 		return nil, errFullSearchPending
 	}
-	if len(rows) != 1 || len(rows[0]) != 7 {
+	if len(rows) != 1 || len(rows[0]) != 8 {
 		return nil, ErrUnqualified
 	}
 	p := rows[0]
@@ -36,39 +36,44 @@ func nativePersonSource(q browseQuery, scope *fullQueryScope, id int64) (*native
 	birth, e := p[4].([]byte)
 	revision, g := p[5].(int64)
 	name, h := p[6].(string)
-	if !a || !b || !c || !d || !e || !g || !h || publication <= 0 || generation <= 0 || len(birth) != 16 || revision <= 0 || title != name {
+	sortKey, sk := p[7].(string)
+	if !a || !b || !c || !d || !e || !g || !h || !sk || len(sortKey) > 65536 || publication <= 0 || generation <= 0 || len(birth) != 16 || revision <= 0 || title != name {
 		return nil, ErrUnqualified
 	}
 	if err = nativeSealed(q, publication); err != nil {
 		return nil, err
 	}
-	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestPerson, SubjectID: id, PublicationID: publication, BankID: scope.bank, InputGeneration: generation}, title: title, fold: fold}, nil
+	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestPerson, SubjectID: id, PublicationID: publication, BankID: scope.bank, InputGeneration: generation}, title: title, fold: fold, sortKey: sortKey}, nil
 }
 
 // A People card needs one CURRENT visible credited work. A positive witness
 // can stop; a filled or exhausted work budget cannot claim a negative witness.
 func nativePersonVisible(q browseQuery, scope *fullQueryScope, in BrowseInput, f browseFence, person int64) (bool, error) {
+	_, allowed, err := nativePersonVisibility(q, scope, in, f, person)
+	return allowed, err
+}
+func nativePersonVisibility(q browseQuery, scope *fullQueryScope, in BrowseInput, f browseFence, person int64) (nativePolicyWitness, bool, error) {
 	if scope == nil {
-		return false, ErrUnqualified
+		return nativePolicyWitness{}, false, ErrUnqualified
 	}
 	var after *ownerCursor
 	for raw := 0; raw < 512; {
 		page, err := readOwnerPage(q, personWorks, person, after, 64)
 		if err != nil {
-			return false, err
+			return nativePolicyWitness{}, false, err
 		}
 		for _, p := range page.positions {
 			raw++
 			work, err := nativeEntitySource(q, scope, p.Work)
 			if err != nil {
-				return false, err
+				return nativePolicyWitness{}, false, err
 			}
 			if work == nil {
 				continue
 			}
 			allowed, _, err := nativeEligible(q, in, f, work)
 			if err != nil {
-				return false, err
+				return nativePolicyWitness{}, false, err
 			}
 			if !allowed {
 				continue
@@ -78,21 +83,23 @@ func nativePersonVisible(q browseQuery, scope *fullQueryScope, in BrowseInput, f
 			}
 			rows, err := q("full.native.credit.point", p.Work, p.Image, p.Ordinal, person)
 			if err != nil {
-				return false, err
+				return nativePolicyWitness{}, false, err
 			}
 			if len(rows) > 1 {
-				return false, ErrUnqualified
+				return nativePolicyWitness{}, false, ErrUnqualified
 			}
 			if len(rows) == 1 {
-				return true, nil
+				proof := work.permission
+				proof.person, proof.image, proof.ordinal = person, p.Image, p.Ordinal
+				return proof, true, nil
 			}
 		}
 		if page.exhausted {
-			return false, nil
+			return nativePolicyWitness{}, false, nil
 		}
 		after = page.after
 	}
-	return false, errFullSearchPending
+	return nativePolicyWitness{}, false, errFullSearchPending
 }
 
 func nativePersonCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, person int64, lead exactTermPopulation) (canonicalCandidateProof, FullSearchHit, bool, error) {
@@ -105,7 +112,7 @@ func nativePersonCandidate(ctx context.Context, q browseQuery, scope *fullQueryS
 	if err != nil || source == nil {
 		return proof, hit, false, err
 	}
-	allowed, err := nativePersonVisible(q, scope, in, f, person)
+	permission, allowed, err := nativePersonVisibility(q, scope, in, f, person)
 	if err != nil || !allowed {
 		return proof, hit, false, err
 	}
@@ -117,7 +124,7 @@ func nativePersonCandidate(ctx context.Context, q browseQuery, scope *fullQueryS
 	if err != nil || !match {
 		return proof, hit, false, err
 	}
-	hit = FullSearchHit{Subject: search.ManifestPerson, ID: person, Tier: proof.tier, PeopleSubtier: proof.subtier, PersonName: source.title}
+	hit = FullSearchHit{Subject: search.ManifestPerson, ID: person, Tier: proof.tier, PeopleSubtier: proof.subtier, PersonName: source.title, SortKey: source.sortKey, permission: permission}
 	return proof, hit, true, nil
 }
 
