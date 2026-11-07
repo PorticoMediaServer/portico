@@ -26,7 +26,7 @@ func TestBasicArtworkNativeChosenJobPreservesLock(t *testing.T) {
 	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO artwork_jobs(id,kind,entity_id,role,choice,image_id,attribution,origin,provider,source_fence,created_at,job_revision) VALUES('locked-job','entity',31,'poster','locked','owner-image','','upload:owner','upload','owner-fence','owner-time',19)`); err != nil {
 		t.Fatal(err)
 	}
-	turn := basicComponentTurn(t, w, basicArtworkTestDefs())
+	turn := basicBoundedComponentTurn(t, w, basicArtworkTestDefs())
 	got, err := queueBasicLocalArtwork(t.Context(), turn, in, 2000)
 	if err != nil || got != (basicArtworkProgress{"local-job", 1, 0}) {
 		t.Fatal(got, err)
@@ -63,7 +63,7 @@ func TestBasicArtworkNativeOwnerDriftAndExistingJobRefuse(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicComponentTurn(t, w, basicArtworkTestDefs())
+			turn := basicBoundedComponentTurn(t, w, basicArtworkTestDefs())
 			got, err := queueBasicLocalArtwork(t.Context(), turn, in, 2000)
 			if !errors.Is(err, ErrConflict) || got != (basicArtworkProgress{}) {
 				t.Fatal(got, err)

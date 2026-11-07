@@ -10,7 +10,7 @@ import (
 func basicShapeFixture(t *testing.T) (*executor, basicProbeEffects) {
 	t.Helper()
 	w, in := basicProbeFixture(t)
-	turn := basicComponentTurn(t, w, basicProbeTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
 	if _, err := applyBasicProbeScalars(t.Context(), turn, in); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestBasicShapePinsNewAndExistingDictionary(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicComponentTurn(t, w, basicShapeTestDefinitions())
+			turn := basicBoundedComponentTurn(t, w, basicShapeTestDefinitions())
 			got, err := pinBasicProbeShape(t.Context(), turn, in)
 			if err != nil || got.shapeID <= 0 || got.changeRevision != 2 || (existing && got.shapeID != 61) {
 				t.Fatal(got, err)
@@ -59,7 +59,7 @@ func TestBasicShapePinsNewAndExistingDictionary(t *testing.T) {
 }
 func TestBasicShapeLateFailureRollsBackReferenceAndDebt(t *testing.T) {
 	w, in := basicShapeFixture(t)
-	turn := basicComponentTurn(t, w, basicShapeTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicShapeTestDefinitions())
 	delete(turn.steps, basicShapeHeaderCAS)
 	got, err := pinBasicProbeShape(t.Context(), turn, in)
 	if err == nil || got != (basicShapeTarget{}) {
@@ -80,7 +80,7 @@ func TestBasicShapeRefusesChangedNativeTuple(t *testing.T) {
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_assets SET height=720 WHERE id=41`); err != nil {
 		t.Fatal(err)
 	}
-	turn := basicComponentTurn(t, w, basicShapeTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicShapeTestDefinitions())
 	got, err := pinBasicProbeShape(t.Context(), turn, in)
 	if !errors.Is(err, ErrConflict) || got != (basicShapeTarget{}) {
 		t.Fatal(got, err)

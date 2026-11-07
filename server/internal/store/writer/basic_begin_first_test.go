@@ -48,7 +48,7 @@ func TestBasicBeginNonFirstHolderRefusesBeforeDebt(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicComponentTurn(t, w, basicBeginTestDefinitions())
+			turn := basicBoundedComponentTurn(t, w, basicBeginTestDefinitions())
 			var beforeChanges, beforeDebt int64
 			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes(),used_bytes FROM catalog_info_input_budget WHERE singleton=1`).Scan(&beforeChanges, &beforeDebt); err != nil {
 				t.Fatal(err)

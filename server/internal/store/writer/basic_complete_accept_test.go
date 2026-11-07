@@ -69,7 +69,7 @@ func basicCompleteAcceptFixture(t *testing.T) (*executor, basicOrdinaryInputAcce
 }
 func TestBasicCompleteNineFamilyFreezeIsPendingOnly(t *testing.T) {
 	w, in := basicCompleteAcceptFixture(t)
-	turn := basicComponentTurn(t, w, basicCompleteTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicCompleteTestDefinitions())
 	got, err := acceptBasicOrdinaryInput(t.Context(), turn, in, 2000)
 	if err != nil || got != (basicAcceptedPending{51, 7, 17, 14, 31, 1, 61}) {
 		t.Fatal(got, err)
@@ -109,7 +109,7 @@ func TestBasicCompleteNineFamilyFreezeRefusesIncompleteManifest(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicComponentTurn(t, w, basicCompleteTestDefinitions())
+			turn := basicBoundedComponentTurn(t, w, basicCompleteTestDefinitions())
 			got, err := acceptBasicOrdinaryInput(t.Context(), turn, in, 2000)
 			if err == nil || got != (basicAcceptedPending{}) {
 				t.Fatal("incomplete manifest froze", got, err)

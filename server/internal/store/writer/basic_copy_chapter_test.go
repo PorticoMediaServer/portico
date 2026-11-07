@@ -64,7 +64,7 @@ func TestBasicCopyChapterInsertAndReplacePreserveOtherRows(t *testing.T) {
 			if name == "replace" {
 				basicCopyChapterSeedPrior(t, w, &in)
 			}
-			turn := basicComponentTurn(t, w, basicCopyChapterTestDefinitions())
+			turn := basicBoundedComponentTurn(t, w, basicCopyChapterTestDefinitions())
 			got, err := installBasicChapter(t.Context(), turn, in)
 			want := in.family.rows[in.ordinal].(basicChapter)
 			if err != nil || got != want {
@@ -108,7 +108,7 @@ func TestBasicCopyChapterRejectsDriftAndRawCap(t *testing.T) {
 				in.family.rawChapterCount = MaxRawChapters + 1
 				wantErr = ErrCap
 			}
-			turn := basicComponentTurn(t, w, basicCopyChapterTestDefinitions())
+			turn := basicBoundedComponentTurn(t, w, basicCopyChapterTestDefinitions())
 			got, err := installBasicChapter(t.Context(), turn, in)
 			if !errors.Is(err, wantErr) || got != (basicChapter{}) {
 				t.Fatal(got, err)
@@ -133,7 +133,7 @@ func TestBasicCopyChapterReturningCorruptionRollsBackNativeWrite(t *testing.T) {
 			defs[n].SQL = strings.Replace(defs[n].SQL, "RETURNING asset_id,chapter_index,title,start_seconds,end_seconds", "RETURNING asset_id,chapter_index,title,end_seconds,start_seconds", 1)
 		}
 	}
-	turn := basicComponentTurn(t, w, defs)
+	turn := basicBoundedComponentTurn(t, w, defs)
 	got, err := installBasicChapter(t.Context(), turn, in)
 	if !errors.Is(err, ErrConflict) || got != (basicChapter{}) {
 		t.Fatal(got, err)

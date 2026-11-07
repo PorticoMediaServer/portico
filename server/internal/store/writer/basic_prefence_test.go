@@ -10,7 +10,7 @@ import (
 func basicPrefenceFixture(t *testing.T) (*executor, basicPrefenceEffects) {
 	t.Helper()
 	w, in := basicCompleteAcceptFixture(t)
-	turn := basicComponentTurn(t, w, basicCompleteTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicCompleteTestDefinitions())
 	got, err := acceptBasicOrdinaryInput(t.Context(), turn, in, 2000)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +32,7 @@ func basicPrefenceTestDefinitions() []stmt.Definition {
 }
 func TestBasicPrefenceFencesAssetAndCompleteOrdinaryHolder(t *testing.T) {
 	w, in := basicPrefenceFixture(t)
-	turn := basicComponentTurn(t, w, basicPrefenceTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicPrefenceTestDefinitions())
 	got, err := prefenceBasicOrdinary(t.Context(), turn, in)
 	if err != nil || got != (basicCopyPosition{changeID: 51, changeRevision: 15, phase: 2, afterEntity: 31}) {
 		t.Fatal(got, err)
@@ -50,7 +50,7 @@ func TestBasicPrefenceFencesAssetAndCompleteOrdinaryHolder(t *testing.T) {
 }
 func TestBasicPrefenceLateCASRollsBackBothFences(t *testing.T) {
 	w, in := basicPrefenceFixture(t)
-	turn := basicComponentTurn(t, w, basicPrefenceTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicPrefenceTestDefinitions())
 	delete(turn.steps, basicPrefenceChangeCAS)
 	got, err := prefenceBasicOrdinary(t.Context(), turn, in)
 	if err == nil || got != (basicCopyPosition{}) {
@@ -72,7 +72,7 @@ func TestBasicPrefenceRejectsStaleInvalidation(t *testing.T) {
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_assets SET info_invalidation_revision=2 WHERE id=41`); err != nil {
 		t.Fatal(err)
 	}
-	turn := basicComponentTurn(t, w, basicPrefenceTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicPrefenceTestDefinitions())
 	got, err := prefenceBasicOrdinary(t.Context(), turn, in)
 	if !errors.Is(err, ErrConflict) || got != (basicCopyPosition{}) {
 		t.Fatal(got, err)

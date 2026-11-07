@@ -333,8 +333,8 @@ func TestBasicDispatchCurrentDisclosureConflictsAndClosedProfiles(t *testing.T) 
 	}
 	accept := basicInvocation{request: q}
 	accept.request.Purpose = BasicPurposeAccept
-	if out, ack, err := r.runBasic(t.Context(), w, cap, accept, false); !errors.Is(err, ErrInvalid) || !reflect.DeepEqual(out, BasicResult{}) || !reflect.DeepEqual(ack, AckResult{}) {
-		t.Fatal("Accept arm opened", out, ack, err)
+	if out, ack, err := r.runBasic(t.Context(), w, cap, accept, false); !errors.Is(err, ErrNotImplemented) || !reflect.DeepEqual(out, BasicResult{}) || !reflect.DeepEqual(ack, AckResult{}) {
+		t.Fatal("unconfigured Accept profile opened", out, ack, err)
 	}
 	if _, _, err := r.runBasic(t.Context(), w, cap, in, false); err != nil {
 		t.Fatal(err)

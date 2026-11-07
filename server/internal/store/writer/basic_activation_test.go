@@ -30,7 +30,7 @@ func basicActivationTestDefs() []stmt.Definition {
 }
 func TestBasicActivationActualEpochIndependentOfChangeInput(t *testing.T) {
 	w, in := basicActivationFixture(t)
-	turn := basicComponentTurn(t, w, basicActivationTestDefs())
+	turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
 	got, err := activateBasicAsset(t.Context(), turn, in)
 	if err != nil || got != (basicActivatedAsset{41, 18, 14, 4, 1, sql.NullString{}, sql.NullString{}}) {
 		t.Fatal(got, err)
@@ -66,7 +66,7 @@ func TestBasicActivationRefusesIncompleteCopyAndProbeDrift(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicComponentTurn(t, w, basicActivationTestDefs())
+			turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
 			got, err := activateBasicAsset(t.Context(), turn, in)
 			if !errors.Is(err, ErrConflict) || got != (basicActivatedAsset{}) {
 				t.Fatal(got, err)
@@ -76,7 +76,7 @@ func TestBasicActivationRefusesIncompleteCopyAndProbeDrift(t *testing.T) {
 }
 func TestBasicActivationLateFailureRollsBackNativeEpoch(t *testing.T) {
 	w, in := basicActivationFixture(t)
-	turn := basicComponentTurn(t, w, basicActivationTestDefs())
+	turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
 	delete(turn.steps, basicActivationChangeCAS)
 	got, err := activateBasicAsset(t.Context(), turn, in)
 	if err == nil || got != (basicActivatedAsset{}) {
@@ -113,7 +113,7 @@ func TestBasicActivationPreservesNullableChoiceIndependently(t *testing.T) {
 				}
 				in.ownerObject, in.ownerRevision = sql.NullString{String: "retained-choice", Valid: true}, sql.NullString{String: "choice:777", Valid: true}
 			}
-			turn := basicComponentTurn(t, w, basicActivationTestDefs())
+			turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
 			got, err := activateBasicAsset(t.Context(), turn, in)
 			if choice {
 				var refusal *Refusal
@@ -155,7 +155,7 @@ func TestBasicActivationPreservesIndependentFences(t *testing.T) {
 			if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 				t.Fatal(err)
 			}
-			turn := basicComponentTurn(t, w, basicActivationTestDefs())
+			turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
 			got, err := activateBasicAsset(t.Context(), turn, in)
 			if scenario == "preserved_max" {
 				if err != nil || got.infoEpoch != 18 {

@@ -70,7 +70,7 @@ func TestBasicLocalAcceptPhaseThreeEffectsRemainFenced(t *testing.T) {
 		}
 	}
 	art.selectionRevision = 9
-	turn := basicComponentTurn(t, w, basicLocalAcceptDefs())
+	turn := basicBoundedComponentTurn(t, w, basicLocalAcceptDefs())
 	gotNFO, err := replaceBasicNFOEvidenceForAccept(t.Context(), turn, nfo, 2000)
 	if err != nil || gotNFO != (basicNFOProgress{1, 1}) {
 		t.Fatal(gotNFO, err)
@@ -126,7 +126,7 @@ func TestBasicLocalAcceptPhaseAndSourceRefuseWithoutEffects(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicComponentTurn(t, w, basicLocalAcceptDefs())
+			turn := basicBoundedComponentTurn(t, w, basicLocalAcceptDefs())
 			if name != "active_matched_job" {
 				apply := replaceBasicNFOEvidenceForAccept
 				if name == "old_phase_zero" {

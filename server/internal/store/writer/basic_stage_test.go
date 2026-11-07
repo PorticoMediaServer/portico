@@ -63,7 +63,7 @@ func basicComponentTurn(t *testing.T, w *executor, defs []stmt.Definition) *comm
 	registry := nativeFixtureRegistry(t, tx.conn, policy, defs, "basic_stage_test.go")
 	var steps []statementStep
 	for _, d := range defs {
-		steps = append(steps, statementStep{d.ID, Work{Rows: 4, VMOps: 500, Pages: 4, WALBytes: 4096, Hold: 25 * time.Microsecond}})
+		steps = append(steps, statementStep{d.ID, Work{Rows: 4, VMOps: 500, Pages: 4, WALBytes: 4096, Hold: time.Millisecond}})
 	}
 	turn, err := newCommandTurn(tx, registry, steps)
 	if err != nil {

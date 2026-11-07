@@ -26,7 +26,7 @@ func basicProbeTestDefinitions() []stmt.Definition {
 }
 func TestBasicProbeReplacesSixScalarsAndCapturesOld(t *testing.T) {
 	w, in := basicProbeFixture(t)
-	turn := basicComponentTurn(t, w, basicProbeTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
 	got, err := applyBasicProbeScalars(t.Context(), turn, in)
 	if err != nil || got != (basicProbeProgress{6, 102, 104}) {
 		t.Fatal(got, err)
@@ -57,7 +57,7 @@ func TestBasicProbeNoopAndPreservedMaximumCounters(t *testing.T) {
 			if same {
 				in.after = in.before
 			}
-			turn := basicComponentTurn(t, w, basicProbeTestDefinitions())
+			turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
 			got, err := applyBasicProbeScalars(t.Context(), turn, in)
 			if err != nil || got.playbackRevision != math.MaxInt64 || got.preparedRevision != math.MaxInt64 || (same && got.changedFields != 0) || (!same && got.changedFields != 5) {
 				t.Fatal(got, err)
@@ -91,7 +91,7 @@ func TestBasicProbeInvalidAndStaleVectorsRefuse(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicComponentTurn(t, w, basicProbeTestDefinitions())
+			turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
 			got, err := applyBasicProbeScalars(t.Context(), turn, in)
 			if err == nil || got != (basicProbeProgress{}) {
 				t.Fatal("bad probe accepted", got, err)
@@ -107,7 +107,7 @@ func TestBasicProbeInvalidAndStaleVectorsRefuse(t *testing.T) {
 }
 func TestBasicProbeLateFailureRollsBackOldAndDebt(t *testing.T) {
 	w, in := basicProbeFixture(t)
-	turn := basicComponentTurn(t, w, basicProbeTestDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
 	delete(turn.steps, basicProbeAssetCAS)
 	got, err := applyBasicProbeScalars(t.Context(), turn, in)
 	if err == nil || got != (basicProbeProgress{}) {

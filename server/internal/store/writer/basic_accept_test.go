@@ -70,7 +70,7 @@ func TestBasicAcceptNativePartsDoNotCountAsWholeVersions(t *testing.T) {
 	basicAcceptAddLinkedAsset(t, w, 42, 0)
 	basicAcceptAddLinkedAsset(t, w, 43, 2)
 	in.rawShape.VersionAssetIDs = []int64{42}
-	turn := basicComponentTurn(t, w, basicAcceptDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicAcceptDefinitions())
 	got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000)
 	if err != nil || got != (basicAcceptedPending{51, 7, 17, 14, 31, 1, 61}) {
 		t.Fatal(got, err)
@@ -106,7 +106,7 @@ func TestBasicAcceptNativeWholeVersionOverflowRefusesPreparedPrefix(t *testing.T
 			in.rawShape.VersionAssetIDs = append(in.rawShape.VersionAssetIDs, id)
 		}
 	}
-	turn := basicComponentTurn(t, w, basicAcceptDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicAcceptDefinitions())
 	got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000)
 	if !errors.Is(err, ErrCap) || got != (basicAcceptedPending{}) {
 		t.Fatal(got, err)
@@ -133,7 +133,7 @@ func TestBasicAcceptNativeRequiresExactRetainedOwner(t *testing.T) {
 					}
 				}
 			}
-			turn := basicComponentTurn(t, w, defs)
+			turn := basicBoundedComponentTurn(t, w, defs)
 			if name != "wrong_returned_id" {
 				// Defer foreign keys only in this rollback-only corruption control;
 				// the live entity and prepared owner remain unchanged.
@@ -167,7 +167,7 @@ func TestBasicAcceptNativeRequiresExactRetainedOwner(t *testing.T) {
 
 func TestBasicAcceptNativeFreezesInputWithoutActivating(t *testing.T) {
 	w, in := basicOrdinaryInputAcceptFixture(t)
-	turn := basicComponentTurn(t, w, basicAcceptDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicAcceptDefinitions())
 	got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000)
 	if err != nil || got != (basicAcceptedPending{51, 7, 17, 14, 31, 1, 61}) {
 		t.Fatal(got, err)
@@ -192,7 +192,7 @@ func TestBasicAcceptNativeFreezesInputWithoutActivating(t *testing.T) {
 		t.Fatal(phase, revision, due, ownerEnd, epoch, canonicalStreams)
 	}
 	// Family-seal reuse is rejected after whole-input freezing.
-	turn2 := basicComponentTurn(t, w, basicAcceptDefinitions())
+	turn2 := basicBoundedComponentTurn(t, w, basicAcceptDefinitions())
 	if v, e := sealBasicStreamFact(t.Context(), turn2, in.source); !errors.Is(e, ErrConflict) || v != (basicFamilyProgress{}) {
 		t.Fatal(v, e)
 	}
@@ -218,7 +218,7 @@ func TestBasicAcceptNativeRejectsIncompleteOrDriftedInput(t *testing.T) {
 			case "wrong_version_union":
 				in.rawShape.VersionAssetIDs = []int64{42}
 			}
-			turn := basicComponentTurn(t, w, basicAcceptDefinitions())
+			turn := basicBoundedComponentTurn(t, w, basicAcceptDefinitions())
 			got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000)
 			if !errors.Is(err, ErrConflict) || got != (basicAcceptedPending{}) {
 				t.Fatal(got, err)
@@ -236,7 +236,7 @@ func TestBasicAcceptNativeRejectsIncompleteOrDriftedInput(t *testing.T) {
 
 func TestBasicAcceptRawCapRefusesBeforeNativeFreeze(t *testing.T) {
 	w, in := basicOrdinaryInputAcceptFixture(t)
-	turn := basicComponentTurn(t, w, basicAcceptDefinitions())
+	turn := basicBoundedComponentTurn(t, w, basicAcceptDefinitions())
 	in.rawShape.RawChapterCount = MaxRawChapters + 1
 	if got, err := acceptBasicStreamInput(t.Context(), turn, in, 2000); !errors.Is(err, ErrCap) || got != (basicAcceptedPending{}) {
 		t.Fatal(got, err)
