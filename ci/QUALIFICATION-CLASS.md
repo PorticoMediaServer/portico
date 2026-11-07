@@ -95,3 +95,12 @@ physical scan service or full phase1a acceptance.
 Focused protocol controls: `python3 -B -m unittest discover -s ci -p test_qual_class.py`.
 They use synthetic streams and receipts only. No native measurement is valid
 from an unmerged dispatcher or an unbound class.
+
+The raw NDJSON transport ceiling is16GiB per cell, parsed one bounded record at
+a time (at most2MiB/record and1M records). This is an offline evidence-file
+limit, not a Go heap, writer, WAL, IO or hardware/profile allowance. The retained
+failed N1 prefix had median234,635-byte attempt records; 30,000 role records alone
+project to7,039,050,000 bytes, so the former4GiB verifier limit could reject a
+fully observed10k-original cohort. No raw fields are trimmed to fit. Files above
+the new ceiling, oversized/truncated records and incomplete owner finals still
+fail visibly and retain their original evidence.

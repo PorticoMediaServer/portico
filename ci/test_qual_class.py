@@ -48,6 +48,23 @@ class ClassProtocol(unittest.TestCase):
         self.assertEqual(result['records'], 2)
         self.assertNotIn('p99', result)
 
+    def test_complete_stream_can_exceed_old_4gib_transport_ceiling(self):
+        # Simulate the filesystem length, not a native/large local population.
+        # The actual tiny wire is still parsed and hashed by the real verifier.
+        path = self.records([{'kind':'start'}, {'kind':'final', 'complete':True}])
+        actual_stat = Path.lstat
+        def reported_size(p, *args, **kwargs):
+            value = actual_stat(p, *args, **kwargs)
+            if p == path:
+                fields = list(value); fields[6] = self.reported_stream_size
+                return os.stat_result(fields)
+            return value
+        with mock.patch.object(Path, 'lstat', reported_size):
+            self.reported_stream_size = 7 << 30
+            self.assertEqual(c.verify_stream(path, self.cfg)['records'], 2)
+            self.reported_stream_size = (16 << 30) + 1
+            with self.assertRaises(ValueError): c.verify_stream(path, self.cfg)
+
     def test_failed_binding_and_incomplete_final_cannot_pass(self):
         for records in [[{'kind': 'start'}, {'kind': 'failed_binding'}, {'kind': 'final', 'complete': True}],
                         [{'kind': 'start'}, {'kind': 'final', 'complete': False}],
