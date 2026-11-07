@@ -28,6 +28,9 @@ COMPATIBILITY_PATHS = [
     'server/internal/store/writer/scan_metadata.go', 'server/internal/sorttext',
 ]
 ATTEMPTS = 10000
+# Transport-only ceiling: 30k role records at the retained ~235kB/record
+# exceed the old4GiB guard. Streaming keeps this independent of process RAM.
+MAX_STREAM_BYTES = 16 << 30
 
 
 def identity(value, name, maximum=20):
@@ -52,7 +55,7 @@ def inputs(env):
 
 def verify_stream(path, cfg):
     """Only wire/pin/completion verification. No quantiles or accepted-count inference."""
-    q.regular(path, 4 << 30)
+    q.regular(path, MAX_STREAM_BYTES)
     first = last = None
     count = 0
     with path.open('rb') as f:
