@@ -164,11 +164,6 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 	if err := output.Authority.CheckContext(ctx, output.Grant, output.Request); err != nil {
 		return zero, result, err
 	}
-	if window, ok := snapshots.(*rsByteWindow); ok {
-		// Match the callback's cumulative copy limit. Keep request.Need as the
-		// original ceiling so the governor also funds fixed decode overhead.
-		window.goCopyBytes = output.Request.Need[governor.MemoryBytes] / 2
-	}
 	deadline := started.Add(min(budget, time.Second))
 	for _, limit := range []time.Time{request.Deadline, output.Request.Deadline} {
 		if limit.Before(deadline) {
