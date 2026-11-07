@@ -351,7 +351,7 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 				return nil
 			}
 			row := rows[0]
-			if rsListeningAuthorKey(row[0].(string)) != p.key {
+			if row[0].(string) != p.key {
 				return nil
 			}
 			if _, e = rsDetailSubjectEligibility(query, p.view(at, 8, p.scan), f); errors.Is(e, ErrDenied) {
