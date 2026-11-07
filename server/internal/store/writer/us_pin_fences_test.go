@@ -26,9 +26,13 @@ func usPINFenceFixture(t *testing.T) (*executor, *stmt.Registry, usPolicyIssuer)
 }
 func usPINFenceTurn(t *testing.T, w *executor, r *stmt.Registry) *commandTurn {
 	t.Helper()
+	return usPINFenceTurnKind(t, w, r, usPINSet)
+}
+func usPINFenceTurnKind(t *testing.T, w *executor, r *stmt.Registry, kind CommandID) *commandTurn {
+	t.Helper()
 	recipe := testRecipe()
 	recipe.limit = Work{10000, 1_000_000, 10000, 4 << 20, 20 * time.Millisecond}
-	tx, err := w.begin(t.Context(), usPINSet, recipe, &testCustody{})
+	tx, err := w.begin(t.Context(), kind, recipe, &testCustody{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -24,9 +24,9 @@ func usPINReceiptFixture(t *testing.T) (*executor, *stmt.Registry, *usPINCommand
 	registry := nativeInventoryFixtureRegistry(t, w, defs, "us_pin_receipts_test.go")
 	return w, registry, input, proof
 }
-func usPINReceiptTurn(t *testing.T, w *executor, r *stmt.Registry, proof *usOwnerAuthorityProof) (*commandTurn, *usPolicyAuthorization) {
+func usPINReceiptTurn(t *testing.T, w *executor, r *stmt.Registry, proof *usOwnerAuthorityProof, kind CommandID) (*commandTurn, *usPolicyAuthorization) {
 	t.Helper()
-	turn := usPINFenceTurn(t, w, r)
+	turn := usPINFenceTurnKind(t, w, r, kind)
 	a, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), usPolicyAuthorityBudget{memory: 4 << 20, receipts: 1 << 20, fixture: &usPolicyNativePermit{frame: turn.transaction}})
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func usPINReceiptRequestFor(input *usPINCommand) usPolicyReceiptRequest {
 }
 func TestUSPINReceiptCompositionAndImmutableReplay(t *testing.T) {
 	w, r, input, proof := usPINReceiptFixture(t)
-	turn, a := usPINReceiptTurn(t, w, r, proof)
+	turn, a := usPINReceiptTurn(t, w, r, proof, usPINSet)
 	q := usPINReceiptRequestFor(input)
 	fresh, err := composeUSPINAfterAuthority(t.Context(), turn, a, q, input)
 	if err != nil || fresh.decision != receiptFresh || fresh.result.revision != 2 || fresh.result.pinRevision != 2 || !fresh.result.pinRequired || fresh.chargedBytes <= 0 {
@@ -50,7 +50,7 @@ func TestUSPINReceiptCompositionAndImmutableReplay(t *testing.T) {
 	if _, err = w.db.ExecContext(t.Context(), `UPDATE direct_profiles SET pin_hash=NULL,revision=revision+1,pin_revision=pin_revision+1 WHERE id='issuer-profile'`); err != nil {
 		t.Fatal(err)
 	}
-	turn, a = usPINReceiptTurn(t, w, r, proof)
+	turn, a = usPINReceiptTurn(t, w, r, proof, usPINSet)
 	var before, after int64
 	if err = turn.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes()`).Scan(&before); err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestUSPINReceiptCompositionAndImmutableReplay(t *testing.T) {
 }
 func TestUSPINReceiptFailureRollsBackPINAndFence(t *testing.T) {
 	w, r, input, proof := usPINReceiptFixture(t)
-	turn, a := usPINReceiptTurn(t, w, r, proof)
+	turn, a := usPINReceiptTurn(t, w, r, proof, usPINSet)
 	delete(turn.steps, usPINReceiptInsert)
 	out, err := composeUSPINAfterAuthority(t.Context(), turn, a, usPINReceiptRequestFor(input), input)
 	if err == nil || out != (usPINComposition{}) {
@@ -86,5 +86,32 @@ func TestUSPINReceiptFailureRollsBackPINAndFence(t *testing.T) {
 	}
 	if revision != 1 || pinRevision != 1 || required != 0 || fences != 0 || receipts != 0 {
 		t.Fatal("partial native state survived", revision, pinRevision, required, fences, receipts)
+	}
+}
+
+func TestUSPINClearReceiptHasClosedFalseResult(t *testing.T) {
+	w, r, set, proof := usPINReceiptFixture(t)
+	issuer := set.request.issuer
+	clear, err := prepareUSPINCommand(usPINClear, set.identity, set.request.ownerID, issuer, set.request.memberIncarnation, usPINRequest{account: issuer.account, profile: issuer.profile, profileLifetime: issuer.profileLifetime, expectedRevision: 1, expectedPINRevision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = w.db.ExecContext(t.Context(), `UPDATE direct_profiles SET pin_hash=? WHERE id='issuer-profile'`, []byte(usPINFixtureHash)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = w.db.ExecContext(t.Context(), `INSERT INTO identity_security_fences(id,scope_kind,account_id,member_incarnation,profile_id,profile_lifetime,updated_ms) VALUES(2,'profile_pin',?,?,?, ?,0)`, issuer.account, issuer.memberIncarnation, issuer.profile, issuer.profileLifetime); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = w.db.ExecContext(t.Context(), `INSERT INTO authorization_family_security_fences(family_id,scope_kind,fence_id,confirmed_generation) VALUES(?,'profile_pin',2,1)`, issuer.family); err != nil {
+		t.Fatal(err)
+	}
+	turn, a := usPINReceiptTurn(t, w, r, proof, usPINClear)
+	out, err := composeUSPINAfterAuthority(t.Context(), turn, a, usPINReceiptRequestFor(clear), clear)
+	if err != nil || out.decision != receiptFresh || out.result.pinRequired || out.result.kind != usPINClear || out.result.revision != 2 || out.result.pinRevision != 2 {
+		t.Fatal(out, err)
+	}
+	var required int64
+	if err = turn.transaction.conn.QueryRowContext(t.Context(), `SELECT result_pin_required FROM security_command_receipts`).Scan(&required); err != nil || required != 0 {
+		t.Fatal(required, err)
 	}
 }
