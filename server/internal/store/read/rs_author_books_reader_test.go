@@ -38,7 +38,7 @@ func authorBookFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture
 		id, kind, book     int64
 		author, title, pos string
 		retired            int64
-	}{{14001, 9, 2002, "", "", "", 0}, {14002, 9, 2002, "", "", "", 0}, {14003, 8, 0, " ÉCOLE ", "First", "1", 0}, {14004, 9, 14003, "", "", "", 0}, {14005, 8, 0, "école", "Fileless", "3", 0}, {14006, 8, 0, "other", "Wrong author", "1", 0}, {14007, 9, 14006, "", "", "", 0}, {14008, 8, 0, "école", "Retired", "1", 1}, {14009, 9, 14008, "", "", "", 0}, {14010, 8, 0, "école", "Hidden file", "1", 0}, {14011, 9, 14010, "", "", "", 0}} {
+	}{{14001, 9, 2002, "", "", "", 0}, {14002, 9, 2002, "", "", "", 0}, {14003, 8, 0, " ÉCOLE ", "First", "1", 0}, {14004, 9, 14003, "", "", "", 0}, {14005, 8, 0, "École", "Fileless", "3", 0}, {14006, 8, 0, "other", "Wrong author", "1", 0}, {14007, 9, 14006, "", "", "", 0}, {14008, 8, 0, "École", "Retired", "1", 1}, {14009, 9, 14008, "", "", "", 0}, {14010, 8, 0, "École", "Hidden file", "1", 0}, {14011, 9, 14010, "", "", "", 0}} {
 		source.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(?,randomblob(16),1,?)`, x.id, x.kind)
 		var book any
 		if x.book != 0 {
