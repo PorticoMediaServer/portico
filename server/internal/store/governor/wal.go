@@ -350,6 +350,9 @@ func (w *WALGate) reserveCheckpointContext(ctx context.Context, ticket *checkpoi
 		return Deadline, admissionWaitCause(err), time.Time{}
 	}
 	w.expireCheckpointTicket(now)
+	if ticket != nil && ticket.cancelled.Load() {
+		return Deadline, CauseCancelled, time.Time{}
+	}
 	if w.checkpoint || (w.writer && (!w.policy.ConcurrentPassive || (ticket != nil && ticket.recovery))) {
 		return Capacity, CauseCheckpointActive, time.Time{}
 	}
