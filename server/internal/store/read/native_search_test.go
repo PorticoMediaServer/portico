@@ -638,3 +638,75 @@ func TestNativeSearchPeopleEqualIDBirth(t *testing.T) {
 		t.Fatal("old People publication rebased onto equal ID", page, err)
 	}
 }
+
+func TestNativeSearchRetainedLibrariesShareOneOperation(t *testing.T) {
+	f := newNativeSource(t)
+	f.exec(t, "BEGIN")
+	f.exec(t, "PRAGMA defer_foreign_keys=ON")
+	f.exec(t, `UPDATE direct_memberships SET allowed_libraries='["movies","other"]' WHERE account_id='a'`)
+	for _, id := range []int64{60, 1040} {
+		f.exec(t, `UPDATE catalog_entities SET title='Sharedproof',retired=0 WHERE id=?`, id)
+		nativeFixtureImage(t, f, search.ManifestEntity, id, id, []nativeFixtureField{{1, "Sharedproof"}})
+	}
+	f.exec(t, "COMMIT")
+	f = composeReadFixture(t, f, NativeFullSearchDefinitions(), readfixture.LiveConfig(time.Now), false, nativeScenarioFixtureHash(t))
+	r, err := NewNativeFullSearchReader(f.snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.input.Kind = 0
+	f.input.Limit = 20
+	query, err := search.PlanQuery("sharedproof", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(library int64, retained *FullSearchReadStamp) (FullSearchPage, error) {
+		view := f.input
+		view.Library = library
+		in := FullSearchInput{View: view, Preview: true}
+		if retained != nil {
+			in.Retained = []*FullSearchReadStamp{retained}
+		}
+		live, request, output := liveRequests("multiple-libraries")
+		request.Budget.RawRows = 4096
+		var page FullSearchPage
+		_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+			var e error
+			page, _, e = r.Read(ctx, request, time.Second, out, in, query)
+			if e == nil && retained != nil {
+				e = page.Stamp.ValidateRetained(ctx, out, retained)
+			}
+			return e
+		})
+		return page, err
+	}
+	first, err := read(1, nil)
+	if err != nil || len(first.Hits) != 1 || first.Hits[0].ID != 60 {
+		t.Fatal("first library", first, err)
+	}
+	prior, err := first.Stamp.RetainHits(first.Hits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := read(2, prior)
+	if err != nil || len(second.Hits) != 1 || second.Hits[0].ID != 1040 {
+		t.Fatal("second library", second, err)
+	}
+	mixed, err := second.Stamp.RetainHits(append(first.Hits, second.Hits...))
+	if err != nil || len(mixed.policies) != 2 {
+		t.Fatal("mixed issued evidence", err)
+	}
+	kept, err := mixed.RetainHits(second.Hits)
+	if err != nil || len(kept.libraries) != 1 || kept.libraries[0].libraryID != 2 {
+		t.Fatal("narrow library evidence", err)
+	}
+	r.snapshots = &nativeBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE catalog_libraries SET retired=1 WHERE id=1`) }}
+	denied, err := read(2, mixed)
+	if !errors.Is(err, ErrDenied) || !reflect.DeepEqual(denied, FullSearchPage{}) {
+		t.Fatal("retained library retired before release", denied, err)
+	}
+	r.snapshots = f.snapshots
+	if _, err = read(2, kept); err != nil {
+		t.Fatal("discarded library still validated", err)
+	}
+}
