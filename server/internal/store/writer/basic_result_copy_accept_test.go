@@ -3,6 +3,7 @@ package writer
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"math"
 	"strings"
 	"testing"
@@ -60,6 +61,9 @@ func TestBasicResultSelectedAcceptActualMember(t *testing.T) {
 		t.Fatal(err)
 	}
 	payload := len(v.RunID) + len(v.SourceID) + len(v.SourceIncarnation) + len(v.SourceRevision) + len(v.Members[0].ObjectID)
+	if got := binary.BigEndian.Uint64(h.bytes.Bytes()[h.bytes.Len()-8:]); got != 18 {
+		t.Fatalf("actual accepted epoch wire: %d", got)
+	}
 	if h.bytes.Len() != basicResultFixedBytes(v.Purpose)+64+payload || !bytes.Equal(h.Sum(nil), want[:]) {
 		t.Fatal("member framing")
 	}
@@ -157,6 +161,17 @@ func TestBasicResultCopyScalarSensitivity(t *testing.T) {
 	after, err := basicResultDigest(i, q, base)
 	if err != nil || after == before {
 		t.Fatal("cleanup position not bound", err)
+	}
+	h := &recordedResultHash{Hash: sha256.New()}
+	e := requestEncoder{h: h}
+	if err := encodeCanonicalResult(&e, i, q, base); err != nil {
+		t.Fatal(err)
+	}
+	// The tail is aux, three empty TEXT frames, after_entity, result_count,
+	// and complete cohort length. Check the actual aux independently of phase.
+	wire := h.bytes.Bytes()
+	if got := binary.BigEndian.Uint64(wire[len(wire)-56:]); got != 1 {
+		t.Fatalf("actual aux wire: %d", got)
 	}
 	// All continuation TEXT fields remain unselected; none is newly admitted.
 }
