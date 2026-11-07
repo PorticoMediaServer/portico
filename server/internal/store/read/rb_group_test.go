@@ -241,3 +241,27 @@ func TestRBGroupForeignMembersAndPlaylistOccurrences(t *testing.T) {
 		t.Fatal("playlist occurrence lost", count)
 	}
 }
+
+func TestRBGroupArticleContextBindsCursor(t *testing.T) {
+	f := rbGroupFixture(t, false)
+	in := RBGroupInput{View: f.input, Family: RBGroupAlbumSongs, Subject: 2004}
+	in.View.Kind = 7
+	in.View.Limit = 7
+	in.View.KeepArticles = true
+	p, _, e := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+	if e != nil || len(p.Items) != 7 || p.Next == nil {
+		t.Fatal("article-independent direct order", p, e)
+	}
+	want := rbGroupExpected(RBGroupAlbumSongs)
+	for i, item := range p.Items {
+		if item.ID != want[i] {
+			t.Fatal("article mode changed track order")
+		}
+	}
+	in.After = p.Next
+	in.View.KeepArticles = false
+	p, _, e = f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)
+	if !errors.Is(e, ErrStale) || !reflect.DeepEqual(p, RBGroupPage{}) {
+		t.Fatal("article context cursor reused", p, e)
+	}
+}

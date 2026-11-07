@@ -63,7 +63,7 @@ func (r *BrowseReader) RBGroupWindow(ctx context.Context, request governor.Reque
 
 func (r *BrowseReader) rbGroupWindow(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in RBGroupInput) (page RBGroupPage, result BrowseReadResult, err error) {
 	spec, ok := rbGroupSpecFor(in.Family)
-	if !ok || in.Subject <= 0 || in.View.After != nil || in.View.KeepArticles || !rbGroupKind(spec, in.View.Kind) {
+	if !ok || in.Subject <= 0 || in.View.After != nil || !rbGroupKind(spec, in.View.Kind) {
 		return page, result, ErrInput
 	}
 	if in.After != nil && (in.After.family != in.Family || in.After.subject != in.Subject) {
