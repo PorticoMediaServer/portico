@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
+	"errors"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -95,13 +96,13 @@ func testRBTVProvisionalSourceDefaults(t *testing.T) {
 	q, request, output := liveRequests("rb-tv-defaults-drift")
 	_, e := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
 		p, _, e := f.reader.RBTVSourceDefaults(ctx, request, time.Second, out, f.input, 2001)
-		if e == nil || !reflect.DeepEqual(p, RBTVDefaults{}) {
+		if !errors.Is(e, ErrStale) || !reflect.DeepEqual(p, RBTVDefaults{}) {
 			t.Fatal("drift leak", p, e)
 		}
-		return nil
+		return e
 	})
-	if e != nil {
-		t.Fatal(e)
+	if !errors.Is(e, ErrStale) {
+		t.Fatal("LIVE must retain the publication refusal", e)
 	}
 	t.Logf("PROVISIONAL lead rule; actual Reader Capture both statistics schema=%s fixture=%s", captures["analyzed"].Environment.SchemaSHA256, rbTVDefaultsHash(t))
 }
