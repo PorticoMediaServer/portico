@@ -137,6 +137,11 @@ func TestMGTunerNativeFullAndSharing(t *testing.T) {
 			if _, err := w.db.ExecContext(t.Context(), `UPDATE live_source_identities SET settings_physical_count=?`, physical); err != nil {
 				t.Fatal(err)
 			}
+			// The effective published value, rather than discovery metadata, is
+			// the capacity input to the allocation body.
+			if _, err := w.db.ExecContext(t.Context(), `UPDATE live_sources SET tuner_count=? WHERE id='source'`, physical); err != nil {
+				t.Fatal(err)
+			}
 			held := r.allocation
 			held.id = "held"
 			held.resource = "held"
