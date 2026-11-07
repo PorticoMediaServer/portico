@@ -3,6 +3,7 @@ package writer
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -48,7 +49,7 @@ type usRestrictionsCommand struct {
 
 func prepareUSRestrictions(identity CommandIdentity, owner string, issuer usPolicyIssuer, target usRestrictionsTarget, edit usRestrictionsEdit) (*usRestrictionsCommand, error) {
 	p := target.profile
-	if !validUSSecurityIdentity(identity, owner, issuer) || !validUSMemberTarget(p.member) || !usIdentifier(p.profile) || !usHex(p.lifetime, 32) || p.revision < 1 || target.revision < 1 || !target.present && target.revision != 1 || edit.ExpectedRevision < 1 || edit.ExpectedRevision != target.revision {
+	if !validUSSecurityIdentity(identity, owner, issuer) || !validUSMemberTarget(p.member) || !usIdentifier(p.profile) || !usHex(p.lifetime, 32) || p.revision < 1 || target.revision < 1 || target.revision == math.MaxInt64 || !target.present && target.revision != 1 || edit.ExpectedRevision < 1 || edit.ExpectedRevision != target.revision {
 		return nil, invalid("us_restrictions_target")
 	}
 	if len(edit.BlockedLabels) > 64 {

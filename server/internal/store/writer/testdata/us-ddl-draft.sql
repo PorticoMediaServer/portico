@@ -76,9 +76,9 @@ CREATE TABLE security_command_receipts(
  command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
  operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
  request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
- command_kind INTEGER NOT NULL CHECK(command_kind IN(511,512,520,521,522,532,533,540,541,550,551,552)),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(511,512,520,521,522,532,533,540,541,542,550,551,552)),
  result_version INTEGER NOT NULL CHECK(result_version=1),
- result_codec TEXT NOT NULL CHECK(result_codec IN('session_renewal_v1','session_refresh_v1','password_replace_v1','credential_issue_v1','credential_revoke_v1','pin_set_v1','pin_clear_v1','member_libraries_v1','profile_libraries_v1','invitation_create_v1','invitation_edit_v1','invitation_revoke_v1')),
+ result_codec TEXT NOT NULL CHECK(result_codec IN('session_renewal_v1','session_refresh_v1','password_replace_v1','credential_issue_v1','credential_revoke_v1','pin_set_v1','pin_clear_v1','member_libraries_v1','profile_libraries_v1','profile_restrictions_v1','invitation_create_v1','invitation_edit_v1','invitation_revoke_v1')),
  applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
  result_digest BLOB NOT NULL CHECK(length(result_digest)=32),
  target_account_id TEXT,
@@ -112,6 +112,7 @@ CREATE TABLE security_command_receipts(
   OR (command_kind=533 AND result_codec='pin_clear_v1')
   OR (command_kind=540 AND result_codec='member_libraries_v1')
   OR (command_kind=541 AND result_codec='profile_libraries_v1')
+  OR (command_kind=542 AND result_codec='profile_restrictions_v1')
   OR (command_kind=550 AND result_codec='invitation_create_v1')
   OR (command_kind=551 AND result_codec='invitation_edit_v1')
   OR (command_kind=552 AND result_codec='invitation_revoke_v1')),
@@ -140,6 +141,10 @@ CREATE TABLE security_command_receipts(
   AND target_profile_id IS NULL AND target_profile_lifetime IS NULL AND result_revision IS NULL
   AND policy_inherits IS NULL AND result_changed IS NULL AND result_pin_revision IS NULL AND result_pin_required IS NULL
   AND result_count=0 AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
+ OR (command_kind=542 AND target_account_id IS NULL AND target_member_incarnation IS NULL
+  AND target_profile_id IS NULL AND target_profile_lifetime IS NULL AND result_revision IS NULL
+  AND policy_inherits IS NULL AND result_changed IS NULL AND result_pin_revision IS NULL AND result_pin_required IS NULL
+  AND result_count<=64 AND result_key_id IS NULL AND result_nonce IS NULL AND result_body IS NULL)
  OR (command_kind IN(550,551,552) AND target_account_id IS NULL AND target_member_incarnation IS NULL
   AND target_profile_id IS NULL AND target_profile_lifetime IS NULL AND result_revision IS NULL
   AND policy_inherits IS NULL AND result_changed IS NULL AND result_pin_revision IS NULL AND result_pin_required IS NULL
@@ -450,4 +455,48 @@ CREATE TABLE security_session_rotation_results(
   AND (prior_receipt_hash IS NULL OR length(prior_receipt_hash)=43 AND prior_receipt_hash<>refresh_predecessor_hash)
   AND refresh_nonce IS NOT NULL AND length(refresh_nonce)=12 AND refresh_nonce<>access_nonce
   AND refresh_body IS NOT NULL AND length(refresh_body)=59))
+) WITHOUT ROWID, STRICT;
+
+-- Complete immutable ProfileRestrictions response for concrete purpose 542.
+-- Capture the resolved maximum_age; historical replay never re-runs ratings.
+-- Labels preserve the JSON-decoded response order, including equal spellings
+-- after invalid source UTF-8 is replaced. No UNIQUE(label) or re-sorting.
+CREATE TABLE security_restriction_results(
+ owner_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ command_kind INTEGER NOT NULL DEFAULT 542 CHECK(command_kind=542),
+ account_id TEXT NOT NULL CHECK(length(CAST(account_id AS BLOB)) BETWEEN 1 AND 128),
+ member_incarnation TEXT NOT NULL CHECK(length(member_incarnation)=32),
+ profile_id TEXT NOT NULL CHECK(length(CAST(profile_id AS BLOB)) BETWEEN 1 AND 128),
+ profile_lifetime TEXT NOT NULL CHECK(length(profile_lifetime)=32),
+ revision INTEGER NOT NULL CHECK(revision>=2),
+ rating_system TEXT NOT NULL,
+ maximum_age_rating TEXT NOT NULL,
+ maximum_age INTEGER NOT NULL CHECK(maximum_age>=-1),
+ allow_unrated INTEGER NOT NULL CHECK(allow_unrated IN(0,1)),
+ allow_downloads INTEGER NOT NULL CHECK(allow_downloads IN(0,1)),
+ allow_live_tv INTEGER NOT NULL CHECK(allow_live_tv IN(0,1)),
+ allow_dvr INTEGER NOT NULL CHECK(allow_dvr IN(0,1)),
+ allow_watch_together INTEGER NOT NULL CHECK(allow_watch_together IN(0,1)),
+ variable_bytes INTEGER GENERATED ALWAYS AS (
+  length(CAST(owner_id AS BLOB))+length(command_incarnation)+length(CAST(account_id AS BLOB))+length(CAST(member_incarnation AS BLOB))
+  +length(CAST(profile_id AS BLOB))+length(CAST(profile_lifetime AS BLOB))+length(CAST(rating_system AS BLOB))+length(CAST(maximum_age_rating AS BLOB))) VIRTUAL,
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ FOREIGN KEY(owner_id,command_incarnation,command_sequence,command_kind) REFERENCES security_command_receipts(owner_id,command_incarnation,command_sequence,command_kind)
+) WITHOUT ROWID, STRICT;
+
+-- Existing source normalization accepts <=64 labels of <=120 input bytes.
+-- JSON's replacement of each invalid byte by U+FFFD can produce <=360 response
+-- UTF-8 bytes. This is an encoding bound, not a new product permission cap.
+CREATE TABLE security_restriction_result_labels(
+ owner_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 63),
+ label TEXT NOT NULL CHECK(length(CAST(label AS BLOB)) BETWEEN 1 AND 360),
+ variable_bytes INTEGER GENERATED ALWAYS AS (
+  length(CAST(owner_id AS BLOB))+length(command_incarnation)+length(CAST(label AS BLOB))) VIRTUAL,
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence,ordinal),
+ FOREIGN KEY(owner_id,command_incarnation,command_sequence) REFERENCES security_restriction_results(owner_id,command_incarnation,command_sequence)
 ) WITHOUT ROWID, STRICT;

@@ -3,6 +3,7 @@ package writer
 import (
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/securitypolicy"
+	"math"
 	"strings"
 	"testing"
 )
@@ -113,5 +114,17 @@ func TestUSRestrictionsSourceRules(t *testing.T) {
 		if _, e := prepareUSRestrictions(s.Identity, s.Owner, s.Issuer.issuer(), target, edit); e == nil {
 			t.Fatal("invalid labels accepted")
 		}
+	}
+}
+
+func TestUSRestrictionsRevisionDoesNotWrap(t *testing.T) {
+	v, target, edit := restrictionsFixture()
+	target.revision, edit.ExpectedRevision = math.MaxInt64, math.MaxInt64
+	if _, err := prepareUSRestrictions(v.Scope.Identity, v.Scope.Owner, v.Scope.Issuer.issuer(), target, edit); err == nil {
+		t.Fatal("unrepresentable next revision accepted")
+	}
+	target.revision, edit.ExpectedRevision = math.MaxInt64-1, math.MaxInt64-1
+	if _, err := prepareUSRestrictions(v.Scope.Identity, v.Scope.Owner, v.Scope.Issuer.issuer(), target, edit); err != nil {
+		t.Fatal("last representable transition rejected", err)
 	}
 }
