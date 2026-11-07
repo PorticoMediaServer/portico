@@ -19,6 +19,8 @@ func commandClass(id CommandID) (governor.Class, error) {
 		return governor.ScanMinimum, nil
 	case ProgressAccept:
 		return governor.Foreground, nil
+	case ProgressReceiptReclaim:
+		return governor.Background, nil
 	case SecurityAccept:
 		return governor.Recovery, nil
 	case EvidenceStage, CreditStage, PeopleStage, EnrichAccept, SearchFragmentStage,
@@ -47,6 +49,7 @@ type governedTurn struct {
 	scanLifecycleMemory commandMemoryBudget
 	wcProgressMemory    commandMemoryBudget
 	wcSecurityMemory    commandMemoryBudget
+	wcReclaimMemory     commandMemoryBudget
 	state               atomic.Uint32 // 0 active, 1 retirement attempted, 2 retired, 3 failed
 	fenced              atomic.Bool
 }

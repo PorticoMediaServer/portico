@@ -46,6 +46,7 @@ type effectivePlan struct {
 	scanLifecycleMemory commandMemoryBudget
 	wcProgressMemory    commandMemoryBudget
 	wcSecurityMemory    commandMemoryBudget
+	wcReclaimMemory     commandMemoryBudget
 }
 
 // No runtime registration, worker budget or callbacks are accepted. The actual
@@ -64,6 +65,7 @@ type effectiveRuntime struct {
 	wcProgressPlan      *effectivePlan
 	wcProgressBirthPlan *effectivePlan
 	wcSecurityPlan      *effectivePlan
+	wcReclaimPlan       *effectivePlan
 	lifecyclePlans      [2]*effectivePlan // private, explicitly composed create/claim history profiles
 	issuerPlans         [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
 	registry            *stmt.Registry
@@ -188,11 +190,13 @@ type commandOutput struct {
 	run       scanRunSnapshot
 	progress  ProgressResult
 	security  SecurityResult
+	reclaim   ReclaimResult
 }
 
 func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, invocation wcCommandInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
 	var wc *wcProgressInvocation
 	var security *wcSecurityInvocation
+	var reclaim *wcReclaimInvocation
 	invalidWC := false
 	switch v := invocation.(type) {
 	case nil:
@@ -200,6 +204,8 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		wc = v
 	case *wcSecurityInvocation:
 		security = v
+	case *wcReclaimInvocation:
+		reclaim = v
 	default:
 		invalidWC = true
 	}
@@ -284,6 +290,13 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		purpose, plan, reference, key, libraryID = SecurityAccept, nil, security.request.Receipt, security.request.FamilyID, 0
 		outcome = &out.security.Outcome
 	}
+	if reclaim != nil {
+		if scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
+			return out, acknowledged, ErrInvalid
+		}
+		purpose, plan, reference, key, libraryID = ProgressReceiptReclaim, nil, reclaim.request.Receipt, reclaim.request.PlaybackID, reclaim.disclosure.driver.scope.libraryID
+		outcome = &out.reclaim.Outcome
+	}
 	if !r.mu.TryLock() {
 		return out, acknowledged, ErrBusy
 	}
@@ -299,6 +312,12 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	if security != nil {
 		plan = r.wcSecurityPlan
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+	}
+	if reclaim != nil {
+		plan = r.wcReclaimPlan
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
@@ -410,6 +429,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	custody.scanLifecycleMemory = plan.scanLifecycleMemory
 	custody.wcProgressMemory = plan.wcProgressMemory
 	custody.wcSecurityMemory = plan.wcSecurityMemory
+	custody.wcReclaimMemory = plan.wcReclaimMemory
 	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
@@ -452,7 +472,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	lifetime, stopLifetime = commandDeadline(ctx, deadline)
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
 	if err == nil {
-		if security != nil {
+		if reclaim != nil {
+			err = checkWCReclaimNativeDisclosure(ctx, turn, reclaim)
+		} else if security != nil {
 			err = checkWCSecurityNativeDisclosure(ctx, turn, security)
 		} else if wc != nil {
 			err = checkWCProgressNativeDisclosure(ctx, turn, wc)
@@ -475,6 +497,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation), turn.checkLifetimes(ctx))
 	}
 	var historical bool
+	if err == nil && reclaim != nil {
+		out.reclaim, acknowledged, historical, err = executeWCReclaimInvocation(ctx, turn, reclaim, ack)
+	}
 	if err == nil && security != nil {
 		out.security, acknowledged, historical, err = executeWCSecurityInvocation(ctx, turn, security, ack)
 	}
@@ -611,6 +636,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if security != nil && !ack && !historical && security.input != nil && physical.state == committed {
 		out.security.Outcome.State = Applied
 	}
+	if reclaim != nil && !ack && !historical && reclaim.input != nil && physical.state == committed {
+		out.reclaim.Outcome.State = Applied
+	}
 	if ack && physical.state != committed {
 		acknowledged.AcknowledgedThrough = 0
 	}
@@ -627,6 +655,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	if security != nil && security.snapshot {
 		out.security.Snapshot.Evidence = evidence
+	}
+	if reclaim != nil && reclaim.snapshot {
+		out.reclaim.Snapshot.Evidence = evidence
 	}
 	if wc != nil && (wc.snapshot || wc.retainedAck) {
 		out.progress.Snapshot.Evidence = evidence
