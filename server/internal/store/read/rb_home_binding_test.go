@@ -16,11 +16,12 @@ import (
 
 func TestRBHomeBinding(t *testing.T) {
 	f := newRBHomeSource(t)
-	f.exec(t, `UPDATE catalog_entities SET playback_origin_incarnation=zeroblob(16),playback_origin_revision=7 WHERE id=1`)
-	f.exec(t, `UPDATE catalog_assets SET playback_origin_revision=9,prepared_source_revision=13 WHERE id=1`)
-	f.exec(t, `UPDATE catalog_asset_links SET playback_origin_revision=11 WHERE entity_id=1`)
+	f.exec(t, `UPDATE catalog_entities SET playback_origin_incarnation=x'01010101010101010101010101010101',playback_origin_revision=7 WHERE id=1`)
+	f.exec(t, `UPDATE catalog_assets SET playback_origin_incarnation=x'02020202020202020202020202020202',playback_origin_revision=9,prepared_source_revision=13 WHERE id=1`)
+	f.exec(t, `UPDATE catalog_asset_links SET playback_origin_incarnation=x'03030303030303030303030303030303',playback_origin_revision=11 WHERE entity_id=1`)
 	f.exec(t, `INSERT INTO library_sources(id,library_id,configured_root,root,incarnation,generation,identity_confirmed) VALUES('binding-source','movies','/media','/media','binding-inc',3,1)`)
 	f.exec(t, `INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,revision,evidence_json,size,modified_ns) VALUES('binding-object','binding-source','home-1','binding-inc','home-1','object-rev','{}',1000,1)`)
+	f.exec(t, `UPDATE libraries SET playback_origin_incarnation=x'04040404040404040404040404040404',playback_origin_revision=17 WHERE id='movies'`)
 	defs := rbHomeBindingDefinitions()
 	f = composeReadFixture(t, f, defs, readfixture.LiveConfig(time.Now), true, rbBindingFixtureHash(t))
 	read := func() (homeBindingResult, error) {
@@ -34,7 +35,7 @@ func TestRBHomeBinding(t *testing.T) {
 		return result, e
 	}
 	value, e := read()
-	if e != nil || value.Binding.DurationSeconds != 120 || value.Binding.ItemRevision != 7 || value.Binding.AssetRevision != 9 || value.Binding.LinkRevision != 11 || value.Binding.PreparedSourceRevision != 13 || value.Binding.SourceGeneration != 3 || value.Binding.Object != "binding-object" || !value.Binding.Root.RootsAgree || value.Progress.LinkRows != 1 || value.Progress.ObjectRows != 1 || !value.Progress.ObjectsExhausted {
+	if e != nil || value.Binding.DurationSeconds != 120 || value.Binding.ItemRevision != 7 || value.Binding.AssetRevision != 9 || value.Binding.LinkRevision != 11 || value.Binding.PreparedSourceRevision != 13 || value.Binding.SourceGeneration != 3 || value.Binding.ItemIncarnation[0] != 1 || value.Binding.AssetIncarnation[0] != 2 || value.Binding.LinkIncarnation[0] != 3 || value.Binding.Root.LibraryIncarnation[0] != 4 || value.Binding.Root.LibraryOriginRevision != 17 || value.Binding.Object != "binding-object" || !value.Binding.Root.RootsAgree || value.Progress.LinkRows != 1 || value.Progress.ObjectRows != 1 || !value.Progress.ObjectsExhausted {
 		t.Fatal(value, e)
 	}
 	if value.Binding.PreparedSourceIncarnation != value.Binding.AssetIncarnation {
@@ -60,6 +61,9 @@ func TestRBHomeBinding(t *testing.T) {
 	refusal(`UPDATE catalog_assets SET duration=604801 WHERE id=1`, `UPDATE catalog_assets SET duration=120 WHERE id=1`)
 	refusal(`UPDATE catalog_assets SET duration=1e999 WHERE id=1`, `UPDATE catalog_assets SET duration=120 WHERE id=1`)
 	refusal(`UPDATE catalog_assets SET info_publication_pending=1 WHERE id=1`, `UPDATE catalog_assets SET info_publication_pending=0 WHERE id=1`)
+	refusal(`UPDATE library_sources SET library_id='other' WHERE id='binding-source'`, `UPDATE library_sources SET library_id='movies' WHERE id='binding-source'`)
+	refusal(`UPDATE library_sources SET health='removing' WHERE id='binding-source'`, `UPDATE library_sources SET health='ready' WHERE id='binding-source'`)
+	refusal(`UPDATE inventory_objects SET retired=1 WHERE id='binding-object'`, `UPDATE inventory_objects SET retired=0 WHERE id='binding-object'`)
 	refusal(`UPDATE library_sources SET enabled=0 WHERE id='binding-source'`, `UPDATE library_sources SET enabled=1 WHERE id='binding-source'`)
 	refusal(`UPDATE library_sources SET health='root_changed' WHERE id='binding-source'`, `UPDATE library_sources SET health='ready' WHERE id='binding-source'`)
 	refusal(`UPDATE inventory_objects SET root_incarnation='old' WHERE id='binding-object'`, `UPDATE inventory_objects SET root_incarnation='binding-inc' WHERE id='binding-object'`)

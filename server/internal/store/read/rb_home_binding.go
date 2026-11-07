@@ -132,7 +132,7 @@ func readHomeWholePlayableBinding(q browseQuery, library, item int64) (out homeB
 		return out, errHomeBindingBudget
 	}
 	for _, v := range rows {
-		if v[4].(int64) != 0 || v[5] != nil || v[6] != nil || v[7] != nil || v[8] == nil || v[8].(int64) != 1 || v[9] == nil || v[10] == nil {
+		if v[4].(int64) != 0 || v[5] != nil || v[6] != nil || v[7] != nil || v[8] == nil || v[8].(int64) != 1 || v[9] == nil || v[10] == nil || v[12] != nil {
 			continue
 		}
 		b.Object = v[0].(string)

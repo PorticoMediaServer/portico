@@ -30,9 +30,9 @@ func rbHomeBindingDefinitions() []stmt.Definition {
  FROM catalog_asset_links AS l INDEXED BY catalog_asset_links_available_seek
  CROSS JOIN catalog_assets AS a ON a.id=l.asset_id AND a.library_id=l.library_id
  WHERE l.entity_id=? AND l.library_id=? AND l.available=1 LIMIT ?`, []stmt.Param{i("item"), i("library"), i("limit")}, []any{int64(1), int64(1), int64(2)}, []any{int64(999999), int64(1), int64(2)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"a"}, Indexes: []string{"catalog_asset_links_available_seek"}, Seeks: []string{"entity_id=? AND available=?"}}),
-		add("objects", `SELECT o.id,o.revision,o.source_id,s.incarnation,o.retired,length(NULLIF(o.state,'available')),length(NULLIF(o.unsupported_reason,'')),length(NULLIF(o.root_incarnation,s.incarnation)),s.enabled,length(NULLIF(s.health,'root_changed')),length(NULLIF(s.health,'removing')),s.generation
+		add("objects", `SELECT o.id,o.revision,o.source_id,s.incarnation,o.retired,length(NULLIF(o.state,'available')),length(NULLIF(o.unsupported_reason,'')),length(NULLIF(o.root_incarnation,s.incarnation)),s.enabled,length(NULLIF(s.health,'root_changed')),length(NULLIF(s.health,'removing')),s.generation,length(NULLIF(s.library_id,?))
  FROM inventory_objects AS o INDEXED BY inventory_objects_reading_asset_object
- LEFT JOIN library_sources AS s INDEXED BY sqlite_autoindex_library_sources_1 ON s.id=o.source_id AND s.library_id=?
+ LEFT JOIN library_sources AS s INDEXED BY sqlite_autoindex_library_sources_1 ON s.id=o.source_id
  WHERE o.asset_id=? ORDER BY o.id LIMIT ?`, []stmt.Param{s("library"), s("asset"), i("limit")}, []any{"movies", "home-1", int64(MaxRaw)}, []any{"movies", "missing", int64(MaxRaw)}, stmt.Plan{Hot: true, Indexes: []string{"inventory_objects_reading_asset_object", src.Name}, AutoIndexes: []stmt.AutoIndexBinding{src}, Seeks: []string{"asset_id=?"}}),
 	}
 }
