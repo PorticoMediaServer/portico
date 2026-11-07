@@ -87,7 +87,7 @@ func mgLCDefinitions() []stmt.Definition {
 	defs = append(defs, mgLCReceiptDebtDefinitions()...)
 	for k := range defs {
 		defs[k].Owner = "writer.mg.lc"
-		defs[k].CallSites = []string{"writer/mg_lc_effects.go", "writer/mg_lc_receipts.go"}
+		defs[k].CallSites = []string{"writer/mg_lc_effects.go", "writer/mg_lc_receipts.go", "writer/mg_lc_receipt_debt.go"}
 		args := make([]any, len(defs[k].Params))
 		for j, param := range defs[k].Params {
 			switch param.Type {
