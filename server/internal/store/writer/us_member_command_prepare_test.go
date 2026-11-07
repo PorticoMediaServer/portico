@@ -2,7 +2,6 @@ package writer
 
 import (
 	"fmt"
-	identitydigest "github.com/PorticoMediaServer/portico/server/internal/identity"
 	"reflect"
 	"strings"
 	"testing"
@@ -36,7 +35,7 @@ func usCommandWitnessMutations(t *testing.T, original any, digest func(any) (Req
 				} else if s == "blue" {
 					s = "rose"
 				} else if usIdentityDigest(s) {
-					s = identitydigest.Digest(s + "different")
+					s = usCredentialFixtureHash(s + "different")
 				} else if len(s) == 32 || len(s) == 64 {
 					s = strings.Repeat("9", len(s))
 				} else {

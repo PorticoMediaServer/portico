@@ -2,13 +2,12 @@ package writer
 
 import (
 	"fmt"
-	identitydigest "github.com/PorticoMediaServer/portico/server/internal/identity"
 	"strings"
 	"testing"
 )
 
 func hostedFixture() usHostedPreparation {
-	return usHostedPreparation{kind: usHostedChallengeSpend, identity: CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1}, server: "server", account: "account", installation: strings.Repeat("i", 32), challengeHash: identitydigest.Digest("us-hosted-challenge"), nonce: strings.Repeat("n", 22), nowMS: 1800000000000, issuedMS: 1800000000000, expiresMS: 1800000300000, challengeExpiresMS: 1800001800000}
+	return usHostedPreparation{kind: usHostedChallengeSpend, identity: CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1}, server: "server", account: "account", installation: strings.Repeat("i", 32), challengeHash: usCredentialFixtureHash("us-hosted-challenge"), nonce: strings.Repeat("n", 22), nowMS: 1800000000000, issuedMS: 1800000000000, expiresMS: 1800000300000, challengeExpiresMS: 1800001800000}
 }
 func TestUSHostedPreparation(t *testing.T) {
 	p := hostedFixture()
@@ -34,7 +33,7 @@ func TestUSHostedPreparation(t *testing.T) {
 
 func TestUSHostedChallengeDigestMatchesProducer(t *testing.T) {
 	q := hostedFixture()
-	if q.challengeHash != identitydigest.Digest("us-hosted-challenge") {
+	if q.challengeHash != usCredentialFixtureHash("us-hosted-challenge") {
 		t.Fatal("fixture differs from producer")
 	}
 	if _, err := prepareUSHosted(q); err != nil {

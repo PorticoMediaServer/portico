@@ -1,7 +1,6 @@
 package writer
 
 import (
-	identitydigest "github.com/PorticoMediaServer/portico/server/internal/identity"
 	"slices"
 	"strings"
 	"testing"
@@ -36,7 +35,7 @@ func TestUSPINDigestEveryWitness(t *testing.T) {
 		{"issuer.member", func(q *candidate) { q.issuer.memberIncarnation = strings.Repeat("f", 32) }},
 		{"issuer.profile_lifetime", func(q *candidate) { q.issuer.profileLifetime = strings.Repeat("f", 32) }},
 		{"issuer.installation", func(q *candidate) { q.issuer.installation = strings.Repeat("f", 32) }},
-		{"issuer.token", func(q *candidate) { q.issuer.tokenDigest = identitydigest.Digest("us-other-issuer-token") }},
+		{"issuer.token", func(q *candidate) { q.issuer.tokenDigest = usCredentialFixtureHash("us-other-issuer-token") }},
 		{"issuer.epoch", func(q *candidate) { q.issuer.epoch++ }},
 		{"issuer.generation", func(q *candidate) { q.issuer.familyGeneration++ }},
 		{"issuer.authority_generation", func(q *candidate) { q.issuer.authorityGeneration++ }},

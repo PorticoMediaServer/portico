@@ -6,21 +6,19 @@ import (
 	"math"
 	"strings"
 	"testing"
-
-	identityhash "github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
 func usSessionFixture(kind CommandID) (CommandIdentity, usSessionRotationRequest, usSessionClocks) {
 	identity := CommandIdentity{Incarnation: [16]byte{9}, Sequence: 1, OperationID: [16]byte{8}}
-	p := usSessionPins{server: "us-server", account: "us-account", profile: "us-profile", family: "us-family", device: "us-device", installation: strings.Repeat("i", 32), memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32), incarnation: [16]byte{1}, epoch: 7, authorityGeneration: 2, generation: 3, accessDigest: identityhash.Digest("session-fixture-c"), accessExpiresAt: "2026-11-07T12:05:00Z", horizon: "2026-11-08T12:00:00Z"}
+	p := usSessionPins{server: "us-server", account: "us-account", profile: "us-profile", family: "us-family", device: "us-device", installation: strings.Repeat("i", 32), memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32), incarnation: [16]byte{1}, epoch: 7, authorityGeneration: 2, generation: 3, accessDigest: usCredentialFixtureHash("session-fixture-c"), accessExpiresAt: "2026-11-07T12:05:00Z", horizon: "2026-11-08T12:00:00Z"}
 	q := usSessionRotationRequest{ownerID: "us-owner", requestID: "us-request", pins: p,
-		output: usSessionPreparedOutput{accessDigest: identityhash.Digest("session-fixture-d"), accessExpiresAt: "2026-11-07T12:15:00Z", horizon: p.horizon, ciphertext: []byte{1, 2, 3}}}
+		output: usSessionPreparedOutput{accessDigest: usCredentialFixtureHash("session-fixture-d"), accessExpiresAt: "2026-11-07T12:15:00Z", horizon: p.horizon, ciphertext: []byte{1, 2, 3}}}
 	clocks := usSessionClocks{now: "2026-11-07T12:00:00Z", resultHorizon: p.horizon}
 	if kind == usSessionRenewal {
 		q.controllerID, q.controllerEpoch, q.output.nonce = "us-controller", "us-controller-epoch", []byte{4, 5, 6}
 	} else {
-		q.refreshDigest, q.refreshGeneration, q.refreshExpiresAt = identityhash.Digest("session-fixture-e"), 1, p.horizon
-		q.output.refreshDigest, q.output.horizon = identityhash.Digest("session-fixture-f"), "2026-11-09T12:00:00Z"
+		q.refreshDigest, q.refreshGeneration, q.refreshExpiresAt = usCredentialFixtureHash("session-fixture-e"), 1, p.horizon
+		q.output.refreshDigest, q.output.horizon = usCredentialFixtureHash("session-fixture-f"), "2026-11-09T12:00:00Z"
 		clocks.resultHorizon = q.output.horizon
 	}
 	return identity, q, clocks
@@ -152,7 +150,7 @@ func TestUSSessionIdentityDigestEncoding(t *testing.T) {
 	for _, kind := range []CommandID{usSessionRenewal, usSessionRefresh} {
 		i, q, clocks := usSessionFixture(kind)
 		if kind == usSessionRefresh {
-			q.priorReceiptDigest = identityhash.Digest("previous-receipt")
+			q.priorReceiptDigest = usCredentialFixtureHash("previous-receipt")
 		}
 		if _, err := prepareUSSessionRotation(kind, i, q, clocks); err != nil {
 			t.Fatal("native identity.Digest positive control", err)

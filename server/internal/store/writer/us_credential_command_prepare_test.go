@@ -39,7 +39,7 @@ func TestUSCredentialCommandWitnesses(t *testing.T) {
 		{"issuer.profileLifetime", func(q *usCredentialCommandCandidate) { q.issuer.profileLifetime = strings.Repeat("f", 32) }, ""},
 		{"issuer.installation", func(q *usCredentialCommandCandidate) { q.issuer.installation = strings.Repeat("f", 32) }, ""},
 		{"issuer.tokenDigest", func(q *usCredentialCommandCandidate) {
-			q.issuer.tokenDigest = identity.Digest("us-other-issuer-token")
+			q.issuer.tokenDigest = usCredentialFixtureHash("us-other-issuer-token")
 		}, ""},
 		{"issuer.epoch", func(q *usCredentialCommandCandidate) { q.issuer.epoch++ }, ""},
 		{"issuer.familyGeneration", func(q *usCredentialCommandCandidate) { q.issuer.familyGeneration++ }, ""},

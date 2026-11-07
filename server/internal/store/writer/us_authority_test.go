@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -131,7 +130,7 @@ func TestUSOwnerAuthorityStoredIdentityDigest(t *testing.T) {
 	if err := w.db.QueryRowContext(t.Context(), `SELECT token_hash FROM authorization_family_tokens WHERE family_id=? AND generation=?`, witness.issuer.family, witness.issuer.familyGeneration).Scan(&witness.issuer.tokenDigest); err != nil {
 		t.Fatal(err)
 	}
-	if witness.issuer.tokenDigest != identity.Digest("us-issuer-token") {
+	if witness.issuer.tokenDigest != usCredentialFixtureHash("us-issuer-token") {
 		t.Fatal("stored identity digest differs")
 	}
 	proof, err := prepareUSOwnerAuthority(witness)
@@ -145,7 +144,7 @@ func TestUSOwnerAuthorityStoredIdentityDigest(t *testing.T) {
 	if err != nil || out == nil {
 		t.Fatal("stored identity digest refused", err)
 	}
-	witness.issuer.tokenDigest = identity.Digest("us-other-issuer-token")
+	witness.issuer.tokenDigest = usCredentialFixtureHash("us-other-issuer-token")
 	wrong, err := prepareUSOwnerAuthority(witness)
 	if err != nil {
 		t.Fatal(err)

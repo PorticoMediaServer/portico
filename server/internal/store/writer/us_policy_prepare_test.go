@@ -3,7 +3,6 @@ package writer
 import (
 	"errors"
 	"fmt"
-	identitydigest "github.com/PorticoMediaServer/portico/server/internal/identity"
 	"strings"
 	"testing"
 )
@@ -13,7 +12,7 @@ func usPolicyFixture() (CommandIdentity, usLibraryPolicyRequest) {
 		ownerID: "security-owner", issuer: usPolicyIssuer{
 			server: "server", account: "issuer", profile: "issuer-profile", family: "issuer-family",
 			memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32),
-			installation: strings.Repeat("c", 32), tokenDigest: identitydigest.Digest("us-issuer-token"),
+			installation: strings.Repeat("c", 32), tokenDigest: usCredentialFixtureHash("us-issuer-token"),
 			epoch: 1, familyGeneration: 1, authorityGeneration: 1,
 		},
 		account: "target", memberIncarnation: strings.Repeat("e", 32), expectedRevision: 1,
@@ -155,7 +154,7 @@ func TestUSPolicyDigestBindsSecurityScope(t *testing.T) {
 }
 
 func TestUSIssuerIdentityDigestEncoding(t *testing.T) {
-	real := identitydigest.Digest("us-real-digest-control")
+	real := usCredentialFixtureHash("us-real-digest-control")
 	for _, digest := range []string{real, real + "=", real[:42], real + "A", strings.Repeat("a", 64), strings.Repeat("!", 43), strings.Repeat("A", 42) + "B", real[:20] + "\n" + real[21:]} {
 		t.Run(digest, func(t *testing.T) {
 			id, q := usPolicyFixture()

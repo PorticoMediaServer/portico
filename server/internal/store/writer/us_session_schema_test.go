@@ -3,7 +3,6 @@ package writer
 import (
 	"crypto/sha256"
 	"database/sql"
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"strings"
 	"testing"
 )
@@ -33,7 +32,7 @@ func TestUSSessionResultSchemaAndOneRefreshReceipt(t *testing.T) {
 	header(1, 511, "session_renewal_v1")
 	header(2, 512, "session_refresh_v1")
 	columns := []string{"owner_id", "command_incarnation", "command_sequence", "command_kind", "wire_variant", "protocol_version", "family_id", "family_incarnation", "server_id", "account_id", "member_incarnation", "profile_id", "profile_lifetime", "device_id", "installation_id", "authority", "role", "epoch", "authority_generation", "access_predecessor_generation", "generation", "access_predecessor_hash", "access_hash", "access_expires_at", "authorization_horizon", "request_id", "controller_id", "controller_epoch", "refresh_predecessor_generation", "refresh_predecessor_hash", "refresh_hash", "prior_receipt_hash", "key_id", "access_nonce", "access_body", "refresh_nonce", "refresh_body", "aad_digest"}
-	values := map[string]any{"owner_id": "control-owner", "command_incarnation": make([]byte, 16), "command_sequence": int64(1), "command_kind": int64(511), "wire_variant": "authorization_envelope_v2", "protocol_version": "2.0", "family_id": "session-family", "family_incarnation": make([]byte, 16), "server_id": "server", "account_id": "account", "member_incarnation": strings.Repeat("a", 32), "profile_id": "profile", "profile_lifetime": strings.Repeat("b", 32), "device_id": "device", "installation_id": strings.Repeat("i", 32), "authority": "local", "role": "owner", "epoch": int64(1), "authority_generation": int64(1), "access_predecessor_generation": int64(3), "generation": int64(4), "access_predecessor_hash": identity.Digest("session-synthetic-a"), "access_hash": identity.Digest("session-synthetic-b"), "access_expires_at": "2026-11-07T14:15:00Z", "authorization_horizon": "2026-11-08T14:00:00Z", "request_id": "request", "controller_id": "controller", "controller_epoch": "controller-epoch", "key_id": "immutable-key", "access_nonce": make([]byte, 12), "access_body": make([]byte, 59), "aad_digest": make([]byte, 32)}
+	values := map[string]any{"owner_id": "control-owner", "command_incarnation": make([]byte, 16), "command_sequence": int64(1), "command_kind": int64(511), "wire_variant": "authorization_envelope_v2", "protocol_version": "2.0", "family_id": "session-family", "family_incarnation": make([]byte, 16), "server_id": "server", "account_id": "account", "member_incarnation": strings.Repeat("a", 32), "profile_id": "profile", "profile_lifetime": strings.Repeat("b", 32), "device_id": "device", "installation_id": strings.Repeat("i", 32), "authority": "local", "role": "owner", "epoch": int64(1), "authority_generation": int64(1), "access_predecessor_generation": int64(3), "generation": int64(4), "access_predecessor_hash": usCredentialFixtureHash("session-synthetic-a"), "access_hash": usCredentialFixtureHash("session-synthetic-b"), "access_expires_at": "2026-11-07T14:15:00Z", "authorization_horizon": "2026-11-08T14:00:00Z", "request_id": "request", "controller_id": "controller", "controller_epoch": "controller-epoch", "key_id": "immutable-key", "access_nonce": make([]byte, 12), "access_body": make([]byte, 59), "aad_digest": make([]byte, 32)}
 	insert := func() {
 		t.Helper()
 		args := make([]any, len(columns))
@@ -45,7 +44,7 @@ func TestUSSessionResultSchemaAndOneRefreshReceipt(t *testing.T) {
 	insert()
 	values["command_sequence"], values["command_kind"], values["wire_variant"], values["protocol_version"] = int64(2), int64(512), "envelope_v2", nil
 	values["controller_id"], values["controller_epoch"] = nil, nil
-	values["refresh_predecessor_generation"], values["refresh_predecessor_hash"], values["refresh_hash"] = int64(1), identity.Digest("session-synthetic-c"), identity.Digest("session-synthetic-d")
+	values["refresh_predecessor_generation"], values["refresh_predecessor_hash"], values["refresh_hash"] = int64(1), usCredentialFixtureHash("session-synthetic-c"), usCredentialFixtureHash("session-synthetic-d")
 	values["refresh_nonce"], values["refresh_body"] = append([]byte{1}, make([]byte, 11)...), make([]byte, 59)
 	insert()
 	for _, q := range []string{

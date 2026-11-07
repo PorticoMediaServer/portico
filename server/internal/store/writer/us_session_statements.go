@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
-
-	identityhash "github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
 const (
@@ -72,8 +70,8 @@ RETURNING family_id`,
 	}
 	// Closed, synthetic Capture bindings. They do not represent an issuer. Real
 	// execution always obtains bindings from a privately frozen rotation below.
-	pins := usSessionPins{server: "us-server", account: "us-account", profile: "us-profile", family: "us-family", device: "us-device", installation: strings.Repeat("i", 32), memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32), incarnation: [16]byte{1}, epoch: 7, authorityGeneration: 2, generation: 3, accessDigest: identityhash.Digest("session-fixture-c"), accessExpiresAt: "2026-11-07T12:05:00Z", horizon: "2026-11-08T12:00:00Z"}
-	sample := &usSessionRotation{kind: usSessionRenewal, clocks: usSessionClocks{now: "2026-11-07T12:00:00Z", resultHorizon: pins.horizon}, request: usSessionRotationRequest{ownerID: "us-owner", requestID: "us-request", pins: pins, controllerID: "us-controller", controllerEpoch: "us-controller-epoch", output: usSessionPreparedOutput{accessDigest: identityhash.Digest("session-fixture-d"), accessExpiresAt: "2026-11-07T12:15:00Z", horizon: pins.horizon, nonce: []byte{1}, ciphertext: []byte{2}}}}
+	pins := usSessionPins{server: "us-server", account: "us-account", profile: "us-profile", family: "us-family", device: "us-device", installation: strings.Repeat("i", 32), memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32), incarnation: [16]byte{1}, epoch: 7, authorityGeneration: 2, generation: 3, accessDigest: "moJ4qkFhNl7UPKA2FehKWZbZEC7_VZoo7vJVamG8k_8", accessExpiresAt: "2026-11-07T12:05:00Z", horizon: "2026-11-08T12:00:00Z"}
+	sample := &usSessionRotation{kind: usSessionRenewal, clocks: usSessionClocks{now: "2026-11-07T12:00:00Z", resultHorizon: pins.horizon}, request: usSessionRotationRequest{ownerID: "us-owner", requestID: "us-request", pins: pins, controllerID: "us-controller", controllerEpoch: "us-controller-epoch", output: usSessionPreparedOutput{accessDigest: "2wpp3Dce9puxLcUsNQ5LL8vT856FpB5nWfRiwQUyENE", accessExpiresAt: "2026-11-07T12:15:00Z", horizon: pins.horizon, nonce: []byte{1}, ciphertext: []byte{2}}}}
 	for n := range defs {
 		defs[n].Owner, defs[n].Kind = "store/writer US session components", stmt.Write
 		defs[n].CallSites = []string{"store/writer/us_session_statements.go"}
@@ -82,8 +80,8 @@ RETURNING family_id`,
 		}
 		if defs[n].ID == usSessionRefreshRetire || defs[n].ID == usSessionRefreshRotate || defs[n].ID == usSessionRefreshReceiptDelete || defs[n].ID == usSessionRefreshReceiptInsert || defs[n].ID == usSessionRefreshPredecessorInsert {
 			sample.kind = usSessionRefresh
-			sample.request.refreshDigest, sample.request.refreshGeneration, sample.request.refreshExpiresAt = identityhash.Digest("session-fixture-e"), 1, pins.horizon
-			sample.request.priorReceiptDigest, sample.request.output.refreshDigest = identityhash.Digest("session-fixture-f"), identityhash.Digest("session-fixture-0")
+			sample.request.refreshDigest, sample.request.refreshGeneration, sample.request.refreshExpiresAt = "kERwGeHpRqt9pZoQc5zIoeTHNRWDbM649O94G5mhG50", 1, pins.horizon
+			sample.request.priorReceiptDigest, sample.request.output.refreshDigest = "-PLgyiPiUeBYub4lU4C4zWUKLK41PywGHoaP_B2cfUM", "f5PqHL2U1AN-e18W13ALA5RrTdzJewybyVc7dp8IIEc"
 		}
 		defs[n].Cohorts = []stmt.Cohort{{Name: "point", Bindings: sample.bindings(defs[n].ID, sample.clocks.now)}}
 	}

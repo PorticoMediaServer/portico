@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	identityhash "github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
 func TestUSSessionCommandWitnesses(t *testing.T) {
@@ -38,19 +36,19 @@ func TestUSSessionCommandWitnesses(t *testing.T) {
 			q.pins.profileLifetime = strings.Repeat("9", 32)
 		}},
 		{"pins.accessDigest", 0, func(i *CommandIdentity, q *usSessionRotationRequest, c *usSessionClocks) {
-			q.pins.accessDigest = identityhash.Digest("session-fixture-9")
+			q.pins.accessDigest = usCredentialFixtureHash("session-fixture-9")
 		}},
 		{"refreshDigest", usSessionRefresh, func(i *CommandIdentity, q *usSessionRotationRequest, c *usSessionClocks) {
-			q.refreshDigest = identityhash.Digest("session-fixture-9")
+			q.refreshDigest = usCredentialFixtureHash("session-fixture-9")
 		}},
 		{"priorReceiptDigest", usSessionRefresh, func(i *CommandIdentity, q *usSessionRotationRequest, c *usSessionClocks) {
-			q.priorReceiptDigest = identityhash.Digest("session-fixture-9")
+			q.priorReceiptDigest = usCredentialFixtureHash("session-fixture-9")
 		}},
 		{"output.accessDigest", 0, func(i *CommandIdentity, q *usSessionRotationRequest, c *usSessionClocks) {
-			q.output.accessDigest = identityhash.Digest("session-fixture-9")
+			q.output.accessDigest = usCredentialFixtureHash("session-fixture-9")
 		}},
 		{"output.refreshDigest", usSessionRefresh, func(i *CommandIdentity, q *usSessionRotationRequest, c *usSessionClocks) {
-			q.output.refreshDigest = identityhash.Digest("session-fixture-9")
+			q.output.refreshDigest = usCredentialFixtureHash("session-fixture-9")
 		}},
 		{"pins.epoch", 0, func(i *CommandIdentity, q *usSessionRotationRequest, c *usSessionClocks) { q.pins.epoch++ }},
 		{"pins.authorityGeneration", 0, func(i *CommandIdentity, q *usSessionRotationRequest, c *usSessionClocks) {
@@ -115,7 +113,7 @@ func TestUSSessionCommandWholeOriginalPayload(t *testing.T) {
 	for _, kind := range []CommandID{usSessionRenewal, usSessionRefresh} {
 		i, q, c := usSessionFixture(kind)
 		if kind == usSessionRefresh {
-			q.priorReceiptDigest = identityhash.Digest("session-fixture-7")
+			q.priorReceiptDigest = usCredentialFixtureHash("session-fixture-7")
 		}
 		want, err := canonicalRequestDigest(kind, 1, i, usSessionCommandRequest{prepared: usSessionRotation{kind: kind, identity: i, request: q, clocks: c}})
 		if err != nil {
