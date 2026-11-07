@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -154,5 +155,24 @@ func TestEnrichmentSharedDispatchZeroErrorsAndProfileIsolation(t *testing.T) {
 	// Guards still cover every named result through the shared finish kernel.
 	if !reflect.DeepEqual(out, enrichmentCommandResult{}) {
 		t.Fatal(out)
+	}
+}
+
+// The saved payload is deliberately too large for this explicit harness profile.
+// A corrupt result cannot hide a missing pre-copy reservation: capacity must win
+// before native TEXT copy and saved-result decoding.
+func TestEnrichmentSharedDispatchBudgetsBeforePayloadCopy(t *testing.T) {
+	w, cap, q, a, e, _ := enrichmentDispatchFixture(t)
+	if _, err := e.db.ExecContext(t.Context(), "UPDATE enrichment_command_receipts SET after_item=? WHERE command_kind='evidence_seal'", strings.Repeat("x", 1<<20)); err != nil {
+		t.Fatal(err)
+	}
+	in := &enrichmentInvocation{action: enrichmentResolve, purpose: EvidenceSeal, disclosure: cap, request: q}
+	out, ack, err := w.effective.runEnrichment(t.Context(), w, in)
+	var refusal *Refusal
+	if !errors.As(err, &refusal) || refusal.Code != RefusalCapacity || out != (enrichmentCommandResult{}) || ack != (AckResult{}) {
+		t.Fatal("saved payload copied before funded actual-byte capacity", out, ack, err)
+	}
+	if a.Usage()[governor.Background] != (governor.Amounts{}) || e.db.Stats().InUse != 0 {
+		t.Fatal("capacity refusal leaked", a.Usage(), e.db.Stats())
 	}
 }
