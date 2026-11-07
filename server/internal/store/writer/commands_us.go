@@ -3,26 +3,36 @@ package writer
 // US owns explicit 500–599 identities. Descriptors are preparation metadata,
 // never permission, a governor grant or physical qualification.
 const (
-	usLocalPasswordReplace CommandID = 520
-	usAPICredentialIssue   CommandID = 521
-	usAPICredentialRevoke  CommandID = 522
-	usProfileCreate        CommandID = 530
-	usProfileMetadataEdit  CommandID = 531
-	usMemberRoleChange     CommandID = 501
-	usMembershipDisable    CommandID = 502
-	usAccountEpochAdvance  CommandID = 503
-	usSessionRenewal       CommandID = 511
-	usSessionRefresh       CommandID = 512
-	usPINSet               CommandID = 532
-	usPINClear             CommandID = 533
-	usInvitationCreate     CommandID = 550
-	usInvitationEdit       CommandID = 551
-	usInvitationRevoke     CommandID = 552
-	USMemberLibraries      CommandID = 540
-	USProfileLibraries     CommandID = 541
+	usSetupCode             CommandID = 561
+	usSetupOutsideAdmission CommandID = 562
+	usHostedChallengeIssue  CommandID = 570
+	usHostedChallengeSpend  CommandID = 571
+	usHostedProfileAccept   CommandID = 574
+	usLocalPasswordReplace  CommandID = 520
+	usAPICredentialIssue    CommandID = 521
+	usAPICredentialRevoke   CommandID = 522
+	usProfileCreate         CommandID = 530
+	usProfileMetadataEdit   CommandID = 531
+	usMemberRoleChange      CommandID = 501
+	usMembershipDisable     CommandID = 502
+	usAccountEpochAdvance   CommandID = 503
+	usSessionRenewal        CommandID = 511
+	usSessionRefresh        CommandID = 512
+	usPINSet                CommandID = 532
+	usPINClear              CommandID = 533
+	usInvitationCreate      CommandID = 550
+	usInvitationEdit        CommandID = 551
+	usInvitationRevoke      CommandID = 552
+	USMemberLibraries       CommandID = 540
+	USProfileLibraries      CommandID = 541
 )
 
 var usCommands = commandRegistration{owner: "US", descriptors: []Descriptor{
+	{ID: usSetupCode, Name: "us_setup_code", Durability: Full},
+	{ID: usSetupOutsideAdmission, Name: "us_setup_outside_admission", Durability: Full},
+	{ID: usHostedChallengeIssue, Name: "us_hosted_challenge_issue", Durability: Full},
+	{ID: usHostedChallengeSpend, Name: "us_hosted_challenge_spend", Durability: Full},
+	{ID: usHostedProfileAccept, Name: "us_hosted_profile_accept", Durability: Full},
 	{ID: usLocalPasswordReplace, Name: "us_local_password_replace", Durability: Full},
 	{ID: usAPICredentialIssue, Name: "us_api_credential_issue", Durability: Full},
 	{ID: usAPICredentialRevoke, Name: "us_api_credential_revoke", Durability: Full},

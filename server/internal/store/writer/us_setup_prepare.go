@@ -5,12 +5,10 @@ import (
 	"fmt"
 )
 
-// Reserved metadata only. Root owns registration, canonical request/result codecs,
-// custody, current authority and admission; these preparations execute nothing.
+// Compiled metadata lives in commands_us.go. Root owns canonical request/result
+// codecs, custody, current authority and admission; these preparations execute nothing.
 const (
-	usSetupCode             CommandID = 561
-	usSetupOutsideAdmission CommandID = 562
-	usSetupAdmissionSpanMS  int64     = 1800000
+	usSetupAdmissionSpanMS int64 = 1800000
 )
 
 // Private scalar manifest: identity; old/new keyed code digests; token/peer/origin

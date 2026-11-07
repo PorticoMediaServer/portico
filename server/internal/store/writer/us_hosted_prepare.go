@@ -6,12 +6,7 @@ import (
 	"time"
 )
 
-// Reserved metadata only: no registration, result-schema acceptance or issuer.
-const (
-	usHostedChallengeIssue CommandID = 570
-	usHostedChallengeSpend CommandID = 571
-	usHostedProfileAccept  CommandID = 574
-)
+// Compiled metadata lives in commands_us.go; no schema acceptance or issuer.
 
 // The root independently verifies exact signed bytes, pinned key/root, kind,
 // server audience, account, installation and current source revision BEFORE
