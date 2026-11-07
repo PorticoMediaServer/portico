@@ -9,6 +9,10 @@ import (
 )
 
 func nativeEligible(q browseQuery, in BrowseInput, f browseFence, source *nativeSource) (bool, string, error) {
+	if source != nil && source.key.Subject == search.ManifestPerson {
+		allowed, err := nativePersonVisible(q, source.scope, in, f, source.key.SubjectID)
+		return allowed, "person", err
+	}
 	if source == nil || source.library != in.Library {
 		return false, "", nil
 	}
@@ -52,7 +56,7 @@ func nativeSealed(q browseQuery, publication int64) error {
 }
 func nativeSourceFields(ctx context.Context, q browseQuery, scope *fullQueryScope, s *nativeSource, own bool, route fullRouteKey, lead int) ([]candidateSource, error) {
 	maximum := uint16(4)
-	if own {
+	if own && s.key.Subject == search.ManifestEntity {
 		maximum = 9
 	}
 	var out []candidateSource
@@ -149,6 +153,9 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 		return v, nil
 	}
 	for _, index := range []int{13, 14, 15} {
+		if index == 15 && name != "album" {
+			continue
+		}
 		owner, e := integer(index)
 		if e != nil {
 			return empty, hit, false, e
@@ -185,19 +192,16 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 			}
 		}
 	}
-	image, e := integer(11)
+	creditOwners, e := nativeCreditOwners(ctx, q, scope, f, in, source, leadIndex)
 	if e != nil {
 		return empty, hit, false, e
 	}
-	if image > 0 {
-		rows, e := q("full.native.credit.first", id, image, int64(1))
-		if e != nil {
-			return empty, hit, false, e
-		}
-		if len(rows) > 0 {
-			return empty, hit, false, fmt.Errorf("%w: People search birth carrier is not adopted", ErrUnqualified)
-		}
+	owned += workspace(creditOwners)
+	if len(sources)+len(creditOwners) > 512 || owned > 1<<20 {
+		return empty, hit, false, ErrUnqualified
 	}
+	sources = append(sources, creditOwners...)
+
 	for _, relation := range []struct {
 		name  string
 		route ownerRelation
@@ -255,8 +259,47 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 // A distinct route: never substitute disc/track order for ID-search order.
 const albumTracks ownerRelation = authoredMembers + 1
 
+func nativeOwnerPage(q browseQuery, relation ownerRelation, owner int64, after *ownerCursor) (ownerPage, error) {
+	if relation != albumTracks {
+		return readOwnerPage(q, relation, owner, after, 1)
+	}
+	if owner <= 0 || after != nil && (after.owner != owner || after.relation != relation || after.position.Work <= 0) {
+		return ownerPage{}, ErrInput
+	}
+	statement := "full.native.album.first"
+	args := []any{owner}
+	if after != nil {
+		statement = "full.native.album.next"
+		args = append(args, after.position.Work)
+	}
+	rows, err := q(statement, append(args, int64(1))...)
+	if err != nil {
+		return ownerPage{}, err
+	}
+	if len(rows) > 1 {
+		return ownerPage{}, ErrUnqualified
+	}
+	if len(rows) == 0 {
+		return ownerPage{exhausted: true}, nil
+	}
+	if len(rows[0]) != 1 {
+		return ownerPage{}, ErrUnqualified
+	}
+	id, ok := rows[0][0].(int64)
+	if !ok || id <= 0 || after != nil && id >= after.position.Work {
+		return ownerPage{}, ErrUnqualified
+	}
+	pos := ownerPosition{Work: id}
+	return ownerPage{positions: []ownerPosition{pos}, after: &ownerCursor{relation, owner, pos}}, nil
+}
 func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, lead exactTermPopulation, e *nativeExpansion, top *fullSearchTop) (bool, error) {
-	source, err := nativeEntitySource(q, scope, e.source.SubjectID)
+	var source *nativeSource
+	var err error
+	if e.source.Subject == search.ManifestPerson {
+		source, err = nativePersonSource(q, scope, e.source.SubjectID)
+	} else {
+		source, err = nativeEntitySource(q, scope, e.source.SubjectID)
+	}
 	if err != nil {
 		return false, err
 	}
@@ -274,7 +317,69 @@ func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 		return true, nil
 	}
 	emit := func(id int64, route fullRouteKey) error {
-		proof, hit, matched, err := nativeCandidate(ctx, q, scope, f, in, id, lead)
+		if route.relation != 0 {
+			work, err := nativeEntitySource(q, scope, id)
+			if err != nil {
+				return err
+			}
+			if work == nil {
+				return nil
+			}
+			allowed, kind, err := nativeEligible(q, in, f, work)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return nil
+			}
+			switch route.relation {
+			case personWorks:
+				if work.item[11] != route.image {
+					return nil
+				}
+				rows, err := q("full.native.credit.point", id, route.image, route.ordinal, route.owner)
+				if err != nil {
+					return err
+				}
+				if len(rows) == 0 {
+					return nil
+				}
+				if len(rows) != 1 {
+					return ErrUnqualified
+				}
+			case artistAlbums:
+				if route.via == 0 {
+					if kind != "album" || work.item[15] != route.owner {
+						return nil
+					}
+				} else {
+					if kind != "song" || work.item[13] != route.via {
+						return nil
+					}
+				}
+			case artistSongs:
+				if kind != "song" {
+					return nil
+				}
+			case albumTracks:
+				if kind != "song" || work.item[13] != route.owner {
+					return nil
+				}
+			case showChildren:
+				if kind != "episode" && kind != "season" || work.item[14] != route.owner {
+					return nil
+				}
+			}
+		}
+		var proof canonicalCandidateProof
+		var hit FullSearchHit
+		var matched bool
+		var err error
+		if route.relation == 0 && e.source.Subject == search.ManifestPerson {
+			proof, hit, matched, err = nativePersonCandidate(ctx, q, scope, f, in, id, lead)
+		} else {
+			proof, hit, matched, err = nativeCandidate(ctx, q, scope, f, in, id, lead)
+		}
 		if err != nil {
 			return err
 		}
@@ -292,12 +397,14 @@ func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 	}
 	var relations []ownerRelation
 	switch name {
+	case "person":
+		relations = []ownerRelation{personWorks}
 	case "show":
 		relations = []ownerRelation{showChildren}
 	case "artist":
 		relations = []ownerRelation{artistAlbums, artistSongs}
 	case "album":
-		return false, fmt.Errorf("%w: album ID-search index is not adopted", ErrUnqualified)
+		relations = []ownerRelation{albumTracks}
 	case "collection":
 		return false, fmt.Errorf("%w: automatic collection forward proof not composed", ErrUnqualified)
 	}
@@ -305,7 +412,25 @@ func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 		return true, nil
 	}
 	relation := relations[e.relation]
-	page, err := readOwnerPage(q, relation, source.key.SubjectID, e.cursor, 1)
+	if e.album > 0 {
+		page, err := nativeOwnerPage(q, albumTracks, e.album, e.albumCursor)
+		if err != nil {
+			return false, err
+		}
+		if len(page.positions) > 0 {
+			if err = emit(page.positions[0].Work, fullRouteKey{relation: artistAlbums, owner: source.key.SubjectID, via: e.album}); err != nil {
+				return false, err
+			}
+		}
+		if page.exhausted {
+			e.album = 0
+			e.albumCursor = nil
+		} else {
+			e.albumCursor = page.after
+		}
+		return false, nil
+	}
+	page, err := nativeOwnerPage(q, relation, source.key.SubjectID, e.cursor)
 	if err != nil {
 		return false, err
 	}
@@ -315,7 +440,19 @@ func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 			return false, err
 		}
 		if name == "artist" && relation == artistAlbums {
-			return false, fmt.Errorf("%w: album ID-search index is not adopted", ErrUnqualified)
+			album, err := nativeEntitySource(q, scope, p.Work)
+			if err != nil {
+				return false, err
+			}
+			if album != nil {
+				allowed, kind, err := nativeEligible(q, in, f, album)
+				if err != nil {
+					return false, err
+				}
+				if allowed && kind == "album" && album.item[15] == source.key.SubjectID {
+					e.album = p.Work
+				}
+			}
 		}
 	}
 	if page.exhausted {
@@ -324,5 +461,5 @@ func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 	} else {
 		e.cursor = page.after
 	}
-	return e.relation >= len(relations), nil
+	return e.relation >= len(relations) && e.album == 0, nil
 }

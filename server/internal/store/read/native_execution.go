@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -35,11 +36,13 @@ type nativeRankHit struct {
 	tier, subtier     uint8
 }
 type nativeExpansion struct {
-	source   search.FieldKey
-	field    uint16
-	direct   bool
-	relation int
-	cursor   *ownerCursor
+	source      search.FieldKey
+	field       uint16
+	direct      bool
+	relation    int
+	cursor      *ownerCursor
+	album       int64
+	albumCursor *ownerCursor
 }
 type nativeSearchFence struct {
 	permission                         browseFence
@@ -61,6 +64,10 @@ func cloneNativeContinuation(p *nativeContinuation) *nativeContinuation {
 		if e.cursor != nil {
 			c := *e.cursor
 			e.cursor = &c
+		}
+		if e.albumCursor != nil {
+			c := *e.albumCursor
+			e.albumCursor = &c
 		}
 		n.expansion = &e
 	}
@@ -162,6 +169,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	var ready bool
 	var draft FullSearchPage
 	var copies int64
+	rawPositions := 0
 	calls := 0
 	lookup, lookupErr := r.snapshots.ReadForecasted(ctx, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: r.snapshots.NativeRowReservation(), MaxQueries: 4096}, func(scope *governor.ReadScope) error {
 		q := func(name string, args ...any) ([][]any, error) {
@@ -173,6 +181,12 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			rows, e := scope.Query(readStatementID(name), args...)
 			if e != nil {
 				return nil, e
+			}
+			if strings.HasPrefix(name, "full.") && name != "full.native.revision" && name != "full.native.bank" && name != "full.native.engine" {
+				rawPositions += len(rows)
+				if rawPositions > 512 {
+					return nil, governor.ErrSnapshotBudget
+				}
 			}
 			copies += 4096
 			for _, row := range rows {
@@ -294,12 +308,34 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 			return FullSearchPage{}, ErrStale
 		}
 		for _, hit := range state.top {
-			top.hits = append(top.hits, FullSearchHit{Subject: hit.subject, ID: hit.id, Library: hit.library, Kind: hit.kind, Tier: hit.tier, PeopleSubtier: hit.subtier, Item: BrowseItem{ID: hit.id}})
+			item := BrowseItem{}
+			if hit.subject == search.ManifestEntity {
+				item.ID = hit.id
+			}
+			top.hits = append(top.hits, FullSearchHit{Subject: hit.subject, ID: hit.id, Library: hit.library, Kind: hit.kind, Tier: hit.tier, PeopleSubtier: hit.subtier, Item: item})
 		}
 		top.more = state.more
 	}
 	finish := func() (FullSearchPage, error) {
 		for i, hit := range top.hits {
+			if hit.Subject == search.ManifestPerson {
+				source, err := nativePersonSource(q, scope, hit.ID)
+				if err != nil {
+					return FullSearchPage{}, err
+				}
+				if source == nil {
+					return FullSearchPage{}, ErrStale
+				}
+				visible, err := nativePersonVisible(q, scope, in.View, f.permission, hit.ID)
+				if err != nil {
+					return FullSearchPage{}, err
+				}
+				if !visible {
+					return FullSearchPage{}, ErrStale
+				}
+				top.hits[i].PersonName = source.title
+				continue
+			}
 			source, err := nativeEntitySource(q, scope, hit.ID)
 			if err != nil {
 				return FullSearchPage{}, err
