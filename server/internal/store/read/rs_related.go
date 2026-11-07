@@ -398,6 +398,10 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 	})
 	page, result, err := publishRead(ctx, byteWindows, request, budget, output, in.View, steps, root)
 	if err != nil {
+		if errors.Is(err, ErrRelatedCapacity) {
+			result.Refusal = &governor.Refusal{Code: governor.Capacity}
+			err = errors.Join(err, governor.ErrBusy)
+		}
 		w.state = relatedState{}
 		_ = w.authority.CancelPreparation(w.lease)
 		return RelatedPage{}, result, err

@@ -203,7 +203,7 @@ func TestRSRelatedMatrixAndCurrentFence(t *testing.T) {
 		}
 	}
 	for _, row := range p.Rows {
-		if row.Key.Kind == 1 {
+		if row.Key.Kind == 1 && row.Key.ID == 1 {
 			if row.Entries[0].ID != 9 {
 				t.Fatal("nearest-year descending tie", row)
 			}
@@ -372,5 +372,21 @@ func TestRSRelatedTypedAvailabilityBeyondRawWindow(t *testing.T) {
 				t.Fatal("typed source tail lost", p)
 			}
 		})
+	}
+}
+
+func TestRSRelatedMatrixCountsOnlyNonemptyRows(t *testing.T) {
+	row := make([]any, 33)
+	row[0] = int64(2)
+	row[1] = make([]byte, 16)
+	row[3] = int64(1)
+	row[5] = int64(1)
+	row[8] = int64(2000)
+	row[9] = float64(7)
+	c := &relatedCandidate{entity: relatedEntity{row}, visible: true, bits: [4]uint64{4}}
+	s := relatedState{roots: []relatedEntity{{row}}, features: []relatedFeature{{key: RelatedKey{Kind: 1, ID: 1}}, {key: RelatedKey{Kind: 1, ID: 2}}, {key: RelatedKey{Kind: 1, ID: 3}}}, candidates: map[int64]*relatedCandidate{2: c}, cards: map[int64]string{2: "Title"}}
+	rows, err := relatedRows(&s, RelatedInput{View: BrowseInput{Limit: 1}, Item: 1}, false)
+	if err != nil || len(rows) != 2 || rows[1].Key.ID != 3 || len(rows[1].Entries) != 1 {
+		t.Fatal("empty source rows consumed presentation slots", rows, err)
 	}
 }
