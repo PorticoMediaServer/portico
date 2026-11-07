@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4",
+  "ddl_sha256": "14f7b58ffe4b7c2ad1682dbb6ba52c028fca956875b16de8e52479b198d793d2",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
     {
@@ -10432,6 +10432,26 @@
           ],
           "sql": "CREATE UNIQUE INDEX scan_receipt_refusal_kind ON scan_command_receipts(run_id,operation_id,refused_entry_kind)",
           "access": "Complete native release index/FK custody; exact forced-query goldens in010 controls."
+        },
+        {
+          "name": "scan_receipt_refused_directory_identity",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "refused_directory_identity",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX scan_receipt_refused_directory_identity ON scan_command_receipts(run_id,refused_directory_identity) WHERE refused_directory_identity IS NOT NULL",
+          "access": "Run-wide durable refused native directory identity exclusion for both fresh discover and refusal, across ACK/lease/restart; exact point LIMIT1."
         },
         {
           "name": "sqlite_autoindex_scan_command_receipts_1",
