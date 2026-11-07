@@ -31,7 +31,10 @@ type n1OwnerWindow struct {
 }
 
 func n1BindOwnerWindow(view ownerWindowObservation, origin, callStarted, callReturned time.Time) *n1OwnerWindow {
-	if view.commandID != InventoryAccept || view.setupEnteredAt.IsZero() || callStarted.IsZero() || callReturned.IsZero() || view.setupEnteredAt.Before(callStarted) || view.terminalReturnedAt.IsZero() || view.terminalReturnedAt.After(callReturned) {
+	return n1BindOwnerWindowForPurpose(view, origin, callStarted, callReturned, InventoryAccept)
+}
+func n1BindOwnerWindowForPurpose(view ownerWindowObservation, origin, callStarted, callReturned time.Time, purpose CommandID) *n1OwnerWindow {
+	if view.commandID != purpose || view.setupEnteredAt.IsZero() || callStarted.IsZero() || callReturned.IsZero() || view.setupEnteredAt.Before(callStarted) || view.terminalReturnedAt.IsZero() || view.terminalReturnedAt.After(callReturned) {
 		return nil
 	}
 	interval := func(a, b time.Time, scope string) n1Interval {

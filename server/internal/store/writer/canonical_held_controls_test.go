@@ -17,11 +17,12 @@ func TestCanonicalHeldClosedRegistryKeepsAllBindingsExplicit(t *testing.T) {
 			t.Fatal("duplicate/empty class", c)
 		}
 		seen[c.name] = true
+		ready := c.name == "inventory_n1" || c.name == "progress" || c.name == "security" || c.name == "wc_reclaim"
 		want := 1
-		if c.name == "inventory_n1" {
+		if ready {
 			want = 0
 		}
-		if len(canonicalHeldMissing(c)) != want || (c.run != nil) != (c.name == "inventory_n1") {
+		if len(canonicalHeldMissing(c)) != want || (c.run != nil) != ready {
 			t.Fatal("unmerged seed/Action opened", c)
 		}
 		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.")) && (c.kind != "foreground_read" || c.purpose != nil) {
