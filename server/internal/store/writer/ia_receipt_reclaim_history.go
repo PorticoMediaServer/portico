@@ -62,22 +62,11 @@ func iaReceiptReclaimScopeMatches(q iaReceiptReclaimReference, o iaReceiptReclai
 // ACK do not decode the old scalar; a later slot never supplies an older result.
 // A replay proves the exact saved post-state/digest/charge and has zero effects.
 func classifyIAReceiptReclaim(q iaReceiptReclaimReference, o iaReceiptReclaimOwner) (receiptDecision, error) {
-	if err := validateIAReceiptReclaimReference(q); err != nil {
-		return receiptConflict, err
-	}
-	owner := receiptOwnerFacts{exists: o.exists, incarnation: o.incarnation, lastSequence: o.last, acknowledgedSequence: o.acknowledged}
-	if o.exists && o.incarnation == q.identity.Incarnation && !iaReceiptReclaimScopeMatches(q, o) {
-		return receiptConflict, ErrConflict
-	}
-	s := o.slot
-	var found receiptFacts
-	if s.present && s.identity.Sequence == q.identity.Sequence {
-		found = receiptFacts{exists: true, identity: receiptIdentity{command: s.identity, digest: s.request}, kind: s.purpose, resultCount: s.resultCount, resultDigest: s.digest}
-	}
-	decision, err := classifyReceipt(receiptIdentity{command: q.identity, digest: q.request}, q.purpose, owner, found)
+	decision, err := classifyIAReceiptReclaimMetadata(q, o)
 	if err != nil || decision != receiptReplay {
 		return decision, err
 	}
+	s := o.slot
 	if s.version != 1 || s.resultCount != 1 || s.facts.next != o.cursor || s.facts.rows != o.rows || s.facts.bytes != o.bytes || s.facts.noNext == o.due {
 		return receiptResolveRequired, ErrResolveRequired
 	}
@@ -90,6 +79,24 @@ func classifyIAReceiptReclaim(q iaReceiptReclaimReference, o iaReceiptReclaimOwn
 		return receiptResolveRequired, ErrResolveRequired
 	}
 	return receiptReplay, nil
+}
+
+// Only fixed identity metadata is inspected before the ACK decision. Native
+// adapters must not decode an ACKed slot body or a newer slot as older output.
+func classifyIAReceiptReclaimMetadata(q iaReceiptReclaimReference, o iaReceiptReclaimOwner) (receiptDecision, error) {
+	if err := validateIAReceiptReclaimReference(q); err != nil {
+		return receiptConflict, err
+	}
+	owner := receiptOwnerFacts{exists: o.exists, incarnation: o.incarnation, lastSequence: o.last, acknowledgedSequence: o.acknowledged}
+	if o.exists && o.incarnation == q.identity.Incarnation && !iaReceiptReclaimScopeMatches(q, o) {
+		return receiptConflict, ErrConflict
+	}
+	s := o.slot
+	var found receiptFacts
+	if s.present && s.identity.Sequence == q.identity.Sequence {
+		found = receiptFacts{exists: true, identity: receiptIdentity{command: s.identity, digest: s.request}, kind: s.purpose, resultCount: s.resultCount, resultDigest: s.digest}
+	}
+	return classifyReceipt(receiptIdentity{command: q.identity, digest: q.request}, q.purpose, owner, found)
 }
 
 // One exact unit returned by an indexed full-owner probe. A configuration
@@ -164,7 +171,7 @@ func prepareIAReceiptReclaim(in iaReceiptReclaimInput) (iaReceiptReclaimResult, 
 		return zero, ErrConflict
 	}
 	if !o.due || o.dueMS < 0 || in.appliedMS < o.dueMS || o.cursor.sequence < 0 || o.cursor.sequence > o.acknowledged ||
-		o.rows < 0 || o.bytes < 0 || (o.rows == 0) != (o.bytes == 0) || in.expectedOldSlot != o.slot {
+		o.rows <= 0 || o.bytes <= 0 || in.expectedOldSlot != o.slot {
 		return zero, ErrResolveRequired
 	}
 	if o.slot.present {

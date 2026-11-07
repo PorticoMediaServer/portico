@@ -264,6 +264,16 @@ func TestIAReceiptReclaimNativeFactRefusals(t *testing.T) {
 	if _, err := prepareIAReceiptReclaim(in); err != nil {
 		t.Fatal(err)
 	}
+	// IA BEGIN/configuration always retains a scalar data header. Empty
+	// unreceipted accounting is not a genesis empty owner or a W exception:
+	// never adopt a missing/deleted header as a fresh zero-removal result.
+	missing := in
+	missing.owner.rows, missing.owner.bytes = 0, 0
+	missing.first = iaReclaimProbe(q, missing.owner, missing.owner.cursor, iaReceiptReclaimUnit{})
+	missing.after = missing.first
+	if _, err := prepareIAReceiptReclaim(missing); !errors.Is(err, ErrResolveRequired) {
+		t.Fatal("missing data became a fresh empty result", err)
+	}
 	for _, change := range []func(*iaReceiptReclaimInput){
 		func(v *iaReceiptReclaimInput) { v.owner.due = false },
 		func(v *iaReceiptReclaimInput) { v.owner.retirement.resolvedRoot += "/replacement" },
