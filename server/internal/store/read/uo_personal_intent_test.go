@@ -34,6 +34,11 @@ func TestUOPersonalEffectiveWatchedSequenceMembershipAndUndo(t *testing.T) {
 	undo.action = 4
 	undo.watched = false
 	fold(leaf, []uoPersonalAncestorIntent{undo, show}, false, 4, 2)
+	// Restoring an original parent intent preserves its original order, so a
+	// newer explicit child edit remains authoritative after undo.
+	restored := season
+	restored.action = 1
+	fold(explicitUnwatch, []uoPersonalAncestorIntent{restored}, false, 3, 1)
 	newerLeaf := leaf
 	newerLeaf.action = 5
 	newerLeaf.watched = true

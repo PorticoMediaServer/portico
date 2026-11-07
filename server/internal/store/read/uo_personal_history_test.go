@@ -14,7 +14,7 @@ func newUOPersonalHistorySource(t *testing.T) (*browseFixture, browseQuery, uoPe
 	for n := 1; n <= 140; n++ {
 		// Same-time ties followed by an older-time stream, both account-indexed.
 		at := fmt.Sprintf("2026-11-%02dT00:00:00Z", 1+(n-1)/70)
-		f.exec(t, `INSERT INTO play_history(occurred_at,event_kind,account_key,profile_id,playback_id,occurrence_generation,accepted_sequence,subject_id,activity_generation,membership_incarnation,profile_lifetime) VALUES(?,'started','a','p','playing',1,?,1,1,?,?)`, at, int64(n), strings.Repeat("a", 32), strings.Repeat("b", 32))
+		f.exec(t, `INSERT INTO play_history(occurred_at,event_kind,account_key,profile_id,playback_id,occurrence_generation,accepted_sequence,subject_id,item_public_id,activity_generation,membership_incarnation,profile_lifetime) VALUES(?,'started','a','p','playing',1,?,1,(SELECT public_id FROM catalog_subjects WHERE id=1),1,?,?)`, at, int64(n), strings.Repeat("a", 32), strings.Repeat("b", 32))
 	}
 	f.exec(t, `COMMIT`)
 	q := uoPersonalNativeQuery(t, f)
