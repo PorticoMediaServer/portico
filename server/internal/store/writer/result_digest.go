@@ -61,6 +61,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIPPolicyResult(v)
 	case ipRefreshSavedResult:
 		return preflightIPRefreshResult(v)
+	case ipEditBulkSavedResult:
+		return preflightIPEditBulkResult(v)
 	case ipTextMutationSavedResult:
 		return preflightIPTextMutationResult(v)
 	case ipTextLockResult:
@@ -118,6 +120,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIPPolicyResult(e, identity, request, v)
 	case ipRefreshSavedResult:
 		return writeIPRefreshResult(e, identity, request, v)
+	case ipEditBulkSavedResult:
+		return writeIPEditBulkResult(e, identity, request, v)
 	case ipTextMutationSavedResult:
 		return writeIPTextMutationResult(e, identity, request, v)
 	case ipTextLockResult:
