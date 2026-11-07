@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"math"
 	"reflect"
+	"slices"
 
 	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -18,13 +20,18 @@ type InventoryPreparationSnapshot struct {
 }
 
 type N1Preparation struct {
-	self         *N1Preparation
-	driver       *ScanDriver
-	preparation  *scanPreparation
-	lease        *ScanRunLease
-	identity     CommandIdentity
-	template     InventoryAcceptInput
-	read, closed bool
+	self                                       *N1Preparation
+	driver                                     *ScanDriver
+	preparation                                *scanPreparation
+	lease                                      *ScanRunLease
+	identity                                   CommandIdentity
+	template                                   InventoryAcceptInput
+	command                                    *inventoryAcceptCommand
+	preparedBytes                              uint64
+	reference                                  ScanReceiptRequest
+	last                                       InventoryResult
+	historyOnly, acknowledged, resultPublished bool
+	read, closed                               bool
 }
 
 func inventoryPreparationDefinitions() []stmt.Definition {
@@ -38,13 +45,19 @@ func inventoryPreparationDefinitions() []stmt.Definition {
 	return append(defs, scanSnapshotByteDefinitions()...)
 }
 
-func composeInventoryPreparation(ctx context.Context, d *ScanDriver, plan effectivePlan) (err error) {
-	var runtimeLocked, driverLocked, installed bool
+func composeInventoryPreparation(ctx context.Context, d *ScanDriver, plan, history effectivePlan) (err error) {
+	var runtimeLocked, driverLocked, executorLocked, installed bool
 	var r *effectiveRuntime
+	var oldRegistry *stmt.Registry
+	var oldRetention *scanOwnerRetention
 	defer func() {
 		_, err = finishCommand(ctx, ctx, struct{}{}, err)
 		if installed && err != nil {
-			r.inventoryPreparationPlan = nil
+			r.inventoryPreparationPlan, r.inventoryPlan = nil, nil
+			r.registry, d.retention = oldRegistry, oldRetention
+		}
+		if executorLocked {
+			r.executor.mu.Unlock()
 		}
 		if runtimeLocked {
 			r.mu.Unlock()
@@ -66,28 +79,72 @@ func composeInventoryPreparation(ctx context.Context, d *ScanDriver, plan effect
 		return ErrBusy
 	}
 	runtimeLocked = true
-	if d.preparation != nil || d.operation != nil || r.inventoryPreparationPlan != nil {
+	if d.preparation != nil || d.operation != nil || d.work != nil || r.inventoryPreparationPlan != nil || r.inventoryPlan != nil {
 		return ErrBusy
 	}
 	plan, err = freezeCommandPlan(r.executor, plan, inventoryPreparationDefinitions(), InventoryAccept)
 	if err != nil {
 		return err
 	}
-	for _, def := range inventoryPreparationDefinitions() {
-		if _, e := r.registry.Lookup(def.ID); e != nil {
-			return e
-		}
-		matched := false
-		for _, entry := range r.registry.Manifest() {
-			if entry.ID == def.ID && reflect.DeepEqual(entry.Definition, def) {
-				matched = true
-				break
+	history, err = freezeCommandPlan(r.executor, history, inventoryHistoryDefinitions(), InventoryAccept)
+	if err != nil {
+		return err
+	}
+	if plan.inventoryMemory.preparationBytes < scanByteFixedWorkspace || history.inventoryMemory.preparationBytes < scanByteFixedWorkspace {
+		return &Refusal{Code: RefusalUnqualified}
+	}
+	if !r.executor.mu.TryLock() {
+		return ErrBusy
+	}
+	executorLocked = true
+	if r.fenced || r.executor.closed || r.executor.fenced || r.executor.ambiguous {
+		return ErrClosed
+	}
+	all := make([]stmt.Definition, 0, len(r.registry.Manifest())+len(inventoryHistoryDefinitions()))
+	for _, entry := range r.registry.Manifest() {
+		all = append(all, entry.Definition)
+	}
+	for _, def := range append(inventoryPreparationDefinitions(), inventoryHistoryDefinitions()...) {
+		found := false
+		for _, previous := range all {
+			if previous.ID != def.ID {
+				continue
 			}
+			if !reflect.DeepEqual(previous, def) {
+				return invalid("inventory_preparation_definition")
+			}
+			found = true
+			break
 		}
-		if !matched {
-			return invalid("inventory_preparation_definition")
+		if !found {
+			all = append(all, def)
 		}
 	}
+	receipts := []stmt.Receipt{r.plan.registration, plan.registration, history.registration}
+	for _, installed := range r.lifecyclePlans {
+		if installed != nil {
+			receipts = append(receipts, installed.registration)
+		}
+	}
+	for _, installed := range r.issuerPlans {
+		if installed != nil {
+			receipts = append(receipts, installed.registration)
+		}
+	}
+	registry, err := stmt.New(all, receipts...)
+	if err != nil {
+		return err
+	}
+	retention, err := scanOwnerRetentionFor(r.executor, registry)
+	if err != nil {
+		return err
+	}
+	if err = r.authority.VerifyComposition(r.governor, r.wal); err != nil {
+		return err
+	}
+	oldRegistry, oldRetention = r.registry, d.retention
+	r.registry, d.retention = registry, retention
+	r.inventoryPlan = &history
 	r.inventoryPreparationPlan = &plan
 	installed = true
 	return nil
@@ -264,6 +321,18 @@ func (p *N1Preparation) ObserveInventory(ctx context.Context) (value nativeinven
 
 func (p *N1Preparation) Accept(ctx context.Context, command InventoryAcceptCommand) (value InventoryResult, err error) {
 	life := ctx
+	locked, published := false, false
+	defer func() {
+		if !locked {
+			return
+		}
+		if err != nil && published {
+			// A final lifetime check can discard an already committed result.
+			// Keep its charged buffers, but allow recovery of the same original.
+			p.resultPublished = false
+		}
+		p.driver.mu.Unlock()
+	}()
 	if p != nil && p.self == p && p.driver != nil {
 		life = p.driver.lifetime
 	}
@@ -275,8 +344,8 @@ func (p *N1Preparation) Accept(ctx context.Context, command InventoryAcceptComma
 	if !d.mu.TryLock() {
 		return value, ErrBusy
 	}
-	defer d.mu.Unlock()
-	if p.closed || p.preparation == nil || d.preparation != p.preparation {
+	locked = true
+	if p.closed || p.preparation == nil || d.preparation != p.preparation || p.lease == nil {
 		return value, ErrClosed
 	}
 	life = p.preparation.lifetime
@@ -286,16 +355,46 @@ func (p *N1Preparation) Accept(ctx context.Context, command InventoryAcceptComma
 	if err = p.preparation.current(); err != nil {
 		return value, err
 	}
-	ref, err := InventoryAcceptReference(command)
+	c, ok := command.(*inventoryAcceptCommand)
+	if !ok || c == nil || c != p.command || !c.valid || p.historyOnly {
+		return value, ErrInvalid
+	}
+	ref, err := InventoryAcceptReference(c)
+	if err != nil || ref != p.reference {
+		return value, errors.Join(ErrConflict, err)
+	}
+	if p.resultPublished && p.last.Outcome.State != Pending {
+		return value, ErrBusy
+	}
+	work := d.work
+	if work == nil {
+		work, err = d.prepareWork(ctx, InventoryAccept, ref, p.lease.generation, p.preparation)
+		if err != nil {
+			return value, err
+		}
+	} else {
+		if work.purpose != InventoryAccept || work.original != ref || work.preparation != p.preparation {
+			return value, ErrConflict
+		}
+		if work.submission == scanNoGrant || work.nativeReturned() && p.last.Outcome.State == Pending {
+			work.submission = scanPrepared
+		}
+		if work.submission != scanPrepared {
+			return value, ErrResolveRequired
+		}
+	}
+	call := &scanIssuerInvocation{driver: d, action: scanIssuerN1Apply, retained: p.preparation, work: work, deadline: p.preparation.expected.Deadline}
+	out, _, err := d.writer.effective.runCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, false,
+		&inventoryInvocation{disclosure: d.sourceDisclosure(ref), request: ref, input: c, issuer: call})
 	if err != nil {
 		return value, err
 	}
-	if ref.Receipt.Identity != p.identity || ref.RunID != p.template.Scope.RunID || ref.LibraryID != p.template.Scope.LibraryID || ref.LibraryKey != p.template.Scope.LibraryKey {
-		return value, ErrConflict
-	}
-	// Fresh enable remains at the complete native-composition gate. Neither a
-	// prepared snapshot nor a valid constructor supplies that qualification.
-	return p.driver.writer.AcceptInventory(ctx, p.driver.sourceDisclosure(ref), command)
+	p.last = out.inventory
+	p.last.Outcome.Evidence = nil
+	p.last.Members = slices.Clone(out.inventory.Members)
+	p.resultPublished = true
+	published = true
+	return out.inventory, nil
 }
 
 func (p *N1Preparation) Close(ctx context.Context) error {

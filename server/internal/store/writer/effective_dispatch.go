@@ -276,6 +276,26 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			return out, acknowledged, ErrNotImplemented
 		}
 	}
+	if scan != nil && scan.issuer != nil && scan.lifecycle == 0 {
+		if err = validateScanIssuerInvocation(r, w, scan); err != nil {
+			return out, acknowledged, err
+		}
+		if !isScanInventoryHistory(scan.issuer.action) {
+			return out, acknowledged, ErrInvalid
+		}
+	}
+	if purpose == InventoryAccept {
+		required, e := scanLifecycleWorkingBytes(nil, scan.request.RunID, scan.request.LibraryKey)
+		if e != nil {
+			return out, acknowledged, e
+		}
+		if plan.inventoryMemory == (inventoryMemoryBudget{}) {
+			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
+		}
+		if required > plan.inventoryMemory.preparationBytes {
+			return out, acknowledged, &Refusal{Code: RefusalCapacity}
+		}
+	}
 	defer func() {
 		if primary := recover(); primary != nil {
 			r.fenced = true
@@ -307,7 +327,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if err != nil {
 		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
 	}
-	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover || scan.issuer.action == scanIssuerInventory) {
+	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover || scan.issuer.action == scanIssuerInventory || scan.issuer.action == scanIssuerN1Recover) {
 		scan.issuer.deadline = now.Add(scan.issuer.driver.readyPlan.ready)
 		if scan.issuer.action == scanIssuerInventory && time.UnixMilli(scan.issuer.lease.expiresMS).Before(scan.issuer.deadline) {
 			scan.issuer.deadline = time.UnixMilli(scan.issuer.lease.expiresMS)
@@ -434,9 +454,13 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	var historical bool
 	if err == nil && scan != nil && scan.issuer != nil {
-		out, historical, err = runScanIssuerTurn(ctx, turn, scan, ack)
-		if err == nil && ack {
-			acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+		if isScanInventoryHistory(scan.issuer.action) {
+			out, acknowledged, historical, err = runScanInventoryHistory(ctx, turn, scan, ack)
+		} else {
+			out, historical, err = runScanIssuerTurn(ctx, turn, scan, ack)
+			if err == nil && ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+			}
 		}
 	}
 	if err == nil && scan != nil && scan.lifecycle != 0 && scan.issuer == nil {
@@ -453,7 +477,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			}
 		}
 	}
-	if err == nil && scan != nil && scan.lifecycle == 0 {
+	if err == nil && scan != nil && scan.lifecycle == 0 && scan.issuer == nil {
 		var lookup inventoryReceiptLookup
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;

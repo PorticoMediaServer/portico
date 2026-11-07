@@ -151,9 +151,9 @@ func TestScanLifecycleDispatchClosedScopePlansAndMiss(t *testing.T) {
 		t.Fatal("unproved registry installed", err)
 	}
 	bad = plan
-	bad.scanLifecycleMemory = commandMemoryBudget{4 << 20, uint64(bad.need[governor.MemoryBytes]) - 4<<20}
+	bad.scanLifecycleMemory = commandMemoryBudget{scanByteFixedWorkspace - 1, uint64(bad.need[governor.MemoryBytes]) - scanByteFixedWorkspace + 1}
 	if err := composeScanLifecycleHistory(t.Context(), r, bad, plan); err == nil || r.registry != registry || r.lifecyclePlans != ([2]*effectivePlan{}) {
-		t.Fatal("underfunded complete copy envelope installed", err)
+		t.Fatal("underfunded fixed byte-preflight workspace installed", err)
 	}
 	r.lifecyclePlans = oldPlans
 	if a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {

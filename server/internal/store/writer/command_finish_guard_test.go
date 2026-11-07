@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true, "N1Preparation": true, "InventoryPreparationSnapshot": true, "scanByteVector": true, "scanLifecycleByteProof": true, "scanReceiptPrefix": true, "scanMemberByteProof": true, "scanSnapshotByteProof": true, "scanRunSnapshot": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "InventoryAcceptCommand": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "ScanRunSnapshot": true, "ScanRunOperation": true, "ScanRunResult": true, "ScanRunLease": true, "N1Preparation": true, "InventoryPreparationSnapshot": true, "scanByteVector": true, "scanLifecycleByteProof": true, "scanReceiptPrefix": true, "scanMemberByteProof": true, "scanSnapshotByteProof": true, "scanRunSnapshot": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -265,6 +265,7 @@ func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 		`func readScanReceiptIdentity(ctx context.Context)(value receiptFacts,err error){return value,nil}`,
 		`func readCheckedScanRunSnapshot(ctx context.Context)(value scanRunSnapshot,err error){return value,nil}`,
 		`func requireScanByteMemory(ctx context.Context)(err error){return nil}`,
+		`func Freeze(ctx context.Context)(value InventoryAcceptCommand,err error){return nil,nil}`,
 		`func lookupScanRunLifecycle(ctx context.Context)(value scanLifecycleReceiptLookup,err error){return scanLifecycleReceiptLookup{},nil}`,
 		`func captureScanSource(ctx context.Context)(value scanSourceFacts,err error){return scanSourceFacts{},nil}`,
 		`func PrepareCreate(ctx context.Context)(value *ScanRunOperation,err error){return &ScanRunOperation{},nil}`,

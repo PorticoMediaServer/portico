@@ -191,7 +191,17 @@ func (d *ScanDriver) ReleasePending(ctx context.Context) error {
 	}
 	defer d.mu.Unlock()
 	if d.preparation != nil && d.preparation.inventory != nil {
-		return ErrBusy // the producer owns its snapshot/observation until Close
+		// A recovered history has no public preparation handle. This explicit
+		// release is its consumer Close; it never ACKs, clears a receipt or
+		// infers physical return. A live producer uses its own N1 Close.
+		if !d.preparation.inventory.historyOnly {
+			return ErrBusy
+		}
+		if err := d.preparation.Close(ctx); err != nil {
+			return err
+		}
+		d.preparation = nil
+		return nil
 	}
 	if d.work != nil && d.work.submission != scanPrepared && d.work.submission != scanNoGrant {
 		return ErrResolveRequired
