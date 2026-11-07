@@ -236,3 +236,62 @@ func TestIAMediaResultChargesAndBounds(t *testing.T) {
 		t.Fatal("aggregate overflow accepted")
 	}
 }
+
+func TestIAMediaResultVariants(t *testing.T) {
+	id, r, v := iaMediaFixture(IAAcceptAudioInventory)
+	// Identity and artist rows carry no invented asset/link payload. The native
+	// schema permits zero-filled metadata incarnations, which are still present.
+	identity := iaMediaMember{kind: "identity", libraryID: 1, subjectID: 7, subjectKind: 4, subjectRevision: 1, parentID: iaMediaPtr(int64(3)), parentKind: iaMediaPtr(int64(3)), ancestorID: iaMediaPtr(int64(2)), ancestorKind: iaMediaPtr(int64(2))}
+	artist := iaMediaMember{kind: "artist", libraryID: 1, subjectID: 7, subjectKind: 7, subjectRevision: 1, parentID: iaMediaPtr(int64(5)), parentKind: iaMediaPtr(int64(5))}
+	for _, tc := range []struct {
+		k CommandID
+		m iaMediaMember
+	}{{IAAcceptEpisodeInventory, identity}, {IAAcceptAudioInventory, artist}} {
+		v.members = []iaMediaMember{tc.m}
+		v.memberBytes, _ = iaMediaMemberRetainedBytes(tc.k, v.runID, tc.m)
+		iaMediaHash(t, tc.k, id, r, v)
+		v.members[0].parentKind = iaMediaPtr(int64(13))
+		v.memberBytes, _ = iaMediaMemberRetainedBytes(tc.k, v.runID, v.members[0])
+		if preflightIAMediaResult(tc.k, id, r, v) == nil {
+			t.Fatal("invalid typed parent accepted")
+		}
+	}
+	for _, head := range []int64{0, 1} {
+		id, r, v = iaMediaFixture(IAAcceptReadingInventory)
+		v.members[0].readingPathHead = &head
+		if head == 0 {
+			v.members[0].readingPathSequence = nil
+		}
+		v.memberBytes, _ = iaMediaMemberRetainedBytes(IAAcceptReadingInventory, v.runID, v.members[0])
+		iaMediaHash(t, IAAcceptReadingInventory, id, r, v)
+		v.members[0].readingPathSequence = iaMediaPtr(int64(0))
+		v.memberBytes, _ = iaMediaMemberRetainedBytes(IAAcceptReadingInventory, v.runID, v.members[0])
+		if preflightIAMediaResult(IAAcceptReadingInventory, id, r, v) == nil {
+			t.Fatal("invalid path sequence accepted")
+		}
+	}
+	id, r, v = iaMediaFixture(IAAcceptExtraInventory)
+	iaMediaHash(t, IAAcceptExtraInventory, id, r, v)
+	v.members[0].extraKind = nil
+	v.memberBytes, _ = iaMediaMemberRetainedBytes(IAAcceptExtraInventory, v.runID, v.members[0])
+	if preflightIAMediaResult(IAAcceptExtraInventory, id, r, v) == nil {
+		t.Fatal("missing extra kind accepted")
+	}
+	// A repeated native PK can produce storage debt above the wire cap even
+	// though its run ID appears only once on the wire. No storage cap is invented.
+	id, r, v = iaMediaFixture(IAAcceptMembership)
+	v.runID = strings.Repeat("r", 9000)
+	v.members = make([]iaMediaMember, 4096)
+	v.resultCount = 4096
+	v.memberBytes = 0
+	for i := range v.members {
+		m := iaMediaMember{ordinal: int64(i), kind: "identity", libraryID: 1, subjectID: int64(i + 1), subjectKind: 1, subjectRevision: 1}
+		v.members[i] = m
+		n, _ := iaMediaMemberRetainedBytes(IAAcceptMembership, v.runID, m)
+		v.memberBytes += n
+	}
+	if v.memberBytes <= maxCanonicalResultBytes {
+		t.Fatal("fixture must exceed wire cap in storage")
+	}
+	iaMediaHash(t, IAAcceptMembership, id, r, v)
+}
