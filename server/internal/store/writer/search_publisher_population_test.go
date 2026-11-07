@@ -3,6 +3,7 @@ package writer
 import (
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -88,15 +89,37 @@ func publisherReadPopulationTemplate(t *testing.T, e *executor, table string, ke
 	if table == "search_image_seals" {
 		keyColumn = "publication_id"
 	}
-	rows, err := e.db.QueryContext(t.Context(), `SELECT * FROM "`+table+`" WHERE "`+keyColumn+`"=?`, key)
+	// table_xinfo includes generated/hidden columns that SELECT * also
+	// returns. They are schema-derived outputs and must never enter INSERT.
+	info, err := e.db.QueryContext(t.Context(), `PRAGMA table_xinfo("`+table+`")`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var columns, quoted []string
+	for info.Next() {
+		var cid, notnull, pk, hidden int
+		var column, kind string
+		var defaultValue any
+		if err := info.Scan(&cid, &column, &kind, &notnull, &defaultValue, &pk, &hidden); err != nil {
+			info.Close()
+			t.Fatal(err)
+		}
+		if hidden == 0 {
+			columns = append(columns, column)
+			quoted = append(quoted, `"`+strings.ReplaceAll(column, `"`, `""`)+`"`)
+		}
+	}
+	if err := errors.Join(info.Err(), info.Close()); err != nil {
+		t.Fatal(err)
+	}
+	if len(columns) == 0 {
+		t.Fatal("empty native population template", table)
+	}
+	rows, err := e.db.QueryContext(t.Context(), `SELECT `+strings.Join(quoted, ",")+` FROM "`+table+`" WHERE "`+keyColumn+`"=?`, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rows.Close()
-	columns, err := rows.Columns()
-	if err != nil {
-		t.Fatal(err)
-	}
 	values, dest := make([]any, len(columns)), make([]any, len(columns))
 	for i := range values {
 		dest[i] = &values[i]
@@ -114,10 +137,6 @@ func publisherReadPopulationTemplate(t *testing.T, e *executor, table string, ke
 	}
 	if rows.Next() || rows.Err() != nil {
 		t.Fatal("non-singleton population template", table, rows.Err())
-	}
-	quoted := make([]string, len(columns))
-	for i, c := range columns {
-		quoted[i] = `"` + strings.ReplaceAll(c, `"`, `""`) + `"`
 	}
 	return publisherPopulationTemplate{table, columns, values, `INSERT INTO "` + table + `" (` + strings.Join(quoted, ",") + `) VALUES (` + strings.TrimSuffix(strings.Repeat("?,", len(columns)), ",") + `)`}
 }
