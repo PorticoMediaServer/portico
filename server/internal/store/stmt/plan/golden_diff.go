@@ -257,13 +257,13 @@ func CompareExactJSON(expected, actual []byte) error {
 	if len(expected) == 0 {
 		return fmt.Errorf("plan: missing reviewed golden")
 	}
-	if bytes.Equal(expected, actual) {
-		return nil
-	}
 	if before, after, err := schemaComparison(expected, actual); err != nil {
 		return err
 	} else if !bytes.Equal(before, expected) || !bytes.Equal(after, actual) {
 		return CompareJSON(expected, actual)
+	}
+	if bytes.Equal(expected, actual) {
+		return nil
 	}
 	if err := CompareJSON(expected, actual); err != nil {
 		return err
