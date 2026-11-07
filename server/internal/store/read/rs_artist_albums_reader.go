@@ -280,6 +280,11 @@ func (r *RSArtistAlbumReader) enumerate(ctx context.Context, q governor.Request,
 			if s[1] != p.input.View.Library || s[3] != int64(0) || s[4] == nil {
 				return nil
 			}
+			// Featured membership is earned by a currently visible ITEM, even
+			// when container restrictions use accepted child bands.
+			if s[5] == nil && f.allowUnrated == 0 || s[5] != nil && f.maximumAge >= 0 && s[5].(int64) > f.maximumAge {
+				return nil
+			}
 			v := p.view(at, 7, id)
 			if _, e = rsDetailSubjectEligibility(query, v, f); errors.Is(e, ErrDenied) {
 				return nil

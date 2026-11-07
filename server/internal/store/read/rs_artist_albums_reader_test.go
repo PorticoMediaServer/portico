@@ -22,7 +22,7 @@ func artistAlbumFixture(t *testing.T) (*browseFixture, *RSArtistAlbumReader) {
 	// composeReadFixture captures the actual composed registry under both native
 	// statistics profiles and issues it from the resulting receipt.
 	var _ []stmt.Definition = defs
-	f := composeReadFixture(t, audioRelationsFixture(t), defs, cfg, false, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
+	f := composeReadFixture(t, audioRelationsFixture(t), defs, cfg, true, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
 	f.exec(t, "ANALYZE")
 	g := captureBrowse(t, f, defs, plan.Analyzed, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal))))
 	if _, err := stmt.New(defs, g.Receipt()); err != nil {
@@ -95,5 +95,27 @@ func TestRSArtistAlbumReaderCursorIdentity(t *testing.T) {
 	p.set.ids = []int64{1}
 	if a == p.identity() {
 		t.Fatal("union absent from provenance")
+	}
+}
+
+func TestRSArtistAlbumReaderLifecycle(t *testing.T) {
+	f, r := artistAlbumFixture(t)
+	v := f.input
+	v.Kind = 5
+	in := RSArtistAlbumInput{View: v, Artist: 2006, Limit: 2}
+	if p, _, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 1, in); e == nil && p != nil {
+		p.Close()
+		t.Fatal("retention exceeded tiny lease")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	p, ref, e := r.Begin(ctx, 1, time.Now().Add(time.Minute), 4<<20, in)
+	if e != nil || ref != nil {
+		t.Fatal(e, ref)
+	}
+	defer p.Close()
+	cancel()
+	_, _, e = r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
+	if e == nil {
+		t.Fatal("cancelled original job read")
 	}
 }
