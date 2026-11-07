@@ -23,7 +23,7 @@ func TestMGRuleNativeDeleteAfterSourceRetirement(t *testing.T) {
 			}
 			for _, q := range []string{
 				`UPDATE live_sources SET revision=revision+1,state='disabled'`,
-				`UPDATE live_source_identities SET has_live_source_removals=1`,
+				`UPDATE live_source_identities SET has_live_source_removals=1,removal_request_id='999999999999999999999999999999999999999999999999',removal_revision=3,removal_removed_at='2026-11-07T00:00:00Z'`,
 				`UPDATE dvr_rule_work SET job_lease_owner=7,job_lease_generation=9,job_lease_expires_ms=900,job_attempts=2`,
 			} {
 				if _, err := w.db.ExecContext(t.Context(), q); err != nil {
