@@ -46,6 +46,7 @@ type governedTurn struct {
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
 	wcProgressMemory    commandMemoryBudget
+	wcSecurityMemory    commandMemoryBudget
 	state               atomic.Uint32 // 0 active, 1 retirement attempted, 2 retired, 3 failed
 	fenced              atomic.Bool
 }
