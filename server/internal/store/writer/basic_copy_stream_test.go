@@ -254,7 +254,7 @@ func TestBasicCopyStreamRefusesCapturedStagedOwnerAndPhaseDrift(t *testing.T) {
 						q = `UPDATE catalog_info_new_stream_breadth SET packet_peak_revision='uncaptured' WHERE change_id=51 AND input_ordinal=0`
 					}
 				case "owner":
-					q = `UPDATE catalog_subjects SET kind=2 WHERE id=31`
+					q = `DELETE FROM catalog_asset_links WHERE entity_id=31 AND asset_id=41`
 				case "phase":
 					q = `UPDATE catalog_info_changes SET phase=3 WHERE id=51`
 				}
