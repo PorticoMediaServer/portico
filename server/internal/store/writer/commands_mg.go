@@ -5,6 +5,7 @@ package writer
 var mgCommands = commandRegistration{owner: "MG", descriptors: mgDomainDescriptors()}
 
 func mgDomainDescriptors() []Descriptor {
-	out := mgCaptureDescriptors()
+	out := mgGuideDescriptors()
+	out = append(out, mgCaptureDescriptors()...)
 	return append(out, mgLCDescriptors()...)
 }
