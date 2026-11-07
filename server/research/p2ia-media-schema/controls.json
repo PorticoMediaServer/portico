@@ -1,0 +1,1348 @@
+[
+  {
+    "name": "seed public library",
+    "sql": "INSERT INTO libraries(id,name,kind,root) VALUES('L','L','movie','/original')",
+    "error_contains": ""
+  },
+  {
+    "name": "seed retained library",
+    "sql": "INSERT INTO catalog_libraries(id,library_id,root) VALUES(1,'L','/original')",
+    "error_contains": ""
+  },
+  {
+    "name": "seed source",
+    "sql": "INSERT INTO library_sources(id,library_id,configured_root,root,generation,incarnation,root_identity,identity_confirmed) VALUES('S','L','/configured','/original',7,'inc','root-native',1)",
+    "error_contains": ""
+  },
+  {
+    "name": "seed policy",
+    "sql": "INSERT INTO library_scan_policies(library_id,revision) VALUES('L',4)",
+    "error_contains": ""
+  },
+  {
+    "name": "010 seed job D",
+    "sql": "INSERT INTO jobs(id,library_id,status,created_at) VALUES('D','L','running','2026-11-06T00:00:00.000000000Z')",
+    "error_contains": ""
+  },
+  {
+    "name": "010 seed actual run scope",
+    "sql": "INSERT INTO inventory_runs(job_id,source_id,source_generation,root_incarnation,root_identity,policy_revision,original_library_id,original_library_key,original_resolved_root,original_follow_symlinks,create_operation_id,create_request_digest,command_incarnation,job_lease_owner,job_lease_generation,job_lease_expires_ms) VALUES('D','S',7,'inc','root-native',4,1,'L','/original',0,X'10101010101010101010101010101010',zeroblob(32),X'11111111111111111111111111111111',10,1,10000)",
+    "error_contains": ""
+  },
+  {
+    "name": "seed scoped original owner after historical ACK floor",
+    "sql": "UPDATE inventory_runs SET last_command_sequence=2,acknowledged_command_sequence=2,job_revision=2 WHERE job_id='D'"
+  },
+  {
+    "name": "honest zero-member inventory_reconcile",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health) VALUES('D',X'11111111111111111111111111111111',3,X'00000000000000000000000000000003',zeroblob(32),'inventory_reconcile',3,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','reconciling',1,64,1,2,0,'degraded')"
+  },
+  {
+    "name": "zero members inventory_reconcile",
+    "query": "SELECT result_count,(SELECT count(*) FROM scan_reconcile_members m WHERE m.run_id=h.run_id AND m.command_incarnation=h.command_incarnation AND m.command_sequence=h.command_sequence) FROM scan_command_receipts h WHERE run_id='D' AND command_sequence=3",
+    "want": [
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "name": "honest zero-member inventory_verify",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health,ia_verified_directory,ia_verified_identity,ia_verified_revision) VALUES('D',X'11111111111111111111111111111111',4,X'00000000000000000000000000000004',zeroblob(32),'inventory_verify',4,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','verifying',1,64,1,2,0,'degraded','.',X'646972',X'726576')"
+  },
+  {
+    "name": "zero members inventory_verify",
+    "query": "SELECT result_count,(SELECT count(*) FROM scan_reconcile_members m WHERE m.run_id=h.run_id AND m.command_incarnation=h.command_incarnation AND m.command_sequence=h.command_sequence) FROM scan_command_receipts h WHERE run_id='D' AND command_sequence=4",
+    "want": [
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "name": "honest zero-member inventory_missing",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health) VALUES('D',X'11111111111111111111111111111111',5,X'00000000000000000000000000000005',zeroblob(32),'inventory_missing',5,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','reconciling',1,64,1,2,0,'degraded')"
+  },
+  {
+    "name": "zero members inventory_missing",
+    "query": "SELECT result_count,(SELECT count(*) FROM scan_reconcile_members m WHERE m.run_id=h.run_id AND m.command_incarnation=h.command_incarnation AND m.command_sequence=h.command_sequence) FROM scan_command_receipts h WHERE run_id='D' AND command_sequence=5",
+    "want": [
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "name": "honest zero-member inventory_finish",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health) VALUES('D',X'11111111111111111111111111111111',6,X'00000000000000000000000000000006',zeroblob(32),'inventory_finish',6,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','complete_with_warnings',1,64,1,2,100,'degraded')"
+  },
+  {
+    "name": "zero members inventory_finish",
+    "query": "SELECT result_count,(SELECT count(*) FROM scan_reconcile_members m WHERE m.run_id=h.run_id AND m.command_incarnation=h.command_incarnation AND m.command_sequence=h.command_sequence) FROM scan_command_receipts h WHERE run_id='D' AND command_sequence=6",
+    "want": [
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "name": "filtered raw boundary remains explicit",
+    "query": "SELECT ia_before_key,ia_after_key,next_cursor,source_revision FROM scan_command_receipts WHERE run_id='D' AND command_sequence=3",
+    "want": [
+      [
+        "before",
+        "raw-064",
+        "",
+        null
+      ]
+    ]
+  },
+  {
+    "name": "Basic slots cannot carry IA result",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health,next_family) VALUES('D',X'11111111111111111111111111111111',70,X'00000000000000000000000000000046',zeroblob(32),'inventory_reconcile',70,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','reconciling',1,64,1,2,0,'degraded',1)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "directory slots cannot carry IA result",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health,ia_verified_directory,ia_verified_identity,ia_verified_revision,result_directory_path) VALUES('D',X'11111111111111111111111111111111',71,X'00000000000000000000000000000047',zeroblob(32),'inventory_verify',71,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','verifying',1,64,1,2,0,'degraded','.',X'646972',X'726576','.')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "zero-member scope cannot pretend sole object revision",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health) VALUES('D',X'11111111111111111111111111111111',72,X'00000000000000000000000000000048',zeroblob(32),'inventory_reconcile',72,100,'S','inc','synthetic','',0,zeroblob(32),'before','raw-064','reconciling',1,64,1,2,0,'degraded')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "finish has no invented child",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health) VALUES('D',X'11111111111111111111111111111111',73,X'00000000000000000000000000000049',zeroblob(32),'inventory_finish',73,100,'S','inc',NULL,'',1,zeroblob(32),'before','raw-064','complete_with_warnings',1,64,1,2,100,'degraded')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "missing requires authoritative coverage",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health) VALUES('D',X'11111111111111111111111111111111',74,X'0000000000000000000000000000004a',zeroblob(32),'inventory_missing',74,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','reconciling',0,64,1,2,0,'degraded')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "verify retains exact directory identity",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health,ia_verified_directory,ia_verified_identity,ia_verified_revision) VALUES('D',X'11111111111111111111111111111111',75,X'0000000000000000000000000000004b',zeroblob(32),'inventory_verify',75,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','verifying',1,64,1,2,0,'degraded','.',NULL,X'726576')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "finish cannot clear warning status by alias",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health) VALUES('D',X'11111111111111111111111111111111',76,X'0000000000000000000000000000004c',zeroblob(32),'inventory_finish',76,100,'S','inc',NULL,'',0,zeroblob(32),'before','raw-064','basic_pending',1,64,1,2,100,'degraded')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "reconcile member representation header",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health) VALUES('D',X'11111111111111111111111111111111',10,X'0000000000000000000000000000000a',zeroblob(32),'inventory_reconcile',10,100,'S','inc',NULL,'',1,zeroblob(32),'before','raw-064','reconciling',1,64,1,2,0,'degraded')"
+  },
+  {
+    "name": "exact old and new object witness",
+    "sql": "INSERT INTO scan_reconcile_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,object_id,prior_object_id,before_revision,after_revision,before_path,after_path,disposition) VALUES('D',X'11111111111111111111111111111111',10,'inventory_reconcile',0,'object',NULL,'old','new','old/file','new/file','moved')"
+  },
+  {
+    "name": "member count agrees with immutable header",
+    "query": "SELECT h.result_count,count(m.ordinal) FROM scan_command_receipts h JOIN scan_reconcile_members m USING(run_id,command_incarnation,command_sequence,command_kind) WHERE h.run_id='D' AND h.command_sequence=10",
+    "want": [
+      [
+        1,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "member cannot borrow verify purpose",
+    "sql": "INSERT INTO scan_reconcile_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,object_id,prior_object_id,before_revision,after_revision,before_path,after_path,disposition) VALUES('D',X'11111111111111111111111111111111',4,'inventory_reconcile',0,'object',NULL,'old','new','old/file','new/file','moved')",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "negative member ordinal refused",
+    "sql": "INSERT INTO scan_reconcile_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,object_id,prior_object_id,before_revision,after_revision,before_path,after_path,disposition) VALUES('D',X'11111111111111111111111111111111',10,'inventory_reconcile',-1,'object',NULL,'old','new','old/file','new/file','moved')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "undrained scan child prevents parent GC",
+    "sql": "DELETE FROM scan_command_receipts WHERE run_id='D' AND command_sequence=10",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "scan original scope survives live source change",
+    "sql": "UPDATE library_sources SET root='/new-root',incarnation='new-inc',generation=8 WHERE id='S'"
+  },
+  {
+    "name": "historical result uses retained original scope",
+    "query": "SELECT r.original_resolved_root,r.root_identity,r.root_incarnation,r.source_generation,h.source_incarnation,h.ia_after_key FROM inventory_runs r JOIN scan_command_receipts h ON h.run_id=r.job_id AND h.command_incarnation=r.command_incarnation WHERE r.job_id='D' AND h.command_sequence=3",
+    "want": [
+      [
+        "/original",
+        "root-native",
+        "inc",
+        7,
+        "inc",
+        "raw-064"
+      ]
+    ]
+  },
+  {
+    "name": "fresh old source cannot pass captured original",
+    "query": "SELECT count(*) FROM inventory_runs r JOIN library_sources s ON s.id=r.source_id AND s.incarnation=r.root_incarnation AND s.generation=r.source_generation AND s.root=r.original_resolved_root WHERE r.job_id='D'",
+    "want": [
+      [
+        0
+      ]
+    ]
+  },
+  {
+    "name": "unchanged directory receipt representation",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,change_id,next_cursor,result_count,result_digest,cursor_kind,cursor_directory_path,cursor_directory_identity,cursor_directory_revision,cursor_expected_payload,cursor_next_payload,result_directory_path,result_directory_identity,result_directory_revision,result_directory_cursor,result_directory_state,result_directory_pages,result_directory_skipped,result_parent_pages,result_parent_skipped) VALUES('D',X'11111111111111111111111111111111',1,X'21212121212121212121212121212121',zeroblob(32),'inventory_directory_discover',2,101,'S','inc',NULL,NULL,'10',0,zeroblob(32),'local_getdents64_cookie_v1',X'2e',X'6469722d726f6f74',X'7265762d726f6f74',X'',X'3130','child','dir-child','rev-child','','pending',0,0,1,0)",
+    "error_contains": ""
+  },
+  {
+    "name": "old directory fields keep NULL/new meanings",
+    "query": "SELECT result_directory_path,result_directory_state,ia_phase,ia_before_key FROM scan_command_receipts WHERE run_id='D' AND command_sequence=1",
+    "want": [
+      [
+        "child",
+        "pending",
+        null,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "retained namespace without live library",
+    "sql": "INSERT INTO catalog_libraries(id,library_id,root,retired) VALUES(2,'gone-library','/historical',1)"
+  },
+  {
+    "name": "actual driver keeps existing lease and retained operation",
+    "sql": "INSERT INTO catalog_removal_progress(kind,target,original_operation_id,original_request_digest,command_incarnation,original_library_id,original_library_key,original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms) VALUES('folder','gone-source',X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',zeroblob(32),X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',2,'gone-library','/old-source','source-inc',9,'native-root',17,2,10000)"
+  },
+  {
+    "name": "original operation may not be reissued on new target",
+    "sql": "INSERT INTO catalog_removal_progress(kind,target,original_operation_id,original_request_digest,command_incarnation,original_library_id,original_library_key,original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms) VALUES('folder','other-target',X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',zeroblob(32),X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',2,'gone-library','/old-source','source-inc',9,'native-root',17,2,10000)",
+    "error_contains": "UNIQUE constraint failed"
+  },
+  {
+    "name": "source removal requires native original root",
+    "sql": "INSERT INTO catalog_removal_progress(kind,target,original_operation_id,original_request_digest,command_incarnation,original_library_id,original_library_key,original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms) VALUES('folder','other-target',X'cccccccccccccccccccccccccccccccc',zeroblob(32),X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',2,'gone-library','/old-source','source-inc',9,NULL,17,2,10000)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "begin atomic receipt and owner publication",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',1,X'00000000000000000000000000000065',zeroblob(32),'retire_source',1,2,201,'folder','gone-source',0,0,0,'',0,0,'retiring',0,zeroblob(32),238); UPDATE catalog_removal_progress SET last_command_sequence=1,job_revision=2,receipt_retained_count=1,receipt_retained_bytes=238 WHERE kind='folder' AND target='gone-source'"
+  },
+  {
+    "name": "retained result survives physical target loss",
+    "query": "SELECT h.result_target,p.original_resolved_root,p.original_source_incarnation,p.job_lease_owner,p.job_lease_generation FROM catalog_removal_receipts h JOIN catalog_removal_progress p ON p.original_operation_id=h.original_operation_id AND p.command_incarnation=h.command_incarnation WHERE h.command_sequence=1",
+    "want": [
+      [
+        "gone-source",
+        "/old-source",
+        "source-inc",
+        17,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "replay lookup emits no write",
+    "query": "SELECT last_command_sequence,acknowledged_command_sequence,receipt_retained_count,receipt_retained_bytes FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source'",
+    "want": [
+      [
+        1,
+        0,
+        1,
+        238
+      ]
+    ]
+  },
+  {
+    "name": "original sequence or nonce cannot create another effect",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',1,X'00000000000000000000000000000065',zeroblob(32),'retire_source',1,2,201,'folder','gone-source',0,0,0,'',0,0,'retiring',0,zeroblob(32),238)",
+    "error_contains": "UNIQUE constraint failed"
+  },
+  {
+    "name": "receipt scope cannot name another target",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',2,X'00000000000000000000000000000066',zeroblob(32),'retire_step',1,3,202,'folder','foreign-source',1,0,0,'raw-064',0,0,'retiring',0,zeroblob(32),246)",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "retirement owner cannot disappear with retained receipt",
+    "sql": "DELETE FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source'",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "ACK advances owner floor without refunding byte debt",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=1 WHERE kind='folder' AND target='gone-source' AND acknowledged_command_sequence=0 AND last_command_sequence=1"
+  },
+  {
+    "name": "ACK carries retained debt",
+    "query": "SELECT acknowledged_command_sequence,receipt_retained_count,receipt_retained_bytes FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source'",
+    "want": [
+      [
+        1,
+        1,
+        238
+      ]
+    ]
+  },
+  {
+    "name": "ACK beyond committed last refused",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=2 WHERE kind='folder' AND target='gone-source'",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "reclaim beyond ACK refused",
+    "sql": "UPDATE catalog_removal_progress SET receipt_reclaim_sequence=2 WHERE kind='folder' AND target='gone-source'",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "step raw boundary and exact debt are atomic",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',2,X'00000000000000000000000000000066',zeroblob(32),'retire_step',1,3,202,'folder','gone-source',1,0,0,'raw-064',0,0,'retiring',0,zeroblob(32),243); UPDATE catalog_removal_progress SET phase=1,object_cursor='raw-064',last_command_sequence=2,job_revision=3,receipt_retained_count=2,receipt_retained_bytes=481 WHERE kind='folder' AND target='gone-source' AND last_command_sequence=1 AND acknowledged_command_sequence=1"
+  },
+  {
+    "name": "debt is exact sum of retained receipts",
+    "query": "SELECT p.receipt_retained_count,p.receipt_retained_bytes,count(h.command_sequence),sum(h.retained_bytes) FROM catalog_removal_progress p JOIN catalog_removal_receipts h ON p.original_operation_id=h.original_operation_id AND p.command_incarnation=h.command_incarnation WHERE p.kind='folder' AND p.target='gone-source'",
+    "want": [
+      [
+        2,
+        481,
+        2,
+        481
+      ]
+    ]
+  },
+  {
+    "name": "terminal receipt cannot claim unfinished phase",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',3,X'00000000000000000000000000000067',zeroblob(32),'retire_step',1,4,203,'folder','gone-source',4,0,0,'raw-064',0,0,'complete',0,zeroblob(32),243)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "library retirement retains no invented source",
+    "sql": "INSERT INTO catalog_removal_progress(kind,target,original_operation_id,original_request_digest,command_incarnation,original_library_id,original_library_key,original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms) VALUES('library','gone-library',X'dddddddddddddddddddddddddddddddd',zeroblob(32),X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',2,'gone-library','/historical',NULL,NULL,NULL,17,2,10000)"
+  },
+  {
+    "name": "library original operation is independent of source operation",
+    "query": "SELECT kind,original_source_incarnation,original_source_generation,original_root_identity FROM catalog_removal_progress WHERE kind='library' AND target='gone-library'",
+    "want": [
+      [
+        "library",
+        null,
+        null,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "library zero-member BEGIN and debt",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'dddddddddddddddddddddddddddddddd',X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',1,X'ffffffffffffffffffffffffffffffff',zeroblob(32),'retire_library',1,2,300,'library','gone-library',0,0,0,'',0,0,'retiring',0,zeroblob(32),241); UPDATE catalog_removal_progress SET last_command_sequence=1,job_revision=2,receipt_retained_count=1,receipt_retained_bytes=241 WHERE kind='library' AND target='gone-library'"
+  },
+  {
+    "name": "source result cannot alias library purpose",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'dddddddddddddddddddddddddddddddd',X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',2,X'01010101010101010101010101010101',zeroblob(32),'retire_source',1,2,300,'library','gone-library',0,0,0,'',0,0,'retiring',0,zeroblob(32),241)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "byte debt cannot lie about scalar payload",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'dddddddddddddddddddddddddddddddd',X'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',2,X'02020202020202020202020202020202',zeroblob(32),'retire_step',1,2,300,'library','gone-library',0,0,0,'',0,0,'retiring',0,zeroblob(32),1)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "retained original library cannot be deleted",
+    "sql": "DELETE FROM catalog_libraries WHERE id=2",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "member FK and order seek",
+    "plan_sql": "SELECT ordinal FROM scan_reconcile_members WHERE run_id='D' AND command_incarnation=X'11111111111111111111111111111111' AND command_sequence=10 AND command_kind='inventory_reconcile' ORDER BY ordinal LIMIT 64",
+    "seek": "run_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=?"
+  },
+  {
+    "name": "retirement retained prefix and GC seek",
+    "plan_sql": "SELECT command_sequence FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence<=3 ORDER BY command_sequence LIMIT 16",
+    "seek": "original_operation_id=? AND command_incarnation=? AND result_kind=? AND result_target=? AND command_sequence<?"
+  },
+  {
+    "name": "retained library child FK seek",
+    "plan_sql": "SELECT kind,target FROM catalog_removal_progress INDEXED BY catalog_removal_original_library WHERE original_library_id=2",
+    "seek": "original_library_id=?"
+  },
+  {
+    "name": "configuration retained namespace without live library",
+    "sql": "INSERT INTO catalog_libraries(id,library_id,root,retired) VALUES(3,'configuration-library','/historical-config',1)"
+  },
+  {
+    "name": "configuration operation is separate from removal and scan",
+    "sql": "INSERT INTO catalog_configuration_operations(original_operation_id,original_request_digest,command_incarnation,command_kind,original_library_id,original_library_key,original_source_id) VALUES(X'33333333333333333333333333333333',zeroblob(32),X'44444444444444444444444444444444','configure_library',3,'configuration-library',NULL)"
+  },
+  {
+    "name": "configuration source purpose needs original source ID",
+    "sql": "INSERT INTO catalog_configuration_operations(original_operation_id,original_request_digest,command_incarnation,command_kind,original_library_id,original_library_key,original_source_id) VALUES(X'55555555555555555555555555555555',zeroblob(32),X'66666666666666666666666666666666','configure_source',3,'configuration-library',NULL)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration operation cannot alias retirement purpose",
+    "sql": "INSERT INTO catalog_configuration_operations(original_operation_id,original_request_digest,command_incarnation,command_kind,original_library_id,original_library_key,original_source_id) VALUES(X'55555555555555555555555555555555',zeroblob(32),X'66666666666666666666666666666666','retire_source',3,'configuration-library','source-1')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration header cannot borrow another purpose",
+    "sql": "INSERT INTO catalog_configuration_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_library_name,result_library_kind,result_count,result_digest,retained_bytes) VALUES(X'33333333333333333333333333333333',X'44444444444444444444444444444444',1,X'33333333333333333333333333333333',zeroblob(32),'configure_source',1,8,400,NULL,NULL,1,zeroblob(32),176)",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "library configuration retains a typed source cohort header",
+    "sql": "INSERT INTO catalog_configuration_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_library_name,result_library_kind,result_count,result_digest,retained_bytes) VALUES(X'33333333333333333333333333333333',X'44444444444444444444444444444444',1,X'33333333333333333333333333333333',zeroblob(32),'configure_library',1,8,400,'Saved Library','movie',2,zeroblob(32),195)"
+  },
+  {
+    "name": "configuration source native historical facts",
+    "sql": "INSERT INTO catalog_configuration_sources(original_operation_id,command_incarnation,command_sequence,command_kind,ordinal,source_id,source_name,source_incarnation,source_generation,configured_root,resolved_root,root_identity,source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes) VALUES(X'33333333333333333333333333333333',X'44444444444444444444444444444444',1,'configure_library',0,'source-1','Main','source-inc',4,'/configured/\u00e9','/resolved/\u00e9','native-root','local','local',1,'ready',0,900,1,'','saved-complete','saved-progress',215)"
+  },
+  {
+    "name": "configuration second root remains separate",
+    "sql": "INSERT INTO catalog_configuration_sources(original_operation_id,command_incarnation,command_sequence,command_kind,ordinal,source_id,source_name,source_incarnation,source_generation,configured_root,resolved_root,root_identity,source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes) VALUES(X'33333333333333333333333333333333',X'44444444444444444444444444444444',1,'configure_library',1,'source-2','Second','source-inc',4,'/configured/\u00e9','/second','native-root','local','local',1,'ready',0,900,1,'','saved-complete','saved-progress',212)"
+  },
+  {
+    "name": "configuration duplicate source ID cannot hide behind ordinal",
+    "sql": "INSERT INTO catalog_configuration_sources(original_operation_id,command_incarnation,command_sequence,command_kind,ordinal,source_id,source_name,source_incarnation,source_generation,configured_root,resolved_root,root_identity,source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes) VALUES(X'33333333333333333333333333333333',X'44444444444444444444444444444444',1,'configure_library',2,'source-1','Main','source-inc',4,'/configured/\u00e9','/resolved/\u00e9','native-root','local','local',1,'ready',0,900,1,'','saved-complete','saved-progress',215)",
+    "error_contains": "UNIQUE constraint failed"
+  },
+  {
+    "name": "configuration source cannot borrow source-configuration purpose",
+    "sql": "INSERT INTO catalog_configuration_sources(original_operation_id,command_incarnation,command_sequence,command_kind,ordinal,source_id,source_name,source_incarnation,source_generation,configured_root,resolved_root,root_identity,source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes) VALUES(X'33333333333333333333333333333333',X'44444444444444444444444444444444',1,'configure_source',0,'source-3','Main','source-inc',4,'/configured/\u00e9','/resolved/\u00e9','native-root','local','local',1,'ready',0,900,1,'','saved-complete','saved-progress',214)",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "configuration source exact byte debt cannot be bypassed",
+    "sql": "INSERT INTO catalog_configuration_sources(original_operation_id,command_incarnation,command_sequence,command_kind,ordinal,source_id,source_name,source_incarnation,source_generation,configured_root,resolved_root,root_identity,source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes) VALUES(X'33333333333333333333333333333333',X'44444444444444444444444444444444',1,'configure_library',2,'source-3','Main','source-inc',4,'/configured/\u00e9','/resolved/\u00e9','native-root','local','local',1,'ready',0,900,1,'','saved-complete','saved-progress',1)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration header cannot disappear with retained sources",
+    "sql": "DELETE FROM catalog_configuration_receipts WHERE original_operation_id=X'33333333333333333333333333333333'",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "configuration operation cannot disappear with retained history",
+    "sql": "DELETE FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333'",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "configuration atomic result publication debt",
+    "sql": "UPDATE catalog_configuration_operations SET last_command_sequence=1,receipt_retained_count=3,receipt_retained_bytes=622 WHERE original_operation_id=X'33333333333333333333333333333333'"
+  },
+  {
+    "name": "configuration complete result survives live target absence",
+    "query": "SELECT h.result_library_name,h.result_library_kind,h.accepted_revision,h.result_count,s.ordinal,s.source_id,s.source_generation,s.resolved_root,s.last_complete_at FROM catalog_configuration_receipts h JOIN catalog_configuration_sources s USING(original_operation_id,command_incarnation,command_sequence,command_kind) WHERE h.original_operation_id=X'33333333333333333333333333333333' ORDER BY s.ordinal",
+    "want": [
+      [
+        "Saved Library",
+        "movie",
+        8,
+        2,
+        0,
+        "source-1",
+        4,
+        "/resolved/\u00e9",
+        "saved-complete"
+      ],
+      [
+        "Saved Library",
+        "movie",
+        8,
+        2,
+        1,
+        "source-2",
+        4,
+        "/second",
+        "saved-complete"
+      ]
+    ]
+  },
+  {
+    "name": "configuration source result count and distinct cohort agree",
+    "query": "SELECT h.result_count,(SELECT count(*) FROM catalog_configuration_sources s WHERE s.original_operation_id=h.original_operation_id AND s.command_incarnation=h.command_incarnation AND s.command_sequence=h.command_sequence AND s.command_kind=h.command_kind) FROM catalog_configuration_receipts h WHERE original_operation_id=X'33333333333333333333333333333333'",
+    "want": [
+      [
+        2,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "configuration ACK has no physical refund",
+    "sql": "UPDATE catalog_configuration_operations SET acknowledged_command_sequence=1 WHERE original_operation_id=X'33333333333333333333333333333333' AND last_command_sequence=1 AND acknowledged_command_sequence=0"
+  },
+  {
+    "name": "configuration ACK retains exact row and byte debt",
+    "query": "SELECT acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333'",
+    "want": [
+      [
+        1,
+        0,
+        3,
+        622
+      ]
+    ]
+  },
+  {
+    "name": "configuration original operation is never reissued",
+    "sql": "INSERT INTO catalog_configuration_operations(original_operation_id,original_request_digest,command_incarnation,command_kind,original_library_id,original_library_key,original_source_id) VALUES(X'33333333333333333333333333333333',zeroblob(32),X'66666666666666666666666666666666','configure_source',3,'configuration-library','source-1')",
+    "error_contains": "UNIQUE constraint failed"
+  },
+  {
+    "name": "source configuration has its own typed original owner",
+    "sql": "INSERT INTO catalog_configuration_operations(original_operation_id,original_request_digest,command_incarnation,command_kind,original_library_id,original_library_key,original_source_id) VALUES(X'55555555555555555555555555555555',zeroblob(32),X'66666666666666666666666666666666','configure_source',3,'configuration-library','source-1')"
+  },
+  {
+    "name": "configuration GC past ACK is refused",
+    "sql": "UPDATE catalog_configuration_operations SET receipt_reclaim_sequence=1 WHERE original_operation_id=X'55555555555555555555555555555555'",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "source configuration cannot invent a second source result",
+    "sql": "INSERT INTO catalog_configuration_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_library_name,result_library_kind,result_count,result_digest,retained_bytes) VALUES(X'55555555555555555555555555555555',X'66666666666666666666666666666666',1,X'55555555555555555555555555555555',zeroblob(32),'configure_source',1,8,400,NULL,NULL,2,zeroblob(32),176)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "source configuration scalar result",
+    "sql": "INSERT INTO catalog_configuration_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_library_name,result_library_kind,result_count,result_digest,retained_bytes) VALUES(X'55555555555555555555555555555555',X'66666666666666666666666666666666',1,X'55555555555555555555555555555555',zeroblob(32),'configure_source',1,8,400,NULL,NULL,1,zeroblob(32),176)"
+  },
+  {
+    "name": "source configuration exact updated source",
+    "sql": "INSERT INTO catalog_configuration_sources(original_operation_id,command_incarnation,command_sequence,command_kind,ordinal,source_id,source_name,source_incarnation,source_generation,configured_root,resolved_root,root_identity,source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes) VALUES(X'55555555555555555555555555555555',X'66666666666666666666666666666666',1,'configure_source',0,'source-1','Main','source-inc',5,'/configured/\u00e9','/resolved/\u00e9','native-root','local','local',0,'offline',0,900,1,'','saved-complete','saved-progress',216)"
+  },
+  {
+    "name": "source configuration has no borrowed library result slots",
+    "sql": "INSERT INTO catalog_configuration_sources(original_operation_id,command_incarnation,command_sequence,command_kind,ordinal,source_id,source_name,source_incarnation,source_generation,configured_root,resolved_root,root_identity,source_kind,classification,enabled,health,follow_symlinks,interval_seconds,identity_confirmed,next_scan_at,last_complete_at,last_progress_at,retained_bytes) VALUES(X'55555555555555555555555555555555',X'66666666666666666666666666666666',1,'configure_source',1,'source-2','Main','source-inc',4,'/configured/\u00e9','/resolved/\u00e9','native-root','local','local',1,'ready',0,900,1,'','saved-complete','saved-progress',214)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration owner FK retains catalog namespace",
+    "sql": "DELETE FROM catalog_libraries WHERE id=3",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "configuration source GC key seek",
+    "plan_sql": "SELECT ordinal FROM catalog_configuration_sources WHERE original_operation_id=X'55555555555555555555555555555555' AND command_incarnation=X'66666666666666666666666666666666' AND command_sequence=1 AND command_kind='configure_source' AND ordinal>=0 ORDER BY ordinal LIMIT 1",
+    "seek": "original_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=? AND ordinal>?"
+  },
+  {
+    "name": "configuration retained library FK seek",
+    "plan_sql": "SELECT original_operation_id FROM catalog_configuration_operations INDEXED BY catalog_configuration_original_library WHERE original_library_id=3",
+    "seek": "original_library_id=?"
+  },
+  {
+    "name": "source configuration atomic owner publication",
+    "sql": "UPDATE catalog_configuration_operations SET last_command_sequence=1,receipt_retained_count=2,receipt_retained_bytes=392 WHERE original_operation_id=X'55555555555555555555555555555555'"
+  },
+  {
+    "name": "source configuration has truthful NULL library output",
+    "query": "SELECT result_library_name,result_library_kind,result_count FROM catalog_configuration_receipts WHERE original_operation_id=X'55555555555555555555555555555555'",
+    "want": [
+      [
+        null,
+        null,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "source configuration debt independently matches rows",
+    "query": "SELECT o.receipt_retained_count,o.receipt_retained_bytes,(SELECT count(*) FROM catalog_configuration_receipts h WHERE h.original_operation_id=o.original_operation_id)+(SELECT count(*) FROM catalog_configuration_sources s WHERE s.original_operation_id=o.original_operation_id),(SELECT sum(retained_bytes) FROM catalog_configuration_receipts h WHERE h.original_operation_id=o.original_operation_id)+(SELECT sum(retained_bytes) FROM catalog_configuration_sources s WHERE s.original_operation_id=o.original_operation_id) FROM catalog_configuration_operations o WHERE original_operation_id=X'55555555555555555555555555555555'",
+    "want": [
+      [
+        2,
+        392,
+        2,
+        392
+      ]
+    ]
+  },
+  {
+    "name": "configuration schedule original acknowledged cohort",
+    "sql": "UPDATE catalog_configuration_operations SET receipt_reclaim_due_ms=400 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement acknowledge source2 and schedule receipt GC",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=2,receipt_reclaim_due_ms=400 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "configuration cursor cannot advance without a GC result slot",
+    "sql": "UPDATE catalog_configuration_operations SET receipt_reclaim_ordinal=0 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "retirement cursor cannot advance without a GC result slot",
+    "sql": "UPDATE catalog_removal_progress SET receipt_reclaim_sequence=1 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration begin failed cleanup frame",
+    "sql": "BEGIN IMMEDIATE"
+  },
+  {
+    "name": "configuration tentative first exact source delete",
+    "sql": "DELETE FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND ordinal=0 AND retained_bytes=215"
+  },
+  {
+    "name": "configuration stale post-delete owner CAS",
+    "sql": "UPDATE catalog_configuration_operations SET last_command_sequence=2,receipt_retained_count=2,receipt_retained_bytes=407,receipt_reclaim_sequence=0,receipt_reclaim_due_ms=400,reclaim_command_sequence=2,reclaim_operation_id=X'0000000000000000000000000000044e',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=1,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='source',reclaim_removed_count=1,reclaim_removed_bytes=215,reclaim_result_sequence=0,reclaim_result_no_next=0,reclaim_result_rows=2,reclaim_result_bytes=407,reclaim_applied_ms=502,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=-1,reclaim_removed_ordinal=0,reclaim_result_ordinal=0,receipt_reclaim_ordinal=0 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=1 AND acknowledged_command_sequence=1 AND receipt_retained_count=99 AND receipt_retained_bytes=622 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=-1 AND reclaim_operation_id IS NULL"
+  },
+  {
+    "name": "configuration stale CAS changed zero rows",
+    "query": "SELECT changes()",
+    "want": [
+      [
+        0
+      ]
+    ]
+  },
+  {
+    "name": "configuration rollback restores physical and logical debt",
+    "sql": "ROLLBACK"
+  },
+  {
+    "name": "configuration failed cleanup retained complete original",
+    "query": "SELECT receipt_retained_count,receipt_retained_bytes,(SELECT count(*) FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library') FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        3,
+        622,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "configuration first bounded GC saves original result",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND ordinal=0 AND retained_bytes=215; UPDATE catalog_configuration_operations SET last_command_sequence=2,receipt_retained_count=2,receipt_retained_bytes=407,receipt_reclaim_sequence=0,receipt_reclaim_due_ms=400,reclaim_command_sequence=2,reclaim_operation_id=X'0000000000000000000000000000044e',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=1,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='source',reclaim_removed_count=1,reclaim_removed_bytes=215,reclaim_result_sequence=0,reclaim_result_no_next=0,reclaim_result_rows=2,reclaim_result_bytes=407,reclaim_applied_ms=502,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=-1,reclaim_removed_ordinal=0,reclaim_result_ordinal=0,receipt_reclaim_ordinal=0 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=1 AND acknowledged_command_sequence=1 AND receipt_retained_count=3 AND receipt_retained_bytes=622 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=-1 AND reclaim_operation_id IS NULL; COMMIT"
+  },
+  {
+    "name": "configuration GC committed one owner CAS",
+    "query": "SELECT changes()",
+    "want": [
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "configuration unknown-return reopen",
+    "reopen": true
+  },
+  {
+    "name": "configuration original cleanup replays saved scalar",
+    "query": "SELECT reclaim_command_sequence,reclaim_captured_acknowledged_sequence,reclaim_old_sequence,reclaim_old_ordinal,reclaim_removed_sequence,reclaim_removed_ordinal,reclaim_removed_kind,reclaim_removed_count,reclaim_removed_bytes,reclaim_result_sequence,reclaim_result_ordinal,reclaim_result_rows,reclaim_result_bytes,reclaim_result_no_next,reclaim_result_count FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND reclaim_command_sequence=2 AND reclaim_operation_id=X'0000000000000000000000000000044e' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1",
+    "want": [
+      [
+        2,
+        1,
+        0,
+        -1,
+        1,
+        0,
+        "source",
+        1,
+        215,
+        0,
+        0,
+        2,
+        407,
+        0,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "configuration fixed slot has independent native byte debt",
+    "query": "SELECT receipt_retained_bytes,reclaim_slot_bytes,receipt_retained_bytes+reclaim_slot_bytes FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        407,
+        243,
+        650
+      ]
+    ]
+  },
+  {
+    "name": "configuration replay did not delete the following source",
+    "query": "SELECT ordinal,source_id,retained_bytes FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library'",
+    "want": [
+      [
+        1,
+        "source-2",
+        212
+      ]
+    ]
+  },
+  {
+    "name": "configuration different original request has no saved result",
+    "query": "SELECT reclaim_command_sequence,reclaim_captured_acknowledged_sequence,reclaim_old_sequence,reclaim_old_ordinal,reclaim_removed_sequence,reclaim_removed_ordinal,reclaim_removed_kind,reclaim_removed_count,reclaim_removed_bytes,reclaim_result_sequence,reclaim_result_ordinal,reclaim_result_rows,reclaim_result_bytes,reclaim_result_no_next,reclaim_result_count FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND reclaim_command_sequence=2 AND reclaim_operation_id=X'0000000000000000000000000000044e' AND reclaim_request_digest=X'0101010101010101010101010101010101010101010101010101010101010101' AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1",
+    "want": []
+  },
+  {
+    "name": "configuration incomplete fixed slot refused",
+    "sql": "UPDATE catalog_configuration_operations SET reclaim_result_digest=NULL WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration GC saved debt cannot drift",
+    "sql": "UPDATE catalog_configuration_operations SET reclaim_result_bytes=1 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration unacknowledged GC cannot be overwritten",
+    "sql": "UPDATE catalog_configuration_operations SET last_command_sequence=3,receipt_retained_count=1,receipt_retained_bytes=195,receipt_reclaim_sequence=0,receipt_reclaim_due_ms=400,reclaim_command_sequence=3,reclaim_operation_id=X'0000000000000000000000000000044f',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=2,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='source',reclaim_removed_count=1,reclaim_removed_bytes=212,reclaim_result_sequence=0,reclaim_result_no_next=0,reclaim_result_rows=1,reclaim_result_bytes=195,reclaim_applied_ms=503,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=0,reclaim_removed_ordinal=1,reclaim_result_ordinal=1,receipt_reclaim_ordinal=1 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=2 AND acknowledged_command_sequence=1 AND receipt_retained_count=2 AND receipt_retained_bytes=407 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=0 AND reclaim_command_sequence=2 AND reclaim_operation_id=X'0000000000000000000000000000044e' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=1 AND reclaim_old_sequence=0 AND reclaim_removed_sequence=1 AND reclaim_removed_kind='source' AND reclaim_removed_count=1 AND reclaim_removed_bytes=215 AND reclaim_result_sequence=0 AND reclaim_result_no_next=0 AND reclaim_result_rows=2 AND reclaim_result_bytes=407 AND reclaim_applied_ms=502 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_old_ordinal=-1 AND reclaim_removed_ordinal=0 AND reclaim_result_ordinal=0 AND reclaim_command_sequence<=acknowledged_command_sequence"
+  },
+  {
+    "name": "configuration unacknowledged slot replacement changed zero",
+    "query": "SELECT changes()",
+    "want": [
+      [
+        0
+      ]
+    ]
+  },
+  {
+    "name": "configuration ACK cleanup has no slot or data refund",
+    "sql": "UPDATE catalog_configuration_operations SET acknowledged_command_sequence=2 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "configuration ACK preserves fixed-slot bytes",
+    "query": "SELECT last_command_sequence,acknowledged_command_sequence,receipt_retained_count,receipt_retained_bytes,reclaim_slot_bytes>0 FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        2,
+        2,
+        2,
+        407,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "configuration GC captured floor cannot equal its own sequence",
+    "sql": "UPDATE catalog_configuration_operations SET reclaim_captured_acknowledged_sequence=2 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration second child replaces ACKed fixed slot",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_configuration_sources WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND ordinal=1 AND retained_bytes=212; UPDATE catalog_configuration_operations SET last_command_sequence=3,receipt_retained_count=1,receipt_retained_bytes=195,receipt_reclaim_sequence=0,receipt_reclaim_due_ms=400,reclaim_command_sequence=3,reclaim_operation_id=X'0000000000000000000000000000044f',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=2,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='source',reclaim_removed_count=1,reclaim_removed_bytes=212,reclaim_result_sequence=0,reclaim_result_no_next=0,reclaim_result_rows=1,reclaim_result_bytes=195,reclaim_applied_ms=503,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=0,reclaim_removed_ordinal=1,reclaim_result_ordinal=1,receipt_reclaim_ordinal=1 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=2 AND acknowledged_command_sequence=2 AND receipt_retained_count=2 AND receipt_retained_bytes=407 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=0 AND reclaim_command_sequence=2 AND reclaim_operation_id=X'0000000000000000000000000000044e' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=1 AND reclaim_old_sequence=0 AND reclaim_removed_sequence=1 AND reclaim_removed_kind='source' AND reclaim_removed_count=1 AND reclaim_removed_bytes=215 AND reclaim_result_sequence=0 AND reclaim_result_no_next=0 AND reclaim_result_rows=2 AND reclaim_result_bytes=407 AND reclaim_applied_ms=502 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_old_ordinal=-1 AND reclaim_removed_ordinal=0 AND reclaim_result_ordinal=0 AND reclaim_command_sequence<=acknowledged_command_sequence; COMMIT"
+  },
+  {
+    "name": "configuration ACK source cleanup3",
+    "sql": "UPDATE catalog_configuration_operations SET acknowledged_command_sequence=3 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "configuration empty-child header cleanup saves terminal scalar",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_configuration_receipts WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_sequence=1 AND command_kind='configure_library' AND retained_bytes=195; UPDATE catalog_configuration_operations SET last_command_sequence=4,receipt_retained_count=0,receipt_retained_bytes=0,receipt_reclaim_sequence=1,receipt_reclaim_due_ms=NULL,reclaim_command_sequence=4,reclaim_operation_id=X'00000000000000000000000000000450',reclaim_request_digest=zeroblob(32),reclaim_command_kind='configuration_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=3,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='header',reclaim_removed_count=1,reclaim_removed_bytes=195,reclaim_result_sequence=1,reclaim_result_no_next=1,reclaim_result_rows=0,reclaim_result_bytes=0,reclaim_applied_ms=504,reclaim_result_count=1,reclaim_result_digest=zeroblob(32),reclaim_old_ordinal=1,reclaim_removed_ordinal=NULL,reclaim_result_ordinal=-1,receipt_reclaim_ordinal=-1 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32) AND last_command_sequence=3 AND acknowledged_command_sequence=3 AND receipt_retained_count=1 AND receipt_retained_bytes=195 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND receipt_reclaim_ordinal=1 AND reclaim_command_sequence=3 AND reclaim_operation_id=X'0000000000000000000000000000044f' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='configuration_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=2 AND reclaim_old_sequence=0 AND reclaim_removed_sequence=1 AND reclaim_removed_kind='source' AND reclaim_removed_count=1 AND reclaim_removed_bytes=212 AND reclaim_result_sequence=0 AND reclaim_result_no_next=0 AND reclaim_result_rows=1 AND reclaim_result_bytes=195 AND reclaim_applied_ms=503 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_old_ordinal=0 AND reclaim_removed_ordinal=1 AND reclaim_result_ordinal=1 AND reclaim_command_sequence<=acknowledged_command_sequence; COMMIT"
+  },
+  {
+    "name": "configuration terminal slot survives history removal",
+    "query": "SELECT last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_reclaim_ordinal,receipt_retained_count,receipt_retained_bytes,reclaim_removed_kind,reclaim_result_no_next,reclaim_result_count,reclaim_slot_bytes FROM catalog_configuration_operations WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        4,
+        3,
+        1,
+        -1,
+        0,
+        0,
+        "header",
+        1,
+        1,
+        235
+      ]
+    ]
+  },
+  {
+    "name": "configuration ACK terminal retains independent owner slot",
+    "sql": "UPDATE catalog_configuration_operations SET acknowledged_command_sequence=4 WHERE original_operation_id=X'33333333333333333333333333333333' AND command_incarnation=X'44444444444444444444444444444444' AND command_kind='configure_library' AND original_library_id=3 AND original_library_key='configuration-library' AND original_source_id IS NULL AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement scalar cleanup occupies sequence3 fixed slot",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence=1 AND retained_bytes=238; UPDATE catalog_removal_progress SET last_command_sequence=3,receipt_retained_count=1,receipt_retained_bytes=243,receipt_reclaim_sequence=1,receipt_reclaim_due_ms=400,reclaim_command_sequence=3,reclaim_operation_id=X'000000000000000000000000000003eb',reclaim_request_digest=zeroblob(32),reclaim_command_kind='retirement_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=2,reclaim_old_sequence=0,reclaim_removed_sequence=1,reclaim_removed_kind='header',reclaim_removed_count=1,reclaim_removed_bytes=238,reclaim_result_sequence=1,reclaim_result_no_next=0,reclaim_result_rows=1,reclaim_result_bytes=243,reclaim_applied_ms=503,reclaim_result_count=1,reclaim_result_digest=zeroblob(32) WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32) AND last_command_sequence=2 AND acknowledged_command_sequence=2 AND receipt_retained_count=2 AND receipt_retained_bytes=481 AND receipt_reclaim_sequence=0 AND receipt_reclaim_due_ms=400 AND reclaim_operation_id IS NULL; COMMIT"
+  },
+  {
+    "name": "retirement unknown-return reopen",
+    "reopen": true
+  },
+  {
+    "name": "retirement original GC result is retained before fresh checks",
+    "query": "SELECT reclaim_command_sequence,reclaim_captured_acknowledged_sequence,reclaim_removed_sequence,reclaim_removed_count,reclaim_removed_bytes,reclaim_result_sequence,reclaim_result_rows,reclaim_result_bytes,reclaim_result_no_next,reclaim_result_count FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32) AND reclaim_operation_id=X'000000000000000000000000000003eb' AND reclaim_request_digest=zeroblob(32)",
+    "want": [
+      [
+        3,
+        2,
+        1,
+        1,
+        238,
+        1,
+        1,
+        243,
+        0,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "retirement original replay leaves following receipt intact",
+    "query": "SELECT command_sequence FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source'",
+    "want": [
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "retirement ACK cleanup3 keeps slot and source debt",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=3 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement next bounded cleanup replaces ACKed slot",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence=2 AND retained_bytes=243; UPDATE catalog_removal_progress SET last_command_sequence=4,receipt_retained_count=0,receipt_retained_bytes=0,receipt_reclaim_sequence=2,receipt_reclaim_due_ms=NULL,reclaim_command_sequence=4,reclaim_operation_id=X'000000000000000000000000000003ec',reclaim_request_digest=zeroblob(32),reclaim_command_kind='retirement_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=3,reclaim_old_sequence=1,reclaim_removed_sequence=2,reclaim_removed_kind='header',reclaim_removed_count=1,reclaim_removed_bytes=243,reclaim_result_sequence=2,reclaim_result_no_next=1,reclaim_result_rows=0,reclaim_result_bytes=0,reclaim_applied_ms=504,reclaim_result_count=1,reclaim_result_digest=zeroblob(32) WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32) AND last_command_sequence=3 AND acknowledged_command_sequence=3 AND receipt_retained_count=1 AND receipt_retained_bytes=243 AND receipt_reclaim_sequence=1 AND receipt_reclaim_due_ms=400 AND reclaim_command_sequence=3 AND reclaim_operation_id=X'000000000000000000000000000003eb' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='retirement_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=2 AND reclaim_old_sequence=0 AND reclaim_removed_sequence=1 AND reclaim_removed_kind='header' AND reclaim_removed_count=1 AND reclaim_removed_bytes=238 AND reclaim_result_sequence=1 AND reclaim_result_no_next=0 AND reclaim_result_rows=1 AND reclaim_result_bytes=243 AND reclaim_applied_ms=503 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_command_sequence<=acknowledged_command_sequence; COMMIT"
+  },
+  {
+    "name": "retirement cleaned history preserves original scope and real lease",
+    "query": "SELECT original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity,job_lease_owner,job_lease_generation,job_lease_expires_ms,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes,reclaim_removed_sequence,reclaim_result_no_next,reclaim_slot_bytes FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        "/old-source",
+        "source-inc",
+        9,
+        "native-root",
+        17,
+        2,
+        10000,
+        4,
+        3,
+        2,
+        0,
+        0,
+        2,
+        1,
+        216
+      ]
+    ]
+  },
+  {
+    "name": "retirement ACK cleanup4",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=4 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement GC fixed slot cannot silently lose request proof",
+    "sql": "UPDATE catalog_removal_progress SET reclaim_request_digest=NULL WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "configuration cleanup due index seek",
+    "plan_sql": "SELECT original_operation_id FROM catalog_configuration_operations INDEXED BY catalog_configuration_receipt_due WHERE receipt_reclaim_due_ms IS NOT NULL AND receipt_reclaim_due_ms<=500 ORDER BY receipt_reclaim_due_ms,original_operation_id LIMIT 1",
+    "seek": "receipt_reclaim_due_ms>? AND receipt_reclaim_due_ms<?"
+  },
+  {
+    "name": "retirement cleanup due index seek",
+    "plan_sql": "SELECT kind,target FROM catalog_removal_progress INDEXED BY catalog_removal_receipt_due WHERE receipt_reclaim_due_ms IS NOT NULL AND receipt_reclaim_due_ms<=500 ORDER BY receipt_reclaim_due_ms,kind,target LIMIT 1",
+    "seek": "receipt_reclaim_due_ms>? AND receipt_reclaim_due_ms<?"
+  },
+  {
+    "name": "retirement physical step after acknowledged GC keeps old fixed result",
+    "sql": "INSERT INTO catalog_removal_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_kind,result_target,result_phase,result_entity_kind,result_entity_cursor,result_object_cursor,result_walk_removed,result_walk_kept,result_state,result_count,result_digest,retained_bytes) VALUES(X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',5,X'00000000000000000000000000000069',zeroblob(32),'retire_step',1,4,505,'folder','gone-source',5,0,0,'raw-end',0,0,'complete',0,zeroblob(32),243); UPDATE catalog_removal_progress SET phase=5,retirement_state='complete',object_cursor='raw-end',last_command_sequence=5,job_revision=4,receipt_retained_count=1,receipt_retained_bytes=243,job_next_attempt_ms=NULL WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement old ACKed GC result is immutable after new source work",
+    "query": "SELECT reclaim_command_sequence,reclaim_result_rows,reclaim_result_bytes,receipt_retained_count,receipt_retained_bytes FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        4,
+        0,
+        0,
+        1,
+        243
+      ]
+    ]
+  },
+  {
+    "name": "retirement acknowledge physical step5 and schedule fresh data debt",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=5,receipt_reclaim_due_ms=505 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "retirement GC range crosses cleanup-only sequence holes",
+    "sql": "BEGIN IMMEDIATE; DELETE FROM catalog_removal_receipts WHERE original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND result_kind='folder' AND result_target='gone-source' AND command_sequence=5 AND retained_bytes=243; UPDATE catalog_removal_progress SET last_command_sequence=6,receipt_retained_count=0,receipt_retained_bytes=0,receipt_reclaim_sequence=5,receipt_reclaim_due_ms=NULL,reclaim_command_sequence=6,reclaim_operation_id=X'000000000000000000000000000003ee',reclaim_request_digest=zeroblob(32),reclaim_command_kind='retirement_receipt_reclaim',reclaim_result_version=1,reclaim_captured_acknowledged_sequence=5,reclaim_old_sequence=2,reclaim_removed_sequence=5,reclaim_removed_kind='header',reclaim_removed_count=1,reclaim_removed_bytes=243,reclaim_result_sequence=5,reclaim_result_no_next=1,reclaim_result_rows=0,reclaim_result_bytes=0,reclaim_applied_ms=506,reclaim_result_count=1,reclaim_result_digest=zeroblob(32) WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32) AND last_command_sequence=5 AND acknowledged_command_sequence=5 AND receipt_retained_count=1 AND receipt_retained_bytes=243 AND receipt_reclaim_sequence=2 AND receipt_reclaim_due_ms=505 AND reclaim_command_sequence=4 AND reclaim_operation_id=X'000000000000000000000000000003ec' AND reclaim_request_digest=zeroblob(32) AND reclaim_command_kind='retirement_receipt_reclaim' AND reclaim_result_version=1 AND reclaim_captured_acknowledged_sequence=3 AND reclaim_old_sequence=1 AND reclaim_removed_sequence=2 AND reclaim_removed_kind='header' AND reclaim_removed_count=1 AND reclaim_removed_bytes=243 AND reclaim_result_sequence=2 AND reclaim_result_no_next=1 AND reclaim_result_rows=0 AND reclaim_result_bytes=0 AND reclaim_applied_ms=504 AND reclaim_result_count=1 AND reclaim_result_digest=zeroblob(32) AND reclaim_command_sequence<=acknowledged_command_sequence; COMMIT"
+  },
+  {
+    "name": "retirement terminal owner retains scalar cleanup proof",
+    "query": "SELECT retirement_state,phase,last_command_sequence,acknowledged_command_sequence,receipt_reclaim_sequence,receipt_retained_count,receipt_retained_bytes,reclaim_command_sequence,reclaim_result_count,reclaim_slot_bytes>0 FROM catalog_removal_progress WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)",
+    "want": [
+      [
+        "complete",
+        5,
+        6,
+        5,
+        5,
+        0,
+        0,
+        6,
+        1,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "retirement final ACK does not reap its fixed slot",
+    "sql": "UPDATE catalog_removal_progress SET acknowledged_command_sequence=6 WHERE kind='folder' AND target='gone-source' AND original_operation_id=X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND command_incarnation=X'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' AND original_library_id=2 AND original_library_key='gone-library' AND original_resolved_root='/old-source' AND original_source_incarnation='source-inc' AND original_source_generation=9 AND original_root_identity='native-root' AND original_request_digest=zeroblob(32)"
+  },
+  {
+    "name": "media retained kind show",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(2,'show',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject show",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1002,X'000000000000000000000000000003ea',1,2)"
+  },
+  {
+    "name": "media retained kind season",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(3,'season',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject season",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1003,X'000000000000000000000000000003eb',1,3)"
+  },
+  {
+    "name": "media retained kind episode",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(4,'episode',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject episode",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1004,X'000000000000000000000000000003ec',1,4)"
+  },
+  {
+    "name": "media retained kind artist",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(5,'artist',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject artist",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1005,X'000000000000000000000000000003ed',1,5)"
+  },
+  {
+    "name": "media retained kind album",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(6,'album',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject album",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1006,X'000000000000000000000000000003ee',1,6)"
+  },
+  {
+    "name": "media retained kind song",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(7,'song',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject song",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1007,X'000000000000000000000000000003ef',1,7)"
+  },
+  {
+    "name": "media retained kind book",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(8,'book',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject book",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1008,X'000000000000000000000000000003f0',1,8)"
+  },
+  {
+    "name": "media retained kind audiobook_file",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(9,'audiobook_file',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject audiobook_file",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1009,X'000000000000000000000000000003f1',1,9)"
+  },
+  {
+    "name": "media retained kind extra",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(11,'extra',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject extra",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1011,X'000000000000000000000000000003f3',1,11)"
+  },
+  {
+    "name": "media retained kind author",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(13,'author',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject author",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1013,X'000000000000000000000000000003f5',1,13)"
+  },
+  {
+    "name": "media retained kind ebook",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(20,'ebook',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject ebook",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1020,X'000000000000000000000000000003fc',1,20)"
+  },
+  {
+    "name": "media retained kind comic",
+    "sql": "INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(21,'comic',1,0,1,1,0)"
+  },
+  {
+    "name": "media retained subject comic",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1021,X'000000000000000000000000000003fd',1,21)"
+  },
+  {
+    "name": "media foreign retained subject",
+    "sql": "INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1104,X'00000000000000000000000000000450',2,4)"
+  },
+  {
+    "name": "media retained asset 100",
+    "sql": "INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(100,'media-asset-100','/media/100',100,1,'file','','',0,0,10,1)"
+  },
+  {
+    "name": "media retained asset 102",
+    "sql": "INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(102,'media-asset-102','/media/102',100,1,'file','','',0,0,10,2)"
+  },
+  {
+    "name": "media closed result episode_inventory_accept200",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',200,X'000000000000000000000000000000c8',zeroblob(32),'episode_inventory_accept',200,200,'S','inc',NULL,'',2,zeroblob(32),1,312,'object-200','observed-200','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572');INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation) VALUES('D',X'11111111111111111111111111111111',200,'episode_inventory_accept',0,'identity',1,1002,2,3,X'33333333333333333333333333333333');INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,episode_boundary_status) VALUES('D',X'11111111111111111111111111111111',200,'episode_inventory_accept',1,'membership',1,1004,4,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','present',0,'unknown_multi_episode')"
+  },
+  {
+    "name": "media complete count and debt 200",
+    "query": "SELECT h.result_count,count(m.ordinal),h.ia_media_member_bytes,sum(m.retained_bytes) FROM scan_command_receipts h JOIN scan_media_result_members m USING(run_id,command_incarnation,command_sequence,command_kind) WHERE h.run_id='D' AND h.command_sequence=200 GROUP BY h.run_id,h.command_sequence",
+    "want": [
+      [
+        2,
+        2,
+        312,
+        312
+      ]
+    ]
+  },
+  {
+    "name": "media closed result audio_inventory_accept201",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',201,X'000000000000000000000000000000c9',zeroblob(32),'audio_inventory_accept',201,200,'S','inc',NULL,'',3,zeroblob(32),1,454,'object-201','observed-201','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572');INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,parent_id,parent_kind) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',0,'identity',1,1006,6,3,X'33333333333333333333333333333333',1005,5);INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',1,'membership',1,1007,7,3,X'33333333333333333333333333333333',100,1,2,2,X'33333333333333333333333333333333','\u00e9 edition','present',1,1,2);INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,parent_id,parent_kind) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',2,'artist',1,1007,7,3,X'33333333333333333333333333333333',1005,5)"
+  },
+  {
+    "name": "media complete count and debt 201",
+    "query": "SELECT h.result_count,count(m.ordinal),h.ia_media_member_bytes,sum(m.retained_bytes) FROM scan_command_receipts h JOIN scan_media_result_members m USING(run_id,command_incarnation,command_sequence,command_kind) WHERE h.run_id='D' AND h.command_sequence=201 GROUP BY h.run_id,h.command_sequence",
+    "want": [
+      [
+        3,
+        3,
+        454,
+        454
+      ]
+    ]
+  },
+  {
+    "name": "media closed result reading_inventory_accept202",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',202,X'000000000000000000000000000000ca',zeroblob(32),'reading_inventory_accept',202,200,'S','inc',NULL,'',1,zeroblob(32),1,195,'object-202','observed-202','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572');INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,reading_format,reading_path_head,reading_path_sequence) VALUES('D',X'11111111111111111111111111111111',202,'reading_inventory_accept',0,'reading',1,1020,20,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','present',0,'epub',1,14)"
+  },
+  {
+    "name": "media complete count and debt 202",
+    "query": "SELECT h.result_count,count(m.ordinal),h.ia_media_member_bytes,sum(m.retained_bytes) FROM scan_command_receipts h JOIN scan_media_result_members m USING(run_id,command_incarnation,command_sequence,command_kind) WHERE h.run_id='D' AND h.command_sequence=202 GROUP BY h.run_id,h.command_sequence",
+    "want": [
+      [
+        1,
+        1,
+        195,
+        195
+      ]
+    ]
+  },
+  {
+    "name": "media closed result extra_inventory_accept203",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',203,X'000000000000000000000000000000cb',zeroblob(32),'extra_inventory_accept',203,200,'S','inc',NULL,'',1,zeroblob(32),1,178,'object-203','observed-203','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572');INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,extra_kind) VALUES('D',X'11111111111111111111111111111111',203,'extra_inventory_accept',0,'extra',1,1011,11,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','present',0,'trailer')"
+  },
+  {
+    "name": "media complete count and debt 203",
+    "query": "SELECT h.result_count,count(m.ordinal),h.ia_media_member_bytes,sum(m.retained_bytes) FROM scan_command_receipts h JOIN scan_media_result_members m USING(run_id,command_incarnation,command_sequence,command_kind) WHERE h.run_id='D' AND h.command_sequence=203 GROUP BY h.run_id,h.command_sequence",
+    "want": [
+      [
+        1,
+        1,
+        178,
+        178
+      ]
+    ]
+  },
+  {
+    "name": "media closed result membership_accept204",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',204,X'000000000000000000000000000000cc',zeroblob(32),'membership_accept',204,200,'S','inc',NULL,'',1,zeroblob(32),1,171,'object-204','observed-204','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572');INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds) VALUES('D',X'11111111111111111111111111111111',204,'membership_accept',0,'membership',1,1009,9,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','removed',0)"
+  },
+  {
+    "name": "media complete count and debt 204",
+    "query": "SELECT h.result_count,count(m.ordinal),h.ia_media_member_bytes,sum(m.retained_bytes) FROM scan_command_receipts h JOIN scan_media_result_members m USING(run_id,command_incarnation,command_sequence,command_kind) WHERE h.run_id='D' AND h.command_sequence=204 GROUP BY h.run_id,h.command_sequence",
+    "want": [
+      [
+        1,
+        1,
+        171,
+        171
+      ]
+    ]
+  },
+  {
+    "name": "media closed result episode_inventory_accept205",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',205,X'000000000000000000000000000000cd',zeroblob(32),'episode_inventory_accept',205,200,'S','inc',NULL,'',1,zeroblob(32),1,145,'object-205','observed-205','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572');INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,parent_id,parent_kind,ancestor_id,ancestor_kind) VALUES('D',X'11111111111111111111111111111111',205,'episode_inventory_accept',0,'identity',1,1004,4,3,X'33333333333333333333333333333333',1003,3,1002,2)"
+  },
+  {
+    "name": "media complete count and debt 205",
+    "query": "SELECT h.result_count,count(m.ordinal),h.ia_media_member_bytes,sum(m.retained_bytes) FROM scan_command_receipts h JOIN scan_media_result_members m USING(run_id,command_incarnation,command_sequence,command_kind) WHERE h.run_id='D' AND h.command_sequence=205 GROUP BY h.run_id,h.command_sequence",
+    "want": [
+      [
+        1,
+        1,
+        145,
+        145
+      ]
+    ]
+  },
+  {
+    "name": "media header refuses missing native boundary",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',476,X'000000000000000000000000000001dc',zeroblob(32),'episode_inventory_accept',476,200,'S','inc',NULL,'',2,zeroblob(32),1,312,'object-476','observed-476','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',NULL)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media header refuses empty native boundary",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',477,X'000000000000000000000000000001dd',zeroblob(32),'episode_inventory_accept',477,200,'S','inc',NULL,'',2,zeroblob(32),1,312,'object-477','observed-477','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media header refuses Basic alias",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload,next_family) VALUES('D',X'11111111111111111111111111111111',478,X'000000000000000000000000000001de',zeroblob(32),'episode_inventory_accept',478,200,'S','inc',NULL,'',2,zeroblob(32),1,312,'object-478','observed-478','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572',1)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media header refuses directory alias",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload,cursor_kind) VALUES('D',X'11111111111111111111111111111111',479,X'000000000000000000000000000001df',zeroblob(32),'episode_inventory_accept',479,200,'S','inc',NULL,'',2,zeroblob(32),1,312,'object-479','observed-479','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572','local_getdents64_cookie_v1')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media header refuses N0 revision alias",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',480,X'000000000000000000000000000001e0',zeroblob(32),'episode_inventory_accept',480,200,'S','inc','invented','',2,zeroblob(32),1,312,'object-480','observed-480','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media header refuses false empty acceptance",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',481,X'000000000000000000000000000001e1',zeroblob(32),'episode_inventory_accept',481,200,'S','inc',NULL,'',0,zeroblob(32),1,312,'object-481','observed-481','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media header refuses partial object",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',482,X'000000000000000000000000000001e2',zeroblob(32),'episode_inventory_accept',482,200,'S','inc',NULL,'',2,zeroblob(32),1,312,'object-482',NULL,'local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media header refuses opaque version",
+    "sql": "INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,result_count,result_digest,ia_media_result_version,ia_media_member_bytes,ia_media_object_id,ia_media_object_revision,ia_media_cursor_kind,ia_media_directory_path,ia_media_directory_identity,ia_media_directory_revision,ia_media_expected_payload,ia_media_next_payload) VALUES('D',X'11111111111111111111111111111111',483,X'000000000000000000000000000001e3',zeroblob(32),'episode_inventory_accept',483,200,'S','inc',NULL,'',2,zeroblob(32),2,312,'object-483','observed-483','local_getdents64_cookie_v1',X'2e',X'646972006964',X'726576',X'6265666f7265',X'6166746572')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media child refuses wrong purpose",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'reading_inventory_accept',10,'membership',1,1007,7,3,X'33333333333333333333333333333333',100,1,2,2,X'33333333333333333333333333333333','\u00e9 edition','present',1,1,2)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media child refuses cross library asset",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'membership',1,1007,7,3,X'33333333333333333333333333333333',102,1,2,2,X'33333333333333333333333333333333','\u00e9 edition','present',1,1,2)",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "media child refuses cross library subject",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds,episode_boundary_status) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'membership',1,1104,4,3,X'33333333333333333333333333333333',100,1,2,2,X'33333333333333333333333333333333','\u00e9 edition','present',1,1,2,'whole_source')",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media child refuses missing link incarnation",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'membership',1,1007,7,3,X'33333333333333333333333333333333',100,1,2,2,NULL,'\u00e9 edition','present',1,1,2)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media child refuses short link incarnation",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'membership',1,1007,7,3,X'33333333333333333333333333333333',100,1,2,2,X'01','\u00e9 edition','present',1,1,2)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media child refuses identity fabricated asset",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'identity',1,1007,7,3,X'33333333333333333333333333333333',100,1,2,2,X'33333333333333333333333333333333','\u00e9 edition','present',1,1,2)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media child refuses negative ordinal",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',-1,'membership',1,1007,7,3,X'33333333333333333333333333333333',100,1,2,2,X'33333333333333333333333333333333','\u00e9 edition','present',1,1,2)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media child refuses infinite range",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'membership',1,1007,7,3,X'33333333333333333333333333333333',100,1,2,2,X'33333333333333333333333333333333','\u00e9 edition','present',1,1,1e999)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media child refuses reversed range",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,cue_ordinal,end_seconds) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'membership',1,1007,7,3,X'33333333333333333333333333333333',100,1,2,2,X'33333333333333333333333333333333','\u00e9 edition','present',1,1,0)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media typed parent cannot alias another purpose",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,reading_format,reading_path_head,reading_path_sequence) VALUES('D',X'11111111111111111111111111111111',200,'reading_inventory_accept',10,'reading',1,1020,20,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','present',0,'epub',1,14)",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "media actual retained subject kind is required",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,episode_boundary_status) VALUES('D',X'11111111111111111111111111111111',200,'episode_inventory_accept',10,'membership',1,1104,4,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','present',0,'unknown_multi_episode')",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "media actual parent kind is required",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,parent_id,parent_kind) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'identity',1,1006,6,3,X'33333333333333333333333333333333',1002,5)",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "media parent NULL pair cannot lie",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,parent_id,parent_kind) VALUES('D',X'11111111111111111111111111111111',201,'audio_inventory_accept',10,'identity',1,1006,6,3,X'33333333333333333333333333333333',1005,NULL)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media reading format cannot disappear",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,reading_format,reading_path_head,reading_path_sequence) VALUES('D',X'11111111111111111111111111111111',202,'reading_inventory_accept',10,'reading',1,1020,20,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','present',0,NULL,1,14)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media reading head sequence cannot outlive its flag",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,reading_format,reading_path_head,reading_path_sequence) VALUES('D',X'11111111111111111111111111111111',202,'reading_inventory_accept',10,'reading',1,1020,20,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','present',0,'epub',0,14)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media extra type cannot disappear",
+    "sql": "INSERT INTO scan_media_result_members(run_id,command_incarnation,command_sequence,command_kind,ordinal,member_kind,library_id,subject_id,subject_kind,subject_revision,metadata_incarnation,asset_id,asset_info_epoch,part_index,link_origin_revision,link_origin_incarnation,edition,link_effect,start_seconds,extra_kind) VALUES('D',X'11111111111111111111111111111111',203,'extra_inventory_accept',10,'extra',1,1011,11,3,X'33333333333333333333333333333333',100,1,0,2,X'33333333333333333333333333333333','','present',0,NULL)",
+    "error_contains": "CHECK constraint failed"
+  },
+  {
+    "name": "media unresolved owner is truthful NULL",
+    "query": "SELECT parent_id,parent_kind,extra_kind FROM scan_media_result_members WHERE command_sequence=203",
+    "want": [
+      [
+        null,
+        null,
+        "trailer"
+      ]
+    ]
+  },
+  {
+    "name": "media member exact retained bytes",
+    "query": "SELECT retained_bytes,edition,typeof(link_origin_incarnation) FROM scan_media_result_members WHERE command_sequence=201 AND ordinal=1",
+    "want": [
+      [
+        202,
+        "\u00e9 edition",
+        "blob"
+      ]
+    ]
+  },
+  {
+    "name": "media header cannot disappear with retained children",
+    "sql": "DELETE FROM scan_command_receipts WHERE run_id='D' AND command_sequence=201",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "media retained subject cannot disappear",
+    "sql": "DELETE FROM catalog_subjects WHERE id=1007",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "media retained asset cannot disappear",
+    "sql": "DELETE FROM catalog_assets WHERE id=100",
+    "error_contains": "FOREIGN KEY constraint failed"
+  },
+  {
+    "name": "media native opaque directory identity survives reopen",
+    "reopen": true,
+    "query": "SELECT hex(ia_media_directory_identity),hex(ia_media_expected_payload),hex(ia_media_next_payload),ia_media_object_revision FROM scan_command_receipts WHERE run_id='D' AND command_sequence=201",
+    "want": [
+      [
+        "646972006964",
+        "6265666F7265",
+        "6166746572",
+        "observed-201"
+      ]
+    ]
+  },
+  {
+    "name": "media retained original source root survives current drift",
+    "query": "SELECT r.original_resolved_root,r.root_identity,r.source_generation,h.source_incarnation FROM inventory_runs r JOIN scan_command_receipts h ON h.run_id=r.job_id AND h.command_incarnation=r.command_incarnation WHERE h.command_sequence=201",
+    "want": [
+      [
+        "/original",
+        "root-native",
+        7,
+        "inc"
+      ]
+    ]
+  },
+  {
+    "name": "media child-first keyset seek",
+    "plan_sql": "SELECT ordinal FROM scan_media_result_members WHERE run_id='D' AND command_incarnation=X'11111111111111111111111111111111' AND command_sequence=201 AND command_kind='audio_inventory_accept' AND ordinal>0 ORDER BY ordinal LIMIT 1",
+    "seek": "run_id=? AND command_incarnation=? AND command_sequence=? AND command_kind=? AND ordinal>?"
+  },
+  {
+    "name": "media retained subject FK seek",
+    "plan_sql": "SELECT ordinal FROM scan_media_result_members INDEXED BY scan_media_result_subject WHERE library_id=1 AND subject_id=1007",
+    "seek": "library_id=? AND subject_id=?"
+  },
+  {
+    "name": "media retained parent FK seek",
+    "plan_sql": "SELECT ordinal FROM scan_media_result_members INDEXED BY scan_media_result_parent WHERE library_id=1 AND parent_id=1007",
+    "seek": "library_id=? AND parent_id=?"
+  },
+  {
+    "name": "media retained ancestor FK seek",
+    "plan_sql": "SELECT ordinal FROM scan_media_result_members INDEXED BY scan_media_result_ancestor WHERE library_id=1 AND ancestor_id=1007",
+    "seek": "library_id=? AND ancestor_id=?"
+  },
+  {
+    "name": "media retained asset FK seek",
+    "plan_sql": "SELECT ordinal FROM scan_media_result_members INDEXED BY scan_media_result_asset WHERE library_id=1 AND asset_id=1007",
+    "seek": "library_id=? AND asset_id=?"
+  },
+  {
+    "name": "media partial cleanup rollback begins",
+    "sql": "BEGIN IMMEDIATE"
+  },
+  {
+    "name": "media partial cleanup deletes one physical child",
+    "sql": "DELETE FROM scan_media_result_members WHERE run_id='D' AND command_sequence=200 AND command_kind='episode_inventory_accept' AND ordinal=0"
+  },
+  {
+    "name": "media partial cleanup is rolled back",
+    "sql": "ROLLBACK"
+  },
+  {
+    "name": "media partial cleanup rollback restores full cohort",
+    "query": "SELECT count(*) FROM scan_media_result_members WHERE command_sequence=200",
+    "want": [
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "media whole cohort original ACK is atomic",
+    "sql": "DELETE FROM scan_media_result_members WHERE run_id='D' AND command_incarnation=X'11111111111111111111111111111111' AND command_sequence=200 AND command_kind='episode_inventory_accept' AND ordinal BETWEEN 0 AND 4095; DELETE FROM scan_command_receipts WHERE run_id='D' AND command_incarnation=X'11111111111111111111111111111111' AND command_sequence=200 AND command_kind='episode_inventory_accept'; UPDATE inventory_runs SET last_command_sequence=200,acknowledged_command_sequence=200 WHERE job_id='D' AND command_incarnation=X'11111111111111111111111111111111'"
+  },
+  {
+    "name": "media lost ACK return reopens original retired floor only",
+    "reopen": true,
+    "query": "SELECT acknowledged_command_sequence,(SELECT count(*) FROM scan_command_receipts WHERE run_id='D' AND command_sequence=200),(SELECT count(*) FROM scan_media_result_members WHERE run_id='D' AND command_sequence=200),original_resolved_root,root_identity FROM inventory_runs WHERE job_id='D'",
+    "want": [
+      [
+        200,
+        0,
+        0,
+        "/original",
+        "root-native"
+      ]
+    ]
+  }
+]

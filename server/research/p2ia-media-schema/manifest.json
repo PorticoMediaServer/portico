@@ -1,0 +1,157 @@
+{
+  "baseline": "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4",
+  "candidate": "209889e9ae52fee9c0ff6fdd3b4bbf5cfffbf98b36ba86f3ee25283c3894684d",
+  "replacement_before": {
+    "scan_command_receipts": "061c5ec784de461c0d8f80634f0cb07fefcada699382db880c047f92655d44d2",
+    "catalog_removal_progress": "7e50ea6ef5f4382fabe16f2f6cd79889adcfb525a397d315851f760df81f1f44"
+  },
+  "replacement_after": {
+    "scan_command_receipts": "1fe461f1f50108e6c2ab103cc33ea6d215ce6c0e23a87f6a7986d400ea9672e7",
+    "catalog_removal_progress": "c698c2d8e8280ba45e78d82789b3aed5387caf4ccfaea9921703cbda58c528c9"
+  },
+  "new_tables": [
+    "scan_media_result_members",
+    "scan_reconcile_members",
+    "catalog_removal_receipts",
+    "catalog_configuration_operations",
+    "catalog_configuration_receipts",
+    "catalog_configuration_sources"
+  ],
+  "new_indexes": [
+    "scan_media_result_subject",
+    "scan_media_result_parent",
+    "scan_media_result_ancestor",
+    "scan_media_result_asset",
+    "scan_receipt_ia_kind",
+    "catalog_removal_operation",
+    "catalog_removal_original_library",
+    "catalog_configuration_operation_kind",
+    "catalog_configuration_original_library",
+    "catalog_configuration_source_once",
+    "catalog_removal_reclaim_operation",
+    "catalog_removal_receipt_due",
+    "catalog_configuration_reclaim_operation",
+    "catalog_configuration_receipt_due"
+  ],
+  "unchanged_objects": [
+    "inventory_runs",
+    "inventory_directories",
+    "scan_command_results",
+    "inventory_scan_issues"
+  ],
+  "source_internal": "6b6d2113a051ebb825a199b93f586680e4a75cca",
+  "source_public": "194a9248f32195e51355b254548b3551d35fd458",
+  "native_toolchain": "go1.26.10",
+  "landing": "WAIT phase1a lock",
+  "media_amendment_sha256": "9c54e464929c48c703f973fdccb18de62f267b40d6d73d72f6ea311928c2b7f0",
+  "configuration_amendment_sha256": "84a50db58b27e3e797cec564d948424fab444bf2a015ca2dbaf889ac9f10bf4f",
+  "configuration_new_objects": {
+    "catalog_configuration_operations": {
+      "before_absent": true,
+      "after_sha256": "5ab5927c04112c3844b0a054bd251e99ebeac759218647d6a03d37ed35535a55"
+    },
+    "catalog_configuration_operation_kind": {
+      "before_absent": true,
+      "after_sha256": "c0182596d104cb985bbe8a7cad9bc572aa29893e0ed317ed01fef20c87dab86a"
+    },
+    "catalog_configuration_original_library": {
+      "before_absent": true,
+      "after_sha256": "972d98b0ca4e76875b6b7a37302cb1226be352655494ef57252023ae3c61b8b3"
+    },
+    "catalog_configuration_receipts": {
+      "before_absent": true,
+      "after_sha256": "41874e75af325ff22443a04b27f25eecfa49f2154dc2f686be4a1bc37c877664"
+    },
+    "catalog_configuration_sources": {
+      "before_absent": true,
+      "after_sha256": "3335c68a507aeaffd6ccae8b9e75fa2eea2d6ecc2b68d4a677a7f9bcc6f3dd2f"
+    },
+    "catalog_configuration_source_once": {
+      "before_absent": true,
+      "after_sha256": "6806dd567fe61c251dac2876d31d5402dbcee110dd98c775f885872e876e13e1"
+    }
+  },
+  "new_object_hashes": {
+    "scan_media_result_members": {
+      "before_absent": true,
+      "after_sha256": "6a895d9e8d8bac75d1af7eb53b48c4e86920db79617eeceebba4bbd47f479cf1"
+    },
+    "scan_reconcile_members": {
+      "before_absent": true,
+      "after_sha256": "5bd3cf3e0ff702b52a370a6ca40de62ff69dc03d34ed653d4c2201b040ceeba5"
+    },
+    "catalog_removal_receipts": {
+      "before_absent": true,
+      "after_sha256": "8e20f5fe46e98f45fc18ce475eea884625774061fcf11398000b4ab48df78dda"
+    },
+    "catalog_configuration_operations": {
+      "before_absent": true,
+      "after_sha256": "5ab5927c04112c3844b0a054bd251e99ebeac759218647d6a03d37ed35535a55"
+    },
+    "catalog_configuration_receipts": {
+      "before_absent": true,
+      "after_sha256": "41874e75af325ff22443a04b27f25eecfa49f2154dc2f686be4a1bc37c877664"
+    },
+    "catalog_configuration_sources": {
+      "before_absent": true,
+      "after_sha256": "3335c68a507aeaffd6ccae8b9e75fa2eea2d6ecc2b68d4a677a7f9bcc6f3dd2f"
+    },
+    "scan_media_result_subject": {
+      "before_absent": true,
+      "after_sha256": "483f9744d224b4b0a57a6fc4d2fdf7256cc4631980f6933d35875195caf525e9"
+    },
+    "scan_media_result_parent": {
+      "before_absent": true,
+      "after_sha256": "538115d141acdadfa37507f02c74740f87cf6a4c2a266d9e53bded3245d24325"
+    },
+    "scan_media_result_ancestor": {
+      "before_absent": true,
+      "after_sha256": "5293d7669de1dec493beaae78428ab13c1f1c8b62d745fe62332d982b9694872"
+    },
+    "scan_media_result_asset": {
+      "before_absent": true,
+      "after_sha256": "d8fe6cd927186ec9b383e733f9dcbf180f670ec407d0424fb133ca139b8193b5"
+    },
+    "scan_receipt_ia_kind": {
+      "before_absent": true,
+      "after_sha256": "4c151d263c391ff7ab4828d595e4b6809f3621dd9f3a09116c5abe6c41ca72fb"
+    },
+    "catalog_removal_operation": {
+      "before_absent": true,
+      "after_sha256": "94304386c260928cf53721db3c35aa7435553ebada05b484cf5ec6c1d5bde01c"
+    },
+    "catalog_removal_original_library": {
+      "before_absent": true,
+      "after_sha256": "f3792aa08e366e233f4e8db8fd1af4e85644f3dbc3ff799f3f6788f07213c678"
+    },
+    "catalog_configuration_operation_kind": {
+      "before_absent": true,
+      "after_sha256": "c0182596d104cb985bbe8a7cad9bc572aa29893e0ed317ed01fef20c87dab86a"
+    },
+    "catalog_configuration_original_library": {
+      "before_absent": true,
+      "after_sha256": "972d98b0ca4e76875b6b7a37302cb1226be352655494ef57252023ae3c61b8b3"
+    },
+    "catalog_configuration_source_once": {
+      "before_absent": true,
+      "after_sha256": "6806dd567fe61c251dac2876d31d5402dbcee110dd98c775f885872e876e13e1"
+    },
+    "catalog_removal_reclaim_operation": {
+      "before_absent": true,
+      "after_sha256": "abf619c9b4b764acc9f52f5455ee85653c1a40b00bec39432b62ac9c480b3a32"
+    },
+    "catalog_removal_receipt_due": {
+      "before_absent": true,
+      "after_sha256": "84ffd4bbdce3ab182196e9804042e6a94a8ae7d8802a0663c55e45926f6a7243"
+    },
+    "catalog_configuration_reclaim_operation": {
+      "before_absent": true,
+      "after_sha256": "efee04e6c421f4dc1e26d9980338925a30dadd23447df152e54b3583ff2ae5f8"
+    },
+    "catalog_configuration_receipt_due": {
+      "before_absent": true,
+      "after_sha256": "70f2d970b3b47e5e0fcf270e46a61421513feea2bd0dad838732e633608cb8d1"
+    }
+  },
+  "adopted_fixed_slot_pattern": "4e5863e2b1c761e4abb9a8fd254b0e60b6f72605; wc_reclaim_prepare.go -> wc_reclaim_008_draft.go/storeWC008ReclaimResult"
+}
