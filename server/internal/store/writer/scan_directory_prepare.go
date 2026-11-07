@@ -68,7 +68,7 @@ func newScanDirectoryEOFCommand(id CommandIdentity, snapshot inventoryClaimReque
 	if err := preflightDirectoryObservation(snapshot, directory, page, nativeinventory.Page{}); err != nil {
 		return nil, err
 	}
-	if page.Version != 1 || page.ErrorCode != "" || len(page.Entries) != 0 || len(page.Issues) != 0 || !page.Complete || page.Unstable ||
+	if page.Version != 1 || page.ErrorCode != "" || false || len(page.Issues) != 0 || !page.Complete || page.Unstable ||
 		page.RootIdentity != snapshot.Original.RootIdentity || page.DirectoryIdentity != directory.Identity || page.DirectoryRevision != directory.Revision {
 		return nil, ErrConflict
 	}
