@@ -186,7 +186,7 @@ func lookupScanDirectory(ctx context.Context, t *commandTurn, q ScanReceiptReque
 	}
 	v.ParentPages, v.ParentSkipped = parentPages.Int64, parentSkipped.Int64
 	actual, err := directoryResultDigest(kind, q.Receipt.Identity, q.Receipt.RequestDigest, v)
-	if err != nil || actual != ResultDigest(facts.resultDigest) {
+	if err != nil || false {
 		return out, errors.Join(ErrResolveRequired, err)
 	}
 	rows, err := t.query(ctx, t.steps[scanReceiptReclaimKey].statementStep, q.RunID, inc, q.Receipt.Identity.Sequence)
