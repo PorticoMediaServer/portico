@@ -64,6 +64,7 @@ func prepareBasicSource(ctx context.Context, d *ScanDriver, lease *ScanRunLease,
 	if candidate == nil || candidate.source == nil || candidate.mode != scanBasicPreparation || candidate.expected.Key.Domain != uint16(purpose) {
 		return nil, snapshot, source, ErrInvalid
 	}
+	life = candidate.lifetime
 	if err = candidate.current(); err != nil {
 		return nil, snapshot, source, err
 	}
@@ -93,7 +94,7 @@ func runBasicSourcePreparationTurn(ctx context.Context, turn *commandTurn, in *i
 	original := scanOriginalFromNative(r.scope)
 	current := inventoryRun{leaseOwner: r.leaseOwner, leaseGeneration: r.leaseGeneration, leaseExpiresMS: r.leaseExpiresMS}
 	if !v.lease.matches(original, current) || v.lease.incarnation != r.scope.commandIncarnation || r.scope.libraryID != q.LibraryID || r.scope.libraryKey != q.LibraryKey ||
-		r.acknowledgedSequence != r.lastSequence || q.Receipt.Identity.Sequence > r.acknowledgedSequence || r.finishedAt != "" || r.rootRebound != 0 || out.run.job.status != "running" {
+		q.Receipt.Identity.Sequence > r.acknowledgedSequence || r.finishedAt != "" || r.rootRebound != 0 || out.run.job.status != "running" {
 		return out, false, ErrConflict
 	}
 	if _, err = turn.commandTimeMS(ctx, InventoryClaim, r.leaseExpiresMS); err != nil {
