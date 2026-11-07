@@ -24,7 +24,7 @@ func dmlSQL(sql string) (*dmlShape, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := lintParser{tokens: tokens, issuerOctets: sql == issuerSourceLengthsSQL || sql == issuerLibraryRootLengthsSQL || n1OctetSQL(sql) || directoryOctetSQL(sql)}
+	p := lintParser{tokens: tokens, issuerOctets: sql == issuerSourceLengthsSQL || sql == issuerLibraryRootLengthsSQL || n1OctetSQL(sql) || directoryOctetSQL(sql) || sql == directoryTerminalOctetSQL}
 	err = p.statement()
 	if err != nil {
 		return nil, err
