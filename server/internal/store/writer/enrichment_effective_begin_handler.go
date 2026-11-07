@@ -30,6 +30,11 @@ func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *eff
 	if decision != receiptFresh {
 		return zero, ErrResolveRequired
 	}
+	if input.sourceReferences != nil {
+		// V2 data must never fall through the legacy effects path: its actual
+		// image/receipt dependency pins need the separately verified source arm.
+		return zero, &Refusal{Code: RefusalUnqualified}
+	}
 	if owner != r.owner {
 		return zero, ErrConflict
 	}
