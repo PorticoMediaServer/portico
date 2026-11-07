@@ -283,3 +283,50 @@ func TestRSAuthorBookReaderPostEncodingFence(t *testing.T) {
 	}
 	t.Fatal("no ready page")
 }
+
+func TestRSAuthorBookReaderCrossPage(t *testing.T) {
+	f, r := authorBookFixture(t)
+	v := f.input
+	v.Kind = 13
+	var cursor *RSAuthorBookCursor
+	var got []int64
+	for n := 0; n < 8; n++ {
+		p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSAuthorBookInput{View: v, Author: 13001, Limit: 1, After: cursor})
+		if e != nil || ref != nil {
+			t.Fatal(e, ref)
+		}
+		ready := false
+		for i := 0; i < 200; i++ {
+			fg, req, out := liveRequests("author-cross-page")
+			_, e = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, fg, out, func(ctx context.Context, o BrowseOutput) error {
+				var err error
+				ready, err = r.Publish(ctx, req, time.Second, o, p, func(page RSAuthorBookPage) ([]byte, error) {
+					if page.Total != 3 || len(page.Cards) != 1 {
+						t.Fatal(page)
+					}
+					got = append(got, page.Cards[0].Facts.Item.ID)
+					cursor = page.Next
+					return []byte("encoded"), nil
+				}, func([]byte) error { return nil })
+				return err
+			})
+			if e != nil {
+				p.Close()
+				t.Fatal(e)
+			}
+			if ready {
+				break
+			}
+		}
+		p.Close()
+		if !ready {
+			t.Fatal("pending forever")
+		}
+		if cursor == nil {
+			break
+		}
+	}
+	if fmt.Sprint(got) != "[14003 2002 14010]" {
+		t.Fatal("ordered complete traversal", got)
+	}
+}
