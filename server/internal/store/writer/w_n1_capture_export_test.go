@@ -13,6 +13,9 @@ func TestWN1CaptureExport(t *testing.T) {
 	if dir == "" {
 		t.Skip("hosted evidence export only")
 	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
 	oldFresh, oldHistory := *recordInventoryFreshPlan, *recordScanLifecycleHistoryPlans
 	defer func() { *recordInventoryFreshPlan, *recordScanLifecycleHistoryPlans = oldFresh, oldHistory }()
 	*recordInventoryFreshPlan, *recordScanLifecycleHistoryPlans = true, true
