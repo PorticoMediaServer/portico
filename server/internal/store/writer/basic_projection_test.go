@@ -62,9 +62,13 @@ func basicProjectionFixture(t *testing.T, mutate string) (*commandTurn, basicAss
 		t.Fatal(err)
 	}
 	base, _ := basicResourceTestTurn(t, w, path, BasicStage, commandMemoryBudget{32768, 32768})
+	vm := make(map[stmt.ID]uint64)
+	for _, p := range golden.Plans {
+		vm[p.ID] = max(vm[p.ID], 2*uint64(len(p.Explain.Values)))
+	}
 	var steps []statementStep
 	for _, d := range defs {
-		steps = append(steps, statementStep{d.ID, Work{Rows: 2, VMOps: 100000, Pages: 4, Hold: time.Millisecond}})
+		steps = append(steps, statementStep{d.ID, Work{Rows: 2, VMOps: vm[d.ID], Pages: 4, Hold: 100 * time.Microsecond}})
 	}
 	turn, err := newCommandTurn(base.transaction, registry, steps)
 	if err != nil {
