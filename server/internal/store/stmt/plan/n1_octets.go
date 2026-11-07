@@ -37,6 +37,17 @@ func n1OctetPointFor(id stmt.ID) (n1OctetPoint, bool) {
 	return n1OctetPoint{}, false
 }
 
+// The DML classifier reparses already admitted SELECTs without a Definition.
+// Only these exact strings may use the scalar there; public lint remains closed.
+func n1OctetSQL(sql string) bool {
+	for _, point := range n1OctetPoints {
+		if point.sql == sql {
+			return true
+		}
+	}
+	return false
+}
+
 func n1OctetDefinition(d stmt.Definition) bool {
 	p, found := n1OctetPointFor(d.ID)
 	if !found || d.SQL != p.sql || d.Kind != stmt.Read || !d.Plan.Hot ||
