@@ -47,9 +47,17 @@ func TestN1FreshSourceKeepsBothRootMeanings(t *testing.T) {
 // same-governor frame and memory partition. These private effect values do not
 // issue a driver, source capability, production profile or fresh permission.
 func TestN1FreshSourceRequiresCurrentNativeRootAndActiveRun(t *testing.T) {
-	for _, mode := range []string{"current", "logical_root_changed", "active_slot_missing", "active_slot_other_run"} {
+	for _, mode := range []string{"current", "logical_root_changed", "active_slot_missing", "active_slot_other_run", "foreign_root_alias", "foreign_root_child", "foreign_root_parent"} {
 		t.Run(mode, func(t *testing.T) {
 			w, _, c, registry := inventoryFreshFixtureDefinitions(t, inventoryDriverCommandDefinitions())
+			// Same physical folders may be configured in other libraries.
+			// Native identity is library/source scoped, not globally path-scoped.
+			foreignRoot := map[string]string{"foreign_root_alias": "/media", "foreign_root_child": "/media/nested", "foreign_root_parent": "/"}[mode]
+			if foreignRoot != "" {
+				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_libraries(id,library_id,root) VALUES(8,'other-library',?)`, foreignRoot); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if mode != "active_slot_missing" {
 				run := "fresh-run"
 				if mode == "active_slot_other_run" {
@@ -77,14 +85,53 @@ func TestN1FreshSourceRequiresCurrentNativeRootAndActiveRun(t *testing.T) {
 			turn, _ := inventoryMemoryFixtureTurn(t, w, registry, c, inventoryMemoryBudget{4 << 20, 4 << 20})
 			in := &inventoryInvocation{input: c, request: ref, issuer: &scanIssuerInvocation{action: scanIssuerN1Apply, frame: turn.transaction, retained: retained}}
 			err = checkInventoryDriverFreshSource(t.Context(), turn, in)
-			if mode == "current" && err != nil {
+			allowed := mode == "current" || foreignRoot != ""
+			if allowed && err != nil {
 				t.Fatal("current same-snapshot source refused", err)
 			}
-			if mode != "current" && !errors.Is(err, ErrConflict) {
+			if !allowed && !errors.Is(err, ErrConflict) {
 				t.Fatal("changed native source/active slot accepted", mode, err)
 			}
 			if _, rollbackErr := turn.transaction.rollback(nil); rollbackErr != nil {
 				t.Fatal(rollbackErr)
+			}
+		})
+	}
+}
+
+// Canonical paths are per-library identities. Other libraries may refer to the
+// very same file. Actual tokens/row IDs are separately allocated and the fresh
+// effects must neither reuse nor mutate that other library's native asset.
+func TestN1OverlappingLibraryFoldersKeepNativeAssetNamespaces(t *testing.T) {
+	for _, root := range []string{"/media", "/media/nested", "/"} {
+		t.Run(root, func(t *testing.T) {
+			w, _, c, registry := inventoryFreshFixtureDefinitions(t, inventoryDriverCommandDefinitions())
+			if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_libraries(id,library_id,root) VALUES(8,'other-library',?)`, root); err != nil {
+				t.Fatal(err)
+			}
+			path := c.request.files[0].assetPath
+			if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_assets(id,token,library_id,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration) VALUES(901,'foreign-asset',8,?,999,0,'','','',0,0,0)`, path); err != nil {
+				t.Fatal(err)
+			}
+			turn, _ := inventoryMemoryFixtureTurn(t, w, registry, c, inventoryMemoryBudget{4 << 20, 4 << 20})
+			value, err := applyInventoryAccept(t.Context(), turn, c)
+			if err != nil || value.Outcome != (ReceiptOutcome{}) || len(value.Members) != 1 || value.Members[0].LibraryID != 7 || value.Members[0].AssetID == 901 {
+				t.Fatal("overlap escaped own library identity", value, err)
+			}
+			var library, size int64
+			var token, actualPath string
+			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT library_id,token,path,size FROM catalog_assets WHERE id=901`).Scan(&library, &token, &actualPath, &size); err != nil {
+				t.Fatal(err)
+			}
+			if library != 8 || token != "foreign-asset" || actualPath != path || size != 999 {
+				t.Fatal("another library's same-path asset changed", library, token, actualPath, size)
+			}
+			var copies int64
+			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM catalog_assets WHERE path=?`, path).Scan(&copies); err != nil || copies != 2 {
+				t.Fatal("per-library path uniqueness became global", copies, err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
