@@ -13,6 +13,9 @@ import (
 // schema. Small/custom-schema goldens keep the original exact comparison.
 // Neither JSON nor this comparison can mint a Registry receipt.
 func schemaComparison(expected, actual []byte) ([]byte, []byte, error) {
+	return schemaComparisonForPlatform(expected, actual, runtime.GOOS+"/"+runtime.GOARCH)
+}
+func schemaComparisonForPlatform(expected, actual []byte, platform string) ([]byte, []byte, error) {
 	decode := func(b []byte) (any, error) {
 		var v any
 		d := json.NewDecoder(bytes.NewReader(b))
@@ -28,7 +31,7 @@ func schemaComparison(expected, actual []byte) ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	changed, err := projectSchemaPairs(want, got)
+	changed, err := projectSchemaPairs(want, got, platform)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -42,7 +45,7 @@ func schemaComparison(expected, actual []byte) ([]byte, []byte, error) {
 	b, err := json.Marshal(got)
 	return a, b, err
 }
-func projectSchemaPairs(want, got any) (bool, error) {
+func projectSchemaPairs(want, got any, platform string) (bool, error) {
 	switch actual := got.(type) {
 	case map[string]any:
 		expected, ok := want.(map[string]any)
@@ -81,7 +84,7 @@ func projectSchemaPairs(want, got any) (bool, error) {
 			if err = decodeValue(env, &e); err != nil {
 				return false, err
 			}
-			if err = validateDerivedEnvironment(e); err != nil {
+			if err = validateDerivedEnvironment(e, platform); err != nil {
 				return false, err
 			}
 			plans, ok := actual["plans"].([]any)
@@ -168,7 +171,7 @@ func projectSchemaPairs(want, got any) (bool, error) {
 		}
 		changed := false
 		for k, v := range actual {
-			c, err := projectSchemaPairs(expected[k], v)
+			c, err := projectSchemaPairs(expected[k], v, platform)
 			if err != nil {
 				return false, err
 			}
@@ -182,7 +185,7 @@ func projectSchemaPairs(want, got any) (bool, error) {
 		}
 		changed := false
 		for i := range actual {
-			c, e := projectSchemaPairs(before[i], actual[i])
+			c, e := projectSchemaPairs(before[i], actual[i], platform)
 			if e != nil {
 				return false, e
 			}
@@ -211,7 +214,7 @@ func checkBinding(v any) error {
 	}
 	return nil
 }
-func validateDerivedEnvironment(e Environment) error {
+func validateDerivedEnvironment(e Environment, platform string) error {
 	ref, err := sharedSchemaEvidence()
 	if err != nil {
 		return err
@@ -221,8 +224,11 @@ func validateDerivedEnvironment(e Environment) error {
 	}
 	options, _ := json.Marshal(e.CompileOptions)
 	profile, err := identifyCompileProfile(options)
-	if err != nil || profile.platform != runtime.GOOS+"/"+runtime.GOARCH {
-		return fmt.Errorf("plan: unapproved native compile profile")
+	if err != nil {
+		return fmt.Errorf("plan: unapproved native compile profile: %w", err)
+	}
+	if profile.platform != platform {
+		return fmt.Errorf("plan: native compile profile %s does not match platform %s", profile.platform, platform)
 	}
 
 	if err := checkEmbeddedCatalog(e.Schema); err != nil {

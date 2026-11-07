@@ -40,7 +40,7 @@ func compareJSONForPlatform(expected, actual []byte, platform string) error {
 	if err := json.Compact(&got, actual); err != nil {
 		return fmt.Errorf("plan: invalid actual JSON: %w", err)
 	}
-	projectedWant, projectedGot, err := schemaComparison(want.Bytes(), got.Bytes())
+	projectedWant, projectedGot, err := schemaComparisonForPlatform(want.Bytes(), got.Bytes(), platform)
 	if err != nil {
 		return fmt.Errorf("plan: schema evidence: %w", err)
 	}

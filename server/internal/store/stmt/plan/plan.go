@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -101,7 +102,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			return g, err
 		}
 		env.SchemaBinding = &SchemaBinding{Version: 1, SQLSHA256: schemaSQLSHA()}
-		if err := validateDerivedEnvironment(env); err != nil {
+		if err := validateDerivedEnvironment(env, runtime.GOOS+"/"+runtime.GOARCH); err != nil {
 			return g, err
 		}
 	}

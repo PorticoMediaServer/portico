@@ -22,6 +22,7 @@ func compileFixture(t *testing.T, profile string, change func(map[string]any)) [
 		t.Fatal(err)
 	}
 	env := value["environment"].(map[string]any)
+	env["schemaBinding"] = &SchemaBinding{Version: 1, SQLSHA256: schemaSQLSHA()}
 	options := env["compileOptions"].(map[string]any)["values"].([]any)
 	for _, option := range options {
 		row := option.([]any)
