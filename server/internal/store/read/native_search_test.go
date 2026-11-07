@@ -745,6 +745,9 @@ func TestNativeSearchRetainedLibrariesShareOneOperation(t *testing.T) {
 	if err != nil || len(second.Hits) != 1 || second.Hits[0].ID != 1040 {
 		t.Fatal("second library", second, err)
 	}
+	if len(second.Stamp.policies) != 2 {
+		t.Fatal("issued stamp omitted retained proof")
+	}
 	mixed, err := second.Stamp.RetainHits(append(first.Hits, second.Hits...))
 	if err != nil || len(mixed.policies) != 2 {
 		t.Fatal("mixed issued evidence", err)
@@ -754,7 +757,7 @@ func TestNativeSearchRetainedLibrariesShareOneOperation(t *testing.T) {
 		t.Fatal("narrow library evidence", err)
 	}
 	r.snapshots = &nativeBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE catalog_libraries SET retired=1 WHERE id=1`) }}
-	denied, err := read(2, mixed)
+	denied, err := read(2, second.Stamp)
 	if !errors.Is(err, ErrDenied) || !reflect.DeepEqual(denied, FullSearchPage{}) {
 		t.Fatal("retained library retired before release", denied, err)
 	}
