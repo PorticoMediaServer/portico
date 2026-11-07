@@ -135,7 +135,7 @@ func checkAutoindexAccess(d stmt.Definition, audits []AutoIndexAudit, eqp Rows) 
 	if err != nil {
 		return err
 	}
-	p := lintParser{tokens: tokens}
+	p := lintParser{tokens: tokens, issuerOctets: closedOctetDefinition(d)}
 	if err := p.statement(); err != nil {
 		return err
 	}
