@@ -578,7 +578,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
 	if err == nil && scan != nil && scan.basic != nil {
 		var required uint64
-		required, err = basicReceiptRequiredBytes(scan.basic.request, [4]int64{})
+		required, err = basicReceiptRequiredBytes(scan.basic.request, [7]int64{})
 		if err == nil {
 			err = turn.requireBasicMemory(ctx, scan.basic.request.Purpose, required)
 		}

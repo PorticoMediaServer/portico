@@ -28,15 +28,14 @@ func basicReceiptDefinitions() []stmt.Definition {
 			SQL:    `SELECT operation_id,request_digest,command_kind,result_count,result_digest FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?`,
 			Params: key},
 		{ID: basicReceiptHeaderLengths, Kind: stmt.Read,
-			SQL:    `SELECT octet_length(source_id),octet_length(source_incarnation),octet_length(source_revision),octet_length(next_cursor) FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?`,
+			SQL:    `SELECT octet_length(source_id),octet_length(source_incarnation),octet_length(source_revision),octet_length(next_cursor),octet_length(next_copy_key),octet_length(next_copy_key2),octet_length(next_copy_key3) FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?`,
 			Params: key},
 		{ID: basicReceiptHeader, Kind: stmt.Read,
 			// FIRST Stage/Seal have closed native prefixes and NO other result
 			// variants. Guards avoid allocating unused native TEXT/BLOBs.
-			SQL: `SELECT accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,change_id,expected_epoch,next_family,after_entity
+			SQL: `SELECT accepted_revision,applied_ms,source_id,source_incarnation,source_revision,next_cursor,change_id,expected_epoch,next_family,next_copy_phase,next_copy_id,next_copy_aux,next_copy_key,next_copy_key2,next_copy_key3,after_entity
 FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?
-AND next_cursor='' AND next_copy_phase=0 AND next_copy_id=0 AND next_copy_aux=0
-AND next_copy_key='' AND next_copy_key2='' AND next_copy_key3=''
+AND next_cursor=''
 AND result_lease_owner IS NULL AND result_lease_generation IS NULL AND result_lease_expires_ms IS NULL
 AND result_acknowledged_sequence IS NULL AND result_discovered IS NULL AND result_processed IS NULL
 AND result_root_identity IS NULL AND result_root_revision IS NULL AND result_root_cursor IS NULL

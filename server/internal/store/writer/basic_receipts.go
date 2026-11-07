@@ -30,7 +30,7 @@ func lookupBasic(ctx context.Context, turn *commandTurn, q BasicReceiptRequest) 
 		q.Scan.RunID == "" || q.Scan.LibraryID <= 0 || q.Scan.LibraryKey == "" || q.Scan.Receipt.Identity.Sequence <= 0 {
 		return value, ErrInvalid
 	}
-	required, err := basicReceiptRequiredBytes(q, [4]int64{})
+	required, err := basicReceiptRequiredBytes(q, [7]int64{})
 	if err != nil {
 		return value, err
 	}
@@ -136,8 +136,8 @@ func lookupBasic(ctx context.Context, turn *commandTurn, q BasicReceiptRequest) 
 	if err != nil {
 		return value, err
 	}
-	var lengths [4]int64
-	if err = basicReceiptPoint(row, &lengths[0], &lengths[1], &lengths[2], &lengths[3]); err != nil {
+	var lengths [7]int64
+	if err = basicReceiptPoint(row, &lengths[0], &lengths[1], &lengths[2], &lengths[3], &lengths[4], &lengths[5], &lengths[6]); err != nil {
 		return value, errors.Join(ErrResolveRequired, err)
 	}
 	if lengths[0] <= 0 || lengths[1] <= 0 || lengths[2] <= 0 || lengths[3] != 0 {
@@ -159,10 +159,11 @@ func lookupBasic(ctx context.Context, turn *commandTurn, q BasicReceiptRequest) 
 	}
 	v := BasicResult{Purpose: q.Purpose, RunID: q.Scan.RunID, Members: []InventoryMember{}}
 	if err = basicReceiptPoint(row, &v.AcceptedRunRevision, &v.AppliedMS, &v.SourceID, &v.SourceIncarnation, &v.SourceRevision,
-		&v.Continuation.NextCursor, &v.ChangeID, &v.ExpectedEpoch, &v.Continuation.NextFamily, &v.Continuation.AfterEntity); err != nil {
+		&v.Continuation.NextCursor, &v.ChangeID, &v.ExpectedEpoch, &v.Continuation.NextFamily, &v.Continuation.NextCopyPhase, &v.Continuation.NextCopyID, &v.Continuation.NextCopyAux,
+		&v.Continuation.NextCopyKey, &v.Continuation.NextCopyKey2, &v.Continuation.NextCopyKey3, &v.Continuation.AfterEntity); err != nil {
 		return value, errors.Join(ErrResolveRequired, err)
 	}
-	for n, s := range [...]string{v.SourceID, v.SourceIncarnation, v.SourceRevision, v.Continuation.NextCursor} {
+	for n, s := range [...]string{v.SourceID, v.SourceIncarnation, v.SourceRevision, v.Continuation.NextCursor, v.Continuation.NextCopyKey, v.Continuation.NextCopyKey2, v.Continuation.NextCopyKey3} {
 		if int64(len(s)) != lengths[n] {
 			return value, ErrResolveRequired
 		}
@@ -252,7 +253,7 @@ func basicReceiptPoint(rows *commandRows, dest ...any) error {
 // native header/driver copies, saved projection, shared digest's wire scratch,
 // and fixed scalar/row bookkeeping. All variable bytes are actual facts. The
 // native reserve remains separately protected by requireBasicMemory.
-func basicReceiptRequiredBytes(q BasicReceiptRequest, lengths [4]int64) (uint64, error) {
+func basicReceiptRequiredBytes(q BasicReceiptRequest, lengths [7]int64) (uint64, error) {
 	requestBytes := uint64(len(q.Scan.RunID))
 	if requestBytes > maxCanonicalRequestBytes || uint64(len(q.Scan.LibraryKey)) > maxCanonicalRequestBytes-requestBytes {
 		return 0, ErrCap

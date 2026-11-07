@@ -25,7 +25,7 @@ func TestBasicReceiptDraftDefinitions(t *testing.T) {
 	defs := basicReceiptDefinitions()
 	for _, d := range defs {
 		if d.ID == basicReceiptHeaderLengths {
-			want := `SELECT octet_length(source_id),octet_length(source_incarnation),octet_length(source_revision),octet_length(next_cursor) FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?`
+			want := `SELECT octet_length(source_id),octet_length(source_incarnation),octet_length(source_revision),octet_length(next_cursor),octet_length(next_copy_key),octet_length(next_copy_key2),octet_length(next_copy_key3) FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?`
 			if d.SQL != want || !reflect.DeepEqual(d.Params, []stmt.Param{{Name: "run_id", Type: stmt.Text}, {Name: "command_incarnation", Type: stmt.Blob}, {Name: "command_sequence", Type: stmt.Integer}}) ||
 				!reflect.DeepEqual(d.Plan, stmt.Plan{Hot: true, PrimaryKeys: []string{"scan_command_receipts"}, Seeks: []string{"run_id=? AND command_incarnation=? AND command_sequence=?"}}) {
 				t.Fatal("HN exact receipt octet specification drifted", d)
@@ -46,18 +46,18 @@ func TestBasicReceiptDraftDefinitions(t *testing.T) {
 
 func TestBasicReceiptByteEnvelopeAndZeroErrors(t *testing.T) {
 	q := BasicReceiptRequest{Purpose: BasicPurposeStage, Scan: ScanReceiptRequest{RunID: "run", LibraryID: 7, LibraryKey: "library"}}
-	base, err := basicReceiptRequiredBytes(q, [4]int64{})
+	base, err := basicReceiptRequiredBytes(q, [7]int64{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Actual UTF-8 and embedded NUL byte counts, not code points or a guessed
 	// revision format. The shared codec independently validates UTF-8.
-	lengths := [4]int64{int64(len("source")), int64(len("incarnation")), int64(len("観測\x00revision")), 0}
+	lengths := [7]int64{int64(len("source")), int64(len("incarnation")), int64(len("観測\x00revision")), 0, int64(len("actual-key")), 0, 0}
 	full, err := basicReceiptRequiredBytes(q, lengths)
-	if err != nil || full-base != 8*uint64(lengths[0]+lengths[1]+lengths[2]) {
+	if err != nil || full-base != 8*uint64(lengths[0]+lengths[1]+lengths[2]+lengths[4]) {
 		t.Fatal(base, full, err)
 	}
-	for _, bad := range [][4]int64{{-1, 1, 1, 0}, {1, 1, maxCanonicalResultBytes, 0}} {
+	for _, bad := range [][7]int64{{-1, 1, 1, 0}, {1, 1, maxCanonicalResultBytes, 0}} {
 		if n, err := basicReceiptRequiredBytes(q, bad); n != 0 || !errors.Is(err, ErrCap) {
 			t.Fatal(n, err)
 		}
