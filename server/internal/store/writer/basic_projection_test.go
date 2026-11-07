@@ -81,7 +81,7 @@ func basicProjectionFixture(t *testing.T, mutate string) (*commandTurn, basicAss
 func TestBasicProjectionReadsIndependentNativeVector(t *testing.T) {
 	turn, in := basicProjectionFixture(t, "")
 	got, err := readBasicAssetBeforeProbe(t.Context(), turn, BasicPurposeStage, in)
-	want := basicAssetProjection{assetToken: "basic-asset", before: basicProbeScalars{"old", "vp9", "", 0, 0, 0}, playbackIncarnation: [16]byte(bytes.Repeat([]byte{0x41}, 16)), playbackRevision: 101, preparedRevision: 103, fileSizeRevision: 113, invalidationRevision: 109, expectedEpoch: 17}
+	want := basicAssetProjection{observation: in, assetToken: "basic-asset", before: basicProbeScalars{"old", "vp9", "", 0, 0, 0}, playbackIncarnation: [16]byte(bytes.Repeat([]byte{0x41}, 16)), playbackRevision: 101, preparedRevision: 103, fileSizeRevision: 113, invalidationRevision: 109, expectedEpoch: 17}
 	if err != nil || got != want {
 		t.Fatal(got, err)
 	}

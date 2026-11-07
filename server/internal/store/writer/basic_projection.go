@@ -18,6 +18,7 @@ type basicAssetObservation struct {
 // Capture BEFORE probing. Later effect CASes restate every independent epoch;
 // reading them after the probe could accept an invalidation that raced the IO.
 type basicAssetProjection struct {
+	observation                                                                               basicAssetObservation
 	assetToken                                                                                string
 	before                                                                                    basicProbeScalars
 	playbackIncarnation                                                                       [16]byte
@@ -118,5 +119,44 @@ func readBasicAssetBeforeProbe(ctx context.Context, turn *commandTurn, purpose B
 	if matched != 1 {
 		return value, ErrConflict
 	}
+	value.observation = basicAssetObservation{in.assetID, in.libraryID, in.size, in.modifiedNS,
+		strings.Clone(in.assetPath), strings.Clone(in.objectID), strings.Clone(in.sourceID), strings.Clone(in.incarnation), strings.Clone(in.objectRevision), strings.Clone(in.runID)}
 	return value, nil
+}
+
+// Derive the effect input from the PRE-probe native capture, not from counters
+// reread after IO or supplied by a producer. Fresh SQL still restates the full
+// captured vector. The source's probe-fact revision remains a separate value.
+func prepareBasicProjectedProbe(source basicStreamFactStage, changeRevision int64, capture basicAssetProjection, after basicProbeScalars) (basicProbeEffects, error) {
+	if source.changeID <= 0 || source.inputRevision <= 0 || source.sourceGeneration <= 0 || source.policyRevision <= 0 || source.factRevision <= 0 || source.detailVersion < 0 || source.witnessFingerprint == ([32]byte{}) || source.fingerprint == "" {
+		return basicProbeEffects{}, ErrInvalid
+	}
+	o := capture.observation
+	if source.assetID != o.assetID || source.libraryID != o.libraryID || source.size != o.size || source.modifiedNS != o.modifiedNS ||
+		source.assetToken != capture.assetToken || source.expectedEpoch != capture.expectedEpoch || source.runID != o.runID || source.sourceID != o.sourceID || source.incarnation != o.incarnation || source.objectID != o.objectID || source.objectRevision != o.objectRevision {
+		return basicProbeEffects{}, ErrConflict
+	}
+	remaining := maxCanonicalRequestBytes
+	for _, s := range [...]string{source.assetToken, source.runID, source.sourceID, source.incarnation, source.objectID, source.objectRevision, source.fingerprint, o.assetPath,
+		capture.before.container, capture.before.videoCodec, capture.before.audioCodec, after.container, after.videoCodec, after.audioCodec} {
+		if len(s) > remaining {
+			return basicProbeEffects{}, ErrCap
+		}
+		remaining -= len(s)
+	}
+	for _, s := range [...]string{source.assetToken, source.runID, source.sourceID, source.incarnation, source.objectID, source.objectRevision, source.fingerprint} {
+		if s == "" || !utf8.ValidString(s) {
+			return basicProbeEffects{}, ErrInvalid
+		}
+	}
+	in := basicProbeEffects{source: source, changeRevision: changeRevision, assetPath: o.assetPath, before: capture.before, after: after,
+		playbackIncarnation: capture.playbackIncarnation, playbackRevision: capture.playbackRevision, preparedRevision: capture.preparedRevision, fileSizeRevision: capture.fileSizeRevision, invalidationRevision: capture.invalidationRevision}
+	if err := validateBasicProbeEffects(in); err != nil {
+		return basicProbeEffects{}, err
+	}
+	in.source = cloneBasicSource(source)
+	in.assetPath = strings.Clone(in.assetPath)
+	in.before = basicProbeScalars{strings.Clone(in.before.container), strings.Clone(in.before.videoCodec), strings.Clone(in.before.audioCodec), in.before.width, in.before.height, in.before.duration}
+	in.after = basicProbeScalars{strings.Clone(after.container), strings.Clone(after.videoCodec), strings.Clone(after.audioCodec), after.width, after.height, after.duration}
+	return in, nil
 }
