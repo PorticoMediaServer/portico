@@ -131,6 +131,15 @@ func wcProgressCompositionFixture(t *testing.T, principalLifetimes ...context.Co
 	if err = initializeWCProgressFixture(t.Context(), d); err != nil {
 		t.Fatal(err)
 	}
+	// Establish a real positive playing interval before offering the first
+	// report. This is fixture preparation, outside every measured Action call.
+	timer := time.NewTimer(2 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-t.Context().Done():
+		t.Fatal(t.Context().Err())
+	}
 	return w, d, a
 }
 func TestWCProgressCompositionOriginalResolveAckAndDrain(t *testing.T) {
