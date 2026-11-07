@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"time"
 	"unicode/utf8"
@@ -201,31 +202,44 @@ type savedViewDefinition struct {
 	Presentation string `json:"presentation"`
 }
 
-func savedViewExecutionInput(r savedViewResource, in BrowseInput) (BrowseInput, error) {
+func savedViewExecutionPlan(r savedViewResource, in BrowseInput) (BrowseInput, rbScalarFilter, error) {
 	if r.fence == (browseFence{}) || r.fence != mustSavedViewInputFence(r, in) {
-		return BrowseInput{}, ErrStale
+		return BrowseInput{}, rbScalarFilter{}, ErrStale
 	}
 	if len(r.definition) > 32<<10 || !utf8.ValidString(r.definition) || !savedViewUniqueJSON(r.definition) {
-		return BrowseInput{}, ErrUnqualified
+		return BrowseInput{}, rbScalarFilter{}, ErrUnqualified
 	}
 	var d savedViewDefinition
 	dec := json.NewDecoder(bytes.NewBufferString(r.definition))
 	dec.DisallowUnknownFields()
 	if e := dec.Decode(&d); e != nil {
-		return BrowseInput{}, ErrUnqualified
+		return BrowseInput{}, rbScalarFilter{}, ErrUnqualified
 	}
 	var extra any
 	if e := dec.Decode(&extra); e != io.EOF {
-		return BrowseInput{}, ErrUnqualified
+		return BrowseInput{}, rbScalarFilter{}, ErrUnqualified
 	}
-	// No query operator, seeded ordering or multi-sort is approximated. These
-	// remain the general browse/filter/facet preparation manager's responsibility.
-	if d.LibraryID != r.fence.library || d.Pivot != "movies" || in.Kind != 1 || (d.Presentation != "grid" && d.Presentation != "list") || (len(d.Query) > 0 && !bytes.Equal(bytes.TrimSpace(d.Query), []byte("null"))) || len(d.Sort) != 1 || d.Sort[0].Field != "title" || d.Sort[0].Seed != 0 || (d.Sort[0].Direction != "asc" && d.Sort[0].Direction != "desc") {
-		return BrowseInput{}, ErrUnqualified
+	// Seeded ordering and multi-sort still require the general manager. The
+	// stored query uses only the shared native closed scalar AST.
+	if d.LibraryID != r.fence.library || d.Pivot != "movies" || in.Kind != 1 || (d.Presentation != "grid" && d.Presentation != "list") || len(d.Sort) != 1 || d.Sort[0].Field != "title" || d.Sort[0].Seed != 0 || (d.Sort[0].Direction != "asc" && d.Sort[0].Direction != "desc") {
+		return BrowseInput{}, rbScalarFilter{}, ErrUnqualified
+	}
+	filter, e := compileRBScalarFilter(d.Query)
+	if e != nil {
+		return BrowseInput{}, rbScalarFilter{}, errors.Join(ErrUnqualified, e)
+	}
+	if in.Limit < 1 || in.Limit > MaxPage {
+		return BrowseInput{}, rbScalarFilter{}, ErrInput
 	}
 	in.Descending = d.Sort[0].Direction == "desc"
 	in.KeepArticles = false
-	return in, nil
+	return in, filter, nil
+}
+
+// Kept as the definition validation projection for trusted composition.
+func savedViewExecutionInput(r savedViewResource, in BrowseInput) (BrowseInput, error) {
+	in, _, e := savedViewExecutionPlan(r, in)
+	return in, e
 }
 
 // Compare request identity fields without treating caller sorting as authority.
@@ -248,7 +262,7 @@ func readSavedViewExecution(ctx context.Context, q browseQuery, f browseFence, i
 	if r.fence != f || r.role == "" || r.revision <= 0 {
 		return BrowsePage{}, nil, ErrDenied
 	}
-	in, e := savedViewExecutionInput(r, in)
+	in, filter, e := savedViewExecutionPlan(r, in)
 	if e != nil {
 		return BrowsePage{}, nil, e
 	}
@@ -267,7 +281,7 @@ func readSavedViewExecution(ctx context.Context, q browseQuery, f browseFence, i
 	if in.After != nil && in.After.fence != f {
 		return BrowsePage{}, nil, ErrStale
 	}
-	page, e := readBrowsePage(ctx, q, in, f)
+	page, e := readSavedViewScalarPage(ctx, q, in, f, filter)
 	if e != nil {
 		return BrowsePage{}, nil, e
 	}
