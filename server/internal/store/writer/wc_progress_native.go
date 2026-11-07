@@ -101,7 +101,7 @@ func checkWCProgressNativeDisclosure(ctx context.Context, t *commandTurn, v *wcP
 		}
 		return nil
 	}
-	if v.retained != nil {
+	if v.retained != nil && !v.currentDrain {
 		return nil
 	} // exact pending proof is checked by the drain body
 	s := v.disclosure.driver.scope

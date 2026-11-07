@@ -63,7 +63,7 @@ func progressAction(binding ProgressBinding, drain bool) Action {
 		start = time.Now()
 		var result writer.ProgressResult
 		if drain {
-			result, err = binding.Driver.ExecuteDrain(ctx, command)
+			result, err = binding.Driver.ExecuteCurrentDrain(ctx, command)
 		} else {
 			result, err = binding.Writer.AcceptProgress(ctx, binding.Driver.Disclosure(), command)
 		}

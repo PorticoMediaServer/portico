@@ -45,10 +45,12 @@ type ProgressValue struct {
 	ResultCount                   int64
 }
 type ProgressResult struct {
-	Outcome  ReceiptOutcome
-	Value    ProgressValue
-	Digest   ResultDigest
-	Snapshot ProgressSnapshot
+	// A separate internal physical floor turn, never an Applied receipt.
+	RetainedAcknowledgment *AckResult
+	Outcome                ReceiptOutcome
+	Value                  ProgressValue
+	Digest                 ResultDigest
+	Snapshot               ProgressSnapshot
 }
 type wcProgressLookup struct {
 	owner    receiptOwnerFacts
