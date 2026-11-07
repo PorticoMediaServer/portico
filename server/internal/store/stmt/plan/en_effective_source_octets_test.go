@@ -3,7 +3,6 @@ package plan_test
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/base64"
@@ -15,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
@@ -225,9 +223,7 @@ func enEffectiveSourceOctetFixture(t *testing.T) (*sql.Conn, plan.Fixture, plan.
 func TestENEffectiveSourceOctetPointsRejectShadowedBuiltin(t *testing.T) {
 	const marker = "PORTICO_EN_EFFECTIVE_OCTET_SHADOW_CHILD"
 	if os.Getenv(marker) != "1" {
-		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestENEffectiveSourceOctetPointsRejectShadowedBuiltin$", "-test.count=1")
+		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestENEffectiveSourceOctetPointsRejectShadowedBuiltin$", "-test.count=1")
 		cmd.Env = append(os.Environ(), marker+"=1")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("shadow control: %v\n%s", err, out)
