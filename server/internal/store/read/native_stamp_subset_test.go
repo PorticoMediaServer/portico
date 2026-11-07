@@ -14,6 +14,7 @@ import (
 // Metadata controls only; these do not manufacture a runtime read certificate.
 func nativeSubsetFixture(n int) (*FullSearchReadStamp, []FullSearchHit) {
 	s := &FullSearchReadStamp{pool: new(governor.Snapshots), output: new(governor.Grant), policies: make([]nativePolicyWitness, 0, n), checked: make([]nativePolicyWitness, 0, n), hits: make([]nativeStampedHit, 0, n)}
+	s.fence.permission.libraryID = 1
 	var hits []FullSearchHit
 	for i := 1; i <= n; i++ {
 		p := nativePolicyWitness{valid: true, id: int64(i), kind: 1, library: 1, witness: fmt.Sprintf("%04d", i) + strings.Repeat("x", 4092)}

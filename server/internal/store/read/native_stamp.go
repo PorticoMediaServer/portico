@@ -16,6 +16,7 @@ type FullSearchReadStamp struct {
 	pool                     *governor.Snapshots
 	output                   *governor.Grant
 	fence                    nativeSearchFence
+	libraries                []browseFence
 	query                    string
 	policies                 []nativePolicyWitness
 	checked                  []nativePolicyWitness
@@ -42,10 +43,15 @@ func (s *FullSearchReadStamp) ValidateRetained(ctx context.Context, out BrowseOu
 	if err := out.live.checkContext(ctx); err != nil {
 		return err
 	}
-	if s.pool != prior.pool || s.query != prior.query || s.fence != prior.fence {
+	if s.pool != prior.pool || s.query != prior.query || nativeCommonFence(s.fence) != nativeCommonFence(prior.fence) {
 		return ErrStale
 	}
 	for _, p := range prior.policies {
+		before, ok := nativeStampLibrary(prior, p.library)
+		after, current := nativeStampLibrary(s, p.library)
+		if !ok || !current || before != after {
+			return ErrStale
+		}
 		if !slices.Contains(s.checked, p) {
 			return ErrStale
 		}
