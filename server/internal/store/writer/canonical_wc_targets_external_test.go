@@ -56,7 +56,7 @@ func runCanonicalWCComponent(t *testing.T, c *writer.CanonicalWCComponent) {
 		return c.End(err)
 	}
 	binding := workload.ProgressBinding{Writer: c.Writer, Driver: c.Progress, Report: func(context.Context, workload.Offer) (workload.ProgressReport, error) {
-		report := workload.ProgressReport{Sequence: c.ReportSequence(), PositionSeconds: 5, DurationSeconds: 1000000, State: "playing"}
+		report := workload.ProgressReport{Sequence: c.ReportSequence(), PositionSeconds: 5, DurationSeconds: 100, State: "playing"}
 		return report, c.RecordProgressInput(report.Sequence, report.PositionSeconds, report.DurationSeconds, report.State)
 	}}
 	capture, drain := workload.ProgressCapture(binding), workload.ProgressDrain(binding)
