@@ -26,7 +26,7 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 // qualification claim. Reserve every possible registered use, setup and
 // terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) {
+	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
 	if plan.inventoryPageSize != 0 && (purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions())) {
@@ -92,6 +92,12 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.directoryMemory, plan.need[governor.MemoryBytes], "directory_memory_partition"); err != nil {
+		return effectivePlan{}, err
+	}
+	if !searchPublisherPurpose(purpose) && plan.publisherMemory != (commandMemoryBudget{}) {
+		return effectivePlan{}, invalid("memory_purpose")
+	}
+	if err := validateMemoryPartition(plan.publisherMemory, plan.need[governor.MemoryBytes], "search_publisher_memory_partition"); err != nil {
 		return effectivePlan{}, err
 	}
 	// Each profile must itself carry a real matching registration. Another

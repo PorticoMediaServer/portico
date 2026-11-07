@@ -31,6 +31,9 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 	if purpose == InventoryDirectoryDiscover || purpose == InventoryDirectoryEOF {
 		return directoryStatementMaxUses(id)
 	}
+	if searchPublisherPurpose(purpose) {
+		return searchPublisherMaxUses(purpose, id)
+	}
 	if purpose == InventoryCreate || purpose == InventoryClaim {
 		return scanLifecycleMaxUses(purpose, id)
 	}

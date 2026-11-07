@@ -51,6 +51,7 @@ type effectivePlan struct {
 	wcSecurityMemory    commandMemoryBudget
 	wcReclaimMemory     commandMemoryBudget
 	directoryMemory     commandMemoryBudget
+	publisherMemory     commandMemoryBudget
 }
 
 // No runtime registration, worker budget or callbacks are accepted. The actual
@@ -71,6 +72,7 @@ type effectiveRuntime struct {
 	inventoryDriverPlan      *effectivePlan    // complete trusted N1 profile; nil keeps fresh effects closed
 	inventoryPreparationPlan *effectivePlan
 	directoryPlans           [4]*effectivePlan
+	publisherPlans           [2]*effectivePlan
 	registry                 *stmt.Registry
 	fenced                   bool
 	cleanupPanics            []terminalPanic
@@ -202,6 +204,7 @@ type commandOutput struct {
 	reclaim           ReclaimResult
 	directory         scanDirectoryCommandResult
 	directoryTerminal scanDirectoryTerminalCommandResult
+	search            searchPublisherCommandResult
 }
 
 // Keep W's original call contract while all typed domains use one dispatcher.
@@ -288,16 +291,17 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		return out, acknowledged, err
 	}
 	if publisher != nil {
-		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || invocation != nil || ack != (publisher.call == publisherAckImage) {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || invocation != nil || ack != (publisher.call == publisherAckImage || publisher.call == publisherAckCommand) {
 			return out, acknowledged, ErrInvalid
 		}
 		if _, err := validatePublisherInvocation(ctx, w, publisher); err != nil {
 			return out, acknowledged, err
 		}
-		// PB's finite native receipt/effect adapters and complete captured
-		// profile are not on main yet. The SAME dispatcher owns this closed
-		// entry, but no grant/BEGIN or substitute handler is manufactured.
-		return out, acknowledged, ErrNotImplemented
+		// The image facade stays closed; only the explicitly installed two
+		// publisher qualification purposes may enter this SAME dispatcher.
+		if !searchPublisherPurpose(publisher.purpose) {
+			return out, acknowledged, ErrNotImplemented
+		}
 	}
 	purpose, plan, reference, key, libraryID := EffectiveStage, &r.plan, request.Receipt, request.ProviderOperationID, request.LibraryID
 	outcome := &out.effective.Outcome
@@ -360,6 +364,10 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		purpose, plan, reference, key, libraryID = ProgressReceiptReclaim, nil, reclaim.request.Receipt, reclaim.request.PlaybackID, reclaim.disclosure.driver.scope.libraryID
 		outcome = &out.reclaim.Outcome
 	}
+	if publisher != nil {
+		purpose, plan, reference, key, libraryID = publisher.purpose, nil, publisher.request.Receipt, searchPublisherJobKey(publisher.request), publisher.request.LibraryID
+		outcome = &out.search.Outcome
+	}
 	if !r.mu.TryLock() {
 		return out, acknowledged, ErrBusy
 	}
@@ -381,6 +389,12 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	if reclaim != nil {
 		plan = r.wcReclaimPlan
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+	}
+	if publisher != nil {
+		plan = r.publisherPlans[searchPublisherPlanIndex(purpose)]
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
@@ -556,6 +570,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	custody.wcSecurityMemory = plan.wcSecurityMemory
 	custody.wcReclaimMemory = plan.wcReclaimMemory
 	custody.directoryMemory = plan.directoryMemory
+	custody.publisherMemory = plan.publisherMemory
 	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
@@ -597,8 +612,13 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	lifetime, stopLifetime = commandDeadline(ctx, deadline)
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
+	var publisherOwner receiptOwnerFacts
 	if err == nil {
-		if reclaim != nil {
+		if publisher != nil {
+			if err = turn.requireSearchPublisherMemory(ctx, purpose, searchPublisherHistoryBytes); err == nil {
+				publisherOwner, err = discloseSearchPublisher(ctx, turn, publisher)
+			}
+		} else if reclaim != nil {
 			err = checkWCReclaimNativeDisclosure(ctx, turn, reclaim)
 		} else if security != nil {
 			err = checkWCSecurityNativeDisclosure(ctx, turn, security)
@@ -631,6 +651,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	if err == nil && wc != nil {
 		out.progress, acknowledged, historical, err = executeWCProgressInvocation(ctx, turn, wc, ack)
+	}
+	if err == nil && publisher != nil {
+		out.search, acknowledged.AcknowledgedThrough, historical, err = executeSearchPublisherBody(ctx, turn, publisher, publisherOwner)
 	}
 	if err == nil && scan != nil && scan.issuer != nil {
 		if isScanInventoryHistory(scan.issuer.action) {
@@ -711,7 +734,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			}
 		}
 	}
-	if err == nil && scan == nil && invocation == nil {
+	if err == nil && scan == nil && invocation == nil && publisher == nil {
 		expectedReceipt := receiptIdentity{request.Receipt.Identity, request.Receipt.RequestDigest}
 		var saved EffectiveStageBeginResult
 		var owner effectiveBeginOwner
@@ -766,6 +789,18 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if err == nil && scan != nil && scan.directoryTerminalInput != nil && !historical {
 		_, err = turn.commandTimeMS(ctx, scan.directory, scan.directoryTerminalInput.request.Snapshot.Run.leaseExpiresMS)
 	}
+	if err == nil && publisher != nil && !historical {
+		var lease int64
+		if publisher.fragment != nil {
+			lease = publisher.fragment.request.snapshot.job.leaseExpiresMS
+		}
+		if publisher.head != nil {
+			lease = publisher.head.request.snapshot.stage.job.leaseExpiresMS
+		}
+		if lease != 0 {
+			err = checkSearchPublisherTerminal(ctx, turn, purpose, lease)
+		}
+	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
 	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher, invocation)))
@@ -781,7 +816,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		outcome.State = Applied
 		outcome.Reference = reference
 	}
-	if scan == nil && invocation == nil && !ack && !historical && input != nil {
+	if scan == nil && invocation == nil && publisher == nil && !ack && !historical && input != nil {
 		if physical.state == commitUnknown {
 			out.effective.Value = EffectiveStageBeginResult{}
 			outcome.State = ResolveRequired
@@ -798,6 +833,13 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	if scan != nil && scan.directoryTerminalInput != nil && !ack && !historical && physical.state == committed {
 		out.directoryTerminal.Outcome.State = Applied
+	}
+	if publisher != nil && !ack && !historical && (publisher.fragment != nil || publisher.head != nil) {
+		if physical.state == committed {
+			outcome.State = Applied
+		} else {
+			out.search.Fragment, out.search.Head = searchFragmentStageResult{}, searchHeadPublishResult{}
+		}
 	}
 	if !ack && !historical && !errors.Is(err, ErrDisclosureDenied) && (physical.state == commitUnknown || errors.Is(err, ErrResolveRequired)) {
 		outcome.State = ResolveRequired
