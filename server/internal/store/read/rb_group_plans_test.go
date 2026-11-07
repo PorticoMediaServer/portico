@@ -91,6 +91,9 @@ func TestRBGroupPlans(t *testing.T) {
 		t.Fatal(e)
 	}
 	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
+		if e = os.MkdirAll(dir, 0755); e != nil {
+			t.Fatal(e)
+		}
 		if e = os.WriteFile(filepath.Join(dir, "rb-group-plans.json.gz"), compressed.Bytes(), 0644); e != nil {
 			t.Fatal(e)
 		}
