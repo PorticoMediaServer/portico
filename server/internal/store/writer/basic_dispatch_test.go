@@ -377,3 +377,45 @@ func TestBasicDispatchLateCancellationRollsBackNativeStageAndRunCAS(t *testing.T
 	basicDispatchUnchanged(t, e)
 	basicDispatchReturned(t, e, a)
 }
+
+// The opaque native scope returns request key bytes. Even a small independent
+// memory partition must refuse BEFORE that SELECT can allocate an echo.
+type basicScopeReadConn struct {
+	writerDriverConn
+	seen *bool
+}
+
+func (c *basicScopeReadConn) QueryContext(ctx context.Context, sql string, args []driver.NamedValue) (driver.Rows, error) {
+	if strings.HasPrefix(sql, "SELECT id,library_id FROM jobs ") {
+		*c.seen = true
+	}
+	return c.writerDriverConn.QueryContext(ctx, sql, args)
+}
+func TestBasicDispatchMemoryPrecedesScopeEcho(t *testing.T) {
+	w, e, a, in, plans := basicDispatchFixture(t)
+	r := w.effective
+	r.basicPlans = [2]*effectivePlan{}
+	plans[0].basicMemory = commandMemoryBudget{preparationBytes: 4096, reservedBytes: uint64(plans[0].need[governor.MemoryBytes]) - 4096}
+	if err := composeBasicProfiles(t.Context(), r, plans[0], plans[1]); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(r.path, e.config, sqliteconn.ExistingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := false
+	e.openPool(connector, func(c driver.Conn) driver.Conn {
+		return &basicScopeReadConn{writerDriverConn: c.(writerDriverConn), seen: &read}
+	})
+	primeEffectiveFixturePool(t, e)
+	out, ack, err := r.runBasic(t.Context(), w, inventoryTestDisclosure(t, w, in.request.Scan), in, false)
+	var refusal *Refusal
+	if !errors.As(err, &refusal) || refusal.Code != RefusalCapacity || read || !reflect.DeepEqual(out, BasicResult{}) || !reflect.DeepEqual(ack, AckResult{}) {
+		t.Fatal("scope copied bytes before whole envelope", read, out, ack, err)
+	}
+	basicDispatchUnchanged(t, e)
+	basicDispatchReturned(t, e, a)
+}
