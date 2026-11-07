@@ -223,7 +223,7 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 			}
 		}
 	}
-	automatic, err := nativeAutomaticOwners(q, in.Library, id)
+	automatic, err := nativeAutomaticOwners(q, in.Library, f.library, id)
 	if err != nil {
 		return empty, hit, false, err
 	}
@@ -412,7 +412,7 @@ func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 	}
 	relation := relations[e.relation]
 	if relation == automaticMembers {
-		position, next, done, err := nativeAutomaticNext(q, in.Library, source.key.SubjectID, e.automatic)
+		position, next, done, err := nativeAutomaticNext(q, in.Library, f.library, source.key.SubjectID, e.automatic)
 		if err != nil {
 			return false, err
 		}
