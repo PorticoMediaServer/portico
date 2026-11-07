@@ -40,6 +40,7 @@ type iaRetirementHistory struct {
 	decision receiptDecision
 	result   iaRetirementResult
 	digest   ResultDigest
+	owner    iaRetirementOwner
 }
 
 // Pure decoding/classification only. Current conjunctive owner/disclosure

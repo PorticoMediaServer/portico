@@ -70,22 +70,19 @@ func loadIARetirementOwner(ctx context.Context, turn *commandTurn, q iaRetiremen
 	return owner, nil
 }
 
-func lookupIARetirement(ctx context.Context, turn *commandTurn, q iaRetirementReference) (value iaRetirementHistory, owner iaRetirementOwner, err error) {
+func lookupIARetirement(ctx context.Context, turn *commandTurn, q iaRetirementReference) (value iaRetirementHistory, err error) {
 	defer func() {
 		value, err = finishCommand(ctx, commandLifetime(turn), value, err)
-		if err != nil {
-			owner = iaRetirementOwner{}
-		}
 	}()
 	if err = validateIARetirementReference(q); err != nil {
-		return value, owner, err
+		return value, err
 	}
 	if ctx == nil || turn == nil || turn.transaction == nil || (turn.transaction.descriptor.ID != q.purpose && turn.transaction.descriptor.ID != IARetireStep) {
-		return value, owner, ErrInvalid
+		return value, ErrInvalid
 	}
-	owner, err = loadIARetirementOwner(ctx, turn, q)
+	owner, err := loadIARetirementOwner(ctx, turn, q)
 	if err != nil {
-		return value, owner, err
+		return value, err
 	}
 	var h iaRetirementReceipt
 	if !owner.exists {
@@ -98,11 +95,11 @@ func lookupIARetirement(ctx context.Context, turn *commandTurn, q iaRetirementRe
 	err = iaRetirementPoint(ctx, turn, iaRetirementReceiptPoint, args, &operation, &request, &kind,
 		&h.version, &h.resultCount, &digest, &h.retainedBytes)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return value, owner, err
+		return value, err
 	}
 	if err == nil {
 		if len(operation) != 16 || len(request) != 32 || len(digest) != 32 {
-			return value, owner, ErrResolveRequired
+			return value, ErrResolveRequired
 		}
 		h.exists, h.identity.command = true, q.identity
 		copy(h.identity.command.OperationID[:], operation)
@@ -116,7 +113,7 @@ func lookupIARetirement(ctx context.Context, turn *commandTurn, q iaRetirementRe
 		case "retire_step":
 			h.purpose = IARetireStep
 		default:
-			return value, owner, ErrResolveRequired
+			return value, ErrResolveRequired
 		}
 	}
 	// The common classifier is used only to decide whether the large body may
@@ -131,14 +128,17 @@ func lookupIARetirement(ctx context.Context, turn *commandTurn, q iaRetirementRe
 		err = iaRetirementPoint(ctx, turn, iaRetirementBodyPoint, args, &h.result.acceptedRevision, &h.result.appliedMS,
 			&h.result.phase, &h.result.entityKind, &h.result.entityCursor, &h.result.objectCursor, &removed, &kept, &h.result.state)
 		if err != nil {
-			return value, owner, errors.Join(ErrResolveRequired, err)
+			return value, errors.Join(ErrResolveRequired, err)
 		}
 		if (removed != 0 && removed != 1) || (kept != 0 && kept != 1) {
-			return value, owner, ErrResolveRequired
+			return value, ErrResolveRequired
 		}
 		h.result.walkRemoved, h.result.walkKept = removed == 1, kept == 1
 	}
 	value, err = classifyIARetirementHistory(q, owner, h)
+	if err == nil {
+		value.owner = owner
+	}
 	return
 }
 
@@ -168,7 +168,8 @@ func iaRetirementOneEffect(ctx context.Context, turn *commandTurn, id stmt.ID, a
 // original driver remain retained; there is no deletion/refund in this recipe.
 func acknowledgeIARetirement(ctx context.Context, turn *commandTurn, q iaRetirementReference) (value int64, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
-	history, owner, err := lookupIARetirement(ctx, turn, q)
+	history, err := lookupIARetirement(ctx, turn, q)
+	owner := history.owner
 	if err != nil {
 		return 0, err
 	}
@@ -191,7 +192,8 @@ func acknowledgeIARetirement(ctx context.Context, turn *commandTurn, q iaRetirem
 // is deleted, no lease is replaced, and the terminal driver remains a tombstone.
 func reclaimIARetirement(ctx context.Context, turn *commandTurn, q iaRetirementReference) (value bool, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
-	history, owner, err := lookupIARetirement(ctx, turn, q)
+	history, err := lookupIARetirement(ctx, turn, q)
+	owner := history.owner
 	if err != nil {
 		return false, err
 	}
