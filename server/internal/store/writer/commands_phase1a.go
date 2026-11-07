@@ -29,6 +29,8 @@ const (
 	ProgressReceiptReclaim     CommandID = 25
 	InventoryDirectoryDiscover CommandID = 26
 	InventoryDirectoryEOF      CommandID = 27
+	InventoryDirectoryRefuse   CommandID = 28
+	InventoryTraversalComplete CommandID = 29
 )
 
 var phase1aCommands = commandRegistration{
@@ -61,5 +63,7 @@ var phase1aCommands = commandRegistration{
 		{ID: ProgressReceiptReclaim, Name: "progress_receipt_reclaim", Durability: Normal},
 		{ID: InventoryDirectoryDiscover, Name: "inventory_directory_discover", Durability: Normal},
 		{ID: InventoryDirectoryEOF, Name: "inventory_directory_eof", Durability: Normal},
+		{ID: InventoryDirectoryRefuse, Name: "inventory_directory_refuse", Durability: Normal},
+		{ID: InventoryTraversalComplete, Name: "inventory_traversal_complete", Durability: Normal},
 	},
 }
