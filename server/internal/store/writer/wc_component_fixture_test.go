@@ -90,7 +90,14 @@ func wcComponentFixture(t *testing.T, opts wcFixtureOptions) (*Writer, *WCProgre
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 
-	golden := captureEffectiveFixture(t, conn, e.config, defs, "wc_progress_composition_test.go", "wc_progress_fixture.go", "wc_component_fixture_test.go", "wc_fixture_clock_test.go")
+	source := "wc_progress_composition_test.go"
+	switch opts.kind {
+	case "security":
+		source = "wc_security_composition_test.go"
+	case "wc_reclaim":
+		source = "wc_reclaim_composition_test.go"
+	}
+	golden := captureEffectiveFixture(t, conn, e.config, defs, source, "wc_progress_fixture.go", "wc_component_fixture_test.go", "wc_fixture_clock_test.go")
 	if err = conn.Close(); err != nil {
 		t.Fatal(err)
 	}
