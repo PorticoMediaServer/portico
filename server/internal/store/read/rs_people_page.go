@@ -25,7 +25,7 @@ type RSPeoplePageReader struct {
 }
 
 func NewRSPeoplePageReader(s *governor.Snapshots, a *governor.Authority) (*RSPeoplePageReader, error) {
-	if s == nil || a == nil {
+	if s == nil || a == nil || !s.OwnedBy(a) {
 		return nil, ErrInput
 	}
 	return &RSPeoplePageReader{snapshots: s, pool: s, authority: a}, nil
@@ -122,6 +122,7 @@ type RSPeoplePreparation struct {
 	captured  bool
 	current   rsPersonReduction
 	used      int64
+	started   time.Time
 	closed    bool
 	directory *rsPeopleDirectoryState
 }
@@ -201,7 +202,7 @@ func (r *RSPeoplePageReader) begin(ctx context.Context, owner governor.OwnerID, 
 	if decision.Refusal != nil {
 		return nil, decision.Refusal, nil
 	}
-	p := &RSPeoplePreparation{reader: r, lease: decision.Lease, owner: owner, input: in, directory: directory}
+	p := &RSPeoplePreparation{reader: r, lease: decision.Lease, owner: owner, input: in, directory: directory, started: time.Now()}
 	if err := p.charge(4096 + int64(len(in.Views))*4096); err != nil {
 		_ = p.close()
 		return nil, nil, err
@@ -231,7 +232,7 @@ func (r *RSPeoplePageReader) Page(ctx context.Context, request governor.Request,
 	if p.closed || p.directory != nil || p.owner != request.Owner {
 		return RSPersonPage{}, BrowseReadResult{}, ErrInput
 	}
-	page, cost, err := liveRead(ctx, request, budget, output, r.pool, p.input.Views[0].Now, func(ctx context.Context, q governor.Request, b time.Duration, at time.Time) (RSPersonPage, BrowseReadResult, error) {
+	page, cost, err := liveRead(ctx, request, budget, output, r.pool, p.input.Views[0].Now.Add(time.Since(p.started)), func(ctx context.Context, q governor.Request, b time.Duration, at time.Time) (RSPersonPage, BrowseReadResult, error) {
 		return r.page(ctx, q, b, output, p, at)
 	})
 	if err != nil {

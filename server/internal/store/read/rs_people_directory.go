@@ -85,7 +85,7 @@ func (r *RSPeoplePageReader) Directory(ctx context.Context, request governor.Req
 	if p.closed || p.directory == nil || p.owner != request.Owner {
 		return RSPeopleDirectory{}, BrowseReadResult{}, ErrInput
 	}
-	page, cost, err := liveRead(ctx, request, budget, output, r.pool, p.input.Views[0].Now, func(ctx context.Context, q governor.Request, b time.Duration, at time.Time) (RSPeopleDirectory, BrowseReadResult, error) {
+	page, cost, err := liveRead(ctx, request, budget, output, r.pool, p.input.Views[0].Now.Add(time.Since(p.started)), func(ctx context.Context, q governor.Request, b time.Duration, at time.Time) (RSPeopleDirectory, BrowseReadResult, error) {
 		return r.directory(ctx, q, b, output, p, at)
 	})
 	if err != nil {
