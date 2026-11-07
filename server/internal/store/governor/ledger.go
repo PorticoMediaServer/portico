@@ -31,8 +31,9 @@ var (
 // resource capacities, not a service/fairness schedule or hardware qualification.
 // Now must be a bounded monotonic clock, safe for concurrent calls.
 type Config struct {
-	Foreground *ForegroundProfile // optional trusted whole-server LIVE admission profile
-	Partitions [4]Amounts
+	Foreground  *ForegroundProfile  // optional trusted whole-server LIVE admission profile
+	Preparation *PreparationProfile // opt-in phase2 only; nil preserves phase1a
+	Partitions  [4]Amounts
 	// MaxGrantsPerClass bounds retained metadata independently for each class,
 	// so background descriptors cannot exhaust protected classes.
 	MaxGrantsPerClass int
@@ -50,6 +51,7 @@ type holding struct {
 }
 
 type ledger struct {
+	preparation    preparationLedger
 	foreground     foregroundLedger
 	foregroundWait func(context.Context, time.Time, <-chan struct{})
 	mu             sync.Mutex
@@ -97,8 +99,13 @@ func newGovernor(c Config, knownLimit int64) (Governor, *Authority, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	c.Foreground = nil // do not retain a mutable caller-owned profile pointer
-	g := &ledger{foreground: foreground, config: c, live: make(map[uint64]*holding, 4*c.MaxGrantsPerClass)}
+	preparation, err := configurePreparation(c)
+	if err != nil {
+		return nil, nil, err
+	}
+	c.Preparation = nil // retain only the validated immutable profile
+	c.Foreground = nil  // do not retain a mutable caller-owned profile pointer
+	g := &ledger{preparation: preparation, foreground: foreground, config: c, live: make(map[uint64]*holding, 4*c.MaxGrantsPerClass)}
 	g.foregroundWait = g.waitForeground
 	g.state.Store(2)
 	return g, &Authority{g}, nil
@@ -168,6 +175,9 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 			}
 		}
 	}
+	if code := g.preparationPublicationCode(r, now); code != 0 {
+		return refuse(code)
+	}
 	if r.Writer && g.config.WAL != nil {
 		if code := g.config.WAL.reserve(r, now); code != 0 {
 			return refuse(code)
@@ -191,6 +201,7 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 			foreground.wake = make(chan struct{})
 		}
 	}
+	g.preparationPublicationAdmitted(r)
 	// Only admitted, bounded metadata is copied. Work buffers are allocated by
 	// the driver after Check, under the granted byte custody.
 	r.Key.ID = strings.Clone(r.Key.ID)

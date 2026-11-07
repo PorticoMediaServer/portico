@@ -513,6 +513,9 @@ func (t *transaction) commit() (turnResult, error) {
 		err = t.custody.check(t.descriptor.ID, t.workLimit)
 	}
 	if err == nil {
+		err = t.checkPublicationCommit()
+	}
+	if err == nil {
 		now := t.writer.now()
 		err = t.observeTime(now)
 		if err == nil {
