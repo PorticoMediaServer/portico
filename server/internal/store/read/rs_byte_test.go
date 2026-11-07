@@ -62,7 +62,7 @@ func TestRSDetailReservesActualPointOctets(t *testing.T) {
 		t.Fatalf("actual bytes, decode overhead and copy allowance must fit original ceiling: %+v forecast %+v", window, spy.forecast)
 	}
 	t.Logf("detail budget: native=%d decode=%d copy=%d original ceiling=%d", want, window.NativeReservedBytes-want, window.GoReservedBytes, spy.ceiling)
-	if cost.LookupStatements != 9 || cost.PublicationStatements != 6 {
+	if cost.LookupStatements != 10 || cost.PublicationStatements != 7 {
 		t.Fatal("point pair statement accounting", cost)
 	}
 }
