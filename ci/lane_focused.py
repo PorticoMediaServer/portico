@@ -17,6 +17,7 @@ CAPTURES = {
     'hn-canonical': ('stmt/plan', 'TestPlanCanonicalSchemaFKAndStatementContracts', 'record-plans', ['canonical.json', 'canonical-fk.json.gz']),
     'hn-issuer': ('stmt/plan', 'TestIssuerSourceOctetLengthsGolden', 'record-issuer-octets', ['issuer-source-octets.json']),
     'hn-issuer-library': ('stmt/plan', 'TestIssuerLibraryRootOctetLengthsGolden', 'record-issuer-library-octets', ['issuer-library-root-octets.json']),
+    'hn-n1-preflights': ('writer', 'TestN1PreflightStatementPlans', 'record-n1-preflight-plans', ['n1-byte-preflights.json']),
     'hn-autoindexes': ('stmt/plan', 'TestPlanAutoindexGoldenAndNativeKeys', 'record-autoindex-plans', ['autoindexes.json']),
     'hn-scan': ('writer', 'TestScanInventoryStatementPlans', 'record-scan-plans', ['scan-inventory-accept.json', 'scan-inventory-accept-fk.json.gz']),
     'hn-scan-fresh': ('writer', 'TestScanFreshStatementPlans', 'record-scan-fresh-plans', ['scan-inventory-fresh.json', 'scan-inventory-fresh-fk.json.gz']),
