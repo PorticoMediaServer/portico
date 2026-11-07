@@ -45,7 +45,7 @@ func startBasicEmptyFamily(ctx context.Context, turn *commandTurn, in basicStrea
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
 	f, p := in.family, in.position
 	if ctx == nil || turn == nil || f == nil || !f.valid || len(f.rows) != 0 || !basicCopyFamilyStart(p, f.family) ||
-		(f.family != 2 && f.family != 3 && f.family != 5 && f.family != 7) || in.ordinal != 0 || in.shapeID <= 0 || in.fileSizeRevision <= 0 || in.invalidation <= 0 {
+		(f.family != 2 && f.family != 3 && f.family != 5 && f.family != 7 && f.family != 8) || in.ordinal != 0 || in.shapeID <= 0 || in.fileSizeRevision <= 0 || in.invalidation <= 0 {
 		return value, ErrInvalid
 	}
 	if f.family == 5 && (f.rawChapterCount < 0 || f.rawChapterCount > MaxRawChapters) {

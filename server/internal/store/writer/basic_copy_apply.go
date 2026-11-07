@@ -59,6 +59,8 @@ func applyBasicCopy(ctx context.Context, turn *commandTurn, in basicCopyRequest,
 		return cleanupBasicStreamStep(ctx, turn, fence)
 	case basicCopyCleanupMedia:
 		return cleanupBasicMediaStep(ctx, turn, fence)
+	case basicCopyCleanupSubtitles:
+		return cleanupBasicSubtitleStep(ctx, turn, basicSubtitleCleanupEffects{basicStreamCopyFence: fence, before: in.beforeCleanupSubtitles})
 	case basicCopySubtitleRow:
 		return copyBasicSubtitleStep(ctx, turn, basicSubtitleCopyEffects{basicStreamCopyFence: fence, hadBefore: in.hadBefore, before: in.beforeSubtitle})
 	default:

@@ -18,6 +18,7 @@ const (
 	basicCopyCleanupStreams
 	basicCopyCleanupMedia
 	basicCopySubtitleRow
+	basicCopyCleanupSubtitles
 )
 
 // Values only: no authority, identity, or derived interface rows are retained.
@@ -37,6 +38,7 @@ type basicCopyRequest struct {
 	beforeSubtitleFact                          basicCanonicalSubtitleFact
 	beforeSidecar                               basicSubtitleSidecar
 	beforeSubtitle                              basicSubtitle
+	beforeCleanupSubtitles                      []basicSubtitle
 	beforeEvidence                              basicSubtitleEvidence
 	prefence                                    basicOrdinaryInputAccept
 }
@@ -44,6 +46,9 @@ type basicCopyRequest struct {
 // Raw text plus fixed scalar/length payload bytes; not a grant, quota or fit
 // claim. Admit the whole native payload before clones, maps or JSON validation.
 func basicCopyRequestBytes(in basicCopyRequest) (uint64, error) {
+	if len(in.beforeCleanupSubtitles) > 8 {
+		return 0, ErrCap
+	}
 	if in.expectedRows < 0 || in.startOrdinal < 0 || in.rawChapterCount < 0 {
 		return 0, ErrInvalid
 	}
@@ -136,12 +141,13 @@ func validateBasicCopyRequest(in basicCopyRequest) error {
 	}
 	p := in.position
 	f := in.rows.family
-	cleanup := in.operation == basicCopyCleanupStreams || in.operation == basicCopyCleanupMedia
-	if p.changeID != in.source.changeID || p.changeRevision <= 0 || p.phase != 2 || p.afterEntity <= 0 || p.family != f || p.key != "" || p.key2 != "" || p.key3 != "" {
+	subtitleCleanup := in.operation == basicCopyCleanupSubtitles
+	cleanup := in.operation == basicCopyCleanupStreams || in.operation == basicCopyCleanupMedia || subtitleCleanup
+	if p.changeID != in.source.changeID || p.changeRevision <= 0 || p.phase != 2 || p.afterEntity <= 0 || p.family != f || (!subtitleCleanup && p.key != "") || p.key2 != "" || p.key3 != "" {
 		return ErrInvalid
 	}
 	if cleanup {
-		if p.copyPhase != 1 || p.id < 0 || p.aux < 0 || p.aux > 1 || (p.aux == 0 && p.id != 0) || in.startOrdinal != 0 {
+		if p.copyPhase != 1 || p.id < 0 || p.aux < 0 || p.aux > 1 || (p.aux == 0 && p.id != 0) || (subtitleCleanup && (p.id != 0 || (p.aux == 0 && p.key != ""))) || in.startOrdinal != 0 {
 			return ErrInvalid
 		}
 	} else if p.copyPhase != 0 || p.aux != 0 || p.id != in.startOrdinal {
@@ -187,11 +193,19 @@ func validateBasicCopyRequest(in basicCopyRequest) error {
 		}
 		rest.beforeSubtitle = basicSubtitle{}
 	case basicCopyEmptyFamily:
-		if f != 2 && f != 3 && f != 5 && f != 7 {
+		if f != 2 && f != 3 && f != 5 && f != 7 && f != 8 {
 			return ErrInvalid
 		}
 		if in.expectedRows != 0 || in.startOrdinal != 0 || in.hadBefore {
 			return ErrInvalid
+		}
+	case basicCopyCleanupSubtitles:
+		if f != 8 || in.hadBefore {
+			return ErrInvalid
+		}
+		rest.beforeCleanupSubtitles = nil
+		if err := preflightBasicSubtitleCleanup(basicSubtitleCleanupEffects{basicStreamCopyFence: basicStreamCopyFence{family: &basicMediaFamily{valid: true, family: 8, source: in.source}, position: p, shapeID: in.shapeID, fileSizeRevision: in.fileSizeRevision, invalidation: in.invalidation}, before: in.beforeCleanupSubtitles}); err != nil {
+			return err
 		}
 	case basicCopyCleanupStreams:
 		if f != 2 || in.hadBefore {
@@ -354,6 +368,10 @@ func freezeBasicCopyRequest(in basicCopyRequest) (basicCopyRequest, error) {
 				in.rows.evidence[n] = cloneBasicMediaRow(r).(basicSubtitleEvidence)
 			}
 		}
+	}
+	in.beforeCleanupSubtitles = cloneBasicRequestSlice(in.beforeCleanupSubtitles)
+	for n, r := range in.beforeCleanupSubtitles {
+		in.beforeCleanupSubtitles[n] = cloneBasicMediaRow(r).(basicSubtitle)
 	}
 	in.beforeStreamRow = cloneBasicMediaRow(in.beforeStreamRow).(basicStreamRow)
 	in.beforeBreadth = cloneBasicMediaRow(in.beforeBreadth).(basicStreamBreadth)
