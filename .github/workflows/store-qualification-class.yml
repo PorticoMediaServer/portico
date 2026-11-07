@@ -1,0 +1,113 @@
+name: Canonical per-class qualification cells
+# Raw evidence transport. No automatic qualification or release decision.
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit: {description: Reviewed merged full workload SHA, required: true, type: string}
+      class:
+        description: Closed accepting owner class
+        required: true
+        type: choice
+        options: [inventory_n1, basic_accept, staged_enrich, progress, security, wc_reclaim, publisher_fragment, publisher_flip]
+      producer_run: {description: Immutable successful 1M producer run ID, required: true, type: string}
+      producer_attempt: {description: Producer attempt, default: '1', type: string}
+      manifest_sha256: {description: Independently checked producer receipt manifest SHA256, required: true, type: string}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  class-cell:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, legacy8]
+        replicate: [1, 2, 3]
+    env:
+      INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
+      INPUT_CLASS: ${{ inputs.class }}
+      INPUT_PRODUCER_RUN: ${{ inputs.producer_run }}
+      INPUT_PRODUCER_ATTEMPT: ${{ inputs.producer_attempt }}
+      INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+      PROFILE: ${{ matrix.profile }}
+      REPLICATE: ${{ matrix.replicate }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {path: tools, persist-credentials: false}
+      - name: Validate immutable inputs
+        id: plan
+        run: python3 -B tools/ci/qual_class.py plan
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {path: source, persist-credentials: false, fetch-depth: 0}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version: '1.26.10', cache: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: PorticoMediaServer/portico
+          run-id: ${{ steps.plan.outputs.producer_run }}
+          name: ${{ steps.plan.outputs.producer_artifact }}
+          path: population
+      - name: Prove the exact successful producer attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCER_RUN: ${{ steps.plan.outputs.producer_run }}
+          PRODUCER_ATTEMPT: ${{ steps.plan.outputs.producer_attempt }}
+        run: gh api "repos/PorticoMediaServer/portico/actions/runs/$PRODUCER_RUN/attempts/$PRODUCER_ATTEMPT" > "$RUNNER_TEMP/producer-run.json"
+      - name: Pin source and build with the shared population
+        run: python3 -B tools/ci/qual_class.py prepare --source "$GITHUB_WORKSPACE/source" --artifact "$GITHUB_WORKSPACE/population" --output "$RUNNER_TEMP/qual-class-out" --work "$RUNNER_TEMP/qual-class-work" --producer-run "$RUNNER_TEMP/producer-run.json"
+      - name: Run under proven effective profile limits
+        shell: bash
+        run: |
+          set -euo pipefail
+          memory=infinity
+          swap=infinity
+          quota=400%
+          if [[ "$PROFILE" == legacy8 ]]; then memory=8589934592; swap=0; quota=200%; fi
+          sudo systemd-run --unit=portico-canonical-class --wait --pipe --collect \
+            --property="MemoryMax=$memory" --property="MemorySwapMax=$swap" \
+            --property="CPUQuota=$quota" --property=CPUQuotaPeriodSec=100ms \
+            --property=AllowedCPUs=0-3 --property=CPUAccounting=yes \
+            --property=MemoryAccounting=yes --property=IOAccounting=yes \
+            --property=NoNewPrivileges=yes --property=RuntimeMaxSec=80min \
+            --property=KillMode=control-group \
+            /usr/bin/python3 -B "$GITHUB_WORKSPACE/tools/ci/qual_class.py" run \
+            --launch "$RUNNER_TEMP/qual-class-work/launch.json"
+      - name: Stop own unit and retain every complete or failed cell
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo systemctl stop portico-canonical-class.service || test "$(systemctl show portico-canonical-class.service -p LoadState --value)" = not-found
+          python3 -B tools/ci/qual_class.py finalize --output "$RUNNER_TEMP/qual-class-out"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: canonical-class-${{ matrix.profile }}-vm${{ matrix.replicate }}
+          path: ${{ runner.temp }}/qual-class-out/
+          compression-level: 1
+          retention-days: 30
+          if-no-files-found: error
+      - name: Remove own disposable scratch
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/qual-class-work" "$RUNNER_TEMP/qual-class-out" "$GITHUB_WORKSPACE/population"
+  summary:
+    if: always()
+    needs: class-cell
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {pattern: canonical-class-*, path: cells}
+      - name: Combine all VM receipts without pooling timings
+        run: python3 -B ci/qual_class.py summarize --artifacts "$GITHUB_WORKSPACE/cells" --output "$RUNNER_TEMP/qual-class-summary"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: canonical-class-summary
+          path: ${{ runner.temp }}/qual-class-summary/
+          if-no-files-found: error
+          retention-days: 30
