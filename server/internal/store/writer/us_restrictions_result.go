@@ -34,7 +34,7 @@ func cloneUSRestrictionsResult(v usRestrictionsSavedResult) usRestrictionsSavedR
 }
 
 func validateUSRestrictionsResult(v usRestrictionsSavedResult) error {
-	if v.kind != usProfileRestrictionsEdit || v.version != 1 || !usIdentifier(v.ownerID) || !usIdentifier(v.account) || !usHex(v.memberIncarnation, 32) || !usIdentifier(v.profile) || !usHex(v.profileLifetime, 32) || v.appliedMS < 0 || v.revision < 2 || v.revision > usMaxRevision || v.maximumAge < -1 || !utf8.ValidString(v.ratingSystem) || !utf8.ValidString(v.maximumAgeRating) || len(v.labels) > 64 {
+	if v.kind != usProfileRestrictionsEdit || v.version != 1 || !usIdentifier(v.ownerID) || !usIdentifier(v.account) || !usHex(v.memberIncarnation, 32) || !usIdentifier(v.profile) || !usHex(v.profileLifetime, 32) || v.appliedMS < 0 || v.revision < 2 || v.maximumAge < -1 || !utf8.ValidString(v.ratingSystem) || !utf8.ValidString(v.maximumAgeRating) || len(v.labels) > 64 {
 		return ErrResolveRequired
 	}
 	for _, label := range v.labels {

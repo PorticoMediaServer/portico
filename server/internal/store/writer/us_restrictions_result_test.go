@@ -3,6 +3,7 @@ package writer
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 )
@@ -59,7 +60,7 @@ func TestUSRestrictionsResultDigestFields(t *testing.T) {
 
 func TestUSRestrictionsResultValidation(t *testing.T) {
 	i, r, v := restrictionsResultFixture()
-	bad := map[string]func(*usRestrictionsSavedResult){"kind": func(v *usRestrictionsSavedResult) { v.kind = USProfileLibraries }, "version": func(v *usRestrictionsSavedResult) { v.version = 2 }, "owner": func(v *usRestrictionsSavedResult) { v.ownerID = "" }, "account": func(v *usRestrictionsSavedResult) { v.account = "" }, "member": func(v *usRestrictionsSavedResult) { v.memberIncarnation = "bad" }, "profile": func(v *usRestrictionsSavedResult) { v.profile = "" }, "lifetime": func(v *usRestrictionsSavedResult) { v.profileLifetime = "bad" }, "applied": func(v *usRestrictionsSavedResult) { v.appliedMS = -1 }, "revision": func(v *usRestrictionsSavedResult) { v.revision = 1 }, "revisionOverflow": func(v *usRestrictionsSavedResult) { v.revision = usMaxRevision + 1 }, "age": func(v *usRestrictionsSavedResult) { v.maximumAge = -2 }, "emptyLabel": func(v *usRestrictionsSavedResult) { v.labels = []string{""} }, "largeLabel": func(v *usRestrictionsSavedResult) { v.labels = []string{strings.Repeat("x", 361)} }, "invalidUTF8": func(v *usRestrictionsSavedResult) { v.labels = []string{string([]byte{255})} }, "many": func(v *usRestrictionsSavedResult) { v.labels = make([]string, 65) }, "systemUTF8": func(v *usRestrictionsSavedResult) { v.ratingSystem = string([]byte{255}) }, "ratingUTF8": func(v *usRestrictionsSavedResult) { v.maximumAgeRating = string([]byte{255}) }}
+	bad := map[string]func(*usRestrictionsSavedResult){"kind": func(v *usRestrictionsSavedResult) { v.kind = USProfileLibraries }, "version": func(v *usRestrictionsSavedResult) { v.version = 2 }, "owner": func(v *usRestrictionsSavedResult) { v.ownerID = "" }, "account": func(v *usRestrictionsSavedResult) { v.account = "" }, "member": func(v *usRestrictionsSavedResult) { v.memberIncarnation = "bad" }, "profile": func(v *usRestrictionsSavedResult) { v.profile = "" }, "lifetime": func(v *usRestrictionsSavedResult) { v.profileLifetime = "bad" }, "applied": func(v *usRestrictionsSavedResult) { v.appliedMS = -1 }, "revision": func(v *usRestrictionsSavedResult) { v.revision = 1 }, "age": func(v *usRestrictionsSavedResult) { v.maximumAge = -2 }, "emptyLabel": func(v *usRestrictionsSavedResult) { v.labels = []string{""} }, "largeLabel": func(v *usRestrictionsSavedResult) { v.labels = []string{strings.Repeat("x", 361)} }, "invalidUTF8": func(v *usRestrictionsSavedResult) { v.labels = []string{string([]byte{255})} }, "many": func(v *usRestrictionsSavedResult) { v.labels = make([]string, 65) }, "systemUTF8": func(v *usRestrictionsSavedResult) { v.ratingSystem = string([]byte{255}) }, "ratingUTF8": func(v *usRestrictionsSavedResult) { v.maximumAgeRating = string([]byte{255}) }}
 	for name, change := range bad {
 		t.Run(name, func(t *testing.T) {
 			q := cloneUSRestrictionsResult(v)
@@ -185,5 +186,13 @@ func TestUSRestrictionsResultNativeBytesAndEncodingBounds(t *testing.T) {
 		if _, e = w.db.ExecContext(t.Context(), insert, v.ownerID, i.Incarnation[:], i.Sequence, bad.ordinal, bad.label); e == nil {
 			t.Fatal("native accepted encoding/range violation", bad.ordinal, len(bad.label))
 		}
+	}
+}
+
+func TestUSRestrictionsResultRetainsFullNativeRevision(t *testing.T) {
+	i, r, v := restrictionsResultFixture()
+	v.revision = math.MaxInt64
+	if _, err := usRestrictionsResultDigest(i, r, v); err != nil {
+		t.Fatal("native result revision was capped", err)
 	}
 }
