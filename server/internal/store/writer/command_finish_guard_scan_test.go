@@ -3,8 +3,8 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "scan",
-		resultTypes: []string{"InventoryResult", "inventoryReceiptLookup", "scanLifecycleReceiptLookup", "scanLifecycleCommandResult", "scanSourceFacts", "ScanRunLease", "ScanRunOperation", "ScanRunResult", "ScanRunSnapshot"},
-		names:       []string{"disclose", "requireInventoryMemory", "inventoryTimeMS", "scanCreateTimeMS", "scanClaimTimeMS", "requireScanLifecycleMemory", "applyInventoryCreate", "applyInventoryClaim", "persistScanRunLifecycleResult", "acknowledgeScanRunLifecycle", "composeScanLifecycleHistory", "ObserveInventory", "newScanPreparation", "newScanDriver", "keepPreparation", "prepareWork", "allocateBirth", "prepareBirth", "checkBirthAbsence", "excludeOldWork", "Lease", "PrepareClaim", "PrepareCreate", "checkScanSourceActive", "composeScanLifecycleProfiles", "configureScanIssuer", "excludePredecessor", "retainIssuerPreparation", "retainSourcePreparation"},
+		resultTypes: []string{"InventoryResult", "inventoryReceiptLookup", "scanLifecycleReceiptLookup", "scanLifecycleCommandResult", "scanSourceFacts", "ScanRunLease", "ScanRunOperation", "ScanRunResult", "ScanRunSnapshot", "scanDirectoryLookup", "scanDirectorySaved", "scanDirectoryCommandResult"},
+		names:       []string{"disclose", "requireInventoryMemory", "inventoryTimeMS", "scanCreateTimeMS", "scanClaimTimeMS", "requireScanLifecycleMemory", "applyInventoryCreate", "applyInventoryClaim", "persistScanRunLifecycleResult", "acknowledgeScanRunLifecycle", "composeScanLifecycleHistory", "ObserveInventory", "newScanPreparation", "newScanDriver", "keepPreparation", "prepareWork", "allocateBirth", "prepareBirth", "checkBirthAbsence", "excludeOldWork", "Lease", "PrepareClaim", "PrepareCreate", "checkScanSourceActive", "composeScanLifecycleProfiles", "configureScanIssuer", "excludePredecessor", "retainIssuerPreparation", "retainSourcePreparation", "composeScanDirectories", "directoryMemory", "acknowledgeScanDirectory"},
 		prefixes:    []string{"checkInventory"},
 		bypasses: []string{
 			`func newScanDriver(ctx context.Context)(out *ScanDriver,err error){return out,nil}`,
