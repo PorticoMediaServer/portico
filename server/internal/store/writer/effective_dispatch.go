@@ -62,6 +62,7 @@ type effectiveRuntime struct {
 	inventoryPlan  *effectivePlan
 	lifecyclePlans [2]*effectivePlan // private, explicitly composed create/claim history profiles
 	issuerPlans    [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
+	basicPlans     [2]*effectivePlan // closed Stage/Seal; no implicit/default profile
 	registry       *stmt.Registry
 	fenced         bool
 	cleanupPanics  []terminalPanic
@@ -178,6 +179,7 @@ type commandCompletion struct {
 type commandOutput struct {
 	effective EffectiveStageResult
 	inventory InventoryResult
+	basic     BasicResult
 	publisher SearchImageStageResult
 	lifecycle scanLifecycleCommandResult
 	source    scanSourceFacts
@@ -232,7 +234,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) {
 			return out, acknowledged, ErrInvalid
 		}
-		if scan.lifecycle == 0 && r.inventoryPlan == nil {
+		if scan.basic == nil && scan.lifecycle == 0 && r.inventoryPlan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
 		if scan.input != nil {
@@ -243,6 +245,17 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		}
 		purpose, plan, reference, key, libraryID = InventoryAccept, r.inventoryPlan, scan.request.Receipt, scan.request.RunID, scan.request.LibraryID
 		outcome = &out.inventory.Outcome
+		if scan.basic != nil {
+			if scan.input != nil || scan.lifecycle != 0 || scan.issuer != nil || scan.basic.request.Scan != scan.request || (ack && scan.basic.fresh()) {
+				return out, acknowledged, ErrInvalid
+			}
+			purpose, err = scan.basic.validate()
+			if err != nil {
+				return out, acknowledged, err
+			}
+			plan = nil // one-time private profile is read only under runtime custody
+			outcome = &out.basic.Outcome
+		}
 		if scan.lifecycle != 0 {
 			if scan.input != nil || (scan.lifecycle != InventoryCreate && scan.lifecycle != InventoryClaim) {
 				return out, acknowledged, ErrInvalid
@@ -256,6 +269,12 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		return out, acknowledged, ErrBusy
 	}
 	defer r.mu.Unlock()
+	if scan != nil && scan.basic != nil {
+		plan = r.basicPlans[int(purpose-BasicStage)]
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+	}
 	if scan != nil && scan.lifecycle != 0 {
 		plan = r.lifecyclePlans[int(purpose-InventoryCreate)]
 		if scan.issuer != nil {
@@ -405,7 +424,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
 	if err == nil {
 		if scan != nil {
-			if scan.lifecycle == 0 {
+			if scan.lifecycle == 0 && scan.basic == nil {
 				_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
 			}
 			if err == nil {
@@ -443,7 +462,10 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 			}
 		}
 	}
-	if err == nil && scan != nil && scan.lifecycle == 0 {
+	if err == nil && scan != nil && scan.basic != nil {
+		out.basic, historical, err = r.runBasicTurn(ctx, w, turn, scan, ack, &acknowledged)
+	}
+	if err == nil && scan != nil && scan.lifecycle == 0 && scan.basic == nil {
 		var lookup inventoryReceiptLookup
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;
@@ -509,6 +531,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if turn != nil {
 		err = errors.Join(err, turn.closeRows())
 	}
+	if err == nil && scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical {
+		err = checkBasicTerminal(ctx, turn, scan.basic.request.Purpose, scan.basic.leaseExpiresMS())
+	}
 	if err == nil && scan != nil && scan.input != nil && !historical {
 		err = checkInventoryTerminal(ctx, turn, scan.input)
 	}
@@ -527,6 +552,10 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	if scan != nil && scan.issuer != nil && !ack && !historical && physical.state == committed &&
 		(scan.issuer.action == scanIssuerCreate || scan.issuer.action == scanIssuerClaim) {
+		outcome.State = Applied
+		outcome.Reference = reference
+	}
+	if scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical && physical.state == committed {
 		outcome.State = Applied
 		outcome.Reference = reference
 	}

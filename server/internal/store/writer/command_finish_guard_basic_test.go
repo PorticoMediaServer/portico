@@ -3,8 +3,8 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "basic",
-		resultTypes: []string{"commandOutput", "AckResult"},
-		names:       []string{"commandTimeMS", "requireCommandMemory", "basicTimeMS", "requireBasicMemory", "checkBasicTerminal"},
+		resultTypes: []string{"commandOutput", "AckResult", "BasicResult", "basicReceiptLookup"},
+		names:       []string{"acknowledgeBasic", "composeBasicProfiles", "commandTimeMS", "requireCommandMemory", "basicTimeMS", "requireBasicMemory", "checkBasicTerminal"},
 		bypasses: []string{
 			`func bypass(ctx context.Context)(out InventoryResult,err error){var v InventoryResult;var e error;saved:=InventoryResult{RunID:"saved"};defer func(){v,e=finishCommand(ctx,ctx,out,err);out,err=saved,e}();_=v;return saved,ErrInvalid}`,
 			`func bypass(ctx context.Context)(out InventoryResult,err error){var v InventoryResult;var e error;defer func(){v,e=finishCommand(ctx,ctx,out,err);out,err=v,nil}();_=e;return InventoryResult{RunID:"saved"},ErrInvalid}`,
