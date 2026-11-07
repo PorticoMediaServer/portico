@@ -70,6 +70,23 @@ func basicHandlerCommit(t *testing.T, turn *commandTurn, purpose BasicPurpose, l
 	}
 }
 
+// Fixture-only prerequisite between originals: the real common ACK adapter is
+// still separately owned. Read the exact successful result/run values, not a
+// fabricated replacement receipt or fresh operation with another identity.
+func basicHandlerFloor(t *testing.T, w *executor, original *basicOriginalScope, identity *CommandIdentity, result BasicResult) {
+	t.Helper()
+	changed, err := w.db.ExecContext(t.Context(), `UPDATE inventory_runs SET acknowledged_command_sequence=? WHERE job_id=? AND job_revision=? AND last_command_sequence=? AND acknowledged_command_sequence=?`, identity.Sequence, original.scope.runID, result.AcceptedRunRevision, identity.Sequence, original.run.acknowledgedSequence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count, err := changed.RowsAffected(); err != nil || count != 1 {
+		t.Fatal(count, err)
+	}
+	original.run.revision, original.run.lastSequence, original.run.acknowledgedSequence = result.AcceptedRunRevision, identity.Sequence, identity.Sequence
+	identity.Sequence++
+	identity.OperationID[0]++
+}
+
 func TestBasicHandlerBeginSavesActualAllocatedNativeResult(t *testing.T) {
 	w, source, original, identity := basicControlFixture(t)
 	for _, q := range []string{`DELETE FROM catalog_info_input_families`, `DELETE FROM catalog_info_input_witnesses`, `DELETE FROM catalog_info_changes`} {
@@ -102,45 +119,53 @@ func TestBasicHandlerBeginSavesActualAllocatedNativeResult(t *testing.T) {
 
 func TestBasicHandlerMediaStageAndSealKeepActualReceipts(t *testing.T) {
 	w, source, original, identity := basicControlFixture(t)
-	for _, q := range []string{`UPDATE catalog_info_changes SET family_mask=511 WHERE id=51`, `INSERT INTO catalog_info_input_families(change_id,family,witness_ordinal,rows_expected) VALUES(51,5,0,2)`} {
+	for _, q := range []string{`UPDATE catalog_info_changes SET family_mask=511 WHERE id=51`, `INSERT INTO catalog_info_input_families(change_id,family,witness_ordinal,rows_expected) VALUES(51,4,0,1),(51,5,0,2)`} {
 		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
 	}
+	// The native chapter child FK requires its actual staged family4 parent.
+	// Publish that parent through the SAME Stage body before any chapter row;
+	// the failed first fixture omitted it and correctly hit native FK787.
+	parent, err := newBasicStageCommand(identity, basicStageRequest{original: original, purpose: BasicPurposeStage, operation: basicStageMediaInput, fact: source, changeRevision: 1,
+		rows: basicRowsRequest{family: 4, rawChapterCount: 2, chapterFacts: []basicChapterFact{{37, "known", "chapters:37"}}}, start: 0, end: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn := basicHandlerTurn(t, w, BasicStage, basicStageCommandDefinitions(parent.request))
+	parentResult, err := applyBasicStage(t.Context(), turn, parent)
+	if err != nil || parentResult.AcceptedRunRevision != 42 || parentResult.Outcome != (ReceiptOutcome{}) {
+		t.Fatal(parentResult, err)
+	}
+	basicHandlerCommit(t, turn, BasicPurposeStage, original.run.leaseExpiresMS)
+	basicHandlerFloor(t, w, &original, &identity, parentResult)
 	rows := basicRowsRequest{family: 5, rawChapterCount: 2, chapters: []basicChapter{{0, "Opening", 0, 3}, {1, "Ending", 3, 7}}}
 	stage, err := newBasicStageCommand(identity, basicStageRequest{original: original, purpose: BasicPurposeStage, operation: basicStageMediaInput, fact: source, changeRevision: 1, rows: rows, start: 0, end: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn := basicHandlerTurn(t, w, BasicStage, basicStageCommandDefinitions(stage.request))
+	turn = basicHandlerTurn(t, w, BasicStage, basicStageCommandDefinitions(stage.request))
 	staged, err := applyBasicStage(t.Context(), turn, stage)
-	if err != nil || staged.Outcome != (ReceiptOutcome{}) || staged.AcceptedRunRevision != 42 || staged.Continuation != (BasicContinuation{}) || staged.ExpectedEpoch != 17 {
+	if err != nil || staged.Outcome != (ReceiptOutcome{}) || staged.AcceptedRunRevision != 43 || staged.Continuation != (BasicContinuation{}) || staged.ExpectedEpoch != 17 {
 		t.Fatal(staged, err)
 	}
 	basicHandlerCommit(t, turn, BasicPurposeStage, original.run.leaseExpiresMS)
-	// The common floor transition is a fixture prerequisite, not a substitute
-	// Basic ACK implementation or fresh lease/source authority.
-	if _, err := w.db.ExecContext(t.Context(), `UPDATE inventory_runs SET acknowledged_command_sequence=19 WHERE job_id='basic-run' AND last_command_sequence=19 AND acknowledged_command_sequence=18`); err != nil {
-		t.Fatal(err)
-	}
-	original.run.revision, original.run.lastSequence, original.run.acknowledgedSequence = 42, 19, 19
-	identity.Sequence++
-	identity.OperationID[0]++
+	basicHandlerFloor(t, w, &original, &identity, staged)
 	seal, err := newBasicSealCommand(identity, basicSealRequest{original: original, purpose: BasicPurposeSeal, operation: basicSealMediaInput, source: source, changeRevision: 1, rows: rows})
 	if err != nil {
 		t.Fatal(err)
 	}
 	turn = basicHandlerTurn(t, w, BasicSeal, basicSealCommandDefinitions(seal.request))
 	sealed, err := applyBasicSeal(t.Context(), turn, seal)
-	if err != nil || sealed.Outcome != (ReceiptOutcome{}) || sealed.AcceptedRunRevision != 43 || sealed.ChangeID != 51 || sealed.ExpectedEpoch != 17 || sealed.SourceRevision != "object:019" || sealed.Continuation != (BasicContinuation{}) || sealed.ResultCount != 0 || sealed.Members == nil || len(sealed.Members) != 0 || sealed.Digest == staged.Digest {
+	if err != nil || sealed.Outcome != (ReceiptOutcome{}) || sealed.AcceptedRunRevision != 44 || sealed.ChangeID != 51 || sealed.ExpectedEpoch != 17 || sealed.SourceRevision != "object:019" || sealed.Continuation != (BasicContinuation{}) || sealed.ResultCount != 0 || sealed.Members == nil || len(sealed.Members) != 0 || sealed.Digest == staged.Digest {
 		t.Fatal(sealed, err)
 	}
 	var exact bool
 	if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT
  (SELECT rows_expected=2 AND rows_staged=2 AND sealed=1 FROM catalog_info_input_families WHERE change_id=51 AND family=5)
  AND (SELECT count(*)=2 FROM catalog_info_new_chapters WHERE change_id=51)
- AND (SELECT count(*)=2 FROM scan_command_receipts WHERE run_id='basic-run')
- AND (SELECT accepted_revision=43 AND source_revision='object:019' AND expected_epoch=17 AND result_digest=? AND command_kind='basic_seal' FROM scan_command_receipts WHERE run_id='basic-run' AND command_sequence=20)
+ AND (SELECT count(*)=3 FROM scan_command_receipts WHERE run_id='basic-run')
+ AND (SELECT accepted_revision=44 AND source_revision='object:019' AND expected_epoch=17 AND result_digest=? AND command_kind='basic_seal' FROM scan_command_receipts WHERE run_id='basic-run' AND command_sequence=21)
  AND (SELECT info_epoch=17 AND info_publication_pending=0 FROM catalog_assets WHERE id=41)
  AND (SELECT discovered=59 AND analyzed=43 AND warnings=47 FROM inventory_runs WHERE job_id='basic-run')
  AND (SELECT processed=67 FROM jobs WHERE id='basic-run')
