@@ -70,26 +70,44 @@ func validateIAConfigurationReference(q iaConfigurationReference) error {
 // An absent original owner is ResolveRequired, never fresh birth permission.
 func classifyIAConfigurationHistory(q iaConfigurationReference, o iaConfigurationOwner, h iaConfigurationReceipt) (iaConfigurationHistory, error) {
 	zero := iaConfigurationHistory{}
-	if err := validateIAConfigurationReference(q); err != nil {
-		return zero, err
-	}
-	owner := receiptOwnerFacts{exists: o.exists, incarnation: o.incarnation, lastSequence: o.last, acknowledgedSequence: o.acknowledged}
-	if o.exists && o.incarnation == q.identity.Incarnation {
-		if o.original.libraryID != q.original.libraryID || o.original.libraryKey != q.original.libraryKey {
-			return zero, ErrDisclosureDenied
-		}
-		if o.original != q.original {
-			return zero, ErrConflict
-		}
-	}
-	found := receiptFacts{exists: h.exists, identity: h.identity, kind: h.purpose, resultCount: h.resultCount, resultDigest: h.digest}
-	decision, err := classifyReceipt(receiptIdentity{command: q.identity, digest: q.request}, q.original.purpose, owner, found)
+	decision, err := classifyIAConfigurationMetadata(q, o, h)
 	if err != nil {
 		return zero, err
 	}
 	if decision != receiptReplay {
 		return iaConfigurationHistory{decision: decision}, nil
 	}
+	return decodeIAConfigurationHistory(q, o, h)
+}
+
+// Scalar identity/ACK classification is separate so a native adapter can avoid
+// fetching names, roots and child cohorts once the original result is retired.
+func classifyIAConfigurationMetadata(q iaConfigurationReference, o iaConfigurationOwner, h iaConfigurationReceipt) (receiptDecision, error) {
+	if err := validateIAConfigurationReference(q); err != nil {
+		return 0, err
+	}
+	owner := receiptOwnerFacts{exists: o.exists, incarnation: o.incarnation, lastSequence: o.last, acknowledgedSequence: o.acknowledged}
+	if err := checkIAConfigurationOwnerScope(q, o); err != nil {
+		return 0, err
+	}
+	found := receiptFacts{exists: h.exists, identity: h.identity, kind: h.purpose, resultCount: h.resultCount, resultDigest: h.digest}
+	return classifyReceipt(receiptIdentity{command: q.identity, digest: q.request}, q.original.purpose, owner, found)
+}
+
+func checkIAConfigurationOwnerScope(q iaConfigurationReference, o iaConfigurationOwner) error {
+	if o.exists && o.incarnation == q.identity.Incarnation {
+		if o.original.libraryID != q.original.libraryID || o.original.libraryKey != q.original.libraryKey {
+			return ErrDisclosureDenied
+		}
+		if o.original != q.original {
+			return ErrConflict
+		}
+	}
+	return nil
+}
+
+func decodeIAConfigurationHistory(q iaConfigurationReference, o iaConfigurationOwner, h iaConfigurationReceipt) (iaConfigurationHistory, error) {
+	zero := iaConfigurationHistory{}
 	// Any cleanup advances the ACK floor first. A replayable original result
 	// must still have its complete untouched cohort and exact full data ledger.
 	if o.last != 1 || o.acknowledged != 0 || o.cursor != (iaReceiptCursor{0, -1}) ||
