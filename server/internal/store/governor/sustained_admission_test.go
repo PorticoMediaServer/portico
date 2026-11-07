@@ -162,19 +162,19 @@ func TestWALSampleBoundedResamplingAndGeneration(t *testing.T) {
 		t.Fatal(calls, state, err)
 	}
 	calls = 0
-	_, err = sampleWAL(ctx, func() (WALState, error) { calls++; return WALState{}, ErrWALObservation })
+	_, err = sampleWAL(ctx, func() (WALState, error) { calls++; return WALState{}, ErrWALObservation }, now)
 	if !errors.Is(err, ErrWALObservation) || calls != walSampleAttempts {
 		t.Fatal("persistent bad sample not bounded", calls, err)
 	}
 	cancelCtx, cancel := context.WithCancel(ctx)
 	calls = 0
-	_, err = sampleWAL(cancelCtx, func() (WALState, error) { calls++; cancel(); return WALState{}, ErrWALObservation })
+	_, err = sampleWAL(cancelCtx, func() (WALState, error) { calls++; cancel(); return WALState{}, ErrWALObservation }, now)
 	if !errors.Is(err, context.Canceled) || calls != 1 {
 		t.Fatal(calls, err)
 	}
 	w := gate(t)
 	token := w.Observation()
-	_, err = sampleWAL(ctx, func() (WALState, error) { w.returned(); return walSample(4, 4), nil })
+	_, err = sampleWAL(ctx, func() (WALState, error) { w.returned(); return walSample(4, 4), nil }, now)
 	if err != nil {
 		t.Fatal(err)
 	}

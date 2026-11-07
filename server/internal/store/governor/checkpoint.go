@@ -105,7 +105,7 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 	out.IOBytes = r.Need[IOBytes]
 	out.PrefixLimit = c.wal.policy.HardBytes
 	if err := c.mu.lockUntil(parent, r.Deadline, c.authority.ledger.config.Now()); err != nil {
-		return out, admissionError(CauseDeadline, err)
+		return out, admissionError(admissionWaitCause(err), err)
 	}
 	defer c.mu.Unlock()
 	if c.wal.policy.ConcurrentPassive && c.keeper == nil {
@@ -175,13 +175,12 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 	if err = wait.Err(); err != nil {
 		return out, err
 	}
-	turnStart := c.authority.ledger.config.Now()
-	d := c.authority.tryCheckpointTurn(r, ticket)
+	d := c.authority.tryCheckpointTurnContext(parent, r, ticket)
 	if d.Refusal != nil {
 		out.Refusal = d.Refusal
 		return out, nil
 	}
-	out.Started = turnStart
+	out.Started = d.Grant.admittedAt
 	// Own the admitted unit BEFORE any fallible context/clock/driver call.
 	ctx := context.Background()
 	var stop context.CancelFunc = func() {}

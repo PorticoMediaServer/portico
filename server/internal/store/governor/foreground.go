@@ -159,7 +159,7 @@ func (a *Authority) AdmitForeground(ctx context.Context, q ForegroundRequest) De
 		return refuse(Deadline)
 	}
 	f := &foregroundHolding{readyDeadline: q.ReadyDeadline, waitUntil: until}
-	d := g.tryMode(g.foregroundRequest(q), false, nil, f)
+	d := g.tryReservedContext(ctx, until, g.foregroundRequest(q), false, nil, f, nil, nil)
 	if d.Refusal != nil {
 		return d
 	}

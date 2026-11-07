@@ -130,6 +130,18 @@ func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, f
 }
 
 func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicket, foreground *foregroundHolding, shutdown *CheckpointKeeper, read *ReadScope) Decision {
+	return g.tryReservedContext(context.Background(), r.Deadline, r, checkpoint, ticket, foreground, shutdown, read)
+}
+
+// TryContext keeps the caller admission bound separate from the immutable
+// request/grant lifetime. It uses the SAME ledger and authority, not a queue.
+func (a *Authority) TryContext(ctx context.Context, r Request) Decision {
+	if a == nil || a.ledger == nil {
+		return Decision{Refusal: &Refusal{Code: Invalid, Cause: CauseInvalidRequest}}
+	}
+	return a.ledger.tryReservedContext(ctx, r.Deadline, r, false, nil, nil, nil, nil)
+}
+func (g *ledger) tryReservedContext(ctx context.Context, until time.Time, r Request, checkpoint bool, ticket *checkpointTicket, foreground *foregroundHolding, shutdown *CheckpointKeeper, read *ReadScope) Decision {
 	now := g.config.Now()
 	refuse := func(code RefusalCode, cause RefusalCause) Decision {
 		retryAt := now.Add(100 * time.Millisecond)
@@ -138,10 +150,26 @@ func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicke
 		}
 		return Decision{Refusal: &Refusal{Code: code, Cause: cause, RetryAt: retryAt}}
 	}
+	if ctx == nil {
+		return refuse(Invalid, CauseInvalidRequest)
+	}
+	until = minTime(until, r.Deadline)
+	if foreground != nil {
+		until = minTime(until, foreground.waitUntil)
+	}
+	if ticket != nil {
+		until = minTime(until, ticket.expires)
+	}
+	if d, ok := ctx.Deadline(); ok {
+		until = minTime(until, d)
+	}
+	if err := ctx.Err(); err != nil {
+		return refuse(Deadline, admissionWaitCause(err))
+	}
 	if !validRequest(r) || (r.RestartRisk != (WALRestartRisk{}) && (!r.Writer || g.config.WAL == nil)) {
 		return refuse(Invalid, CauseInvalidRequest)
 	}
-	if !r.Deadline.After(now) {
+	if !until.After(now) {
 		return refuse(Deadline, CauseDeadline)
 	}
 	if (r.Writer || checkpoint) && (r.MaxHold <= 0 || r.MaxHold > g.maxHold(checkpoint) ||
@@ -158,16 +186,19 @@ func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicke
 	// Contention consumes the original deadline; it is never false capacity.
 	contended := !g.mu.TryLock()
 	if contended {
-		if err := g.mu.lockUntil(context.Background(), r.Deadline, now); err != nil {
-			return refuse(Deadline, CauseDeadline)
+		if err := g.mu.lockUntil(ctx, until, now); err != nil {
+			return refuse(Deadline, admissionWaitCause(err))
 		}
 	}
 	defer g.mu.Unlock()
 	if contended {
 		now = g.config.Now()
 	}
-	if !r.Deadline.After(now) {
+	if !until.After(now) {
 		return refuse(Deadline, CauseDeadline)
+	}
+	if err := ctx.Err(); err != nil {
+		return refuse(Deadline, admissionWaitCause(err))
 	}
 	if shutdown != nil && (g.keeper != shutdown || !shutdown.shutdownShape(r)) {
 		return refuse(Invalid, CauseInvalidRequest)
@@ -218,15 +249,20 @@ func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicke
 	if code := g.preparationPublicationCode(r, now); code != 0 {
 		return refuse(code, CausePreparation)
 	}
+	admittedAt := now
 	if r.Writer && g.config.WAL != nil {
-		if code, cause := g.config.WAL.reserveForLedger(r, now, g); code != 0 {
+		code, cause, acquired := g.config.WAL.reserveForLedger(ctx, r, now, g, until)
+		if code != 0 {
 			return refuse(code, cause)
 		}
+		admittedAt = acquired
 	}
 	if checkpoint {
-		if code, cause := g.config.WAL.reserveCheckpoint(ticket, now, r.Deadline); code != 0 {
+		code, cause, acquired := g.config.WAL.reserveCheckpointContext(ctx, ticket, now, until, g)
+		if code != 0 {
 			return refuse(code, cause)
 		}
+		admittedAt = acquired
 	}
 	if foreground != nil {
 		if !now.Before(foreground.waitUntil) {
@@ -251,7 +287,7 @@ func (g *ledger) tryReserved(r Request, checkpoint bool, ticket *checkpointTicke
 	}
 	r.Footprint = slices.Clone(r.Footprint)
 	g.sequence++
-	p := &Grant{id: g.sequence, epoch: state, issuer: g, deadline: r.Deadline, cancelledDone: make(chan struct{})}
+	p := &Grant{admittedAt: admittedAt, id: g.sequence, epoch: state, issuer: g, deadline: r.Deadline, cancelledDone: make(chan struct{})}
 	g.live[p.id] = &holding{grant: p, request: r, checkpoint: checkpoint, foreground: foreground, snapshot: read}
 	if shutdown != nil {
 		g.live[p.id].keeper, g.live[p.id].keeperRole = shutdown, keeperShutdown
@@ -494,7 +530,10 @@ func pairedCheckpointIO(r Request, checkpoint bool, h *holding) bool {
 // The read path installs its native custody witness atomically with admission.
 // It conveys no additional grant/SQL authority and never releases payload bytes.
 func (a *Authority) trySnapshot(r Request, scope *ReadScope) Decision {
-	return a.ledger.tryReserved(r, false, nil, nil, nil, scope)
+	return a.trySnapshotContext(context.Background(), r, scope)
+}
+func (a *Authority) trySnapshotContext(ctx context.Context, r Request, scope *ReadScope) Decision {
+	return a.ledger.tryReservedContext(ctx, r.Deadline, r, false, nil, nil, nil, scope)
 }
 func (a *Authority) snapshotPhysicallySafe(scope *ReadScope) {
 	scope.nativeSafe.Store(true)

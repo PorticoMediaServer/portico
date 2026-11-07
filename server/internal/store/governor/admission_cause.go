@@ -2,6 +2,7 @@ package governor
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -9,6 +10,7 @@ import (
 type RefusalCause string
 
 const (
+	CauseCancelled         RefusalCause = "caller_cancelled"
 	CauseInvalidRequest    RefusalCause = "invalid_request"
 	CauseDeadline          RefusalCause = "original_deadline"
 	CauseUnqualified       RefusalCause = "unqualified_forecast"
@@ -62,4 +64,11 @@ func (m *ledgerMutex) lockUntil(ctx context.Context, deadline, now time.Time) er
 		return err
 	}
 	return nil
+}
+
+func admissionWaitCause(err error) RefusalCause {
+	if errors.Is(err, context.Canceled) {
+		return CauseCancelled
+	}
+	return CauseDeadline
 }

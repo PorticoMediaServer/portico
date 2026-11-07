@@ -470,7 +470,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			return out, acknowledged, err
 		}
 	}
-	decision := r.governor.Try(expected)
+	decision := r.authority.TryContext(ctx, expected)
 	if decision.Grant == nil {
 		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
 			err = scan.issuer.work.refused(decision)

@@ -242,49 +242,52 @@ func validWAL(s WALState) bool {
 }
 
 func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
-	code, _ := w.reserveForLedger(r, now, nil)
+	code, _, _ := w.reserveForLedger(context.Background(), r, now, nil, r.Deadline)
 	return code
 }
 
-func (w *WALGate) reserveForLedger(r Request, now time.Time, owner *ledger) (RefusalCode, RefusalCause) {
-	if err := w.mu.lockUntil(context.Background(), r.Deadline, now); err != nil {
-		return Deadline, CauseDeadline
+func (w *WALGate) reserveForLedger(ctx context.Context, r Request, now time.Time, owner *ledger, until time.Time) (RefusalCode, RefusalCause, time.Time) {
+	if err := w.mu.lockUntil(ctx, until, now); err != nil {
+		return Deadline, admissionWaitCause(err), time.Time{}
 	}
 	defer w.mu.Unlock()
 	if owner != nil {
 		now = owner.config.Now()
 	}
-	if !r.Deadline.After(now) {
-		return Deadline, CauseDeadline
+	if !until.After(now) {
+		return Deadline, CauseDeadline, time.Time{}
+	}
+	if err := ctx.Err(); err != nil {
+		return Deadline, admissionWaitCause(err), time.Time{}
 	}
 	w.expireCheckpointTicket(now)
 	if (w.policy.ConcurrentPassive && w.keeper == nil) || (w.keeper != nil && !w.keeper.admits(owner, now)) {
-		return FailSafe, CauseKeeper
+		return FailSafe, CauseKeeper, time.Time{}
 	}
 	if w.writer {
-		return Capacity, CauseWriterActive
+		return Capacity, CauseWriterActive, time.Time{}
 	}
 	if !w.policy.ConcurrentPassive && (w.checkpoint || w.pendingCheckpoint != nil) {
-		return Capacity, CauseCheckpointActive
+		return Capacity, CauseCheckpointActive, time.Time{}
 	}
 	if !w.fresh(now) {
-		return FailSafe, CauseWALSample
+		return FailSafe, CauseWALSample, time.Time{}
 	}
 	if (w.policy.ConcurrentPassive && r.RestartRisk == (WALRestartRisk{})) || (r.RestartRisk != (WALRestartRisk{}) && r.RestartRisk != w.restartRisk()) {
-		return FailSafe, CauseWALRisk
+		return FailSafe, CauseWALRisk, time.Time{}
 	}
 	s := w.state
 	if s.PhysicalBytes > w.policy.HardBytes {
-		return FailSafe, CauseWALPhysical
+		return FailSafe, CauseWALPhysical, time.Time{}
 	}
 	limit := w.policy.HardBytes
 	if r.Class == Background || r.Class == ScanMinimum {
 		limit -= w.policy.ReserveBytes
 		if s.UncheckpointedBytes >= w.policy.SoftDebtBytes {
-			return Capacity, CauseWALDebt
+			return Capacity, CauseWALDebt, time.Time{}
 		}
 		if s.ActiveBytes >= w.policy.ActivePressureBytes && s.Backfill != s.Frames {
-			return Capacity, CauseWALActive
+			return Capacity, CauseWALActive, time.Time{}
 		}
 	}
 	header := int64(0)
@@ -296,7 +299,7 @@ func (w *WALGate) reserveForLedger(r Request, now time.Time, owner *ledger) (Ref
 			w.blockedWAL = r.Need[WALBytes]
 			w.blockedLimit = limit
 		}
-		return Capacity, CauseWALSpace
+		return Capacity, CauseWALSpace, time.Time{}
 	}
 	w.blockedWAL, w.blockedLimit = 0, 0
 	w.writerClass = r.Class
@@ -305,7 +308,7 @@ func (w *WALGate) reserveForLedger(r Request, now time.Time, owner *ledger) (Ref
 	w.writer = true
 	w.valid = false
 	w.version++
-	return 0, ""
+	return 0, "", now
 }
 
 func (w *WALGate) returned() {
@@ -325,25 +328,36 @@ func (w *WALGate) ResetCount() uint64 { w.mu.Lock(); defer w.mu.Unlock(); return
 // driver still needs a whole-prefix forecast and same-file observation. In
 // concurrent mode only CP/CP is excluded; recovery separately drains W/readers.
 func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now, deadline time.Time) (RefusalCode, RefusalCause) {
-	if err := w.mu.lockUntil(context.Background(), deadline, now); err != nil {
-		return Deadline, CauseDeadline
+	var owner *ledger
+	if ticket != nil {
+		owner = ticket.owner
+	}
+	code, cause, _ := w.reserveCheckpointContext(context.Background(), ticket, now, deadline, owner)
+	return code, cause
+}
+func (w *WALGate) reserveCheckpointContext(ctx context.Context, ticket *checkpointTicket, now, deadline time.Time, owner *ledger) (RefusalCode, RefusalCause, time.Time) {
+	if err := w.mu.lockUntil(ctx, deadline, now); err != nil {
+		return Deadline, admissionWaitCause(err), time.Time{}
 	}
 	defer w.mu.Unlock()
-	if ticket != nil && ticket.owner != nil {
-		now = ticket.owner.config.Now()
+	if owner != nil {
+		now = owner.config.Now()
 	}
 	if !deadline.After(now) {
-		return Deadline, CauseDeadline
+		return Deadline, CauseDeadline, time.Time{}
+	}
+	if err := ctx.Err(); err != nil {
+		return Deadline, admissionWaitCause(err), time.Time{}
 	}
 	w.expireCheckpointTicket(now)
 	if w.checkpoint || (w.writer && (!w.policy.ConcurrentPassive || (ticket != nil && ticket.recovery))) {
-		return Capacity, CauseCheckpointActive
+		return Capacity, CauseCheckpointActive, time.Time{}
 	}
 	if ticket != nil && (ticket.gate != w || !now.Before(ticket.expires)) {
-		return Deadline, CauseDeadline
+		return Deadline, CauseDeadline, time.Time{}
 	}
 	if w.pendingCheckpoint != ticket {
-		return Capacity, CauseCheckpointTicket
+		return Capacity, CauseCheckpointTicket, time.Time{}
 	}
 	w.pendingCheckpoint = nil
 	w.checkpoint = true
@@ -352,7 +366,7 @@ func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now, deadline time
 		w.valid = false
 		w.version++
 	}
-	return 0, ""
+	return 0, "", now
 }
 
 // Only exact private grant retirement reaches this boundary, after native
