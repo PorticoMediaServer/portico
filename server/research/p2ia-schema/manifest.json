@@ -1,13 +1,13 @@
 {
   "baseline": "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4",
-  "candidate": "9042f1e93d20db286dc25facb100e308afea4ca4eeea615f1538c40fcdee9aa9",
+  "candidate": "0aa4f02ee7148e337ad25dee2086c2ef12f0ec75c8bdd76e0725b7b9ec3bb1d1",
   "replacement_before": {
     "scan_command_receipts": "061c5ec784de461c0d8f80634f0cb07fefcada699382db880c047f92655d44d2",
     "catalog_removal_progress": "7e50ea6ef5f4382fabe16f2f6cd79889adcfb525a397d315851f760df81f1f44"
   },
   "replacement_after": {
     "scan_command_receipts": "500a471de63b4305cf12e994b9d402d1b333c6866f8f708f26ac58850ac83fb8",
-    "catalog_removal_progress": "6b6263bc0a244275c1968f747268bb2fbb2219c36fc1d1ad46843ddce704851c"
+    "catalog_removal_progress": "c698c2d8e8280ba45e78d82789b3aed5387caf4ccfaea9921703cbda58c528c9"
   },
   "new_tables": [
     "scan_reconcile_members",
@@ -38,11 +38,11 @@
   "source_public": "194a9248f32195e51355b254548b3551d35fd458",
   "native_toolchain": "go1.26.10",
   "landing": "WAIT phase1a lock",
-  "configuration_amendment_sha256": "b50e50e4e700b90e6a312307b653e3b8ebfb19dd4e967b2ed5d278087907a1e4",
+  "configuration_amendment_sha256": "84a50db58b27e3e797cec564d948424fab444bf2a015ca2dbaf889ac9f10bf4f",
   "configuration_new_objects": {
     "catalog_configuration_operations": {
       "before_absent": true,
-      "after_sha256": "98b4b9943fb69e4e940e41fba1de38b27509e15feecbc07181c98777c0e40f2d"
+      "after_sha256": "5ab5927c04112c3844b0a054bd251e99ebeac759218647d6a03d37ed35535a55"
     },
     "catalog_configuration_operation_kind": {
       "before_absent": true,
