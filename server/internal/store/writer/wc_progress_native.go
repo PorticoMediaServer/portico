@@ -104,6 +104,9 @@ func checkWCProgressNativeDisclosure(ctx context.Context, t *commandTurn, v *wcP
 	if v.retained != nil {
 		return nil
 	} // exact pending proof is checked by the drain body
+	return nil
+}
+func unusedWCProgressNativeDisclosure(ctx context.Context, t *commandTurn, v *wcProgressInvocation) error {
 	s := v.disclosure.driver.scope
 	if !wcProgressLibraryAllowed(s) {
 		return ErrDisclosureDenied
