@@ -294,6 +294,9 @@ func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error
 	if n1OctetDefinition(d) {
 		return auditN1OctetPoint(ctx, conn, d)
 	}
+	if wcProgressSnapshotOctetDefinition(d) {
+		return auditWCProgressSnapshotOctets(ctx, conn)
+	}
 	if issuerOctetDefinition(d) {
 		return auditIssuerOctetKey(ctx, conn)
 	}
@@ -306,6 +309,9 @@ func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error
 func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
 	if _, found := n1OctetPointFor(d.ID); found && !n1OctetDefinition(d) {
 		return fmt.Errorf("plan %s: N1 byte preflight requires its exact closed point definition", d.ID)
+	}
+	if d.ID == wcProgressSnapshotOctetsID && !wcProgressSnapshotOctetDefinition(d) {
+		return fmt.Errorf("plan %s: complete closed WC snapshot length point required", d.ID)
 	}
 	if d.ID == issuerSourceLengthsID && !issuerOctetDefinition(d) {
 		return fmt.Errorf("plan %s: issuer byte preflight requires the exact closed read definition", d.ID)
