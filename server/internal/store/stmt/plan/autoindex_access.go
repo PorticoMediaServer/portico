@@ -175,7 +175,7 @@ func checkAutoindexAccess(d stmt.Definition, audits []AutoIndexAudit, eqp Rows) 
 		for _, col := range a.Binding.Columns {
 			full = full && equal[strings.ToLower(col.Name)] > 0
 		}
-		if full && nativeKeyPrefix(a, native, len(a.Binding.Columns), "") {
+		if full && (nativeKeyPrefix(a, native, len(a.Binding.Columns), "") || rbAdditionalRowIDPoint(d, a, native)) {
 			continue
 		}
 		if p.dml != nil || len(p.sources) != 1 || !p.limit || !allPlain {
