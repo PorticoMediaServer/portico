@@ -98,6 +98,10 @@ func TestN1EngineAttestsEveryReplacementBeforeBegin(t *testing.T) {
 		if err := refreshWriterWAL(path, wal, w.now); err != nil {
 			t.Fatal(err)
 		}
+		request.RestartRisk, err = wal.RestartRisk(cp.now())
+		if err != nil {
+			t.Fatal(err)
+		}
 		decision := g.Try(request)
 		if decision.Grant == nil {
 			t.Fatal(decision.Refusal)
