@@ -145,6 +145,11 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 		return zero, result, ErrInput
 	}
 	if recipe, e := resolveReadPolicy(in); e != nil {
+		// Zero-library input keeps its original input-error precedence unless it
+		// resolves to the one closed principal scope. No SQL has started here.
+		if in.Library == 0 {
+			return zero, result, ErrInput
+		}
 		return zero, result, e
 	} else if !validReadPolicyScope(in, recipe) {
 		return zero, result, ErrInput
