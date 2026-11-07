@@ -256,7 +256,7 @@ func homeManifestLibraryRead(s *savedViewSession, q browseQuery, f browseFence, 
 }
 func homeManifestFrameRead(s *savedViewSession, q browseQuery, in BrowseInput) (homeManifestFrame, error) {
 	var frame homeManifestFrame
-	f, e := readSavedViewPrincipal(q, s.input(in))
+	f, e := readHomeManifestPrincipal(q, s.input(in))
 	if e != nil {
 		return frame, e
 	}
