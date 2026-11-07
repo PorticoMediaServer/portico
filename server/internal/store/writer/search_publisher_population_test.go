@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -161,8 +162,10 @@ func (p publisherPopulationTemplate) put(t *testing.T, tx *sql.Tx, overrides map
 
 func publisherPopulationCounts(t *testing.T, e *executor) map[string]int64 {
 	t.Helper()
+	// FTS5 external-content COUNT(*) projects its content view, even when the
+	// inverted index is empty. Count actual native document-size rows instead.
 	counts := make(map[string]int64)
-	for _, table := range []string{"catalog_subjects", "catalog_entities", "search_publish_jobs", "search_publications", "search_image_seals", "search_reclaim_jobs", "search_fragments", "search_fragment_prefix", "search_fragment_lexical", "search_fragment_grams", "search_own_prefix"} {
+	for _, table := range []string{"catalog_subjects", "catalog_entities", "search_publish_jobs", "search_publications", "search_image_seals", "search_reclaim_jobs", "search_fragments", "search_fragment_prefix_docsize", "search_fragment_lexical_docsize", "search_fragment_grams_docsize", "search_own_prefix_docsize"} {
 		var n int64
 		if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM "`+table+`"`).Scan(&n); err != nil {
 			t.Fatal(err)
@@ -191,6 +194,13 @@ func preparePublisherPopulation(t *testing.T, purpose CommandID, offers, backgro
 	}
 	e := p.e
 	baseline := publisherPopulationCounts(t, e)
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if publisherMeasurementOnMini1(host) && baseline["catalog_entities"]+int64(offers+background) >= 100000 {
+		t.Fatal("mini-1 physical catalog population >=100k is prohibited, including canonical seed rows")
+	}
 	subject := publisherReadPopulationTemplate(t, e, "catalog_subjects", 41)
 	entity := publisherReadPopulationTemplate(t, e, "catalog_entities", 41)
 	job := publisherReadPopulationTemplate(t, e, "search_publish_jobs", 29)
@@ -286,9 +296,9 @@ func preparePublisherPopulation(t *testing.T, purpose CommandID, offers, backgro
 		switch table {
 		case "search_publications", "search_reclaim_jobs":
 			delta *= 2
-		case "search_fragments", "search_fragment_prefix", "search_fragment_lexical", "search_fragment_grams":
+		case "search_fragments", "search_fragment_prefix_docsize", "search_fragment_lexical_docsize", "search_fragment_grams_docsize":
 			delta = int64(sealed) * 3
-		case "search_own_prefix":
+		case "search_own_prefix_docsize":
 			delta = int64(sealed)
 		}
 		if count != baseline[table]+delta {
