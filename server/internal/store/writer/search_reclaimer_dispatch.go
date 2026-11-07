@@ -20,7 +20,7 @@ func checkSearchReclaimerDisclosure(w *Writer, c *PublisherDisclosure, q searchR
 		return err
 	}
 	s := c.scope
-	if s.kind != publisherReclaimerScope || s.jobID != 0 || s.incarnation != ([16]byte{}) ||
+	if s.jobID != 0 || s.incarnation != ([16]byte{}) ||
 		s.reclaimer.jobID <= 0 || s.reclaimer.publicationID <= 0 ||
 		s.reclaimer.jobID != q.ReclaimerID || s.reclaimer.publicationID != q.PublicationID ||
 		s.reclaimer.incarnation != q.Receipt.Identity.Incarnation ||
