@@ -3,10 +3,18 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "scan",
-		resultTypes: []string{"InventoryResult", "inventoryReceiptLookup", "scanLifecycleReceiptLookup", "scanLifecycleCommandResult", "scanSourceFacts", "ScanRunLease", "ScanRunOperation", "ScanRunResult", "ScanRunSnapshot", "scanByteVector", "scanLifecycleByteProof", "scanReceiptPrefix", "scanMemberByteProof", "scanSnapshotByteProof", "scanRunSnapshot"},
-		names:       []string{"disclose", "requireInventoryMemory", "inventoryTimeMS", "scanCreateTimeMS", "scanClaimTimeMS", "requireScanLifecycleMemory", "applyInventoryCreate", "applyInventoryClaim", "persistScanRunLifecycleResult", "acknowledgeScanRunLifecycle", "composeScanLifecycleHistory", "ObserveInventory", "newScanPreparation", "newScanDriver", "keepPreparation", "prepareWork", "allocateBirth", "prepareBirth", "checkBirthAbsence", "excludeOldWork", "Lease", "PrepareClaim", "PrepareCreate", "checkScanSourceActive", "composeScanLifecycleProfiles", "configureScanIssuer", "excludePredecessor", "retainIssuerPreparation", "retainSourcePreparation", "readScanReceiptIdentity", "requireScanByteMemory"},
+		resultTypes: []string{"InventoryResult", "inventoryReceiptLookup", "scanLifecycleReceiptLookup", "scanLifecycleCommandResult", "scanSourceFacts", "ScanRunLease", "ScanRunOperation", "ScanRunResult", "ScanRunSnapshot", "scanByteVector", "scanLifecycleByteProof", "scanReceiptPrefix", "scanMemberByteProof", "scanSnapshotByteProof", "scanRunSnapshot", "InventoryAcceptCommand", "N1Preparation", "InventoryPreparationSnapshot"},
+		names:       []string{"disclose", "requireInventoryMemory", "inventoryTimeMS", "scanCreateTimeMS", "scanClaimTimeMS", "requireScanLifecycleMemory", "applyInventoryCreate", "applyInventoryClaim", "persistScanRunLifecycleResult", "acknowledgeScanRunLifecycle", "composeScanLifecycleHistory", "ObserveInventory", "newScanPreparation", "newScanDriver", "keepPreparation", "prepareWork", "allocateBirth", "prepareBirth", "checkBirthAbsence", "excludeOldWork", "Lease", "PrepareClaim", "PrepareCreate", "checkScanSourceActive", "composeScanLifecycleProfiles", "configureScanIssuer", "excludePredecessor", "retainIssuerPreparation", "retainSourcePreparation", "readScanReceiptIdentity", "requireScanByteMemory", "composeInventoryPreparation"},
 		prefixes:    []string{"checkInventory"},
 		bypasses: []string{
+			`func readScanByteLengths(ctx context.Context)(value scanByteVector,err error){return value,nil}`,
+			`func readScanLifecycleByteProof(ctx context.Context)(value scanLifecycleByteProof,err error){return value,nil}`,
+			`func readScanReceiptOwnerPrefix(ctx context.Context)(value scanReceiptPrefix,err error){return value,nil}`,
+			`func readScanMemberByteProof(ctx context.Context)(value scanMemberByteProof,err error){return value,nil}`,
+			`func readCheckedScanRunSnapshot(ctx context.Context)(value scanRunSnapshot,err error){return value,nil}`,
+			`func Freeze(ctx context.Context)(value InventoryAcceptCommand,err error){return nil,nil}`,
+			`func arbitraryInventoryEntry(ctx context.Context)(value *N1Preparation,err error){return &N1Preparation{},nil}`,
+			`func Snapshot(ctx context.Context)(value InventoryPreparationSnapshot,err error){return InventoryPreparationSnapshot{},nil}`,
 			`func byteProofBypass(ctx context.Context)(out scanByteVector,err error){return out,nil}`,
 			`func readScanReceiptIdentity(ctx context.Context)(out receiptFacts,err error){return out,nil}`,
 			`func requireScanByteMemory(ctx context.Context)(err error){return nil}`,

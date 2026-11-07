@@ -166,7 +166,7 @@ func (d *ScanDriver) excludeOldWork(ctx context.Context, turn *commandTurn, befo
 	if r.fenced || r.executor.fenced || r.executor.ambiguous {
 		return ErrResolveRequired
 	}
-	actual, err := readScanRunSnapshot(ctx, turn, before.run.scope.runID)
+	actual, err := readCheckedScanRunSnapshot(ctx, turn, before.run.scope.runID)
 	if err != nil || actual != before {
 		return errors.Join(ErrConflict, err)
 	}
