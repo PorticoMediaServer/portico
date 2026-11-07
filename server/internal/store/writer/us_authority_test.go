@@ -30,7 +30,7 @@ func usOwnerAuthorityFixture(t *testing.T) (*executor, *stmt.Registry, *usLibrar
 		{`INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('issuer-device','issuer',?,'Issuer','test','test','1','','')`, []any{witness.installationID}},
 		{`INSERT INTO identity_pin_lineages(id,account_id,origin_device_id,created_at) VALUES('issuer-lineage','issuer','issuer-device','')`, nil},
 		{`INSERT INTO identity_state(singleton,sign_in_kind,authority_generation) VALUES(1,'local',1) ON CONFLICT(singleton) DO UPDATE SET sign_in_kind='local',authority_generation=1`, nil},
-		{`INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,pin_lineage_id,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES('issuer-family','server','issuer','issuer-profile','local','owner',1,?,1,'issuer-device','issuer-lineage',?,?,?)`, []any{witness.horizon, witness.issuer.memberIncarnation, witness.issuer.profileLifetime, []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}},
+		{`INSERT INTO authorization_session_families(security_kind,id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,pin_lineage_id,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES(0,'issuer-family','server','issuer','issuer-profile','local','owner',1,?,1,'issuer-device','issuer-lineage',?,?,?)`, []any{witness.horizon, witness.issuer.memberIncarnation, witness.issuer.profileLifetime, []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}},
 		{`INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES(?,'issuer-family',1,?)`, []any{witness.issuer.tokenDigest, witness.tokenExpiry}},
 		{`INSERT INTO identity_security_fences(id,scope_kind,account_id,member_incarnation,device_id,updated_ms) VALUES(1,'device','issuer',?,'issuer-device',0)`, []any{witness.issuer.memberIncarnation}},
 		{`INSERT INTO authorization_family_security_fences(family_id,scope_kind,fence_id,confirmed_generation) VALUES('issuer-family','device',1,1)`, nil},
@@ -167,5 +167,40 @@ func TestUSOwnerAuthorityCurrentServerBeforeSavedBinding(t *testing.T) {
 	auth, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), budget)
 	if auth != nil || !errors.Is(err, ErrDisclosureDenied) {
 		t.Fatal("old server scope reached saved owner lookup", err)
+	}
+}
+
+func TestUSOwnerAuthorityExcludesCredentialFamiliesBeforeReceipts(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		kind          int
+		marker, drain bool
+	}{
+		{"credential_birth_without_marker", 1, false, false},
+		{"transitional_ordinary_with_marker", 0, true, false},
+		{"credential_birth_after_marker_drain", 1, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, r, input, proof := usOwnerAuthorityFixture(t)
+			if _, err := w.db.ExecContext(t.Context(), `UPDATE authorization_session_families SET security_kind=? WHERE id='issuer-family'`, tc.kind); err != nil {
+				t.Fatal(err)
+			}
+			if tc.marker {
+				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms) VALUES('credential','key','issuer','issuer-profile','Key','[]',?,'hint','issuer-family','issuer-device',0)`, usCredentialFixtureHash("credential-authority-marker")); err != nil {
+					t.Fatal(err)
+				}
+				if tc.drain {
+					if _, err := w.db.ExecContext(t.Context(), `DELETE FROM api_credentials WHERE id='credential'`); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			turn, synthetic, _ := usPolicyReceiptTurn(t, w, r, input)
+			delete(turn.steps, usSecurityOwner)
+			out, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), usPolicyAuthorityBudget{memory: 4 << 20, receipts: 1 << 20, fixture: synthetic.nativeFixture})
+			if out != nil || !errors.Is(err, ErrDisclosureDenied) {
+				t.Fatal("credential family reached receipt authority", err)
+			}
+		})
 	}
 }

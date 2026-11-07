@@ -14,7 +14,7 @@ func usPINFenceFixture(t *testing.T) (*executor, *stmt.Registry, usPolicyIssuer)
 	w, _, input, _ := usOwnerAuthorityFixture(t)
 	for n := range 8 {
 		id := fmt.Sprintf("sibling-family-%d", n)
-		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,pin_lineage_id,command_member_incarnation,command_profile_lifetime,command_incarnation,pin_gate) SELECT ?1,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,pin_lineage_id,command_member_incarnation,command_profile_lifetime,command_incarnation,1 FROM authorization_session_families WHERE id='issuer-family'`, id); err != nil {
+		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO authorization_session_families(security_kind,id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,pin_lineage_id,command_member_incarnation,command_profile_lifetime,command_incarnation,pin_gate) SELECT 0,?1,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,pin_lineage_id,command_member_incarnation,command_profile_lifetime,command_incarnation,1 FROM authorization_session_families WHERE id='issuer-family'`, id); err != nil {
 			t.Fatal(err)
 		}
 	}

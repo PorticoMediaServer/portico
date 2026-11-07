@@ -165,6 +165,7 @@ func authorizeUSOwnerPolicy(ctx context.Context, turn *commandTurn, p *usOwnerAu
 		{usAuthorityDevice, []any{w.device, i.account, w.installationID}, true},
 		{usAuthorityInstallation, []any{p.installationHash, i.installation}, true},
 		{usAuthorityGrant, []any{i.family}, false},
+		{usAuthorityCredential, []any{i.family}, false},
 		{usAuthorityWaiting, []any{i.account}, false},
 	} {
 		if err = usAuthorityPresence(ctx, turn, check.id, check.present, check.args...); err != nil {

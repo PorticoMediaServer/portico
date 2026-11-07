@@ -8,6 +8,14 @@
 -- proof + revision/fence generation transition, never resurrection by old token.
 ALTER TABLE identity_devices ADD COLUMN retired_ms INTEGER NOT NULL DEFAULT 0 CHECK(retired_ms>=0);
 
+-- Explicit immutable birth provenance: 0 ordinary interactive family,
+-- 1 API/key/token/app-password/integration credential family. No default:
+-- every fresh producer must choose its concrete type. A credential family
+-- never becomes ordinary when its credential marker is physically drained.
+-- Fresh EMPTY pre-release schema only; this changes the phase-1a parent layout.
+ALTER TABLE authorization_session_families ADD COLUMN security_kind INTEGER NOT NULL CHECK(security_kind IN(0,1));
+
+
 -- Retained original command scope and exact sequence/ACK/reclaim custody.
 -- Source account/profile/device deletion cannot cascade away receipt authority.
 -- These are exact counters, not a new 128-receipt/32-MiB product quota; W owns

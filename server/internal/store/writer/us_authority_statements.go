@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	usAuthorityCredential    stmt.ID = "us.authority.credential"
 	usAuthorityCurrentServer stmt.ID = "us.authority.current_server"
 	usAuthorityPrincipalPIN  stmt.ID = "us.authority.principal_pin"
 	usAuthorityFamily        stmt.ID = "us.authority.family"
@@ -49,7 +50,7 @@ func usAuthorityDefinitions() []stmt.Definition {
 		{ID: usAuthorityFamily, SQL: `SELECT f.control_variable_bytes,f.pin_gate FROM authorization_family_tokens AS t INDEXED BY sqlite_autoindex_authorization_family_tokens_1
 CROSS JOIN authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1 ON f.id=t.family_id
 WHERE t.token_hash=? AND f.id=? AND t.generation=? AND t.retired=0 AND t.expires_at=?
-AND f.server_id=? AND f.account_id=? AND f.profile_id=? AND f.authority='local' AND f.role='owner'
+AND f.server_id=? AND f.account_id=? AND f.profile_id=? AND f.authority='local' AND f.role='owner' AND f.security_kind=0
 AND f.epoch=? AND f.current_generation=t.generation AND f.authority_generation=? AND f.revoked=0
 AND f.command_member_incarnation=? AND f.command_profile_lifetime=? AND f.device_id=?
 AND f.authorization_horizon=? AND f.remember_until=? AND f.manage_until=? AND f.pin_lineage_id=?`,
@@ -72,6 +73,7 @@ AND s.profile_id=? AND s.profile_lifetime=? AND s.device_id=? AND s.lineage_id=?
 AND s.denied=0 AND w.confirmed_generation=s.generation`, Params: []stmt.Param{text("family"), text("kind"), text("account"), text("member"), text("profile"), text("lifetime"), text("device"), text("lineage")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"w", "s"}, Seeks: []string{"family_id=? AND scope_kind=?", "rowid=?"}}},
 	}
 	defs = append(defs, stmt.Definition{ID: usAuthorityCurrentServer, SQL: `SELECT 1 FROM configuration INDEXED BY sqlite_autoindex_configuration_1 WHERE key='id' AND value=?`, Params: []stmt.Param{text("server")}, Plan: point("configuration", "sqlite_autoindex_configuration_1", "pk", "key")})
+	defs = append(defs, stmt.Definition{ID: usAuthorityCredential, SQL: `SELECT 1 FROM api_credentials INDEXED BY sqlite_autoindex_api_credentials_3 WHERE family_id=?`, Params: []stmt.Param{text("family")}, Plan: point("api_credentials", "sqlite_autoindex_api_credentials_3", "u", "family_id")})
 	// The second closed point distinguishes protected from absent principals
 	// without copying an unbounded PIN hash or extending the SQL grammar.
 	protected := defs[1]
@@ -79,6 +81,7 @@ AND s.denied=0 AND w.confirmed_generation=s.generation`, Params: []stmt.Param{te
 	protected.SQL = strings.Replace(protected.SQL, "p.pin_hash IS NULL", "p.pin_hash IS NOT NULL", 1)
 	defs = append(defs, protected)
 	cohorts := map[stmt.ID][]any{
+		usAuthorityCredential:    {"issuer-family"},
 		usAuthorityCurrentServer: {"server"},
 		usAuthorityFamily:        {"UwZhzs548lfFuN7ngGv2H3QswZNRnNtn9rugLkKkejA", "issuer-family", int64(1), "2026-11-08T00:00:00Z", "server", "issuer", "issuer-profile", int64(1), int64(1), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "issuer-device", "2026-11-08T00:00:00Z", "", "", "issuer-lineage"},
 		usAuthorityPrincipal:     {"issuer", int64(1), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "issuer-profile", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},

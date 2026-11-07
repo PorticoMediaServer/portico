@@ -64,7 +64,7 @@ func TestUSSessionResultSchemaAndOneRefreshReceipt(t *testing.T) {
 	} {
 		refuse(q)
 	}
-	exec(`INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,current_generation,authorization_horizon,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES('session-family','server','account','profile','local','owner',1,1,'2026-11-08T14:00:00Z',?,?,zeroblob(16))`, strings.Repeat("a", 32), strings.Repeat("b", 32))
+	exec(`INSERT INTO authorization_session_families(security_kind,id,server_id,account_id,profile_id,authority,role,epoch,current_generation,authorization_horizon,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES(0,'session-family','server','account','profile','local','owner',1,1,'2026-11-08T14:00:00Z',?,?,zeroblob(16))`, strings.Repeat("a", 32), strings.Repeat("b", 32))
 	exec(`INSERT INTO identity_refresh_receipts VALUES('previous','session-family','request',X'00','2026-11-08T14:00:00Z')`)
 	refuse(`INSERT INTO identity_refresh_receipts VALUES('second','session-family','another',X'00','2026-11-08T14:00:00Z')`)
 	var actual string

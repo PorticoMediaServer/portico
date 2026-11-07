@@ -43,3 +43,26 @@ func TestUSSchemaDraftLoadsAndRejectsNullCustody(t *testing.T) {
 		}
 	}
 }
+
+func TestUSFamilyBirthRequiresExplicitSecurityKind(t *testing.T) {
+	w := usSchemaDraftFixture(t)
+	const columns = `id,server_id,account_id,profile_id,authority,role,epoch,current_generation,authorization_horizon,command_member_incarnation,command_profile_lifetime,command_incarnation`
+	const values = `'family','server','account','profile','local','owner',1,1,'2026-11-08T14:00:00Z','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',zeroblob(16)`
+	for _, value := range []string{"omitted", "NULL", "-1", "2", "'interactive'"} {
+		query := `INSERT INTO authorization_session_families(` + columns + `) VALUES(` + values + `)`
+		if value != "omitted" {
+			query = `INSERT INTO authorization_session_families(` + columns + `,security_kind) VALUES(` + values + `,` + value + `)`
+		}
+		if _, err := w.db.ExecContext(t.Context(), query); err == nil {
+			t.Fatalf("accepted unspecified/invalid birth kind %s", value)
+		}
+	}
+	for _, kind := range []int{0, 1} {
+		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO authorization_session_families(`+columns+`,security_kind) VALUES(`+values+`,?)`, kind); err != nil {
+			t.Fatal("explicit birth kind rejected", kind, err)
+		}
+		if _, err := w.db.ExecContext(t.Context(), `DELETE FROM authorization_session_families WHERE id='family'`); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

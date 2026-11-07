@@ -38,7 +38,7 @@ func usSessionDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: usSessionDeviceCheck, SQL: `SELECT revision FROM identity_devices INDEXED BY sqlite_autoindex_identity_devices_1 WHERE id=? AND authority='local' AND account_id=? AND installation_id=?`, Params: []stmt.Param{text("device"), text("account"), text("installation")}, Plan: point("identity_devices", "id")},
 		{ID: usSessionFamilyAdvance, SQL: `UPDATE authorization_session_families INDEXED BY sqlite_autoindex_authorization_session_families_1 SET current_generation=?,authorization_horizon=?
-WHERE id=? AND server_id=? AND account_id=? AND profile_id=? AND authority='local'
+WHERE id=? AND server_id=? AND account_id=? AND profile_id=? AND authority='local' AND security_kind=0
 AND epoch=? AND current_generation=? AND authority_generation=?
 AND command_member_incarnation=? AND command_profile_lifetime=? AND command_incarnation=?
 AND authorization_horizon=? AND authorization_horizon>? AND revoked=0 AND device_id=?

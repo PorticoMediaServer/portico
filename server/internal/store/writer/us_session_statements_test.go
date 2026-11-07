@@ -16,7 +16,7 @@ import (
 
 func usSessionNativeFixture(t *testing.T) (*executor, *stmt.Registry) {
 	t.Helper()
-	w, _ := testCanonicalExecutor(t)
+	w := usSchemaDraftFixture(t)
 	i, q, clocks := usSessionFixture(usSessionRenewal)
 	c, err := prepareUSSessionRenewal(i, q, clocks)
 	if err != nil {
@@ -33,7 +33,7 @@ func usSessionNativeFixture(t *testing.T) (*executor, *stmt.Registry) {
 	exec(`INSERT INTO direct_profiles(id,account_id,lifetime,name) VALUES('us-profile','us-account',?,'Profile')`, q.pins.profileLifetime)
 	exec(`INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('us-device','us-account',?,'Device','test','test','1',?,?)`, q.pins.installation, clocks.now, clocks.now)
 	for _, family := range []string{"us-family", "us-other-family"} {
-		exec(`INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,authority_generation,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES(?,'us-server','us-account','us-profile','local','member',7,?,3,'us-device',2,?,?,?)`, family, q.pins.horizon, q.pins.memberIncarnation, q.pins.profileLifetime, q.pins.incarnation[:])
+		exec(`INSERT INTO authorization_session_families(security_kind,id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,authority_generation,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES(0,?,'us-server','us-account','us-profile','local','member',7,?,3,'us-device',2,?,?,?)`, family, q.pins.horizon, q.pins.memberIncarnation, q.pins.profileLifetime, q.pins.incarnation[:])
 	}
 	exec(`INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES(?,'us-family',3,?)`, q.pins.accessDigest, q.pins.accessExpiresAt)
 	exec(`INSERT INTO identity_refresh_credentials(family_id,device_id,token_hash,generation,expires_at) VALUES('us-family','us-device',?,1,?)`, usCredentialFixtureHash("session-fixture-e"), q.pins.horizon)
@@ -213,6 +213,29 @@ func TestUSSessionNativeStaleBindingsAndPrefixRollback(t *testing.T) {
 			}
 			usSessionNativeReadback(t, w, 3, 0)
 		})
+	}
+}
+
+func TestUSSessionRotationExcludesCredentialBirth(t *testing.T) {
+	for _, kind := range []CommandID{usSessionRenewal, usSessionRefresh} {
+		w, registry := usSessionNativeFixture(t)
+		if _, err := w.db.ExecContext(t.Context(), `UPDATE authorization_session_families SET security_kind=1 WHERE id='us-family'`); err != nil {
+			t.Fatal(err)
+		}
+		i, q, clocks := usSessionFixture(kind)
+		c, err := prepareUSSessionRotation(kind, i, q, clocks)
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn := usSessionNativeTurn(t, w, registry, c)
+		result, err := applyUSSessionRotation(t.Context(), turn, c, clocks.now)
+		if !errors.Is(err, ErrConflict) || result != (usSessionNativeResult{}) {
+			t.Fatal("credential family rotated through interactive recipe", result, err)
+		}
+		if _, err := turn.transaction.rollback(nil); err != nil {
+			t.Fatal(err)
+		}
+		usSessionNativeReadback(t, w, 3, 0)
 	}
 }
 
