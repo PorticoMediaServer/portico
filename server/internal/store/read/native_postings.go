@@ -347,7 +347,7 @@ func nativeLogicalField(ctx context.Context, query browseQuery, scope *fullQuery
 	if err != nil {
 		return empty, first, err
 	}
-	if proof.matched[term] && first.slot == 0 {
+	if !scope.preview && proof.matched[term] && first.slot == 0 {
 		return empty, first, errors.Join(ErrUnqualified, errors.New("verified source has no native candidate witness"))
 	}
 	return proof, first, nil
