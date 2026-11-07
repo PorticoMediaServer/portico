@@ -114,3 +114,13 @@ refreshed or adopted here.
 
 The final route-bound refinement is checked with its new targeted subtest only;
 previous unchanged manifest/plan controls are reused from the baseline run.
+
+## Parent integration
+
+Fresh-main integration composes the frozen saved-view source, uses a separate
+private stateful principal recipe through RS's merged registry (ID32501), and
+adds source-bound frozen Capture receipts in both statistics profiles. The
+principal purpose does not substitute for actual library/resource projection
+and the complete fresh final frame. Functional subtests use virtual time.
+No common registry/fence hunk is changed; the 1024-call forecast and ≤16-library
+cold fallback remain explicit qualification debt, not the B-R01 target claim.
