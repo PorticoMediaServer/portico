@@ -36,6 +36,7 @@ type scanPreparation struct {
 	stopOpening                                  func() bool
 	stopDriver                                   func() bool
 	operation                                    *ScanRunOperation
+	inventory                                    *N1Preparation
 	mode                                         scanPreparationMode
 	stopScope                                    func() bool
 	grant                                        *governor.Grant
@@ -89,7 +90,7 @@ func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateo
 	}
 	if mode == scanHistoryPreparation {
 		// Recovery has no live source/root or native observation authority.
-		if expected.Key.Domain == uint16(InventoryAccept) || len(request.Root) != 0 || len(request.RelativePath) != 0 ||
+		if len(request.Root) != 0 || len(request.RelativePath) != 0 ||
 			request.RootIdentity != "" || request.DirectoryRevision != "" || request.Cursor != "" || request.Limit != 0 || request.FollowSymlinks {
 			return nil, ErrInvalid
 		}
@@ -359,6 +360,20 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 			o.driver.operation = nil
 		}
 		p.operation = nil
+	}
+	if n := p.inventory; n != nil {
+		if work := n.driver.work; work != nil && work.preparation == p {
+			n.driver.work = nil
+		}
+		if n.command != nil {
+			n.command.valid, n.command.request = false, inventoryAcceptRequest{}
+			n.command = nil
+		}
+		n.preparedBytes = 0
+		n.reference, n.last = ScanReceiptRequest{}, InventoryResult{}
+		n.template = InventoryAcceptInput{}
+		n.closed, n.preparation = true, nil
+		p.inventory = nil
 	}
 	p.request, p.observed, p.expected, p.key = nativeinventory.Request{}, nil, governor.Request{}, ""
 	if p.source != nil {
