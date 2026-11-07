@@ -48,6 +48,7 @@ type IATVResult struct {
 	Hierarchy             IATVHierarchy
 	Children              []IATVEntity
 	Members               []IATVMember
+	AssetAvailable        bool
 	Exhausted             bool
 	Next                  *IATVCursor
 	RawRows, RawPositions int
@@ -232,9 +233,6 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 		if e != nil {
 			return nil, e
 		}
-		if mode == "members" && row[1].(int64) == 0 {
-			return nil, ErrNotReady
-		}
 		if in.After != nil && !equalSource(in.After.source, row) {
 			return nil, ErrStale
 		}
@@ -243,6 +241,9 @@ func (r *ForegroundReader) iaTV(ctx context.Context, request governor.Request, b
 	}
 	steps := []readStep[IATVResult]{func(ctx context.Context, q browseQuery, f browseFence, d *IATVResult) error {
 		keys = nil
+		if mode == "members" {
+			d.AssetAvailable = capturedSource[1].(int64) != 0
+		}
 		if in.After != nil && (in.After.fence != f || in.After.item != in.Item) {
 			return ErrStale
 		}
