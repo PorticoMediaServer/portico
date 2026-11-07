@@ -2,7 +2,6 @@ package writer
 
 import (
 	"context"
-	"crypto/sha256"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"math"
 	"strings"
@@ -36,6 +35,8 @@ const (
 )
 
 type mpHLSEffect struct {
+	asset                                                                                                                                                                                             string
+	mode                                                                                                                                                                                              string
 	physicalExit                                                                                                                                                                                      mpPhysicalExitFacts
 	state                                                                                                                                                                                             string
 	media, execution, windowExecution, planDigest, artifactDigest, artifactName, rendition, backend, status, exitDigest, readPin, sourceVersion                                                       string
@@ -46,7 +47,7 @@ type mpHLSEffect struct {
 }
 
 func mpHLSResult(p mpPhysicalState) mpHLSEffect {
-	return mpHLSEffect{physicalExit: p.exit, state: p.state, reservedBytes: p.reservedBytes, media: p.media, execution: p.execution, incarnation: p.incarnation, revision: p.revision, generation: p.generation, highestProduced: -1, highestServed: -1, physicalPending: !p.cleaned}
+	return mpHLSEffect{asset: p.asset, mode: p.mode, physicalExit: p.exit, state: p.state, reservedBytes: p.reservedBytes, media: p.media, execution: p.execution, incarnation: p.incarnation, revision: p.revision, generation: p.generation, highestProduced: -1, highestServed: -1, physicalPending: !p.cleaned}
 }
 func mpHLSName(s string) bool {
 	if len(s) == 0 || len(s) > 128 || strings.Contains(s, "..") {
@@ -200,6 +201,9 @@ func captureMPHLSWindow(ctx context.Context, t *commandTurn, f mpHLSWindowFence,
 		return out, err
 	}
 	out = mpHLSResult(p)
+	if _, err = mpHLSWindowNativeBytes(ctx, t, f); err != nil {
+		return
+	}
 	r, err := mpPrepRow(ctx, t, "mp.hls.window_current", f.physical.media, f.start)
 	if err != nil {
 		return
@@ -212,7 +216,7 @@ func captureMPHLSWindow(ctx context.Context, t *commandTurn, f mpHLSWindowFence,
 	}
 	out.windowStart = f.start
 	out.windowPending = cleaned == 0
-	if exited < 0 || exited > 1 || cleaned < 0 || cleaned > exited {
+	if writesRetired < 0 || writesRetired > 1 || exited < 0 || exited > 1 || cleaned < 0 || cleaned > exited {
 		return out, ErrResolveRequired
 	}
 	if out.windowExecution != f.execution || out.windowGeneration != f.generation || out.windowRevision != f.revision || out.windowEnd != f.end || occurrenceGeneration != f.physical.generation || out.planDigest != f.planDigest || sourceRequest != f.physical.request {
@@ -225,6 +229,7 @@ func captureMPHLSWindow(ctx context.Context, t *commandTurn, f mpHLSWindowFence,
 }
 
 type mpHLSWindowClaimInput struct {
+	expectedExecution                                               string
 	execution, planDigest                                           string
 	start, end, expectedRevision, expectedGeneration, reservedBytes int64
 }
@@ -234,7 +239,7 @@ func applyMPHLSWindowClaim(ctx context.Context, t *commandTurn, f mpPhysicalFenc
 	if err = mpPrepTurn(t, MPHLSWindowClaim); err != nil {
 		return
 	}
-	if !mpPrepTexts(q.execution) || !lowerHex(q.planDigest, 64) || q.start < 0 || q.end < q.start || q.end-q.start >= 900 || q.expectedRevision < 0 || q.expectedGeneration < 0 || q.expectedRevision == math.MaxInt64 || q.expectedGeneration == math.MaxInt64 || (q.expectedRevision == 0) != (q.expectedGeneration == 0) || q.reservedBytes <= 0 {
+	if !mpPrepTexts(q.execution) || !lowerHex(q.planDigest, 64) || q.start < 0 || q.end < q.start || q.end-q.start >= 900 || q.expectedRevision < 0 || q.expectedGeneration < 0 || q.expectedRevision == math.MaxInt64 || q.expectedGeneration == math.MaxInt64 || (q.expectedRevision == 0) != (q.expectedGeneration == 0) || (q.expectedRevision == 0 && q.expectedExecution != "") || (q.expectedRevision > 0 && (!mpPrepTexts(q.expectedExecution) || q.expectedExecution == q.execution)) || q.reservedBytes <= 0 {
 		return out, ErrInvalid
 	}
 	p, err := captureMPPhysical(ctx, t, f, true)
@@ -257,19 +262,13 @@ func applyMPHLSWindowClaim(ctx context.Context, t *commandTurn, f mpPhysicalFenc
 		return out, ErrResolveRequired
 	}
 	if q.expectedRevision == 0 {
-		if err = mpPrepOne(ctx, t, "mp.hls.window_insert", f.media, q.start, q.start-1, f.nowMS); err != nil {
-			return
-		}
-		if err = mpPrepOne(ctx, t, "mp.hls.window_custody_insert", f.media, q.start, q.execution, f.generation, q.end, q.planDigest, f.request); err != nil {
+		if err = mpPrepOne(ctx, t, "mp.hls.window_insert", f.media, q.start, q.start-1, f.nowMS, f.generation, q.execution, f.request, q.end, q.planDigest); err != nil {
 			return
 		}
 	} else {
 		// A same-key restart MUST consume the exact exited+cleaned old execution.
 		// An expired lease, failed status or process cancellation cannot satisfy it.
-		if err = mpPrepOne(ctx, t, "mp.hls.window_reclaim", q.execution, f.generation, q.end, q.planDigest, f.request, f.media, q.start, q.expectedRevision, q.expectedGeneration); err != nil {
-			return
-		}
-		if err = mpPrepOne(ctx, t, "mp.hls.window_restart", f.nowMS, f.media, q.start); err != nil {
+		if err = mpPrepOne(ctx, t, "mp.hls.window_reclaim", f.nowMS, q.execution, f.generation, q.end, q.planDigest, f.request, f.media, q.start, q.expectedRevision, q.expectedGeneration, q.expectedExecution, f.generation, f.request); err != nil {
 			return
 		}
 	}
@@ -429,9 +428,6 @@ func applyMPHLSWindowCancel(ctx context.Context, t *commandTurn, f mpHLSWindowFe
 		return
 	}
 	if err = mpPrepOne(ctx, t, "mp.hls.window_cancel", int64(1), f.physical.media, f.start, f.generation, f.execution, f.revision, f.physical.request); err != nil {
-		return
-	}
-	if err = mpPrepOne(ctx, t, "mp.hls.window_failed", f.physical.media, f.start); err != nil {
 		return
 	}
 	if err = bumpMPPin(ctx, t, f.physical); err != nil {
@@ -701,49 +697,6 @@ func applyMPHLSReservationRelease(ctx context.Context, t *commandTurn, f mpPhysi
 	return
 }
 
-func mpHLSDomainResultDigest(h mpPrepReceiptHeader, r mpHLSEffect) (ResultDigest, error) {
-	if h.kind < MPHLSReserve || h.kind > MPHLSReconcile || !mpPrepHeaderValid(h) || !mpPrepTexts(r.media, r.execution, r.state) || r.incarnation == ([16]byte{}) || r.revision <= 0 || r.generation <= 0 || r.reservedBytes < 0 || r.size < 0 || r.cleanupCursor < 0 || r.windowGeneration < 0 || r.windowRevision < 0 {
-		return ResultDigest{}, ErrInvalid
-	}
-	e := &requestEncoder{h: sha256.New()}
-	e.bytes([]byte(canonicalResultCodec))
-	e.bytes([]byte{0, 1})
-	e.text("mp_hls_domain")
-	e.number(uint64(h.kind))
-	e.bytes(h.identity.Incarnation[:])
-	e.number(uint64(h.identity.Sequence))
-	e.bytes(h.identity.OperationID[:])
-	e.bytes(h.request[:])
-	e.number(uint64(h.appliedMS))
-	e.bytes(r.incarnation[:])
-	if !r.physicalExit.valid(r.generation, r.physicalPending) {
-		return ResultDigest{}, ErrInvalid
-	}
-	writeMPPhysicalExit(e, r.physicalExit)
-	for _, s := range []string{r.media, r.execution, r.windowExecution, r.planDigest, r.artifactDigest, r.artifactName, r.rendition, r.backend, r.status, r.exitDigest, r.readPin, r.sourceVersion, r.state} {
-		if !mpPrepText(s, true) {
-			return ResultDigest{}, ErrInvalid
-		}
-		e.text(s)
-	}
-	for _, n := range []int64{r.revision, r.generation, r.windowRevision, r.windowGeneration, r.windowStart, r.windowEnd, r.highestProduced, r.highestServed, r.intervalOrdinal, r.startUS, r.endUS, r.decodeFromUS, r.size, r.reservedBytes, r.cleanupCursor, int64(r.artifactKind)} {
-		e.number(uint64(n))
-	}
-	for _, b := range []bool{r.physicalPending, r.windowPending, r.throttled, r.ready, r.released} {
-		if b {
-			e.number(1)
-		} else {
-			e.number(0)
-		}
-	}
-	if e.err != nil {
-		return ResultDigest{}, e.err
-	}
-	var d ResultDigest
-	copy(d[:], e.h.Sum(nil))
-	return d, nil
-}
-
 func mpHLSWriteCount(ctx context.Context, t *commandTurn, id stmt.ID, want int64, args ...any) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
 	if t == nil || want < 1 || want > 32 {
@@ -842,5 +795,25 @@ func applyMPDirectDeliveryRetire(ctx context.Context, t *commandTurn, f mpPhysic
 	out.revision++
 	out.sourceVersion = sourceVersion
 	out.released = true
+	return
+}
+
+// Exact native text octets before copying the selected row. Parent admission
+// must cover these actual bytes; this check grants no independent memory credit.
+func mpHLSWindowNativeBytes(ctx context.Context, t *commandTurn, f mpHLSWindowFence) (bytes int64, err error) {
+	defer func() { bytes, err = finishCommand(ctx, commandLifetime(t), bytes, err) }()
+	if !f.valid() {
+		return 0, ErrInvalid
+	}
+	row, err := mpPrepRow(ctx, t, "mp.hls.window_octets", f.physical.media, f.start, f.execution, f.generation, f.revision, f.physical.generation, f.physical.request)
+	if err != nil {
+		return 0, err
+	}
+	if err = row.Scan(&bytes); err != nil {
+		return 0, err
+	}
+	if bytes < 0 || bytes > 65536 {
+		return 0, ErrInvalid
+	}
 	return
 }

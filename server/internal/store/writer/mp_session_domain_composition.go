@@ -360,6 +360,6 @@ func composeMPQueueSessionRetire(ctx context.Context, t *commandTurn, f mpSessio
 	out.stopGeneration = f.physical.generation
 	out.physicalPending = true
 	out.changed = true
-	out.retiredMedia = mpSessionRetireProjection{media: out.media, execution: out.stopExecution, sourceRequest: f.physical.request, incarnation: out.mediaIncarnation, generation: out.mediaGeneration, exit: out.physicalExit, physicalPending: true}
+	out.retiredMedia = mpSessionRetireProjection{item: out.item, asset: out.asset, media: out.media, execution: out.stopExecution, sourceRequest: f.physical.request, incarnation: out.mediaIncarnation, generation: out.mediaGeneration, exit: out.physicalExit, physicalPending: true}
 	return
 }

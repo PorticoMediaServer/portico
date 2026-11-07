@@ -34,6 +34,7 @@ const (
 )
 
 type mpSourcePinEffect struct {
+	mode                                                                                                                                   string
 	physicalExit                                                                                                                           mpPhysicalExitFacts
 	state                                                                                                                                  string
 	media, execution, asset, resource, version, source, incarnation, digest, grantHash, grantToken, expiresAt, ownerSession, originVersion string
@@ -44,7 +45,7 @@ type mpSourcePinEffect struct {
 }
 
 func mpPinResult(p mpPhysicalState, k mpPinKind) mpSourcePinEffect {
-	return mpSourcePinEffect{physicalExit: p.exit, state: p.state, media: p.media, mediaIncarnation: p.incarnation, execution: p.execution, asset: p.asset, revision: p.revision, generation: p.generation, kind: k, physicalPending: !p.cleaned}
+	return mpSourcePinEffect{mode: p.mode, physicalExit: p.exit, state: p.state, media: p.media, mediaIncarnation: p.incarnation, execution: p.execution, asset: p.asset, revision: p.revision, generation: p.generation, kind: k, physicalPending: !p.cleaned}
 }
 func bumpMPPin(ctx context.Context, t *commandTurn, f mpPhysicalFence) error {
 	return mpPrepOne(ctx, t, "mp.pins.bump", f.media, f.revision, f.generation, f.execution)
@@ -456,47 +457,4 @@ func applyMPSourceRemoteBindEffects(ctx context.Context, t *commandTurn, f mpPhy
 	out.size = q.size
 	out.acquired = true
 	return
-}
-
-func mpSourcePinsResultDigest(h mpPrepReceiptHeader, r mpSourcePinEffect) (ResultDigest, error) {
-	if h.kind < MPSourceInventoryPin || h.kind > MPSourceRemoteBind || !mpPrepHeaderValid(h) || r.kind < mpInventoryPin || r.kind > mpGrantPin || !mpPrepTexts(r.media, r.execution, r.asset, r.state) || r.mediaIncarnation == ([16]byte{}) || r.revision <= 0 || r.generation <= 0 || r.resourceRevision < 0 || r.size < 0 || r.configurationGeneration < 0 || r.expiresMS < 0 {
-		return ResultDigest{}, ErrInvalid
-	}
-	e := &requestEncoder{h: sha256.New()}
-	e.bytes([]byte(canonicalResultCodec))
-	e.bytes([]byte{0, 1})
-	e.text("mp_source_pins")
-	e.number(uint64(h.kind))
-	e.bytes(h.identity.Incarnation[:])
-	e.number(uint64(h.identity.Sequence))
-	e.bytes(h.identity.OperationID[:])
-	e.bytes(h.request[:])
-	e.number(uint64(h.appliedMS))
-	e.bytes(r.mediaIncarnation[:])
-	if !r.physicalExit.valid(r.generation, r.physicalPending) {
-		return ResultDigest{}, ErrInvalid
-	}
-	writeMPPhysicalExit(e, r.physicalExit)
-	for _, s := range []string{r.media, r.execution, r.asset, r.resource, r.version, r.source, r.incarnation, r.digest, r.grantHash, r.grantToken, r.expiresAt, r.ownerSession, r.originVersion, r.state} {
-		if !mpPrepText(s, true) {
-			return ResultDigest{}, ErrInvalid
-		}
-		e.text(s)
-	}
-	for _, v := range []int64{r.revision, r.generation, r.resourceRevision, r.size, r.configurationGeneration, r.expiresMS, int64(r.kind)} {
-		e.number(uint64(v))
-	}
-	for _, v := range []bool{r.acquired, r.released, r.physicalPending} {
-		if v {
-			e.number(1)
-		} else {
-			e.number(0)
-		}
-	}
-	if e.err != nil {
-		return ResultDigest{}, e.err
-	}
-	var d ResultDigest
-	copy(d[:], e.h.Sum(nil))
-	return d, nil
 }

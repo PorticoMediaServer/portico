@@ -53,19 +53,3 @@ func TestMPHLSDomainDraftTimelineAndPrivateInit(t *testing.T) {
 		t.Fatal("init with media timing")
 	}
 }
-func TestMPHLSDomainDraftOriginalWindowResult(t *testing.T) {
-	h := mpPrepReceiptHeader{identity: mpDraftIdentity(), request: RequestDigest{3}, kind: MPHLSArtifactPublish, appliedMS: 100}
-	r := mpHLSEffect{state: "preparing", media: "media", execution: "occurrence", incarnation: [16]byte{1}, revision: 5, generation: 2, windowExecution: "window-2", windowGeneration: 2, windowRevision: 3, windowStart: 10, windowEnd: 20, planDigest: strings.Repeat("a", 64), artifactDigest: strings.Repeat("b", 64), artifactName: "segment-10.m4s", artifactKind: mpMediaSegment, rendition: "main", size: 100, windowPending: true, physicalPending: true}
-	d, err := mpHLSDomainResultDigest(h, r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, mutate := range []func(*mpHLSEffect){func(r *mpHLSEffect) { r.windowExecution = "window-1" }, func(r *mpHLSEffect) { r.windowGeneration++ }, func(r *mpHLSEffect) { r.windowRevision++ }, func(r *mpHLSEffect) { r.cleanupCursor++ }, func(r *mpHLSEffect) { r.physicalPending = false }, func(r *mpHLSEffect) { r.artifactDigest = strings.Repeat("c", 64) }} {
-		q := r
-		mutate(&q)
-		next, e := mpHLSDomainResultDigest(h, q)
-		if e == nil && next == d {
-			t.Fatal("unbound original result", e)
-		}
-	}
-}

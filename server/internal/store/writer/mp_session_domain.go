@@ -90,6 +90,8 @@ func (x mpPhysicalExitFacts) valid(generation int64, pending bool) bool {
 }
 
 type mpSessionRetireProjection struct {
+	item                            int64
+	asset                           string
 	media, execution, sourceRequest string
 	incarnation                     [16]byte
 	generation                      int64
@@ -98,41 +100,7 @@ type mpSessionRetireProjection struct {
 }
 
 func mpRetireProjection(p mpPhysicalState) mpSessionRetireProjection {
-	return mpSessionRetireProjection{media: p.media, execution: p.execution, sourceRequest: p.request, incarnation: p.incarnation, generation: p.generation, exit: p.exit, physicalPending: !p.cleaned}
-}
-func writeMPSessionRetire(e *requestEncoder, r mpSessionRetireProjection) error {
-	if r.media == "" {
-		if r != (mpSessionRetireProjection{}) {
-			return ErrInvalid
-		}
-		e.number(0)
-		return nil
-	}
-	if !mpPrepTexts(r.media, r.execution, r.sourceRequest) || r.incarnation == ([16]byte{}) || r.generation <= 0 || !r.exit.valid(r.generation, r.physicalPending) {
-		return ErrInvalid
-	}
-	e.number(1)
-	e.text(r.media)
-	e.text(r.execution)
-	e.text(r.sourceRequest)
-	e.bytes(r.incarnation[:])
-	e.number(uint64(r.generation))
-	writeMPPhysicalExit(e, r.exit)
-	if r.physicalPending {
-		e.number(1)
-	} else {
-		e.number(0)
-	}
-	return e.err
-}
-
-func writeMPPhysicalExit(e *requestEncoder, x mpPhysicalExitFacts) {
-	e.number(uint64(x.retiredGeneration))
-	e.number(uint64(x.exitedGeneration))
-	e.number(uint64(x.exitedMS))
-	e.text(x.retirementRequest)
-	e.text(x.exitRequest)
-	e.bytes(x.supervisorIncarnation[:])
+	return mpSessionRetireProjection{item: p.item, asset: p.asset, media: p.media, execution: p.execution, sourceRequest: p.request, incarnation: p.incarnation, generation: p.generation, exit: p.exit, physicalPending: !p.cleaned}
 }
 
 func (f mpPhysicalFence) valid() bool {
@@ -598,7 +566,7 @@ func stopMPSessionEffect(ctx context.Context, t *commandTurn, f mpSessionFence, 
 	out.revision++
 	out.stopExecution = f.physical.execution
 	out.stopGeneration = f.physical.generation
-	out.retiredMedia = mpSessionRetireProjection{media: out.media, execution: out.stopExecution, sourceRequest: f.physical.request, incarnation: out.mediaIncarnation, generation: out.mediaGeneration, exit: out.physicalExit, physicalPending: out.physicalPending}
+	out.retiredMedia = mpSessionRetireProjection{item: out.item, asset: out.asset, media: out.media, execution: out.stopExecution, sourceRequest: f.physical.request, incarnation: out.mediaIncarnation, generation: out.mediaGeneration, exit: out.physicalExit, physicalPending: out.physicalPending}
 	out.changed = true
 	return // No pin, reservation, helper permit or bandwidth release on request.
 }
@@ -656,58 +624,6 @@ func applyMPSessionReconcile(ctx context.Context, t *commandTurn, f mpSessionFen
 	out.retiredMedia.physicalPending = out.physicalPending
 	out.changed = true
 	return
-}
-
-// Explicit typed receipt projection. Parent maps this result into the native
-// per-session header/result and <=one retire-media child, preserving the saved
-// ORIGINAL scalar result, not a mutable-row reconstruction. This codec neither
-// stores a receipt nor grants Applied or commits anything.
-func mpSessionDomainResultDigest(h mpPrepReceiptHeader, r mpSessionEffect) (ResultDigest, error) {
-	if (h.kind != MPStartPrepAccept && h.kind != mpCoreQueueAdvancePurpose && h.kind != mpCoreNextCommitPurpose && (h.kind < MPSessionCreate || h.kind > MPSessionReconcile)) || !mpPrepTexts(r.session, r.media, r.state, r.mode, r.engine) || !mpPresentationURL(r.presentationURL) || r.sessionIncarnation == ([16]byte{}) || r.mediaIncarnation == ([16]byte{}) || !mpPrepRevision(r.revision) || r.generation <= 0 || r.mediaGeneration <= 0 || r.physicalRevision <= 0 || r.presentationGeneration <= 0 || r.positionMS < 0 || r.startMS < 0 || r.endedMS < 0 || r.cleanupCursor < 0 {
-		return ResultDigest{}, ErrInvalid
-	}
-	e := &requestEncoder{h: sha256.New()}
-	e.bytes([]byte(canonicalResultCodec))
-	e.bytes([]byte{0, 1})
-	e.text("mp_session_domain")
-	e.number(uint64(h.kind))
-	e.bytes(h.identity.Incarnation[:])
-	e.number(uint64(h.identity.Sequence))
-	e.bytes(h.identity.OperationID[:])
-	e.bytes(h.request[:])
-	e.number(uint64(h.appliedMS))
-	if !mpPrepHeaderValid(h) {
-		return ResultDigest{}, ErrInvalid
-	}
-	for _, s := range []string{r.session, r.media, r.state, r.mode, r.engine, r.presentationURL, r.endReason, r.stopExecution, r.asset, r.queue, r.entry} {
-		e.text(s)
-	}
-	if !r.physicalExit.valid(r.mediaGeneration, r.physicalPending) {
-		return ResultDigest{}, ErrInvalid
-	}
-	writeMPPhysicalExit(e, r.physicalExit)
-	if err := writeMPSessionRetire(e, r.retiredMedia); err != nil {
-		return ResultDigest{}, err
-	}
-	e.bytes(r.itemPublic[:])
-	e.bytes(r.sessionIncarnation[:])
-	e.bytes(r.mediaIncarnation[:])
-	for _, v := range []int64{r.revision, r.generation, r.presentationGeneration, r.mediaGeneration, r.physicalRevision, r.leaseMS, r.grantExpiresMS, r.positionMS, r.startMS, r.transportSequence, r.endedMS, r.stopGeneration, r.cleanupCursor, r.item, r.part} {
-		e.number(uint64(v))
-	}
-	for _, v := range []bool{r.physicalPending, r.changed} {
-		if v {
-			e.number(1)
-		} else {
-			e.number(0)
-		}
-	}
-	if e.err != nil {
-		return ResultDigest{}, e.err
-	}
-	var d ResultDigest
-	copy(d[:], e.h.Sum(nil))
-	return d, nil
 }
 
 // This helper composes ONLY media effects under the caller's exact703/710/714
@@ -817,7 +733,7 @@ func applyMPSessionPresentationBegin(ctx context.Context, t *commandTurn, f mpSe
 	out.stopExecution = f.physical.execution
 	out.stopGeneration = f.physical.generation
 	out.physicalPending = true
-	out.retiredMedia = mpSessionRetireProjection{media: out.media, execution: out.stopExecution, sourceRequest: f.physical.request, incarnation: out.mediaIncarnation, generation: out.mediaGeneration, exit: out.physicalExit, physicalPending: true}
+	out.retiredMedia = mpSessionRetireProjection{item: out.item, asset: out.asset, media: out.media, execution: out.stopExecution, sourceRequest: f.physical.request, incarnation: out.mediaIncarnation, generation: out.mediaGeneration, exit: out.physicalExit, physicalPending: true}
 	out.changed = true
 	return
 }
