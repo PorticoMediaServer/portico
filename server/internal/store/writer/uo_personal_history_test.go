@@ -1,6 +1,9 @@
 package writer
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func uoPersonalHistoryEvent(t *testing.T, w *executor, q uoPersonalIntentInput, kind string, sequence int64) int64 {
 	t.Helper()
@@ -62,7 +65,7 @@ func TestUOPersonalHistoryPrivacyCutoffRetainsAuditAndSavedFlags(t *testing.T) {
 func TestUOPersonalHistoryMPBoundaryNoDuplicateTimeCredit(t *testing.T) {
 	w, q := uoPersonalFixture(t)
 	id := uoPersonalHistoryEvent(t, w, q, "started", 1)
-	b := uoPersonalBoundaryInput{policy: q.policy, subjectID: q.subjectID, libraryID: q.libraryID, eventID: id, occurrence: 1, acceptedSequence: 1, activityGeneration: 1, publicID: q.publicID, library: q.library, playback: "playing-one"}
+	b := uoPersonalBoundaryInput{policy: q.policy, subjectID: q.subjectID, libraryID: q.libraryID, eventID: id, occurrence: 1, acceptedSequence: 1, activityGeneration: 1, publicID: q.publicID, library: q.library, playback: "playing-one", timestampGrantBytes: 64}
 	turn := uoPersonalTurn(t, w)
 	e, err := applyUOPersonalBoundary(t.Context(), turn, b)
 	if err != nil {
@@ -97,4 +100,21 @@ func TestUOPersonalHistoryMPBoundaryNoDuplicateTimeCredit(t *testing.T) {
 		t.Fatal(e, err)
 	}
 	uoPersonalRollback(t, turn)
+}
+
+func TestUOPersonalHistoryBoundaryActualOctets(t *testing.T) {
+	w, q := uoPersonalFixture(t)
+	q.at = strings.Repeat("音", 30) // corruption-only event clock fixture
+	id := uoPersonalHistoryEvent(t, w, q, "started", 1)
+	b := uoPersonalBoundaryInput{policy: q.policy, subjectID: q.subjectID, libraryID: q.libraryID, eventID: id, occurrence: 1, acceptedSequence: 1, activityGeneration: 1, publicID: q.publicID, library: q.library, playback: "playing-one", timestampGrantBytes: 64}
+	turn := uoPersonalTurn(t, w)
+	out, err := applyUOPersonalBoundary(t.Context(), turn, b)
+	if err == nil || out != (uoPersonalBoundaryEffect{}) {
+		t.Fatal("oversize native timestamp copied", out, err)
+	}
+	uoPersonalRollback(t, turn)
+	var rows int64
+	if err = w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM personal_items`).Scan(&rows); err != nil || rows != 0 {
+		t.Fatal(rows, err)
+	}
 }

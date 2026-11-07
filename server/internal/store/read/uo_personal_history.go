@@ -128,7 +128,7 @@ func UOPersonalHistoryDefinitions() []stmt.Definition {
 		}
 		params = append(params, i("limit"))
 		args = append(args, int64(64))
-		sql := `SELECT h.id,h.subject_id,h.position,h.played_ms,h.activity_generation,h.accepted_sequence,v.id FROM play_history h INDEXED BY play_history_admin_user LEFT JOIN play_history v ON v.id=h.id AND v.profile_id=? AND v.membership_incarnation=? AND v.profile_lifetime=? AND v.id>=? WHERE h.account_key=?` + where + ` ORDER BY h.occurred_at DESC,h.id DESC LIMIT ?`
+		sql := `SELECT h.id,h.subject_id,h.position,h.played_ms,h.activity_generation,h.accepted_sequence,v.id FROM play_history AS h INDEXED BY play_history_admin_user LEFT JOIN play_history AS v ON v.id=h.id AND v.profile_id=? AND v.membership_incarnation=? AND v.profile_lifetime=? AND v.id>=? WHERE h.account_key=?` + where + ` ORDER BY h.occurred_at DESC,h.id DESC LIMIT ?`
 		out = append(out, add(name, sql, params, args, stmt.Plan{Hot: true, Indexes: []string{"play_history_admin_user"}, PrimaryKeys: []string{"v"}}))
 	}
 	pin := stmt.AutoIndexBinding{Table: "personal_activity_revisions", Name: "sqlite_autoindex_personal_activity_revisions_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "profile_id", Collation: "BINARY"}}}
