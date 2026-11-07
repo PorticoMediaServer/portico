@@ -20,7 +20,7 @@ var nativeAutoStreams = map[string]nativeAutoStream{
 	"maps":        {"catalog_automatic_collections", "catalog_automatic_collection_entity", "entity_id", "", []string{"library_id", "provider", "provider_id"}, []stmt.Type{stmt.Integer, stmt.Text, stmt.Text}},
 	"over":        {"catalog_automatic_member_overrides", "sqlite_autoindex_catalog_automatic_member_overrides_1", "collection_id", "", []string{"item_id"}, []stmt.Type{stmt.Integer}},
 	"inverse":     {"catalog_automatic_member_overrides", "catalog_automatic_member_overrides_item", "item_id", "", []string{"collection_id"}, []stmt.Type{stmt.Integer}},
-	"local":       {"catalog_entities", "catalog_entities_automatic_local", "library_id,automatic_collection_name_key", " AND a.kind=1 AND a.retired=0", []string{"id"}, []stmt.Type{stmt.Integer}},
+	"local":       {"catalog_entities", "catalog_entities_automatic_local", "library_id,automatic_collection_name_key", " AND kind=1 AND retired=0", []string{"id"}, []stmt.Type{stmt.Integer}},
 	"evidence":    {"metadata_evidence_collections", "metadata_evidence_collection_members", "provider,collection_kind,collection_id", "", []string{"evidence_id"}, []stmt.Type{stmt.Text}},
 	"origins":     {"metadata_field_origins", "metadata_field_origin_evidence", "evidence_id", "", []string{"entity_id", "field"}, []stmt.Type{stmt.Integer, stmt.Text}},
 	"collections": {"metadata_evidence_collections", "sqlite_autoindex_metadata_evidence_collections_1", "evidence_id,collection_kind", "", []string{"collection_id"}, []stmt.Type{stmt.Text}},
@@ -170,7 +170,7 @@ func nativeAutomaticDefinitions() []stmt.Definition {
 			add(fmt.Sprintf("%s.tail%d", name, k), base+tail+order, types, []string{s.index}, nil)
 		}
 	}
-	add("work", `SELECT a.automatic_collection_name_key FROM catalog_entities AS a WHERE a.id=? AND a.library_id=? AND a.kind=1 AND a.retired=0`, []stmt.Type{stmt.Integer, stmt.Integer}, nil, []string{"a"})
+	add("work", `SELECT a.automatic_collection_name_key FROM catalog_entities AS a WHERE a.id=? AND a.library_id=? AND kind=1 AND retired=0`, []stmt.Type{stmt.Integer, stmt.Integer}, nil, []string{"a"})
 	add("owner", `SELECT a.id FROM catalog_entities AS a WHERE a.id=? AND a.library_id=? AND a.kind=10 AND a.retired=0`, []stmt.Type{stmt.Integer, stmt.Integer}, nil, []string{"a"})
 	add("map", `SELECT a.entity_id,a.removed FROM catalog_automatic_collections AS a INDEXED BY sqlite_autoindex_catalog_automatic_collections_1 WHERE a.library_id=? AND a.provider=? AND a.provider_id=?`, []stmt.Type{stmt.Integer, stmt.Text, stmt.Text}, []string{"sqlite_autoindex_catalog_automatic_collections_1"}, nil)
 	add("override", `SELECT a.present FROM catalog_automatic_member_overrides AS a INDEXED BY sqlite_autoindex_catalog_automatic_member_overrides_1 WHERE a.collection_id=? AND a.item_id=?`, []stmt.Type{stmt.Integer, stmt.Integer}, []string{"sqlite_autoindex_catalog_automatic_member_overrides_1"}, nil)
