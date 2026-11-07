@@ -45,6 +45,7 @@ type N1PairedComponent struct {
 	stopped                        error
 	closed                         bool
 	reader                         *n1PairedReaderIdentity
+	memoryOpens                    ec5OpenLedger
 }
 
 type n1PairedReaderIdentity struct {
@@ -69,6 +70,9 @@ func (c *n1PairedReaderIdentity) observe(conn driver.Conn) error {
 
 func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) *N1PairedComponent {
 	t.Helper()
+	if *ec5MemoryEnabled && cohort != "native-counters" {
+		t.Fatal("EC5 native-memory instrumentation requires separate native-counters cohort")
+	}
 	cfg, err := decodeFirstLightConfig(data)
 	if err != nil || cfg.Fixtures > 64 || warmup < 1 || warmup > 64 || cfg.Fixtures+warmup > inventoryProgressiveLimit || (cohort != "timing" && cohort != "native-counters") {
 		t.Fatal("invalid bounded paired config", err)
@@ -90,6 +94,12 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 			c.Close(errors.New("fixture exited before explicit joined final"))
 		}
 	})
+	if err := c.verifyMemoryCgroup(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.memoryCheckpoint("before_fixture"); err != nil {
+		t.Fatal(err)
+	}
 	c.trace = newN1Trace(origin, cohort == "native-counters")
 	w, path, original := inventoryFreshSeedFixture(t, c.trace.decorate)
 	w.now = time.Now // before ANY measured BEGIN; no clock option exists here
@@ -159,7 +169,13 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 		t.Fatal(err)
 	}
 	c.reader = &n1PairedReaderIdentity{device: device, inode: inode}
-	c.Snapshots, err = governor.NewSnapshots(&faultConnector{Connector: connector, observeNative: c.reader.observe}, readerConfig, c.Governor, c.Authority, readRegistry)
+	readerConnector := &faultConnector{Connector: connector, observeNative: c.reader.observe}
+	if *ec5MemoryEnabled {
+		readerConnector.connectObserved = func(conn driver.Conn, start, end time.Time, err error) {
+			c.memoryOpens.observe(origin, conn, start, end, err)
+		}
+	}
+	c.Snapshots, err = governor.NewSnapshots(readerConnector, readerConfig, c.Governor, c.Authority, readRegistry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +202,7 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 		t.Fatal(err)
 	}
 	hashes := map[string]string{}
-	for _, name := range []string{"n1_paired_export_test.go", "transaction_test.go", "n1_paired_external_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "inventory_memory_test.go", "governor_turn_test.go", "scan_fresh_test.go", "../internal/readfixture/source.go", "../internal/readfixture/config.go", "../qual/workload/foreground.go"} {
+	for _, name := range []string{"n1_paired_export_test.go", "ec5_memory_export_test.go", "ec5_memory_external_test.go", "transaction_test.go", "n1_paired_external_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "inventory_memory_test.go", "governor_turn_test.go", "scan_fresh_test.go", "../internal/readfixture/source.go", "../internal/readfixture/config.go", "../qual/workload/foreground.go"} {
 		raw, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
@@ -207,6 +223,14 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 	}
 	if err := c.stream.append("start", map[string]any{"declared_source_commit": cfg.SourceCommit, "source_hashes": hashes, "binary_sha256": hex.EncodeToString(binaryHash.Sum(nil)), "host_epoch": cfg.HostEpoch, "observed_hostname": observedHost, "hostname_error": n1Error(hostErr), "observed_boot_id": bootID, "boot_error": n1Error(bootErr), "manifest_scope": "local scheduler manifest is exact component-config SHA256; external QL manifest remains external", "database_id": c.DatabaseID, "native_device": writerDevice, "native_inode": writerInode, "schema_sha256": schema.SHA256, "read_fixture_journal_sha256": readfixture.ForegroundHash(t), "foreground_fixture_temporal_origin": foregroundSource.TemporalOrigin(), "foreground_time_scope": "existing synthetic seed offsets rebased once before construction using time.Now; no token renewal or runtime authority", "reader_policy": readerConfig, "foreground_fixture_profile": gc.Foreground, "foreground_partition": gc.Partitions[governor.Foreground], "max_grants_per_class": gc.MaxGrantsPerClass, "n1_request": owner.request, "n1_work": map[string]Work{"limit": owner.recipe.limit, "setup": owner.recipe.setup, "terminal": owner.recipe.terminal}, "warmup_originals": warmup, "measured_originals": cfg.Fixtures, "cohort": cohort, "clock": "time.Now real monotonic", "scope": "same DB; N1 library7 and authenticated foreground library1; kind2 excluded only in attached seed", "profile_scope": "existing RD2 LIVE config and N1 class amounts/Work; no production qualification", "memory_scope": "process heap/RSS/allocation snapshots include concurrent readers and observers; not isolated N1 LIVE peaks", "cache_population": map[string]string{"n1": "warm persistent after actual warmup", "foreground": "first use; no read warmup"}, "reader_window_connection_id": nil, "reader_window_connection_id_unavailable_reason": "public SnapshotResult has no per-window physical instance ID; actual native file checked on every connect"}); err != nil {
 		t.Fatal(err)
+	}
+	if *ec5MemoryEnabled {
+		if err := c.stream.append("memory_fixture", map[string]any{"method": "ec5-component-memory-v1", "observed_database_cardinalities": facts.Cardinalities, "library_scope": "existing small source-bound N1 library7 + foreground library1; table counts are database-wide, not per-library cardinality", "scale_fixture_available": false, "per_library_item_counts": nil, "per_library_item_counts_unavailable_reason": "existing owned observer exposes database table counts, not a per-library/scale constructor", "sustained_binding": nil, "sustained_unavailable_reason": "EC2 source not merged/attached in this tree", "whole_server_composition_complete": false, "assigned_budget_bytes": int64(2000000000), "profile_scope": "assigned M=2e9 cgroup; not 2GB physical/M=1.6e9 profile; no owner allocations changed"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.memoryCheckpoint("after_fixture_before_warmup"); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for i := 0; i < warmup; i++ {
 		if err := c.RunOriginal(t, t.Context(), time.Now(), true, cohort); err != nil {
@@ -260,6 +284,7 @@ func (c *N1PairedComponent) Close(cause error) error {
 		return errors.New("paired component already closed")
 	}
 	c.closed = true
+	checkpointErr := c.memoryCheckpoint("before_fixture_close")
 	var readerErr, writerErr error
 	var readerReturned *bool
 	if c.Snapshots != nil {
@@ -302,7 +327,11 @@ func (c *N1PairedComponent) Close(cause error) error {
 		readerConnections = &n
 	}
 	complete := cause == nil && c.stopped == nil && c.summary.Complete && readerReturned != nil && readerErr == nil && usage != nil && *usage == ([4]governor.Amounts{}) && c.Authority.ForegroundUsage().Live == 0 && c.Authority.ForegroundUsage().Waiters == 0
-	finalErr := errors.Join(cause, c.stopped, readerErr, writerErr)
+	memoryErr := c.finishMemory()
+	if memoryErr != nil || checkpointErr != nil {
+		complete = false
+	}
+	finalErr := errors.Join(cause, c.stopped, readerErr, writerErr, memoryErr, checkpointErr)
 	if !complete && finalErr == nil {
 		finalErr = errors.New("paired component incomplete; no successful whole-cell claim")
 	}
