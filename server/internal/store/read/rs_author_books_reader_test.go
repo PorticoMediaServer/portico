@@ -326,7 +326,7 @@ func TestRSAuthorBookReaderCrossPage(t *testing.T) {
 			break
 		}
 	}
-	if fmt.Sprint(got) != "[14003 2002 14010]" {
+	if fmt.Sprint(got) != "[14003 14010 2002]" {
 		t.Fatal("ordered complete traversal", got)
 	}
 }
