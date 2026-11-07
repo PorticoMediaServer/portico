@@ -1,14 +1,16 @@
 package plan
 
 import (
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"os"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-func TestENEffectiveSourceEQPCallbacksRefuseMalformedPlans(t *testing.T) {
+func TestENOctetEQPCallbacksRefuseMalformedPlans(t *testing.T) {
 	raw, err := os.ReadFile("testdata/en-effective-source-octets-input.json")
 	if err != nil {
 		t.Fatal(err)
@@ -23,7 +25,34 @@ func TestENEffectiveSourceEQPCallbacksRefuseMalformedPlans(t *testing.T) {
 	for _, d := range input.Definitions {
 		definitions[d.ID] = d
 	}
-	if len(definitions) != 3 {
+	// History definitions come from their separately reviewed native baseline.
+	// Expected EQP answers below remain literal and independent of that data.
+	file, err := os.Open("testdata/en-seal-octets.json.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	z, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	historyRaw, err := io.ReadAll(z)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = z.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var history struct {
+		Manifest []stmt.Definition `json:"manifest"`
+	}
+	if err = json.Unmarshal(historyRaw, &history); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range history.Manifest {
+		definitions[d.ID] = d
+	}
+	if len(definitions) != 5 {
 		t.Fatal("unexpected callback definition inventory")
 	}
 
@@ -32,6 +61,8 @@ func TestENEffectiveSourceEQPCallbacksRefuseMalformedPlans(t *testing.T) {
 		id                    stmt.ID
 		want, scan, wrongSeek string
 	}{
+		{"enrichment.seal.evidence_header_lengths", "SEARCH metadata_evidence USING INDEX sqlite_autoindex_metadata_evidence_1 (id=?)", "SCAN metadata_evidence", "SEARCH metadata_evidence USING INDEX sqlite_autoindex_metadata_evidence_1 (subject_id=?)"},
+		{"enrichment.seal.receipt_lengths", "SEARCH enrichment_command_receipts USING PRIMARY KEY (provider_operation_id=? AND command_incarnation=? AND command_sequence=?)", "SCAN enrichment_command_receipts", "SEARCH enrichment_command_receipts USING PRIMARY KEY (provider_operation_id=? AND command_incarnation=?)"},
 		{"enrichment.effective_source.pin_evidence_lengths", "SEARCH metadata_evidence USING INDEX sqlite_autoindex_metadata_evidence_1 (id=?)", "SCAN metadata_evidence", "SEARCH metadata_evidence USING INDEX sqlite_autoindex_metadata_evidence_1 (id>?)"},
 		{"enrichment.effective_source.pin_publication_lengths", "SEARCH credit_source_publications USING INDEX sqlite_autoindex_credit_source_publications_1 (publication_id=?)", "SCAN credit_source_publications", "SEARCH credit_source_publications USING INDEX sqlite_autoindex_credit_source_publications_1 (entity_id=?)"},
 		{"enrichment.effective_source.pin_receipt_lengths", "SEARCH enrichment_command_receipts USING PRIMARY KEY (provider_operation_id=? AND command_incarnation=? AND command_sequence=?)", "SCAN enrichment_command_receipts", "SEARCH enrichment_command_receipts USING PRIMARY KEY (provider_operation_id=? AND command_incarnation=?)"},
