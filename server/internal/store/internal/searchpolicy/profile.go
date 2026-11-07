@@ -31,7 +31,7 @@ const (
 	// These pins are checked against the production source closure and native
 	// declarations. A reviewed change to either requires a new profile, even
 	// when the public recipe name stays the same.
-	PreparationSHA256  = "1d1774169858c4ffdc73a98be5a24e653f6f9032a1bd1a9b6ba77302cdde6272"
+	PreparationSHA256  = "c5c08bd85f7d195eee98f36e379c48c9412581dd885b9a6595e29dea0847f397"
 	NativeFormatSHA256 = "6a5236a7fee8f8777c11de4e808945ea3cfd9a87cd9b8357284d134c1b5dee30"
 )
 
