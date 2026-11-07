@@ -120,7 +120,7 @@ func mutateMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest, deleting
 	if e = row.Scan(&revision, &generation, &state, &removed); e != nil {
 		return out, mgOwnerMissing(e)
 	}
-	if revision != r.sourceRevision || generation != r.generation || removed != 0 || (a.enabled == 1 && state != "active") {
+	if revision != r.sourceRevision || generation != r.generation || (removed != 0 && !deleting) || (a.enabled == 1 && state != "active") {
 		return out, ErrConflict
 	}
 	row, e = mgRuleRow(ctx, t, mgRuleRead, a.id)
