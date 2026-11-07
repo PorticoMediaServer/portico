@@ -38,13 +38,22 @@ func scanLifecycleHistoryCommandDefinitions() []stmt.Definition {
 // already registered by the existing runtime. There is no default profile or
 // worker budget, and no active frame can overlap this one-time installation.
 func composeScanLifecycleHistory(ctx context.Context, r *effectiveRuntime, create, claim effectivePlan) (err error) {
+	defer func() { _, err = finishCommand(ctx, ctx, struct{}{}, err) }()
+	return composeScanLifecycleProfiles(ctx, r, create, claim, false)
+}
+
+func composeScanLifecycleProfiles(ctx context.Context, r *effectiveRuntime, create, claim effectivePlan, issuer bool) (err error) {
 	var runtimeLocked, executorLocked, installed bool
 	var oldRegistry *stmt.Registry
 	defer func() {
 		_, err = finishCommand(ctx, ctx, struct{}{}, err)
 		if installed && err != nil {
 			r.registry = oldRegistry
-			r.lifecyclePlans = [2]*effectivePlan{}
+			if issuer {
+				r.issuerPlans = [2]*effectivePlan{}
+			} else {
+				r.lifecyclePlans = [2]*effectivePlan{}
+			}
 		}
 		if executorLocked {
 			r.executor.mu.Unlock()
@@ -71,10 +80,13 @@ func composeScanLifecycleHistory(ctx context.Context, r *effectiveRuntime, creat
 	if r.fenced || r.executor.closed || r.executor.fenced || r.executor.ambiguous {
 		return ErrClosed
 	}
-	if r.lifecyclePlans != ([2]*effectivePlan{}) {
+	if (!issuer && r.lifecyclePlans != ([2]*effectivePlan{})) || (issuer && r.issuerPlans != ([2]*effectivePlan{})) {
 		return ErrBusy
 	}
 	defs := scanLifecycleHistoryCommandDefinitions()
+	if issuer {
+		defs = scanLifecycleCommandDefinitions()
+	}
 	create, err = freezeCommandPlan(r.executor, create, defs, InventoryCreate)
 	if err != nil {
 		return err
@@ -117,7 +129,11 @@ func composeScanLifecycleHistory(ctx context.Context, r *effectiveRuntime, creat
 		return err
 	}
 	oldRegistry, r.registry = r.registry, registry
-	r.lifecyclePlans = [2]*effectivePlan{&create, &claim}
+	if issuer {
+		r.issuerPlans = [2]*effectivePlan{&create, &claim}
+	} else {
+		r.lifecyclePlans = [2]*effectivePlan{&create, &claim}
+	}
 	installed = true
 	return nil
 }

@@ -60,6 +60,7 @@ type effectiveRuntime struct {
 	plan           effectivePlan
 	inventoryPlan  *effectivePlan
 	lifecyclePlans [2]*effectivePlan // private, explicitly composed create/claim history profiles
+	issuerPlans    [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
 	registry       *stmt.Registry
 	fenced         bool
 	cleanupPanics  []terminalPanic
@@ -178,6 +179,8 @@ type commandOutput struct {
 	inventory InventoryResult
 	publisher SearchImageStageResult
 	lifecycle scanLifecycleCommandResult
+	source    scanSourceFacts
+	run       scanRunSnapshot
 }
 
 func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
@@ -254,6 +257,12 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	defer r.mu.Unlock()
 	if scan != nil && scan.lifecycle != 0 {
 		plan = r.lifecyclePlans[int(purpose-InventoryCreate)]
+		if scan.issuer != nil {
+			if err = validateScanIssuerInvocation(r, w, scan); err != nil {
+				return out, acknowledged, err
+			}
+			plan = r.issuerPlans[int(purpose-InventoryCreate)]
+		}
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
@@ -289,7 +298,16 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if err != nil {
 		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
 	}
+	if scan != nil && scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerSnapshot || scan.issuer.action == scanIssuerRecover) {
+		scan.issuer.deadline = now.Add(scan.issuer.driver.readyPlan.ready)
+		if stop, ok := ctx.Deadline(); ok && stop.Before(scan.issuer.deadline) {
+			scan.issuer.deadline = stop
+		}
+	}
 	deadline := now.Add(plan.recipe.limit.Hold)
+	if scan != nil && scan.issuer != nil && !scan.issuer.deadline.IsZero() && scan.issuer.deadline.Before(deadline) {
+		deadline = scan.issuer.deadline
+	}
 	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
 		deadline = callerDeadline
 	}
@@ -301,9 +319,17 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		Class: class, Writer: true, Need: plan.need, IO: plan.io, MaxHold: plan.recipe.limit.Hold, Deadline: deadline,
 		Budget:    governor.UnitBudget{RawRows: uint32(plan.recipe.limit.Rows), VMOps: plan.recipe.limit.VMOps, Pages: uint32(plan.recipe.limit.Pages)},
 		Footprint: []governor.Scope{{Library: libraryID, Domain: uint16(purpose)}}}
+	if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
+		if err = scan.issuer.work.submitting(); err != nil {
+			return out, acknowledged, err
+		}
+	}
 	decision := r.governor.Try(expected)
 	if decision.Grant == nil {
-		return out, acknowledged, effectiveAdmissionRefusal(decision.Refusal)
+		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
+			err = scan.issuer.work.refused(decision)
+		}
+		return out, acknowledged, errors.Join(err, effectiveAdmissionRefusal(decision.Refusal))
 	}
 	// Own the acquired grant BEFORE binding (which checks a fallible clock).
 	// begin consumes custody except ErrBusy; its panic cleanup uses idempotent
@@ -317,6 +343,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 				r.fenced = true
 			}
 			retireErr := r.retireUnused(decision.Grant, custody)
+			if retireErr == nil && scan != nil && scan.issuer != nil && scan.issuer.work != nil {
+				scan.issuer.work.admissionReturned(custody)
+			}
 			err = errors.Join(err, retireErr)
 			if primary != nil {
 				panic(primary)
@@ -340,6 +369,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if r.executor.fenced || r.executor.ambiguous {
 			r.fenced = true
 		}
+		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
+			scan.issuer.work.admissionReturned(custody)
+		}
 		if !ack && errors.Is(err, ErrResolveRequired) {
 			outcome.State = ResolveRequired
 			outcome.Reference = reference
@@ -347,6 +379,19 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		return out, acknowledged, err
 	}
 	defer tx.rollback(nil) // preserves the PRIMARY panic through frame cleanup
+	if scan != nil && scan.issuer != nil {
+		scan.issuer.frame = tx
+		if p := scan.issuer.retained; p != nil {
+			p.mu.Lock()
+			p.frame = tx
+			p.mu.Unlock()
+		}
+		if scan.issuer.work != nil {
+			if err = scan.issuer.work.bindFrame(tx); err != nil {
+				return out, acknowledged, err
+			}
+		}
+	}
 	// The frame cancels its SQL context during retirement. Keep the EXACT same
 	// deadline alive through physical return/WAL sampling, without mistaking
 	// internal cleanup cancellation for caller/protected-lifetime cancellation.
@@ -362,7 +407,11 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 				_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
 			}
 			if err == nil {
-				err = checkInventoryNativeScope(ctx, turn, scan.request)
+				if scan.issuer != nil && (scan.issuer.action == scanIssuerSource || scan.issuer.action == scanIssuerCreate) {
+					err = checkScanIssuerLibrary(ctx, turn, scan.request)
+				} else {
+					err = checkInventoryNativeScope(ctx, turn, scan.request)
+				}
 			}
 		} else {
 			err = r.disclose(ctx, turn, cap, request)
@@ -372,7 +421,13 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
 	}
 	var historical bool
-	if err == nil && scan != nil && scan.lifecycle != 0 {
+	if err == nil && scan != nil && scan.issuer != nil {
+		out, historical, err = runScanIssuerTurn(ctx, turn, scan, ack)
+		if err == nil && ack {
+			acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+		}
+	}
+	if err == nil && scan != nil && scan.lifecycle != 0 && scan.issuer == nil {
 		if err = turn.requireScanLifecycleMemory(ctx, scanLifecycleHistoryBytes); err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
@@ -399,8 +454,8 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 				out.inventory = inventoryHistoricalResult(scan.request, lookup)
 				historical = lookup.decision != receiptFresh
 				if lookup.decision == receiptFresh && scan.input != nil {
-					// SC's complete fresh effect body and qualified recipe have
-					// not landed. No subset may become Applied.
+					// N1's trusted preparation and complete qualified native
+					// composition are not installed here. No subset becomes Applied.
 					err = checkInventoryFreshLibrary(ctx, turn, scan.request)
 					if err == nil {
 						err = &Refusal{Code: RefusalUnqualified}
@@ -455,6 +510,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if err == nil && scan != nil && scan.input != nil && !historical {
 		err = checkInventoryTerminal(ctx, turn, scan.input)
 	}
+	if err == nil && scan != nil && scan.issuer != nil && scan.issuer.action == scanIssuerClaim && !historical {
+		_, err = turn.scanClaimTimeMS(ctx, scan.issuer.claimMode, scan.issuer.claim.request.Run.leaseExpiresMS, scan.issuer.expiresMS)
+	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
 	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher)))
@@ -464,6 +522,11 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		physical, err = tx.commit()
 	} else {
 		physical, err = tx.rollback(err)
+	}
+	if scan != nil && scan.issuer != nil && !ack && !historical && physical.state == committed &&
+		(scan.issuer.action == scanIssuerCreate || scan.issuer.action == scanIssuerClaim) {
+		outcome.State = Applied
+		outcome.Reference = reference
 	}
 	if scan == nil && !ack && !historical && input != nil {
 		if physical.state == commitUnknown {
