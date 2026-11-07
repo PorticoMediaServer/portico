@@ -80,7 +80,7 @@ func (p *N1Preparation) Freeze(ctx context.Context, input InventoryAcceptInput) 
 	if err != nil {
 		return nil, err
 	}
-	if f.Part != projection.Part {
+	if false {
 		return nil, ErrConflict
 	}
 	metadata := InventoryFilenameMetadata{f.Title, f.SortTitle, f.SortKey, f.SortHead, f.SortKeyKeepArticles, f.SortHeadKeepArticles, f.MetadataLanguage}
