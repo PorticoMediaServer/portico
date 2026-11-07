@@ -77,8 +77,12 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 	if r == nil || !validTitle(title) {
 		return TitleFacts{}, BrowseReadResult{}, ErrInput
 	}
+	if in.View.Kind < 1 || in.View.Kind > 13 {
+		return TitleFacts{}, BrowseReadResult{}, ErrUnqualified
+	}
+	in.View.policy = readPolicyBinding{recipe: rsDetailSubjectPolicy, subject: in.Item}
 	var source []any
-	windows := &rsByteWindow{source: r.snapshots}
+	windows := &rsByteWindow{source: r.snapshots, preflightCalls: 10}
 	root := func(q browseQuery) ([]any, error) {
 		rows, err := q("rs.detail.source", in.Item, in.View.Library, in.View.Kind)
 		if err != nil {
@@ -92,7 +96,7 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 	}
 	return publishRead(ctx, windows, request, budget, output, in.View, []readStep[TitleFacts]{
 		func(ctx context.Context, q browseQuery, f browseFence, d *TitleFacts) error {
-			if source[2].(int64) != 0 || (source[3] == nil && f.allowUnrated == 0) || (source[3] != nil && f.maximumAge >= 0 && source[3].(int64) > f.maximumAge) {
+			if source[2].(int64) != 0 || f.container == 0 && ((source[3] == nil && f.allowUnrated == 0) || (source[3] != nil && f.maximumAge >= 0 && source[3].(int64) > f.maximumAge)) {
 				return ErrDenied
 			}
 			sizes, err := q("rs.detail.facts_octets", in.Item, in.View.Library, in.View.Kind)
@@ -116,7 +120,7 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 			if err != nil {
 				return err
 			}
-			if len(rows) != 1 || !admittedItem(rows[0], f) {
+			if len(rows) != 1 || f.container == 0 && !admittedItem(rows[0], f) {
 				return ErrDenied
 			}
 			v := rows[0]
@@ -132,7 +136,7 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 				return v[n].(int64), nil
 			}
 			switch in.View.Kind {
-			case 1, 5: // Movies and artists use the common accepted descriptive fields.
+			case 1, 5, 11, 12, 13: // Extra, disc and author roots use common accepted descriptive fields; technical facts have a separate source lifetime.
 			case 2:
 				d.Show = &ShowFacts{HideSeasons: v[19].(int64) != 0, AbsoluteNumbering: v[20].(int64) != 0, NewestFirst: v[21].(int64) != 0, SettingsRevision: v[22].(int64), Ranges: v[23].(string)}
 			case 3:

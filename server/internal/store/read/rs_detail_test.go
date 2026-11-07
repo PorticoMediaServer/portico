@@ -28,7 +28,11 @@ func TestRSDetailEveryCatalogueKind(t *testing.T) {
 		if err != nil {
 			t.Fatal(kind, err)
 		}
-		if d.Item.ID != in.Item || d.Item.Kind != kind || d.Year != 2024 || d.Item.Overview != "Accepted overview" || d.OriginalTitle != "Original" || d.Edition != "Deluxe" || d.AddedAt == nil || *d.AddedAt != "2026-11-01T00:00:00.000000000Z" || d.LastContentAddedAt == nil || cost.LookupStatements != 9 || cost.PublicationStatements != 6 {
+		extra := 0
+		if kind == 10 {
+			extra = 1
+		}
+		if d.Item.ID != in.Item || d.Item.Kind != kind || d.Year != 2024 || d.Item.Overview != "Accepted overview" || d.OriginalTitle != "Original" || d.Edition != "Deluxe" || d.AddedAt == nil || *d.AddedAt != "2026-11-01T00:00:00.000000000Z" || d.LastContentAddedAt == nil || cost.LookupStatements != 10+extra || cost.PublicationStatements != 7+extra {
 			t.Fatalf("kind%d: %+v %+v", kind, d, cost)
 		}
 		switch kind {
@@ -83,14 +87,14 @@ func TestRSDetailEveryCatalogueKind(t *testing.T) {
 func TestRSDetailPublicationAndRetry(t *testing.T) {
 	f, r := newRSDetailFixture(t, false)
 	in := TitleFactsInput{View: f.input, Item: 1101}
-	r.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() {
+	r.snapshots = &rsByteBoundarySnapshots{Snapshots: f.snapshots, after: func() {
 		f.exec(t, `UPDATE catalog_entities SET original_title='Fresh source',revision=revision+1 WHERE id=1101`)
 	}}
 	d, cost, err := r.facts(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if err != nil || cost.Attempts != 2 || d.OriginalTitle != "Fresh source" {
 		t.Fatal("source retry", cost.Attempts, d, err)
 	}
-	r.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
+	r.snapshots = &rsByteBoundarySnapshots{Snapshots: f.snapshots, after: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
 	d, _, err = r.facts(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(err, ErrDenied) || !reflect.DeepEqual(d, TitleFacts{}) {
 		t.Fatal("revoked draft escaped", err)
