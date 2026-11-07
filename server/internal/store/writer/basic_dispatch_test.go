@@ -186,6 +186,7 @@ func TestBasicDispatchFreshHistoryAckAndRetiredFloor(t *testing.T) {
 		t.Fatal("fresh receipt/effect/progress mismatch", exact, err)
 	}
 	for _, sql := range []string{
+		`UPDATE catalog_libraries SET retired=1 WHERE id=7`,
 		`UPDATE library_sources SET generation=24,root='/changed',root_identity='root:changed' WHERE id='basic-source'`,
 		`UPDATE inventory_objects SET revision='object:020' WHERE id='basic-object'`,
 		`UPDATE inventory_runs SET job_revision=99,job_lease_owner=99,job_lease_generation=99,job_lease_expires_ms=0 WHERE job_id='basic-run'`,
@@ -275,6 +276,18 @@ func TestBasicDispatchCurrentDisclosureConflictsAndClosedProfiles(t *testing.T) 
 		t.Fatal("absent profiles admitted fresh mutation", out, ack, err)
 	}
 	r.basicPlans = installed
+	// Retirement is a fresh-only eligibility predicate. Prove the miss before
+	// the later duplicate-fact state or stale source/run can mask that gate.
+	if _, err := e.db.ExecContext(t.Context(), `UPDATE catalog_libraries SET retired=1 WHERE id=7`); err != nil {
+		t.Fatal(err)
+	}
+	if out, ack, err := r.runBasic(t.Context(), w, cap, in, false); !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, BasicResult{}) || !reflect.DeepEqual(ack, AckResult{}) {
+		t.Fatal("retired fresh library admitted effects", out, ack, err)
+	}
+	basicDispatchUnchanged(t, e)
+	if _, err := e.db.ExecContext(t.Context(), `UPDATE catalog_libraries SET retired=0 WHERE id=7`); err != nil {
+		t.Fatal(err)
+	}
 	revoked := inventoryTestDisclosure(t, w, q.Scan)
 	revoked.scope.revoked.Store(true)
 	foreign := inventoryTestDisclosure(t, w, q.Scan)
