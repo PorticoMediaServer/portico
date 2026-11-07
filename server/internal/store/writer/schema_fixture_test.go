@@ -19,7 +19,7 @@ func testCanonicalExecutor(t *testing.T, decorate ...func(driver.Conn) driver.Co
 	if len(decorate) > 1 {
 		t.Fatal("multiple fixture decorators")
 	}
-	path := schematest.Clone(t)
+	path := qualificationCanonicalFixturePath(t)
 	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Full}
 	connector, err := sqliteconn.Connector(path, cfg)
 	if err != nil {
