@@ -45,7 +45,7 @@ func searchFragmentReclaimDefinitions() []stmt.Definition {
 		{ID: searchReclaimNext, Kind: stmt.Read, SQL: `SELECT id FROM search_fragments INDEXED BY search_fragment_reclaim WHERE publication_id=? AND id>? ORDER BY id LIMIT ?`, Params: []stmt.Param{i("image"), i("after_fragment"), i("limit")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"search_fragment_reclaim"}, Seeks: []string{"publication_id=? AND id>?"}}},
 		{ID: searchReclaimFragment, Kind: stmt.Read, SQL: `SELECT id,publication_id,search_generation_id,generation,owner_entity,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized FROM search_fragments WHERE id=? AND publication_id=? AND owner_person IS NULL`, Params: []stmt.Param{i("fragment"), i("image")}, Plan: pk("search_fragments")},
 		{ID: searchReclaimSeal, Kind: stmt.Read, SQL: `SELECT publication_id FROM search_image_seals WHERE publication_id=?`, Params: []stmt.Param{i("image")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"search_image_seals"}, Seeks: []string{"publication_id=?"}}},
-		{ID: searchReclaimContentDelete, Kind: stmt.Write, SQL: `DELETE FROM search_fragments WHERE id=? AND publication_id=? AND search_generation_id=? AND generation=? AND owner_entity=? AND owner_person IS NULL AND field=? AND ordinal=? AND source_revision=? AND prefix_tokens=? AND lexical_tokens=? AND normalized=? RETURNING id`, Params: []stmt.Param{i("fragment"), i("image"), i("bank"), i("generation"), i("entity"), i("field"), i("ordinal"), t("revision"), t("prefix"), t("lexical"), t("normalized")}, Plan: pk("search_fragments")},
+		{ID: searchReclaimContentDelete, Kind: stmt.Write, SQL: `DELETE FROM search_fragments WHERE id=? AND publication_id=? AND search_generation_id=? AND generation=? AND owner_person IS NULL AND field=? AND ordinal=? AND source_revision=? AND prefix_tokens=? AND lexical_tokens=? AND normalized=? RETURNING id`, Params: []stmt.Param{i("fragment"), i("image"), i("bank"), i("generation"), i("field"), i("ordinal"), t("revision"), t("prefix"), t("lexical"), t("normalized")}, Plan: pk("search_fragments")},
 	}
 	for _, v := range []struct {
 		id   stmt.ID
@@ -95,7 +95,7 @@ func searchFragmentReclaimDefinitions() []stmt.Definition {
 		case searchReclaimFragment:
 			args = []any{int64(601), int64(13)}
 		case searchReclaimContentDelete:
-			args = []any{int64(601), int64(13), int64(7), int64(3), int64(41), int64(1), int64(0), "09", "00006f00006c000064", "old", "old"}
+			args = []any{int64(601), int64(13), int64(7), int64(3), int64(1), int64(0), "09", "00006f00006c000064", "old", "old"}
 		case searchReclaimPrefix:
 			args = []any{"delete", int64(601), "00006f00006c000064"}
 		case searchReclaimLexical, searchReclaimGrams:

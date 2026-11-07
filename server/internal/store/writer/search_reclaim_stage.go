@@ -286,7 +286,7 @@ func writeSearchFragmentReclaim(ctx context.Context, turn *commandTurn, c *searc
 		}
 	}
 	step, _ := searchPublisherStep(turn, searchReclaimContentDelete)
-	row, err := turn.queryRow(ctx, step, f.id, f.publicationID, f.bankID, f.inputGeneration, f.entityID, int64(f.row.Field), f.row.Ordinal, f.row.Revision, f.row.Prefix, f.row.Lexical, f.row.Normalized)
+	row, err := turn.queryRow(ctx, step, f.id, f.publicationID, f.bankID, f.inputGeneration, int64(f.row.Field), f.row.Ordinal, f.row.Revision, f.row.Prefix, f.row.Lexical, f.row.Normalized)
 	if err != nil {
 		return out, err
 	}
