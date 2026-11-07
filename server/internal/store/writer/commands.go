@@ -29,6 +29,8 @@ const (
 	BasicSeal
 	EvidenceSeal
 	CreditSourceSeal
+	InventoryDirectoryDiscover
+	InventoryDirectoryEOF
 )
 
 type Durability uint8
@@ -98,6 +100,10 @@ func Describe(id CommandID) (Descriptor, error) {
 		name = "evidence_seal"
 	case CreditSourceSeal:
 		name = "credit_source_seal"
+	case InventoryDirectoryDiscover:
+		name = "inventory_directory_discover"
+	case InventoryDirectoryEOF:
+		name = "inventory_directory_eof"
 	default:
 		return Descriptor{}, invalid("command")
 	}
