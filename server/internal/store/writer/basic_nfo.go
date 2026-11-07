@@ -158,14 +158,26 @@ func basicNFOValues(r basicNFORow) []any {
 // This evidence write does not publish effective metadata or Basic readiness.
 func applyBasicNFO(ctx context.Context, turn *commandTurn, in *basicNFOSet, appliedMS int64) (value basicNFOProgress, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
-	if ctx == nil || turn == nil || in == nil || !in.valid || appliedMS < 0 {
+	return applyBasicNFOAtPhase(ctx, turn, in, appliedMS, 0)
+}
+
+// replaceBasicNFOEvidenceForAccept applies local effects before activation in the caller's
+// final transaction. The source still names the preactivation asset epoch.
+func replaceBasicNFOEvidenceForAccept(ctx context.Context, turn *commandTurn, in *basicNFOSet, appliedMS int64) (value basicNFOProgress, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
+	return applyBasicNFOAtPhase(ctx, turn, in, appliedMS, 3)
+}
+
+func applyBasicNFOAtPhase(ctx context.Context, turn *commandTurn, in *basicNFOSet, appliedMS, phase int64) (value basicNFOProgress, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
+	if ctx == nil || turn == nil || in == nil || !in.valid || appliedMS < 0 || (phase != 0 && phase != 3) {
 		return value, ErrInvalid
 	}
 	observedAt := time.UnixMilli(appliedMS).UTC().Format(time.RFC3339Nano)
 	if len(observedAt) > 64 {
 		return value, ErrInvalid
 	}
-	if err = checkBasicStreamInput(ctx, turn, in.source); err != nil {
+	if err = checkBasicInputAtPhase(ctx, turn, in.source, phase); err != nil {
 		return value, err
 	}
 	row, err := basicStageRead(ctx, turn, basicNFOLibrary, in.source.libraryID)

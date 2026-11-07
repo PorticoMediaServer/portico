@@ -54,10 +54,22 @@ func prepareBasicArtwork(in basicArtworkInput) (*basicArtworkInput, error) {
 
 func queueBasicLocalArtwork(ctx context.Context, turn *commandTurn, in *basicArtworkInput, appliedMS int64) (value basicArtworkProgress, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
-	if ctx == nil || turn == nil || in == nil || !in.valid || appliedMS < 0 {
+	return queueBasicLocalArtworkAtPhase(ctx, turn, in, appliedMS, 0)
+}
+
+// queueBasicLocalArtworkForAccept applies local effects before activation in the caller's
+// final transaction. The source still names the preactivation asset epoch.
+func queueBasicLocalArtworkForAccept(ctx context.Context, turn *commandTurn, in *basicArtworkInput, appliedMS int64) (value basicArtworkProgress, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
+	return queueBasicLocalArtworkAtPhase(ctx, turn, in, appliedMS, 3)
+}
+
+func queueBasicLocalArtworkAtPhase(ctx context.Context, turn *commandTurn, in *basicArtworkInput, appliedMS, phase int64) (value basicArtworkProgress, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
+	if ctx == nil || turn == nil || in == nil || !in.valid || appliedMS < 0 || (phase != 0 && phase != 3) {
 		return value, ErrInvalid
 	}
-	if err = checkBasicStreamInput(ctx, turn, in.source); err != nil {
+	if err = checkBasicInputAtPhase(ctx, turn, in.source, phase); err != nil {
 		return value, err
 	}
 	row, err := basicStageRead(ctx, turn, basicArtworkEntity, in.entityID)
