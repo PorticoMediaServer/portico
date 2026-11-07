@@ -58,6 +58,7 @@ type uoSavedInput struct {
 type uoSavedOutcome struct{ input, id, status string }
 type uoSavedEffect struct {
 	reclaimedRows, reclaimedBytes int64
+	selectionRevision             int64
 	id                            string
 	revision, generation          int64
 	deleted                       bool
@@ -203,6 +204,10 @@ func applyUOSaved(ctx context.Context, t *commandTurn, q uoSavedInput) (out uoSa
 		return out, err
 	}
 	out.generation, err = wc008DraftInteger(ctx, t, "uo.saved.generation")
+	if err != nil {
+		return out, err
+	}
+	out.selectionRevision, err = wc008DraftInteger(ctx, t, "uo.saved.selection")
 	return out, err
 }
 

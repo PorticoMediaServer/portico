@@ -233,7 +233,11 @@ func applyUOSavedEntries(ctx context.Context, t *commandTurn, q uoSavedInput) (o
 		if a.subject <= 0 || a.library <= 0 || a.revision <= 0 || a.admission <= 0 || !uoPersonalText(a.id, 128) {
 			return out, ErrInvalid
 		}
-		if err = q.security.checkSavedItem(ctx, t, a); err != nil {
+		if err = q.security.checkSavedItem(ctx, t, a); errors.Is(err, sql.ErrNoRows) {
+			out.outcomes = append(out.outcomes, uoSavedOutcome{input: hex.EncodeToString(a.public[:]), status: "not_found"})
+			err = nil
+			continue
+		} else if err != nil {
 			return out, err
 		}
 		live, e := wc008DraftInteger(ctx, t, "uo.saved.subject", a.subject, a.public[:], a.library, a.revision, a.admission)
@@ -262,7 +266,11 @@ func applyUOSavedEntries(ctx context.Context, t *commandTurn, q uoSavedInput) (o
 				status = "added"
 			}
 		}
-		out.outcomes = append(out.outcomes, uoSavedOutcome{input: hex.EncodeToString(a.public[:]), id: a.id, status: status})
+		generated := ""
+		if status == "added" {
+			generated = a.id
+		}
+		out.outcomes = append(out.outcomes, uoSavedOutcome{input: hex.EncodeToString(a.public[:]), id: generated, status: status})
 	}
 	// One live token per actor/list. Retire at most the public 100-row prior
 	// token; refuse corrupt oversized debt rather than sweeping it in this turn.
