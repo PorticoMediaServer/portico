@@ -88,6 +88,9 @@ func TestRSArtPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(dir+"/rs-art-plans.json", actual, 0644); err != nil {
 			t.Fatal(err)
 		}

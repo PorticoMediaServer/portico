@@ -33,6 +33,7 @@ func TestRSArtInheritanceAndPublicRoles(t *testing.T) {
 		{1107, 7, "poster", true, 1107, "cover", 9}, {1107, 7, "poster", false, 1106, "cover", 8},
 		{1107, 7, "cover", false, 1107, "cover", 9}, {1109, 9, "poster", true, 1108, "cover", 10}, {1110, 10, "poster", true, 1110, "poster", 11},
 		{1101, 1, "poster", true, 0, "", 0}, {1106, 6, "backdrop", true, 0, "", 0},
+		{1102, 2, "backdrop", true, 1102, "backdrop", 3}, {1103, 3, "poster", true, 1103, "poster", 2}, {1108, 8, "poster", true, 1108, "cover", 10},
 	}
 	for _, tc := range tests {
 		d, cost, err := r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, rsArtInput(f, tc.id, tc.kind, tc.role, tc.page))
@@ -43,9 +44,15 @@ func TestRSArtInheritanceAndPublicRoles(t *testing.T) {
 			t.Fatalf("unbounded statement/window work %+v", cost)
 		}
 	}
+	// Movie/item art routes retain their own cover alias.
+	rsArtSelect(t, f, 1101, "cover", "matched", 14)
+	d, _, err := r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, rsArtInput(f, 1101, 1, "poster", false))
+	if err != nil || d.Owner != 1101 || d.Role != "cover" || d.Digest != rsArtDigest(14) {
+		t.Fatal("movie cover alias", d, err)
+	}
 	// Missing episode still stays empty, even with a selected show still.
 	f.exec(t, `DELETE FROM artwork_selections WHERE entity_id=1104 AND role='still'`)
-	d, _, err := r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, rsArtInput(f, 1104, 4, "still", true))
+	d, _, err = r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, rsArtInput(f, 1104, 4, "still", true))
 	if err != nil || d.Present {
 		t.Fatal("inherited a still", d, err)
 	}
@@ -278,6 +285,16 @@ func TestRSArtReadingUsesSharedEligibility(t *testing.T) {
 	if err != nil || d.Owner != 1101 || d.Role != "cover" || d.Digest != rsArtDigest(13) {
 		t.Fatal("compiled Reading policy composition", d, err)
 	}
+	f.exec(t, `BEGIN`)
+	f.exec(t, `PRAGMA defer_foreign_keys=ON`)
+	f.exec(t, `UPDATE catalog_subjects SET kind=21 WHERE id=1101`)
+	f.exec(t, `UPDATE catalog_entities SET kind=21 WHERE id=1101`)
+	f.exec(t, `COMMIT`)
+	in.View.Kind = 21
+	d, _, err = r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	if err != nil || d.OwnerKind != 21 || d.Digest != rsArtDigest(13) {
+		t.Fatal("comic policy composition", d, err)
+	}
 	in.View.policy.subject = 1102
 	d, _, err = r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(err, ErrInput) || d.Present {
@@ -302,4 +319,24 @@ func (s *rsArtBoundarySnapshots) ReadForecasted(ctx context.Context, request gov
 		}
 		return err
 	})
+}
+
+func TestRSArtCancellationAndHierarchyDrift(t *testing.T) {
+	f, r := newRSArtFixture(t, false)
+	in := rsArtInput(f, 1104, 4, "poster", true)
+	r.snapshots = &rsArtBoundarySnapshots{Snapshots: f.snapshots, afterPayload: func() {
+		f.exec(t, `UPDATE catalog_entities SET artwork_revision=artwork_revision+1 WHERE id=1103`)
+		f.exec(t, `UPDATE artwork_selections SET digest=? WHERE entity_id=1103 AND choice='locked'`, rsArtDigest(3))
+	}}
+	d, cost, err := r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	if err != nil || cost.Attempts != 2 || d.Digest != rsArtDigest(3) {
+		t.Fatal("complete retry after source-head drift", d, cost.Attempts, err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	r.snapshots = &rsArtBoundarySnapshots{Snapshots: f.snapshots, afterPayload: cancel}
+	d, _, err = r.artwork(ctx, foregroundRequest(), time.Second, f.output, in)
+	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(d, ArtworkFact{}) {
+		t.Fatal("cancelled private draft escaped", d, err)
+	}
 }
