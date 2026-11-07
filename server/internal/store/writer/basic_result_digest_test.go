@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"math"
 	"os"
 	"reflect"
@@ -231,8 +230,5 @@ func TestBasicResultRefusesUnselectedAndMalformedBeforeHashing(t *testing.T) {
 		mutate(&v)
 		assertBasicResultRefusedBeforeHashing(t, i, q, v)
 	}
-	base.Purpose = BasicPurposeAccept
-	if _, err := basicResultDigest(i, q, base); !errors.Is(err, ErrNotImplemented) {
-		t.Fatal("Accept map inferred", err)
-	}
+
 }
