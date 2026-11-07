@@ -115,7 +115,31 @@ func RBGroupDefinitions() []stmt.Definition {
 				bb = append(bb, int64(MaxRaw))
 				empty := append([]any(nil), bb...)
 				empty[0] = int64(-1)
-				add(fmt.Sprintf("%s.%sseek%d", spec.name, variant, level), base+" AND "+strings.Join(predicates, " AND ")+end, pp, bb, empty, plan)
+				seekName := fmt.Sprintf("%s.%sseek%d", spec.name, variant, level)
+				seekPlan := plan
+				if spec.family == RBGroupAlbumSongs || spec.family == RBGroupBookParts {
+					scope := "album_id"
+					if spec.family == RBGroupBookParts {
+						scope = "book_id"
+					}
+					constraints := []string{scope + "=?"}
+					for k := 0; k <= level; k++ {
+						name := "<expr>"
+						if k == 2 {
+							name = "id"
+						}
+						operator := "="
+						if k == level {
+							operator = op
+						}
+						constraints = append(constraints, name+operator+"?")
+					}
+					// The registry's generic EQP grammar does not recognize
+					// SQLite's <expr> token. Pin ONLY this full SEARCH detail;
+					// no SCAN/sort/SQL-grammar permission is introduced.
+					seekPlan.Waivers = []stmt.Waiver{{StatementID: statementID("rb.group." + seekName), Stage: "eqp", Form: "UNRECOGNIZED EQP", Match: "SEARCH e USING INDEX " + spec.index + " (" + strings.Join(constraints, " AND ") + ")", Reason: "Pinned SEARCH over the canonical disc/track or disc/part expression index; exact equality prefixes and strict range, no scan or temporary sort"}}
+				}
+				add(seekName, base+" AND "+strings.Join(predicates, " AND ")+end, pp, bb, empty, seekPlan)
 			}
 		}
 	}
