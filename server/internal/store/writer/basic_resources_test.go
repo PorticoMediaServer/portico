@@ -83,8 +83,10 @@ func TestBasicResourcesPurposeAndOriginalLease(t *testing.T) {
 				t.Fatal("terminal changed accepted timestamp", accepted)
 			}
 			*clock = deadline
-			if err := checkBasicTerminal(t.Context(), turn, purpose, expires); !errors.Is(err, ErrConflict) {
-				t.Fatal("expired original lease reached terminal", err)
+			// The grant is the original protected deadline here; its exact
+			// expiry check precedes the native lease check and must still refuse.
+			if err := checkBasicTerminal(t.Context(), turn, purpose, expires); !errors.Is(err, governor.ErrGrant) {
+				t.Fatal("expired original grant reached terminal", err)
 			}
 		})
 	}
