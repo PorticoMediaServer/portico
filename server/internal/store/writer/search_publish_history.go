@@ -125,20 +125,32 @@ func acknowledgeSearchPublisher(ctx context.Context, turn *commandTurn, q Publis
 	if err := turn.checkLifetimes(ctx); err != nil {
 		return 0, err
 	}
+	return acknowledgeSearchPublisherFacts(ctx, turn, q, lookup.owner, lookup.decision, lookup.result.JobID)
+}
+
+// Shared scalar ACK kernel; native typed lookup supplies the saved job ID.
+// Historical identities are never inferred from a later mutable head.
+func acknowledgeSearchPublisherFacts(ctx context.Context, turn *commandTurn, q PublisherReceiptRequest, owner receiptOwnerFacts, decision receiptDecision, savedJobID int64) (out int64, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if ctx == nil || turn == nil || turn.transaction == nil || (!searchPublisherPurpose(turn.transaction.descriptor.ID) && turn.transaction.descriptor.ID != SearchImageStage) {
+		return 0, ErrInvalid
+	}
+	if err := turn.checkLifetimes(ctx); err != nil {
+		return 0, err
+	}
 	// W passes the lookup for this exact immutable invocation on this SAME
 	// turn, after current disclosure and original history. Protocol facts are
 	// not a caller-supplied permission or a substitute for that composition.
-	owner := lookup.owner
 	if !owner.exists || owner.incarnation != q.Receipt.Identity.Incarnation {
 		return 0, ErrResolveRequired
 	}
-	if lookup.decision == receiptRetired {
+	if decision == receiptRetired {
 		if q.Receipt.Identity.Sequence > owner.acknowledgedSequence {
 			return 0, ErrResolveRequired
 		}
 		return owner.acknowledgedSequence, nil
 	}
-	if lookup.decision != receiptReplay || lookup.result.JobID != q.JobID || q.Receipt.Identity.Sequence != owner.lastSequence {
+	if decision != receiptReplay || savedJobID != q.JobID || q.Receipt.Identity.Sequence != owner.lastSequence {
 		return 0, ErrResolveRequired
 	}
 	step, err := searchPublisherStep(turn, searchPublisherAck)
