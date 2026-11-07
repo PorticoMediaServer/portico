@@ -2,8 +2,6 @@ package sqliteconn
 
 import (
 	"bytes"
-	"database/sql"
-	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -140,12 +138,18 @@ func TestWriterPageSizeNativeGeometry(t *testing.T) {
 					if _, err := conn.ExecContext(t.Context(), "CREATE TEMP TABLE geometry_generation(value INTEGER)"); err != nil {
 						t.Fatal(err)
 					}
-					if err := conn.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
-						t.Fatal(err)
-					}
+					// Returning the only connection to a zero-idle pool closes it
+					// synchronously through database/sql's ordinary lifecycle.
+					db.SetMaxIdleConns(0)
 				}
-				if err := conn.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				if err := conn.Close(); err != nil {
 					t.Fatal(err)
+				}
+				if generation == 0 {
+					if stats := db.Stats(); stats.OpenConnections != 0 || stats.Idle != 0 {
+						t.Fatal("first physical connection still resident", stats)
+					}
+					db.SetMaxIdleConns(cfg.Connections)
 				}
 			}
 		})
