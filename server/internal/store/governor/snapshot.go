@@ -90,11 +90,15 @@ func (s *Snapshots) NativeRowReservation() int64 {
 // Values leaving the callback need separately charged output custody before
 // its active grant retires. A stuck consumer remains charged and cannot pin a
 // native snapshot or delay Close. It does not authorize refund of its buffers or other resource custody.
-func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration, read func(*ReadScope) error) (out SnapshotResult, err error) {
+func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration, read func(*ReadScope) error) (SnapshotResult, error) {
+	return s.read(parent, r, budget, SnapshotForecast{NativeRowBytes: s.NativeRowReservation(), MaxQueries: 8}, read)
+}
+
+func (s *Snapshots) read(parent context.Context, r Request, budget time.Duration, forecast SnapshotForecast, read func(*ReadScope) error) (out SnapshotResult, err error) {
 	if read == nil || r.Writer || r.Need[Reader] != 1 || r.Need[MemoryBytes] <= 0 || budget <= 0 || r.Budget.RawRows == 0 || r.Budget.RawRows > 4096 {
 		return out, ErrGrant
 	}
-	out.NativeReservedBytes = s.NativeRowReservation()
+	out.NativeReservedBytes = forecast.NativeRowBytes
 	out.GoReservedBytes = r.Need[MemoryBytes] - out.NativeReservedBytes
 	if out.GoReservedBytes <= 0 {
 		return out, ErrSnapshotBudget
@@ -117,7 +121,7 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 	ctx, stop := context.WithDeadline(parent, out.SQLDeadline)
 	defer stop()
 	queries, cancelQueries := context.WithCancel(ctx)
-	scope := &ReadScope{ctx: queries, cancel: cancelQueries, authority: s.authority, expected: r, reads: s.reads, config: s.config}
+	scope := &ReadScope{ctx: queries, cancel: cancelQueries, authority: s.authority, expected: r, reads: s.reads, config: s.config, maxQueries: int(forecast.MaxQueries), nativeRowBytes: forecast.NativeRowBytes}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -298,6 +302,8 @@ type ReadScope struct {
 	reads                    map[stmt.ID]stmt.Statement
 	rows                     uint32
 	calls                    int
+	maxQueries               int
+	nativeRowBytes           int64
 	failedRaw                driver.Conn
 	owned                    *snapshotOwnedConn
 	copyBudget               *sqlite.RowBudget
@@ -355,7 +361,11 @@ func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 	if err = s.authority.Check(s.grant, s.expected); err != nil {
 		return nil, err
 	}
-	if s.calls == 8 {
+	limit := s.maxQueries
+	if limit == 0 {
+		limit = 8
+	} // preserve existing internal/test scopes
+	if s.calls >= limit {
 		return nil, ErrBusy
 	}
 	s.calls++
