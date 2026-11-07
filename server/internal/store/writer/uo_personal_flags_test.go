@@ -24,7 +24,7 @@ func uoFlagsFixture(t *testing.T) (*executor, uoPersonalFlagsInput) {
 // not register/qualify a UO command or exercise the independent authority/receipt
 // dispatcher. These are native body/rollback controls on the canonical schema.
 func uoFlagsTurn(t *testing.T, w *executor) *commandTurn {
-	return wc008NativeTurn(t, w, ProgressAccept, uoPersonalFlagsDefinitions())
+	return wc008NativeTurn(t, w, SetPersonalFlags, uoPersonalFlagsDefinitions())
 }
 
 func uoFlagsCommit(t *testing.T, turn *commandTurn) {
