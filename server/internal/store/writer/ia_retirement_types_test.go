@@ -5,15 +5,15 @@ import (
 	"testing"
 )
 
-func iaRetirementOriginal() (CommandIdentity, iaRetirementRequest) {
+func iaRetirementRequestFixture() (CommandIdentity, iaRetirementRequest) {
 	return CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, iaRetirementRequest{
-		scope: iaRetirementScope{libraryID: 7, libraryKey: "library", sourceID: "source", sourceIncarnation: "original", sourceGeneration: 3, libraryRevision: 5},
+		scope: iaRetirementScope{libraryID: 7, libraryKey: "library", sourceID: "source", sourceIncarnation: "original", sourceGeneration: 3, libraryRevision: 5, resolvedRoot: "/media/original", rootIdentity: "device:inode"},
 		actor: iaRetirementActor{authority: "local", accountID: "owner", profileID: "profile", membershipID: "membership", accountEpoch: 2, membershipRevision: 3, profileRevision: 4},
 	}
 }
 
 func TestIARetirementOriginalBindsSourceAndActor(t *testing.T) {
-	id, input := iaRetirementOriginal()
+	id, input := iaRetirementRequestFixture()
 	c, err := newIARetirementCommand(IARetireSource, id, input)
 	if err != nil || c.checkOriginal() != nil {
 		t.Fatal(err)
@@ -22,6 +22,8 @@ func TestIARetirementOriginalBindsSourceAndActor(t *testing.T) {
 		func(v *iaRetirementRequest) { v.scope.sourceIncarnation = "replacement" },
 		func(v *iaRetirementRequest) { v.scope.sourceGeneration++ },
 		func(v *iaRetirementRequest) { v.scope.libraryID++ },
+		func(v *iaRetirementRequest) { v.scope.resolvedRoot += "/replacement" },
+		func(v *iaRetirementRequest) { v.scope.rootIdentity += ":replacement" },
 		func(v *iaRetirementRequest) { v.actor.accountEpoch++ },
 		func(v *iaRetirementRequest) { v.actor.membershipID = "new-membership" },
 	} {
@@ -39,13 +41,28 @@ func TestIARetirementOriginalBindsSourceAndActor(t *testing.T) {
 }
 
 func TestIARetirementVariantsAndDescriptors(t *testing.T) {
-	id, input := iaRetirementOriginal()
+	id, input := iaRetirementRequestFixture()
+	id.Sequence = 2
+	if _, err := newIARetirementCommand(IARetireSource, id, input); !errors.Is(err, ErrInvalid) {
+		t.Fatal("BEGIN accepted a later sequence", err)
+	}
+	id.Sequence = 1
 	if _, err := newIARetirementCommand(IARetireLibrary, id, input); !errors.Is(err, ErrInvalid) {
 		t.Fatal("library purpose accepted a source-shaped request", err)
 	}
 	input.scope.sourceID, input.scope.sourceIncarnation, input.scope.sourceGeneration = "", "", 0
+	input.scope.rootIdentity, input.libraryName, input.confirmation = "", "Library", " Library "
 	if c, err := newIARetirementCommand(IARetireLibrary, id, input); err != nil || c == nil {
 		t.Fatal(err)
+	}
+	first, err := newIARetirementCommand(IARetireLibrary, id, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input.confirmation = "Library"
+	second, err := newIARetirementCommand(IARetireLibrary, id, input)
+	if err != nil || first.digest == second.digest {
+		t.Fatal("raw confirmation was normalized out of original request", err)
 	}
 	if _, err := newIARetirementCommand(IARetireSource, id, input); !errors.Is(err, ErrInvalid) {
 		t.Fatal("source purpose lost its incarnation", err)

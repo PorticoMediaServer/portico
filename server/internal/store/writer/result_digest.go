@@ -71,6 +71,12 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightScanRunLifecycleResult(InventoryCreate, identity, request, v.facts)
 	case inventoryClaimResult:
 		return preflightScanRunLifecycleResult(InventoryClaim, identity, request, v.facts)
+	case iaRetireLibraryResult:
+		return preflightIARetirementResult(IARetireLibrary, identity, request, v.facts)
+	case iaRetireSourceResult:
+		return preflightIARetirementResult(IARetireSource, identity, request, v.facts)
+	case iaRetireStepResult:
+		return preflightIARetirementResult(IARetireStep, identity, request, v.facts)
 	default:
 		return invalid("canonical_result_schema")
 	}
@@ -118,6 +124,12 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeScanRunLifecycleResult(e, InventoryCreate, identity, request, v.facts)
 	case inventoryClaimResult:
 		return writeScanRunLifecycleResult(e, InventoryClaim, identity, request, v.facts)
+	case iaRetireLibraryResult:
+		return writeIARetirementResult(e, IARetireLibrary, identity, request, v.facts)
+	case iaRetireSourceResult:
+		return writeIARetirementResult(e, IARetireSource, identity, request, v.facts)
+	case iaRetireStepResult:
+		return writeIARetirementResult(e, IARetireStep, identity, request, v.facts)
 	default:
 		return invalid("canonical_result_schema")
 	}

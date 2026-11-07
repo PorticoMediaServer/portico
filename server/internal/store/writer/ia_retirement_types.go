@@ -14,6 +14,7 @@ type iaRetirementScope struct {
 	libraryID                               int64
 	libraryKey, sourceID, sourceIncarnation string
 	sourceGeneration, libraryRevision       int64
+	resolvedRoot, rootIdentity              string
 }
 
 // Actor values bind the original request but never authenticate the caller.
@@ -27,6 +28,10 @@ type iaRetirementActor struct {
 type iaRetirementRequest struct {
 	scope iaRetirementScope
 	actor iaRetirementActor
+	// Raw confirmation is retained in the request digest. Fresh execution
+	// compares TrimSpace(confirmation) with the CURRENT library name under
+	// libraryRevision; preparation never substitutes that authority check.
+	libraryName, confirmation string
 }
 
 type iaRetirementCommand struct {
@@ -44,21 +49,22 @@ const iaRetirementRequestVersion uint16 = 1
 // source incarnation/generation; neither namespace nor actor is re-created by
 // retry. Identity/incarnation allocation remains the trusted issuer's job.
 func newIARetirementCommand(purpose CommandID, identity CommandIdentity, request iaRetirementRequest) (*iaRetirementCommand, error) {
-	if purpose != IARetireLibrary && purpose != IARetireSource || identity.Sequence <= 0 ||
+	if purpose != IARetireLibrary && purpose != IARetireSource || identity.Sequence != 1 ||
 		identity.Incarnation == ([16]byte{}) || identity.OperationID == ([16]byte{}) {
 		return nil, invalid("ia_retirement_identity")
 	}
 	s, a := request.scope, request.actor
-	if s.libraryID <= 0 || s.libraryKey == "" || s.libraryRevision <= 0 ||
+	if s.libraryID <= 0 || s.libraryKey == "" || s.libraryRevision <= 0 || s.resolvedRoot == "" ||
 		a.authority == "" || a.accountID == "" || a.profileID == "" || a.membershipID == "" ||
 		a.accountEpoch <= 0 || a.membershipRevision <= 0 || a.profileRevision <= 0 {
 		return nil, invalid("ia_retirement_scope")
 	}
-	if purpose == IARetireLibrary && (s.sourceID != "" || s.sourceIncarnation != "" || s.sourceGeneration != 0) ||
-		purpose == IARetireSource && (s.sourceID == "" || s.sourceIncarnation == "" || s.sourceGeneration <= 0) {
+	if purpose == IARetireLibrary && (s.sourceID != "" || s.sourceIncarnation != "" || s.sourceGeneration != 0 || s.rootIdentity != "" || request.libraryName == "" || request.confirmation == "") ||
+		purpose == IARetireSource && (s.sourceID == "" || s.sourceIncarnation == "" || s.sourceGeneration <= 0 || s.rootIdentity == "" || request.libraryName != "" || request.confirmation != "") {
 		return nil, invalid("ia_retirement_source_variant")
 	}
 	texts := []*string{&request.scope.libraryKey, &request.scope.sourceID, &request.scope.sourceIncarnation,
+		&request.scope.resolvedRoot, &request.scope.rootIdentity, &request.libraryName, &request.confirmation,
 		&request.actor.authority, &request.actor.accountID, &request.actor.profileID, &request.actor.membershipID}
 	remaining := maxCanonicalRequestBytes
 	for _, value := range texts {
