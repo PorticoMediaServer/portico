@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"reflect"
@@ -21,11 +22,13 @@ func seedRSRelated(t *testing.T, f *browseFixture) {
 	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(10,'collection',0,1,1,1,0)`)
 	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1),(8,'book',0,1,1,1,1),(9,'audiobook_file',1,0,1,1,1)`)
 	for _, v := range []struct{ id, kind int64 }{{2100, 7}, {2101, 9}} {
-		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,randomblob(16),1,?)`, v.id, v.kind)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,album_id,book_id) SELECT id,public_id,library_id,kind,'Part','part','p','part','p',0,randomblob(16),randomblob(16),1,1 FROM catalog_subjects WHERE id=?`, v.id)
+		public := make([]byte, 16)
+		binary.LittleEndian.PutUint64(public, uint64(v.id))
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,?)`, v.id, public, v.kind)
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,album_id,book_id) SELECT id,public_id,library_id,kind,'Part','part','p','part','p',0,public_id,public_id,1,1 FROM catalog_subjects WHERE id=?`, v.id)
 	}
-	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2000,randomblob(16),1,10)`)
-	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) SELECT id,public_id,library_id,kind,'Collection','collection','c','collection','c',0,randomblob(16),randomblob(16) FROM catalog_subjects WHERE id=2000`)
+	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2000,x'd0070000000000000000000000000000',1,10)`)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) SELECT id,public_id,library_id,kind,'Collection','collection','c','collection','c',0,public_id,public_id FROM catalog_subjects WHERE id=2000`)
 	f.exec(t, `INSERT INTO catalog_terms(id,vocab,key,label) VALUES(1,1,'genre','Genre'),(2,8,'keyword','Keyword')`)
 	f.exec(t, `INSERT INTO catalog_entity_terms(entity_id,term_id) VALUES(1,1),(1,2),(2,1),(2,2),(3,1),(4,1),(5,1),(6,1),(7,1),(8,1),(9,1),(10,1)`)
 	// Local, NFO and owner sources share normalized identity without a provider ID.
