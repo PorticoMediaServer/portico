@@ -85,6 +85,9 @@ func TestUOSettingsDraftNativePlans(t *testing.T) {
 		t.Fatal(e)
 	}
 	if dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR"); dir != "" {
+		if e = os.MkdirAll(dir, 0700); e != nil {
+			t.Fatal(e)
+		}
 		if e = os.WriteFile(filepath.Join(dir, "uo-preferences-settings-native-plans.json"), append(data, '\n'), 0600); e != nil {
 			t.Fatal(e)
 		}

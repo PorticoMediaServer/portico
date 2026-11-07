@@ -122,12 +122,31 @@ const (
 
 // Exactly one arm is populated; an explicit empty List is distinct from an
 // absent override. Remove is a patch operation, never a stored value kind.
+// A finite native category enum, not an arbitrary settings map.
+type UOLogCategory string
+
+const (
+	UOLogServer   UOLogCategory = "server"
+	UOLogPlayback UOLogCategory = "playback"
+	UOLogScan     UOLogCategory = "scan"
+	UOLogNetwork  UOLogCategory = "network"
+	UOLogClient   UOLogCategory = "client"
+)
+
+type UOLogRetention struct {
+	Category UOLogCategory
+	Days     int64
+}
+
+const UORetention UOValueKind = "log-retention-list"
+
 type UOValue struct {
-	Kind   UOValueKind
-	Bool   bool
-	Number float64
-	Text   string
-	List   []string
+	Kind      UOValueKind
+	Bool      bool
+	Number    float64
+	Text      string
+	List      []string
+	Retention []UOLogRetention
 }
 type uoPreferenceSpec struct {
 	key                UOPreferenceKey
@@ -292,7 +311,7 @@ func UOPreferenceAllowed(k UOPreferenceKey, s UOPreferenceScope) bool {
 	return ok && f.scope == s
 }
 func uoValueEqual(a, b UOValue) bool {
-	return a.Kind == b.Kind && a.Bool == b.Bool && a.Number == b.Number && a.Text == b.Text && slices.Equal(a.List, b.List)
+	return a.Kind == b.Kind && a.Bool == b.Bool && a.Number == b.Number && a.Text == b.Text && slices.Equal(a.List, b.List) && slices.Equal(a.Retention, b.Retention)
 }
 func uoText(s string, maxRunes int) bool {
 	return utf8.ValidString(s) && strings.TrimSpace(s) != "" && utf8.RuneCountInString(s) <= maxRunes && !strings.ContainsAny(s, "\x00\n\r\t")
@@ -305,7 +324,7 @@ func UOValidatePreference(k UOPreferenceKey, s UOPreferenceScope, v UOValue) (UO
 	if !ok || f.scope != s || v.Kind != f.def.Kind {
 		return UOValue{}, false, ErrInvalid
 	}
-	if v.Kind != UOBool && v.Bool || v.Kind != UOInteger && v.Kind != UONumber && v.Number != 0 || v.Kind != UOText && v.Kind != UOLocale && v.Text != "" || v.Kind != UOList && v.Kind != UOLanguages && v.List != nil {
+	if v.Retention != nil || v.Kind != UOBool && v.Bool || v.Kind != UOInteger && v.Kind != UONumber && v.Number != 0 || v.Kind != UOText && v.Kind != UOLocale && v.Text != "" || v.Kind != UOList && v.Kind != UOLanguages && v.List != nil {
 		return UOValue{}, false, ErrInvalid
 	}
 	clamped := false

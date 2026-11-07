@@ -69,7 +69,23 @@ func uoSettingsCurrent(ctx context.Context, t *commandTurn, k UOSettingKey, budg
 	if !ok {
 		return v, 0, ErrInvalid
 	}
-	if f.def.Kind == UOList {
+	if f.def.Kind == UORetention {
+		v = UOValue{Kind: UORetention, Retention: []UOLogRetention{}}
+		for _, category := range uoLogCategories() {
+			row, e := wc008DraftQuery(ctx, t, "uo.settings.log_retention_value", string(category))
+			if e != nil {
+				return v, 0, e
+			}
+			var days int64
+			if e = row.Scan(&days); errors.Is(e, sql.ErrNoRows) {
+				continue
+			}
+			if e != nil {
+				return v, 0, e
+			}
+			v.Retention = append(v.Retention, UOLogRetention{category, days})
+		}
+	} else if f.def.Kind == UOList || f.def.Kind == UORetention {
 		step, ok := t.steps[uoSettingsListCount]
 		if !ok {
 			return v, 0, ErrInvalid
@@ -277,7 +293,36 @@ func applyUOSettings(ctx context.Context, t *commandTurn, q uoSettingsCommand) (
 	}
 	for _, c := range changes {
 		k, v := c.patch.key, c.patch.value
-		if v.Kind == UOList {
+		if v.Kind == UORetention {
+			for _, old := range c.old.Retention {
+				found := false
+				for _, next := range v.Retention {
+					if next.Category == old.Category {
+						found = true
+						break
+					}
+				}
+				if !found {
+					if err = wc008DraftChanged(ctx, t, "uo.settings.log_retention_delete", string(old.Category)); err != nil {
+						return out, err
+					}
+				}
+			}
+			for _, next := range v.Retention {
+				unchanged := false
+				for _, old := range c.old.Retention {
+					if next == old {
+						unchanged = true
+						break
+					}
+				}
+				if !unchanged {
+					if err = wc008DraftChanged(ctx, t, "uo.settings.log_retention_put", string(next.Category), next.Days); err != nil {
+						return out, err
+					}
+				}
+			}
+		} else if v.Kind == UOList {
 			for i, x := range v.List {
 				if i < len(c.old.List) && x == c.old.List[i] {
 					continue
@@ -375,7 +420,7 @@ func uoSettingsDefinitions() []stmt.Definition {
 		out = append(out, stmt.Definition{ID: id, Owner: "store/writer UO ordinary settings draft", CallSites: []string{"store/writer/uo_settings.go"}, Kind: kind, SQL: sql, Params: params, Cohorts: []stmt.Cohort{{Name: "bounded_point", Bindings: uoStatementBindings(params)}}, Plan: uoSettingPointPlan(table)})
 	}
 	for _, f := range uoSettingSpecs {
-		if f.def.Kind == UOList {
+		if f.def.Kind == UOList || f.def.Kind == UORetention {
 			continue
 		}
 		_, _, update := uoSettingSQL(f.key)
@@ -393,6 +438,8 @@ func uoSettingsDefinitions() []stmt.Definition {
 		add(uoSettingID(f.key, "update"), stmt.Write, update, params, "server_settings")
 		out[len(out)-1].Plan = uoSettingValuePlan(f.key)
 	}
+	add("uo.settings.log_retention_put", stmt.Write, `INSERT INTO server_log_retention(category,days) VALUES(?,?) ON CONFLICT(category) DO UPDATE SET days=excluded.days`, []stmt.Param{p("category", stmt.Text), p("days", stmt.Integer)}, "server_log_retention")
+	add("uo.settings.log_retention_delete", stmt.Write, `DELETE FROM server_log_retention WHERE category=?`, []stmt.Param{p("category", stmt.Text)}, "server_log_retention")
 	add(uoSettingsHead, stmt.Read, `SELECT r.revision,s.configuration_pending_revision FROM console_settings_revision AS r JOIN server_settings AS s ON s.singleton=r.singleton WHERE r.singleton=1`, nil, "r")
 	add(uoSettingsCAS, stmt.Write, `UPDATE console_settings_revision SET revision=revision+1 WHERE singleton=1 AND revision=? RETURNING revision`, []stmt.Param{p("expected", stmt.Integer)}, "console_settings_revision")
 	add(uoSettingsGeneration, stmt.Write, `UPDATE server_settings SET configuration_pending_revision=?,updated_ms=? WHERE singleton=1 AND configuration_pending_revision=?`, []stmt.Param{p("generation", stmt.Integer), p("at", stmt.Integer), p("expected", stmt.Integer)}, "server_settings")

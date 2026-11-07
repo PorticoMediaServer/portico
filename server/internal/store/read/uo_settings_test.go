@@ -83,3 +83,20 @@ func TestUOSettingsReadRegistryIsFiniteAndInert(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func TestUOSettingsSnapshotTypedRetentionAndAbsentName(t *testing.T) {
+	pool, exec := uoReadTestFixture(t, UOSettingsDefinitions())
+	exec(`INSERT INTO console_settings_revision VALUES(1,1)`)
+	exec(`INSERT INTO server_settings(singleton) VALUES(1)`)
+	exec(`INSERT INTO server_log_retention VALUES('server',7)`)
+	exec(`INSERT INTO server_log_retention VALUES('client',30)`)
+	var out uoSettingsDocument
+	_, e := pool.ReadForecasted(t.Context(), uoReadTestRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 8192, MaxQueries: 256}, func(s *governor.ReadScope) error {
+		var e error
+		out, e = uoReadSettings(t.Context(), s, []UOSettingKey{UOSettingLogRetention, UOSettingName})
+		return e
+	})
+	if e != nil || len(out.Points) != 2 || out.Points[1].Value.Text != "Portico" || !reflect.DeepEqual(out.Points[0].Value.Retention, []UOLogRetention{{UOLogClient, 30}, {UOLogServer, 7}}) {
+		t.Fatal(out, e)
+	}
+}

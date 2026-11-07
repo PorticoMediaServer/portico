@@ -31,6 +31,11 @@ func uoLegacyValue(t *testing.T, kind string, raw any) UOValue {
 			v.Kind = UOLocale
 		}
 		v.Text = raw.(string)
+	case "log-retention-list":
+		v.Retention = []UOLogRetention{}
+		for _, e := range raw.([]operations.LogRetention) {
+			v.Retention = append(v.Retention, UOLogRetention{UOLogCategory(e.Category), int64(e.Days)})
+		}
 	case "string-list", "languageList":
 		v.List = raw.([]string)
 	default:
@@ -88,7 +93,7 @@ func TestUOSettingsMatchLegacySupportedDomains(t *testing.T) {
 		if !reflect.DeepEqual(a, b) {
 			t.Fatal("read/write setting drift", spec.key)
 		}
-		if ok && len(f.Options) > 0 {
+		if ok && len(f.Options) > 0 && spec.def.Kind != UORetention {
 			for _, x := range f.Options {
 				v := UOValue{Kind: UOText, Text: x}
 				if spec.def.Kind == UOInteger {
