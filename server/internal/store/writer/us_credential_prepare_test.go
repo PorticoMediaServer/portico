@@ -3,13 +3,15 @@ package writer
 import (
 	"bytes"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"strings"
 	"testing"
 	"time"
 )
 
 const usCredentialFixturePassword = "$2a$10$....................................................."
-const usCredentialFixtureDigest = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+
+var usCredentialFixtureDigest = identity.Digest("synthetic-credential-fixture")
 
 func usCredentialTestTarget() usCredentialTarget {
 	return usCredentialTarget{account: "us-credential-account", memberIncarnation: strings.Repeat("a", 32), profile: "us-credential-profile", profileLifetime: strings.Repeat("b", 32), username: "credential-user", profileName: "Credential profile", epoch: 1, memberRevision: 1, profileRevision: 1}
@@ -175,5 +177,46 @@ func TestUSCredentialAppPasswordRawNameBound(t *testing.T) {
 	q.hint = ""
 	if p, err := prepareUSCredentialIssue(q, 1000); p != nil || !errors.Is(err, ErrInvalid) {
 		t.Fatal("existing app-password raw name bound not applied")
+	}
+}
+
+func TestUSCredentialCurrentDigestEncoding(t *testing.T) {
+	real := identity.Digest("pat.synthetic-only-format-control")
+	if len(real) != 43 || !usCredentialDigest(real) {
+		t.Fatal("current identity.Digest encoding rejected")
+	}
+	issue := usCredentialTestIssue()
+	issue.secretHash = real
+	if _, err := prepareUSCredentialIssue(issue, 1000); err != nil {
+		t.Fatal("real issuer digest refused on issue", err)
+	}
+	revoke := usCredentialTestRevoke()
+	revoke.secretHash = real
+	if _, err := prepareUSCredentialRevoke(revoke); err != nil {
+		t.Fatal("real stored digest refused on revoke", err)
+	}
+	for _, bad := range []string{real + "=", real[:42], real + "A", strings.Repeat("a", 64), strings.Repeat("!", 43), strings.Repeat("A", 42) + "B"} {
+		issue.secretHash = bad
+		revoke.secretHash = bad
+		if p, err := prepareUSCredentialIssue(issue, 1000); p != nil || !errors.Is(err, ErrInvalid) {
+			t.Fatal("noncanonical issue digest accepted")
+		}
+		if p, err := prepareUSCredentialRevoke(revoke); p != nil || !errors.Is(err, ErrInvalid) {
+			t.Fatal("noncanonical revoke digest accepted")
+		}
+	}
+}
+
+func TestUSCredentialNewPasswordRejectsStoredOlderCosts(t *testing.T) {
+	for _, cost := range []string{"04", "08"} {
+		q := usCredentialTestPassword()
+		copy(q.previousHash[4:6], cost)
+		if _, err := prepareUSPasswordReplace(q); err != nil {
+			t.Fatal("supported stored hash rejected", err)
+		}
+		copy(q.nextHash[4:6], cost)
+		if p, err := prepareUSPasswordReplace(q); p != nil || !errors.Is(err, ErrInvalid) {
+			t.Fatal("new password accepted at old cost", cost)
+		}
 	}
 }

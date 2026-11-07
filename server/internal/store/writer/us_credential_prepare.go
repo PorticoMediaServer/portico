@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"encoding/base64"
 	"slices"
 	"strings"
 	"time"
@@ -109,7 +110,7 @@ type usCredentialIssuePrepared struct {
 }
 
 func prepareUSCredentialIssue(in usCredentialIssueRequest, nowMS int64) (*usCredentialIssuePrepared, error) {
-	if !validUSCredentialTarget(in.target) || in.target.disabled || in.target.deleted || in.target.mustChange || !usIdentifier(in.id) || !usIdentifier(in.family) || !usIdentifier(in.device) || !usHex(in.secretHash, 64) {
+	if !validUSCredentialTarget(in.target) || in.target.disabled || in.target.deleted || in.target.mustChange || !usIdentifier(in.id) || !usIdentifier(in.family) || !usIdentifier(in.device) || !usCredentialDigest(in.secretHash) {
 		return nil, invalid("us_credential_identity")
 	}
 	if in.kind != "key" && in.kind != "token" && in.kind != "app_password" {
@@ -249,7 +250,7 @@ type usCredentialRevokeRequest struct {
 type usCredentialRevokePrepared struct{ request usCredentialRevokeRequest }
 
 func prepareUSCredentialRevoke(in usCredentialRevokeRequest) (*usCredentialRevokePrepared, error) {
-	if !validUSCredentialTarget(in.target) || !usIdentifier(in.id) || !usIdentifier(in.family) || !usIdentifier(in.device) || !usHex(in.secretHash, 64) ||
+	if !validUSCredentialTarget(in.target) || !usIdentifier(in.id) || !usIdentifier(in.family) || !usIdentifier(in.device) || !usCredentialDigest(in.secretHash) ||
 		(in.kind != "key" && in.kind != "token" && in.kind != "app_password") || in.createdMS <= 0 || in.createdMS > usMaxRevision || in.expiresMS < 0 || in.expiresMS > usMaxRevision || in.revokedMS < 0 || in.revokedMS > usMaxRevision {
 		return nil, invalid("us_credential_revoke")
 	}
@@ -279,4 +280,14 @@ func usCredentialSafeText(v string, max int) bool {
 		}
 	}
 	return true
+}
+
+// identity.Digest's CURRENT api_credentials.secret_hash encoding: unpadded
+// canonical base64url SHA-256, not hexadecimal. Decode only; no proof/hash work.
+func usCredentialDigest(v string) bool {
+	if len(v) != 43 {
+		return false
+	}
+	b, err := base64.RawURLEncoding.Strict().DecodeString(v)
+	return err == nil && len(b) == 32
 }
