@@ -51,6 +51,7 @@ type WCProgressDriver struct {
 	principalLifetime context.Context
 	self              *WCProgressDriver
 	mu                sync.Mutex
+	commandCustody    *wcClaimCommandCustody
 	writer            *Writer
 	scope             wcProgressScope
 	lifetime          context.Context
@@ -95,6 +96,42 @@ type wcProgressCommand struct {
 	request           wcProgressPrepared
 	reference         ProgressReceiptRequest
 	pending           *wcProgressPending
+	custody           *wcClaimCommandReservation
+}
+
+// The actual claim has one sequence shared by progress and cleanup. Reserve
+// that command slot BEFORE reading its next sequence, and retain it through
+// the real ACK. Driver mutexes alone cannot exclude a different command class
+// (or another cleanup handle) preparing the same owner sequence.
+// This private memory fence supplies no native scope, receipt or ACK authority.
+type wcClaimCommandCustody struct {
+	playbackID  string
+	incarnation [16]byte
+	active      atomic.Pointer[wcClaimCommandReservation]
+}
+
+type wcClaimCommandReservation struct{ purpose CommandID }
+
+func (c *wcClaimCommandCustody) matches(s wcProgressScope) bool {
+	return c != nil && c.playbackID == s.playbackID && c.incarnation == s.incarnation
+}
+
+func (c *wcClaimCommandCustody) reserve(purpose CommandID) (*wcClaimCommandReservation, error) {
+	reservation := &wcClaimCommandReservation{purpose: purpose}
+	if !c.active.CompareAndSwap(nil, reservation) {
+		return nil, ErrResolveRequired
+	}
+	return reservation, nil
+}
+
+func (c *wcClaimCommandCustody) release(reservation *wcClaimCommandReservation) {
+	if reservation != nil {
+		c.active.CompareAndSwap(reservation, nil)
+	}
+}
+
+func (c *wcClaimCommandCustody) owns(reservation *wcClaimCommandReservation, purpose CommandID) bool {
+	return reservation != nil && reservation.purpose == purpose && c.active.Load() == reservation
 }
 
 // The retained capability binds one EXACT native obligation, not a general
@@ -117,7 +154,7 @@ type wcProgressInvocation struct {
 }
 
 func (d *WCProgressDriver) current() error {
-	if d == nil || d.self != d || d.writer == nil || d.writer.effective == nil || d.lifetime == nil || d.closed.Load() {
+	if d == nil || d.self != d || d.writer == nil || d.writer.effective == nil || d.lifetime == nil || d.closed.Load() || !d.commandCustody.matches(d.scope) {
 		return ErrDisclosureDenied
 	}
 	r := d.writer.effective
@@ -203,6 +240,7 @@ func newWCProgressDriver(ctx, principal context.Context, w *Writer, s wcProgress
 	expected.Key.ID = strings.Clone(expected.Key.ID)
 	expected.Footprint = slices.Clone(expected.Footprint)
 	d := &WCProgressDriver{writer: w, scope: s, original: original, observed: w.effective.executor.now(), grant: grant, expected: expected, principalLifetime: principal, policy: policy}
+	d.commandCustody = &wcClaimCommandCustody{playbackID: s.playbackID, incarnation: s.incarnation}
 	candidate = d
 	d.self = d
 	d.intervalFrom = d.observed.UnixMilli()
@@ -282,6 +320,9 @@ func checkWCProgressDisclosure(w *Writer, v *wcProgressInvocation) error {
 	}
 	if (v.retained == nil || v.currentDrain) && (d.principalLifetime == nil || d.principalLifetime.Err() != nil) {
 		return ErrDisclosureDenied
+	}
+	if v.input != nil && !v.input.retired && (v.input != d.work || !d.commandCustody.owns(v.input.custody, ProgressAccept)) {
+		return ErrResolveRequired
 	}
 	if v.retained != nil {
 		p := v.retained
@@ -471,6 +512,7 @@ func (d *WCProgressDriver) retireProgressWork(c *wcProgressCommand) {
 	c.pending = nil
 	c.retired = true
 	d.work = nil
+	d.commandCustody.release(c.custody)
 }
 
 func (w *Writer) ResolveProgress(ctx context.Context, cap *ProgressDisclosure, q ProgressReceiptRequest) (out ProgressResult, err error) {
@@ -560,6 +602,15 @@ func (d *WCProgressDriver) Capture(ctx context.Context, reportSequence int64, po
 		}
 		return nil, ErrResolveRequired
 	}
+	reservation, err := d.commandCustody.reserve(ProgressAccept)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if d.work == nil {
+			d.commandCustody.release(reservation)
+		}
+	}()
 	if d.sourceStopped {
 		return nil, ErrInvalid
 	}
@@ -590,6 +641,7 @@ func (d *WCProgressDriver) Capture(ctx context.Context, reportSequence int64, po
 	prepared := wcProgressPrepared{Policy: d.policy, Kind: "capture_report", Source: source, Original: d.original, Position: position, Duration: duration, StartedPercent: d.policy.StartedPercent, Completed: completed, State: state}
 	d.work, err = d.seal(prepared, nil)
 	if err == nil {
+		d.work.custody = reservation
 		d.work.preparation = snap
 	}
 	if err == nil && state != "playing" {
@@ -617,6 +669,15 @@ func (d *WCProgressDriver) Drain(ctx context.Context) (out ProgressCommand, err 
 			return nil, err
 		}
 	}
+	reservation, err := d.commandCustody.reserve(ProgressAccept)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if d.work == nil {
+			d.commandCustody.release(reservation)
+		}
+	}()
 	var snap ProgressSnapshot
 	var result ProgressResult
 	root := d.pending.Load()
@@ -640,6 +701,7 @@ func (d *WCProgressDriver) Drain(ctx context.Context) (out ProgressCommand, err 
 	pending := &wcProgressPending{driver: d, source: source, root: root}
 	d.work, err = d.seal(wcProgressPrepared{Kind: "drain_piece", Source: source}, pending)
 	if err == nil {
+		d.work.custody = reservation
 		d.work.preparation = snap
 	}
 	return d.work, err
