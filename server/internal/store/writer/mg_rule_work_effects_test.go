@@ -23,6 +23,8 @@ func mgRuleWorkerFixture(t *testing.T) (*commandTurn, mgRuleWorkRequest) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	// Private component frame only; accepting admission is parent-owned.
+	turn.transaction.descriptor.ID = MGReconcileRule
 	return turn, mgRuleWorkRequest{rule: r.after, sourceRevision: r.sourceRevision, before: b, worker: 7, leaseUntil: w.now().UnixMilli() + 10000}
 }
 func TestMGRuleWorkerProtocol(t *testing.T) {
@@ -46,6 +48,11 @@ func TestMGRuleWorkerProtocol(t *testing.T) {
 	a, e = advanceMGRuleWork(t.Context(), turn, r, mgRuleWorkResult{"discover", "", 0})
 	if e != nil || a.phase != "discover" {
 		t.Fatal(a, e)
+	}
+	r.before = a
+	a, e = advanceMGRuleWork(t.Context(), turn, r, mgRuleWorkResult{"idle", "", 0})
+	if e != nil || a.phase != "idle" || a.due.Valid || a.owner != 0 || a.expires != 0 || a.leaseGeneration != r.before.leaseGeneration || a.attempts != r.before.attempts {
+		t.Fatal("idle work retained due or changed claim history", a, e)
 	}
 }
 func TestMGRuleWorkerControls(t *testing.T) {

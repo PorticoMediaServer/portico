@@ -6,6 +6,12 @@ import (
 	"math"
 )
 
+const MGReconcileRule CommandID = 826
+
+func mgRuleWorkDescriptors() []Descriptor {
+	return []Descriptor{{MGReconcileRule, "mg.rule.reconcile", Normal}}
+}
+
 // Private ID826 component only. The parent must save the public receipt and
 // finish all acknowledged recording/reservation effects in THIS frame before
 // COMMIT. Any error requires whole-frame rollback. A logical lease is never
@@ -45,7 +51,8 @@ func mgRuleWorkScan(row commandRow) (v mgRuleWorkFacts, err error) {
 	return
 }
 func mgRuleWorkPhase(p string) bool { return p == "existing" || p == "discover" || p == "idle" }
-func mgRuleWorkReadNative(ctx context.Context, t *commandTurn, id string) (mgRuleWorkFacts, error) {
+func mgRuleWorkReadNative(ctx context.Context, t *commandTurn, id string) (out mgRuleWorkFacts, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	row, e := mgRuleWorkRow(ctx, t, mgRuleWorkerRead, id)
 	if e != nil {
 		return mgRuleWorkFacts{}, e
@@ -66,6 +73,9 @@ func advanceMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest,
 }
 func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, mode string, result mgRuleWorkResult) (out mgRuleWorkFacts, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
+	if t == nil || t.transaction == nil || t.transaction.descriptor.ID != MGReconcileRule || !t.transaction.policyVerified {
+		return out, ErrInvalid
+	}
 	b := r.before
 	if !mgRecordingHex(r.rule.id, 64) || !mgRecordingHex(b.generation, 48) || b.rule != r.rule.id || b.revision != r.rule.revision || !b.due.Valid || b.jobRevision < 1 || b.jobRevision == math.MaxInt64 || r.sourceRevision < 1 || r.worker < 1 || r.worker > math.MaxInt32 || !mgRuleWorkPhase(b.phase) || !mgRecordingText(b.cursor, false, 4096) {
 		return out, ErrInvalid
@@ -106,6 +116,7 @@ func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, 
 		return out, ErrConflict
 	}
 	a := b
+	leaseCheck := b.expires
 	a.updated = ms
 	a.jobRevision++
 	switch mode {
@@ -117,6 +128,7 @@ func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, 
 		a.leaseGeneration++
 		a.attempts++
 		a.expires = r.leaseUntil
+		leaseCheck = a.expires
 	case "renew", "advance":
 		if b.owner != r.worker || b.leaseGeneration < 1 || b.expires <= ms {
 			return out, ErrConflict
@@ -126,6 +138,7 @@ func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, 
 				return out, ErrConflict
 			}
 			a.expires = r.leaseUntil
+			leaseCheck = a.expires
 		} else {
 			if result.units < 0 || result.units > 8 || !mgRuleWorkPhase(result.phase) || !mgRecordingText(result.cursor, false, 4096) || (result.units == 0 && result.phase == b.phase) || (b.phase == "discover" && result.phase == "existing") || b.phase == "idle" {
 				return out, ErrInvalid
@@ -135,11 +148,18 @@ func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, 
 			}
 			a.phase = result.phase
 			a.cursor = result.cursor
+			if a.phase == "idle" {
+				// Retire logical work from the due index. This releases no
+				// capture, allocation, generation or artifact custody.
+				a.due = sql.NullInt64{}
+				a.owner = 0
+				a.expires = 0
+			}
 		}
 	default:
 		return out, ErrInvalid
 	}
-	if a.expires <= ms || a.expires-ms > 20000 || ms < b.updated {
+	if leaseCheck <= ms || leaseCheck-ms > 20000 || ms < b.updated {
 		return out, ErrConflict
 	}
 	// The private writer transaction serializes the native rule/source checks
@@ -175,7 +195,7 @@ func mutateMGRuleWork(ctx context.Context, t *commandTurn, r mgRuleWorkRequest, 
 	if e != nil {
 		return out, e
 	}
-	if end.UnixMilli() >= a.expires {
+	if end.UnixMilli() >= leaseCheck {
 		return out, ErrConflict
 	}
 	return actual, nil
