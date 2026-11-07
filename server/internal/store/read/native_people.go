@@ -43,7 +43,11 @@ func nativePersonSource(q browseQuery, scope *fullQueryScope, id int64) (*native
 	if err = nativeSealed(q, publication); err != nil {
 		return nil, err
 	}
-	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestPerson, SubjectID: id, PublicationID: publication, BankID: scope.bank, InputGeneration: generation}, title: title, fold: fold, sortKey: sortKey}, nil
+	identity, err := nativeItemIdentity(p)
+	if err != nil {
+		return nil, err
+	}
+	return &nativeSource{scope: scope, key: search.FieldKey{Subject: search.ManifestPerson, SubjectID: id, PublicationID: publication, BankID: scope.bank, InputGeneration: generation}, title: title, fold: fold, sortKey: sortKey, personSource: identity}, nil
 }
 
 // A People card needs one CURRENT visible credited work. A positive witness
@@ -102,7 +106,7 @@ func nativePersonVisibility(q browseQuery, scope *fullQueryScope, in BrowseInput
 	return nativePolicyWitness{}, false, errFullSearchPending
 }
 
-func nativePersonCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, person int64, lead exactTermPopulation) (canonicalCandidateProof, FullSearchHit, bool, error) {
+func nativePersonCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, person int64, lead nativeSearchLead) (canonicalCandidateProof, FullSearchHit, bool, error) {
 	var proof canonicalCandidateProof
 	var hit FullSearchHit
 	if in.Kind != 0 {
@@ -116,14 +120,15 @@ func nativePersonCandidate(ctx context.Context, q browseQuery, scope *fullQueryS
 	if err != nil || !allowed {
 		return proof, hit, false, err
 	}
-	fields, err := nativeSourceFields(ctx, q, scope, source, true, fullRouteKey{}, slices.Index(scope.terms, lead.term))
+	fields, err := nativeSourceFields(ctx, q, scope, source, true, fullRouteKey{}, slices.Index(scope.terms, lead.term()))
 	if err != nil {
 		return proof, hit, false, err
 	}
-	proof, match, err := proveCandidate(scope, fullResultKey{search.ManifestPerson, person, 0}, lead, fields, true)
+	proof, match, err := lead.prove(scope, fullResultKey{search.ManifestPerson, person, 0}, fields, true)
 	if err != nil || !match {
 		return proof, hit, false, err
 	}
+	permission.personSource, permission.personBank = source.personSource, source.key.BankID
 	hit = FullSearchHit{Subject: search.ManifestPerson, ID: person, Tier: proof.tier, PeopleSubtier: proof.subtier, PersonName: source.title, SortKey: source.sortKey, permission: permission}
 	return proof, hit, true, nil
 }
