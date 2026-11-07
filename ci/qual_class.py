@@ -280,6 +280,75 @@ def finalize(output):
     q.atomic_json(output / 'files.json', files)
 
 
+def retired_unit():
+    result = subprocess.run(['systemctl', 'show', 'portico-canonical-class.service',
+                             '-p', 'LoadState', '-p', 'ActiveState', '-p', 'ControlGroup'],
+                            capture_output=True, text=True, timeout=30)
+    fields = {}
+    for line in result.stdout.splitlines():
+        key, sep, value = line.partition('=')
+        q.require(sep and key not in fields, 'malformed own unit state')
+        fields[key] = value
+    q.require(set(fields) == {'LoadState', 'ActiveState', 'ControlGroup'}
+              and result.returncode == 0 and fields.get('LoadState') in ('loaded', 'not-found')
+              and fields.get('ActiveState') in ('inactive', 'failed'), 'own unit not proven stopped')
+    group = fields.get('ControlGroup', '')
+    if group:
+        q.require(group.startswith('/') and group != '/' and '..' not in Path(group).parts, 'invalid own unit cgroup')
+        events = Path('/sys/fs/cgroup') / group.lstrip('/') / 'cgroup.events'
+        try:
+            raw = events.read_text()
+        except FileNotFoundError:
+            fields['cgroup_absent'] = True
+        else:
+            values = {}
+            for line in raw.splitlines():
+                pair = line.split()
+                q.require(len(pair) == 2 and pair[0] not in values and pair[1].isdigit(), 'malformed cgroup drain evidence')
+                values[pair[0]] = pair[1]
+            q.require(values.get('populated') == '0', 'own cgroup descendants remain')
+            fields['cgroup_events'] = values
+    return fields
+
+
+def cleanup(keep_output=False):
+    # All names derive from the runner's own fixed task paths, never dispatch
+    # input. Only directories need write permission to unlink Go module files.
+    temporary = Path(os.environ['RUNNER_TEMP']).resolve()
+    workspace = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+    output = temporary / 'qual-class-out'
+    output.mkdir(parents=True, exist_ok=True)
+    paths = [temporary / 'qual-class-work', workspace / 'population']
+    proof = dict(version=1, errors=[], paths=[])
+    try:
+        proof['unit'] = retired_unit()
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        proof['errors'].append('Unit drain: ' + str(error))
+    for root in ([] if proof['errors'] else paths):
+        try:
+            if root.is_symlink():
+                root.unlink()  # never traverse a link to another task
+            elif root.exists():
+                for current, _, _ in os.walk(root, followlinks=False):
+                    os.chmod(current, 0o700)
+                shutil.rmtree(root)
+            q.require(not os.path.lexists(root), 'own scratch remains')
+            proof['paths'].append(dict(path=str(root), absent=True))
+        except (OSError, ValueError) as error:
+            proof['errors'].append(f'{root}: {error}')
+    q.atomic_json(output / 'cleanup.json', proof)
+    if proof['errors']:
+        receipt = output / 'receipt.json'
+        r = json.loads(receipt.read_text()) if receipt.exists() else {}
+        r.update(status='failed', cleanup_errors=proof['errors'], qualification_verdict=None)
+        q.atomic_json(receipt, r)
+    q.require(not proof['errors'], 'own scratch cleanup failed; proof retained')
+    if not keep_output:
+        for current, _, _ in os.walk(output, followlinks=False):
+            os.chmod(current, 0o700)
+        shutil.rmtree(output)
+
+
 def summarize(artifacts, output):
     output.mkdir(parents=True, exist_ok=True)
     cells = []
@@ -323,6 +392,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='mode', required=True)
     sub.add_parser('plan')
+    cleanup_args = sub.add_parser('cleanup'); cleanup_args.add_argument('--keep-output', action='store_true')
     f = sub.add_parser('finalize'); f.add_argument('--output', required=True, type=Path)
     a = sub.add_parser('summarize'); a.add_argument('--artifacts', required=True, type=Path); a.add_argument('--output', required=True, type=Path)
     p = sub.add_parser('prepare')
@@ -333,6 +403,8 @@ def main():
     args = parser.parse_args()
     if args.mode == 'plan':
         plan()
+    elif args.mode == 'cleanup':
+        cleanup(args.keep_output)
     elif args.mode == 'finalize':
         finalize(args.output)
     elif args.mode == 'summarize':
