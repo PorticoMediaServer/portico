@@ -217,68 +217,66 @@ func testLiveCapacityHeldBySlowConsumers(t *testing.T) {
 }
 
 func TestLiveErrorsPanicCancellationAndExpiryKeepCustody(t *testing.T) {
-	synctest.Test(t, testLiveErrorsPanicCancellationAndExpiryKeepCustody)
-}
-
-func testLiveErrorsPanicCancellationAndExpiryKeepCustody(t *testing.T) {
 	for _, mode := range []string{"error", "panic", "cancel", "expiry", "revoke"} {
 		t.Run(mode, func(t *testing.T) {
-			f, _ := newLiveFixture(t)
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			q, request, output := liveRequests(mode)
-			if mode == "expiry" {
-				q.ReadyDeadline = time.Now().Add(20 * time.Millisecond)
-				q.ProtectedDeadline = time.Now().Add(40 * time.Millisecond)
-				output.Deadline = q.ProtectedDeadline
-			}
-			marker := errors.New("consumer fault")
-			var e error
-			var got any
-			func() {
-				defer func() { got = recover() }()
-				_, e = ConsumeForeground(ctx, f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-					if mode == "expiry" {
-						<-ctx.Done()
-					} else {
-						page, _, err := f.reader.Window(ctx, request, time.Second, out, f.input)
-						if err != nil {
-							return err
-						}
-						if len(page.Items) == 0 {
-							t.Fatal("missing content")
-						}
-					}
-					switch mode {
-					case "cancel":
-						cancel()
-					case "revoke":
-						f.governor.Cancel(out.live.live)
-						if err := out.live.check(); !errors.Is(err, governor.ErrGrant) {
-							t.Fatal("revoked LIVE usable", err)
-						}
-					}
-					assertLiveUsage(t, f, 1, 0)
-					if mode == "panic" {
-						panic(marker)
-					}
-					if mode == "error" {
-						return marker
-					}
-					return nil
-				})
-			}()
-			if mode == "panic" {
-				if got != marker {
-					t.Fatal("primary panic lost", got)
+			synctest.Test(t, func(t *testing.T) {
+				f, _ := newLiveFixture(t)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				q, request, output := liveRequests(mode)
+				if mode == "expiry" {
+					q.ReadyDeadline = time.Now().Add(20 * time.Millisecond)
+					q.ProtectedDeadline = time.Now().Add(40 * time.Millisecond)
+					output.Deadline = q.ProtectedDeadline
 				}
-			} else if got != nil {
-				t.Fatal(got)
-			}
-			if mode == "error" && !errors.Is(e, marker) || mode == "cancel" && !errors.Is(e, context.Canceled) || mode == "expiry" && !errors.Is(e, context.DeadlineExceeded) {
-				t.Fatal("consumer outcome lost", mode, e)
-			}
-			assertLiveUsage(t, f, 0, 0)
+				marker := errors.New("consumer fault")
+				var e error
+				var got any
+				func() {
+					defer func() { got = recover() }()
+					_, e = ConsumeForeground(ctx, f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+						if mode == "expiry" {
+							<-ctx.Done()
+						} else {
+							page, _, err := f.reader.Window(ctx, request, time.Second, out, f.input)
+							if err != nil {
+								return err
+							}
+							if len(page.Items) == 0 {
+								t.Fatal("missing content")
+							}
+						}
+						switch mode {
+						case "cancel":
+							cancel()
+						case "revoke":
+							f.governor.Cancel(out.live.live)
+							if err := out.live.check(); !errors.Is(err, governor.ErrGrant) {
+								t.Fatal("revoked LIVE usable", err)
+							}
+						}
+						assertLiveUsage(t, f, 1, 0)
+						if mode == "panic" {
+							panic(marker)
+						}
+						if mode == "error" {
+							return marker
+						}
+						return nil
+					})
+				}()
+				if mode == "panic" {
+					if got != marker {
+						t.Fatal("primary panic lost", got)
+					}
+				} else if got != nil {
+					t.Fatal(got)
+				}
+				if mode == "error" && !errors.Is(e, marker) || mode == "cancel" && !errors.Is(e, context.Canceled) || mode == "expiry" && !errors.Is(e, context.DeadlineExceeded) {
+					t.Fatal("consumer outcome lost", mode, e)
+				}
+				assertLiveUsage(t, f, 0, 0)
+			})
 		})
 	}
 }
