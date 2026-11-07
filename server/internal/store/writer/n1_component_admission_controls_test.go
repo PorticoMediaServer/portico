@@ -79,7 +79,9 @@ func TestN1AdmissionPartialAndRefusalRemainCallBound(t *testing.T) {
 		}
 	}()
 	before := time.Now()
-	if _, err := f.Begin(t); err == nil || !errors.Is(err, ErrRefused) {
+	// Exercise the admission seam itself. The outer progressive joined guard
+	// correctly refuses an unexpected same-class holding before it calls begin.
+	if _, err := f.owner.begin(t, f.current); err == nil || !errors.Is(err, ErrRefused) {
 		t.Fatal("actual refusal lost", err)
 	}
 	refused := n1BindAdmission(f.owner.admission, origin, before, time.Now())
