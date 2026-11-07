@@ -32,8 +32,8 @@ func TestQuantumReservesTerminalAndRefusesWithoutMutation(t *testing.T) {
 			t.Fatal("refusal changed ledger")
 		}
 	}
-	// Forecast fits, but elapsed actual time leaves no room for terminal return.
-	if err := q.TryStep(Work{1, 1, 1, 1, time.Millisecond}, start.Add(8*time.Millisecond)); !errors.Is(err, ErrQuantum) {
+	// Forecast fits, but the runtime safety ceiling leaves no terminal reserve.
+	if err := q.TryStep(Work{1, 1, 1, 1, time.Millisecond}, start.Add(MaxCommandSafetyHold)); !errors.Is(err, ErrQuantum) {
 		t.Fatal(err)
 	}
 	if q.Remaining() != before {
@@ -116,7 +116,7 @@ func TestQuantumTerminalConsumesReserveExactlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := q.Remaining()
-	if err := q.TryFinish(start.Add(9 * time.Millisecond)); !errors.Is(err, ErrQuantum) {
+	if err := q.TryFinish(start.Add(MaxCommandSafetyHold)); !errors.Is(err, ErrQuantum) {
 		t.Fatal(err)
 	}
 	if q.Remaining() != before {
@@ -132,10 +132,43 @@ func TestQuantumTerminalConsumesReserveExactlyOnce(t *testing.T) {
 	if err := q.TryFinish(start.Add(8 * time.Millisecond)); !errors.Is(err, ErrQuantum) {
 		t.Fatal(err)
 	}
-	if err := q.TryStep(Work{Hold: time.Nanosecond}, start.Add(8*time.Millisecond)); !errors.Is(err, ErrQuantum) {
+	if err := q.TryStep(Work{Hold: time.Nanosecond}, start.Add(MaxCommandSafetyHold)); !errors.Is(err, ErrQuantum) {
 		t.Fatal(err)
 	}
 	if q.Remaining() != after {
 		t.Fatal("finished quantum changed")
+	}
+}
+
+// A measured target miss must not stop an otherwise valid quantum.
+func TestQuantumTargetMissPreservesForecastAndTerminal(t *testing.T) {
+	start := time.Unix(2000000000, 0)
+	q, err := NewQuantum(Work{10, 100, 10, 1000, 25 * time.Millisecond}, Work{1, 1, 1, 1, time.Millisecond}, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.TryStep(Work{1, 1, 1, 1, time.Millisecond}, start.Add(30*time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.TryFinish(start.Add(31 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A late terminal entry must not turn forecast reserve into a target deadline.
+func TestQuantumTerminalEntryPastTargetReserveStillFitsSafety(t *testing.T) {
+	start := time.Unix(2000000000, 0)
+	q, err := NewQuantum(Work{10, 100, 10, 1000, 25 * time.Millisecond}, Work{1, 1, 1, 1, 8 * time.Millisecond}, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.TryStep(Work{1, 1, 1, 1, 17 * time.Millisecond}, start.Add(17130*time.Microsecond)); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.TryFinish(start.Add(17130 * time.Microsecond)); err != nil {
+		t.Fatal(err)
+	}
+	if q.Remaining().Hold != 0 {
+		t.Fatal("forecast reserve was not charged", q.Remaining())
 	}
 }
