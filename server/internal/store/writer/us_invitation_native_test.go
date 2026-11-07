@@ -54,10 +54,11 @@ func TestUSInvitationNativeEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Expiration does not prevent an administrator explicitly revoking a still
-	// pending record. Revoked/accepted states cannot take this effect again.
+	// pending record. A distinct operation at the new revoked revision may
+	// revoke again; the original expected-revision CAS still cannot replay.
 	assertUSInvitationEffect(t, conn, registry, revoke, 4000, true, 4, "revoked", 3000)
 	revoke.expectedRevision = 4
-	assertUSInvitationEffect(t, conn, registry, revoke, 4000, false, 0, "", 0)
+	assertUSInvitationEffect(t, conn, registry, revoke, 4000, true, 5, "revoked", 3000)
 }
 
 func TestUSInvitationNativeGuards(t *testing.T) {
@@ -88,7 +89,7 @@ func TestUSInvitationNativeGuards(t *testing.T) {
 			assertUSInvitationEffect(t, conn, registry, p, tc.now, false, 0, "", 0)
 		})
 	}
-	for _, state := range []string{"accepted", "revoked"} {
+	for _, state := range []string{"accepted"} {
 		if _, err := conn.ExecContext(t.Context(), "UPDATE access_invitations SET state=? WHERE id='us-invite'", state); err != nil {
 			t.Fatal(err)
 		}

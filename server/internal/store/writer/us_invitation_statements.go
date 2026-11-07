@@ -15,6 +15,7 @@ const (
 // No statement accepts an account or issues/reveals either capability.
 // Edit/revoke bump revision, invalidating every short capability bound to the
 // preceding revision without rewriting/deleting that separate retained row.
+// An already revoked row may take a NEW operation/revision, as today's API does.
 func usInvitationEffectDefinitions() []stmt.Definition {
 	text := func(name string) stmt.Param { return stmt.Param{Name: name, Type: stmt.Text} }
 	integer := func(name string) stmt.Param { return stmt.Param{Name: name, Type: stmt.Integer} }
@@ -44,7 +45,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)` + result,
 			Cohorts: []stmt.Cohort{{Name: "replace_access", Bindings: []any{nil, "admin", "[]", int64(3000), "limit", int64(2), false, false, "PG-13", "us-invite", int64(1), int64(1000), int64(1000), int64(3000), int64(1000), int64(3000), int64(2592001000)}}}, Plan: pk,
 		},
 		{ID: usInvitationRevokeWrite, SQL: `UPDATE access_invitations INDEXED BY sqlite_autoindex_access_invitations_1 SET state='revoked',revision=revision+1
-WHERE id=? AND state='pending' AND revision=? AND revision<9007199254740991` + result,
+WHERE id=? AND state<>'accepted' AND revision=? AND revision<9007199254740991` + result,
 			Params:  []stmt.Param{text("id"), integer("expected_revision")},
 			Cohorts: []stmt.Cohort{{Name: "pending", Bindings: []any{"us-invite", int64(1)}}, {Name: "stale", Bindings: []any{"us-invite", int64(2)}}}, Plan: pk,
 		},
