@@ -155,7 +155,17 @@ func nativeEntitySource(query browseQuery, scope *fullQueryScope, id int64) (*na
 		return nil, err
 	}
 	if len(rows) == 0 {
-		return nil, nil
+		// A live source with a raw posting but no matching accepted head is
+		// pending, not proof of a zero-match population. Missing/retired sources
+		// are ordinary rejected raw positions.
+		item, e := query("full.native.item", id)
+		if e != nil {
+			return nil, e
+		}
+		if len(item) == 0 || len(item) == 1 && len(item[0]) == 17 && item[0][4] == int64(1) {
+			return nil, nil
+		}
+		return nil, errFullSearchPending
 	}
 	if len(rows) != 1 || len(rows[0]) != 12 {
 		return nil, ErrUnqualified
