@@ -23,7 +23,8 @@ raw row separately checks library/kind/retirement and the common item predicate.
 | Show seasons | show_id + entity ID; mixed raw show children consume the cap | Candidate only; numeric/specials order unfinished |
 | Show episodes | show_id + entity ID | Candidate only; season number/specials order unfinished |
 | Season episodes | season_id + episode number + entity ID | Exact direct order across accepted numbering modes |
-| Artist albums | artist_id + entity ID | Candidate only; release type/year/title and credited appearances unfinished |
+| Artist albums | artist_id + entity ID | Candidate only; release type/year/title unfinished |
+| Artist credited songs | artist credit + song ID, then current song point | Candidate only; appearances must merge/deduplicate with primary albums before release order |
 | Album songs | album_id + COALESCE(disc,1) + COALESCE(track,0) + entity ID | Exact direct order |
 | Author books | library + exact author name (NOCASE) + entity ID | Candidate only; series position/title/part projection unfinished |
 | Book parts | book_id + COALESCE(disc,1) + COALESCE(part,0) + entity ID | Exact direct order |
@@ -79,7 +80,7 @@ used to derive a count, duration, latest date, or other aggregate.
    reconstruction; raw show ID order deliberately does not stand in for them.
 2. Artist release role (Album/EP/Single/Compilation/credited appearance), unknown
    year last and selected title ties need accepted provider-generic evidence
-   joins plus credited-song source streams. The old mb_* link tables are absent
+   joins plus merging/deduplication of the credited-song and primary-album streams. The old mb_* link tables are absent
    from the canonical schema; do not infer current publication from evidence alone.
 3. Author series/nullable numeric position, standalone title order, deduplicated
    book-to-part projection, collection/playlist ancestor lifting and occurrence
@@ -103,7 +104,7 @@ only a comparison artifact and never authority. It emits its prospective capture
 into `PORTICO_LANE_EVIDENCE_DIR` for review/adoption. Final run pins and failures
 are recorded in the parent handoff.
 
-Qualification handoff: `BrowseReader.RBGroupWindow`, the nine family selectors,
+Qualification handoff: `BrowseReader.RBGroupWindow`, the ten family selectors,
 first/far continuation and both directions; `BrowseReader.RBRelationshipExact`
 small complete sets and truthful raw-cap refusals. QS/QL must additionally adapt
 the root's large exact source walk on the canonical 1M seed, including equal and
@@ -142,7 +143,7 @@ patch SHA256 `0cfe2f4dc7021a3a2715a9cf1aee9f47bbba75e792ee4b374ec5ce8eea871246`.
 Helper-authored commits change only this document, rb_group*.go and rb-group-*
 fixtures. Functional successes establish the implemented subset only.
 
-Capture adoption: runner source `5cc2b50fa108c1286ff8f95eef9536b7ae3409a1`,
+Initial capture adoption (before the credited-source extension): runner source `5cc2b50fa108c1286ff8f95eef9536b7ae3409a1`,
 56 definitions, 112 present/empty plans per statistics profile, 152 SEARCH rows
 per profile (304 total); zero SCAN or temporary-sort rows. Compressed artifact
 SHA256 `98694abecfbd5bc560861b65b77a87737268f94058f4f655e9f0eedcd3c0cad4`;
@@ -151,3 +152,11 @@ uncompressed JSON SHA256
 Article context is accepted for direct source streams, whose order is independent
 of articles, and still binds their cursor. The final tests also exercise that
 context change; the captured SQL definitions and seed are unchanged.
+
+Credited appearances are a separate indexed candidate family, including songs
+whose album has another primary artist. The primary-album stream can compose
+with album songs, while the credit stream enumerates the appearance side;
+neither list alone establishes an artist's complete release order. Runs
+42387177369 (full read package) and 42387179474 (group race) on 05d9f8e9b were
+superseded/canceled when this final source gap was added. Their final states
+remain in the runner record; final validation uses the later 60-definition head.
