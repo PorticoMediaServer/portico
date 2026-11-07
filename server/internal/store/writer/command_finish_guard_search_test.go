@@ -1,0 +1,20 @@
+package writer
+
+func init() {
+	registerCommandFinishGuard(commandFinishGuardFamily{
+		name:        "search",
+		resultTypes: []string{"SearchImageStageResult", "publisherReceiptLookup", "publisherInvocation", "searchFragmentStageResult"},
+		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts"},
+		prefixes:    []string{"checkSearchImage"},
+		bypasses: []string{
+			`func fragmentRelease(ctx context.Context)(out searchFragmentStageResult,err error){return searchFragmentStageResult{},nil}`,
+			`func searchFragmentStageFreshFacts(ctx context.Context,turn *commandTurn,want searchFragmentStageSnapshot)(out searchFragmentStageSnapshot,err error){return want,nil}`,
+			`func searchImageEngine(ctx context.Context)(out searchpolicy.Engine,err error){return searchpolicy.Engine{Version:"saved"},nil}`,
+			`func acknowledgeSearchPublisher(ctx context.Context,turn *commandTurn,q PublisherReceiptRequest,lookup publisherReceiptLookup)(out int64,err error){return 1,nil}`,
+			`func searchImageStageFreshFacts(ctx context.Context,turn *commandTurn,want searchImageStageRequest)(out searchImageStageRequest,err error){return want,nil}`,
+			`func searchImageTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
+			`func requireSearchImageMemory(ctx context.Context)(err error){return nil}`,
+			`func checkSearchImageTerminal(ctx context.Context)(err error){return nil}`,
+		},
+	})
+}
