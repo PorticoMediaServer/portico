@@ -410,8 +410,13 @@ func (r *RSArtistAlbumReader) hydrate(ctx context.Context, q governor.Request, o
 		}
 
 	} else {
-		card.Artwork, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 6, id), Item: id, Role: "poster", PageSlot: true})
+		var value ArtworkFact
+		value, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 6, id), Item: id, Role: "poster", PageSlot: true})
 		if e == nil {
+			e = p.charge(artistAlbumCardBytes(RSArtistAlbumCard{Artwork: value, MissingCanonicalFacts: []string{"catalog_albums.provider_match_status", "catalog_albums.release_id", "catalog_albums.release_group_id", "catalog_albums.provider_observed_at", "albumRoleSQL"}}))
+		}
+		if e == nil {
+			card.Artwork = value
 			card.MissingCanonicalFacts = []string{"catalog_albums.provider_match_status", "catalog_albums.release_id", "catalog_albums.release_group_id", "catalog_albums.provider_observed_at", "albumRoleSQL"}
 			p.hydrate++
 		}
