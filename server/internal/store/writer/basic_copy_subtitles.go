@@ -125,7 +125,11 @@ func installBasicSubtitleSidecar(ctx context.Context, turn *commandTurn, in basi
 	if in.hadBefore {
 		captured = []any{in.before.id, in.before.path, in.before.size, in.before.modifiedNS, in.before.digest}
 	}
-	if err = basicSubtitleCapturedRow(rows, captured); err != nil {
+	var present []any
+	if in.hadBefore {
+		present = []any{next.id}
+	}
+	if err = basicSubtitleCapturedRow(rows, present); err != nil {
 		return value, err
 	}
 	rows, err = basicRows(ctx, turn, basicCopySidecarKey, next.path)
@@ -134,7 +138,7 @@ func installBasicSubtitleSidecar(ctx context.Context, turn *commandTurn, in basi
 	}
 	var key []any
 	if in.hadBefore {
-		key = []any{next.id}
+		key = []any{next.path}
 	}
 	if err = basicSubtitleCapturedRow(rows, key); err != nil {
 		return value, err
@@ -225,7 +229,11 @@ func installBasicSubtitle(ctx context.Context, turn *commandTurn, in basicSubtit
 	if in.hadBefore {
 		captured = []any{in.before.id, s.assetToken, in.before.origin, in.before.locator, in.before.streamIndex, beforeSidecar, in.before.format, in.before.language, in.before.title, basicBool(in.before.isDefault), basicBool(in.before.isForced), in.before.reason, basicBool(in.before.hearingImpaired)}
 	}
-	if err = basicSubtitleCapturedRow(rows, captured); err != nil {
+	var present []any
+	if in.hadBefore {
+		present = []any{next.id}
+	}
+	if err = basicSubtitleCapturedRow(rows, present); err != nil {
 		return value, err
 	}
 	rows, err = basicRows(ctx, turn, basicCopySubtitleKey, s.assetToken, next.origin, next.locator)
@@ -234,7 +242,7 @@ func installBasicSubtitle(ctx context.Context, turn *commandTurn, in basicSubtit
 	}
 	var key []any
 	if in.hadBefore {
-		key = []any{next.id}
+		key = []any{s.assetToken, next.origin, next.locator}
 	}
 	if err = basicSubtitleCapturedRow(rows, key); err != nil {
 		return value, err
@@ -243,6 +251,10 @@ func installBasicSubtitle(ctx context.Context, turn *commandTurn, in basicSubtit
 	args := expected
 	if in.hadBefore {
 		id = basicCopySubtitleUpdate
+		if in.before.origin == "embedded" {
+			id = basicCopySubtitleUpdateEmbedded
+			captured = append(captured[:5], captured[6:]...)
+		}
 		args = append(append([]any{}, expected[4:]...), captured...)
 	}
 	rows, err = basicRows(ctx, turn, id, args...)
