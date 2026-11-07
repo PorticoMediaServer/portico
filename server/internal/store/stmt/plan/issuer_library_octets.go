@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -15,7 +14,7 @@ const issuerLibraryRootLengthsSQL = "SELECT octet_length(root) FROM catalog_libr
 // This second closed issuer point does not admit octet_length to generic lint.
 // Keep the existing source-length definition and its native audit unchanged.
 func closedIssuerOctetDefinition(d stmt.Definition) bool {
-	return issuerOctetDefinition(d) || issuerLibraryOctetDefinition(d) || n1OctetDefinition(d)
+	return issuerOctetDefinition(d) || issuerLibraryOctetDefinition(d) || n1OctetDefinition(d) || wcProgressSnapshotOctetDefinition(d)
 }
 
 func issuerLibraryOctetDefinition(d stmt.Definition) bool {
@@ -31,30 +30,8 @@ func issuerLibraryOctetDefinition(d stmt.Definition) bool {
 }
 
 func auditIssuerLibraryOctetKey(ctx context.Context, conn *sql.Conn) error {
-	// A direct native PRAGMA cannot resolve to a forged TEMP/main catalogue.
-	functions, err := query(ctx, conn, "PRAGMA function_list")
-	if err != nil {
+	if err := auditBuiltinOctetLength(ctx, conn); err != nil {
 		return err
-	}
-	matches := 0
-	for _, row := range functions.Values {
-		if len(row) != 6 {
-			return fmt.Errorf("issuer library preflight: unexpected native function metadata")
-		}
-		name, nameOK := row[0].(string)
-		arity, arityOK := row[4].(int64)
-		if !nameOK || !arityOK {
-			return fmt.Errorf("issuer library preflight: invalid native function metadata")
-		}
-		if strings.EqualFold(name, "octet_length") && (arity == 1 || arity == -1) {
-			if row[1] != int64(1) || arity != 1 {
-				return fmt.Errorf("issuer library preflight: unshadowed native one-argument octet_length required")
-			}
-			matches++
-		}
-	}
-	if matches != 1 {
-		return fmt.Errorf("issuer library preflight: unshadowed native one-argument octet_length required")
 	}
 	// Certify the INTEGER PRIMARY KEY alias, rather than trusting a schema name.
 	columns, err := query(ctx, conn, "PRAGMA main.table_xinfo(catalog_libraries)")
