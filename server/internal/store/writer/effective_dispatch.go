@@ -65,6 +65,7 @@ type effectiveRuntime struct {
 	inventoryPlan            *effectivePlan
 	lifecyclePlans           [2]*effectivePlan // private, explicitly composed create/claim history profiles
 	issuerPlans              [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
+	inventoryDriverPlan      *effectivePlan    // complete trusted N1 profile; nil keeps fresh effects closed
 	inventoryPreparationPlan *effectivePlan
 	registry                 *stmt.Registry
 	fenced                   bool
@@ -391,6 +392,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		if !isScanInventoryHistory(scan.issuer.action) {
 			return out, acknowledged, ErrInvalid
 		}
+		if scan.issuer.action == scanIssuerN1Apply && r.inventoryDriverPlan != nil {
+			plan = r.inventoryDriverPlan
+		}
 	}
 	if purpose == InventoryAccept {
 		required, e := scanLifecycleWorkingBytes(nil, scan.request.RunID, scan.request.LibraryKey)
@@ -687,7 +691,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		physical, err = tx.rollback(err)
 	}
 	if scan != nil && scan.issuer != nil && !ack && !historical && physical.state == committed &&
-		(scan.issuer.action == scanIssuerCreate || scan.issuer.action == scanIssuerClaim) {
+		(scan.issuer.action == scanIssuerCreate || scan.issuer.action == scanIssuerClaim || scan.issuer.action == scanIssuerN1Apply) {
 		outcome.State = Applied
 		outcome.Reference = reference
 	}

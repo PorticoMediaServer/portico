@@ -33,10 +33,23 @@ func runScanInventoryHistory(ctx context.Context, turn *commandTurn, in *invento
 		return out, floor, true, err
 	}
 	if in.issuer.action == scanIssuerN1Apply && lookup.decision == receiptFresh {
-		// The complete accepting profile remains a separate closed gate. A
-		// captured registry or funded observation cannot enable a subset.
-		if err = checkInventoryFreshLibrary(ctx, turn, in.request); err == nil {
-			err = &Refusal{Code: RefusalUnqualified}
+		// History wins before fresh eligibility. Only the installed complete
+		// driver plan may reach the domain body on this SAME protected frame.
+		// A funded observation or history-only registry is still insufficient.
+		if in.issuer.driver.writer.effective.inventoryDriverPlan == nil {
+			if err = checkInventoryFreshLibrary(ctx, turn, in.request); err == nil {
+				err = &Refusal{Code: RefusalUnqualified}
+			}
+			return out, floor, false, err
+		}
+		if err = checkInventoryDriverTurn(ctx, turn, in); err == nil {
+			err = checkInventoryFreshLibrary(ctx, turn, in.request)
+		}
+		if err == nil {
+			err = checkInventoryDriverFreshSource(ctx, turn, in)
+		}
+		if err == nil {
+			out.inventory, err = applyInventoryAccept(ctx, turn, in.input)
 		}
 		return out, floor, false, err
 	}
