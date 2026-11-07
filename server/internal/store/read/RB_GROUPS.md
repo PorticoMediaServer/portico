@@ -2,6 +2,8 @@
 
 Harness-only; no runtime registration, HTTP adapter, DDL, durable result copy,
 provider call, or per-profile import/fanout. All definitions live in this family.
+Current inventory: 60 definitions for ten source families and the relationship
+exact fallback, with both statistics profiles captured on the actual Reader.
 
 Base: `d09f554e0450a14bc3f7b54317877f9151ceb6cb` (fresh origin/main,
 7 November 2026). Separate dependency: policy seam original
@@ -160,3 +162,14 @@ neither list alone establishes an artist's complete release order. Runs
 42387177369 (full read package) and 42387179474 (group race) on 05d9f8e9b were
 superseded/canceled when this final source gap was added. Their final states
 remain in the runner record; final validation uses the later 60-definition head.
+
+Final capture refresh: source `c6f33d0956c7bb8af8be46fc2c20015b86a593e5`,
+run 42387454387. All 11 non-golden parents passed, including credited appearances
+and article-context continuation. The expected old-fixture SHA comparison failed
+until the new artifact was reviewed/adopted. Both profiles contain 60 definitions,
+120 plans and 168 SEARCH rows each (336 total), with zero SCAN/temporary sorts.
+The credited reverse seeks explicitly constrain artist_id plus song_id for far
+continuation. Current compressed SHA256
+`85a21da6de275dd87dd2980372387caab82381958489585101414f5609083423`;
+current JSON SHA256
+`d01577ace4f28b7a3a8f52f68540776e374eb5ad3eb331ffec0844d909791f2c`.
