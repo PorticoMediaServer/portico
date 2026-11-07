@@ -352,6 +352,16 @@ func proveCandidate(scope *fullQueryScope, key fullResultKey, lead exactTermPopu
 	var primaryFold string
 	var primarySeen bool
 	cohorts := make(map[[2]int64]search.FieldKey)
+	// Revision is an opaque FIELD witness. Different fields in the same
+	// accepted publication may have distinct native revisions; repeated proofs
+	// of the same logical field must retain its exact witness.
+	type fieldIdentity struct {
+		subject search.ManifestSubject
+		id      int64
+		field   uint16
+		ordinal int64
+	}
+	fieldRevisions := make(map[fieldIdentity]string)
 	for _, source := range sources {
 		p := source.proof
 		if p.scope != scope || len(p.matched) != len(all) {
@@ -361,10 +371,15 @@ func proveCandidate(scope *fullQueryScope, key fullResultKey, lead exactTermPopu
 			return canonicalCandidateProof{}, false, ErrInput
 		}
 		identity := [2]int64{int64(p.key.Subject), p.key.SubjectID}
-		if old, ok := cohorts[identity]; ok && (old.PublicationID != p.key.PublicationID || old.BankID != p.key.BankID || old.InputGeneration != p.key.InputGeneration || old.Revision != p.key.Revision) {
+		if old, ok := cohorts[identity]; ok && (old.PublicationID != p.key.PublicationID || old.BankID != p.key.BankID || old.InputGeneration != p.key.InputGeneration) {
 			return canonicalCandidateProof{}, false, ErrStale
 		}
 		cohorts[identity] = p.key
+		field := fieldIdentity{p.key.Subject, p.key.SubjectID, p.key.Field, p.key.LogicalOrdinal}
+		if old, ok := fieldRevisions[field]; ok && old != p.key.Revision {
+			return canonicalCandidateProof{}, false, ErrStale
+		}
+		fieldRevisions[field] = p.key.Revision
 		if !source.own && p.key.Field > 4 {
 			continue
 		} // appearance/year/Reading never owner NAME
