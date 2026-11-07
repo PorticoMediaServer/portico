@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true}
+	resultTypes := map[string]bool{"ProgressResult": true, "ProgressSnapshot": true, "ProgressCommand": true, "wcProgressLookup": true, "commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -45,6 +45,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 			fn.Name.Name == "searchImageTimeMS" || fn.Name.Name == "commandTimeMS" || fn.Name.Name == "requireCommandMemory"
 		needs = needs || fn.Name.Name == "acknowledgeSearchPublisher" || fn.Name.Name == "searchImageStageFreshFacts"
 		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle" || fn.Name.Name == "composeScanLifecycleHistory"
+		needs = needs || fn.Name.Name == "newWCProgressDriver" || fn.Name.Name == "composeWCProgress" || fn.Name.Name == "initializeWCProgressFixture" || fn.Name.Name == "checkWCProgressNativeDisclosure"
 		needs = needs || fn.Name.Name == "newScanDriver" || fn.Name.Name == "keepPreparation" || fn.Name.Name == "prepareWork" || fn.Name.Name == "allocateBirth" || fn.Name.Name == "prepareBirth" || fn.Name.Name == "checkBirthAbsence" || fn.Name.Name == "excludeOldWork"
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
 		if !needs {
@@ -243,6 +244,10 @@ func TestEveryCommandReleaseUsesSharedFinish(t *testing.T) {
 }
 func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 	for _, body := range []string{
+		`func newWCProgressDriver(ctx context.Context)(out *WCProgressDriver,err error){return out,nil}`,
+		`func progressBypass(ctx context.Context)(out ProgressResult,err error){return out,nil}`,
+		`func snapshotBypass(ctx context.Context)(out ProgressSnapshot,err error){return out,nil}`,
+		`func commandBypass(ctx context.Context)(out ProgressCommand,err error){return out,nil}`,
 		`func newScanDriver(ctx context.Context)(out *ScanDriver,err error){return out,nil}`,
 		`func keepPreparation(ctx context.Context)(err error){return nil}`,
 		`func prepareWork(ctx context.Context)(out *scanDriverWork,err error){return out,nil}`,

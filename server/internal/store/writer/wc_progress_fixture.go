@@ -61,7 +61,7 @@ func initializeWCProgressFixture(ctx context.Context, d *WCProgressDriver) (err 
 	}
 	// This private helper is called ONLY by the separately reviewed test fixture.
 	// Permit and actual birth witnesses are constructed before exposing d.
-	p := &wcProgressBirth{driver: d, expiresAt: d.writer.effective.executor.now().Add(time.Hour).UTC().Format(time.RFC3339Nano)}
+	p := &wcProgressBirth{driver: d, expiresAt: d.scope.horizon}
 	q := ProgressReceiptRequest{PlaybackID: d.scope.playbackID, Kind: "capture_report", Receipt: ReceiptReference{Identity: CommandIdentity{Incarnation: d.scope.incarnation, Sequence: 1}}}
 	_, err = d.writer.runWCProgress(ctx, &wcProgressInvocation{disclosure: d.Disclosure(), request: q, birth: p}, false)
 	return err
