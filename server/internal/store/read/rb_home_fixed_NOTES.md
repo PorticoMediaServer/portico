@@ -12,8 +12,8 @@ It derives the complete allowed library set from the current manifest/principal,
 using the frozen committed-policy projection (including actual per-field pending)
 for the current effective layout,
 then checks each actual library with the merged native fence. At most 4 libraries
-and 128 TOTAL catalogue entities (including hidden, retired and irrelevant kinds)
-fit this small-scope implementation. LIMIT129 is an overflow witness, never an
+and 32 TOTAL catalogue entities (including hidden, retired and irrelevant kinds)
+fit this small-scope implementation. LIMIT33 is an overflow witness, never an
 exact top-K sample. A full bounded shelf is Exact+Exhausted. Any unresolved fact
 or incomplete scope returns Pending with ZERO cards, Exact=false/Exhausted=false,
 and raw membership/binding counts. Parent owns larger preparation and wire pages.
@@ -82,14 +82,14 @@ pending even if an early object looked usable.
    not establish the accepted provider publication/selection policy.
 4. Reading books/comics need MP/native current reading-publication and saved-place
    proof. Presence of a Reading library keeps continue_books pending. Current
-   audiobook container watermark/clear/child-dismissal facts without an accepted
+   audio container watermark/clear/child-dismissal facts without an accepted
    native interpretation also stay pending, rather than ignoring removed state.
 
 Lead ruling incorporated: LAST COMMITTED normalized DB settings are authoritative.
 Native Home never reads disk; CommittedOnly remains true in the frozen policy
 composition. DiskFreshnessProved is not a requirement or a remaining dependency.
 
-New functional controls cover last100 over complete105 works, hidden/raw overflow,
+New functional controls cover last100 values-only kernel plus complete16 native works, hidden/raw overflow,
 show/season/episode targets, unavailable extra-link ambiguity, explicit provider
 identity pending, movie dismissal/end margins, album next/current and recent
 fallback, actual book resume-child binding, TV/Reading/owner-policy pending, and
@@ -97,3 +97,15 @@ unversioned personal/root changes under the original deadline. Test fixtures use
 only native schema/SQLite helpers. TestRBHomeFixedPlans runs actual Reader Capture
 for BOTH statistics populations and exports rb-home-fixed-plans.json.gz, source
 and schema bound at run time. Existing golden families are never refreshed.
+
+Native foreground capacity is deliberately32 entities. The actual GV driver
+charges4096 bytes of per-query lifetime overhead in addition to copied values;
+the failed105-work control exhausted that whole-window envelope after587 calls.
+It did NOT truncate or publish a partial shelf. The smaller complete bound fits
+the existing original4MiB copy custody without increasing LIVE grants, splitting
+the coherent source snapshot, or borrowing unreserved transient memory. The
+last100 kernel is separately tested over103 COMPLETE values-only work facts;
+qualifying that many native source bindings belongs to parent's larger prep.
+The failed analyzed byte-point capture selected a covering entity index; the new
+own preflight pins NOT INDEXED for its exact INTEGER-primary-key SEARCH. The
+unchanged helper SQL and all frozen definitions stay untouched.

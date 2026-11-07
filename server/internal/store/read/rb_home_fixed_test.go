@@ -99,15 +99,15 @@ func homeFixedCase(t *testing.T, name string, fn func(*testing.T)) {
 	t.Run(name, func(t *testing.T) { synctest.Test(t, fn) })
 }
 func TestRBHomeFixedRecent(t *testing.T) {
-	homeFixedCase(t, "complete_last100", func(t *testing.T) {
+	homeFixedCase(t, "complete_small_scope", func(t *testing.T) {
 		f, r := homeFixedFixture(t, func(f *browseFixture) {
-			for id := int64(2000); id < 2105; id++ {
+			for id := int64(2000); id < 2016; id++ {
 				homeFixedEntitySeed(t, f, id, 1, nil, nil, nil, "2026-10-01T00:00:00.000000000Z")
 				homeFixedAssetSeed(t, f, id)
 			}
 		})
 		p, c, e := homeFixedRead(t, f, r, "new_on_server")
-		if e != nil || !p.Exact || !p.Exhausted || p.Pending || len(p.Items) != 100 || p.RawPositions != 105 {
+		if e != nil || !p.Exact || !p.Exhausted || p.Pending || len(p.Items) != 16 || p.RawPositions != 16 {
 			t.Fatal(p, c, e)
 		}
 	})
@@ -130,6 +130,13 @@ func TestRBHomeFixedRecent(t *testing.T) {
 		if e != nil || len(p.Items) != 1 || p.Items[0].Target.ID != 3000 {
 			t.Fatal(p, c, e)
 		}
+
+		homeFixedStateSeed(t, f, 2000, 0, "ended")
+		f.exec(t, `UPDATE personal_items SET container_cleared_through='2026-11-03T00:00:00Z' WHERE item_id=2000`)
+		p, c, e = homeFixedRead(t, f, r, "listen_next")
+		if e != nil || !p.Pending || p.Exact || len(p.Items) != 0 {
+			t.Fatal("uncomposed album removal was ignored", p, c, e)
+		}
 	})
 	homeFixedCase(t, "raw_hidden_tail_pending", func(t *testing.T) {
 		f, r := homeFixedFixture(t, func(f *browseFixture) {
@@ -139,7 +146,7 @@ func TestRBHomeFixedRecent(t *testing.T) {
 			f.exec(t, `UPDATE catalog_entities SET admission_own_age=18`)
 		})
 		p, c, e := homeFixedRead(t, f, r, "new_on_server")
-		if e != nil || !p.Pending || p.Exact || p.Exhausted || len(p.Items) != 0 || p.RawPositions != 129 {
+		if e != nil || !p.Pending || p.Exact || p.Exhausted || len(p.Items) != 0 || p.RawPositions != 33 {
 			t.Fatal(p, c, e)
 		}
 	})
@@ -303,4 +310,55 @@ func TestRBHomeFixedTopology(t *testing.T) {
 			t.Fatal(p, c, e)
 		}
 	})
+}
+
+func TestRBHomeFixedMixedTopology(t *testing.T) {
+	homeFixedCase(t, "mixed_members_refuse", func(t *testing.T) {
+		f, r := homeFixedFixture(t, func(f *browseFixture) {
+			homeFixedEntitySeed(t, f, 2000, 2, nil, nil, nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedEntitySeed(t, f, 3000, 4, nil, int64(2000), nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedEntitySeed(t, f, 3001, 7, int64(2000), nil, nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedAssetSeed(t, f, 3000)
+			homeFixedAssetSeed(t, f, 3001)
+		})
+		p, c, e := homeFixedRead(t, f, r, "new_on_server")
+		if !errors.Is(e, ErrUnqualified) || p.Exact || len(p.Items) != 0 {
+			t.Fatal(p, c, e)
+		}
+	})
+	homeFixedCase(t, "audio_wrong_parent_refuses", func(t *testing.T) {
+		f, r := homeFixedFixture(t, func(f *browseFixture) {
+			f.exec(t, `UPDATE libraries SET kind='audiobook' WHERE id='movies'`)
+			homeFixedEntitySeed(t, f, 2000, 1, nil, nil, nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedEntitySeed(t, f, 3000, 9, int64(2000), nil, nil, "2026-10-01T00:00:00.000000000Z")
+			homeFixedAssetSeed(t, f, 3000)
+		})
+		p, c, e := homeFixedRead(t, f, r, "continue_books")
+		if !errors.Is(e, ErrUnqualified) || p.Exact || len(p.Items) != 0 {
+			t.Fatal(p, c, e)
+		}
+	})
+}
+
+// Values-only projection contract; this does not qualify 103 native bindings
+// inside the foreground reader. Large complete preparation belongs to parent.
+func TestRBHomeFixedHundredKernel(t *testing.T) {
+	frame := homeFixedFrame{}
+	lib := homeFixedLibrary{}
+	lib.Fence.allowUnrated = 1
+	for n := int64(1); n <= 103; n++ {
+		var public [16]byte
+		binary.BigEndian.PutUint64(public[8:], uint64(n))
+		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(n) * time.Second).Format(time.RFC3339Nano)
+		row := make([]any, 23)
+		row[3] = int64(0)
+		row[16] = stamp
+		x := homeFixedEntity{Identity: HomeFixedIdentity{ID: n, Library: 1, Kind: 1, Revision: 1, PublicID: public}, Row: [][]any{row}, Available: true}
+		lib.Entities = append(lib.Entities, x)
+	}
+	frame.Libraries = []homeFixedLibrary{lib}
+	page, e := homeFixedRecent(frame, HomeFixedPage{})
+	if e != nil || !page.Exact || len(page.Items) != 100 || page.Items[0].Work.ID != 103 || page.Items[99].Work.ID != 4 {
+		t.Fatal(page, e)
+	}
 }
