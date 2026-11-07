@@ -48,7 +48,7 @@ type RelatedCursor struct {
 
 // RelatedEntry is a hydrated normalized recommendation, not a final card copy.
 // Text/art projection uses its public identity/revisions and the existing
-// exact-byte card reader. This family returns no variable source text.
+// exact-byte card points below. Only selected cards copy variable text.
 type RelatedEntry struct {
 	ID                             int64
 	Title                          string
@@ -81,7 +81,7 @@ func (e relatedEntity) kind() int64  { return e.row[3].(int64) }
 func (e relatedEntity) image() int64 { return relatedInt(e.row[14]) }
 func (e relatedEntity) work() int64 {
 	switch e.kind() {
-	case 4:
+	case 3, 4:
 		if n := relatedInt(e.row[19]); n > 0 {
 			return n
 		}
@@ -149,6 +149,8 @@ type relatedCandidate struct {
 }
 type relatedProbe struct {
 	id, asset, child int64
+	members          []int64
+	exhausted        bool
 	entity           relatedEntity
 	stage            int
 }
@@ -243,7 +245,6 @@ func validRelated(in RelatedInput) bool {
 }
 func sameRelatedInput(a, b RelatedInput) bool {
 	a.View.Now = b.View.Now
-	a.View.Limit = b.View.Limit
 	if a.View != b.View || a.Item != b.Item {
 		return false
 	}
@@ -345,7 +346,7 @@ func (r *ForegroundReader) related(ctx context.Context, request governor.Request
 			return ErrDenied
 		}
 		if w.state.candidates == nil {
-			w.state = relatedState{fence: f, source: flat, roots: roots, candidates: make(map[int64]*relatedCandidate)}
+			w.state = relatedState{phase: -1, fence: f, source: flat, roots: roots, candidates: make(map[int64]*relatedCandidate)}
 		} else if w.state.fence != f || !equalSource(w.state.source, flat) {
 			return ErrStale
 		}
