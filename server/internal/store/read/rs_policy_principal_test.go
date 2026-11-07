@@ -65,7 +65,7 @@ func TestRSPolicyClosedPrincipalScope(t *testing.T) {
 	if ok, e := read(in); e != nil || !ok {
 		t.Fatal("global purpose needs a library", ok, e)
 	}
-	for _, v := range []BrowseInput{{Database: in.Database, TokenHash: in.TokenHash, Kind: 1, Limit: 1, Now: in.Now}, func() BrowseInput { x := in; x.policy.state = nil; return x }(), func() BrowseInput { x := in; x.Library = 1; return x }()} {
+	for _, v := range []BrowseInput{func() BrowseInput { x := in; x.Library = 1; return x }(), func() BrowseInput { x := in; x.policy.state = nil; return x }(), {Database: in.Database, TokenHash: in.TokenHash, Kind: 1, Limit: 1, Now: in.Now}} {
 		if ok, e := read(v); !errors.Is(e, ErrInput) || ok {
 			t.Fatal("unsealed/wrong scope accepted", ok, e)
 		}
