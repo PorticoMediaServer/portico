@@ -26,9 +26,9 @@ func NewHomeManifestSourceReader(pool *governor.Snapshots) (*HomeManifestSourceR
 }
 
 type HomeManifestCommittedPolicy struct {
-	Field, Provenance, Reason                             string
-	Enabled, Resolved, CommittedOnly, DiskFreshnessProved bool
-	ConsoleRevision, PendingRevision                      *int64
+	Field, Provenance, Reason        string
+	Enabled, Resolved, CommittedOnly bool
+	ConsoleRevision, PendingRevision *int64
 }
 type HomeManifestSourceDocument struct {
 	Manifest        HomeManifestDocument
