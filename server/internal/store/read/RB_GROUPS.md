@@ -180,3 +180,30 @@ candidate order is numeric (0,1,2,10 in the fixture), not inherited title order
 or the public specials-last group order. Per-item eligibility remains separate;
 this structural kind index does not turn a subject proof into grid permission.
 The prior 6599585fc full/race baseline predates this final access-shape change.
+
+Latest capture adoption: source `ccc7f30e0efad2f726795fea6471cfb8bf8e50ad`,
+run 42389013262, 62 definitions, 124 cohort plans and 172 SEARCH rows per profile
+(344 total), zero scans/sorts. All 11 non-golden parents passed; only the expected
+old-fixture SHA comparison failed before adoption. Compressed SHA256
+`b03b63766908989bcfbbec453085f27b102bcd702c2708463879d4cf76c16439`;
+JSON SHA256 `15c2742a947751306eb5d00e3bdca1a5d57ab9a49d55769d7bff7b11dd81aa5b`.
+The numbered-source edit initially introduced a duplicate fixture-switch case
+in 438333a3e (run 42388656204); the tiny compile check caught it and ccc7f30e0
+corrected it before the successful native capture above.
+
+Schema binding: before this capture, fetched main
+`2c36181052dfc2aaadb8324c9ff74b8b93b419f3` had exactly the same embedded schema
+Git tree `a6bbcd0a6d9000a0b9828d2bd3fdca5e4e96ab22` as the starting base.
+Reader schema fingerprint is
+`04dc3883a4c21853bd452b4d384947f91ca2b0b254e34567c4618f71927d177f`;
+bundled SQLite 3.53.4. CHANGE-011 was unmerged; no draft DDL or other RB family's
+capture was adopted. Parent owns its post-merge scalar/chronology/random captures.
+
+The prior 6599585fc baseline completed full read-package tests (96 parents,
+4 shards, run 42387791904) and group race (12 parents, run 42387793700), both PASS
+with zero skips. This is functional evidence, not qualification. Final validation
+also covers the numbered-season source and retained empty-window fences.
+
+Both page types retain a private exact publication fence even when exhausted
+and Next is nil, for root composition. Source DTOs still need inherited season
+title/art and lifted-target hydration; no route card/cache promise is implied.
