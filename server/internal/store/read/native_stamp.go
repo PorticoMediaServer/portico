@@ -28,6 +28,12 @@ func (s *FullSearchReadStamp) ValidateRetained(ctx context.Context, out BrowseOu
 	if ctx == nil || s == nil || prior == nil || s.pool == nil || s.output == nil || out.live == nil || out.live.pool != s.pool || out.Grant != s.output || out.Authority != out.live.authority || out.Grant != out.live.output {
 		return ErrInput
 	}
+	now := s.clock.Add(time.Since(s.started))
+	expires, e1 := time.Parse(time.RFC3339Nano, s.fence.permission.expiresAt)
+	horizon, e2 := time.Parse(time.RFC3339Nano, s.fence.permission.horizon)
+	if e1 != nil || e2 != nil || !now.Before(expires) || !now.Before(horizon) {
+		return ErrDenied
+	}
 	if err := out.live.checkContext(ctx); err != nil {
 		return err
 	}
@@ -36,12 +42,6 @@ func (s *FullSearchReadStamp) ValidateRetained(ctx context.Context, out BrowseOu
 	}
 	if !time.Now().Before(s.deadline) {
 		return context.DeadlineExceeded
-	}
-	now := s.clock.Add(time.Since(s.started))
-	expires, e1 := time.Parse(time.RFC3339Nano, s.fence.permission.expiresAt)
-	horizon, e2 := time.Parse(time.RFC3339Nano, s.fence.permission.horizon)
-	if e1 != nil || e2 != nil || !now.Before(expires) || !now.Before(horizon) {
-		return ErrDenied
 	}
 	return ctx.Err()
 }

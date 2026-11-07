@@ -57,6 +57,7 @@ func NativeFullSearchDefinitions() []stmt.Definition {
 	defs = append(defs, FullSearchDefinitions()...)
 	defs = append(defs, nativeSearchSourceDefinitions()...)
 	defs = append(defs, nativeEngineDefinition())
+	defs = append(defs, nativeAutomaticDefinitions()...)
 	return append(defs, nativeFTSDefinitions()...)
 }
 

@@ -304,6 +304,7 @@ type candidateSource struct {
 type fullRouteKey struct {
 	relation                   ownerRelation
 	owner, via, ordinal, image int64
+	automatic                  nativeAutomaticRoute
 }
 
 func compareRoute(a, b fullRouteKey) int {
@@ -311,6 +312,12 @@ func compareRoute(a, b fullRouteKey) int {
 		if c != 0 {
 			return c
 		}
+	}
+	if nativeAutoLess(a.automatic, b.automatic) {
+		return -1
+	}
+	if nativeAutoLess(b.automatic, a.automatic) {
+		return 1
 	}
 	return 0
 }

@@ -91,9 +91,6 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 	if in.Kind != 0 && in.Kind != source.kind {
 		return empty, hit, false, nil
 	}
-	if name == "movie" || name == "collection" {
-		return empty, hit, false, fmt.Errorf("%w: automatic collection inverse proof not composed", ErrUnqualified)
-	}
 	leadIndex := slices.Index(scope.terms, lead.term)
 	sources, err := nativeSourceFields(ctx, q, scope, source, true, fullRouteKey{}, leadIndex)
 	if err != nil {
@@ -244,6 +241,15 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 			}
 		}
 	}
+	automatic, err := nativeAutomaticOwners(q, in.Library, id)
+	if err != nil {
+		return empty, hit, false, err
+	}
+	for _, owner := range automatic {
+		if err = addOwner(owner.Collection, fullRouteKey{relation: automaticMembers, owner: owner.Collection, automatic: owner.Route}); err != nil {
+			return empty, hit, false, err
+		}
+	}
 	proof, match, err := proveCandidate(scope, fullResultKey{search.ManifestEntity, id, source.library}, lead, sources, true)
 	if err != nil || !match {
 		return empty, hit, false, err
@@ -258,6 +264,7 @@ func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 
 // A distinct route: never substitute disc/track order for ID-search order.
 const albumTracks ownerRelation = authoredMembers + 1
+const automaticMembers ownerRelation = albumTracks + 1
 
 func nativeOwnerPage(q browseQuery, relation ownerRelation, owner int64, after *ownerCursor) (ownerPage, error) {
 	if relation != albumTracks {
@@ -406,12 +413,32 @@ func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 	case "album":
 		relations = []ownerRelation{albumTracks}
 	case "collection":
-		return false, fmt.Errorf("%w: automatic collection forward proof not composed", ErrUnqualified)
+		relations = []ownerRelation{authoredMembers, automaticMembers}
 	}
 	if e.relation >= len(relations) {
 		return true, nil
 	}
 	relation := relations[e.relation]
+	if relation == automaticMembers {
+		position, next, done, err := nativeAutomaticNext(q, in.Library, source.key.SubjectID, e.automatic)
+		if err != nil {
+			return false, err
+		}
+		e.automatic = next
+		if done {
+			e.relation++
+			e.automatic = nil
+			return e.relation >= len(relations), nil
+		}
+		// Work==0 still advances the raw mapping/evidence/override cursor. It
+		// consumes this work quantum and all its native rows remain charged.
+		if position.Work > 0 {
+			if err = emit(position.Work, fullRouteKey{relation: automaticMembers, owner: source.key.SubjectID, automatic: position.Route}); err != nil {
+				return false, err
+			}
+		}
+		return false, nil
+	}
 	if e.album > 0 {
 		page, err := nativeOwnerPage(q, albumTracks, e.album, e.albumCursor)
 		if err != nil {
