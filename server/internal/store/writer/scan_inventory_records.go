@@ -11,11 +11,33 @@ import (
 const scanInventoryLibraryRecordLengths stmt.ID = "scan.inventory_accept.library_record_lengths"
 
 // An envelope within the ONE complete profile, not a product limit or another
-// ledger. Work includes native old-row rebuild/amplification at maxBytes. The
-// profile owner supplies that bound from source facts and MAX qualification.
+// ledger. Work is included in EACH of the existing four rewrite steps, not an
+// empty extra unit that could lend a later statement its budget. It covers
+// old-row rebuild/amplification at maxBytes from the complete profile's facts.
 type inventoryRecordEnvelope struct {
 	maxBytes uint64
 	work     Work
+}
+
+func validateInventoryRecordEnvelope(plan effectivePlan) error {
+	e := plan.inventoryRecords
+	if e.maxBytes < inventoryRecordFixedBytes || e.work.Hold <= 0 || e.work.Rows == 0 || e.work.VMOps == 0 || e.work.Pages == 0 || e.work.WALBytes < e.maxBytes {
+		return &Refusal{Code: RefusalUnqualified}
+	}
+	seen := 0
+	for _, step := range plan.steps {
+		switch step.id {
+		case scanFreshRunCAS, scanFreshJobCAS, scanFreshDirectoryCAS, scanFreshLibraryCAS:
+			if !fits(e.work, step.work) {
+				return ErrQuantum
+			}
+			seen++
+		}
+	}
+	if seen != 4 {
+		return invalid("inventory_record_rewrite_steps")
+	}
+	return nil
 }
 
 func inventoryLibraryRecordDefinition() stmt.Definition {
@@ -100,11 +122,11 @@ func checkInventoryExistingRecords(ctx context.Context, turn *commandTurn, in *i
 	if err = turn.requireInventoryMemory(ctx, fresh+native); err != nil {
 		return err
 	}
-	// The installed envelope's COMPLETE native work was reserved before BEGIN.
+	// EACH native rewrite's COMPLETE work was reserved before BEGIN.
 	// No per-record amount is minted here and no extra holding is borrowed. Its
 	// IO is part of the same original request; a mismatch refuses before effects.
 	if plan.inventoryRecords.work.WALBytes < actual || plan.need[governor.IOBytes] <= 0 || uint64(plan.need[governor.IOBytes]) < actual {
 		return &Refusal{Code: RefusalCapacity}
 	}
-	return turn.transaction.before(plan.inventoryRecords.work)
+	return turn.checkLifetimes(ctx)
 }
