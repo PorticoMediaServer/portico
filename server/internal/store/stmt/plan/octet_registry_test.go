@@ -1,6 +1,9 @@
 package plan
 
 import (
+	"context"
+	"database/sql"
+	"slices"
 	"strings"
 	"testing"
 
@@ -8,32 +11,28 @@ import (
 )
 
 func TestOctetRegistryClosedAndUnique(t *testing.T) {
-	if len(pointOctets.byID) < 4 || len(pointOctets.byID) != len(pointOctets.bySQL) {
+	if len(pointOctets.byID) < 4 || len(pointOctets.bySQL) > len(pointOctets.byID) {
 		t.Fatal("missing/duplicate closed point")
 	}
-	copy := octetRegistry{byID: map[stmt.ID]octetShape{}, bySQL: map[string]stmt.ID{}}
+	copy := octetRegistry{byID: map[stmt.ID]octetShape{}, bySQL: map[string]struct{}{}}
 	for id, shape := range pointOctets.byID {
-		if id != shape.id || pointOctets.bySQL[shape.sql] != id {
+		if _, ok := pointOctets.bySQL[shape.sql]; id != shape.id || !ok {
 			t.Fatal("inconsistent compiled registry", id)
 		}
 		copy.add(shape)
 	}
-	for _, kind := range []string{"ID", "SQL"} {
-		t.Run(kind, func(t *testing.T) {
-			shape := pointOctets.byID[issuerSourceLengthsID]
-			if kind == "ID" {
-				shape.sql += " "
-			} else {
-				shape.id = "another.point"
+
+	t.Run("ID", func(t *testing.T) {
+		shape := pointOctets.byID[issuerSourceLengthsID]
+		shape.sql += " "
+		defer func() {
+			if recover() == nil {
+				t.Fatal("duplicate ID registration accepted")
 			}
-			defer func() {
-				if recover() == nil {
-					t.Fatal("duplicate registration accepted")
-				}
-			}()
-			copy.add(shape)
-		})
-	}
+		}()
+		copy.add(shape)
+	})
+
 	// Neither generic lint entry nor an unknown ID gets the point extension.
 	if len(LintSQL(issuerSourceLengthsSQL)) == 0 {
 		t.Fatal("generic grammar widened")
@@ -69,5 +68,50 @@ func TestOctetRegistryPreservesIssuerDefinitions(t *testing.T) {
 		if closedOctetDefinition(changed) || checkSyntax(changed) == nil {
 			t.Fatal("cold issuer admitted", d.ID)
 		}
+	}
+}
+
+func TestOctetRegistryApprovedSQLAliases(t *testing.T) {
+	// Exact aliases already approved in N1/INT2: distinct purpose IDs and root
+	// parameter names share literal SQL. They must not panic at package init.
+	for _, point := range []struct {
+		name, sql string
+		params    [][]stmt.Param
+	}{
+		{"job_lengths", "SELECT octet_length(library_id),octet_length(status),octet_length(created_at),octet_length(error) FROM jobs WHERE id=?", [][]stmt.Param{
+			{{Name: "run_id", Type: stmt.Text}}, {{Name: "run_id", Type: stmt.Text}}}},
+		{"root_lengths", "SELECT octet_length(identity),octet_length(revision),octet_length(cursor),octet_length(state) FROM inventory_directories WHERE job_id=? AND relative_path=?", [][]stmt.Param{
+			{{Name: "run_id", Type: stmt.Text}, {Name: "root_path", Type: stmt.Text}}, {{Name: "run_id", Type: stmt.Text}, {Name: "path", Type: stmt.Text}}}},
+	} {
+		t.Run(point.name, func(t *testing.T) {
+			r := octetRegistry{byID: map[stmt.ID]octetShape{}, bySQL: map[string]struct{}{}}
+			var defs []stmt.Definition
+			for i, prefix := range []string{"scan.issuer.", "scan.directory."} {
+				d := stmt.Definition{ID: stmt.ID(prefix + point.name), SQL: point.sql, Kind: stmt.Read, Params: point.params[i], Plan: stmt.Plan{Hot: true}}
+				defs = append(defs, d)
+				r.add(octetShape{id: d.ID, sql: d.SQL, mismatch: "exact alias required",
+					definition: func(got stmt.Definition) bool {
+						return got.ID == d.ID && got.SQL == d.SQL && got.Kind == d.Kind && got.Plan.Hot && slices.Equal(got.Params, d.Params)
+					},
+					audit: func(context.Context, *sql.Conn) error { return ErrCaptureRequired }, point: func(Rows) error { return ErrCaptureRequired }})
+			}
+			if len(r.byID) != 2 || len(r.bySQL) != 1 {
+				t.Fatal("aliases must share parser membership, not purpose authority")
+			}
+			for _, d := range defs {
+				if _, ok := r.match(d); !ok {
+					t.Fatal("approved alias refused", d.ID)
+				}
+				d.ID = "unregistered.octet.alias"
+				if _, ok := r.match(d); ok {
+					t.Fatal("parser membership authorized an unknown purpose")
+				}
+			}
+			d := defs[0]
+			d.Params = []stmt.Param{{Name: "wrong", Type: stmt.Integer}}
+			if _, ok := r.match(d); ok {
+				t.Fatal("alias skipped its own definition check")
+			}
+		})
 	}
 }

@@ -22,10 +22,10 @@ type octetShape struct {
 
 type octetRegistry struct {
 	byID  map[stmt.ID]octetShape
-	bySQL map[string]stmt.ID
+	bySQL map[string]struct{}
 }
 
-var pointOctets = octetRegistry{byID: make(map[stmt.ID]octetShape), bySQL: make(map[string]stmt.ID)}
+var pointOctets = octetRegistry{byID: make(map[stmt.ID]octetShape), bySQL: make(map[string]struct{})}
 
 func (r *octetRegistry) add(s octetShape) {
 	if s.id == "" || s.sql == "" || s.mismatch == "" || s.definition == nil || s.audit == nil || s.point == nil {
@@ -34,10 +34,9 @@ func (r *octetRegistry) add(s octetShape) {
 	if _, exists := r.byID[s.id]; exists {
 		panic("plan: duplicate compiled octet point ID")
 	}
-	if _, exists := r.bySQL[s.sql]; exists {
-		panic("plan: duplicate compiled octet point SQL")
-	}
-	r.byID[s.id], r.bySQL[s.sql] = s, s.id
+	// Distinct approved command IDs may intentionally use the same exact point
+	// SQL. Parser membership conveys no ID/definition/native/EQP authority.
+	r.byID[s.id], r.bySQL[s.sql] = s, struct{}{}
 }
 
 func (r *octetRegistry) match(d stmt.Definition) (octetShape, bool) {
