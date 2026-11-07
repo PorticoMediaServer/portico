@@ -81,7 +81,7 @@ func directoryCommandFixture(t *testing.T, s inventoryClaimRequest, kind Command
 	var c *scanDirectoryCommand
 	var err error
 	if kind == InventoryDirectoryDiscover {
-		page.Entries = []nativeinventory.Entry{{Name: []byte("child"), Path: []byte("child"), Directory: true, ObjectIdentity: "new-directory"}}
+		page.Entries = []nativeinventory.Entry{{Name: []byte("child"), Path: []byte("/media/child"), Directory: true, ObjectIdentity: "new-directory"}}
 		child := nativeinventory.Page{Version: 1, RootIdentity: s.Original.RootIdentity, DirectoryIdentity: "new-directory", DirectoryRevision: "new-revision"}
 		c, err = newScanDirectoryDiscoverCommand(id, s, s.Root, page, child)
 	} else {
@@ -275,5 +275,22 @@ func TestScanDirectoryLateCommitCancellationResolvesOriginal(t *testing.T) {
 	recovered, _, err := w.effective.runScanDirectory(t.Context(), w, cap, q, c.purpose, nil, false)
 	if err != nil || recovered.Outcome.State != Applied || !recovered.Outcome.Replayed || recovered.Value.Directory.State != "done" {
 		t.Fatal(recovered, err)
+	}
+}
+
+func TestScanDirectoryNativeAbsolutePathScope(t *testing.T) {
+	for _, tc := range []struct {
+		root, path string
+		relative   string
+		want       error
+	}{
+		{"/media", "/media/child", "child", nil}, {"/", "/child", "child", nil},
+		{"/media", "/media2/child", "", ErrInvalid}, {"/media", "child", "", ErrInvalid},
+		{"/media", "/media/../other", "", ErrInvalid}, {"/media", "/media/\xff", "", ErrFilenameUnrepresentable},
+	} {
+		got, err := directoryRelativePath([]byte(tc.root), []byte(tc.path))
+		if !errors.Is(err, tc.want) || string(got) != tc.relative {
+			t.Fatalf("relative mapping: %q %v", got, err)
+		}
 	}
 }
