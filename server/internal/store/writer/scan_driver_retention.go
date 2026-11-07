@@ -52,7 +52,7 @@ func scanOwnerRetentionFor(w *executor, registry *stmt.Registry) (*scanOwnerRete
 		}
 		matched := false
 		for _, definition := range allowed {
-			if entry.ID == definition.ID && scanOwnerRetentionDefinitionMatches(entry.Definition, definition) {
+			if entry.ID == definition.ID && sameNormalizedStatementDefinition(entry.Definition, definition) {
 				matched = true
 				break
 			}
@@ -113,7 +113,7 @@ func (p *scanOwnerRetention) check(w *executor, registry *stmt.Registry) error {
 // zero-arity Params/Bindings from nil to empty slices; it does not authorize SQL
 // or supply a Capture receipt. Every byte of SQL and all other frozen metadata
 // still participate in the exact comparison, and Lookup above proves Capture.
-func scanOwnerRetentionDefinitionMatches(actual, expected stmt.Definition) bool {
+func sameNormalizedStatementDefinition(actual, expected stmt.Definition) bool {
 	catalogue, err := stmt.Describe([]stmt.Definition{expected})
 	if err != nil {
 		return false

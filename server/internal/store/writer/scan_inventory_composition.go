@@ -3,7 +3,6 @@ package writer
 import (
 	"context"
 	"errors"
-	"reflect"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -78,7 +77,7 @@ func composeInventoryDriver(ctx context.Context, d *ScanDriver, plan effectivePl
 		found := false
 		for _, old := range all {
 			if old.ID == def.ID {
-				if !reflect.DeepEqual(old, def) {
+				if !sameNormalizedStatementDefinition(old, def) {
 					return invalid("inventory_driver_definition")
 				}
 				found = true
