@@ -8,7 +8,28 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
+
+func TestN1RecordWorkIsReservedOnEveryRewrite(t *testing.T) {
+	work := Work{16, 2000, 16, 65536, time.Microsecond}
+	p := effectivePlan{inventoryRecords: inventoryRecordEnvelope{65536, work}}
+	for _, id := range []stmt.ID{scanFreshRunCAS, scanFreshJobCAS, scanFreshDirectoryCAS, scanFreshLibraryCAS} {
+		p.steps = append(p.steps, statementStep{id, work})
+	}
+	if err := validateInventoryRecordEnvelope(p); err != nil {
+		t.Fatal(err)
+	}
+	for i := range p.steps {
+		p.steps[i].work.Pages--
+		if err := validateInventoryRecordEnvelope(p); !errors.Is(err, ErrQuantum) {
+			t.Fatal("another unit lent pages to a native rewrite", p.steps[i].id, err)
+		}
+		p.steps[i].work.Pages++
+	}
+}
 
 func TestN1ExistingRecordByteArithmetic(t *testing.T) {
 	got, err := inventoryRecordActualBytes([]string{"run", "."}, scanByteVector{exists: true, total: 19})
