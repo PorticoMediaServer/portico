@@ -122,3 +122,34 @@ func TestMGLCDraftCandidateDuplicateRollsBackActualCounts(t *testing.T) {
 		t.Fatal("ordinal gap", err)
 	}
 }
+
+func TestMGLCReceiptNativeDigestRejectsTampering(t *testing.T) {
+	for _, field := range []string{"result_cursor_ms", "result_lease_token", "catalog_fence"} {
+		t.Run(field, func(t *testing.T) {
+			w, b := mgLCFixture(t)
+			turn := mgLCTurn(t, w)
+			c := mgLCNext(b, mgLCProgress{})
+			p, err := beginMGLC(t.Context(), turn, b, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			saved := mgLCTestSave(t, turn, b, c, mgLCBeginKind, p)
+			mgLCCommit(t, turn)
+			value := any("tampered")
+			if field == "result_cursor_ms" {
+				value = int64(1234)
+			}
+			if _, err := w.db.ExecContext(t.Context(), "UPDATE lc_generation_command_receipts SET "+field+"=? WHERE generation_id=?", value, b.generation); err != nil {
+				t.Fatal(err)
+			}
+			turn = mgLCTurn(t, w)
+			decision, out, err := lookupMGLCReceipt(t.Context(), turn, b, c, mgLCBeginKind)
+			if !errors.Is(err, ErrConflict) || decision != receiptConflict || out != (mgLCSaved{}) {
+				t.Fatal("tampered native receipt accepted", decision, out, err)
+			}
+			if ack, err := acknowledgeMGLC(t.Context(), turn, b, c, mgLCBeginKind, saved.digest); !errors.Is(err, ErrConflict) || ack != 0 {
+				t.Fatal("tampered receipt ACK", ack, err)
+			}
+		})
+	}
+}

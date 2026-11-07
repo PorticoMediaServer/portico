@@ -37,7 +37,7 @@ func (k mgLCKind) valid() bool {
 
 // Exactly the draft's scalar native result. Deliberately no current DTO,
 // unresolved_count or scan cursor reconstruction: those are not receipt fields.
-// The parent's closed codec binds result_digest to this complete saved value.
+// The closed MG result codec binds the complete saved scalar value.
 type mgLCNativeResult struct {
 	candidates, entries, cursor, bytes int64
 	entryDigest                        [32]byte
@@ -90,7 +90,7 @@ func mgLCReceiptDefinitions() []stmt.Definition {
 		{ID: mgLCBirthOwner, Kind: stmt.Read, SQL: `SELECT command_incarnation FROM lc_generations WHERE id=?`, Params: []stmt.Param{p("generation", t)}},
 		{ID: mgLCReceiptOwner, Kind: stmt.Read, SQL: `SELECT ` + mgLCProgressColumns + ` FROM lc_generations WHERE ` + predicate, Params: owner},
 		{ID: mgLCReceiptInsert, Kind: stmt.Write, SQL: `INSERT INTO lc_generation_command_receipts(` + columns + `) VALUES(` + strings.TrimSuffix(strings.Repeat("?,", len(params)), ",") + `)`, Params: params},
-		{ID: mgLCReceiptRead, Kind: stmt.Read, SQL: `SELECT ` + mgLCReceiptColumns + ` FROM lc_generation_command_receipts WHERE generation_id=? AND command_incarnation=? AND command_sequence=?`, Params: identity},
+		{ID: mgLCReceiptRead, Kind: stmt.Read, SQL: `SELECT channel_id,config_revision,catalog_fence,play_history_fence,` + mgLCReceiptColumns + ` FROM lc_generation_command_receipts WHERE generation_id=? AND command_incarnation=? AND command_sequence=?`, Params: identity},
 		{ID: mgLCReceiptOperation, Kind: stmt.Read, SQL: `SELECT command_sequence FROM lc_generation_command_receipts WHERE generation_id=? AND command_incarnation=? AND operation_id=?`, Params: []stmt.Param{p("generation", t), p("incarnation", x), p("operation", x)}},
 		{ID: mgLCReceiptAny, Kind: stmt.Read, SQL: `SELECT command_sequence FROM lc_generation_command_receipts WHERE generation_id=? LIMIT 1`, Params: []stmt.Param{p("generation", t)}},
 		{ID: mgLCRetirement, Kind: stmt.Read, SQL: `SELECT command_incarnation,create_operation_id,birth_request_digest,channel_id,final_sequence,final_result_digest FROM lc_generation_retirements WHERE generation_id=?`, Params: []stmt.Param{p("generation", t)}},
@@ -114,15 +114,19 @@ func readMGLCSaved(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCo
 	}
 	var s mgLCSaved
 	var operation, request, digest, entries, verified []byte
-	var kind string
+	var kind, channel, catalogue string
+	var revision, history int64
 	var sealed int64
 	r := &s.result
-	err = row.Scan(&operation, &request, &digest, &kind, &s.applied, &s.revision, &s.ack, &r.candidates, &r.entries, &r.cursor, &r.bytes, &entries, &r.verified, &r.verifyAfter, &r.verifyEnd, &verified, &sealed, &r.phase, &r.status, &r.lease, &r.leaseUntil, &r.published, &r.reclaimFamily, &r.reclaimKey, &r.reclaimSubkey)
+	err = row.Scan(&channel, &revision, &catalogue, &history, &operation, &request, &digest, &kind, &s.applied, &s.revision, &s.ack, &r.candidates, &r.entries, &r.cursor, &r.bytes, &entries, &r.verified, &r.verifyAfter, &r.verifyEnd, &verified, &sealed, &r.phase, &r.status, &r.lease, &r.leaseUntil, &r.published, &r.reclaimFamily, &r.reclaimKey, &r.reclaimSubkey)
 	if errors.Is(err, sql.ErrNoRows) {
 		return mgLCSaved{}, false, nil
 	}
 	if err != nil {
 		return mgLCSaved{}, false, err
+	}
+	if channel != b.channel || revision != b.revision || catalogue != b.fence() || history != b.history {
+		return mgLCSaved{}, false, ErrConflict
 	}
 	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 || len(entries) != 32 || len(verified) != 32 || (sealed != 0 && sealed != 1) {
 		return mgLCSaved{}, false, ErrConflict
@@ -136,6 +140,9 @@ func readMGLCSaved(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCo
 	r.sealed = sealed == 1
 	s.kind = mgLCKind(kind)
 	if !s.kind.valid() || s.applied < 0 || s.revision <= 0 || s.ack < 0 || s.ack >= c.identity.Sequence {
+		return mgLCSaved{}, false, ErrConflict
+	}
+	if s.digest != mgLCResultDigest(b, s) {
 		return mgLCSaved{}, false, ErrConflict
 	}
 	return s, true, nil
@@ -274,9 +281,9 @@ func lookupMGLCReceipt(ctx context.Context, turn *commandTurn, b mgLCBuild, c mg
 	}
 	return receiptFresh, saved, nil
 }
-func saveMGLCReceipt(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, kind mgLCKind, p mgLCProgress, digest ResultDigest) (out mgLCSaved, err error) {
+func saveMGLCReceipt(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLCCommand, kind mgLCKind, p mgLCProgress) (out mgLCSaved, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if !c.valid(b) || !kind.valid() || digest == (ResultDigest{}) || p.last != c.identity.Sequence || p.ack != p.last-1 {
+	if !c.valid(b) || !kind.valid() || p.last != c.identity.Sequence || p.ack != p.last-1 {
 		return out, ErrInvalid
 	}
 	if !mgLCBirthKind(b, c, kind) {
@@ -294,6 +301,8 @@ func saveMGLCReceipt(ctx context.Context, turn *commandTurn, b mgLCBuild, c mgLC
 		return out, err
 	}
 	r := mgLCResult(actual)
+	savedResult := mgLCSaved{command: c, kind: kind, applied: now, revision: p.revision, ack: p.ack, result: r}
+	digest := mgLCResultDigest(b, savedResult)
 	sealed := int64(0)
 	if r.sealed {
 		sealed = 1

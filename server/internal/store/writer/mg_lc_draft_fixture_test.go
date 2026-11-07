@@ -1,8 +1,6 @@
 package writer
 
 import (
-	"crypto/sha256"
-	"fmt"
 	"testing"
 	"time"
 
@@ -85,8 +83,7 @@ func mgLCNext(b mgLCBuild, p mgLCProgress) mgLCCommand {
 }
 func mgLCTestSave(t *testing.T, turn *commandTurn, b mgLCBuild, c mgLCCommand, k mgLCKind, p mgLCProgress) mgLCSaved {
 	t.Helper()
-	digest := ResultDigest(sha256.Sum256([]byte(fmt.Sprintf("fixture-codec-only:%#v", mgLCResult(p)))))
-	s, err := saveMGLCReceipt(t.Context(), turn, b, c, k, p, digest)
+	s, err := saveMGLCReceipt(t.Context(), turn, b, c, k, p)
 	if err != nil {
 		t.Fatal(err)
 	}

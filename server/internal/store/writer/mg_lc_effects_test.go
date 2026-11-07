@@ -230,7 +230,7 @@ func TestMGLCDraftPartialEffectsRequireWholeRollback(t *testing.T) {
 		}
 		// The candidate and owner advance precede an actual typed receipt CHECK
 		// failure. This must roll back the whole frame, never just the receipt.
-		if got, err := saveMGLCReceipt(t.Context(), turn, b, c, mgLCPublishKind, next, ResultDigest{4}); err == nil || got != (mgLCSaved{}) {
+		if got, err := saveMGLCReceipt(t.Context(), turn, b, c, mgLCPublishKind, next); err == nil || got != (mgLCSaved{}) {
 			t.Fatal(got, err)
 		}
 		if _, err := turn.transaction.rollback(nil); err != nil {
