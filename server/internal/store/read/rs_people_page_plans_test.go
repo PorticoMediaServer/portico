@@ -64,6 +64,9 @@ func TestRSPeoplePageCaptureDraft(t *testing.T) {
 	if dir == "" {
 		return
 	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
 	var b bytes.Buffer
 	z := gzip.NewWriter(&b)
 	if _, err := z.Write(data); err != nil {

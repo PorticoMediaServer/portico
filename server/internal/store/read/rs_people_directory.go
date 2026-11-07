@@ -100,7 +100,14 @@ func (r *RSPeoplePageReader) directory(ctx context.Context, request governor.Req
 	if err = r.authority.CheckPreparation(p.lease); err != nil {
 		return
 	}
-	if !p.captured || len(p.input.Views) > 1 {
+	if !p.captured {
+		if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
+			return
+		}
+		page.Pending = true
+		return
+	}
+	if len(p.input.Views) > 1 {
 		if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
 			return
 		}

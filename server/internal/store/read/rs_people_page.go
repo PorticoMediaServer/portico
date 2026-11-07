@@ -93,18 +93,19 @@ type rsPersonWork struct {
 	view    int
 }
 type rsPersonReduction struct {
-	person      int64
-	source      []any
-	facts       *PersonFacts
-	portrait    *RSPersonPortrait
-	works       map[int64]*rsPersonWork
-	departments map[string]int // credit positions, matching public role ranking
-	creditCount int
-	after       *PersonCreditsCursor
-	exhausted   bool
-	order       []*rsPersonWork
-	validated   int
-	complete    bool
+	person       int64
+	source       []any
+	facts        *PersonFacts
+	portrait     *RSPersonPortrait
+	portraitRead bool
+	works        map[int64]*rsPersonWork
+	departments  map[string]int // credit positions, matching public role ranking
+	creditCount  int
+	after        *PersonCreditsCursor
+	exhausted    bool
+	order        []*rsPersonWork
+	validated    int
+	complete     bool
 }
 
 // RSPeoplePreparation is one owner/query job. Polls attach to this same object;
@@ -243,7 +244,14 @@ func (r *RSPeoplePageReader) page(ctx context.Context, request governor.Request,
 	started := time.Now()
 	ctx, cancel := context.WithDeadline(ctx, minTimeRS(time.Now().Add(min(budget, time.Second)), p.lease.Deadline()))
 	defer cancel()
-	if !p.captured || len(p.input.Views) > 1 {
+	if !p.captured {
+		if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
+			return
+		}
+		page.Pending = true
+		return
+	}
+	if len(p.input.Views) > 1 {
 		if err = r.checkPeopleFences(ctx, request, output, p, at, &cost); err != nil {
 			return
 		}
@@ -319,14 +327,17 @@ func (r *RSPeoplePageReader) checkPeopleFences(ctx context.Context, request gove
 	for i, view := range p.input.Views {
 		view.Now = at
 		var roots []rootRead
-		if p.current.source != nil {
+		if p.current.person > 0 {
 			roots = []rootRead{func(q browseQuery) ([]any, error) {
 				rows, err := q("rs.people.source", p.current.person)
 				if err != nil {
 					return nil, err
 				}
-				if len(rows) != 1 || !equalSource(p.current.source, rows[0]) {
+				if len(rows) != 1 || p.current.source != nil && !equalSource(p.current.source, rows[0]) {
 					return nil, ErrStale
+				}
+				if p.current.source == nil {
+					p.current.source = rows[0]
 				}
 				return rows[0], nil
 			}}
@@ -416,6 +427,16 @@ func (r *RSPeoplePageReader) peopleQuantum(ctx context.Context, request governor
 		return err
 	}
 	c := &p.current
+	if len(c.works) > 0 && c.facts == nil {
+		return r.peopleFacts(ctx, request, output, p, at, cost)
+	}
+	if c.facts != nil && !c.portraitRead {
+		err := r.peoplePortrait(ctx, request, output, p, at, cost)
+		if err == nil {
+			c.portraitRead = true
+		}
+		return err
+	}
 	if c.exhausted {
 		return r.validatePeopleWorks(ctx, request, output, p, at, cost)
 	}
@@ -544,9 +565,6 @@ func (r *RSPeoplePageReader) peopleQuantum(ctx context.Context, request governor
 	if done && len(c.works) == 0 {
 		c.complete = true
 	}
-	if len(c.works) > 0 && c.facts == nil {
-		return r.peopleFacts(ctx, request, output, p, at, cost)
-	}
 	return r.authority.CheckPreparation(p.lease)
 }
 
@@ -596,10 +614,7 @@ func (r *RSPeoplePageReader) peopleFacts(ctx context.Context, request governor.R
 		return rows[0], nil
 	})
 	addSearchReadCost(cost, &one)
-	if err != nil {
-		return err
-	}
-	return r.peoplePortrait(ctx, request, output, p, at, cost)
+	return err
 }
 
 func (r *RSPeoplePageReader) peoplePortrait(ctx context.Context, request governor.Request, output BrowseOutput, p *RSPeoplePreparation, at time.Time, cost *BrowseReadResult) error {
