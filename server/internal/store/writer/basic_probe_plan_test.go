@@ -126,7 +126,7 @@ func TestBasicProbeStatementPlans(t *testing.T) {
 			}
 			g.ForeignKeys = &fk
 		}
-		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
+		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || plan.CheckSchemaForeignKeys(g.ForeignKeys) != nil {
 			t.Fatal("incomplete Basic statement/destination/FK audit")
 		}
 		for _, p := range g.Plans {
@@ -201,5 +201,5 @@ func TestBasicProbeStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("5IDs/5cohorts/one actual probe population/%dVM/%dSEARCH/1INSERT/686FK2058probes; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
+	t.Logf("5IDs/5cohorts/one actual probe population/%dVM/%dSEARCH/1INSERT/shared-schema FK audit; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
 }

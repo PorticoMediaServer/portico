@@ -2,6 +2,7 @@ package plan
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"runtime"
@@ -230,7 +231,7 @@ func validateDerivedEnvironment(e Environment) error {
 	if e.SchemaSHA256 != digest(e.Schema) || e.StatisticsSHA256 != digest(e.Statistics) || e.IndexPolicySHA256 != embeddedPolicySHA() {
 		return fmt.Errorf("plan: schema/policy/statistics fingerprint inconsistent with current evidence")
 	}
-	if len(e.Fixture.SHA256) != 64 || e.Fixture.Implementations == "" {
+	if b, err := hex.DecodeString(e.Fixture.SHA256); err != nil || len(b) != 32 || e.Fixture.Implementations == "" {
 		return fmt.Errorf("plan: missing current fixture journal identity")
 	}
 	tables := map[string]bool{}
