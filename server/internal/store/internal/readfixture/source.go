@@ -146,6 +146,9 @@ func (f *browseFixture) exec(t *testing.T, q string, args ...any) {
 	// The same trusted fixture membership can also select the exact canonical
 	// parent. Keep the standalone journal/overlay unchanged; no production authority.
 	if len(f.existingLibraryKeys) != 0 && strings.HasPrefix(q, "INSERT INTO direct_memberships(") {
+		if strings.Count(q, `'["movies"]'`) != 1 {
+			t.Fatal("canonical fixture membership journal literal missing or ambiguous")
+		}
 		allowed, err := json.Marshal(append([]string{"movies"}, f.existingLibraryKeys...))
 		if err != nil {
 			t.Fatal(err)
