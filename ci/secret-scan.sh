@@ -52,6 +52,7 @@ go_fallback() {
   fi
   (
     unset GOFLAGS GONOSUMDB GONOSUMCHECK GOPRIVATE GONOPROXY GOINSECURE
+    export GOSUMDB=sum.golang.org
     export GOPROXY=https://proxy.golang.org
     export GOTOOLCHAIN=local
     export GOWORK=off

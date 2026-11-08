@@ -144,6 +144,9 @@ class SecretScanCache(unittest.TestCase):
         self.assertIn('GOBIN="$scratch/gobin"', text)
         self.assertIn(
             'unset GOFLAGS GONOSUMDB GONOSUMCHECK GOPRIVATE GONOPROXY GOINSECURE', text)
+        self.assertIn(
+            'export GOSUMDB=sum.golang.org', text[text.index('go_fallback() {'):],
+            'the fallback must pin the checksum database itself')
         self.assertNotRegex(text, r'GOSUMDB\s*=\s*off')
         self.assertIn(
             'go mod download -json github.com/zricethezav/gitleaks/v8@v8.30.1', text)
