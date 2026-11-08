@@ -119,6 +119,10 @@ jobs:
       - env:
           CI_BASE: ${{ inputs.base }}
         run: python3 ci/commit_bylines.py
+      - name: Plan hash pins
+        env:
+          CI_BASE: ${{ inputs.base }}
+        run: python3 ci/plan_pins.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: selection
