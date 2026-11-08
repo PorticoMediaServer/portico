@@ -15,27 +15,34 @@ type checkpointMaintenanceRecord struct {
 	Deferral string                    `json:"deferral,omitempty"`
 }
 
+// The closed set of recorded maintenance deferral kinds.
+const (
+	deferralNativeBusy = "native_busy" // native BUSY: no progress, counters may be unavailable
+	deferralCadence    = "cadence"     // offer inside the keeper's minimum start spacing
+	deferralForeground = "foreground"  // screening experiment: start deferred for a Foreground writer
+)
+
 func checkpointRecord(out governor.CheckpointResult, err error) checkpointMaintenanceRecord {
 	r := checkpointMaintenanceRecord{Result: out}
 	if err != nil {
 		r.Error = err.Error()
 	}
 	if out.Deferred {
-		r.Deferral = "native_busy"
+		r.Deferral = deferralNativeBusy
 	} else if errors.Is(err, governor.ErrCheckpointCadence) && out.Started.IsZero() && out.NativeStarted.IsZero() {
 		// Pressure maintenance can advance the shared cadence while a periodic
 		// offer waits. No grant/native call occurred; keep the typed observation.
-		r.Deferral = "cadence"
+		r.Deferral = deferralCadence
 	} else if errors.Is(err, governor.ErrCheckpointForeground) && out.Started.IsZero() && out.NativeStarted.IsZero() {
 		// The screening experiment deferred this start for an in-flight Foreground
 		// writer. No grant/native call occurred; it is a deferral, not a failure.
-		r.Deferral = "foreground"
+		r.Deferral = deferralForeground
 	}
 	return r
 }
 
 func (r checkpointMaintenanceRecord) failed() bool {
-	if (r.Deferral == "cadence" || r.Deferral == "foreground") && r.Result.Started.IsZero() && r.Result.NativeStarted.IsZero() {
+	if (r.Deferral == deferralCadence || r.Deferral == deferralForeground) && r.Result.Started.IsZero() && r.Result.NativeStarted.IsZero() {
 		return false
 	}
 	return r.Error != "" || r.Result.Refusal != nil || !r.Result.PhysicalSafe

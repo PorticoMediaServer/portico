@@ -73,11 +73,11 @@ func TestCheckpointRefreshKeepsOriginalAdmissionDeadline(t *testing.T) {
 
 func TestMaintenanceDeferralsKeepNativeAndCadenceOutcomesDistinct(t *testing.T) {
 	native := checkpointRecord(governor.CheckpointResult{Deferred: true, Busy: 1, Frames: -1, Backfilled: -1, PhysicalSafe: true}, nil)
-	if native.failed() || native.Deferral != "native_busy" || native.Result.Frames != -1 {
+	if native.failed() || native.Deferral != deferralNativeBusy || native.Result.Frames != -1 {
 		t.Fatal(native)
 	}
 	cadence := checkpointRecord(governor.CheckpointResult{}, governor.ErrCheckpointCadence)
-	if cadence.failed() || cadence.Deferral != "cadence" || cadence.Error == "" || cadence.Result.PhysicalSafe {
+	if cadence.failed() || cadence.Deferral != deferralCadence || cadence.Error == "" || cadence.Result.PhysicalSafe {
 		t.Fatal(cadence)
 	}
 	unsafe := checkpointRecord(governor.CheckpointResult{Deferred: true}, nil)
