@@ -176,7 +176,7 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 		_ = db.Close()
 		t.Fatal(err)
 	}
-	readDefinitions := append(read.HarnessDefinitions(), read.NativeFullSearchDefinitions()...)
+	readDefinitions := dedupeDefinitions(t, append(read.HarnessDefinitions(), read.NativeFullSearchDefinitions()...))
 	readRegistry := nativeFixtureRegistry(t, rc, readerConfig, readDefinitions, "../internal/readfixture/source.go", "../read/foreground.go", "../read/native_full_search.go", "../read/native_postings.go", "../read/native_search_statements.go", "../read/owner_reverse.go", "../read/native_auto_statements.go")
 	if err := errors.Join(rc.Close(), db.Close()); err != nil {
 		t.Fatal(err)
