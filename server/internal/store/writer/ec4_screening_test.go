@@ -406,14 +406,20 @@ func (c *ec4ConcurrentCheckpoints) step(recovery bool) error {
 	if !result.NativeStarted.IsZero() && result.NativeEnded.After(result.NativeStarted) {
 		nativeNS = result.NativeEnded.Sub(result.NativeStarted).Nanoseconds()
 	}
-	if journalErr := ec4Journal(c.journal, map[string]any{"recovery": recovery, "result": result, "error": checkpointError(err)}); journalErr != nil {
-		err = errors.Join(err, journalErr)
+	// The keeper's own record distinguishes a cadence/turn deferral (no grant or
+	// native call, not a failure) from a real refusal. Never end the scan because
+	// the concurrent PASSIVE or a writer pressure turn owned the same keeper.
+	record := checkpointRecord(result, err)
+	if journalErr := ec4Journal(c.journal, map[string]any{"recovery": recovery, "result": result, "error": record.Error, "deferral": record.Deferral}); journalErr != nil {
+		return journalErr
 	}
 	c.mu.Lock()
-	if recovery {
-		c.recoveries++
-	} else {
-		c.checkpoints++
+	if record.Deferral == "" {
+		if recovery {
+			c.recoveries++
+		} else {
+			c.checkpoints++
+		}
 	}
 	c.totalNS += callNS
 	if nativeNS > c.nativeMax {
@@ -427,13 +433,13 @@ func (c *ec4ConcurrentCheckpoints) step(recovery bool) error {
 	case c.progress <- struct{}{}:
 	default:
 	}
-	if err != nil {
-		return err
+	if !record.failed() {
+		return nil
 	}
-	if result.Refusal != nil || !result.PhysicalSafe {
-		return fmt.Errorf("screening maintenance refused: %v physical_safe=%v", result.Refusal, result.PhysicalSafe)
+	if record.Error != "" {
+		return fmt.Errorf("screening maintenance: %s", record.Error)
 	}
-	return nil
+	return fmt.Errorf("screening maintenance refused: %v physical_safe=%v", result.Refusal, result.PhysicalSafe)
 }
 
 // waitStep waits for the next completed concurrent PASSIVE turn instead of
