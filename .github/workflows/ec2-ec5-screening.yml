@@ -264,14 +264,15 @@ jobs:
               ;;
             ec5-paired|ec5-sustained)
               target="${CELL#ec5-}"
-              sudo --preserve-env=GOMAXPROCS,PORTICO_PAIRED_POPULATION_DIRECTORY,PORTICO_PAIRED_POPULATION_MANIFEST_SHA256 \
-                python3 source/ci/ec5_memory.py \
-                  --binary "$RUNNER_TEMP/writer.test" \
-                  --output "$OUTPUT/ec5" \
-                  --target "$target" \
-                  --config "$OUTPUT/config.json" \
-                  --population-directory "$POPULATION_DIRECTORY" \
-                  --population-manifest-sha256 "$POPULATION_PIN" > "$OUTPUT/target.log" 2>&1
+              ( cd source/server/internal/store/writer && \
+                sudo --preserve-env=GOMAXPROCS,PORTICO_PAIRED_POPULATION_DIRECTORY,PORTICO_PAIRED_POPULATION_MANIFEST_SHA256 \
+                  python3 "$GITHUB_WORKSPACE/source/ci/ec5_memory.py" \
+                    --binary "$RUNNER_TEMP/writer.test" \
+                    --output "$OUTPUT/ec5" \
+                    --target "$target" \
+                    --config "$OUTPUT/config.json" \
+                    --population-directory "$POPULATION_DIRECTORY" \
+                    --population-manifest-sha256 "$POPULATION_PIN" ) > "$OUTPUT/target.log" 2>&1
               code=$?
               echo "$code" > "$OUTPUT/target-exit-code.txt"
               ;;
