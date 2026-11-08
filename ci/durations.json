@@ -1,4 +1,6 @@
 {
+  "github.com/PorticoMediaServer/portico/server/internal/store/writer.TestCrashReplayBasicResumeCopyEveryStep": 200.0,
+  "github.com/PorticoMediaServer/portico/server/internal/store/writer.TestCrashReplayBasicResumeFinishEveryStep": 200.0,
   "github.com/PorticoMediaServer/portico/server/internal/store/writer.TestCrashReplayInventoryBatchEveryStepWidth2": 216.38,
   "github.com/PorticoMediaServer/portico/server/internal/store/writer.TestCrashReplayInventoryBatchEveryStepWidth8A": 355.0,
   "github.com/PorticoMediaServer/portico/server/internal/store/writer.TestCrashReplayInventoryBatchEveryStepWidth8B": 355.0,

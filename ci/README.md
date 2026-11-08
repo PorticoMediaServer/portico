@@ -88,3 +88,5 @@ run 42521426376 (with allowance for each partition's independent trace setup).
 The existing name-based planner distributes these parents; package and job
 deadlines are unchanged. Partition coverage and planner controls reject missing
 or duplicate cuts and accidental co-location of the three heavy parents.
+
+The Basic FIRST resume crash matrix has separate copy and completed-copy parents so the planner can place their complete SIGKILL/reopen cells on different runners. Their initial 200s duration entries are conservative allocation forecasts, not hold measurements or a qualification result; neither cell selection nor the package deadline changes.
