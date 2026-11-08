@@ -44,7 +44,7 @@ func basicFinalMaxUses(b basicAcceptBounds, id stmt.ID) int {
 		return 2
 	case basicAcceptOwners, basicSettleForward, basicSettleReverse, basicSettleCollection, basicPublishLeafProof, basicSettleShapeRead:
 		return 2
-	case basicBeginFirstEntityAssets, basicSettleProof, basicAcceptSuccessor, basicSettleBefore, basicSettleLinkCAS, basicSettleScalarCAS, basicSettleScalarBothNull, basicSettleScalarDurationNull, basicSettleScalarResolutionNull, basicSettleShapeCAS, basicSettleEntityCAS, basicPublishScalarOld, basicPublishLinkCAS, basicPublishAssetCAS, basicObjectAnalysisPolicy, basicObjectAnalysisCAS, basicFirstScalarOldKeys, basicStageBudget, basicStageBudgetCAS:
+	case basicBeginFirstEntityAssets, basicSettleProof, basicAcceptSuccessor, basicSettleBefore, basicSettleLinkCAS, basicSettleScalarCAS, basicSettleScalarBothNull, basicSettleScalarDurationNull, basicSettleScalarResolutionNull, basicSettleShapeCAS, basicSettleEntityCAS, basicSettleEntityNullCAS, basicPublishScalarOld, basicPublishLinkCAS, basicPublishAssetCAS, basicObjectAnalysisPolicy, basicObjectAnalysisCAS, basicFirstScalarOldKeys, basicStageBudget, basicStageBudgetCAS:
 		return 1
 	case basicFirstScalarOldText:
 		return 3
