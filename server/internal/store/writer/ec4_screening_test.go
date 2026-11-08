@@ -499,7 +499,6 @@ func TestEC4NativeScreening(t *testing.T) {
 			return e
 		}
 		last := claimRef
-		renewed := time.Now()
 		seen := make([]bool, count)
 		checkpoints.start()
 		defer checkpoints.stop()
@@ -507,7 +506,10 @@ func TestEC4NativeScreening(t *testing.T) {
 			if e = checkpoints.errValue(); e != nil {
 				return e
 			}
-			if time.Since(renewed) > 250*time.Millisecond {
+			// Renew only when the current lease is close to expiry, at the top of
+			// the turn with no preparation/work/unsettled result live. The owner
+			// path is PrepareClaim(previous settled ref) -> consume/ACK -> Lease.
+			if lease != nil && time.Until(time.UnixMilli(lease.expiresMS)) < 20*time.Second {
 				r.Phase = "renew"
 				claim, e = d.PrepareClaim(t.Context(), claimRef)
 				if e != nil {
@@ -518,7 +520,6 @@ func TestEC4NativeScreening(t *testing.T) {
 					return e
 				}
 				last = claimRef
-				renewed = time.Now()
 				r.Renewals++
 			}
 			r.Phase = "observe"
