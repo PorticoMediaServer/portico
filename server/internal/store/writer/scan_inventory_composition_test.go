@@ -26,6 +26,7 @@ const (
 	// Opt-in measurement only. Real time is chosen BEFORE the existing keeper,
 	// governor and driver are constructed; no frozen epoch is rebound later.
 	n1OperatingForecastTimingFixture n1CompositionFixtureProfile = 2
+	n1EC4ScreeningFixture            n1CompositionFixtureProfile = 3
 )
 
 func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport) {
@@ -38,11 +39,15 @@ func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfi
 // No callback, grant constructor, profile override or second opening is added.
 func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport, *checkpointComponent) {
 	t.Helper()
-	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture && selected[0] != n1OperatingForecastTimingFixture) {
+	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture && selected[0] != n1OperatingForecastTimingFixture && selected[0] != n1EC4ScreeningFixture) {
 		t.Fatal("unknown closed composition fixture profile")
 	}
-	realClock := len(selected) == 1 && selected[0] == n1OperatingForecastTimingFixture
-	cp := newCheckpointComponent(t, true, realClock)
+	realClock := len(selected) == 1 && (selected[0] == n1OperatingForecastTimingFixture || selected[0] == n1EC4ScreeningFixture)
+	var modes []checkpointFixtureMode
+	if len(selected) == 1 && selected[0] == n1EC4ScreeningFixture {
+		modes = []checkpointFixtureMode{checkpointScreeningReader}
+	}
+	cp := newCheckpointComponent(t, true, realClock, modes...)
 	// Explicit component input, obtained from the actual existing file. Setting
 	// the assertion changes no page size; Assert repeats the read before BEGIN.
 	if err := cp.w.db.QueryRowContext(t.Context(), "PRAGMA main.page_size").Scan(&cp.w.config.WriterPageSize); err != nil {

@@ -70,7 +70,7 @@ func ec4ScreenMember(i int, seed uint64) (string, int64) {
 	h := ec4ScreenMix(seed ^ uint64(i))
 	title := titles[h%uint64(len(titles))]
 	year := 1960 + int(h%66)
-	name := fmt.Sprintf("%s (%d) [EC4-%09d]%s", title, year, i, exts[(h>>8)%4])
+	name := fmt.Sprintf("EC4 %09d %s (%d)%s", i, title, year, exts[(h>>8)%4])
 	size := int64(500<<20) + int64(h%(3500<<20))
 	if h%5 == 0 {
 		size = int64(4<<30) + int64(h%(16<<30))

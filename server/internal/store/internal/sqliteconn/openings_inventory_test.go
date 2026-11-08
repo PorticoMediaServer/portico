@@ -24,6 +24,7 @@ var openingConstraints = map[string]string{
 	"writer/crash_scan_issuer_oracle_linux_test.go":      "", // implicit _linux suffix; independent scan journal/digest model
 	"writer/crash_scan_issuer_linux_test.go":             "", // implicit _linux suffix; real issuer SIGKILL/reopen controls
 
+	"writer/ec4_screening_test.go":               "//go:build linux && portico_ec4_screening",
 	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
 	"qual/scanbench/fixture_dir_other.go":        "//go:build !linux && !darwin",
 	"qual/scanbench/fixture_dir_test.go":         "//go:build linux || darwin",
@@ -213,6 +214,7 @@ func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 		// dependencies with the exact reviewed tag, then scan the same references.
 		{os.Environ(), []string{"-p=1", "-tags=libc.memgrind"}, "./internal/store/governor"},
 		{os.Environ(), []string{"-p=1", "-tags=memory.counters"}, "./internal/store/governor"},
+		{openingEnv("linux"), []string{"-p=1", "-tags=portico_ec4_screening"}, "./internal/store/writer"},
 	}
 	for _, target := range openingOtherPlatforms(runtime.GOOS) {
 		profiles = append(profiles, struct {
