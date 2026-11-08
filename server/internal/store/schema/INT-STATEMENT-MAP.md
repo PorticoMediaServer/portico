@@ -777,3 +777,32 @@ The DDL adds no FK or cascade. All3partial-index predicates are evaluated during
 applicable personal writes; actual WC generated write programs, WAL and holds
 need scoped refresh after lock. Existing authority/receipt/reclaim semantics
 are unchanged; these relational controls are not actual dispatcher qualification.
+
+
+## CHANGE-015 security and public-root original result custody
+
+Fourteen US purposes only:511/512/520/521/522/532/533/540/541/542/550/551/552/553.
+Every US effect/ACK/retention uses FULL; shared ordinary UO root commands may use
+NORMAL only from the actual closed descriptor. Current disclosure precedes saved
+bytes and is rechecked at release. Original owner/incarnation/sequence/operation/
+purpose/request classification precedes fresh source work. At/below ACK is retired;
+missing above-floor proof resolves, never retries as new. No WC purpose widening.
+
+Required family security_kind is ordinary0/credential1 at birth, no default and no
+writer updates. INTEGER affinity plus IN(0,1) rejects noninteger storage; exact
+3.53.4 controls cover NULL/BLOB/TEXT/fractional REAL and integer-coerced zero.
+Device/PIN/remember/lineage scope generation is scalar, with one proof-checked
+keep-family and indexed family/fence witnesses. No family/profile enumeration.
+
+Headers and complete typed cohorts use native PK/UNIQUE/FK paths. Exact result
+bytes are measured before copy. Protected issuance/recovery images never extend
+current disclosure windows; first-response-only secrets stay first-response-only.
+All child proof/secret/result pins drain before parents. Native row/digest/cohort
+validation, current-source issuer, FULL terminal and physical qualification remain
+implementation gates; representation controls alone do not mint authority.
+
+Root receipt due uses exact receipt_reclaim_due_ms IS NOT NULL, raw (due,root_id)
+keysets and no temp sort. Source receipt PK deletion publishes its exact original
+fixed cleanup slot and actual removed bytes in one turn; ACK refunds zero. No
+recursive cleanup child or speculative idle cleanup. Future US non14 purposes,
+including US-26/582 cleanup, require the concrete US-17 schema amendment first.

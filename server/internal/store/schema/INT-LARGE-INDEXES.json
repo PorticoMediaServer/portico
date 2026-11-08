@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "782904d74a9f18bb81ef2a26ba9091d7501b843b73b7b853b2c27cadf4effc1a",
+  "ddl_sha256": "44411dfefac6bf6f285040302676807cb4e9d14dc28a0cb6a7468cdca98d7a97",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online. CHANGE-012 also inventories affected G control index sets for complete new-key review; no claim of10M control density or change to inherited STRICT policy.",
   "tables": [
     {
@@ -1111,6 +1111,58 @@
       ]
     },
     {
+      "table": "authorization_family_security_fences",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "authorization_family_security_fence_parent",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "fence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "scope_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "family_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX authorization_family_security_fence_parent ON authorization_family_security_fences(fence_id,scope_kind,family_id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_authorization_family_security_fences_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "family_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "scope_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
       "table": "authorization_session_families",
       "grain": "Actual retained session-family per issue; uncapped accounts and own session churn can exceed10M; FIRST floor/scalar retained.",
       "policy": "non-STRICT + full typeof + explicit PK NOT NULL",
@@ -1132,7 +1184,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX auth_family_device ON authorization_session_families(device_id,id)"
+          "sql": "CREATE INDEX auth_family_device ON authorization_session_families(device_id,id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "auth_family_pin_lineage",
@@ -1151,7 +1204,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX auth_family_pin_lineage ON authorization_session_families(pin_lineage_id,id)"
+          "sql": "CREATE INDEX auth_family_pin_lineage ON authorization_session_families(pin_lineage_id,id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "authorization_families_account",
@@ -1175,7 +1229,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX authorization_families_account ON authorization_session_families(authority,account_id,revoked)"
+          "sql": "CREATE INDEX authorization_families_account ON authorization_session_families(authority,account_id,revoked)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "authorization_families_horizon",
@@ -1194,7 +1249,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX authorization_families_horizon ON authorization_session_families(authorization_horizon,id)"
+          "sql": "CREATE INDEX authorization_families_horizon ON authorization_session_families(authorization_horizon,id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "authorization_families_owner_history",
@@ -1228,7 +1284,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX authorization_families_owner_history ON authorization_session_families(authority,account_id,revoked,revoked_at,id)"
+          "sql": "CREATE INDEX authorization_families_owner_history ON authorization_session_families(authority,account_id,revoked,revoked_at,id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "authorization_families_retention",
@@ -1252,7 +1309,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX authorization_families_retention ON authorization_session_families(revoked,authorization_horizon,id)"
+          "sql": "CREATE INDEX authorization_families_retention ON authorization_session_families(revoked,authorization_horizon,id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "authorization_family_teardown_due",
@@ -1271,7 +1329,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX authorization_family_teardown_due ON authorization_session_families(teardown_due_ms,id)"
+          "sql": "CREATE INDEX authorization_family_teardown_due ON authorization_session_families(teardown_due_ms,id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "authorization_revoke_operation",
@@ -1285,7 +1344,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE UNIQUE INDEX authorization_revoke_operation ON authorization_session_families(revoke_operation_id)"
+          "sql": "CREATE UNIQUE INDEX authorization_revoke_operation ON authorization_session_families(revoke_operation_id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "identity_device_families_device",
@@ -1299,7 +1359,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX identity_device_families_device ON authorization_session_families(device_id)"
+          "sql": "CREATE INDEX identity_device_families_device ON authorization_session_families(device_id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "identity_family_pin_lineages_lineage",
@@ -1313,7 +1374,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX identity_family_pin_lineages_lineage ON authorization_session_families(pin_lineage_id)"
+          "sql": "CREATE INDEX identity_family_pin_lineages_lineage ON authorization_session_families(pin_lineage_id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "p2_62_purge_families",
@@ -1347,7 +1409,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX p2_62_purge_families ON authorization_session_families(authority,account_id,profile_id,revoked,id)"
+          "sql": "CREATE INDEX p2_62_purge_families ON authorization_session_families(authority,account_id,profile_id,revoked,id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         },
         {
           "name": "sqlite_autoindex_authorization_session_families_1",
@@ -1361,7 +1424,8 @@
               "descending": false
             }
           ],
-          "sql": null
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         }
       ]
     },
@@ -5576,6 +5640,93 @@
             }
           ],
           "sql": null
+        }
+      ]
+    },
+    {
+      "table": "identity_security_fences",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Native integer-primary rowid point/range path, no extra B-tree."
+        },
+        {
+          "name": "sqlite_autoindex_identity_security_fences_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "scope_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "member_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_lifetime",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "device_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "lineage_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_identity_security_fences_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "scope_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         }
       ]
     },
@@ -12816,6 +12967,550 @@
       ]
     },
     {
+      "table": "security_command_owners",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "security_command_owner_retirement",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "retired_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX security_command_owner_retirement ON security_command_owners(retired_ms,id)",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_security_command_owners_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_security_command_owners_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_command_receipts",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_security_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_security_command_receipts_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_credential_result_scopes",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_credential_result_scopes_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_security_credential_result_scopes_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "scope",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_credential_results",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_credential_results_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_credential_secrets",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_credential_secrets_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "credential_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_invitation_results",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_invitation_results_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_invitation_short_results",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_invitation_short_results_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_password_results",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_password_results_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_restriction_result_labels",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_restriction_result_labels_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_restriction_results",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_restriction_results_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_result_libraries",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_result_libraries_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "cohort",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_security_result_libraries_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "cohort",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "security_session_rotation_results",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_security_session_rotation_results_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
       "table": "subtitle_inventory_entries",
       "grain": "immutable search/text/annotation generations and source children",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -13040,6 +13735,125 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "user_mutation_command_owners",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_user_mutation_command_owners_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "root_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_user_mutation_command_owners_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "root_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "user_mutation_command_reclaim_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "root_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX user_mutation_command_reclaim_due ON user_mutation_command_owners(receipt_reclaim_due_ms,root_id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        }
+      ]
+    },
+    {
+      "table": "user_mutation_command_receipts",
+      "grain": "Actual security/public-root control or bounded retained original result cohort; inventory is complete, not a >10M density target.",
+      "policy": "STRICT + explicit primary NOT NULL (native INTEGER PRIMARY KEY where applicable)",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_user_mutation_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "root_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
+        },
+        {
+          "name": "sqlite_autoindex_user_mutation_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "root_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Complete original owner/incarnation/sequence or typed scope/FK key; bounded raw control/retirement lookup. No source reconstruction or authority grant."
         }
       ]
     },

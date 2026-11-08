@@ -1147,6 +1147,12 @@
       "predicate": "watchlisted=1",
       "choice": "repeat_exact_predicate",
       "build_gate": "Fixed own-profile exclusive BLOB public-ID raw LIMIT64; INDEXED BY intended sparse index; bundled SEARCH(profile_id=?,item_public_id>?), no temp B-tree, analyzed and unanalyzed boundary fixtures."
+    },
+    {
+      "index": "user_mutation_command_reclaim_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Fixed actual-root receipt-due raw (due,root_id) first/tie continuation; force key, SEARCH-only/no temporary sorter, same-snapshot native bytes before result copy. ACK is floor only."
     }
   ]
 }

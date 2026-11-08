@@ -615,6 +615,10 @@
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
     },
+    "authorization_family_security_fences": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
     "authorization_family_tokens": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
@@ -1405,6 +1409,10 @@
     "identity_security_counts": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
+    "identity_security_fences": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
     },
     "identity_security_minutes": {
       "policy": "STRICT",
@@ -3097,9 +3105,57 @@
       "policy": "STRICT",
       "grain": "server singleton"
     },
+    "security_command_owners": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_command_receipts": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_credential_result_scopes": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_credential_results": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_credential_secrets": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_invitation_results": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_invitation_short_results": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_password_results": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
     "security_purge_jobs": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
+    "security_restriction_result_labels": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_restriction_results": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_result_libraries": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "security_session_rotation_results": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
     },
     "segment_catchup": {
       "policy": "STRICT",
@@ -3288,6 +3344,14 @@
     "user_mutation_accounts": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
+    "user_mutation_command_owners": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
+    },
+    "user_mutation_command_receipts": {
+      "policy": "STRICT",
+      "grain": "Original security/public-root command custody, scalar fence or bounded typed result cohort; active/retained control on the normal target population, no >100k serving population or new hard row/user cap implied."
     },
     "user_mutation_global": {
       "policy": "STRICT",
