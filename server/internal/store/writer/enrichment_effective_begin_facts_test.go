@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -40,6 +41,9 @@ func effectiveBeginNativePopulation(t *testing.T, w *executor) (effectiveBeginOw
 		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := assertBeginFixtureLibraryRows(t.Context(), w.db); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(101,?,7,1)`, operation[:]); err != nil {
 		t.Fatal(err)
@@ -245,4 +249,34 @@ func TestEffectiveBeginFactPlansUseActualNativeKeys(t *testing.T) {
 	for _, captured := range golden.Plans {
 		t.Logf("static native plan %s/%s: %d EXPLAIN instructions (not runtime VM steps)", captured.ID, captured.Cohort, len(captured.Explain.Values))
 	}
+}
+
+// OR IGNORE must never hide a different pre-existing row. The fixture and the
+// attached 1M population each own one closed shape; anything else fails.
+func assertBeginFixtureLibraryRows(ctx context.Context, db *sql.DB) error {
+	var id, retired int64
+	var key, root string
+	if err := db.QueryRowContext(ctx, `SELECT id,library_id,root,retired FROM catalog_libraries WHERE id=7`).Scan(&id, &key, &root, &retired); err != nil {
+		return err
+	}
+	accepted := (key == "library-native" && root == "/namespace") || (key == "qualification-movies" && root == "/qualification-media")
+	if id != 7 || !accepted || retired != 0 {
+		return fmt.Errorf("catalog_libraries(7) pre-existing row differs: id=%d key=%q root=%q retired=%d", id, key, root, retired)
+	}
+	var libraryKey, libraryRoot, kind string
+	if err := db.QueryRowContext(ctx, `SELECT id,root,kind FROM libraries WHERE id=?`, key).Scan(&libraryKey, &libraryRoot, &kind); err != nil {
+		return err
+	}
+	if libraryKey != key || kind != "movie" || (libraryRoot != "/media" && libraryRoot != "/qualification-media") {
+		return fmt.Errorf("libraries(%q) differs: id=%q root=%q kind=%q", key, libraryKey, libraryRoot, kind)
+	}
+	var name string
+	var playable, container, searchable, browsable, listening int64
+	if err := db.QueryRowContext(ctx, `SELECT name,playable,container,searchable,browsable,listening FROM catalog_kinds WHERE id=1`).Scan(&name, &playable, &container, &searchable, &browsable, &listening); err != nil {
+		return err
+	}
+	if name != "movie" || playable != 1 || container != 0 || searchable != 1 || browsable != 1 || listening != 0 {
+		return fmt.Errorf("catalog_kinds(1) differs: %q playable=%d container=%d searchable=%d browsable=%d listening=%d", name, playable, container, searchable, browsable, listening)
+	}
+	return nil
 }
