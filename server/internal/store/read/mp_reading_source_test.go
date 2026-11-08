@@ -388,7 +388,7 @@ func TestMPReadingSourceUnavailableAndUnsupported(t *testing.T) {
 		item, asset, size int64
 		token             string
 		enabled           bool
-	}{{"cb7", 1203, 13, 2002, "comic-archive-asset", readingcap.CB7()}, {"cbr", 1204, 14, 2003, "comic-rar-asset", readingcap.CBR()}} {
+	}{{"cb7", 1203, 213, 2002, "comic-archive-asset", readingcap.CB7()}, {"cbr", 1204, 214, 2003, "comic-rar-asset", readingcap.CBR()}} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := mpReadingSelect(t, r, f, tc.item, tc.asset, 21, 2)
 			if !tc.enabled {
@@ -397,11 +397,20 @@ func TestMPReadingSourceUnavailableAndUnsupported(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || got.Format != tc.name {
+			if err != nil || got.Format != tc.name || got.PresentationFormat != tc.name || got.Converted || got.Token != tc.token || got.Size != tc.size || got.ItemKind != 21 {
 				t.Fatalf("%s build %+v %v", tc.name, got, err)
 			}
 		})
 	}
+	// An archive source must be current and local; a remote kind is refused
+	// even when the build compiles its decoder.
+	t.Run("archive-remote-source", func(t *testing.T) {
+		remote, rr := mpReadingSourceFixture(t)
+		remote.exec(t, `UPDATE library_sources SET kind='smb' WHERE id='source-comic'`)
+		if got, err := mpReadingSelect(t, rr, remote, 1203, 213, 21, 2); !errors.Is(err, ErrDenied) || got != (MPReadingSource{}) {
+			t.Fatalf("remote archive source admitted: %+v %v", got, err)
+		}
+	})
 }
 
 func TestMPReadingSourceMatchesAvailabilityView(t *testing.T) {
