@@ -51,12 +51,15 @@ func enterIACommand(ctx context.Context, turn *commandTurn, q iaEntryRequest, p 
 		return nil, err
 	}
 	entry := &iaCommandEntry{authority: a, request: q}
-	d, _ := Describe(q.purpose)
+	kind, err := iaEntryCommandKind(q.purpose)
+	if err != nil {
+		return nil, err
+	}
 	var source any
 	if q.sourceID != "" {
 		source = q.sourceID
 	}
-	row, err := wc008DraftQuery(ctx, turn, iaEntryOwner, q.libraryID, q.libraryKey, d.Name, ref.RequestDigest[:], source, ref.Identity.OperationID[:])
+	row, err := wc008DraftQuery(ctx, turn, iaEntryOwner, q.libraryID, q.libraryKey, kind, ref.RequestDigest[:], source, ref.Identity.OperationID[:])
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +129,11 @@ func enterIACommand(ctx context.Context, turn *commandTurn, q iaEntryRequest, p 
 	if err = a.recheck(ctx, turn); err != nil {
 		return nil, err
 	}
+	// Fresh is an internal admission classification, not an Applied/queued result.
+	// A resolver cannot consume it as permission to execute a missing command.
+	if q.action == iaEntryResolve && entry.decision == receiptFresh {
+		return nil, ErrResolveRequired
+	}
 	return entry, nil
 }
 func iaEntryText(s string) bool { return len(s) > 0 && len(s) <= 128 && utf8.ValidString(s) }
@@ -157,5 +165,35 @@ func (e *iaCommandEntry) checkFreshSource(ctx context.Context, turn *commandTurn
 	if found != 1 {
 		return ErrResolveRequired
 	}
-	return nil
+	return e.authority.recheck(ctx, turn)
+}
+
+// Descriptor labels are metadata, not persisted command_kind values. Keep this
+// closed map aligned with group C and the typed codecs, independent of IA04's
+// prefixed names. Later IA bodies must not persist Describe(...).Name.
+func iaEntryCommandKind(purpose CommandID) (string, error) {
+	switch purpose {
+	case IAConfigureLibrary:
+		return "configure_library", nil
+	case IAConfigureSource:
+		return "configure_source", nil
+	case IARetireLibrary:
+		return "retire_library", nil
+	case IARetireSource:
+		return "retire_source", nil
+	case IARetireStep:
+		return "retire_step", nil
+	case IAAcceptEpisodeInventory:
+		return "episode_inventory_accept", nil
+	case IAAcceptAudioInventory:
+		return "audio_inventory_accept", nil
+	case IAAcceptReadingInventory:
+		return "reading_inventory_accept", nil
+	case IAAcceptExtraInventory:
+		return "extra_inventory_accept", nil
+	case IAAcceptMembership:
+		return "membership_accept", nil
+	default:
+		return "", ErrInvalid
+	}
 }
