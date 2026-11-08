@@ -19,7 +19,7 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 	if enrichmentPurpose(purpose) {
 		return enrichmentHistoryMaxUses(id)
 	}
-	if purpose == EffectiveStage && (id == effectiveSourcePinReceiptLengths || id == effectiveSourcePinReceiptCopy) {
+	if effectiveSourceProofPurpose(purpose) && (id == effectiveSourcePinReceiptLengths || id == effectiveSourcePinReceiptCopy) {
 		return 2 // distinct original evidence and source seals, same full-PK points
 	}
 	if scanDirectoryTerminalPurpose(purpose) {
