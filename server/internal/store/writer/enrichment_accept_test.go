@@ -1,12 +1,14 @@
 package writer
 
 import (
+	"errors"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // acceptBeginFixture seeds the exact post-BEGIN state a real V2 BEGIN leaves:
@@ -349,4 +351,80 @@ func TestEnrichmentAcceptStatementInventoryIsClosed(t *testing.T) {
 			t.Fatalf("missing accept max uses for %s", d.ID)
 		}
 	}
+	// The ORIGINAL evidence and source seal receipt points are each read/ copied
+	// twice; E01 depends on this exact 2-use reservation.
+	for _, id := range []stmt.ID{effectiveSourcePinReceiptLengths, effectiveSourcePinReceiptCopy} {
+		if got := commandStatementMaxUses(EnrichAccept, id); got != 2 {
+			t.Fatalf("reservation for %s = %d", id, got)
+		}
+	}
+}
+
+// The final command must be built by its constructor: a mutated digest or a
+// returned BEGIN digest can never execute, and neither can a payload whose
+// identity/digest differs from its own admitted request receipt.
+func TestEnrichmentAcceptCommandConstructorAndGrantKey(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		e, f, begin, image, result := acceptBeginFixture(t)
+		cmd := acceptRequestFixture(t, e, f, begin, image, result)
+		if cmd.digest == begin.digest {
+			t.Fatal("final command re-used the BEGIN digest")
+		}
+		begun := *cmd
+		begun.digest = cmd.originalBegin.digest
+		if err := begun.check(); err == nil {
+			t.Fatal("returned BEGIN digest passed check")
+		}
+		corrupt := *cmd
+		corrupt.digest[0] ^= 1
+		if err := corrupt.check(); err == nil {
+			t.Fatal("corrupted final digest passed check")
+		}
+		if enrichmentAcceptGrantKey(cmd.identity, cmd.digest) == enrichmentAcceptGrantKey(cmd.identity, corrupt.digest) {
+			t.Fatal("grant key does not bind the request digest")
+		}
+		// The dispatcher refuses a payload command that is not the admitted
+		// identity/digest before any command turn starts.
+		w, cap, q, a := acceptRuntime(t, e, begin, cmd)
+		other := *cmd
+		other.identity.Sequence++
+		wrong := acceptInvocation(&other, cap, q)
+		if got, _, err := w.effective.runEnrichment(t.Context(), w, wrong); err == nil || got != (enrichmentCommandResult{}) {
+			t.Fatal("foreign payload command admitted", got, err)
+		}
+		// A matching outer receipt makes the grant key pass, and the command's
+		// own payload re-derivation then refuses the mutated digest.
+		q2 := q
+		q2.Receipt = ReceiptReference{corrupt.identity, corrupt.digest}
+		bad := acceptInvocation(&corrupt, cap, q2)
+		if got, _, err := w.effective.runEnrichment(t.Context(), w, bad); err == nil || got != (enrichmentCommandResult{}) {
+			t.Fatal("mutated command executed", got, err)
+		}
+		var sealed, rows int64
+		if err := e.db.QueryRowContext(t.Context(), `SELECT sealed,(SELECT count(*) FROM enrichment_command_receipts WHERE command_kind='enrich_accept') FROM catalog_credit_images WHERE id=?`, image.id).Scan(&sealed, &rows); err != nil || sealed != 0 || rows != 0 {
+			t.Fatal("refused command left a durable effect", sealed, rows, err)
+		}
+		if a.Usage() != ([4]governor.Amounts{}) {
+			t.Fatal("refused command retained a grant", a.Usage())
+		}
+	})
+}
+
+// Both closed purpose wrappers must refuse a turn of the other purpose: an
+// accept command can never execute on a BEGIN grant and vice versa.
+func TestEnrichmentAcceptDescriptorGateBothDirections(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		e, f, begin, image, result := acceptBeginFixture(t)
+		cmd := acceptRequestFixture(t, e, f, begin, image, result)
+		turn, _ := effectiveBeginWholeTurn(t, e)
+		if _, _, err := applyEnrichAccept(t.Context(), turn, cmd); !errors.Is(err, ErrInvalid) {
+			t.Fatal("accept body admitted a BEGIN turn", err)
+		}
+		if _, err := verifyEnrichAcceptSource(t.Context(), turn, cmd); !errors.Is(err, ErrInvalid) {
+			t.Fatal("accept source wrapper admitted a BEGIN turn", err)
+		}
+		if _, err := turn.transaction.rollback(nil); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
