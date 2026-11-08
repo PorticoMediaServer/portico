@@ -246,9 +246,8 @@ func TestUSOwnerAuthorityClosedPurposeScope(t *testing.T) {
 			t.Fatal(id, a, err)
 		}
 	}
-	// Excluding the first native step proves unsupported IDs fail at the closed
-	// recipe gate, rather than accidentally succeeding through current sources.
-	delete(turn.steps, usAuthorityFamily)
+	// Keep every native step available: without the closed purpose gate an
+	// unsupported ID would mint a stamp, so the control must detect that mint.
 	for id := CommandID(500); id <= 599; id++ {
 		if id == USMemberLibraries || id == USProfileLibraries {
 			continue
@@ -266,5 +265,50 @@ func TestUSOwnerAuthorityRequiresLineage(t *testing.T) {
 	witness.lineage = ""
 	if got, err := prepareUSOwnerAuthority(witness); got != nil || !errors.Is(err, ErrInvalid) {
 		t.Fatal(got, err)
+	}
+}
+
+func TestUSOwnerAuthorityFixturePermitGate(t *testing.T) {
+	w, r, p := usOwnerAuthorityFixture(t)
+	turn, b := usOwnerAuthorityTurn(t, w, r)
+	if a, err := authorizeUSOwnerPolicy(t.Context(), turn, p, t.Context(), b); a == nil || err != nil {
+		t.Fatal(a, err)
+	}
+	for _, tc := range []struct {
+		name   string
+		permit *usOwnerAuthorityFixturePermit
+	}{
+		{name: "nil"},
+		{name: "foreign_frame", permit: &usOwnerAuthorityFixturePermit{frame: &transaction{}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			invalidBudget := b
+			invalidBudget.fixture = tc.permit
+			a, err := authorizeUSOwnerPolicy(t.Context(), turn, p, t.Context(), invalidBudget)
+			var refusal *Refusal
+			if a != nil || !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified {
+				t.Fatal(a, err)
+			}
+		})
+	}
+}
+
+func TestUSOwnerAuthorityRejectsNonlocalFamily(t *testing.T) {
+	w, r, p := usOwnerAuthorityFixture(t)
+	// The fresh schema's CHECK also permits only local. Seed a deliberately
+	// invalid historical/corrupt row to independently exercise the recipe's
+	// f.authority='local' predicate; restore CHECK enforcement before the turn.
+	wc008NativeExec(t, w, `PRAGMA ignore_check_constraints=ON; UPDATE authorization_session_families SET authority='portico' WHERE id='issuer-family'; PRAGMA ignore_check_constraints=OFF`)
+	var ignored int
+	if err := w.db.QueryRowContext(t.Context(), `PRAGMA ignore_check_constraints`).Scan(&ignored); err != nil || ignored != 0 {
+		t.Fatal(ignored, err)
+	}
+	var authority string
+	if err := w.db.QueryRowContext(t.Context(), `SELECT authority FROM authorization_session_families WHERE id='issuer-family'`).Scan(&authority); err != nil || authority != "portico" {
+		t.Fatal(authority, err)
+	}
+	turn, b := usOwnerAuthorityTurn(t, w, r)
+	if a, err := authorizeUSOwnerPolicy(t.Context(), turn, p, t.Context(), b); a != nil || !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal(a, err)
 	}
 }
