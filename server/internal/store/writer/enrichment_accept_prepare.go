@@ -11,7 +11,7 @@ import (
 // an inferred empty set. Authored/locked and mixed-provider images require the
 // separately verified merge planner; they do not silently lose their rows.
 func newEnrichAcceptCommand(identity CommandIdentity, begin *effectiveStageBeginCommand, in enrichAcceptRequest) (*enrichAcceptCommand, error) {
-	if begin == nil || !begin.valid || begin.sourceReferences == nil || identity.Sequence <= 0 || in.variant != "accept_provider_credits_v1" ||
+	if begin == nil || !begin.valid || begin.sourceReferences == nil || identity.Sequence <= 0 || identity.Incarnation != begin.identity.Incarnation || in.variant != "accept_provider_credits_v1" ||
 		in.owner.incarnation != identity.Incarnation || in.owner.lastSequence != in.owner.acknowledgedSequence || identity.Sequence != in.owner.lastSequence+1 || in.owner.lastSequence == math.MaxInt64 || in.owner.lastSequence != begin.identity.Sequence || in.stageSlot < 0 || in.reservedBytes <= 0 ||
 		!in.owner.imageID.Valid || in.owner.imageID.Int64 != in.image.id || in.image.id <= 0 || in.image.revision <= 0 || in.entity.ownerLocked != 0 ||
 		in.image.id == in.entity.imageID.Int64 || in.owner.entityID != in.entity.id || in.entity.id != begin.request.entity.id ||
@@ -47,6 +47,10 @@ func newEnrichAcceptCommand(identity CommandIdentity, begin *effectiveStageBegin
 	digest, err := canonicalRequestDigest(EnrichAccept, 1, identity, packet)
 	if err != nil {
 		return nil, err
+	}
+	// The final command is a distinct command, never a re-labeled BEGIN.
+	if digest == begin.digest {
+		return nil, invalid("enrich_accept_digest")
 	}
 	context := effectiveCreditManifestContext{in.entity.id, in.image.header.declaredInput, in.image.header.sourceManifest, in.image.header.language, int64(len(in.rows)), in.image.header.expectedBytes}
 	checkpoint, err := newEffectiveCreditManifestCheckpoint(context, maxCanonicalRequestBytes)
@@ -90,6 +94,24 @@ func newEnrichAcceptCommand(identity CommandIdentity, begin *effectiveStageBegin
 		}
 	}
 	return &enrichAcceptCommand{identity: identity, digest: digest, originalBegin: original, request: in, valid: true}, nil
+}
+
+// check re-derives the complete final payload from the identity and the frozen
+// request, and rejects a returned/BEGIN digest. newEnrichAcceptCommand is the
+// only builder; a hand-built literal (or a mutated copy) cannot execute.
+func (c *enrichAcceptCommand) check() error {
+	if c == nil || !c.valid || c.originalBegin == nil || !c.originalBegin.valid || c.originalBegin.sourceReferences == nil || c.identity.Incarnation != c.originalBegin.identity.Incarnation || c.identity.Sequence <= c.originalBegin.identity.Sequence {
+		return ErrInvalid
+	}
+	packet := struct {
+		Request       enrichAcceptRequest
+		OriginalBegin effectiveNativeSourceRequest
+	}{c.request, effectiveNativeSourceRequest{"begin_native_seal_refs_v1", c.originalBegin.request, *c.originalBegin.sourceReferences}}
+	digest, err := canonicalRequestDigest(EnrichAccept, 1, c.identity, packet)
+	if err != nil || digest != c.digest || c.digest == c.originalBegin.digest {
+		return ErrInvalid
+	}
+	return nil
 }
 func (r enrichAcceptRequest) ownerID() string { return r.beginResult.ProviderOperationID }
 
