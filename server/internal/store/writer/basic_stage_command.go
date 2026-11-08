@@ -20,6 +20,7 @@ const (
 	basicControlFreeze                                        // Stage: phase 0->1 after nine sealed families
 	basicControlSelectEntity                                  // Stage: phase 1->2, after_entity = sole leaf
 	basicControlCopyFamily                                    // Stage: one copy turn of one family (phase 2)
+	basicControlAbandon                                       // Stage: one abandon turn of an unaccepted input
 )
 
 // Exactly one pointer is set. A closed concrete variant keeps the canonical
@@ -106,6 +107,7 @@ type basicControlRequest struct {
 	entityID       int64 // the sole FIRST leaf entity
 	shapeID        int64 // the pinned target shape
 	copy           basicCopyCursor
+	abandon        *basicAbandonExpectation
 }
 
 type basicStageCommand struct {
@@ -148,6 +150,12 @@ func validateBasicControlRequest(identity CommandIdentity, in basicControlReques
 	s := in.source
 	if s.changeID <= 0 || s.inputRevision <= 0 || s.expectedEpoch <= 0 || s.expectedEpoch == math.MaxInt64 || s.objectRevision == "" ||
 		s.runID != in.original.scope.runID || s.libraryID != in.original.scope.libraryID || s.sourceID != in.original.source.id || s.incarnation != in.original.source.incarnation {
+		return ErrInvalid
+	}
+	if in.operation == basicControlAbandon {
+		return validateBasicAbandonRequest(in, purpose)
+	}
+	if in.abandon != nil {
 		return ErrInvalid
 	}
 	transition := in.probe != nil || in.changeRevision != 0 || in.entityID != 0 || in.shapeID != 0 || in.copy != (basicCopyCursor{})
@@ -231,6 +239,11 @@ func cloneBasicControlRequest(in basicControlRequest) basicControlRequest {
 		p.before.container, p.before.videoCodec, p.before.audioCodec = strings.Clone(p.before.container), strings.Clone(p.before.videoCodec), strings.Clone(p.before.audioCodec)
 		p.after.container, p.after.videoCodec, p.after.audioCodec = strings.Clone(p.after.container), strings.Clone(p.after.videoCodec), strings.Clone(p.after.audioCodec)
 		in.probe = &p
+	}
+	if in.abandon != nil {
+		a := *in.abandon
+		a.after.container, a.after.videoCodec, a.after.audioCodec = strings.Clone(a.after.container), strings.Clone(a.after.videoCodec), strings.Clone(a.after.audioCodec)
+		in.abandon = &a
 	}
 	in.copy.key, in.copy.key2, in.copy.key3 = strings.Clone(in.copy.key), strings.Clone(in.copy.key2), strings.Clone(in.copy.key3)
 	if in.rows != nil {
