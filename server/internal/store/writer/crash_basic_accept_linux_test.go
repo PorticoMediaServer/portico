@@ -386,6 +386,13 @@ func basicCrashStateSnapshot(t *testing.T, db *sql.DB) basicCrashSnapshot {
 }
 
 func TestCrashReplayBasicAccept(t *testing.T) {
+	if raceDetector {
+		// Each cell rebuilds the accepting fixture in its own child, so the
+		// sequential matrix needs more than one shard's race budget. The same
+		// cells run without -race; a skipped opt-in target is not evidence.
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+
 	expect := basicCrashExpectationFor(t)
 	boundaries := append([]string{"before_begin", "after_begin"}, expect.Phases...)
 	boundaries = append(boundaries, "before_commit", "after_commit", "physical_return", "api_return")
