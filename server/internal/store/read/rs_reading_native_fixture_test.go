@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
@@ -197,6 +198,13 @@ func TestRSNativeReadingNegativeControls(t *testing.T) {
 				for poll := 0; poll < 100; poll++ {
 					page, err := rsReadingNativeRead(t, f, r, after, nil)
 					if err != nil {
+						want := ErrDenied
+						if !c.withRS {
+							want = sqliteconn.ErrPolicy
+						}
+						if !errors.Is(err, want) {
+							t.Fatalf("unexpected refusal class: %v, want %v", err, want)
+						}
 						if !reflect.DeepEqual(page, FullSearchPage{}) {
 							t.Fatalf("refusal leaked output: %+v (%v)", page, err)
 						}
@@ -210,10 +218,7 @@ func TestRSNativeReadingNegativeControls(t *testing.T) {
 						after = page.Next
 						continue
 					case SearchUnavailable:
-						if c.requireErr {
-							t.Fatal("missing definitions were accepted")
-						}
-						return
+						t.Fatal("domain negative must not pass on unrelated native unavailability")
 					case SearchResults:
 						if len(page.Hits) != 0 {
 							t.Fatalf("negative control granted a hit: %+v", page.Hits)
