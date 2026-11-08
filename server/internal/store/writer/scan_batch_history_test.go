@@ -68,7 +68,7 @@ func TestInventoryBatchHistoryRefusesMalformedCohortsBeforeText(t *testing.T) {
 	for _, mutation := range []string{
 		`DELETE FROM scan_command_results WHERE run_id='scan-hit' AND input_ordinal=1`,
 		`UPDATE scan_command_results SET input_ordinal=8 WHERE run_id='scan-hit' AND input_ordinal=1`,
-		`UPDATE scan_command_results SET child_kind=1 WHERE run_id='scan-hit' AND input_ordinal=1`,
+		`UPDATE scan_command_results SET child_kind=1,child_ordinal=1 WHERE run_id='scan-hit' AND input_ordinal=1`,
 		`UPDATE scan_command_results SET object_id=printf('%.*c',2097152,'x') WHERE run_id='scan-hit' AND input_ordinal=1`,
 	} {
 		t.Run(mutation, func(t *testing.T) {
