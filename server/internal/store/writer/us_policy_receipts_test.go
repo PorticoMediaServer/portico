@@ -1,0 +1,335 @@
+package writer
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
+)
+
+// Synthetic native adapter fixture only. US-01 still mints the authority stamp
+// after its own current-source checks; nothing here constructs a production
+// issuer, registers an accepting command or qualifies a hold.
+func usPolicyReceiptFixture(t *testing.T, kind CommandID, libraries []string) (*executor, *stmt.Registry, *usOwnerAuthorityProof, *usLibraryPolicyCommand) {
+	t.Helper()
+	w, _, proof := usOwnerAuthorityFixture(t)
+	identity, request := usPolicyFixture()
+	request.libraries = libraries
+	if kind == USProfileLibraries {
+		request.profile, request.profileLifetime = "profile", strings.Repeat("f", 32)
+	}
+	command, err := prepareUSLibraryPolicy(kind, identity, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO accounts(id,username,password_hash,profile_id) VALUES('target','target',X'','target-profile')`,
+		`INSERT INTO direct_memberships(account_id,incarnation,role,allowed_libraries) VALUES('target','eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee','member','["movies"]')`,
+		`INSERT INTO direct_profiles(id,account_id,lifetime,name,is_primary,allowed_libraries) VALUES('profile','target','ffffffffffffffffffffffffffffffff','Target',1,'[]')`,
+	} {
+		wc008NativeExec(t, w, q)
+	}
+	i := proof.witness.issuer
+	wc008NativeExec(t, w, `INSERT INTO security_command_owners(id,command_incarnation,ingress,server_id,issuer_account_id,issuer_member_incarnation,issuer_profile_id,issuer_profile_lifetime,issuer_installation_incarnation,original_family_id,created_ms) VALUES(?,?,'authenticated',?,?,?,?,?,?,?,0)`,
+		request.ownerID, identity.Incarnation[:], i.server, i.account, i.memberIncarnation, i.profile, i.profileLifetime, i.installation, i.family)
+	defs := append([]stmt.Definition(nil), usAuthorityDefinitions()...)
+	defs = append(defs, usPolicyDefinitions()...)
+	defs = append(defs, usPolicyEffectDefinitions()...)
+	defs = append(defs, usPolicyReceiptDefinitions()...)
+	r, err := stmttest.New(t, defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w, r, proof, command
+}
+
+func usPolicyReceiptTurn(t *testing.T, w *executor, r *stmt.Registry, proof *usOwnerAuthorityProof, kind CommandID) (*commandTurn, *usOwnerAuthorization, context.CancelFunc) {
+	t.Helper()
+	recipe := testRecipe()
+	recipe.limit = Work{10000, 1_000_000, 10000, 4 << 20, 20 * time.Millisecond}
+	tx, err := w.begin(t.Context(), kind, recipe, &testCustody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = tx.rollback(nil) })
+	var steps []statementStep
+	for _, d := range r.Manifest() {
+		steps = append(steps, statementStep{d.ID, Work{8, 500, 8, 4096, 10 * time.Microsecond}})
+	}
+	turn, err := newCommandTurn(tx, r, steps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = turn.closeRows() })
+	lifetime, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	budget := usOwnerAuthorityBudget{memory: 4 << 20, fixture: &usOwnerAuthorityFixturePermit{frame: tx}}
+	a, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, lifetime, budget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return turn, a, cancel
+}
+
+func usPolicyReceiptFor(c *usLibraryPolicyCommand) usPolicyReceiptRequest {
+	return usPolicyReceiptRequest{ownerID: c.request.ownerID, kind: c.kind, reference: ReceiptReference{Identity: c.identity, RequestDigest: c.digest}}
+}
+
+func usPolicySavedFixture(t *testing.T, c *usLibraryPolicyCommand) (usPolicySavedResult, ResultDigest) {
+	t.Helper()
+	v := usPolicySavedResult{kind: c.kind, ownerID: c.request.ownerID, account: c.request.account,
+		memberIncarnation: c.request.memberIncarnation, revision: 2, appliedMS: 1000, changed: true,
+		libraries: slices.Clone(c.request.libraries)}
+	if c.kind == USProfileLibraries {
+		v.profile, v.profileLifetime = c.request.profile, c.request.profileLifetime
+		if c.request.libraries == nil {
+			v.inherits, v.changed = true, false
+		}
+	}
+	digest, err := usPolicyResultDigest(c.identity, c.digest, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v, digest
+}
+
+func usPolicyReceiptCommit(t *testing.T, turn *commandTurn) {
+	t.Helper()
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	physical, err := turn.transaction.commit()
+	if err != nil || physical.state != committed || turn.transaction.settings.Synchronous != 2 {
+		t.Fatal("FULL physical commit failed", physical, err)
+	}
+}
+
+func TestUSPolicyReceiptReplayAfterSourceDrift(t *testing.T) {
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	v, digest := usPolicySavedFixture(t, input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	fresh, err := lookupUSPolicy(t.Context(), turn, a, q)
+	if err != nil || fresh.decision != receiptFresh || fresh.owner.count != 0 {
+		t.Fatal(fresh, err)
+	}
+	charged, err := storeUSPolicyResult(t.Context(), turn, a, q, fresh.owner, v, digest)
+	if err != nil || charged <= 0 {
+		t.Fatal(charged, err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	// Real current-source drift after the original save: different value,
+	// revision and disabled state. Replay must not read or reapply it.
+	wc008NativeExec(t, w, `UPDATE direct_memberships SET allowed_libraries='[]',revision=revision+1,disabled=1 WHERE account_id='target'`)
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	// No retained-result path may consult the live target statements.
+	delete(turn.steps, usMemberPolicyOctets)
+	delete(turn.steps, usMemberPolicyFacts)
+	var before, after int64
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	replay, err := lookupUSPolicy(t.Context(), turn, a, q)
+	if err != nil || replay.decision != receiptReplay || replay.digest != digest || !reflect.DeepEqual(replay.result, v) {
+		t.Fatal(replay, err)
+	}
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&after); err != nil || after != before {
+		t.Fatal("replay made new effects", before, after, err)
+	}
+}
+
+func TestUSPolicyReceiptChangedDigestConflicts(t *testing.T) {
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	v, digest := usPolicySavedFixture(t, input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	fresh, err := lookupUSPolicy(t.Context(), turn, a, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = storeUSPolicyResult(t.Context(), turn, a, q, fresh.owner, v, digest); err != nil {
+		t.Fatal(err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	changed := q
+	changed.reference.RequestDigest = RequestDigest{9}
+	if out, err := lookupUSPolicy(t.Context(), turn, a, changed); !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usPolicyReceiptLookup{}) {
+		t.Fatal(out, err)
+	}
+}
+
+func TestUSPolicyReceiptDeniedBeforeOwnerBytes(t *testing.T) {
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	turn, a, cancel := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	cancel()
+	// Current authority denial must precede every retained owner/header lookup.
+	delete(turn.steps, usSecurityOwner)
+	delete(turn.steps, usPolicyReceiptHeader)
+	if out, err := lookupUSPolicy(t.Context(), turn, a, usPolicyReceiptFor(input)); !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usPolicyReceiptLookup{}) {
+		t.Fatal(out, err)
+	}
+}
+
+func TestUSPolicyReceiptFloorOnlyACK(t *testing.T) {
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	v, digest := usPolicySavedFixture(t, input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	fresh, err := lookupUSPolicy(t.Context(), turn, a, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	charged, err := storeUSPolicyResult(t.Context(), turn, a, q, fresh.owner, v, digest)
+	if err != nil || charged <= 0 {
+		t.Fatal(charged, err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	ack, err := acknowledgeUSPolicyAfterAuthority(t.Context(), turn, a, q)
+	if err != nil || ack != 1 {
+		t.Fatal(ack, err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	var acked, count, bytes int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT acknowledged_sequence,retained_count,retained_variable_bytes FROM security_command_owners`).Scan(&acked, &count, &bytes); err != nil || acked != 1 || count != 1 || bytes != charged {
+		t.Fatal("ACK refunded or deleted retained bytes", acked, count, bytes, charged, err)
+	}
+	var headers, libraries int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM security_command_receipts`).Scan(&headers); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM security_result_libraries`).Scan(&libraries); err != nil || headers != 1 || libraries != 2 {
+		t.Fatal("ACK physically removed cohort", headers, libraries, err)
+	}
+	// The floor precedes all cohort decoding: even a drained child cohort must
+	// classify retired, never Applied or an incomplete-result error.
+	wc008NativeExec(t, w, `DELETE FROM security_result_libraries`)
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	retired, err := lookupUSPolicy(t.Context(), turn, a, q)
+	if err != nil || retired.decision != receiptRetired || retired.result.ownerID != "" {
+		t.Fatal(retired, err)
+	}
+	if again, err := acknowledgeUSPolicyAfterAuthority(t.Context(), turn, a, q); err != nil || again != 1 {
+		t.Fatal("floor ACK was not idempotent", again, err)
+	}
+}
+
+func TestUSPolicyReceiptPartialCohortIsResolveRequired(t *testing.T) {
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	v, digest := usPolicySavedFixture(t, input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	fresh, err := lookupUSPolicy(t.Context(), turn, a, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = storeUSPolicyResult(t.Context(), turn, a, q, fresh.owner, v, digest); err != nil {
+		t.Fatal(err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	wc008NativeExec(t, w, `DELETE FROM security_result_libraries WHERE ordinal=1`)
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	if out, err := lookupUSPolicy(t.Context(), turn, a, q); !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(out, usPolicyReceiptLookup{}) {
+		t.Fatal("partial cohort escaped as Applied", out, err)
+	}
+}
+
+func TestUSPolicyReceiptKeepsExactNilAndEmpty(t *testing.T) {
+	for _, mode := range []string{"inherit", "deny"} {
+		t.Run(mode, func(t *testing.T) {
+			libraries := []string(nil)
+			if mode == "deny" {
+				libraries = []string{}
+			}
+			w, r, proof, input := usPolicyReceiptFixture(t, USProfileLibraries, libraries)
+			q := usPolicyReceiptFor(input)
+			v, digest := usPolicySavedFixture(t, input)
+			turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+			fresh, err := lookupUSPolicy(t.Context(), turn, a, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = storeUSPolicyResult(t.Context(), turn, a, q, fresh.owner, v, digest); err != nil {
+				t.Fatal(err)
+			}
+			usPolicyReceiptCommit(t, turn)
+			turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+			replay, err := lookupUSPolicy(t.Context(), turn, a, q)
+			if err != nil || replay.decision != receiptReplay || replay.digest != digest || !reflect.DeepEqual(replay.result, v) {
+				t.Fatal(replay, err)
+			}
+			if (mode == "inherit") != (replay.result.libraries == nil) || (mode == "deny") != (replay.result.libraries != nil) {
+				t.Fatal("nil/empty distinction lost", mode, replay.result.libraries)
+			}
+		})
+	}
+}
+
+func TestUSPolicyReceiptPrefixRollsBack(t *testing.T) {
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	v, digest := usPolicySavedFixture(t, input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	fresh, err := lookupUSPolicy(t.Context(), turn, a, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Omit only the final owner-advance step: the header and both ordered
+	// children are already a nonempty prefix in this SAME frame.
+	delete(turn.steps, usPolicyOwnerAdvance)
+	if charged, err := storeUSPolicyResult(t.Context(), turn, a, q, fresh.owner, v, digest); err == nil || charged != 0 {
+		t.Fatal("partial receipt escaped", charged, err)
+	} else if _, rbErr := turn.transaction.rollback(err); !errors.Is(rbErr, err) {
+		t.Fatal(rbErr)
+	}
+	var headers, libraries, count, bytes int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM security_command_receipts`).Scan(&headers); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM security_result_libraries`).Scan(&libraries); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.db.QueryRowContext(t.Context(), `SELECT retained_count,retained_variable_bytes FROM security_command_owners`).Scan(&count, &bytes); err != nil {
+		t.Fatal(err)
+	}
+	if headers != 0 || libraries != 0 || count != 0 || bytes != 0 {
+		t.Fatal("receipt prefix or owner debt survived rollback", headers, libraries, count, bytes)
+	}
+}
+
+func TestUSPolicyReceiptStatementCapture(t *testing.T) {
+	defs := usPolicyReceiptDefinitions()
+	if len(defs) != 10 {
+		t.Fatal("receipt statement inventory changed", len(defs))
+	}
+	for _, d := range defs {
+		if !d.Plan.Hot || len(d.Plan.Waivers) != 0 {
+			t.Fatal("receipt statement must stay hot without waivers", d.ID)
+		}
+		if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
+			t.Fatal(d.ID, issues)
+		}
+	}
+	w := wc008NativeExecutor(t)
+	registry := nativeInventoryFixtureRegistry(t, w, defs, "us_policy_receipt_statements.go", "us_policy_receipts.go")
+	if len(registry.Manifest()) != len(defs) {
+		t.Fatal("registry did not bind the complete receipt inventory")
+	}
+	conn, err := w.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fk, err := cachedForeignKeys(t.Context(), conn, w.config)
+	if err != nil || plan.CheckSchemaForeignKeys(&fk) != nil {
+		t.Fatal("security FK coverage changed", err)
+	}
+}
