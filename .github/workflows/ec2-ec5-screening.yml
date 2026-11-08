@@ -1,0 +1,272 @@
+name: EC2/EC3/EC5 canonical screening
+# Disposable SCREENING evidence only. Never a qualification, release or merge
+# gate. Raw owner records are retained; no quantiles are minted here and every
+# verdict stays directional until reviewed merged source runs formally.
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Pushed branch or full 40-character commit SHA to screen
+        required: true
+        type: string
+      producer_run:
+        description: Immutable successful canonical 1M producer run id
+        required: true
+        default: '42415052069'
+        type: string
+      producer_attempt:
+        description: Producer attempt
+        required: true
+        default: '1'
+        type: string
+      manifest_sha256:
+        description: Independently checked producer manifest SHA256
+        required: true
+        default: 'f6cb62a1e552ea2ae761ac3c597aa8eff328648161e62744a816d76206bf6a4b'
+        type: string
+      fixtures:
+        description: Bounded fresh original count (1..64)
+        required: true
+        default: '8'
+        type: string
+      profile:
+        description: Hosted profile to screen
+        required: true
+        default: standard
+        type: choice
+        options: [standard, legacy8]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.cells.outputs.matrix }}
+    steps:
+      - name: Select screening cells
+        id: cells
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "${{ inputs.profile }}" <<'PY'
+          import json, os, sys
+          profile = sys.argv[1]
+          cells = ["ec2", "ec3-read", "ec3-write", "ec5-paired", "ec5-sustained"]
+          include = [{"cell": cell, "profile": "assigned" if cell.startswith("ec5") else profile} for cell in cells]
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write("matrix=" + json.dumps({"include": include}) + "\n")
+          PY
+  screening:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      CELL: ${{ matrix.cell }}
+      PROFILE: ${{ matrix.profile }}
+      INPUT_SOURCE_REF: ${{ inputs.source_ref }}
+      INPUT_PRODUCER_RUN: ${{ inputs.producer_run }}
+      INPUT_PRODUCER_ATTEMPT: ${{ inputs.producer_attempt }}
+      INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+      INPUT_FIXTURES: ${{ inputs.fixtures }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {path: tools, persist-credentials: false}
+      - name: Validate immutable inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re, sys
+          ref = os.environ["INPUT_SOURCE_REF"]
+          if not (re.fullmatch(r"[0-9a-f]{40}", ref) or re.fullmatch(r"[A-Za-z0-9._/-]{1,200}", ref)):
+              raise SystemExit("source_ref must be a full 40-character SHA or a branch name")
+          if not re.fullmatch(r"[1-9][0-9]{0,19}", os.environ["INPUT_PRODUCER_RUN"]):
+              raise SystemExit("producer_run must be numeric")
+          if not re.fullmatch(r"[1-9][0-9]{0,5}", os.environ["INPUT_PRODUCER_ATTEMPT"]):
+              raise SystemExit("producer_attempt must be numeric")
+          if not re.fullmatch(r"[0-9a-f]{64}", os.environ["INPUT_MANIFEST_SHA256"]):
+              raise SystemExit("manifest_sha256 must be 64 lowercase hex characters")
+          if not re.fullmatch(r"[1-9][0-9]?", os.environ["INPUT_FIXTURES"]) or not 1 <= int(os.environ["INPUT_FIXTURES"]) <= 64:
+              raise SystemExit("fixtures must be an integer in 1..64")
+          PY
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: source
+          ref: ${{ inputs.source_ref }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version: '1.26.10', cache: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: PorticoMediaServer/portico
+          run-id: ${{ inputs.producer_run }}
+          name: qual-population-${{ inputs.producer_run }}-${{ inputs.producer_attempt }}
+          path: population
+      - name: Prove exact source and population pins
+        shell: bash
+        env:
+          OUTPUT: ${{ runner.temp }}/screening
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUTPUT"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess
+          source = pathlib.Path("source")
+          commit = subprocess.check_output(["git", "-C", "source", "rev-parse", "HEAD"], text=True).strip()
+          if not re.fullmatch(r"[0-9a-f]{40}", commit):
+              raise SystemExit("source checkout has no full commit identity")
+          population = pathlib.Path("population")
+          pin = os.environ["INPUT_MANIFEST_SHA256"]
+          def sha(path):
+              h = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for block in iter(lambda: handle.read(1 << 20), b""):
+                      h.update(block)
+              return h.hexdigest()
+          manifest_path = population / "population.json"
+          if sha(manifest_path) != pin:
+              raise SystemExit("downloaded producer manifest does not match the trusted pin")
+          manifest = json.loads(manifest_path.read_text())
+          if manifest["facts"]["residents"] != 1_000_000:
+              raise SystemExit("canonical population must have exactly 1000000 residents")
+          image = population / "population.sqlite"
+          if image.stat().st_size != manifest["database_bytes"] or sha(image) != manifest["database_sha256"]:
+              raise SystemExit("canonical image bytes/hash mismatch")
+          record = {
+              "label": "SCREENING / qualification=false",
+              "source_commit": commit,
+              "source_ref": os.environ["INPUT_SOURCE_REF"],
+              "manifest_sha256": pin,
+              "image_sha256": manifest["database_sha256"],
+              "image_bytes": manifest["database_bytes"],
+              "residents": manifest["facts"]["residents"],
+              "producer_run": int(os.environ["INPUT_PRODUCER_RUN"]),
+              "producer_attempt": int(os.environ["INPUT_PRODUCER_ATTEMPT"]),
+          }
+          pathlib.Path(os.environ["OUTPUT"], "pins.json").write_text(json.dumps(record, indent=2) + "\n")
+          print(json.dumps(record))
+          PY
+      - name: Build the screening binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          go version
+          go -C source/server test -p 1 -c -o "$RUNNER_TEMP/writer.test" ./internal/store/writer
+          go version -m "$RUNNER_TEMP/writer.test" > "$RUNNER_TEMP/screening/binary-build-info.txt"
+          sha256sum "$RUNNER_TEMP/writer.test" > "$RUNNER_TEMP/screening/binary-sha256.txt"
+      - name: Write the strict five-field workload config
+        shell: bash
+        env:
+          OUTPUT: ${{ runner.temp }}/screening
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, platform
+          commit = pathlib.Path("source").resolve()
+          import subprocess
+          source = subprocess.check_output(["git", "-C", str(commit), "rev-parse", "HEAD"], text=True).strip()
+          boot = pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+          kernel = platform.release()
+          out = pathlib.Path(os.environ["OUTPUT"])
+          config = {
+              "run_id": f"screen-{os.environ['CELL']}-{os.environ['PROFILE']}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
+              "host_epoch": f"{boot}-k{kernel}",
+              "source_commit": source,
+              "output_path": str((out / "raw.ndjson").resolve()),
+              "fixtures": int(os.environ["INPUT_FIXTURES"]),
+          }
+          if set(config) != {"run_id", "host_epoch", "source_commit", "output_path", "fixtures"}:
+              raise SystemExit("strict five-field config drift")
+          (out / "config.json").write_text(json.dumps(config, indent=2) + "\n")
+          facts = {
+              "boot_id": boot,
+              "kernel": kernel,
+              "nproc": os.cpu_count(),
+              "meminfo": pathlib.Path("/proc/meminfo").read_text(),
+              "loadavg": pathlib.Path("/proc/loadavg").read_text(),
+              "cpuinfo_model": [line for line in pathlib.Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")][:1],
+              "runner_environment": os.environ.get("RUNNER_ENVIRONMENT"),
+              "label": "SCREENING / qualification=false",
+          }
+          (out / "host-facts.json").write_text(json.dumps(facts, indent=2) + "\n")
+          PY
+      - name: Run the assigned screening cell
+        shell: bash
+        env:
+          OUTPUT: ${{ runner.temp }}/screening
+          POPULATION_DIRECTORY: ${{ github.workspace }}/population
+          POPULATION_PIN: ${{ inputs.manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          PROCS=4; [ "$PROFILE" = legacy8 ] && PROCS=2
+          export GOMAXPROCS="$PROCS"
+          export PORTICO_PAIRED_POPULATION_DIRECTORY="$POPULATION_DIRECTORY"
+          export PORTICO_PAIRED_POPULATION_MANIFEST_SHA256="$POPULATION_PIN"
+          case "$CELL" in
+            ec2|ec3-read|ec3-write)
+              export PORTICO_WRITER_EC2=1
+              export PORTICO_WRITER_EC2_CONFIG="$OUTPUT/config.json"
+              ARGS=(-test.run=^TestEC2SustainedMeasurement$ -test.count=1 -test.v -test.timeout=45m
+                    -ec2-sustained=true -ec2-writer-pattern=inventory -ec2-warmup=8
+                    -ec2-cohort=timing -ec2-cadence=realistic)
+              if [ "$CELL" = ec3-write ]; then
+                ARGS+=(-ec3-foreground-write-every=50ms -ec3-foreground-write-pattern=progress_capture,progress_drain,security)
+              fi
+              set +e
+              ( cd source/server/internal/store/writer && "$RUNNER_TEMP/writer.test" "${ARGS[@]}" ) > "$OUTPUT/target.log" 2>&1
+              code=$?
+              set -e
+              echo "$code" > "$OUTPUT/target-exit-code.txt"
+              ;;
+            ec5-paired|ec5-sustained)
+              target="${CELL#ec5-}"
+              sudo --preserve-env=GOMAXPROCS,PORTICO_PAIRED_POPULATION_DIRECTORY,PORTICO_PAIRED_POPULATION_MANIFEST_SHA256 \
+                python3 source/ci/ec5_memory.py \
+                  --binary "$RUNNER_TEMP/writer.test" \
+                  --output "$OUTPUT/ec5" \
+                  --target "$target" \
+                  --config "$OUTPUT/config.json" \
+                  --population-directory "$POPULATION_DIRECTORY" \
+                  --population-manifest-sha256 "$POPULATION_PIN" > "$OUTPUT/target.log" 2>&1
+              code=$?
+              echo "$code" > "$OUTPUT/target-exit-code.txt"
+              ;;
+            *) echo "unknown cell $CELL"; exit 2 ;;
+          esac
+          python3 - "$OUTPUT" "${code}" <<'PY'
+          import json, os, pathlib, sys
+          out, code = pathlib.Path(sys.argv[1]), int(sys.argv[2])
+          verdict = "NONPASSING screening: owner target exited nonzero; retained raw prefix is the evidence" if code else "screening target exited 0; raw reduction still required"
+          (out / "verdict.json").write_text(json.dumps({
+              "cell": os.environ["CELL"], "profile": os.environ["PROFILE"], "target_exit_code": code,
+              "label": "SCREENING / qualification=false", "verdict": verdict}, indent=2) + "\n")
+          PY
+          exit 0
+      - name: Retain every screening artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: screening-${{ matrix.cell }}-${{ matrix.profile }}
+          path: ${{ runner.temp }}/screening/
+          compression-level: 1
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### SCREENING / qualification=false — $CELL ($PROFILE)"
+            echo '```'
+            cat "$RUNNER_TEMP/screening/verdict.json" 2>/dev/null || true
+            echo '```'
+            tail -n 20 "$RUNNER_TEMP/screening/target.log" 2>/dev/null || true
+          } >> "$GITHUB_STEP_SUMMARY"
