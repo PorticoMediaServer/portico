@@ -54,5 +54,5 @@ func (t *transaction) checkPublicationCommit() error {
 		}
 		actual = c.publication.actual
 	}
-	return c.a.CheckPublication(c.grant, c.expected, actual)
+	return c.a.CheckPublicationContext(t.ctx, c.grant, c.expected, actual)
 }
