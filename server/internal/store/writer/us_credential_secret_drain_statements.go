@@ -19,13 +19,22 @@ func usCredentialSecretDrainDefinitions() []stmt.Definition {
 		{ID: usSecretDrainDelete, Kind: stmt.Write, SQL: `DELETE FROM security_credential_secrets INDEXED BY sqlite_autoindex_security_credential_secrets_1 WHERE credential_id=? AND kind=? AND account_id=? AND member_incarnation=? AND profile_id=? AND profile_lifetime=? AND family_id=? AND family_incarnation=? AND secret_hash=? AND variable_bytes=? RETURNING variable_bytes`, Params: []stmt.Param{t("credential"), t("kind"), t("account"), t("member"), t("profile"), t("lifetime"), t("family"), b("incarnation"), t("hash"), i("bytes")}},
 		{ID: usSecretDrainAbsent, SQL: `SELECT 1 FROM security_credential_secrets INDEXED BY sqlite_autoindex_security_credential_secrets_1 WHERE credential_id=?`, Params: []stmt.Param{t("credential")}},
 	}
+	pin := func(table, name string) stmt.AutoIndexBinding {
+		return stmt.AutoIndexBinding{Table: table, Name: name, Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}
+	}
+	secretPin := pin("security_credential_secrets", "sqlite_autoindex_security_credential_secrets_1")
+	secretPin.Columns[0].Name = "credential_id"
 	for n := range defs {
 		if defs[n].Kind == "" {
 			defs[n].Kind = stmt.Read
 		}
 		defs[n].Owner = "store/writer US private credential secret retirement"
 		defs[n].CallSites = []string{"store/writer/us_credential_secret_drain.go"}
-		defs[n].Plan = stmt.Plan{Hot: true}
+		if defs[n].ID == usSecretDrainSource {
+			defs[n].Plan = stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_api_credentials_1", "sqlite_autoindex_authorization_session_families_1", "api_credentials_parent"}, Seeks: []string{"id=?", "parent_id=?"}, AutoIndexes: []stmt.AutoIndexBinding{pin("api_credentials", "sqlite_autoindex_api_credentials_1"), pin("authorization_session_families", "sqlite_autoindex_authorization_session_families_1")}}
+		} else {
+			defs[n].Plan = stmt.Plan{Hot: true, Indexes: []string{secretPin.Name}, Seeks: []string{"credential_id=?"}, AutoIndexes: []stmt.AutoIndexBinding{secretPin}}
+		}
 	}
 	return defs
 }
