@@ -27,7 +27,10 @@ WHERE b.id=? AND b.evidence_id=? AND b.generation=? AND b.owner_operation=? AND 
 AND b.parent_build IS NULL AND b.cursor=? AND b.expected_rows=? AND b.materialized_rows=? AND b.content_revision=? AND b.materialized_digest=?
 AND o.proof_cleanup_phase IN('idle','source_members','source_header','receipts')`,
 			Params: []stmt.Param{text("build"), text("evidence"), number("build_generation"), text("original_owner"), blob("original_incarnation"), number("original_owner_generation"), number("cursor"), number("expected_rows"), number("materialized_rows"), number("content_revision"), text("materialized_digest")},
-			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_evidence_builds_1", "sqlite_autoindex_metadata_provider_operations_1"}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_evidence_builds_1", "sqlite_autoindex_metadata_provider_operations_1"}, AutoIndexes: []stmt.AutoIndexBinding{
+				{Table: "metadata_evidence_builds", Name: "sqlite_autoindex_metadata_evidence_builds_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
+				{Table: "metadata_provider_operations", Name: "sqlite_autoindex_metadata_provider_operations_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
+			}}},
 		{ID: effectiveSourceCustodyControl, SQL: `SELECT 1 FROM metadata_provider_operations
 WHERE id=? AND command_incarnation=? AND entity_id=? AND provider=? AND source_publication_id=?
 AND source_owner_generation=? AND source_content_revision=? AND source_next_position=? AND source_expected_members=?
