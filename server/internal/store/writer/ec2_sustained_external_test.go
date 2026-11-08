@@ -23,7 +23,7 @@ import (
 )
 
 var ec3WriteEvery = flag.Duration("ec3-foreground-write-every", 0, "independent progress/security submissions;0 disables;1ms..1min")
-var ec3WritePattern = flag.String("ec3-foreground-write-pattern", "progress_drain,security", "closed progress_capture/progress_drain/security pattern")
+var ec3WritePattern = flag.String("ec3-foreground-write-pattern", "progress_capture,progress_drain,security", "closed progress_capture/progress_drain/security pattern")
 
 var ec2Enabled = flag.Bool("ec2-sustained", false, "opt-in EC2 component; never qualification")
 var ec2Every = flag.Duration("ec2-writer-every", time.Second, "declared serial writer cycle spacing,1ms..30s")
@@ -41,6 +41,11 @@ func ec2Bindings(t *testing.T, c *writer.N1PairedComponent, cohort string) workl
 	bindings := workload.EC2Bindings{}
 	bindings[workload.EC2Inventory] = func(ctx context.Context, offer workload.Offer, emit func(workload.Observation) error) error {
 		start := time.Now()
+		release, queueErr := c.EnterEC2Writer(ctx)
+		if queueErr != nil {
+			return queueErr
+		}
+		defer release()
 		err := c.RunEC2Original(t, ctx, offer.ScheduledAt, cohort)
 		end := time.Now()
 		wall := end.Sub(start)
@@ -67,8 +72,44 @@ func ec2Bindings(t *testing.T, c *writer.N1PairedComponent, cohort string) workl
 		}
 		return errors.Join(err, emit(o))
 	}
-	// No callback/flag grants native WC/Effective/CP custody. Their same-owner
-	// bindings land separately. Requested operations remain explicit failed STUBs.
+	if c.EC2Writer() != nil {
+		progress := workload.ProgressBinding{Writer: c.EC2Writer(), Driver: c.EC2Progress(), Report: func(context.Context, workload.Offer) (workload.ProgressReport, error) {
+			return workload.ProgressReport{Sequence: c.EC2ReportSequence(), PositionSeconds: 5, DurationSeconds: 100, State: "playing"}, nil
+		}}
+		bindings[workload.EC2ProgressCapture] = boundEC2WC(c, writer.ProgressAccept, workload.ProgressCapture(progress))
+		bindings[workload.EC2ProgressDrain] = boundEC2WC(c, writer.ProgressAccept, workload.ProgressDrain(progress))
+		bindings[workload.EC2Security] = boundEC2WC(c, writer.SecurityAccept, workload.Security(workload.SecurityBinding{Writer: c.EC2Writer(), Driver: c.EC2Security(), Target: func(ctx context.Context, _ workload.Offer) (string, error) { return c.EC2SecurityTarget(t, ctx) }}))
+		bindings[workload.EC2Reclaim] = boundEC2WC(c, writer.ProgressReceiptReclaim, workload.Reclaim(workload.ReclaimBinding{Writer: c.EC2Writer(), Driver: c.EC2Reclaim()}))
+		for _, operation := range []workload.EC2Operation{workload.EC2Passive, workload.EC2Recovery} {
+			op := operation
+			bindings[op] = func(ctx context.Context, _ workload.Offer, emit func(workload.Observation) error) error {
+				start := time.Now()
+				if op == workload.EC2Recovery {
+					snapshot, err := c.ObserveEC2WAL(ctx)
+					if err != nil {
+						return err
+					}
+					if snapshot.State == nil {
+						return errors.New("recovery eligibility snapshot unavailable")
+					}
+					if snapshot.State.ActiveBytes < (1<<29)-(1<<20) {
+						end := time.Now()
+						wall := end.Sub(start)
+						return emit(workload.Observation{Phase: "RECOVERY_NOT_DUE", CallStarted: &start, CallReturned: &end, WallNS: &wall, Result: snapshot, Notice: "observed active WAL below hard-minus-reserve; native RecoverWAL not attempted, no reset proof; actual space refusals remain raw failures"})
+					}
+				}
+				out, err := c.EC2Checkpoint(ctx, op == workload.EC2Recovery)
+				end := time.Now()
+				wall := end.Sub(start)
+				observation := workload.Observation{Phase: strings.ToUpper(string(op)), CallStarted: &start, CallReturned: &end, WallNS: &wall, Result: out, RefusalError: out.Refusal != nil}
+				if err != nil {
+					observation.CallError = err.Error()
+				}
+				return errors.Join(err, emit(observation))
+			}
+		}
+	}
+	// Effective has no trusted binding here and remains an explicit failed STUB.
 	return bindings
 }
 
@@ -110,7 +151,7 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 	if err := errors.Join(readErr, file.Close()); err != nil {
 		t.Fatal(err)
 	}
-	c := writer.NewN1PairedComponent(t, data, *ec2Warmup, *ec2Cohort)
+	c := writer.NewEC2PairedComponent(t, data, *ec2Warmup, *ec2Cohort)
 	streams, manifest, err := workload.EC2Streams(schedule, ec2Bindings(t, c, *ec2Cohort))
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +189,7 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 	if duration > 2*time.Hour || total > 65536 {
 		t.Fatal("EC2 declared schedule exceeds bounded duration/offer census")
 	}
-	raw, _ := json.Marshal(map[string]any{"method": "ec2-sustained-component-v1", "manifest": manifest, "planned_total_offers": total, "planned_fresh_originals": c.Measured, "planned_writer_slots": c.Measured * len(pattern), "database_id": c.DatabaseID, "wal_bound_coverage": false, "wal_reset_coverage": false, "scope": "N1/read/WAL subset only until actual WC, Effective and GV bindings land; whole EC2 remains unavailable", "caps": "unchanged existing N1/RD2 synthetic profiles", "wal_method": "typed snapshots outside each measured physical N1 turn plus timer; non-atomic, no reset inference"})
+	raw, _ := json.Marshal(map[string]any{"method": "ec2-sustained-component-v1", "manifest": manifest, "planned_total_offers": total, "planned_fresh_originals": c.Measured, "planned_writer_slots": c.Measured * len(pattern), "database_id": c.DatabaseID, "wal_bound_coverage": false, "wal_reset_coverage": false, "scope": "same native N1/WC/read/fundedCP/recovery composition; Effective remains unavailable; reset/bound proof depends on actual raw events", "caps": "unchanged existing N1/RD2 synthetic profiles", "wal_method": "typed snapshots outside each measured physical N1 turn plus timer; non-atomic, no reset inference"})
 	if err := c.EmitEC2("start", raw); err != nil {
 		t.Fatal(err)
 	}

@@ -17,6 +17,7 @@ const (
 	EC2Security        EC2Operation = "security"
 	EC2ProgressCapture EC2Operation = "progress_capture"
 	EC2ProgressDrain   EC2Operation = "progress_drain"
+	EC2Reclaim         EC2Operation = "reclaim"
 	EC2Browse          EC2Operation = "browse"
 	EC2Detail          EC2Operation = "detail"
 	EC2Playback        EC2Operation = "playback_lookup"
@@ -93,7 +94,7 @@ func EC2Streams(s EC2Schedule, bindings EC2Bindings) ([]Stream, EC2Manifest, err
 			ingest = true
 		case EC2Security:
 			security = true
-		case EC2ProgressCapture, EC2ProgressDrain:
+		case EC2ProgressCapture, EC2ProgressDrain, EC2Reclaim:
 		default:
 			return nil, m, errors.New("non-writer operation in EC2 writer pattern")
 		}

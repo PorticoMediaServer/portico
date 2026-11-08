@@ -30,6 +30,7 @@ CAPTURES = {
     'hn-foreground': ('read', 'TestForegroundPlans', 'record-foreground-plans', ['foreground-plans.json.gz']),
 }
 HARNESSES = {
+    'ec2-native': ('./internal/store/writer', '^TestEC2NativeFunctional$'),
     'paired-canonical': ('./internal/store/writer', '^TestN1PairedCanonicalPopulationFunctional$'),
     'canonical-publisher': ('./internal/store/writer', '^TestCanonicalPublisherFundedKeeperFunctional$'),
     'canonical-wc': ('./internal/store/writer', '^TestCanonicalWCFunctional$'),
@@ -153,6 +154,8 @@ def split_units(units, requested):
 def plan(source, output):
     cfg = validated(os.environ)  # before fetch or executing source tooling
     env = clean_env(output)
+    if cfg['mode'] == 'harness' and 'ec2-native' in cfg['targets']:
+        env['PORTICO_EC2_NATIVE_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'paired-canonical' in cfg['targets']:
         env['PORTICO_PAIRED_CANONICAL_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'canonical-publisher' in cfg['targets']:
@@ -255,6 +258,8 @@ def worker(source, output, plan_path, index):
     if index < 0 or index >= len(p['shards']) or command(['git', 'rev-parse', 'HEAD'], source).strip() != p['source_sha']:
         raise ValueError('shard/source binding mismatch')
     env = clean_env(output)
+    if cfg['mode'] == 'harness' and 'ec2-native' in cfg['targets']:
+        env['PORTICO_EC2_NATIVE_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'paired-canonical' in cfg['targets']:
         env['PORTICO_PAIRED_CANONICAL_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'canonical-publisher' in cfg['targets']:
