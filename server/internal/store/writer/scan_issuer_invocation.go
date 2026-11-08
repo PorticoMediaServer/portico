@@ -30,6 +30,7 @@ const (
 )
 
 type scanIssuerInvocation struct {
+	writerWait   time.Duration // physical-writer admission queue for THIS original
 	lease        *ScanRunLease
 	driver       *ScanDriver
 	action       scanIssuerAction

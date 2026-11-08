@@ -56,7 +56,7 @@ func inventoryDriverMaxUses(id stmt.ID) int {
 		return 2 // fresh eligibility and current source verification
 	case inventoryDisclosureJob, inventoryDisclosureLibrary,
 		scanReceiptLookup, scanReceiptResults, scanReceiptAck,
-		scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
+		scanReceiptByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
 		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot, scanLifecycleActive, scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanInventoryLibraryRecordLengths:
 		return 1
 	default:
@@ -121,7 +121,7 @@ func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, err
 		return effectivePlan{}, err
 	}
 	remaining := subtract(subtract(p.recipe.limit, p.recipe.setup), p.recipe.terminal)
-	if _, err := reserveInventoryDriverSteps(remaining, p.steps); err != nil {
+	if _, err := reserveInventoryBatchSteps(remaining, p.steps, inventoryPlanBatchFiles(p)); err != nil {
 		return effectivePlan{}, err
 	}
 	return p, nil

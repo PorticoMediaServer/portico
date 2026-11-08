@@ -1,11 +1,15 @@
 package writer
 
 import (
+	"context"
+	"database/sql/driver"
 	"errors"
 	"math"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
 // Saved rows are supplied independently of the fresh writer. Replay must be
@@ -37,6 +41,74 @@ func batchHistoryFixture(t *testing.T, width int) (*executor, ScanReceiptRequest
 		t.Fatal(err)
 	}
 	return w, q, v
+}
+
+func TestInventoryBatchHistoryRejectsExtraRowAtMaximumWidth(t *testing.T) {
+	w, q, _ := batchHistoryFixture(t, maxInventoryBatchFiles)
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO scan_command_results SELECT run_id,command_incarnation,command_sequence,8,child_kind,child_ordinal,'extra-object',library_id,subject_id,asset_id,accepted_asset_revision FROM scan_command_results WHERE run_id=? AND input_ordinal=0`, q.RunID); err != nil {
+		t.Fatal(err)
+	}
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryLookupDefinitions(), "inventory_resolution_test.go", "scan_receipts_test.go")
+	turn, tx := inventoryLookupTurn(t, w, registry)
+	got, err := lookupInventoryAccept(t.Context(), turn, q)
+	if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(got, inventoryReceiptLookup{}) {
+		t.Fatal("extra maximum-width row escaped numeric key preflight", got, err)
+	}
+	tx.rollback(err)
+}
+
+type batchMemberLengthEchoConn struct {
+	writerDriverConn
+	ordinal int64
+}
+type batchMemberLengthEchoRows struct{ driver.Rows }
+
+func (c *batchMemberLengthEchoConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	rows, err := c.writerDriverConn.QueryContext(ctx, query, args)
+	if err == nil && strings.Contains(query, "octet_length(object_id)") && len(args) == 6 && args[3].Value == c.ordinal {
+		return &batchMemberLengthEchoRows{rows}, nil
+	}
+	return rows, err
+}
+func (r *batchMemberLengthEchoRows) Next(values []driver.Value) error {
+	err := r.Rows.Next(values)
+	if err == nil {
+		values[0] = values[0].(int64) + 1
+	}
+	return err
+}
+
+// The payload and its saved digest remain correct. Only the native octet
+// preflight lies, so the exact per-member echo (not a digest mismatch) must
+// reject a payload copied under a different byte observation.
+func TestInventoryBatchHistoryChecksEachMemberOctetEcho(t *testing.T) {
+	for _, ordinal := range []int64{0, maxInventoryBatchFiles - 1} {
+		t.Run(strings.Repeat("N", int(ordinal)+1), func(t *testing.T) {
+			w, q, _ := batchHistoryFixture(t, maxInventoryBatchFiles)
+			registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryLookupDefinitions(), "inventory_resolution_test.go", "scan_receipts_test.go")
+			var sequence int64
+			var name, path string
+			if err := w.db.QueryRowContext(t.Context(), `PRAGMA database_list`).Scan(&sequence, &name, &path); err != nil {
+				t.Fatal(err)
+			}
+			if err := w.db.Close(); err != nil {
+				t.Fatal(err)
+			}
+			connector, err := sqliteconn.Connector(path, w.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.openPool(connector, func(conn driver.Conn) driver.Conn {
+				return &batchMemberLengthEchoConn{conn.(writerDriverConn), ordinal}
+			})
+			turn, tx := inventoryLookupTurn(t, w, registry)
+			got, err := lookupInventoryAccept(t.Context(), turn, q)
+			if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(got, inventoryReceiptLookup{}) {
+				t.Fatal("member payload escaped exact octet echo", got, err)
+			}
+			tx.rollback(err)
+		})
+	}
 }
 
 func TestInventoryBatchHistory(t *testing.T) {

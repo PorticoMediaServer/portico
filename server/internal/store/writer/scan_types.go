@@ -13,8 +13,8 @@ import (
 const (
 	inventoryOrdinaryBatch               = "ordinary_batch"
 	inventoryLinuxCursor                 = "local_getdents64_cookie_v1"
-	inventoryAcceptRequestVersion uint16 = 2 // Part is an original captured link witness
-	maxInventoryAcceptFiles              = 1 // FIRST preparation shape; widening requires qualification
+	inventoryAcceptRequestVersion uint16 = 2                      // Part is an original captured link witness
+	maxInventoryAcceptFiles              = maxInventoryBatchFiles // admission still requires an explicit batch plan
 )
 
 // These values are the COMPLETE original PRE-allocation input, not disclosure

@@ -27,6 +27,8 @@ const (
 	// governor and driver are constructed; no frozen epoch is rebound later.
 	n1OperatingForecastTimingFixture n1CompositionFixtureProfile = 2
 	n1EC4ScreeningFixture            n1CompositionFixtureProfile = 3
+	n1BatchForecastFixture           n1CompositionFixtureProfile = 4
+	n1BatchTimingFixture             n1CompositionFixtureProfile = 5
 )
 
 func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport) {
@@ -39,13 +41,16 @@ func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfi
 // No callback, grant constructor, profile override or second opening is added.
 func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport, *checkpointComponent) {
 	t.Helper()
-	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture && selected[0] != n1OperatingForecastTimingFixture && selected[0] != n1EC4ScreeningFixture) {
+	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture && selected[0] != n1OperatingForecastTimingFixture && selected[0] != n1EC4ScreeningFixture && selected[0] != n1BatchForecastFixture && selected[0] != n1BatchTimingFixture) {
 		t.Fatal("unknown closed composition fixture profile")
 	}
-	realClock := len(selected) == 1 && (selected[0] == n1OperatingForecastTimingFixture || selected[0] == n1EC4ScreeningFixture)
+	realClock := len(selected) == 1 && (selected[0] == n1OperatingForecastTimingFixture || selected[0] == n1EC4ScreeningFixture || selected[0] == n1BatchTimingFixture)
 	var modes []checkpointFixtureMode
 	if len(selected) == 1 && selected[0] == n1EC4ScreeningFixture {
 		modes = []checkpointFixtureMode{checkpointScreeningReader}
+	}
+	if len(selected) == 1 && (selected[0] == n1BatchForecastFixture || selected[0] == n1BatchTimingFixture) {
+		modes = []checkpointFixtureMode{checkpointBatchWriter}
 	}
 	cp := newCheckpointComponent(t, true, realClock, modes...)
 	seedScanLifecycle(t, cp.w)
@@ -150,7 +155,11 @@ func n1ComposedDriverCompose(t *testing.T, cp *checkpointComponent, realClock bo
 		}
 		if len(defs) == len(inventoryDriverCommandDefinitions()) {
 			if len(selected) == 1 {
-				forecast, err := inventoryN1Forecast(golden.Receipt(), engine, cp.w.config.WriterPageSize, cp.opening.binding.device)
+				forecastFor := inventoryN1Forecast
+				if selected[0] == n1BatchForecastFixture || selected[0] == n1BatchTimingFixture {
+					forecastFor = inventoryBatchForecast
+				}
+				forecast, err := forecastFor(golden.Receipt(), engine, cp.w.config.WriterPageSize, cp.opening.binding.device)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -203,6 +212,11 @@ func n1ComposedDriverCompose(t *testing.T, cp *checkpointComponent, realClock bo
 
 func n1ComposedDriverPrepared(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *N1Preparation, InventoryAcceptCommand, ScanReceiptRequest) {
 	t.Helper()
+	return inventoryComposedDriverPrepared(t, 1, selected...)
+}
+
+func inventoryComposedDriverPrepared(t *testing.T, width int, selected ...n1CompositionFixtureProfile) (*ScanDriver, *N1Preparation, InventoryAcceptCommand, ScanReceiptRequest) {
+	t.Helper()
 	d, transport := n1ComposedDriverFixture(t, selected...)
 	creation, err := d.PrepareCreate(t.Context(), ScanRunInput{7, "lifecycle-library", "lifecycle-new-source", "first-import"})
 	if err != nil {
@@ -251,6 +265,10 @@ func n1ComposedDriverPrepared(t *testing.T, selected ...n1CompositionFixtureProf
 		t.Fatal(err)
 	}
 	page := nativeinventory.Page{Version: 1, RootIdentity: "source-root", DirectoryIdentity: "actual-directory", DirectoryRevision: "directory-revision", NextCursor: "42", Entries: []nativeinventory.Entry{{Path: []byte("/media-new/The Film (2020).mkv"), Name: []byte("The Film (2020).mkv"), ObjectIdentity: "dev:7:ino:31", ChangeToken: "native-change", Size: 42, ModifiedNS: 7}}}
+	for i := 1; i < width; i++ {
+		page.Entries = append(page.Entries, nativeinventory.Entry{Path: []byte(fmt.Sprintf("/media-new/Film %d.mkv", i)), Name: []byte(fmt.Sprintf("Film %d.mkv", i)), ObjectIdentity: fmt.Sprintf("dev:7:ino:%d", 31+i), ChangeToken: "native-change", Size: int64(42 + i), ModifiedNS: int64(7 + i)})
+	}
+	d.batchPolicy.width = width // explicit test input; Prepare still clamps to the installed plan
 	raw, err := json.Marshal(page)
 	if err != nil {
 		t.Fatal(err)
@@ -269,19 +287,20 @@ func n1ComposedDriverPrepared(t *testing.T, selected ...n1CompositionFixtureProf
 		t.Fatal(err)
 	}
 	in := snapshot.Input
-	e := actual.Entries[0]
-	in.Directory.NextCursor, in.Directory.RawNames = actual.NextCursor, 1
-	p, err := ProjectOrdinaryFilename(InventoryOrdinaryFilenameInput{snapshot.IdentityRoot, e.Path, e.Name, "", "en-US"})
-	if err != nil {
-		t.Fatal(err)
+	in.Directory.NextCursor, in.Directory.RawNames = actual.NextCursor, int64(len(actual.Entries))
+	for _, e := range actual.Entries {
+		p, err := ProjectOrdinaryFilename(InventoryOrdinaryFilenameInput{snapshot.IdentityRoot, e.Path, e.Name, "", "en-US"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := p.Metadata
+		evidence := mediasource.InventoryEvidence{Kind: "local", Scope: in.Source.ID + ":" + in.Source.Incarnation, Object: objectidentity.StableObjectIdentity(e.ObjectIdentity, in.Source.RootIdentity), Size: e.Size, ModifiedNS: e.ModifiedNS, ChangeToken: e.ChangeToken}
+		revision, err := evidence.Revision()
+		if err != nil {
+			t.Fatal(err)
+		}
+		in.Files = append(in.Files, InventoryFilenameInput{RelativePath: e.Name, AssetPath: e.Path, SourceKey: p.SourceKey, Year: p.Year, Part: p.Part, ObjectIdentity: e.ObjectIdentity, ChangeToken: e.ChangeToken, Size: e.Size, ModifiedNS: e.ModifiedNS, Revision: revision, Title: m.Title, SortTitle: m.SortTitle, SortKey: m.SortKey, SortHead: m.SortHead, SortKeyKeepArticles: m.SortKeyKeepArticles, SortHeadKeepArticles: m.SortHeadKeepArticles, MetadataLanguage: m.MetadataLanguage})
 	}
-	m := p.Metadata
-	evidence := mediasource.InventoryEvidence{Kind: "local", Scope: in.Source.ID + ":" + in.Source.Incarnation, Object: objectidentity.StableObjectIdentity(e.ObjectIdentity, in.Source.RootIdentity), Size: e.Size, ModifiedNS: e.ModifiedNS, ChangeToken: e.ChangeToken}
-	revision, err := evidence.Revision()
-	if err != nil {
-		t.Fatal(err)
-	}
-	in.Files = []InventoryFilenameInput{{RelativePath: e.Name, AssetPath: e.Path, SourceKey: p.SourceKey, Year: p.Year, Part: p.Part, ObjectIdentity: e.ObjectIdentity, ChangeToken: e.ChangeToken, Size: e.Size, ModifiedNS: e.ModifiedNS, Revision: revision, Title: m.Title, SortTitle: m.SortTitle, SortKey: m.SortKey, SortHead: m.SortHead, SortKeyKeepArticles: m.SortKeyKeepArticles, SortHeadKeepArticles: m.SortHeadKeepArticles, MetadataLanguage: m.MetadataLanguage}}
 	command, err := preparation.Freeze(t.Context(), in)
 	if err != nil {
 		t.Fatal(err)
