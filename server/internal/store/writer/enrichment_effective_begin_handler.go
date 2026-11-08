@@ -12,7 +12,17 @@ import (
 // operation/receipt/frozen-request proof. The sealed source rows checked here
 // fence captured native intent; flags and supplied digests do not prove the
 // evidence-to-source link or a verified image. No public dispatcher exists here.
-func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand) (out EffectiveStageBeginResult, err error) {
+func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand) (EffectiveStageBeginResult, error) {
+	return applyEffectiveStageBeginSource(ctx, turn, input, nil)
+}
+
+// Only W's same-turn verifier can supply the proof. Historical replay still
+// precedes fresh checks and never needs a replacement source capability.
+func applyVerifiedEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand, proof *effectiveVerifiedSource) (EffectiveStageBeginResult, error) {
+	return applyEffectiveStageBeginSource(ctx, turn, input, proof)
+}
+
+func applyEffectiveStageBeginSource(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand, proof *effectiveVerifiedSource) (out EffectiveStageBeginResult, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	var zero EffectiveStageBeginResult
 	if turn == nil || input == nil || !input.valid || turn.transaction == nil || turn.transaction.descriptor.ID != EffectiveStage {
@@ -31,9 +41,14 @@ func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *eff
 		return zero, ErrResolveRequired
 	}
 	if input.sourceReferences != nil {
-		// V2 data must never fall through the legacy effects path: its actual
-		// image/receipt dependency pins need the separately verified source arm.
-		return zero, &Refusal{Code: RefusalUnqualified}
+		if proof == nil {
+			return zero, &Refusal{Code: RefusalUnqualified}
+		}
+		if err := checkEffectiveVerifiedSource(ctx, turn, input, proof); err != nil {
+			return zero, err
+		}
+	} else if proof != nil {
+		return zero, ErrInvalid
 	}
 	if owner != r.owner {
 		return zero, ErrConflict
@@ -71,6 +86,11 @@ func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *eff
 	if err != nil {
 		return zero, err
 	}
+	if proof != nil {
+		if err := retainEffectiveBeginSource(ctx, turn, input, proof, image); err != nil {
+			return zero, err
+		}
+	}
 	if err := effectiveBeginAttachHiddenHeader(ctx, turn, turn.steps[enrichmentEffectiveAttach].statementStep, r.ownerID, owner, input.identity, image); err != nil {
 		return zero, err
 	}
@@ -89,6 +109,11 @@ func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *eff
 	}
 	if count != 1 {
 		return zero, ErrResolveRequired
+	}
+	if proof != nil {
+		if err := attachEffectiveBeginReceiptSource(ctx, turn, input, proof, image, digest); err != nil {
+			return zero, err
+		}
 	}
 	result.Digest = digest
 	return result, nil
