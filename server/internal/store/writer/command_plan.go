@@ -27,7 +27,7 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 // qualification claim. Reserve every possible registered use, setup and
 // terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) {
+	if purpose != EffectiveStage && purpose != EnrichAccept && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
 	if plan.inventoryEngine != (sqliteconn.EngineIdentity{}) && (purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions())) {
@@ -62,7 +62,7 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && plan.basicMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
-	if purpose != EffectiveStage && plan.effectiveSourceMemory != (commandMemoryBudget{}) {
+	if !effectiveSourceProofPurpose(purpose) && plan.effectiveSourceMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.effectiveSourceMemory, plan.need[governor.MemoryBytes], "effective_source_memory_partition"); err != nil {

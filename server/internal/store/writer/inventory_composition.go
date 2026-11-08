@@ -16,7 +16,7 @@ func inventoryCommandDefinitions() []stmt.Definition {
 // SC-owned use inventory; W adds its outer history work. There is no worker
 // override and no numerical Work forecast inferred from a definition.
 func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
-	if purpose == EffectiveStage && (id == effectiveSourcePinReceiptLengths || id == effectiveSourcePinReceiptCopy) {
+	if effectiveSourceProofPurpose(purpose) && (id == effectiveSourcePinReceiptLengths || id == effectiveSourcePinReceiptCopy) {
 		return 2 // distinct original evidence and source seals, same full-PK points
 	}
 	if scanDirectoryTerminalPurpose(purpose) {
