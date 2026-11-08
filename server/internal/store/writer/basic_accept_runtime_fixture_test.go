@@ -12,6 +12,11 @@ import (
 func basicAcceptDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Authority, basicInvocation, effectivePlan) {
 	t.Helper()
 	e, c := basicFirstAcceptCommandFixture(t)
+	return basicAcceptRuntimeFixture(t, e, c)
+}
+
+func basicAcceptRuntimeFixture(t *testing.T, e *executor, c *basicAcceptCommand, maintenance ...governedFixtureMaintenance) (*Writer, *executor, *governor.Authority, basicInvocation, effectivePlan) {
+	t.Helper()
 	q, err := c.receiptRequest()
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +53,14 @@ func basicAcceptDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Aut
 		t.Fatal(err)
 	}
 	primary.registration, ap.registration = golden.Receipt(), golden.Receipt()
-	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
+	policy := governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second}
+	if len(maintenance) > 1 {
+		t.Fatal("one compiled maintenance profile")
+	}
+	if len(maintenance) == 1 {
+		policy = maintenance[0].policy
+	}
+	wal, err := governor.NewWALGate(policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,6 +68,9 @@ func basicAcceptDispatchFixture(t *testing.T) (*Writer, *executor, *governor.Aut
 	for i := range partitions {
 		partitions[i] = primary.need
 		partitions[i][governor.MemoryBytes] = max(primary.need[governor.MemoryBytes], ap.need[governor.MemoryBytes])
+	}
+	if len(maintenance) == 1 {
+		partitions[governor.Recovery] = maintenance[0].need
 	}
 	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: e.now, WAL: wal})
 	if err != nil {
