@@ -199,9 +199,28 @@ func expectedScanIssuer(source scanIssuerPreparedCrashSource) (want effectiveRaw
 		run = scanCrashFind(want, "inventory_runs", "job_id", ref.RunID)
 		job = scanCrashFind(want, "jobs", "id", ref.RunID)
 		root = scanCrashFind(want, "inventory_directories", "job_id", ref.RunID)
+		if source.Action == "retired" {
+			progressRequire(run["acknowledged_command_sequence"].Int >= ref.Receipt.Identity.Sequence, "retired floor proof")
+			value = ScanRunSnapshot{Outcome: ReceiptOutcome{State: ResultRetired, Reference: ref.Receipt}}
+			return want, value, nil
+		}
 		receipt = scanCrashReceipt(want, ref)
 		if source.Action == "ack" {
 			progressSet(run, "acknowledged_command_sequence", ref.Receipt.Identity.Sequence)
+			// Reviewed lifecycle ACK co-commits floor + exact fully validated
+			// zero-cohort header removal. N1 child-bearing receipts are separate.
+			for _, child := range want["scan_command_results"].Rows {
+				progressRequire(child["run_id"].Text != ref.RunID || child["command_sequence"].Int != ref.Receipt.Identity.Sequence, "lifecycle cohort must be empty")
+			}
+			table := want["scan_command_receipts"]
+			var kept []map[string]effectiveRawCell
+			for _, r := range table.Rows {
+				if r["run_id"].Text != ref.RunID || r["command_sequence"].Int != ref.Receipt.Identity.Sequence || !bytes.Equal(r["command_incarnation"].Blob, ref.Receipt.Identity.Incarnation[:]) {
+					kept = append(kept, r)
+				}
+			}
+			table.Rows = kept
+			want["scan_command_receipts"] = table
 		}
 	default:
 		progressRequire(false, "unsupported scan action")
