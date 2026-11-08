@@ -26,7 +26,7 @@ var recordWCSecurityPlans = flag.Bool("record-wc-security-plans", false, "delibe
 func TestWCSecurityStatementPlans(t *testing.T) {
 	parts := []struct{ name, sha string }{
 		{"wc_008_native_fixture_test.go", "029dda9c571f6361c1914d86ce49d03c98c697312b442eda54e001dd03012adc"},
-		{"wc_security_008_native_test.go", "4f0eac653318c76e696adc1e06735cb691dfd8712b5c76307e8105a5f8d8da00"},
+		{"wc_security_008_native_test.go", "98d9ca617c9d803915f6f6788ce9c02040870a5375a849b6a21d906584998056"},
 	}
 	hash := sha256.New()
 	for _, part := range parts {
@@ -44,7 +44,7 @@ func TestWCSecurityStatementPlans(t *testing.T) {
 		hash.Write(data)
 	}
 	journal := hex.EncodeToString(hash.Sum(nil))
-	if journal != "d9cc7b217a932edbbee87697398cb3a57ac8e4c971c04793f32db9937008f33e" {
+	if journal != "de21c5377495df9954df9b463f7c522340f15e42edbe7ff58816d0a82785c76d" {
 		t.Fatal("fixture journal changed")
 	}
 	defs := wcSecurityDefinitions()

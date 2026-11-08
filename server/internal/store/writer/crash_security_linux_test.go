@@ -118,8 +118,8 @@ func securityCrashDefinitions() []stmt.Definition {
 
 func securityCrashRegistry(t *testing.T, w *executor) *stmt.Registry {
 	t.Helper()
-	if schema.SHA256 != progressCrashSchema014 {
-		t.Fatal("security captures require schema014", schema.SHA256)
+	if schema.SHA256 != progressCrashSchema015 {
+		t.Fatal("security captures require schema015", schema.SHA256)
 	}
 	defs := securityCrashDefinitions()
 	if len(defs) != 5 {
@@ -201,7 +201,7 @@ func crashSecurityFixture(t *testing.T, witness *crashWitness) (*executor, secur
 	w, path, _ := testExecutor(t)
 	q := wc008NativeSecurity(t, w) // fixture INPUT only; never its stmttest turn
 	for _, id := range []string{"issuer", "spectator"} {
-		wc008NativeExec(t, w, `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incarnation,command_profile_lifetime,command_incarnation) SELECT ?,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incarnation,command_profile_lifetime,command_incarnation FROM authorization_session_families WHERE id='target'`, id)
+		wc008NativeExec(t, w, `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incarnation,command_profile_lifetime,command_incarnation,security_kind) SELECT ?,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incarnation,command_profile_lifetime,command_incarnation,security_kind FROM authorization_session_families WHERE id='target'`, id)
 	}
 	wc008NativeExec(t, w, `INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES('target-token','target',3,'2100-01-01Z'),('issuer-token','issuer',3,'2100-01-01Z')`)
 	wc008NativeExec(t, w, `INSERT INTO api_events(id,audience,type,resource_kind,resource_id,revision,data,at_ms) VALUES(1,'admin','list.changed','devices','first','1','old-音',0),(2,'admin','list.changed','devices','second','2','keep-two',1),(100,'admin','list.changed','devices','third','3','keep-three',2)`)

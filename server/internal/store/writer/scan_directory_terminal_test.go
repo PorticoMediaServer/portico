@@ -14,6 +14,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
 // Run on lane-focused.yml with Go1.26.10 AFTER owner purpose/codec/HN hooks.
@@ -261,8 +262,8 @@ func TestScanDirectoryTerminalStatementCapture(t *testing.T) {
 	if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 		t.Fatal(err)
 	}
-	if golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 686 {
-		t.Fatal("canonical686FK audit missing")
+	if golden.ForeignKeys == nil || plan.CheckSchemaForeignKeys(golden.ForeignKeys) != nil {
+		t.Fatal("current shared canonical FK audit missing")
 	}
 	golden.ForeignKeys = nil
 	for _, p := range golden.Plans {

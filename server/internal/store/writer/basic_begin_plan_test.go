@@ -132,7 +132,7 @@ func TestBasicBeginStatementPlans(t *testing.T) {
 			}
 			g.ForeignKeys = &fk
 		}
-		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
+		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || plan.CheckSchemaForeignKeys(g.ForeignKeys) != nil {
 			t.Fatal("incomplete Basic statement/destination/FK audit")
 		}
 		for _, p := range g.Plans {
@@ -173,7 +173,7 @@ func TestBasicBeginStatementPlans(t *testing.T) {
 	}
 	reference := readScanFreshFK(t, filepath.Join("testdata", "scan-basic-media-fk.json.gz"))
 	if err := plan.CompareExactJSON(reference, fkJSON); err != nil {
-		t.Fatal("Basic changed existing complete686-FK image", err)
+		t.Fatal("Basic changed existing complete shared FK image", err)
 	}
 	actual, err := json.MarshalIndent(captures, "", "  ")
 	if err != nil {
@@ -207,5 +207,5 @@ func TestBasicBeginStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("7IDs/7cohorts/one actual begin population/%dVM/%dSEARCH/3INSERT/686FK2058probes; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
+	t.Logf("7IDs/7cohorts/one actual begin population/%dVM/%dSEARCH/3INSERT/complete shared FK/probe graph; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
 }

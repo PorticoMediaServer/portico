@@ -14,7 +14,7 @@ func wc008NativeSecurity(t *testing.T, w *executor) wc008SecurityCommand {
 		memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32),
 		identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}},
 		epoch:    7, tokenGeneration: 3, resultVersion: 1, appliedMS: 1123, revokedAt: "1970-01-01T00:00:01Z"}
-	wc008NativeExec(t, w, `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES(?,?,?,?,'local','member',?,'horizon',?,?,?,?)`, q.family, q.server, q.account, q.profile, q.epoch, q.tokenGeneration, q.memberIncarnation, q.profileLifetime, q.identity.Incarnation[:])
+	wc008NativeExec(t, w, `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incarnation,command_profile_lifetime,command_incarnation,security_kind) VALUES(?,?,?,?,'local','member',?,'horizon',?,?,?,?,0)`, q.family, q.server, q.account, q.profile, q.epoch, q.tokenGeneration, q.memberIncarnation, q.profileLifetime, q.identity.Incarnation[:])
 	if err := w.db.QueryRowContext(t.Context(), `SELECT control_variable_bytes FROM authorization_session_families WHERE id=?`, q.family).Scan(&q.oldControlBytes); err != nil {
 		t.Fatal(err)
 	}
