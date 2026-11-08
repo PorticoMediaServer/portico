@@ -5,19 +5,38 @@ import (
 	"testing"
 )
 
-// The pre-registry gate expressions, kept verbatim as the behaviour oracle.
+// The pre-registry gate expressions as of e0953113, frozen as the behaviour
+// oracle. Live helpers are replaced by their then-exact sets, and only those
+// legacy purposes are compared, so new domain purposes never edit this file.
+var (
+	frozenDirectory  = map[CommandID]bool{InventoryDirectoryDiscover: true, InventoryDirectoryEOF: true, InventoryDirectoryRefuse: true, InventoryTraversalComplete: true}
+	frozenPublisher  = map[CommandID]bool{SearchFragmentStage: true, SearchHeadPublish: true}
+	frozenEnrichment = map[CommandID]bool{EvidenceStage: true, CreditStage: true, EvidenceSeal: true, CreditSourceSeal: true}
+	frozenEffective  = map[CommandID]bool{EffectiveStage: true, EnrichAccept: true}
+)
+
+func frozenLegacyPurposes() []CommandID {
+	ids := []CommandID{InventoryAccept, InventoryCreate, InventoryClaim, SearchImageStage, BasicStage, BasicSeal, BasicAccept,
+		ProgressAccept, SecurityAccept, ProgressReceiptReclaim}
+	for _, set := range []map[CommandID]bool{frozenDirectory, frozenPublisher, frozenEnrichment, frozenEffective} {
+		for id := range set {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
 func legacyPlanPurpose(p CommandID) bool {
-	return !(p != EffectiveStage && p != EnrichAccept && p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && !scanDirectoryPurpose(p) && !searchPublisherPurpose(p) && !enrichmentPurpose(p))
+	return !(p != EffectiveStage && p != EnrichAccept && p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && !frozenDirectory[p] && !frozenPublisher[p] && !frozenEnrichment[p])
 }
 
 func legacyMemoryPurpose(p CommandID) bool {
-	return !(p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != BasicStage && p != BasicSeal && p != BasicAccept && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && p != EffectiveStage && p != EnrichAccept && !scanDirectoryPurpose(p) && !searchPublisherPurpose(p) && !enrichmentPurpose(p))
+	return !(p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != BasicStage && p != BasicSeal && p != BasicAccept && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && p != EffectiveStage && p != EnrichAccept && !frozenDirectory[p] && !frozenPublisher[p] && !frozenEnrichment[p])
 }
 
 // The legacy last-assignment-wins partition selection.
 func legacyPartition(p CommandID) memoryPartition {
 	b := inventoryPartition
-	if enrichmentPurpose(p) {
+	if frozenEnrichment[p] {
 		b = enrichmentPartition
 	}
 	if p == SearchImageStage {
@@ -38,13 +57,13 @@ func legacyPartition(p CommandID) memoryPartition {
 	if p == SecurityAccept {
 		b = wcSecurityPartition
 	}
-	if scanDirectoryPurpose(p) {
+	if frozenDirectory[p] {
 		b = directoryPartition
 	}
-	if searchPublisherPurpose(p) {
+	if frozenPublisher[p] {
 		b = publisherPartition
 	}
-	if effectiveSourceProofPurpose(p) {
+	if frozenEffective[p] {
 		b = effectiveSourcePartition
 	}
 	return b
@@ -60,7 +79,7 @@ func legacyPartitionAllowed(p CommandID, part memoryPartition) bool {
 	case scanLifecyclePartition:
 		return p == InventoryCreate || p == InventoryClaim
 	case enrichmentPartition:
-		return enrichmentPurpose(p)
+		return frozenEnrichment[p]
 	case basicPartition:
 		return p == BasicStage || p == BasicSeal || p == BasicAccept
 	case wcProgressPartition:
@@ -70,17 +89,17 @@ func legacyPartitionAllowed(p CommandID, part memoryPartition) bool {
 	case wcReclaimPartition:
 		return p == ProgressReceiptReclaim
 	case directoryPartition:
-		return scanDirectoryPurpose(p)
+		return frozenDirectory[p]
 	case publisherPartition:
-		return searchPublisherPurpose(p)
+		return frozenPublisher[p]
 	case effectiveSourcePartition:
-		return effectiveSourceProofPurpose(p)
+		return frozenEffective[p]
 	}
 	return false
 }
 
 func legacyClock(p CommandID) commandClock {
-	if p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != BasicStage && p != BasicSeal && p != BasicAccept && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && !scanDirectoryPurpose(p) && !searchPublisherPurpose(p) {
+	if p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != BasicStage && p != BasicSeal && p != BasicAccept && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && !frozenDirectory[p] && !frozenPublisher[p] {
 		return noCommandClock
 	}
 	if p == InventoryCreate || p == ProgressAccept || p == SecurityAccept || p == ProgressReceiptReclaim {
@@ -90,7 +109,7 @@ func legacyClock(p CommandID) commandClock {
 }
 
 func TestCommandPurposeRegistryMatchesLegacyGates(t *testing.T) {
-	for id := range closedCommandDescriptors {
+	for _, id := range frozenLegacyPurposes() {
 		facts, ok := commandPurposeFacts(id)
 		if commandPlanPurpose(id) != legacyPlanPurpose(id) {
 			t.Fatal("plan gate changed", id)
@@ -114,8 +133,11 @@ func TestCommandPurposeRegistryMatchesLegacyGates(t *testing.T) {
 			t.Fatal("registry membership changed", id)
 		}
 	}
-	if len(closedCommandPurposes) == 0 || len(closedCommandPurposes) > len(closedCommandDescriptors) {
-		t.Fatal("registry size", len(closedCommandPurposes))
+	// Every registry entry, legacy or new, is a closed command with builder-valid facts.
+	for id, p := range closedCommandPurposes {
+		if _, closed := closedCommandDescriptors[id]; !closed || p.id != id || p.memory >= memoryPartitionCount || p.clock > clockUnderLease {
+			t.Fatal("registry entry escaped builder invariants", id)
+		}
 	}
 }
 
@@ -136,8 +158,9 @@ func TestCommandPurposeRegistryRefusesDuplicatesAndUnknowns(t *testing.T) {
 			t.Fatal("invalid purpose registration accepted", name)
 		}
 	}
-	// An undeclared closed command is refused by every shared gate.
-	for _, id := range []CommandID{PeopleStage, SearchFragmentReclaim, 0, 0xFFFF} {
+	// An undeclared command is refused by every shared gate. These IDs can never
+	// be declared (not closed), so domain additions never edit this test.
+	for _, id := range []CommandID{0, 0xFFFF} {
 		if _, declared := commandPurposeFacts(id); declared || commandPlanPurpose(id) {
 			t.Fatal("undeclared purpose admitted", id)
 		}
