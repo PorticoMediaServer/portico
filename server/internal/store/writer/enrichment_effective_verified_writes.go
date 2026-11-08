@@ -23,12 +23,12 @@ func enrichmentEffectiveVerifiedDefinitions() []stmt.Definition {
 	integer := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	blob := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
 	defs := []stmt.Definition{
-		{ID: effectiveBeginReservation, Kind: stmt.Read, SQL: `SELECT proof_reserved_bytes FROM metadata_provider_operations
+		{ID: effectiveBeginReservation, Kind: stmt.Read, SQL: `SELECT proof_reserved_bytes FROM metadata_provider_operations INDEXED BY sqlite_autoindex_metadata_provider_operations_1
  WHERE id=? AND command_incarnation=? AND entity_id=? AND provider=? AND generation=?
  AND source_publication_id=? AND source_content_revision=? AND proof_cleanup_phase='idle'
  AND proof_stage_slot IS NOT NULL AND proof_current_slot IS NULL AND proof_pin_units>=2 AND proof_reserved_bytes>=?`,
 			Params: []stmt.Param{text("owner"), blob("owner_incarnation"), integer("entity"), text("provider"), integer("owner_generation"), text("publication"), integer("source_revision"), integer("full_reserved_bytes")},
-			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_3"}, Seeks: []string{"id=? AND command_incarnation=?"}}},
+			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_1"}, Seeks: []string{"id=?"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "metadata_provider_operations", Name: "sqlite_autoindex_metadata_provider_operations_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}},
 
 		{ID: effectiveBeginSourceRetain, SQL: `UPDATE enrichment_command_receipts SET proof_pin_count=proof_pin_count+2,proof_revision=proof_revision+1
  WHERE provider_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind='credit_source_seal'
