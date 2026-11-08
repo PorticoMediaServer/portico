@@ -242,9 +242,12 @@ func (m *canonicalN1MaintenanceOwner) step(ctx context.Context) checkpointMainte
 // defers it for an in-flight Foreground writer, retries every 2 ms until the gap
 // opens or the governor's own bound lets it start. With the flag off it is one Step.
 func stepSeekingWriterGap(ctx context.Context, cp *governor.Checkpointer, r governor.Request) (governor.CheckpointResult, error) {
-	for {
+	// The retry count is capped by the deferral bound itself (plus slack), so a frozen
+	// fake clock cannot spin this loop.
+	limit := int(canonicalPassiveDefer()/(2*time.Millisecond)) + 2
+	for attempt := 0; ; attempt++ {
 		out, err := cp.Step(ctx, r)
-		if !errors.Is(err, governor.ErrCheckpointForeground) {
+		if !errors.Is(err, governor.ErrCheckpointForeground) || attempt >= limit {
 			return out, err
 		}
 		select {

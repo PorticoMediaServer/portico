@@ -115,3 +115,41 @@ func TestPassiveDeferMaxPolicyValidation(t *testing.T) {
 		t.Fatal("deferral requires concurrent PASSIVE")
 	}
 }
+
+// A clock that steps backward counts as the bound spent, and a frozen clock is
+// bounded by the offer-count backstop: the deferral can never be extended or become
+// unbounded on an unusual injected clock.
+func TestPassiveDeferralIsBoundedOnBackwardAndFrozenClocks(t *testing.T) {
+	t.Run("backward step", func(t *testing.T) {
+		f := deferFixture(t, 100*time.Millisecond)
+		w := grant(t, f.g, concurrentWriter(t, f))
+		if out, err := deferredStep(t, f); !errors.Is(err, ErrCheckpointForeground) {
+			t.Fatal("first offer defers", out, err)
+		}
+		f.clock.ms.Add(-10_000) // the clock steps back well before the episode start
+		if out, err := f.cp.Step(t.Context(), concurrentCPRequest(f)); errors.Is(err, ErrCheckpointForeground) {
+			t.Fatal("a backward step must count as the bound spent, never extend the deferral", out, err)
+		}
+		retire(t, f.a, w)
+	})
+	t.Run("frozen clock", func(t *testing.T) {
+		f := deferFixture(t, 100*time.Millisecond)
+		w := grant(t, f.g, concurrentWriter(t, f))
+		now := f.clock.now()
+		deferred := 0
+		for ; deferred <= maxPassiveDeferOffers+1; deferred++ {
+			ticket, err := f.a.queueCheckpointContext(t.Context(), now.Add(time.Second), 50*time.Millisecond, false)
+			if err == nil {
+				f.a.cancelCheckpointTicket(ticket)
+				break
+			}
+			if !errors.Is(err, ErrCheckpointForeground) {
+				t.Fatal(err)
+			}
+		}
+		if deferred != maxPassiveDeferOffers {
+			t.Fatalf("a frozen clock must be bounded by the offer backstop: deferred %d times, want %d", deferred, maxPassiveDeferOffers)
+		}
+		retire(t, f.a, w)
+	})
+}
