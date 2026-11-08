@@ -95,7 +95,7 @@ func preflightEffectiveSourcePins(ctx context.Context, turn *commandTurn, input 
 	if err = effectivePinLive(ctx, turn); err != nil {
 		return nil, err
 	}
-	if turn.transaction.descriptor.ID != EffectiveStage || input == nil || !input.valid || input.sourceReferences == nil {
+	if !effectiveSourceProofPurpose(turn.transaction.descriptor.ID) || input == nil || !input.valid || input.sourceReferences == nil {
 		return nil, ErrInvalid
 	}
 	if err = validateEffectiveSourceReferences(*input.sourceReferences); err != nil {
