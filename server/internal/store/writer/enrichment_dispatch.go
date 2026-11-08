@@ -2,7 +2,6 @@ package writer
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"math"
 	"reflect"
@@ -49,30 +48,20 @@ func enrichmentPlanIndex(id CommandID) (int, bool) {
 }
 func enrichmentPurpose(id CommandID) bool { _, ok := enrichmentPlanIndex(id); return ok }
 
-// The admit key is the FINAL command's exact incarnation/operation identity and
-// complete request digest, never the shared provider operation. A grant minted
-// for one accept command therefore cannot admit another on the same owner.
-func enrichmentAcceptGrantKey(identity CommandIdentity, digest RequestDigest) string {
-	var key [64]byte
-	copy(key[:16], identity.Incarnation[:])
-	copy(key[16:32], identity.OperationID[:])
-	copy(key[32:], digest[:])
-	return hex.EncodeToString(key[:])
-}
-
+// The admit key follows the shared BEGIN convention: the ORIGINAL provider
+// operation. W's shared verifier refuses any other key; this dispatcher also
+// binds the frozen FINAL payload identity/digest and its original owner to it.
 func checkEnrichmentAcceptGrant(custody *governedTurn, in *enrichmentInvocation, key string) error {
-	if custody == nil || in == nil || in.purpose != EnrichAccept || in.request.Receipt.Identity.Sequence <= 0 || key == "" {
-		return ErrInvalid
-	}
-	want := enrichmentAcceptGrantKey(in.request.Receipt.Identity, in.request.Receipt.RequestDigest)
-	if custody.expected.Key.Domain != uint16(EnrichAccept) || custody.expected.Key.ID != key || key != want {
+	if custody == nil || in == nil || in.purpose != EnrichAccept || key == "" || key != in.request.ProviderOperationID ||
+		custody.expected.Key.Domain != uint16(EnrichAccept) || custody.expected.Key.ID != key {
 		return ErrConflict
 	}
 	if in.payload == nil {
 		return nil
 	}
-	if in.payload.accept == nil || in.payload.variant != enrichmentAccept ||
-		in.payload.accept.identity != in.request.Receipt.Identity || in.payload.accept.digest != in.request.Receipt.RequestDigest {
+	a := in.payload.accept
+	if a == nil || in.payload.variant != enrichmentAccept || a.identity != in.request.Receipt.Identity || a.digest != in.request.Receipt.RequestDigest ||
+		a.originalBegin == nil || !a.originalBegin.valid || a.originalBegin.request.ownerID != key {
 		return ErrInvalid
 	}
 	return nil
