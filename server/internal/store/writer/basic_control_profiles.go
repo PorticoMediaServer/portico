@@ -42,6 +42,16 @@ func basicControlMaxUses(purpose CommandID, id stmt.ID) int {
 		switch id {
 		case basicStageBudget, basicStageBudgetCAS, basicStageStreamInsert, basicStageFamilyCAS:
 			return 1
+		case basicProbeHeader, basicProbeOldPresence, basicProbeAssetCAS,
+			basicShapeLookup, basicShapeInsert, basicShapeRefCAS, basicShapeHeaderCAS,
+			basicFreezeLinks, basicFreezeSealed, basicFreezeCAS, basicEntityCAS,
+			basicCopyHeader, basicCopyCursorCAS,
+			basicCopy1Staged, basicCopy1Canonical, basicCopy1Children, basicCopy1Delete, basicCopy1Insert, basicCopy1Update:
+			return 1
+		case basicProbeAsset:
+			return 2 // before-tuple proof plus post-CAS readback
+		case basicProbeOldInsert:
+			return 6 // one OLD row per changed probe scalar field
 		case basicMediaStreamInsert, basicMediaBreadthInsert, basicMediaChapterFactInsert, basicMediaChapterInsert,
 			basicMediaSubtitleFactInsert, basicMediaSidecarInsert, basicMediaSubtitleInsert, basicMediaEvidenceInsert:
 			return basicStageMaxRows
@@ -62,7 +72,8 @@ func basicControlCommandDefinitions(purpose CommandID) []stmt.Definition {
 		return nil
 	}
 	groups := [][]stmt.Definition{inventoryDisclosureDefinitions(), basicReceiptDefinitions(), basicControlDefinitions(),
-		basicStreamStageDefinitions(), basicMediaDefinitions()}
+		basicStreamStageDefinitions(), basicMediaDefinitions(), basicProbeDefinitions(), basicShapeDefinitions(),
+		basicFreezeDefinitions(), basicCopyDefinitions(), basicCopyFamily1Definitions()}
 	for _, d := range scanReceiptDefinitions() {
 		switch d.ID {
 		case scanReceiptOwner, scanReceiptAck, scanReceiptReclaimKey: // zero-member replay decode

@@ -98,8 +98,29 @@ func runBasicControlBody(ctx context.Context, turn *commandTurn, purpose BasicPu
 		} else {
 			_, err = sealBasicMediaFamily(ctx, turn, family)
 		}
+	case in.operation == basicControlProbeScalars:
+		_, err = applyBasicProbeScalars(ctx, turn, *in.probe)
+	case in.operation == basicControlPinShape:
+		_, err = pinBasicProbeShape(ctx, turn, *in.probe)
+	case in.operation == basicControlFreeze:
+		err = freezeBasicFirstInput(ctx, turn, in)
+	case in.operation == basicControlSelectEntity:
+		err = selectBasicFirstEntity(ctx, turn, in)
+	case in.operation == basicControlCopyFamily:
+		err = copyBasicFamily(ctx, turn, in)
 	default:
 		err = ErrInvalid
 	}
 	return err
+}
+
+// One copy turn of exactly one family. Families 2..9 register their own body
+// here from their own file; an unregistered family refuses.
+func copyBasicFamily(ctx context.Context, turn *commandTurn, in basicControlRequest) error {
+	c := basicCopyTurn{source: in.source, changeRevision: in.changeRevision, entityID: in.entityID, shapeID: in.shapeID, entry: in.copy}
+	switch in.family {
+	case 1:
+		return copyBasicFamily1(ctx, turn, c)
+	}
+	return &Refusal{Code: RefusalUnqualified}
 }
