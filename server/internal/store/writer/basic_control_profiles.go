@@ -45,8 +45,7 @@ func basicControlMaxUses(purpose CommandID, id stmt.ID) int {
 		case basicProbeHeader, basicProbeOldPresence, basicProbeAssetCAS,
 			basicShapeLookup, basicShapeInsert, basicShapeRefCAS, basicShapeHeaderCAS,
 			basicFreezeLinks, basicFreezeSealed, basicFreezeCAS, basicEntityCAS,
-			basicCopyHeader, basicCopyCursorCAS,
-			basicCopy1Staged, basicCopy1Canonical, basicCopy1Children, basicCopy1Delete, basicCopy1Insert, basicCopy1Update:
+			basicCopyHeader, basicCopyCursorCAS:
 			return 1
 		case basicProbeAsset:
 			return 2 // before-tuple proof plus post-CAS readback
@@ -55,6 +54,10 @@ func basicControlMaxUses(purpose CommandID, id stmt.ID) int {
 		case basicMediaStreamInsert, basicMediaBreadthInsert, basicMediaChapterFactInsert, basicMediaChapterInsert,
 			basicMediaSubtitleFactInsert, basicMediaSidecarInsert, basicMediaSubtitleInsert, basicMediaEvidenceInsert:
 			return basicStageMaxRows
+		default:
+			if n := basicCopyFamilyMaxUses(id); n > 0 {
+				return n // registered copy family statements, from their own files
+			}
 		}
 	case BasicSeal:
 		switch id {
@@ -73,7 +76,7 @@ func basicControlCommandDefinitions(purpose CommandID) []stmt.Definition {
 	}
 	groups := [][]stmt.Definition{inventoryDisclosureDefinitions(), basicReceiptDefinitions(), basicControlDefinitions(),
 		basicStreamStageDefinitions(), basicMediaDefinitions(), basicProbeDefinitions(), basicShapeDefinitions(),
-		basicFreezeDefinitions(), basicCopyDefinitions(), basicCopyFamily1Definitions()}
+		basicFreezeDefinitions(), basicCopyDefinitions(), basicCopyFamilyDefinitions()}
 	for _, d := range scanReceiptDefinitions() {
 		switch d.ID {
 		case scanReceiptOwner, scanReceiptAck, scanReceiptReclaimKey: // zero-member replay decode

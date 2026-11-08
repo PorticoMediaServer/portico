@@ -114,13 +114,12 @@ func runBasicControlBody(ctx context.Context, turn *commandTurn, purpose BasicPu
 	return err
 }
 
-// One copy turn of exactly one family. Families 2..9 register their own body
-// here from their own file; an unregistered family refuses.
+// One copy turn of exactly one family. Each family registers its body from
+// its own file (registerBasicCopyFamily); an unregistered family refuses.
 func copyBasicFamily(ctx context.Context, turn *commandTurn, in basicControlRequest) error {
-	c := basicCopyTurn{source: in.source, changeRevision: in.changeRevision, entityID: in.entityID, shapeID: in.shapeID, entry: in.copy}
-	switch in.family {
-	case 1:
-		return copyBasicFamily1(ctx, turn, c)
+	spec, ok := basicCopyFamilies[in.family]
+	if !ok {
+		return &Refusal{Code: RefusalUnqualified}
 	}
-	return &Refusal{Code: RefusalUnqualified}
+	return spec.copy(ctx, turn, basicCopyTurn{source: in.source, changeRevision: in.changeRevision, entityID: in.entityID, shapeID: in.shapeID, entry: in.copy})
 }
