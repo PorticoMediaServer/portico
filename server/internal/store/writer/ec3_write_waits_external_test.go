@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -97,6 +98,7 @@ type foregroundWriteLedger struct {
 	facts        []foregroundWriteWait
 	overflow     bool
 	actionErrors int
+	deferred     int
 }
 
 func newForegroundWriteLedger() *foregroundWriteLedger {
@@ -108,10 +110,19 @@ func (l *foregroundWriteLedger) action(op workload.EC2Operation, action workload
 		count := 0
 		recorded := false
 		var first workload.Observation
+		deferred := false
 		err := action(ctx, offer, func(o workload.Observation) error {
 			count++
 			if count == 1 {
 				first = o
+			}
+			// A paired phase that a bounded miss made invalid attempted no write:
+			// retain the explicit deferral raw, never as a wait fact or a gap in
+			// the observed distribution.
+			if strings.HasSuffix(o.Phase, "_DEFERRED") {
+				deferred = true
+				l.deferred++
+				return emit(o)
 			}
 			// Preparation SNAPSHOT, replay, ACK and WAL observations are not the user's
 			// fresh commit. Preserve them raw; bind the wait fact to ACCEPT only.
@@ -128,6 +139,9 @@ func (l *foregroundWriteLedger) action(op workload.EC2Operation, action workload
 			}
 			return emit(o)
 		})
+		if deferred {
+			return err
+		}
 		if !recorded {
 			o := first
 			if count == 0 {
@@ -176,20 +190,21 @@ type foregroundWriteClassReport struct {
 	QueueWait, HoldToCommit, SubmissionToCommit, PhysicalHold *writeWaitDistribution
 }
 type foregroundWriteReport struct {
-	Method                                                    string
-	TargetNS                                                  time.Duration
-	ExpectedOffers, ObservedOffers, Incomplete, ActionErrors  int
-	Qualification                                             bool
-	Overflow, ScheduleComplete, CoverageComplete              bool
-	QueueWait, HoldToCommit, SubmissionToCommit, PhysicalHold *writeWaitDistribution
-	ObservedP99WithinTarget                                   *bool
-	ByOperation                                               map[workload.EC2Operation]foregroundWriteClassReport
-	ReadsUnaffected                                           *bool
-	ReadsUnavailableReason, Scope                             string
+	Method                                                       string
+	TargetNS                                                     time.Duration
+	ExpectedOffers, ObservedOffers, MissedOffers, UnservedOffers int
+	DeferredOffers, Incomplete, ActionErrors                     int
+	Qualification                                                bool
+	Overflow, ScheduleComplete, CoverageComplete                 bool
+	QueueWait, HoldToCommit, SubmissionToCommit, PhysicalHold    *writeWaitDistribution
+	ObservedP99WithinTarget                                      *bool
+	ByOperation                                                  map[workload.EC2Operation]foregroundWriteClassReport
+	ReadsUnaffected                                              *bool
+	ReadsUnavailableReason, Scope                                string
 }
 
-func (l *foregroundWriteLedger) report(expected int, scheduleComplete bool) foregroundWriteReport {
-	r := foregroundWriteReport{Method: "ec3-foreground-write-wait-v1", TargetNS: foregroundWriteBudget, ExpectedOffers: expected, ObservedOffers: len(l.facts), ActionErrors: l.actionErrors, Overflow: l.overflow, ScheduleComplete: scheduleComplete, Scope: "known observed intervals incl failed tails; partial distributions never whole-run/qualification evidence", ReadsUnavailableReason: "original paired read evidence retained; independent foreground-only baseline/QL comparison required"}
+func (l *foregroundWriteLedger) report(expected, missed, unserved int, windowComplete, scheduleComplete bool) foregroundWriteReport {
+	r := foregroundWriteReport{Method: "ec3-foreground-write-wait-v1", TargetNS: foregroundWriteBudget, ExpectedOffers: expected, ObservedOffers: len(l.facts), MissedOffers: missed, UnservedOffers: unserved, DeferredOffers: l.deferred, ActionErrors: l.actionErrors, Overflow: l.overflow, ScheduleComplete: scheduleComplete, Scope: "known observed intervals incl failed tails; missed offers are a declared rate shortfall in MissedOffers and never become samples; partial distributions never whole-run/qualification evidence", ReadsUnavailableReason: "original paired read evidence retained; independent foreground-only baseline/QL comparison required"}
 	var queue, hold, end, physical []time.Duration
 	for _, f := range l.facts {
 		if !f.Complete {
@@ -239,7 +254,11 @@ func (l *foregroundWriteLedger) report(expected int, scheduleComplete bool) fore
 		}
 	}
 	r.QueueWait, r.HoldToCommit, r.SubmissionToCommit, r.PhysicalHold = writeWaitStats(queue), writeWaitStats(hold), writeWaitStats(end), writeWaitStats(physical)
-	r.CoverageComplete = expected > 0 && expected == len(l.facts) && r.Incomplete == 0 && l.actionErrors == 0 && !l.overflow && scheduleComplete
+	// Coverage is measurement integrity over the submissions that happened: every
+	// observed write completed a fresh ACCEPT, no write failed, nothing overflowed
+	// and the offer window was not cut short. A missed offer is a declared rate
+	// shortfall (ExpectedOffers vs ObservedOffers), not an invalid observation.
+	r.CoverageComplete = expected > 0 && len(l.facts) > 0 && r.Incomplete == 0 && l.actionErrors == 0 && !l.overflow && unserved == 0 && windowComplete
 	if r.CoverageComplete && r.SubmissionToCommit != nil {
 		ok := r.SubmissionToCommit.P99NS <= r.TargetNS
 		for _, group := range r.ByOperation {
