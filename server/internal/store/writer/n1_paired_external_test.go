@@ -75,19 +75,19 @@ func pairedAction(c *writer.N1PairedComponent, route string, consumeBrowse func(
 		})
 	case "detail":
 		return workload.Detail(c.Foreground, c.Governor, c.Authority, c.Snapshots, func(ctx context.Context, offer workload.Offer) (workload.DetailInput, error) {
-			view := c.View
+			view := c.PointView
 			view.Now = offer.ScheduledAt
 			return pairedInput(c, offer, read.TitleInput{View: view, Item: 1, Asset: 1}, encodePaired[read.TitleDetail]), nil
 		})
 	case "playback":
 		return workload.PlaybackLookup(c.Foreground, c.Governor, c.Authority, c.Snapshots, func(ctx context.Context, offer workload.Offer) (workload.PlaybackInput, error) {
-			view := c.View
+			view := c.PointView
 			view.Now = offer.ScheduledAt
 			return pairedInput(c, offer, read.TitleInput{View: view, Item: 1, Asset: 1}, encodePaired[read.PlaybackFile]), nil
 		})
 	case "continue":
 		return workload.ContinueWatching(c.Foreground, c.Governor, c.Authority, c.Snapshots, func(ctx context.Context, offer workload.Offer) (workload.ContinueInput, error) {
-			view := c.View
+			view := c.PointView
 			view.Now = offer.ScheduledAt
 			return pairedInput(c, offer, read.ContinueInput{View: view}, encodePaired[read.ContinuePage]), nil
 		})

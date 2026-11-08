@@ -33,6 +33,7 @@ type N1PairedComponent struct {
 	Browse                         *read.BrowseReader
 	Foreground                     *read.ForegroundReader
 	View                           read.BrowseInput
+	PointView                      read.BrowseInput
 	DatabaseID                     string
 	RunID, HostEpoch, SourceCommit string
 	Measured                       int
@@ -71,6 +72,11 @@ func (c *n1PairedReaderIdentity) observe(conn driver.Conn) error {
 
 func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) *N1PairedComponent {
 	t.Helper()
+	return newN1PairedPopulationComponent(t, data, warmup, cohort, attachN1PairedPopulation(t))
+}
+
+func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohort string, population *QualificationPopulationManifest) *N1PairedComponent {
+	t.Helper()
 	if *ec5MemoryEnabled && cohort != "native-counters" {
 		t.Fatal("EC5 native-memory instrumentation requires separate native-counters cohort")
 	}
@@ -102,13 +108,25 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 		t.Fatal(err)
 	}
 	c.trace = newN1Trace(origin, cohort == "native-counters")
-	w, path, original := inventoryFreshSeedFixture(t, c.trace.decorate)
+	var w *executor
+	var path string
+	var original *inventoryAcceptCommand
+	if population != nil {
+		w, path, _ = testExecutor(t, c.trace.decorate)
+		original = seedInventoryFreshPopulation(t, w, true)
+	} else {
+		w, path, original = inventoryFreshSeedFixture(t, c.trace.decorate)
+	}
 	w.now = time.Now // before ANY measured BEGIN; no clock option exists here
 	conn, err := w.db.Conn(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	foregroundSource := readfixture.ForegroundOn(t, path, conn) // exact existing seed journal; no second writer
+	var existingLibraries []string
+	if population != nil {
+		existingLibraries = []string{"qualification-movies"}
+	}
+	foregroundSource := readfixture.ForegroundOn(t, path, conn, existingLibraries...) // exact existing seed journal; no second writer
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -189,6 +207,10 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 		t.Fatal(err)
 	}
 	c.View = read.BrowseInput{Database: c.DatabaseID, TokenHash: "token", Library: 1, Kind: 1, Limit: 40}
+	c.PointView = c.View // existing detailed playback/personal fixture remains library1
+	if population != nil {
+		c.View.Library = 7
+	} // browse traverses the actual canonical1M parent
 	binaryPath, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -203,7 +225,7 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 		t.Fatal(err)
 	}
 	hashes := map[string]string{}
-	for _, name := range []string{"n1_paired_export_test.go", "ec3_write_waits_external_test.go", "ec5_memory_export_test.go", "ec5_memory_external_test.go", "ec2_sustained_external_test.go", "../qual/workload/ec2.go", "transaction_test.go", "n1_paired_external_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "inventory_memory_test.go", "governor_turn_test.go", "scan_fresh_test.go", "../internal/readfixture/source.go", "../internal/readfixture/config.go", "../qual/workload/foreground.go"} {
+	for _, name := range []string{"n1_paired_export_test.go", "n1_paired_population_test.go", "ec3_write_waits_external_test.go", "ec5_memory_export_test.go", "ec5_memory_external_test.go", "ec2_sustained_external_test.go", "../qual/workload/ec2.go", "transaction_test.go", "n1_paired_external_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "inventory_memory_test.go", "governor_turn_test.go", "scan_fresh_test.go", "../internal/readfixture/source.go", "../internal/readfixture/config.go", "../qual/workload/foreground.go"} {
 		raw, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
@@ -222,11 +244,11 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 		observed := strings.TrimSpace(string(bootData))
 		bootID = &observed
 	}
-	if err := c.stream.append("start", map[string]any{"declared_source_commit": cfg.SourceCommit, "source_hashes": hashes, "binary_sha256": hex.EncodeToString(binaryHash.Sum(nil)), "host_epoch": cfg.HostEpoch, "observed_hostname": observedHost, "hostname_error": n1Error(hostErr), "observed_boot_id": bootID, "boot_error": n1Error(bootErr), "manifest_scope": "local scheduler manifest is exact component-config SHA256; external QL manifest remains external", "database_id": c.DatabaseID, "native_device": writerDevice, "native_inode": writerInode, "schema_sha256": schema.SHA256, "read_fixture_journal_sha256": readfixture.ForegroundHash(t), "foreground_fixture_temporal_origin": foregroundSource.TemporalOrigin(), "foreground_time_scope": "existing synthetic seed offsets rebased once before construction using time.Now; no token renewal or runtime authority", "reader_policy": readerConfig, "foreground_fixture_profile": gc.Foreground, "foreground_partition": gc.Partitions[governor.Foreground], "max_grants_per_class": gc.MaxGrantsPerClass, "n1_request": owner.request, "n1_work": map[string]Work{"limit": owner.recipe.limit, "setup": owner.recipe.setup, "terminal": owner.recipe.terminal}, "warmup_originals": warmup, "measured_originals": cfg.Fixtures, "cohort": cohort, "clock": "time.Now real monotonic", "scope": "same DB; N1 library7 and authenticated foreground library1; kind2 excluded only in attached seed", "profile_scope": "existing RD2 LIVE config and N1 class amounts/Work; no production qualification", "memory_scope": "process heap/RSS/allocation snapshots include concurrent readers and observers; not isolated N1 LIVE peaks", "cache_population": map[string]string{"n1": "warm persistent after actual warmup", "foreground": "first use; no read warmup"}, "reader_window_connection_id": nil, "reader_window_connection_id_unavailable_reason": "public SnapshotResult has no per-window physical instance ID; actual native file checked on every connect"}); err != nil {
+	if err := c.stream.append("start", map[string]any{"declared_source_commit": cfg.SourceCommit, "source_hashes": hashes, "binary_sha256": hex.EncodeToString(binaryHash.Sum(nil)), "host_epoch": cfg.HostEpoch, "observed_hostname": observedHost, "hostname_error": n1Error(hostErr), "observed_boot_id": bootID, "boot_error": n1Error(bootErr), "manifest_scope": "local scheduler manifest is exact component-config SHA256; external QL manifest remains external", "database_id": c.DatabaseID, "native_device": writerDevice, "native_inode": writerInode, "schema_sha256": schema.SHA256, "read_fixture_journal_sha256": readfixture.ForegroundHash(t), "foreground_fixture_temporal_origin": foregroundSource.TemporalOrigin(), "foreground_time_scope": "existing synthetic seed offsets rebased once before construction using time.Now; no token renewal or runtime authority", "reader_policy": readerConfig, "foreground_fixture_profile": gc.Foreground, "foreground_partition": gc.Partitions[governor.Foreground], "max_grants_per_class": gc.MaxGrantsPerClass, "n1_request": owner.request, "n1_work": map[string]Work{"limit": owner.recipe.limit, "setup": owner.recipe.setup, "terminal": owner.recipe.terminal}, "warmup_originals": warmup, "measured_originals": cfg.Fixtures, "cohort": cohort, "clock": "time.Now real monotonic", "canonical_population": population, "foreground_library_by_route": map[string]int64{"browse": c.View.Library, "detail": c.PointView.Library, "playback": c.PointView.Library, "continue": c.PointView.Library}, "scope": "same DB; N1 library7; canonical browse7 when attached, existing point/personal overlay1; kind2 excluded only in attached seed", "profile_scope": "existing RD2 LIVE config and N1 class amounts/Work; no production qualification", "memory_scope": "process heap/RSS/allocation snapshots include concurrent readers and observers; not isolated N1 LIVE peaks", "cache_population": map[string]string{"n1": "warm persistent after actual warmup", "foreground": "first use; no read warmup"}, "reader_window_connection_id": nil, "reader_window_connection_id_unavailable_reason": "public SnapshotResult has no per-window physical instance ID; actual native file checked on every connect"}); err != nil {
 		t.Fatal(err)
 	}
 	if *ec5MemoryEnabled {
-		if err := c.stream.append("memory_fixture", map[string]any{"method": "ec5-component-memory-v1", "observed_database_cardinalities": facts.Cardinalities, "library_scope": "existing small source-bound N1 library7 + foreground library1; table counts are database-wide, not per-library cardinality", "scale_fixture_available": false, "per_library_item_counts": nil, "per_library_item_counts_unavailable_reason": "existing owned observer exposes database table counts, not a per-library/scale constructor", "sustained_schedule_available": true, "sustained_native_missing_bindings": []string{"WC/Effective Actions", "GV concurrent/recovery"}, "whole_server_composition_complete": false, "assigned_budget_bytes": int64(2000000000), "profile_scope": "assigned M=2e9 cgroup; not 2GB physical/M=1.6e9 profile; no owner allocations changed"}); err != nil {
+		if err := c.stream.append("memory_fixture", map[string]any{"method": "ec5-component-memory-v1", "observed_database_cardinalities": facts.Cardinalities, "library_scope": "actual canonical parent when supplied, plus existing foreground point/personal overlay1; table counts are database-wide", "canonical_population": population, "scale_fixture_available": population != nil, "per_library_item_counts": nil, "per_library_item_counts_unavailable_reason": "existing owned observer exposes database table counts, not a per-library/scale constructor", "sustained_schedule_available": true, "sustained_native_missing_bindings": []string{"WC/Effective Actions", "GV concurrent/recovery"}, "whole_server_composition_complete": false, "assigned_budget_bytes": int64(2000000000), "profile_scope": "assigned M=2e9 cgroup; not 2GB physical/M=1.6e9 profile; no owner allocations changed"}); err != nil {
 			t.Fatal(err)
 		}
 		if err := c.memoryCheckpoint("after_fixture_before_warmup"); err != nil {
