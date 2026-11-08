@@ -16,6 +16,7 @@ on:
       producer_run: {description: Immutable successful 1M producer run ID, required: true, type: string}
       producer_attempt: {description: Producer attempt, default: '1', type: string}
       manifest_sha256: {description: Independently checked producer receipt manifest SHA256, required: true, type: string}
+      checkpoint_interval_ms: {description: 'SCREENING-only keeper PASSIVE offer interval in ms (50..5000, empty = default 50) for canonical owner classes', default: '', type: string}
 permissions:
   contents: read
   actions: read
@@ -60,6 +61,7 @@ jobs:
       INPUT_PRODUCER_RUN: ${{ inputs.producer_run }}
       INPUT_PRODUCER_ATTEMPT: ${{ inputs.producer_attempt }}
       INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+      INPUT_CHECKPOINT_INTERVAL_MS: ${{ inputs.checkpoint_interval_ms }}
       PROFILE: ${{ matrix.profile }}
       REPLICATE: ${{ matrix.replicate }}
     steps:

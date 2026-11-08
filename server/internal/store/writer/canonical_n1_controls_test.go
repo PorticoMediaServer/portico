@@ -111,7 +111,8 @@ func TestCanonicalN1PopulationAndFundedKeeper(t *testing.T) {
 
 func TestCanonicalN1MaintenanceKeepsCommandCaps(t *testing.T) {
 	m := canonicalN1Maintenance()
-	if m.policy.HardBytes != 1<<29 || m.policy.ReserveBytes != 1<<20 || m.policy.SoftDebtBytes != 1<<26 || m.policy.ActivePressureBytes != 1<<28 || !m.policy.ConcurrentPassive || m.policy.CheckpointMaxHold != 5*time.Second {
+	// The canonical owners run on the ONE adopted phase 1a policy, not a private copy.
+	if m.policy != governor.Phase1aWALPolicy() || m.policy.HardBytes != 1<<29 || m.policy.ActivePressureBytes != 1<<28 || !m.policy.ConcurrentPassive || m.policy.CheckpointMaxHold != 5*time.Second {
 		t.Fatal(m)
 	}
 	// Requested sample count is a streaming census; never a per-command cap.

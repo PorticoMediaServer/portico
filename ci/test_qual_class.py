@@ -43,6 +43,19 @@ class ClassProtocol(unittest.TestCase):
                 with self.assertRaises(ValueError): c.inputs(dict(env, **{key: value}))
                 popen.assert_not_called()
 
+    def test_checkpoint_interval_is_a_screening_only_owner_class_variable(self):
+        env = dict(INPUT_SOURCE_COMMIT='a'*40, INPUT_MANIFEST_SHA256='b'*64, INPUT_CLASS='security', PROFILE='standard',
+                   REPLICATE='1', INPUT_PRODUCER_RUN='1', GITHUB_RUN_ID='2', GITHUB_RUN_ATTEMPT='1')
+        self.assertIsNone(c.inputs(env)['checkpoint_interval_ms'])
+        self.assertEqual(c.inputs(dict(env, INPUT_PURPOSE='screening', INPUT_CHECKPOINT_INTERVAL_MS='150'))['checkpoint_interval_ms'], 150)
+        for bad in [dict(INPUT_CHECKPOINT_INTERVAL_MS='150'),  # qualification refuses it
+                    dict(INPUT_PURPOSE='screening', INPUT_CHECKPOINT_INTERVAL_MS='49'),
+                    dict(INPUT_PURPOSE='screening', INPUT_CHECKPOINT_INTERVAL_MS='5001'),
+                    dict(INPUT_PURPOSE='screening', INPUT_CHECKPOINT_INTERVAL_MS='1e2'),
+                    dict(INPUT_PURPOSE='screening', INPUT_CHECKPOINT_INTERVAL_MS='150', INPUT_CLASS='checkpoint_1mib')]:
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                c.inputs(dict(env, **bad))
+
     def test_checkpoint_screening_purpose_and_complete_native_census(self):
         env=dict(INPUT_SOURCE_COMMIT='a'*40,INPUT_MANIFEST_SHA256='b'*64,INPUT_CLASS='checkpoint_1mib',PROFILE='standard',REPLICATE='1',INPUT_PRODUCER_RUN='1',GITHUB_RUN_ID='2',GITHUB_RUN_ATTEMPT='1')
         with self.assertRaises(ValueError):c.inputs(env)

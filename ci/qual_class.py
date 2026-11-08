@@ -56,7 +56,12 @@ def inputs(env):
     q.require(re.fullmatch(q.COMMIT, source) and re.fullmatch(q.SHA, manifest), 'full source/manifest pins required')
     q.require(name in TARGETS and profile in ('standard', 'legacy8'), 'closed class/profile required')
     q.require(name not in CHECKPOINT_CASES or purpose=='screening','checkpoint components are SCREENING only')
+    interval = env.get('INPUT_CHECKPOINT_INTERVAL_MS', '')
+    if interval:
+        q.require(purpose == 'screening' and name not in CHECKPOINT_CASES and re.fullmatch(r'[1-9][0-9]{1,3}', interval) and 50 <= int(interval) <= 5000,
+                  'checkpoint interval is a SCREENING-only 50..5000 ms variable for canonical owner classes')
     return dict(source=source, manifest=manifest, name=name, profile=profile, purpose=purpose,
+                checkpoint_interval_ms=int(interval) if interval else None,
                 replicate=q.uint(env.get('REPLICATE', ''), 1, 3, 'replicate'),
                 producer_run=identity(env.get('INPUT_PRODUCER_RUN', ''), 'producer run'),
                 producer_attempt=identity(env.get('INPUT_PRODUCER_ATTEMPT', '1'), 'producer attempt', 6),
@@ -239,6 +244,8 @@ def run(launch_path):
              attempts=ATTEMPTS, artifact_directory=launch['artifact'], manifest_sha256=cfg['manifest'])
     q.atomic_json(work / 'config.json', c)
     env.update(PORTICO_CANONICAL_HELD_STREAM='unix-gzip-v1', PORTICO_CANONICAL_HELD='1', PORTICO_CANONICAL_HELD_CONFIG=str(work / 'config.json'))
+    if cfg.get('checkpoint_interval_ms'):
+        env['PORTICO_GV_CP_INTERVAL_MS'] = str(cfg['checkpoint_interval_ms'])  # SCREENING variable; recorded in declared inputs
     receipt.update(actual_config=c, status='failed', target_uid=launch['uid'], target_gid=launch['gid'],
                    disk_before_target=shutil.disk_usage(work)._asdict(),
                    host_scope='same cgroup/namespace as target; collector root, target unprivileged',
