@@ -98,6 +98,13 @@ func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *gover
 	}
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
+	// Only an explicitly funded native-source profile installs these compiled
+	// points/effects. Legacy profiles and historical v1 bytes stay unchanged.
+	if plan.effectiveSourceMemory != (commandMemoryBudget{}) {
+		defs = append(defs, enrichmentEffectiveSourcePinDefinitions()...)
+		defs = append(defs, enrichmentEffectiveSourceControlDefinitions()...)
+		defs = append(defs, enrichmentEffectiveVerifiedDefinitions()...)
+	}
 	plan, err := freezeCommandPlan(w, plan, defs, EffectiveStage)
 	if err != nil {
 		return nil, err
@@ -766,11 +773,19 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 						if err = turn.checkLifetimes(ctx); err != nil {
 							break
 						}
-						permit := cap.scope.fixture
-						if permit == nil || permit.issuer != r || permit.reference != request.Receipt {
-							err = &Refusal{Code: RefusalUnqualified}
+						if input.sourceReferences != nil {
+							var proof *effectiveVerifiedSource
+							proof, err = verifyEffectiveSource(ctx, turn, input)
+							if err == nil {
+								out.effective.Value, err = applyVerifiedEffectiveStageBegin(ctx, turn, input, proof)
+							}
 						} else {
-							out.effective.Value, err = applyEffectiveStageBegin(ctx, turn, input)
+							permit := cap.scope.fixture
+							if permit == nil || permit.issuer != r || permit.reference != request.Receipt {
+								err = &Refusal{Code: RefusalUnqualified}
+							} else {
+								out.effective.Value, err = applyEffectiveStageBegin(ctx, turn, input)
+							}
 						}
 					}
 				default:
