@@ -3,6 +3,7 @@ package writer
 import (
 	"math"
 	"reflect"
+	"strings"
 )
 
 // Closed BasicStage/BasicSeal operations. Each command stages or seals exactly
@@ -12,8 +13,13 @@ import (
 type basicControlOperation uint8
 
 const (
-	basicControlStreamFact basicControlOperation = iota + 1 // family 1 stream fact
-	basicControlMediaRows                                   // one media family 2..9, bounded row range for Stage
+	basicControlStreamFact   basicControlOperation = iota + 1 // family 1 stream fact
+	basicControlMediaRows                                     // one media family 2..9, bounded row range for Stage
+	basicControlProbeScalars                                  // Stage: coherent raw NEW scalar tuple (phase 0)
+	basicControlPinShape                                      // Stage: pin the target shape, copy_family 0->1 (phase 0)
+	basicControlFreeze                                        // Stage: phase 0->1 after nine sealed families
+	basicControlSelectEntity                                  // Stage: phase 1->2, after_entity = sole leaf
+	basicControlCopyFamily                                    // Stage: one copy turn of one family (phase 2)
 )
 
 // Exactly one pointer is set. A closed concrete variant keeps the canonical
@@ -94,6 +100,12 @@ type basicControlRequest struct {
 	rawChapters int64
 	rows        []basicStageMediaRow // complete family rows (media only)
 	start, end  int64                // Stage media row range; zero for Seal and stream
+	// Header-transition and copy operations only; zero otherwise.
+	probe          *basicProbeEffects
+	changeRevision int64 // catalog_info_changes.job_revision on entry
+	entityID       int64 // the sole FIRST leaf entity
+	shapeID        int64 // the pinned target shape
+	copy           basicCopyCursor
 }
 
 type basicStageCommand struct {
@@ -138,6 +150,14 @@ func validateBasicControlRequest(identity CommandIdentity, in basicControlReques
 		s.runID != in.original.scope.runID || s.libraryID != in.original.scope.libraryID || s.sourceID != in.original.source.id || s.incarnation != in.original.source.incarnation {
 		return ErrInvalid
 	}
+	transition := in.probe != nil || in.changeRevision != 0 || in.entityID != 0 || in.shapeID != 0 || in.copy != (basicCopyCursor{})
+	switch in.operation {
+	case basicControlProbeScalars, basicControlPinShape, basicControlFreeze, basicControlSelectEntity, basicControlCopyFamily:
+		return validateBasicTransitionRequest(in, purpose)
+	}
+	if transition {
+		return ErrInvalid
+	}
 	switch in.operation {
 	case basicControlStreamFact:
 		if in.family != 1 || in.rawChapters != 0 || in.rows != nil || in.start != 0 || in.end != 0 {
@@ -164,12 +184,55 @@ func validateBasicControlRequest(identity CommandIdentity, in basicControlReques
 	return nil
 }
 
+// Header transitions and copy turns are Stage-only and carry no family rows.
+func validateBasicTransitionRequest(in basicControlRequest, purpose BasicPurpose) error {
+	if purpose != BasicPurposeStage || in.rawChapters != 0 || in.rows != nil || in.start != 0 || in.end != 0 {
+		return ErrInvalid
+	}
+	switch in.operation {
+	case basicControlProbeScalars, basicControlPinShape:
+		if in.probe == nil || in.probe.source != in.source || in.family != 0 || in.changeRevision != 0 || in.entityID != 0 || in.shapeID != 0 || in.copy != (basicCopyCursor{}) {
+			return ErrInvalid
+		}
+		if in.operation == basicControlPinShape && in.probe.before != in.probe.after {
+			return ErrInvalid
+		}
+		return validateBasicProbeEffects(*in.probe)
+	case basicControlFreeze, basicControlSelectEntity:
+		if in.probe != nil || in.family != 0 || in.copy != (basicCopyCursor{}) {
+			return ErrInvalid
+		}
+	case basicControlCopyFamily:
+		if in.probe != nil || in.family < 1 || in.family > 9 {
+			return ErrInvalid
+		}
+		if (in.family == 1 && in.copy != (basicCopyCursor{})) || (in.family > 1 && in.copy.family != in.family) {
+			return ErrInvalid
+		}
+	default:
+		return ErrInvalid
+	}
+	if in.changeRevision <= 0 || in.changeRevision == math.MaxInt64 || in.entityID <= 0 || in.shapeID <= 0 {
+		return ErrInvalid
+	}
+	return nil
+}
+
 // Matches stageBasicMediaRows' own per-turn row bound.
 const basicStageMaxRows = 8
 
 func cloneBasicControlRequest(in basicControlRequest) basicControlRequest {
 	in.original = cloneBasicOriginal(in.original)
 	in.source = cloneBasicSource(in.source)
+	if in.probe != nil {
+		p := *in.probe
+		p.source = cloneBasicSource(p.source)
+		p.assetPath = strings.Clone(p.assetPath)
+		p.before.container, p.before.videoCodec, p.before.audioCodec = strings.Clone(p.before.container), strings.Clone(p.before.videoCodec), strings.Clone(p.before.audioCodec)
+		p.after.container, p.after.videoCodec, p.after.audioCodec = strings.Clone(p.after.container), strings.Clone(p.after.videoCodec), strings.Clone(p.after.audioCodec)
+		in.probe = &p
+	}
+	in.copy.key, in.copy.key2, in.copy.key3 = strings.Clone(in.copy.key), strings.Clone(in.copy.key2), strings.Clone(in.copy.key3)
 	if in.rows != nil {
 		rows := make([]basicStageMediaRow, len(in.rows))
 		for n, v := range in.rows {
