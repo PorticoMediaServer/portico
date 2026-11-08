@@ -25,7 +25,7 @@ func testRBGroupTVNative(t *testing.T) {
 	source := rbGroupSource(t)
 	source.exec(t, `UPDATE catalog_entities SET season_id=2012,numbering='date',episode_number=1 WHERE id=5001`)
 	source.exec(t, `UPDATE catalog_entities SET season_id=NULL,numbering='absolute',episode_number=100 WHERE id=5003`)
-	source.exec(t, `UPDATE catalog_entities SET newest_first=1,absolute_numbering=1,hide_seasons=1,show_settings_revision=7 WHERE id=2001`)
+	source.exec(t, `UPDATE catalog_entities SET newest_first=1,absolute_numbering=1,hide_seasons=1,show_settings_present=1,show_settings_revision=7 WHERE id=2001`)
 	defs := append(append(browseDefinitions(), RBGroupDefinitions()...), RBTVDefinitions()...)
 	f := composeBrowseFixture(t, source, defs)
 	in := RBTVInput{View: f.input, Subject: 2001, Scope: RBTVShow}

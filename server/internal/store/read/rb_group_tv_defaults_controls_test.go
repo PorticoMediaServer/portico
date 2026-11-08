@@ -10,12 +10,12 @@ import (
 )
 
 // TestRBTVDefaultsSavedFields proves that a separately saved nondefault show
-// field suppresses provisional inheritance even at settings revision one.
+// field is explicit presence even at settings revision one.
 func TestRBTVDefaultsSavedFields(t *testing.T) {
 	t.Run("newest-first", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := rbTVDefaultsSource(t)
-			f.exec(t, `UPDATE catalog_entities SET newest_first=1 WHERE id=2001`)
+			f.exec(t, `UPDATE catalog_entities SET newest_first=1,show_settings_present=1 WHERE id=2001`)
 			defs := append(browseDefinitions(), RBTVDefaultsDefinitions()...)
 			f = composeReadFixture(t, f, defs, readfixture.LiveConfig(time.Now), false, rbTVDefaultsHash(t))
 			q, request, output := liveRequests("rb-tv-defaults-newest-first")
@@ -32,7 +32,7 @@ func TestRBTVDefaultsSavedFields(t *testing.T) {
 				t.Fatal("saved newest-first read", e, consumption.Refusal)
 			}
 			assertLiveUsage(t, f, 0, 0)
-			if p.Show != 2001 || p.SettingsRevision != 1 || p.ProvisionalInheritance || !p.NewestFirst || p.AbsoluteNumbering || p.SavedAbsoluteNumbering {
+			if p.Show != 2001 || p.SettingsRevision != 1 || !p.SettingsPresent || !p.NewestFirst || p.AbsoluteNumbering || p.SavedAbsoluteNumbering {
 				t.Fatal("saved newest-first must suppress inheritance", p)
 			}
 			if !p.LibraryPreferencePresent || p.LibraryNumbering != "absolute" || p.LibraryPreferenceRevision != 1 {
@@ -44,7 +44,7 @@ func TestRBTVDefaultsSavedFields(t *testing.T) {
 	t.Run("show-ranges", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := rbTVDefaultsSource(t)
-			f.exec(t, `UPDATE catalog_entities SET show_ranges='1-3' WHERE id=2001`)
+			f.exec(t, `UPDATE catalog_entities SET show_ranges='1-3',show_settings_present=1 WHERE id=2001`)
 			defs := append(browseDefinitions(), RBTVDefaultsDefinitions()...)
 			f = composeReadFixture(t, f, defs, readfixture.LiveConfig(time.Now), false, rbTVDefaultsHash(t))
 			q, request, output := liveRequests("rb-tv-defaults-show-ranges")
@@ -61,7 +61,7 @@ func TestRBTVDefaultsSavedFields(t *testing.T) {
 				t.Fatal("saved show-ranges read", e, consumption.Refusal)
 			}
 			assertLiveUsage(t, f, 0, 0)
-			if p.Show != 2001 || p.SettingsRevision != 1 || p.ProvisionalInheritance || p.NewestFirst || p.AbsoluteNumbering || p.SavedAbsoluteNumbering || p.Ranges != "1-3" {
+			if p.Show != 2001 || p.SettingsRevision != 1 || !p.SettingsPresent || p.NewestFirst || p.AbsoluteNumbering || p.SavedAbsoluteNumbering || p.Ranges != "1-3" {
 				t.Fatal("saved show-ranges must suppress inheritance", p)
 			}
 			if !p.LibraryPreferencePresent || p.LibraryNumbering != "absolute" || p.LibraryPreferenceRevision != 1 {
@@ -74,7 +74,7 @@ func TestRBTVDefaultsSavedFields(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := rbTVDefaultsSource(t)
 			f.exec(t, `UPDATE libraries SET preference_episode_numbering='season' WHERE id='movies'`)
-			f.exec(t, `UPDATE catalog_entities SET absolute_numbering=1 WHERE id=2001`)
+			f.exec(t, `UPDATE catalog_entities SET absolute_numbering=1,show_settings_present=1 WHERE id=2001`)
 			defs := append(browseDefinitions(), RBTVDefaultsDefinitions()...)
 			f = composeReadFixture(t, f, defs, readfixture.LiveConfig(time.Now), false, rbTVDefaultsHash(t))
 			q, request, output := liveRequests("rb-tv-defaults-saved-absolute")
@@ -91,7 +91,7 @@ func TestRBTVDefaultsSavedFields(t *testing.T) {
 				t.Fatal("saved absolute read", e, consumption.Refusal)
 			}
 			assertLiveUsage(t, f, 0, 0)
-			if p.Show != 2001 || p.SettingsRevision != 1 || p.ProvisionalInheritance || p.NewestFirst || !p.AbsoluteNumbering || !p.SavedAbsoluteNumbering || p.Ranges != "" {
+			if p.Show != 2001 || p.SettingsRevision != 1 || !p.SettingsPresent || p.NewestFirst || !p.AbsoluteNumbering || !p.SavedAbsoluteNumbering || p.Ranges != "" {
 				t.Fatal("saved absolute must not inherit seasonal library", p)
 			}
 			if !p.LibraryPreferencePresent || p.LibraryNumbering != "season" || p.LibraryPreferenceRevision != 1 {
