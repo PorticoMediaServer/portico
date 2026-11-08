@@ -52,8 +52,7 @@ func (d *ScanDriver) prepareWork(ctx context.Context, purpose CommandID, origina
 	}
 	// Dedicated Basic work keeps the constructor's exact original holding.
 	// History/native Inventory preparation cannot be borrowed for a Basic turn.
-	if basic && (generation <= 0 || p.mode != scanBasicPreparation || p.expected.Writer || p.expected.Class != governor.ScanMinimum || p.expected.Footprint[0].Domain != uint16(purpose)) ||
-		!basic && p.mode == scanBasicPreparation {
+	if basic && (generation <= 0 || p.mode != scanBasicPreparation || p.expected.Footprint[0].Domain != uint16(purpose)) {
 		return nil, ErrInvalid
 	}
 	if err = p.current(); err != nil {
