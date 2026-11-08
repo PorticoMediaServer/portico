@@ -56,7 +56,7 @@ func TestRBNumericTitleFilterTraversal(t *testing.T) {
 		f := rbNumericTitleFixture(t)
 		cases := []struct{ query, where string }{
 			{`{"variant":"predicate","field":"year","operator":"equals","value":1999}`, "year=1999"},
-			{`{"variant":"group","not":{"variant":"predicate","field":"year","operator":"greater-than","value":1999}}`, "NOT (NULLIF(year,0)>1999)"},
+			{`{"variant":"group","not":{"variant":"predicate","field":"year","operator":"greater-than","value":1999}}`, "NOT (year>1999)"},
 			{`{"variant":"predicate","field":"year","operator":"not-equals","value":1999}`, "year=0 OR year<>1999"},
 			{`{"variant":"predicate","field":"decade","operator":"equals","value":1990}`, "year BETWEEN 1990 AND 1999"},
 			{`{"variant":"predicate","field":"year","operator":"is-missing","value":null}`, "year=0"},
