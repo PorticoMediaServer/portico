@@ -691,3 +691,104 @@ func TestNativeSearchUsesCapturedDomainBytePairs(t *testing.T) {
 		})
 	}
 }
+
+func nativePreviewFixture(t *testing.T) (*browseFixture, *NativeFullSearchReader) {
+	t.Helper()
+	f := newNativeSource(t)
+	for id := int64(30); id <= 50; id++ {
+		title := fmt.Sprintf("The story %d", id)
+		f.exec(t, `UPDATE catalog_entities SET title=?,sort_key=?,retired=0 WHERE id=?`, title, strings.ToLower(title), id)
+		nativeFixtureImage(t, f, search.ManifestEntity, id, 1000+id, []nativeFixtureField{{1, title}})
+	}
+	f = composeReadFixture(t, f, NativeFullSearchDefinitions(), readfixture.LiveConfig(time.Now), false, nativeScenarioFixtureHash(t))
+	r, err := NewNativeFullSearchReader(f.snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.input.Kind = 0
+	f.input.Limit = 20
+	return f, r
+}
+
+func nativePreviewRead(t *testing.T, f *browseFixture, r *NativeFullSearchReader, text string, after *FullSearchCursor, budget int) (FullSearchPage, error) {
+	t.Helper()
+	query, err := search.PlanQuery(text, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, request, output := liveRequests("preview-" + text)
+	request.Budget.RawRows = 4096
+	var page FullSearchPage
+	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+		var e error
+		page, _, e = r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input, After: after, Preview: true, CandidateBudget: budget}, query)
+		return e
+	})
+	return page, err
+}
+
+// A preview cursor holds native posting positions for ONE query; replaying it
+// with another query must be refused exactly like the exact path.
+func TestNativeSearchPreviewCursorIsBoundToItsQuery(t *testing.T) {
+	f, r := nativePreviewFixture(t)
+	first, err := nativePreviewRead(t, f, r, "the", nil, 0)
+	if err != nil || first.Next == nil || first.Next.native == nil || !first.Next.native.preview {
+		t.Fatal("preview setup must leave a continuation", first, err)
+	}
+	if _, err = nativePreviewRead(t, f, r, "the", first.Next, 0); err != nil {
+		t.Fatal("same-query preview continuation", err)
+	}
+	for _, other := range []string{"story", "the story"} {
+		page, err := nativePreviewRead(t, f, r, other, first.Next, 0)
+		if !errors.Is(err, ErrStale) || !reflect.DeepEqual(page, FullSearchPage{}) {
+			t.Fatal("preview cursor replayed with another query", other, page, err)
+		}
+	}
+	// The exact path already refuses the same replay; keep both aligned.
+	pending, _, err := nativeRead(t, f, r, "matrix", nil)
+	if err != nil || pending.Next == nil {
+		t.Fatal("exact setup", err)
+	}
+	if _, _, err = nativeRead(t, f, r, "keanu", pending.Next); !errors.Is(err, ErrStale) {
+		t.Fatal("exact cursor replayed with another query", err)
+	}
+}
+
+func TestNativeSearchRefusesCandidateBudgetMisuse(t *testing.T) {
+	f, r := nativePreviewFixture(t)
+	for _, budget := range []int{NativePreviewCandidates + 1, -1} {
+		page, err := nativePreviewRead(t, f, r, "the", nil, budget)
+		if !errors.Is(err, ErrInput) || !reflect.DeepEqual(page, FullSearchPage{}) {
+			t.Fatal("preview candidate budget outside 0..2000 accepted", budget, page, err)
+		}
+	}
+	query, err := search.PlanQuery("the", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, request, output := liveRequests("exact-budget")
+	request.Budget.RawRows = 4096
+	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+		_, _, e := r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input, CandidateBudget: 1}, query)
+		return e
+	})
+	if !errors.Is(err, ErrInput) {
+		t.Fatal("exact read accepted a preview candidate budget", err)
+	}
+	// The 2,000 allowance is shared across polls: a continuation that already
+	// spent it has nothing left.
+	first, err := nativePreviewRead(t, f, r, "the", nil, 0)
+	if err != nil || first.Next == nil || first.Next.native == nil {
+		t.Fatal("preview setup", err)
+	}
+	spent := *first.Next
+	spent.native = cloneNativeContinuation(first.Next.native)
+	spent.native.candidates = NativePreviewCandidates
+	if _, err = nativePreviewRead(t, f, r, "the", &spent, 0); !errors.Is(err, ErrInput) {
+		t.Fatal("exhausted preview allowance accepted", err)
+	}
+	spent.native.candidates = NativePreviewCandidates + 1
+	if _, err = nativePreviewRead(t, f, r, "the", &spent, 0); !errors.Is(err, ErrStale) {
+		t.Fatal("over-budget cursor accepted", err)
+	}
+}

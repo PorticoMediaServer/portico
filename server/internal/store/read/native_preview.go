@@ -52,6 +52,13 @@ func nativePreviewAdvance(ctx context.Context, q browseQuery, scope *fullQuerySc
 		return FullSearchPage{}, ErrInput
 	}
 	scope.preview = true
+	// A preview cursor carries native positions (slot, after, expansion), not a
+	// rank, so it is not handed to the top-k as a rank bound. It must still be
+	// bound to this exact query, bank, revision and input before any position
+	// is reused, as on the exact path.
+	if in.After != nil && !in.After.boundTo(scope) {
+		return FullSearchPage{}, ErrStale
+	}
 	top, err := newFullSearchTop(scope, in.View.Limit, nil)
 	if err != nil {
 		return FullSearchPage{}, err
