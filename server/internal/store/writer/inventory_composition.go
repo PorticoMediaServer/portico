@@ -63,6 +63,12 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 			return 0 // no reclaim, lifecycle, Basic or unrelated domain statements
 		}
 	}
+	if purpose == EffectiveStage {
+		switch id {
+		case effectiveSourcePinReceiptLengths, effectiveSourcePinReceiptCopy:
+			return 2 // exact ORIGINAL evidence and source receipts, independently funded
+		}
+	}
 	// Preserve the existing non-Inventory use reservations. Their compiled
 	// definition sets and purpose checks remain freezeCommandPlan-owned.
 	switch id {
