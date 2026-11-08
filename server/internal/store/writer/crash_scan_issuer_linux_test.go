@@ -112,7 +112,15 @@ func scanCrashPrepare(t *testing.T, action string) (*scanDriverFixture, *ScanRun
 		for k, v := range run {
 			source.RunInsert[k] = v
 		}
-		for k, v := range map[string]any{"job_lease_owner": f.driver.leaseOwner, "job_lease_generation": run["job_lease_generation"].Int + 1, "job_lease_expires_ms": source.AppliedMS + f.driver.leaseDuration.Milliseconds(), "job_revision": run["job_revision"].Int + 1, "last_command_sequence": ref.Scan.Receipt.Identity.Sequence} {
+		// The lease starts beyond the ORIGINAL funded preparation horizon,
+		// not at command start. Freeze that pre-command deadline as input.
+		deadline := op.preparation.expected.Deadline
+		expiresMS := deadline.UnixMilli()
+		if deadline.After(time.UnixMilli(expiresMS)) {
+			expiresMS++
+		}
+		expiresMS += f.driver.leaseDuration.Milliseconds()
+		for k, v := range map[string]any{"job_lease_owner": f.driver.leaseOwner, "job_lease_generation": run["job_lease_generation"].Int + 1, "job_lease_expires_ms": expiresMS, "job_revision": run["job_revision"].Int + 1, "last_command_sequence": ref.Scan.Receipt.Identity.Sequence} {
 			progressSet(source.RunInsert, k, v)
 		}
 		source.JobInsert = map[string]effectiveRawCell{}
