@@ -19,6 +19,10 @@ func validateEnrichAcceptSourceInput(input *enrichAcceptCommand) error {
 		return ErrInvalid
 	}
 	begin, final := input.originalBegin, input.request
+	// The FINAL command is a distinct request: equal digests would alias BEGIN.
+	if input.digest == begin.digest {
+		return ErrConflict
+	}
 	if begin.sourceReferences == nil || final.beginIdentity != begin.identity || final.beginRequest != begin.digest ||
 		input.identity.Incarnation != begin.identity.Incarnation || input.identity.Sequence <= begin.identity.Sequence ||
 		final.owner.incarnation != input.identity.Incarnation || final.owner.entityID != begin.request.entity.id ||
