@@ -18,8 +18,11 @@ func applyEnrichAccept(ctx context.Context, turn *commandTurn, input *enrichAcce
 		}{out, digest}, err)
 		out, digest, err = checked.Result, checked.Digest, e
 	}()
-	if input == nil || !input.valid || turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != EnrichAccept {
+	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != EnrichAccept {
 		return out, digest, ErrInvalid
+	}
+	if err = input.check(); err != nil {
+		return out, digest, err
 	}
 	q, b := input.request, input.originalBegin
 	owner, err := effectiveBeginOwnerFacts(ctx, turn, turn.steps[enrichmentEffectiveOwner].statementStep, b.request.ownerID)
