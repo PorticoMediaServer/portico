@@ -58,7 +58,17 @@ func newCanonicalBasicComponent(t *testing.T, count int, stream *n1Stream, canon
 	w, _, _, _, _ := basicAcceptRuntimeFixture(t, e, first, canonicalN1Maintenance())
 	trace.useRegistry(w.effective.registry)
 	m := newCanonicalCheckpointOwner(t, opening, w.effective.governor, w.effective.authority, w.effective.wal, path, canonicalCheckpointShape{BasicAccept, "canonical-basic-cp", 1 << 29})
+	// Pressure recovery is optional trusted composition. Attach the SAME funded
+	// keeper (the WC and publisher wiring) so Basic recovers before admission
+	// instead of refusing wal_active_pressure on observed WAL state. The policy is
+	// the adopted Phase1aWALPolicy through canonicalN1Maintenance; caps, serial
+	// order and the maintenance partition are unchanged.
+	w.effective.maintenance = &checkpointMaintenance{request: m.request("passive"), results: m.results}
 	c := &canonicalBasicComponent{writer: w, opening: opening, maintenance: m, seed: prepared, trace: trace, stream: stream, original: prepared.original, identity: prepared.identity, measured: measured}
+	if gap := canonicalBasicSustainedGate(c); gap != nil {
+		_ = stream.append("failed_binding", map[string]any{"reason": gap.Error(), "native_calls_started": 0, "hold_ns": nil, "commit_ns": nil, "scope": "no accepting command attempted; constructor census is not throughput"})
+		t.Fatal(gap)
+	}
 	if err := stream.append("prepared", map[string]any{"recipe": canonicalBasicRecipe, "prepared_inputs": count, "scope": "actual native frozen ordinary inputs; physical probe/Stage/copy clocks excluded and unqualified", "preparation_clock": nil, "probe_clock": nil, "product_enable": false, "profile_memory": map[string]uint64{"preparation_bytes": w.effective.basicAcceptPlan.basicMemory.preparationBytes, "reserved_bytes": w.effective.basicAcceptPlan.basicMemory.reservedBytes}, "need": w.effective.basicAcceptPlan.need, "recipe_limit": w.effective.basicAcceptPlan.recipe.limit, "qualification": false}); err != nil {
 		t.Fatal(err)
 	}
@@ -215,4 +225,17 @@ func TestCanonicalBasicAcceptActionUsesExistingRuntimeAndSavedReceipt(t *testing
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+var errCanonicalBasicSustained = errors.New("canonical Basic target requires the funded keeper and its pressure-recovery hook; refusing to run without them")
+
+// canonicalBasicSustainedGate is the start gate: a Basic run that cannot recover
+// WAL pressure would refuse wal_active_pressure on observed state, so it must not
+// start at all.
+func canonicalBasicSustainedGate(c *canonicalBasicComponent) error {
+	if c == nil || c.writer == nil || c.writer.effective == nil || c.maintenance == nil ||
+		c.writer.effective.maintenance == nil || c.writer.effective.executor == nil || c.writer.effective.executor.keeper.Load() == nil {
+		return errCanonicalBasicSustained
+	}
+	return c.writer.effective.executor.keeper.Load().Check()
 }
