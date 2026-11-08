@@ -8,6 +8,7 @@ import (
 
 const (
 	usAuthorityCredential    stmt.ID = "us.authority.credential"
+	usAuthorityResetSession  stmt.ID = "us.authority.reset_session"
 	usAuthorityCurrentServer stmt.ID = "us.authority.current_server"
 	usAuthorityPrincipalPIN  stmt.ID = "us.authority.principal_pin"
 	usAuthorityFamily        stmt.ID = "us.authority.family"
@@ -65,6 +66,7 @@ AND p.id=? AND p.lifetime=? AND p.deleted=0 AND p.is_primary=1 AND a.profile_id=
 		{ID: usAuthorityDevice, SQL: `SELECT 1 FROM identity_devices INDEXED BY sqlite_autoindex_identity_devices_1 WHERE id=? AND authority='local' AND account_id=? AND installation_id=? AND retired_ms=0`, Params: []stmt.Param{text("device"), text("account"), text("installation")}, Plan: point("identity_devices", "sqlite_autoindex_identity_devices_1", "pk", "id")},
 		{ID: usAuthorityInstallation, SQL: `SELECT 1 FROM identity_installations INDEXED BY sqlite_autoindex_identity_installations_1 WHERE installation_hash=? AND incarnation=? AND retired=0`, Params: []stmt.Param{text("installation_hash"), text("incarnation")}, Plan: point("identity_installations", "sqlite_autoindex_identity_installations_1", "pk", "installation_hash")},
 		{ID: usAuthorityGrant, SQL: `SELECT 1 FROM authorization_family_grants INDEXED BY sqlite_autoindex_authorization_family_grants_1 WHERE family_id=?`, Params: []stmt.Param{text("family")}, Plan: point("authorization_family_grants", "sqlite_autoindex_authorization_family_grants_1", "pk", "family_id")},
+		{ID: usAuthorityResetSession, SQL: `SELECT 1 FROM reset_file_sessions INDEXED BY sqlite_autoindex_reset_file_sessions_1 WHERE family_id=?`, Params: []stmt.Param{text("family")}, Plan: point("reset_file_sessions", "sqlite_autoindex_reset_file_sessions_1", "pk", "family_id")},
 		{ID: usAuthorityWaiting, SQL: `SELECT 1 FROM identity_move_waiting INDEXED BY sqlite_autoindex_identity_move_waiting_1 WHERE account_id=? AND state='waiting'`, Params: []stmt.Param{text("account")}, Plan: point("identity_move_waiting", "sqlite_autoindex_identity_move_waiting_1", "pk", "account_id")},
 		{ID: usAuthorityFence, SQL: `SELECT 1 FROM authorization_family_security_fences AS w
 CROSS JOIN identity_security_fences AS s ON s.id=w.fence_id AND s.scope_kind=w.scope_kind
@@ -89,6 +91,7 @@ AND s.denied=0 AND w.confirmed_generation=s.generation`, Params: []stmt.Param{te
 		usAuthorityDevice:        {"issuer-device", "issuer", "issuer-installation"},
 		usAuthorityInstallation:  {"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "cccccccccccccccccccccccccccccccc"},
 		usAuthorityGrant:         {"issuer-family"},
+		usAuthorityResetSession:  {"issuer-family"},
 		usAuthorityWaiting:       {"issuer"},
 		usAuthorityFence:         {"issuer-family", "device", "issuer", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", "", "issuer-device", ""},
 	}
