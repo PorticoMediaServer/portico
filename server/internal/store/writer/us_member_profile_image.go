@@ -3,6 +3,7 @@ package writer
 import (
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -62,6 +63,12 @@ func (USMemberProfileImage) GoString() string { return "[member profile image re
 func (USMemberProfileImage) Format(f fmt.State, _ rune) {
 	_, _ = f.Write([]byte("[member profile image redacted]"))
 }
+func (USMemberProfileImage) MarshalJSON() ([]byte, error) {
+	return []byte(`"[member profile image redacted]"`), nil
+}
+func (USMemberProfileImage) LogValue() slog.Value {
+	return slog.StringValue("[member profile image redacted]")
+}
 
 func (USMemberProfileRestrictionsImage) String() string {
 	return "[member profile restrictions image redacted]"
@@ -72,6 +79,12 @@ func (USMemberProfileRestrictionsImage) GoString() string {
 func (USMemberProfileRestrictionsImage) Format(f fmt.State, _ rune) {
 	_, _ = f.Write([]byte("[member profile restrictions image redacted]"))
 }
+func (USMemberProfileRestrictionsImage) MarshalJSON() ([]byte, error) {
+	return []byte(`"[member profile restrictions image redacted]"`), nil
+}
+func (USMemberProfileRestrictionsImage) LogValue() slog.Value {
+	return slog.StringValue("[member profile restrictions image redacted]")
+}
 
 func (USMemberProfileAvatarImage) String() string {
 	return "[member profile avatar image redacted]"
@@ -81,6 +94,12 @@ func (USMemberProfileAvatarImage) GoString() string {
 }
 func (USMemberProfileAvatarImage) Format(f fmt.State, _ rune) {
 	_, _ = f.Write([]byte("[member profile avatar image redacted]"))
+}
+func (USMemberProfileAvatarImage) MarshalJSON() ([]byte, error) {
+	return []byte(`"[member profile avatar image redacted]"`), nil
+}
+func (USMemberProfileAvatarImage) LogValue() slog.Value {
+	return slog.StringValue("[member profile avatar image redacted]")
 }
 
 // Clone takes ownership of every mutable container and string backing without
