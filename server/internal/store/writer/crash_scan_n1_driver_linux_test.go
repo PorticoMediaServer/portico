@@ -18,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
 // These are real public N1 path process-crash controls over W/SC's merged
@@ -370,7 +372,7 @@ func n1DriverExpectedResult(source n1DriverCrashSource, journal inventoryCrashJo
 
 func compareN1DriverResult(want, got InventoryResult) error {
 	e := got.Outcome.Evidence
-	if e == nil || e.Purpose != InventoryAccept || e.Commit != CommitSucceeded || e.Policy == nil || e.CommitAttemptedAt == nil || e.CommitReturnedAt == nil || e.PhysicalReturnedAt == nil {
+	if e == nil || e.Purpose != InventoryAccept || e.Class != governor.ScanMinimum || e.Durability != Normal || e.ReturnedAt.IsZero() || e.Commit != CommitSucceeded || e.Policy == nil || e.CommitAttemptedAt == nil || e.CommitReturnedAt == nil || e.PhysicalReturnedAt == nil {
 		return errors.New("N1 public return lacks actual frame evidence")
 	}
 	got.Outcome.Evidence = nil // actual per-call frame evidence is output, not immutable result data
@@ -440,7 +442,7 @@ func n1DriverEqual(name string, got, want any) error {
 func checkN1DriverCommitted(ctx context.Context, reader inventoryCrashReader, source n1DriverCrashSource) (inventoryCrashJournal, error) {
 	in, b := source.Input, source.Baseline
 	var zero inventoryCrashJournal
-	if b.RunRevision != in.RunRevision || b.ClockMS != in.ClockMS || in.LastSequence+1 != in.IdentitySequence || in.AcknowledgedSequence != in.LastSequence {
+	if in.SourceFollowSymlinks || b.RunRevision != in.RunRevision || b.ClockMS != in.ClockMS || in.LastSequence+1 != in.IdentitySequence || in.AcknowledgedSequence != in.LastSequence {
 		return zero, fmt.Errorf("N1 baseline/original command disagreement: %+v %+v", in, b)
 	}
 	identity, request, err := n1DriverIdentity(in)
@@ -480,6 +482,23 @@ func checkN1DriverCommitted(ctx context.Context, reader inventoryCrashReader, so
 		return zero, fmt.Errorf("N1 receipt header changed: got %+v, want %+v", journal.Header, wantHeader)
 	}
 	if err := checkN1DriverEffects(ctx, reader, in, b, child, journal); err != nil {
+		return zero, err
+	}
+	// Everything outside the explicitly modeled N1 write set is immutable.
+	// This checks real native state, never a candidate-supplied mutation list.
+	current, err := n1DriverCheckpoint(ctx, reader)
+	if err != nil {
+		return zero, err
+	}
+	unchanged := make(map[string][32]byte, len(source.Initial))
+	for name, digest := range source.Initial {
+		unchanged[name] = digest
+	}
+	for _, name := range strings.Fields(`catalog_subjects catalog_identities catalog_assets catalog_entities catalog_asset_links inventory_objects catalog_scalar_contributions catalog_asset_contributions scan_command_receipts scan_command_results search_publish_jobs catalog_age_item_counts inventory_directories jobs inventory_runs libraries library_sources catalog_membership_clock search_revision search_generations`) {
+		delete(unchanged, name)
+		delete(current, name)
+	}
+	if err := compareN1DriverCheckpoint(unchanged, current); err != nil {
 		return zero, err
 	}
 	return journal, nil
@@ -609,6 +628,8 @@ func checkN1DriverEffects(ctx context.Context, reader inventoryCrashReader, in n
  age_pending_operations FROM libraries WHERE id=?`,
 			[]any{b.LibraryData + 1, b.LibraryOrder + 1, b.LibraryMetadata + 1, b.LibraryAgeInput + 1, agePublished, b.LibraryAgePending},
 			[]any{in.LibraryKey}},
+		{"source original", `SELECT library_id,generation,incarnation,root_identity,root,follow_symlinks,kind,classification,enabled,identity_confirmed,health,remote_source_id FROM library_sources WHERE id=?`,
+			[]any{in.LibraryKey, in.SourceGeneration, in.SourceIncarnation, in.SourceRootIdentity, in.SourceResolvedRoot, int64(0), "local", "local", int64(1), int64(1), "ready", nil}, []any{in.SourceID}},
 		{"progress", `SELECT progress_present,progress_last_progress_at FROM library_sources WHERE id=?`,
 			[]any{int64(1), addedAt}, []any{in.SourceID}},
 		{"membership", `SELECT sequence FROM catalog_membership_clock WHERE singleton=1`, []any{b.Membership + 1}, nil},
@@ -889,11 +910,9 @@ func closeN1DriverCrashFixture(t *testing.T, d *ScanDriver) {
 	if err := d.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if d.opening != nil {
-		if err := d.opening.close(); err != nil {
-			t.Fatal(err)
-		}
-	}
+	// The actual checkpoint fixture owns the keeper and opening. Its registered
+	// cleanup admits/joins keeper shutdown before the final opening close;
+	// asking the opening to close here must refuse while that keeper is live.
 }
 
 // TestCrashReplayN1DriverPublicPath executes the actual merged public N1
@@ -988,9 +1007,11 @@ func TestCrashN1DriverOracleRejectsCorruption(t *testing.T) {
 	source := n1DriverCrashSource{Input: n1DriverInputFrom(c)}
 	source.Input.ClockMS = clock.UnixMilli()
 	source.Baseline = n1DriverCaptureBaseline(t, t.Context(), e.db, source.Input)
-	if _, err := n1DriverCheckpoint(t.Context(), e.db); err != nil {
+	initial, err := n1DriverCheckpoint(t.Context(), e.db)
+	if err != nil {
 		t.Fatal(err)
 	}
+	source.Initial = initial
 	// Same frozen clock as the crash cells, so the independently expected
 	// AppliedMS is the actual commit value rather than a later wall reading.
 	witness := crashWitness{Case: crashCase{Domain: "wc_n1_driver", Operation: "accept", Boundary: "trace"}}
