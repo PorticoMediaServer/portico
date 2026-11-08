@@ -2,8 +2,11 @@ package writer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -343,6 +346,88 @@ func TestCrashReplayScanIssuer(t *testing.T) {
 					})
 				}
 			}
+		})
+	}
+}
+
+func TestScanIssuerCrashCorruption(t *testing.T) {
+	for _, control := range []struct{ action, name, sql string }{
+		{"create", "receipt_digest", `UPDATE scan_command_receipts SET result_digest=zeroblob(32) WHERE run_id=?`},
+		{"create", "immutable_source", `UPDATE inventory_runs SET root_incarnation='wrong-original' WHERE job_id=?`},
+		{"ack", "retained_payload", `UPDATE scan_command_receipts SET result_root_revision='wrong-saved-root' WHERE run_id=?`},
+	} {
+		t.Run(control.name, func(t *testing.T) {
+			witness := crashWitness{Case: crashCase{"scan_issuer", control.action, "trace", ""}}
+			f, source := crashScanIssuerFixture(t, &witness)
+			defer closeScanCrashFixture(t, f)
+			want, _, err := expectedScanIssuer(source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e := f.driver.opening.executor
+			if _, err := e.db.ExecContext(t.Context(), control.sql, source.Reference.Scan.RunID); err != nil {
+				t.Fatal(err)
+			}
+			actual, err := readEffectiveJournal(t.Context(), e.db, scanIssuerPreparedCrashTables)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if compareEffectiveJournal(want, actual) == nil {
+				t.Fatal("scan oracle accepted native corruption")
+			}
+		})
+	}
+}
+
+func TestScanIssuerCrashMutants(t *testing.T) {
+	if os.Getenv("PORTICO_LANE_EVIDENCE_DIR") == "" {
+		t.Skip("explicit hosted production-mutant proof")
+	}
+	for _, m := range []struct{ name, file, old, new, action, reason string }{
+		{"return_only", "scan_issuer_api.go", "r.read = true", "if os.Getenv(\"PORTICO_CRASH_CASE\") != \"\" {value.LeaseOwner++}; r.read = true", "create", "complete scan issuer return differs"},
+		{"saved_digest", "scan_run_lifecycle.go", "args := []any{r.scope.runID", "if os.Getenv(\"PORTICO_CRASH_CASE\") != \"\" {in.digest[0]++}; args := []any{r.scope.runID", "create", "scan issuer raw journal differs"},
+		{"ack_domain", "scan_receipts.go", "return definitions", "if os.Getenv(\"PORTICO_CRASH_CASE\") != \"\" { for i := range definitions { if definitions[i].ID == scanReceiptAck { definitions[i].SQL = strings.Replace(definitions[i].SQL, \"SET acknowledged_command_sequence=?\", \"SET acknowledged_command_sequence=?,discovered=discovered+1\", 1) } } }; return definitions", "ack", "scan issuer raw journal differs"},
+	} {
+		t.Run(m.name, func(t *testing.T) {
+			data, err := os.ReadFile(m.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Count(string(data), m.old) != 1 {
+				t.Fatal("mutant source changed", m.file)
+			}
+			mutant := strings.Replace(string(data), m.old, m.new, 1)
+			if m.file == "scan_receipts.go" {
+				mutant = strings.Replace(mutant, "import \"github.com/PorticoMediaServer/portico/server/internal/store/stmt\"", "import (\"github.com/PorticoMediaServer/portico/server/internal/store/stmt\";\"strings\";\"os\")", 1)
+			} else {
+				mutant = strings.Replace(mutant, "import (", "import (\n\"os\"", 1)
+			}
+			root := t.TempDir()
+			replacement := filepath.Join(root, "mutant.go")
+			if err := os.WriteFile(replacement, []byte(mutant), 0600); err != nil {
+				t.Fatal(err)
+			}
+			original, err := filepath.Abs(m.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			overlayData, err := json.Marshal(map[string]any{"Replace": map[string]string{original: replacement}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			overlay := filepath.Join(root, "overlay.json")
+			if err := os.WriteFile(overlay, overlayData, 0600); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "go", "test", "-overlay", overlay, "-p", "2", "-parallel", "2", "-count=1", "-timeout=2m", "-run", "^TestCrashReplayScanIssuer$/^"+m.action+"$/^api_return$", ".")
+			cmd.Env = append(os.Environ(), "TMPDIR="+root, "GOTMPDIR="+root)
+			output, err := cmd.CombinedOutput()
+			if err == nil || ctx.Err() != nil || !strings.Contains(string(output), m.reason) || !strings.Contains(string(output), "TestCrashReplayChild") || strings.Contains(string(output), "[build failed]") {
+				t.Fatalf("mutant escaped intended child check: %v\n%s", err, output)
+			}
+			t.Log("rejected production mutation at child semantic check:", m.reason)
 		})
 	}
 }
