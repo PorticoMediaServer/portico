@@ -211,10 +211,10 @@ func newCheckpointComponentAt(t *testing.T, path string, keep, real bool, select
 		cfg.Partitions[i] = governor.Amounts{governor.Reader: 4, governor.MemoryBytes: 32 << 20, governor.CPUMilli: 4000, governor.IOBytes: 4 * f.policy.HardBytes, governor.WALBytes: 64 << 20}
 	}
 	if batch {
-		for i := range cfg.Partitions {
-			cfg.Partitions[i][governor.WALBytes] = inventoryBatchWALBytes
-			cfg.Partitions[i][governor.IOBytes] = inventoryBatchIOBytes
-		}
+		// Enlarge only the scan writer's unit. Recovery independently keeps
+		// startup/CP plus the nonborrowable shutdown floor (4 * HardBytes IO).
+		cfg.Partitions[governor.ScanMinimum][governor.WALBytes] = inventoryBatchWALBytes
+		cfg.Partitions[governor.ScanMinimum][governor.IOBytes] = inventoryBatchIOBytes
 	}
 	if screening {
 		live := readfixture.LiveConfig(f.now)
