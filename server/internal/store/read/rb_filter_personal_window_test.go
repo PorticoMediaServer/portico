@@ -9,6 +9,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
@@ -103,7 +104,29 @@ func TestRBPersonalTitleWindowFreshState(t *testing.T) {
 			t.Fatal("unversioned personal drift escaped", got, err)
 		}
 		savedViewSameDeadline(t, hook)
+		f.reader.snapshots = f.snapshots
+		empty, _, err := rbPersonalWindowRead(t, f, in)
+		if err != nil || len(empty.Items) != 0 || empty.Exhausted || empty.After == nil || empty.RawPositions != 64 {
+			t.Fatal("filtered empty batch lost raw continuation or used another profile", empty, err)
+		}
 	})
+}
+
+func TestRBPersonalTitleBytesBeforePayload(t *testing.T) {
+	s := &savedViewSession{copyLimit: 4 << 20, nativeLimit: 2 << 20}
+	in := PersonalTitleFilterInput{View: BrowseInput{Library: 1, Kind: 1}}
+	calls := 0
+	q := func(name string, args ...any) ([][]any, error) {
+		calls++
+		if calls != 1 || name != "rb.filter.personal.title.ignore.asc.first.bytes" {
+			t.Fatal("unfunded payload was requested", name)
+		}
+		return [][]any{{int64(1), int64(1), int64(3 << 20)}}, nil
+	}
+	rows, err := readRBPersonalTitleRows(s, q, in, browseFence{profile: "p"})
+	if !errors.Is(err, governor.ErrSnapshotBudget) || rows != nil || calls != 1 {
+		t.Fatal("byte frontier did not refuse before payload", rows, err, calls)
+	}
 }
 
 func TestRBPersonalTitleWindowCursorAndDenial(t *testing.T) {
