@@ -9,12 +9,15 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import socket
+import threading
 import subprocess
 import time
 
 import qual_fixture as q
 import qual_spool as spool
 
+CHECKPOINT_CASES = dict(checkpoint_1mib='1MiB', checkpoint_8mib='8MiB', checkpoint_64mib='64MiB', checkpoint_hardcap='HardCap')
 TARGETS = {
     'inventory_n1': 'TestCanonicalHeldInventoryN1',
     'basic_accept': 'TestCanonicalHeldBasic',
@@ -25,6 +28,7 @@ TARGETS = {
     'publisher_fragment': 'TestCanonicalHeldPublisherFragment',
     'publisher_flip': 'TestCanonicalHeldPublisherFlip',
 }
+TARGETS.update({key:'TestDiagnosticConcurrentKeeper/'+case for key,case in CHECKPOINT_CASES.items()})
 COMPATIBILITY_PATHS = [
     'server/go.mod', 'server/go.sum', 'server/internal/store/schema/schema.sql',
     'server/internal/store/writer/qualification_population_seed_test.go',
@@ -43,13 +47,16 @@ def identity(value, name, maximum=20):
 
 
 def inputs(env):
+    purpose=env.get('INPUT_PURPOSE','qualification')
+    q.require(purpose in ('qualification','screening'),'closed purpose required')
     source = env.get('INPUT_SOURCE_COMMIT', '')
     manifest = env.get('INPUT_MANIFEST_SHA256', '')
     name = env.get('INPUT_CLASS', '')
     profile = env.get('PROFILE', '')
     q.require(re.fullmatch(q.COMMIT, source) and re.fullmatch(q.SHA, manifest), 'full source/manifest pins required')
     q.require(name in TARGETS and profile in ('standard', 'legacy8'), 'closed class/profile required')
-    return dict(source=source, manifest=manifest, name=name, profile=profile,
+    q.require(name not in CHECKPOINT_CASES or purpose=='screening','checkpoint components are SCREENING only')
+    return dict(source=source, manifest=manifest, name=name, profile=profile, purpose=purpose,
                 replicate=q.uint(env.get('REPLICATE', ''), 1, 3, 'replicate'),
                 producer_run=identity(env.get('INPUT_PRODUCER_RUN', ''), 'producer run'),
                 producer_attempt=identity(env.get('INPUT_PRODUCER_ATTEMPT', '1'), 'producer attempt', 6),
@@ -88,6 +95,23 @@ def verify_stream(path, cfg, compressed=False):
                 qualification_verdict=None, verdict_reason='Owner raw evidence still needs per-recipe reduction and protocol gates')
 
 
+def verify_checkpoint_stream(path, case):
+    q.regular(path,spool.COMPRESSED_BYTES)
+    count=0
+    with gzip.open(path,'rb') as f:
+        for line in iter(lambda:f.readline((2<<20)+2),b''):
+            q.require(len(line)<=(2<<20)+1,'oversized checkpoint record')
+            if b'GV_KEEPER_CONCURRENT_V1 ' not in line: continue
+            record=json.loads(line.split(b'GV_KEEPER_CONCURRENT_V1 ',1)[1],object_pairs_hook=q.no_duplicates)
+            q.require(record['Cell']==case and record['Kind']=='concurrent','failed/mismatched checkpoint cell')
+            q.require(not record['CheckpointError'] and record['Checkpoint']['Refusal'] is None and record['Checkpoint']['PhysicalSafe'] is True,'failed checkpoint retained')
+            q.require(type(record['CheckpointHoldNS']) is int and record['CheckpointHoldNS']>0,'missing checkpoint hold')
+            count+=1
+            q.require(count<=ATTEMPTS,'excess checkpoint samples')
+    q.require(count==ATTEMPTS,'incomplete checkpoint population')
+    return dict(records=count,case=case,qualification_verdict=None,reason='SCREENING component only; raw maintenance p99 is not a normal-writer/1M gate')
+
+
 def profile_properties(profile):
     q.require(profile in ('standard', 'legacy8'), 'invalid profile')
     return [f'MemoryMax={"infinity" if profile == "standard" else "8589934592"}',
@@ -117,14 +141,14 @@ def prepare(source, artifact, output, work, producer_run):
     q.require(not output.exists() and not work.exists() and source.is_dir() and artifact.is_dir(), 'fresh own output/work required')
     paths = (source, artifact, output, work)
     q.require(not any(a.is_relative_to(b) for a in paths for b in paths if a is not b), 'disjoint task paths required')
-    q.require(os.environ.get('GITHUB_REF') == 'refs/heads/main'
+    q.require((cfg['purpose']=='screening' or os.environ.get('GITHUB_REF') == 'refs/heads/main')
               and os.environ.get('GITHUB_ACTIONS') == 'true'
-              and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'reviewed main tooling on standard runner required')
+              and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'qualification requires main tooling; all runs require standard runner')
     output.mkdir(mode=0o700)
     work.mkdir(mode=0o700)
     report = output
     receipt = dict(version='portico-canonical-class-execution-v1', status='failed', qualification_verdict=None,
-                   declared=cfg, attempts_requested=ATTEMPTS, ordinary_refusal_budget=0,
+                   declared=cfg, execution_purpose=cfg['purpose'], sign_off_eligible=cfg['purpose']=='qualification', attempts_requested=ATTEMPTS, ordinary_refusal_budget=0,
                    run_url=f"https://github.com/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}")
     q.atomic_json(report / 'receipt.json', receipt)
     env = q.clean_env(work)
@@ -221,6 +245,12 @@ def run(launch_path):
                    qualification_verdict=None)
     receipt['raw_spool'] = memory_evidence(work.parent / 'qual-class-memory', work)
     raw = Path(c['output_path'])
+    checkpoint=cfg['name'] in CHECKPOINT_CASES
+    if checkpoint:
+        env.update(PORTICO_GV_NATIVE_TIMING='1',PORTICO_SANDBOX_IO_BYTES_PER_SEC='unrestricted')
+        receipt.update(execution_purpose='screening',sign_off_eligible=False,raw_format='GV_KEEPER_CONCURRENT_V1 verbose records',measured_population_scope='existing GV small component, NOT canonical1M; downloaded seed is unused')
+        q.atomic_json(raw.parent/'engine-path.json',dict(path=spool.cgroup()))
+        os.chown(raw.parent/'engine-path.json',launch['uid'],launch['gid'])
     host_args = [str(host), '-source', cfg['source'], '-archive-sha256', launch['archive_sha256'],
                  '-profile', cfg['profile'], '-replicate', str(cfg['replicate'])]
     try:
@@ -228,12 +258,19 @@ def run(launch_path):
         receipt['host_before'] = json.loads(before.read_text())
         argv = [str(binary), '-test.run=^' + TARGETS[cfg['name']] + '$', '-test.count=1',
                 '-test.timeout=75m', '-test.v', '-canonical-held=true']
+        if checkpoint:
+            argv=[str(binary),'-test.run=^'+TARGETS[cfg['name']]+'$','-test.count='+str(ATTEMPTS),'-test.failfast','-test.timeout=75m','-test.v']
         q.atomic_json(output / 'target.argv.json', dict(argv=argv, uid=launch['uid'], gid=launch['gid']))
         with (output / 'target.log').open('wb') as log:
             receipt['launch_before_monotonic_ns'] = time.monotonic_ns()
-            process = subprocess.Popen(argv, cwd=Path(launch['source']) / 'server/internal/store/writer', env=env,
-                                       stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+            channel = socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) if checkpoint else None
+            if channel is not None: channel.connect(str(raw))
+            try:
+                process = subprocess.Popen(argv, cwd=Path(launch['source']) / 'server/internal/store/writer', env=env,
+                                       stdout=channel if checkpoint else log, stderr=subprocess.STDOUT, start_new_session=True,
                                        user=launch['uid'], group=launch['gid'], extra_groups=[])
+            finally:
+                if channel is not None: channel.close() # child alone owns EOF
             code = None
             try:
                 code = process.wait(timeout=75*60+30)
@@ -251,7 +288,7 @@ def run(launch_path):
                 receipt['raw_capture'] = spool.wait_capture(raw.parent)
         receipt['target_exit_code'] = code
         q.require(code == 0, 'owner target failed; retain every refusal/error/partial record')
-        receipt.update(wire=verify_stream(raw.parent/'raw.ndjson.gz', c, compressed=True), status='owner-execution-complete')
+        receipt.update(wire=verify_checkpoint_stream(raw.parent/'raw.ndjson.gz',CHECKPOINT_CASES[cfg['name']]) if checkpoint else verify_stream(raw.parent/'raw.ndjson.gz', c, compressed=True), status='owner-execution-complete')
     except BaseException as error:
         receipt.update(status='failed', error=f'{type(error).__name__}: {error}')
         raise
@@ -380,7 +417,29 @@ def observe_launch(launch_path):
     argv=['sudo','systemd-run','--unit=portico-canonical-class','--wait','--pipe','--collect']
     for prop in profile_properties(launch['cfg']['profile']): argv.append('--property='+prop)
     argv += ['/usr/bin/python3','-B',str(Path(__file__).resolve()),'run','--launch',str(launch_path)]
-    code=spool.observe(root, lambda: subprocess.run(argv, check=False, timeout=82*60).returncode)
+    stop=threading.Event()
+    sampler=threading.Thread(target=spool.timeline,args=(root,stop),daemon=True) if launch['cfg']['name'] in CHECKPOINT_CASES else None
+    if sampler: sampler.start()
+    try:
+        code=spool.observe(root, lambda: subprocess.run(argv, check=False, timeout=82*60).returncode)
+    finally:
+        if sampler:
+            stop.set();sampler.join(timeout=30)
+            q.require(not sampler.is_alive(),'timeline observer unjoined')
+            retired_unit()
+            for name in ('timeline.jsonl.gz','timeline.json','engine-path.json'):
+                source=root/name
+                if source.exists():
+                    target=Path(launch['output'])/name
+                    shutil.copyfile(source,target)
+                    q.require(q.file_hash(source)==q.file_hash(target),'timeline persistence mismatch')
+                    source.unlink()
+    if sampler:
+        timeline=json.loads((Path(launch['output'])/'timeline.json').read_text())
+        if not timeline.get('complete'):
+            receipt=Path(launch['output'])/'receipt.json'
+            r=json.loads(receipt.read_text());r.update(status='failed',timeline_error=timeline.get('error'),qualification_verdict=None);q.atomic_json(receipt,r)
+        q.require(timeline.get('complete') is True,'checkpoint timeline incomplete; prefix retained')
     q.require(code==0, 'engine cell failed; compressed evidence retained')
 
 

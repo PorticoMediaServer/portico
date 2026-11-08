@@ -157,3 +157,34 @@ external cgroup placement, close/round-trip and cleanup with a tiny synthetic
 stream, never SQLite or qualification. Focused controls cover cap overflow,
 round-trip mismatch, same-cgroup rejection and unchanged JSON/null/zero content.
 No command budgets, per-record fields, SQLite policy or runtime enforcement change.
+
+
+## Early SCREENING and checkpoint components
+
+Set `purpose=screening` for early failure discovery, never sign-off. A pushed
+tooling branch is allowed only in this mode; workload source must still be a
+merged main SHA. Default qualification remains main-tooling-only. Purpose is
+explicit in run names/receipts. Bounds, source/schema/engine checks and both
+six-VM hardware profiles stay unchanged. Earlier dispatches made before this
+input existed are labelled by their external QL dispatch receipt/report.
+
+`checkpoint_1mib`, `checkpoint_8mib`, `checkpoint_64mib`, and
+`checkpoint_hardcap` invoke the existing merged GV `TestDiagnosticConcurrentKeeper`
+case with `-test.count=10000 -test.failfast`. Each iteration creates its original
+component fixture; no same-owner reset/retry or new SQL is added. These fixtures
+are SMALL physical-frame components, NOT a canonical1M catalogue (the downloaded
+seed is unused). They retain the existing eight-grant component config and
+192MiB hard/16MiB reserve/64MiB soft debt/96MiB pressure; no N1/publisher profile
+claim. IO is truthfully declared unrestricted on standard runners, distinct from
+the capped Netcup comparison. Hard-prefix preparation can hit the fixed75min
+test limit; retain the incomplete prefix, never replace it or invent10k samples.
+
+Verbose GV records stream through the external capped gzip observer. Native
+checkpoint HOLDs remain separate from writer holds and recovery. A 10ms external
+host+actual-engine timeline retains raw vmstat/meminfo/IO PSI/memory.stat/io.stat,
+actual page bytes, timestamps/gaps and unavailable reasons; no missing zeroes or
+OS attribution. It is closed and copied after unit drain. All checkpoint runs
+are SCREENING with sign_off_eligible=false; normal EC1 thresholds are not a
+maintenance gate. Per-record raw fields, native policies and fixture limits are
+unchanged. Screening reports empirical p99 only for a complete10k cell; short
+prefixes keep N/max/errors and withhold a qualified quantile.
