@@ -47,6 +47,7 @@ type crashWitness struct {
 	Saved            EffectiveStageBeginResult
 	InventoryJournal *inventoryCrashJournal // raw pre-COMMIT observation, never a writer result
 	FreshIdentity    *freshCrashIdentity
+	N1Driver         *n1DriverCrashSource
 	Unknown          bool
 
 	HistoryState map[string][32]byte
@@ -261,6 +262,10 @@ func TestCrashReplayChild(t *testing.T) {
 	}
 	if witness.Case.Domain == "inventory_fresh_component" {
 		crashFreshInventoryChild(t, &witness)
+		return
+	}
+	if witness.Case.Domain == "wc_n1_driver" {
+		crashN1DriverFixture(t, &witness)
 		return
 	}
 	if witness.Case.Domain == "inventory_native" {

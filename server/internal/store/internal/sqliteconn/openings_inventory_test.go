@@ -33,6 +33,7 @@ var openingConstraints = map[string]string{
 	"writer/crash_effective_steps_linux_test.go": "", // implicit _linux suffix; native-step SIGKILL/reopen controls are Linux-only
 	"writer/crash_replay_linux_test.go":          "", // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
 	"writer/crash_inventory_fresh_linux_test.go": "", // implicit _linux suffix; fresh SIGKILL component uses the Linux harness
+	"writer/crash_scan_n1_driver_linux_test.go":  "", // implicit _linux suffix; merged N1 public-path SIGKILL/reopen controls
 	"qual/namespace_other.go":                    "//go:build !linux",
 	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
 	"governor/snapshot_binding_counters_test.go": "//go:build memory.counters && !libc.memgrind",
