@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -32,11 +33,15 @@ type rsCollectionNode struct {
 
 // CollectionPreparation is caller-owned typed ephemeral work under RB's F-04
 // lease. It has no worker, queue, SQL handle, durable projection or renewal.
-// Trusted composition serializes Advance/Detail/Artwork/Close and keeps the job
-// context alive between polls; an HTTP poll context must not own the job
-// lifetime. A borrowed child shares an enclosing lease and never retires,
-// readies or hands off its parent's reservation.
+// Advance/Detail/Artwork/Close serialize on this job's mutex, so a lease-expiry,
+// cancel or handler goroutine cannot retire the lease twice or clear retained
+// storage mid-enumeration; the caller still keeps the job context alive between
+// polls and an HTTP poll context must not own the job lifetime. Detail and
+// Artwork each close the preparation themselves (a detail page with art needs a
+// second enumeration). A borrowed child shares an enclosing lease and never
+// retires, readies or hands off its parent's reservation.
 type CollectionPreparation struct {
+	mu            sync.Mutex
 	borrowed      bool
 	started       time.Time
 	owner         governor.OwnerID
@@ -102,8 +107,20 @@ func (p *CollectionPreparation) Deadline() time.Time {
 
 // Close drops every retained value before attesting physical retirement. Output
 // values already copied into BrowseOutput are independently admitted custody.
+// The mutex makes the exactly-once cancel/retire and the teardown of retained
+// storage linear with Advance/Detail/Artwork and with another Close.
 func (p *CollectionPreparation) Close() error {
-	if p == nil || p.closed {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.closeLocked()
+}
+
+// closeLocked is Close for callers that already hold p.mu.
+func (p *CollectionPreparation) closeLocked() error {
+	if p.closed {
 		return nil
 	}
 	p.closed = true
@@ -153,6 +170,11 @@ func (p *CollectionPreparation) rootRead(q browseQuery) ([]any, error) {
 // exact order. Hidden, retired and cross-library rows still consume a raw
 // position and advance the cursor; they never terminate the complete count.
 func (p *CollectionPreparation) Advance(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput) (CollectionAdvance, BrowseReadResult, error) {
+	if p == nil {
+		return CollectionAdvance{}, BrowseReadResult{}, ErrInput
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if err := p.check(output, request); err != nil {
 		return CollectionAdvance{}, BrowseReadResult{}, err
 	}
@@ -161,9 +183,10 @@ func (p *CollectionPreparation) Advance(ctx context.Context, request governor.Re
 	})
 }
 
+// advance is the retained-state quantum for Advance, which holds p.mu across it.
 func (p *CollectionPreparation) advance(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, at time.Time) (CollectionAdvance, BrowseReadResult, error) {
 	if err := p.check(output, request); err != nil {
-		_ = p.Close()
+		_ = p.closeLocked()
 		return CollectionAdvance{}, BrowseReadResult{}, err
 	}
 	if p.ready {
@@ -283,13 +306,13 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 		err = p.authority.CheckPreparation(p.lease)
 	}
 	if err != nil {
-		_ = p.Close()
+		_ = p.closeLocked()
 		return CollectionAdvance{}, cost, err
 	}
 	// Admission covers the worst case BEFORE mutating retained storage. Refuse
 	// conservatively rather than truncating the exact answer.
 	if rsCollectionMetadataBytes(p.in, c, fence, source) > rsCollectionMetaBytes || len(accepted) > cap(p.nodes)-len(p.nodes) {
-		_ = p.Close()
+		_ = p.closeLocked()
 		return CollectionAdvance{}, cost, governor.ErrSnapshotBudget
 	}
 	p.nodes = append(p.nodes, accepted...)
@@ -300,7 +323,7 @@ func (p *CollectionPreparation) advance(ctx context.Context, request governor.Re
 	if c.stage == rsCollectionDone {
 		if !p.borrowed {
 			if err = p.authority.ReadyPreparation(p.lease); err != nil {
-				_ = p.Close()
+				_ = p.closeLocked()
 				return CollectionAdvance{}, cost, err
 			}
 		}
@@ -360,14 +383,21 @@ type CollectionDetail struct {
 
 // Detail performs the first ready handoff under the ORIGINAL preparation
 // lease. Preparing work cannot return a successful exact response. Caller
-// retains separately admitted output through encoding and client IO.
+// retains separately admitted output through encoding and client IO. Detail
+// closes the preparation even when it fails; a page with art starts a second
+// preparation, because Artwork also consumes and closes the first one.
 func (p *CollectionPreparation) Detail(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, after *CollectionDetailCursor) (CollectionDetail, BrowseReadResult, error) {
+	if p == nil {
+		return CollectionDetail{}, BrowseReadResult{}, ErrInput
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	offset := 0
 	if after != nil {
 		offset = after.offset
 	}
 	if err := p.check(output, request); err != nil {
-		_ = p.Close()
+		_ = p.closeLocked()
 		return CollectionDetail{}, BrowseReadResult{}, err
 	}
 	if p.borrowed || !p.ready || offset < 0 || offset > len(p.nodes) {
@@ -375,16 +405,17 @@ func (p *CollectionPreparation) Detail(ctx context.Context, request governor.Req
 	}
 	return liveRead(ctx, request, budget, output, p.reader.pool, p.in.View.Now.Add(time.Since(p.started)), func(ctx context.Context, r governor.Request, b time.Duration, at time.Time) (CollectionDetail, BrowseReadResult, error) {
 		if after != nil && (p.fence == nil || !rsCollectionSameFence(after.fence, *p.fence) || !equalSource(after.source, p.source) || after.collection != p.in.Collection || after.proof != p.proof) {
-			_ = p.Close()
+			_ = p.closeLocked()
 			return CollectionDetail{}, BrowseReadResult{}, ErrStale
 		}
 		return p.detail(ctx, r, b, output, offset, at)
 	})
 }
 
+// detail is the retained-state delivery for Detail, which holds p.mu across it.
 func (p *CollectionPreparation) detail(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, offset int, at time.Time) (CollectionDetail, BrowseReadResult, error) {
 	if err := p.check(output, request); err != nil {
-		_ = p.Close()
+		_ = p.closeLocked()
 		return CollectionDetail{}, BrowseReadResult{}, err
 	}
 	if p.borrowed || !p.ready || offset < 0 || offset > len(p.nodes) {
@@ -489,10 +520,10 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 		err = p.authority.HandoffPreparation(p.lease)
 	}
 	if err != nil {
-		_ = p.Close()
+		_ = p.closeLocked()
 		return CollectionDetail{}, cost, err
 	}
-	if err = p.Close(); err != nil {
+	if err = p.closeLocked(); err != nil {
 		return CollectionDetail{}, cost, err
 	}
 	return d, cost, nil
@@ -500,8 +531,15 @@ func (p *CollectionPreparation) detail(ctx context.Context, request governor.Req
 
 // Artwork delivers one collection art fact only after complete member reduction
 // proves the root eligible. The same source footprint remains charged through
-// its fresh art/source publication; output then owns the copied fact.
+// its fresh art/source publication; output then owns the copied fact. Like
+// Detail, Artwork closes the preparation, so a page that needs both runs a
+// second complete enumeration for its art.
 func (p *CollectionPreparation) Artwork(ctx context.Context, request governor.Request, budget time.Duration, out BrowseOutput, role string, pageSlot bool) (ArtworkFact, BrowseReadResult, error) {
+	if p == nil {
+		return ArtworkFact{}, BrowseReadResult{}, ErrInput
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if err := p.check(out, request); err != nil {
 		return ArtworkFact{}, BrowseReadResult{}, err
 	}
@@ -519,7 +557,7 @@ func (p *CollectionPreparation) Artwork(ctx context.Context, request governor.Re
 	if err == nil {
 		err = p.authority.HandoffPreparation(p.lease)
 	}
-	closeErr := p.Close()
+	closeErr := p.closeLocked()
 	if err != nil {
 		return ArtworkFact{}, cost, err
 	}
