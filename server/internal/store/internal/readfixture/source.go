@@ -3,6 +3,7 @@
 package readfixture
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	_ "embed"
@@ -10,12 +11,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/schematest"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
@@ -38,7 +41,17 @@ type browseFixture struct {
 	conn                *sql.Conn
 	db                  *sql.DB
 	facts               []browseFact
+	credit              *creditAttachment
+	creditReceipt       CreditReceipt
 	closed              bool
+}
+
+// creditAttachment is set only when the attached database already owns a
+// credit dictionary or credit image rows. The unchanged standalone journal then
+// runs against resolved ids instead of its literal reserved ones.
+type creditAttachment struct {
+	labels  map[int64]int64 // fixture id -> actual catalog_credit_labels.id
+	imageID int64
 }
 type Fact struct {
 	ID        int64
@@ -47,6 +60,54 @@ type Fact struct {
 	Age       *int64
 }
 type Source struct{ source *browseFixture }
+
+// Credit label/image collisions are refusals, never repair. A paired canonical
+// search artifact may already own reserved ids; the fixture then reuses an
+// exact label identity or allocates a fresh one, and never changes a meaning.
+var ErrCreditLabelCollision = errors.New("readfixture: catalog credit label collision")
+
+// ErrSearchBankStale means a search bank present in the attached database no
+// longer describes its current catalogue source rows or engine/fingerprint.
+var ErrSearchBankStale = errors.New("readfixture: search bank does not match the catalogue")
+
+// CreditLabelCollisionError names the reserved id whose meaning differs.
+type CreditLabelCollisionError struct {
+	ID       int64
+	Existing string
+	Required string
+}
+
+func (e *CreditLabelCollisionError) Error() string {
+	return fmt.Sprintf("readfixture: catalog_credit_labels id %d is %q, fixture requires %q", e.ID, e.Existing, e.Required)
+}
+func (e *CreditLabelCollisionError) Unwrap() error { return ErrCreditLabelCollision }
+
+// SearchBankStaleError names the source witness that no longer matches.
+type SearchBankStaleError struct{ Reason string }
+
+func (e *SearchBankStaleError) Error() string {
+	return "readfixture: search bank stale: " + e.Reason
+}
+func (e *SearchBankStaleError) Unwrap() error { return ErrSearchBankStale }
+
+// CreditResolution is one fixture label id resolved into the attached database.
+type CreditResolution struct {
+	FixtureID int64
+	Label     string
+	ActualID  int64
+	Inserted  bool
+}
+
+// CreditReceipt records the exact dictionary identity the attached fixture
+// used. It is not authority, a repair or a production credit semantic.
+type CreditReceipt struct {
+	Resolutions        []CreditResolution
+	CreditImageID      int64
+	DictionarySHA256   string
+	JournalSeededLabel bool
+}
+
+func (s *Source) CreditReceipt() CreditReceipt { return s.source.creditReceipt }
 
 func (s *Source) TemporalOrigin() time.Time { return s.source.temporalOrigin }
 func (s *Source) Path() string              { return s.source.path }
@@ -78,20 +139,42 @@ var attachment struct {
 	source *browseFixture
 }
 
+// ForegroundOn is the fatal convenience form of AttachForegroundOn.
 func ForegroundOn(t *testing.T, path string, conn *sql.Conn, existingLibraryKeys ...string) *Source {
 	t.Helper()
+	source, err := AttachForegroundOn(t, path, conn, existingLibraryKeys...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return source
+}
+
+// AttachForegroundOn attaches the unchanged foreground journal to an existing
+// owned database. A paired canonical search artifact may already contain a
+// credit dictionary and search bank; this entry point refuses a stale bank and
+// resolves the credit collision by exact label identity before seeding. It
+// never deletes/overwrites an existing row and never changes a label's meaning.
+func AttachForegroundOn(t *testing.T, path string, conn *sql.Conn, existingLibraryKeys ...string) (*Source, error) {
+	t.Helper()
 	if conn == nil || path == "" {
-		t.Fatal("missing owned fixture attachment")
+		return nil, errors.New("missing owned fixture attachment")
 	}
 	if len(existingLibraryKeys) > 1 || (len(existingLibraryKeys) == 1 && existingLibraryKeys[0] != "qualification-movies") {
-		t.Fatal("closed canonical foreground library attachment required")
+		return nil, errors.New("closed canonical foreground library attachment required")
+	}
+	if err := verifySearchBankCatalogue(t.Context(), conn); err != nil {
+		return nil, err
+	}
+	credit, receipt, err := resolveCreditDictionary(t.Context(), conn)
+	if err != nil {
+		return nil, err
 	}
 	origin := time.Now().UTC()
-	f := &browseFixture{existingLibraryKeys: append([]string(nil), existingLibraryKeys...), path: path, conn: conn, borrowed: true, sharedMovieKind: true, temporalOrigin: origin, temporalShift: origin.Sub(time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC))}
+	f := &browseFixture{existingLibraryKeys: append([]string(nil), existingLibraryKeys...), path: path, conn: conn, borrowed: true, sharedMovieKind: true, temporalOrigin: origin, temporalShift: origin.Sub(time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC)), credit: credit, creditReceipt: receipt}
 	attachment.Lock()
 	if attachment.owner != nil {
 		attachment.Unlock()
-		t.Fatal("fixture attachment already owned")
+		return nil, errors.New("fixture attachment already owned")
 	}
 	attachment.owner, attachment.source = t, f
 	attachment.Unlock()
@@ -102,8 +185,155 @@ func ForegroundOn(t *testing.T, path string, conn *sql.Conn, existingLibraryKeys
 		}
 		attachment.Unlock()
 	}()
-	return &Source{newForegroundSource(t)}
+	return &Source{newForegroundSource(t)}, nil
 }
+
+// verifySearchBankCatalogue refuses a bank that no longer describes the
+// catalogue rows it indexes, or that was built for another engine/fingerprint.
+// A database with no search publications is the ordinary foreground fixture and
+// is left alone.
+func verifySearchBankCatalogue(ctx context.Context, conn *sql.Conn) error {
+	var present bool
+	if err := conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM search_publications)`).Scan(&present); err != nil {
+		return err
+	}
+	if !present {
+		return nil
+	}
+	profile := searchpolicy.Compiled()
+	var recipe, engine, fingerprint, state string
+	var pending, indexedRows, indexedBytes int64
+	err := conn.QueryRowContext(ctx, `SELECT recipe_version,engine_version,unicode_fingerprint,state,pending_subjects,indexed_rows,indexed_bytes FROM search_generations WHERE id=1 AND bank_key='v1'`).Scan(&recipe, &engine, &fingerprint, &state, &pending, &indexedRows, &indexedBytes)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &SearchBankStaleError{Reason: "one v1 generation is required"}
+	}
+	if err != nil {
+		return err
+	}
+	if recipe != profile.RecipeVersion || engine != profile.EngineVersion || fingerprint != profile.UnicodeFingerprint {
+		return &SearchBankStaleError{Reason: "engine/fingerprint differs from the compiled search profile"}
+	}
+	if state != "active" || pending != 0 {
+		return &SearchBankStaleError{Reason: fmt.Sprintf("generation state=%q pending=%d", state, pending)}
+	}
+	var entityMismatch, personMismatch, missingEntity, missingPerson, publications, fragments int64
+	if err := conn.QueryRowContext(ctx, `SELECT
+ (SELECT count(*) FROM search_publications p LEFT JOIN catalog_entities e ON e.id=p.entity_id
+  WHERE p.entity_id IS NOT NULL AND (e.id IS NULL OR p.title<>e.title OR p.library_id<>e.library_id OR p.kind<>e.kind OR p.source_revision<>e.revision OR p.source_incarnation<>e.metadata_incarnation)),
+ (SELECT count(*) FROM search_publications p LEFT JOIN catalog_people q ON q.id=p.person_id
+  WHERE p.person_id IS NOT NULL AND (q.id IS NULL OR p.title<>q.name OR p.source_revision<>q.revision OR p.source_incarnation<>q.search_incarnation)),
+ (SELECT count(*) FROM catalog_entities e WHERE e.retired=0 AND NOT EXISTS (SELECT 1 FROM search_publications p WHERE p.entity_id=e.id)),
+ (SELECT count(*) FROM catalog_people q WHERE NOT EXISTS (SELECT 1 FROM search_publications p WHERE p.person_id=q.id)),
+ (SELECT count(*) FROM search_publications),
+ (SELECT count(*) FROM search_fragments)`).Scan(&entityMismatch, &personMismatch, &missingEntity, &missingPerson, &publications, &fragments); err != nil {
+		return err
+	}
+	if entityMismatch != 0 || personMismatch != 0 {
+		return &SearchBankStaleError{Reason: fmt.Sprintf("publication/source mismatch entities=%d people=%d", entityMismatch, personMismatch)}
+	}
+	if missingEntity != 0 || missingPerson != 0 {
+		return &SearchBankStaleError{Reason: fmt.Sprintf("current source without publication entities=%d people=%d", missingEntity, missingPerson)}
+	}
+	if indexedRows != fragments || publications == 0 || indexedBytes <= 0 {
+		return &SearchBankStaleError{Reason: fmt.Sprintf("indexed rows=%d fragments=%d bytes=%d", indexedRows, fragments, indexedBytes)}
+	}
+	return nil
+}
+
+// resolveCreditDictionary returns a resolution only when the database already
+// owns credit state. Reserved fixture ids 1..4 must either be absent or carry
+// exactly the fixture's meaning; any other meaning is a named refusal. Labels
+// found at another id are reused exactly, and absent labels are appended with
+// fresh ids. The stored receipt hashes the final dictionary, not a plan.
+func resolveCreditDictionary(ctx context.Context, conn *sql.Conn) (*creditAttachment, CreditReceipt, error) {
+	receipt := CreditReceipt{}
+	rows, err := conn.QueryContext(ctx, `SELECT id,label FROM catalog_credit_labels ORDER BY id`)
+	if err != nil {
+		return nil, receipt, err
+	}
+	type label struct {
+		id    int64
+		label string
+	}
+	var existing []label
+	var maxID int64
+	byLabel := map[string]int64{}
+	for rows.Next() {
+		var item label
+		if err := rows.Scan(&item.id, &item.label); err != nil {
+			rows.Close()
+			return nil, receipt, err
+		}
+		existing = append(existing, item)
+		byLabel[item.label] = item.id
+		if item.id > maxID {
+			maxID = item.id
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return nil, receipt, err
+	}
+	var creditImages int64
+	if err := conn.QueryRowContext(ctx, `SELECT count(*) FROM catalog_credit_images`).Scan(&creditImages); err != nil {
+		return nil, receipt, err
+	}
+	if len(existing) == 0 && creditImages == 0 {
+		receipt.CreditImageID = 1
+		receipt.JournalSeededLabel = true
+		return nil, receipt, nil
+	}
+	required := []struct {
+		id    int64
+		label string
+	}{{1, "Actor"}, {2, "Acting"}, {3, "Director"}, {4, "Directing"}}
+	resolved := make(map[int64]int64, len(required))
+	for _, want := range required {
+		if actual, present := byLabel[want.label]; present {
+			resolved[want.id] = actual
+		}
+	}
+	for _, want := range required {
+		for _, item := range existing {
+			if item.id == want.id && item.label != want.label {
+				return nil, receipt, &CreditLabelCollisionError{ID: want.id, Existing: item.label, Required: want.label}
+			}
+		}
+	}
+	next := maxID
+	inserted := make(map[int64]bool, len(required))
+	for _, want := range required {
+		if _, ok := resolved[want.id]; ok {
+			continue
+		}
+		next++
+		if _, err := conn.ExecContext(ctx, `INSERT INTO catalog_credit_labels(id,label) VALUES(?,?)`, next, want.label); err != nil {
+			return nil, receipt, err
+		}
+		existing = append(existing, label{id: next, label: want.label})
+		byLabel[want.label] = next
+		resolved[want.id] = next
+		inserted[want.id] = true
+	}
+	for _, want := range required {
+		receipt.Resolutions = append(receipt.Resolutions, CreditResolution{FixtureID: want.id, Label: want.label, ActualID: resolved[want.id], Inserted: inserted[want.id]})
+	}
+	imageID := int64(1)
+	if creditImages != 0 {
+		if err := conn.QueryRowContext(ctx, `SELECT coalesce(max(id),0)+1 FROM catalog_credit_images`).Scan(&imageID); err != nil {
+			return nil, receipt, err
+		}
+	}
+	receipt.CreditImageID = imageID
+	receipt.JournalSeededLabel = false
+	sort.Slice(existing, func(i, j int) bool { return existing[i].id < existing[j].id })
+	digest := sha256.New()
+	for _, item := range existing {
+		fmt.Fprintf(digest, "%d:%s\n", item.id, item.label)
+	}
+	receipt.DictionarySHA256 = fmt.Sprintf("%x", digest.Sum(nil))
+	return &creditAttachment{labels: resolved, imageID: imageID}, receipt, nil
+}
+
 func newBrowseSource(t *testing.T) *browseFixture {
 	t.Helper()
 	attachment.Lock()
@@ -154,6 +384,34 @@ func (f *browseFixture) exec(t *testing.T, q string, args ...any) {
 			t.Fatal(err)
 		}
 		q = strings.Replace(q, `'["movies"]'`, "'"+strings.ReplaceAll(string(allowed), "'", "''")+"'", 1)
+	}
+	// A paired canonical search artifact already owns catalog_credit_labels and
+	// catalog_credit_images. Keep its rows exactly: skip only the journal's
+	// reserved-id dictionary insert after resolveCreditDictionary proved/created
+	// the exact meanings, and route the fixture's own credit image and credit
+	// role/department ids through the resolved ids. Never INSERT OR IGNORE.
+	if f.credit != nil {
+		switch {
+		case strings.HasPrefix(q, "INSERT INTO catalog_credit_labels("):
+			return
+		case strings.HasPrefix(q, "INSERT INTO catalog_credit_images("):
+			q = strings.Replace(q, "SELECT 1,id,", fmt.Sprintf("SELECT %d,id,", f.credit.imageID), 1)
+		case strings.HasPrefix(q, "UPDATE catalog_entities SET credit_image_id=1 "):
+			q = strings.Replace(q, "credit_image_id=1", fmt.Sprintf("credit_image_id=%d", f.credit.imageID), 1)
+		case strings.HasPrefix(q, "INSERT INTO catalog_credits("):
+			if len(args) != 6 {
+				t.Fatal("unexpected fixture credit row shape")
+			}
+			q = strings.Replace(q, "VALUES(1,1,", fmt.Sprintf("VALUES(%d,1,", f.credit.imageID), 1)
+			for index := 0; index < 2; index++ {
+				id, ok := args[index+1].(int64)
+				actual, resolved := f.credit.labels[id]
+				if !ok || !resolved {
+					t.Fatalf("fixture credit label id %v has no exact resolution", args[index+1])
+				}
+				args[index+1] = actual
+			}
+		}
 	}
 	// Preserve the existing synthetic authority/data time offsets, but rebase
 	// them ONCE before paired preparation to the actual clock. Standalone RD2
