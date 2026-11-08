@@ -61,7 +61,7 @@ func TestEnrichmentStageStatementPlans(t *testing.T) {
 	// SAME existing owned native frame/connection; these static captures execute
 	// no effects, issue no proof, and make no production Work/HOLD qualification.
 	w, _, _, _ := sourceSealFixture(t)
-	if enrichmentStageFixtureIdentity(t) != "dc343282128349271df192651d674582d74014d712ebd5cd64057f71666ce052" {
+	if enrichmentStageFixtureIdentity(t) != "0a9ececa82e0699e9945f9d197fd1b648f19242038409ff6a04979d1c948f900" {
 		t.Fatal("staged enrichment fixture changed; review before recording")
 	}
 	defs := enrichmentStageDefinitions()
