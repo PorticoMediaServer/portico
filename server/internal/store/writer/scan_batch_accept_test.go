@@ -3,6 +3,9 @@
 package writer
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -150,7 +153,7 @@ WHERE i.library_id=? AND i.source_key=?`, r.scope.libraryID, f.sourceKey).Scan(&
 		view := *c
 		view.request.files = c.request.files[i : i+1]
 		original := n1DriverInputFrom(&view)
-		stable, evidence, observedRevision, err := n1DriverObjectFacts(original)
+		stable, evidence, observedRevision, err := inventoryBatchObjectFacts(original, i)
 		if err != nil {
 			return err
 		}
@@ -178,6 +181,30 @@ WHERE i.library_id=? AND i.source_key=?`, r.scope.libraryID, f.sourceKey).Scan(&
 		}
 	}
 	return nil
+}
+
+// The synthetic page gives each ordinal its own Unix inode. Derive evidence
+// independently from that member's original input, keeping CR's N=1 oracle
+// restricted to its original fixture.
+func inventoryBatchObjectFacts(in n1DriverInput, ordinal int) (stable, evidence, revision string, err error) {
+	if ordinal < 0 || ordinal >= maxInventoryBatchFiles || in.SourceRootIdentity != "source-root" || in.FileObjectIdentity != fmt.Sprintf("dev:7:ino:%d", 31+ordinal) {
+		return "", "", "", errors.New("unsupported batch fixture object identity")
+	}
+	stable = in.FileObjectIdentity
+	e := struct {
+		Kind        string `json:"kind"`
+		Scope       string `json:"scope"`
+		Object      string `json:"object"`
+		Size        int64  `json:"size"`
+		ModifiedNS  int64  `json:"modifiedNs"`
+		ChangeToken string `json:"changeToken"`
+	}{"local", in.SourceID + ":" + in.SourceIncarnation, stable, in.FileSize, in.FileModifiedNS, in.FileChangeToken}
+	raw, err := json.Marshal(e)
+	if err != nil {
+		return "", "", "", err
+	}
+	digest := sha256.Sum256(append([]byte("portico.inventory.v1\x00"), raw...))
+	return stable, string(raw), hex.EncodeToString(digest[:]), nil
 }
 
 func TestInventoryBatchPlanReservesAllDimensions(t *testing.T) {
