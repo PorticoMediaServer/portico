@@ -20,6 +20,9 @@ func inventoryMemberCommand(c *inventoryAcceptCommand, ordinal int) (*inventoryA
 	if c == nil || !c.valid || ordinal < 0 || ordinal >= len(c.request.files) {
 		return nil, ErrInvalid
 	}
+	if len(c.request.files) == 1 {
+		return c, nil
+	}
 	v := *c
 	v.request.files = c.request.files[ordinal : ordinal+1]
 	v.request.directory.rawNames = 1
@@ -32,6 +35,10 @@ func inventoryMemberCommand(c *inventoryAcceptCommand, ordinal int) (*inventoryA
 }
 
 func prepareInventoryFreshBatch(c *inventoryAcceptCommand) error {
+	if c != nil && len(c.request.files) == 1 {
+		_, err := prepareInventoryFreshObservation(c)
+		return err
+	}
 	if err := validateInventoryFrozenBatch(c); err != nil {
 		return err
 	}

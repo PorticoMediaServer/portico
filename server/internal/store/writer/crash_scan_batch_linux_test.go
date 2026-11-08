@@ -282,3 +282,41 @@ func verifyInventoryBatchCrash(t *testing.T, w crashWitness) {
 		t.Fatal(err)
 	}
 }
+
+func TestInventoryBatchOracleRejectsLaterMemberCorruption(t *testing.T) {
+	for _, mutation := range []string{"child", "title", "progress"} {
+		t.Run(mutation, func(t *testing.T) {
+			d, p, command, q := inventoryComposedDriverPrepared(t, 2, n1BatchForecastFixture)
+			e := d.opening.executor
+			c := command.(*inventoryAcceptCommand)
+			s := inventoryBatchCrashSource{Input: batchOriginalInput(c), Identity: c.identity, Original: q}
+			s.Baseline = n1DriverCaptureBaseline(t, t.Context(), e.db, n1DriverInputFrom(c))
+			s.Baseline.ClockMS = e.now().UnixMilli()
+			var err error
+			s.Initial, err = n1DriverCheckpoint(t.Context(), e.db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = p.Accept(t.Context(), command); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = checkInventoryBatchCrashCommitted(t, e, s); err != nil {
+				t.Fatal("control failed", err)
+			}
+			switch mutation {
+			case "child":
+				_, err = e.db.ExecContext(t.Context(), `UPDATE scan_command_results SET object_id='corrupted' WHERE run_id=? AND command_sequence=? AND input_ordinal=1`, q.RunID, c.identity.Sequence)
+			case "title":
+				_, err = e.db.ExecContext(t.Context(), `UPDATE catalog_entities SET title='corrupted' WHERE id=(SELECT subject_id FROM catalog_identities WHERE library_id=7 AND source_key=?)`, c.request.files[1].sourceKey)
+			case "progress":
+				_, err = e.db.ExecContext(t.Context(), `UPDATE jobs SET processed=processed-1 WHERE id=?`, q.RunID)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = checkInventoryBatchCrashCommitted(t, e, s); err == nil {
+				t.Fatal("later-member corruption escaped oracle")
+			}
+		})
+	}
+}

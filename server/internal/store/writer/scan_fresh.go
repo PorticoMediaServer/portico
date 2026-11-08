@@ -38,8 +38,10 @@ func applyInventoryAccept(ctx context.Context, turn *commandTurn, command *inven
 	if err = turn.requireInventoryMemory(ctx, requiredBytes); err != nil {
 		return value, err
 	}
-	if err = validateInventoryFrozenBatch(command); err != nil {
-		return value, err
+	if len(command.request.files) > 1 {
+		if err = validateInventoryFrozenBatch(command); err != nil {
+			return value, err
+		}
 	}
 	r, f := command.request, command.request.files[0]
 	appliedMS, err := turn.inventoryTimeMS(ctx, r.run.leaseExpiresMS)
