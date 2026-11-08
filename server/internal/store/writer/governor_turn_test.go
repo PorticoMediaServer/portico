@@ -51,7 +51,10 @@ func governedFixtureComposition(t *testing.T, now func() time.Time, extra govern
 	}
 	policy := governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second}
 	if maintenance != nil {
-		if maintenance.policy.HardBytes != policy.HardBytes || maintenance.policy.ReserveBytes != policy.ReserveBytes || maintenance.policy.SoftDebtBytes != policy.SoftDebtBytes || maintenance.policy.ActivePressureBytes != policy.ActivePressureBytes || maintenance.policy.MaxSampleAge != policy.MaxSampleAge {
+		// The canonical fixtures adopt the named phase 1a WAL policy; the keeper and
+		// the writer must share that exact policy, never widen or rewrite it.
+		adopted := governor.Phase1aWALPolicy()
+		if maintenance.policy != adopted {
 			t.Fatal("maintenance changed writer WAL limits")
 		}
 		policy = maintenance.policy
