@@ -93,7 +93,7 @@ func readBasicAssetBeforeProbe(ctx context.Context, turn *commandTurn, purpose B
 	}
 	var incarnation []byte
 	if err = row.Scan(&value.assetToken, &value.before.container, &value.before.videoCodec, &value.before.audioCodec, &value.before.width, &value.before.height, &value.before.duration,
-		&incarnation, &value.playbackRevision, &value.preparedRevision, &value.fileSizeRevision, &value.invalidationRevision, &value.expectedEpoch); err != nil {
+		&incarnation, &value.playbackRevision, &value.preparedRevision, &value.invalidationRevision, &value.fileSizeRevision, &value.expectedEpoch); err != nil {
 		return value, basicStageError(err)
 	}
 	for n, s := range [...]string{value.assetToken, value.before.container, value.before.videoCodec, value.before.audioCodec} {
