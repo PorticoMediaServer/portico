@@ -316,3 +316,34 @@ func testSearchPermissionFencesIncludePublicExecutorCost(t *testing.T) {
 	}
 	assertLiveUsage(t, f, 0, 0)
 }
+
+func TestSearchDispatcherAllKindsIsOnlyForFullSearch(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, _, d := searchDispatcherFixture(t, 2, func(context.Context, governor.Request, time.Duration, BrowseOutput, BrowseInput, search.Query) (TitleSearchPage, *BrowseReadResult, error) {
+			t.Error("title source reached with Kind 0")
+			return TitleSearchPage{}, nil, nil
+		})
+		for _, tc := range []struct {
+			text string
+			mode search.ReadMode
+			ok   bool
+		}{{"a", search.ReadTitles, false}, {"", search.ReadNothing, false}, {"alpha", search.ReadFull, true}} {
+			q, r, o := liveRequests("kind0-" + tc.text)
+			in := dispatcherInput(f, tc.text)
+			in.View.Kind = 0
+			result, err := d.Consume(t.Context(), q, r, time.Second, o, in, func(context.Context, SearchResponse) (func(context.Context) error, error) {
+				return func(context.Context) error { return nil }, nil
+			})
+			if tc.ok {
+				if err != nil || !result.Published {
+					t.Fatal("full search refused Kind 0", tc.mode, result, err)
+				}
+				continue
+			}
+			if !errors.Is(err, ErrInput) || result.Published {
+				t.Fatal("Kind 0 accepted outside full search", tc.mode, result, err)
+			}
+		}
+		assertLiveUsage(t, f, 0, 0)
+	})
+}
