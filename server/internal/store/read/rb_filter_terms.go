@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"sort"
 	"strings"
@@ -15,16 +16,27 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
+// ErrTermsMemberAncestry is the named refusal for show (kind 2) and season
+// (kind 3) pivots. Every term and credit class is scoped through the title's
+// browse membership (catalog_browse_memberships), and only playable kinds get
+// the self membership that makes a title its own member. A show or season has
+// no self row: its members are episodes, so the legacy contract reads the
+// episodes' attributes, credits and genres (plus the container's own credits
+// and genre for person/cast/crew and genre). This recipe has no member-episode
+// walk, so it refuses these pivots instead of returning an exact answer that
+// ignores the membership shape. Movies and episodes are unaffected.
+var ErrTermsMemberAncestry = errors.New("rb filter terms needs show/season member-episode ancestry")
+
 // TermsFilterInput is a bounded raw-title source window for the closed term and
 // credit vocabulary: genre, tag, label, contentRating, studio, network, actor,
 // director, writer, person, cast and crew. It is a single-source primitive, not
 // a general filter endpoint, exact total, facet or broad-intersection composer.
 //
-// Facts are read for the item and its work ancestry (the show for a season or
-// episode) exactly as the legacy browse contract scopes a title's terms and
-// credits. Credit facts come only from each entity's sealed current image. The
-// raw walk is the existing accepted article-aware title order for the four video
-// kinds. Unsupported fields, operators and kinds refuse, including beneath NOT.
+// Facts are read for the title pivot the legacy browse contract scopes: the
+// movie itself, or the episode plus its show for genre. Credit facts come only
+// from each entity's sealed current image. The raw walk is the existing accepted
+// article-aware title order. Unsupported fields and operators refuse, including
+// beneath NOT; show and season pivots refuse with ErrTermsMemberAncestry.
 type TermsFilterInput struct {
 	View  BrowseInput
 	Query json.RawMessage
@@ -366,6 +378,12 @@ func (r *BrowseReader) termsFilterWindow(ctx context.Context, request governor.R
 	if in.View.Kind < 1 || in.View.Kind > 4 {
 		return TermsFilterPage{}, BrowseReadResult{}, ErrUnqualified
 	}
+	if in.View.Kind == 2 || in.View.Kind == 3 {
+		// Show and season pivots have no self membership; their member items
+		// are episodes. Until the member-episode walk exists, refuse rather
+		// than answer from the container's own facts.
+		return TermsFilterPage{}, BrowseReadResult{}, ErrTermsMemberAncestry
+	}
 	s, err := newSavedViewSession(&SavedViewReader{snapshots: r.snapshots, pool: r.pool}, ctx, request, budget, out, in.View)
 	if err != nil {
 		return TermsFilterPage{}, BrowseReadResult{}, err
@@ -608,9 +626,13 @@ func readRBTermsFacts(s *savedViewSession, q browseQuery, in TermsFilterInput, f
 	//	tag, label, contentRating,
 	//	studio, network              ca.item_id = bei.item_id
 	//
-	// On the title pivot every title has one self membership, so bei.item_id and
-	// bei.entity_id are the same item integer. Credit and attribute classes
-	// therefore read the item alone; only genre also reads the episode's show.
+	// Only playable kinds receive the self membership row (the compact writer
+	// inserts it under catalog_kinds.playable=1, and a show/season is not
+	// playable). On the movie and episode pivots used here, bei.item_id and
+	// bei.entity_id are therefore the same title integer. Credit and attribute
+	// classes read that title alone; only genre also reads the episode's show.
+	// A show/season pivot's members are episodes instead, so it refuses in the
+	// kind gate above rather than treating the container as its own member.
 	itemIDs := make([]int64, 0, len(items))
 	genreIDs := map[int64]bool{}
 	for _, item := range items {
