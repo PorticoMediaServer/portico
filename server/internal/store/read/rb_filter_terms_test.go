@@ -187,6 +187,10 @@ func rbTermsOracle(t *testing.T, f *browseFixture, in BrowseInput, where string,
 	return out
 }
 
+// rbTermsAncestry is the genre ancestry only. The legacy contract widens genre
+// to the episode's show (the ep.show_id arm); every credit class is item-scoped
+// (actor/director/writer use bei.item_id and person/cast/crew use
+// bei.item_id,bei.entity_id, which are the same item on a title pivot).
 const rbTermsAncestry = `e.id,COALESCE(e.show_id,e.id)`
 
 type rbClause struct {
@@ -209,11 +213,11 @@ func rbTermsCreditClause(class, name string) rbClause {
 	} else {
 		value = "1"
 	}
-	return rbClause{`EXISTS(SELECT 1 FROM catalog_credits c CROSS JOIN catalog_entities ce ON ce.id=c.entity_id CROSS JOIN catalog_credit_images h ON h.id=c.image_id AND h.entity_id=ce.id AND h.entity_incarnation=ce.metadata_incarnation AND h.owner_revision=ce.credit_owner_revision CROSS JOIN catalog_credit_labels r ON r.id=c.role_id CROSS JOIN catalog_credit_labels d ON d.id=c.department_id WHERE c.entity_id IN(` + rbTermsAncestry + `) AND h.sealed=1 AND ce.credit_image_id=c.image_id AND ce.retired=0 AND ` + value + ` AND ` + clause + `)`, args}
+	return rbClause{`EXISTS(SELECT 1 FROM catalog_credits c CROSS JOIN catalog_entities ce ON ce.id=c.entity_id CROSS JOIN catalog_credit_images h ON h.id=c.image_id AND h.entity_id=ce.id AND h.entity_incarnation=ce.metadata_incarnation AND h.owner_revision=ce.credit_owner_revision CROSS JOIN catalog_credit_labels r ON r.id=c.role_id CROSS JOIN catalog_credit_labels d ON d.id=c.department_id WHERE c.entity_id=e.id AND h.sealed=1 AND ce.credit_image_id=c.image_id AND ce.retired=0 AND ` + value + ` AND ` + clause + `)`, args}
 }
 func rbTermsPersonClause(class, token string) rbClause {
 	clause := map[string]string{"person": "1", "cast": "lower(d.label) IN('acting','cast')", "crew": "lower(d.label) NOT IN('acting','cast')"}[class]
-	return rbClause{`EXISTS(SELECT 1 FROM catalog_credits c CROSS JOIN catalog_people p ON p.id=c.person_id CROSS JOIN catalog_entities ce ON ce.id=c.entity_id CROSS JOIN catalog_credit_images h ON h.id=c.image_id AND h.entity_id=ce.id AND h.entity_incarnation=ce.metadata_incarnation AND h.owner_revision=ce.credit_owner_revision CROSS JOIN catalog_credit_labels d ON d.id=c.department_id WHERE c.entity_id IN(` + rbTermsAncestry + `) AND h.sealed=1 AND ce.credit_image_id=c.image_id AND ce.retired=0 AND p.token=? AND ` + clause + `)`, []any{token}}
+	return rbClause{`EXISTS(SELECT 1 FROM catalog_credits c CROSS JOIN catalog_people p ON p.id=c.person_id CROSS JOIN catalog_entities ce ON ce.id=c.entity_id CROSS JOIN catalog_credit_images h ON h.id=c.image_id AND h.entity_id=ce.id AND h.entity_incarnation=ce.metadata_incarnation AND h.owner_revision=ce.credit_owner_revision CROSS JOIN catalog_credit_labels d ON d.id=c.department_id WHERE c.entity_id=e.id AND h.sealed=1 AND ce.credit_image_id=c.image_id AND ce.retired=0 AND p.token=? AND ` + clause + `)`, []any{token}}
 }
 func rbTermsNot(c rbClause) rbClause { return rbClause{"NOT (" + c.where + ")", c.args} }
 func rbTermsAnd(parts ...rbClause) rbClause {
@@ -339,6 +343,9 @@ func TestRBFilterTermsRenamedRetiredAndStaleImages(t *testing.T) {
 			`{"variant":"predicate","field":"actor","operator":"equals","value":"Alice Renamed"}`: nil,
 			`{"variant":"predicate","field":"person","operator":"equals","value":"person-alice"}`: {1, 2},
 			`{"variant":"predicate","field":"person","operator":"equals","value":"Alice Actor"}`:  nil,
+			// person/cast/crew are identity fields: the legacy contract compares
+			// their tokens exactly, without a case or Unicode fold.
+			`{"variant":"predicate","field":"person","operator":"equals","value":"PERSON-ALICE"}`: nil,
 		} {
 			in := TermsFilterInput{View: f.input, Query: json.RawMessage(query)}
 			in.View.Limit = 10
@@ -435,6 +442,44 @@ func TestRBFilterTermsFencesAndRefusals(t *testing.T) {
 		page, _, err = rbTermsRead(t, f2, in)
 		if err != nil || len(page.Items) != 0 || !page.Exhausted {
 			t.Fatal("attribute presence refused a small page", page, err)
+		}
+	})
+}
+
+func rbTermsReadWithRows(t *testing.T, f *browseFixture, in TermsFilterInput, rawRows uint32) (TermsFilterPage, BrowseReadResult, error) {
+	t.Helper()
+	var page TermsFilterPage
+	var cost BrowseReadResult
+	live, request, output := liveRequests("rb-filter-terms-capacity")
+	request.Budget.RawRows = rawRows
+	_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+		var e error
+		page, cost, e = f.reader.TermsFilterWindow(ctx, request, time.Second, out, in)
+		return e
+	})
+	if u := f.authority.ForegroundUsage(); u.Live != 0 || u.Waiters != 0 {
+		t.Fatal("terms source retained LIVE custody", u)
+	}
+	return page, cost, err
+}
+
+func TestRBFilterTermsFactCapacityRefusal(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := rbTermsFixture(t)
+		// A full fact page is incomplete evidence: with rbTermsFactLimit rows
+		// the reader cannot prove the remainder, so it must refuse rather than
+		// return a sampled exact answer. This window spends a raw-row budget
+		// large enough to reach the fact bound; the extra edges are added after
+		// the composed fixture so no journaled fixture hash moves.
+		f.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<2048)
+INSERT INTO catalog_attribute_terms(id,field_id,value_key) SELECT 100000+i,1,'cap'||i FROM n`)
+		f.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<2048)
+INSERT INTO catalog_item_attribute_edges(item_id,term_id,source_value,source_rowid) SELECT 7,100000+i,'Noir',i FROM n`)
+		in := TermsFilterInput{View: f.input, Query: json.RawMessage(`{"variant":"predicate","field":"tag","operator":"equals","value":"Noir"}`)}
+		in.View.Kind = 2
+		page, _, err := rbTermsReadWithRows(t, f, in, 4096)
+		if !errors.Is(err, ErrNotReady) || !reflect.DeepEqual(page, TermsFilterPage{}) {
+			t.Fatal("full fact page was not refused as incomplete evidence", page, err)
 		}
 	})
 }
