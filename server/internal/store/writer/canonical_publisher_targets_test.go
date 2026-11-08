@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var errCanonicalPublisherSustained = errors.New("canonical publisher sustained composition unavailable: actual funded same-DB keeper not attached; WAL refusals are harness gaps")
+var errCanonicalPublisherSustained = errors.New("canonical publisher sustained composition unavailable: actual funded same-DB keeper or its pressure-recovery hook not attached; WAL refusals are harness gaps")
 
 func canonicalPublisherConfig(c canonicalHeldConfig) (publisherMeasurementConfig, string, error) {
 	command, recipe := "SearchFragmentStage", "canonical-publisher-fragment-title-overlay-v1"
@@ -224,6 +224,11 @@ func runCanonicalPublisherOwner(t *testing.T, c publisherMeasurementConfig, reci
 	authority = f.a
 	maintenance = newCanonicalCheckpointOwner(t, opening, f.w.effective.governor, f.a, f.w.effective.wal, path, canonicalCheckpointShape{c.purpose(), "canonical-publisher-cp", spec.policy.HardBytes})
 	f.maintenance = maintenance
+	// Pressure recovery is optional trusted composition. Attach the SAME funded
+	// keeper so this stream recovers before admission instead of refusing on
+	// observed WAL state. Caps, serial order and the maintenance partition are
+	// unchanged; this is the WC component's existing wiring.
+	f.w.effective.maintenance = &checkpointMaintenance{request: maintenance.request("passive"), results: maintenance.results}
 	metadata := publisherMeasurementMetadataFor(t, c, raw, host, sourceHash, p, f)
 	if err := stream.append("population_attached", map[string]any{"recipe": recipe, "publisher_metadata": metadata, "canonical_manifest_residents": manifest.Facts.Residents, "native_census_before_graphs": p.baseline, "native_census_after_graphs": p.counts, "prepared_measured_graphs": c.FreshCount, "prepared_warmup_graphs": c.WarmupCount, "prepared_background_graphs": c.BackgroundCount, "catalogue_scope": "canonical baseline library7 plus unchanged PB fixed seed and uniform title-only graph owners in library3, SAME database; no exact1M total or1M dense publisher claim", "consumer": "not exercised by held publisher class", "seed_connection_config": seedConfig, "accepting_connection_config": p.e.config, "standalone_max_grants_per_class": 2, "actual_max_grants_per_class": f.grantLimit, "grant_limit_scope": "lead-approved N1 test-only keeper configuration: global2-to4 metadata slots; publisher stream remains serial, command/WAL/resource caps unchanged; no production profile authority", "maintenance_policy": spec.policy, "maintenance_additional_partition": spec.need}); err != nil {
 		return err
@@ -250,7 +255,8 @@ func runCanonicalPublisherOwner(t *testing.T, c publisherMeasurementConfig, reci
 }
 
 func canonicalPublisherSustainedGate(f *publisherGovernedFixture) error {
-	if f == nil || f.e == nil || f.maintenance == nil || f.e.keeper.Load() == nil {
+	if f == nil || f.e == nil || f.maintenance == nil || f.w == nil || f.w.effective == nil ||
+		f.w.effective.maintenance == nil || f.e.keeper.Load() == nil {
 		return errCanonicalPublisherSustained
 	}
 	return f.e.keeper.Load().Check()
