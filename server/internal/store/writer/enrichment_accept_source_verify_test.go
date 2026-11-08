@@ -40,6 +40,7 @@ func TestEnrichAcceptSourceInputBindsDistinctFinalOriginal(t *testing.T) {
 		func(c *enrichAcceptCommand) { c.request.owner.provider = "different" },
 		func(c *enrichAcceptCommand) { c.request.entity.incarnation[0] ^= 1 },
 		func(c *enrichAcceptCommand) { c.request.producer.Evidence.Digest = "different" },
+		func(c *enrichAcceptCommand) { c.digest = begin.digest },
 	} {
 		c := *input
 		change(&c)
@@ -90,4 +91,30 @@ func TestEnrichAcceptSourceNativeUsesFinalGrantAndRequest(t *testing.T) {
 			t.Fatal("FINAL proof retained grant")
 		}
 	})
+}
+
+func TestEffectiveSourceGrantKeyBindsTurnJobToOriginalOperation(t *testing.T) {
+	input := &effectiveStageBeginCommand{request: effectiveStageBeginRequest{ownerID: "operation-one"}}
+	turnFor := func(purpose CommandID, custodyPurpose CommandID, domain CommandID, id string) *commandTurn {
+		return &commandTurn{transaction: &transaction{descriptor: Descriptor{ID: purpose}, custody: &governedTurn{purpose: custodyPurpose,
+			expected: governor.Request{Key: governor.JobKey{Domain: uint16(domain), ID: id}}}}}
+	}
+	for _, purpose := range []CommandID{EffectiveStage, EnrichAccept} {
+		if err := requireEffectiveSourceGrantKey(turnFor(purpose, purpose, purpose, "operation-one"), input); err != nil {
+			t.Fatal("same-job grant refused", purpose, err)
+		}
+		for name, turn := range map[string]*commandTurn{
+			"other_operation": turnFor(purpose, purpose, purpose, "operation-two"),
+			"other_domain":    turnFor(purpose, purpose, BasicAccept, "operation-one"),
+			"other_custody":   turnFor(purpose, BasicAccept, purpose, "operation-one"),
+			"ungoverned":      {transaction: &transaction{descriptor: Descriptor{ID: purpose}}},
+		} {
+			if err := requireEffectiveSourceGrantKey(turn, input); !errors.Is(err, ErrInvalid) {
+				t.Fatal("grant for another job admitted source proof", purpose, name, err)
+			}
+		}
+	}
+	if err := requireEffectiveSourceGrantKey(turnFor(EffectiveStage, EffectiveStage, EffectiveStage, ""), &effectiveStageBeginCommand{}); !errors.Is(err, ErrInvalid) {
+		t.Fatal("empty original operation matched an empty grant key", err)
+	}
 }
