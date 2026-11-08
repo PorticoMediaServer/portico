@@ -154,8 +154,10 @@ func (v *rsRelatedInventory) Available() bool { return v.verdict == rsRelatedInv
 
 // step advances one bounded unit of work. done reports a complete verdict;
 // err is a refusal/stale signal, never an implicit pending success. A source
-// set above the raw bound, an over-wide source id or more than MaxRaw links
-// refuses capacity rather than sampling.
+// set above the raw bound, an over-wide source id, more than MaxRaw links or
+// more than MaxRaw objects behind one asset refuses capacity rather than
+// sampling. Every window binds MaxRaw+1 so a full page is distinguishable from
+// a truncated one.
 func (v *rsRelatedInventory) step(q browseQuery, b *rsRelatedInventoryBudget) (bool, error) {
 	if v == nil || q == nil || v.Item <= 0 || v.Library == "" || v.LibraryID <= 0 {
 		return false, ErrInput
@@ -270,7 +272,7 @@ func (v *rsRelatedInventory) step(q browseQuery, b *rsRelatedInventoryBudget) (b
 		v.stage = 6
 	case 6:
 		asset := v.links[v.link][0].(int64)
-		objects, err := q("rs.related.inventory.objects", v.assets[asset][0], v.Library, int64(MaxRaw))
+		objects, err := q("rs.related.inventory.objects", v.assets[asset][0], v.Library, int64(MaxRaw+1))
 		if err != nil {
 			return false, err
 		}
@@ -367,6 +369,8 @@ func (v *rsRelatedInventory) classify(link, asset []any, objects [][]any) rsRela
 // configured root, enabled/health/incarnation/generation, asset token/path/
 // availability/size/mtime, accepted publication flag, link window or object
 // readiness forces ErrStale so the caller retries inside its existing deadline.
+// An object window above MaxRaw is an explicit capacity refusal, never accepted
+// as an unchanged (truncated) proof.
 func (v *rsRelatedInventory) verify(q browseQuery) error {
 	if v == nil || q == nil || !v.done {
 		return ErrStale
@@ -409,11 +413,14 @@ func (v *rsRelatedInventory) verify(q browseQuery) error {
 		if len(rows) != 1 {
 			return ErrStale
 		}
-		objects, err := q("rs.related.inventory.objects", a[0], v.Library, int64(MaxRaw))
+		objects, err := q("rs.related.inventory.objects", a[0], v.Library, int64(MaxRaw+1))
 		if err != nil {
 			return err
 		}
-		if len(objects) > MaxRaw || !equalSourceRows(objects, v.objects[asset]) {
+		if len(objects) > MaxRaw {
+			return ErrRelatedCapacity
+		}
+		if !equalSourceRows(objects, v.objects[asset]) {
 			return ErrStale
 		}
 	}
