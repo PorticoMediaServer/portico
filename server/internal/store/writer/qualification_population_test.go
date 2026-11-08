@@ -333,6 +333,32 @@ func TestExportQualificationPopulation(t *testing.T) {
 		// reads the persisted residents back.
 		bank := seedQualificationSearchBank(t, w)
 		facts.SearchBank = &bank
+		// The catalogue readback ran before the bank, so verify the new bank rows
+		// and their foreign keys on the same exclusive executor before export.
+		conn, err := w.db.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var integrity string
+		if err = conn.QueryRowContext(t.Context(), "PRAGMA integrity_check").Scan(&integrity); err != nil || integrity != "ok" {
+			_ = conn.Close()
+			t.Fatal("search bank integrity check", integrity, err)
+		}
+		rows, err := conn.QueryContext(t.Context(), "PRAGMA foreign_key_check")
+		if err != nil {
+			_ = conn.Close()
+			t.Fatal(err)
+		}
+		if rows.Next() {
+			_ = rows.Close()
+			_ = conn.Close()
+			t.Fatal("search bank foreign key violation")
+		}
+		if err = errors.Join(rows.Close(), conn.Close()); err != nil {
+			t.Fatal(err)
+		}
+		facts.SearchBankIntegrity = integrity
+		facts.SearchBankForeignKeys = "empty"
 	}
 	// Reassert the actual physical policy after all seeding, rather than relying
 	// on a one-time assertion that could predate a replacement connection.
