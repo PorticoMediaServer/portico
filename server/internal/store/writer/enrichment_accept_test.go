@@ -18,7 +18,17 @@ import (
 // Nothing here mints a source proof, disclosure or fixture permit.
 func acceptBeginFixture(t *testing.T) (*executor, nativeEnrichmentSeals, *effectiveStageBeginCommand, effectiveBeginImage, EffectiveStageBeginResult) {
 	t.Helper()
+	return acceptBeginFixtureWith(t, nil)
+}
+
+// The optional hook runs after the native E/S lineage exists but BEFORE any
+// BEGIN fact is read, so a canonical population can adapt the shared chain.
+func acceptBeginFixtureWith(t *testing.T, prepare func(*executor)) (*executor, nativeEnrichmentSeals, *effectiveStageBeginCommand, effectiveBeginImage, EffectiveStageBeginResult) {
+	t.Helper()
 	e, f := nativeEnrichmentSealsFixture(t)
+	if prepare != nil {
+		prepare(e)
+	}
 	var assetInc, linkInc [16]byte
 	for i := range assetInc {
 		assetInc[i] = byte(160 + i)

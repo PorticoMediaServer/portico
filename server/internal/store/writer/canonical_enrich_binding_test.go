@@ -101,26 +101,29 @@ func newCanonicalEnrichComponent(t *testing.T, count int, stream *n1Stream, cano
 	}
 	// The first original reuses the actual prepared fixture, which also creates
 	// the immutable evidence lineage every title in this class shares.
-	e0, f, begin0, image0, result0 := acceptBeginFixture(t)
 	libraryKey := "library-native"
-	if canonical {
+	prepare := func(e *executor) {
+		if !canonical {
+			return
+		}
 		// The attached 1M population already owns catalog_libraries(7) and
 		// catalog_kinds(1); the fixture's OR IGNORE keeps those rows. Point the
-		// operation chain at that actual library namespace.
+		// operation chain at that actual library namespace BEFORE BEGIN facts.
 		libraryKey = "qualification-movies"
 		var catalogKey, catalogRoot string
-		if err := e0.db.QueryRowContext(t.Context(), `SELECT library_id,root FROM catalog_libraries WHERE id=7`).Scan(&catalogKey, &catalogRoot); err != nil || catalogKey != libraryKey || catalogRoot != "/qualification-media" {
+		if err := e.db.QueryRowContext(t.Context(), `SELECT library_id,root FROM catalog_libraries WHERE id=7`).Scan(&catalogKey, &catalogRoot); err != nil || catalogKey != libraryKey || catalogRoot != "/qualification-media" {
 			t.Fatalf("canonical population library shape differs: %q %q %v", catalogKey, catalogRoot, err)
 		}
 		for _, q := range []string{
 			`UPDATE libraries SET metadata_language='en-CA' WHERE id='qualification-movies'`,
 			`UPDATE library_sources SET library_id='qualification-movies' WHERE id='source-native'`,
 		} {
-			if _, err := e0.db.ExecContext(t.Context(), q); err != nil {
+			if _, err := e.db.ExecContext(t.Context(), q); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
+	e0, f, begin0, image0, result0 := acceptBeginFixtureWith(t, prepare)
 	first := acceptRequestFixture(t, e0, f, begin0, image0, result0)
 	firstQ := EnrichmentReceiptRequest{Receipt: ReceiptReference{first.identity, first.digest}, ProviderOperationID: begin0.request.ownerID, EntityID: begin0.request.entity.id, LibraryID: 7}
 	opTemplate := canonicalReadRow(t, e0.db, "metadata_provider_operations", "id=?", begin0.request.ownerID)
