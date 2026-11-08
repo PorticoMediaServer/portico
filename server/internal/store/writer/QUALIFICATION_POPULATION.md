@@ -6,6 +6,8 @@ This fixture supplies population, not command authority. It changes no productio
 
 The source-bound seeder records a deterministic logical population hash. The exported image receives its own actual SHA-256 and byte length; canonical bootstrap incarnation bytes mean independently generated images are not promised to be byte-identical. Every shard downloads the SAME artifact from the pinned producer run, rather than rebuilding the population. The manifest binds its producer source, schema, seed, resident count, shape, engine/toolchain and actual policy. The consumer source and binary are separately pinned in each workload receipt.
 
+A class consumer decides reuse from that recorded content identity: shape (kinds and counts), seed, resident count and the logical digest must equal the reviewed identity for the shape, and the embedded schema SHA-256 must match exactly. Comparing test-source bytes is not a compatibility decision, so an edit that leaves population content unchanged keeps an image usable. Any mismatch, an unreviewed shape or a different schema refuses with a named reason (`ci/QUALIFICATION-CLASS.md`).
+
 ## Owner binding
 
 In a writer-package test, call `UseQualificationPopulation(t, absoluteArtifactDirectory, pinnedManifestSHA256)` immediately before the existing owner fixture constructor. The manifest digest must come from the trusted producer receipt, not a digest freshly computed from the same untrusted manifest. This registers the image for exactly the next canonical fixture clone owned by that exact `*testing.T`. A second use, repeated registration or unused registration fails. Subtests must attach their own image; a parent's registration does not silently flow to a child.

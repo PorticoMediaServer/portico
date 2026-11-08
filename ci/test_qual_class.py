@@ -9,6 +9,7 @@ import unittest
 from unittest import mock
 
 import qual_class as c
+import qual_population as population
 
 
 class ClassProtocol(unittest.TestCase):
@@ -384,6 +385,90 @@ class ClassProtocol(unittest.TestCase):
         self.assertEqual(json.loads((output/'receipt.json').read_text())['status'], 'failed')
         files = json.loads((output/'files.json').read_text())
         self.assertEqual({f['path'] for f in files}, {'raw.ndjson.gz', 'raw-storage.json', 'receipt.json'})
+
+
+class PopulationContent(unittest.TestCase):
+    """Compatibility is keyed on population content, never on source bytes."""
+    SCHEMA = 'a' * 64
+
+    def manifest(self):
+        reviewed = population.REVIEWED[population.CANONICAL_MOVIES]
+        return {'version': 'portico-qualification-population-v1', 'source_commit': 'b' * 40,
+                'schema_sha256': self.SCHEMA, 'engine': '3.53.4',
+                'engine_source': 'synthetic engine identity', 'go_version': 'go1.26.10',
+                'database_sha256': 'c' * 64, 'database_bytes': 4096,
+                'facts': {'version': population.CANONICAL_MOVIES, 'seed': reviewed['seed'],
+                          'residents': reviewed['residents'], 'library_id': 7,
+                          'library_key': 'qualification-movies', 'first_id': 1000000001,
+                          'last_id': 1000000000 + reviewed['residents'],
+                          'counts': dict(reviewed['counts']),
+                          'logical_sha256': reviewed['logical_sha256']}}
+
+    def check(self, manifest):
+        return population.require_content(manifest, schema=self.SCHEMA)
+
+    def test_same_content_with_different_test_source_bytes_is_compatible(self):
+        first, second = self.manifest(), self.manifest()
+        # Different producer/test source bytes, image bytes and engine identity
+        # around identical population content must not change compatibility.
+        second.update(source_commit='d' * 40, database_sha256='e' * 64,
+                      engine_source='a different synthetic engine identity')
+        self.assertEqual(self.check(first), self.check(second))
+        self.assertEqual(self.check(first)['logical_sha256'],
+                         population.REVIEWED[population.CANONICAL_MOVIES]['logical_sha256'])
+
+    def test_changed_shape_is_refused(self):
+        for shape in ('canonical-movies-v2', population.CANONICAL_MOVIES_SEARCH, '', None, []):
+            manifest = self.manifest()
+            manifest['facts']['version'] = shape
+            with self.subTest(shape=shape), self.assertRaisesRegex(ValueError, 'shape'):
+                self.check(manifest)
+
+    def test_changed_residents_are_refused(self):
+        for residents in (999999, 1000001, 0, True, '1000000'):
+            manifest = self.manifest()
+            manifest['facts']['residents'] = residents
+            with self.subTest(residents=residents), self.assertRaisesRegex(ValueError, 'residents'):
+                self.check(manifest)
+
+    def test_changed_logical_digest_is_refused(self):
+        for digest in ('0' * 64, 'eb1b1a877268c5f57744c153161bc2700dedc2ed2d5e0acc11018d31cc89ac1e',
+                       'eb1b1a877268c5f57744c153161bc2700dedc2ed2d5e0acc11018d31cc89ac1', None, 1):
+            manifest = self.manifest()
+            manifest['facts']['logical_sha256'] = digest
+            with self.subTest(digest=digest), self.assertRaisesRegex(ValueError, 'logical digest'):
+                self.check(manifest)
+
+    def test_schema_mismatch_is_refused_and_never_relabeled(self):
+        for schema in ('f' * 64, '9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05', None):
+            manifest = self.manifest()
+            manifest['schema_sha256'] = schema
+            with self.subTest(schema=schema), self.assertRaisesRegex(ValueError, 'schema'):
+                self.check(manifest)
+
+    def test_changed_seed_and_counts_are_refused(self):
+        manifest = self.manifest()
+        manifest['facts']['seed'] = 1
+        with self.assertRaisesRegex(ValueError, 'seed'):
+            self.check(manifest)
+        manifest = self.manifest()
+        manifest['facts']['counts']['catalog_kinds'] = 2
+        with self.assertRaisesRegex(ValueError, 'counts'):
+            self.check(manifest)
+        manifest = self.manifest()
+        manifest['facts']['counts'].pop('catalog_entity_terms')
+        with self.assertRaisesRegex(ValueError, 'counts'):
+            self.check(manifest)
+        manifest = self.manifest()
+        manifest['facts']['counts']['extra_table'] = 0
+        with self.assertRaisesRegex(ValueError, 'counts'):
+            self.check(manifest)
+
+    def test_malformed_content_record_is_refused(self):
+        for manifest in ({}, {'schema_sha256': self.SCHEMA}, {'schema_sha256': self.SCHEMA, 'facts': []},
+                         {'schema_sha256': self.SCHEMA, 'facts': {'version': population.CANONICAL_MOVIES}}):
+            with self.subTest(manifest=manifest), self.assertRaisesRegex(ValueError, 'population'):
+                self.check(manifest)
 
 
 if __name__ == '__main__': unittest.main()
