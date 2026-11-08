@@ -233,7 +233,17 @@ func basicStageRequiredBytes(in basicStageRequest) (uint64, error) {
 		}
 		return base + 8*extra, nil
 	}
-	if in.operation == basicStageMediaInput || in.operation == basicStageRetireInput && in.rows.family != 0 {
+	if in.operation == basicStageRetireInput && in.rows.family != 0 {
+		n, err := basicRetirePrefixBytes(source, in.rows, in.retireOrdinals, in.retire.counts[in.rows.family-1])
+		if err != nil {
+			return 0, err
+		}
+		if (base-65536)/8+n > maxCanonicalRequestBytes {
+			return 0, ErrCap
+		}
+		return base + 8*n + 256*uint64(len(in.retireOrdinals)), nil
+	}
+	if in.operation == basicStageMediaInput {
 		rowsBytes, err := basicRowsRequestBytes(source, in.rows)
 		if err != nil {
 			return 0, err

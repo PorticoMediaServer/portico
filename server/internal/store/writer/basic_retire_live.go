@@ -13,7 +13,7 @@ import (
 // deletion itself is progress; no directory or canonical-copy cursor is reused.
 func applyBasicRetirePrefix(ctx context.Context, turn *commandTurn, in basicStageRequest) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
-	if in.operation != basicStageRetireInput || in.rows.family < 2 || in.rows.family > 9 || in.start < 0 || in.end <= in.start || in.end-in.start > 8 || in.end > basicRowsCount(in.rows) {
+	if in.operation != basicStageRetireInput || in.rows.family < 2 || in.rows.family > 9 || in.start != 0 || in.end != 0 || len(in.retireOrdinals) < 1 || len(in.retireOrdinals) > 8 || int64(len(in.retireOrdinals)) != basicRowsCount(in.rows) {
 		return ErrInvalid
 	}
 	if _, err = basicRetireFirstCharge(in.retire); err != nil {
@@ -63,14 +63,36 @@ func applyBasicRetirePrefix(ctx context.Context, turn *commandTurn, in basicStag
 	if err = row.Scan(&witness, &expected, &staged, &sealed); err != nil {
 		return basicStageError(err)
 	}
-	if witness != 0 || sealed != 1 || expected != in.retire.counts[in.rows.family-1] || staged != expected || basicRowsCount(in.rows) != expected {
+	if witness != 0 || sealed != 1 || expected != in.retire.counts[in.rows.family-1] || staged != expected {
 		return ErrConflict
 	}
-	family, err := prepareBasicRowsRequest(s, in.rows)
+	// Re-enumeration after a restart returns the remaining physical prefix.
+	// Compare actual stored ordinals before deletion; never fill lost rows or
+	// turn a slice position into a native key.
+	keys, err := basicRows(ctx, turn, basicRetirePrefixKeysID(in.rows.family), s.changeID, int64(len(in.retireOrdinals)+1))
 	if err != nil {
 		return err
 	}
-	_, _, err = reclaimBasicMediaRows(ctx, turn, basicMediaReclaimInput{family: family, start: in.start, end: in.end, jobRevision: in.retire.changeRevision, targetShapeID: in.retire.shapeID})
+	for _, ordinal := range in.retireOrdinals {
+		if !keys.Next() {
+			return errors.Join(ErrConflict, keys.Err(), keys.Close())
+		}
+		var actual int64
+		if err = keys.Scan(&actual); err != nil {
+			return errors.Join(err, keys.Close())
+		}
+		if actual != ordinal {
+			return errors.Join(ErrConflict, keys.Close())
+		}
+	}
+	if err = errors.Join(keys.Err(), keys.Close()); err != nil {
+		return err
+	}
+	family, err := prepareBasicRetirePrefixFamily(s, in.rows, in.retireOrdinals, expected)
+	if err != nil {
+		return err
+	}
+	_, _, err = reclaimBasicMediaRows(ctx, turn, basicMediaReclaimInput{family: family, start: 0, end: int64(len(in.retireOrdinals)), jobRevision: in.retire.changeRevision, targetShapeID: in.retire.shapeID, ordinals: in.retireOrdinals})
 	return err
 }
 

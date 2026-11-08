@@ -13,6 +13,7 @@ import (
 type basicMediaReclaimInput struct {
 	family                                 *basicMediaFamily
 	start, end, jobRevision, targetShapeID int64
+	ordinals                               []int64 // optional exact stored keys for a captured, restartable chunk
 }
 type basicMediaReclaimResult struct{ deleted, refunded int64 }
 
@@ -24,6 +25,16 @@ func reclaimBasicMediaRows(ctx context.Context, turn *commandTurn, in basicMedia
 	f := in.family
 	if ctx == nil || turn == nil || turn.transaction == nil || f == nil || !f.valid || f.family < 2 || f.family > 9 || in.start < 0 || in.end <= in.start || in.end-in.start > 8 || in.end > int64(len(f.rows)) || in.jobRevision <= 0 || in.targetShapeID <= 0 {
 		return 0, 0, ErrInvalid
+	}
+	if in.ordinals != nil {
+		if len(in.ordinals) != len(f.rows) {
+			return 0, 0, ErrInvalid
+		}
+		for n, ordinal := range in.ordinals {
+			if ordinal < 0 || n > 0 && ordinal <= in.ordinals[n-1] {
+				return 0, 0, ErrInvalid
+			}
+		}
 	}
 	s := f.source
 	row, err := basicStageRead(ctx, turn, basicReclaimMediaHeader, s.changeID, s.assetID, s.assetToken, s.expectedEpoch, s.inputRevision, s.witnessFingerprint[:], in.jobRevision, in.targetShapeID)
@@ -39,7 +50,11 @@ func reclaimBasicMediaRows(ctx context.Context, turn *commandTurn, in basicMedia
 	}
 	var charge int64
 	for n := in.start; n < in.end; n++ {
-		family, _, _, c, e := basicMediaValues(s, n, f.rows[n])
+		ordinal := n
+		if in.ordinals != nil {
+			ordinal = in.ordinals[n]
+		}
+		family, _, _, c, e := basicMediaValues(s, ordinal, f.rows[n])
 		if e != nil {
 			return 0, 0, e
 		}
@@ -52,7 +67,11 @@ func reclaimBasicMediaRows(ctx context.Context, turn *commandTurn, in basicMedia
 		charge += c
 	}
 	for n := in.start; n < in.end; n++ {
-		_, _, args, _, e := basicMediaValues(s, n, f.rows[n])
+		ordinal := n
+		if in.ordinals != nil {
+			ordinal = in.ordinals[n]
+		}
+		_, _, args, _, e := basicMediaValues(s, ordinal, f.rows[n])
 		if e != nil {
 			return 0, 0, e
 		}

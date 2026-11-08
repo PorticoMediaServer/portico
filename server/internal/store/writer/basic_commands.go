@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const basicStageRequestVersion uint16 = 3
+const basicStageRequestVersion uint16 = 4
 
 type basicStageOperation uint8
 type basicSealOperation uint8
@@ -39,6 +39,7 @@ type basicStageRequest struct {
 	probe          basicProbeEffects
 	copy           basicCopyRequest
 	retire         basicRetireFirstEffects
+	retireOrdinals []int64 // actual stored input_ordinal keys; never slice/copy cursors
 }
 type basicSealRequest struct {
 	original       basicOriginalScope
@@ -80,12 +81,9 @@ func newBasicStageCommand(identity CommandIdentity, in basicStageRequest) (*basi
 			return nil, err
 		}
 		if in.rows.family != 0 {
-			in.rows, err = freezeBasicRowsRequest(source, in.rows)
+			in.rows, in.retireOrdinals, err = freezeBasicRetirePrefixRows(source, in.rows, in.retireOrdinals, in.retire.counts[in.rows.family-1])
 			if err != nil {
 				return nil, err
-			}
-			if basicRowsCount(in.rows) != in.retire.counts[in.rows.family-1] {
-				return nil, ErrInvalid
 			}
 		}
 	case basicStageBeginInput:
@@ -150,6 +148,9 @@ func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
 	if in.operation != basicStageRetireInput && in.retire != (basicRetireFirstEffects{}) {
 		return basicStreamFactStage{}, ErrInvalid
 	}
+	if in.operation != basicStageRetireInput && in.retireOrdinals != nil {
+		return basicStreamFactStage{}, ErrInvalid
+	}
 	if in.operation != basicStageCopyInput && !reflect.ValueOf(in.copy).IsZero() {
 		return basicStreamFactStage{}, ErrInvalid
 	}
@@ -165,10 +166,10 @@ func basicStageSource(in basicStageRequest) (basicStreamFactStage, error) {
 			return basicStreamFactStage{}, ErrInvalid
 		}
 		if in.rows.family == 0 {
-			if !reflect.ValueOf(in.rows).IsZero() || in.start != 0 || in.end != 0 {
+			if !reflect.ValueOf(in.rows).IsZero() || in.retireOrdinals != nil || in.start != 0 || in.end != 0 {
 				return basicStreamFactStage{}, ErrInvalid
 			}
-		} else if in.rows.family < 2 || in.rows.family > 9 || in.start < 0 || in.end <= in.start || in.end-in.start > 8 || in.end > basicRowsCount(in.rows) {
+		} else if in.rows.family < 2 || in.rows.family > 9 || in.start != 0 || in.end != 0 || len(in.retireOrdinals) < 1 || len(in.retireOrdinals) > 8 || int64(len(in.retireOrdinals)) != basicRowsCount(in.rows) || in.rows.rawChapterCount != 0 {
 			return basicStreamFactStage{}, ErrInvalid
 		}
 		return in.retire.source, nil

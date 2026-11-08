@@ -36,7 +36,7 @@ func basicReclaimMediaFixture(t *testing.T, defs []stmt.Definition, setup string
 	// All setup precedes actual FULL startup Capture; component executes through
 	// the existing NORMAL handler turn, without changing any production profile.
 	registry := nativeInventoryFixtureRegistry(t, w, defs, "basic_reclaim_media.go", "basic_reclaim_media_statements.go", "basic_reclaim_media_test.go")
-	return w, basicHandlerTurn(t, w, BasicAccept, defs, registry), basicMediaReclaimInput{f, 0, 2, 13, 61}, charge
+	return w, basicHandlerTurn(t, w, BasicAccept, defs, registry), basicMediaReclaimInput{family: f, start: 0, end: 2, jobRevision: 13, targetShapeID: 61}, charge
 }
 func basicReclaimMediaTestDefinitions() []stmt.Definition {
 	return append(basicStreamStageDefinitions(), basicReclaimMediaDefinitions()...)

@@ -41,6 +41,7 @@ func basicEffectsDefinitions(purpose CommandID) []stmt.Definition {
 	all := append(basicControlCommandDefinitions(), basicMediaDefinitions()...)
 	if purpose == BasicStage {
 		all = append(all, basicRetireFirstDefinitions()...)
+		all = append(all, basicRetirePrefixDefinitions()...)
 		all = append(all, basicReclaimMediaDefinitions()...)
 		all = append(all, basicProbeDefinitions()...)
 		all = append(all, basicShapeDefinitions()...)
@@ -64,6 +65,9 @@ func basicEffectsMaxUses(purpose CommandID, id stmt.ID) int {
 	}
 	if purpose == BasicStage {
 		if uses := basicRetireFirstMaxUses(id); uses != 0 {
+			return uses
+		}
+		if uses := basicRetirePrefixMaxUses(id); uses != 0 {
 			return uses
 		}
 		if id == basicReclaimMediaHeader {

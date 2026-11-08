@@ -15,6 +15,9 @@ func basicStageCommandMaxUses(operation basicStageOperation, id stmt.ID) int {
 		if uses := basicRetireFirstMaxUses(id); uses != 0 {
 			return uses
 		}
+		if uses := basicRetirePrefixMaxUses(id); uses != 0 {
+			return uses
+		}
 		if id == basicReclaimMediaHeader || id == basicStageFamily || id == basicStageBudget || id == basicStageBudgetCAS {
 			return 1
 		}

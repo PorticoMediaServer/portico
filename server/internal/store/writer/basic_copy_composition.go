@@ -26,6 +26,9 @@ func basicCopyRecipeDefinitions() []stmt.Definition {
 }
 
 func basicStageSealRowBound(id stmt.ID) uint64 {
+	if basicRetirePrefixMaxUses(id) > 0 {
+		return 9
+	}
 	switch id {
 	case basicRetireFamilyKeys:
 		return 10
