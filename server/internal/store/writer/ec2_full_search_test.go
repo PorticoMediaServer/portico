@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -131,7 +132,16 @@ func (s *pairedSink) searchReadReport() searchReadReport {
 
 // The positive control seeds one real v1 bank and proves the native reader
 // executes, returns hits and joins a stamp. It is functional only.
+//
+// The read's own LIVE deadline is a real 1s cap and this control asserts no
+// timing, but a race-contended CI shard can still miss that cap and fail the
+// read. Per the default-test rule, the native real-clock control is opt-in: the
+// ec2-native harness target sets the companion env. The fail-closed negative
+// control remains in the default run.
 func TestEC2NativeFullSearchFunctional(t *testing.T) {
+	if os.Getenv("PORTICO_EC2_NATIVE_FUNCTIONAL") != "1" {
+		t.Skip("opt-in real-clock native search functional control")
+	}
 	path := filepath.Join(t.TempDir(), "search-control.ndjson")
 	data, _ := json.Marshal(map[string]any{"run_id": "SEARCH_CONTROL", "host_epoch": "CONTROL", "source_commit": strings.Repeat("a", 40), "output_path": path, "fixtures": 1})
 	c := writer.NewN1PairedComponent(t, data, 1, "timing")
