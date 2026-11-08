@@ -102,6 +102,8 @@ func checkPublisherDisclosure(w *Writer, c *PublisherDisclosure, q PublisherRece
 
 func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation, publisher *publisherInvocation, invocation wcCommandInvocation) error {
 	switch wc := invocation.(type) {
+	case *mpRepeatInvocation:
+		return checkMPWorkerDisclosure(w, wc)
 	case *enrichmentInvocation:
 		return validateEnrichmentInvocation(r, w, wc)
 	case *wcProgressInvocation:

@@ -54,6 +54,8 @@ type effectivePlan struct {
 	wcProgressMemory      commandMemoryBudget
 	wcSecurityMemory      commandMemoryBudget
 	wcReclaimMemory       commandMemoryBudget
+	mpWorkerMemory        commandMemoryBudget
+	mpWorkerLimits        mpWorkerReceiptLimits
 	directoryMemory       commandMemoryBudget
 	publisherMemory       commandMemoryBudget
 	effectiveSourceMemory commandMemoryBudget // exact Effective source-proof partition; zero is unqualified
@@ -94,6 +96,7 @@ type effectiveRuntime struct {
 	wcProgressBirthPlan *effectivePlan
 	wcSecurityPlan      *effectivePlan
 	wcReclaimPlan       *effectivePlan
+	mpRepeatPlan        *effectivePlan
 }
 
 func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *governor.Authority, wal *governor.WALGate, owner governor.OwnerID, plan effectivePlan, inventoryPlans ...effectivePlan) (*effectiveRuntime, error) {
@@ -217,6 +220,7 @@ type commandOutput struct {
 	directoryTerminal scanDirectoryTerminalCommandResult
 	basic             BasicResult
 	search            searchPublisherCommandResult
+	mpRepeat          mpWorkerResult
 }
 
 // Keep W's original call contract while all typed domains use one dispatcher.
@@ -248,6 +252,7 @@ func dispatchDeadline(ctx context.Context, now time.Time, scan *inventoryInvocat
 }
 
 func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, invocation wcCommandInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
+	var mp *mpRepeatInvocation
 	var wc *wcProgressInvocation
 	var security *wcSecurityInvocation
 	var reclaim *wcReclaimInvocation
@@ -255,6 +260,8 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	invalidWC := false
 	switch v := invocation.(type) {
 	case nil:
+	case *mpRepeatInvocation:
+		mp = v
 	case *wcProgressInvocation:
 		wc = v
 	case *wcSecurityInvocation:
@@ -400,6 +407,13 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			outcome = &out.lifecycle.Outcome
 		}
 	}
+	if mp != nil {
+		if ack || scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
+			return out, acknowledged, ErrInvalid
+		}
+		purpose, plan, reference, key, libraryID = MPQueueRepeat, nil, mp.reference, mp.queue, 0
+		outcome = &out.mpRepeat.Outcome
+	}
 	if wc != nil {
 		if scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
 			return out, acknowledged, ErrInvalid
@@ -452,6 +466,12 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		plan = r.basicPlan(purpose)
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
+		}
+	}
+	if mp != nil {
+		plan = r.mpRepeatPlan
+		if plan == nil {
+			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
 		}
 	}
 	if wc != nil {
@@ -661,6 +681,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	custody.wcProgressMemory = plan.wcProgressMemory
 	custody.wcSecurityMemory = plan.wcSecurityMemory
 	custody.wcReclaimMemory = plan.wcReclaimMemory
+	custody.mpWorkerMemory = plan.mpWorkerMemory
 	custody.directoryMemory = plan.directoryMemory
 	custody.publisherMemory = plan.publisherMemory
 	custody.effectiveSourceMemory = plan.effectiveSourceMemory
@@ -723,6 +744,8 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			if err = turn.requireSearchPublisherMemory(ctx, purpose, searchPublisherDisclosureBytes(publisher)); err == nil {
 				publisherOwner, err = discloseSearchPublisher(ctx, turn, publisher)
 			}
+		} else if mp != nil {
+			err = checkMPWorkerNativeDisclosure(ctx, turn, mp)
 		} else if reclaim != nil {
 			err = checkWCReclaimNativeDisclosure(ctx, turn, reclaim)
 		} else if security != nil {
@@ -775,6 +798,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		}
 	}
 
+	if err == nil && mp != nil {
+		out.mpRepeat, historical, err = executeMPRepeat(ctx, turn, mp, plan.mpWorkerLimits)
+	}
 	if err == nil && reclaim != nil {
 		out.reclaim, acknowledged, historical, err = executeWCReclaimInvocation(ctx, turn, reclaim, ack)
 	}
@@ -1002,6 +1028,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	if scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical && physical.state == committed {
 		outcome.State, outcome.Reference = Applied, reference
+	}
+	if mp != nil && !historical && mp.input != nil && physical.state == committed {
+		out.mpRepeat.Outcome.State = Applied
 	}
 	if wc != nil && !ack && !historical && wc.input != nil && physical.state == committed {
 		out.progress.Outcome.State = Applied

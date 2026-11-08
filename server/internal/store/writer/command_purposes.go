@@ -22,6 +22,7 @@ const (
 	directoryPartition
 	publisherPartition
 	effectiveSourcePartition
+	mpWorkerPartition
 	memoryPartitionCount
 )
 
@@ -48,7 +49,7 @@ type commandPurposeRegistration struct {
 
 var closedCommandPurposes = mustBuildCommandPurposes(
 	scanCommandPurposes, basicCommandPurposes, searchImageCommandPurposes, searchPublisherCommandPurposes,
-	wcCommandPurposes, enrichmentCommandPurposes, effectiveSourceCommandPurposes,
+	wcCommandPurposes, enrichmentCommandPurposes, effectiveSourceCommandPurposes, mpWorkerCommandPurposes,
 )
 
 // Pure builder; only the package initializer above installs its result.

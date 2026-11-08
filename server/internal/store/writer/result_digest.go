@@ -55,6 +55,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return invalid("result_command_sequence")
 	}
 	switch v := result.(type) {
+	case mpQueueRepeatValue:
+		return preflightMPRepeatValue(v)
 	case evidenceSealResult:
 		return preflightEnrichmentSealResult(EvidenceSeal, v.facts)
 	case creditSourceSealResult:
@@ -138,6 +140,8 @@ func encodeCanonicalResult(e *requestEncoder, identity CommandIdentity, request 
 
 func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request RequestDigest, result any) error {
 	switch v := result.(type) {
+	case mpQueueRepeatValue:
+		return writeMPRepeatValue(e, identity, request, v)
 	case evidenceSealResult:
 		return writeEnrichmentSealResult(e, EvidenceSeal, identity, request, v.facts)
 	case creditSourceSealResult:
