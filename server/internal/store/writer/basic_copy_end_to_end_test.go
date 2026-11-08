@@ -107,10 +107,22 @@ func (c *basicControlChain) seal(in basicControlRequest) BasicResult {
 	return got
 }
 
-// The whole FIRST walk through one dispatcher: Stage and Seal of all nine
-// families, probe scalars, pin, freeze, entity, the copy of families 1..9
-// driven only by each turn's actual continuation, then Accept activation.
-func TestBasicFirstWalkEndToEnd(t *testing.T) {
+// The real walk through pin: all nine families staged and sealed, probe scalars
+// applied and the target shape pinned, at phase 0 with nothing frozen.
+type basicWalk struct {
+	w         *Writer
+	e         *executor
+	authority *governor.Authority
+	s         basicStreamFactStage
+	chain     *basicControlChain
+	probe     basicProbeEffects
+	shape     int64
+	revision  int64
+}
+
+// All nine families staged and sealed; nothing probed or pinned yet.
+func basicWalkStaged(t *testing.T) basicWalk {
+	t.Helper()
 	w, e, authority, s, original, identity := basicFullWalkFixture(t)
 	seedBasicFirstOrdinaryOwner(t, e)
 	incarnation := [16]byte(bytes.Repeat([]byte{0x41}, 16))
@@ -166,6 +178,14 @@ func TestBasicFirstWalkEndToEnd(t *testing.T) {
 		}
 		chain.seal(in)
 	}
+	return basicWalk{w: w, e: e, authority: authority, s: s, chain: chain, revision: 1}
+}
+
+func basicWalkThroughPin(t *testing.T) basicWalk {
+	t.Helper()
+	walk := basicWalkStaged(t)
+	e, s, chain := walk.e, walk.s, walk.chain
+	incarnation := [16]byte(bytes.Repeat([]byte{0x41}, 16))
 	probe := basicProbeEffects{source: s, changeRevision: 1, assetPath: "/media/Arrival.mkv", before: basicProbeScalars{"old", "vp9", "aac", 1920, 720, 90}, after: basicProbeScalars{"mkv", "h264", "", 0, 1080, 100}, playbackIncarnation: incarnation, playbackRevision: 101, preparedRevision: 103, fileSizeRevision: 113, invalidationRevision: 109}
 	if _, err := chain.stage(basicControlRequest{operation: basicControlProbeScalars, source: s, probe: &probe}); err != nil {
 		t.Fatal("probe scalars", err)
@@ -182,6 +202,14 @@ func TestBasicFirstWalkEndToEnd(t *testing.T) {
 	if err := e.db.QueryRowContext(t.Context(), `SELECT target_shape_id,job_revision FROM catalog_info_changes WHERE id=51`).Scan(&shape, &revision); err != nil {
 		t.Fatal(err)
 	}
+	walk.probe, walk.shape, walk.revision = probe, shape, revision
+	return walk
+}
+
+// Freeze, entity and every copy turn, each entering at the actual continuation.
+func basicWalkCopyAll(t *testing.T, walk basicWalk) int64 {
+	t.Helper()
+	e, s, chain, shape, revision := walk.e, walk.s, walk.chain, walk.shape, walk.revision
 	head := basicControlRequest{source: s, entityID: 31, shapeID: shape}
 	for _, op := range []basicControlOperation{basicControlFreeze, basicControlSelectEntity} {
 		in := head
@@ -218,27 +246,13 @@ func TestBasicFirstWalkEndToEnd(t *testing.T) {
 		entry = basicCopyCursor{family: c.NextFamily, phase: c.NextCopyPhase, id: c.NextCopyID, aux: c.NextCopyAux, key: c.NextCopyKey, key2: c.NextCopyKey2, key3: c.NextCopyKey3}
 		family = c.NextFamily
 	}
-	var phase, copyFamily, copyPhase, copyID, copyAux int64
-	var key, key2, key3 string
-	if err := e.db.QueryRowContext(t.Context(), `SELECT phase,copy_family,copy_phase,copy_id,copy_aux,copy_key,copy_key2,copy_key3 FROM catalog_info_changes WHERE id=51`).Scan(&phase, &copyFamily, &copyPhase, &copyID, &copyAux, &key, &key2, &key3); err != nil {
-		t.Fatal(err)
-	}
-	if phase != 3 || copyFamily != 0 || copyPhase != 0 || copyID != 0 || copyAux != 0 || key != "" || key2 != "" || key3 != "" {
-		t.Fatal("final copy cursor", phase, copyFamily, copyPhase, copyID, copyAux, key, key2, key3)
-	}
-	var factRevision, evidenceRevision sql.NullInt64
-	var evidence sql.NullString
-	if err := e.db.QueryRowContext(t.Context(), `SELECT revision,inventory_revision,inventory_evidence FROM asset_subtitle_facts WHERE asset_id='basic-asset'`).Scan(&factRevision, &evidenceRevision, &evidence); err != nil ||
-		factRevision.Int64 != 41 || evidenceRevision.Int64 != 41 || evidence.String != "inventory:41" {
-		t.Fatal("family 6 revision did not end with family 9's staged evidence", factRevision, evidenceRevision, evidence, err)
-	}
-	var streams, chapters, subtitles, sidecars int64
-	if err := e.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM asset_streams WHERE asset_id='basic-asset' AND has_asset_stream_breadth=1),(SELECT count(*) FROM asset_chapters WHERE asset_id='basic-asset'),(SELECT count(*) FROM asset_subtitles WHERE asset_id='basic-asset' AND sidecar_id='sidecar-1'),(SELECT count(*) FROM subtitle_sidecars WHERE path='/media/Arrival.srt')`).Scan(&streams, &chapters, &subtitles, &sidecars); err != nil ||
-		streams != 1 || chapters != 1 || subtitles != 1 || sidecars != 1 {
-		t.Fatal("canonical rows after copy", streams, chapters, subtitles, sidecars, err)
-	}
-	basicDispatchReturned(t, e, authority)
-	// Accept is the only 3->4 transition and needs exactly this post-copy state.
+	return revision
+}
+
+// The Accept command a walk at phase 3 ends with.
+func basicWalkAccept(t *testing.T, walk basicWalk, revision int64) (BasicResult, error) {
+	t.Helper()
+	w, e, s, chain, shape := walk.w, walk.e, walk.s, walk.chain, walk.shape
 	analysis, err := prepareBasicObjectAnalysis(s, "basic-library", "actual-probe-algorithm", `["probe","local_metadata","subtitles"]`, `["probe","local_metadata","subtitles"]`, false)
 	if err != nil {
 		t.Fatal(err)
@@ -266,6 +280,39 @@ func TestBasicFirstWalkEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	accepted, _, err := w.effective.runBasic(t.Context(), w, inventoryTestDisclosure(t, w, q.Scan), basicInvocation{request: q, accept: command}, false)
+	return accepted, err
+}
+
+// The whole FIRST walk through one dispatcher: Stage and Seal of all nine
+// families, probe scalars, pin, freeze, entity, the copy of families 1..9
+// driven only by each turn's actual continuation, then Accept activation.
+func TestBasicFirstWalkEndToEnd(t *testing.T) {
+	walk := basicWalkThroughPin(t)
+	w, e, authority, s, chain, shape, revision := walk.w, walk.e, walk.authority, walk.s, walk.chain, walk.shape, walk.revision
+	_, _, _ = w, chain, shape
+	revision = basicWalkCopyAll(t, walk)
+	var phase, copyFamily, copyPhase, copyID, copyAux int64
+	var key, key2, key3 string
+	if err := e.db.QueryRowContext(t.Context(), `SELECT phase,copy_family,copy_phase,copy_id,copy_aux,copy_key,copy_key2,copy_key3 FROM catalog_info_changes WHERE id=51`).Scan(&phase, &copyFamily, &copyPhase, &copyID, &copyAux, &key, &key2, &key3); err != nil {
+		t.Fatal(err)
+	}
+	if phase != 3 || copyFamily != 0 || copyPhase != 0 || copyID != 0 || copyAux != 0 || key != "" || key2 != "" || key3 != "" {
+		t.Fatal("final copy cursor", phase, copyFamily, copyPhase, copyID, copyAux, key, key2, key3)
+	}
+	var factRevision, evidenceRevision sql.NullInt64
+	var evidence sql.NullString
+	if err := e.db.QueryRowContext(t.Context(), `SELECT revision,inventory_revision,inventory_evidence FROM asset_subtitle_facts WHERE asset_id='basic-asset'`).Scan(&factRevision, &evidenceRevision, &evidence); err != nil ||
+		factRevision.Int64 != 41 || evidenceRevision.Int64 != 41 || evidence.String != "inventory:41" {
+		t.Fatal("family 6 revision did not end with family 9's staged evidence", factRevision, evidenceRevision, evidence, err)
+	}
+	var streams, chapters, subtitles, sidecars int64
+	if err := e.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM asset_streams WHERE asset_id='basic-asset' AND has_asset_stream_breadth=1),(SELECT count(*) FROM asset_chapters WHERE asset_id='basic-asset'),(SELECT count(*) FROM asset_subtitles WHERE asset_id='basic-asset' AND sidecar_id='sidecar-1'),(SELECT count(*) FROM subtitle_sidecars WHERE path='/media/Arrival.srt')`).Scan(&streams, &chapters, &subtitles, &sidecars); err != nil ||
+		streams != 1 || chapters != 1 || subtitles != 1 || sidecars != 1 {
+		t.Fatal("canonical rows after copy", streams, chapters, subtitles, sidecars, err)
+	}
+	basicDispatchReturned(t, e, authority)
+	// Accept is the only 3->4 transition and needs exactly this post-copy state.
+	accepted, err := basicWalkAccept(t, walk, revision)
 	if err != nil || accepted.Outcome.State != Applied || len(accepted.Members) != 1 || accepted.Members[0].AcceptedAssetRevision != s.expectedEpoch+1 {
 		t.Fatal("accept", accepted, err)
 	}
