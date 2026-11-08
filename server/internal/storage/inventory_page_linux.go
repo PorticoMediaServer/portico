@@ -12,6 +12,10 @@ import (
 // Linux directory cookies are captured from each getdents64 record, not from
 // File.Seek after ReadDir (which would skip unread entries in Go's buffer).
 func inventoryNames(f *os.File, cursor string, limit int) ([]string, string, bool, error) {
+	return inventoryNamesPage(f, cursor, limit, false)
+}
+
+func inventoryNamesPage(f *os.File, cursor string, limit int, separateEOF bool) ([]string, string, bool, error) {
 	offset, err := parseInventoryOffset(cursor)
 	if err != nil {
 		return nil, "", false, err
@@ -27,6 +31,9 @@ func inventoryNames(f *os.File, cursor string, limit int) ([]string, string, boo
 			return nil, "", false, err
 		}
 		if n == 0 {
+			if separateEOF && len(names) > 0 {
+				return names, strconv.FormatInt(offset, 10), false, nil
+			}
 			return names, "", true, nil
 		}
 		for pos := 0; pos < n; {
