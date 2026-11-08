@@ -38,6 +38,7 @@ type N1PairedComponent struct {
 	RunID, HostEpoch, SourceCommit string
 	Measured                       int
 	stream                         *n1Stream
+	sampler                        *hostSampler
 	fixture                        *inventoryProgressiveFixture
 	trace                          *n1Trace
 	summary                        n1SteadySummary
@@ -96,7 +97,9 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 	c.DatabaseID = fmt.Sprintf("%s/%d/%d/db", cfg.RunID, os.Getpid(), origin.UnixNano())
 	c.stream = &n1Stream{file: file, origin: origin, base: map[string]any{"schema": "portico-n1-component-v1", "component_layout": "n1-paired-foreground-v1", "label": "N1 PAIRED COMPONENT DIRECTIONAL", "qualification": false, "run_id": cfg.RunID, "process_epoch": c.DatabaseID, "qualified_profile_ready": false}}
 	c.stream.enableAsync() // EC2/EC3: no per-record fsync or write ever stalls the serial owner chain
+	c.sampler = startHostSampler(c.stream, os.TempDir())
 	if err := c.stream.append("composition_start", map[string]any{"declared_source_commit": cfg.SourceCommit, "host_epoch": cfg.HostEpoch, "database_id": c.DatabaseID, "requested_measured_originals": cfg.Fixtures, "requested_warmup_originals": warmup, "cohort": cohort}); err != nil {
+		c.sampler.close()
 		_ = c.stream.close()
 		t.Fatal(err)
 	}
@@ -453,6 +456,7 @@ func (c *N1PairedComponent) Close(cause error) error {
 	if !complete && finalErr == nil {
 		finalErr = errors.New("paired component incomplete; no successful whole-cell claim")
 	}
-	err := c.stream.append("final", map[string]any{"complete": complete, "stream_writer": c.stream.writerStats(), "n1": c.summary, "read_pool_close_returned": readerReturned, "read_pool_close_error": n1Error(readerErr), "writer_close_error": n1Error(writerErr), "authority_usage": usage, "live_usage": live, "writer_pool_stats": stats, "writer_native_joined": nativeJoined, "reader_attested_connections": readerConnections, "reader_idle_close_observation": nil, "reader_idle_close_unavailable_reason": "Snapshots.Close owner return is observed; no separate native idle Close hook", "error": n1Error(finalErr), "qualified_profile_ready": false})
+	c.sampler.close() // flush the last batch before the final record
+	err := c.stream.append("final", map[string]any{"complete": complete, "host_sampler": c.sampler.summary(), "stream_writer": c.stream.writerStats(), "n1": c.summary, "read_pool_close_returned": readerReturned, "read_pool_close_error": n1Error(readerErr), "writer_close_error": n1Error(writerErr), "authority_usage": usage, "live_usage": live, "writer_pool_stats": stats, "writer_native_joined": nativeJoined, "reader_attested_connections": readerConnections, "reader_idle_close_observation": nil, "reader_idle_close_unavailable_reason": "Snapshots.Close owner return is observed; no separate native idle Close hook", "error": n1Error(finalErr), "qualified_profile_ready": false})
 	return errors.Join(finalErr, err, c.stream.close())
 }
