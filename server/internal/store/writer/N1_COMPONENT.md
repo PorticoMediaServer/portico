@@ -658,9 +658,14 @@ A read whose publication fence changed under concurrent ingest retains the stale
 attempt raw and is retried once within its original deadline.
 The EC2 verdict requires the serial `writer` stream to serve every scheduled
 offer; read, checkpoint and WAL misses stay recorded gaps and every action error
-still fails. The EC3 verdict additionally requires complete foreground-write
-coverage. The default foreground pattern is capture, drain, security. The wait
-ledger selects ACCEPT, preserving SNAPSHOT/Resolve/ACK separately.
+still fails. The EC3 verdict requires measurement integrity over the submissions
+that happened: every observed write a complete fresh ACCEPT, no action error or
+overflow, no unserved offer, and a full offer window. A missed offer is a declared
+rate shortfall in MissedOffers (ExpectedOffers vs ObservedOffers), never a wait
+sample, and a deferred phase records DeferredOffers with no fact at all; neither
+alone invalidates the observed distribution, though qualification may require the
+full nominal count. The default foreground pattern is capture, drain, security.
+The wait ledger selects ACCEPT, preserving SNAPSHOT/Resolve/ACK separately.
 
 Default mixed sustained writer pattern is inventory/security. Optional writer
 entries progress_capture, progress_drain and reclaim stay real source operations;

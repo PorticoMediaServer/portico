@@ -47,11 +47,11 @@ func TestEC3WriteWaitSplitAndZeroQueue(t *testing.T) {
 	}
 	ledger := newForegroundWriteLedger()
 	ledger.facts = []foregroundWriteWait{f, zero}
-	report := ledger.report(2, true)
+	report := ledger.report(2, 0, 0, true, true)
 	if !report.CoverageComplete || report.QueueWait.P50NS != 0 || report.SubmissionToCommit.P99NS != 35*time.Millisecond || report.ObservedP99WithinTarget == nil || !*report.ObservedP99WithinTarget || report.ReadsUnaffected != nil {
 		t.Fatal(report)
 	}
-	if partial := ledger.report(3, false); partial.CoverageComplete || partial.ObservedP99WithinTarget != nil {
+	if partial := ledger.report(3, 0, 0, false, false); partial.CoverageComplete || partial.ObservedP99WithinTarget != nil {
 		t.Fatal(partial)
 	}
 }
@@ -67,7 +67,7 @@ func TestEC3WriteWaitGapsAndReplayNeverBecomeZero(t *testing.T) {
 	replay := foregroundWait(workload.EC2Security, offer, start, o)
 	ledger := newForegroundWriteLedger()
 	ledger.facts = []foregroundWriteWait{failed, replay}
-	report := ledger.report(2, true)
+	report := ledger.report(2, 0, 0, true, true)
 	if report.CoverageComplete || report.Incomplete != 2 || report.SubmissionToCommit.P99NS != 81*time.Millisecond || report.ObservedP99WithinTarget != nil {
 		t.Fatal(report)
 	}
@@ -77,8 +77,36 @@ func TestEC3WriteWaitGapsAndReplayNeverBecomeZero(t *testing.T) {
 	}
 	var raw workload.Observation
 	err = stream.Pattern[0].Run(t.Context(), offer, func(o workload.Observation) error { raw = o; return nil })
-	if !errors.Is(err, workload.ErrWCComposition) || !raw.Stub || len(l.facts) != 1 || l.facts[0].SubmissionToCommitNS != nil || l.report(1, true).ObservedP99WithinTarget != nil {
+	if !errors.Is(err, workload.ErrWCComposition) || !raw.Stub || len(l.facts) != 1 || l.facts[0].SubmissionToCommitNS != nil || l.report(1, 0, 0, true, true).ObservedP99WithinTarget != nil {
 		t.Fatal(raw, l, err)
+	}
+}
+
+func TestEC3DeferredPhaseIsNotAWaitSampleAndMissedOffersStayVisible(t *testing.T) {
+	ledger := newForegroundWriteLedger()
+	drain := ledger.action(workload.EC2ProgressDrain, func(_ context.Context, _ workload.Offer, emit func(workload.Observation) error) error {
+		return emit(workload.Observation{Phase: "PROGRESS_DRAIN_DEFERRED"})
+	})
+	var raw []workload.Observation
+	if err := drain(t.Context(), workload.Offer{Stream: "foreground-writes", Slot: 1}, func(o workload.Observation) error {
+		raw = append(raw, o)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(ledger.facts) != 0 || ledger.deferred != 1 || len(raw) != 1 || !strings.HasSuffix(raw[0].Phase, "_DEFERRED") {
+		t.Fatal(ledger, raw)
+	}
+	if r := ledger.report(2, 0, 0, true, false); r.CoverageComplete || r.DeferredOffers != 1 || r.ObservedOffers != 0 {
+		t.Fatal(r)
+	}
+	// One complete write with one declared offer missed is still a valid observed
+	// distribution; the miss stays visible as MissedOffers.
+	start := time.Now()
+	ledger.facts = append(ledger.facts, foregroundWait(workload.EC2ProgressDrain, workload.Offer{ScheduledAt: start}, start, writeWaitControl(workload.EC2ProgressDrain, start, 0, time.Millisecond, 0)))
+	r := ledger.report(2, 1, 0, true, false)
+	if !r.CoverageComplete || r.MissedOffers != 1 || r.ObservedOffers != 1 || r.ObservedP99WithinTarget == nil || !*r.ObservedP99WithinTarget {
+		t.Fatal(r)
 	}
 }
 
@@ -90,7 +118,7 @@ func TestEC3SecurityTailCannotHideInProgressPopulation(t *testing.T) {
 		ledger.facts = append(ledger.facts, foregroundWait(workload.EC2ProgressDrain, offer, start, writeWaitControl(workload.EC2ProgressDrain, start, 0, time.Millisecond, 0)))
 	}
 	ledger.facts = append(ledger.facts, foregroundWait(workload.EC2Security, offer, start, writeWaitControl(workload.EC2Security, start, 0, 100*time.Millisecond, 0)))
-	r := ledger.report(100, true)
+	r := ledger.report(100, 0, 0, true, true)
 	if r.SubmissionToCommit.P99NS != time.Millisecond || r.ObservedP99WithinTarget == nil || *r.ObservedP99WithinTarget || r.ByOperation[workload.EC2Security].SubmissionToCommit.P99NS != 100*time.Millisecond {
 		t.Fatal(r)
 	}
@@ -129,7 +157,7 @@ func TestEC3IndependentSubmissionLeavesReadsRunning(t *testing.T) {
 	cfg := workload.Config{RunID: "EC3_CONTROL", Duration: time.Second, Cell: qual.RestartCell{ID: "CONTROL", HostID: "CONTROL", DatabaseID: "CONTROL", Profile: "fabricated control", ManifestSHA256: strings.Repeat("a", 64), CacheState: "warm", CadenceMode: "accelerated"}}
 	sink := &writeWaitControlSink{}
 	err = workload.Run(t.Context(), cfg, []workload.Stream{{Name: "scan", Every: time.Second, Pattern: []workload.Step{{Name: "scan", Run: scan}}}, stream, {Name: "reads", Every: time.Second, Pattern: []workload.Step{{Name: "read", Run: read}}}}, sink)
-	if !errors.Is(err, stop) || len(ledger.facts) != 1 || ledger.report(1, false).ObservedP99WithinTarget != nil {
+	if !errors.Is(err, stop) || len(ledger.facts) != 1 || ledger.report(1, 0, 0, false, false).ObservedP99WithinTarget != nil {
 		t.Fatal(err, ledger)
 	}
 	select {
