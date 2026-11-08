@@ -70,7 +70,7 @@ func scanLifecycleFixture(t *testing.T) (*executor, *stmt.Registry, scanRunCreat
 	t.Helper()
 	w, _, _ := testExecutor(t)
 	in := seedScanLifecycle(t, w)
-	registry := nativeInventoryFixtureRegistry(t, w, scanRunLifecycleDefinitions(), "scan_run_lifecycle_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, scanRunLifecycleDefinitions(), "scan_run_lifecycle_test.go")
 	return w, registry, in
 }
 func scanLifecycleTestTurn(t *testing.T, w *executor, r *stmt.Registry) *commandTurn {

@@ -142,7 +142,7 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 		owner, c.native = newEC2NativeOwner(t, w, path, original, c.trace, gc)
 		w = owner.executor
 	} else {
-		registry := nativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go", "../internal/readfixture/source.go")
+		registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go", "../internal/readfixture/source.go")
 		owner = newInventoryMemoryFixture(t, w, registry, original, inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20}, gc)
 	}
 	registry := owner.registry

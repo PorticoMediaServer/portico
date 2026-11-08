@@ -115,7 +115,7 @@ func inventoryFreshFixture(t *testing.T, decorate ...func(driver.Conn) driver.Co
 func inventoryFreshFixtureDefinitions(t *testing.T, definitions []stmt.Definition, decorate ...func(driver.Conn) driver.Conn) (*executor, string, *inventoryAcceptCommand, *stmt.Registry) {
 	t.Helper()
 	e, path, c := inventoryFreshSeedFixture(t, decorate...)
-	registry := nativeInventoryFixtureRegistry(t, e, definitions, "scan_fresh_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, e, definitions, "scan_fresh_test.go")
 	return e, path, c, registry
 }
 

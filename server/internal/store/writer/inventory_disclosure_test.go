@@ -57,7 +57,7 @@ func (r *inventoryScopeCancelRows) Close() error {
 
 func TestInventoryNativeDisclosureLateCancellation(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	var sequence int64
 	var name, path string
 	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
@@ -102,7 +102,7 @@ func TestInventoryNativeDisclosureLateCancellation(t *testing.T) {
 
 func TestInventoryNativeDisclosureRetirementDoesNotHideHistory(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	if _, err := w.db.ExecContext(t.Context(), "UPDATE catalog_libraries SET retired=1 WHERE id=7"); err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func inventoryDisclosureFaultTurn(t *testing.T, w *executor, defs []stmt.Definit
 
 func TestInventoryNativeDisclosureScope(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	base := ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"}
 	for _, c := range []struct {
 		name string
@@ -203,7 +203,7 @@ func TestInventoryNativeDisclosureScope(t *testing.T) {
 
 func TestInventoryNativeDisclosureRejectsFaultedRowsAndCancel(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	r := ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"}
 	for _, c := range []struct {
 		name string
@@ -246,7 +246,7 @@ func TestInventoryNativeDisclosureRejectsFaultedRowsAndCancel(t *testing.T) {
 
 func TestInventoryNativeDisclosureRequiresClosedReadSteps(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	r := ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"}
 	for _, id := range []stmt.ID{inventoryDisclosureJob, inventoryDisclosureLibrary} {
 		for _, missing := range []bool{false, true} {

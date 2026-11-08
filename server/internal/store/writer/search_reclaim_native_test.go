@@ -67,7 +67,7 @@ func searchReclaimNativeSeed(t *testing.T) (*executor, *searchFragmentReclaimCom
 func searchReclaimNativeFixture(t *testing.T) (*executor, *stmt.Registry, *searchFragmentReclaimCommand) {
 	t.Helper()
 	w, c := searchReclaimNativeSeed(t)
-	r := nativeInventoryFixtureRegistry(t, w, searchFragmentReclaimDefinitions(), "search_reclaim_native_test.go", "search_reclaim_statements.go")
+	r := cachedNativeInventoryFixtureRegistry(t, w, searchFragmentReclaimDefinitions(), "search_reclaim_native_test.go", "search_reclaim_statements.go")
 	return w, r, c
 }
 

@@ -62,7 +62,7 @@ func scanDriverFixtureOnOpening(t *testing.T, o *scanOpening, owner *stateowners
 			}
 		}
 	}
-	registry := nativeInventoryFixtureRegistry(t, o.executor, defs, "scan_driver_test.go", "scan_run_lifecycle_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, o.executor, defs, "scan_driver_test.go", "scan_run_lifecycle_test.go")
 	clock := time.Now().Add(time.Hour)
 	o.executor.now = func() time.Time { return clock }
 	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}
@@ -370,7 +370,7 @@ func TestScanDriverRetentionRejectsUnknownAndReplacedRegistries(t *testing.T) {
 	}
 	defs := append(scanRunLifecycleDefinitions(), scanBirthDefinitions()...)
 	defs = append(defs, scanSnapshotByteDefinitions()...)
-	other := nativeInventoryFixtureRegistry(t, d.opening.executor, defs, "scan_driver_test.go", "scan_run_lifecycle_test.go")
+	other := cachedNativeInventoryFixtureRegistry(t, d.opening.executor, defs, "scan_driver_test.go", "scan_run_lifecycle_test.go")
 	if err := d.retention.check(d.opening.executor, other); err == nil {
 		t.Fatal("registry replacement preserved birth retention witness")
 	}
@@ -379,7 +379,7 @@ func TestScanDriverRetentionRejectsUnknownAndReplacedRegistries(t *testing.T) {
 	if scanOwnerRetentionID(added.ID) {
 		t.Fatal("provider growth silently gained a retention policy")
 	}
-	extended := nativeInventoryFixtureRegistry(t, d.opening.executor, append(defs, added), "scan_driver_test.go", "scan_run_lifecycle_test.go")
+	extended := cachedNativeInventoryFixtureRegistry(t, d.opening.executor, append(defs, added), "scan_driver_test.go", "scan_run_lifecycle_test.go")
 	if proof, err := scanOwnerRetentionFor(d.opening.executor, extended); proof != nil || err == nil {
 		t.Fatal("unreviewed owner protocol gained no-GC proof", proof, err)
 	}
