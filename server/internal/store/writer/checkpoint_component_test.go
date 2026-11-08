@@ -199,6 +199,7 @@ func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpoin
 	if screening {
 		live := readfixture.LiveConfig(f.now)
 		cfg.Foreground = live.Foreground
+		cfg.MaxGrantsPerClass = live.MaxGrantsPerClass // existing LIVE bookkeeping, not worker slots
 		cfg.Partitions[governor.Foreground] = live.Partitions[governor.Foreground]
 	}
 	f.g, f.a, err = governor.New(cfg)
