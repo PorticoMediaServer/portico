@@ -144,12 +144,6 @@ func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evid
 	// unqualified; no other purpose gains its statements.
 	var accept effectivePlan
 	installAccept := len(accepts) == 1
-	if len(accepts) > 1 {
-		return ErrInvalid
-	}
-	if installAccept {
-		accept = accepts[0]
-	}
 	var locked, executorLocked, installed bool
 	var oldRegistry *stmt.Registry
 	defer func() {
@@ -167,6 +161,12 @@ func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evid
 		// Publication is checked again after configuration custody is returned.
 		_, err = finishCommand(ctx, ctx, struct{}{}, err)
 	}()
+	if len(accepts) > 1 {
+		return ErrInvalid
+	}
+	if installAccept {
+		accept = accepts[0]
+	}
 	if ctx == nil || r == nil || r.executor == nil || r.registry == nil {
 		return ErrInvalid
 	}
