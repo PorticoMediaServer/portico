@@ -216,8 +216,7 @@ func TestMPWorkerRepeatNoopConflictAndCurrentDenial(t *testing.T) {
 			case "device":
 				_, _ = f.e.db.ExecContext(t.Context(), `UPDATE authorization_session_families SET device_id=NULL`)
 			case "copied":
-				copy := *f.cap
-				f.cap = &copy
+				f.cap = &mpWorkerDisclosure{self: f.cap, writer: f.cap.writer, lifetime: f.cap.lifetime, scope: f.cap.scope, queue: f.cap.queue, device: f.cap.device, incarnation: f.cap.incarnation}
 			case "digest":
 				copy := *c
 				copy.reference.RequestDigest[0] ^= 1
@@ -245,6 +244,9 @@ func TestMPWorkerRepeatNoopConflictAndCurrentDenial(t *testing.T) {
 				}
 			} else if err == nil || !reflect.DeepEqual(out, mpWorkerResult{}) {
 				t.Fatal("failure exposed result", out, err)
+			}
+			if name == "null-generation" && !errors.Is(err, ErrResolveRequired) {
+				t.Fatal("NULL generation must be a typed refusal", err)
 			}
 			mpWorkerAssertReturned(t, f)
 		})
@@ -572,6 +574,54 @@ func TestMPWorkerRepeatRowQuotaRefusesSecondReceipt(t *testing.T) {
 	var rows, revision int64
 	if err = f.e.db.QueryRowContext(t.Context(), `SELECT mp_receipt_rows,revision FROM queues_v1 WHERE id='mp-queue'`).Scan(&rows, &revision); err != nil || rows != 1 || revision != 4 {
 		t.Fatal(rows, revision, err)
+	}
+	mpWorkerAssertReturned(t, f)
+}
+
+func TestMPWorkerRepeatPreservesPriorGenerationStop(t *testing.T) {
+	for _, exited := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unexited", true: "exited"}[exited], func(t *testing.T) {
+			f := mpWorkerFixture(t, true)
+			if _, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_sessions SET state='stopped',mp_grant_retired=1,mp_revision=2,mp_retired_generation=1,mp_retire_request_id='older-generation-stop' WHERE id='mp-media'`); err != nil {
+				t.Fatal(err)
+			}
+			if exited {
+				if _, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_sessions SET mp_exited_generation=1,mp_exit_request_id='older-generation-stop',mp_exit_supervisor_incarnation=zeroblob(16),mp_exited_ms=100 WHERE id='mp-media'`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out, err := f.run(t.Context(), f.command)
+			if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, mpWorkerResult{}) {
+				t.Fatal("older generation must refuse without overwriting proof", out, err)
+			}
+			var request string
+			var retired, exit, revision, receipts int64
+			if err = f.e.db.QueryRowContext(t.Context(), `SELECT mp_retire_request_id,mp_retired_generation,mp_exited_generation,mp_revision FROM playback_sessions WHERE id='mp-media'`).Scan(&request, &retired, &exit, &revision); err != nil {
+				t.Fatal(err)
+			}
+			if err = f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_queue_command_receipts`).Scan(&receipts); err != nil {
+				t.Fatal(err)
+			}
+			wantExit := int64(0)
+			if exited {
+				wantExit = 1
+			}
+			if request != "older-generation-stop" || retired != 1 || exit != wantExit || revision != 2 || receipts != 0 {
+				t.Fatal(request, retired, exit, revision, receipts)
+			}
+			mpWorkerAssertReturned(t, f)
+		})
+	}
+}
+
+func TestMPWorkerRepeatRejectsHalfRetiredCurrentGeneration(t *testing.T) {
+	f := mpWorkerFixture(t, true)
+	if _, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_sessions SET mp_retired_generation=2,mp_retire_request_id='partial-stop' WHERE id='mp-media'`); err != nil {
+		t.Fatal(err)
+	}
+	out, err := f.run(t.Context(), f.command)
+	if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, mpWorkerResult{}) {
+		t.Fatal("half-retired source accepted", out, err)
 	}
 	mpWorkerAssertReturned(t, f)
 }

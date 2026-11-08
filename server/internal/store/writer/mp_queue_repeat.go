@@ -107,6 +107,12 @@ func applyMPRepeat(ctx context.Context, t *commandTurn, q mpQueueRepeatRequest, 
 		if int64(len(execution)) != executionBytes {
 			return out, ErrResolveRequired
 		}
+		// A prior generation's stop/exit proof belongs to that execution. The
+		// generation-advance owner must settle it before exposing a clean successor;
+		// this queue edit may neither overwrite its request nor trip a native CHECK.
+		if retired != 0 && retired != out.Generation || exited != 0 && exited != out.Generation {
+			return out, ErrConflict
+		}
 		// REQUEST retirement; never accept a caller's physical-exit observation.
 		if retired == out.Generation {
 			row, err = wc008DraftQuery(ctx, t, mpRepeatExistingStop, out.Media, out.Generation, q.Account, q.Profile, physicalRevision, execution)
