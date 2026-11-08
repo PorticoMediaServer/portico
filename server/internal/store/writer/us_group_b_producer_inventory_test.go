@@ -61,14 +61,15 @@ var (
 // Prefix is the whitespace-collapsed SQL from the first keyword, truncated to
 // usGroupBPrefixBytes. Lines in comments are the census head, not an assertion.
 type usGroupBProducer struct {
-	File    string
-	Op      string
-	Table   string
-	Class   string
-	Purpose string
-	Fixture string
-	Prefix  string
-	Note    string
+	File      string
+	Op        string
+	Table     string
+	Class     string
+	Purpose   string
+	Fixture   string
+	Prefix    string
+	Note      string
+	PendingPR string
 }
 
 var usGroupBProducers = []usGroupBProducer{
@@ -126,6 +127,12 @@ var usGroupBProducers = []usGroupBProducer{
 	{File: "server/internal/store/writer/wc_security_008_native_test.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 WC security native fixture ordinary family", Prefix: `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incar`},                        // line 17
 	{File: "server/internal/testauth/session.go", Op: "insert", Table: "identity_devices", Class: usGroupBLegacy, Purpose: usGroupBOrdinary, Fixture: "", Note: "Legacy generic test-session device", Prefix: `INSERT INTO identity_devices(id,authority,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES(?,?,?,?,?,'test','portico','1','`},                                                                              // line 22
 	{File: "server/internal/testauth/session.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBLegacy, Purpose: usGroupBOrdinary, Fixture: "", Note: "Legacy generic test-session family", Prefix: `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation) VALUES(?,?,?,?,?,?,`},                                                                // line 23
+	// Pending fixtures live only on unmerged branches. They are matched by file until
+	// their PR merges; the merging task promotes them to exact op/table/prefix entries.
+	{File: "server/internal/store/writer/us_family_birth_test.go", Class: usGroupBV1Native, Purpose: usGroupBMixed, Fixture: "P05", PendingPR: "#1809", Note: "Family birth fixtures: ordinary family plus credential marker rows"},
+	{File: "server/internal/store/writer/us_family_fence_drain_test.go", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", PendingPR: "#1810", Note: "Family fence/drain fixtures: ordinary family and device rows with drain deletes"},
+	{File: "server/internal/store/writer/us_credential_secret_drain_test.go", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "P05", PendingPR: "#1812", Note: "Credential secret drain fixtures: credential row and its family"},
+	{File: "server/internal/store/writer/us_refresh_receipt_compat_test.go", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", PendingPR: "#1813", Note: "Refresh receipt compatibility fixtures: two ordinary families, kind 0 at embed"},
 }
 
 // usGroupBOtherSources are the non-Go sites this census tracks. The Python baseline
@@ -295,7 +302,24 @@ func usGroupBScanGo(t *testing.T, root string) []usGroupBSite {
 func TestUSGroupBProducerInventory(t *testing.T) {
 	found := usGroupBScanGo(t, usGroupBServerRoot())
 	expected := make(map[string]usGroupBProducer, len(usGroupBProducers))
+	pending := make(map[string]usGroupBProducer)
 	for _, producer := range usGroupBProducers {
+		if producer.PendingPR != "" {
+			if producer.Op != "" || producer.Table != "" || producer.Prefix != "" {
+				t.Fatalf("%s: pending entries match by file; leave op, table and prefix empty", producer.File)
+			}
+			if _, duplicate := pending[producer.File]; duplicate {
+				t.Fatalf("duplicate pending census entry for %s", producer.File)
+			}
+			if producer.Class != usGroupBV1Native || producer.Fixture != "P05" {
+				t.Fatalf("%s: pending fixtures are v1-native P05 entries", producer.File)
+			}
+			if producer.Note == "" || producer.PendingPR[0] != '#' {
+				t.Fatalf("%s: pending entry needs a note and a PR number", producer.File)
+			}
+			pending[producer.File] = producer
+			continue
+		}
 		key := usGroupBKey(producer.File, producer.Op, producer.Table, producer.Prefix)
 		if _, duplicate := expected[key]; duplicate {
 			t.Fatalf("duplicate census entry for %s %s %s", producer.File, producer.Op, producer.Table)
@@ -326,15 +350,27 @@ func TestUSGroupBProducerInventory(t *testing.T) {
 	}
 
 	seen := make(map[string][]usGroupBSite, len(expected))
+	pendingSeen := make(map[string]int, len(pending))
 	for _, site := range found {
 		key := usGroupBKey(site.File, site.Op, site.Table, site.Prefix)
-		seen[key] = append(seen[key], site)
-		if _, listed := expected[key]; !listed {
-			t.Errorf("unlisted %s producer at %s:%d (%s %s); add it to usGroupBProducers with class, purpose and fixture task\nSQL: %s",
-				site.Class, site.File, site.Line, site.Op, site.Table, site.Prefix)
+		if _, listed := expected[key]; listed {
+			seen[key] = append(seen[key], site)
+			continue
 		}
+		if _, waiting := pending[site.File]; waiting {
+			pendingSeen[site.File]++
+			continue
+		}
+		t.Errorf("unlisted %s producer at %s:%d (%s %s); add it to usGroupBProducers with class, purpose and fixture task\nSQL: %s",
+			site.Class, site.File, site.Line, site.Op, site.Table, site.Prefix)
+	}
+	for file, producer := range pending {
+		t.Logf("pending producer file %s (%s): %d target-table sites at this head", file, producer.PendingPR, pendingSeen[file])
 	}
 	for _, producer := range usGroupBProducers {
+		if producer.PendingPR != "" {
+			continue
+		}
 		key := usGroupBKey(producer.File, producer.Op, producer.Table, producer.Prefix)
 		sites := seen[key]
 		switch len(sites) {
