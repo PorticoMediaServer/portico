@@ -6,8 +6,51 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/schematest"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
+
+var comparisonCatalog struct {
+	once sync.Once
+	rows Rows
+	err  error
+}
+
+// Comparison controls keep historical statement bytes, but their actual side
+// must use the current native catalog. Rebinding the old catalog to a new SQL
+// hash would make every control fail before reaching the field it tests.
+func currentComparisonCatalog(t *testing.T) Rows {
+	t.Helper()
+	comparisonCatalog.once.Do(func() {
+		db, policy, err := sqliteconn.Open(t.Context(), schematest.Clone(t), sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 4096, Synchronous: sqliteconn.Full})
+		if err != nil {
+			comparisonCatalog.err = err
+			return
+		}
+		defer db.Close()
+		conn, err := db.Conn(t.Context())
+		if err != nil {
+			comparisonCatalog.err = err
+			return
+		}
+		defer conn.Close()
+		if _, err = sqliteconn.Assert(t.Context(), conn, policy); err != nil {
+			comparisonCatalog.err = err
+			return
+		}
+		comparisonCatalog.rows, comparisonCatalog.err = query(t.Context(), conn, "SELECT type,name,tbl_name,rootpage,sql FROM main.sqlite_schema ORDER BY type,name")
+		if comparisonCatalog.err == nil {
+			comparisonCatalog.err = checkEmbeddedCatalog(comparisonCatalog.rows)
+		}
+	})
+	if comparisonCatalog.err != nil {
+		t.Fatal(comparisonCatalog.err)
+	}
+	return comparisonCatalog.rows
+}
 
 func canonicalComparisonFixture(t *testing.T) map[string]any {
 	t.Helper()
@@ -20,6 +63,14 @@ func canonicalComparisonFixture(t *testing.T) map[string]any {
 		t.Fatal(err)
 	}
 	env := v["environment"].(map[string]any)
+	catalog := currentComparisonCatalog(t)
+	var current any
+	if err = decodeValue(catalog, &current); err != nil {
+		t.Fatal(err)
+	}
+	env["schema"] = current
+	env["schemaSha256"] = digest(catalog)
+	env["indexPolicySha256"] = embeddedPolicySHA()
 	env["schemaBinding"] = map[string]any{"version": json.Number("1"), "sqlSha256": schemaSQLSHA()}
 	return v
 }

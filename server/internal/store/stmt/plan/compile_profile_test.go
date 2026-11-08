@@ -3,7 +3,6 @@ package plan
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -11,18 +10,8 @@ import (
 
 func compileFixture(t *testing.T, profile string, change func(map[string]any)) []byte {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/canonical.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var value map[string]any
-	d := json.NewDecoder(bytes.NewReader(raw))
-	d.UseNumber()
-	if err := d.Decode(&value); err != nil {
-		t.Fatal(err)
-	}
+	value := canonicalComparisonFixture(t)
 	env := value["environment"].(map[string]any)
-	env["schemaBinding"] = &SchemaBinding{Version: 1, SQLSHA256: schemaSQLSHA()}
 	options := env["compileOptions"].(map[string]any)["values"].([]any)
 	for _, option := range options {
 		row := option.([]any)
