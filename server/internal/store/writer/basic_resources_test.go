@@ -172,20 +172,15 @@ func TestBasicResourcesRequireInstalledCustodyAndClosedPlans(t *testing.T) {
 	} else {
 		assertPartitionPolicyError(t, err, "memory_purpose")
 	}
-	for _, id := range []CommandID{BasicStage, BasicSeal} {
+	// All three Basic purposes open only through their private complete-profile
+	// composers. This bare partition has no definitions, steps or matching need
+	// and still refuses before admission.
+	for _, id := range []CommandID{BasicStage, BasicSeal, BasicAccept} {
 		if _, err := freezeCommandPlan(w, plan, nil, id); err == nil {
 			t.Fatal("incomplete Basic recipe enabled", id)
 		} else {
-			assertPartitionPolicyError(t, err, "command_plan_purpose")
+			assertPartitionPolicyError(t, err, "basic_memory_partition")
 		}
-	}
-	// Accept opens only through the private complete-profile composer. This
-	// bare partition has no definitions, steps or matching need and still
-	// refuses before admission.
-	if _, err := freezeCommandPlan(w, plan, nil, BasicAccept); err == nil {
-		t.Fatal("incomplete Basic Accept recipe enabled")
-	} else {
-		assertPartitionPolicyError(t, err, "basic_memory_partition")
 	}
 }
 

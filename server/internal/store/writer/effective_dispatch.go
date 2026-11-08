@@ -72,6 +72,8 @@ type effectiveRuntime struct {
 	owner                    governor.OwnerID
 	plan                     effectivePlan
 	basicAcceptPlan          *effectivePlan
+	basicStagePlan           *effectivePlan
+	basicSealPlan            *effectivePlan
 	inventoryPlan            *effectivePlan
 	lifecyclePlans           [2]*effectivePlan // private, explicitly composed create/claim history profiles
 	issuerPlans              [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
@@ -447,7 +449,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			return out, acknowledged, err
 		}
 		submittedWork = scan.basic.work
-		plan = r.basicAcceptPlan
+		plan = r.basicPlan(purpose)
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}

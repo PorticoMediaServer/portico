@@ -17,7 +17,7 @@ var (
 
 // Intended post-legacy plan openings, each tied to the PR that opened it. Only
 // the plan gate may differ; memory, clock and partition facts stay frozen.
-var sanctionedPlanOpenings = map[CommandID]bool{BasicAccept: true} // #1670
+var sanctionedPlanOpenings = map[CommandID]bool{BasicAccept: true, BasicStage: true, BasicSeal: true} // #1670; Stage/Seal: Basic P4a
 
 func frozenLegacyPurposes() []CommandID {
 	ids := []CommandID{InventoryAccept, InventoryCreate, InventoryClaim, SearchImageStage, BasicStage, BasicSeal, BasicAccept,
