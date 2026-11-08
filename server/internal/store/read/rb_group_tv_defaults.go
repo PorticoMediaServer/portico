@@ -10,12 +10,13 @@ import (
 )
 
 // RBTVDefaults is a harness-only source resolver, separate from explicit TV
-// groupOrder. ProvisionalInheritance applies the lead's temporary rule: revision
-// one with all default settings inherits the CURRENT library episode numbering.
-// It is NOT evidence that an explicit saved settings row was absent. IP's
-// presence marker must replace this rule before final workspace qualification.
-// Source values and the actual preference revision remain in the result; a
-// caller-supplied settings struct can never substitute for this source read.
+// groupOrder. SettingsPresent is the catalog_entities.show_settings_present
+// source fact: zero inherits the CURRENT library episode numbering even when the
+// settings revision is greater than one, and one is an explicit owner save even
+// when every saved field is default at revision one. Revision and stored values
+// never stand in for presence. Source values and the actual preference revision
+// remain in the result; a caller-supplied settings struct can never substitute
+// for this source read.
 type RBTVDefaults struct {
 	Show                                             int64
 	HideSeasons, AbsoluteNumbering, NewestFirst      bool
@@ -24,7 +25,7 @@ type RBTVDefaults struct {
 	LibraryNumbering                                 string
 	LibraryPreferenceRevision                        int64
 	SavedAbsoluteNumbering, LibraryPreferencePresent bool
-	ProvisionalInheritance                           bool
+	SettingsPresent                                  bool
 	fence                                            browseFence
 }
 
@@ -58,10 +59,13 @@ func rbTVDefaultsRow(q browseQuery, in BrowseInput, f browseFence) ([]any, error
 	if len(v[8].(string)) > 1024 {
 		return nil, ErrNotReady
 	}
+	if v[14] != int64(0) && v[14] != int64(1) {
+		return nil, ErrUnqualified
+	}
 	return v, nil
 }
 func init() {
-	registerReadPolicy(readPolicyRecipe{id: rbTVDefaultsPolicy, domain: "rb-tv-provisional-defaults", kinds: []int64{2}, validate: func(q browseQuery, in BrowseInput, f browseFence) (string, error) {
+	registerReadPolicy(readPolicyRecipe{id: rbTVDefaultsPolicy, domain: "rb-tv-defaults", kinds: []int64{2}, validate: func(q browseQuery, in BrowseInput, f browseFence) (string, error) {
 		if in.policy.subject <= 0 {
 			return "", ErrInput
 		}
@@ -125,13 +129,16 @@ func (r *BrowseReader) rbTVSourceDefaults(ctx context.Context, request governor.
 			d.LibraryNumbering = v[13].(string)
 			d.LibraryPreferenceRevision = v[12].(int64)
 		}
-		d.ProvisionalInheritance = d.SettingsRevision == 1 && !d.HideSeasons && !d.AbsoluteNumbering && !d.NewestFirst && d.Ranges == ""
-		if d.ProvisionalInheritance {
+		d.SettingsPresent = v[14] == int64(1)
+		if !d.SettingsPresent {
+			// Presence zero inherits the CURRENT library numbering at any
+			// settings revision; stored booleans are then default by the
+			// catalog_entities CHECK and are not explicit evidence.
 			d.AbsoluteNumbering = d.LibraryNumbering == "absolute"
 		}
 		return nil
 	}})
 }
 func RBTVDefaultsDefinitions() []stmt.Definition {
-	return []stmt.Definition{{ID: statementID("rb.tv.defaults"), SQL: `SELECT e.id,e.library_id,e.kind,e.retired,e.admission_own_age,e.hide_seasons,e.absolute_numbering,e.newest_first,e.show_ranges,e.show_settings_revision,l.kind,l.preference_present,l.preference_revision,l.preference_episode_numbering FROM catalog_entities AS e CROSS JOIN catalog_libraries AS c ON c.id=e.library_id CROSS JOIN libraries AS l INDEXED BY sqlite_autoindex_libraries_1 ON l.id=c.library_id WHERE e.id=?`, Owner: "store/read", CallSites: []string{"store/read/rb_group_tv_defaults.go:BrowseReader.RBTVSourceDefaults"}, Kind: stmt.Read, Params: []stmt.Param{{Name: "show", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1)}}, {Name: "empty", Bindings: []any{int64(-1)}}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"e", "c"}, Indexes: []string{"sqlite_autoindex_libraries_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "libraries", Name: "sqlite_autoindex_libraries_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}}}
+	return []stmt.Definition{{ID: statementID("rb.tv.defaults"), SQL: `SELECT e.id,e.library_id,e.kind,e.retired,e.admission_own_age,e.hide_seasons,e.absolute_numbering,e.newest_first,e.show_ranges,e.show_settings_revision,l.kind,l.preference_present,l.preference_revision,l.preference_episode_numbering,e.show_settings_present FROM catalog_entities AS e CROSS JOIN catalog_libraries AS c ON c.id=e.library_id CROSS JOIN libraries AS l INDEXED BY sqlite_autoindex_libraries_1 ON l.id=c.library_id WHERE e.id=?`, Owner: "store/read", CallSites: []string{"store/read/rb_group_tv_defaults.go:BrowseReader.RBTVSourceDefaults"}, Kind: stmt.Read, Params: []stmt.Param{{Name: "show", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(1)}}, {Name: "empty", Bindings: []any{int64(-1)}}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"e", "c"}, Indexes: []string{"sqlite_autoindex_libraries_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "libraries", Name: "sqlite_autoindex_libraries_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}}}
 }
