@@ -278,6 +278,10 @@ func verifyInventoryBatchCrash(t *testing.T, w crashWitness) {
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("double ACK wrote", err)
 	}
+	retired, err := d.ResolveScan(t.Context(), s.Original)
+	if err != nil || retired.Outcome.State != ResultRetired || len(retired.Members) != 0 {
+		t.Fatal("restart ACK floor restored a batch payload", retired, err)
+	}
 	if err = d.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
