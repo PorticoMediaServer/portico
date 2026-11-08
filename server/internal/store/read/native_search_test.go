@@ -884,3 +884,43 @@ func TestNativeSearchRetainedLibrariesShareOneOperation(t *testing.T) {
 		t.Fatal("discarded library still validated", err)
 	}
 }
+
+// One entity can be discovered through several postings (own-title prefix,
+// trigram, ...). A preview walk must still hand each (subject, ID) to its
+// consumer once, or a consumer counting hits per poll double counts.
+func TestNativeSearchPreviewWalkEmitsEachHitOnce(t *testing.T) {
+	f, r := nativePreviewFixture(t)
+	var after *FullSearchCursor
+	seen := map[int64]int{}
+	polls := 0
+	for ; polls < 400; polls++ {
+		page, err := nativePreviewRead(t, f, r, "story", after, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, hit := range page.Hits {
+			seen[hit.ID]++
+		}
+		if page.Next == nil {
+			if !page.Exhausted || page.Partial {
+				t.Fatal("small population did not finish exhausted", page)
+			}
+			break
+		}
+		if after != nil && page.Next.native != nil && len(page.Next.native.seen) < len(after.native.seen) {
+			t.Fatal("seen keys shrank between polls")
+		}
+		after = page.Next
+	}
+	if polls == 400 {
+		t.Fatal("walk did not finish")
+	}
+	if len(seen) != 21 {
+		t.Fatal("walk found", len(seen), "distinct hits, want 21")
+	}
+	for id, n := range seen {
+		if id < 30 || id > 50 || n != 1 {
+			t.Fatal("hit emitted wrong number of times", id, n)
+		}
+	}
+}

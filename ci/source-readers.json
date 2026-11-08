@@ -377,6 +377,7 @@
         "TestNativeSearchPlans",
         "TestNativeSearchPreviewCursorIsBoundToItsQuery",
         "TestNativeSearchPreviewTheReturnsPartial",
+        "TestNativeSearchPreviewWalkEmitsEachHitOnce",
         "TestNativeSearchPublicationDenialAndRetirement",
         "TestNativeSearchReadJoinedStamp",
         "TestNativeSearchRefusesCandidateBudgetMisuse",

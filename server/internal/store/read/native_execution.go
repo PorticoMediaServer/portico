@@ -13,8 +13,10 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
 )
 
-// Continuations retain only bounded values. No connection, rows, receipt,
-// query-wide seen set or permission survives a read window.
+// Continuations retain only bounded values. No connection, rows, receipt or
+// permission survives a read window, and no unbounded seen set: a preview keeps
+// only the (subject, ID) keys it already emitted, at most the 2,000-candidate
+// allowance, so a later poll never repeats a hit.
 type nativeContinuation struct {
 	fence          nativeSearchFence
 	term           int
@@ -30,6 +32,14 @@ type nativeContinuation struct {
 	// Raw bank-wide MATCH rows used so far; internal budget only, never wire data.
 	candidates        int
 	previewIncomplete bool
+	seen              []nativeSeenKey
+}
+
+// nativeSeenKey is the identity of a hit already emitted by an earlier preview
+// poll of the same walk.
+type nativeSeenKey struct {
+	subject search.ManifestSubject
+	id      int64
 }
 
 // Pending cursors retain rank coordinates only, never a held candidate page.
@@ -64,6 +74,7 @@ func cloneNativeContinuation(p *nativeContinuation) *nativeContinuation {
 	n := *p
 	n.counts = slices.Clone(p.counts)
 	n.top = slices.Clone(p.top)
+	n.seen = slices.Clone(p.seen)
 	if p.expansion != nil {
 		e := *p.expansion
 		if e.cursor != nil {
