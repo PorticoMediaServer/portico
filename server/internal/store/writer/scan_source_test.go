@@ -21,7 +21,7 @@ func scanSourceFixture(t *testing.T) (*executor, *stmt.Registry, *inventoryCreat
 	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO library_scan_policies(library_id,revision) VALUES('lifecycle-library',7)`); err != nil {
 		t.Fatal(err)
 	}
-	registry := nativeInventoryFixtureRegistry(t, w, scanSourceDefinitions(), "scan_source_test.go", "scan_run_lifecycle_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, scanSourceDefinitions(), "scan_source_test.go", "scan_run_lifecycle_test.go")
 	return w, registry, command
 }
 

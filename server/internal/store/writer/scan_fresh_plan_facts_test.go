@@ -46,7 +46,7 @@ func TestInventoryFreshNativeCompiledCohortPopulations(t *testing.T) {
 	seedInventoryFreshPlanFacts(t, e)
 	// Real FULL startup Capture precedes ordinary Try/bind/NORMAL BEGIN.
 	// Qualification setup does not execute these compiled cohort effects.
-	registry := nativeInventoryFixtureRegistry(t, e, scanInventoryFreshDefinitions(), "scan_fresh_test.go", "scan_fresh_plan_facts_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, e, scanInventoryFreshDefinitions(), "scan_fresh_test.go", "scan_fresh_plan_facts_test.go")
 	for _, d := range scanFreshDefinitions() {
 		for _, cohort := range d.Cohorts {
 			t.Run(string(d.ID)+"/"+cohort.Name, func(t *testing.T) {

@@ -79,7 +79,7 @@ VALUES(1032,44,7,3,1,5,?,11,?,'','','')`, source[:], searchpolicy.RecipeV1)
 func searchPublisherHistoryFixture(t *testing.T) (*executor, *stmt.Registry) {
 	t.Helper()
 	w := searchPublisherHistorySeed(t)
-	r := nativeInventoryFixtureRegistry(t, w, searchPublisherReceiptDefinitions(), "search_publish_history_test.go", "search_publish_receipts.go")
+	r := cachedNativeInventoryFixtureRegistry(t, w, searchPublisherReceiptDefinitions(), "search_publish_history_test.go", "search_publish_receipts.go")
 	return w, r
 }
 

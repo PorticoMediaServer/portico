@@ -50,7 +50,7 @@ func scanObjectTestTurn(t *testing.T, w *executor, definitions []stmt.Definition
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
 	config := w.config
 	config.Synchronous = sqliteconn.Normal
-	registry := nativeFixtureRegistry(t, tx.conn, config, definitions, "scan_object_test.go")
+	registry := cachedNativeFixtureRegistry(t, tx.conn, config, definitions, "scan_object_test.go")
 	return scanObjectCommandTurn(t, tx, registry)
 }
 
@@ -264,7 +264,7 @@ FROM (SELECT '' AS suffix UNION ALL SELECT '-other')`, 1)
 				original := scanObjectDefinitions()[0]
 				config := w.config
 				config.Synchronous = sqliteconn.Normal
-				r := nativeFixtureRegistry(t, turn.transaction.conn, config, []stmt.Definition{original}, "scan_object_test.go")
+				r := cachedNativeFixtureRegistry(t, turn.transaction.conn, config, []stmt.Definition{original}, "scan_object_test.go")
 				saved := turn.registry
 				turn.registry = r
 				if _, err := insertInventoryObject(t.Context(), turn, in); err != nil {

@@ -132,7 +132,7 @@ func searchHeadNativeSeed(t *testing.T) (*executor, *searchHeadPublishCommand) {
 func searchHeadNativeFixture(t *testing.T) (*executor, *stmt.Registry, *searchHeadPublishCommand) {
 	t.Helper()
 	w, c := searchHeadNativeSeed(t)
-	r := nativeInventoryFixtureRegistry(t, w, searchHeadDefinitions(), "search_head_test.go", "search_head_statements.go")
+	r := cachedNativeInventoryFixtureRegistry(t, w, searchHeadDefinitions(), "search_head_test.go", "search_head_statements.go")
 	return w, r, c
 }
 
@@ -194,7 +194,7 @@ func TestSearchHeadExistingReclaimDueIsNeverDelayed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry := nativeInventoryFixtureRegistry(t, w, searchHeadDefinitions(), "search_head_test.go", "search_head_statements.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, searchHeadDefinitions(), "search_head_test.go", "search_head_statements.go")
 	turn := searchPublisherComponentTurn(t, w, registry, SearchHeadPublish)
 	native, err := searchHeadPublishFreshFacts(t.Context(), turn, r)
 	if err != nil {
@@ -341,7 +341,7 @@ func TestSearchHeadBuildingDoesNotAdvanceServingClock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry := nativeInventoryFixtureRegistry(t, w, searchHeadDefinitions(), "search_head_test.go", "search_head_statements.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, searchHeadDefinitions(), "search_head_test.go", "search_head_statements.go")
 	turn := searchPublisherComponentTurn(t, w, registry, SearchHeadPublish)
 	native, err := searchHeadPublishFreshFacts(t.Context(), turn, r)
 	if err != nil {
@@ -412,7 +412,7 @@ func TestSearchHeadFirstPublicationHasNoOldNativeDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry := nativeInventoryFixtureRegistry(t, w, searchHeadDefinitions(), "search_head_test.go", "search_head_statements.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, searchHeadDefinitions(), "search_head_test.go", "search_head_statements.go")
 	turn := searchPublisherComponentTurn(t, w, registry, SearchHeadPublish)
 	native, err := searchHeadPublishFreshFacts(t.Context(), turn, r)
 	if err != nil {

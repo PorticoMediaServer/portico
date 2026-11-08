@@ -36,7 +36,7 @@ func effectiveSourceNativeTurn(t *testing.T, w *executor, budget commandMemoryBu
 	defer conn.Close()
 	policy := w.config
 	policy.Synchronous = sqliteconn.Normal
-	registry := nativeFixtureRegistry(t, conn, policy, defs, "enrichment_effective_source_native_test.go", "enrichment_effective_source_pin_statements.go", "enrichment_effective_source_controls.go")
+	registry := cachedNativeFixtureRegistry(t, conn, policy, defs, "enrichment_effective_source_native_test.go", "enrichment_effective_source_pin_statements.go", "enrichment_effective_source_controls.go")
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}

@@ -33,7 +33,7 @@ after_entity_id=47,after_person_id=53,after_reading_id=59,after_table=7,captured
 		t.Fatal(err)
 	}
 	defs := append(searchPublisherReceiptDefinitions(), searchImageBeginDefinitions()...)
-	registry := nativeInventoryFixtureRegistry(t, w, defs, "search_image_stage_test.go", "search_image_stage_plan_test.go", "search_publish_history_test.go", "search_image_stage_statements.go", "search_publish_receipts.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, defs, "search_image_stage_test.go", "search_image_stage_plan_test.go", "search_publish_history_test.go", "search_image_stage_statements.go", "search_publish_receipts.go")
 	return w, registry
 }
 

@@ -131,7 +131,7 @@ func newCanonicalN1Fixture(t *testing.T, count int, trace *n1Trace) (*inventoryP
 		t.Fatal(err)
 	}
 	w.openPool(connector, trace.decorate)
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go")
 	f := inventoryProgressiveOwner(t, w, original, registry, count, time.Now, canonicalN1Maintenance())
 	m := newCanonicalCheckpointOwner(t, opening, f.owner.governor, f.owner.authority, f.owner.wal, path)
 	f.sharedMaintenance = true

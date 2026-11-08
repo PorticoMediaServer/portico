@@ -142,7 +142,7 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 		owner, c.native = newEC2NativeOwner(t, w, path, original, c.trace, gc)
 		w = owner.executor
 	} else {
-		registry := nativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go", "../internal/readfixture/source.go")
+		registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go", "../internal/readfixture/source.go")
 		owner = newInventoryMemoryFixture(t, w, registry, original, inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20}, gc)
 	}
 	registry := owner.registry
@@ -176,7 +176,7 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 		_ = db.Close()
 		t.Fatal(err)
 	}
-	readRegistry := nativeFixtureRegistry(t, rc, readerConfig, read.HarnessDefinitions(), "../internal/readfixture/source.go", "../read/foreground.go")
+	readRegistry := cachedNativeFixtureRegistry(t, rc, readerConfig, read.HarnessDefinitions(), "../internal/readfixture/source.go", "../read/foreground.go")
 	if err := errors.Join(rc.Close(), db.Close()); err != nil {
 		t.Fatal(err)
 	}
