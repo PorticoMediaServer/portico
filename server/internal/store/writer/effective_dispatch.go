@@ -226,6 +226,25 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	return r.dispatchCommand(ctx, w, cap, request, input, ack, scan, nil, publishers...)
 }
 
+// dispatchDeadline is the earliest bound the command may run to. A Basic
+// original is funded in an earlier turn, and its driver rechecks this exact
+// deadline at bindFrame; the safety ceiling alone would outlive it.
+func dispatchDeadline(ctx context.Context, now time.Time, scan *inventoryInvocation, submitted *scanDriverWork) time.Time {
+	deadline := now.Add(MaxCommandSafetyHold)
+	if scan != nil && scan.issuer != nil && !scan.issuer.deadline.IsZero() && scan.issuer.deadline.Before(deadline) {
+		deadline = scan.issuer.deadline
+	}
+	if submitted != nil && submitted.preparation != nil {
+		if prepared := submitted.preparation.expected.Deadline; !prepared.IsZero() && prepared.Before(deadline) {
+			deadline = prepared
+		}
+	}
+	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
+		deadline = callerDeadline
+	}
+	return deadline
+}
+
 func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, invocation wcCommandInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
 	var wc *wcProgressInvocation
 	var security *wcSecurityInvocation
@@ -569,13 +588,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			scan.issuer.deadline = stop
 		}
 	}
-	deadline := now.Add(MaxCommandSafetyHold)
-	if scan != nil && scan.issuer != nil && !scan.issuer.deadline.IsZero() && scan.issuer.deadline.Before(deadline) {
-		deadline = scan.issuer.deadline
-	}
-	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
-		deadline = callerDeadline
-	}
+	deadline := dispatchDeadline(ctx, now, scan, submittedWork)
 	risk, err := r.wal.RestartRiskContext(ctx, now, deadline)
 	if err != nil {
 		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
