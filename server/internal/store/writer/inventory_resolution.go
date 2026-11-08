@@ -9,9 +9,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-// The initial adapter supports ONE ordinary member. This count bound is not
-// native TEXT/allocation/hold qualification or a caller-selectable resource cap.
-const inventoryReceiptMaxMembers = 1
+// Replay understands every supported batch width independently of the current
+// accepting profile. This bound grants no fresh-effect authority.
+const inventoryReceiptMaxMembers = maxInventoryBatchFiles
 
 // inventoryReceiptLookup is private protocol data, never an Applied outcome or
 // disclosure capability. The sole dispatcher must establish current opaque AND
@@ -120,7 +120,7 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 				return err
 			}
 			if int64(len(v.Members)) >= v.ResultCount || member.LibraryID != request.LibraryID ||
-				[3]int64{member.InputOrdinal, member.ChildKind, member.ChildOrdinal} != memberBytes.keys || !memberBytes.bytes.matches(member.ObjectID) {
+				[3]int64{member.InputOrdinal, member.ChildKind, member.ChildOrdinal} != memberBytes.keys[len(v.Members)] || !memberBytes.members[len(v.Members)].matches(member.ObjectID) {
 				return ErrResolveRequired
 			}
 			v.Members = append(v.Members, member)

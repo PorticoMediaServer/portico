@@ -58,12 +58,7 @@ func runScanInventoryHistory(ctx context.Context, turn *commandTurn, in *invento
 		return out, floor, false, err
 	}
 	if retained := in.issuer.retained; retained != nil {
-		v := lookup.result
-		object := ""
-		if len(v.Members) == 1 {
-			object = v.Members[0].ObjectID
-		}
-		required, e := scanLifecycleWorkingBytes(nil, in.request.RunID, in.request.LibraryKey, v.RunID, v.SourceID, v.SourceIncarnation, v.SourceRevision, v.NextCursor, object)
+		required, e := scanInventoryRetainedBytes(in.request, inventoryHistoricalResult(in.request, lookup))
 		if e != nil {
 			return out, floor, false, e
 		}
@@ -92,11 +87,18 @@ func scanInventoryRetainedBytes(q ScanReceiptRequest, v InventoryResult) (uint64
 	if len(v.Members) > inventoryReceiptMaxMembers {
 		return 0, ErrCap
 	}
-	object := ""
-	if len(v.Members) == 1 {
-		object = v.Members[0].ObjectID
+	required, err := scanLifecycleWorkingBytes(nil, q.RunID, q.LibraryKey, v.RunID, v.SourceID, v.SourceIncarnation, v.SourceRevision, v.NextCursor)
+	if err != nil {
+		return 0, err
 	}
-	return scanLifecycleWorkingBytes(nil, q.RunID, q.LibraryKey, v.RunID, v.SourceID, v.SourceIncarnation, v.SourceRevision, v.NextCursor, object)
+	for _, m := range v.Members {
+		// Same retained/copy allowance as lifecycle TEXT, plus fixed child storage.
+		if required > ^uint64(0)-512 || uint64(len(m.ObjectID)) > (^uint64(0)-required-512)/32 {
+			return 0, ErrCap
+		}
+		required += 512 + 32*uint64(len(m.ObjectID))
+	}
+	return required, nil
 }
 
 func validScanInventoryReference(q ScanReceiptRequest) bool {
