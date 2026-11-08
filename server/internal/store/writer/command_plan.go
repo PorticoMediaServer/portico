@@ -27,10 +27,10 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 // qualification claim. Reserve every possible registered use, setup and
 // terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != EnrichAccept && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) && !enrichmentPurpose(purpose) {
+	if !commandPlanPurpose(purpose) {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
-	if !enrichmentPurpose(purpose) && plan.enrichmentMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, enrichmentPartition) && plan.enrichmentMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("enrichment_memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.enrichmentMemory, plan.need[governor.MemoryBytes], "enrichment_memory_partition"); err != nil {
@@ -56,19 +56,19 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 			return effectivePlan{}, invalid("inventory_record_work_purpose")
 		}
 	}
-	if purpose != InventoryAccept && plan.inventoryMemory != (inventoryMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, inventoryPartition) && plan.inventoryMemory != (inventoryMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
-	if purpose != SearchImageStage && plan.searchImageMemory != (searchImageMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, searchImagePartition) && plan.searchImageMemory != (searchImageMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
-	if purpose != InventoryCreate && purpose != InventoryClaim && plan.scanLifecycleMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, scanLifecyclePartition) && plan.scanLifecycleMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
-	if purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && plan.basicMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, basicPartition) && plan.basicMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
-	if !effectiveSourceProofPurpose(purpose) && plan.effectiveSourceMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, effectiveSourcePartition) && plan.effectiveSourceMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.effectiveSourceMemory, plan.need[governor.MemoryBytes], "effective_source_memory_partition"); err != nil {
@@ -86,31 +86,31 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if err := validateMemoryPartition(plan.scanLifecycleMemory, plan.need[governor.MemoryBytes], "scan_lifecycle_memory_partition"); err != nil {
 		return effectivePlan{}, err
 	}
-	if purpose != ProgressAccept && plan.wcProgressMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, wcProgressPartition) && plan.wcProgressMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.wcProgressMemory, plan.need[governor.MemoryBytes], "wc_progress_memory"); err != nil {
 		return effectivePlan{}, err
 	}
-	if purpose != SecurityAccept && plan.wcSecurityMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, wcSecurityPartition) && plan.wcSecurityMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.wcSecurityMemory, plan.need[governor.MemoryBytes], "wc_security_memory"); err != nil {
 		return effectivePlan{}, err
 	}
-	if purpose != ProgressReceiptReclaim && plan.wcReclaimMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, wcReclaimPartition) && plan.wcReclaimMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.wcReclaimMemory, plan.need[governor.MemoryBytes], "wc_reclaim_memory"); err != nil {
 		return effectivePlan{}, err
 	}
-	if !scanDirectoryPurpose(purpose) && plan.directoryMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, directoryPartition) && plan.directoryMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.directoryMemory, plan.need[governor.MemoryBytes], "directory_memory_partition"); err != nil {
 		return effectivePlan{}, err
 	}
-	if !searchPublisherPurpose(purpose) && plan.publisherMemory != (commandMemoryBudget{}) {
+	if !purposeUsesPartition(purpose, publisherPartition) && plan.publisherMemory != (commandMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
 	if err := validateMemoryPartition(plan.publisherMemory, plan.need[governor.MemoryBytes], "search_publisher_memory_partition"); err != nil {
