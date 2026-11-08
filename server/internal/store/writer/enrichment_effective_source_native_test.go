@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
 // One existing governor-backed frame; numeric inputs here are component-test
@@ -222,5 +223,13 @@ func TestEffectiveSourceNativeFactoryRejectsChangedOriginalOrCustody(t *testing.
 				}
 			})
 		})
+	}
+}
+
+func TestEffectiveSourceControlDefinitionsFitClosedGrammar(t *testing.T) {
+	for _, def := range enrichmentEffectiveSourceControlDefinitions() {
+		if issues := plan.LintSQL(def.SQL); len(issues) != 0 {
+			t.Fatal(def.ID, issues)
+		}
 	}
 }
