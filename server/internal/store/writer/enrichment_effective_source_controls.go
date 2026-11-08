@@ -27,15 +27,20 @@ WHERE b.id=? AND b.evidence_id=? AND b.generation=? AND b.owner_operation=? AND 
 AND b.parent_build IS NULL AND b.cursor=? AND b.expected_rows=? AND b.materialized_rows=? AND b.content_revision=? AND b.materialized_digest=?
 AND o.proof_cleanup_phase IN('idle','source_members','source_header','receipts')`,
 			Params: []stmt.Param{text("build"), text("evidence"), number("build_generation"), text("original_owner"), blob("original_incarnation"), number("original_owner_generation"), number("cursor"), number("expected_rows"), number("materialized_rows"), number("content_revision"), text("materialized_digest")},
-			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_evidence_builds_1", "sqlite_autoindex_metadata_provider_operations_1"}}},
-		{ID: effectiveSourceCustodyControl, SQL: `SELECT 1 FROM metadata_provider_operations
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_evidence_builds_1", "sqlite_autoindex_metadata_provider_operations_1"}, AutoIndexes: []stmt.AutoIndexBinding{
+				{Table: "metadata_evidence_builds", Name: "sqlite_autoindex_metadata_evidence_builds_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
+				{Table: "metadata_provider_operations", Name: "sqlite_autoindex_metadata_provider_operations_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
+			}}},
+		{ID: effectiveSourceCustodyControl, SQL: `SELECT 1 FROM metadata_provider_operations INDEXED BY sqlite_autoindex_metadata_provider_operations_1
 WHERE id=? AND command_incarnation=? AND entity_id=? AND provider=? AND source_publication_id=?
 AND source_owner_generation=? AND source_content_revision=? AND source_next_position=? AND source_expected_members=?
 AND source_expected_bytes=? AND source_algorithm=? AND source_version=? AND source_expected_commitment=?
 AND source_evidence_id=? AND source_subject_id=? AND source_parser_version=?
 AND source_evidence_owner=? AND source_evidence_incarnation=? AND source_evidence_sequence=? AND proof_cleanup_phase='idle'`,
 			Params: []stmt.Param{text("owner"), blob("incarnation"), number("entity"), text("provider"), text("publication"), number("source_owner_generation"), number("source_content_revision"), number("source_next_position"), number("source_expected_members"), number("source_expected_bytes"), text("source_algorithm"), number("source_version"), blob("source_expected_commitment"), text("evidence"), number("subject"), text("parser"), text("upstream_owner"), blob("upstream_incarnation"), number("upstream_sequence")},
-			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_1"}, Seeks: []string{"id=?"}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_1"}, Seeks: []string{"id=?"}, AutoIndexes: []stmt.AutoIndexBinding{
+				{Table: "metadata_provider_operations", Name: "sqlite_autoindex_metadata_provider_operations_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
+			}}},
 	}
 	for i := range defs {
 		defs[i].Owner, defs[i].Kind = "writer.enrichment", stmt.Read
