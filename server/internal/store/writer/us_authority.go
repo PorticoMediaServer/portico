@@ -13,12 +13,14 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-// Witnesses are bounded, owned comparison inputs, not permissions. This first
-// recipe admits only a direct OWNER main-profile session with a registered
-// installation/device. API credentials, account-scoped/factor/setup/Hosted and
-// other role recipes remain unavailable here until separately implemented.
-// No public adapter uses this type. Raw installation proof is never a receipt,
-// event, error or request-digest field.
+// Witnesses are bounded, owned comparison inputs, never permissions. This
+// recipe checks only the approved FULL policy frames (540/541) for a current
+// direct-owner main-profile interactive session with a registered installation
+// and device. It excludes reset-file sessions and narrow grants. It proves no
+// root/admin/setup/Hosted/factor/recovery/ownership-transfer authority and grants
+// no command. Each consumer must state its extra conditions and recheck before
+// release. Raw installation proof never enters receipts, events, errors or
+// request digests. No public adapter uses this type.
 type usOwnerAuthorityWitness struct {
 	issuer                                 usPolicyIssuer
 	device, lineage, installationID        string
@@ -32,7 +34,7 @@ type usOwnerAuthorityProof struct {
 
 func prepareUSOwnerAuthority(in usOwnerAuthorityWitness) (*usOwnerAuthorityProof, error) {
 	i := in.issuer
-	if !usIdentifier(i.server) || !usIdentifier(i.account) || !usIdentifier(i.profile) || !usIdentifier(i.family) || !usHex(i.memberIncarnation, 32) || !usHex(i.profileLifetime, 32) || !usHex(i.installation, 32) || !usIdentityDigest(i.tokenDigest) || i.epoch <= 0 || i.familyGeneration <= 0 || i.authorityGeneration <= 0 || !usIdentifier(in.device) || (!usIdentifier(in.installationID) || len(in.installationID) < 32) || (in.lineage != "" && !usIdentifier(in.lineage)) {
+	if !usIdentifier(i.server) || !usIdentifier(i.account) || !usIdentifier(i.profile) || !usIdentifier(i.family) || !usHex(i.memberIncarnation, 32) || !usHex(i.profileLifetime, 32) || !usHex(i.installation, 32) || !usIdentityDigest(i.tokenDigest) || i.epoch <= 0 || i.familyGeneration <= 0 || i.authorityGeneration <= 0 || !usIdentifier(in.device) || (!usIdentifier(in.installationID) || len(in.installationID) < 32) || !usIdentifier(in.lineage) {
 		return nil, invalid("us_authority_witness")
 	}
 	p := &usOwnerAuthorityProof{witness: in}
@@ -73,7 +75,14 @@ func (b usOwnerAuthorityBudget) check(ctx context.Context, turn *commandTurn, by
 		return ErrInvalid
 	}
 	tx := turn.transaction
-	if !tx.begun || tx.done || !tx.policyVerified || tx.settings.Synchronous != int(sqliteconn.Full) || tx.descriptor.Durability != Full || (tx.descriptor.ID < 500 || tx.descriptor.ID > 599) {
+	if !tx.begun || tx.done || !tx.policyVerified || tx.settings.Synchronous != int(sqliteconn.Full) || tx.descriptor.Durability != Full {
+		return ErrInvalid
+	}
+	// The domain's reserved number range is not recipe authority. A new
+	// consumer must be reviewed with its own additional admission conditions.
+	switch tx.descriptor.ID {
+	case USMemberLibraries, USProfileLibraries:
+	default:
 		return ErrInvalid
 	}
 	if bytes < 0 || bytes > maxCanonicalResultBytes || uint64(64<<10)+uint64(bytes)*32 > b.memory {
@@ -162,6 +171,7 @@ func authorizeUSOwnerPolicy(ctx context.Context, turn *commandTurn, p *usOwnerAu
 		{usAuthorityInstallation, []any{p.installationHash, i.installation}, true},
 		{usAuthorityGrant, []any{i.family}, false},
 		{usAuthorityCredential, []any{i.family}, false},
+		{usAuthorityResetSession, []any{i.family}, false},
 		{usAuthorityWaiting, []any{i.account}, false},
 	} {
 		if err = usAuthorityPresence(ctx, turn, check.id, check.present, check.args...); err != nil {
@@ -192,7 +202,7 @@ func authorizeUSOwnerPolicy(ctx context.Context, turn *commandTurn, p *usOwnerAu
 			}
 		}
 		if p.remember.After(now) {
-			if !p.manage.After(now) || w.lineage == "" {
+			if !p.manage.After(now) {
 				return nil, ErrDisclosureDenied
 			}
 			if p.manage.Before(until) {
@@ -258,9 +268,11 @@ func usAuthorityFenceCheck(ctx context.Context, turn *commandTurn, w usOwnerAuth
 // must use the parent's actual governed turn and its funded memory reservation.
 type usOwnerAuthorityFixturePermit struct{ frame *transaction }
 
-// A stamp is valid only in its original FULL turn and principal lifetime.
-// Receipt consumers must recheck immediately before disclosure/ACK/release;
-// source checks are repeated so a composed prefix cannot stale the stamp.
+// This stamp proves only that its original approved FULL frame holds a current
+// direct-owner main-profile interactive session. It is not root/admin/setup/
+// Hosted/factor/recovery/ownership-transfer proof and grants no command. Each
+// consumer states its own extra conditions and rechecks before release. The
+// checks repeat current sources so a composed prefix cannot stale the stamp.
 type usOwnerAuthorization struct {
 	turn     *commandTurn
 	proof    usOwnerAuthorityProof

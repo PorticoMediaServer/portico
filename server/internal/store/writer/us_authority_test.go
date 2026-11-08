@@ -11,25 +11,32 @@ import (
 
 func TestUSOwnerAuthorityCurrentSources(t *testing.T) {
 	for name, q := range map[string]string{
-		"disabled":         `UPDATE direct_memberships SET disabled=1`,
-		"role":             `UPDATE direct_memberships SET role='admin'`,
-		"member_lifetime":  `UPDATE direct_memberships SET incarnation='cccccccccccccccccccccccccccccccc'`,
-		"epoch":            `UPDATE accounts SET epoch=epoch+1`,
-		"must_change":      `UPDATE accounts SET must_change=1`,
-		"profile_lifetime": `UPDATE direct_profiles SET lifetime='dddddddddddddddddddddddddddddddd'`,
-		"profile_deleted":  `UPDATE direct_profiles SET deleted=1`,
-		"main_profile":     `UPDATE direct_profiles SET is_primary=0`,
-		"authority":        `UPDATE identity_state SET authority_generation=authority_generation+1`,
-		"server":           `UPDATE configuration SET value='other' WHERE key='id'`,
-		"device":           `UPDATE identity_devices SET retired_ms=1`,
-		"device_binding":   `UPDATE identity_devices SET installation_id='other'`,
-		"installation":     `UPDATE identity_installations SET retired=1`,
-		"family":           `UPDATE authorization_session_families SET revoked=1`,
-		"credential_birth": `UPDATE authorization_session_families SET security_kind=1`,
-		"token":            `UPDATE authorization_family_tokens SET retired=1`,
-		"missing_fence":    `DELETE FROM authorization_family_security_fences`,
-		"generation":       `UPDATE identity_security_fences SET generation=generation+1`,
-		"denied":           `UPDATE identity_security_fences SET denied=1`,
+		"disabled":                 `UPDATE direct_memberships SET disabled=1`,
+		"role":                     `UPDATE direct_memberships SET role='admin'`,
+		"member_lifetime":          `UPDATE direct_memberships SET incarnation='cccccccccccccccccccccccccccccccc'`,
+		"epoch":                    `UPDATE accounts SET epoch=epoch+1`,
+		"must_change":              `UPDATE accounts SET must_change=1`,
+		"profile_lifetime":         `UPDATE direct_profiles SET lifetime='dddddddddddddddddddddddddddddddd'`,
+		"profile_deleted":          `UPDATE direct_profiles SET deleted=1`,
+		"main_profile":             `UPDATE direct_profiles SET is_primary=0`,
+		"authority":                `UPDATE identity_state SET authority_generation=authority_generation+1`,
+		"server":                   `UPDATE configuration SET value='other' WHERE key='id'`,
+		"device":                   `UPDATE identity_devices SET retired_ms=1`,
+		"device_binding":           `UPDATE identity_devices SET installation_id='other'`,
+		"installation":             `UPDATE identity_installations SET retired=1`,
+		"family":                   `UPDATE authorization_session_families SET revoked=1`,
+		"credential_birth":         `UPDATE authorization_session_families SET security_kind=1`,
+		"token":                    `UPDATE authorization_family_tokens SET retired=1`,
+		"missing_fence":            `DELETE FROM authorization_family_security_fences`,
+		"generation":               `UPDATE identity_security_fences SET generation=generation+1`,
+		"denied":                   `UPDATE identity_security_fences SET denied=1`,
+		"cast_grant":               `INSERT INTO authorization_family_grants(family_id,grant_kind) VALUES('issuer-family','cast_target')`,
+		"owner_claim_grant":        `INSERT INTO authorization_family_grants(family_id,grant_kind) VALUES('issuer-family','owner_claim_completion')`,
+		"waiting_move":             `INSERT INTO identity_move_waiting(account_id,move_id,state,created_ms) VALUES('issuer','move','waiting',0)`,
+		"sign_in_kind":             `UPDATE identity_state SET sign_in_kind='portico'`,
+		"active_transition":        `INSERT INTO identity_moves(id,owner_id,owner_revision,from_kind,to_kind,start_over,stage,revision,people,devices,profiles,server_name,created_ms) VALUES('transition','issuer',1,'local','portico',0,'moving_to_portico',1,0,0,0,'server',0); UPDATE identity_state SET transition_id='transition'`,
+		"family_role":              `UPDATE authorization_session_families SET role='member'`,
+		"installation_incarnation": `UPDATE identity_installations SET incarnation='dddddddddddddddddddddddddddddddd'`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			w, r, p := usOwnerAuthorityFixture(t)
@@ -202,5 +209,62 @@ func TestUSOwnerAuthorityNativePlans(t *testing.T) {
 				t.Fatal(count, err)
 			}
 		})
+	}
+}
+
+func TestUSOwnerAuthorityResetSessionDeniedBeforeDisclosure(t *testing.T) {
+	for _, kind := range []string{"owner", "password"} {
+		t.Run(kind, func(t *testing.T) {
+			w, r, p := usOwnerAuthorityFixture(t)
+			turn, b := usOwnerAuthorityTurn(t, w, r)
+			a, err := authorizeUSOwnerPolicy(t.Context(), turn, p, t.Context(), b)
+			if err != nil || a == nil {
+				t.Fatal(a, err)
+			}
+			// Keep the owner/main profile, ordinary birth, must_change=0 and no grant
+			// row intact. The independent reset-session marker alone must deny, even
+			// after an earlier stamp in this same frame and before any receipt lookup.
+			if _, err = turn.transaction.conn.ExecContext(t.Context(), `INSERT INTO reset_file_sessions(family_id,kind) VALUES('issuer-family',?)`, kind); err != nil {
+				t.Fatal(err)
+			}
+			if got, e := authorizeUSOwnerPolicy(t.Context(), turn, p, t.Context(), b); got != nil || !errors.Is(e, ErrDisclosureDenied) {
+				t.Fatal(got, e)
+			}
+			if e := a.recheck(t.Context(), turn); !errors.Is(e, ErrDisclosureDenied) {
+				t.Fatal("reset stamp survived", e)
+			}
+		})
+	}
+}
+
+func TestUSOwnerAuthorityClosedPurposeScope(t *testing.T) {
+	w, r, p := usOwnerAuthorityFixture(t)
+	turn, b := usOwnerAuthorityTurn(t, w, r)
+	for _, id := range []CommandID{USMemberLibraries, USProfileLibraries} {
+		turn.transaction.descriptor.ID = id
+		if a, err := authorizeUSOwnerPolicy(t.Context(), turn, p, t.Context(), b); err != nil || a == nil {
+			t.Fatal(id, a, err)
+		}
+	}
+	// Excluding the first native step proves unsupported IDs fail at the closed
+	// recipe gate, rather than accidentally succeeding through current sources.
+	delete(turn.steps, usAuthorityFamily)
+	for id := CommandID(500); id <= 599; id++ {
+		if id == USMemberLibraries || id == USProfileLibraries {
+			continue
+		}
+		turn.transaction.descriptor.ID = id
+		if a, err := authorizeUSOwnerPolicy(t.Context(), turn, p, t.Context(), b); a != nil || !errors.Is(err, ErrInvalid) {
+			t.Fatal(id, a, err)
+		}
+	}
+}
+
+func TestUSOwnerAuthorityRequiresLineage(t *testing.T) {
+	_, _, p := usOwnerAuthorityFixture(t)
+	witness := p.witness
+	witness.lineage = ""
+	if got, err := prepareUSOwnerAuthority(witness); got != nil || !errors.Is(err, ErrInvalid) {
+		t.Fatal(got, err)
 	}
 }
