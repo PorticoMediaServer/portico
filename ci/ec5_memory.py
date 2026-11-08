@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import signal
 import select
@@ -19,6 +20,24 @@ import uuid
 
 BUDGET = 2_000_000_000
 CGROOT = Path('/sys/fs/cgroup')
+POPULATION_SHA256 = re.compile(r'^[0-9a-f]{64}$')
+POPULATION_ENVIRONMENT = ('PORTICO_PAIRED_POPULATION_DIRECTORY', 'PORTICO_PAIRED_POPULATION_MANIFEST_SHA256')
+
+
+def population_environment(directory, manifest_sha256, target):
+    """Validate optional QL artifact coordinates for the existing child constructor."""
+    if directory is None and manifest_sha256 is None:
+        return {}
+    if target == 'control':
+        raise ValueError('control target rejects a supplied canonical population')
+    if directory is None or manifest_sha256 is None:
+        raise ValueError('population directory and manifest sha256 are paired; supply both or neither')
+    directory = Path(directory)
+    if not directory.is_absolute():
+        raise ValueError('population directory must be absolute')
+    if not POPULATION_SHA256.fullmatch(manifest_sha256):
+        raise ValueError('population manifest sha256 must be 64 lowercase hexadecimal characters')
+    return {POPULATION_ENVIRONMENT[0]: str(directory), POPULATION_ENVIRONMENT[1]: manifest_sha256}
 
 
 def snapshot(directory):
@@ -82,12 +101,14 @@ def binary_hash(binary):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def run(binary, output, target, config=None, sustained_subset=False):
+def run(binary, output, target, config=None, sustained_subset=False, population_directory=None, population_manifest_sha256=None):
     if os.geteuid() != 0 or not os.environ.get('SUDO_UID'):
         raise ValueError('run this opt-in controller through sudo as the standard runner user')
     uid, gid = int(os.environ['SUDO_UID']), int(os.environ['SUDO_GID'])
     if uid == 0 or not binary.is_file() or not os.access(binary, os.X_OK):
         raise ValueError('ordinary runner identity and compiled test binary required')
+    # Reject unpaired/relative/malformed coordinates before ANY cgroup mutation.
+    population = population_environment(population_directory, population_manifest_sha256, target)
     def interrupted(signum, frame):
         raise InterruptedError('controller signal ' + str(signum))
     signal.signal(signal.SIGTERM, interrupted)
@@ -123,6 +144,7 @@ def run(binary, output, target, config=None, sustained_subset=False):
             emit(stream, 'enforced', before=before, ancestors=ancestors, physical_meminfo=Path('/proc/meminfo').read_text())
             env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(owned), 'TMPDIR': str(owned), 'GOMAXPROCS': '2',
                    'PORTICO_EC5_MEMORY': '1', 'PORTICO_EC5_CGROUP': str(group), 'PORTICO_LANE_EVIDENCE_DIR': str(owned)}
+            env.update(population)
             args = [str(binary), '-test.v', '-test.timeout=90s', '-ec5-memory=true']
             expected_parent = {'control': 'TestEC5MemoryChildControl', 'paired': 'TestEC5PairedMemoryMeasurement', 'sustained': 'TestEC5SustainedMemoryMeasurement'}[target]
             if target == 'control':
@@ -186,6 +208,9 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--sustained-subset', action='store_true', help='explicit N1/read/WAL subset; no FULL/checkpoint/recovery claim')
     parser.add_argument('--config', type=Path, help='existing strict paired five-field config; required for paired target')
+    parser.add_argument('--population-directory', type=Path, help='absolute QL canonical population artifact directory; pair with the pinned manifest sha256')
+    parser.add_argument('--population-manifest-sha256', help='trusted 64-character lowercase manifest sha256; pair with the absolute artifact directory')
     parser.add_argument('--target', choices=('control', 'paired', 'sustained'), required=True)
     options = parser.parse_args()
-    run(options.binary.resolve(), options.output.resolve(), options.target, options.config.resolve() if options.config else None, options.sustained_subset)
+    run(options.binary.resolve(), options.output.resolve(), options.target, options.config.resolve() if options.config else None, options.sustained_subset,
+        options.population_directory, options.population_manifest_sha256)
