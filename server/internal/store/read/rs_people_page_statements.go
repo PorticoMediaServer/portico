@@ -16,12 +16,12 @@ LEFT JOIN catalog_credit_labels AS r ON r.id=c.role_id
 LEFT JOIN catalog_credit_labels AS d ON d.id=c.department_id
 WHERE c.image_id=? AND c.ord=? AND c.person_id=? AND e.library_id=? AND e.kind=? AND e.retired=0 AND e.credit_image_id=c.image_id AND h.sealed=1`
 
-const rsPagePortraitSQL = `SELECT s.small_blob,s.large_blob,s.ambient_blob,s.accepted_mime,s.accepted_width,s.accepted_height,a.revision FROM artwork_selections AS a LEFT JOIN artwork_sources AS s INDEXED BY sqlite_autoindex_artwork_sources_1 ON s.digest=a.digest WHERE a.kind='person' AND a.entity_id=? AND a.role='portrait' AND a.choice=?`
-const rsPagePortraitOctetsSQL = `SELECT octet_length(s.small_blob),octet_length(s.large_blob),octet_length(s.ambient_blob),octet_length(s.accepted_mime) FROM artwork_selections AS a LEFT JOIN artwork_sources AS s INDEXED BY sqlite_autoindex_artwork_sources_1 ON s.digest=a.digest WHERE a.kind='person' AND a.entity_id=? AND a.role='portrait' AND a.choice=?`
+const rsPagePortraitSQL = `SELECT a.digest,s.small_blob,s.large_blob,s.ambient_blob,s.accepted_mime,s.accepted_width,s.accepted_height,a.revision FROM artwork_selections AS a LEFT JOIN artwork_sources AS s INDEXED BY sqlite_autoindex_artwork_sources_1 ON s.digest=a.digest WHERE a.kind='person' AND a.entity_id=? AND a.role='portrait' AND a.choice=?`
+const rsPagePortraitOctetsSQL = `SELECT octet_length(a.digest),octet_length(s.small_blob),octet_length(s.large_blob),octet_length(s.ambient_blob),octet_length(s.accepted_mime) FROM artwork_selections AS a LEFT JOIN artwork_sources AS s INDEXED BY sqlite_autoindex_artwork_sources_1 ON s.digest=a.digest WHERE a.kind='person' AND a.entity_id=? AND a.role='portrait' AND a.choice=?`
 
 func init() {
 	registerRSBytePoint("rs.people.page.credit", rsBytePoint{lengths: "rs.people.page.credit_octets", columns: []int{1, 2, 3, 7, 8, 9, 10}})
-	registerRSBytePoint("rs.people.page.portrait", rsBytePoint{lengths: "rs.people.page.portrait_octets", columns: []int{0, 1, 2, 3}})
+	registerRSBytePoint("rs.people.page.portrait", rsBytePoint{lengths: "rs.people.page.portrait_octets", columns: []int{0, 1, 2, 3, 4}})
 }
 
 // RSPeoplePageDefinitions is inert. Composition must Capture on its actual

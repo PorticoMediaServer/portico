@@ -644,6 +644,13 @@ func (r *RSPeoplePageReader) peoplePortrait(ctx context.Context, request governo
 						return e
 					}
 					choice = name
+					if n == 0 {
+						// A locked-empty selection (NULL digest) is a present
+						// blocking choice with no payload. The render step sees
+						// the choice and produces no portrait; the matched row
+						// behind it is never selected.
+						return ctx.Err()
+					}
 					return w.arm(n, 2)
 				}
 			}
@@ -657,11 +664,23 @@ func (r *RSPeoplePageReader) peoplePortrait(ctx context.Context, request governo
 			if e != nil {
 				return e
 			}
-			if len(rows) != 1 || rows[0][0] == nil {
+			if len(rows) != 1 {
 				return ErrStale
 			}
 			v := rows[0]
-			c.portrait = &RSPersonPortrait{Small: v[0].(string), Large: v[1].(string), Ambient: v[2].(string), MIME: v[3].(string), Width: v[4].(int64), Height: v[5].(int64), Revision: v[6].(int64)}
+			if v[0] == nil {
+				// The locked choice is present but has no digest: this person
+				// has no portrait, and matched art behind the choice stays
+				// blocked. The source witness below still verifies the person.
+				c.portrait = nil
+				return nil
+			}
+			if v[1] == nil {
+				// A nonempty selection whose source row is unavailable or
+				// retiring is distinct from locked-empty and is not served.
+				return ErrStale
+			}
+			c.portrait = &RSPersonPortrait{Small: v[1].(string), Large: v[2].(string), Ambient: v[3].(string), MIME: v[4].(string), Width: v[5].(int64), Height: v[6].(int64), Revision: v[7].(int64)}
 			return nil
 		},
 	}, func(q browseQuery) ([]any, error) {
