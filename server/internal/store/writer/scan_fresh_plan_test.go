@@ -129,7 +129,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(tx.ctx, tx.conn, registry, plan.Fixture{
+	golden, err := cachedCapture(tx.ctx, tx.conn, registry, plan.Fixture{
 		ConnectionPolicy: policy, SHA256: fixtureSHA, Statistics: plan.Unanalyzed,
 		Implementations: "bundled SQLite3.53.4; builtin functions/collations; seedInventoryFreshPlanFacts + inventoryFreshRequest/seedInventoryFresh native pre/post-allocation SQL facts; not valid command manifest or FS authority; compile only",
 	}, indexPolicy)

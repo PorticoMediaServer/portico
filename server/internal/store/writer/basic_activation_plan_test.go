@@ -107,7 +107,7 @@ func TestBasicActivationStatementPlans(t *testing.T) {
 		if err := tx.conn.QueryRowContext(tx.ctx, "SELECT total_changes()").Scan(&before); err != nil {
 			t.Fatal(err)
 		}
-		g, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: config, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "frozen basicActivationFixture; " + name + "; synthetic W component turn/forecasts; no command or resource qualification"}, policy)
+		g, err := cachedCapture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: config, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "frozen basicActivationFixture; " + name + "; synthetic W component turn/forecasts; no command or resource qualification"}, policy)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -117,7 +117,7 @@ func TestBasicActivationStatementPlans(t *testing.T) {
 		// UPDATE/read-only populations need the independently executed full FK
 		// audit; Capture attaches it automatically only for INSERT destinations.
 		if g.ForeignKeys == nil {
-			fk, err := plan.ForeignKeys(tx.ctx, tx.conn, config)
+			fk, err := cachedForeignKeys(tx.ctx, tx.conn, config)
 			if err != nil {
 				t.Fatal(err)
 			}

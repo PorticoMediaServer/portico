@@ -84,7 +84,7 @@ func TestScanInventoryStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(tx.ctx, tx.conn, registry, plan.Fixture{
+	golden, err := cachedCapture(tx.ctx, tx.conn, registry, plan.Fixture{
 		ConnectionPolicy: policy, SHA256: fixtureSHA, Statistics: plan.Unanalyzed,
 		Implementations: "bundled SQLite3.53.4; builtin functions/collations; scanNativePopulation+seedScanReceiptCohorts SQL facts, synthetic digests; testExecutor revision1; compile only",
 	}, indexPolicy)

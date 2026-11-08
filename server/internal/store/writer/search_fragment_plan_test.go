@@ -56,7 +56,7 @@ func TestSearchFragmentStatementPlans(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed,
+	g, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed,
 		Implementations: "FIRST entity own-primary-title fragment; independent three fixed FTS columns including empty TEXT; distinct original history; FULL pre-BEGIN only; no governor, native Work or runtime eligibility qualification"}, policy)
 	if err != nil {
 		t.Fatal(err)

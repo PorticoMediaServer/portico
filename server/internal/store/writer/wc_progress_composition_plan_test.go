@@ -59,7 +59,7 @@ func TestWCProgressCompositionPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "WC actual owned opening/native births; NORMAL compiled progress/history/ACK/snapshot/fixture definitions; no authority or qualification inferred from cohorts"}, indexPolicy)
+	g, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "WC actual owned opening/native births; NORMAL compiled progress/history/ACK/snapshot/fixture definitions; no authority or qualification inferred from cohorts"}, indexPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}

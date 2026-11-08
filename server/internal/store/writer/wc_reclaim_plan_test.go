@@ -103,7 +103,7 @@ func TestWCReclaimStatementPlans(t *testing.T) {
 	if err := tx.conn.QueryRowContext(tx.ctx, "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: connectionPolicy, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "WC wc008NativeReclaim actual capture/drain children and original claim; HN compile-only pattern, not maintenance issuance, public enable or resource qualification"}, policy)
+	golden, err := cachedCapture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: connectionPolicy, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "WC wc008NativeReclaim actual capture/drain children and original claim; HN compile-only pattern, not maintenance issuance, public enable or resource qualification"}, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestWCReclaimStatementPlans(t *testing.T) {
 	if err := tx.conn.QueryRowContext(tx.ctx, "SELECT total_changes()").Scan(&after); err != nil || before != after {
 		t.Fatal("Capture mutated population", before, after, err)
 	}
-	fk, err := plan.ForeignKeys(tx.ctx, tx.conn, connectionPolicy)
+	fk, err := cachedForeignKeys(tx.ctx, tx.conn, connectionPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}

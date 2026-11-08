@@ -57,7 +57,7 @@ func TestUOFlagsPlans(t *testing.T) {
 	// statistics. Analyzed full-schema FK plans belong on QS's representative
 	// corpus; tiny unrelated child tables legitimately choose scans after ANALYZE.
 	for _, stats := range []plan.Statistics{plan.Unanalyzed} {
-		golden, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(hash[:]), Statistics: stats, Implementations: "UO personal flag component native fixture; no command registration, authority or resource qualification"}, policy)
+		golden, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(hash[:]), Statistics: stats, Implementations: "UO personal flag component native fixture; no command registration, authority or resource qualification"}, policy)
 		if err != nil {
 			t.Fatal(err)
 		}

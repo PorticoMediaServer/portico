@@ -106,7 +106,7 @@ func TestWCProgressStatementPlans(t *testing.T) {
 			if err := tx.conn.QueryRowContext(tx.ctx, "SELECT total_changes()").Scan(&before); err != nil {
 				t.Fatal(err)
 			}
-			golden, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: connectionPolicy, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "WC actual " + population + " fixture; synthetic component custody/forecasts, not production admission or resource qualification"}, policy)
+			golden, err := cachedCapture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: connectionPolicy, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "WC actual " + population + " fixture; synthetic component custody/forecasts, not production admission or resource qualification"}, policy)
 			if err != nil {
 				t.Fatal(err)
 			}

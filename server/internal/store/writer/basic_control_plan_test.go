@@ -130,7 +130,7 @@ func captureBasicControlPlans(t *testing.T) ([]byte, []byte) {
 	}
 	// Execute an independent complete audit on the actual acquired owner
 	// connection. Never substitute a checked-in FK object for an acquisition.
-	fk, err := plan.ForeignKeys(tx.ctx, tx.conn, config)
+	fk, err := cachedForeignKeys(tx.ctx, tx.conn, config)
 	if err != nil || plan.CheckSchemaForeignKeys(&fk) != nil {
 		t.Fatal("independent complete FK acquisition", len(fk.Plans), err)
 	}
@@ -193,7 +193,7 @@ func captureBasicControlPlans(t *testing.T) ([]byte, []byte) {
 		if err := tx.conn.QueryRowContext(tx.ctx, "SELECT total_changes()").Scan(&before); err != nil {
 			t.Fatal(err)
 		}
-		g, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: config, SHA256: journal, Statistics: plan.Unanalyzed,
+		g, err := cachedCapture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: config, SHA256: journal, Statistics: plan.Unanalyzed,
 			Implementations: "frozen df0 basicControlFixture/basicControlTurn; " + name + "; owner native populations; synthetic component forecasts, no command/resource qualification"}, policy)
 		if err != nil {
 			t.Fatal(err)

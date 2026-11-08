@@ -46,7 +46,7 @@ func nativeFixtureRegistry(t *testing.T, conn *sql.Conn, policy sqliteconn.Confi
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "owned native fixture registration setup only; no resource or domain admission qualification"}, indexPolicy)
+	golden, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "owned native fixture registration setup only; no resource or domain admission qualification"}, indexPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}

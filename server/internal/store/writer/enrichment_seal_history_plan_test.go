@@ -57,7 +57,7 @@ func TestSealHistoryStatementPlans(t *testing.T) {
 	if err = conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "current canonical; bounded retained-seal history/dispatcher and byte-point component; no fresh producer/proof or physical qualification"}, indexes)
+	golden, err := cachedCapture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "current canonical; bounded retained-seal history/dispatcher and byte-point component; no fresh producer/proof or physical qualification"}, indexes)
 	if err != nil {
 		t.Fatal(err)
 	}

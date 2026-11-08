@@ -104,7 +104,7 @@ func TestSearchImageBeginStatementPlans(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: config, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed,
+	g, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: config, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed,
 		Implementations: "image-BEGIN native SQL/receipt compile only; distinct history states/four nullable owner vectors; fixed stale bank; no live engine or resource/disclosure authority"}, policy)
 	if err != nil {
 		t.Fatal(err)

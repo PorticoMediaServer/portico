@@ -112,7 +112,7 @@ func TestN1PreflightStatementPlans(t *testing.T) {
 		if err := tx.conn.QueryRowContext(tx.ctx, "SELECT total_changes()").Scan(&before); err != nil {
 			t.Fatal(err)
 		}
-		g, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: config, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "existing owner lifecycle/receipt SQL-fact seeds; " + name + "; synthetic W frame only, no command authority/resource qualification"}, policy)
+		g, err := cachedCapture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: config, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "existing owner lifecycle/receipt SQL-fact seeds; " + name + "; synthetic W frame only, no command authority/resource qualification"}, policy)
 		if err != nil {
 			t.Fatal(err)
 		}
