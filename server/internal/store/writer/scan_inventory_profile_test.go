@@ -122,3 +122,17 @@ func TestN1OperatingForecastCapacityRefusesBeforeEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestN1TimingFixtureUsesRealisticIssuerHorizons(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux ordinary-file forecast")
+	}
+	timed, _ := n1ComposedDriverFixture(t, n1OperatingForecastTimingFixture)
+	if timed.leaseDuration != 60*time.Second || timed.readyPlan.ready != 10*time.Second {
+		t.Fatal("timing fixture lease/ready horizons", timed.leaseDuration, timed.readyPlan.ready)
+	}
+	frozen, _ := n1ComposedDriverFixture(t, n1OperatingForecastFixture)
+	if frozen.leaseDuration != time.Second || frozen.readyPlan.ready != time.Second {
+		t.Fatal("frozen synthetic horizons changed", frozen.leaseDuration, frozen.readyPlan.ready)
+	}
+}
