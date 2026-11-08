@@ -108,6 +108,10 @@ func newCanonicalEnrichComponent(t *testing.T, count int, stream *n1Stream, cano
 		// catalog_kinds(1); the fixture's OR IGNORE keeps those rows. Point the
 		// operation chain at that actual library namespace.
 		libraryKey = "qualification-movies"
+		var catalogKey, catalogRoot string
+		if err := e0.db.QueryRowContext(t.Context(), `SELECT library_id,root FROM catalog_libraries WHERE id=7`).Scan(&catalogKey, &catalogRoot); err != nil || catalogKey != libraryKey || catalogRoot != "/qualification-media" {
+			t.Fatalf("canonical population library shape differs: %q %q %v", catalogKey, catalogRoot, err)
+		}
 		for _, q := range []string{
 			`UPDATE libraries SET metadata_language='en-CA' WHERE id='qualification-movies'`,
 			`UPDATE library_sources SET library_id='qualification-movies' WHERE id='source-native'`,

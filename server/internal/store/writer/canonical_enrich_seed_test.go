@@ -203,3 +203,38 @@ func tableColumns(db *sql.DB, table string) ([]string, error) {
 	}
 	return out, rows.Err()
 }
+
+// A pre-existing but different library/kind row must fail, never be ignored.
+func TestCanonicalEnrichSeedRejectsMismatchedPopulationRows(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		sql  string
+	}{
+		{"library key", `UPDATE catalog_libraries SET library_id='different-library' WHERE id=7`},
+		{"library root", `UPDATE catalog_libraries SET root='/different-root' WHERE id=7`},
+		{"kind flags", `UPDATE catalog_kinds SET browsable=0 WHERE id=1`},
+		{"kind name", `UPDATE catalog_kinds SET name='show' WHERE id=1`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, _ := testCanonicalExecutor(t)
+			for _, q := range []string{
+				`INSERT INTO libraries(id,name,kind,root) VALUES('qualification-movies','Qualification movies','movie','/qualification-media')`,
+				`INSERT INTO catalog_libraries(id,library_id,root) VALUES(7,'qualification-movies','/qualification-media')`,
+				`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0)`,
+			} {
+				if _, err := w.db.ExecContext(t.Context(), q); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := assertBeginFixtureLibraryRows(t.Context(), w.db); err != nil {
+				t.Fatal("canonical shape rejected", err)
+			}
+			if _, err := w.db.ExecContext(t.Context(), tc.sql); err != nil {
+				t.Fatal(err)
+			}
+			if err := assertBeginFixtureLibraryRows(t.Context(), w.db); err == nil {
+				t.Fatal("mismatched pre-existing row silently accepted")
+			}
+		})
+	}
+}
