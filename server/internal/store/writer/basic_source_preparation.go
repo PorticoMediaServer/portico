@@ -41,7 +41,6 @@ func prepareBasicCommandOriginal(ctx context.Context, driver *ScanDriver, lease 
 	if preparation == nil {
 		return nil, original, ErrInvalid
 	}
-	lifetime = preparation.lifetime
 	// W returned the funded holding before this projection. Serialize the
 	// consumer handoff with the SAME driver's Close/ReleasePending so neither
 	// can refund its capture while these owned values are being constructed.
