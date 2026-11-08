@@ -203,24 +203,45 @@ func TestUSPolicyEffectsNoChange(t *testing.T) {
 	}
 }
 
-// A target already at the maximum revision cannot bump its generation, so the
-// effect refuses with the same conflict the CAS would produce and writes nothing.
+// A target already at the maximum revision cannot bump its generation. The
+// source row IS seeded at the cap and DOES match the CAS identity and lifetime,
+// so without the explicit cap guard the update would succeed and overflow: this
+// test proves the guard, not merely that a stale row matches nothing.
 func TestUSPolicyEffectsRevisionOverflow(t *testing.T) {
-	w, r := usPolicyEffectsFixture(t)
-	turn := usPolicyEffectTurn(t, w, r, USMemberLibraries)
-	command := usPolicyMemberCommand(t, []string{"movies"}, usMaxRevision-1)
-	// Preparation refuses the overflow client claim, so this is the freshest
-	// target fact that reaches the effect; it must not be written past the cap.
-	command.request.expectedRevision = usMaxRevision
-	before := usPolicyChanges(t, turn.transaction.conn)
-	effect, err := applyUSLibraryPolicy(t.Context(), turn, command, sql.NullString{String: `["música"]`, Valid: true}, usMaxRevision)
-	if !errors.Is(err, ErrConflict) || effect != (usPolicyEffect{}) {
-		t.Fatal("max revision overflow accepted", effect, err)
+	for _, tc := range []struct {
+		name, seed string
+		kind       CommandID
+	}{
+		{"member", `UPDATE direct_memberships SET revision=? WHERE account_id='us-target'`, USMemberLibraries},
+		{"profile", `UPDATE direct_profiles SET revision=? WHERE id='us-profile'`, USProfileLibraries},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, r := usPolicyEffectsFixture(t)
+			if _, err := w.db.ExecContext(t.Context(), tc.seed, usMaxRevision); err != nil {
+				t.Fatal(err)
+			}
+			turn := usPolicyEffectTurn(t, w, r, tc.kind)
+			command := usPolicyMemberCommand(t, []string{"movies"}, usMaxRevision-1)
+			beforePolicy := sql.NullString{String: `["música"]`, Valid: true}
+			if tc.kind == USProfileLibraries {
+				command = usPolicyProfileCommand(t, usPolicyProfileID, usPolicyProfileLife, []string{"movies"}, usMaxRevision-1)
+				beforePolicy = sql.NullString{String: "[]", Valid: true}
+			}
+			// Preparation refuses the overflow client claim, so this is the
+			// freshest target fact that reaches the effect; the seeded row is
+			// the row the CAS would update if the cap guard were missing.
+			command.request.expectedRevision = usMaxRevision
+			before := usPolicyChanges(t, turn.transaction.conn)
+			effect, err := applyUSLibraryPolicy(t.Context(), turn, command, beforePolicy, usMaxRevision)
+			if !errors.Is(err, ErrConflict) || effect != (usPolicyEffect{}) {
+				t.Fatal("max revision overflow accepted", effect, err)
+			}
+			if after := usPolicyChanges(t, turn.transaction.conn); after != before {
+				t.Fatal("overflow effect changed source", before, after)
+			}
+			_, _ = turn.transaction.rollback(nil)
+		})
 	}
-	if after := usPolicyChanges(t, turn.transaction.conn); after != before {
-		t.Fatal("overflow effect changed source", before, after)
-	}
-	_, _ = turn.transaction.rollback(nil)
 }
 
 // A prepared member policy is always the explicit JSON list; a NULL member
