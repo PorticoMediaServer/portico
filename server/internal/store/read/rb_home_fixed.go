@@ -138,11 +138,19 @@ func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput) (
 	if !visible {
 		return frame, ErrDenied
 	}
-	if len(frame.Manifest.Libraries) > 4 {
-		frame.Pending = "library_scope_preparation"
-		return
-	}
+	libraryCount := 0
 	for _, lib := range frame.Manifest.Libraries {
+		// New on Server's source universe is video-only, just like the
+		// public shelf. Audio neither contributes cards nor consumes its
+		// complete-membership budget; Listen Next keeps its own audio source.
+		if in.RowID == "new_on_server" && !homeFixedVideoLibrary(lib.Kind) {
+			continue
+		}
+		libraryCount++
+		if libraryCount > 4 {
+			frame.Pending = "library_scope_preparation"
+			return
+		}
 		l := homeFixedLibrary{Library: lib}
 		if lib.CatalogueState != "current" {
 			frame.Pending = "library_catalogue_unprepared"
@@ -336,6 +344,10 @@ func homeFixedPersonal(x homeFixedEntity) PersonalState {
 	}
 	return out
 }
+func homeFixedVideoLibrary(kind string) bool {
+	return kind == "movie" || kind == "tv" || kind == "anime"
+}
+
 func composeHomeFixed(frame homeFixedFrame, row string, at time.Time) (HomeFixedPage, error) {
 	page := HomeFixedPage{RawPositions: frame.RawPositions, RawBindings: frame.RawBindings}
 	if frame.Pending != "" {
@@ -345,14 +357,13 @@ func composeHomeFixed(frame homeFixedFrame, row string, at time.Time) (HomeFixed
 	}
 	switch row {
 	case "new_on_server":
+		video := homeFixedFrame{}
 		for _, lib := range frame.Libraries {
-			if !slices.Contains([]string{"movie", "tv", "anime", "music", "audiobook"}, lib.Library.Kind) {
-				page.Pending = true
-				page.PendingReason = "recent_library_policy_uncomposed"
-				return page, nil
+			if homeFixedVideoLibrary(lib.Library.Kind) {
+				video.Libraries = append(video.Libraries, lib)
 			}
 		}
-		return homeFixedRecent(frame, page)
+		return homeFixedRecent(video, page)
 	case "continue", "listen_next", "continue_books":
 		return homeFixedActivity(frame, page, row, at)
 	}
