@@ -684,6 +684,13 @@ func TestCrashEffectiveStepsRejectRawCorruption(t *testing.T) {
 }
 
 func TestCrashReplayEffectiveNativeSteps(t *testing.T) {
+	t.Helper()
+	if raceDetector {
+		// This sequential child matrix exceeds one shard's race budget. The
+		// same cells run without -race; a skipped opt-in target is not evidence.
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+
 	for _, operation := range []string{"stage", "stage_replay", "resolve", "ack"} {
 		t.Run(operation, func(t *testing.T) {
 			witness := crashWitness{Case: crashCase{"effective_steps", operation, "trace", ""}}
