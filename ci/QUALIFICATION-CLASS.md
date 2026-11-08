@@ -122,29 +122,38 @@ child starts and after it exits. These are checkpoints, not minimum free space
 or peak disk usage. Actions step timestamps retain compression/upload elapsed
 time; inspect these and the first redispatch's receipts for runner-disk pressure.
 
-Raw collection during the next epoch uses a dedicated 7 GiB `tmpfs,noswap`
-mount with verified filesystem type, source, byte limit and a device different
-from the database/work directory. This removes per-record database-disk sync:
-the unchanged Go encoder writes the identical record bytes and its Sync calls
-reach memory, not the database filesystem. Linux documents `noswap` as disabling
-swap for this mount: https://docs.kernel.org/filesystems/tmpfs.html . Missing or
-mismatched mount evidence refuses execution; there is no disk fallback during
-measurement.
+Raw collection in the next method epoch sends the unchanged Go JSON record
+bytes over a bounded Unix socket to an external streaming-gzip observer. Its
+768 MiB dedicated `tmpfs,noswap` has a 767 MiB compressed-file ceiling (1 MiB is
+reserved for socket/receipts), plus the unchanged 16 GiB decompressed/raw bound.
+Every compressed write checks the cap before writing. Exceeding either cap
+fails the cell explicitly, closes the producer socket and retains the failed
+compressed prefix; it cannot become a successful truncated run. Missing or
+mismatched mount evidence refuses execution; there is no database-disk fallback.
+Linux documents `noswap`: https://docs.kernel.org/filesystems/tmpfs.html .
 
-Only after the unit is stopped/drained does the runner stream-compress raw to
-disk, verify original digest/length and gzip round-trip, then unlink memory raw.
-A compression failure remains nonpassing and retains an independently verified
-bulk copy of the original on disk after measurement. Unmount refuses while any
-unpersisted data remains; ownership marker, empty unmount/path-removal proof,
-then ordinary scratch cleanup are retained before artifact upload.
+The observer runs outside the engine systemd unit. Its gzip workspace and tmpfs
+pages are allocated by that external process, not charged to the engine's
+unchanged cgroup limit and excluded from EC5 server accounting. The supervisor
+asserts actual observer PID/cgroup placement outside the engine cgroup before
+accepting a capture. Bounded socket buffers and record encoding still have
+observer overhead in the producer; compression CPU can compete on the host.
+This is a new observation method, not an uninstrumented or EC5 fit claim.
+Receipts retain actual peak compressed spool bytes beside engine `memory.peak`.
+The previous largest complete cell compressed to 531,186,672 bytes, below the
+804,257,792-byte compressed ceiling. Caps never grow automatically.
 
-The 7 GiB spool limit is observer memory, charged inside the unchanged cell memory
-limit (legacy8 remains 8 GiB). Its explicit charge leaves 1 GiB of that hard limit
-for other charges; this is NOT a legal recipe/native-memory or EC5 fit claim.
-The previous full raw stream was 7,130,041,472 B, below the 7,516,192,768 B spool
-limit; future larger evidence fails visibly instead of increasing a profile.
-Record shmem pressure and keep this method/source epoch separate from the old
-same-disk synced log. No per-record fields, command budgets, policy or runtime
-enforcement change. A PR-only standard-runner protocol job mounts the real
-no-swap tmpfs and proves byte-exact persistence/cleanup without opening SQLite;
-local controls mock mount evidence and never allocate a large population.
+Producer EOF closes/flushed gzip (CRC and trailer), then an independent streaming
+decompression must match the original byte count and SHA-256. The engine
+supervisor waits for this proof before its unit retires, including failed owner
+prefixes. Only after stopped/drained unit proof does the runner copy compressed
+bytes to disk, recheck compressed digest/length and round-trip, then remove the
+memory copy. Failed/incomplete gzip prefixes remain failed and are retained
+byte-for-byte without claiming successful decompression. Unmount refuses any
+unpersisted data. Mount, capture, persistence and cleanup proofs precede upload.
+
+A PR-only standard-runner protocol job exercises the actual no-swap tmpfs,
+external cgroup placement, close/round-trip and cleanup with a tiny synthetic
+stream, never SQLite or qualification. Focused controls cover cap overflow,
+round-trip mismatch, same-cgroup rejection and unchanged JSON/null/zero content.
+No command budgets, per-record fields, SQLite policy or runtime enforcement change.

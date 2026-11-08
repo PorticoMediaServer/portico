@@ -360,12 +360,13 @@ var n1Missing = map[string]string{
 }
 
 type n1Stream struct {
-	mu       sync.Mutex // serializes post-custody records from bounded paired streams
-	file     *os.File
-	origin   time.Time
-	base     map[string]any
-	sequence uint64
-	err      error
+	mu         sync.Mutex // serializes post-custody records from bounded paired streams
+	file       *os.File
+	streamOnly bool // test-only external gzip observer; never sync a socket
+	origin     time.Time
+	base       map[string]any
+	sequence   uint64
+	err        error
 }
 
 func (s *n1Stream) append(kind string, fields map[string]any) error {
@@ -391,7 +392,7 @@ func (s *n1Stream) append(kind string, fields map[string]any) error {
 	if s.err == nil {
 		_, s.err = s.file.Write(append(raw, '\n'))
 	}
-	if s.err == nil {
+	if s.err == nil && !s.streamOnly {
 		s.err = s.file.Sync()
 	} // ALWAYS outside custody
 	return s.err

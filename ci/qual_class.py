@@ -13,6 +13,7 @@ import subprocess
 import time
 
 import qual_fixture as q
+import qual_spool as spool
 
 TARGETS = {
     'inventory_n1': 'TestCanonicalHeldInventoryN1',
@@ -33,7 +34,7 @@ ATTEMPTS = 10000
 # Transport-only ceiling: 30k role records at the retained ~235kB/record
 # exceed the old4GiB guard. Streaming keeps this independent of process RAM.
 MAX_STREAM_BYTES = 16 << 30
-RAW_MEMORY_BYTES = 7 << 30 # unchanged8GiB cell retains at least1GiB for other charges
+RAW_MEMORY_BYTES = spool.MEMORY_BYTES
 
 
 def identity(value, name, maximum=20):
@@ -56,14 +57,16 @@ def inputs(env):
                 workflow_attempt=identity(env.get('GITHUB_RUN_ATTEMPT', ''), 'workflow attempt', 6))
 
 
-def verify_stream(path, cfg):
+def verify_stream(path, cfg, compressed=False):
     """Only wire/pin/completion verification. No quantiles or accepted-count inference."""
-    q.regular(path, MAX_STREAM_BYTES)
+    q.regular(path, spool.COMPRESSED_BYTES if compressed else MAX_STREAM_BYTES)
     first = last = None
-    count = 0
-    with path.open('rb') as f:
+    count, size, digest = 0, 0, hashlib.sha256()
+    with (gzip.open(path, 'rb') if compressed else path.open('rb')) as f:
         while line := f.readline((2 << 20) + 2):
             q.require(len(line) <= (2 << 20) + 1 and line.endswith(b'\n'), 'incomplete/oversized raw record')
+            size += len(line); digest.update(line)
+            q.require(size <= MAX_STREAM_BYTES, 'decompressed raw bound exceeded')
             record = json.loads(line, object_pairs_hook=q.no_duplicates)
             count += 1
             q.require(count <= 1000000 and type(record) is dict, 'raw record bound/type')
@@ -81,7 +84,7 @@ def verify_stream(path, cfg):
             last = record
     q.require(first and first.get('kind') == 'start' and last.get('kind') == 'final'
               and last.get('complete') is True, 'missing/incomplete owner final')
-    return dict(records=count, raw_sha256=q.file_hash(path), owner_final=last,
+    return dict(records=count, raw_sha256=digest.hexdigest(), owner_final=last,
                 qualification_verdict=None, verdict_reason='Owner raw evidence still needs per-recipe reduction and protocol gates')
 
 
@@ -208,10 +211,10 @@ def run(launch_path):
     q.require(re.fullmatch(r'[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}', boot), 'actual boot identity missing')
     c = dict(run_id=f"gh-{cfg['workflow_run']}-{cfg['workflow_attempt']}-{cfg['name']}-{cfg['profile']}-{cfg['replicate']}",
              host_epoch=f"{boot}-k{os.uname().release}", source_commit=cfg['source'],
-             output_path=str(work.parent / 'qual-class-memory' / 'raw.ndjson'), **{'class': cfg['name']}, profile=cfg['profile'],
+             output_path=str(work.parent / 'qual-class-memory' / 'raw.sock'), **{'class': cfg['name']}, profile=cfg['profile'],
              attempts=ATTEMPTS, artifact_directory=launch['artifact'], manifest_sha256=cfg['manifest'])
     q.atomic_json(work / 'config.json', c)
-    env.update(PORTICO_CANONICAL_HELD='1', PORTICO_CANONICAL_HELD_CONFIG=str(work / 'config.json'))
+    env.update(PORTICO_CANONICAL_HELD_STREAM='unix-gzip-v1', PORTICO_CANONICAL_HELD='1', PORTICO_CANONICAL_HELD_CONFIG=str(work / 'config.json'))
     receipt.update(actual_config=c, status='failed', target_uid=launch['uid'], target_gid=launch['gid'],
                    disk_before_target=shutil.disk_usage(work)._asdict(),
                    host_scope='same cgroup/namespace as target; collector root, target unprivileged',
@@ -231,6 +234,7 @@ def run(launch_path):
             process = subprocess.Popen(argv, cwd=Path(launch['source']) / 'server/internal/store/writer', env=env,
                                        stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
                                        user=launch['uid'], group=launch['gid'], extra_groups=[])
+            code = None
             try:
                 code = process.wait(timeout=75*60+30)
             except BaseException:
@@ -242,9 +246,12 @@ def run(launch_path):
                 raise
             finally:
                 receipt['process_joined_monotonic_ns'] = time.monotonic_ns()
+                receipt['target_exit_code'] = code
+                receipt['engine_memory_peak_bytes'] = spool.engine_memory_peak()
+                receipt['raw_capture'] = spool.wait_capture(raw.parent)
         receipt['target_exit_code'] = code
         q.require(code == 0, 'owner target failed; retain every refusal/error/partial record')
-        receipt.update(wire=verify_stream(raw, c), status='owner-execution-complete')
+        receipt.update(wire=verify_stream(raw.parent/'raw.ndjson.gz', c, compressed=True), status='owner-execution-complete')
     except BaseException as error:
         receipt.update(status='failed', error=f'{type(error).__name__}: {error}')
         raise
@@ -315,7 +322,7 @@ def memory_evidence(root, database):
               'memory bound/database-filesystem separation not proven')
     return dict(path=str(root), filesystem=mounts[0], limit_bytes=RAW_MEMORY_BYTES,
                 device=root.stat().st_dev, database_device=database.stat().st_dev,
-                accounting='observer shmem is charged within the unchanged engine memory limit; not an EC5 fit proof')
+                accounting='external gzip observer and shmem outside engine cgroup; excluded from EC5 accounting')
 
 
 def memory_setup(root, uid, gid):
@@ -329,27 +336,52 @@ def memory_setup(root, uid, gid):
 
 
 def persist_memory(root, output):
-    retired_unit() # no measurement process may still be writing
+    retired_unit() # observer verification already completed before engine retirement
     output.mkdir(parents=True, exist_ok=True)
     memory_evidence(root, output)
     receipt_path=output/'receipt.json'
     receipt=json.loads(receipt_path.read_text(), object_pairs_hook=q.no_duplicates) if receipt_path.exists() else dict(status='failed', qualification_verdict=None)
-    raw=root/'raw.ndjson'
+    raw=root/'raw.ndjson.gz'
     try:
-        pack_raw(output, receipt, raw)
+        if (root/'capture.json').exists():
+            capture=json.loads((root/'capture.json').read_text(), object_pairs_hook=q.no_duplicates)
+            q.atomic_json(output/'raw-capture.json', capture)
+        else:
+            capture=dict(complete=False, error='gzip observer did not return a receipt')
+        q.require(raw.exists(), 'observer gzip missing')
+        if raw.exists():
+            q.regular(raw, spool.COMPRESSED_BYTES)
+            capture_bound=(raw.stat().st_size==capture.get('stored_bytes') and q.file_hash(raw)==capture.get('stored_sha256'))
+            complete=capture.get('complete') is True and capture_bound
+            target=output/'raw.ndjson.gz'
+            q.require(not target.exists(), 'stored gzip already exists; preserve originals')
+            shutil.copyfile(raw, target)
+            q.require(raw.stat().st_size==target.stat().st_size and q.file_hash(raw)==q.file_hash(target), 'gzip persistence mismatch')
+            if complete:
+                q.require(spool.decoded_digest(target)==(capture['original_bytes'],capture['original_sha256']), 'persisted gzip round-trip mismatch')
+            else:
+                receipt.update(status='failed', observer_error=capture.get('error', 'capture digest/length mismatch'), qualification_verdict=None)
+            q.atomic_json(output/'raw-storage.json', dict(capture, complete=complete, capture_digest_matches=capture_bound, stored_path=target.name,
+                          stored_bytes=target.stat().st_size, stored_sha256=q.file_hash(target)))
+            raw.unlink() # only the byte-verified compressed original is removed
+        if (root/'capture.json').exists(): (root/'capture.json').unlink()
+        q.require(complete, capture.get('error', 'gzip observer incomplete or digest changed'))
     except (OSError, ValueError, EOFError) as error:
         receipt.update(status='failed', compression_error=str(error), qualification_verdict=None)
-        # Retain even a compression-failure prefix after measurement, with no
-        # per-record disk sync. Never drop its sole copy to make cleanup pass.
-        if raw.exists():
-            target=output/'raw.ndjson'
-            q.require(not target.exists(), 'fallback raw already exists')
-            shutil.copyfile(raw, target)
-            q.require(raw.stat().st_size==target.stat().st_size and q.file_hash(raw)==q.file_hash(target), 'fallback retention mismatch')
-            raw.unlink()
         raise
     finally:
         q.atomic_json(receipt_path, receipt)
+
+
+def observe_launch(launch_path):
+    launch=json.loads(launch_path.read_text(), object_pairs_hook=q.no_duplicates)
+    root=Path(launch['work']).parent/'qual-class-memory'
+    memory_evidence(root, Path(launch['work']))
+    argv=['sudo','systemd-run','--unit=portico-canonical-class','--wait','--pipe','--collect']
+    for prop in profile_properties(launch['cfg']['profile']): argv.append('--property='+prop)
+    argv += ['/usr/bin/python3','-B',str(Path(__file__).resolve()),'run','--launch',str(launch_path)]
+    code=spool.observe(root, lambda: subprocess.run(argv, check=False, timeout=82*60).returncode)
+    q.require(code==0, 'engine cell failed; compressed evidence retained')
 
 
 def memory_cleanup(root, output):
@@ -516,11 +548,14 @@ def main():
     p = sub.add_parser('prepare')
     for name in ('source', 'artifact', 'output', 'work', 'producer-run'):
         p.add_argument('--' + name, required=True, type=Path)
-    r = sub.add_parser('run')
-    r.add_argument('--launch', required=True, type=Path)
+    for name in ('run','observe'):
+        r = sub.add_parser(name)
+        r.add_argument('--launch', required=True, type=Path)
     args = parser.parse_args()
     if args.mode == 'plan':
         plan()
+    elif args.mode == 'observe':
+        observe_launch(args.launch)
     elif args.mode == 'memory-setup':
         memory_setup(args.root, args.uid, args.gid)
     elif args.mode == 'persist-memory':
