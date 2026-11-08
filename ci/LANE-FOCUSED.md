@@ -54,3 +54,5 @@ Hosted pilots of the first implementation: [two-shard connection/restart control
 `paired-canonical` runs the opt-in tiny canonical-parent paired N1/browse control; it sets `PORTICO_PAIRED_CANONICAL_FUNCTIONAL=1`. No1M or qualification run.
 
 `ec2-native` runs the opt-in tiny same-DB N1/WC/keeper functional composition, setting `PORTICO_EC2_NATIVE_FUNCTIONAL=1`; it is not a host measurement.
+
+`ec1-rare` runs the opt-in 100ms rare-error refusal cell, setting `PORTICO_EC1_RARE_ERRORS=1` (10k calls per refusal path); it is a component cell, never a qualification.
