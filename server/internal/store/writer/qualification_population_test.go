@@ -48,6 +48,7 @@ type qualificationPopulationExportConfig struct {
 	SourceCommit string `json:"source_commit"`
 	Seed         uint32 `json:"seed"`
 	Residents    int    `json:"residents"`
+	SearchBank   bool   `json:"search_bank,omitempty"`
 }
 
 type qualificationPopulationAttachment struct {
@@ -157,8 +158,14 @@ func readQualificationPopulation(dir, expectedManifestSHA string) (Qualification
 	if policy.Engine != m.Engine || policy.JournalMode != "wal" || policy.ForeignKeys != 1 || policy.Synchronous != 2 || policy.AutoCheckpoint != 0 || policy.CacheSize != -1024 || policy.BusyTimeout != 0 || policy.MmapSize != 0 || policy.QueryOnly != 0 || policy.TempStore != 1 || policy.DQSDDL != 0 || policy.DQSDML != 0 || m.DQSDDL != 0 || m.DQSDML != 0 {
 		return m, errors.New("population actual writer policy mismatch")
 	}
-	if m.Facts.Version != "canonical-movies-v1" || m.Facts.Counts == nil || m.Facts.Residents < 1 || m.Facts.Residents > 1000000 || m.Facts.LibraryID != 7 || m.Facts.LibraryKey != "qualification-movies" || !qualificationPopulationSHA.MatchString(m.Facts.LogicalSHA256) {
+	if (m.Facts.Version != qualificationMovieShape && m.Facts.Version != qualificationMovieSearchShape) || m.Facts.Counts == nil || m.Facts.Residents < 1 || m.Facts.Residents > 1000000 || m.Facts.LibraryID != 7 || m.Facts.LibraryKey != "qualification-movies" || !qualificationPopulationSHA.MatchString(m.Facts.LogicalSHA256) {
 		return m, errors.New("invalid population facts")
+	}
+	if m.Facts.Version == qualificationMovieSearchShape {
+		bank := m.Facts.SearchBank
+		if bank == nil || bank.Entities != int64(m.Facts.Residents) || bank.Publications <= 0 || bank.Fragments <= 0 || bank.Seals <= 0 || bank.People <= 0 || bank.Credits <= 0 || !qualificationPopulationSHA.MatchString(bank.LogicalSHA256) || m.Facts.Statistics == "" {
+			return m, errors.New("invalid search bank facts")
+		}
 	}
 	if m.Facts.FirstID != qualificationMovieIDBase+1 || m.Facts.LastID != qualificationMovieIDBase+int64(m.Facts.Residents) {
 		return m, errors.New("population ID range mismatch")
@@ -319,7 +326,14 @@ func TestExportQualificationPopulation(t *testing.T) {
 	if err = conn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	facts := seedQualificationPopulation(t, w, qualificationPopulationSpec{Seed: c.Seed, Residents: c.Residents})
+	facts := seedQualificationPopulation(t, w, qualificationPopulationSpec{Seed: c.Seed, Residents: c.Residents, SearchBank: c.SearchBank})
+	if c.SearchBank {
+		// Same exclusive canonical executor, after the catalogue seed returns and
+		// before export/checkpoint. The builder owns its bounded transactions and
+		// reads the persisted residents back.
+		bank := seedQualificationSearchBank(t, w)
+		facts.SearchBank = &bank
+	}
 	// Reassert the actual physical policy after all seeding, rather than relying
 	// on a one-time assertion that could predate a replacement connection.
 	conn, err = w.db.Conn(t.Context())
