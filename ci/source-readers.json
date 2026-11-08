@@ -134,6 +134,13 @@
     },
     {
       "package": "server/internal/store/writer",
+      "why": "Group B producer census scans every server Go source plus the baseline-schema script and the generated WC progress capture for inserts, insert-selects and deletes on the B security tables",
+      "reads": ["server/*", "docs/*"],
+      "files": ["server/internal/store/writer/us_group_b_producer_inventory_test.go"],
+      "tests": ["TestUSGroupBProducerInventory", "TestUSGroupBProducerInventoryOtherSources", "TestUSGroupBProducerInventorySchemaGuards"]
+    },
+    {
+      "package": "server/internal/store/writer",
       "why": "Paired N1 component tests hash their owner, fixture and workload source closure and capture the foreground registry from the actual read definitions",
       "reads": [
         "server/internal/store/writer/n1_paired_export_test.go",
