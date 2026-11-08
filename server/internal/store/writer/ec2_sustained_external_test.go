@@ -259,7 +259,11 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 	}
 	if writeLedger != nil {
 		expected := int((duration-1) / *ec3WriteEvery) + 1
-		report := writeLedger.report(expected, sink.finalSeen && sink.complete)
+		fg, fgSeen := sink.progress["foreground-writes"]
+		if !fgSeen {
+			runErr = errors.Join(runErr, errors.New("foreground-writes stream missing its terminal progress"))
+		}
+		report := writeLedger.report(expected, int(fg.Missed), int(fg.Unserved), sink.finalSeen && sink.drivers, sink.finalSeen && sink.complete)
 		raw, _ := json.Marshal(report)
 		runErr = errors.Join(runErr, c.EmitEC2("foreground_write_report", raw))
 		if runErr == nil && !report.CoverageComplete {
