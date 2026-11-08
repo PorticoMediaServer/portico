@@ -18,9 +18,11 @@ const rbFilterMediaAttributionOctetsSQL = `SELECT octet_length(e.reading_author_
 const rbFilterMediaAuthorFacetSQL = `SELECT 1 FROM catalog_entities AS e INDEXED BY reading_entity_author_facet WHERE e.library_id=? AND e.kind=? AND e.reading_author_key=? AND e.reading_author_value=? AND has_reading_attribution_members=1 AND e.id=?`
 const rbFilterMediaSeriesFacetSQL = `SELECT 1 FROM catalog_entities AS e INDEXED BY reading_entity_series_facet WHERE e.library_id=? AND e.kind=? AND e.reading_series_key=? AND e.reading_series_value=? AND has_reading_attribution_members=1 AND e.id=?`
 
-// A version is one accepted asset link in the title's own order. The asset
-// identity is joined by its (library_id,id) unique key; a missing asset row is
-// returned as a NULL identity instead of being hidden from the version set.
+// A version is one accepted asset link group: the published oracle counts only
+// part_index=0 links, so a multi-part asset (parts 0,1,2) is one version. The
+// asset identity is joined by its (library_id,id) unique key; a missing asset
+// row is returned as a NULL identity instead of being hidden from the version
+// set.
 const rbFilterMediaLinksSQL = `SELECT l.asset_id,l.part_index,a.token FROM catalog_asset_links AS l INDEXED BY catalog_asset_links_order LEFT JOIN catalog_assets AS a ON a.id=l.asset_id AND a.library_id=l.library_id AND a.library_id=? WHERE l.entity_id=? ORDER BY l.part_index,l.asset_id LIMIT ?`
 const rbFilterMediaLinksOctetsSQL = `SELECT l.asset_id,octet_length(a.token) FROM catalog_asset_links AS l INDEXED BY catalog_asset_links_order LEFT JOIN catalog_assets AS a ON a.id=l.asset_id AND a.library_id=l.library_id AND a.library_id=? WHERE l.entity_id=? ORDER BY l.part_index,l.asset_id LIMIT ?`
 
@@ -40,11 +42,26 @@ const rbFilterMediaRetiredSQL = `SELECT item_id FROM dvr_catalog_retirements WHE
 // the same asset. The caller compares those values with the asset point.
 const rbFilterMediaStreamsSQL = `SELECT s.stream_index,s.type,s.language,s.detail_json,f.revision,f.size,f.modified_ns FROM asset_streams AS s LEFT JOIN asset_stream_facts AS f INDEXED BY sqlite_autoindex_asset_stream_facts_1 ON f.asset_id=s.asset_id WHERE s.asset_id=? AND s.stream_index>? ORDER BY s.stream_index LIMIT ?`
 const rbFilterMediaStreamsOctetsSQL = `SELECT s.stream_index,octet_length(s.language),octet_length(s.detail_json) FROM asset_streams AS s WHERE s.asset_id=? AND s.stream_index>? ORDER BY s.stream_index LIMIT ?`
-const rbFilterMediaSubtitlesSQL = `SELECT t.id,t.language,f.revision,f.size,f.modified_ns FROM asset_subtitles AS t INDEXED BY asset_subtitles_asset LEFT JOIN asset_subtitle_facts AS f INDEXED BY sqlite_autoindex_asset_subtitle_facts_1 ON f.asset_id=t.asset_id WHERE t.asset_id=? AND t.id>? ORDER BY t.id LIMIT ?`
+
+// The stored fact status decides whether the track list is accepted; a
+// non-known row is read so the row identities still line up with the octet
+// preflight, then skipped in the kernel exactly as the legacy `status='known'`
+// join skips it.
+const rbFilterMediaSubtitlesSQL = `SELECT t.id,t.language,f.revision,f.size,f.modified_ns,f.status FROM asset_subtitles AS t INDEXED BY asset_subtitles_asset LEFT JOIN asset_subtitle_facts AS f INDEXED BY sqlite_autoindex_asset_subtitle_facts_1 ON f.asset_id=t.asset_id WHERE t.asset_id=? AND t.id>? ORDER BY t.id LIMIT ?`
 const rbFilterMediaSubtitlesOctetsSQL = `SELECT t.id,octet_length(t.language) FROM asset_subtitles AS t INDEXED BY asset_subtitles_asset WHERE t.asset_id=? AND t.id>? ORDER BY t.id LIMIT ?`
 
-// Only an accepted Reading publication is a Reading version. Publication type
-// is not a filter field, so its source row is not read here.
+// Viewer-visible subtitle files are the second accepted subtitle source in the
+// legacy predicate: current shared resources and the viewer's own personal
+// resources. This kernel has no viewing principal, so a current personal
+// resource is a named refusal rather than an exact answer. A revision whose
+// source size/mtime no longer matches the asset is stale and contributes
+// nothing, exactly as the legacy identity join drops it.
+const rbFilterMediaSubtitleResourcesSQL = `SELECT r.scope,rev.language FROM subtitle_resources AS r INDEXED BY subtitle_resources_item INNER JOIN subtitle_revisions AS rev ON rev.resource_id=r.id AND rev.revision=r.current_revision INNER JOIN catalog_assets AS a ON a.token=r.source_id AND a.size=rev.source_size AND a.modified_ns=rev.source_modified_ns WHERE r.item_id=? AND r.deleted=0 LIMIT ?`
+const rbFilterMediaSubtitleResourcesOctetsSQL = `SELECT octet_length(rev.language) FROM subtitle_resources AS r INDEXED BY subtitle_resources_item INNER JOIN subtitle_revisions AS rev ON rev.resource_id=r.id AND rev.revision=r.current_revision INNER JOIN catalog_assets AS a ON a.token=r.source_id AND a.size=rev.source_size AND a.modified_ns=rev.source_modified_ns WHERE r.item_id=? AND r.deleted=0 LIMIT ?`
+
+// Reading publications carry the format and availability facts for a Reading
+// leaf; the version count itself is the part-0 link oracle above. Publication
+// type is not a filter field, so its source row is not read here.
 const rbFilterMediaPublicationSQL = `SELECT p.asset_id,p.format FROM reading_publications AS p WHERE p.item_id=? AND p.asset_id>? ORDER BY p.asset_id LIMIT ?`
 const rbFilterMediaPublicationOctetsSQL = `SELECT p.asset_id,octet_length(p.format) FROM reading_publications AS p WHERE p.item_id=? AND p.asset_id>? ORDER BY p.asset_id LIMIT ?`
 
@@ -65,6 +82,7 @@ func RBMediaFilterDefinitions() []stmt.Definition {
 	subtitleFacts := pk("asset_subtitle_facts", "sqlite_autoindex_asset_subtitle_facts_1")
 	streamPlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_asset_stream_facts_1"}, AutoIndexes: []stmt.AutoIndexBinding{streamFacts}, Seeks: []string{"asset_id=?"}}
 	subtitlePlan := stmt.Plan{Hot: true, Indexes: []string{"asset_subtitles_asset", "sqlite_autoindex_asset_subtitle_facts_1"}, AutoIndexes: []stmt.AutoIndexBinding{subtitleFacts}, Seeks: []string{"asset_id=? AND id>?", "asset_id=?"}}
+	subtitleResourcePlan := stmt.Plan{Hot: true, Indexes: []string{"subtitle_resources_item", "sqlite_autoindex_subtitle_revisions_1", "sqlite_autoindex_catalog_assets_1"}, Seeks: []string{"item_id=?", "resource_id=? AND revision=?", "token=?"}}
 	publicationPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"p"}}
 	var out []stmt.Definition
 	add := func(name, sql string, params []stmt.Param, cohorts []stmt.Cohort, plan stmt.Plan) {
@@ -99,6 +117,9 @@ func RBMediaFilterDefinitions() []stmt.Definition {
 	subtitleCohorts := []stmt.Cohort{{Name: "present", Bindings: []any{"asset", "", int64(rbMediaSubtitleCap + 1)}}, {Name: "empty", Bindings: []any{"missing", "", int64(rbMediaSubtitleCap + 1)}}}
 	add("streams.subtitles", rbFilterMediaSubtitlesSQL, []stmt.Param{s("asset"), s("after"), i("limit")}, subtitleCohorts, subtitlePlan)
 	add("streams.subtitles.bytes", rbFilterMediaSubtitlesOctetsSQL, []stmt.Param{s("asset"), s("after"), i("limit")}, subtitleCohorts, stmt.Plan{Hot: true, Indexes: []string{"asset_subtitles_asset"}, Seeks: []string{"asset_id=? AND id>?"}})
+	subtitleResourceCohorts := []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), int64(rbMediaResourceCap + 1)}}, {Name: "empty", Bindings: []any{int64(999999), int64(rbMediaResourceCap + 1)}}}
+	add("streams.subtitles.resource", rbFilterMediaSubtitleResourcesSQL, []stmt.Param{i("item"), i("limit")}, subtitleResourceCohorts, subtitleResourcePlan)
+	add("streams.subtitles.resource.bytes", rbFilterMediaSubtitleResourcesOctetsSQL, []stmt.Param{i("item"), i("limit")}, subtitleResourceCohorts, subtitleResourcePlan)
 	publicationCohorts := []stmt.Cohort{{Name: "present", Bindings: []any{int64(1), int64(0), int64(rbMediaPublicationCap + 1)}}, {Name: "empty", Bindings: []any{int64(999999), int64(0), int64(rbMediaPublicationCap + 1)}}}
 	add("publication", rbFilterMediaPublicationSQL, []stmt.Param{i("item"), i("after"), i("limit")}, publicationCohorts, publicationPlan)
 	add("publication.bytes", rbFilterMediaPublicationOctetsSQL, []stmt.Param{i("item"), i("after"), i("limit")}, publicationCohorts, publicationPlan)

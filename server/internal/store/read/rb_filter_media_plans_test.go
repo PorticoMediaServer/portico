@@ -32,7 +32,7 @@ func TestRBFilterMediaPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalogue.Manifest()) != 20 {
+	if len(catalogue.Manifest()) != 22 {
 		t.Fatal("review changed statement inventory")
 	}
 	path := "testdata/rb-filter-media-plans.json.gz"
@@ -101,7 +101,7 @@ func TestRBFilterMediaPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capture := range captures {
-		if len(capture.Golden.Manifest) != 20 || len(capture.Golden.Plans) != 40 {
+		if len(capture.Golden.Manifest) != 22 || len(capture.Golden.Plans) != 44 {
 			t.Fatal("incomplete statement/cohort Capture coverage")
 		}
 	}

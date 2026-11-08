@@ -3,6 +3,7 @@ package read
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -15,6 +16,7 @@ const (
 	rbMediaLinkCap        = 64
 	rbMediaStreamCap      = 256
 	rbMediaSubtitleCap    = 256
+	rbMediaResourceCap    = 64
 	rbMediaPublicationCap = 64
 	rbMediaSourceCap      = 64
 
@@ -27,6 +29,11 @@ const (
 
 var errRBMediaUnresolved = errors.New("rb media filter: accepted facts unresolved")
 var errRBMediaBudget = errors.New("rb media filter: variable byte budget exhausted")
+
+// A current personal subtitle resource belongs to one viewing principal. This
+// kernel binds no principal, so the item's subtitle language cannot be answered
+// exactly for every viewer; it is a named pending source, never an exact empty.
+var errRBMediaSubtitlePrincipalPending = fmt.Errorf("%w: personal subtitle resource requires the viewing principal", errRBMediaPending)
 
 // rbMediaConverter is private trusted composition, never a request option. The
 // phase-4 adapter must derive it from the existing configured converter; a
@@ -44,7 +51,7 @@ type rbMediaFilterInput struct {
 }
 
 type rbMediaFilterProgress struct {
-	Links, Assets, Streams, Subtitles, Publications, Sources int
+	Links, Assets, Streams, Subtitles, Resources, Publications, Sources int
 	// HiddenLinks are links whose asset identity is absent; they stay in the
 	// version set and count as unavailable instead of disappearing.
 	HiddenLinks int
@@ -201,6 +208,11 @@ func rbMediaFilterFactsRead(q browseQuery, in rbMediaFilterInput) (rbMediaFilter
 	reading := kind == 20 || kind == 21
 	assets := make(map[int64]rbMediaAssetFacts, len(links))
 	linkAvailable := make(map[int64]bool, len(links))
+	// The published oracle is catalog_item_version_counts, whose triggers count
+	// only part_index=0 links. A movie or audiobook split over parts 0,1,2 is
+	// one version there; counting every link would invent extra versions. The
+	// same trigger rule covers Reading leaves (a publication is a part-0 link).
+	versions := int64(0)
 	anyAvailable, anyUnavailable := false, false
 	resolutions := []string{}
 	durations := []float64{}
@@ -214,6 +226,13 @@ func rbMediaFilterFactsRead(q browseQuery, in rbMediaFilterInput) (rbMediaFilter
 		assetID, ok := row[0].(int64)
 		if !ok {
 			return out, errRBMediaUnresolved
+		}
+		partIndex, ok := row[1].(int64)
+		if !ok {
+			return out, errRBMediaUnresolved
+		}
+		if partIndex == 0 {
+			versions++
 		}
 		token, hasToken := row[2].(string)
 		if !hasToken {
@@ -285,6 +304,20 @@ func rbMediaFilterFactsRead(q browseQuery, in rbMediaFilterInput) (rbMediaFilter
 			}
 		}
 	}
+	if !reading {
+		// Uploaded/shared subtitle files are a separate accepted subtitle source
+		// in the legacy predicate. Reading leaves never carry them.
+		resources, err := rbMediaReadSubtitleResources(q, &budget, in.Item)
+		if err != nil {
+			return out, err
+		}
+		out.Progress.Resources = len(resources)
+		for _, language := range resources {
+			if language != "" {
+				subtitleLanguages = rbMediaAddUnique(subtitleLanguages, language)
+			}
+		}
+	}
 	if reading {
 		pubs, err := rbMediaReadPublications(q, &budget, in.Item)
 		if err != nil {
@@ -314,10 +347,11 @@ func rbMediaFilterFactsRead(q browseQuery, in rbMediaFilterInput) (rbMediaFilter
 				anyUnavailable = true
 			}
 		}
-		out.Facts.Versions = int64(len(pubs))
-	} else {
-		out.Facts.Versions = int64(len(links))
 	}
+	// The published oracle is the part-0 link count for every kind, Reading
+	// included: reading_publications is a foreign-key child of
+	// catalog_asset_links, so each publication is one part-0 link.
+	out.Facts.Versions = versions
 	slices.Sort(resolutions)
 	slices.Sort(dynamicRanges)
 	slices.Sort(audioLanguages)
@@ -649,8 +683,18 @@ func rbMediaReadSubtitles(q browseQuery, b *rbMediaBytes, asset rbMediaAssetFact
 	}
 	out := make([]string, 0, len(rows))
 	for _, row := range rows {
-		if len(row) != 5 {
+		if len(row) != 6 {
 			return nil, errRBMediaUnresolved
+		}
+		status, ok := row[5].(string)
+		if !ok {
+			return nil, errRBMediaUnresolved
+		}
+		// Only a known subtitle inventory is an accepted track list. A pending
+		// or partial scan is absence here, exactly as the legacy status='known'
+		// join drops it, and its stale identity is not an item-wide failure.
+		if status != "known" {
+			continue
 		}
 		language, ok := row[1].(string)
 		if !ok {
@@ -660,6 +704,47 @@ func rbMediaReadSubtitles(q browseQuery, b *rbMediaBytes, asset rbMediaAssetFact
 			return nil, err
 		}
 		out = append(out, language)
+	}
+	return out, nil
+}
+
+// rbMediaReadSubtitleResources reads the current viewer-visible subtitle files
+// the legacy subtitleLanguage predicate also matches. Shared resources are
+// exact; a current personal resource is a named pending because this kernel
+// binds no viewing principal.
+func rbMediaReadSubtitleResources(q browseQuery, b *rbMediaBytes, item int64) ([]string, error) {
+	n, err := rbMediaPreflight(q, b, "rb.filter.media.streams.subtitles.resource.bytes", 0, item, int64(rbMediaResourceCap+1))
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q("rb.filter.media.streams.subtitles.resource", item, int64(rbMediaResourceCap+1))
+	if err != nil {
+		return nil, err
+	}
+	if n != len(rows) || len(rows) > rbMediaResourceCap {
+		return nil, ErrUnqualified
+	}
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if len(row) != 2 {
+			return nil, errRBMediaUnresolved
+		}
+		scope, ok := row[0].(string)
+		if !ok {
+			return nil, errRBMediaUnresolved
+		}
+		language, ok := row[1].(string)
+		if !ok {
+			return nil, errRBMediaUnresolved
+		}
+		switch scope {
+		case "shared":
+			out = append(out, language)
+		case "personal":
+			return nil, errRBMediaSubtitlePrincipalPending
+		default:
+			return nil, errRBMediaUnresolved
+		}
 	}
 	return out, nil
 }
