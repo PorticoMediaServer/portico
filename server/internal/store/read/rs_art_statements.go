@@ -40,7 +40,7 @@ CROSS JOIN catalog_entities AS own NOT INDEXED ON own.id=a.entity_id
 CROSS JOIN artwork_sources AS s INDEXED BY sqlite_autoindex_artwork_sources_1 ON s.digest=a.digest
 CROSS JOIN artwork_blobs AS sb INDEXED BY sqlite_autoindex_artwork_blobs_1 ON sb.digest=s.small_blob
 CROSS JOIN artwork_blobs AS lb INDEXED BY sqlite_autoindex_artwork_blobs_1 ON lb.digest=s.large_blob
-WHERE a.kind='entity' AND a.entity_id=? AND own.kind=? AND a.role=? AND a.choice=? AND a.digest=? AND own.public_id=? AND a.revision=? AND sb.digest=? AND sb.mime=? AND sb.width=? AND sb.height=? AND sb.bytes=? AND lb.digest=? AND lb.mime=? AND lb.width=? AND lb.height=? AND lb.bytes=? AND sb.status=? AND lb.status=? AND a.source_fence=? AND a.source_object_id IS NULL`
+WHERE a.kind='entity' AND a.entity_id=? AND own.kind=? AND a.role=? AND a.choice=? AND a.digest=? AND own.public_id=? AND a.revision=? AND sb.digest=? AND sb.mime=? AND sb.width=? AND sb.height=? AND sb.bytes=? AND lb.digest=? AND lb.mime=? AND lb.width=? AND lb.height=? AND lb.bytes=? AND sb.status=? AND lb.status=? AND a.source_fence=? AND a.source_object_id IS NULL AND s.retiring=0`
 const rsArtVerifyLocalSQL = `SELECT a.revision
 FROM artwork_selections AS a INDEXED BY artwork_selections_digest
 CROSS JOIN catalog_entities AS own NOT INDEXED ON own.id=a.entity_id
@@ -51,7 +51,7 @@ CROSS JOIN artwork_blobs AS lb INDEXED BY sqlite_autoindex_artwork_blobs_1 ON lb
 CROSS JOIN inventory_objects AS o INDEXED BY sqlite_autoindex_inventory_objects_1 ON o.id=a.source_object_id
 CROSS JOIN library_sources AS ls INDEXED BY sqlite_autoindex_library_sources_1 ON ls.id=o.source_id
 CROSS JOIN catalog_assets AS asset INDEXED BY sqlite_autoindex_catalog_assets_1 ON asset.token=o.asset_id AND asset.library_id=own.library_id
-WHERE a.kind='entity' AND a.entity_id=? AND own.kind=? AND a.role=? AND a.choice=? AND a.digest=? AND own.public_id=? AND a.revision=? AND sb.digest=? AND sb.mime=? AND sb.width=? AND sb.height=? AND sb.bytes=? AND lb.digest=? AND lb.mime=? AND lb.width=? AND lb.height=? AND lb.bytes=? AND sb.status=? AND lb.status=? AND a.source_fence=? AND a.source_object_id=? AND a.source_object_revision=? AND o.id=? AND o.revision=? AND o.retired=? AND o.root_incarnation=? AND ls.incarnation=? AND ls.library_id=? AND cl.library_id=? AND asset.available=? AND asset.size=? AND asset.modified_ns=? AND o.size=? AND o.modified_ns=?`
+WHERE a.kind='entity' AND a.entity_id=? AND own.kind=? AND a.role=? AND a.choice=? AND a.digest=? AND own.public_id=? AND a.revision=? AND sb.digest=? AND sb.mime=? AND sb.width=? AND sb.height=? AND sb.bytes=? AND lb.digest=? AND lb.mime=? AND lb.width=? AND lb.height=? AND lb.bytes=? AND sb.status=? AND lb.status=? AND a.source_fence=? AND a.source_object_id=? AND a.source_object_revision=? AND o.id=? AND o.revision=? AND o.retired=? AND o.root_incarnation=? AND ls.incarnation=? AND ls.library_id=? AND cl.library_id=? AND asset.available=? AND asset.size=? AND asset.modified_ns=? AND o.size=? AND o.modified_ns=? AND s.retiring=0`
 
 // An explicit locked choice without a digest is a first-class empty selection.
 // It has no artwork_sources row to join, so its exact final witness is the
