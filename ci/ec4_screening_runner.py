@@ -430,9 +430,16 @@ def remove_tree(path: Path, errors: list[str]) -> None:
     if not path.exists():
         return
     try:
+        # Go marks downloaded module directories read-only. This private HOME
+        # belongs to this finished cell; restore write permission before unlink.
+        modules = path / "home" / "go" / "pkg" / "mod"
+        if modules.is_dir():
+            writable = run_capture(["chmod", "-R", "u+w", "--", str(modules)], timeout=120)
+            if writable.returncode != 0:
+                errors.append(f"cleanup module permissions {modules}: {(writable.stderr or '').strip()[:4096]}")
         proc = run_capture(["rm", "-rf", "--", str(path)], timeout=900)
         if proc.returncode != 0:
-            errors.append(f"cleanup {path}: {(proc.stderr or '').strip()}")
+            errors.append(f"cleanup {path}: {(proc.stderr or '').strip()[:4096]}")
     except (OSError, subprocess.TimeoutExpired) as exc:
         errors.append(f"cleanup {path}: {exc}")
 
