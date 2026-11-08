@@ -12,7 +12,7 @@ import (
 // separately verified merge planner; they do not silently lose their rows.
 func newEnrichAcceptCommand(identity CommandIdentity, begin *effectiveStageBeginCommand, in enrichAcceptRequest) (*enrichAcceptCommand, error) {
 	if begin == nil || !begin.valid || begin.sourceReferences == nil || identity.Sequence <= 0 || in.variant != "accept_provider_credits_v1" ||
-		in.owner.incarnation != identity.Incarnation || in.owner.lastSequence != in.owner.acknowledgedSequence || identity.Sequence != in.owner.lastSequence+1 || in.owner.lastSequence == math.MaxInt64 ||
+		in.owner.incarnation != identity.Incarnation || in.owner.lastSequence != in.owner.acknowledgedSequence || identity.Sequence != in.owner.lastSequence+1 || in.owner.lastSequence == math.MaxInt64 || in.owner.lastSequence != begin.identity.Sequence || in.stageSlot < 0 || in.reservedBytes <= 0 ||
 		!in.owner.imageID.Valid || in.owner.imageID.Int64 != in.image.id || in.image.id <= 0 || in.image.revision <= 0 || in.entity.ownerLocked != 0 ||
 		in.image.id == in.entity.imageID.Int64 || in.owner.entityID != in.entity.id || in.entity.id != begin.request.entity.id ||
 		in.image.header != begin.request.header || in.beginIdentity != begin.identity || in.beginRequest != begin.digest ||
@@ -26,6 +26,14 @@ func newEnrichAcceptCommand(identity CommandIdentity, begin *effectiveStageBegin
 		in.entity.revision == math.MaxInt64 || in.owner.generation <= 0 || in.producer.Selection.Set.Valid || in.producer.Selection.Publication.Valid || in.producer.Selection.Track.Valid ||
 		!effectiveBeginProducerShape(in.producer, in.entity, in.owner, in.image.header) {
 		return nil, invalid("enrich_accept_scope")
+	}
+	br := in.beginResult
+	bd, err := effectiveBeginResultDigest(begin.identity, begin.digest, effectiveBeginResult{ProviderOperationID: br.ProviderOperationID, EntityID: br.EntityID, ObservedCatalogRevision: br.ObservedCatalogRevision, AppliedMS: br.AppliedMS, AfterItem: br.AfterItem, ImageID: br.ImageID, ImageRevision: br.ImageRevision})
+	if err != nil || bd != br.Digest {
+		return nil, ErrConflict
+	}
+	if in.prior.exists != in.entity.imageID.Valid || (in.prior.exists && (in.prior.owner == "" || in.prior.owner == begin.request.ownerID || in.prior.image != in.entity.imageID.Int64 || in.prior.generation <= 0 || in.prior.pinUnits <= 0 || in.prior.reservedBytes <= 0)) {
+		return nil, invalid("enrich_accept_prior")
 	}
 	if err := preflightEnrichAcceptControls(in, begin); err != nil {
 		return nil, err
@@ -66,7 +74,7 @@ func newEnrichAcceptCommand(identity CommandIdentity, begin *effectiveStageBegin
 	}
 	// Native owner TEXT and nullable TEXT are explicit; producer fields use the
 	// existing value-tree ownership helper, never another request codec.
-	texts := []*string{&in.variant, &in.owner.provider, &in.owner.phase, &in.owner.status, &in.owner.lease, &in.owner.leaseUntil, &in.owner.algorithm, &in.owner.refreshMode, &in.owner.inputDigest, &in.owner.selectedID, &in.owner.afterItem, &in.owner.queryTitle, &in.owner.queryArtist, &in.owner.queryDigest, &in.owner.hintID, &in.owner.hintProblem, &in.owner.qualification, &in.owner.episodeOrder, &in.owner.setID.String, &in.owner.setSubjectKind.String, &in.owner.setProviderID.String, &in.entity.language, &in.image.header.language, &in.beginResult.ProviderOperationID, &in.beginResult.AfterItem}
+	texts := []*string{&in.variant, &in.owner.provider, &in.owner.phase, &in.owner.status, &in.owner.lease, &in.owner.leaseUntil, &in.owner.algorithm, &in.owner.refreshMode, &in.owner.inputDigest, &in.owner.selectedID, &in.owner.afterItem, &in.owner.queryTitle, &in.owner.queryArtist, &in.owner.queryDigest, &in.owner.hintID, &in.owner.hintProblem, &in.owner.qualification, &in.owner.episodeOrder, &in.owner.setID.String, &in.owner.setSubjectKind.String, &in.owner.setProviderID.String, &in.entity.language, &in.image.header.language, &in.beginResult.ProviderOperationID, &in.beginResult.AfterItem, &in.prior.owner}
 	for _, p := range texts {
 		*p = strings.Clone(*p)
 	}
