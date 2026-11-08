@@ -32,8 +32,10 @@ type qualificationPopulationFacts struct {
 	LogicalSHA256 string           `json:"logical_sha256"`
 	// SearchBank is present only for the search population shape. RD's read
 	// classes and the producer's ANALYZE policy travel with it.
-	SearchBank *qualificationSearchBankFacts `json:"search_bank,omitempty"`
-	Statistics string                        `json:"statistics,omitempty"`
+	SearchBank            *qualificationSearchBankFacts `json:"search_bank,omitempty"`
+	Statistics            string                        `json:"statistics,omitempty"`
+	SearchBankIntegrity   string                        `json:"search_bank_integrity,omitempty"`
+	SearchBankForeignKeys string                        `json:"search_bank_foreign_keys,omitempty"`
 }
 
 const qualificationMovieShape = "canonical-movies-v1"
@@ -42,6 +44,10 @@ const qualificationMovieShape = "canonical-movies-v1"
 // for every resident plus the deterministic People/credit subset. Existing
 // canonical-movies-v1 artifacts and consumers are unchanged.
 const qualificationMovieSearchShape = "canonical-movies-v1-search"
+
+// The producer runs no ANALYZE, so the artifact states that concretely instead
+// of repeating a policy to-do. Consumers must not assume SQLite statistics.
+const qualificationSearchShapeStatistics = "not analyzed: the producer runs no ANALYZE; the search bank builder leaves SQLite statistics absent"
 const qualificationMovieIDBase int64 = 1_000_000_000
 const qualificationMovieRoot = "/qualification-media"
 const qualificationMovieBatch = 4096
@@ -186,7 +192,7 @@ INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listen
 		LibraryID: 7, LibraryKey: "qualification-movies", Counts: make(map[string]int64)}
 	if spec.SearchBank {
 		facts.Version = qualificationMovieSearchShape
-		facts.Statistics = qualificationSearchBankStatistics
+		facts.Statistics = qualificationSearchShapeStatistics
 	}
 	qualificationPopulationReadback(t, conn, &facts)
 	return facts
