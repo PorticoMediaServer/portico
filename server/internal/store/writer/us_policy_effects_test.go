@@ -203,6 +203,26 @@ func TestUSPolicyEffectsNoChange(t *testing.T) {
 	}
 }
 
+// A target already at the maximum revision cannot bump its generation, so the
+// effect refuses with the same conflict the CAS would produce and writes nothing.
+func TestUSPolicyEffectsRevisionOverflow(t *testing.T) {
+	w, r := usPolicyEffectsFixture(t)
+	turn := usPolicyEffectTurn(t, w, r, USMemberLibraries)
+	command := usPolicyMemberCommand(t, []string{"movies"}, usMaxRevision-1)
+	// Preparation refuses the overflow client claim, so this is the freshest
+	// target fact that reaches the effect; it must not be written past the cap.
+	command.request.expectedRevision = usMaxRevision
+	before := usPolicyChanges(t, turn.transaction.conn)
+	effect, err := applyUSLibraryPolicy(t.Context(), turn, command, sql.NullString{String: `["música"]`, Valid: true}, usMaxRevision)
+	if !errors.Is(err, ErrConflict) || effect != (usPolicyEffect{}) {
+		t.Fatal("max revision overflow accepted", effect, err)
+	}
+	if after := usPolicyChanges(t, turn.transaction.conn); after != before {
+		t.Fatal("overflow effect changed source", before, after)
+	}
+	_, _ = turn.transaction.rollback(nil)
+}
+
 // A prepared member policy is always the explicit JSON list; a NULL member
 // list is impossible and must refuse rather than silently inherit.
 func TestUSPolicyEffectsMemberNilRefuses(t *testing.T) {
