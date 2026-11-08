@@ -147,3 +147,94 @@ func TestRSPeoplePageLockedEmptyPortraitLIVE(t *testing.T) {
 	}
 	assertLiveUsage(t, f, 0, 0)
 }
+
+// rsPeopleRetireSnapshots flips artwork_sources.retiring after a chosen window
+// count, so the payload snapshot still sees active art and only the final
+// publication snapshot sees the retirement.
+type rsPeopleRetireSnapshots struct {
+	*governor.Snapshots
+	after  int
+	calls  int
+	mutate func()
+}
+
+func (s *rsPeopleRetireSnapshots) bump() {
+	s.calls++
+	if s.calls == s.after && s.mutate != nil {
+		s.mutate()
+	}
+}
+func (s *rsPeopleRetireSnapshots) Read(ctx context.Context, r governor.Request, b time.Duration, read func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	result, err := s.Snapshots.Read(ctx, r, b, read)
+	s.bump()
+	return result, err
+}
+func (s *rsPeopleRetireSnapshots) ReadForecasted(ctx context.Context, r governor.Request, b time.Duration, f governor.SnapshotForecast, read func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	result, err := s.Snapshots.ReadForecasted(ctx, r, b, f, read)
+	s.bump()
+	return result, err
+}
+
+func rsPeoplePortraitPage(t *testing.T, f *browseFixture, r *RSPeoplePageReader, p *RSPeoplePreparation) (RSPersonPage, error) {
+	t.Helper()
+	var out RSPersonPage
+	for n := 0; n < 30; n++ {
+		var err error
+		out, _, err = r.page(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
+		if err != nil || out.Complete {
+			return out, err
+		}
+	}
+	t.Fatal("people page did not terminate")
+	return out, nil
+}
+
+// A source that is retiring before the portrait payload yields no portrait and
+// refuses as stale; a source that starts retiring after the payload snapshot is
+// re-proved in the final window and never publishes.
+func TestRSPeoplePagePortraitRetiringSourceStaysStale(t *testing.T) {
+	t.Run("retiring before payload", func(t *testing.T) {
+		f, r := newRSPeoplePageFixture(t, false)
+		f.exec(t, `UPDATE artwork_sources SET retiring=1,retirement_token=zeroblob(16) WHERE digest=printf('%064d',1)`)
+		p := beginRSPage(t, f, r, RSPersonPageInput{})
+		out, err := rsPeoplePortraitPage(t, f, r, p)
+		if !errors.Is(err, ErrStale) || !reflect.DeepEqual(out, RSPersonPage{}) || p.current.portrait != nil {
+			t.Fatalf("retiring source published portrait %+v %v", out, err)
+		}
+		if err = p.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("retiring after payload", func(t *testing.T) {
+		f, r := newRSPeoplePageFixture(t, false)
+		p := beginRSPage(t, f, r, RSPersonPageInput{})
+		// Advance the preparation until facts are ready and the portrait window
+		// is next, then count this attempt's windows from its first fence.
+		for n := 0; n < 30; n++ {
+			out, _, err := r.page(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
+			if err != nil || out.Complete {
+				t.Fatalf("facts advance %+v %v", out, err)
+			}
+			if p.current.facts != nil && !p.current.portraitRead {
+				break
+			}
+		}
+		r.snapshots = &rsPeopleRetireSnapshots{Snapshots: f.snapshots, after: 3, mutate: func() {
+			f.exec(t, `UPDATE artwork_sources SET retiring=1,retirement_token=zeroblob(16) WHERE digest=printf('%064d',1)`)
+		}}
+		out, err := rsPeoplePortraitPage(t, f, r, p)
+		if !errors.Is(err, ErrStale) || !reflect.DeepEqual(out, RSPersonPage{}) || p.current.portrait != nil {
+			t.Fatalf("post-payload retirement published portrait %+v %v", out, err)
+		}
+		// The stale preparation still owns its governor slot; close it before
+		// beginning again so the next BeginPage is not refused.
+		if err = p.Close(); err != nil {
+			t.Fatal(err)
+		}
+		f.exec(t, `UPDATE artwork_sources SET retiring=0,retirement_token=NULL WHERE digest=printf('%064d',1)`)
+		out, err = rsPeoplePortraitPage(t, f, r, beginRSPage(t, f, r, RSPersonPageInput{}))
+		if err != nil || out.Complete != true || out.Portrait == nil || out.Portrait.MIME != "image/png" {
+			t.Fatalf("recovery after retirement %+v %v", out, err)
+		}
+	})
+}

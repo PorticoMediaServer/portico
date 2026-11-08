@@ -17,7 +17,7 @@ func init() {
 	pointOctets.add(octetShape{"read.browse.rs.people.page.portrait_octets", rsPagePortraitOctetsSQL, "RS portrait requires an exact person/choice point", rsPagePortraitDefinition, auditRSPersonOctetPoint, rsPagePortraitPoint})
 }
 
-const rsPagePortraitOctetsSQL = `SELECT octet_length(a.digest),octet_length(s.small_blob),octet_length(s.large_blob),octet_length(s.ambient_blob),octet_length(s.accepted_mime) FROM artwork_selections AS a LEFT JOIN artwork_sources AS s INDEXED BY sqlite_autoindex_artwork_sources_1 ON s.digest=a.digest WHERE a.kind='person' AND a.entity_id=? AND a.role='portrait' AND a.choice=?`
+const rsPagePortraitOctetsSQL = `SELECT octet_length(a.digest),octet_length(s.small_blob),octet_length(s.large_blob),octet_length(s.ambient_blob),octet_length(s.accepted_mime) FROM artwork_selections AS a LEFT JOIN artwork_sources AS s INDEXED BY sqlite_autoindex_artwork_sources_1 ON s.digest=a.digest AND s.retiring=0 WHERE a.kind='person' AND a.entity_id=? AND a.role='portrait' AND a.choice=?`
 
 func rsPagePortraitDefinition(d stmt.Definition) bool {
 	if d.Kind != stmt.Read || !d.Plan.Hot || len(d.Params) != 2 || len(d.Plan.PrimaryKeys) != 1 || d.Plan.PrimaryKeys[0] != "a" || len(d.Plan.Indexes) != 1 || d.Plan.Indexes[0] != "sqlite_autoindex_artwork_sources_1" || len(d.Plan.AutoIndexes) != 1 || len(d.Plan.Waivers) != 0 || len(d.Plan.AllowedScans) != 0 || d.Plan.NativeInsert != "" || d.Plan.NativeRetained != "" {
