@@ -360,15 +360,37 @@ func runScanIssuerCrashCase(t *testing.T, action string) {
 	}
 }
 
-func TestCrashReplayScanIssuerCreate(t *testing.T) { runScanIssuerCrashCase(t, "create") }
+func TestCrashReplayScanIssuerCreate(t *testing.T) {
+	skipRaceCrashMatrix(t)
+	runScanIssuerCrashCase(t, "create")
+}
 
-func TestCrashReplayScanIssuerClaim(t *testing.T) { runScanIssuerCrashCase(t, "claim") }
+func TestCrashReplayScanIssuerClaim(t *testing.T) {
+	skipRaceCrashMatrix(t)
+	runScanIssuerCrashCase(t, "claim")
+}
 
-func TestCrashReplayScanIssuerResolve(t *testing.T) { runScanIssuerCrashCase(t, "resolve") }
+func TestCrashReplayScanIssuerResolve(t *testing.T) {
+	skipRaceCrashMatrix(t)
+	runScanIssuerCrashCase(t, "resolve")
+}
 
-func TestCrashReplayScanIssuerAck(t *testing.T) { runScanIssuerCrashCase(t, "ack") }
+func TestCrashReplayScanIssuerAck(t *testing.T) {
+	skipRaceCrashMatrix(t)
+	runScanIssuerCrashCase(t, "ack")
+}
 
 func TestCrashReplayScanIssuerRetired(t *testing.T) { runScanIssuerCrashCase(t, "retired") }
+
+// skipRaceCrashMatrix keeps the long sequential child matrices out of -race
+// shards; the same cells run without the detector and a race shard cannot fit
+// one 60-100 s child per statement inside its budget.
+func skipRaceCrashMatrix(t *testing.T) {
+	t.Helper()
+	if raceDetector {
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+}
 
 func TestScanIssuerCrashCorruption(t *testing.T) {
 	for _, control := range []struct{ action, name, sql string }{
