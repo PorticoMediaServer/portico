@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05",
+  "ddl_sha256": "782904d74a9f18bb81ef2a26ba9091d7501b843b73b7b853b2c27cadf4effc1a",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online. CHANGE-012 also inventories affected G control index sets for complete new-key review; no claim of10M control density or change to inherited STRICT policy.",
   "tables": [
     {
@@ -10301,6 +10301,26 @@
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
+          "name": "personal_current_favorite",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_favorite ON personal_items(profile_id,item_public_id) WHERE favorite=1",
+          "access": "Own profile + exclusive public-ID raw keyset with exact partial predicate; LIMIT64 before bounded current authorization. No per-user catalogue copies."
+        },
+        {
           "name": "personal_current_library",
           "unique": false,
           "origin": "c",
@@ -10364,6 +10384,26 @@
           ],
           "sql": "CREATE INDEX personal_current_live_item ON personal_items(item_id,profile_id)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "personal_current_not_interested",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_not_interested ON personal_items(profile_id,item_public_id) WHERE not_interested=1",
+          "access": "Own profile + exclusive public-ID raw keyset with exact partial predicate; LIMIT64 before bounded current authorization. No per-user catalogue copies."
         },
         {
           "name": "personal_current_plays",
@@ -10494,6 +10534,26 @@
           ],
           "sql": "CREATE INDEX personal_current_retained ON personal_items(profile_id,retained_at_ms,id) WHERE retained_at_ms IS NOT NULL",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "personal_current_watchlist",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_watchlist ON personal_items(profile_id,item_public_id) WHERE watchlisted=1",
+          "access": "Own profile + exclusive public-ID raw keyset with exact partial predicate; LIMIT64 before bounded current authorization. No per-user catalogue copies."
         }
       ]
     },

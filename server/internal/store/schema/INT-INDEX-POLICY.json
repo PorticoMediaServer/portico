@@ -789,6 +789,18 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "personal_current_favorite",
+      "predicate": "favorite=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Fixed own-profile exclusive BLOB public-ID raw LIMIT64; INDEXED BY intended sparse index; bundled SEARCH(profile_id=?,item_public_id>?), no temp B-tree, analyzed and unanalyzed boundary fixtures."
+    },
+    {
+      "index": "personal_current_not_interested",
+      "predicate": "not_interested=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Fixed own-profile exclusive BLOB public-ID raw LIMIT64; INDEXED BY intended sparse index; bundled SEARCH(profile_id=?,item_public_id>?), no temp B-tree, analyzed and unanalyzed boundary fixtures."
+    },
+    {
       "index": "personal_current_radio",
       "predicate": "radio_last_started_at IS NOT NULL",
       "choice": "repeat_exact_predicate",
@@ -1129,6 +1141,12 @@
       "predicate": "create_operation<>''",
       "choice": "repeat_exact_predicate",
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "personal_current_watchlist",
+      "predicate": "watchlisted=1",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Fixed own-profile exclusive BLOB public-ID raw LIMIT64; INDEXED BY intended sparse index; bundled SEARCH(profile_id=?,item_public_id>?), no temp B-tree, analyzed and unanalyzed boundary fixtures."
     }
   ]
 }

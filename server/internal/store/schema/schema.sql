@@ -12552,6 +12552,7 @@ CREATE TABLE notification_acknowledgments(
 
 CREATE TABLE notification_ack_heads(
  principal_key TEXT PRIMARY KEY,
+ read_through_ms INTEGER NOT NULL DEFAULT 0 CHECK(read_through_ms>=0),
  read_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(read_through_sequence>=0),
  archive_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(archive_through_sequence>=0),
  revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)
@@ -16169,3 +16170,7 @@ CREATE INDEX dvr_recordings_receipt_due ON dvr_recordings(receipt_reclaim_due_ms
 CREATE INDEX dvr_capture_retirements_receipt_due ON dvr_capture_retirements(receipt_reclaim_due_ms,recording_id) WHERE receipt_reclaim_due_ms IS NOT NULL;
 
 CREATE INDEX catalog_entities_album_search ON catalog_entities(album_id,id) WHERE album_id IS NOT NULL;
+
+CREATE INDEX personal_current_watchlist ON personal_items(profile_id,item_public_id) WHERE watchlisted=1;
+CREATE INDEX personal_current_favorite ON personal_items(profile_id,item_public_id) WHERE favorite=1;
+CREATE INDEX personal_current_not_interested ON personal_items(profile_id,item_public_id) WHERE not_interested=1;
