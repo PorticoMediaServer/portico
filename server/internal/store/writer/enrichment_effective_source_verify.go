@@ -32,6 +32,9 @@ func verifyEffectiveSource(ctx context.Context, turn *commandTurn, input *effect
 // It proves immutable source lineage, not a fresh effect or current authority.
 func verifyNativeEffectiveSource(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand) (out *effectiveVerifiedSource, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if err = requireEffectiveSourceGrantKey(turn, input); err != nil {
+		return nil, err
+	}
 	coverage, err := preflightEffectiveSourcePins(ctx, turn, input)
 	if err != nil {
 		return nil, err
@@ -79,5 +82,23 @@ func checkNativeEffectiveSource(ctx context.Context, turn *commandTurn, input *e
 	if input == nil || proof == nil || proof.self != proof || proof.turn != turn || turn == nil || turn.transaction == nil || !effectiveSourceProofPurpose(turn.transaction.descriptor.ID) || proof.tx != turn.transaction || proof.input != input || proof.digest != input.digest {
 		return ErrInvalid
 	}
+	if err = requireEffectiveSourceGrantKey(turn, input); err != nil {
+		return err
+	}
 	return effectivePinLive(ctx, turn)
+}
+
+// The governed grant this turn was admitted under must be the SAME job as the
+// command whose lineage is read: domain = the turn's closed purpose and job ID
+// = the original provider operation. A proof can't be minted or checked
+// for another operation's command on a grant admitted for a different job.
+func requireEffectiveSourceGrantKey(turn *commandTurn, input *effectiveStageBeginCommand) error {
+	if turn == nil || turn.transaction == nil || input == nil || input.request.ownerID == "" {
+		return ErrInvalid
+	}
+	c, ok := turn.transaction.custody.(*governedTurn)
+	if !ok || c == nil || c.purpose != turn.transaction.descriptor.ID || c.expected.Key.Domain != uint16(turn.transaction.descriptor.ID) || c.expected.Key.ID != input.request.ownerID {
+		return ErrInvalid
+	}
+	return nil
 }
