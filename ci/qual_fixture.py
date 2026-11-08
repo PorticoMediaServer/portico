@@ -179,7 +179,8 @@ def validate_artifact(directory, *, source, schema, seed, residents, manifest_sh
                 and bounded_int(b['entities'], 1, 1000000) and b['entities'] == residents
                 and all(bounded_int(b[k], 1, 100000000) for k in
                         ('people', 'credits', 'search_publications', 'search_publish_jobs',
-                         'search_fragments', 'prepared_bytes', 'search_image_seals'))
+                         'search_fragments', 'search_image_seals'))
+                and bounded_int(b['prepared_bytes'], 1, 8 << 30)
                 and b['search_own_prefix_docsize'] == residents
                 and isinstance(b['logical_sha256'], str) and re.fullmatch(SHA, b['logical_sha256']),
                 'invalid search bank facts')
