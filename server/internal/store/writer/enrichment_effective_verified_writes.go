@@ -26,7 +26,7 @@ func enrichmentEffectiveVerifiedDefinitions() []stmt.Definition {
 		{ID: effectiveBeginReservation, Kind: stmt.Read, SQL: `SELECT proof_reserved_bytes FROM metadata_provider_operations
  WHERE id=? AND command_incarnation=? AND entity_id=? AND provider=? AND generation=?
  AND source_publication_id=? AND source_content_revision=? AND proof_cleanup_phase='idle'
- AND (proof_stage_slot IS NOT NULL OR proof_current_slot=1) AND proof_pin_units>=2 AND proof_reserved_bytes>=?`,
+ AND proof_stage_slot IS NOT NULL AND proof_current_slot IS NULL AND proof_pin_units>=2 AND proof_reserved_bytes>=?`,
 			Params: []stmt.Param{text("owner"), blob("owner_incarnation"), integer("entity"), text("provider"), integer("owner_generation"), text("publication"), integer("source_revision"), integer("full_reserved_bytes")},
 			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_3"}, Seeks: []string{"id=? AND command_incarnation=?"}}},
 
