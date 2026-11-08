@@ -16,6 +16,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/stateownership"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
@@ -140,7 +141,15 @@ type checkpointComponent struct {
 	now         func() time.Time
 }
 
-func newCheckpointComponent(t *testing.T, keep, real bool) *checkpointComponent {
+type checkpointFixtureMode uint8
+
+const checkpointScreeningReader checkpointFixtureMode = 1
+
+func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpointFixtureMode) *checkpointComponent {
+	if len(selected) > 1 || len(selected) == 1 && selected[0] != checkpointScreeningReader {
+		t.Fatal("unknown closed checkpoint fixture selector")
+	}
+	screening := len(selected) == 1
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("native file identity unsupported")
@@ -187,6 +196,11 @@ func newCheckpointComponent(t *testing.T, keep, real bool) *checkpointComponent 
 	for i := range cfg.Partitions {
 		cfg.Partitions[i] = governor.Amounts{governor.Reader: 4, governor.MemoryBytes: 32 << 20, governor.CPUMilli: 4000, governor.IOBytes: 4 * f.policy.HardBytes, governor.WALBytes: 64 << 20}
 	}
+	if screening {
+		live := readfixture.LiveConfig(f.now)
+		cfg.Foreground = live.Foreground
+		cfg.Partitions[governor.Foreground] = live.Partitions[governor.Foreground]
+	}
 	f.g, f.a, err = governor.New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +216,11 @@ func newCheckpointComponent(t *testing.T, keep, real bool) *checkpointComponent 
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.resources.LifetimeRequest = governor.Request{Key: governor.JobKey{Domain: 1, ID: "cp-life"}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 4 << 20}, Deadline: f.now().Add(time.Hour)}
+		lifetime := time.Hour
+		if screening {
+			lifetime = 4 * time.Hour
+		}
+		f.resources.LifetimeRequest = governor.Request{Key: governor.JobKey{Domain: 1, ID: "cp-life"}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 4 << 20}, Deadline: f.now().Add(lifetime)}
 		f.resources.StartupRequest = f.shutdownRequest("cp-start")
 		f.resources.Lifetime = f.mustGrant(t, f.resources.LifetimeRequest)
 		f.resources.Startup = f.mustGrant(t, f.resources.StartupRequest)

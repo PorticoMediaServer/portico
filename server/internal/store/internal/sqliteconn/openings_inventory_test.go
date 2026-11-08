@@ -20,6 +20,7 @@ import (
 // These are the ONLY reviewed constrained store sources. All bodies must be
 // type-resolved: host, Linux/non-Unix fixture variants, and GV's tagged audits.
 var openingConstraints = map[string]string{
+	"writer/ec4_screening_test.go":               "//go:build linux && portico_ec4_screening",
 	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
 	"qual/scanbench/fixture_dir_other.go":        "//go:build !linux && !darwin",
 	"qual/scanbench/fixture_dir_test.go":         "//go:build linux || darwin",
@@ -209,6 +210,7 @@ func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 		// dependencies with the exact reviewed tag, then scan the same references.
 		{os.Environ(), []string{"-p=1", "-tags=libc.memgrind"}, "./internal/store/governor"},
 		{os.Environ(), []string{"-p=1", "-tags=memory.counters"}, "./internal/store/governor"},
+		{openingEnv("linux"), []string{"-p=1", "-tags=portico_ec4_screening"}, "./internal/store/writer"},
 	}
 	for _, target := range openingOtherPlatforms(runtime.GOOS) {
 		profiles = append(profiles, struct {
