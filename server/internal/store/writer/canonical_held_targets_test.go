@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,7 +222,7 @@ func canonicalHeldStart(t *testing.T, class string) (canonicalHeldConfig, *n1Str
 	if cfg.Class != class {
 		t.Fatal("selected parent/class/config mismatch")
 	}
-	output, err := openFirstLightOutput(cfg.OutputPath)
+	output, streamOnly, err := openCanonicalHeldOutput(cfg.OutputPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +232,7 @@ func canonicalHeldStart(t *testing.T, class string) (canonicalHeldConfig, *n1Str
 			_ = output.Close()
 		}
 	}()
-	stream := &n1Stream{file: output, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "label": "CANONICAL PER-CLASS RAW TARGET", "qualification": false, "qualified_profile_ready": false, "run_id": cfg.RunID, "host_epoch": cfg.HostEpoch, "declared_source_commit": cfg.SourceCommit, "profile": cfg.Profile, "class": class, "process_epoch": fmt.Sprintf("%s/%d/%d", cfg.RunID, os.Getpid(), time.Now().UnixNano())}}
+	stream := &n1Stream{file: output, streamOnly: streamOnly, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "label": "CANONICAL PER-CLASS RAW TARGET", "qualification": false, "qualified_profile_ready": false, "run_id": cfg.RunID, "host_epoch": cfg.HostEpoch, "declared_source_commit": cfg.SourceCommit, "profile": cfg.Profile, "class": class, "process_epoch": fmt.Sprintf("%s/%d/%d", cfg.RunID, os.Getpid(), time.Now().UnixNano())}}
 	definition, _ := canonicalHeldClassFor(class)
 	if err := emitCanonicalHeldPrefix(stream, cfg, definition); err != nil {
 		t.Fatal(err)
@@ -319,4 +320,34 @@ func TestCanonicalIAAudiobookBookRead(t *testing.T) {
 }
 func TestCanonicalIAAudiobookFileRead(t *testing.T) {
 	canonicalHeldRun(t, "IA-membership-audiobook-file")
+}
+
+// Only the opt-in canonical target can connect to the runner's external observer.
+// JSON encoding is unchanged; socket backpressure is outside physical HOLD.
+func openCanonicalHeldOutput(path string) (*os.File, bool, error) {
+	mode := os.Getenv("PORTICO_CANONICAL_HELD_STREAM")
+	if mode == "" {
+		f, err := openFirstLightOutput(path)
+		return f, false, err
+	}
+	if mode != "unix-gzip-v1" {
+		return nil, false, errors.New("unknown canonical stream transport")
+	}
+	c, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		return nil, false, err
+	}
+	if err := c.SetWriteBuffer(64 << 10); err != nil {
+		_ = c.Close()
+		return nil, false, err
+	}
+	f, fileErr := c.File()
+	closeErr := c.Close()
+	if fileErr != nil || closeErr != nil {
+		if f != nil {
+			_ = f.Close()
+		}
+		return nil, false, errors.Join(fileErr, closeErr)
+	}
+	return f, true, nil
 }

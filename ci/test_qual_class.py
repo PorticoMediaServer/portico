@@ -142,13 +142,15 @@ class ClassProtocol(unittest.TestCase):
             def waited(timeout):
                 self.cfg=json.loads((work/'config.json').read_text())
                 raw=self.records([{'kind':'start'}, {'kind':'final', 'complete':True}])
-                target=Path(self.cfg['output_path']); target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(raw.read_bytes())
+                target=Path(self.cfg['output_path']).parent/'raw.ndjson.gz'; target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(gzip.compress(raw.read_bytes()))
                 return exit_code
             process=mock.Mock(pid=12345); process.wait.side_effect=waited
             with mock.patch.object(c.os, 'geteuid', return_value=0), mock.patch.object(Path, 'read_text', read), \
                  mock.patch.object(c.q, 'command', side_effect=host), \
                  mock.patch.object(c.subprocess, 'Popen', return_value=process) as popen, \
                  mock.patch.object(c, 'memory_evidence', return_value={'synthetic':'not actual tmpfs evidence'}), \
+                 mock.patch.object(c.spool, 'wait_capture', return_value={'synthetic':True}), \
+                 mock.patch.object(c.spool, 'engine_memory_peak', return_value=123), \
                  mock.patch.object(c, 'own_cgroup_members', return_value=[os.getpid(), 999999] if leftovers else [os.getpid()]):
                 if exit_code or leftovers:
                     with self.assertRaises(ValueError): c.run(work/'launch.json')
@@ -252,7 +254,7 @@ class ClassProtocol(unittest.TestCase):
         with mock.patch.object(c.subprocess,'run',return_value=result), \
              mock.patch.object(Path,'stat',stat), \
              mock.patch.object(c.os,'statvfs',return_value=SimpleNamespace(f_blocks=c.RAW_MEMORY_BYTES//4096,f_frsize=4096)):
-            self.assertEqual(c.memory_evidence(root,database)['limit_bytes'],7<<30)
+            self.assertEqual(c.memory_evidence(root,database)['limit_bytes'],768<<20)
             mount['filesystems'][0]['fstype']='ext4';result.stdout=json.dumps(mount)
             with self.assertRaises(ValueError): c.memory_evidence(root,database)
             mount['filesystems'][0]['fstype']='tmpfs';mount['filesystems'][0]['options']='rw,nosuid,nodev,noexec';result.stdout=json.dumps(mount)
@@ -264,27 +266,34 @@ class ClassProtocol(unittest.TestCase):
              mock.patch.object(c.os,'statvfs',return_value=SimpleNamespace(f_blocks=c.RAW_MEMORY_BYTES//4096,f_frsize=4096)):
             with self.assertRaises(ValueError): c.memory_evidence(root,database)
 
-    def test_memory_persist_preserves_exact_raw_after_join_and_failure(self):
-        for fail in (False,True):
-            root=self.root/str(fail)/'qual-class-memory';root.mkdir(parents=True)
+    def test_memory_persist_preserves_exact_gzip_after_join_and_failure(self):
+        for complete in (False,True):
+            root=self.root/str(complete)/'qual-class-memory';root.mkdir(parents=True)
             output=root.parent/'out';output.mkdir();original=b'{"sequence":1,"unchanged":"raw bytes"}\n'
-            raw=root/'raw.ndjson';raw.write_bytes(original)
+            packed=gzip.compress(original);(root/'raw.ndjson.gz').write_bytes(packed)
+            c.q.atomic_json(root/'capture.json',dict(complete=complete,stored_bytes=len(packed),stored_sha256=c.hashlib.sha256(packed).hexdigest(),original_bytes=len(original),original_sha256=c.hashlib.sha256(original).hexdigest(),error='explicit observer failure'))
             c.q.atomic_json(output/'receipt.json',{'status':'failed'})
             with mock.patch.object(c,'retired_unit',return_value={'ActiveState':'inactive'}), \
                  mock.patch.object(c,'memory_evidence',return_value={'synthetic':True}):
-                if fail:
-                    with mock.patch.object(c,'pack_raw',side_effect=ValueError('compression mismatch')):
-                        with self.assertRaises(ValueError): c.persist_memory(root,output)
-                    self.assertEqual((output/'raw.ndjson').read_bytes(),original)
+                if complete: c.persist_memory(root,output)
                 else:
-                    c.persist_memory(root,output)
-                    self.assertEqual(gzip.decompress((output/'raw.ndjson.gz').read_bytes()),original)
-                self.assertFalse(raw.exists())
+                    with self.assertRaises(ValueError): c.persist_memory(root,output)
+                self.assertEqual((output/'raw.ndjson.gz').read_bytes(),packed)
+                self.assertFalse(any(root.iterdir()))
             self.assertEqual(json.loads((output/'receipt.json').read_text())['status'],'failed')
         with mock.patch.object(c,'retired_unit',side_effect=ValueError('still running')), \
-             mock.patch.object(c,'pack_raw') as pack:
+             mock.patch.object(c.shutil,'copyfile') as copy:
             with self.assertRaises(ValueError): c.persist_memory(root,output)
-            pack.assert_not_called()
+            copy.assert_not_called()
+
+    def test_missing_capture_preserves_compressed_prefix_as_failed(self):
+        root=self.root/'qual-class-memory';root.mkdir();output=self.root/'out'
+        packed=b'partial gzip prefix';(root/'raw.ndjson.gz').write_bytes(packed)
+        with mock.patch.object(c,'retired_unit',return_value={}), mock.patch.object(c,'memory_evidence',return_value={}):
+            with self.assertRaises(ValueError):c.persist_memory(root,output)
+        self.assertEqual((output/'raw.ndjson.gz').read_bytes(),packed)
+        self.assertEqual(json.loads((output/'receipt.json').read_text())['status'],'failed')
+        self.assertFalse(any(root.iterdir()))
 
     def test_memory_unmount_refuses_unpersisted_raw(self):
         root=self.root/'qual-class-memory';root.mkdir();(root/'raw.ndjson').write_bytes(b'preserve original')
