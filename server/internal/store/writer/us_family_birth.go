@@ -7,18 +7,21 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"strings"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // Frozen target comparisons, never issuer authority. The parent owns independent
 // creation permission, fresh original classification, quotas, token/protected
 // credential publication, immutable result, events and physical FULL terminal.
-// This first component requires an already registered device/installation,
-// lineage and all four current retained fences; it never invents a grant or
-// revives a retired device. A protected profile is born PIN-gated; this helper
-// cannot confirm a PIN. No public constructor or accepting facade exists.
+// Ordinary births require an existing registered device/installation and an
+// origin lineage. Credential births bind the prepared credential, require its
+// native source marker and create a fresh API device (no installation grant).
+// Both require all four current fence rows first. A protected profile is born
+// PIN-gated; US-11 must decide the credential PIN policy before activation.
+// This helper cannot confirm a PIN or mint issuer/creation authority.
 type usFamilyBirthInput struct {
 	family, server, account, profile, member, lifetime                string
 	device, installationID, installationIncarnation, lineage, horizon string
@@ -41,20 +44,36 @@ func (usFamilyBirthPrepared) Format(s fmt.State, _ rune) {
 func prepareUSOrdinaryFamilyBirth(in usFamilyBirthInput) (*usFamilyBirthPrepared, error) {
 	return prepareUSFamilyBirth(in, false)
 }
-func prepareUSCredentialFamilyBirth(in usFamilyBirthInput) (*usFamilyBirthPrepared, error) {
+func prepareUSCredentialFamilyBirth(in usFamilyBirthInput, c *usCredentialIssuePrepared) (*usFamilyBirthPrepared, error) {
+	if !usFamilyBirthCredentialMatches(in, c) {
+		return nil, ErrInvalid
+	}
 	return prepareUSFamilyBirth(in, true)
 }
+
+// Preparation and execution both bind the exact merged credential preparation.
+// The native source marker below additionally binds its immutable source fields.
+func usFamilyBirthCredentialMatches(in usFamilyBirthInput, c *usCredentialIssuePrepared) bool {
+	return c != nil && validUSCredentialTarget(c.target) && !c.target.disabled && !c.target.deleted && !c.target.mustChange && usIdentifier(c.id) && (c.kind == "key" || c.kind == "token" || c.kind == "app_password") && usCredentialDigest(c.secretHash) && c.family == in.family && c.device == in.device && c.target.account == in.account && c.target.memberIncarnation == in.member && c.target.profile == in.profile && c.target.profileLifetime == in.lifetime && c.target.epoch == in.epoch
+}
 func prepareUSFamilyBirth(in usFamilyBirthInput, credential bool) (*usFamilyBirthPrepared, error) {
-	for _, v := range []string{in.family, in.server, in.account, in.profile, in.device, in.installationID, in.lineage} {
+	for _, v := range []string{in.family, in.server, in.account, in.profile, in.device, in.lineage} {
 		if !usIdentifier(v) {
 			return nil, ErrInvalid
 		}
 	}
-	if !usHex(in.member, 32) || !usHex(in.lifetime, 32) || !usHex(in.installationIncarnation, 32) || in.epoch <= 0 || in.authorityGeneration <= 0 || in.incarnation == ([16]byte{}) || len(in.horizon) > 64 {
+	if !usHex(in.member, 32) || !usHex(in.lifetime, 32) || in.epoch <= 0 || in.authorityGeneration <= 0 || in.incarnation == ([16]byte{}) || len(in.horizon) != 20 {
 		return nil, ErrInvalid
 	}
-	horizon, err := time.Parse(time.RFC3339Nano, in.horizon)
-	if err != nil {
+	if credential {
+		if in.installationID != "" || in.installationIncarnation != "" {
+			return nil, ErrInvalid
+		}
+	} else if !usIdentifier(in.installationID) || len(in.installationID) < 32 || !usHex(in.installationIncarnation, 32) {
+		return nil, ErrInvalid
+	}
+	horizon, err := time.Parse(time.RFC3339, in.horizon)
+	if err != nil || horizon.UTC().Format(time.RFC3339) != in.horizon {
 		return nil, ErrInvalid
 	}
 	// Strings are bounded above before cloning/decoding outside writer custody.
@@ -67,15 +86,25 @@ func prepareUSFamilyBirth(in usFamilyBirthInput, credential bool) (*usFamilyBirt
 }
 
 func applyUSOrdinaryFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirthPrepared) (usFamilyBirthEffect, error) {
-	return applyUSFamilyBirth(ctx, turn, p, false)
+	return applyUSFamilyBirth(ctx, turn, p, false, nil)
 }
-func applyUSCredentialFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirthPrepared) (usFamilyBirthEffect, error) {
-	return applyUSFamilyBirth(ctx, turn, p, true)
+func applyUSCredentialFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirthPrepared, c *usCredentialIssuePrepared) (usFamilyBirthEffect, error) {
+	return applyUSFamilyBirth(ctx, turn, p, true, c)
 }
 
-func applyUSFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirthPrepared, credential bool) (out usFamilyBirthEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if turn == nil || turn.transaction == nil || p == nil || p.credential != credential {
+func applyUSFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirthPrepared, credential bool, c *usCredentialIssuePrepared) (out usFamilyBirthEffect, err error) {
+	defer func() {
+		out, err = finishCommand(ctx, commandLifetime(turn), out, err)
+		// A parent accidentally ignoring an error still cannot COMMIT a partial
+		// device/family/witness (or an earlier credential-marker) prefix.
+		if err != nil && turn != nil && turn.transaction != nil {
+			tx := turn.transaction
+			if tx.begun && !tx.done && tx.cancel != nil {
+				tx.cancel()
+			}
+		}
+	}()
+	if turn == nil || turn.transaction == nil || p == nil || p.credential != credential || (credential && !usFamilyBirthCredentialMatches(p.input, c)) || (!credential && c != nil) {
 		return out, ErrInvalid
 	}
 	tx := turn.transaction
@@ -115,26 +144,63 @@ func applyUSFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirth
 	if (role != "owner" && role != "admin" && role != "member") || (gate != 0 && gate != 1) {
 		return out, ErrDisclosureDenied
 	}
-	for _, point := range []struct {
-		id   stmt.ID
-		args []any
+
+	points := []struct {
+		id      stmt.ID
+		args    []any
+		present bool
 	}{
-		{usFamilyBirthServer, []any{i.server}},
-		{usFamilyBirthState, []any{i.authorityGeneration}},
-		{usFamilyBirthDevice, []any{i.device, i.account, i.installationID}},
-		{usFamilyBirthInstallation, []any{p.installationHash, i.installationIncarnation}},
-		{usFamilyBirthLineage, []any{i.lineage, i.account}},
-		{usFamilyBirthNotWaiting, []any{i.account}},
-	} {
+		{usFamilyBirthServer, []any{i.server}, true},
+		{usFamilyBirthState, []any{i.authorityGeneration}, true},
+		{usFamilyBirthNotWaiting, []any{i.account}, true},
+	}
+	if credential {
+		points = append(points, struct {
+			id      stmt.ID
+			args    []any
+			present bool
+		}{usFamilyBirthLineage, []any{i.lineage, i.account}, true},
+			struct {
+				id      stmt.ID
+				args    []any
+				present bool
+			}{usFamilyBirthCredentialMarker, []any{c.id, c.kind, c.target.account, c.target.profile, c.family, c.device, c.secretHash, c.name, c.scopes, c.hint, c.expiresMS}, true})
+	} else {
+		points = append(points, struct {
+			id      stmt.ID
+			args    []any
+			present bool
+		}{usFamilyBirthDevice, []any{i.device, i.account, i.installationID}, true},
+			struct {
+				id      stmt.ID
+				args    []any
+				present bool
+			}{usFamilyBirthInstallation, []any{p.installationHash, i.installationIncarnation}, true},
+			struct {
+				id      stmt.ID
+				args    []any
+				present bool
+			}{usFamilyBirthOriginLineage, []any{i.lineage, i.account, i.device}, true},
+			struct {
+				id      stmt.ID
+				args    []any
+				present bool
+			}{usFamilyBirthCredentialAbsent, []any{i.family}, false})
+	}
+	for _, point := range points {
 		row, e = wc008DraftQuery(ctx, turn, point.id, point.args...)
 		if e != nil {
 			return out, e
 		}
 		var yes int64
-		if e = row.Scan(&yes); e != nil {
+		e = row.Scan(&yes)
+		if !point.present && errors.Is(e, sql.ErrNoRows) {
+			continue
+		}
+		if e != nil {
 			return out, usFamilyBirthReadError(e)
 		}
-		if yes != 1 {
+		if !point.present || yes != 1 {
 			return out, ErrDisclosureDenied
 		}
 	}
@@ -157,6 +223,20 @@ func applyUSFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirth
 		}
 		if ids[n] <= 0 || generations[n] <= 0 || generations[n] > usMaxRevision {
 			return out, ErrDisclosureDenied
+		}
+	}
+	if credential {
+		stamp := now.UTC().Truncate(time.Second).Format(time.RFC3339)
+		row, e = wc008DraftQuery(ctx, turn, usFamilyBirthAPIDevice, c.device, c.target.account, "api-credential-"+c.id, c.name, "api-"+c.kind, stamp, stamp)
+		if e != nil {
+			return out, e
+		}
+		var retired int64
+		if e = row.Scan(&retired); e != nil {
+			return out, e
+		}
+		if retired != 0 {
+			return out, ErrInvalid
 		}
 	}
 	row, e = wc008DraftQuery(ctx, turn, insert, i.family, i.server, i.account, i.profile, role, i.epoch, i.horizon, gate, i.device, i.lineage, i.authorityGeneration, i.member, i.lifetime, i.incarnation[:])

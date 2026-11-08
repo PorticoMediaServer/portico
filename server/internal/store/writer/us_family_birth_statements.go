@@ -1,22 +1,27 @@
 package writer
 
 import (
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 const (
-	usFamilyBirthPrincipal    stmt.ID = "us.family.birth.principal"
-	usFamilyBirthServer       stmt.ID = "us.family.birth.server"
-	usFamilyBirthState        stmt.ID = "us.family.birth.state"
-	usFamilyBirthDevice       stmt.ID = "us.family.birth.device"
-	usFamilyBirthInstallation stmt.ID = "us.family.birth.installation"
-	usFamilyBirthLineage      stmt.ID = "us.family.birth.lineage"
-	usFamilyBirthNotWaiting   stmt.ID = "us.family.birth.not_waiting"
-	usFamilyBirthFence        stmt.ID = "us.family.birth.fence"
-	usFamilyBirthOrdinary     stmt.ID = "us.family.birth.ordinary"
-	usFamilyBirthCredential   stmt.ID = "us.family.birth.credential"
-	usFamilyBirthWitness      stmt.ID = "us.family.birth.witness"
+	usFamilyBirthCredentialMarker stmt.ID = "us.family.birth.credential_marker"
+	usFamilyBirthCredentialAbsent stmt.ID = "us.family.birth.credential_absent"
+	usFamilyBirthAPIDevice        stmt.ID = "us.family.birth.api_device"
+	usFamilyBirthOriginLineage    stmt.ID = "us.family.birth.origin_lineage"
+	usFamilyBirthPrincipal        stmt.ID = "us.family.birth.principal"
+	usFamilyBirthServer           stmt.ID = "us.family.birth.server"
+	usFamilyBirthState            stmt.ID = "us.family.birth.state"
+	usFamilyBirthDevice           stmt.ID = "us.family.birth.device"
+	usFamilyBirthInstallation     stmt.ID = "us.family.birth.installation"
+	usFamilyBirthLineage          stmt.ID = "us.family.birth.lineage"
+	usFamilyBirthNotWaiting       stmt.ID = "us.family.birth.not_waiting"
+	usFamilyBirthFence            stmt.ID = "us.family.birth.fence"
+	usFamilyBirthOrdinary         stmt.ID = "us.family.birth.ordinary"
+	usFamilyBirthCredential       stmt.ID = "us.family.birth.credential"
+	usFamilyBirthWitness          stmt.ID = "us.family.birth.witness"
 )
 
 func usFamilyBirthDefinitions() []stmt.Definition {
@@ -39,6 +44,12 @@ func usFamilyBirthDefinitions() []stmt.Definition {
 	credential.ID = usFamilyBirthCredential
 	credential.SQL = strings.Replace(credential.SQL, ",0) RETURNING", ",1) RETURNING", 1)
 	defs = append(defs, credential)
+	defs = append(defs,
+		stmt.Definition{ID: usFamilyBirthCredentialMarker, SQL: `SELECT 1 FROM api_credentials INDEXED BY sqlite_autoindex_api_credentials_1 WHERE id=? AND kind=? AND account_id=? AND profile_id=? AND family_id=? AND device_id=? AND secret_hash=? AND name=? AND scopes=? AND hint=? AND expires_ms=? AND revoked_ms=0 AND parent_id IS NULL AND secret=''`, Params: []stmt.Param{t("id"), t("kind"), t("account"), t("profile"), t("family"), t("device"), t("hash"), t("name"), t("scopes"), t("hint"), i("expires")}},
+		stmt.Definition{ID: usFamilyBirthCredentialAbsent, SQL: `SELECT 1 FROM api_credentials INDEXED BY sqlite_autoindex_api_credentials_3 WHERE family_id=?`, Params: []stmt.Param{t("family")}},
+		stmt.Definition{ID: usFamilyBirthOriginLineage, SQL: `SELECT 1 FROM identity_pin_lineages INDEXED BY sqlite_autoindex_identity_pin_lineages_1 WHERE id=? AND account_id=? AND origin_device_id=?`, Params: []stmt.Param{t("lineage"), t("account"), t("device")}},
+		stmt.Definition{ID: usFamilyBirthAPIDevice, Kind: stmt.Write, SQL: `INSERT INTO identity_devices(id,authority,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen,remember_account,retired_ms) VALUES(?,'local',?,?,?,'api',?,'',?,?,0,0) RETURNING retired_ms`, Params: []stmt.Param{t("device"), t("account"), t("installation"), t("name"), t("app"), t("first"), t("last")}},
+	)
 	for n := range defs {
 		if defs[n].Kind == "" {
 			defs[n].Kind = stmt.Read
