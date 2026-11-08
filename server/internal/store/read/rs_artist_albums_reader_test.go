@@ -146,52 +146,50 @@ func TestRSArtistAlbumReaderLifecycle(t *testing.T) {
 }
 
 func TestRSArtistAlbumReaderFenceAndCursorControls(t *testing.T) {
-	synctest.Test(t, rsArtistAlbumReaderFenceAndCursorControls)
-}
-
-func rsArtistAlbumReaderFenceAndCursorControls(t *testing.T) {
 	for _, mode := range []string{"source", "authority", "limit", "artist", "LIVE", "capacity"} {
 		t.Run(mode, func(t *testing.T) {
-			f, r := artistAlbumFixture(t)
-			v := f.input
-			v.Kind = 5
-			p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 2})
-			if e != nil || ref != nil {
-				t.Fatal(e, ref)
-			}
-			defer p.Close()
-			if mode == "LIVE" {
-				_, _, e = r.Page(t.Context(), foregroundRequest(), time.Second, f.output, p)
-				if !errors.Is(e, ErrInput) {
+			synctest.Test(t, func(t *testing.T) {
+				f, r := artistAlbumFixture(t)
+				v := f.input
+				v.Kind = 5
+				p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSArtistAlbumInput{View: v, Artist: 2006, Limit: 2})
+				if e != nil || ref != nil {
+					t.Fatal(e, ref)
+				}
+				defer p.Close()
+				if mode == "LIVE" {
+					_, _, e = r.Page(t.Context(), foregroundRequest(), time.Second, f.output, p)
+					if !errors.Is(e, ErrInput) {
+						t.Fatal(e)
+					}
+					return
+				}
+				var cost BrowseReadResult
+				if e = r.fence(t.Context(), foregroundRequest(), f.output, p, v.Now, &cost); e != nil {
 					t.Fatal(e)
 				}
-				return
-			}
-			var cost BrowseReadResult
-			if e = r.fence(t.Context(), foregroundRequest(), f.output, p, v.Now, &cost); e != nil {
-				t.Fatal(e)
-			}
-			switch mode {
-			case "source":
-				f.exec(t, `UPDATE catalog_entities SET metadata_revision=metadata_revision+1 WHERE id=2006`)
-			case "authority":
-				f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
-			case "limit", "artist":
-				p.phase = 2
-				p.set.ids = []int64{2001}
-				p.input.After = &RSArtistAlbumCursor{identity: p.identity(), artist: 2006, library: v.Library, kind: 6, limit: 2}
-				if mode == "limit" {
-					p.input.After.limit = 3
-				} else {
-					p.input.After.artist = 1998
+				switch mode {
+				case "source":
+					f.exec(t, `UPDATE catalog_entities SET metadata_revision=metadata_revision+1 WHERE id=2006`)
+				case "authority":
+					f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
+				case "limit", "artist":
+					p.phase = 2
+					p.set.ids = []int64{2001}
+					p.input.After = &RSArtistAlbumCursor{identity: p.identity(), artist: 2006, library: v.Library, kind: 6, limit: 2}
+					if mode == "limit" {
+						p.input.After.limit = 3
+					} else {
+						p.input.After.artist = 1998
+					}
+				case "capacity":
+					p.used = p.lease.PayloadBytes()
 				}
-			case "capacity":
-				p.used = p.lease.PayloadBytes()
-			}
-			page, _, e := r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
-			if e == nil || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
-				t.Fatal("control leaked", page, e)
-			}
+				page, _, e := r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
+				if e == nil || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
+					t.Fatal("control leaked", page, e)
+				}
+			})
 		})
 	}
 }

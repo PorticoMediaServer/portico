@@ -167,52 +167,50 @@ func TestRSAuthorBookReaderLifecycle(t *testing.T) {
 }
 
 func TestRSAuthorBookReaderFenceAndCursorControls(t *testing.T) {
-	synctest.Test(t, rsAuthorBookReaderFenceAndCursorControls)
-}
-
-func rsAuthorBookReaderFenceAndCursorControls(t *testing.T) {
 	for _, mode := range []string{"source", "authority", "limit", "artist", "LIVE", "capacity"} {
 		t.Run(mode, func(t *testing.T) {
-			f, r := authorBookFixture(t)
-			v := f.input
-			v.Kind = 13
-			p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSAuthorBookInput{View: v, Author: 13001, Limit: 2})
-			if e != nil || ref != nil {
-				t.Fatal(e, ref)
-			}
-			defer p.Close()
-			if mode == "LIVE" {
-				_, _, e = r.Page(t.Context(), foregroundRequest(), time.Second, f.output, p)
-				if !errors.Is(e, ErrInput) {
+			synctest.Test(t, func(t *testing.T) {
+				f, r := authorBookFixture(t)
+				v := f.input
+				v.Kind = 13
+				p, ref, e := r.Begin(t.Context(), 1, time.Now().Add(time.Minute), 4<<20, RSAuthorBookInput{View: v, Author: 13001, Limit: 2})
+				if e != nil || ref != nil {
+					t.Fatal(e, ref)
+				}
+				defer p.Close()
+				if mode == "LIVE" {
+					_, _, e = r.Page(t.Context(), foregroundRequest(), time.Second, f.output, p)
+					if !errors.Is(e, ErrInput) {
+						t.Fatal(e)
+					}
+					return
+				}
+				var cost BrowseReadResult
+				if e = r.fence(t.Context(), foregroundRequest(), f.output, p, v.Now, &cost); e != nil {
 					t.Fatal(e)
 				}
-				return
-			}
-			var cost BrowseReadResult
-			if e = r.fence(t.Context(), foregroundRequest(), f.output, p, v.Now, &cost); e != nil {
-				t.Fatal(e)
-			}
-			switch mode {
-			case "source":
-				f.exec(t, `UPDATE catalog_entities SET metadata_revision=metadata_revision+1 WHERE id=13001`)
-			case "authority":
-				f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
-			case "limit", "artist":
-				p.phase = 2
-				p.entries = []rsAuthorBookEntry{{id: 1108}}
-				p.input.After = &RSAuthorBookCursor{identity: p.identity(), author: 13001, library: v.Library, kind: 8, limit: 2}
-				if mode == "limit" {
-					p.input.After.limit = 3
-				} else {
-					p.input.After.author = 1998
+				switch mode {
+				case "source":
+					f.exec(t, `UPDATE catalog_entities SET metadata_revision=metadata_revision+1 WHERE id=13001`)
+				case "authority":
+					f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
+				case "limit", "artist":
+					p.phase = 2
+					p.entries = []rsAuthorBookEntry{{id: 1108}}
+					p.input.After = &RSAuthorBookCursor{identity: p.identity(), author: 13001, library: v.Library, kind: 8, limit: 2}
+					if mode == "limit" {
+						p.input.After.limit = 3
+					} else {
+						p.input.After.author = 1998
+					}
+				case "capacity":
+					p.used = p.lease.PayloadBytes()
 				}
-			case "capacity":
-				p.used = p.lease.PayloadBytes()
-			}
-			page, _, e := r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
-			if e == nil || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
-				t.Fatal("control leaked", page, e)
-			}
+				page, _, e := r.poll(t.Context(), foregroundRequest(), f.output, p, v.Now)
+				if e == nil || len(page.Cards) != 0 || page.Total != 0 || page.Next != nil {
+					t.Fatal("control leaked", page, e)
+				}
+			})
 		})
 	}
 }
