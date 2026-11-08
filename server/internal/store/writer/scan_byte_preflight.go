@@ -420,15 +420,17 @@ func readScanReceiptIdentity(ctx context.Context, turn *commandTurn, q ScanRecei
 }
 
 type scanMemberByteProof struct {
-	keys  [3]int64
-	bytes scanByteVector
+	keys    [maxInventoryBatchFiles][3]int64
+	members [maxInventoryBatchFiles]scanByteVector
+	bytes   scanByteVector // aggregate actual octets, never maximum-length estimates
 }
 
-// Probe only bounded numeric keys first. Even a malformed extra or gapped row
-// cannot cause an un-preflighted object_id to be copied by the cohort read.
+// Read all numeric keys before copying any member TEXT, then preflight every
+// point on this same snapshot. Missing, extra, gapped and wrong-kind rows fail
+// before the payload query. Fixed storage keeps malformed inputs bounded.
 func readScanMemberByteProof(ctx context.Context, turn *commandTurn, q ScanReceiptRequest, count int64) (value scanMemberByteProof, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
-	if count != inventoryReceiptMaxMembers {
+	if count < 1 || count > inventoryReceiptMaxMembers {
 		return value, ErrResolveRequired
 	}
 	step, ok := turn.steps[scanMemberKeys]
@@ -439,17 +441,46 @@ func readScanMemberByteProof(ctx context.Context, turn *commandTurn, q ScanRecei
 	if err != nil {
 		return value, err
 	}
-	if err = scanBytePoint(rows, &value.keys[0], &value.keys[1], &value.keys[2]); err != nil {
-		return value, errors.Join(ErrResolveRequired, err)
+	n := 0
+	readErr := func() error {
+		for rows.Next() {
+			if n >= int(count) {
+				return ErrResolveRequired
+			}
+			keys := &value.keys[n]
+			if e := rows.Scan(&keys[0], &keys[1], &keys[2]); e != nil {
+				return e
+			}
+			if *keys != ([3]int64{int64(n), 0, 0}) {
+				return ErrResolveRequired
+			}
+			n++
+		}
+		if n != int(count) {
+			return ErrResolveRequired
+		}
+		return rows.Err()
+	}()
+	if err = errors.Join(readErr, rows.Close()); err != nil {
+		return value, err
 	}
-	if value.keys != ([3]int64{}) {
-		return value, ErrResolveRequired // FIRST ordinary result has exactly (0,0,0)
+	value.bytes.exists = true
+	for i := 0; i < n; i++ {
+		keys := value.keys[i]
+		v, e := readScanByteLengths(ctx, turn, scanMemberByteLengths, q.RunID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence, keys[0], keys[1], keys[2])
+		if e != nil {
+			return value, e
+		}
+		if !v.exists {
+			return value, ErrResolveRequired
+		}
+		if v.total > math.MaxUint64-value.bytes.total {
+			return value, ErrCap
+		}
+		value.members[i] = v
+		value.bytes.total += v.total
 	}
-	value.bytes, err = readScanByteLengths(ctx, turn, scanMemberByteLengths, q.RunID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence, value.keys[0], value.keys[1], value.keys[2])
-	if err == nil && !value.bytes.exists {
-		err = ErrResolveRequired
-	}
-	return value, err
+	return value, nil
 }
 
 // Like the protected point readers, but preserves absence as sql.ErrNoRows so

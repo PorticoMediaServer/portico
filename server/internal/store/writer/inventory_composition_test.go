@@ -25,8 +25,8 @@ func TestInventoryCommandFiniteComposition(t *testing.T) {
 		}
 		seen[def.ID], uses = true, uses+n
 	}
-	if uses != 58 {
-		t.Fatalf("all-branch reservations = %d, want 58", uses)
+	if uses != 65 {
+		t.Fatalf("all-branch reservations = %d, want 65", uses)
 	}
 	for _, id := range inventoryFreshIDs() {
 		if !seen[id] {
@@ -141,6 +141,9 @@ func TestCommandCompositionPreservesHistoryUses(t *testing.T) {
 		want := 1
 		if def.ID == scanReceiptOwner {
 			want = 2
+		}
+		if def.ID == scanMemberByteLengths {
+			want = inventoryReceiptMaxMembers
 		}
 		if got := commandStatementMaxUses(InventoryAccept, def.ID); got != want {
 			t.Fatalf("existing Inventory %s: %d != %d", def.ID, got, want)
