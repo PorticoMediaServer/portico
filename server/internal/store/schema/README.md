@@ -230,7 +230,8 @@ combined layout; unknown drift stops the embed.
 
 CHANGE-014 is adopted: three exact sparse personal flag indexes and
 notification_ack_heads.read_through_ms. The six artifacts copy canonical
-phase0 verbatim. Flag membership is an own-profile BLOB public-ID raw keyset
+phase0 at internal fa880be8dd8eba03228217e7eecc8b58e6e6d265 verbatim.
+Flag membership is an own-profile BLOB public-ID raw keyset
 before current authority/visibility checks; it is not an authorization index.
 An individual notice read keeps its stored time; a bulk-only notice reports
 the current covering read-through time, and zero means no stored bulk time.

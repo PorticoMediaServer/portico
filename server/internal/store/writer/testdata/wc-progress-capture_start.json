@@ -1,5 +1,9 @@
 {
   "environment": {
+    "schemaBinding": {
+      "version": 1,
+      "sqlSha256": "782904d74a9f18bb81ef2a26ba9091d7501b843b73b7b853b2c27cadf4effc1a"
+    },
     "connection": {
       "Engine": "3.53.4",
       "JournalMode": "wal",
@@ -12,7 +16,7 @@
       "QueryOnly": 0,
       "TempStore": 1
     },
-    "indexPolicySha256": "05c677a9b67af063439dbd103472add0b1d1a56fb7622662ba0c7da28084dfa4",
+    "indexPolicySha256": "8064ce7a7db516acd60dfd126992f5df80cc242774f5c6fbfe5510537eac7b4b",
     "fixture": {
       "connectionPolicy": {
         "Role": 1,
@@ -4359,6 +4363,13 @@
         ],
         [
           "index",
+          "personal_current_favorite",
+          "personal_items",
+          2389,
+          "CREATE INDEX personal_current_favorite ON personal_items(profile_id,item_public_id) WHERE favorite=1"
+        ],
+        [
+          "index",
           "personal_current_library",
           "personal_items",
           2044,
@@ -4377,6 +4388,13 @@
           "personal_items",
           2043,
           "CREATE INDEX personal_current_live_item ON personal_items(item_id,profile_id)"
+        ],
+        [
+          "index",
+          "personal_current_not_interested",
+          "personal_items",
+          2390,
+          "CREATE INDEX personal_current_not_interested ON personal_items(profile_id,item_public_id) WHERE not_interested=1"
         ],
         [
           "index",
@@ -4412,6 +4430,13 @@
           "personal_items",
           2052,
           "CREATE INDEX personal_current_retained ON personal_items(profile_id,retained_at_ms,id) WHERE retained_at_ms IS NOT NULL"
+        ],
+        [
+          "index",
+          "personal_current_watchlist",
+          "personal_items",
+          2387,
+          "CREATE INDEX personal_current_watchlist ON personal_items(profile_id,item_public_id) WHERE watchlisted=1"
         ],
         [
           "index",
@@ -13168,7 +13193,7 @@
           "notification_ack_heads",
           "notification_ack_heads",
           1439,
-          "CREATE TABLE notification_ack_heads(\n principal_key TEXT PRIMARY KEY,\n read_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(read_through_sequence\u003e=0),\n archive_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(archive_through_sequence\u003e=0),\n revision INTEGER NOT NULL DEFAULT 1 CHECK(revision\u003e0)\n) STRICT"
+          "CREATE TABLE notification_ack_heads(\n principal_key TEXT PRIMARY KEY,\n read_through_ms INTEGER NOT NULL DEFAULT 0 CHECK(read_through_ms\u003e=0),\n read_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(read_through_sequence\u003e=0),\n archive_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(archive_through_sequence\u003e=0),\n revision INTEGER NOT NULL DEFAULT 1 CHECK(revision\u003e0)\n) STRICT"
         ],
         [
           "table",
@@ -15174,7 +15199,7 @@
         ]
       ]
     },
-    "schemaSha256": "e8f75b78643d0915ee207eb60ea404bc961b73e52334bd8bffc5be431c0e6d6e",
+    "schemaSha256": "9b0855aaeee94d1dfeb3b8f3237fd59eb05fe439b143479e731f163cd78b7355",
     "statistics": {},
     "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
     "pragmas": {
@@ -39353,7 +39378,7 @@
           [
             2,
             "Noop",
-            11,
+            14,
             0,
             24,
             null,
@@ -39373,7 +39398,7 @@
           [
             4,
             "OpenWrite",
-            10,
+            13,
             "\"main\".\"personal_current_live\"",
             0,
             "k(2,,)",
@@ -39433,7 +39458,7 @@
           [
             10,
             "SeekGE",
-            10,
+            13,
             24,
             147,
             "2",
@@ -39443,7 +39468,7 @@
           [
             11,
             "IdxGT",
-            10,
+            13,
             24,
             147,
             "2",
@@ -39453,7 +39478,7 @@
           [
             12,
             "DeferredSeek",
-            10,
+            13,
             0,
             0,
             null,
@@ -39573,7 +39598,7 @@
           [
             24,
             "OpenWrite",
-            3,
+            6,
             "\"main\".\"personal_current_plays\"",
             0,
             "k(4,,-,,)",
@@ -39583,7 +39608,7 @@
           [
             25,
             "OpenWrite",
-            5,
+            8,
             "\"main\".\"personal_current_activity\"",
             0,
             "k(5,,,-,,)",
@@ -39593,7 +39618,7 @@
           [
             26,
             "OpenWrite",
-            6,
+            9,
             "\"main\".\"personal_current_completed\"",
             0,
             "k(5,,,-,,)",
@@ -39603,7 +39628,7 @@
           [
             27,
             "OpenWrite",
-            7,
+            10,
             "\"main\".\"personal_current_recent\"",
             0,
             "k(5,,,-,,)",
@@ -43923,7 +43948,7 @@
           [
             459,
             "IdxDelete",
-            3,
+            6,
             179,
             4,
             "personal_current_plays",
@@ -43983,7 +44008,7 @@
           [
             465,
             "IdxDelete",
-            5,
+            8,
             183,
             5,
             "personal_current_activity",
@@ -44003,7 +44028,7 @@
           [
             467,
             "IdxDelete",
-            6,
+            9,
             183,
             5,
             "personal_current_completed",
@@ -44023,7 +44048,7 @@
           [
             469,
             "IdxDelete",
-            7,
+            10,
             183,
             5,
             "personal_current_recent",
@@ -44043,7 +44068,7 @@
           [
             471,
             "IdxInsert",
-            3,
+            6,
             1,
             2,
             "4",
@@ -44053,7 +44078,7 @@
           [
             472,
             "IdxInsert",
-            5,
+            8,
             6,
             7,
             "5",
@@ -44063,7 +44088,7 @@
           [
             473,
             "IdxInsert",
-            6,
+            9,
             12,
             13,
             "5",
@@ -44073,7 +44098,7 @@
           [
             474,
             "IdxInsert",
-            7,
+            10,
             18,
             19,
             "5",
@@ -44113,7 +44138,7 @@
           [
             478,
             "NewRowid",
-            13,
+            16,
             190,
             0,
             null,
@@ -44123,7 +44148,7 @@
           [
             479,
             "Insert",
-            13,
+            16,
             189,
             190,
             null,
@@ -44143,7 +44168,7 @@
           [
             481,
             "Rewind",
-            13,
+            16,
             485,
             0,
             null,
@@ -44153,7 +44178,7 @@
           [
             482,
             "Column",
-            13,
+            16,
             0,
             188,
             null,
@@ -44173,7 +44198,7 @@
           [
             484,
             "Next",
-            13,
+            16,
             482,
             0,
             null,
@@ -44323,7 +44348,7 @@
           [
             499,
             "OpenEphemeral",
-            13,
+            16,
             1,
             0,
             null,
@@ -81249,7 +81274,7 @@
           [
             2,
             "Noop",
-            11,
+            14,
             0,
             1,
             null,
@@ -81269,7 +81294,7 @@
           [
             4,
             "OpenWrite",
-            10,
+            13,
             "\"main\".\"personal_current_live\"",
             0,
             "k(2,,)",
@@ -81329,7 +81354,7 @@
           [
             10,
             "SeekGE",
-            10,
+            13,
             20,
             124,
             "2",
@@ -81339,7 +81364,7 @@
           [
             11,
             "IdxGT",
-            10,
+            13,
             20,
             124,
             "2",
@@ -81349,7 +81374,7 @@
           [
             12,
             "DeferredSeek",
-            10,
+            13,
             0,
             0,
             null,
@@ -82959,7 +82984,7 @@
           [
             173,
             "NewRowid",
-            13,
+            16,
             139,
             0,
             null,
@@ -82969,7 +82994,7 @@
           [
             174,
             "Insert",
-            13,
+            16,
             138,
             139,
             null,
@@ -82989,7 +83014,7 @@
           [
             176,
             "Rewind",
-            13,
+            16,
             181,
             0,
             null,
@@ -82999,7 +83024,7 @@
           [
             177,
             "Column",
-            13,
+            16,
             0,
             136,
             null,
@@ -83009,7 +83034,7 @@
           [
             178,
             "Column",
-            13,
+            16,
             1,
             137,
             null,
@@ -83029,7 +83054,7 @@
           [
             180,
             "Next",
-            13,
+            16,
             177,
             0,
             null,
@@ -83129,7 +83154,7 @@
           [
             190,
             "OpenEphemeral",
-            13,
+            16,
             2,
             0,
             null,
