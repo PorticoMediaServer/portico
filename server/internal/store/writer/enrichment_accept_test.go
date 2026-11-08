@@ -279,6 +279,15 @@ func TestEnrichmentAcceptMaterializedImageSealAndHeadFlip(t *testing.T) {
 		if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed || replay.Value.accepted == nil || *replay.Value.accepted != v || replay.Digest != got.Digest || ack != (AckResult{}) {
 			t.Fatal("replay", replay, ack, err)
 		}
+		ackIn := acceptInvocation(cmd, cap, q)
+		ackIn.action = enrichmentAcknowledge
+		ackIn.payload = nil
+		if acked, ackRes, err := w.effective.runEnrichment(t.Context(), w, ackIn); err != nil || ackRes.AcknowledgedThrough != cmd.identity.Sequence {
+			t.Fatal("ack", acked, ackRes, err)
+		}
+		if retired, _, err := w.effective.runEnrichment(t.Context(), w, acceptInvocation(cmd, cap, q)); err != nil || retired.Outcome.State != ResultRetired || retired.Value.accepted != nil {
+			t.Fatal("floor", retired, err)
+		}
 		if a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
 			t.Fatal("custody not returned", a.Usage(), e.db.Stats())
 		}
