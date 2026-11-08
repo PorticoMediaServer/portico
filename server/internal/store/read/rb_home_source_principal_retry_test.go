@@ -58,3 +58,29 @@ func TestRBHomeSourceRetryPinsPrincipal(t *testing.T) {
 		})
 	}
 }
+
+func TestRBHomeSourceSharedViewRevokedBeforePublication(t *testing.T) {
+	homeSourceCase(t, "share-removed", func(t *testing.T) {
+		f, r := homeSourceFixture(t, func(f *browseFixture) {
+			homeSourceViewSeed(t, f)
+			f.exec(t, `UPDATE saved_resources SET owner_account='b',owner_profile='q' WHERE id='home'`)
+			f.exec(t, `INSERT INTO saved_resource_shares(resource_id,authority,account_id,profile_id,role) VALUES('home','local','a','p','viewer')`)
+		})
+		in := HomeManifestContentInput{View: f.input, RowID: "view:home"}
+		in.View.Limit = 1
+		initial, _, e := homeSourceContent(t, f, r, in)
+		if e != nil || len(initial.Items) != 1 {
+			t.Fatal("shared source was not initially readable", e)
+		}
+		hook := &savedViewWindowHook{base: f.snapshots, hook: func(n int) {
+			if n == 3 {
+				f.exec(t, `DELETE FROM saved_resource_shares WHERE resource_id='home'`)
+			}
+		}}
+		r.base.native.snapshots = hook
+		page, _, e := homeSourceContent(t, f, r, in)
+		if e == nil || !reflect.DeepEqual(page, HomeManifestContentPage{}) {
+			t.Fatal("revoked shared view published", e)
+		}
+	})
+}
