@@ -44,10 +44,12 @@ def run_scan(bin_dir, env_extra=None):
 
 class SecretScanCache(unittest.TestCase):
     def test_every_hygiene_job_caches_the_pinned_tarball(self):
+        self.assertIn('sha256=' + SHA256, SCRIPT.read_text())
         for name in ['merge.yml', 'nightly.yml']:
             with self.subTest(workflow=name):
                 job = hygiene(name)
-                self.assertIn('key: gitleaks-8.30.1-' + SHA256, job)
+                self.assertIn(
+                    "key: gitleaks-8.30.1-${{ hashFiles('ci/secret-scan.sh') }}", job)
                 self.assertIn('path: ' + CACHE, job)
                 uses = re.search(r'uses: actions/cache@(\S+)', job)
                 self.assertIsNotNone(uses)
