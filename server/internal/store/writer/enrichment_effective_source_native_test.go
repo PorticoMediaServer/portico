@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -15,7 +16,19 @@ import (
 func effectiveSourceNativeTurn(t *testing.T, w *executor, budget commandMemoryBudget) (*commandTurn, *governor.Authority) {
 	t.Helper()
 	defs := append(enrichmentEffectiveSourcePinDefinitions(), enrichmentEffectiveSourceControlDefinitions()...)
-	registry := nativeInventoryFixtureRegistry(t, w, defs, "enrichment_effective_source_native_test.go", "enrichment_effective_source_pin_statements.go", "enrichment_effective_source_controls.go")
+	// The actual preceding component stage/seal frame selected NORMAL.
+	// Assert that held policy for Capture; never repair it to match w.config.
+	conn, err := w.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	policy := w.config
+	policy.Synchronous = sqliteconn.Normal
+	registry := nativeFixtureRegistry(t, conn, policy, defs, "enrichment_effective_source_native_test.go", "enrichment_effective_source_pin_statements.go", "enrichment_effective_source_controls.go")
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
 	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, time.Millisecond}}
 	g, a, wal, request := governedFixture(t, w.now, governedFixtureProfile{recipe, 16 << 20})
 	request.Key.Domain = uint16(EffectiveStage)
