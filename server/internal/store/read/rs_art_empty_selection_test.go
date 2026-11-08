@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
 // An explicit locked choice without a digest is successful absence. It has no
@@ -124,9 +126,11 @@ func TestRSArtNonemptyUnavailableSourceRefuses(t *testing.T) {
 	f, r := newRSArtFixture(t, false)
 	in := rsArtInput(f, 1104, 4, "poster", true)
 	f.exec(t, `UPDATE artwork_sources SET retiring=1,retirement_token=zeroblob(16) WHERE digest=?`, rsArtDigest(2))
-	d, _, err := r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, in)
-	if !errors.Is(err, ErrNotReady) || !reflect.DeepEqual(d, ArtworkFact{}) {
-		t.Fatal("served art from a retiring source", d, err)
+	d, cost, err := r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	// The final witness now refuses a retiring source too, so the stable case
+	// surfaces as a stale/conflict refusal after the bounded retry, never art.
+	if !errors.Is(err, ErrStale) || !errors.Is(err, governor.ErrBusy) || cost.Attempts != 2 || !reflect.DeepEqual(d, ArtworkFact{}) {
+		t.Fatal("served art from a retiring source or changed refusal class", d, cost.Attempts, err)
 	}
 	f.exec(t, `UPDATE artwork_sources SET retiring=0,retirement_token=NULL WHERE digest=?`, rsArtDigest(2))
 	d, _, err = r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, in)
