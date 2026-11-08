@@ -44,7 +44,7 @@ func basicControlMaxUses(purpose CommandID, id stmt.ID) int {
 			return 1
 		case basicProbeHeader, basicProbeOldPresence, basicProbeAssetCAS,
 			basicShapeLookup, basicShapeInsert, basicShapeRefCAS, basicShapeHeaderCAS,
-			basicFreezeLinks, basicFreezeSealed, basicFreezeCAS, basicEntityCAS, basicFreezeAsset, basicEntityLink,
+			basicFreezeLinks, basicFreezeSealed, basicFreezeCAS, basicEntityCAS, basicFreezeAsset, basicEntityLink, basicFreezeLink, basicFreezeEntity, basicFreezeMember,
 			basicCopyHeader, basicCopyCursorCAS:
 			return 1
 		case basicProbeAsset:
