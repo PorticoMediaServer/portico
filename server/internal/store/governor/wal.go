@@ -147,6 +147,13 @@ type WALPolicy struct {
 	MaxSampleAge                                                time.Duration
 	ConcurrentPassive                                           bool          // trusted opt-in; one CP may overlap W and foreground DB reads
 	CheckpointMaxHold                                           time.Duration // separate maintenance window, never a W window
+	// PassiveDeferMax > 0 (screening experiment, default off) makes a NORMAL
+	// concurrent PASSIVE start wait while a Foreground writer (a user or security
+	// original) is in flight, for at most this long per episode, so its flush
+	// barriers do not extend that writer's commit. Pressure recovery, scan and
+	// background writers are never deferred for or by it, and debt still converges
+	// because the bound always lets the PASSIVE start.
+	PassiveDeferMax time.Duration
 }
 
 // WALGate belongs to ONE governor/writer composition. Every physical writer
@@ -172,6 +179,7 @@ type WALGate struct {
 	havePrevious             bool
 	resets                   uint64
 	writerClass              Class
+	deferFrom, deferLast     time.Time // current PASSIVE foreground-deferral episode
 	writerForecast           WALRestartObservation
 	awaitWriterSample        bool
 	lastRestart              WALRestartObservation
@@ -181,7 +189,8 @@ type WALGate struct {
 func NewWALGate(p WALPolicy) (*WALGate, error) {
 	if p.HardBytes <= 0 || p.ReserveBytes <= 0 || p.ReserveBytes >= p.HardBytes ||
 		p.SoftDebtBytes <= 0 || p.ActivePressureBytes <= 0 || p.ActivePressureBytes > p.HardBytes-p.ReserveBytes ||
-		p.MaxSampleAge <= 0 || (p.ConcurrentPassive && (p.CheckpointMaxHold <= 0 || p.CheckpointMaxHold > time.Minute)) || (!p.ConcurrentPassive && p.CheckpointMaxHold != 0) {
+		p.MaxSampleAge <= 0 || (p.ConcurrentPassive && (p.CheckpointMaxHold <= 0 || p.CheckpointMaxHold > time.Minute)) || (!p.ConcurrentPassive && p.CheckpointMaxHold != 0) ||
+		p.PassiveDeferMax < 0 || p.PassiveDeferMax > 5*time.Second || (p.PassiveDeferMax > 0 && !p.ConcurrentPassive) {
 		return nil, ErrWALObservation
 	}
 	return &WALGate{policy: p}, nil

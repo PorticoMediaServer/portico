@@ -46,6 +46,11 @@ on:
         required: true
         default: false
         type: boolean
+      passive_defer_ms:
+        description: EXPERIMENT (default empty = off). Max ms a keeper PASSIVE start waits while a Foreground writer is in flight, for the EC2/EC3 cells (0..5000)
+        required: false
+        default: ''
+        type: string
 permissions:
   contents: read
   actions: read
@@ -95,6 +100,7 @@ jobs:
       INPUT_PRODUCER_ATTEMPT: ${{ inputs.producer_attempt }}
       INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
       INPUT_FIXTURES: ${{ inputs.fixtures }}
+      INPUT_PASSIVE_DEFER_MS: ${{ inputs.passive_defer_ms }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {path: tools, persist-credentials: false}
@@ -279,6 +285,10 @@ jobs:
           export GOMAXPROCS="$PROCS"
           export PORTICO_PAIRED_POPULATION_DIRECTORY="$POPULATION_DIRECTORY"
           export PORTICO_PAIRED_POPULATION_MANIFEST_SHA256="$POPULATION_PIN"
+          if [ -n "${INPUT_PASSIVE_DEFER_MS:-}" ]; then
+            [[ "$INPUT_PASSIVE_DEFER_MS" =~ ^[0-9]{1,4}$ ]] && [ "$INPUT_PASSIVE_DEFER_MS" -le 5000 ] || { echo "passive_defer_ms must be 0..5000"; exit 2; }
+            export PORTICO_GV_PASSIVE_DEFER_MS="$INPUT_PASSIVE_DEFER_MS"
+          fi
           set +e
           if [ "$KIND" = basic ]; then
             export PORTICO_CANONICAL_HELD=1
