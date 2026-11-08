@@ -2,11 +2,13 @@ package writer
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
 	"go/token"
+	"log/slog"
 	"reflect"
 	"strings"
 	"testing"
@@ -246,8 +248,8 @@ func TestUSMemberProfileNilEmptyZero(t *testing.T) {
 
 func TestUSMemberProfileRedaction(t *testing.T) {
 	v := usMemberProfileImageFixture()
-	// Only values owning a redacted String/GoString/Format are listed: a raw
-	// []string carrier would print its elements.
+	// Only values owning a redacted String/GoString/Format, MarshalJSON and
+	// LogValue are listed: a raw []string carrier would print its elements.
 	items := []any{
 		v, &v, v.Restrictions, &v.Restrictions, *v.Avatar, v.Avatar,
 	}
@@ -256,6 +258,19 @@ func TestUSMemberProfileRedaction(t *testing.T) {
 			got := fmt.Sprintf(verb, item)
 			if !strings.Contains(got, "redacted") || strings.Contains(got, "secret") {
 				t.Fatalf("format %s leaked: %s", verb, got)
+			}
+		}
+	}
+	for _, item := range items {
+		encoded, err := json.Marshal(item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var log bytes.Buffer
+		slog.New(slog.NewJSONHandler(&log, nil)).Info("profile", "image", item)
+		for _, output := range []string{string(encoded), log.String()} {
+			if !strings.Contains(output, "redacted") || strings.Contains(output, "secret") {
+				t.Fatalf("structured encoding leaked: %s", output)
 			}
 		}
 	}
