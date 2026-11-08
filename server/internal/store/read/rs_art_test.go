@@ -91,6 +91,19 @@ func TestRSArtLockedAndReadySourceFences(t *testing.T) {
 	if !errors.Is(err, ErrNotReady) || d.Present {
 		t.Fatal("unfenced local source", d, err)
 	}
+} // A source that starts retiring after the payload must not be published: the
+// final witness rechecks s.retiring, so the private draft is refused and
+// retried, never released as Present.
+func TestRSArtRetiringAfterPayloadRefuses(t *testing.T) {
+	f, r := newRSArtFixture(t, false)
+	in := rsArtInput(f, 1104, 4, "poster", true)
+	r.snapshots = &rsArtBoundarySnapshots{Snapshots: f.snapshots, afterPayload: func() {
+		f.exec(t, `UPDATE artwork_sources SET retiring=1,retirement_token=zeroblob(16) WHERE digest=?`, rsArtDigest(2))
+	}}
+	d, cost, err := r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	if !errors.Is(err, ErrStale) || !errors.Is(err, governor.ErrBusy) || d.Present || cost.Attempts != 2 || !reflect.DeepEqual(d, ArtworkFact{}) {
+		t.Fatal("retiring-after-payload art escaped final source equality", d, cost.Attempts, err)
+	}
 }
 func TestRSArtVisibilityAndPublication(t *testing.T) {
 	f, r := newRSArtFixture(t, false)
