@@ -36,6 +36,16 @@ func init() {
 		}
 		return fmt.Sprintf("source:%v", rows[0][10]), nil
 	}})
+	registerReadPolicy(readPolicyRecipe{id: 64995, domain: "native-test-byte-pair", kinds: []int64{33}, nativeSearch: true, validate: func(q browseQuery, in BrowseInput, _ browseFence) (string, error) {
+		rows, err := q("rs.detail.facts", in.policy.subject, in.Library, in.Kind)
+		if err != nil {
+			return "", err
+		}
+		if len(rows) != 1 || len(rows[0]) != 47 || rows[0][0] != in.policy.subject {
+			return "", ErrDenied
+		}
+		return fmt.Sprintf("facts:%d:%v", in.policy.subject, rows[0][5]), nil
+	}})
 }
 
 func nativePolicyTestSource(id, kind int64) *nativeSource {
