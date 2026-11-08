@@ -71,6 +71,7 @@ func TestBasicOriginalSnapshotBoundsBeforeProjection(t *testing.T) {
 	if _, err := basicOriginalFromSnapshot(identity, n, source); !errors.Is(err, ErrCap) {
 		t.Fatal(err)
 	}
+	_, n, source, _ = basicSnapshotValues() // isolate the text cap from sequence overflow
 	n.job.errorText = strings.Repeat("x", maxCanonicalRequestBytes+1)
 	if allocations := testing.AllocsPerRun(3, func() {
 		if got, err := basicOriginalFromSnapshot(identity, n, source); !errors.Is(err, ErrCap) || got.scope.runID != "" || got.source.resolvedRoot != nil || got.run.revision != 0 {
