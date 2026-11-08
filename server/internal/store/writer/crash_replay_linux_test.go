@@ -30,12 +30,13 @@ var crashClock = time.Date(2100, 11, 5, 10, 30, 0, 0, time.UTC)
 type crashCase struct{ Domain, Operation, Boundary, CommitFault string }
 
 type crashWitness struct {
-	Reclaim   *reclaimCrashSource
-	Effective *effectiveCrashOriginal
-	Passive   *passiveCrashProof
-	Opening   *scanOpeningCrashProof
-	Progress  *progressCrashSource
-	Security  *securityCrashSource
+	ScanIssuer *scanIssuerPreparedCrashSource
+	Reclaim    *reclaimCrashSource
+	Effective  *effectiveCrashOriginal
+	Passive    *passiveCrashProof
+	Opening    *scanOpeningCrashProof
+	Progress   *progressCrashSource
+	Security   *securityCrashSource
 
 	Version          int
 	SchemaSHA        string
@@ -225,6 +226,10 @@ func TestCrashReplayChild(t *testing.T) {
 	witness := crashWitness{Version: 1, SchemaSHA: schema.SHA256, Engine: schema.NativeSQLiteVersion}
 	if err := json.Unmarshal([]byte(encoded), &witness.Case); err != nil {
 		t.Fatal(err)
+	}
+	if witness.Case.Domain == "scan_issuer" {
+		crashScanIssuerFixture(t, &witness)
+		return
 	}
 	if witness.Case.Domain == "wc_security" {
 		crashSecurityFixture(t, &witness)
