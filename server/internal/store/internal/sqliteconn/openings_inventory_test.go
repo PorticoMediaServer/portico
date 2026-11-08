@@ -27,30 +27,32 @@ var openingConstraints = map[string]string{
 	"writer/ec_host_sampler_linux_test.go":               "",                  // implicit _linux suffix; host/cgroup/disk sampler reads /proc
 	"writer/ec_host_sampler_other_test.go":               "//go:build !linux", // non-Linux stub of the host sampler device lookup
 
-	"writer/ec4_screening_test.go":               "//go:build linux && portico_ec4_screening",
-	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
-	"qual/scanbench/fixture_dir_other.go":        "//go:build !linux && !darwin",
-	"qual/scanbench/fixture_dir_test.go":         "//go:build linux || darwin",
-	"qual/namespace_linux.go":                    "",                 // implicit _linux filename constraint
-	"writer/crash_passive_linux_test.go":         "",                 // implicit _linux suffix; native PASSIVE SIGKILL controls are Linux-only
-	"writer/crash_oracle_linux_test.go":          "",                 // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
-	"writer/crash_effective_steps_linux_test.go": "",                 // implicit _linux suffix; native-step SIGKILL/reopen controls are Linux-only
-	"writer/crash_replay_linux_test.go":          "",                 // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
-	"writer/crash_inventory_fresh_linux_test.go": "",                 // implicit _linux suffix; fresh SIGKILL component uses the Linux harness
-	"writer/crash_scan_n1_driver_linux_test.go":  "",                 // implicit _linux suffix; merged N1 public-path SIGKILL/reopen controls
-	"writer/crash_scan_n1_history_linux_test.go": "",                 // implicit _linux suffix; N1 child-bearing ACK/retired rebind controls
-	"writer/crash_scan_batch_linux_test.go":      "//go:build linux", // batch SIGKILL/reopen witnesses use the Linux harness
-	"writer/scan_batch_accept_test.go":           "//go:build linux", // batch acceptance controls share the Linux raw-state oracle
-	"writer/crash_fresh_retry_linux_test.go":     "",                 // implicit _linux suffix; pre-COMMIT retry execute-once/replay cells
-	"writer/crash_basic_accept_linux_test.go":    "",                 // implicit _linux suffix; Basic Accept kill/restart cells
-	"writer/crash_publisher_linux_test.go":       "",                 // implicit _linux suffix; publisher fragment/flip kill/restart cells
-	"writer/crash_reclaimer_linux_test.go":       "",                 // implicit _linux suffix; independent reclaimer kill/restart cells
-	"writer/crash_enrich_accept_linux_test.go":   "",                 // implicit _linux suffix; EnrichAccept kill/restart cells
-	"writer/race_on_test.go":                     "//go:build race",  // crash-child deadline scaled for the detector
-	"writer/race_off_test.go":                    "//go:build !race", // established crash-child deadline
-	"qual/namespace_other.go":                    "//go:build !linux",
-	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
-	"governor/snapshot_binding_counters_test.go": "//go:build memory.counters && !libc.memgrind",
+	"writer/ec4_screening_test.go":                 "//go:build linux && portico_ec4_screening",
+	"writer/canonical_batch_binding_linux_test.go": "//go:build linux",  // batch kit owner uses the Linux native composition
+	"writer/canonical_batch_binding_other_test.go": "//go:build !linux", // refusing stub keeps the class unavailable off Linux
+	"qual/scanbench/fixture_dir_unix.go":           "//go:build linux || darwin",
+	"qual/scanbench/fixture_dir_other.go":          "//go:build !linux && !darwin",
+	"qual/scanbench/fixture_dir_test.go":           "//go:build linux || darwin",
+	"qual/namespace_linux.go":                      "",                 // implicit _linux filename constraint
+	"writer/crash_passive_linux_test.go":           "",                 // implicit _linux suffix; native PASSIVE SIGKILL controls are Linux-only
+	"writer/crash_oracle_linux_test.go":            "",                 // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
+	"writer/crash_effective_steps_linux_test.go":   "",                 // implicit _linux suffix; native-step SIGKILL/reopen controls are Linux-only
+	"writer/crash_replay_linux_test.go":            "",                 // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
+	"writer/crash_inventory_fresh_linux_test.go":   "",                 // implicit _linux suffix; fresh SIGKILL component uses the Linux harness
+	"writer/crash_scan_n1_driver_linux_test.go":    "",                 // implicit _linux suffix; merged N1 public-path SIGKILL/reopen controls
+	"writer/crash_scan_n1_history_linux_test.go":   "",                 // implicit _linux suffix; N1 child-bearing ACK/retired rebind controls
+	"writer/crash_scan_batch_linux_test.go":        "//go:build linux", // batch SIGKILL/reopen witnesses use the Linux harness
+	"writer/scan_batch_accept_test.go":             "//go:build linux", // batch acceptance controls share the Linux raw-state oracle
+	"writer/crash_fresh_retry_linux_test.go":       "",                 // implicit _linux suffix; pre-COMMIT retry execute-once/replay cells
+	"writer/crash_basic_accept_linux_test.go":      "",                 // implicit _linux suffix; Basic Accept kill/restart cells
+	"writer/crash_publisher_linux_test.go":         "",                 // implicit _linux suffix; publisher fragment/flip kill/restart cells
+	"writer/crash_reclaimer_linux_test.go":         "",                 // implicit _linux suffix; independent reclaimer kill/restart cells
+	"writer/crash_enrich_accept_linux_test.go":     "",                 // implicit _linux suffix; EnrichAccept kill/restart cells
+	"writer/race_on_test.go":                       "//go:build race",  // crash-child deadline scaled for the detector
+	"writer/race_off_test.go":                      "//go:build !race", // established crash-child deadline
+	"qual/namespace_other.go":                      "//go:build !linux",
+	"governor/snapshot_binding_audit_test.go":      "//go:build libc.memgrind",
+	"governor/snapshot_binding_counters_test.go":   "//go:build memory.counters && !libc.memgrind",
 
 	"internal/sqliteconn/ownership_lifetime_linux_test.go": "", // implicit _linux suffix; real SIGKILL/native lifetime witnesses are Linux-only
 
