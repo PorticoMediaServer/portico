@@ -8,6 +8,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
+const inventoryBatchWALBytes = 128 << 20
+const inventoryBatchIOBytes = 1 << 30
+
 func inventoryPlanBatchFiles(p effectivePlan) int {
 	if p.inventoryBatchFiles == 0 {
 		return 1
@@ -50,9 +53,10 @@ func inventoryBatchForecast(registration stmt.Receipt, engine sqliteconn.EngineI
 	p.recipe.limit.Rows *= maxInventoryBatchFiles
 	p.recipe.limit.VMOps *= maxInventoryBatchFiles
 	p.recipe.limit.Pages *= maxInventoryBatchFiles
-	// Reserve repeated normal-size writes inside the original 32MiB WAL unit.
+	// Preserve EVERY per-file physical allowance; widen the complete unit instead.
+	p.recipe.limit.WALBytes = inventoryBatchWALBytes
 	p.need[governor.WALBytes] = int64(p.recipe.limit.WALBytes)
-	// Existing 128MiB IO unit covers the complete bounded batch.
+	p.need[governor.IOBytes] = inventoryBatchIOBytes
 	for i := range p.io {
 		p.io[i].Bytes = p.need[governor.IOBytes]
 	}
@@ -62,13 +66,9 @@ func inventoryBatchForecast(registration stmt.Receipt, engine sqliteconn.EngineI
 		for _, def := range inventoryDriverCommandDefinitions() {
 			if def.ID == p.steps[i].id && def.Kind == stmt.Write {
 				work.Hold = 50 * time.Microsecond
-				work.WALBytes = 128 << 10
-				work.Pages = 64
 			}
 		}
 	}
 	p.inventoryRecords.work.Hold = 50 * time.Microsecond
-	p.inventoryRecords.work.WALBytes = 128 << 10
-	p.inventoryRecords.work.Pages = 64
 	return p, nil
 }

@@ -49,6 +49,9 @@ func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixture
 	if len(selected) == 1 && selected[0] == n1EC4ScreeningFixture {
 		modes = []checkpointFixtureMode{checkpointScreeningReader}
 	}
+	if len(selected) == 1 && (selected[0] == n1BatchForecastFixture || selected[0] == n1BatchTimingFixture) {
+		modes = []checkpointFixtureMode{checkpointBatchWriter}
+	}
 	cp := newCheckpointComponent(t, true, realClock, modes...)
 	seedScanLifecycle(t, cp.w)
 	for _, q := range []string{
