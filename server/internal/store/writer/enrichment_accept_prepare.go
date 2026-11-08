@@ -38,13 +38,10 @@ func newEnrichAcceptCommand(identity CommandIdentity, begin *effectiveStageBegin
 	if err := preflightEnrichAcceptControls(in, begin); err != nil {
 		return nil, err
 	}
-	// Hash the complete borrowed ORIGINAL before retaining strings or the cohort.
-	// The closed codec preflights the entire resource envelope before hashing.
-	packet := struct {
-		Request       enrichAcceptRequest
-		OriginalBegin effectiveNativeSourceRequest
-	}{in, effectiveNativeSourceRequest{"begin_native_seal_refs_v1", begin.request, *begin.sourceReferences}}
-	digest, err := canonicalRequestDigest(EnrichAccept, 1, identity, packet)
+	// Hash the complete frozen FINAL request only. Its beginIdentity/beginRequest
+	// fields already bind the ORIGINAL command and digest; the separately
+	// verified native E/S refs are not re-encoded as request bytes.
+	digest, err := canonicalRequestDigest(EnrichAccept, 1, identity, in)
 	if err != nil {
 		return nil, err
 	}
@@ -103,11 +100,7 @@ func (c *enrichAcceptCommand) check() error {
 	if c == nil || !c.valid || c.originalBegin == nil || !c.originalBegin.valid || c.originalBegin.sourceReferences == nil || c.identity.Incarnation != c.originalBegin.identity.Incarnation || c.identity.Sequence <= c.originalBegin.identity.Sequence {
 		return ErrInvalid
 	}
-	packet := struct {
-		Request       enrichAcceptRequest
-		OriginalBegin effectiveNativeSourceRequest
-	}{c.request, effectiveNativeSourceRequest{"begin_native_seal_refs_v1", c.originalBegin.request, *c.originalBegin.sourceReferences}}
-	digest, err := canonicalRequestDigest(EnrichAccept, 1, c.identity, packet)
+	digest, err := canonicalRequestDigest(EnrichAccept, 1, c.identity, c.request)
 	if err != nil || digest != c.digest || c.digest == c.originalBegin.digest {
 		return ErrInvalid
 	}
