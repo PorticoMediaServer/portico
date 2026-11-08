@@ -107,6 +107,8 @@ func missingSealBindings(params []stmt.Param) []any {
 			args[i] = int64(1)
 		case stmt.Blob:
 			args[i] = make([]byte, 32)
+		case stmt.Real:
+			args[i] = 1.0
 		}
 	}
 	return args

@@ -77,7 +77,7 @@ type effectiveRuntime struct {
 	inventoryPreparationPlan *effectivePlan
 	directoryPlans           [4]*effectivePlan
 	publisherPlans           [2]*effectivePlan
-	enrichmentPlans          [4]*effectivePlan
+	enrichmentPlans          [5]*effectivePlan
 	registry                 *stmt.Registry
 	fenced                   bool
 	cleanupPanics            []terminalPanic
@@ -698,7 +698,15 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 				out.enrichment = enrichmentHistoricalResult(enrichment, lookup)
 				historical = lookup.decision != receiptFresh
 				if !historical && enrichment.payload != nil {
-					err = &Refusal{Code: RefusalUnqualified}
+					if purpose != EnrichAccept || enrichment.payload.accept == nil || enrichment.payload.variant != enrichmentAccept {
+						err = &Refusal{Code: RefusalUnqualified}
+					} else {
+						var v enrichAcceptResult
+						v, out.enrichment.Digest, err = applyEnrichAccept(ctx, turn, enrichment.payload.accept)
+						if err == nil {
+							out.enrichment.Value.accepted = &v
+						}
+					}
 				}
 			}
 		}
@@ -890,6 +898,14 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			}
 		} else {
 			out.effective.Value = EffectiveStageBeginResult{}
+		}
+	}
+	if enrichment != nil && !ack && !historical && enrichment.payload != nil {
+		if physical.state == committed {
+			out.enrichment.Outcome.State = Applied
+		} else {
+			out.enrichment.Value = enrichmentNativeResult{}
+			out.enrichment.Digest = ResultDigest{}
 		}
 	}
 	if scan != nil && scan.directoryInput != nil && !ack && !historical && physical.state == committed {

@@ -113,18 +113,18 @@ func applyEnrichAccept(ctx context.Context, turn *commandTurn, input *enrichAcce
 	if producer.CreditHead.Exists {
 		err = execSealOne(ctx, turn, enrichAcceptSourceReplace, b.request.publicationID, entity.id, owner.provider, producer.CreditHead.PublicationID, producer.CreditHead.Revision)
 	} else {
-		err = execSealOne(ctx, turn, enrichAcceptSourceFirst, entity.id, owner.provider, b.request.publicationID)
+		err = execSealOne(ctx, turn, enrichAcceptSourceFirst, entity.id, owner.provider, b.request.publicationID, int64(1))
 	}
 	if err != nil {
 		return out, digest, err
 	}
 	if q.prior.exists {
 		p := q.prior
-		if err = execSealOne(ctx, turn, enrichAcceptReleaseCurrent, p.owner, p.incarnation[:], p.generation, p.image, p.pinUnits, p.reservedBytes); err != nil {
+		if err = execSealOne(ctx, turn, enrichAcceptReleaseCurrent, nil, p.owner, p.incarnation[:], p.generation, p.image, p.pinUnits, p.reservedBytes); err != nil {
 			return out, digest, err
 		}
 	}
-	if err = execSealOne(ctx, turn, enrichAcceptOwnerFinish, input.identity.Sequence, b.request.ownerID, input.identity.Incarnation[:], owner.generation, entity.id, owner.provider, q.image.id, owner.lastSequence, owner.acknowledgedSequence, owner.lease, owner.leaseUntil, b.request.publicationID, q.stageSlot, q.reservedBytes); err != nil {
+	if err = execSealOne(ctx, turn, enrichAcceptOwnerFinish, input.identity.Sequence, nil, b.request.ownerID, input.identity.Incarnation[:], owner.generation, entity.id, owner.provider, q.image.id, owner.lastSequence, owner.acknowledgedSequence, owner.lease, owner.leaseUntil, b.request.publicationID, q.stageSlot, q.reservedBytes); err != nil {
 		return out, digest, err
 	}
 	if q.prior.exists {
@@ -136,7 +136,11 @@ func applyEnrichAccept(ctx context.Context, turn *commandTurn, input *enrichAcce
 			return out, digest, err
 		}
 	}
-	if err = execSealOne(ctx, turn, enrichAcceptOrigin, entity.id, producer.Selection.Revision, b.request.evidenceID); err != nil {
+	origin, err := readEnrichAcceptOrigin(ctx, turn, b.request.evidenceID)
+	if err != nil {
+		return out, digest, err
+	}
+	if err = execSealOne(ctx, turn, enrichAcceptOrigin, origin.subjectKind, origin.providerID, entity.id, "credits", origin.provider, "provider", origin.sourceURL, origin.confidence, origin.observedAt, origin.language, origin.region, producer.Selection.Revision, nil, b.request.evidenceID); err != nil {
 		return out, digest, err
 	}
 	if err = execSealOne(ctx, turn, enrichAcceptSelection, b.request.evidenceID, entity.id, owner.provider, producer.Selection.Incarnation[:], producer.Selection.Revision, owner.selectedID); err != nil {
@@ -151,7 +155,7 @@ func applyEnrichAccept(ctx context.Context, turn *commandTurn, input *enrichAcce
 	if err != nil {
 		return out, digest, err
 	}
-	if err = execSealOne(ctx, turn, enrichAcceptReceipt, b.request.ownerID, input.identity.Incarnation[:], input.identity.Sequence, input.identity.OperationID[:], input.digest[:], acceptedRevision, ms, entity.id, owner.afterItem, int64(len(q.rows)), q.image.id, imageRevision, int64(len(q.rows)), digest[:], s.owner, s.receipt.Identity.Incarnation[:], s.receipt.Identity.Sequence, b.request.publicationID, owner.provider); err != nil {
+	if err = execSealOne(ctx, turn, enrichAcceptReceipt, b.request.ownerID, input.identity.Incarnation[:], input.identity.Sequence, input.identity.OperationID[:], input.digest[:], "enrich_accept", acceptedRevision, ms, entity.id, owner.afterItem, int64(len(q.rows)), q.image.id, imageRevision, int64(len(q.rows)), digest[:], s.owner, s.receipt.Identity.Incarnation[:], s.receipt.Identity.Sequence, b.request.publicationID, owner.provider); err != nil {
 		return out, digest, err
 	}
 	// Actual deletion, never ACK/status alone, discharges the older ordinary
@@ -259,3 +263,31 @@ func enrichAcceptHasNone(ctx context.Context, t *commandTurn, id stmt.ID, args .
 }
 
 func parseEnrichAcceptLease(s string) (time.Time, error) { return time.Parse(time.RFC3339Nano, s) }
+
+// Origin fields are read from the sealed evidence BEFORE the upsert. The closed
+// grammar has no INSERT...SELECT, and the value set must be an immutable typed
+// fact, not a destination-read expression.
+type enrichAcceptOriginFacts struct {
+	subjectKind, providerID, provider, sourceURL, observedAt, language, region string
+	confidence                                                                 float64
+}
+
+func readEnrichAcceptOrigin(ctx context.Context, turn *commandTurn, evidence string) (out enrichAcceptOriginFacts, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	step, err := sealStep(turn, enrichAcceptOriginSource)
+	if err != nil {
+		return out, err
+	}
+	row, err := turn.queryRow(ctx, step, evidence)
+	if err != nil {
+		return out, err
+	}
+	out.confidence = 1.0
+	if err = row.Scan(&out.subjectKind, &out.providerID, &out.provider, &out.sourceURL, &out.observedAt, &out.language, &out.region); err != nil {
+		return out, ErrResolveRequired
+	}
+	if out.subjectKind == "" || out.providerID == "" || out.provider == "" || out.sourceURL == "" || out.observedAt == "" || out.language == "" || out.region == "" {
+		return out, ErrResolveRequired
+	}
+	return out, nil
+}
