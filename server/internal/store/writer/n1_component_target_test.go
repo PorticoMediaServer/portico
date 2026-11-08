@@ -367,9 +367,15 @@ type n1Stream struct {
 	base       map[string]any
 	sequence   uint64
 	err        error
+	async      *n1StreamWriter // opt-in: see n1_stream_writer_test.go
+	clock      func() int64    // test seam: nanoseconds since origin
 }
 
 func (s *n1Stream) append(kind string, fields map[string]any) error {
+	stamp := s.since() // the event time, BEFORE any lock
+	if s.async != nil {
+		return s.appendAsync(kind, fields, stamp)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.err != nil {
@@ -383,7 +389,7 @@ func (s *n1Stream) append(kind string, fields map[string]any) error {
 	for k, v := range fields {
 		record[k] = v
 	}
-	record["kind"], record["sequence"], record["at_ns"] = kind, s.sequence, time.Since(s.origin).Nanoseconds()
+	record["kind"], record["sequence"], record["at_ns"] = kind, s.sequence, stamp
 	var raw []byte
 	raw, s.err = json.Marshal(record)
 	if len(raw) > 2<<20 {
