@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -907,8 +908,11 @@ func TestNativeSearchPreviewWalkEmitsEachHitOnce(t *testing.T) {
 			}
 			break
 		}
-		if after != nil && page.Next.native != nil && len(page.Next.native.seen) < len(after.native.seen) {
-			t.Fatal("seen keys shrank between polls")
+		if after != nil && page.Next.native != nil {
+			prior, next := after.native.seen, page.Next.native.seen
+			if len(next) < len(prior) || !slices.Equal(prior, next[:len(prior)]) {
+				t.Fatal("seen keys are not append-only between polls", prior, next)
+			}
 		}
 		after = page.Next
 	}
@@ -921,6 +925,74 @@ func TestNativeSearchPreviewWalkEmitsEachHitOnce(t *testing.T) {
 	for id, n := range seen {
 		if id < 30 || id > 50 || n != 1 {
 			t.Fatal("hit emitted wrong number of times", id, n)
+		}
+	}
+}
+
+func nativeSeenPadding(n int) []nativeSeenKey {
+	keys := make([]nativeSeenKey, n)
+	for i := range keys {
+		keys[i] = nativeSeenKey{search.ManifestEntity, int64(7_000_000 + i)}
+	}
+	return keys
+}
+
+// With the emitted-key set at its bound, a poll that finds a fresh hit must
+// drop it AND stop saying "complete": even when the same poll exhausts the
+// postings the page is Partial, not Exhausted, and the walk ends.
+func TestNativeSearchPreviewSeenBoundNeverReportsFalseCompletion(t *testing.T) {
+	f, r := nativePreviewFixture(t)
+	first, err := nativePreviewRead(t, f, r, "arrival", nil, 0)
+	if err != nil || first.Next == nil || first.Next.native == nil || len(first.Hits) != 1 {
+		t.Fatal("setup: one hit and a continuation expected", first, err)
+	}
+	// Control: the unmodified continuation exhausts honestly with no repeat.
+	honest, err := nativePreviewRead(t, f, r, "arrival", first.Next, 0)
+	if err != nil || honest.Next != nil || !honest.Exhausted || honest.Partial || len(honest.Hits) != 0 {
+		t.Fatal("control walk", honest, err)
+	}
+	// The real hit is NOT in the padded set, so the exhausting poll finds it fresh
+	// while the set is already full.
+	full := *first.Next
+	full.native = cloneNativeContinuation(first.Next.native)
+	full.native.seen = nativeSeenPadding(NativePreviewCandidates)
+	page, err := nativePreviewRead(t, f, r, "arrival", &full, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Next != nil || len(page.Hits) != 0 || page.Exhausted || !page.Partial {
+		t.Fatal("dropped hit at the seen bound reported a complete walk", page)
+	}
+	// One slot below the bound still has room for exactly this hit.
+	room := *first.Next
+	room.native = cloneNativeContinuation(first.Next.native)
+	room.native.seen = nativeSeenPadding(NativePreviewCandidates - 1)
+	page, err = nativePreviewRead(t, f, r, "arrival", &room, 0)
+	if err != nil || len(page.Hits) != 1 || !page.Exhausted || page.Partial {
+		t.Fatal("hit refused with room left in the seen set", page, err)
+	}
+}
+
+func TestNativeSearchPreviewRefusesForgedSeenSets(t *testing.T) {
+	f, r := nativePreviewFixture(t)
+	first, err := nativePreviewRead(t, f, r, "story", nil, 0)
+	if err != nil || first.Next == nil || first.Next.native == nil {
+		t.Fatal("setup", err)
+	}
+	for name, seen := range map[string][]nativeSeenKey{
+		"over the bound":   nativeSeenPadding(NativePreviewCandidates + 1),
+		"unknown subject":  {{search.ManifestSubject(99), 5}},
+		"zero id":          {{search.ManifestEntity, 0}},
+		"negative id":      {{search.ManifestPerson, -3}},
+		"repeated key":     {{search.ManifestEntity, 5}, {search.ManifestEntity, 5}},
+		"repeat among set": append(nativeSeenPadding(10), nativeSeenKey{search.ManifestEntity, 7_000_003}),
+	} {
+		forged := *first.Next
+		forged.native = cloneNativeContinuation(first.Next.native)
+		forged.native.seen = seen
+		page, err := nativePreviewRead(t, f, r, "story", &forged, 0)
+		if !errors.Is(err, ErrStale) || !reflect.DeepEqual(page, FullSearchPage{}) {
+			t.Fatal("forged seen set accepted", name, page, err)
 		}
 	}
 }

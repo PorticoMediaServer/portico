@@ -376,6 +376,8 @@
         "TestNativeSearchPerHitPolicyRecheckedBeforePublication",
         "TestNativeSearchPlans",
         "TestNativeSearchPreviewCursorIsBoundToItsQuery",
+        "TestNativeSearchPreviewRefusesForgedSeenSets",
+        "TestNativeSearchPreviewSeenBoundNeverReportsFalseCompletion",
         "TestNativeSearchPreviewTheReturnsPartial",
         "TestNativeSearchPreviewWalkEmitsEachHitOnce",
         "TestNativeSearchPublicationDenialAndRetirement",

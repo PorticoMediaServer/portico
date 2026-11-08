@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"slices"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/search"
 )
 
 var errNativeCandidateBudget = errors.New("native preview candidate budget reached")
@@ -73,10 +75,12 @@ func nativePreviewAdvance(ctx context.Context, q browseQuery, scope *fullQuerySc
 		if state.slot < 1 || state.slot > 6 {
 			return FullSearchPage{}, ErrStale
 		}
+		if err := validNativeSeen(state.seen); err != nil {
+			return FullSearchPage{}, err
+		}
 	}
 	lead := nativeSearchLead{preview: scope.terms[0]}
 	finish := func(exhausted, budget bool) (FullSearchPage, error) {
-		complete := exhausted && !state.previewIncomplete
 		// One entity can be found through several postings in different polls;
 		// emit it once per walk. The seen keys are bounded by the candidate
 		// allowance, and the same bound ends the walk if it would be exceeded.
@@ -93,6 +97,9 @@ func nativePreviewAdvance(ctx context.Context, q browseQuery, scope *fullQuerySc
 			state.seen = append(state.seen, key)
 			fresh = append(fresh, hit)
 		}
+		// A hit dropped at the seen bound makes this window incomplete even on
+		// the last poll, so completeness is decided after the loop.
+		complete := exhausted && !state.previewIncomplete && !budget
 		page := FullSearchPage{Disposition: SearchResults, Hits: fresh, Partial: !complete, Exhausted: complete, CountStatus: SearchCountUnknown}
 		if len(page.Hits) > 0 {
 			page.CountStatus = SearchCountLowerBound
@@ -171,4 +178,24 @@ func nativePreviewAdvance(ctx context.Context, q browseQuery, scope *fullQuerySc
 		}
 	}
 	return finish(false, scope.nativeWork.limit > 0 && scope.nativeWork.used >= scope.nativeWork.limit)
+}
+
+// validNativeSeen refuses a continuation whose emitted-key set could not have
+// been issued by this reader: over the candidate allowance, a subject that is
+// neither entity nor person, a non-positive ID, or a repeated key.
+func validNativeSeen(seen []nativeSeenKey) error {
+	if len(seen) > NativePreviewCandidates {
+		return ErrStale
+	}
+	unique := make(map[nativeSeenKey]struct{}, len(seen))
+	for _, key := range seen {
+		if key.id <= 0 || key.subject != search.ManifestEntity && key.subject != search.ManifestPerson {
+			return ErrStale
+		}
+		if _, dup := unique[key]; dup {
+			return ErrStale
+		}
+		unique[key] = struct{}{}
+	}
+	return nil
 }
