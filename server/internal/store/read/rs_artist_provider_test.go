@@ -226,76 +226,85 @@ func TestRSArtistProviderAlbumAcceptedSource(t *testing.T) {
 	})
 }
 
+type rsAlbumProviderIncoherentSourceCase struct {
+	name  string
+	apply func(*testing.T, *browseFixture)
+}
+
+func rsAlbumProviderDeferred(t *testing.T, f *browseFixture, queries ...string) {
+	t.Helper()
+	f.exec(t, "BEGIN")
+	f.exec(t, "PRAGMA defer_foreign_keys=ON")
+	for _, q := range queries {
+		f.exec(t, q)
+	}
+	f.exec(t, "COMMIT")
+}
+
 // Each control starts from an independent live fixture, mutates before Begin
 // and requires absence of a provider fact rather than a false matched one.
-func TestRSArtistProviderAlbumRejectsIncoherentSource(t *testing.T) {
-	deferred := func(t *testing.T, f *browseFixture, queries ...string) {
-		f.exec(t, "BEGIN")
-		f.exec(t, "PRAGMA defer_foreign_keys=ON")
-		for _, q := range queries {
-			f.exec(t, q)
-		}
-		f.exec(t, "COMMIT")
-	}
-	for _, tc := range []struct {
-		name  string
-		apply func(*testing.T, *browseFixture)
-	}{
-		{"operation-ready", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_provider_operations SET status='ready' WHERE id=?`, rsAlbumProviderOpID)
-		}},
-		{"publication-generation", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_publications SET generation=4 WHERE id=?`, rsAlbumProviderPubID)
-		}},
-		{"publication-selection-revision", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_publications SET selection_revision=1 WHERE id=?`, rsAlbumProviderPubID)
-		}},
-		{"source-revision", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE catalog_entities SET source_revision=2 WHERE id=2001`)
-		}},
-		{"identity-revision", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE catalog_entities SET identity_revision=2 WHERE id=2001`)
-		}},
-		{"policy-incarnation", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_provider_policy SET incarnation=x'99999999999999999999999999999999' WHERE library_id=1 AND provider='musicbrainz'`)
-		}},
-		{"policy-revision", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_provider_policy SET revision=2 WHERE library_id=1 AND provider='musicbrainz'`)
-		}},
-		{"online-lookups-off", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_runtime_settings SET online_lookups=0 WHERE singleton=1`)
-		}},
-		{"lookup-epoch", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_runtime_settings SET lookup_epoch=6 WHERE singleton=1`)
-		}},
-		{"parser-version", func(t *testing.T, f *browseFixture) {
-			deferred(t, f,
-				`UPDATE enrichment_command_receipts SET seal_parser_version='fixture-parser' WHERE provider_operation_id='album-release-op'`,
-				`UPDATE metadata_evidence SET parser_version='fixture-parser' WHERE id='album-release-evidence'`,
-				`UPDATE metadata_provider_operations SET source_parser_version='fixture-parser' WHERE id='album-release-op'`,
-			)
-		}},
-		{"request-shape-movie", func(t *testing.T, f *browseFixture) {
-			deferred(t, f,
-				`UPDATE enrichment_command_receipts SET seal_request_shape='movie.detail.v1' WHERE provider_operation_id='album-release-op'`,
-				`UPDATE metadata_provider_subjects SET request_shape='movie.detail.v1' WHERE id=7001`,
-				`UPDATE metadata_evidence SET request_shape='movie.detail.v1' WHERE id='album-release-evidence'`,
-			)
-		}},
-		{"sealed-zero", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_evidence SET sealed=0,seal_proof_owner=NULL,seal_proof_incarnation=NULL,seal_proof_sequence=NULL WHERE id=?`, rsAlbumProviderEvidenceID)
-		}},
-		{"missing-current-proof", func(t *testing.T, f *browseFixture) {
-			deferred(t, f,
-				`UPDATE metadata_evidence SET seal_proof_owner=NULL,seal_proof_incarnation=NULL,seal_proof_sequence=NULL WHERE id='album-release-evidence'`,
-				`UPDATE metadata_provider_operations SET source_publication_id=NULL,source_owner_generation=NULL,source_evidence_id=NULL,source_subject_id=NULL,source_parser_version=NULL,source_next_position=NULL,source_expected_members=NULL,source_expected_bytes=NULL,source_algorithm=NULL,source_version=NULL,source_expected_commitment=NULL,source_evidence_owner=NULL,source_evidence_incarnation=NULL,source_evidence_sequence=NULL WHERE id='album-release-op'`,
-				`DELETE FROM enrichment_command_receipts WHERE provider_operation_id='album-release-op'`,
-			)
-		}},
-		{"namespace-region", func(t *testing.T, f *browseFixture) {
-			f.exec(t, `UPDATE metadata_provider_policy SET region='US' WHERE library_id=1 AND provider='musicbrainz'`)
-		}},
-	} {
+var rsAlbumProviderIncoherentSourceCases = []rsAlbumProviderIncoherentSourceCase{
+	{"operation-ready", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_provider_operations SET status='ready' WHERE id=?`, rsAlbumProviderOpID)
+	}},
+	{"publication-generation", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_publications SET generation=4 WHERE id=?`, rsAlbumProviderPubID)
+	}},
+	{"publication-selection-revision", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_publications SET selection_revision=1 WHERE id=?`, rsAlbumProviderPubID)
+	}},
+	{"source-revision", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE catalog_entities SET source_revision=2 WHERE id=2001`)
+	}},
+	{"identity-revision", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE catalog_entities SET identity_revision=2 WHERE id=2001`)
+	}},
+	{"policy-incarnation", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_provider_policy SET incarnation=x'99999999999999999999999999999999' WHERE library_id=1 AND provider='musicbrainz'`)
+	}},
+	{"policy-revision", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_provider_policy SET revision=2 WHERE library_id=1 AND provider='musicbrainz'`)
+	}},
+	{"online-lookups-off", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_runtime_settings SET online_lookups=0 WHERE singleton=1`)
+	}},
+	{"lookup-epoch", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_runtime_settings SET lookup_epoch=6 WHERE singleton=1`)
+	}},
+	{"parser-version", func(t *testing.T, f *browseFixture) {
+		rsAlbumProviderDeferred(t, f,
+			`UPDATE enrichment_command_receipts SET seal_parser_version='fixture-parser' WHERE provider_operation_id='album-release-op'`,
+			`UPDATE metadata_evidence SET parser_version='fixture-parser' WHERE id='album-release-evidence'`,
+			`UPDATE metadata_provider_operations SET source_parser_version='fixture-parser' WHERE id='album-release-op'`,
+		)
+	}},
+	{"request-shape-movie", func(t *testing.T, f *browseFixture) {
+		rsAlbumProviderDeferred(t, f,
+			`UPDATE enrichment_command_receipts SET seal_request_shape='movie.detail.v1' WHERE provider_operation_id='album-release-op'`,
+			`UPDATE metadata_provider_subjects SET request_shape='movie.detail.v1' WHERE id=7001`,
+			`UPDATE metadata_evidence SET request_shape='movie.detail.v1' WHERE id='album-release-evidence'`,
+		)
+	}},
+	{"sealed-zero", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_evidence SET sealed=0,seal_proof_owner=NULL,seal_proof_incarnation=NULL,seal_proof_sequence=NULL WHERE id=?`, rsAlbumProviderEvidenceID)
+	}},
+	{"missing-current-proof", func(t *testing.T, f *browseFixture) {
+		rsAlbumProviderDeferred(t, f,
+			`UPDATE metadata_evidence SET seal_proof_owner=NULL,seal_proof_incarnation=NULL,seal_proof_sequence=NULL WHERE id='album-release-evidence'`,
+			`UPDATE metadata_provider_operations SET source_publication_id=NULL,source_owner_generation=NULL,source_evidence_id=NULL,source_subject_id=NULL,source_parser_version=NULL,source_next_position=NULL,source_expected_members=NULL,source_expected_bytes=NULL,source_algorithm=NULL,source_version=NULL,source_expected_commitment=NULL,source_evidence_owner=NULL,source_evidence_incarnation=NULL,source_evidence_sequence=NULL WHERE id='album-release-op'`,
+			`DELETE FROM enrichment_command_receipts WHERE provider_operation_id='album-release-op'`,
+		)
+	}},
+	{"namespace-region", func(t *testing.T, f *browseFixture) {
+		f.exec(t, `UPDATE metadata_provider_policy SET region='US' WHERE library_id=1 AND provider='musicbrainz'`)
+	}},
+}
+
+// rsAlbumProviderRejectIncoherentSource runs the shared table range [from,to)
+// so focused shards can distribute fixture cost without duplicating cases.
+func rsAlbumProviderRejectIncoherentSource(t *testing.T, from, to int) {
+	t.Helper()
+	for _, tc := range rsAlbumProviderIncoherentSourceCases[from:to] {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				f, r := rsAlbumProviderFixture(t, tc.apply)
@@ -310,6 +319,22 @@ func TestRSArtistProviderAlbumRejectsIncoherentSource(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestRSArtistProviderAlbumRejectsIncoherentSourceHead(t *testing.T) {
+	rsAlbumProviderRejectIncoherentSource(t, 0, 4)
+}
+
+func TestRSArtistProviderAlbumRejectsIncoherentSourceRevisions(t *testing.T) {
+	rsAlbumProviderRejectIncoherentSource(t, 4, 8)
+}
+
+func TestRSArtistProviderAlbumRejectsIncoherentSourceRuntimeSeal(t *testing.T) {
+	rsAlbumProviderRejectIncoherentSource(t, 8, 12)
+}
+
+func TestRSArtistProviderAlbumRejectsIncoherentSourceProofNamespace(t *testing.T) {
+	rsAlbumProviderRejectIncoherentSource(t, 12, 14)
 }
 
 // A changed accepted source after the header was hydrated but before the fact
