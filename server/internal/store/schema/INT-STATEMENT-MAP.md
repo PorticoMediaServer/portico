@@ -753,3 +753,27 @@ Added release indexes and native predicates:
 People search publication must bind actual catalog_people.search_incarnation BLOB16 and existing real revision; never artwork incarnation, token, current ID alone or coerced fragment TEXT revision. Default randomblob(16) is fresh row birth only; writer preserves it across updates. Equal-ID recreation receives a fresh birth. No source/read authority follows from the default.
 
 Album inverse first: SELECT id FROM catalog_entities INDEXED BY catalog_entities_album_search WHERE album_id IS NOT NULL AND album_id=? ORDER BY id DESC LIMIT ?. Continuation adds AND id<? before ORDER BY. Binds first(owner,limit), next(owner,after_id,limit); positive owner/ID, limit1..64, every raw row charged before visibility. Existing catalog_entities_album remains for disc/track detail.
+
+
+## CHANGE-014 proposed sparse personal flags and bulk read time
+
+No execution grant. Group A, UO-001, post-1a-lock only. Each flag has its own
+fixed statement: force personal_current_watchlist/favorite/not_interested,
+WHERE profile_id=:profile AND literal flag=1 AND item_public_id>:after
+ORDER BY item_public_id LIMIT64. Public IDs are raw BLOB16, not integer IDs;
+raw positions precede bounded entity/library/kind/current-policy authorization.
+No library/live/visibility predicate is silently added to sparse membership.
+
+The existing STRICT notification_ack_heads gains read_through_ms. Read-all
+atomically captures sequence + allocated bulk revision + accepted time for ONE
+authorized principal/inbox head. A valid sparse individual read retains its exact
+time; newer explicit unread defeats an older covering bulk; a later bulk defeats
+older unread; producer restatement defeats stale ACK/head revisions. Bulk-only
+notices report the covering head's persisted time, which a later read-all may
+advance. GET never fabricates current time. No history relation or recipient
+fan-out. Current authority and original receipt protocol remain UO/W-owned.
+
+The DDL adds no FK or cascade. All3partial-index predicates are evaluated during
+applicable personal writes; actual WC generated write programs, WAL and holds
+need scoped refresh after lock. Existing authority/receipt/reclaim semantics
+are unchanged; these relational controls are not actual dispatcher qualification.

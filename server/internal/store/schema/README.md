@@ -226,3 +226,18 @@ startup repair, runtime cutover or phase2 A–F adoption is supplied. Actual
 writer/read source, receipt, custody, resource and physical qualification gates
 remain. Schema-dependent captures and exhaustive row models must match this
 combined layout; unknown drift stops the embed.
+
+
+CHANGE-014 is adopted: three exact sparse personal flag indexes and
+notification_ack_heads.read_through_ms. The six artifacts copy canonical
+phase0 verbatim. Flag membership is an own-profile BLOB public-ID raw keyset
+before current authority/visibility checks; it is not an authorization index.
+An individual notice read keeps its stored time; a bulk-only notice reports
+the current covering read-through time, and zero means no stored bulk time.
+No bulk-history relation or recipient fanout is introduced.
+
+Existing012+013 files fail exact native-layout verification and remain untouched.
+This bootstrap adds no migration, startup repair, runtime command or product
+cutover. The #1556 shared schema baseline is regenerated once per embed; only
+actual changed statement/VM/decoder plans require owner recapture. Writer
+receipt/authority/custody and hold/physical qualification remain separate gates.
