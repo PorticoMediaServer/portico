@@ -138,36 +138,48 @@ def engine_memory_peak():
 
 
 def timeline(root, stop):
-    """External scoped raw counters, actual page units and missing values; no zeros."""
-    path=root/'timeline.jsonl.gz'
-    result=dict(complete=False,origin_utc_ns=time.time_ns(),origin_monotonic_ns=time.monotonic_ns(),interval_requested_ns=10000000,page_bytes=os.sysconf('SC_PAGE_SIZE'),scope='host plus actual engine cgroup; observer outside engine')
-    samples=0
+    """External scoped raw counters, actual page units and missing values; no zeros.
+
+    The gzip parts roll at a bounded size so a long checkpoint run never hits a
+    single-file cap; every part is closed and independently round-trip verified.
+    """
+    result=dict(complete=False,origin_utc_ns=time.time_ns(),origin_monotonic_ns=time.monotonic_ns(),interval_requested_ns=10000000,page_bytes=os.sysconf('SC_PAGE_SIZE'),scope='host plus actual engine cgroup; observer outside engine',parts=[])
+    samples=0;part=0
     try:
-        with path.open('xb') as file:
-            capped=CappedWriter(file,128<<20)
-            compressor=zlib.compressobj(level=1,wbits=31)
-            while True:
-                before=time.monotonic_ns();values={};unavailable={}
-                sources={name:Path('/proc')/name for name in ('vmstat','meminfo','pressure/io')}
-                engine=root/'engine-path.json'
-                if engine.exists():
-                    group=json.loads(engine.read_text())['path']
-                    q.require(group.startswith('/') and group!='/' and '..' not in Path(group).parts,'invalid engine timeline scope')
-                    result['engine_cgroup']=group
-                    for name in ('memory.stat','io.stat','io.pressure'):
-                        sources['cgroup/'+name]=Path('/sys/fs/cgroup')/group.lstrip('/')/name
-                else: unavailable['engine_cgroup']='not yet observed'
-                for name,source in sources.items():
-                    try:values[name]=source.read_text()
-                    except OSError as error:values[name]=None;unavailable[name]=str(error)
-                row=dict(started_utc_ns=time.time_ns(),started_monotonic_ns=before,returned_monotonic_ns=time.monotonic_ns(),raw=values,unavailable_reasons=unavailable)
-                capped.write(compressor.compress((json.dumps(row,separators=(',',':'))+'\n').encode()))
-                samples+=1
-                if stop.wait(.01):break
-            capped.write(compressor.flush());file.flush()
-        decoded_digest(path)
+        while True:
+            path=root/f'timeline-{part:03d}.jsonl.gz'
+            part_samples=0;rotate=False
+            with path.open('xb') as file:
+                capped=CappedWriter(file,128<<20)
+                compressor=zlib.compressobj(level=1,wbits=31)
+                while True:
+                    if capped.size>=(128<<20)-(1<<20):
+                        rotate=True;break
+                    before=time.monotonic_ns();values={};unavailable={}
+                    sources={name:Path('/proc')/name for name in ('vmstat','meminfo','pressure/io')}
+                    engine=root/'engine-path.json'
+                    if engine.exists():
+                        group=json.loads(engine.read_text())['path']
+                        q.require(group.startswith('/') and group!='/' and '..' not in Path(group).parts,'invalid engine timeline scope')
+                        result['engine_cgroup']=group
+                        for name in ('memory.stat','io.stat','io.pressure'):
+                            sources['cgroup/'+name]=Path('/sys/fs/cgroup')/group.lstrip('/')/name
+                    else: unavailable['engine_cgroup']='not yet observed'
+                    for name,source in sources.items():
+                        try:values[name]=source.read_text()
+                        except OSError as error:values[name]=None;unavailable[name]=str(error)
+                    row=dict(started_utc_ns=time.time_ns(),started_monotonic_ns=before,returned_monotonic_ns=time.monotonic_ns(),raw=values,unavailable_reasons=unavailable)
+                    capped.write(compressor.compress((json.dumps(row,separators=(',',':'))+'\n').encode()))
+                    samples+=1;part_samples+=1
+                    if stop.wait(.01):break
+                capped.write(compressor.flush());file.flush()
+            decoded_digest(path)
+            result['parts'].append(dict(path=path.name,samples=part_samples,compressed_bytes=path.stat().st_size if path.exists() else 0))
+            if not rotate:break
+            part+=1
+            q.require(part<64,'timeline part bound exceeded')
         result['complete']=True
     except (OSError,ValueError,EOFError) as error:result['error']=str(error)
     finally:
-        result.update(samples=samples,compressed_bytes=path.stat().st_size if path.exists() else 0)
+        result.update(samples=samples,compressed_bytes=sum(p['compressed_bytes'] for p in result['parts']))
         q.atomic_json(root/'timeline.json',result)
