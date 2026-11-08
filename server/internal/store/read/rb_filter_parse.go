@@ -21,6 +21,12 @@ type rbFilterNode struct {
 }
 
 func parseRBScalarNode(raw json.RawMessage) (*rbFilterNode, error) {
+	return parseRBClosedNode(raw, rbParseScalarPredicate)
+}
+
+// The compiled caller chooses a closed predicate vocabulary. LC and saved-view
+// scalar calls retain their original whitelist; personal fields are opt-in.
+func parseRBClosedNode(raw json.RawMessage, predicate func(string, string, any) (*rbFilterNode, error)) (*rbFilterNode, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		return nil, nil
@@ -35,10 +41,10 @@ func parseRBScalarNode(raw json.RawMessage) (*rbFilterNode, error) {
 		return nil, ErrInput
 	}
 	clauses := 0
-	return rbParseScalarNode(value, 0, &clauses)
+	return rbParseClosedNode(value, 0, &clauses, predicate)
 }
 
-func rbParseScalarNode(value any, depth int, clauses *int) (*rbFilterNode, error) {
+func rbParseClosedNode(value any, depth int, clauses *int, predicate func(string, string, any) (*rbFilterNode, error)) (*rbFilterNode, error) {
 	if depth > 5 {
 		return nil, ErrInput
 	}
@@ -61,7 +67,7 @@ func rbParseScalarNode(value any, depth int, clauses *int) (*rbFilterNode, error
 			return nil, ErrInput
 		}
 		if child, ok := o["not"]; ok {
-			n, e := rbParseScalarNode(child, depth+1, clauses)
+			n, e := rbParseClosedNode(child, depth+1, clauses, predicate)
 			if e != nil {
 				return nil, e
 			}
@@ -78,7 +84,7 @@ func rbParseScalarNode(value any, depth int, clauses *int) (*rbFilterNode, error
 				}
 				parsed := make([]rbFilterNode, 0, len(list))
 				for _, v := range list {
-					n, e := rbParseScalarNode(v, depth+1, clauses)
+					n, e := rbParseClosedNode(v, depth+1, clauses, predicate)
 					if e != nil {
 						return nil, e
 					}
@@ -116,6 +122,18 @@ func rbParseScalarNode(value any, depth int, clauses *int) (*rbFilterNode, error
 	if variant == "relative" || op == "within-last-days" {
 		return nil, ErrUnqualified
 	}
+	n, err := predicate(field, op, v)
+	if err != nil {
+		return nil, err
+	}
+	*clauses++
+	if *clauses > 40 {
+		return nil, ErrInput
+	}
+	return n, nil
+}
+
+func rbParseScalarPredicate(field, op string, v any) (*rbFilterNode, error) {
 	var operators []string
 	switch field {
 	case "year":
@@ -130,10 +148,6 @@ func rbParseScalarNode(value any, depth int, clauses *int) (*rbFilterNode, error
 		return nil, ErrUnqualified
 	}
 	if !slices.Contains(operators, op) {
-		return nil, ErrInput
-	}
-	*clauses++
-	if *clauses > 40 {
 		return nil, ErrInput
 	}
 	if op == "is-present" || op == "is-missing" {
