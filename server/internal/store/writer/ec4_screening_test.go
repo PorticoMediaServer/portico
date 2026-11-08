@@ -55,6 +55,8 @@ type ec4ScreenReport struct {
 	TraversalCommitted                                                                        bool
 	Missing                                                                                   []string
 	Cgroup                                                                                    string
+	Batch                                                                                     bool
+	FreshBatchWidths, HistoryBatchWidths                                                      map[int]int
 }
 
 type ec4WALPolicy struct {
@@ -211,21 +213,25 @@ func (r *ec4ScreenReader) page(ctx context.Context, after *read.BrowseCursor) (r
 
 func ec4MapObserved(s InventoryPreparationSnapshot, page storage.NativeInventoryPage) (InventoryAcceptInput, error) {
 	in := s.Input
-	if page.Version != 1 || page.ErrorCode != "" || page.Unstable || page.Complete || len(page.Issues) != 0 || len(page.Entries) != 1 || page.Entries[0].Directory {
+	if page.Version != 1 || page.ErrorCode != "" || page.Unstable || page.Complete || len(page.Issues) != 0 || len(page.Entries) < 1 || len(page.Entries) > maxInventoryBatchFiles {
 		return in, ErrInvalid
 	}
-	e := page.Entries[0]
-	p, err := ProjectOrdinaryFilename(InventoryOrdinaryFilenameInput{IdentityRoot: s.IdentityRoot, AssetPath: e.Path, RelativePath: e.Name, MetadataLanguage: "en-US"})
-	if err != nil {
-		return in, err
+	in.Directory.NextCursor, in.Directory.RawNames = page.NextCursor, int64(len(page.Entries))
+	for _, e := range page.Entries {
+		if e.Directory {
+			return in, ErrInvalid
+		}
+		p, err := ProjectOrdinaryFilename(InventoryOrdinaryFilenameInput{IdentityRoot: s.IdentityRoot, AssetPath: e.Path, RelativePath: e.Name, MetadataLanguage: "en-US"})
+		if err != nil {
+			return in, err
+		}
+		m := p.Metadata
+		revision, err := (mediasource.InventoryEvidence{Kind: "local", Scope: in.Source.ID + ":" + in.Source.Incarnation, Object: objectidentity.StableObjectIdentity(e.ObjectIdentity, in.Source.RootIdentity), Size: e.Size, ModifiedNS: e.ModifiedNS, ChangeToken: e.ChangeToken}).Revision()
+		if err != nil {
+			return in, err
+		}
+		in.Files = append(in.Files, InventoryFilenameInput{RelativePath: e.Name, AssetPath: e.Path, ObjectIdentity: e.ObjectIdentity, Revision: revision, ChangeToken: e.ChangeToken, Size: e.Size, ModifiedNS: e.ModifiedNS, SourceKey: p.SourceKey, Year: p.Year, Part: p.Part, Title: m.Title, SortTitle: m.SortTitle, SortKey: m.SortKey, SortHead: m.SortHead, SortKeyKeepArticles: m.SortKeyKeepArticles, SortHeadKeepArticles: m.SortHeadKeepArticles, MetadataLanguage: m.MetadataLanguage})
 	}
-	m := p.Metadata
-	revision, err := (mediasource.InventoryEvidence{Kind: "local", Scope: in.Source.ID + ":" + in.Source.Incarnation, Object: objectidentity.StableObjectIdentity(e.ObjectIdentity, in.Source.RootIdentity), Size: e.Size, ModifiedNS: e.ModifiedNS, ChangeToken: e.ChangeToken}).Revision()
-	if err != nil {
-		return in, err
-	}
-	in.Directory.NextCursor, in.Directory.RawNames = page.NextCursor, 1
-	in.Files = []InventoryFilenameInput{{RelativePath: e.Name, AssetPath: e.Path, ObjectIdentity: e.ObjectIdentity, Revision: revision, ChangeToken: e.ChangeToken, Size: e.Size, ModifiedNS: e.ModifiedNS, SourceKey: p.SourceKey, Year: p.Year, Part: p.Part, Title: m.Title, SortTitle: m.SortTitle, SortKey: m.SortKey, SortHead: m.SortHead, SortKeyKeepArticles: m.SortKeyKeepArticles, SortHeadKeepArticles: m.SortHeadKeepArticles, MetadataLanguage: m.MetadataLanguage}}
 	return in, nil
 }
 
@@ -481,6 +487,7 @@ func TestEC4NativeScreening(t *testing.T) {
 	}
 	out := os.Getenv("PORTICO_EC4_OUTPUT")
 	qualification := os.Getenv("PORTICO_EC4_QUALIFICATION") == "1"
+	batch := os.Getenv("PORTICO_EC4_BATCH") == "1"
 	label := "SCREENING"
 	missing := []string{
 		"Basic readiness null: no end-to-end Basic producer exists; the lock row derives it from the qualified Basic write class times the population",
@@ -492,10 +499,16 @@ func TestEC4NativeScreening(t *testing.T) {
 	if qualification {
 		label = "QUALIFICATION"
 		missing = append(missing, "qualification runs the adopted governor.Phase1aWALPolicy")
+	} else if batch {
+		missing = append(missing, "batch screening uses the adopted Phase1a policy")
 	} else {
 		missing = append(missing, "screening uses the 96 MiB stress WAL fixture, not the adopted Phase1a policy")
 	}
+	if batch {
+		missing = append(missing, "foreground EC3 write-wait remains a separate measurement")
+	}
 	r := ec4ScreenReport{Features: os.Getenv("PORTICO_EC4_FEATURES"), Capabilities: map[string]bool{"inventory": true, "Basic_binding": false, "folder_binding": false}, Label: label, Qualification: qualification, Source: os.Getenv("PORTICO_EC4_SOURCE"), Profile: os.Getenv("PORTICO_EC4_STORAGE"), Requested: count, Phase: "fixture", Missing: missing}
+	r.Batch, r.FreshBatchWidths, r.HistoryBatchWidths = batch, map[int]int{}, map[int]int{}
 	if data, e := os.ReadFile("/proc/self/cgroup"); e == nil {
 		r.Cgroup = string(data)
 	}
@@ -524,7 +537,11 @@ func TestEC4NativeScreening(t *testing.T) {
 	}
 	r.Fixture, r.GenerationNS = fixture, time.Since(started).Nanoseconds()
 	r.Phase = "composition"
-	d, _, cp := n1ComposedDriverFixtureState(t, n1EC4ScreeningFixture)
+	profile := n1EC4ScreeningFixture
+	if batch {
+		profile = n1BatchEC4Fixture
+	}
+	d, _, cp := n1ComposedDriverFixtureState(t, profile)
 	r.WALPolicy = ec4WALPolicy{HardBytes: cp.policy.HardBytes, ReserveBytes: cp.policy.ReserveBytes, SoftDebtBytes: cp.policy.SoftDebtBytes, ActivePressureBytes: cp.policy.ActivePressureBytes, ConcurrentPassive: cp.policy.ConcurrentPassive}
 	// #1620's pressure recovery only runs when trusted composition attaches the
 	// SAME funded keeper's request/results hook (the WC and publisher targets do
@@ -634,13 +651,18 @@ func TestEC4NativeScreening(t *testing.T) {
 			if e != nil {
 				return e
 			}
-			name := string(in.Files[0].RelativePath)
-			if !strings.HasPrefix(name, "EC4 ") || len(name) < 14 {
-				return fmt.Errorf("unexpected native name")
-			}
-			ordinal, e := strconv.Atoi(name[4:13])
-			if e != nil || ordinal < 0 || ordinal >= count || seen[ordinal] {
-				return fmt.Errorf("duplicate/outside fixture ordinal")
+			ordinals := make([]int, len(in.Files))
+			cohort := map[int]bool{}
+			for i, file := range in.Files {
+				name := string(file.RelativePath)
+				if !strings.HasPrefix(name, "EC4 ") || len(name) < 14 {
+					return fmt.Errorf("unexpected native name")
+				}
+				ordinal, err := strconv.Atoi(name[4:13])
+				if err != nil || ordinal < 0 || ordinal >= count || seen[ordinal] || cohort[ordinal] {
+					return fmt.Errorf("duplicate/outside fixture ordinal")
+				}
+				ordinals[i], cohort[ordinal] = ordinal, true
 			}
 			r.Phase = "freeze"
 			command, e := preparation.Freeze(t.Context(), in)
@@ -689,7 +711,7 @@ func TestEC4NativeScreening(t *testing.T) {
 					return errors.Join(acceptErr, e)
 				}
 			}
-			if result.Outcome.State != Applied || result.Outcome.Reference != original.Receipt || len(result.Members) != 1 {
+			if result.Outcome.State != Applied || result.Outcome.Reference != original.Receipt || len(result.Members) != len(in.Files) || result.ResultCount != int64(len(in.Files)) {
 				if e = ec4Journal(journal, map[string]any{"phase": "unapplied_original", "original": original, "result": result}); e != nil {
 					return e
 				}
@@ -714,8 +736,15 @@ func TestEC4NativeScreening(t *testing.T) {
 			if e != nil {
 				return e
 			}
-			seen[ordinal] = true
-			r.Accepted++
+			for _, ordinal := range ordinals {
+				seen[ordinal] = true
+			}
+			r.Accepted += len(ordinals)
+			if result.Outcome.Replayed {
+				r.HistoryBatchWidths[len(ordinals)]++
+			} else {
+				r.FreshBatchWidths[len(ordinals)]++
+			}
 			last = ScanRunReference{Scan: original, Purpose: InventoryAccept}
 			if r.FirstFilenameVisibleNS == nil {
 				r.Phase = "first_browse"

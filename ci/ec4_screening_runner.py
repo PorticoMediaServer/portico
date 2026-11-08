@@ -654,6 +654,7 @@ def main(argv: list[str]) -> int:
             "PORTICO_EC4_SOURCE": git["actual_sha"],
             "PORTICO_EC4_FEATURES": "inventory",
             "PORTICO_EC4_QUALIFICATION": "1" if qualification else "",
+            "PORTICO_EC4_BATCH": "1" if os.environ.get("PORTICO_EC4_BATCH") == "1" else "",
             "GOMAXPROCS": "2",
             "TMPDIR": str(db_tmp),
             "HOME": str(home),
