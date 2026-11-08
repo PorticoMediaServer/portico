@@ -266,10 +266,13 @@ jobs:
               ;;
             ec1-rare)
               mkdir -p "$OUTPUT/evidence"
-              PORTICO_LANE_EVIDENCE_DIR="$OUTPUT/evidence" PORTICO_EC1_RARE_ERRORS=1 PORTICO_EC1_RARE_ITERATIONS=10000 \
-                "$RUNNER_TEMP/writer.test" -test.run=^TestEC1RareErrorPaths$ -test.count=1 -test.v -test.timeout=30m \
+              set +e
+              ( cd source/server/internal/store/writer && \
+                PORTICO_LANE_EVIDENCE_DIR="$OUTPUT/evidence" PORTICO_EC1_RARE_ERRORS=1 PORTICO_EC1_RARE_ITERATIONS=10000 \
+                "$RUNNER_TEMP/writer.test" -test.run=^TestEC1RareErrorPaths$ -test.count=1 -test.v -test.timeout=30m ) \
                 > "$OUTPUT/target.log" 2>&1
               code=$?
+              set -e
               echo "$code" > "$OUTPUT/target-exit-code.txt"
               ;;
             ec5-paired|ec5-sustained)
