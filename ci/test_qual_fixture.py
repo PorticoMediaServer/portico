@@ -58,6 +58,14 @@ class Inputs(unittest.TestCase):
                     q.inputs({'INPUT_SOURCE_REF': value})
                 popen.assert_not_called()
 
+    def test_search_bank_input(self):
+        self.assertFalse(q.inputs({'INPUT_SOURCE_REF': 'main'})['search_bank'])
+        self.assertFalse(q.inputs({'INPUT_SOURCE_REF': 'main', 'INPUT_SEARCH_BANK': 'false'})['search_bank'])
+        self.assertTrue(q.inputs({'INPUT_SOURCE_REF': 'main', 'INPUT_SEARCH_BANK': 'true'})['search_bank'])
+        for value in ('1', 'yes', 'True', 'true '):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                q.inputs({'INPUT_SOURCE_REF': 'main', 'INPUT_SEARCH_BANK': value})
+
     def test_bounds_and_zero_seed(self):
         cfg = q.inputs({'INPUT_SOURCE_REF': 'main', 'INPUT_SEED': '0'})
         self.assertEqual((cfg['seed'], cfg['residents']), (0, 1000000))
@@ -211,8 +219,9 @@ class Protocol(unittest.TestCase):
                 self.assertEqual(cwd, module / 'internal/store/writer')
                 self.assertEqual(timeout, 3630)
                 config = json.loads((work / 'export-config.json').read_text())
-                self.assertEqual(set(config), {'output_dir', 'source_commit', 'seed', 'residents'})
+                self.assertEqual(set(config), {'output_dir', 'source_commit', 'seed', 'residents', 'search_bank'})
                 self.assertEqual(config['seed'], 0)
+                self.assertIs(config['search_bank'], False)
                 self.assertTrue(Path(config['output_dir']).is_absolute())
                 self.assertEqual(child_env['PORTICO_QUAL_FIXTURE_HOSTED'], '1')
                 synthetic(Path(config['output_dir']))
