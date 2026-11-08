@@ -31,14 +31,16 @@ AND o.proof_cleanup_phase IN('idle','source_members','source_header','receipts')
 				{Table: "metadata_evidence_builds", Name: "sqlite_autoindex_metadata_evidence_builds_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
 				{Table: "metadata_provider_operations", Name: "sqlite_autoindex_metadata_provider_operations_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
 			}}},
-		{ID: effectiveSourceCustodyControl, SQL: `SELECT 1 FROM metadata_provider_operations
+		{ID: effectiveSourceCustodyControl, SQL: `SELECT 1 FROM metadata_provider_operations INDEXED BY sqlite_autoindex_metadata_provider_operations_1
 WHERE id=? AND command_incarnation=? AND entity_id=? AND provider=? AND source_publication_id=?
 AND source_owner_generation=? AND source_content_revision=? AND source_next_position=? AND source_expected_members=?
 AND source_expected_bytes=? AND source_algorithm=? AND source_version=? AND source_expected_commitment=?
 AND source_evidence_id=? AND source_subject_id=? AND source_parser_version=?
 AND source_evidence_owner=? AND source_evidence_incarnation=? AND source_evidence_sequence=? AND proof_cleanup_phase='idle'`,
 			Params: []stmt.Param{text("owner"), blob("incarnation"), number("entity"), text("provider"), text("publication"), number("source_owner_generation"), number("source_content_revision"), number("source_next_position"), number("source_expected_members"), number("source_expected_bytes"), text("source_algorithm"), number("source_version"), blob("source_expected_commitment"), text("evidence"), number("subject"), text("parser"), text("upstream_owner"), blob("upstream_incarnation"), number("upstream_sequence")},
-			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_1"}, Seeks: []string{"id=?"}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_1"}, Seeks: []string{"id=?"}, AutoIndexes: []stmt.AutoIndexBinding{
+				{Table: "metadata_provider_operations", Name: "sqlite_autoindex_metadata_provider_operations_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}},
+			}}},
 	}
 	for i := range defs {
 		defs[i].Owner, defs[i].Kind = "writer.enrichment", stmt.Read
