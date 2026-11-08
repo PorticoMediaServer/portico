@@ -332,3 +332,58 @@ func TestBasicControlDispatchRefusesSealBeforeStageAndStaleRun(t *testing.T) {
 		t.Fatal("stale Stage left effects", r, v, f)
 	}
 }
+
+// A media family (4, one chapter fact) stages and seals through the SAME
+// dispatcher with header-only receipts, after the Stage receipt's floor.
+func TestBasicMediaStageThenSealDispatch(t *testing.T) {
+	w, e, authority, s, original, identity := basicControlDispatchFixture(t)
+	for _, q := range []string{`UPDATE catalog_info_changes SET family_mask=511 WHERE id=51`,
+		`INSERT INTO catalog_info_input_families(change_id,family,witness_ordinal,rows_expected) VALUES(51,4,0,1)`} {
+		if _, err := e.db.ExecContext(t.Context(), q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row, err := basicStageMediaRowOf(basicChapterFact{37, "known", "chapters:37"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	media := func(purpose BasicPurpose, scope basicOriginalScope) basicControlRequest {
+		r := basicControlRequest{original: scope, purpose: purpose, operation: basicControlMediaRows, source: s, family: 4, rows: []basicStageMediaRow{row}}
+		if purpose == BasicPurposeStage {
+			r.end = 1
+		}
+		return r
+	}
+	stage, err := newBasicStageCommand(identity, media(BasicPurposeStage, original))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, _ := stage.receiptRequest()
+	disclosure := inventoryTestDisclosure(t, w, q.Scan)
+	got, _, err := w.effective.runBasic(t.Context(), w, disclosure, basicInvocation{request: q, stage: stage}, false)
+	if err != nil || got.Outcome.State != Applied || got.Purpose != BasicPurposeStage || len(got.Members) != 0 {
+		t.Fatal("media Stage", got, err)
+	}
+	if _, ack, err := w.effective.runBasic(t.Context(), w, disclosure, basicInvocation{request: q}, true); err != nil || ack.AcknowledgedThrough != identity.Sequence {
+		t.Fatal("media Stage ACK", ack, err)
+	}
+	next := identity
+	next.Sequence++
+	next.OperationID[0] ^= 0x20
+	after := original
+	after.run.revision, after.run.lastSequence, after.run.acknowledgedSequence = got.AcceptedRunRevision, identity.Sequence, identity.Sequence
+	seal, err := newBasicSealCommand(next, media(BasicPurposeSeal, after))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ql, _ := seal.receiptRequest()
+	sealed, _, err := w.effective.runBasic(t.Context(), w, disclosure, basicInvocation{request: ql, seal: seal}, false)
+	if err != nil || sealed.Outcome.State != Applied || sealed.Purpose != BasicPurposeSeal || sealed.Continuation != (BasicContinuation{}) {
+		t.Fatal("media Seal", sealed, err)
+	}
+	basicDispatchReturned(t, e, authority)
+	var staged, isSealed int64
+	if err := e.db.QueryRowContext(t.Context(), `SELECT rows_staged,sealed FROM catalog_info_input_families WHERE change_id=51 AND family=4`).Scan(&staged, &isSealed); err != nil || staged != 1 || isSealed != 1 {
+		t.Fatal("family-4 native state", staged, isSealed, err)
+	}
+}
