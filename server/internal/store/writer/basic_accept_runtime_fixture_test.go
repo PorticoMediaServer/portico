@@ -72,7 +72,13 @@ func basicAcceptRuntimeFixture(t *testing.T, e *executor, c *basicAcceptCommand,
 	if len(maintenance) == 1 {
 		partitions[governor.Recovery] = maintenance[0].need
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: e.now, WAL: wal})
+	grants := 2
+	if len(maintenance) == 1 {
+		// An open keeper holds its lifetime and startup grants plus a
+		// nonborrowable shutdown floor; the command profiles still fit.
+		grants = 4
+	}
+	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: grants, Now: e.now, WAL: wal})
 	if err != nil {
 		t.Fatal(err)
 	}
