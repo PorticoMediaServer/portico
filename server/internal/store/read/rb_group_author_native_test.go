@@ -87,6 +87,21 @@ func testRBGroupAuthorNative(t *testing.T) {
 
 var _ []stmt.Definition = RBAuthorDefinitions()
 
+func TestRBGroupAuthorNativeNonfinite(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		source := rbGroupSource(t)
+		source.exec(t, `UPDATE catalog_entities SET series='Saga',series_position='1e999' WHERE id=2006`)
+		defs := append(append(browseDefinitions(), RBGroupDefinitions()...), RBAuthorDefinitions()...)
+		f := composeBrowseFixture(t, source, defs)
+		view := f.input
+		view.Kind = 9
+		got, _, err := f.reader.rbAuthorExact(t.Context(), rbGroupRequest(), time.Second, f.output, view, 2005)
+		if !errors.Is(err, ErrUnqualified) || !reflect.DeepEqual(got, RBAuthorScope{}) {
+			t.Fatal("SQLite infinity became an author order", got, err)
+		}
+	})
+}
+
 func TestRBGroupAuthorBounds(t *testing.T) {
 	for _, tc := range []struct {
 		name         string

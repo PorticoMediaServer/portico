@@ -10,6 +10,7 @@ func TestRBGroupAuthorOrderDraft(t *testing.T) {
 	zero, two := 0.0, 2.0
 	rows := []rbAuthorOrderRow{
 		{Book: 9, Part: 90, TitleKey: "A", Disc: 1},
+		{Book: 4, Part: 40, Series: "Saga", Position: &two, TitleKey: "b", Disc: 0},
 		{Book: 3, Part: 32, Series: "Saga", Position: &two, TitleKey: "B", Disc: 2},
 		{Book: 3, Part: 31, Series: "saga", Position: &two, TitleKey: "b", Disc: 1},
 		{Book: 2, Part: 20, Series: "SAGA", Position: &zero, TitleKey: "Z", Disc: 1},
@@ -20,9 +21,9 @@ func TestRBGroupAuthorOrderDraft(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		want := []int64{10, 20, 31, 32, 90}
+		want := []int64{10, 20, 31, 32, 40, 90}
 		if desc {
-			want = []int64{90, 32, 31, 20, 10}
+			want = []int64{90, 40, 32, 31, 20, 10}
 		}
 		var ids []int64
 		for _, r := range got {
