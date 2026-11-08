@@ -17,7 +17,7 @@ func TestCanonicalHeldClosedRegistryKeepsAllBindingsExplicit(t *testing.T) {
 			t.Fatal("duplicate/empty class", c)
 		}
 		seen[c.name] = true
-		ready := c.name == "inventory_n1" || c.name == "basic_accept" || c.name == "staged_enrich" || c.name == "progress" || c.name == "security" || c.name == "wc_reclaim" || c.name == "publisher_fragment" || c.name == "publisher_flip"
+		ready := c.name == "inventory_batch" || c.name == "inventory_n1" || c.name == "basic_accept" || c.name == "staged_enrich" || c.name == "progress" || c.name == "security" || c.name == "wc_reclaim" || c.name == "publisher_fragment" || c.name == "publisher_flip"
 		want := 1
 		if ready {
 			want = 0
@@ -29,7 +29,7 @@ func TestCanonicalHeldClosedRegistryKeepsAllBindingsExplicit(t *testing.T) {
 			t.Fatal("read became writer class", c)
 		}
 	}
-	if len(seen) != 27 {
+	if len(seen) != 28 {
 		t.Fatal(seen)
 	}
 	if _, err := canonicalHeldClassFor("caller_sql"); err == nil {

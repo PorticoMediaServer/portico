@@ -156,6 +156,7 @@ func attachCanonicalHeldPopulation(t *testing.T, cfg canonicalHeldConfig) Qualif
 func canonicalHeldClasses() []canonicalHeldClass {
 	n1, basic, enrich, progress, security, fragment, flip, reclaim := InventoryAccept, BasicAccept, EffectiveStage, ProgressAccept, SecurityAccept, SearchFragmentStage, SearchHeadPublish, ProgressReceiptReclaim
 	return []canonicalHeldClass{
+		classTargetEntry(classTargetSpec{Name: "inventory_batch", Owner: "SC/W", Kind: "normal_write", Purpose: &n1, Run: canonicalInternalRun(runCanonicalHeldBatch), Reason: "ordered movie batch; EC3 foreground composition remains separate"}),
 		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: canonicalInternalRun(runCanonicalHeldN1), reason: "timing cohort does not expose complete observed statement-byte totals; inspect nullable per-attempt profile facts"},
 		{name: "basic_accept", owner: "SC/W", kind: "normal_write", purpose: &basic, run: canonicalInternalRun(runCanonicalHeldBasic), reason: "prepared ordinary-leaf input; probe/Stage/copy clocks excluded and unqualified"},
 		{name: "staged_enrich", owner: "EN/W", kind: "normal_write", purpose: &enrich, run: canonicalInternalRun(runCanonicalHeldStagedEnrich), reason: "prepared operation-owned source seal, hidden image and BEGIN receipt per original; final EnrichAccept measured; preparation excluded and unqualified"},

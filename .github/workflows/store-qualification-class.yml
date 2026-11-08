@@ -12,7 +12,7 @@ on:
         description: Closed accepting owner class
         required: true
         type: choice
-        options: [inventory_n1, basic_accept, staged_enrich, progress, security, wc_reclaim, publisher_fragment, publisher_flip, checkpoint_1mib, checkpoint_8mib, checkpoint_64mib, checkpoint_hardcap]
+        options: [inventory_n1, inventory_batch, basic_accept, staged_enrich, progress, security, wc_reclaim, publisher_fragment, publisher_flip, checkpoint_1mib, checkpoint_8mib, checkpoint_64mib, checkpoint_hardcap]
       producer_run: {description: Immutable successful 1M producer run ID, required: true, type: string}
       producer_attempt: {description: Producer attempt, default: '1', type: string}
       manifest_sha256: {description: Independently checked producer receipt manifest SHA256, required: true, type: string}
