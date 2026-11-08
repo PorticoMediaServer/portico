@@ -257,7 +257,7 @@ func TestEC4NativeScreening(t *testing.T) {
 	if e = errors.Join(e, closeErr); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = cp.w.db.ExecContext(t.Context(), `UPDATE library_sources SET resolved_root=?,root_identity=? WHERE id='lifecycle-new-source'`, root, rootIdentity); e != nil {
+	if _, e = cp.w.db.ExecContext(t.Context(), `UPDATE library_sources SET root=?,root_identity=? WHERE id='lifecycle-new-source'`, root, rootIdentity); e != nil {
 		t.Fatal(e)
 	}
 	r.Phase = "reader_setup"
