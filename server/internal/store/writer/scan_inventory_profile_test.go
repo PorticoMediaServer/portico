@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -19,6 +20,16 @@ func TestN1OperatingForecastCompleteReservations(t *testing.T) {
 	p := d.writer.effective.inventoryDriverPlan
 	if p == nil || p.need[governor.MemoryBytes] != 16<<20 || p.inventoryMemory.preparationBytes != 8<<20 || p.inventoryMemory.reservedBytes != 8<<20 {
 		t.Fatal("forecast partition not installed under same frame", p)
+	}
+	// Target and runtime ceiling stay distinct: the forecast is the shared
+	// 25ms admission target and the quantum's safety window is the 3s ceiling.
+	if p.recipe.limit.Hold != MaxCommandHold || MaxCommandSafetyHold != 3*time.Second {
+		t.Fatal("N1 hold forecast is not the shared admission target", p.recipe.limit.Hold)
+	}
+	start := time.Unix(1, 0)
+	q, err := NewQuantum(p.recipe.limit, p.recipe.terminal, start)
+	if err != nil || !q.end.Equal(start.Add(MaxCommandSafetyHold)) {
+		t.Fatal("N1 forecast changed the runtime safety window", q, err)
 	}
 	reads, writes := 0, 0
 	for _, def := range inventoryDriverCommandDefinitions() {
