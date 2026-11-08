@@ -38,6 +38,32 @@ verdict. See `server/internal/store/qual/cmd/rollup/README.md`. A row cannot
 pass if a cell's target flag is false, a profile lacks three distinct boot
 identities, a population is short, or a cell stopped or refused.
 
+## How a class owner declares its target
+
+The class dispatcher is only transport for the target declaration. The class
+owner computes its own `target_flag` from its own measured result against its
+own EC target, and puts a `target` object on its final raw record (`final`).
+The dispatcher copies that closed object to `target.json` beside the receipt,
+taking `class`, `profile` and `replicate` from the receipt and never from the
+owner. It accepts exactly `version`, `class`, `profile`, `replicate`, `target`,
+`target_flag`, `reason`, `gate`, `min_holds_per_host` and `synthetic`;
+`target_flag` must be a JSON boolean or null, `gate` must be
+`hosted_p99_u95_10ms` or `cell_declared`, `min_holds_per_host` must be a
+positive integer, and a class/profile/replicate that disagrees with the receipt
+is refused. Unknown fields, wrong types and oversized strings are refused.
+No `target` object means no `target.json`, so the cell stays unavailable; the
+transport never derives a flag from timings, never defaults it to true and never
+relaxes a declared target.
+
+```json
+{"target": {"version": "portico-class-target-v1", "target": "per-host p99 U95 <= 10 ms",
+            "target_flag": true, "reason": "owner measured the hosted bound",
+            "gate": "hosted_p99_u95_10ms", "min_holds_per_host": 10000, "synthetic": false}}
+```
+
+Unit and end-to-end controls run with the other dispatcher tests:
+`python3 -B -m unittest discover -s ci -p test_qual_class.py`.
+
 Every class requests 10,000 originals, not an inferred 10,000 accepted holds.
 The owner keeps its actual warmup and each recipe/phase separate. A successful
 wire/exit means only owner-execution completion. Per-host per-recipe counts,

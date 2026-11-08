@@ -3,6 +3,8 @@ import gzip
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -385,6 +387,137 @@ class ClassProtocol(unittest.TestCase):
         self.assertEqual(json.loads((output/'receipt.json').read_text())['status'], 'failed')
         files = json.loads((output/'files.json').read_text())
         self.assertEqual({f['path'] for f in files}, {'raw.ndjson.gz', 'raw-storage.json', 'receipt.json'})
+
+
+class OwnerTargetTransport(unittest.TestCase):
+    """The owner's declaration is copied, never computed, by the transport."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix='qual-class-target-', dir=Path.cwd())
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.receipt = dict(declared=dict(name='inventory_n1', profile='standard', replicate=1),
+                            wire=dict(owner_final=dict(kind='final', complete=True)))
+        self.declaration = dict(version='portico-class-target-v1', **{'class': 'inventory_n1'},
+                                profile='standard', replicate=1, target='per-host p99 U95 <= 10 ms',
+                                target_flag=True, reason='owner measured its own target', gate='hosted_p99_u95_10ms',
+                                min_holds_per_host=10000, synthetic=False)
+
+    def declare(self, declaration, receipt=None):
+        receipt = self.receipt if receipt is None else receipt
+        receipt['wire']['owner_final']['target'] = declaration
+        return c.write_owner_target(self.root, receipt)
+
+    def test_valid_declaration_is_written_exactly_with_receipt_identity(self):
+        self.assertEqual(self.declare(self.declaration), self.declaration)
+        self.assertEqual(json.loads((self.root/'target.json').read_text()), self.declaration)
+
+    def test_absent_declaration_writes_nothing(self):
+        self.assertIsNone(c.write_owner_target(self.root, self.receipt))
+        self.assertFalse((self.root/'target.json').exists())
+        self.receipt['wire']['owner_final']['target'] = None
+        self.assertIsNone(c.write_owner_target(self.root, self.receipt))
+        self.assertFalse((self.root/'target.json').exists())
+
+    def test_null_flag_is_preserved(self):
+        self.declare(dict(self.declaration, target_flag=None))
+        written = json.loads((self.root/'target.json').read_text())
+        self.assertIsNone(written['target_flag'])
+
+    def test_unknown_field_is_refused(self):
+        with self.assertRaisesRegex(ValueError, 'unknown owner target field'):
+            self.declare(dict(self.declaration, extra='not part of the contract'))
+        self.assertFalse((self.root/'target.json').exists())
+
+    def test_disagreeing_identity_is_refused(self):
+        for key, value in (('class', 'security'), ('profile', 'legacy8'), ('replicate', 2)):
+            with self.subTest(key=key):
+                self.root = self.root/key
+                self.root.mkdir()
+                with self.assertRaisesRegex(ValueError, key + ' disagrees'):
+                    self.declare(dict(self.declaration, **{key: value}))
+                self.assertFalse((self.root/'target.json').exists())
+
+    def test_non_boolean_flag_is_refused(self):
+        for flag in (1, 0, 'true', [], {}):
+            with self.subTest(flag=flag), self.assertRaisesRegex(ValueError, 'target_flag'):
+                self.declare(dict(self.declaration, target_flag=flag))
+        self.assertFalse((self.root/'target.json').exists())
+
+    def test_oversized_string_is_refused(self):
+        for key, limit in c.TARGET_TEXT_LIMITS.items():
+            with self.subTest(key=key):
+                self.root = self.root/key
+                self.root.mkdir()
+                with self.assertRaisesRegex(ValueError, key + ' must be a string'):
+                    self.declare(dict(self.declaration, **{key: 'x'*(limit+1)}))
+                self.assertFalse((self.root/'target.json').exists())
+
+    def test_gate_and_floor_are_closed(self):
+        for declaration, message in ((dict(self.declaration, gate='anything'), 'gate'),
+                                     (dict(self.declaration, min_holds_per_host=0), 'min_holds_per_host'),
+                                     (dict(self.declaration, min_holds_per_host=True), 'min_holds_per_host')):
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                self.declare(declaration)
+        self.assertFalse((self.root/'target.json').exists())
+
+    @unittest.skipUnless(shutil.which('go'), 'Go toolchain is required for the roll-up generator')
+    def test_rollup_passes_only_when_the_owner_flag_is_true(self):
+        repository = Path(__file__).resolve().parents[1]
+        module = repository/'server'
+        source = module/'internal/store/qual/cmd/rollup/testdata/allpass'
+        if not source.is_dir():
+            self.skipTest('roll-up fixtures are not available')
+        artifacts = self.root/'artifacts'
+        artifacts.mkdir()
+        cells = []
+        for directory in sorted(source.iterdir()):
+            if not (directory/'receipt.json').is_file():
+                continue
+            cell = artifacts/directory.name
+            cell.mkdir()
+            shutil.copyfile(directory/'receipt.json', cell/'receipt.json')
+            shutil.copyfile(directory/'raw.ndjson', cell/'raw.ndjson')
+            cells.append(cell)
+        self.assertEqual(len(cells), 6)
+        binary = self.root/'rollup'
+        subprocess.run(['go', 'build', '-o', str(binary), './internal/store/qual/cmd/rollup'],
+                       cwd=module, check=True, capture_output=True, timeout=300)
+        fixture_declaration = dict(version='portico-class-target-v1', target='synthetic fixture target',
+                                   target_flag=True, reason='synthetic fixture; not evidence',
+                                   gate='cell_declared', min_holds_per_host=3, synthetic=True)
+
+        def rollup():
+            out = self.root/('out-' + str(len(list(self.root.glob('out-*')))))
+            result = subprocess.run([str(binary), '-artifacts', str(artifacts), '-out', str(out)],
+                                    cwd=module, capture_output=True, text=True, timeout=300)
+            report = json.loads((out/'rollup.json').read_text())
+            self.assertEqual(result.returncode == 0, report['verdict'] == 'pass')
+            return report
+
+        def prepare(declaration):
+            for cell in cells:
+                target = cell/'target.json'
+                if target.exists():
+                    target.unlink()
+                receipt = json.loads((cell/'receipt.json').read_text())
+                final = {'kind': 'final', 'complete': True}
+                if declaration is not None:
+                    final['target'] = dict(declaration, **{
+                        'class': receipt['declared']['name'], 'profile': receipt['declared']['profile'],
+                        'replicate': receipt['declared']['replicate']})
+                receipt['wire'] = {'owner_final': final}
+                c.q.atomic_json(cell/'receipt.json', receipt)
+                c.write_owner_target(cell, receipt)
+
+        prepare(None)
+        self.assertFalse(any((cell/'target.json').exists() for cell in cells))
+        self.assertNotEqual(rollup()['verdict'], 'pass', 'a missing target declaration must not pass')
+        prepare(fixture_declaration)
+        self.assertTrue(all((cell/'target.json').is_file() for cell in cells))
+        self.assertEqual(rollup()['verdict'], 'pass')
+        prepare(dict(fixture_declaration, target_flag=False))
+        self.assertNotEqual(rollup()['verdict'], 'pass', 'a false owner flag must not pass')
 
 
 class PopulationContent(unittest.TestCase):
