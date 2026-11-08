@@ -56,7 +56,7 @@ func inventoryDriverMaxUses(id stmt.ID) int {
 		return 2 // fresh eligibility and current source verification
 	case inventoryDisclosureJob, inventoryDisclosureLibrary,
 		scanReceiptLookup, scanReceiptResults, scanReceiptAck,
-		scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
+		scanReceiptByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
 		scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot, scanLifecycleActive, scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanInventoryLibraryRecordLengths:
 		return 1
 	default:
