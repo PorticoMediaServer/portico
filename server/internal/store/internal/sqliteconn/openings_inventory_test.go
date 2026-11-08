@@ -40,6 +40,10 @@ var openingConstraints = map[string]string{
 	"writer/crash_scan_n1_driver_linux_test.go":  "",                 // implicit _linux suffix; merged N1 public-path SIGKILL/reopen controls
 	"writer/crash_scan_n1_history_linux_test.go": "",                 // implicit _linux suffix; N1 child-bearing ACK/retired rebind controls
 	"writer/crash_fresh_retry_linux_test.go":     "",                 // implicit _linux suffix; pre-COMMIT retry execute-once/replay cells
+	"writer/crash_basic_accept_linux_test.go":    "",                 // implicit _linux suffix; Basic Accept kill/restart cells
+	"writer/crash_publisher_linux_test.go":       "",                 // implicit _linux suffix; publisher fragment/flip kill/restart cells
+	"writer/crash_reclaimer_linux_test.go":       "",                 // implicit _linux suffix; independent reclaimer kill/restart cells
+	"writer/crash_enrich_accept_linux_test.go":   "",                 // implicit _linux suffix; EnrichAccept kill/restart cells
 	"writer/race_on_test.go":                     "//go:build race",  // crash-child deadline scaled for the detector
 	"writer/race_off_test.go":                    "//go:build !race", // established crash-child deadline
 	"qual/namespace_other.go":                    "//go:build !linux",
