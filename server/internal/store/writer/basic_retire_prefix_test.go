@@ -11,6 +11,20 @@ func basicRetirePrefixFixture(t *testing.T) (*executor, *commandTurn, basicStage
 	t.Helper()
 	w, source := basicStreamFixture(t)
 	retire, metadataCharge := seedBasicRetiredFirstInput(t, w, source)
+	// Chapter children retain their actual staged fact parent until the child
+	// prefix is drained; retirement must not bypass the native FK custody.
+	fact := basicChapterFact{revision: 37, status: "known", fingerprint: "chapters:37"}
+	_, _, factArgs, factCharge, err := basicMediaValues(source, 0, fact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = w.db.ExecContext(t.Context(), `INSERT INTO catalog_info_new_chapter_facts VALUES(?,?,?,?,?,?,?,?)`, append([]any{source.changeID}, factArgs...)...); err != nil {
+		t.Fatal(err)
+	}
+	retire.counts[3] = 1
+	if _, err = w.db.ExecContext(t.Context(), `UPDATE catalog_info_input_families SET rows_expected=1,rows_staged=1 WHERE change_id=51 AND family=4`); err != nil {
+		t.Fatal(err)
+	}
 	rows := basicRowsRequest{family: 5, chapters: []basicChapter{{index: 20, title: "Opening", start: 0, end: 3}, {index: 30, title: "Closing", start: 4, end: 8}}}
 	ordinals := []int64{8, 10}
 	var charge int64
@@ -30,7 +44,7 @@ func basicRetirePrefixFixture(t *testing.T) (*executor, *commandTurn, basicStage
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_info_input_families SET rows_expected=11,rows_staged=11 WHERE change_id=51 AND family=5`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_info_input_budget SET used_bytes=? WHERE singleton=1`, 777+metadataCharge+charge); err != nil {
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_info_input_budget SET used_bytes=? WHERE singleton=1`, 777+metadataCharge+factCharge+charge); err != nil {
 		t.Fatal(err)
 	}
 	var defs []stmt.Definition
