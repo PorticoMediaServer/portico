@@ -174,11 +174,12 @@ func (r *BrowseReader) homeRecentCompose(ctx context.Context, request governor.R
 	}
 	request.Deadline = deadline
 	var copied int64
+	var principal publicationPrincipalPin
 	for n := 0; n < 2; n++ {
 		current := in
 		current.View.Now = in.View.Now.Add(time.Since(started))
 		var one BrowseReadResult
-		page, one, err = r.homeRecentAttempt(ctx, request, time.Until(deadline), output, current, sources, libraries, &copied)
+		page, one, err = r.homeRecentAttempt(ctx, request, time.Until(deadline), output, current, sources, libraries, &copied, &principal)
 		mergeHomeReadResult(&result, one)
 		result.Attempts = n + 1
 		if !errors.Is(err, ErrStale) || ctx.Err() != nil || !time.Now().Before(deadline) {
@@ -192,7 +193,7 @@ func (r *BrowseReader) homeRecentCompose(ctx context.Context, request governor.R
 	return
 }
 
-func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in HomeRecentInput, sources []HomeSource, libraries []int64, copied *int64) (HomeRecentRow, BrowseReadResult, error) {
+func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in HomeRecentInput, sources []HomeSource, libraries []int64, copied *int64, principal *publicationPrincipalPin) (HomeRecentRow, BrowseReadResult, error) {
 	started := time.Now()
 	deadline := homeMinTime(request.Deadline, started.Add(budget))
 	type candidate struct {
@@ -258,7 +259,7 @@ func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.R
 			return ctx.Err()
 		})
 	}
-	sourcePage, result, e := publishAttempt(ctx, r.snapshots, request, time.Until(deadline), output, in.View, steps, copied, root)
+	sourcePage, result, e := publishPinnedAttempt(ctx, r.snapshots, request, time.Until(deadline), output, in.View, steps, copied, principal, root)
 	if e != nil {
 		return HomeRecentRow{}, result, e
 	}
@@ -333,7 +334,7 @@ func (r *BrowseReader) homeRecentAttempt(ctx context.Context, request governor.R
 	})
 	view := in.View
 	view.Now = view.Now.Add(time.Since(started))
-	page, targetResult, e := publishAttempt(ctx, r.snapshots, request, time.Until(deadline), output, view, steps, copied, root)
+	page, targetResult, e := publishPinnedAttempt(ctx, r.snapshots, request, time.Until(deadline), output, view, steps, copied, principal, root)
 	mergeHomeReadResult(&result, targetResult)
 	return page, result, e
 }
