@@ -39,6 +39,8 @@ var openingConstraints = map[string]string{
 	"writer/crash_inventory_fresh_linux_test.go": "",                 // implicit _linux suffix; fresh SIGKILL component uses the Linux harness
 	"writer/crash_scan_n1_driver_linux_test.go":  "",                 // implicit _linux suffix; merged N1 public-path SIGKILL/reopen controls
 	"writer/crash_scan_n1_history_linux_test.go": "",                 // implicit _linux suffix; N1 child-bearing ACK/retired rebind controls
+	"writer/crash_scan_batch_linux_test.go":      "//go:build linux", // batch SIGKILL/reopen witnesses use the Linux harness
+	"writer/scan_batch_accept_test.go":           "//go:build linux", // batch acceptance controls share the Linux raw-state oracle
 	"writer/crash_fresh_retry_linux_test.go":     "",                 // implicit _linux suffix; pre-COMMIT retry execute-once/replay cells
 	"writer/crash_basic_accept_linux_test.go":    "",                 // implicit _linux suffix; Basic Accept kill/restart cells
 	"writer/crash_publisher_linux_test.go":       "",                 // implicit _linux suffix; publisher fragment/flip kill/restart cells

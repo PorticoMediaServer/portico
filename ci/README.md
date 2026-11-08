@@ -78,3 +78,13 @@ The native static job typechecks both the application and `apps/native/test/tsco
 The Go inventory includes the `reading_client_integration` test tag. Client-core, reader-core and contracts changes select the real HTTP publication boundary through `source-readers.json`, even without a Go import edge. Only its owning Go shard installs pinned Node/root lockfile dependencies and builds contracts; the same setup applies to the race observer. The integration runs through the ordinary exact-parent and terminal-event accounting, including full merge and nightly plans.
 
 For lane-focused tests, race checks and deliberate plan captures on standard GitHub runners, use [LANE-FOCUSED.md](LANE-FOCUSED.md). Automatic parent sharding is the default, including within a large Go package; every dispatch produces one combined source-bound summary. These results are tests/captures, never timing qualification.
+
+The inventory-batch SIGKILL matrix has three deterministic parents: width two,
+and two disjoint width-eight partitions. All native, terminal and uncertain
+COMMIT cuts remain selected in ordinary PR/merge/nightly coverage. Initial
+planner weights are 216.38 seconds for width two and 355 seconds per width-eight
+partition, derived from the 216.38/705.84-second width populations in focused
+run 42521426376 (with allowance for each partition's independent trace setup).
+The existing name-based planner distributes these parents; package and job
+deadlines are unchanged. Partition coverage and planner controls reject missing
+or duplicate cuts and accidental co-location of the three heavy parents.
