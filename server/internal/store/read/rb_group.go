@@ -95,6 +95,9 @@ func (r *BrowseReader) rbGroupWindow(ctx context.Context, request governor.Reque
 					return ErrDenied
 				}
 				in.author = rows[0][13].(string)
+				if e := rbAuthorIndexedName(in.author); e != nil {
+					return e
+				}
 			}
 			return nil
 		},
