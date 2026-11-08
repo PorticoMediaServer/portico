@@ -633,7 +633,7 @@ def main(argv: list[str]) -> int:
                 f"--property=IOReadBandwidthMax={device} {BANDWIDTH_BYTES}",
                 f"--property=IOReadIOPSMax={device} {IOPS}",
                 "--property=PrivateTmp=no",
-                f"--working-directory={source / 'server'}",
+                f"--working-directory={source / 'server/internal/store/writer'}",
             ]
             for key in sorted(test_env):
                 cmd.append(f"--setenv={key}={test_env[key]}")
@@ -643,7 +643,7 @@ def main(argv: list[str]) -> int:
         state["commands"]["test"] = cmd
 
         result = run_bounded(cmd, stdout_path=artifact / "run.stdout",
-                             stderr_path=artifact / "run.stderr", cwd=source / "server",
+                             stderr_path=artifact / "run.stderr", cwd=source / "server/internal/store/writer",
                              env=test_env, timeout=args.timeout_seconds, unit=unit)
         state["io"]["ancestor_io_after"] = cgroup_io_snapshot()
         state["io"]["unit_cgroup"] = result.get("unit_cgroup")
