@@ -143,7 +143,7 @@ func canonicalHeldClasses() []canonicalHeldClass {
 	n1, basic, enrich, progress, security, fragment, flip, reclaim := InventoryAccept, BasicAccept, EffectiveStage, ProgressAccept, SecurityAccept, SearchFragmentStage, SearchHeadPublish, ProgressReceiptReclaim
 	return []canonicalHeldClass{
 		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: canonicalInternalRun(runCanonicalHeldN1), reason: "timing cohort does not expose complete observed statement-byte totals; inspect nullable per-attempt profile facts"},
-		{name: "basic_accept", owner: "SC/W", kind: "normal_write", purpose: &basic, reason: "canonical Basic owner Action not attached"},
+		{name: "basic_accept", owner: "SC/W", kind: "normal_write", purpose: &basic, run: canonicalInternalRun(runCanonicalHeldBasic), reason: "prepared ordinary-leaf input; probe/Stage/copy clocks excluded and unqualified"},
 		{name: "staged_enrich", owner: "EN/W", kind: "normal_write", purpose: &enrich, reason: "canonical staged-enrich owner Action not attached"},
 		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC progress; complete observed counters remain nullable"},
 		{name: "security", owner: "WC", kind: "normal_write", purpose: &security, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC FULL security; complete observed counters remain nullable"},
