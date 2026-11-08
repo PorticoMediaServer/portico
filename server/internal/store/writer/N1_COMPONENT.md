@@ -676,3 +676,21 @@ refusals and all partials remain failures; no caps, retries or missing-zero repa
 The full captured union, extra WC unit funding, retained preparations, actual
 setup/reopen counts and final all-class retirement are emitted. Effective remains
 unbound. All profiles remain test-only and qualification=false.
+
+Native full-text search (RD's merged reader) is one step of the SAME serial
+foreground mix, not a second concurrent reader: browse/detail carry the load and
+search is one offered read in nine, running during scan writes through the normal
+LIVE admission, both windows and joined consumer. It is composed from
+`read.NativeFullSearchDefinitions()` on the actual reader capture and
+`read.NewNativeFullSearchReader`; the input uses RD's preview limits (2,000
+candidates, kind 0, limit 20) and no driver-side SQL, bank or cursor. Each cell
+emits `ec2_full_search_read_report` with the whole returned read's
+Ready p50/p99/max and hits/stamps/partial/unavailable/errors, compared separately
+against B-READS' 200ms 1M ready p95 and 50ms working first-ready targets; this is
+directional component evidence, never a qualification. The canonical 1M
+population seeds no search bank, so screening normally records
+SearchUnavailable/no hits and that is reported, not repaired; the default
+positive control `TestEC2NativeFullSearchFunctional` seeds one real v1 bank and
+proves the native read returns hits and a joined stamp. `TestEC2FullSearch-
+RefusesWithoutComposition` proves the binding fails closed when the reader or
+prepare composition is absent.

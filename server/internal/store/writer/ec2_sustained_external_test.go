@@ -105,6 +105,7 @@ func ec2Bindings(t *testing.T, c *writer.N1PairedComponent, cohort string) workl
 	}{{workload.EC2Browse, "browse"}, {workload.EC2Detail, "detail"}, {workload.EC2Playback, "playback"}, {workload.EC2Continue, "continue"}} {
 		bindings[route.op] = retryStaleRead(recordPaired(c, pairedAction(c, route.name, nil)))
 	}
+	bindings[workload.EC2FullSearch] = retryStaleRead(ec2FullSearchBinding(t, c, "harbour"))
 	bindings[workload.EC2WAL] = func(ctx context.Context, _ workload.Offer, emit func(workload.Observation) error) error {
 		start := time.Now()
 		snapshot, err := c.ObserveEC2WAL(ctx)
@@ -185,8 +186,10 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 	if inventory != 1 {
 		t.Fatal("existing progressive fixture requires exactly one inventory entry per pattern")
 	}
+	// One serial foreground worker. Browse/detail carry the load; search is one
+	// offer in nine, well below them, and still runs during scan writes.
 	schedule := workload.EC2Schedule{WriterEvery: *ec2Every, ReaderEvery: *ec2Readers, PassiveEvery: *ec2Passive, RecoveryEvery: *ec2Recovery, WALEvery: *ec2Observe, CheckpointMode: *ec2CPMode, WriterPattern: pattern,
-		ReaderPattern: []workload.EC2Operation{workload.EC2Browse, workload.EC2Detail, workload.EC2Playback, workload.EC2Continue}}
+		ReaderPattern: []workload.EC2Operation{workload.EC2Browse, workload.EC2Detail, workload.EC2Browse, workload.EC2Detail, workload.EC2Playback, workload.EC2Continue, workload.EC2Browse, workload.EC2Detail, workload.EC2FullSearch}}
 	if _, _, err := workload.EC2Streams(schedule, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -257,6 +260,8 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 			runErr = errors.New(gap)
 		}
 	}
+	searchRaw, _ := json.Marshal(sink.searchReadReport())
+	runErr = errors.Join(runErr, c.EmitEC2("search_read_report", searchRaw))
 	if writeLedger != nil {
 		expected := int((duration-1) / *ec3WriteEvery) + 1
 		fg, fgSeen := sink.progress["foreground-writes"]
