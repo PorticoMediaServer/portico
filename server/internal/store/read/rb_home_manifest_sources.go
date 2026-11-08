@@ -103,7 +103,11 @@ func homeManifestPolicy(frame homeManifestSourceFrame) HomeManifestCommittedPoli
 	return out
 }
 func homeManifestSourceFrameRead(s *savedViewSession, q browseQuery, in BrowseInput) (homeManifestSourceFrame, error) {
-	frame, e := homeManifestFrameRead(s, q, in)
+	var principal publicationPrincipalPin
+	return homeManifestSourcePinnedFrameRead(s, q, in, &principal)
+}
+func homeManifestSourcePinnedFrameRead(s *savedViewSession, q browseQuery, in BrowseInput, principal *publicationPrincipalPin) (homeManifestSourceFrame, error) {
+	frame, e := homeManifestPinnedFrameRead(s, q, in, principal)
 	if e != nil {
 		return homeManifestSourceFrame{}, e
 	}
@@ -177,12 +181,13 @@ func (r *HomeManifestSourceReader) Manifest(ctx context.Context, request governo
 		if e = s.reserve(1 << 20); e != nil {
 			return HomeManifestSourceDocument{}, s.result(), e
 		}
+		var principal publicationPrincipalPin
 		for attempt := 0; attempt < 2; attempt++ {
 			s.cost.Attempts = attempt + 1
 			var first homeManifestSourceFrame
 			e = s.window(false, homeManifestQueries+1, func(q browseQuery) error {
 				var e error
-				first, e = homeManifestSourceFrameRead(s, q, in.View)
+				first, e = homeManifestSourcePinnedFrameRead(s, q, in.View, &principal)
 				return e
 			})
 			if e == nil {
@@ -192,7 +197,7 @@ func (r *HomeManifestSourceReader) Manifest(ctx context.Context, request governo
 				}
 				prior := e
 				final := s.window(true, homeManifestQueries+1, func(q browseQuery) error {
-					current, e := homeManifestSourceFrameRead(s, q, in.View)
+					current, e := homeManifestSourcePinnedFrameRead(s, q, in.View, &principal)
 					if e != nil {
 						return e
 					}
@@ -290,6 +295,7 @@ func (r *HomeManifestSourceReader) Content(ctx context.Context, request governor
 		if e = s.reserve(2 << 20); e != nil {
 			return HomeManifestContentPage{}, s.result(), e
 		}
+		var principal publicationPrincipalPin
 		for attempt := 0; attempt < 2; attempt++ {
 			s.cost.Attempts = attempt + 1
 			var first homeManifestSourceFrame
@@ -300,7 +306,7 @@ func (r *HomeManifestSourceReader) Content(ctx context.Context, request governor
 			effective := in.View
 			e = s.window(false, homeManifestQueries+1, func(q browseQuery) error {
 				var e error
-				first, e = homeManifestSourceFrameRead(s, q, in.View)
+				first, e = homeManifestSourcePinnedFrameRead(s, q, in.View, &principal)
 				if e != nil {
 					return e
 				}
@@ -387,7 +393,7 @@ func (r *HomeManifestSourceReader) Content(ctx context.Context, request governor
 			prior := e
 			if ready {
 				final := s.window(true, homeManifestQueries+1+MaxPage, func(q browseQuery) error {
-					current, e := homeManifestSourceFrameRead(s, q, in.View)
+					current, e := homeManifestSourcePinnedFrameRead(s, q, in.View, &principal)
 					if e != nil {
 						return e
 					}
