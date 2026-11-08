@@ -63,7 +63,14 @@ func NewExactFacetReader(pool *governor.Snapshots, a *governor.Authority) (*Exac
 // returned opaque operation; they must not call Begin again with a fresh time.
 // in.Now is trusted server request-entry time, also the immutable query anchor.
 func (r *ExactFacetReader) BeginNumericFacets(ctx context.Context, owner governor.OwnerID, bytes int64, in BrowseInput, field ExactNumericField) (*NumericFacetPreparation, error) {
-	if r == nil || ctx == nil || owner == 0 || in.Now.IsZero() || in.Database == "" || len(in.Database) > 256 || in.TokenHash == "" || len(in.TokenHash) > 256 || in.Library <= 0 || in.After != nil || in.policy != (readPolicyBinding{}) || (field != ExactYear && field != ExactDecade) {
+	if field != ExactYear && field != ExactDecade {
+		return nil, ErrInput
+	}
+	return r.beginNumericPreparation(ctx, owner, bytes, in, field)
+}
+
+func (r *ExactFacetReader) beginNumericPreparation(ctx context.Context, owner governor.OwnerID, bytes int64, in BrowseInput, field ExactNumericField) (*NumericFacetPreparation, error) {
+	if r == nil || ctx == nil || owner == 0 || in.Now.IsZero() || in.Database == "" || len(in.Database) > 256 || in.TokenHash == "" || len(in.TokenHash) > 256 || in.Library <= 0 || in.After != nil || in.policy != (readPolicyBinding{}) || (field != ExactYear && field != ExactDecade && field != rbExactEligibleCount) {
 		return nil, ErrInput
 	}
 	switch in.Kind {
@@ -202,13 +209,20 @@ func (p *NumericFacetPreparation) Advance(ctx context.Context, request governor.
 			year, id := row[1].(int64), row[0].(int64)
 			next = &rbFacetPosition{year: year, id: id}
 			item := [7]any{row[0], row[1], nil, nil, row[2], nil, row[3]}
-			// Year and decade categories share the published/parser domain.
-			if !admittedItem(item[:], f) || year < 1800 || year > 2199 {
+			if !admittedItem(item[:], f) {
 				continue
 			}
-			value := year
-			if p.field == ExactDecade {
-				value = year / 10 * 10
+			value := int64(0)
+			if p.field != rbExactEligibleCount {
+				// Year/decade categories share the published/parser domain. A
+				// whole eligible count also includes unknown/out-of-range years.
+				if year < 1800 || year > 2199 {
+					continue
+				}
+				value = year
+				if p.field == ExactDecade {
+					value = year / 10 * 10
+				}
 			}
 			if used > 0 && grouped[used-1].Value == value {
 				grouped[used-1].Count++
