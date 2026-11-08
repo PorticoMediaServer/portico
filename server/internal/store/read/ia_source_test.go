@@ -111,17 +111,28 @@ func TestIASourcePointSameSnapshotOctets(t *testing.T) {
 func TestIASourcePointRefusesUnrepresentableRoots(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
+		column           string
 		configured, root string
 		want             error
 	}{
-		{"invalid_utf8", "/media\xff", "/media\xff", ErrSourceRootUnrepresentable},
-		{"nul", "/media\x00child", "/media\x00child", ErrUnqualified},
-		{"control", "/media\nchild", "/media\nchild", ErrUnqualified},
-		{"relative", "media", "media", ErrUnqualified},
+		{"invalid_utf8", "source", "/media\xff", "/media\xff", ErrSourceRootUnrepresentable},
+		{"nul", "source", "/media\x00child", "/media\x00child", ErrUnqualified},
+		{"control", "source", "/media\nchild", "/media\nchild", ErrUnqualified},
+		{"relative", "source", "media", "media", ErrUnqualified},
+		// The library root is the second native path in the vector; it must be
+		// refused with the same precedence, before the source point runs.
+		{"library_invalid_utf8", "library", "", "/media\xff", ErrSourceRootUnrepresentable},
+		{"library_nul", "library", "", "/media\x00child", ErrUnqualified},
+		{"library_control", "library", "", "/media\nchild", ErrUnqualified},
+		{"library_empty", "library", "", "", ErrUnqualified},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, r := newIASourceFixture(t)
-			f.exec(t, `UPDATE library_sources SET configured_root=?,root=? WHERE id='source-1'`, tc.configured, tc.root)
+			if tc.column == "library" {
+				f.exec(t, `UPDATE catalog_libraries SET root=? WHERE id=1`, tc.root)
+			} else {
+				f.exec(t, `UPDATE library_sources SET configured_root=?,root=? WHERE id='source-1'`, tc.configured, tc.root)
+			}
 			page, _, e := iaSourceRead(t, f, r, IASourceInput{View: f.input, Source: "source-1"})
 			if !errors.Is(e, tc.want) || !reflect.DeepEqual(page, IASourcePage{}) {
 				t.Fatalf("root refusal=%+v err=%v; want %v", page, e, tc.want)
