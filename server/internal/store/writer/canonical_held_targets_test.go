@@ -135,6 +135,12 @@ type canonicalHeldClass struct {
 	purpose           *CommandID // compiled INTENT only, never actual grant/policy evidence
 	reason            string
 	run               canonicalClassRun
+	// Kit registration. target is non-nil only for a class declared through
+	// classTargetEntry; wal is the policy it resolved at registration and
+	// invalid carries a refused declaration so lookup/start fail visibly.
+	target  *classTargetSpec
+	wal     classTargetWAL
+	invalid error
 }
 
 // The merged transport owns the next canonical clone for this exact t.
@@ -153,9 +159,9 @@ func canonicalHeldClasses() []canonicalHeldClass {
 		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: canonicalInternalRun(runCanonicalHeldN1), reason: "timing cohort does not expose complete observed statement-byte totals; inspect nullable per-attempt profile facts"},
 		{name: "basic_accept", owner: "SC/W", kind: "normal_write", purpose: &basic, run: canonicalInternalRun(runCanonicalHeldBasic), reason: "prepared ordinary-leaf input; probe/Stage/copy clocks excluded and unqualified"},
 		{name: "staged_enrich", owner: "EN/W", kind: "normal_write", purpose: &enrich, run: canonicalInternalRun(runCanonicalHeldStagedEnrich), reason: "prepared operation-owned source seal, hidden image and BEGIN receipt per original; final EnrichAccept measured; preparation excluded and unqualified"},
-		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC progress; complete observed counters remain nullable"},
-		{name: "security", owner: "WC", kind: "normal_write", purpose: &security, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC FULL security; complete observed counters remain nullable"},
-		{name: "wc_reclaim", owner: "WC", kind: "normal_write", purpose: &reclaim, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC retained Progress receipt reclaim; not publisher reclaim"},
+		classTargetEntry(classTargetSpec{Name: "progress", Owner: "WC", Kind: "normal_write", Purpose: &progress, Run: canonicalWCFactory(newCanonicalWCComponent), Reason: "source-bound WC progress; complete observed counters remain nullable"}),
+		classTargetEntry(classTargetSpec{Name: "security", Owner: "WC", Kind: "normal_write", Purpose: &security, Run: canonicalWCFactory(newCanonicalWCComponent), Reason: "source-bound WC FULL security; complete observed counters remain nullable"}),
+		classTargetEntry(classTargetSpec{Name: "wc_reclaim", Owner: "WC", Kind: "normal_write", Purpose: &reclaim, Run: canonicalWCFactory(newCanonicalWCComponent), Reason: "source-bound WC retained Progress receipt reclaim; not publisher reclaim"}),
 		{name: "publisher_fragment", owner: "PB", kind: "normal_write", purpose: &fragment, run: canonicalFixtureRun(runCanonicalPublisher), reason: "PB fixture/loop attached; sustained keeper composition remains explicitly gated"},
 		{name: "publisher_flip", owner: "PB", kind: "normal_write", purpose: &flip, run: canonicalFixtureRun(runCanonicalPublisher), reason: "PB fixture/loop attached; sustained keeper composition remains explicitly gated"},
 		{name: "checkpoint", owner: "GV", kind: "maintenance", reason: "canonical governed checkpointer owner Action not attached; no normal-write budget"},
@@ -182,6 +188,9 @@ func canonicalHeldClasses() []canonicalHeldClass {
 func canonicalHeldClassFor(name string) (canonicalHeldClass, error) {
 	for _, c := range canonicalHeldClasses() {
 		if c.name == name {
+			if c.invalid != nil {
+				return canonicalHeldClass{}, c.invalid
+			}
 			return c, nil
 		}
 	}
@@ -241,7 +250,10 @@ func canonicalHeldStart(t *testing.T, class string) (canonicalHeldConfig, *n1Str
 		}
 	}()
 	stream := &n1Stream{file: output, streamOnly: streamOnly, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "label": "CANONICAL PER-CLASS RAW TARGET", "qualification": false, "qualified_profile_ready": false, "run_id": cfg.RunID, "host_epoch": cfg.HostEpoch, "declared_source_commit": cfg.SourceCommit, "profile": cfg.Profile, "class": class, "process_epoch": fmt.Sprintf("%s/%d/%d", cfg.RunID, os.Getpid(), time.Now().UnixNano())}}
-	definition, _ := canonicalHeldClassFor(class)
+	definition, err := canonicalHeldClassFor(class)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := emitCanonicalHeldPrefix(stream, cfg, definition); err != nil {
 		t.Fatal(err)
 	}

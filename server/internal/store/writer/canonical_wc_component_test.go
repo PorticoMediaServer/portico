@@ -128,6 +128,12 @@ func newCanonicalWCFixtureComponent(t *testing.T, ctx context.Context, cfg canon
 	w, pd, _, keeper := wcComponentFixture(t, wcFixtureOptions{kind: cfg.Class, actorTier: tier, extraMemory: 2 << 20, maxGrants: 5, catalog: &catalog, decorate: c.trace.decorate, maintenance: true, realClock: true})
 	c.Writer, c.Progress, c.keeper = w, pd, keeper
 	w.effective.maintenance = &checkpointMaintenance{request: keeper.request("passive"), results: keeper.results}
+	// The ONE class start: the gate refuses a class that is not kit-registered or
+	// that lacks its keeper recovery hook, pressure-recovery hook or WAL policy.
+	binding, err := beginClassTarget(t, cfg.Class, classTargetParts{Writer: w, Keeper: keeper})
+	if err != nil {
+		t.Fatal(err)
+	}
 	c.trace.useRegistry(w.effective.registry)
 	switch cfg.Class {
 	case "progress":
@@ -142,7 +148,7 @@ func newCanonicalWCFixtureComponent(t *testing.T, ctx context.Context, cfg canon
 		t.Fatal("unknown compiled WC class")
 	}
 	c.trace.useRegistry(w.effective.registry)
-	if err := stream.append("population_attached", map[string]any{"manifest": manifest, "recipe": c.Recipe(), "database_id": fmt.Sprintf("%s/wc-db1", stream.base["process_epoch"]), "native_file_binding": map[string]any{"path": keeper.opening.binding.path, "device": keeper.opening.binding.device, "inode": keeper.opening.binding.inode}, "requested_warmup_originals": c.Warmup, "profile_scope": "unchanged WC synthetic component command profile; separately funded keeper/CP; not production issuer", "library_numeric_id": catalog.libraryID, "library_key": catalog.libraryKey, "subject_id": catalog.subjectID, "actual_native_catalog_binding_checked": true, "initial_fixture_native_begin_attempts": c.trace.nativeBegins, "retained_preparation_deadline": pd.expected.Deadline, "nullable_native_scope": "timing cohort: attribution DBStatus/VM/WALIO snapshots omitted inside HOLD; examined rows/pages/xSync/device attribution/aggregate LIVE peak unavailable, never default0", "initial_fixture_interval_scope": "native birth/registration precedes sampled originals; no measured HOLD inferred for setup", "maintenance_policy": canonicalN1Maintenance().policy, "maintenance_additional_partition": canonicalN1Maintenance().need, "consumer": "not exercised by a held-command class", "qualification": false}); err != nil {
+	if err := stream.append("population_attached", map[string]any{"manifest": manifest, "recipe": c.Recipe(), "database_id": fmt.Sprintf("%s/wc-db1", stream.base["process_epoch"]), "native_file_binding": map[string]any{"path": keeper.opening.binding.path, "device": keeper.opening.binding.device, "inode": keeper.opening.binding.inode}, "requested_warmup_originals": c.Warmup, "profile_scope": "unchanged WC synthetic component command profile; separately funded keeper/CP; not production issuer", "library_numeric_id": catalog.libraryID, "library_key": catalog.libraryKey, "subject_id": catalog.subjectID, "actual_native_catalog_binding_checked": true, "initial_fixture_native_begin_attempts": c.trace.nativeBegins, "retained_preparation_deadline": pd.expected.Deadline, "nullable_native_scope": "timing cohort: attribution DBStatus/VM/WALIO snapshots omitted inside HOLD; examined rows/pages/xSync/device attribution/aggregate LIVE peak unavailable, never default0", "initial_fixture_interval_scope": "native birth/registration precedes sampled originals; no measured HOLD inferred for setup", "maintenance_policy": canonicalN1Maintenance().policy, "maintenance_additional_partition": canonicalN1Maintenance().need, "class_target_kit": true, "wal_policy": binding.WAL.Policy, "wal_policy_explicit": binding.WAL.Explicit, "consumer": "not exercised by a held-command class", "qualification": false}); err != nil {
 		t.Fatal(err)
 	}
 	c.keeper.results <- c.keeper.step(ctx)

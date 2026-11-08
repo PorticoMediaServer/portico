@@ -26,6 +26,11 @@ that these bodies are runnable. Reads, maintenance and error-path experiments
 need their own composed targets and budgets; scalar-only/primitive success is
 not a composed read-class receipt. Phase1a lease/preparation remains OFF.
 
+To add a class, declare it once with the class-target kit
+(`server/internal/store/writer/CLASS_TARGET_KIT.md`): one declaration, the
+keeper recovery hook wired by default, a refusing start gate and
+`governor.Phase1aWALPolicy()` unless an override is explicit.
+
 Every class requests 10,000 originals, not an inferred 10,000 accepted holds.
 The owner keeps its actual warmup and each recipe/phase separate. A successful
 wire/exit means only owner-execution completion. Per-host per-recipe counts,
