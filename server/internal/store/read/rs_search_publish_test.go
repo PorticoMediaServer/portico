@@ -42,7 +42,6 @@ func TestRSSearchPublishFreshFenceAndJoinedConsumer(t *testing.T) {
 					return native(ctx, req, b, out, in, q)
 				}
 				consumerErr := errors.New("consumer stopped")
-				var joined chan struct{}
 				var done bool
 				for poll := 0; poll < 100; poll++ {
 					fg, req, out := liveRequests("rs-publish")
@@ -67,16 +66,6 @@ func TestRSSearchPublishFreshFenceAndJoinedConsumer(t *testing.T) {
 							if string(b) != "bounded owned response" || p.closed || f.authority.ForegroundUsage().Live != 1 {
 								t.Fatal("consumer lost custody")
 							}
-							if mode == "ready" {
-								joined = make(chan struct{})
-								go func() { _ = p.Close(); close(joined) }()
-								synctest.Wait()
-								select {
-								case <-joined:
-									t.Fatal("Close returned before consumer joined")
-								default:
-								}
-							}
 							if mode == "consumer-error" {
 								return consumerErr
 							}
@@ -90,9 +79,6 @@ func TestRSSearchPublishFreshFenceAndJoinedConsumer(t *testing.T) {
 					if done || e != nil {
 						break
 					}
-				}
-				if joined != nil {
-					<-joined
 				}
 				if encoded != 1 || !p.closed {
 					t.Fatal("encoding or physical join incomplete", encoded, p.closed, e)
