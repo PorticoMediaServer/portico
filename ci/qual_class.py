@@ -15,6 +15,7 @@ import subprocess
 import time
 
 import qual_fixture as q
+import qual_population as population_compat
 import qual_spool as spool
 
 CHECKPOINT_CASES = dict(checkpoint_1mib='1MiB', checkpoint_8mib='8MiB', checkpoint_64mib='64MiB', checkpoint_hardcap='HardCap')
@@ -32,11 +33,6 @@ TARGETS = {
     'publisher_flip': 'TestCanonicalHeldPublisherFlip',
 }
 TARGETS.update({key:'TestDiagnosticConcurrentKeeper/'+case for key,case in CHECKPOINT_CASES.items()})
-COMPATIBILITY_PATHS = [
-    'server/go.mod', 'server/go.sum', 'server/internal/store/schema/schema.sql',
-    'server/internal/store/writer/qualification_population_seed_test.go',
-    'server/internal/store/writer/scan_metadata.go', 'server/internal/sorttext',
-]
 ATTEMPTS = 10000
 # Transport-only ceiling: 30k role records at the retained ~235kB/record
 # exceed the old4GiB guard. Streaming keeps this independent of process RAM.
@@ -187,16 +183,17 @@ def prepare(source, artifact, output, work, producer_run):
         q.regular(artifact / 'population.json', 65536)
         q.require(q.file_hash(artifact / 'population.json') == cfg['manifest'], 'producer manifest pin mismatch')
         m = json.loads((artifact / 'population.json').read_text(), object_pairs_hook=q.no_duplicates)
+        content = population_compat.require_content(m, schema=schema)
         producer = m['source_commit']
         q.require(producer_receipt.get('source_commit') == producer, 'producer source differs from manifest')
         population, _ = q.validate_artifact(artifact, source=producer, schema=schema, seed=m['facts']['seed'],
                                           residents=1000000, manifest_sha=cfg['manifest'])
         cmd(['git', 'merge-base', '--is-ancestor', producer, actual], source, 'producer-ancestry')
-        cmd(['git', 'diff', '--quiet', producer, actual, '--', *COMPATIBILITY_PATHS], source, 'population-compatibility')
         archive = work / 'source.tar'
         cmd(['git', 'archive', '--format=tar', '-o', str(archive), actual], source, 'source-archive')
         receipt.update(source_commit=actual, archive_sha256=q.file_hash(archive), population=population,
-                       producer_manifest_sha256=cfg['manifest'], compatibility_paths=COMPATIBILITY_PATHS,
+                       producer_manifest_sha256=cfg['manifest'], population_content=content,
+                       compatibility='population content identity (shape, residents, logical digest); source bytes not compared',
                        timing_stratum='source-owned; raw warmup/connection evidence required, never inferred by dispatcher',
                        fixture_cache_state='download/hash/private-copy setup may warm OS cache; not OS-cold',
                        profile_properties=profile_properties(cfg['profile']))

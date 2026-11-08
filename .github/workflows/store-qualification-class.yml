@@ -3,7 +3,7 @@ run-name: ${{ inputs.purpose || 'qualification' }} / ${{ inputs.class || 'protoc
 # Raw evidence transport. No automatic qualification or release decision.
 on:
   pull_request:
-    paths: ['.github/workflows/store-qualification-class.yml', 'ci/qual_class.py', 'ci/qual_fixture.py', 'ci/test_qual_class.py', 'ci/qual_spool.py', 'ci/test_qual_spool.py', 'server/internal/store/writer/canonical_held_stream_test.go', 'server/internal/store/writer/canonical_held_targets_test.go', 'server/internal/store/writer/n1_component_target_test.go']
+    paths: ['.github/workflows/store-qualification-class.yml', 'ci/qual_class.py', 'ci/qual_fixture.py', 'ci/qual_population.py', 'ci/test_qual_class.py', 'ci/qual_spool.py', 'ci/test_qual_spool.py', 'server/internal/store/writer/canonical_held_stream_test.go', 'server/internal/store/writer/canonical_held_targets_test.go', 'server/internal/store/writer/n1_component_target_test.go']
   workflow_dispatch:
     inputs:
       purpose: {description: 'SCREENING permits branch tooling; never sign-off', default: qualification, type: choice, options: [qualification, screening]}
