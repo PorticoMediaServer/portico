@@ -89,7 +89,6 @@ jobs:
       INPUT_PRODUCER_ATTEMPT: ${{ inputs.producer_attempt }}
       INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
       INPUT_FIXTURES: ${{ inputs.fixtures }}
-      OUTPUT: ${{ runner.temp }}/screening
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {path: tools, persist-credentials: false}
@@ -130,6 +129,8 @@ jobs:
           path: population
       - name: Prove exact source and population pins
         shell: bash
+        env:
+          OUTPUT: ${{ runner.temp }}/screening
         run: |
           set -euo pipefail
           mkdir -p "$OUTPUT"
@@ -174,6 +175,8 @@ jobs:
           PY
       - name: Build the screening binary
         shell: bash
+        env:
+          OUTPUT: ${{ runner.temp }}/screening
         run: |
           set -euo pipefail
           go version
@@ -182,6 +185,8 @@ jobs:
           sha256sum "$RUNNER_TEMP/writer.test" > "$OUTPUT/binary-sha256.txt"
       - name: Write the workload config
         shell: bash
+        env:
+          OUTPUT: ${{ runner.temp }}/screening
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -227,6 +232,7 @@ jobs:
       - name: Run the assigned screening cell
         shell: bash
         env:
+          OUTPUT: ${{ runner.temp }}/screening
           POPULATION_DIRECTORY: ${{ github.workspace }}/population
           POPULATION_PIN: ${{ inputs.manifest_sha256 }}
         run: |
@@ -259,14 +265,15 @@ jobs:
                 ;;
               ec5-paired|ec5-sustained)
                 target="${CELL#ec5-}"
-                sudo --preserve-env=GOMAXPROCS,PORTICO_PAIRED_POPULATION_DIRECTORY,PORTICO_PAIRED_POPULATION_MANIFEST_SHA256 \
-                  python3 source/ci/ec5_memory.py \
-                    --binary "$RUNNER_TEMP/writer.test" \
-                    --output "$OUTPUT/ec5" \
-                    --target "$target" \
-                    --config "$OUTPUT/config.json" \
-                    --population-directory "$POPULATION_DIRECTORY" \
-                    --population-manifest-sha256 "$POPULATION_PIN" > "$OUTPUT/target.log" 2>&1
+                ( cd source/server/internal/store/writer && \
+                  sudo --preserve-env=GOMAXPROCS,PORTICO_PAIRED_POPULATION_DIRECTORY,PORTICO_PAIRED_POPULATION_MANIFEST_SHA256 \
+                    python3 "$GITHUB_WORKSPACE/source/ci/ec5_memory.py" \
+                      --binary "$RUNNER_TEMP/writer.test" \
+                      --output "$OUTPUT/ec5" \
+                      --target "$target" \
+                      --config "$OUTPUT/config.json" \
+                      --population-directory "$POPULATION_DIRECTORY" \
+                      --population-manifest-sha256 "$POPULATION_PIN" ) > "$OUTPUT/target.log" 2>&1
                 code=$?
                 ;;
               *) echo "unknown cell $CELL"; exit 2 ;;
@@ -296,6 +303,8 @@ jobs:
       - name: Summary
         if: always()
         shell: bash
+        env:
+          OUTPUT: ${{ runner.temp }}/screening
         run: |
           {
             echo "### SCREENING / qualification=false — $CELL ($PROFILE, replicate $REPLICATE)"
