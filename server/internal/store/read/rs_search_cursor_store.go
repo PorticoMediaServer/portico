@@ -84,8 +84,11 @@ type rsSearchCursorEntry struct {
 
 // RSSearchCursorStore retains opaque search continuations keyed by a random
 // authenticated handle. All shared state is serialized by mu; the key is
-// immutable after construction. Closed and evicted handles are stale, never a
-// fresh first page.
+// immutable after construction. Closed, evicted, expired and superseded handles
+// are stale, never a fresh first page. Eviction may reclaim expired handles of
+// any owner and the issuing owner's own oldest handle, but never another
+// owner's live handle: a store full of other owners' live entries refuses with
+// governor.ErrBusy instead.
 type RSSearchCursorStore struct {
 	mu      sync.Mutex
 	key     [32]byte
@@ -105,7 +108,10 @@ type RSSearchCursorStoreStats struct {
 }
 
 // NewRSSearchCursorStore validates an explicit key and ceiling. The key is the
-// page-token MAC key and is never derived from a client token or query.
+// page-token MAC key and is never derived from a client token or query. The
+// caller supplies it; key generation and storage are a phase-4 contract and are
+// not owned here. Rotating the key invalidates every live handle, which then
+// resolves stale rather than being re-issued.
 func NewRSSearchCursorStore(key [32]byte, limit RSSearchCursorStoreLimit) (*RSSearchCursorStore, error) {
 	return newRSSearchCursorStore(key, limit, time.Now)
 }
@@ -179,14 +185,34 @@ func RSSearchCursorIdentity(owner governor.OwnerID, in RSSearchInput) ([32]byte,
 // the exact cursor RS composed and must not mutate it afterwards; private
 // fields already prevent mutation outside this package. Issue is the fresh
 // lifetime; use IssueUntil to carry an earlier continuation ceiling forward.
+// A page that continues an existing handle must use IssueNext so the consumed
+// handle is retired instead of accumulating against the owner's allowance.
 func (s *RSSearchCursorStore) Issue(owner governor.OwnerID, c *RSSearchCursor) (string, time.Time, error) {
-	return s.IssueUntil(owner, c, time.Time{})
+	return s.issue(owner, "", c, time.Time{})
 }
 
 // IssueUntil is Issue with the original continuation ceiling. A page token
 // never extends a walk: expiry is the earliest of now+TTL and until. A ceiling
 // that has already passed is stale.
 func (s *RSSearchCursorStore) IssueUntil(owner governor.OwnerID, c *RSSearchCursor, until time.Time) (string, time.Time, error) {
+	return s.issue(owner, "", c, until)
+}
+
+// IssueNext issues the continuation for the page after predecessor and retires
+// that predecessor in the same locked section. The predecessor must be a live,
+// unexpired handle for the same owner and continuation identity as c; it is
+// then consumed, so replaying it resolves stale and it no longer counts against
+// the owner's allowance. Retiring and issuing are atomic: a refusal leaves the
+// predecessor exactly as it was. Predecessor validation failure is stale (or
+// denied for another owner's token) and never panics.
+func (s *RSSearchCursorStore) IssueNext(owner governor.OwnerID, predecessor string, c *RSSearchCursor, until time.Time) (string, time.Time, error) {
+	if predecessor == "" {
+		return "", time.Time{}, ErrInput
+	}
+	return s.issue(owner, predecessor, c, until)
+}
+
+func (s *RSSearchCursorStore) issue(owner governor.OwnerID, predecessor string, c *RSSearchCursor, until time.Time) (string, time.Time, error) {
 	if s == nil {
 		return "", time.Time{}, ErrInput
 	}
@@ -223,21 +249,42 @@ func (s *RSSearchCursorStore) IssueUntil(owner governor.OwnerID, c *RSSearchCurs
 		return "", time.Time{}, governor.ErrSnapshotBudget
 	}
 	s.sweepLocked(now)
+	var retire *rsSearchCursorHandle
+	if predecessor != "" {
+		h, tokenExpiry, err := s.decode(predecessor)
+		if err != nil {
+			return "", time.Time{}, err
+		}
+		e := s.entries[h]
+		if e == nil || !now.Before(tokenExpiry) || !now.Before(e.expires) {
+			return "", time.Time{}, ErrStale
+		}
+		if e.owner != owner {
+			return "", time.Time{}, ErrDenied
+		}
+		if e.identity != c.identity {
+			return "", time.Time{}, ErrStale
+		}
+		retire = &h
+	}
 	owned := 0
-	for _, e := range s.entries {
-		if e.owner == owner {
+	for h, e := range s.entries {
+		if e.owner == owner && (retire == nil || h != *retire) {
 			owned++
 		}
 	}
 	if owned >= s.limit.MaxPerOwner {
 		return "", time.Time{}, governor.ErrBusy
 	}
-	if !s.makeRoomLocked(charge) {
+	if !s.makeRoomLocked(owner, charge, retire) {
 		return "", time.Time{}, governor.ErrBusy
 	}
 	handle, err := s.newHandleLocked()
 	if err != nil {
 		return "", time.Time{}, err
+	}
+	if retire != nil {
+		s.removeLocked(*retire)
 	}
 	s.nextSeq++
 	s.entries[handle] = &rsSearchCursorEntry{owner: owner, identity: c.identity, query: query, bank: bank, revision: revision, issued: now, expires: expires, sequence: s.nextSeq, bytes: charge, cursor: c}
@@ -248,10 +295,10 @@ func (s *RSSearchCursorStore) IssueUntil(owner governor.OwnerID, c *RSSearchCurs
 // Resolve authenticates the token, then checks the live entry against the
 // continuation's owner, private identity, folded query and accepted bank. It
 // returns the retained cursor and the original expiry ceiling for the next
-// IssueUntil. The cursor is shared immutable state: callers pass it to Begin
-// and never modify it. Replaying a live token returns the same cursor without
-// advancing or authorizing anything. A missing, expired, evicted, restarted or
-// closed entry is stale.
+// IssueNext. The cursor is shared immutable state: callers pass it to Begin
+// (which copies it) and never modify it. Replaying a live token returns the same
+// cursor without advancing or authorizing anything. A missing, expired,
+// evicted, superseded, restarted or closed entry is stale.
 func (s *RSSearchCursorStore) Resolve(token string, req RSSearchCursorRequest) (*RSSearchCursor, time.Time, error) {
 	if s == nil {
 		return nil, time.Time{}, ErrInput
@@ -343,22 +390,48 @@ func (s *RSSearchCursorStore) newHandleLocked() (rsSearchCursorHandle, error) {
 	return rsSearchCursorHandle{}, governor.ErrBusy
 }
 
-// makeRoomLocked keeps the store strictly bounded. Expired entries are already
-// gone. When the entry or byte ceiling is reached, the earliest-expiring handle
-// (then the earliest issued) is retired; a holder sees stale, never a stale
-// answer. If even an emptied store cannot hold the charge, refusal is explicit.
-func (s *RSSearchCursorStore) makeRoomLocked(charge int64) bool {
-	for len(s.entries) > 0 && (len(s.entries) >= s.limit.MaxEntries || s.bytes+charge > s.limit.MaxBytes) {
-		var victim rsSearchCursorHandle
-		first := true
-		for h, e := range s.entries {
-			if first || e.expires.Before(s.entries[victim].expires) || e.expires.Equal(s.entries[victim].expires) && e.sequence < s.entries[victim].sequence {
-				victim, first = h, false
-			}
+// makeRoomLocked keeps the store strictly bounded without letting one owner
+// displace another's live continuation. Expired entries are already swept. If
+// the entry or byte ceiling is still reached, only the issuing owner's own
+// earliest-expiring handle (then earliest issued) may be retired; a predecessor
+// that IssueNext is about to consume is counted as already freed. When the
+// store is full of other owners' live entries, refusal is explicit
+// (governor.ErrBusy) rather than a silent cross-owner eviction.
+func (s *RSSearchCursorStore) makeRoomLocked(owner governor.OwnerID, charge int64, retire *rsSearchCursorHandle) bool {
+	entries, bytes := len(s.entries), s.bytes
+	if retire != nil {
+		if e := s.entries[*retire]; e != nil {
+			entries--
+			bytes -= e.bytes
 		}
+	}
+	for entries > 0 && (entries >= s.limit.MaxEntries || bytes+charge > s.limit.MaxBytes) {
+		victim, ok := s.oldestOwnedLocked(owner, retire)
+		if !ok {
+			return false
+		}
+		bytes -= s.entries[victim].bytes
+		entries--
 		s.removeLocked(victim)
 	}
-	return len(s.entries) < s.limit.MaxEntries && s.bytes+charge <= s.limit.MaxBytes
+	return entries < s.limit.MaxEntries && bytes+charge <= s.limit.MaxBytes
+}
+
+// oldestOwnedLocked picks the earliest-expiring, then earliest-issued, live
+// entry belonging to owner. skip is the IssueNext predecessor, which is retired
+// separately and is not an eviction candidate.
+func (s *RSSearchCursorStore) oldestOwnedLocked(owner governor.OwnerID, skip *rsSearchCursorHandle) (rsSearchCursorHandle, bool) {
+	var victim rsSearchCursorHandle
+	found := false
+	for h, e := range s.entries {
+		if e.owner != owner || skip != nil && h == *skip {
+			continue
+		}
+		if !found || e.expires.Before(s.entries[victim].expires) || e.expires.Equal(s.entries[victim].expires) && e.sequence < s.entries[victim].sequence {
+			victim, found = h, true
+		}
+	}
+	return victim, found
 }
 
 func (s *RSSearchCursorStore) sweepLocked(now time.Time) int {
