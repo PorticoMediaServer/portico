@@ -23,7 +23,7 @@ func (b iaEntryBudget) check(ctx context.Context, turn *commandTurn, bytes int64
 	}
 	tx := turn.transaction
 	switch tx.descriptor.ID {
-	case IAConfigureLibrary, IAConfigureSource, IAAcceptEpisodeInventory, IAAcceptAudioInventory:
+	case IAConfigureLibrary, IAConfigureSource, IAConfigureSourceDisable, IAAcceptEpisodeInventory, IAAcceptAudioInventory:
 	default:
 		return ErrInvalid
 	}
