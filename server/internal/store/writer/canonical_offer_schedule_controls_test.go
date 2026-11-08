@@ -120,3 +120,12 @@ func TestCanonicalHeldConfigOfferedRate(t *testing.T) {
 		}
 	}
 }
+
+func TestPhysicalTurnRateIsActualTurnsOverTheWindow(t *testing.T) {
+	if ns, rate := physicalTurnRate(500, 5*time.Second); ns != int64(5e9) || rate.(float64) != 100 {
+		t.Fatal("500 turns over 5 s must be 100/s", ns, rate)
+	}
+	if _, rate := physicalTurnRate(7, 0); rate != nil {
+		t.Fatal("an empty window must not claim a rate")
+	}
+}
