@@ -432,9 +432,9 @@ func runCrashChild(t *testing.T, cell crashCase, beforeKill ...func(crashWitness
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), crashChildGuard)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCrashReplayChild$", "-test.count=1", "-test.timeout=25s")
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCrashReplayChild$", "-test.count=1", "-test.timeout="+crashChildTimeout.String())
 	cmd.Env = append(os.Environ(), "PORTICO_CRASH_CASE="+string(encoded), "TMPDIR="+scratch, "GOTMPDIR="+scratch)
 	cmd.ExtraFiles = []*os.File{writer}
 	var output bytes.Buffer
@@ -527,6 +527,13 @@ func reopenCrashExecutor(t *testing.T, path string) *executor {
 }
 
 func TestCrashReplayEffective(t *testing.T) {
+	t.Helper()
+	if raceDetector {
+		// This sequential child matrix exceeds one shard's race budget. The
+		// same cells run without -race; a skipped opt-in target is not evidence.
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+
 	template := newEffectiveFirstLightFixture(t, func() time.Time { return crashClock })
 	if joined, err := closeEffectiveFirstLightFixture(template); err != nil || !joined {
 		t.Fatal("fresh fixture did not physically join before crash cases", joined, err)

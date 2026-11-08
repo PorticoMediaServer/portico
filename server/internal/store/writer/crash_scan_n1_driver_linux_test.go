@@ -913,6 +913,13 @@ func closeN1DriverCrashFixture(t *testing.T, d *ScanDriver) {
 // boundaries, public API return and both lost-COMMIT replies, plus one native
 // boundary per currently executed statement in this fixture.
 func TestCrashReplayN1DriverPublicPath(t *testing.T) {
+	t.Helper()
+	if raceDetector {
+		// This sequential child matrix exceeds one shard's race budget. The
+		// same cells run without -race; a skipped opt-in target is not evidence.
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+
 	d, preparation, command, _ := n1ComposedDriverPrepared(t)
 	e, path := d.opening.executor, d.opening.binding.path
 	clock := e.now()

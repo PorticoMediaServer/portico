@@ -368,6 +368,13 @@ func verifyInventoryNativeCrash(t *testing.T, profile effectivePlan, q ScanRecei
 }
 
 func TestCrashReplayInventoryNativeHistory(t *testing.T) {
+	t.Helper()
+	if raceDetector {
+		// This sequential child matrix exceeds one shard's race budget. The
+		// same cells run without -race; a skipped opt-in target is not evidence.
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+
 	for _, operation := range []string{"resolve", "ack", "resolve_retired", "ack_retired"} {
 		t.Run(operation, func(t *testing.T) {
 			witness := crashWitness{Case: crashCase{"inventory_native", operation, "trace", ""}}
