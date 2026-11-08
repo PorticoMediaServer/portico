@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/naming"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -896,20 +895,25 @@ func iaEpisodeTextPointer(v sql.NullString) *string {
 	return &s
 }
 
-// applyIAEpisodeSearchInput advances the ONE shared input clock once for the
-// complete new-entity cohort and inserts one capture job per bank. A reused
-// identity has no new search intent; a stored bank/profile mismatch refuses the
-// whole unit instead of parking native publication silently.
-func applyIAEpisodeSearchInput(ctx context.Context, turn *commandTurn, entities []newOrdinaryEntitySource, acceptedAtMS int64) (err error) {
+// IA-11's accepted search-intent append, shared by every IA accepting class. It
+// advances the ONE shared input clock once for the complete new-entity cohort and
+// inserts one capture job per bank. A reused identity has no new search intent; a
+// stored bank/profile mismatch refuses the whole unit instead of parking native
+// publication silently.
+func applyIAEpisodeSearchInput(ctx context.Context, turn *commandTurn, entities []newOrdinaryEntitySource, acceptedAtMS int64) error {
+	return applyIAMediaSearchInput(ctx, turn, entities, acceptedAtMS, 2, 4)
+}
+
+func applyIAMediaSearchInput(ctx context.Context, turn *commandTurn, entities []newOrdinaryEntitySource, acceptedAtMS, firstKind, lastKind int64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
-	if ctx == nil || turn == nil || turn.transaction == nil || acceptedAtMS < 0 || len(entities) > naming.MaxEpisodeLinks*2+1 {
+	if ctx == nil || turn == nil || turn.transaction == nil || acceptedAtMS < 0 || firstKind < 1 || lastKind > 99 || firstKind > lastKind || len(entities) > 4096 {
 		return ErrInvalid
 	}
 	if len(entities) == 0 {
 		return nil
 	}
 	for _, entity := range entities {
-		if entity.SubjectID <= 0 || entity.LibraryID <= 0 || entity.Kind < 2 || entity.Kind > 4 || entity.EntityRevision != 1 {
+		if entity.SubjectID <= 0 || entity.LibraryID <= 0 || entity.Kind < firstKind || entity.Kind > lastKind || entity.EntityRevision != 1 {
 			return ErrInvalid
 		}
 	}
