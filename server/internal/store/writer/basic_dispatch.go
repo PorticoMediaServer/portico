@@ -74,16 +74,16 @@ func (r *effectiveRuntime) runBasicTurn(ctx context.Context, w *Writer, turn *co
 	if err = checkBasicFreshWork(in); err != nil {
 		return value, false, err
 	}
+	// Invariant: the dispatcher selected this purpose's installed plan under
+	// r.mu before admission; a nil plan here is a broken invariant, not a refusal.
+	kind, err := in.validate()
+	if err != nil || r.basicPlan(kind) == nil {
+		return value, false, ErrInvalid
+	}
 	if in.accept != nil {
-		if r.basicAcceptPlan == nil {
-			return value, false, ErrNotImplemented
-		}
 		if err = checkBasicAcceptBounds(in.accept, r.basicAcceptPlan.basicAcceptBounds); err != nil {
 			return value, false, err
 		}
-	}
-	if (in.stage != nil && r.basicStagePlan == nil) || (in.seal != nil && r.basicSealPlan == nil) {
-		return value, false, ErrNotImplemented
 	}
 	value, err = in.apply(ctx, turn)
 	if err != nil {
