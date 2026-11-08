@@ -36,19 +36,19 @@ func init() {
 }
 
 type ec4ScreenReport struct {
-	Label                                                                  string `json:"label"`
-	Qualification                                                          bool   `json:"qualification"`
-	Features                                                               string
-	Capabilities                                                           map[string]bool
-	Source, Profile, Phase, Error                                          string
-	Requested, Accepted, ReaderVisible, Renewals, Checkpoints, Recoveries  int
-	GenerationNS, ScanNS, MaintenanceNS                                    int64
-	FirstFilenameVisibleNS, AllFilenameVisibleNS, FirstBasicNS, AllBasicNS *int64
-	Fixture                                                                ec4ScreenFixture
-	NativeEOFObserved                                                      bool
-	TraversalCommitted                                                     bool
-	Missing                                                                []string
-	Cgroup                                                                 string
+	Label                                                                                     string `json:"label"`
+	Qualification                                                                             bool   `json:"qualification"`
+	Features                                                                                  string
+	Capabilities                                                                              map[string]bool
+	Source, Profile, Phase, Error                                                             string
+	Requested, Accepted, ReaderVisible, Renewals, Checkpoints, Recoveries, HistoryResolutions int
+	GenerationNS, ScanNS, MaintenanceNS                                                       int64
+	FirstFilenameVisibleNS, AllFilenameVisibleNS, FirstBasicNS, AllBasicNS                    *int64
+	Fixture                                                                                   ec4ScreenFixture
+	NativeEOFObserved                                                                         bool
+	TraversalCommitted                                                                        bool
+	Missing                                                                                   []string
+	Cgroup                                                                                    string
 }
 
 func ec4WriteReport(path string, r ec4ScreenReport) error {
@@ -85,7 +85,14 @@ func ec4ConsumeLifecycle(ctx context.Context, op *ScanRunOperation, j *os.File) 
 	}
 	result, e := op.Apply(ctx)
 	if e != nil {
+		applyErr := e
+		if e = ec4Journal(j, map[string]any{"phase": "lifecycle_apply_error", "original": q, "at": time.Now(), "error": applyErr.Error()}); e != nil {
+			return q, nil, errors.Join(applyErr, e)
+		}
 		result, e = op.Resolve(ctx)
+		if e != nil {
+			return q, nil, errors.Join(applyErr, e)
+		}
 	}
 	if e != nil {
 		return q, nil, e
@@ -344,6 +351,7 @@ func TestEC4NativeScreening(t *testing.T) {
 				r.Renewals++
 			}
 			r.Phase = "observe"
+			preparedAt := time.Now()
 			preparation, e := d.PrepareInventory(t.Context(), lease, last, []byte("."))
 			if e != nil {
 				return e
@@ -382,14 +390,21 @@ func TestEC4NativeScreening(t *testing.T) {
 			if e != nil {
 				return e
 			}
-			if e = ec4Journal(journal, map[string]any{"phase": "original", "original": original, "input": in}); e != nil {
+			saveStarted := time.Now()
+			if e = ec4Journal(journal, map[string]any{"phase": "original", "original": original, "input": in, "prepared_at": preparedAt, "save_started_at": saveStarted}); e != nil {
 				return e
 			}
 			r.Phase = "accept"
+			acceptStarted := time.Now()
+			historyOnly := false
 			result, e := preparation.Accept(t.Context(), command)
 			if e != nil {
+				acceptErr := e
+				if e = ec4Journal(journal, map[string]any{"phase": "accept_error", "original": original, "at": time.Now(), "error": acceptErr.Error(), "prepare_to_accept_ns": acceptStarted.Sub(preparedAt).Nanoseconds(), "original_save_ns": acceptStarted.Sub(saveStarted).Nanoseconds(), "accept_ns": time.Since(acceptStarted).Nanoseconds()}); e != nil {
+					return errors.Join(acceptErr, e)
+				}
 				var admission *governor.AdmissionError
-				if errors.As(e, &admission) && (admission.Cause == governor.CauseWALDebt || admission.Cause == governor.CauseWALActive || admission.Cause == governor.CauseWALSpace) {
+				if errors.As(acceptErr, &admission) && (admission.Cause == governor.CauseWALDebt || admission.Cause == governor.CauseWALActive || admission.Cause == governor.CauseWALSpace) {
 					if e = maintenance(false); e != nil {
 						return e
 					}
@@ -401,12 +416,24 @@ func TestEC4NativeScreening(t *testing.T) {
 				}
 				// A refused or ambiguous ORIGINAL is never replaced/replayed.
 				// Only its saved Applied proof can proceed to consumption and ACK.
-				result, e = d.ResolveScan(t.Context(), original)
-			}
-			if e != nil {
-				return e
+				// The old ORIGINAL lifetime cannot fund history after expiry.
+				// Join/Close it, then let W retain current history custody.
+				result, e = ec4ResolveOriginal(t.Context(), d, preparation, original)
+				historyOnly = true
+				r.HistoryResolutions++
+				if e != nil {
+					return errors.Join(acceptErr, e)
+				}
 			}
 			if result.Outcome.State != Applied || result.Outcome.Reference != original.Receipt || len(result.Members) != 1 {
+				if e = ec4Journal(journal, map[string]any{"phase": "unapplied_original", "original": original, "result": result}); e != nil {
+					return e
+				}
+				if historyOnly {
+					if e = d.ReleasePending(t.Context()); e != nil {
+						return e
+					}
+				}
 				return ErrResolveRequired
 			}
 			if e = ec4Journal(journal, map[string]any{"phase": "consumed", "original": original, "result": result}); e != nil {
@@ -415,7 +442,12 @@ func TestEC4NativeScreening(t *testing.T) {
 			if _, e = d.AckScan(t.Context(), original); e != nil {
 				return e
 			}
-			if e = preparation.Close(t.Context()); e != nil {
+			if historyOnly {
+				e = d.ReleasePending(t.Context())
+			} else {
+				e = preparation.Close(t.Context())
+			}
+			if e != nil {
 				return e
 			}
 			seen[ordinal] = true
