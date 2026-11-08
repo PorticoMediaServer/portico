@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"flag"
 	"io"
 	"os"
 	"testing"
@@ -11,6 +12,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
+
+var recordRSPeoplePagePlans = flag.Bool("record-rs-people-page-plans", false, "deliberately record reviewed people page native plans")
 
 func rsPeoplePageCaptures(t *testing.T) []byte {
 	t.Helper()
@@ -57,7 +60,21 @@ func rsPeoplePageCaptures(t *testing.T) []byte {
 
 func TestRSPeoplePagePlans(t *testing.T) {
 	actual := rsPeoplePageCaptures(t)
-	data, err := os.ReadFile("testdata/rs-people-page-plans.json.gz")
+	path := "testdata/rs-people-page-plans.json.gz"
+	if *recordRSPeoplePagePlans {
+		var compressed bytes.Buffer
+		z := gzip.NewWriter(&compressed)
+		if _, err := z.Write(actual); err != nil {
+			t.Fatal(err)
+		}
+		if err := z.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, compressed.Bytes(), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}

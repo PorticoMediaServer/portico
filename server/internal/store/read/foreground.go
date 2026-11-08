@@ -200,9 +200,19 @@ func (r *ForegroundReader) detail(ctx context.Context, request governor.Request,
 			if len(rows) > 128 {
 				return ErrUnqualified
 			}
+			lastRole := ""
 			for _, v := range rows { // PK order puts locked before matched for each role.
 				role := v[0].(string)
-				if len(d.Images) > 0 && d.Images[len(d.Images)-1].Role == role {
+				if role == lastRole {
+					// The first row for a role is its precedence choice. A later
+					// matched row never revives a role that was already consumed.
+					continue
+				}
+				lastRole = role
+				if v[2] == nil {
+					// A locked selection with a NULL digest is a present empty
+					// choice. It consumes the role and omits the image; it is
+					// never asserted as a string or replaced by matched art.
 					continue
 				}
 				d.Images = append(d.Images, Image{Role: role, Digest: v[2].(string), Provider: v[3].(string), Origin: v[4].(string), Revision: v[5].(int64)})
