@@ -389,6 +389,31 @@ func TestRBFilterTermsRenamedRetiredAndStaleImages(t *testing.T) {
 	})
 }
 
+// TestRBFilterTermsPersonIdentityIsExact keeps the identity-field branch
+// observable. person/cast/crew are opaque identities compared exactly, as
+// browseIdentityField does, so a mixed-case not-in operand never excludes the
+// lowercase stored token. If rbTermsIdentityField were folded, the folded not-in
+// positive would match and entity 1 would disappear: this test fails under that
+// mutation. The frozen oracle carries the same query.
+func TestRBFilterTermsPersonIdentityIsExact(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := rbTermsFixture(t)
+		in := TermsFilterInput{View: f.input, Query: json.RawMessage(`{"variant":"group","all":[{"variant":"predicate","field":"person","operator":"in","value":["person-bob","PERSON-BOB"]},{"variant":"predicate","field":"person","operator":"not-in","value":["PERSON-BOB"]}]}`)}
+		in.View.Limit = 10
+		page, _, err := rbTermsRead(t, f, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []int64
+		for _, item := range page.Items {
+			ids = append(ids, item.ID)
+		}
+		if !reflect.DeepEqual(ids, []int64{1}) {
+			t.Fatalf("person identity was not compared exactly: %v", ids)
+		}
+	})
+}
+
 func TestRBFilterTermsLabelPolicyDenial(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := rbTermsFixture(t)
@@ -434,14 +459,24 @@ func TestRBFilterTermsFencesAndRefusals(t *testing.T) {
 		if !errors.Is(err, ErrInput) || !reflect.DeepEqual(page, TermsFilterPage{}) {
 			t.Fatal("LIVE bypass", page, err)
 		}
-		// A present-attribute filter over a page with no tag rows is an exact
-		// empty page, not a sampled answer.
+		// A present-attribute filter over a page with no matching value is an
+		// exact empty page, not a sampled answer; a show pivot is the named
+		// member-ancestry refusal instead.
 		f2 := rbTermsFixture(t)
-		in = TermsFilterInput{View: f2.input, Query: json.RawMessage(`{"variant":"predicate","field":"tag","operator":"is-present","value":null}`)}
-		in.View.Kind = 2
+		in = TermsFilterInput{View: f2.input, Query: json.RawMessage(`{"variant":"predicate","field":"tag","operator":"equals","value":"Absent"}`)}
 		page, _, err = rbTermsRead(t, f2, in)
 		if err != nil || len(page.Items) != 0 || !page.Exhausted {
-			t.Fatal("attribute presence refused a small page", page, err)
+			t.Fatal("absent attribute refused a small page", page, err)
+		}
+		in.View.Kind = 2
+		page, _, err = rbTermsRead(t, f2, in)
+		if !errors.Is(err, ErrTermsMemberAncestry) || !reflect.DeepEqual(page, TermsFilterPage{}) {
+			t.Fatal("show pivot did not refuse its member-episode ancestry", page, err)
+		}
+		in.View.Kind = 3
+		page, _, err = rbTermsRead(t, f2, in)
+		if !errors.Is(err, ErrTermsMemberAncestry) || !reflect.DeepEqual(page, TermsFilterPage{}) {
+			t.Fatal("season pivot did not refuse its member-episode ancestry", page, err)
 		}
 	})
 }
@@ -474,9 +509,9 @@ func TestRBFilterTermsFactCapacityRefusal(t *testing.T) {
 		f.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<2048)
 INSERT INTO catalog_attribute_terms(id,field_id,value_key) SELECT 100000+i,1,'cap'||i FROM n`)
 		f.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<2048)
-INSERT INTO catalog_item_attribute_edges(item_id,term_id,source_value,source_rowid) SELECT 7,100000+i,'Noir',i FROM n`)
+INSERT INTO catalog_item_attribute_edges(item_id,term_id,source_value,source_rowid) SELECT 1,100000+i,'Noir',i FROM n`)
 		in := TermsFilterInput{View: f.input, Query: json.RawMessage(`{"variant":"predicate","field":"tag","operator":"equals","value":"Noir"}`)}
-		in.View.Kind = 2
+		in.View.Kind = 1
 		page, _, err := rbTermsReadWithRows(t, f, in, 4096)
 		if !errors.Is(err, ErrNotReady) || !reflect.DeepEqual(page, TermsFilterPage{}) {
 			t.Fatal("full fact page was not refused as incomplete evidence", page, err)

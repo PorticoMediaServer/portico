@@ -310,6 +310,13 @@
       "tests": ["TestMusicMixTintUsesCanonicalCrossPlatformChannelVectors"]
     },
     {
+      "package": "server/internal/catalog",
+      "why": "Recompiles the frozen legacy browse-filter-term oracle vectors to prove the native read fixture has not drifted from ParseBrowseQuery and CompileBrowseSelection",
+      "reads": ["server/internal/store/read/testdata/rb-filter-terms-legacy-oracle.json.gz"],
+      "files": ["server/internal/catalog/browse_filter_terms_oracle_vectors_test.go"],
+      "tests": ["TestRBFilterTermsLegacyOracleVectorsMatchCompiler"]
+    },
+    {
       "package": "server/internal/disc",
       "why": "Reads the disc fixtures",
       "reads": ["fixtures/discs/"],
