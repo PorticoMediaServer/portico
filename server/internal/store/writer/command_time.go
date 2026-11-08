@@ -10,11 +10,12 @@ import (
 // This factors existing policy; it does not implement clock follow-up1118.
 func (t *commandTurn) commandTimeMS(ctx context.Context, purpose CommandID, leaseExpiresMS int64) (nowMS int64, err error) {
 	defer func() { nowMS, err = finishCommand(ctx, commandLifetime(t), nowMS, err) }()
-	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) {
+	facts, ok := commandPurposeFacts(purpose)
+	if !ok || facts.clock == noCommandClock {
 		return 0, ErrInvalid
 	}
 	if ctx == nil || t == nil || t.transaction == nil ||
-		((purpose == InventoryCreate || purpose == ProgressAccept || purpose == SecurityAccept || purpose == ProgressReceiptReclaim) && leaseExpiresMS != 0) || (purpose != InventoryCreate && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && leaseExpiresMS <= 0) {
+		(facts.clock == clockWithoutLease && leaseExpiresMS != 0) || (facts.clock == clockUnderLease && leaseExpiresMS <= 0) {
 		return 0, ErrInvalid
 	}
 	tx := t.transaction

@@ -22,7 +22,8 @@ func validateMemoryPartition(b commandMemoryBudget, total int64, field string) e
 
 func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandID, requiredBytes uint64, partitionField string) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
-	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && purpose != EffectiveStage && purpose != EnrichAccept && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) && !enrichmentPurpose(purpose) {
+	facts, ok := commandPurposeFacts(purpose)
+	if !ok || facts.memory == noMemoryPartition {
 		return ErrInvalid
 	}
 	if ctx == nil || t == nil || t.transaction == nil || requiredBytes == 0 {
@@ -46,36 +47,9 @@ func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandI
 	if err := c.check(purpose, tx.workLimit); err != nil {
 		return err
 	}
-	b := c.inventoryMemory
-	if enrichmentPurpose(purpose) {
-		b = c.enrichmentMemory
-	}
-	if purpose == SearchImageStage {
-		b = c.searchImageMemory
-	}
-	if purpose == InventoryCreate || purpose == InventoryClaim {
-		b = c.scanLifecycleMemory
-	}
-	if purpose == BasicStage || purpose == BasicSeal || purpose == BasicAccept {
-		b = c.basicMemory
-	}
-	if purpose == ProgressAccept {
-		b = c.wcProgressMemory
-	}
-	if purpose == ProgressReceiptReclaim {
-		b = c.wcReclaimMemory
-	}
-	if purpose == SecurityAccept {
-		b = c.wcSecurityMemory
-	}
-	if scanDirectoryPurpose(purpose) {
-		b = c.directoryMemory
-	}
-	if searchPublisherPurpose(purpose) {
-		b = c.publisherMemory
-	}
-	if effectiveSourceProofPurpose(purpose) {
-		b = c.effectiveSourceMemory
+	b, err := c.memoryPartition(facts.memory)
+	if err != nil {
+		return err
 	}
 	if err := validateMemoryPartition(b, c.expected.Need[governor.MemoryBytes], partitionField); err != nil {
 		return err
@@ -87,4 +61,34 @@ func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandI
 		return &Refusal{Code: RefusalCapacity}
 	}
 	return nil
+}
+
+// The ONE installed custody partition for a declared purpose partition.
+func (c *governedTurn) memoryPartition(p memoryPartition) (commandMemoryBudget, error) {
+	switch p {
+	case inventoryPartition:
+		return c.inventoryMemory, nil
+	case searchImagePartition:
+		return c.searchImageMemory, nil
+	case scanLifecyclePartition:
+		return c.scanLifecycleMemory, nil
+	case enrichmentPartition:
+		return c.enrichmentMemory, nil
+	case basicPartition:
+		return c.basicMemory, nil
+	case wcProgressPartition:
+		return c.wcProgressMemory, nil
+	case wcSecurityPartition:
+		return c.wcSecurityMemory, nil
+	case wcReclaimPartition:
+		return c.wcReclaimMemory, nil
+	case directoryPartition:
+		return c.directoryMemory, nil
+	case publisherPartition:
+		return c.publisherMemory, nil
+	case effectiveSourcePartition:
+		return c.effectiveSourceMemory, nil
+	default:
+		return commandMemoryBudget{}, ErrInvalid
+	}
 }
