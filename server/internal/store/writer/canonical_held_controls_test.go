@@ -25,11 +25,15 @@ func TestCanonicalHeldClosedRegistryKeepsAllBindingsExplicit(t *testing.T) {
 		if len(canonicalHeldMissing(c)) != want || (c.run != nil) != ready {
 			t.Fatal("unmerged seed/Action opened", c)
 		}
-		if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.") || strings.HasPrefix(c.name, "rs.") || strings.HasPrefix(c.name, "uo.") || strings.HasPrefix(c.name, "IA-membership-")) && (c.kind != "foreground_read" || c.purpose != nil) {
+		if c.name == "mp.queue_repeat" {
+			if c.kind != "normal_write" || c.purpose == nil || *c.purpose != MPQueueRepeat {
+				t.Fatal("repeat754 writer binding changed", c)
+			}
+		} else if (strings.HasPrefix(c.name, "mp.") || strings.HasPrefix(c.name, "rb.") || strings.HasPrefix(c.name, "rs.") || strings.HasPrefix(c.name, "uo.") || strings.HasPrefix(c.name, "IA-membership-")) && (c.kind != "foreground_read" || c.purpose != nil) {
 			t.Fatal("read became writer class", c)
 		}
 	}
-	if len(seen) != 27 {
+	if len(seen) != 28 {
 		t.Fatal(seen)
 	}
 	if _, err := canonicalHeldClassFor("caller_sql"); err == nil {
