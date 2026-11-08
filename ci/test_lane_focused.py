@@ -33,6 +33,15 @@ class LaneTests(unittest.TestCase):
         self.assertEqual(len(lane.split_units(units, 64)), 64)
         self.assertEqual(len(lane.split_units(units[:2], 64)), 2)
 
+    def test_race_weights_isolate_long_parents(self):
+        units = [dict(Package='pkg', Name=f'Test{i}') for i in range(40)]
+        weights = {'pkg::Test0': 940.0, 'pkg::Test1': 620.0}
+        bins = lane.split_units(units, 'auto', weights)
+        self.assertEqual(sorted(u['Name'] for b in bins for u in b), sorted(u['Name'] for u in units))
+        self.assertNotEqual(bins[0], bins[1])
+        self.assertEqual(len(bins[0] + bins[1]), 2)  # each long parent is alone
+        self.assertEqual(len(lane.split_units(units, 'auto')), 2)  # no weights keeps the old splitter
+
     def test_exact_list_reaches_argv_without_running_other_package_tests(self):
         cfg = self.config(tests='TestA')
         unit = dict(Name='TestA', Package='pkg', run='.', flags=[])

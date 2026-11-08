@@ -367,6 +367,13 @@ func verifyFreshInventoryCrash(t *testing.T, command *inventoryAcceptCommand, pr
 }
 
 func TestCrashReplayFreshInventoryComponent(t *testing.T) {
+	t.Helper()
+	if raceDetector {
+		// This sequential child matrix exceeds one shard's race budget. The
+		// same cells run without -race; a skipped opt-in target is not evidence.
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+
 	witness := crashWitness{Case: crashCase{Domain: "inventory_fresh_component", Operation: "component", Boundary: "trace"}}
 	e, command, turn, authority, trace := freshCrashFixture(t, &witness)
 	out, err := applyInventoryAccept(t.Context(), turn, command)
