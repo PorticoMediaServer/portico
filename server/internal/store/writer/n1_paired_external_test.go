@@ -36,18 +36,42 @@ var pairedCohort = flag.String("n1-paired-cohort", "timing", "timing or native-c
 type pairedSink struct {
 	c                   *writer.N1PairedComponent
 	finalSeen, complete bool
+	drivers             bool
+	progress            map[string]workload.StreamProgress
 }
 
 func (s *pairedSink) Append(record workload.Record) error {
 	if record.Kind == "final" {
 		s.finalSeen = true
+		s.drivers = record.DriversReturned
 		s.complete = record.ScheduleComplete && record.DriversReturned && record.Error == ""
+	}
+	if record.Progress != nil {
+		if s.progress == nil {
+			s.progress = map[string]workload.StreamProgress{}
+		}
+		s.progress[record.Progress.Name] = *record.Progress
 	}
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return err
 	}
 	return s.c.EmitScheduler(raw)
+}
+
+// streamGap names the first required stream that missed a scheduled offer or
+// left one unserved. Supporting streams are recorded gaps, not verdicts.
+func (s *pairedSink) streamGap(names ...string) string {
+	for _, name := range names {
+		p, ok := s.progress[name]
+		if !ok {
+			return name + " stream missing its terminal progress"
+		}
+		if p.Missed+p.Unserved != 0 {
+			return fmt.Sprintf("%s stream missed %d and left %d unserved; retain the raw gaps", name, p.Missed, p.Unserved)
+		}
+	}
+	return ""
 }
 
 func encodePaired[P any](ctx context.Context, page P) error {

@@ -648,12 +648,19 @@ Progress capture/drain, FULL security and retained reclaim are actual merged
 Actions. The serial writer queue is shared by scan and independent user-write
 submissions; reads and funded PASSIVE remain separate. Select
 `-ec2-writer-pattern=inventory` with a sustainable
-`-ec3-foreground-write-every` for the user-write cell (250ms is the screening
-pin; 50ms remains the wait target that the ledger classifies against, not the
-offer cadence: at a 50ms cadence one action over the interval is a missed offer
-and the bounded schedule is correctly incomplete). The default foreground
-pattern is capture, drain, security. The wait ledger selects ACCEPT, preserving
-SNAPSHOT/Resolve/ACK separately.
+`-ec3-foreground-write-every` for the user-write cell (500ms with 128 measured
+originals is the screening pin, giving 256 offers; 50ms remains the wait target that the ledger
+classifies against, not the offer cadence, because one action over the interval
+is a missed offer and the bounded schedule is correctly incomplete). A bounded
+miss never submits an invalid phase: capture with retained pending and drain with
+nothing pending record an explicit `*_DEFERRED` observation and do no write.
+A read whose publication fence changed under concurrent ingest retains the stale
+attempt raw and is retried once within its original deadline.
+The EC2 verdict requires the serial `writer` stream to serve every scheduled
+offer; read, checkpoint and WAL misses stay recorded gaps and every action error
+still fails. The EC3 verdict additionally requires complete foreground-write
+coverage. The default foreground pattern is capture, drain, security. The wait
+ledger selects ACCEPT, preserving SNAPSHOT/Resolve/ACK separately.
 
 Default mixed sustained writer pattern is inventory/security. Optional writer
 entries progress_capture, progress_drain and reclaim stay real source operations;
