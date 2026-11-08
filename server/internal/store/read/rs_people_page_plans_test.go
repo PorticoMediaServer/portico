@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -54,30 +53,6 @@ func rsPeoplePageCaptures(t *testing.T) []byte {
 		t.Fatal(err)
 	}
 	return data
-}
-
-// Explicit fixture capture for the lane runner. It writes only bounded evidence
-// to the runner's artifact directory; it never modifies a baseline or source.
-func TestRSPeoplePageCaptureDraft(t *testing.T) {
-	data := rsPeoplePageCaptures(t)
-	dir := os.Getenv("PORTICO_LANE_EVIDENCE_DIR")
-	if dir == "" {
-		return
-	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		t.Fatal(err)
-	}
-	var b bytes.Buffer
-	z := gzip.NewWriter(&b)
-	if _, err := z.Write(data); err != nil {
-		t.Fatal(err)
-	}
-	if err := z.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "rs-people-page-plans.json.gz"), b.Bytes(), 0600); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestRSPeoplePagePlans(t *testing.T) {
