@@ -46,7 +46,12 @@ type SongFacts struct {
 	Album       int64
 	Disc, Track *int64
 }
-type BookFacts struct{ Author, Narrator, Series, SeriesPosition string }
+type BookFacts struct {
+	Author, Narrator, Series, SeriesPosition string
+	// No remote book provider is admitted by the current provider map. Local
+	// tag acceptance does not turn a book into a remote provider match.
+	ProviderMatchStatus string
+}
 type AudioFileFacts struct {
 	Book       int64
 	Disc, Part *int64
@@ -77,21 +82,52 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 	if r == nil || !validTitle(title) {
 		return TitleFacts{}, BrowseReadResult{}, ErrInput
 	}
-	var token string
+	if in.View.Kind < 1 || in.View.Kind > 13 {
+		return TitleFacts{}, BrowseReadResult{}, ErrUnqualified
+	}
+	in.View.policy = readPolicyBinding{recipe: rsDetailSubjectPolicy, subject: in.Item}
 	var source []any
-	return publishRead(ctx, r.snapshots, request, budget, output, in.View, []readStep[TitleFacts]{
+	// Match publication's cumulative copy limit while preserving the original
+	// request ceiling for the governor's additional fixed decode overhead.
+	windows := &rsByteWindow{source: r.snapshots, preflightCalls: 10, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
+	root := func(q browseQuery) ([]any, error) {
+		rows, err := q("rs.detail.source", in.Item, in.View.Library, in.View.Kind)
+		if err != nil {
+			return nil, err
+		}
+		if len(rows) != 1 {
+			return nil, ErrDenied
+		}
+		source = rows[0]
+		return rows[0], nil
+	}
+	return publishRead(ctx, windows, request, budget, output, in.View, []readStep[TitleFacts]{
 		func(ctx context.Context, q browseQuery, f browseFence, d *TitleFacts) error {
-			if !admittedItem(source[16:23], f) {
+			if source[2].(int64) != 0 || f.container == 0 && ((source[3] == nil && f.allowUnrated == 0) || (source[3] != nil && f.maximumAge >= 0 && source[3].(int64) > f.maximumAge)) {
 				return ErrDenied
 			}
-			return ctx.Err()
+			sizes, err := q("rs.detail.facts_octets", in.Item, in.View.Library, in.View.Kind)
+			if err != nil {
+				return err
+			}
+			if len(sizes) != 1 {
+				return ErrDenied
+			}
+			bytes, err := rsPointBytes(sizes[0])
+			if err != nil {
+				return err
+			}
+			if err = ctx.Err(); err != nil {
+				return err
+			}
+			return windows.arm(bytes, 2)
 		},
 		func(ctx context.Context, q browseQuery, f browseFence, d *TitleFacts) error {
 			rows, err := q("rs.detail.facts", in.Item, in.View.Library, in.View.Kind)
 			if err != nil {
 				return err
 			}
-			if len(rows) != 1 || !admittedItem(rows[0], f) {
+			if len(rows) != 1 || f.container == 0 && !admittedItem(rows[0], f) {
 				return ErrDenied
 			}
 			v := rows[0]
@@ -107,7 +143,7 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 				return v[n].(int64), nil
 			}
 			switch in.View.Kind {
-			case 1, 5: // Movies and artists use the common accepted descriptive fields.
+			case 1, 5, 11, 12, 13: // Extra, disc and author roots use common accepted descriptive fields; technical facts have a separate source lifetime.
 			case 2:
 				d.Show = &ShowFacts{HideSeasons: v[19].(int64) != 0, AbsoluteNumbering: v[20].(int64) != 0, NewestFirst: v[21].(int64) != 0, SettingsRevision: v[22].(int64), Ranges: v[23].(string)}
 			case 3:
@@ -146,7 +182,7 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 				}
 				d.Song = &SongFacts{Album: album, Disc: rsInteger(v[37]), Track: rsInteger(v[38])}
 			case 8:
-				d.Book = &BookFacts{Author: v[39].(string), Narrator: v[40].(string), Series: v[41].(string), SeriesPosition: v[42].(string)}
+				d.Book = &BookFacts{Author: v[39].(string), Narrator: v[40].(string), Series: v[41].(string), SeriesPosition: v[42].(string), ProviderMatchStatus: "deferred"}
 			case 9:
 				book, err := required(43)
 				if err != nil {
@@ -160,7 +196,7 @@ func (r *ForegroundReader) facts(ctx context.Context, request governor.Request, 
 			}
 			return ctx.Err()
 		},
-	}, titleSource(title, &token, &source))
+	}, root)
 }
 func rsInteger(v any) *int64 {
 	if v == nil {

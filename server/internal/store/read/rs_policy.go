@@ -10,17 +10,28 @@ import (
 // cannot supply a policy, register a validator or turn a refusal into permission.
 // Domain readers select their own registered recipe in their own source files.
 type readPolicyID uint16
+type readPolicyScope uint8
+
+const (
+	readLibraryScope readPolicyScope = iota
+	readPrincipalScope
+)
+
+// Stateful recipes accept only private, compiled domain work. The marker is
+// deliberately unexported; it is neither a caller assertion nor a wire value.
+type readPolicyState interface{ readPolicyState() }
 type readPolicyBinding struct {
 	recipe       readPolicyID
 	subject      int64
+	state        readPolicyState
 	nativeSearch bool
 }
 type readPolicyRecipe struct {
-	id     readPolicyID
-	domain string
-	kinds  []int64
-	// nativeSearch explicitly opts this closed domain into per-hit search.
-	// Catalogue recipe0 remains the fallback; only one domain may own a kind.
+	id           readPolicyID
+	domain       string
+	kinds        []int64
+	stateful     bool
+	scope        readPolicyScope
 	nativeSearch bool
 	// validate runs AFTER all common authority, birth, library and policy checks,
 	// in BOTH initial and final snapshots. It must prove the complete eligibility
@@ -43,7 +54,7 @@ func registerReadPolicy(p readPolicyRecipe) {
 	if readPolicies.sealed {
 		panic("read policy registration after first use")
 	}
-	if p.domain == "" || p.validate == nil || len(p.kinds) == 0 {
+	if p.scope > readPrincipalScope || p.scope == readPrincipalScope && !p.stateful || p.domain == "" || p.validate == nil || len(p.kinds) == 0 {
 		panic("incomplete read policy recipe")
 	}
 	if _, exists := readPolicies.recipes[p.id]; exists {
@@ -57,8 +68,8 @@ func registerReadPolicy(p readPolicyRecipe) {
 		}
 	}
 	if p.nativeSearch {
-		if p.id == 0 {
-			panic("catalogue fallback cannot replace a native-search domain")
+		if p.id == 0 || p.scope != readLibraryScope {
+			panic("native search requires a closed library domain")
 		}
 		for _, old := range readPolicies.recipes {
 			if !old.nativeSearch {
@@ -81,11 +92,14 @@ func resolveReadPolicy(in BrowseInput) (readPolicyRecipe, error) {
 	if !ok || !slices.Contains(p.kinds, in.Kind) {
 		return readPolicyRecipe{}, ErrUnqualified
 	}
+	if p.stateful != (in.policy.state != nil) {
+		return readPolicyRecipe{}, ErrInput
+	}
 	// The legacy/default path has no subject-specific eligibility proof.
 	if p.id == 0 && in.policy.subject != 0 && !in.policy.nativeSearch {
 		return readPolicyRecipe{}, ErrInput
 	}
-	if in.policy.nativeSearch && (in.policy.subject <= 0 || p.id != 0 && !p.nativeSearch) {
+	if in.policy.nativeSearch && (in.policy.subject <= 0 || p.scope != readLibraryScope || p.id != 0 && !p.nativeSearch) {
 		return readPolicyRecipe{}, ErrUnqualified
 	}
 	return p, nil
@@ -106,4 +120,10 @@ func validateReadPolicy(q browseQuery, in BrowseInput, f *browseFence) error {
 	f.policySubject = in.policy.subject
 	f.policyWitness = witness
 	return nil
+}
+
+// A global principal purpose is a compiled domain recipe with private live work.
+// It never widens the default catalogue's positive-library requirement.
+func validReadPolicyScope(in BrowseInput, p readPolicyRecipe) bool {
+	return in.Library > 0 && p.scope == readLibraryScope || in.Library == 0 && p.scope == readPrincipalScope
 }
