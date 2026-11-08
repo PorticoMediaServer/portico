@@ -146,6 +146,10 @@ func TestRSArtistAlbumReaderLifecycle(t *testing.T) {
 }
 
 func TestRSArtistAlbumReaderFenceAndCursorControls(t *testing.T) {
+	synctest.Test(t, rsArtistAlbumReaderFenceAndCursorControls)
+}
+
+func rsArtistAlbumReaderFenceAndCursorControls(t *testing.T) {
 	for _, mode := range []string{"source", "authority", "limit", "artist", "LIVE", "capacity"} {
 		t.Run(mode, func(t *testing.T) {
 			f, r := artistAlbumFixture(t)
