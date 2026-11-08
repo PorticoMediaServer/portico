@@ -264,7 +264,7 @@ func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpoin
 			t.Error(err)
 		}
 	})
-	if keep {
+	if keep && !screening {
 		readerLife := governor.Request{Key: governor.JobKey{Domain: 1, ID: "measurement-reader"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 4 << 20, governor.CPUMilli: 1000, governor.IOBytes: 4 << 20}, Deadline: f.now().Add(time.Hour)}
 		f.readerGrant = f.mustGrant(t, readerLife)
 		readCfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 128}}
