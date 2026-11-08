@@ -68,6 +68,9 @@ func (r *BrowseReader) rbAuthorExact(ctx context.Context, req governor.Request, 
 			return e
 		}
 		d.name = rows[0][13].(string)
+		if e := rbAuthorIndexedName(d.name); e != nil {
+			return e
+		}
 		d.fence = f
 		d.items = map[int64]BrowseItem{}
 		return nil
