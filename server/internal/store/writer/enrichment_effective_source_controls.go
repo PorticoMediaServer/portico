@@ -63,7 +63,7 @@ AND source_evidence_owner=? AND source_evidence_incarnation=? AND source_evidenc
 
 func checkEffectiveSourceControlPoints(ctx context.Context, turn *commandTurn, c *effectiveStageBeginCommand, e, s effectivePinnedSealReceipt) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
-	if ctx == nil || turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != EffectiveStage ||
+	if ctx == nil || turn == nil || turn.transaction == nil || !effectiveSourceProofPurpose(turn.transaction.descriptor.ID) ||
 		c == nil || !c.valid || c.sourceReferences == nil {
 		return ErrInvalid
 	}

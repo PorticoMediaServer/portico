@@ -22,6 +22,16 @@ type effectiveVerifiedSource struct {
 // ACKed pinned dependencies are private proof data, never resurrected Applied.
 func verifyEffectiveSource(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand) (out *effectiveVerifiedSource, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != EffectiveStage {
+		return nil, ErrInvalid
+	}
+	return verifyNativeEffectiveSource(ctx, turn, input)
+}
+
+// One native reader/verifier, shared only by the two closed purpose wrappers.
+// It proves immutable source lineage, not a fresh effect or current authority.
+func verifyNativeEffectiveSource(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand) (out *effectiveVerifiedSource, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	coverage, err := preflightEffectiveSourcePins(ctx, turn, input)
 	if err != nil {
 		return nil, err
@@ -58,7 +68,15 @@ func verifyEffectiveSource(ctx context.Context, turn *commandTurn, input *effect
 
 func checkEffectiveVerifiedSource(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand, proof *effectiveVerifiedSource) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
-	if input == nil || proof == nil || proof.self != proof || proof.turn != turn || turn == nil || proof.tx != turn.transaction || proof.input != input || proof.digest != input.digest {
+	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != EffectiveStage {
+		return ErrInvalid
+	}
+	return checkNativeEffectiveSource(ctx, turn, input, proof)
+}
+
+func checkNativeEffectiveSource(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand, proof *effectiveVerifiedSource) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
+	if input == nil || proof == nil || proof.self != proof || proof.turn != turn || turn == nil || turn.transaction == nil || !effectiveSourceProofPurpose(turn.transaction.descriptor.ID) || proof.tx != turn.transaction || proof.input != input || proof.digest != input.digest {
 		return ErrInvalid
 	}
 	return effectivePinLive(ctx, turn)
