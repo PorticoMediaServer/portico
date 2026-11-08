@@ -407,9 +407,11 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 			id := trace.conn.id
 			record.Settings.ConnectionID = &id
 		}
-		if trace.conn != nil && !trace.conn.closed {
+		if cohort == "native-counters" && trace.conn != nil && !trace.conn.closed {
 			record.NativeAfter = &n1NativeSnapshot{}
 			trace.conn.snapshot(record.NativeAfter, false)
+		} else if cohort != "native-counters" {
+			record.Unavailable["native_after"] = "timing cohort never samples native counters; use the separate native-counters cohort"
 		} else {
 			record.Unavailable["native_after"] = "physical connection unavailable or closed before external getter"
 		}
@@ -483,8 +485,16 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 	}
 	record.RequiredBytes = &required
 	record.InputProfile = n1InputProfile(f.current, record.Case)
-	record.NativeBefore = &n1NativeSnapshot{}
-	trace.conn.snapshot(record.NativeBefore, false)
+	// Native counter probes are observer work, not timing: only the separate
+	// native-counters cohort samples them. In the timing cohort they can block on
+	// a native lock held by a concurrent funded PASSIVE checkpoint and inflate the
+	// serial writer chain, so the facts are null with a reason instead.
+	if cohort == "native-counters" {
+		record.NativeBefore = &n1NativeSnapshot{}
+		trace.conn.snapshot(record.NativeBefore, false)
+	} else {
+		record.Unavailable["native_before"] = "timing cohort never samples native counters; use the separate native-counters cohort"
+	}
 	record.WALBefore = n1ReadWAL(stream.origin, f.owner.path, f.owner.wal)
 	record.Memory["before_turn"] = n1Memory(stream.origin)
 	if err := stream.append("attempt_start", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "original_id": originalID, "original_ordinal": original, "original_population": record.OriginalPopulation, "turn_role": role, "original_reference": record.Reference, "database_id": summary.DatabaseID, "database_path": f.owner.path, "declared_warmup": summary.RequestedWarmup}); err != nil {
