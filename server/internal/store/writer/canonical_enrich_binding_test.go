@@ -39,6 +39,7 @@ type canonicalEnrichComponent struct {
 	header       effectiveBeginHeader
 	entityID     int64
 	provider     string
+	libraryKey   string
 	reserved     int64
 	first        *enrichAcceptCommand
 	firstQ       EnrichmentReceiptRequest
@@ -101,6 +102,21 @@ func newCanonicalEnrichComponent(t *testing.T, count int, stream *n1Stream, cano
 	// The first original reuses the actual prepared fixture, which also creates
 	// the immutable evidence lineage every title in this class shares.
 	e0, f, begin0, image0, result0 := acceptBeginFixture(t)
+	libraryKey := "library-native"
+	if canonical {
+		// The attached 1M population already owns catalog_libraries(7) and
+		// catalog_kinds(1); the fixture's OR IGNORE keeps those rows. Point the
+		// operation chain at that actual library namespace.
+		libraryKey = "qualification-movies"
+		for _, q := range []string{
+			`UPDATE libraries SET metadata_language='en-CA' WHERE id='qualification-movies'`,
+			`UPDATE library_sources SET library_id='qualification-movies' WHERE id='source-native'`,
+		} {
+			if _, err := e0.db.ExecContext(t.Context(), q); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	first := acceptRequestFixture(t, e0, f, begin0, image0, result0)
 	firstQ := EnrichmentReceiptRequest{Receipt: ReceiptReference{first.identity, first.digest}, ProviderOperationID: begin0.request.ownerID, EntityID: begin0.request.entity.id, LibraryID: 7}
 	opTemplate := canonicalReadRow(t, e0.db, "metadata_provider_operations", "id=?", begin0.request.ownerID)
@@ -139,6 +155,7 @@ func newCanonicalEnrichComponent(t *testing.T, count int, stream *n1Stream, cano
 		header:       begin0.request.header,
 		entityID:     begin0.request.entity.id,
 		provider:     begin0.request.owner.provider,
+		libraryKey:   libraryKey,
 		reserved:     f.evidenceFacts.RetainedBytes + f.sourceFacts.RetainedBytes,
 		first:        first,
 		firstQ:       firstQ,
@@ -435,7 +452,7 @@ func (c *canonicalEnrichComponent) prepare(t *testing.T, n int) (*enrichAcceptCo
 func (c *canonicalEnrichComponent) action(t *testing.T, ctx context.Context, n int, population string) error {
 	t.Helper()
 	cmd, q := c.prepare(t, n)
-	disclosure := &EnrichmentDisclosure{issuer: c.writer, scope: &enrichmentScope{ownerID: q.ProviderOperationID, libraryKey: "library-native", libraryID: 7, entityID: c.entityID, lifetime: ctx}}
+	disclosure := &EnrichmentDisclosure{issuer: c.writer, scope: &enrichmentScope{ownerID: q.ProviderOperationID, libraryKey: c.libraryKey, libraryID: 7, entityID: c.entityID, lifetime: ctx}}
 	var scope sealOwnerScope
 	scope.identity, scope.request, scope.ownerID, scope.entityID = cmd.identity, cmd.digest, q.ProviderOperationID, q.EntityID
 	in := &enrichmentInvocation{action: enrichmentApply, purpose: EnrichAccept, disclosure: disclosure, request: q,
