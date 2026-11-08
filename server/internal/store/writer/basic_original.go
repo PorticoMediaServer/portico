@@ -2,6 +2,7 @@ package writer
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 )
@@ -41,7 +42,7 @@ func basicOriginalPreflight(identity CommandIdentity, original basicOriginalScop
 		}
 	}
 	r, source, scope := original.run, original.source, original.scope
-	if identity.Sequence <= 0 || scope.libraryID <= 0 || source.generation <= 0 || len(source.resolvedRoot) == 0 || source.resolvedRoot[0] != '/' ||
+	if identity.Sequence <= 0 || scope.libraryID <= 0 || source.generation <= 0 || !filepath.IsAbs(string(source.resolvedRoot)) ||
 		r.revision <= 0 || r.policyRevision <= 0 || r.leaseOwner <= 0 || r.leaseGeneration <= 0 || r.leaseExpiresMS <= 0 ||
 		r.lastSequence != identity.Sequence-1 || r.acknowledgedSequence != r.lastSequence || !inventoryScanMode(r.scanMode) ||
 		s.runID != scope.runID || s.libraryID != scope.libraryID || s.sourceID != source.id || s.incarnation != source.incarnation ||

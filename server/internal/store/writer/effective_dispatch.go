@@ -49,6 +49,7 @@ type effectivePlan struct {
 	searchImageMemory   searchImageMemoryBudget
 	scanLifecycleMemory commandMemoryBudget
 	basicMemory         commandMemoryBudget // exact Basic variant; zero remains unqualified
+	basicAcceptBounds   basicAcceptBounds
 	wcProgressMemory    commandMemoryBudget
 	wcSecurityMemory    commandMemoryBudget
 	wcReclaimMemory     commandMemoryBudget
@@ -68,6 +69,7 @@ type effectiveRuntime struct {
 	path                     string
 	owner                    governor.OwnerID
 	plan                     effectivePlan
+	basicAcceptPlan          *effectivePlan
 	inventoryPlan            *effectivePlan
 	lifecyclePlans           [2]*effectivePlan // private, explicitly composed create/claim history profiles
 	issuerPlans              [2]*effectivePlan // complete closed issuer source/snapshot/effect profiles
@@ -206,6 +208,7 @@ type commandOutput struct {
 	reclaim           ReclaimResult
 	directory         scanDirectoryCommandResult
 	directoryTerminal scanDirectoryTerminalCommandResult
+	basic             BasicResult
 	search            searchPublisherCommandResult
 }
 
@@ -311,7 +314,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || (scan.directory == 0 && (scan.directoryInput != nil || scan.directoryTerminalInput != nil)) {
 			return out, acknowledged, ErrInvalid
 		}
-		if scan.lifecycle == 0 && scan.directory == 0 && r.inventoryPlan == nil {
+		if scan.basic == nil && scan.lifecycle == 0 && scan.directory == 0 && r.inventoryPlan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
 		if scan.input != nil {
@@ -322,8 +325,19 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		}
 		purpose, plan, reference, key, libraryID = InventoryAccept, r.inventoryPlan, scan.request.Receipt, scan.request.RunID, scan.request.LibraryID
 		outcome = &out.inventory.Outcome
+		if scan.basic != nil {
+			if scan.directory != 0 || scan.input != nil || scan.lifecycle != 0 || scan.issuer != nil || scan.basic.request.Scan != scan.request || (ack && scan.basic.fresh()) {
+				return out, acknowledged, ErrInvalid
+			}
+			purpose, err = scan.basic.validate()
+			if err != nil {
+				return out, acknowledged, err
+			}
+			plan = nil
+			outcome = &out.basic.Outcome
+		}
 		if scan.directory != 0 {
-			if scan.lifecycle != 0 || scan.input != nil || scan.issuer != nil || !scanDirectoryPurpose(scan.directory) {
+			if scan.basic != nil || scan.lifecycle != 0 || scan.input != nil || scan.issuer != nil || !scanDirectoryPurpose(scan.directory) {
 				return out, acknowledged, ErrInvalid
 			}
 			if (scanDirectoryTerminalPurpose(scan.directory) && scan.directoryInput != nil) || (!scanDirectoryTerminalPurpose(scan.directory) && scan.directoryTerminalInput != nil) {
@@ -374,6 +388,20 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		return out, acknowledged, ErrBusy
 	}
 	defer r.mu.Unlock()
+	var submittedWork *scanDriverWork
+	if scan != nil && scan.issuer != nil {
+		submittedWork = scan.issuer.work
+	}
+	if scan != nil && scan.basic != nil {
+		if err = validateBasicWork(r, w, scan); err != nil {
+			return out, acknowledged, err
+		}
+		submittedWork = scan.basic.work
+		plan = r.basicAcceptPlan
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+	}
 	if wc != nil {
 		plan = r.wcProgressPlan
 		if wc.birth != nil {
@@ -526,15 +554,15 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		Class: class, Writer: true, Need: plan.need, IO: plan.io, MaxHold: plan.recipe.limit.Hold, Deadline: deadline,
 		Budget:    governor.UnitBudget{RawRows: uint32(plan.recipe.limit.Rows), VMOps: plan.recipe.limit.VMOps, Pages: uint32(plan.recipe.limit.Pages)},
 		Footprint: []governor.Scope{{Library: libraryID, Domain: uint16(purpose)}}}
-	if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-		if err = scan.issuer.work.submitting(); err != nil {
+	if submittedWork != nil {
+		if err = submittedWork.submitting(); err != nil {
 			return out, acknowledged, err
 		}
 	}
 	decision := r.authority.TryContext(ctx, expected)
 	if decision.Grant == nil {
-		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-			err = scan.issuer.work.refused(decision)
+		if submittedWork != nil {
+			err = submittedWork.refused(decision)
 		}
 		return out, acknowledged, errors.Join(err, effectiveAdmissionRefusal(decision.Refusal))
 	}
@@ -550,8 +578,8 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 				r.fenced = true
 			}
 			retireErr := r.retireUnused(decision.Grant, custody)
-			if retireErr == nil && scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-				scan.issuer.work.admissionReturned(custody)
+			if retireErr == nil && submittedWork != nil {
+				submittedWork.admissionReturned(custody)
 			}
 			err = errors.Join(err, retireErr)
 			if primary != nil {
@@ -583,8 +611,8 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		if r.executor.fenced || r.executor.ambiguous {
 			r.fenced = true
 		}
-		if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
-			scan.issuer.work.admissionReturned(custody)
+		if submittedWork != nil {
+			submittedWork.admissionReturned(custody)
 		}
 		if !ack && errors.Is(err, ErrResolveRequired) {
 			outcome.State = ResolveRequired
@@ -600,10 +628,10 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			p.frame = tx
 			p.mu.Unlock()
 		}
-		if scan.issuer.work != nil {
-			if err = scan.issuer.work.bindFrame(tx); err != nil {
-				return out, acknowledged, err
-			}
+	}
+	if submittedWork != nil {
+		if err = submittedWork.bindFrame(tx); err != nil {
+			return out, acknowledged, err
 		}
 	}
 	// The frame cancels its SQL context during retirement. Keep the EXACT same
@@ -615,6 +643,13 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	lifetime, stopLifetime = commandDeadline(ctx, deadline)
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
+	if err == nil && scan != nil && scan.basic != nil {
+		var required uint64
+		required, err = basicReceiptRequiredBytes(scan.basic.request, [7]int64{})
+		if err == nil {
+			err = turn.requireBasicMemory(ctx, scan.basic.request.Purpose, required)
+		}
+	}
 	var publisherOwner receiptOwnerFacts
 	if err == nil {
 		if publisher != nil {
@@ -628,7 +663,7 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		} else if wc != nil {
 			err = checkWCProgressNativeDisclosure(ctx, turn, wc)
 		} else if scan != nil {
-			if scan.lifecycle == 0 && scan.directory == 0 {
+			if scan.lifecycle == 0 && scan.basic == nil && scan.directory == 0 {
 				_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
 			}
 			if err == nil {
@@ -682,7 +717,10 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			}
 		}
 	}
-	if err == nil && scan != nil && scan.lifecycle == 0 && scan.issuer == nil && scan.directory == 0 {
+	if err == nil && scan != nil && scan.basic != nil {
+		out.basic, historical, err = r.runBasicTurn(ctx, w, turn, scan, ack, &acknowledged)
+	}
+	if err == nil && scan != nil && scan.lifecycle == 0 && scan.issuer == nil && scan.basic == nil && scan.directory == 0 {
 		var lookup inventoryReceiptLookup
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;
@@ -780,6 +818,12 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if turn != nil {
 		err = errors.Join(err, turn.closeRows())
 	}
+	if err == nil && scan != nil && scan.basic != nil {
+		err = checkBasicWorkLifetime(ctx, scan)
+	}
+	if err == nil && scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical {
+		err = checkBasicTerminal(ctx, turn, scan.basic.request.Purpose, scan.basic.leaseExpiresMS())
+	}
 	if err == nil && scan != nil && scan.input != nil && !historical {
 		err = checkInventoryTerminal(ctx, turn, scan.input)
 	}
@@ -850,6 +894,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if !ack && !historical && !errors.Is(err, ErrDisclosureDenied) && (physical.state == commitUnknown || errors.Is(err, ErrResolveRequired)) {
 		outcome.State = ResolveRequired
 		outcome.Reference = reference
+	}
+	if scan != nil && scan.basic != nil && scan.basic.fresh() && !ack && !historical && physical.state == committed {
+		outcome.State, outcome.Reference = Applied, reference
 	}
 	if wc != nil && !ack && !historical && wc.input != nil && physical.state == committed {
 		out.progress.Outcome.State = Applied
