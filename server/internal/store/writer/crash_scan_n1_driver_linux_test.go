@@ -588,7 +588,7 @@ func checkN1DriverEffects(ctx context.Context, reader inventoryCrashReader, in n
 		{"scalar", `SELECT c.parent_id,c.contributor_id,c.source,c.membership_sequence,c.contributor_revision=e.scalar_source_revision,
  c.duration,c.community_rating,c.critic_rating,c.resolution,c.latest_aired_key,c.admission_age
  FROM catalog_scalar_contributions c JOIN catalog_entities e ON e.id=c.parent_id`,
-			[]any{child.SubjectID, child.SubjectID, int64(0), b.Membership + 1, int64(1), nil, nil, nil, nil, "", nil}, nil},
+			[]any{child.SubjectID, child.SubjectID, int64(0), b.Membership + 1, int64(1), nil, nil, nil, nil, nil, nil}, nil},
 		{"physical", `SELECT c.parent_id,c.asset_id,c.membership_refs,c.authored_refs,c.file_size,c.file_size_revision=a.file_size_revision
  FROM catalog_asset_contributions c JOIN catalog_assets a ON a.id=c.asset_id`,
 			[]any{child.SubjectID, child.AssetID, int64(1), int64(0), in.FileSize, int64(1)}, nil},
