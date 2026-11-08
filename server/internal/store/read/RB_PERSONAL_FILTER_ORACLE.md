@@ -1,8 +1,9 @@
 # Personal filter SQL parity oracle (fixture only)
 
-Status: data-only fixture. This note proposes no native reader implementation,
-authority proof, runtime publication, performance claim or parity claim. Nothing
-here is imported by production or by the existing native reader tests.
+Status: the values-only personal-filter kernel replays all 95 frozen compiler
+cases against sparse native personal rows, including another profile and unrated
+versus rating zero. This establishes the tested scalar semantics only. It supplies
+no native source reader, authority, publication or performance qualification.
 
 ## Provenance
 
@@ -56,5 +57,5 @@ Compiled predicates target `catalog_browse_rows` aliased `e`, so any replay must
 supply that exact `e.entity_id` alias. Personal state is sparse: the fixture
 freezes `personal_items` `EXISTS`/`NOT EXISTS` behavior, including absent rows,
 and must not be densified or reinterpreted by adding default false/zero state.
-Preserve the emitted `NOT`/`EXISTS` forms and argument order. The parent lane owns
-native semantic review before this fixture is used.
+Preserve the emitted `NOT`/`EXISTS` forms and argument order. The native replay supplies that alias only in the test oracle. The production
+kernel takes already-proved values and cannot authorize a source or viewer.
