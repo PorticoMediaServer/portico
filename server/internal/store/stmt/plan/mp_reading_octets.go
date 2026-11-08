@@ -77,6 +77,9 @@ func auditMPReadingPublicationOctets(ctx context.Context, c *sql.Conn) error {
 // The asset is read by its integer primary key; the token is the UNIQUE identity
 // that inventory_objects references, so both native keys are pinned.
 func auditMPReadingAssetKeys(ctx context.Context, c *sql.Conn) error {
+	if err := mainBaseTable(ctx, c, "catalog_assets"); err != nil {
+		return err
+	}
 	info, err := query(ctx, c, "PRAGMA main.table_xinfo(catalog_assets)")
 	if err != nil {
 		return err
