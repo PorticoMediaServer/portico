@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -11,7 +12,10 @@ import (
 
 // Writer is the sole typed writer facade. Its zero value grants no authority.
 // Opening and trusted capability issuance are private composition operations.
-type Writer struct{ effective *effectiveRuntime }
+type Writer struct {
+	effective  *effectiveRuntime
+	mpPhysical atomic.Pointer[mpPhysicalRegistry]
+}
 
 // Commands are sealed preparation values implemented inside writer's domain
 // files. Constructors must freeze the COMPLETE pre-allocation request and use
