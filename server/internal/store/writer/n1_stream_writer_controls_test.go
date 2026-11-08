@@ -303,3 +303,20 @@ func TestN1AsyncSocketStreamNeverFsyncs(t *testing.T) {
 	}
 	drain() // the negative control's bytes; its close error is the point
 }
+
+// R must be able to tell real fsyncs from a no-op sync closure.
+func TestN1StreamWriterStatsMarkTheTransportAndRealFsync(t *testing.T) {
+	s, _ := asyncControlStream(t)
+	stats := s.writerStats().(map[string]any)
+	if stats["real_fsync"] != true || !strings.Contains(stats["transport"].(string), "plain file") || stats["sync_calls_scope"] == "" {
+		t.Fatal("plain file stream must report real fsyncs", stats)
+	}
+	s.streamOnly = true
+	stats = s.writerStats().(map[string]any)
+	if stats["real_fsync"] != false || !strings.Contains(stats["transport"].(string), "unix-socket") {
+		t.Fatal("socket stream must report that its sync closure is a no-op", stats)
+	}
+	if err := s.close(); err != nil {
+		t.Fatal(err)
+	}
+}

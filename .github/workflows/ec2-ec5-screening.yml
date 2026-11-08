@@ -51,6 +51,11 @@ on:
         required: false
         default: ''
         type: string
+      contention_profiles:
+        description: Also write Go mutex and block profiles for the EC2/EC3 cells (diagnostic overhead; default off)
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: read
   actions: read
@@ -101,6 +106,7 @@ jobs:
       INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
       INPUT_FIXTURES: ${{ inputs.fixtures }}
       INPUT_PASSIVE_DEFER_MS: ${{ inputs.passive_defer_ms }}
+      CONTENTION_PROFILES: ${{ inputs.contention_profiles }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {path: tools, persist-credentials: false}
@@ -307,6 +313,11 @@ jobs:
                       -ec2-cohort=timing -ec2-cadence=realistic)
                 if [ "$CELL" = ec3-write ]; then
                   ARGS+=(-ec3-foreground-write-every=50ms -ec3-foreground-write-pattern=progress_capture,progress_drain,security)
+                fi
+                if [ "${CONTENTION_PROFILES:-false}" = true ]; then
+                  # Whole-process lock and blocking profiles, written when the binary exits.
+                  ARGS+=(-test.mutexprofile="$OUTPUT/mutex.prof" -test.mutexprofilefraction=1
+                         -test.blockprofile="$OUTPUT/block.prof" -test.blockprofilerate=1000000)
                 fi
                 # The cell streams raw records to the external gzip observer over
                 # raw.sock; nothing is written or fsynced to a plain stream file on
