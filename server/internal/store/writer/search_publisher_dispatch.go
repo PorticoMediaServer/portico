@@ -20,16 +20,18 @@ type searchPublisherCommandResult struct {
 	Reclaim  searchFragmentReclaimResult
 }
 
-func searchPublisherPlanIndex(purpose CommandID) int {
+// The caller refuses an unmapped purpose; a closed plan set must never be
+// indexed by a negative or guessed position.
+func searchPublisherPlanIndex(purpose CommandID) (int, bool) {
 	switch purpose {
 	case SearchFragmentStage:
-		return 0
+		return 0, true
 	case SearchHeadPublish:
-		return 1
+		return 1, true
 	case SearchFragmentReclaim:
-		return 2
+		return 2, true
 	default:
-		return -1
+		return 0, false
 	}
 }
 

@@ -426,7 +426,11 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		}
 	}
 	if publisher != nil {
-		plan = r.publisherPlans[searchPublisherPlanIndex(purpose)]
+		index, ok := searchPublisherPlanIndex(purpose)
+		if !ok {
+			return out, acknowledged, ErrNotImplemented
+		}
+		plan = r.publisherPlans[index]
 		if plan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
