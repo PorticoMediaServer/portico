@@ -529,6 +529,7 @@ var usGroupBSchemaGuards = []usGroupBSchemaGuard{
 	{File: "server/internal/store/stmt/plan/testdata/n1-record-octets.json", Literals: 1, Guards: "N1 record octet evidence sha256", HashOnly: false},
 	{File: "server/internal/store/stmt/plan/testdata/ia-audio-octets.json", Literals: 1, Guards: "IA audio octet evidence sha256", HashOnly: false},
 	{File: "server/internal/store/stmt/plan/testdata/ia-source-octets.json", Literals: 2, Guards: "IA source octet evidence sha256", HashOnly: false},
+	{File: "server/internal/store/stmt/plan/testdata/ia-tv-octets.json", Literals: 2, Guards: "IA TV octet evidence sha256", HashOnly: false},
 }
 
 type usGroupBSchemaGuardFound struct {
