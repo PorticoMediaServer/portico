@@ -21,14 +21,12 @@ func acceptBeginFixture(t *testing.T) (*executor, nativeEnrichmentSeals, *effect
 	return acceptBeginFixtureWith(t, nil)
 }
 
-// The optional hook runs after the native E/S lineage exists but BEFORE any
-// BEGIN fact is read, so a canonical population can adapt the shared chain.
+// The optional hook runs after the shared operation/library/asset rows exist
+// but BEFORE any BEGIN fact is read, so a canonical population can adapt the
+// chain without changing the native path (nil hook).
 func acceptBeginFixtureWith(t *testing.T, prepare func(*executor)) (*executor, nativeEnrichmentSeals, *effectiveStageBeginCommand, effectiveBeginImage, EffectiveStageBeginResult) {
 	t.Helper()
 	e, f := nativeEnrichmentSealsFixture(t)
-	if prepare != nil {
-		prepare(e)
-	}
 	var assetInc, linkInc [16]byte
 	for i := range assetInc {
 		assetInc[i] = byte(160 + i)
@@ -51,6 +49,10 @@ func acceptBeginFixtureWith(t *testing.T, prepare func(*executor)) (*executor, n
 	exec(`INSERT INTO metadata_provider_operation_sources(operation_id,ordinal,asset_id,asset_incarnation,part_index,start_seconds,end_seconds,path,size,modified_ns,available,source_id,source_generation,root_incarnation,object_revision) VALUES('operation-one',0,701,?,3,1.25,9.5,'namespace/movie.mkv',123456,1793860000111,1,'source-native',97,'root-incarnation:native','object-revision:107')`, assetInc[:])
 	exec(`INSERT INTO metadata_provider_policy(library_id,provider,incarnation,revision,enabled,priority,region,algorithm,refresh_mode,credit_enabled) SELECT 7,'tmdb',policy_incarnation,37,1,1,'CA','native-algorithm','fill_missing',1 FROM metadata_provider_operations WHERE id='operation-one'`)
 	exec(`INSERT INTO screen_metadata_consent(singleton,revision,confirmed) VALUES(1,41,1)`)
+	if prepare != nil {
+		// After the shared chain rows exist, before any BEGIN fact is read.
+		prepare(e)
+	}
 	turn, steps := effectiveBeginWholeTurn(t, e)
 	owner, err := effectiveBeginOwnerFacts(t.Context(), turn, steps[enrichmentEffectiveOwner], f.scope.ownerID)
 	if err != nil {
