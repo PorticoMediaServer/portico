@@ -62,7 +62,7 @@
  "internal/store/writer::TestCrashReplayEffective": 1.0,
  "internal/store/writer::TestCrashReplayEffectiveNativeSteps": 1.0,
  "internal/store/writer::TestCrashReplayFreshInventoryComponent": 1.0,
- "internal/store/writer::TestCrashReplayGovernedPassive": 360,
+ "internal/store/writer::TestCrashReplayGovernedPassive": 1.0,
  "internal/store/writer::TestCrashReplayInventoryHistory": 1.0,
  "internal/store/writer::TestCrashReplayInventoryNativeHistory": 1.0,
  "internal/store/writer::TestCrashReplayN1ChildBearingHistory": 640,
