@@ -35,7 +35,7 @@ func scanLifecycleExecutionFixture(t *testing.T) (*executor, *stmt.Registry, *in
 			defs = append(defs, def)
 		}
 	}
-	registry := nativeInventoryFixtureRegistry(t, w, defs, "scan_lifecycle_execution_test.go", "scan_run_lifecycle_test.go", "scan_receipts_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, defs, "scan_lifecycle_execution_test.go", "scan_run_lifecycle_test.go", "scan_receipts_test.go")
 	return w, registry, command
 }
 

@@ -17,7 +17,7 @@ import (
 func searchFragmentNativeFixture(t *testing.T) (*executor, *stmt.Registry, *searchFragmentStageCommand) {
 	t.Helper()
 	w, c := searchFragmentNativeSeed(t)
-	registry := nativeInventoryFixtureRegistry(t, w, searchFragmentDefinitions(), "search_fragment_stage_test.go", "search_fragment_statements.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, searchFragmentDefinitions(), "search_fragment_stage_test.go", "search_fragment_statements.go")
 	return w, registry, c
 }
 

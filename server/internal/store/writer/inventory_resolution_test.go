@@ -137,7 +137,7 @@ func inventoryLookupFixture(t *testing.T) (*executor, map[string]ScanReceiptRequ
 			t.Fatal(err)
 		}
 	}
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryLookupDefinitions(), "inventory_resolution_test.go", "scan_receipts_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryLookupDefinitions(), "inventory_resolution_test.go", "scan_receipts_test.go")
 	return w, requests, registry
 }
 

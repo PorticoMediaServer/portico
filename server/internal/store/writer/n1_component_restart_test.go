@@ -102,7 +102,7 @@ func n1RestartComponent(t *testing.T, f *inventoryProgressiveFixture, trace *n1T
 	w.openPool(connector, trace.decorate)
 	w.now = old.now
 	f.owner.executor = w
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go")
+	registry := cachedNativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go")
 	previous, _ := json.Marshal(f.owner.registry.Manifest())
 	current, _ := json.Marshal(registry.Manifest())
 	a, b := sha256.Sum256(previous), sha256.Sum256(current)
