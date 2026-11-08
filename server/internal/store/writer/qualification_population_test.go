@@ -332,6 +332,9 @@ func TestExportQualificationPopulation(t *testing.T) {
 		// before export/checkpoint. The builder owns its bounded transactions and
 		// reads the persisted residents back.
 		bank := seedQualificationSearchBank(t, w)
+		// The builder's own field carries its policy note; the artifact states the
+		// concrete producer policy in both places so consumers never see a to-do.
+		bank.Statistics = qualificationSearchShapeStatistics
 		facts.SearchBank = &bank
 		// The catalogue readback ran before the bank, so verify the new bank rows
 		// and their foreign keys on the same exclusive executor before export.
