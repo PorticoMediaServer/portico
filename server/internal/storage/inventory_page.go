@@ -28,6 +28,7 @@ var ErrInventoryChanged = nativeinventory.ErrInventoryChanged
 // observation. Only bounded ignore configuration is opened; media and sidecar
 // contents are reserved for analysis.
 type InventoryRequest struct {
+	nativeSeparateEOF bool // native helper only; drain names with a cookie before a separate empty EOF
 	// Stream is an internal isolated-helper protocol flag, not a catalog cursor.
 	Stream            bool   `json:"stream,omitempty"`
 	Root              string `json:"root"`
@@ -226,6 +227,11 @@ func localInventoryPage(r InventoryRequest) (p InventoryPage, raw int, err error
 	rules, issues := inventoryIgnoreRules(retained, r)
 	p.Issues = append(p.Issues, issues...)
 	readNames := inventoryNames
+	if r.nativeSeparateEOF && runtime.GOOS == "linux" {
+		readNames = func(f *os.File, cursor string, limit int) ([]string, string, bool, error) {
+			return inventoryNamesPage(f, cursor, limit, true)
+		}
+	}
 	if r.Stream || runtime.GOOS != "linux" {
 		// Open by the already resolved absolute path, not os.Root's display name.
 		// SameFile below compares it with this anchored descriptor before use.

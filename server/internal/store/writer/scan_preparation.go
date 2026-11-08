@@ -99,7 +99,7 @@ func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateo
 			request.RootIdentity != "" || request.DirectoryRevision != "" || request.Cursor != "" || request.Limit != 0 || request.FollowSymlinks {
 			return nil, ErrInvalid
 		}
-	} else if request.Limit != 1 {
+	} else if request.Limit != 1 && (purpose != InventoryAccept || request.Limit < 1 || request.Limit > maxInventoryBatchFiles || r.inventoryDriverPlan == nil || request.Limit > inventoryPlanBatchFiles(*r.inventoryDriverPlan)) {
 		return nil, ErrInvalid
 	}
 	// Complete retained-input bytes precede scans, path conversion, clones or

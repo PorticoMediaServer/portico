@@ -9,3 +9,7 @@ import "os"
 func inventoryNames(f *os.File, cursor string, limit int) ([]string, string, bool, error) {
 	return retainedInventoryNames(f, cursor, limit)
 }
+
+func inventoryNamesPage(f *os.File, cursor string, limit int, separateEOF bool) ([]string, string, bool, error) {
+	return inventoryNames(f, cursor, limit)
+}
