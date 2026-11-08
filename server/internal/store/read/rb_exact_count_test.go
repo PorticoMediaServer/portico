@@ -12,7 +12,7 @@ func TestRBExactEligibleCount(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f, reader := newRBExactFacetFixture(t)
 		f.exec(t, `UPDATE catalog_entities SET year=CASE id WHEN 1 THEN 1799 ELSE 2200 END WHERE id IN(1,2)`)
-		job, err := reader.BeginEligibleCount(t.Context(), 1, 8192, f.input)
+		job, err := reader.BeginEligibleCount(t.Context(), 1, 32<<10, f.input)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +67,7 @@ func TestRBExactEligibleCountEmptyAndDrift(t *testing.T) {
 				if mode == "empty" {
 					f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE library_id=1`)
 				}
-				job, err := reader.BeginEligibleCount(t.Context(), 1, 8192, f.input)
+				job, err := reader.BeginEligibleCount(t.Context(), 1, 32<<10, f.input)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -109,7 +109,7 @@ func TestRBExactEligibleCountEmptyAndDrift(t *testing.T) {
 func TestRBExactEligibleCountDenial(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f, reader := newRBExactFacetFixture(t)
-		job, err := reader.BeginEligibleCount(t.Context(), 1, 8192, f.input)
+		job, err := reader.BeginEligibleCount(t.Context(), 1, 32<<10, f.input)
 		if err != nil {
 			t.Fatal(err)
 		}
