@@ -63,8 +63,8 @@ func TestFreshFileBootstrap(t *testing.T) {
 	var tables int
 	// CHANGE-012 adds seven guide/channel/DVR relations; CHANGE-015 adds16
 	// security/root tables. CHANGE-013 and014 add no tables.
-	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 724 {
-		t.Fatalf("persisted tables = %d, %v; want 724", tables, err)
+	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 737 {
+		t.Fatalf("persisted tables = %d, %v; want 737", tables, err)
 	}
 }
 
