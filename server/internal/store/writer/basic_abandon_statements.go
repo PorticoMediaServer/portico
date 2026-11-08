@@ -20,6 +20,9 @@ const (
 	basicAbandonDeleteRow stmt.ID = "scan.basic_stage.abandon_delete_header"
 )
 
+// The disc staging tables are absent: FIRST's mask 511 never populates them, and
+// a row there would fail the header delete's foreign key rather than be lost.
+//
 // One staged table, in foreign-key order: children before parents. base and
 // texts reproduce the logical charge its row took at staging, so the refund
 // is exact; manifests and the witness are refunded with the header.
@@ -68,7 +71,7 @@ func basicAbandonDefinitions() []stmt.Definition {
 	values := []any{"mkv", "h264", "", int64(0), int64(1080), float64(100), int64(101), int64(103)}
 	defs := []stmt.Definition{
 		{ID: basicAbandonHeader, Kind: stmt.Read,
-			SQL:     `SELECT phase,copy_aux,copy_family,job_revision,target_shape_id,has_after,after_entity FROM catalog_info_changes WHERE id=? AND asset_id=? AND asset_token=? AND slot=0 AND expected_epoch=? AND input_revision=? AND fingerprint=? AND family_mask=511 AND fault='' AND job_lease_owner=0 AND job_lease_generation=0 AND job_lease_expires_ms=0 AND target_owner_object IS NULL AND target_owner_revision IS NULL`,
+			SQL:     `SELECT phase,copy_aux,copy_family,copy_phase,copy_id,copy_key,copy_key2,copy_key3,job_revision,target_shape_id,has_after,after_entity FROM catalog_info_changes WHERE id=? AND asset_id=? AND asset_token=? AND slot=0 AND expected_epoch=? AND input_revision=? AND fingerprint=? AND family_mask=511 AND fault='' AND job_lease_owner=0 AND job_lease_generation=0 AND job_lease_expires_ms=0 AND target_owner_object IS NULL AND target_owner_revision IS NULL`,
 			Params:  []stmt.Param{i("change_id"), i("asset_id"), t("asset_token"), i("expected_epoch"), i("input_revision"), b("fingerprint")},
 			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_info_changes"}, Seeks: []string{"rowid=?"}},
 			Cohorts: []stmt.Cohort{{Name: "unaccepted_first_input", Bindings: []any{int64(51), int64(41), "basic-asset", int64(17), int64(1), fingerprint}}}},

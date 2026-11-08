@@ -26,10 +26,13 @@ func validateBasicAbandonRequest(in basicControlRequest, purpose BasicPurpose) e
 	return nil
 }
 
-// One abandon turn of an unaccepted FIRST input (phases 0..3). The first turn
-// restores the probed scalars, clears both fences, releases the pin's shape
-// ref and sets the marker, all in one transaction. Every later turn only
-// reclaims staged rows, and the header goes last. removed reports that it has.
+// One abandon turn of a FIRST input whose copy has not started. Copy commits
+// canonical rows turn by turn and nothing captures the old ones, so once it
+// starts the walk must resume from its cursor: clearing the fences then would
+// show new rows under old scalars. The first turn restores the probed scalars,
+// clears both fences, releases the pin's shape ref and sets the marker, all in
+// one transaction. Every later turn only reclaims staged rows, and the header
+// goes last. removed reports that it has.
 func abandonBasicInput(ctx context.Context, turn *commandTurn, in basicControlRequest) (removed bool, err error) {
 	defer func() { removed, err = finishCommand(ctx, commandLifetime(turn), removed, err) }()
 	s := in.source
@@ -38,13 +41,13 @@ func abandonBasicInput(ctx context.Context, turn *commandTurn, in basicControlRe
 		return false, err
 	}
 	var h basicAbandonHeaderState
-	if err = row.Scan(&h.phase, &h.aux, &h.table, &h.revision, &h.shape, &h.hasAfter, &h.afterEntity); err != nil {
+	if err = row.Scan(&h.phase, &h.aux, &h.table, &h.copyPhase, &h.copyID, &h.key, &h.key2, &h.key3, &h.revision, &h.shape, &h.hasAfter, &h.afterEntity); err != nil {
 		return false, basicStageError(err)
 	}
 	switch {
 	case h.aux == -1:
 		return reclaimBasicAbandoned(ctx, turn, s, h)
-	case h.aux >= 0 && h.phase >= 0 && h.phase <= 3:
+	case h.beforeCopy():
 		if h.revision != in.changeRevision {
 			return false, ErrConflict
 		}
@@ -54,18 +57,38 @@ func abandonBasicInput(ctx context.Context, turn *commandTurn, in basicControlRe
 }
 
 type basicAbandonHeaderState struct {
-	phase, aux, table, revision, hasAfter, afterEntity int64
-	shape                                              sql.NullInt64
+	phase, aux, table, copyPhase, copyID, revision, hasAfter, afterEntity int64
+	key, key2, key3                                                       string
+	shape                                                                 sql.NullInt64
+}
+
+// Entity leaves phase 2 at the zero cursor; the first copy turn moves it.
+func (h basicAbandonHeaderState) beforeCopy() bool {
+	if h.aux < 0 || h.phase < 0 || h.phase > 2 {
+		return false
+	}
+	return h.phase < 2 || (h.table == 0 && h.copyPhase == 0 && h.copyID == 0 && h.aux == 0 && h.key == "" && h.key2 == "" && h.key3 == "")
 }
 
 func restoreBasicAbandoned(ctx context.Context, turn *commandTurn, s basicStreamFactStage, a basicAbandonExpectation, h basicAbandonHeaderState) error {
 	if h.revision == math.MaxInt64 || (h.phase >= 2 && (h.hasAfter != 1 || h.afterEntity <= 0)) {
 		return ErrConflict
 	}
-	target, playback, prepared, err := basicAbandonRestoreTarget(ctx, turn, s, a)
+	target, playback, prepared, captured, err := basicAbandonRestoreTarget(ctx, turn, s, a)
 	if err != nil {
 		return err
 	}
+	if captured {
+		if err = writeBasicAbandonRestore(ctx, turn, s, a, target, playback, prepared); err != nil {
+			return err
+		}
+	}
+	return clearBasicAbandoned(ctx, turn, s, h)
+}
+
+// A mismatch is ErrConflict and is not terminal: the producer re-reads the
+// asset row for its expectation, so a retry compares against the current state.
+func writeBasicAbandonRestore(ctx context.Context, turn *commandTurn, s basicStreamFactStage, a basicAbandonExpectation, target basicProbeScalars, playback, prepared int64) error {
 	args := []any{target.container, target.videoCodec, target.audioCodec, target.width, target.height, target.duration, playback, prepared,
 		s.assetID, s.assetToken, s.libraryID, s.expectedEpoch,
 		a.after.container, a.after.videoCodec, a.after.audioCodec, a.after.width, a.after.height, a.after.duration, a.playbackRevision, a.preparedRevision}
@@ -81,8 +104,13 @@ func restoreBasicAbandoned(ctx context.Context, turn *commandTurn, s basicStream
 	if id != s.assetID || got != target || gotPlayback != playback || gotPrepared != prepared {
 		return ErrConflict
 	}
+	return nil
+}
+
+func clearBasicAbandoned(ctx context.Context, turn *commandTurn, s basicStreamFactStage, h basicAbandonHeaderState) error {
+	var id int64
 	if h.phase >= 1 {
-		row, err = basicStageRead(ctx, turn, basicAbandonAsset, s.assetID, s.assetToken, s.libraryID, s.expectedEpoch)
+		row, err := basicStageRead(ctx, turn, basicAbandonAsset, s.assetID, s.assetToken, s.libraryID, s.expectedEpoch)
 		if err != nil {
 			return err
 		}
@@ -95,7 +123,7 @@ func restoreBasicAbandoned(ctx context.Context, turn *commandTurn, s basicStream
 		}
 	}
 	if h.phase >= 2 {
-		row, err = basicStageRead(ctx, turn, basicAbandonLink, nil, h.afterEntity, s.assetID, s.libraryID, s.changeID)
+		row, err := basicStageRead(ctx, turn, basicAbandonLink, nil, h.afterEntity, s.assetID, s.libraryID, s.changeID)
 		if err != nil {
 			return err
 		}
@@ -110,7 +138,7 @@ func restoreBasicAbandoned(ctx context.Context, turn *commandTurn, s basicStream
 	}
 	// The marker is written last, so it is only ever seen after the release.
 	if h.shape.Valid {
-		row, err = basicStageRead(ctx, turn, basicAbandonShape, h.shape.Int64)
+		row, err := basicStageRead(ctx, turn, basicAbandonShape, h.shape.Int64)
 		if err != nil {
 			return err
 		}
@@ -122,7 +150,7 @@ func restoreBasicAbandoned(ctx context.Context, turn *commandTurn, s basicStream
 			return ErrConflict
 		}
 	}
-	row, err = basicStageRead(ctx, turn, basicAbandonMark, h.revision+1, s.changeID, s.assetID, s.assetToken, h.phase, h.revision)
+	row, err := basicStageRead(ctx, turn, basicAbandonMark, h.revision+1, s.changeID, s.assetID, s.assetToken, h.phase, h.revision)
 	if err != nil {
 		return err
 	}
@@ -138,23 +166,24 @@ func restoreBasicAbandoned(ctx context.Context, turn *commandTurn, s basicStream
 
 // Only fields with an OLD row changed. Both counters advanced exactly when the
 // container did (basic_probe.go), so an OLD container row is that predicate.
-func basicAbandonRestoreTarget(ctx context.Context, turn *commandTurn, s basicStreamFactStage, a basicAbandonExpectation) (target basicProbeScalars, playback, prepared int64, err error) {
+func basicAbandonRestoreTarget(ctx context.Context, turn *commandTurn, s basicStreamFactStage, a basicAbandonExpectation) (target basicProbeScalars, playback, prepared int64, captured bool, err error) {
 	target, playback, prepared = a.after, a.playbackRevision, a.preparedRevision
 	rows, err := basicRows(ctx, turn, basicAbandonOldRows, s.changeID)
 	if err != nil {
-		return target, 0, 0, err
+		return target, 0, 0, false, err
 	}
 	defer func() { err = errors.Join(err, rows.Close()) }()
 	for rows.Next() {
+		captured = true
 		var v basicFirstOldScalar
 		if err = rows.Scan(&v.field, &v.kind, &v.integer, &v.real, &v.text); err != nil {
-			return target, 0, 0, err
+			return target, 0, 0, false, err
 		}
 		switch {
 		case v.field == 4 && v.kind == 3 && v.text.Valid:
 			target.container = v.text.String
 			if playback <= 1 || prepared <= 1 {
-				return target, 0, 0, ErrConflict
+				return target, 0, 0, false, ErrConflict
 			}
 			playback, prepared = playback-1, prepared-1
 		case v.field == 5 && v.kind == 3 && v.text.Valid:
@@ -168,10 +197,10 @@ func basicAbandonRestoreTarget(ctx context.Context, turn *commandTurn, s basicSt
 		case v.field == 9 && v.kind == 2 && v.real.Valid:
 			target.duration = v.real.Float64
 		default:
-			return target, 0, 0, ErrConflict
+			return target, 0, 0, false, ErrConflict
 		}
 	}
-	return target, playback, prepared, rows.Err()
+	return target, playback, prepared, captured, rows.Err()
 }
 
 func reclaimBasicAbandoned(ctx context.Context, turn *commandTurn, s basicStreamFactStage, h basicAbandonHeaderState) (removed bool, err error) {

@@ -3,7 +3,10 @@ package writer
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // The fixture's seeded debt plus the pin's new shape row, which stays charged
@@ -152,6 +155,123 @@ func TestBasicAbandonRollsBackAndReclaims(t *testing.T) {
 			t.Fatal("refused abandon had an effect", container, aux, revision)
 		}
 	}
+	t.Run("before_the_probe_nothing_to_restore", func(t *testing.T) {
+		walk := basicWalkStaged(t)
+		seedUsed(t, walk)
+		// A producer's intended tuple the probe never applied must not refuse.
+		a := &basicAbandonExpectation{after: basicProbeScalars{"mkv", "h264", "", 0, 1080, 100}, playbackRevision: 999, preparedRevision: 999}
+		basicAbandonToEnd(t, walk, walk.revision, a)
+		basicDispatchReturned(t, walk.e, walk.authority)
+		var container string
+		var playback, headers, used int64
+		if err := walk.e.db.QueryRowContext(t.Context(), `SELECT (SELECT container FROM catalog_assets WHERE id=41),(SELECT playback_origin_revision FROM catalog_assets WHERE id=41),(SELECT count(*) FROM catalog_info_changes WHERE id=51),(SELECT used_bytes FROM catalog_info_input_budget WHERE singleton=1)`).Scan(&container, &playback, &headers, &used); err != nil {
+			t.Fatal(err)
+		}
+		if container != "old" || playback != 101 || headers != 0 || used != 1000 {
+			t.Fatal("abandon before the probe", container, playback, headers, used)
+		}
+	})
+	copyStarted := func(t *testing.T, walk basicWalk, a *basicAbandonExpectation, revision, phase, family int64) {
+		t.Helper()
+		if _, err := walk.chain.stage(basicAbandonRequest(walk.s, revision, a)); !errors.Is(err, ErrConflict) {
+			t.Fatal("abandon after copy started", err)
+		}
+		basicDispatchReturned(t, walk.e, walk.authority)
+		var gotPhase, gotFamily, aux, gotRevision, pending int64
+		var container string
+		var link sql.NullInt64
+		if err := walk.e.db.QueryRowContext(t.Context(), `SELECT (SELECT phase FROM catalog_info_changes WHERE id=51),(SELECT copy_family FROM catalog_info_changes WHERE id=51),(SELECT copy_aux FROM catalog_info_changes WHERE id=51),(SELECT job_revision FROM catalog_info_changes WHERE id=51),(SELECT info_publication_pending FROM catalog_assets WHERE id=41),(SELECT container FROM catalog_assets WHERE id=41),(SELECT info_pending_change FROM catalog_asset_links WHERE entity_id=31 AND asset_id=41)`).Scan(&gotPhase, &gotFamily, &aux, &gotRevision, &pending, &container, &link); err != nil {
+			t.Fatal(err)
+		}
+		if gotPhase != phase || gotFamily != family || aux < 0 || gotRevision != revision || pending != 1 || container != "mkv" || !link.Valid || link.Int64 != 51 {
+			t.Fatal("refused abandon had an effect", gotPhase, gotFamily, aux, gotRevision, pending, container, link)
+		}
+	}
+	t.Run("refused_once_copy_has_started", func(t *testing.T) {
+		walk := setup(t)
+		a := basicAbandonExpected(t, walk)
+		revision := walk.revision
+		for _, op := range []basicControlOperation{basicControlFreeze, basicControlSelectEntity} {
+			if _, err := walk.chain.stage(basicControlRequest{operation: op, source: walk.s, changeRevision: revision, entityID: 31, shapeID: walk.shape}); err != nil {
+				t.Fatal(op, err)
+			}
+			revision++
+		}
+		in := basicControlRequest{operation: basicControlCopyFamily, family: 1, source: walk.s, changeRevision: revision, entityID: 31, shapeID: walk.shape}
+		if _, err := walk.chain.stage(in); err != nil {
+			t.Fatal("copy family 1", err)
+		}
+		copyStarted(t, walk, a, revision+1, 2, 2)
+	})
+	t.Run("refused_at_phase_3", func(t *testing.T) {
+		walk := setup(t)
+		a := basicAbandonExpected(t, walk)
+		revision := basicWalkCopyAll(t, walk)
+		copyStarted(t, walk, a, revision, 3, 0)
+	})
+	mark := func(t *testing.T, walk basicWalk) {
+		t.Helper()
+		if _, err := walk.e.db.ExecContext(t.Context(), `UPDATE catalog_info_changes SET copy_aux=-1 WHERE id=51`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Run("marked_header_refuses_entity_and_copy", func(t *testing.T) {
+		walk := setup(t)
+		revision := walk.revision
+		if _, err := walk.chain.stage(basicControlRequest{operation: basicControlFreeze, source: walk.s, changeRevision: revision, entityID: 31, shapeID: walk.shape}); err != nil {
+			t.Fatal(err)
+		}
+		revision++
+		entity := basicControlRequest{operation: basicControlSelectEntity, source: walk.s, changeRevision: revision, entityID: 31, shapeID: walk.shape}
+		copy1 := basicControlRequest{operation: basicControlCopyFamily, family: 1, source: walk.s, changeRevision: revision + 1, entityID: 31, shapeID: walk.shape}
+		mark(t, walk)
+		if _, err := walk.chain.stage(entity); !errors.Is(err, ErrConflict) {
+			t.Fatal("entity on a marked header", err)
+		}
+		if _, err := walk.e.db.ExecContext(t.Context(), `UPDATE catalog_info_changes SET copy_aux=0 WHERE id=51`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := walk.chain.stage(entity); err != nil {
+			t.Fatal(err)
+		}
+		mark(t, walk)
+		if _, err := walk.chain.stage(copy1); !errors.Is(err, ErrConflict) {
+			t.Fatal("copy on a marked header", err)
+		}
+		basicDispatchReturned(t, walk.e, walk.authority)
+	})
+	t.Run("marked_header_refuses_activation", func(t *testing.T) {
+		walk := setup(t)
+		revision := basicWalkCopyAll(t, walk)
+		mark(t, walk)
+		if _, err := basicWalkAccept(t, walk, revision); err == nil {
+			t.Fatal("Accept on a marked header")
+		}
+		basicDispatchReturned(t, walk.e, walk.authority)
+		var phase int64
+		if err := walk.e.db.QueryRowContext(t.Context(), `SELECT phase FROM catalog_info_changes WHERE id=51`).Scan(&phase); err != nil || phase != 3 {
+			t.Fatal("refused Accept moved the change", phase, err)
+		}
+	})
+	// Settle and publish run only after activation in one Accept, so the header
+	// guard above stops them first; each also binds a zero cursor itself.
+	t.Run("settle_and_publish_bind_the_zero_cursor", func(t *testing.T) {
+		accept := basicFinalDefinitions(basicAcceptBounds{nfo: true})
+		for _, id := range []stmt.ID{basicSettleProof, basicPublishLeafProof} {
+			found := false
+			for _, d := range accept {
+				if d.ID == id {
+					found = true
+					if !strings.Contains(d.SQL, "j.copy_aux=0") {
+						t.Fatal("no zero-cursor guard", id, d.SQL)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("statement not in the Accept set", id)
+			}
+		}
+	})
 	t.Run("expectation_only_on_abandon", func(t *testing.T) {
 		walk := setup(t)
 		in := basicControlRequest{operation: basicControlFreeze, source: walk.s, changeRevision: walk.revision, entityID: 31, shapeID: walk.shape, abandon: basicAbandonExpected(t, walk)}
