@@ -1,56 +1,53 @@
 name: Native SQLite plan diagnostic pair
+# SCREENING ONLY: scratch-branch copy of this manual entry, used to read RD's real
+# 1M search-bank artifact through the native reader. Never merged.
 on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: Exact reviewed main SHA for BOTH native jobs
+        description: Exact scratch source SHA
         required: true
         type: string
 permissions:
   contents: read
-concurrency:
-  group: native-plan-pair-${{ inputs.source_sha }}
-  cancel-in-progress: false
+  actions: read
 jobs:
-  native-plans:
-    # One report-only pair, dispatched by SUP. Never schedules or gates merges.
-    continue-on-error: true
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        runner: [ubuntu-24.04, macos-15]
-    runs-on: ${{ matrix.runner }}
+  real-bank:
+    timeout-minutes: 90
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          ref: ${{ github.sha }}
-          path: diagnostic-tools
-          persist-credentials: false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ inputs.source_sha }}
           path: source
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version: '1.26.10', cache: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          go-version-file: source/server/go.mod
-          cache-dependency-path: source/server/go.sum
-      - name: Collect full native snapshots with unchanged failure gates
-        shell: bash
+          github-token: ${{ github.token }}
+          repository: PorticoMediaServer/portico
+          run-id: '42474641818'
+          name: qual-population-42474641818-1
+          path: population
+      - name: Read the real search-bank image through the native reader
+        working-directory: source/server
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          PORTICO_RD_POPULATION_DIR: ${{ github.workspace }}/population
+          PORTICO_RD_WORK_DIR: ${{ runner.temp }}
+          PORTICO_RD_IMAGE_SHA256: 1de0c6e012132adfe88b353e40b3e1c57ab1464dae9ed7958ee51e02d04d3ebe
+          PORTICO_RD_MANIFEST_SHA256: c6719c9037f8185e06e06f5f9ed432c2bfcd10f2b3901b9f1a1a379f87d603d2
+          PORTICO_LANE_EVIDENCE_DIR: ${{ runner.temp }}/evidence
         run: |
           set -euo pipefail
-          python3 diagnostic-tools/ci/native_plan_pair.py \
-            --source "$GITHUB_WORKSPACE/source" \
-            --output "$RUNNER_TEMP/native-plan-pair" \
-            --sha "$SOURCE_SHA"
+          ls -la "$PORTICO_RD_POPULATION_DIR"
+          mkdir -p "$PORTICO_LANE_EVIDENCE_DIR"
+          go version
+          go test -p 2 -count=1 -v -timeout 60m -run '^TestScreenRealBank$' ./internal/store/read 2>&1 | tee "$PORTICO_LANE_EVIDENCE_DIR/go-test.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: native-plan-pair-${{ matrix.runner }}
-          path: ${{ runner.temp }}/native-plan-pair
+          name: rd-real-bank-screen
+          path: ${{ runner.temp }}/evidence
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
