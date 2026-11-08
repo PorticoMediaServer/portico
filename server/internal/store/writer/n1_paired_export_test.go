@@ -285,7 +285,7 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 }
 
 func (c *N1PairedComponent) RunOriginal(t *testing.T, ctx context.Context, ready time.Time, warmup bool, cohort string) error {
-	return c.runOriginal(t, ctx, ready, warmup, cohort, false)
+	return c.runOriginal(t, ctx, ready, warmup, cohort, c.native != nil)
 }
 
 // RunEC2Original adds typed read-only WAL brackets outside each actual owner
@@ -322,6 +322,7 @@ func (c *N1PairedComponent) runOriginal(t *testing.T, ctx context.Context, ready
 				return c.stopped
 			}
 		}
+		nativeBeginsBefore := c.trace.nativeBegins
 		c.call++
 		c.summary.Turns[role].Started++
 		record := runN1SteadyTurn(t, ctx, c.stream, c.fixture, c.trace, &c.summary, c.original, c.call, population, role, cohort, c.baseline, n1SteadyControls{clock: time.Now, initialConnections: &c.baselineConnections, initialCloses: &c.baselineCloses})
@@ -329,7 +330,7 @@ func (c *N1PairedComponent) runOriginal(t *testing.T, ctx context.Context, ready
 			// Always collect after a returned physical call, even on command failure or
 			// cancellation. These finite file probes own no native rows/transaction.
 			after, observeErr := c.ObserveEC2WAL(context.WithoutCancel(ctx))
-			raw, _ := json.Marshal(map[string]any{"original_reference": record.Reference, "turn_role": role, "physical_attempt_id": record.ID, "physical_attempt_ordinal": record.PhysicalAttemptOrdinal, "before": before, "after": after, "before_error": "", "after_error": n1Error(observeErr), "header_sync_ns": nil, "header_sync_unavailable_reason": "typed native WAL IO has no isolated header-sync/xSync interval"})
+			raw, _ := json.Marshal(map[string]any{"original_reference": record.Reference, "turn_role": role, "physical_attempt_id": record.ID, "physical_attempt_ordinal": record.PhysicalAttemptOrdinal, "physical_ordinal_scope": "selected N1 turns only; use native begin census for full mixed writer order", "writer_native_begins_before": nativeBeginsBefore, "writer_native_begins_after": c.trace.nativeBegins, "before": before, "after": after, "before_error": "", "after_error": n1Error(observeErr), "header_sync_ns": nil, "header_sync_unavailable_reason": "typed native WAL IO has no isolated header-sync/xSync interval"})
 			if err := errors.Join(observeErr, c.EmitEC2("wal_turn", raw)); err != nil {
 				c.stopped = err
 				return err

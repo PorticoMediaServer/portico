@@ -136,7 +136,7 @@ func (c *N1PairedComponent) attachEC2WC(t *testing.T, population *QualificationP
 	n.retainedBackground = n.reclaim.expected.Need
 	c.fixture.retainedBackground = n.retainedBackground
 	c.trace.useRegistry(c.fixture.owner.registry)
-	if err := c.stream.append("ec2_native_binding", map[string]any{"same_executor": true, "same_governor": true, "full_registry": c.fixture.owner.registry.Manifest(), "wal_policy": canonicalN1Maintenance().policy, "read_partition_unchanged": true, "additional_wc_unit": effectiveFixturePlan().need, "retained_preparation_deadlines": []time.Time{p.expected.Deadline, n.security.expected.Deadline, n.reclaim.expected.Deadline}, "qualification": false}); err != nil {
+	if err := c.stream.append("ec2_native_binding", map[string]any{"same_executor": true, "writer_native_begins_at_setup_return": c.trace.nativeBegins, "same_governor": true, "full_registry": c.fixture.owner.registry.Manifest(), "wal_policy": canonicalN1Maintenance().policy, "read_partition_unchanged": true, "additional_wc_unit": effectiveFixturePlan().need, "retained_preparation_deadlines": []time.Time{p.expected.Deadline, n.security.expected.Deadline, n.reclaim.expected.Deadline}, "qualification": false}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -174,10 +174,11 @@ func (c *N1PairedComponent) EC2SecurityTarget(t *testing.T, ctx context.Context)
 	}
 	n := c.native
 	n.targetOrdinal++
+	nativeBefore := c.trace.nativeBegins
 	start := time.Now()
 	id, err := wcSecurityTargetForFixture(t, n.writer, n.progress, "member", fmt.Sprintf("ec2-target-%d", n.targetOrdinal))
 	end := time.Now()
-	return id, errors.Join(err, c.stream.append("ec2_security_target_birth", map[string]any{"target": id, "started_ns": n1NS(c.stream.origin, start), "returned_ns": n1NS(c.stream.origin, end), "error": n1Error(err), "scope": "real native auxiliary birth, not another measured FULL commit"}))
+	return id, errors.Join(err, c.stream.append("ec2_security_target_birth", map[string]any{"target": id, "writer_native_begins_before": nativeBefore, "writer_native_begins_after": c.trace.nativeBegins, "started_ns": n1NS(c.stream.origin, start), "returned_ns": n1NS(c.stream.origin, end), "error": n1Error(err), "scope": "real native auxiliary birth, not another measured FULL commit"}))
 }
 
 // Bounded scheduler queue: submission remains outside the queue; no replacement
