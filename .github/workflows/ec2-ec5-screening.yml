@@ -1,4 +1,4 @@
-name: EC2/EC3/EC5 canonical screening
+name: EC/Basic canonical screening
 # Disposable SCREENING evidence only. Never a qualification, release or merge
 # gate. Raw owner records are retained; no quantiles are minted here and every
 # verdict stays directional until reviewed merged source runs formally.
@@ -30,11 +30,16 @@ on:
         default: '8'
         type: string
       profile:
-        description: Hosted profile to screen
+        description: Hosted profile for the EC2/EC3 cells
         required: true
         default: standard
         type: choice
         options: [standard, legacy8]
+      include_basic:
+        description: Also screen the canonical Basic class on 6 VMs
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: read
   actions: read
@@ -48,32 +53,43 @@ jobs:
       - name: Select screening cells
         id: cells
         shell: bash
+        env:
+          PROFILE: ${{ inputs.profile }}
+          INCLUDE_BASIC: ${{ inputs.include_basic }}
         run: |
           set -euo pipefail
-          python3 - "${{ inputs.profile }}" <<'PY'
-          import json, os, sys
-          profile = sys.argv[1]
-          cells = ["ec2", "ec3-read", "ec3-write", "ec5-paired", "ec5-sustained"]
-          include = [{"cell": cell, "profile": "assigned" if cell.startswith("ec5") else profile} for cell in cells]
+          python3 - <<'PY'
+          import json, os
+          profile = os.environ["PROFILE"]
+          include = []
+          for cell in ("ec2", "ec3-read", "ec3-write", "ec5-paired", "ec5-sustained"):
+              include.append({"kind": "ec", "cell": cell, "profile": "assigned" if cell.startswith("ec5") else profile, "replicate": 0})
+          if os.environ["INCLUDE_BASIC"] == "true":
+              for profile_name in ("standard", "legacy8"):
+                  for replicate in (1, 2, 3):
+                      include.append({"kind": "basic", "cell": "basic", "profile": profile_name, "replicate": replicate})
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
               handle.write("matrix=" + json.dumps({"include": include}) + "\n")
           PY
   screening:
     needs: plan
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       max-parallel: 6
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
       CELL: ${{ matrix.cell }}
+      KIND: ${{ matrix.kind }}
       PROFILE: ${{ matrix.profile }}
+      REPLICATE: ${{ matrix.replicate }}
       INPUT_SOURCE_REF: ${{ inputs.source_ref }}
       INPUT_PRODUCER_RUN: ${{ inputs.producer_run }}
       INPUT_PRODUCER_ATTEMPT: ${{ inputs.producer_attempt }}
       INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
       INPUT_FIXTURES: ${{ inputs.fixtures }}
+      OUTPUT: ${{ runner.temp }}/screening
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {path: tools, persist-credentials: false}
@@ -82,7 +98,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import os, re, sys
+          import os, re
           ref = os.environ["INPUT_SOURCE_REF"]
           if not (re.fullmatch(r"[0-9a-f]{40}", ref) or re.fullmatch(r"[A-Za-z0-9._/-]{1,200}", ref)):
               raise SystemExit("source_ref must be a full 40-character SHA or a branch name")
@@ -94,6 +110,8 @@ jobs:
               raise SystemExit("manifest_sha256 must be 64 lowercase hex characters")
           if not re.fullmatch(r"[1-9][0-9]?", os.environ["INPUT_FIXTURES"]) or not 1 <= int(os.environ["INPUT_FIXTURES"]) <= 64:
               raise SystemExit("fixtures must be an integer in 1..64")
+          if os.environ["KIND"] not in ("ec", "basic") or os.environ["PROFILE"] not in ("standard", "legacy8", "assigned"):
+              raise SystemExit("closed kind/profile required")
           PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -112,14 +130,11 @@ jobs:
           path: population
       - name: Prove exact source and population pins
         shell: bash
-        env:
-          OUTPUT: ${{ runner.temp }}/screening
         run: |
           set -euo pipefail
           mkdir -p "$OUTPUT"
           python3 - <<'PY'
           import hashlib, json, os, pathlib, re, subprocess
-          source = pathlib.Path("source")
           commit = subprocess.check_output(["git", "-C", "source", "rev-parse", "HEAD"], text=True).strip()
           if not re.fullmatch(r"[0-9a-f]{40}", commit):
               raise SystemExit("source checkout has no full commit identity")
@@ -150,6 +165,9 @@ jobs:
               "residents": manifest["facts"]["residents"],
               "producer_run": int(os.environ["INPUT_PRODUCER_RUN"]),
               "producer_attempt": int(os.environ["INPUT_PRODUCER_ATTEMPT"]),
+              "case": os.environ["CELL"],
+              "profile": os.environ["PROFILE"],
+              "replicate": int(os.environ["REPLICATE"]),
           }
           pathlib.Path(os.environ["OUTPUT"], "pins.json").write_text(json.dumps(record, indent=2) + "\n")
           print(json.dumps(record))
@@ -160,31 +178,39 @@ jobs:
           set -euo pipefail
           go version
           go -C source/server test -p 1 -c -o "$RUNNER_TEMP/writer.test" ./internal/store/writer
-          go version -m "$RUNNER_TEMP/writer.test" > "$RUNNER_TEMP/screening/binary-build-info.txt"
-          sha256sum "$RUNNER_TEMP/writer.test" > "$RUNNER_TEMP/screening/binary-sha256.txt"
-      - name: Write the strict five-field workload config
+          go version -m "$RUNNER_TEMP/writer.test" > "$OUTPUT/binary-build-info.txt"
+          sha256sum "$RUNNER_TEMP/writer.test" > "$OUTPUT/binary-sha256.txt"
+      - name: Write the workload config
         shell: bash
-        env:
-          OUTPUT: ${{ runner.temp }}/screening
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os, pathlib, platform
-          commit = pathlib.Path("source").resolve()
-          import subprocess
-          source = subprocess.check_output(["git", "-C", str(commit), "rev-parse", "HEAD"], text=True).strip()
+          import json, os, pathlib, platform, subprocess
+          source = subprocess.check_output(["git", "-C", "source", "rev-parse", "HEAD"], text=True).strip()
           boot = pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()
           kernel = platform.release()
           out = pathlib.Path(os.environ["OUTPUT"])
-          config = {
-              "run_id": f"screen-{os.environ['CELL']}-{os.environ['PROFILE']}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
-              "host_epoch": f"{boot}-k{kernel}",
-              "source_commit": source,
-              "output_path": str((out / "raw.ndjson").resolve()),
-              "fixtures": int(os.environ["INPUT_FIXTURES"]),
-          }
-          if set(config) != {"run_id", "host_epoch", "source_commit", "output_path", "fixtures"}:
-              raise SystemExit("strict five-field config drift")
+          run_id = f"screen-{os.environ['CELL']}-{os.environ['PROFILE']}-{os.environ['REPLICATE']}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
+          if os.environ["KIND"] == "basic":
+              config = {
+                  "run_id": run_id,
+                  "host_epoch": f"{boot}-k{kernel}",
+                  "source_commit": source,
+                  "output_path": str((out / "raw.ndjson").resolve()),
+                  "class": "basic_accept",
+                  "profile": os.environ["PROFILE"],
+                  "attempts": 10000,
+                  "artifact_directory": str(pathlib.Path("population").resolve()),
+                  "manifest_sha256": os.environ["INPUT_MANIFEST_SHA256"],
+              }
+          else:
+              config = {
+                  "run_id": run_id,
+                  "host_epoch": f"{boot}-k{kernel}",
+                  "source_commit": source,
+                  "output_path": str((out / "raw.ndjson").resolve()),
+                  "fixtures": int(os.environ["INPUT_FIXTURES"]),
+              }
           (out / "config.json").write_text(json.dumps(config, indent=2) + "\n")
           facts = {
               "boot_id": boot,
@@ -201,7 +227,6 @@ jobs:
       - name: Run the assigned screening cell
         shell: bash
         env:
-          OUTPUT: ${{ runner.temp }}/screening
           POPULATION_DIRECTORY: ${{ github.workspace }}/population
           POPULATION_PIN: ${{ inputs.manifest_sha256 }}
         run: |
@@ -210,43 +235,52 @@ jobs:
           export GOMAXPROCS="$PROCS"
           export PORTICO_PAIRED_POPULATION_DIRECTORY="$POPULATION_DIRECTORY"
           export PORTICO_PAIRED_POPULATION_MANIFEST_SHA256="$POPULATION_PIN"
-          case "$CELL" in
-            ec2|ec3-read|ec3-write)
-              export PORTICO_WRITER_EC2=1
-              export PORTICO_WRITER_EC2_CONFIG="$OUTPUT/config.json"
-              ARGS=(-test.run=^TestEC2SustainedMeasurement$ -test.count=1 -test.v -test.timeout=45m
-                    -ec2-sustained=true -ec2-writer-pattern=inventory -ec2-warmup=8
-                    -ec2-cohort=timing -ec2-cadence=realistic)
-              if [ "$CELL" = ec3-write ]; then
-                ARGS+=(-ec3-foreground-write-every=50ms -ec3-foreground-write-pattern=progress_capture,progress_drain,security)
-              fi
-              set +e
-              ( cd source/server/internal/store/writer && "$RUNNER_TEMP/writer.test" "${ARGS[@]}" ) > "$OUTPUT/target.log" 2>&1
-              code=$?
-              set -e
-              echo "$code" > "$OUTPUT/target-exit-code.txt"
-              ;;
-            ec5-paired|ec5-sustained)
-              target="${CELL#ec5-}"
-              sudo --preserve-env=GOMAXPROCS,PORTICO_PAIRED_POPULATION_DIRECTORY,PORTICO_PAIRED_POPULATION_MANIFEST_SHA256 \
-                python3 source/ci/ec5_memory.py \
-                  --binary "$RUNNER_TEMP/writer.test" \
-                  --output "$OUTPUT/ec5" \
-                  --target "$target" \
-                  --config "$OUTPUT/config.json" \
-                  --population-directory "$POPULATION_DIRECTORY" \
-                  --population-manifest-sha256 "$POPULATION_PIN" > "$OUTPUT/target.log" 2>&1
-              code=$?
-              echo "$code" > "$OUTPUT/target-exit-code.txt"
-              ;;
-            *) echo "unknown cell $CELL"; exit 2 ;;
-          esac
+          set +e
+          if [ "$KIND" = basic ]; then
+            export PORTICO_CANONICAL_HELD=1
+            export PORTICO_CANONICAL_HELD_CONFIG="$OUTPUT/config.json"
+            ( cd source/server/internal/store/writer && "$RUNNER_TEMP/writer.test" \
+                -test.run=^TestCanonicalHeldBasic$ -test.count=1 -test.v -test.timeout=90m -canonical-held=true ) \
+                > "$OUTPUT/target.log" 2>&1
+            code=$?
+          else
+            case "$CELL" in
+              ec2|ec3-read|ec3-write)
+                export PORTICO_WRITER_EC2=1
+                export PORTICO_WRITER_EC2_CONFIG="$OUTPUT/config.json"
+                ARGS=(-test.run=^TestEC2SustainedMeasurement$ -test.count=1 -test.v -test.timeout=45m
+                      -ec2-sustained=true -ec2-writer-pattern=inventory -ec2-warmup=8
+                      -ec2-cohort=timing -ec2-cadence=realistic)
+                if [ "$CELL" = ec3-write ]; then
+                  ARGS+=(-ec3-foreground-write-every=50ms -ec3-foreground-write-pattern=progress_capture,progress_drain,security)
+                fi
+                ( cd source/server/internal/store/writer && "$RUNNER_TEMP/writer.test" "${ARGS[@]}" ) > "$OUTPUT/target.log" 2>&1
+                code=$?
+                ;;
+              ec5-paired|ec5-sustained)
+                target="${CELL#ec5-}"
+                sudo --preserve-env=GOMAXPROCS,PORTICO_PAIRED_POPULATION_DIRECTORY,PORTICO_PAIRED_POPULATION_MANIFEST_SHA256 \
+                  python3 source/ci/ec5_memory.py \
+                    --binary "$RUNNER_TEMP/writer.test" \
+                    --output "$OUTPUT/ec5" \
+                    --target "$target" \
+                    --config "$OUTPUT/config.json" \
+                    --population-directory "$POPULATION_DIRECTORY" \
+                    --population-manifest-sha256 "$POPULATION_PIN" > "$OUTPUT/target.log" 2>&1
+                code=$?
+                ;;
+              *) echo "unknown cell $CELL"; exit 2 ;;
+            esac
+          fi
+          set -e
+          echo "$code" > "$OUTPUT/target-exit-code.txt"
           python3 - "$OUTPUT" "${code}" <<'PY'
           import json, os, pathlib, sys
           out, code = pathlib.Path(sys.argv[1]), int(sys.argv[2])
           verdict = "NONPASSING screening: owner target exited nonzero; retained raw prefix is the evidence" if code else "screening target exited 0; raw reduction still required"
           (out / "verdict.json").write_text(json.dumps({
-              "cell": os.environ["CELL"], "profile": os.environ["PROFILE"], "target_exit_code": code,
+              "case": os.environ["CELL"], "kind": os.environ["KIND"], "profile": os.environ["PROFILE"],
+              "replicate": int(os.environ["REPLICATE"]), "target_exit_code": code,
               "label": "SCREENING / qualification=false", "verdict": verdict}, indent=2) + "\n")
           PY
           exit 0
@@ -254,7 +288,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: screening-${{ matrix.cell }}-${{ matrix.profile }}
+          name: screening-${{ matrix.cell }}-${{ matrix.profile }}-${{ matrix.replicate }}
           path: ${{ runner.temp }}/screening/
           compression-level: 1
           retention-days: 14
@@ -264,9 +298,9 @@ jobs:
         shell: bash
         run: |
           {
-            echo "### SCREENING / qualification=false — $CELL ($PROFILE)"
+            echo "### SCREENING / qualification=false — $CELL ($PROFILE, replicate $REPLICATE)"
             echo '```'
-            cat "$RUNNER_TEMP/screening/verdict.json" 2>/dev/null || true
+            cat "$OUTPUT/verdict.json" 2>/dev/null || true
             echo '```'
-            tail -n 20 "$RUNNER_TEMP/screening/target.log" 2>/dev/null || true
+            tail -n 20 "$OUTPUT/target.log" 2>/dev/null || true
           } >> "$GITHUB_STEP_SUMMARY"
