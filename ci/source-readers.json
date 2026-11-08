@@ -365,15 +365,16 @@
         "server/internal/store/read/native_search_test.go"
       ],
       "tests": [
-        "TestNativeSearchCurrentAllKindsAndMixedOwners",
-        "TestNativeSearchRefusesUnsupportedAndStaleProofs",
-        "TestNativeSearchPlans",
         "TestNativeSearchAcceptedSiblingOracle",
+        "TestNativeSearchCurrentAllKindsAndMixedOwners",
+        "TestNativeSearchPeopleEqualIDBirth",
+        "TestNativeSearchPerHitPolicyRecheckedBeforePublication",
+        "TestNativeSearchPlans",
+        "TestNativeSearchPreviewTheReturnsPartial",
         "TestNativeSearchPublicationDenialAndRetirement",
         "TestNativeSearchReadJoinedStamp",
-        "TestNativeSearchPeopleEqualIDBirth",
-        "TestNativeSearchPreviewTheReturnsPartial",
-        "TestNativeSearchPerHitPolicyRecheckedBeforePublication"
+        "TestNativeSearchRefusesUnsupportedAndStaleProofs",
+        "TestNativeSearchUsesCapturedDomainBytePairs"
       ]
     }
   ],
