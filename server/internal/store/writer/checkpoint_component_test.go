@@ -144,6 +144,7 @@ type checkpointComponent struct {
 type checkpointFixtureMode uint8
 
 const checkpointScreeningReader checkpointFixtureMode = 1
+const checkpointBatchWriter checkpointFixtureMode = 2 // explicit full-batch resource unit, default fixtures unchanged
 
 func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpointFixtureMode) *checkpointComponent {
 	t.Helper()
@@ -157,10 +158,11 @@ func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpoin
 // newCheckpointComponentAt reuses an EXISTING canonical file. It never seeds,
 // resets a floor or replays initialization SQL.
 func newCheckpointComponentAt(t *testing.T, path string, keep, real bool, selected ...checkpointFixtureMode) *checkpointComponent {
-	if len(selected) > 1 || len(selected) == 1 && selected[0] != checkpointScreeningReader {
+	if len(selected) > 1 || len(selected) == 1 && selected[0] != checkpointScreeningReader && selected[0] != checkpointBatchWriter {
 		t.Fatal("unknown closed checkpoint fixture selector")
 	}
-	screening := len(selected) == 1
+	screening := len(selected) == 1 && selected[0] == checkpointScreeningReader
+	batch := len(selected) == 1 && selected[0] == checkpointBatchWriter
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("native file identity unsupported")
@@ -192,7 +194,7 @@ func newCheckpointComponentAt(t *testing.T, path string, keep, real bool, select
 		t.Fatal(err)
 	}
 	f.policy = governor.WALPolicy{HardBytes: 192 << 20, ReserveBytes: 16 << 20, SoftDebtBytes: 64 << 20, ActivePressureBytes: 96 << 20, MaxSampleAge: time.Second, ConcurrentPassive: keep, CheckpointMaxHold: 5 * time.Second}
-	if screening && os.Getenv("PORTICO_EC4_QUALIFICATION") == "1" {
+	if batch || screening && os.Getenv("PORTICO_EC4_QUALIFICATION") == "1" {
 		// Formal qualification uses the ONE adopted phase 1a policy; the 96 MiB
 		// value above is the labelled screening stress fixture, not a profile.
 		f.policy = governor.Phase1aWALPolicy()
@@ -207,6 +209,12 @@ func newCheckpointComponentAt(t *testing.T, path string, keep, real bool, select
 	cfg := governor.Config{Now: f.now, MaxGrantsPerClass: 8, WAL: f.wal}
 	for i := range cfg.Partitions {
 		cfg.Partitions[i] = governor.Amounts{governor.Reader: 4, governor.MemoryBytes: 32 << 20, governor.CPUMilli: 4000, governor.IOBytes: 4 * f.policy.HardBytes, governor.WALBytes: 64 << 20}
+	}
+	if batch {
+		for i := range cfg.Partitions {
+			cfg.Partitions[i][governor.WALBytes] = inventoryBatchWALBytes
+			cfg.Partitions[i][governor.IOBytes] = inventoryBatchIOBytes
+		}
 	}
 	if screening {
 		live := readfixture.LiveConfig(f.now)

@@ -190,6 +190,20 @@ func TestInventoryBatchPlanReservesAllDimensions(t *testing.T) {
 	if p.need[governor.WALBytes] != int64(p.recipe.limit.WALBytes) || p.recipe.limit.Hold != MaxCommandHold {
 		t.Fatal("changed hold/WAL contract")
 	}
+	n1, err := inventoryN1Forecast(p.registration, p.inventoryEngine, p.inventoryPageSize, d.opening.binding.device)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, step := range p.steps {
+		before := n1.steps[i].work
+		before.Hold = step.work.Hold
+		if before != step.work {
+			t.Fatal("batch reduced a per-file physical forecast", step.id, before, step.work)
+		}
+	}
+	if p.recipe.limit.WALBytes != inventoryBatchWALBytes || p.need[governor.IOBytes] != inventoryBatchIOBytes {
+		t.Fatal("incomplete whole-batch funding")
+	}
 	for _, width := range []int{0, maxInventoryBatchFiles + 1} {
 		if _, err := reserveInventoryBatchSteps(remaining, p.steps, width); !errors.Is(err, ErrInvalid) {
 			t.Fatal("unbounded width", width, err)
