@@ -280,16 +280,13 @@ func TestBasicFreezeRefusesLeafSettleWouldRefuse(t *testing.T) {
 			execBasicSeed(t, e, `UPDATE catalog_entities SET parent_id=32 WHERE id=31`)
 		},
 		"aggregate_owned": func(t *testing.T, e *executor) {
-			conn, err := e.db.Conn(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer conn.Close()
-			for _, q := range []string{`PRAGMA foreign_keys=OFF`, `UPDATE catalog_entities SET aggregate_publication_id=99 WHERE id=31`, `PRAGMA foreign_keys=ON`} {
-				if _, err := conn.ExecContext(t.Context(), q); err != nil {
-					t.Fatal(q, err)
-				}
-			}
+			execBasicSeedUnchecked(t, e, `UPDATE catalog_entities SET aggregate_publication_id=99 WHERE id=31`)
+		},
+		"collection_member": func(t *testing.T, e *executor) {
+			execBasicSeedUnchecked(t, e, `INSERT INTO catalog_collection_members(collection_id,item_id,order_key) VALUES(99,31,'a')`)
+		},
+		"unavailable_link": func(t *testing.T, e *executor) {
+			execBasicSeed(t, e, `UPDATE catalog_asset_links SET available=0 WHERE entity_id=31 AND asset_id=41`)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -313,6 +310,21 @@ func TestBasicFreezeRefusesLeafSettleWouldRefuse(t *testing.T) {
 				t.Fatal("refused freeze had an effect", phase, revision, pending, link, err)
 			}
 		})
+	}
+}
+
+// Seeds a state whose foreign-key parent the test has no reason to build.
+func execBasicSeedUnchecked(t *testing.T, e *executor, q string) {
+	t.Helper()
+	conn, err := e.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	for _, statement := range []string{`PRAGMA foreign_keys=OFF`, q, `PRAGMA foreign_keys=ON`} {
+		if _, err := conn.ExecContext(t.Context(), statement); err != nil {
+			t.Fatal(statement, err)
+		}
 	}
 }
 

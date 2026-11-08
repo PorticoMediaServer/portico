@@ -14,6 +14,7 @@ const (
 	basicFreezeAsset  stmt.ID = "scan.basic_stage.freeze_asset_pending"
 	basicFreezeLink   stmt.ID = "scan.basic_stage.freeze_link_settleable"
 	basicFreezeEntity stmt.ID = "scan.basic_stage.freeze_entity_settleable"
+	basicFreezeMember stmt.ID = "scan.basic_stage.freeze_no_collection"
 	basicEntityLink   stmt.ID = "scan.basic_stage.entity_link_pending"
 )
 
@@ -45,7 +46,7 @@ func basicFreezeDefinitions() []stmt.Definition {
 			Cohorts: []stmt.Cohort{{Name: "select_sole_leaf_entity", Bindings: []any{int64(31), int64(4), int64(51), int64(41), "basic-asset", int64(17), int64(1), fp, int64(3), int64(61), int64(31)}}}},
 		// The same link and entity shape settle requires, proven before any fence.
 		{ID: basicFreezeLink, Kind: stmt.Read,
-			SQL:     `SELECT entity_id FROM catalog_asset_links WHERE entity_id=? AND asset_id=? AND library_id=? AND cue_ordinal IS NULL AND start_seconds=0 AND end_seconds IS NULL`,
+			SQL:     `SELECT entity_id FROM catalog_asset_links WHERE entity_id=? AND asset_id=? AND library_id=? AND available=1 AND cue_ordinal IS NULL AND start_seconds=0 AND end_seconds IS NULL`,
 			Params:  []stmt.Param{i("entity_id"), i("asset_id"), i("library_id")},
 			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_asset_links"}, Seeks: []string{"entity_id=? AND asset_id=?"}},
 			Cohorts: []stmt.Cohort{{Name: "whole_file_link", Bindings: []any{int64(31), int64(41), int64(7)}}}},
@@ -54,6 +55,11 @@ func basicFreezeDefinitions() []stmt.Definition {
 			Params:  []stmt.Param{i("entity_id"), i("library_id")},
 			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_entities"}, Seeks: []string{"rowid=?"}},
 			Cohorts: []stmt.Cohort{{Name: "ordinary_standalone_leaf", Bindings: []any{int64(31), int64(7)}}}},
+		{ID: basicFreezeMember, Kind: stmt.Read,
+			SQL:     `SELECT collection_id FROM catalog_collection_members INDEXED BY catalog_collection_members_item WHERE item_id=? ORDER BY collection_id LIMIT 1`,
+			Params:  []stmt.Param{i("item_id")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_collection_members_item"}, Seeks: []string{"item_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "no_external_collection", Bindings: []any{int64(31)}}}},
 		// The publication obligation: set at freeze, held through copy and
 		// activation, and cleared only by the completed whole publication.
 		{ID: basicFreezeAsset, Kind: stmt.Write,

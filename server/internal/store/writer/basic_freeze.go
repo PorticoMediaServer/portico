@@ -38,8 +38,8 @@ func readBasicSoleLeaf(ctx context.Context, turn *commandTurn, s basicStreamFact
 	return entity, nil
 }
 
-// A leaf settle would refuse (a cue or ranged link, a child or aggregate-owned
-// entity) must refuse here: past this point the asset is hidden from playback.
+// A leaf settle or publish would refuse (an unavailable, cue or ranged link, a
+// child, aggregate-owned or collection-member entity) must refuse here: past this point the asset is hidden from playback.
 func checkBasicLeafSettleable(ctx context.Context, turn *commandTurn, s basicStreamFactStage, entity int64) error {
 	for _, read := range []struct {
 		id   stmt.ID
@@ -61,6 +61,17 @@ func checkBasicLeafSettleable(ctx context.Context, turn *commandTurn, s basicStr
 		if got != entity {
 			return ErrConflict
 		}
+	}
+	row, err := basicStageRead(ctx, turn, basicFreezeMember, entity)
+	if err != nil {
+		return err
+	}
+	var collection int64
+	if err = row.Scan(&collection); err == nil {
+		return &Refusal{Code: RefusalUnqualified}
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
 	}
 	return nil
 }
