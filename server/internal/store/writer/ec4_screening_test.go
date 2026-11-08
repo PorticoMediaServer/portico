@@ -41,8 +41,8 @@ type ec4ScreenReport struct {
 	Features                                                               string
 	Capabilities                                                           map[string]bool
 	Source, Profile, Phase, Error                                          string
-	Requested, Accepted, ReaderVisible, Renewals                           int
-	GenerationNS, ScanNS                                                   int64
+	Requested, Accepted, ReaderVisible, Renewals, Checkpoints, Recoveries  int
+	GenerationNS, ScanNS, MaintenanceNS                                    int64
 	FirstFilenameVisibleNS, AllFilenameVisibleNS, FirstBasicNS, AllBasicNS *int64
 	Fixture                                                                ec4ScreenFixture
 	NativeEOFObserved                                                      bool
@@ -268,6 +268,34 @@ func TestEC4NativeScreening(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer journal.Close()
+	maintenanceJournal, e := os.OpenFile(filepath.Join(filepath.Dir(out), "maintenance.ndjson"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer maintenanceJournal.Close()
+	maintenance := func(recovery bool) error {
+		started := time.Now()
+		var result governor.CheckpointResult
+		var err error
+		if recovery {
+			result, err = cp.cp.RecoverWAL(t.Context(), cp.cpRequest())
+			r.Recoveries++
+		} else {
+			result, err = cp.cp.Step(t.Context(), cp.cpRequest())
+			r.Checkpoints++
+		}
+		r.MaintenanceNS += time.Since(started).Nanoseconds()
+		if journalErr := ec4Journal(maintenanceJournal, map[string]any{"recovery": recovery, "result": result, "error": checkpointError(err)}); journalErr != nil {
+			return errors.Join(err, journalErr)
+		}
+		if err != nil {
+			return err
+		}
+		if result.Refusal != nil || !result.PhysicalSafe {
+			return fmt.Errorf("screening maintenance refused: %v physical_safe=%v", result.Refusal, result.PhysicalSafe)
+		}
+		return nil
+	}
 	r.Phase = "create"
 	origin := time.Now()
 	run := func() error {
@@ -290,7 +318,17 @@ func TestEC4NativeScreening(t *testing.T) {
 		last := claimRef
 		renewed := time.Now()
 		seen := make([]bool, count)
+		lastMaintenance := time.Now()
 		for r.Accepted < count {
+			// Keep is resident custody, not a scheduler. Offer the SAME owner's
+			// normal bounded PASSIVE turn between commands, at its existing cadence.
+			if time.Since(lastMaintenance) >= 50*time.Millisecond {
+				r.Phase = "maintenance"
+				if e = maintenance(false); e != nil {
+					return e
+				}
+				lastMaintenance = time.Now()
+			}
 			if time.Since(renewed) > 250*time.Millisecond {
 				r.Phase = "renew"
 				claim, e = d.PrepareClaim(t.Context(), claimRef)
@@ -350,6 +388,19 @@ func TestEC4NativeScreening(t *testing.T) {
 			r.Phase = "accept"
 			result, e := preparation.Accept(t.Context(), command)
 			if e != nil {
+				var admission *governor.AdmissionError
+				if errors.As(e, &admission) && (admission.Cause == governor.CauseWALDebt || admission.Cause == governor.CauseWALActive || admission.Cause == governor.CauseWALSpace) {
+					if e = maintenance(false); e != nil {
+						return e
+					}
+					if admission.Cause == governor.CauseWALSpace {
+						if e = maintenance(true); e != nil {
+							return e
+						}
+					}
+				}
+				// A refused or ambiguous ORIGINAL is never replaced/replayed.
+				// Only its saved Applied proof can proceed to consumption and ACK.
 				result, e = d.ResolveScan(t.Context(), original)
 			}
 			if e != nil {
