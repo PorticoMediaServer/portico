@@ -66,6 +66,11 @@ func TestHostSamplerEmitsBatchedSamplesAndFlushesOnClose(t *testing.T) {
 	if header != 1 || samples == 0 || finals != 1 || lastKind != "final" {
 		t.Fatalf("stream shape: header=%d batches=%d finals=%d last=%s", header, samples, finals, lastKind)
 	}
+	cost := sum["own_cost"].(map[string]any)
+	if cost["sum_read_wall_ns"].(int64) <= 0 || cost["stream_append_calls"].(int64) != int64(1+samples) || cost["stream_append_wall_ns"].(int64) <= 0 ||
+		cost["read_wall_scope"] == "" || cost["process_cpu_scope"] == "" {
+		t.Fatalf("the sampler must report its own cost (reads, appends, whole-process CPU, honestly labelled): %v", cost)
+	}
 	if int64(total) != sum["samples"].(int64) {
 		t.Fatalf("flush lost samples: stream %d, summary %v", total, sum["samples"])
 	}

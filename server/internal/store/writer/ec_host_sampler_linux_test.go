@@ -22,3 +22,12 @@ func deviceNumbers(path string) (major, minor uint32, ok bool) {
 	minor = uint32(dev&0xff | (dev>>12)&^uint64(0xff))
 	return major, minor, true
 }
+
+// processCPUNS is the whole process's user+system CPU time (rusage), 0 if unavailable.
+func processCPUNS() int64 {
+	var ru syscall.Rusage
+	if syscall.Getrusage(syscall.RUSAGE_SELF, &ru) != nil {
+		return 0
+	}
+	return ru.Utime.Nano() + ru.Stime.Nano()
+}
