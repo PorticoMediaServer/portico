@@ -40,12 +40,20 @@ func (d *ScanDriver) prepareWork(ctx context.Context, purpose CommandID, origina
 	if err = d.current(); err != nil {
 		return nil, err
 	}
-	if purpose != InventoryCreate && purpose != InventoryClaim && purpose != InventoryAccept {
+	_, basicErr := basicPurposeForCommand(purpose)
+	basic := basicErr == nil
+	if purpose != InventoryCreate && purpose != InventoryClaim && purpose != InventoryAccept && !basic {
 		return nil, ErrInvalid
 	}
 	if original.RunID == "" || original.LibraryID <= 0 || original.LibraryKey == "" || original.Receipt.Identity.Sequence <= 0 || generation < 0 || p == nil || d.preparation != p || p.self != p ||
 		p.opening != d.opening || p.runtime != d.writer.effective || p.expected.Key.Domain != uint16(purpose) || p.expected.Key.ID != original.RunID ||
 		len(p.expected.Footprint) != 1 || p.expected.Footprint[0].Library != original.LibraryID {
+		return nil, ErrInvalid
+	}
+	// Dedicated Basic work keeps the constructor's exact original holding.
+	// History/native Inventory preparation cannot be borrowed for a Basic turn.
+	if basic && (generation <= 0 || p.mode != scanBasicPreparation || p.expected.Writer || p.expected.Class != governor.ScanMinimum || p.expected.Footprint[0].Domain != uint16(purpose)) ||
+		!basic && p.mode == scanBasicPreparation {
 		return nil, ErrInvalid
 	}
 	if err = p.current(); err != nil {
