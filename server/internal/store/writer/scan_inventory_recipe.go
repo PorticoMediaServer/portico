@@ -43,6 +43,9 @@ func inventoryDriverCommandDefinitions() []stmt.Definition {
 // Whole driver BEGIN, including the outer original lookup, current-source
 // verification and SC's receipt/result writes. Setup and terminal are separate.
 func inventoryDriverMaxUses(id stmt.ID) int {
+	if id == scanMemberByteLengths {
+		return inventoryReceiptMaxMembers
+	}
 	if uses := inventoryFreshMaxUses(id); uses != 0 {
 		return uses
 	}

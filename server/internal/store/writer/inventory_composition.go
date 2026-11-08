@@ -51,6 +51,9 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 	}
 
 	if purpose == InventoryAccept {
+		if id == scanMemberByteLengths {
+			return inventoryReceiptMaxMembers
+		}
 		switch id {
 		case scanInventoryLibraryRecordLengths, scanRunByteLengths, scanJobByteLengths, scanRootByteLengths, scanReceiptByteLengths, scanMemberByteLengths, scanReceiptIdentityPrefix, scanMemberKeys,
 			scanLifecycleRun, scanLifecycleJob, scanLifecycleRoot, scanLifecycleActive, scanSourceLengths, scanSourcePayload, scanSourcePolicy, scanLibraryRootLengths, scanLibraryRoot:
