@@ -14,8 +14,18 @@ import (
 
 // One existing governor-backed frame; numeric inputs here are component-test
 // forecasts, never a production recipe or a replacement grant constructor.
-func effectiveSourceNativeTurn(t *testing.T, w *executor, budget commandMemoryBudget) (*commandTurn, *governor.Authority) {
+func effectiveSourceNativeTurn(t *testing.T, w *executor, budget commandMemoryBudget, purposes ...CommandID) (*commandTurn, *governor.Authority) {
 	t.Helper()
+	purpose := EffectiveStage
+	if len(purposes) > 1 {
+		t.Fatal("multiple source proof fixture purposes")
+	}
+	if len(purposes) == 1 {
+		purpose = purposes[0]
+	}
+	if !effectiveSourceProofPurpose(purpose) {
+		t.Fatal("unsupported source proof fixture purpose")
+	}
 	defs := append(enrichmentEffectiveSourcePinDefinitions(), enrichmentEffectiveSourceControlDefinitions()...)
 	// The actual preceding component stage/seal frame selected NORMAL.
 	// Assert that held policy for Capture; never repair it to match w.config.
@@ -32,10 +42,10 @@ func effectiveSourceNativeTurn(t *testing.T, w *executor, budget commandMemoryBu
 	}
 	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, time.Millisecond}}
 	g, a, wal, request := governedFixture(t, w.now, governedFixtureProfile{recipe, 16 << 20})
-	request.Key.Domain = uint16(EffectiveStage)
+	request.Key.Domain = uint16(purpose)
 	request.Key.ID = "operation-one"
 	request.Class = governor.Background
-	request.Footprint = []governor.Scope{{Library: 7, Domain: uint16(EffectiveStage)}}
+	request.Footprint = []governor.Scope{{Library: 7, Domain: uint16(purpose)}}
 	if err := refreshWriterWAL(walPathForEffectiveTest(t, w), wal, w.now); err != nil {
 		t.Fatal(err)
 	}
@@ -43,12 +53,12 @@ func effectiveSourceNativeTurn(t *testing.T, w *executor, budget commandMemoryBu
 	if decision.Grant == nil {
 		t.Fatal(decision.Refusal)
 	}
-	custody, err := bindGovernedTurn(EffectiveStage, recipe.limit, g, a, wal, decision.Grant, request)
+	custody, err := bindGovernedTurn(purpose, recipe.limit, g, a, wal, decision.Grant, request)
 	if err != nil {
 		t.Fatal(errors.Join(err, a.Retired(decision.Grant)))
 	}
 	custody.effectiveSourceMemory = budget
-	tx, err := w.begin(t.Context(), EffectiveStage, recipe, custody)
+	tx, err := w.begin(t.Context(), purpose, recipe, custody)
 	if err != nil {
 		if errors.Is(err, ErrBusy) {
 			err = errors.Join(err, custody.retired())
