@@ -107,10 +107,21 @@ func (c *basicControlChain) seal(in basicControlRequest) BasicResult {
 	return got
 }
 
-// The whole FIRST walk through one dispatcher: Stage and Seal of all nine
-// families, probe scalars, pin, freeze, entity, the copy of families 1..9
-// driven only by each turn's actual continuation, then Accept activation.
-func TestBasicFirstWalkEndToEnd(t *testing.T) {
+// The real walk through pin: all nine families staged and sealed, probe scalars
+// applied and the target shape pinned, at phase 0 with nothing frozen.
+type basicWalk struct {
+	w         *Writer
+	e         *executor
+	authority *governor.Authority
+	s         basicStreamFactStage
+	chain     *basicControlChain
+	probe     basicProbeEffects
+	shape     int64
+	revision  int64
+}
+
+func basicWalkThroughPin(t *testing.T) basicWalk {
+	t.Helper()
 	w, e, authority, s, original, identity := basicFullWalkFixture(t)
 	seedBasicFirstOrdinaryOwner(t, e)
 	incarnation := [16]byte(bytes.Repeat([]byte{0x41}, 16))
@@ -182,6 +193,15 @@ func TestBasicFirstWalkEndToEnd(t *testing.T) {
 	if err := e.db.QueryRowContext(t.Context(), `SELECT target_shape_id,job_revision FROM catalog_info_changes WHERE id=51`).Scan(&shape, &revision); err != nil {
 		t.Fatal(err)
 	}
+	return basicWalk{w, e, authority, s, chain, probe, shape, revision}
+}
+
+// The whole FIRST walk through one dispatcher: Stage and Seal of all nine
+// families, probe scalars, pin, freeze, entity, the copy of families 1..9
+// driven only by each turn's actual continuation, then Accept activation.
+func TestBasicFirstWalkEndToEnd(t *testing.T) {
+	walk := basicWalkThroughPin(t)
+	w, e, authority, s, chain, shape, revision := walk.w, walk.e, walk.authority, walk.s, walk.chain, walk.shape, walk.revision
 	head := basicControlRequest{source: s, entityID: 31, shapeID: shape}
 	for _, op := range []basicControlOperation{basicControlFreeze, basicControlSelectEntity} {
 		in := head
