@@ -196,9 +196,11 @@ func (o *FullSearchOracle) Validate() error {
 // Screening records it as a gap; it is never a ready sample and never a pass.
 var ErrFullSearchBankAbsent = errors.New("full search unavailable: no v1 bank")
 
-// Check verifies one returned page for term i. Pending pages with a
-// continuation are legal intermediate polls and are not checked for
-// completeness; a page that claims Exhausted must be exactly right.
+// Check verifies the soundness of ONE returned page for term i: every entity
+// hit matches every query term, counts never exceed the truth, the candidate
+// allowance is respected and no exact claim is made over a broad term. A
+// preview poll returns the hits of its own window, so a single page is never
+// required to be the whole answer; use CheckWalk for completeness.
 func (o *FullSearchOracle) Check(i int, page read.FullSearchPage) error {
 	if i < 0 || i >= len(o.Terms) {
 		return errors.New("term index out of range")
@@ -227,25 +229,53 @@ func (o *FullSearchOracle) Check(i int, page read.FullSearchPage) error {
 			return fmt.Errorf("%s %q returned unexpected entity %d", t.Class, t.Text, hit.ID)
 		}
 	}
-	switch {
-	case want == 0 && len(page.Hits) > 0:
+	if want == 0 && len(page.Hits) > 0 {
 		return fmt.Errorf("%s %q returned hits for an empty population", t.Class, t.Text)
-	case page.Exhausted && !page.Partial && want <= fullSearchOracleIDs:
-		got := make([]int64, 0, len(page.Hits))
-		for _, hit := range page.Hits {
-			got = append(got, hit.ID)
-		}
-		slices.Sort(got)
-		wantIDs := slices.Clone(o.ids[i])
-		slices.Sort(wantIDs)
-		if !slices.Equal(got, wantIDs) {
-			return fmt.Errorf("%s %q exhausted with %v, want %v", t.Class, t.Text, got, wantIDs)
-		}
-	case want > read.NativePreviewCandidates && page.Exhausted && !page.Partial:
+	}
+	if want > read.NativePreviewCandidates && page.Exhausted && !page.Partial {
 		return fmt.Errorf("%s %q claims an exact exhausted walk of %d candidates", t.Class, t.Text, want)
 	}
 	if len(page.Hits) > 20 {
 		return fmt.Errorf("%s %q returned %d hits, over the page limit", t.Class, t.Text, len(page.Hits))
+	}
+	return nil
+}
+
+// CheckWalk verifies a whole poll sequence for term i, in order, ending with
+// the poll that returned no continuation. Every page must pass Check. When the
+// walk ends exhausted and the population is small, the UNION of hits across
+// the polls must equal the true set exactly; a walk that ends without being
+// exhausted is only legal for a population beyond the candidate budget.
+func (o *FullSearchOracle) CheckWalk(i int, pages []read.FullSearchPage) error {
+	if i < 0 || i >= len(o.Terms) || len(pages) == 0 {
+		return errors.New("empty walk")
+	}
+	t, want := o.Terms[i], o.counts[i]
+	var union []int64
+	for _, page := range pages {
+		if err := o.Check(i, page); err != nil {
+			return err
+		}
+		for _, hit := range page.Hits {
+			if hit.Subject == search.ManifestEntity && !slices.Contains(union, hit.ID) {
+				union = append(union, hit.ID)
+			}
+		}
+	}
+	last := pages[len(pages)-1]
+	if last.Next != nil {
+		return nil // unfinished walk: soundness only
+	}
+	if want <= fullSearchOracleIDs {
+		if !last.Exhausted || last.Partial {
+			return fmt.Errorf("%s %q ended unfinished with a population of %d", t.Class, t.Text, want)
+		}
+		wantIDs := slices.Clone(o.ids[i])
+		slices.Sort(union)
+		slices.Sort(wantIDs)
+		if !slices.Equal(union, wantIDs) {
+			return fmt.Errorf("%s %q walk found %v, want %v", t.Class, t.Text, union, wantIDs)
+		}
 	}
 	return nil
 }

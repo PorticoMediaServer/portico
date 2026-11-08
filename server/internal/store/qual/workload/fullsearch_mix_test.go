@@ -67,7 +67,6 @@ func TestFullSearchOracleChecksPages(t *testing.T) {
 		t.Fatal("exact rare page refused", err)
 	}
 	for name, page := range map[string]read.FullSearchPage{
-		"missing hit":    fullSearchPage(nil, o, true),
 		"wrong entity":   fullSearchPage([]int64{100043}, o, true),
 		"extra entity":   fullSearchPage([]int64{100042, 100050}, o, true),
 		"unavailable":    {Disposition: read.SearchUnavailable},
@@ -76,6 +75,23 @@ func TestFullSearchOracleChecksPages(t *testing.T) {
 	} {
 		if err := o.Check(rare, page); err == nil {
 			t.Fatal("bad rare page accepted", name)
+		}
+	}
+	// A single exhausted page with no hits is legal (hits arrive per poll); the
+	// walk-level check catches an answer that never found the entity.
+	if err := o.Check(rare, fullSearchPage(nil, o, true)); err != nil {
+		t.Fatal("per-poll page need not carry the whole answer", err)
+	}
+	if err := o.CheckWalk(rare, []read.FullSearchPage{fullSearchPage([]int64{100042}, o, false), fullSearchPage(nil, o, true)}); err != nil {
+		t.Fatal("split walk refused", err)
+	}
+	for name, walk := range map[string][]read.FullSearchPage{
+		"never found":   {fullSearchPage(nil, o, true)},
+		"extra entity":  {fullSearchPage([]int64{100042, 100050}, o, true)},
+		"ended partial": {fullSearchPage(nil, o, false)},
+	} {
+		if err := o.CheckWalk(rare, walk); err == nil {
+			t.Fatal("bad rare walk accepted", name)
 		}
 	}
 	if err := o.Check(rare, fullSearchPage(nil, o, false)); err != nil {
