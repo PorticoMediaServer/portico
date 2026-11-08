@@ -12,7 +12,7 @@ func TestRBExactEligibleCount(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f, reader := newRBExactFacetFixture(t)
 		f.exec(t, `UPDATE catalog_entities SET year=CASE id WHEN 1 THEN 1799 ELSE 2200 END WHERE id IN(1,2)`)
-		job, err := reader.BeginEligibleCount(t.Context(), 1, 16<<20, f.input)
+		job, err := reader.BeginEligibleCount(t.Context(), 1, 8192, f.input)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,13 +45,17 @@ func TestRBExactEligibleCount(t *testing.T) {
 			if got.Count != want {
 				t.Fatal("count inherited the year-facet missing rule", got.Count, want)
 			}
-			assertLiveUsage(t, f, 1, 0)
+			if u := f.authority.ForegroundUsage(); u.Live != 1 || u.Waiters != 0 {
+				t.Fatal("count handoff lacks LIVE custody", u)
+			}
 			return nil
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertLiveUsage(t, f, 0, 0)
+		if u := f.authority.ForegroundUsage(); u.Live != 0 || u.Waiters != 0 {
+			t.Fatal("count consumer retained LIVE custody", u)
+		}
 	})
 }
 
@@ -63,7 +67,7 @@ func TestRBExactEligibleCountEmptyAndDrift(t *testing.T) {
 				if mode == "empty" {
 					f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE library_id=1`)
 				}
-				job, err := reader.BeginEligibleCount(t.Context(), 1, 16<<20, f.input)
+				job, err := reader.BeginEligibleCount(t.Context(), 1, 8192, f.input)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -105,7 +109,7 @@ func TestRBExactEligibleCountEmptyAndDrift(t *testing.T) {
 func TestRBExactEligibleCountDenial(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f, reader := newRBExactFacetFixture(t)
-		job, err := reader.BeginEligibleCount(t.Context(), 1, 16<<20, f.input)
+		job, err := reader.BeginEligibleCount(t.Context(), 1, 8192, f.input)
 		if err != nil {
 			t.Fatal(err)
 		}
