@@ -169,6 +169,9 @@ func TestRSPeoplePagePortraitRetiringSourceStaysStale(t *testing.T) {
 	if !errors.Is(err, ErrStale) || !reflect.DeepEqual(out, RSPersonPage{}) {
 		t.Fatalf("retiring nonempty portrait escaped: %+v %v", out, err)
 	}
+	if err = p.Close(); err != nil {
+		t.Fatal(err)
+	}
 	f.exec(t, `UPDATE artwork_sources SET retiring=0,retirement_token=NULL WHERE digest=printf('%064d',1)`)
 	after := finishRSPage(t, f, r, beginRSPage(t, f, r, RSPersonPageInput{}))
 	if after.Portrait == nil || !reflect.DeepEqual(before.Portrait, after.Portrait) {
