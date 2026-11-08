@@ -48,6 +48,15 @@ ATTEMPTS = 10000
 MAX_STREAM_BYTES = 16 << 30
 RAW_MEMORY_BYTES = spool.MEMORY_BYTES
 
+# The owner's own target declaration is transported, never computed here. The
+# roll-up generator reads the same closed vocabulary from target.json.
+TARGET_VERSION = 'portico-class-target-v1'
+TARGET_GATES = ('hosted_p99_u95_10ms', 'cell_declared')
+TARGET_TEXT_LIMITS = dict(version=64, **{'class': 64}, profile=16, target=512, reason=1024)
+TARGET_KEYS = frozenset((*TARGET_TEXT_LIMITS, 'replicate', 'target_flag', 'gate',
+                         'min_holds_per_host', 'synthetic'))
+TARGET_MIN_HOLDS = 10000
+
 
 def identity(value, name, maximum=20):
     q.require(isinstance(value, str) and re.fullmatch(r'[1-9][0-9]{0,' + str(maximum-1) + '}', value), 'invalid ' + name)
@@ -111,6 +120,69 @@ def verify_stream(path, cfg, compressed=False):
               and last.get('complete') is True, 'missing/incomplete owner final')
     return dict(records=count, raw_sha256=digest.hexdigest(), owner_final=last,
                 qualification_verdict=None, verdict_reason='Owner raw evidence still needs per-recipe reduction and protocol gates')
+
+
+def owner_target(receipt):
+    """Closed transport of the owner's own target declaration.
+
+    The owner computes target_flag from its own measured result against its own
+    EC target. This function only copies that declaration into the cell's
+    target.json; it never derives, defaults or relaxes a flag. No declaration
+    (or a null target object) writes nothing, which stays unavailable.
+    """
+    wire = receipt.get('wire')
+    final = wire.get('owner_final') if type(wire) is dict else None
+    if type(final) is not dict or final.get('target') is None:
+        return None
+    decl = final['target']
+    q.require(type(decl) is dict, 'owner target must be a JSON object')
+    unknown = set(decl) - TARGET_KEYS
+    q.require(not unknown, 'unknown owner target field(s): ' + ', '.join(sorted(unknown)))
+    q.require('target_flag' in decl, 'owner target requires target_flag')
+    q.require(decl['target_flag'] is None or type(decl['target_flag']) is bool,
+              'owner target_flag must be true, false or null')
+    for key, limit in TARGET_TEXT_LIMITS.items():
+        if key in decl:
+            value = decl[key]
+            q.require(type(value) is str and len(value) <= limit,
+                      'owner target ' + key + ' must be a string of at most ' + str(limit) + ' characters')
+    declared = receipt.get('declared')
+    q.require(type(declared) is dict, 'owner target needs the receipt declaration')
+    name, profile, replicate = declared.get('name'), declared.get('profile'), declared.get('replicate')
+    q.require(type(name) is str and type(profile) is str and type(replicate) is int and not isinstance(replicate, bool),
+              'owner target receipt declaration incomplete')
+    if 'version' in decl:
+        q.require(decl['version'] == TARGET_VERSION, 'owner target version must be ' + TARGET_VERSION)
+    if 'class' in decl:
+        q.require(type(decl['class']) is str and decl['class'] == name,
+                  'owner target class disagrees with receipt')
+    if 'profile' in decl:
+        q.require(type(decl['profile']) is str and decl['profile'] == profile,
+                  'owner target profile disagrees with receipt')
+    if 'replicate' in decl:
+        q.require(type(decl['replicate']) is int and not isinstance(decl['replicate'], bool)
+                  and decl['replicate'] == replicate, 'owner target replicate disagrees with receipt')
+    gate = decl.get('gate', TARGET_GATES[0])
+    q.require(type(gate) is str and gate in TARGET_GATES,
+              'owner target gate must be ' + ' or '.join(TARGET_GATES))
+    min_holds = decl.get('min_holds_per_host', TARGET_MIN_HOLDS)
+    q.require(type(min_holds) is int and not isinstance(min_holds, bool) and min_holds > 0,
+              'owner target min_holds_per_host must be a positive integer')
+    synthetic = decl.get('synthetic', False)
+    q.require(type(synthetic) is bool, 'owner target synthetic must be a JSON boolean')
+    # Identity is taken from the receipt, never from the owner's copy.
+    return dict(version=TARGET_VERSION, **{'class': name}, profile=profile, replicate=replicate,
+                target=decl.get('target', '').strip(), target_flag=decl['target_flag'],
+                reason=decl.get('reason', '').strip(), gate=gate,
+                min_holds_per_host=min_holds, synthetic=synthetic)
+
+
+def write_owner_target(output, receipt):
+    """Write target.json beside the receipt only when the owner declared one."""
+    declaration = owner_target(receipt)
+    if declaration is not None:
+        q.atomic_json(output / 'target.json', declaration)
+    return declaration
 
 
 def verify_checkpoint_stream(path, case, attempts):
@@ -330,6 +402,7 @@ def run(launch_path):
         receipt['target_exit_code'] = code
         q.require(code == 0, 'owner target failed; retain every refusal/error/partial record')
         receipt.update(wire=verify_checkpoint_stream(raw.parent/'raw.ndjson.gz',CHECKPOINT_CASES[cfg['name']],receipt['checkpoint_iterations']) if checkpoint else verify_stream(raw.parent/'raw.ndjson.gz', c, compressed=True), status='owner-execution-complete')
+        write_owner_target(output, receipt)
     except BaseException as error:
         receipt.update(status='failed', error=f'{type(error).__name__}: {error}')
         raise
