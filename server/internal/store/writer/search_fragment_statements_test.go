@@ -34,7 +34,7 @@ func TestSearchFragmentStatementsCaptureAndBindClosedEffects(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: schema.SHA256, Statistics: plan.Unanalyzed,
+	g, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: schema.SHA256, Statistics: plan.Unanalyzed,
 		Implementations: "fragment statement component only; shared image fixture; no fresh source/resource/accepting or native Work qualification"}, policy)
 	if err != nil {
 		t.Fatal(err)

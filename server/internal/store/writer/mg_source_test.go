@@ -204,7 +204,7 @@ func TestMGSourceNativeStatementCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256([]byte(mgSourceFixtureSQL))
-	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(digest[:]), Statistics: plan.Unanalyzed, Implementations: "Existing canonical source/identity fixture; point component facts only; not authority, lifetime, admission, COMMIT or qualification"}, policy)
+	g, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(digest[:]), Statistics: plan.Unanalyzed, Implementations: "Existing canonical source/identity fixture; point component facts only; not authority, lifetime, admission, COMMIT or qualification"}, policy)
 	if err != nil {
 		t.Fatal(err)
 	}

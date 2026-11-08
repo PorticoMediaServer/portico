@@ -53,7 +53,7 @@ func TestScanDirectoryStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: e.config, SHA256: fixtureSHA, Statistics: plan.Unanalyzed, Implementations: "directory discovery/EOF native SQL-fact fixture; complete indexed scalar receipt programs and INSERT destination audit; no issuer or production resource qualification"}, policy)
+	golden, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: e.config, SHA256: fixtureSHA, Statistics: plan.Unanalyzed, Implementations: "directory discovery/EOF native SQL-fact fixture; complete indexed scalar receipt programs and INSERT destination audit; no issuer or production resource qualification"}, policy)
 	if err != nil {
 		t.Fatal(err)
 	}

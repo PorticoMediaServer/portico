@@ -123,7 +123,7 @@ func TestWCProgressSupportStatementPlans(t *testing.T) {
 			if err := tx.conn.QueryRowContext(tx.ctx, "SELECT total_changes()").Scan(&before); err != nil {
 				t.Fatal(err)
 			}
-			golden, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: connectionPolicy, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "WC actual " + population + " fixture; synthetic component custody/forecasts, not production admission or resource qualification"}, policy)
+			golden, err := cachedCapture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: connectionPolicy, SHA256: journal, Statistics: plan.Unanalyzed, Implementations: "WC actual " + population + " fixture; synthetic component custody/forecasts, not production admission or resource qualification"}, policy)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -149,7 +149,7 @@ func TestWCProgressSupportStatementPlans(t *testing.T) {
 			}
 			// Independent audit also covers UPDATE-only inventories; never rely on
 			// INSERT-triggered Capture auditing as a substitute for the full graph.
-			fk, err := plan.ForeignKeys(tx.ctx, tx.conn, connectionPolicy)
+			fk, err := cachedForeignKeys(tx.ctx, tx.conn, connectionPolicy)
 			if err != nil {
 				t.Fatal(err)
 			}

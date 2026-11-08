@@ -103,7 +103,7 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: policy, SHA256: fixtureSHA, Statistics: plan.Unanalyzed,
+	golden, err := cachedCapture(tx.ctx, tx.conn, catalogue, plan.Fixture{ConnectionPolicy: policy, SHA256: fixtureSHA, Statistics: plan.Unanalyzed,
 		Implementations: "bundled SQLite3.53.4; seedScanLifecycle native SQL facts before lifecycle effects; compile only, not source/birth authority or production resource/command qualification"}, indexPolicy)
 	if err != nil {
 		t.Fatal(err)

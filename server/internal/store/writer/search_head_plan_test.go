@@ -55,7 +55,7 @@ func TestSearchHeadStatementPlans(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	g, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed,
+	g, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed,
 		Implementations: "FIRST sealed entity own-primary-title head; original own native replacement; indexed tail and exact source/accounting/held custody; FULL pre-BEGIN only; no governor, native Work or runtime eligibility qualification"}, policy)
 	if err != nil {
 		t.Fatal(err)

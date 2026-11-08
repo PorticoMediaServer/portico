@@ -95,7 +95,7 @@ func TestScanLifecycleHistoryStatementPlans(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: fixtureSHA, Statistics: plan.Unanalyzed,
+	golden, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{ConnectionPolicy: w.config, SHA256: fixtureSHA, Statistics: plan.Unanalyzed,
 		Implementations: "W scanLifecycleProtocolFixture actual saved create/claim/history/floor populations; FULL startup; structural two-read qualification only, not public issuance or a fresh execution/resource profile"}, policy)
 	if err != nil {
 		t.Fatal(err)

@@ -92,7 +92,7 @@ func TestEnrichmentStageStatementPlans(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: policy, SHA256: enrichmentStageFixtureIdentity(t), Statistics: plan.Unanalyzed, Implementations: "adopted009 on embedded010; fixed inert native source/component fixture; no producer proof or runtime qualification"}, indexes)
+	golden, err := cachedCapture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: policy, SHA256: enrichmentStageFixtureIdentity(t), Statistics: plan.Unanalyzed, Implementations: "adopted009 on embedded010; fixed inert native source/component fixture; no producer proof or runtime qualification"}, indexes)
 	if err != nil {
 		t.Fatal(err)
 	}

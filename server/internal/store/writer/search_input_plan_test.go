@@ -123,7 +123,7 @@ VALUES(2,'clock_fixture_only','fixture_recipe','fixture_engine','fixture_unicode
 				fixtureBytes = append(fixtureBytes, []byte(buildingSeed+buildingHead+"|2")...)
 			}
 			fixtureHash := sha256.Sum256(fixtureBytes)
-			golden, err := plan.Capture(tx.ctx, tx.conn, registry, plan.Fixture{
+			golden, err := cachedCapture(tx.ctx, tx.conn, registry, plan.Fixture{
 				ConnectionPolicy: policy, SHA256: hex.EncodeToString(fixtureHash[:]), Statistics: plan.Unanalyzed,
 				Implementations: "bundled SQLite3.53.4; builtin functions/collations; searchInputFixture fixed stale tuple; " + name + "; compile only, no native-v2 claim",
 			}, indexPolicy)

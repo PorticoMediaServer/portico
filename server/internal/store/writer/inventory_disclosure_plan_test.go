@@ -94,7 +94,7 @@ func TestInventoryDisclosurePlanGoldens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{
+	golden, err := cachedCapture(tx.ctx, tx.conn, catalogue, plan.Fixture{
 		ConnectionPolicy: policy, SHA256: fixtureSHA, Statistics: plan.Unanalyzed,
 		Implementations: "bundled SQLite3.53.4; builtin functions/collations; immutable SC seedScanReceiptCohorts plus W inventoryDisclosureFixture library8; native relationship facts only; compile only",
 	}, indexPolicy)

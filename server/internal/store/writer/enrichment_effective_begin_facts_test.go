@@ -228,7 +228,7 @@ func TestEffectiveBeginFactPlansUseActualNativeKeys(t *testing.T) {
 	if err := turn.transaction.conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&changesBefore); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), turn.transaction.conn, turn.registry, plan.Fixture{
+	golden, err := cachedCapture(t.Context(), turn.transaction.conn, turn.registry, plan.Fixture{
 		ConnectionPolicy: config, SHA256: hex.EncodeToString(sum[:]), Statistics: plan.Unanalyzed,
 		Implementations: "bundled-native-facts-only",
 	}, policy)

@@ -109,7 +109,7 @@ func captureEffectiveFixture(t *testing.T, conn *sql.Conn, config sqliteconn.Con
 		}
 		hash.Write(data)
 	}
-	golden, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{
+	golden, err := cachedCapture(t.Context(), conn, catalogue, plan.Fixture{
 		ConnectionPolicy: config, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed,
 		Implementations: "owned writer component fixture setup; actual native qualification, synthetic resource forecasts and test-only source permission",
 	}, policy)
@@ -540,7 +540,7 @@ func TestEffectiveDispatchNativeCohortsAndPlans(t *testing.T) {
 	}
 	config := executor.config
 	config.Synchronous = sqliteconn.Normal
-	golden, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: config, SHA256: hex.EncodeToString(fixtureHash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "closed-effective-disclosure-ack-components"}, policy)
+	golden, err := cachedCapture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: config, SHA256: hex.EncodeToString(fixtureHash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "closed-effective-disclosure-ack-components"}, policy)
 	closeErr := conn.Close()
 	if err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
