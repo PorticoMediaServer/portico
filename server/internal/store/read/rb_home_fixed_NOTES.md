@@ -25,7 +25,9 @@ Initial/final snapshots independently read the full actual manifest, principal,
 complete membership, entity scalar facts, actual personal rows, native library
 fences, owner-policy presence, and complete binding traces (including rejected
 links/objects). Unversioned changes invalidate the draft. One whole retry shares
-the original LIVE deadline and cumulative Go copy counter. Compositions do not
+the original LIVE deadline and cumulative Go copy counter. The first principal,
+birth and permission context stays pinned across attempts; security drift is
+terminal ErrDenied with zero output. Compositions do not
 call separate foreground readers with reset budgets or publish earlier steps.
 Actual bytes are preflighted for personal text and every variable binding field
 before hydration, using own closed exact SQL and current native SEARCH plans.
@@ -33,8 +35,8 @@ Catalogue dates have schema-enforced fixed width; no title/path/overview is read
 
 ## Implemented exact small scopes
 
-* new_on_server folds available eligible episodes into shows, songs into albums,
-  and book files into books; standalone movies retain their public identity when
+* new_on_server reads ONLY movie/tv/anime libraries and folds available eligible
+  episodes into shows; standalone movies retain their public identity when
   no provider-equivalence facts exist. The complete merged shelf sorts newest
   first, public encoded work ID breaking ties, then takes the newest100 works.
   Restricted dates and delivery grouping use ONLY currently admitted, whole
@@ -48,7 +50,8 @@ Catalogue dates have schema-enforced fixed width; no title/path/overview is read
   millisecond position, current activity visibility and playback-specific dismissal.
   The accepted three-second end exclusion applies. Default maximum40 is used ONLY
   when no owner library document exists. It does not relabel leaf ContinueWatching.
-* listen_next resolves each album's newest eligible actual song activity. An active
+* listen_next selects each album's newest actual song activity before qualifying
+  its target availability or visibility. An active
   song resumes there; an ended song advances in complete disc/track/id order to the
   next available admitted song. Actual audiobook resumes use the book's retained
   current resume child, current leaf state and complete source duration. Active
@@ -154,7 +157,7 @@ The artifact is copied unchanged from that actual runner, never regenerated from
 stored JSON. CompareJSON is only a baseline check; fresh Capture is still required
 to mint the opaque registration receipt. Existing frozen golden files are intact.
 
-Recent scope is closed to movie/tv/anime/music/audiobook libraries. Reading and
-unknown library families return explicit recent_library_policy_uncomposed; their
-absence of a whole-playable binding is not interpreted as a successful empty
-recent shelf. MP/current publication integration remains required there too.
+New on Server's source universe is movie/tv/anime only. Other library families
+are excluded before its four-library/32-entity membership budgets. Audio recent
+fallback remains part of Listen Next. Reading publication integration remains a
+dependency of Continue Books, not of the video-only shelf.
