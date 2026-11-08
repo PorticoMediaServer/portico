@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
+	"github.com/PorticoMediaServer/portico/server/internal/store/search"
 )
 
 // The canonical generator's phrase selection (SplitMix64, seed 0).
@@ -186,3 +187,57 @@ func screenBankAtScale(t *testing.T, residents int) {
 func TestScreenBank30k(t *testing.T)  { screenBankAtScale(t, 30_000) }
 func TestScreenBank200k(t *testing.T) { screenBankAtScale(t, 200_000) }
 func TestScreenBank1M(t *testing.T)   { screenBankAtScale(t, 999_000) }
+
+func TestScreenPeopleWindow30k(t *testing.T) {
+	// SCREENING: People/owner terms fan out into many works per expansion; log how
+	// many hits each poll carries and whether any poll saturates the page limit.
+	f := newBrowseSource(t)
+	f.exec(t, "BEGIN")
+	subject, _ := f.conn.PrepareContext(t.Context(), `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,1)`)
+	entity, _ := f.conn.PrepareContext(t.Context(), `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired,admission_own_age) VALUES(?,?,1,1,?,?,?,?,?,0,?,?,0,NULL)`)
+	for o := 1; o <= 30000; o++ {
+		id := int64(1_000_000_000 + o)
+		public := make([]byte, 16)
+		binary.LittleEndian.PutUint64(public, uint64(id))
+		title := screenTitle(0, o)
+		subject.ExecContext(t.Context(), id, public)
+		entity.ExecContext(t.Context(), id, public, title, title, title[:1], title, title[:1], public, public)
+	}
+	f.exec(t, "COMMIT")
+	seedQualificationSearchBank(t, f.conn)
+	f = composeReadFixture(t, f, NativeFullSearchDefinitions(), readfixture.LiveConfig(time.Now), false, nativeFixtureHash(t))
+	reader, err := NewNativeFullSearchReader(f.snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.input.Kind = 0
+	f.input.Limit = 20
+	for _, term := range []string{"performer", "qualification performer", "qualification performer 01", "qualification"} {
+		var after *FullSearchCursor
+		var per []int
+		people, works, maxHits := 0, 0, 0
+		var last FullSearchPage
+		for poll := 0; poll < 300; poll++ {
+			page, err := nativePreviewRead(t, f, reader, term, after, NativePreviewCandidates)
+			if err != nil {
+				t.Log(term, "err", err)
+				break
+			}
+			per = append(per, len(page.Hits))
+			maxHits = max(maxHits, len(page.Hits))
+			for _, h := range page.Hits {
+				if h.Subject == search.ManifestPerson {
+					people++
+				} else {
+					works++
+				}
+			}
+			last = page
+			if page.Next == nil {
+				break
+			}
+			after = page.Next
+		}
+		t.Logf("%q polls=%d people=%d works=%d maxHitsInOnePoll=%d lastExhausted=%v lastPartial=%v", term, len(per), people, works, maxHits, last.Exhausted, last.Partial)
+	}
+}
