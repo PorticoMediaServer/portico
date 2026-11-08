@@ -42,6 +42,8 @@ type N1PairedComponent struct {
 	trace                          *n1Trace
 	summary                        n1SteadySummary
 	baseline                       uint64
+	baselineConnections            uint64
+	baselineCloses                 int
 	original, call                 int
 	warmup                         int
 	stopped                        error
@@ -153,6 +155,7 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 	c.Governor, c.Authority = owner.governor, owner.authority
 	c.trace.useRegistry(registry)
 	c.baseline = c.trace.conn.id
+	c.baselineConnections, c.baselineCloses = c.trace.connections, c.trace.closeCount
 	raw, _ := json.Marshal(registry.Manifest())
 	digest := sha256.Sum256(raw)
 	facts := &n1Attempt{}
@@ -256,7 +259,7 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 		observed := strings.TrimSpace(string(bootData))
 		bootID = &observed
 	}
-	if err := c.stream.append("start", map[string]any{"declared_source_commit": cfg.SourceCommit, "source_hashes": hashes, "binary_sha256": hex.EncodeToString(binaryHash.Sum(nil)), "host_epoch": cfg.HostEpoch, "observed_hostname": observedHost, "hostname_error": n1Error(hostErr), "observed_boot_id": bootID, "boot_error": n1Error(bootErr), "manifest_scope": "local scheduler manifest is exact component-config SHA256; external QL manifest remains external", "database_id": c.DatabaseID, "native_device": writerDevice, "native_inode": writerInode, "schema_sha256": schema.SHA256, "read_fixture_journal_sha256": readfixture.ForegroundHash(t), "foreground_fixture_temporal_origin": foregroundSource.TemporalOrigin(), "foreground_time_scope": "existing synthetic seed offsets rebased once before construction using time.Now; no token renewal or runtime authority", "reader_policy": readerConfig, "foreground_fixture_profile": gc.Foreground, "foreground_partition": gc.Partitions[governor.Foreground], "max_grants_per_class": gc.MaxGrantsPerClass, "n1_request": owner.request, "n1_work": map[string]Work{"limit": owner.recipe.limit, "setup": owner.recipe.setup, "terminal": owner.recipe.terminal}, "warmup_originals": warmup, "measured_originals": cfg.Fixtures, "cohort": cohort, "clock": "time.Now real monotonic", "canonical_population": population, "foreground_library_by_route": map[string]int64{"browse": c.View.Library, "detail": c.PointView.Library, "playback": c.PointView.Library, "continue": c.PointView.Library}, "scope": "same DB; N1 library7; canonical browse7 when attached, existing point/personal overlay1; kind2 excluded only in attached seed", "profile_scope": "existing RD2 LIVE config and N1 class amounts/Work; no production qualification", "memory_scope": "process heap/RSS/allocation snapshots include concurrent readers and observers; not isolated N1 LIVE peaks", "cache_population": map[string]string{"n1": "warm persistent after actual warmup", "foreground": "first use; no read warmup"}, "reader_window_connection_id": nil, "reader_window_connection_id_unavailable_reason": "public SnapshotResult has no per-window physical instance ID; actual native file checked on every connect"}); err != nil {
+	if err := c.stream.append("start", map[string]any{"declared_source_commit": cfg.SourceCommit, "source_hashes": hashes, "binary_sha256": hex.EncodeToString(binaryHash.Sum(nil)), "host_epoch": cfg.HostEpoch, "observed_hostname": observedHost, "hostname_error": n1Error(hostErr), "observed_boot_id": bootID, "boot_error": n1Error(bootErr), "manifest_scope": "local scheduler manifest is exact component-config SHA256; external QL manifest remains external", "database_id": c.DatabaseID, "accepting_writer_baseline": map[string]any{"connection_id": c.baseline, "observed_connections": c.baselineConnections, "observed_native_closes": c.baselineCloses, "scope": "measured lifetime starts after proven setup/reopen; full earlier trace retained"}, "native_device": writerDevice, "native_inode": writerInode, "schema_sha256": schema.SHA256, "read_fixture_journal_sha256": readfixture.ForegroundHash(t), "foreground_fixture_temporal_origin": foregroundSource.TemporalOrigin(), "foreground_time_scope": "existing synthetic seed offsets rebased once before construction using time.Now; no token renewal or runtime authority", "reader_policy": readerConfig, "foreground_fixture_profile": gc.Foreground, "foreground_partition": gc.Partitions[governor.Foreground], "max_grants_per_class": gc.MaxGrantsPerClass, "n1_request": owner.request, "n1_work": map[string]Work{"limit": owner.recipe.limit, "setup": owner.recipe.setup, "terminal": owner.recipe.terminal}, "warmup_originals": warmup, "measured_originals": cfg.Fixtures, "cohort": cohort, "clock": "time.Now real monotonic", "canonical_population": population, "foreground_library_by_route": map[string]int64{"browse": c.View.Library, "detail": c.PointView.Library, "playback": c.PointView.Library, "continue": c.PointView.Library}, "scope": "same DB; N1 library7; canonical browse7 when attached, existing point/personal overlay1; kind2 excluded only in attached seed", "profile_scope": "existing RD2 LIVE config and N1 class amounts/Work; no production qualification", "memory_scope": "process heap/RSS/allocation snapshots include concurrent readers and observers; not isolated N1 LIVE peaks", "cache_population": map[string]string{"n1": "warm persistent after actual warmup", "foreground": "first use; no read warmup"}, "reader_window_connection_id": nil, "reader_window_connection_id_unavailable_reason": "public SnapshotResult has no per-window physical instance ID; actual native file checked on every connect"}); err != nil {
 		t.Fatal(err)
 	}
 	if *ec5MemoryEnabled {
@@ -318,7 +321,7 @@ func (c *N1PairedComponent) runOriginal(t *testing.T, ctx context.Context, ready
 		}
 		c.call++
 		c.summary.Turns[role].Started++
-		record := runN1SteadyTurn(t, ctx, c.stream, c.fixture, c.trace, &c.summary, c.original, c.call, population, role, cohort, c.baseline, n1SteadyControls{clock: time.Now})
+		record := runN1SteadyTurn(t, ctx, c.stream, c.fixture, c.trace, &c.summary, c.original, c.call, population, role, cohort, c.baseline, n1SteadyControls{clock: time.Now, initialConnections: &c.baselineConnections, initialCloses: &c.baselineCloses})
 		if telemetry {
 			// Always collect after a returned physical call, even on command failure or
 			// cancellation. These finite file probes own no native rows/transaction.
