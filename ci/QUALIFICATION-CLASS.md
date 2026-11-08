@@ -193,3 +193,12 @@ are SCREENING with sign_off_eligible=false; normal EC1 thresholds are not a
 maintenance gate. Per-record raw fields, native policies and fixture limits are
 unchanged. Screening reports empirical p99 only for a complete10k cell; short
 prefixes keep N/max/errors and withhold a qualified quantile.
+
+`inventory_batch` runs the actual ScanDriver accepting path with one atomic
+receipt per 1–8 ordinary movie files, on the shared 1M population and adopted WAL
+policy. It uses the class-target kit's refusing keeper/recovery gate. Its 10,000
+originals are **batches**; raw attempts retain each actual width and the final
+record separates measured file/width counts from warmup. It measures held-command
+cost over trusted native observation fixtures. Physical-filesystem EC4 throughput
+and paired EC3 foreground write-wait are separate evidence; this target reports
+those as unavailable rather than inferring a pass from scan hold times.

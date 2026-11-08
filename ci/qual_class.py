@@ -23,6 +23,7 @@ CHECKPOINT_CASES = dict(checkpoint_1mib='1MiB', checkpoint_8mib='8MiB', checkpoi
 CHECKPOINT_ITERATIONS = dict(checkpoint_1mib=10000, checkpoint_8mib=10000, checkpoint_64mib=300, checkpoint_hardcap=300)
 TARGETS = {
     'inventory_n1': 'TestCanonicalHeldInventoryN1',
+    'inventory_batch': 'TestCanonicalHeldInventoryBatch',
     'basic_accept': 'TestCanonicalHeldBasic',
     'staged_enrich': 'TestCanonicalHeldStagedEnrich',
     'progress': 'TestCanonicalHeldProgress',
