@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -80,13 +81,24 @@ func measureRare(paths map[string]*rarePath, name string, call func() error) {
 // TestEC1RareErrorPaths is the opt-in screening cell for the common refusal
 // paths. Every path uses the real native composition; no product code changes.
 func TestEC1RareErrorPaths(t *testing.T) {
-	if !*ec1RareErrors {
-		if v := os.Getenv("PORTICO_EC1_RARE_ERRORS"); v != "" {
-			t.Fatal("explicit EC1 rare-error flag required")
+	enabled := *ec1RareErrors
+	if v := os.Getenv("PORTICO_EC1_RARE_ERRORS"); v != "" {
+		if v != "1" {
+			t.Fatal("PORTICO_EC1_RARE_ERRORS must be 1")
 		}
+		enabled = true
+	}
+	if !enabled {
 		t.Skip("opt-in EC1 rare-error screening")
 	}
 	iterations := *ec1RareIterations
+	if v := os.Getenv("PORTICO_EC1_RARE_ITERATIONS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 10000 {
+			t.Fatal("PORTICO_EC1_RARE_ITERATIONS must be 1..10000")
+		}
+		iterations = n
+	}
 	if iterations < 1 || iterations > 10000 {
 		t.Fatal("rare-error iterations must be 1..10000")
 	}
