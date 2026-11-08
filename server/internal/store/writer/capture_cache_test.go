@@ -25,11 +25,27 @@ import (
 // policy. All of those inputs are fingerprinted from the LIVE connection on
 // every call, so a clone with any difference captures afresh. Only identical
 // inputs reuse the earlier, equally native, result. Production never sees this.
+// Bounded FIFO: repeated fixtures are local (subtests of one parent), and an
+// unbounded memo would retain every capture for the whole race-mode binary.
+const captureMemoLimit = 32
+
 var captureMemo = struct {
 	sync.Mutex
-	golden map[[32]byte]plan.Golden
-	fk     map[[32]byte]plan.ForeignKeyAudit
+	golden               map[[32]byte]plan.Golden
+	fk                   map[[32]byte]plan.ForeignKeyAudit
+	goldenOrder, fkOrder [][32]byte
 }{golden: map[[32]byte]plan.Golden{}, fk: map[[32]byte]plan.ForeignKeyAudit{}}
+
+func memoStore[V any](m map[[32]byte]V, order *[][32]byte, key [32]byte, v V) {
+	if _, ok := m[key]; !ok {
+		*order = append(*order, key)
+		if len(*order) > captureMemoLimit {
+			delete(m, (*order)[0])
+			*order = (*order)[1:]
+		}
+	}
+	m[key] = v
+}
 
 func captureInputs(ctx context.Context, conn *sql.Conn, policy sqliteconn.Config, parts ...any) ([32]byte, error) {
 	settings, err := sqliteconn.Assert(ctx, conn, policy)
@@ -109,7 +125,7 @@ func cachedCapture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry,
 	g, err = plan.Capture(ctx, conn, registry, fixture, policy)
 	if err == nil {
 		captureMemo.Lock()
-		captureMemo.golden[key] = deepCopy(g)
+		memoStore(captureMemo.golden, &captureMemo.goldenOrder, key, deepCopy(g))
 		captureMemo.Unlock()
 	}
 	return g, err
@@ -129,7 +145,7 @@ func cachedForeignKeys(ctx context.Context, conn *sql.Conn, policy sqliteconn.Co
 	fk, err = plan.ForeignKeys(ctx, conn, policy)
 	if err == nil {
 		captureMemo.Lock()
-		captureMemo.fk[key] = deepCopy(fk)
+		memoStore(captureMemo.fk, &captureMemo.fkOrder, key, deepCopy(fk))
 		captureMemo.Unlock()
 	}
 	return fk, err
@@ -264,5 +280,19 @@ func TestCaptureMemoReturnsPrivateCopies(t *testing.T) {
 	c.Any.([]int)[0] = 7
 	if orig.Plans[0].Rows[0][0] != int64(1) || orig.Ptr.Rows[0][0] != "p" || orig.M["k"][0] != "v" || orig.Any.([]int)[0] != 1 {
 		t.Fatal("deep copy shared mutable state", orig)
+	}
+}
+
+func TestCaptureMemoIsBounded(t *testing.T) {
+	m := map[[32]byte]int{}
+	var order [][32]byte
+	for i := 0; i < captureMemoLimit+5; i++ {
+		memoStore(m, &order, [32]byte{byte(i)}, i)
+	}
+	if len(m) != captureMemoLimit || len(order) != captureMemoLimit {
+		t.Fatal("memo exceeded its bound", len(m), len(order))
+	}
+	if _, ok := m[[32]byte{0}]; ok {
+		t.Fatal("oldest entry was not evicted")
 	}
 }
