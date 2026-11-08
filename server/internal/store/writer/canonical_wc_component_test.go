@@ -39,6 +39,7 @@ type CanonicalWCComponent struct {
 	variants                                    map[string]int
 	purpose                                     CommandID
 	offers                                      *canonicalOfferSchedule
+	turnsAtFirstOffer                           uint64
 }
 
 type CanonicalWCObservation struct {
@@ -164,6 +165,9 @@ func (c *CanonicalWCComponent) Recipe() string {
 func (c *CanonicalWCComponent) PaceOffer(ctx context.Context) (time.Time, error) {
 	if c.offers == nil {
 		return time.Now(), nil
+	}
+	if c.offers.n == 0 {
+		c.turnsAtFirstOffer = c.trace.nativeBegins
 	}
 	return c.offers.wait(ctx)
 }
@@ -398,5 +402,20 @@ func (c *CanonicalWCComponent) offerReport() any {
 	if c.offers == nil {
 		return nil
 	}
-	return c.offers.report()
+	r := c.offers.report()
+	// ACTUAL physical write turns per second from the first offer to this joined
+	// finish: includes warmup, target births and failed attempts (all real native
+	// BEGINs), so it is the achieved commit load, not a per-original constant.
+	if c.offers.n > 0 {
+		r["physical_turns_in_window"] = c.trace.nativeBegins - c.turnsAtFirstOffer
+		r["physical_window_ns"], r["achieved_physical_turns_per_sec"] = physicalTurnRate(c.trace.nativeBegins-c.turnsAtFirstOffer, time.Since(c.offers.firstStart))
+	}
+	return r
+}
+
+func physicalTurnRate(turns uint64, window time.Duration) (int64, any) {
+	if window <= 0 {
+		return window.Nanoseconds(), nil
+	}
+	return window.Nanoseconds(), float64(turns) / window.Seconds()
 }
