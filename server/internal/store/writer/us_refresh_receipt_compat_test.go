@@ -8,34 +8,20 @@ import (
 	"time"
 )
 
-// Candidate-only B subset: group B keeps one recoverable refresh answer per
-// family by replacing the non-unique identity_refresh_receipts_family index
-// with a UNIQUE one. Applied to the v1 fixture database in this test only; the
-// embedded schema.sql stays on the locked layout until the atomic embed PR.
-// Source: private canonical main 599dcccd99230606a893d0f4cde77f67cda7df03,
-// candidate SHA256 44411dfefac6bf6f285040302676807cb4e9d14dc28a0cb6a7468cdca98d7a97.
-const usRefreshReceiptUniqueDraftDDL = `
-DROP INDEX identity_refresh_receipts_family;
-CREATE UNIQUE INDEX identity_refresh_receipts_family ON identity_refresh_receipts(family_id);
-`
-
 const (
 	usRefreshReceiptFamilyA = "us-refresh-family-a"
 	usRefreshReceiptFamilyB = "us-refresh-family-b"
 )
 
-// usRefreshReceiptFixture starts from the ordinary canonical fixture, applies
-// the test-only B index delta and creates two independent session families so
-// the receipt constraint can be exercised without the legacy identity package.
+// usRefreshReceiptFixture starts from the ordinary canonical fixture and
+// creates two independent ordinary session families so the receipt constraint
+// can be exercised without the legacy identity package.
 func usRefreshReceiptFixture(t *testing.T) *executor {
 	t.Helper()
 	w, _, _ := testExecutor(t)
-	if _, err := w.db.ExecContext(t.Context(), usRefreshReceiptUniqueDraftDDL); err != nil {
-		t.Fatal(err)
-	}
 	for i, family := range []string{usRefreshReceiptFamilyA, usRefreshReceiptFamilyB} {
 		marker := strings.Repeat(string(rune('a'+i)), 32)
-		_, err := w.db.ExecContext(t.Context(), `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incarnation,command_profile_lifetime,command_incarnation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+		_, err := w.db.ExecContext(t.Context(), `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,command_member_incarnation,command_profile_lifetime,command_incarnation,security_kind) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0)`,
 			family, "us-refresh-server", "us-refresh-account", "us-refresh-profile", "local", "owner", 1, "2030-01-01T00:00:00Z", 1, marker, marker, []byte(marker[:16]))
 		if err != nil {
 			t.Fatalf("insert %s: %v", family, err)

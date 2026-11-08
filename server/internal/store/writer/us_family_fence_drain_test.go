@@ -9,59 +9,9 @@ import (
 	"testing"
 )
 
-// Exact relevant CHANGE-015 #271@14d075f7 subset, candidate SHA256
-// 44411dfefac6bf6f285040302676807cb4e9d14dc28a0cb6a7468cdca98d7a97.
-// Only disposable test clones use this DDL; stmttest is unqualified.
-const usFenceDrainCandidateDDL = `ALTER TABLE identity_devices ADD COLUMN retired_ms INTEGER NOT NULL DEFAULT 0 CHECK(retired_ms>=0);
-
--- Explicit immutable birth provenance: 0 ordinary interactive family,
--- 1 API/key/token/app-password/integration credential family. No default:
--- every fresh producer must choose its concrete type. A credential family
--- never becomes ordinary when its credential marker is physically drained.
--- Fresh EMPTY pre-release schema only; this changes the phase-1a parent layout.
-ALTER TABLE authorization_session_families ADD COLUMN security_kind INTEGER NOT NULL CHECK(security_kind IN(0,1));
-
-
-CREATE TABLE identity_security_fences(
- id INTEGER PRIMARY KEY,
- scope_kind TEXT NOT NULL CHECK(scope_kind IN('device','profile_pin','profile_remember','profile_lineage')),
- account_id TEXT NOT NULL CHECK(length(CAST(account_id AS BLOB)) BETWEEN 1 AND 128),
- member_incarnation TEXT NOT NULL CHECK(length(member_incarnation)=32),
- profile_id TEXT NOT NULL DEFAULT '',
- profile_lifetime TEXT NOT NULL DEFAULT '',
- device_id TEXT NOT NULL DEFAULT '',
- lineage_id TEXT NOT NULL DEFAULT '',
- generation INTEGER NOT NULL DEFAULT 1 CHECK(generation>0),
- denied INTEGER NOT NULL DEFAULT 0 CHECK(denied IN(0,1)),
- revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0),
- updated_ms INTEGER NOT NULL CHECK(updated_ms>=0),
- CHECK((scope_kind='device' AND length(CAST(device_id AS BLOB)) BETWEEN 1 AND 128 AND profile_id='' AND profile_lifetime='' AND lineage_id='')
- OR (scope_kind IN('profile_pin','profile_remember') AND length(CAST(profile_id AS BLOB)) BETWEEN 1 AND 128 AND length(profile_lifetime)=32 AND device_id='' AND lineage_id='' AND denied=0)
- OR (scope_kind='profile_lineage' AND length(CAST(profile_id AS BLOB)) BETWEEN 1 AND 128 AND length(profile_lifetime)=32 AND device_id='' AND length(CAST(lineage_id AS BLOB)) BETWEEN 1 AND 128 AND denied=0)),
- UNIQUE(scope_kind,account_id,member_incarnation,profile_id,profile_lifetime,device_id,lineage_id),
- UNIQUE(id,scope_kind)
-) STRICT;
-
--- At most four closed witnesses per family, written at verified issuance or
--- selection/confirmation. A keep-family updates at most its own witness. A
--- generation mismatch denies or narrows to PIN reentry under current source
--- policy; a missing witness is never a grant. FK/indexes bound cleanup probes.
-CREATE TABLE authorization_family_security_fences(
- family_id TEXT NOT NULL REFERENCES authorization_session_families(id),
- scope_kind TEXT NOT NULL CHECK(scope_kind IN('device','profile_pin','profile_remember','profile_lineage')),
- fence_id INTEGER NOT NULL,
- confirmed_generation INTEGER NOT NULL CHECK(confirmed_generation>0),
- PRIMARY KEY(family_id,scope_kind),
- FOREIGN KEY(fence_id,scope_kind) REFERENCES identity_security_fences(id,scope_kind)
-) WITHOUT ROWID, STRICT;
-CREATE INDEX authorization_family_security_fence_parent ON authorization_family_security_fences(fence_id,scope_kind,family_id);
-
-`
-
 func usFenceDrainFixture(t *testing.T, n int) (*executor, usFamilyFenceDrainScope) {
 	t.Helper()
 	w := wc008NativeExecutor(t)
-	wc008NativeExec(t, w, usFenceDrainCandidateDDL)
 	s := usFamilyFenceDrainScope{family: "target", server: "server", account: "account", profile: "profile", member: strings.Repeat("a", 32), lifetime: strings.Repeat("b", 32), device: "device", lineage: "lineage", incarnation: [16]byte{1}, generation: 1}
 	wc008NativeExec(t, w, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES('account','account',X'','profile')`)
 	wc008NativeExec(t, w, `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('device','account','installation','Device','test','test','1','','')`)
