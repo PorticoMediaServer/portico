@@ -92,9 +92,11 @@ func (r *ForegroundReader) artwork(ctx context.Context, request governor.Request
 		}
 		if selected != nil && equalSource(source, current) {
 			name, args := "rs.art.verify", selected[:20]
-			if selected[20] != nil {
+			if selected[4] == nil {
+				name, args = "rs.art.verify_empty", []any{selected[0], selected[1], selected[2], selected[5], selected[6], selected[19]}
+			} else if selected[20] != nil {
 				name = "rs.art.verify_local"
-				args = selected
+				args = selected[:34]
 			}
 			v, err := q(name, args...)
 			if err != nil {
@@ -119,6 +121,11 @@ func (r *ForegroundReader) artwork(ctx context.Context, request governor.Request
 			}
 			selected = rows[0]
 			pending = nil
+			if rsArtAbsent(selected) {
+				// A locked NULL digest is explicit absence, not pending work: it
+				// stops matched/ancestor/alias fallback and keeps a zero fact.
+				return nil
+			}
 			if !rsArtReady(selected) {
 				return ErrNotReady
 			}
@@ -163,8 +170,14 @@ func (r *ForegroundReader) artwork(ctx context.Context, request governor.Request
 	}, probe, probe, probe}
 	return publishRead(ctx, windows, request, budget, output, in.View, steps, root)
 }
+func rsArtAbsent(v []any) bool {
+	return v[4] == nil && v[3] == "locked"
+}
 func rsArtReady(v []any) bool {
 	if v[17] != "ready" || v[18] != "ready" || v[19] == "" {
+		return false
+	}
+	if v[34] != int64(0) {
 		return false
 	}
 	if v[20] == nil {
@@ -177,7 +190,11 @@ func rsArtFact(v []any, d *ArtworkFact) error {
 	if !ok || len(id) != 16 {
 		return fmt.Errorf("invalid art owner identity")
 	}
-	*d = ArtworkFact{Present: true, Owner: v[0].(int64), OwnerKind: v[1].(int64), Role: v[2].(string), Choice: v[3].(string), Digest: v[4].(string), Revision: v[6].(int64), Small: ArtworkRendition{Digest: v[7].(string), MIME: v[8].(string), Width: v[9].(int64), Height: v[10].(int64), Bytes: v[11].(int64)}, Large: ArtworkRendition{Digest: v[12].(string), MIME: v[13].(string), Width: v[14].(int64), Height: v[15].(int64), Bytes: v[16].(int64)}}
+	digest, ok := v[4].(string)
+	if !ok || digest == "" {
+		return fmt.Errorf("invalid art selection digest")
+	}
+	*d = ArtworkFact{Present: true, Owner: v[0].(int64), OwnerKind: v[1].(int64), Role: v[2].(string), Choice: v[3].(string), Digest: digest, Revision: v[6].(int64), Small: ArtworkRendition{Digest: v[7].(string), MIME: v[8].(string), Width: v[9].(int64), Height: v[10].(int64), Bytes: v[11].(int64)}, Large: ArtworkRendition{Digest: v[12].(string), MIME: v[13].(string), Width: v[14].(int64), Height: v[15].(int64), Bytes: v[16].(int64)}}
 	copy(d.OwnerPublicID[:], id)
 	return nil
 }
