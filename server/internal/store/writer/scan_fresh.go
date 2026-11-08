@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
+	"math"
 	"time"
 )
 
@@ -37,12 +38,7 @@ func applyInventoryAccept(ctx context.Context, turn *commandTurn, command *inven
 	if err = turn.requireInventoryMemory(ctx, requiredBytes); err != nil {
 		return value, err
 	}
-	observation, err := prepareInventoryFreshObservation(command)
-	if err != nil {
-		return value, err
-	}
-	facts, err := readInventoryFreshFacts(ctx, turn, command)
-	if err != nil {
+	if err = validateInventoryFrozenBatch(command); err != nil {
 		return value, err
 	}
 	r, f := command.request, command.request.files[0]
@@ -50,45 +46,30 @@ func applyInventoryAccept(ctx context.Context, turn *commandTurn, command *inven
 	if err != nil {
 		return value, err
 	}
-	// Catalogue TEXT uses the adopted fixed nine-fraction UTC shape; RFC3339Nano
-	// would drop trailing zeros and violate that native contract. Same W time,
-	// no second clock or independently chosen timestamp.
 	addedAt := time.UnixMilli(appliedMS).UTC().Format("2006-01-02T15:04:05.000000000Z")
 	if len(addedAt) != 30 {
 		return value, ErrInvalid
 	}
-	allocated, err := insertInventoryFreshCatalogue(ctx, turn, command, addedAt)
-	if err != nil {
-		return value, err
+	members := make([]inventoryResultMember, 0, len(r.files))
+	var facts inventoryFreshFacts
+	for i := range r.files {
+		member, current, e := applyInventoryFreshMember(ctx, turn, command, i, appliedMS, addedAt)
+		if e != nil {
+			return value, e
+		}
+		if i == 0 {
+			facts = current
+		}
+		members = append(members, member)
 	}
-	observation.objectID, observation.assetToken = allocated.objectID, allocated.assetToken
-	actual, err := insertInventoryObject(ctx, turn, observation)
-	if err != nil {
-		return value, err
-	}
-	link, err := turn.queryRow(ctx, turn.steps[scanInventoryLink].statementStep, r.scope.libraryID, allocated.subjectID, allocated.assetID, f.part)
-	if err != nil {
-		return value, err
-	}
-	var actualPart int64
-	if err = link.Scan(&actualPart); err != nil {
-		return value, err
-	}
-	if actualPart != f.part {
+	// Run/job progress advances once for the entire atomic page. Library,
+	// membership and age revisions above advance once per actual new entity.
+	count := int64(len(members))
+	if facts.discovered > math.MaxInt64-count || facts.processed > math.MaxInt64-count {
 		return value, ErrConflict
 	}
-	if err = applyInventoryFreshAggregates(ctx, turn, command, &facts, &allocated); err != nil {
-		return value, err
-	}
-	if err = applySearchInputIntent(ctx, turn, &searchInputChange{AcceptedAtMS: appliedMS, NewEntities: []newOrdinaryEntitySource{{
-		SubjectID: allocated.subjectID, LibraryID: r.scope.libraryID, Kind: scanNewMovieKind,
-		MetadataIncarnation: allocated.metadata, EntityRevision: allocated.entityRevision,
-	}}}); err != nil {
-		return value, err
-	}
-	if err = validateInventoryFreshUnion(ctx, turn, command, allocated); err != nil {
-		return value, err
-	}
+	facts.newDiscovered, facts.newProcessed = facts.discovered+count, facts.processed+count
+
 	row, err := turn.queryRow(ctx, turn.steps[scanFreshDirectoryCAS].statementStep,
 		append([]any{r.directory.nextCursor, r.directory.pages + 1}, inventoryDirectoryArgs(command)...)...)
 	if err != nil {
@@ -123,9 +104,8 @@ func applyInventoryAccept(ctx context.Context, turn *commandTurn, command *inven
 	// The three historical revision echoes are native RETURNING facts, with
 	// deliberately separate meanings. No Basic/RAW/publication witness is added.
 	v := inventoryAcceptResult{RunID: r.scope.runID, AcceptedRunRevision: acceptedRevision, AppliedMS: appliedMS,
-		SourceID: actual.sourceID, SourceIncarnation: actual.incarnation, SourceRevision: actual.revision, NextCursor: nextCursor,
-		ResultCount: 1, Members: []inventoryResultMember{{InputOrdinal: 0, ChildKind: scanOrdinaryChildKind, ChildOrdinal: scanOrdinaryChildOrdinal,
-			ObjectID: actual.objectID, LibraryID: r.scope.libraryID, SubjectID: allocated.subjectID, AssetID: allocated.assetID, AcceptedAssetRevision: allocated.infoEpoch}}}
+		SourceID: r.source.id, SourceIncarnation: r.source.incarnation, SourceRevision: f.revision, NextCursor: nextCursor,
+		ResultCount: count, Members: members}
 	digest, err := inventoryAcceptResultDigest(command.identity, command.digest, v)
 	if err != nil {
 		return value, err
@@ -135,10 +115,11 @@ func applyInventoryAccept(ctx context.Context, turn *commandTurn, command *inven
 		v.SourceID, v.SourceIncarnation, v.SourceRevision, v.NextCursor, v.ResultCount, digest[:]); err != nil {
 		return value, err
 	}
-	m := v.Members[0]
-	if err = execInventoryFreshOne(ctx, turn, scanResultInsert, v.RunID, command.identity.Incarnation[:], command.identity.Sequence,
-		m.InputOrdinal, m.ChildKind, m.ChildOrdinal, m.ObjectID, m.LibraryID, m.SubjectID, m.AssetID, m.AcceptedAssetRevision); err != nil {
-		return value, err
+	for _, m := range v.Members {
+		if err = execInventoryFreshOne(ctx, turn, scanResultInsert, v.RunID, command.identity.Incarnation[:], command.identity.Sequence,
+			m.InputOrdinal, m.ChildKind, m.ChildOrdinal, m.ObjectID, m.LibraryID, m.SubjectID, m.AssetID, m.AcceptedAssetRevision); err != nil {
+			return value, err
+		}
 	}
 	// Keep the exact file fact in scope: no observation-revision substitution by
 	// source generation, directory/run revision, size epoch or entity revision.
@@ -147,8 +128,74 @@ func applyInventoryAccept(ctx context.Context, turn *commandTurn, command *inven
 	}
 	value = InventoryResult{RunID: v.RunID, AcceptedRunRevision: v.AcceptedRunRevision, AppliedMS: v.AppliedMS,
 		SourceID: v.SourceID, SourceIncarnation: v.SourceIncarnation, SourceRevision: v.SourceRevision, NextCursor: v.NextCursor,
-		ResultCount: v.ResultCount, Digest: digest, Members: []InventoryMember{InventoryMember(m)}}
+		ResultCount: v.ResultCount, Digest: digest, Members: make([]InventoryMember, len(members))}
+	for i, m := range members {
+		value.Members[i] = InventoryMember(m)
+	}
 	return value, nil
+}
+
+// The view is derived from the already frozen original; it carries no receipt
+// or admission of its own. Only the outer command advances cursor/receipt.
+func applyInventoryFreshMember(ctx context.Context, turn *commandTurn, original *inventoryAcceptCommand, ordinal int, appliedMS int64, addedAt string) (member inventoryResultMember, facts inventoryFreshFacts, err error) {
+	defer func() {
+		v, e := finishCommand(ctx, commandLifetime(turn), struct {
+			Member inventoryResultMember
+			Facts  inventoryFreshFacts
+		}{member, facts}, err)
+		member, facts, err = v.Member, v.Facts, e
+	}()
+	command, err := inventoryMemberCommand(original, ordinal)
+	if err != nil {
+		return member, facts, err
+	}
+	observation, err := prepareInventoryFreshObservation(command)
+	if err != nil {
+		return member, facts, err
+	}
+	facts, err = readInventoryFreshFacts(ctx, turn, command)
+	if err != nil {
+		return member, facts, err
+	}
+	r, f := command.request, command.request.files[0]
+	allocated, err := insertInventoryFreshCatalogue(ctx, turn, command, addedAt)
+	if err != nil {
+		return member, facts, err
+	}
+	observation.objectID, observation.assetToken = allocated.objectID, allocated.assetToken
+	actual, err := insertInventoryObject(ctx, turn, observation)
+	if err != nil {
+		return member, facts, err
+	}
+	link, err := turn.queryRow(ctx, turn.steps[scanInventoryLink].statementStep, r.scope.libraryID, allocated.subjectID, allocated.assetID, f.part)
+	if err != nil {
+		return member, facts, err
+	}
+	var actualPart int64
+	if err = link.Scan(&actualPart); err != nil {
+		return member, facts, err
+	}
+	if actualPart != f.part {
+		return member, facts, ErrConflict
+	}
+	if err = applyInventoryFreshAggregates(ctx, turn, command, &facts, &allocated); err != nil {
+		return member, facts, err
+	}
+	if err = applySearchInputIntent(ctx, turn, &searchInputChange{AcceptedAtMS: appliedMS, NewEntities: []newOrdinaryEntitySource{{
+		SubjectID: allocated.subjectID, LibraryID: r.scope.libraryID, Kind: scanNewMovieKind,
+		MetadataIncarnation: allocated.metadata, EntityRevision: allocated.entityRevision,
+	}}}); err != nil {
+		return member, facts, err
+	}
+	if err = validateInventoryFreshUnion(ctx, turn, command, allocated); err != nil {
+		return member, facts, err
+	}
+	member = inventoryResultMember{InputOrdinal: int64(ordinal), ChildKind: scanOrdinaryChildKind, ChildOrdinal: scanOrdinaryChildOrdinal,
+		ObjectID: actual.objectID, LibraryID: r.scope.libraryID, SubjectID: allocated.subjectID, AssetID: allocated.assetID, AcceptedAssetRevision: allocated.infoEpoch}
+	if actual.revision != f.revision {
+		return member, facts, ErrConflict
+	}
+	return member, facts, nil
 }
 
 type inventoryFreshAllocation struct {

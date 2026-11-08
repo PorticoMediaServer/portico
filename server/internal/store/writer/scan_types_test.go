@@ -171,7 +171,7 @@ func TestInventoryAcceptRequestRefusesInvalidOrUnqualifiedShape(t *testing.T) {
 	}{
 		{"nil_batch", func(r *inventoryAcceptRequest) { r.files = nil }, ErrInvalid},
 		{"empty_batch", func(r *inventoryAcceptRequest) { r.files = []inventoryFile{} }, ErrInvalid},
-		{"n2_unqualified", func(r *inventoryAcceptRequest) { r.files = append(r.files, r.files[0]) }, ErrCap},
+		{"oversize_batch", func(r *inventoryAcceptRequest) { r.files = make([]inventoryFile, maxInventoryAcceptFiles+1) }, ErrCap},
 		{"unknown_variant", func(r *inventoryAcceptRequest) { r.variant = "cue" }, ErrInvalid},
 		{"invalid_utf8", func(r *inventoryAcceptRequest) { r.files[0].title = "\xff" }, ErrInvalid},
 		{"empty_title", func(r *inventoryAcceptRequest) { r.files[0].title = " \t" }, ErrInvalid},

@@ -21,6 +21,9 @@ func (p *N1Preparation) Freeze(ctx context.Context, input InventoryAcceptInput) 
 		if !locked {
 			return
 		}
+		if err != nil {
+			p.driver.batchPolicy.width, p.driver.batchPolicy.short = 1, 0
+		}
 		if err != nil && candidate != nil {
 			candidate.valid, candidate.request = false, inventoryAcceptRequest{}
 			if p.command == candidate {
@@ -50,7 +53,7 @@ func (p *N1Preparation) Freeze(ctx context.Context, input InventoryAcceptInput) 
 	if err = errors.Join(ctx.Err(), p.driver.current(), b.current()); err != nil {
 		return nil, err
 	}
-	if len(input.Files) != 1 {
+	if len(input.Files) < 1 || len(input.Files) > b.request.Limit {
 		return nil, ErrInvalid
 	}
 	if err = inventoryPublicPathPreflight(input); err != nil {
@@ -74,18 +77,19 @@ func (p *N1Preparation) Freeze(ctx context.Context, input InventoryAcceptInput) 
 	}
 	// Naming, normalization, byte-to-string conversion, encoding and cloning
 	// begin only after the complete original/derived envelope fits this grant.
-	f := input.Files[0]
-	projection, err := ProjectOrdinaryFilename(InventoryOrdinaryFilenameInput{IdentityRoot: b.source.identityRoot,
-		AssetPath: f.AssetPath, RelativePath: f.RelativePath, MetadataLanguage: f.MetadataLanguage})
-	if err != nil {
-		return nil, err
-	}
-	if f.Part != projection.Part {
-		return nil, ErrConflict
-	}
-	metadata := InventoryFilenameMetadata{f.Title, f.SortTitle, f.SortKey, f.SortHead, f.SortKeyKeepArticles, f.SortHeadKeepArticles, f.MetadataLanguage}
-	if f.SourceKey != projection.SourceKey || f.Year != projection.Year || metadata != projection.Metadata {
-		return nil, ErrConflict
+	for _, f := range input.Files {
+		projection, err := ProjectOrdinaryFilename(InventoryOrdinaryFilenameInput{IdentityRoot: b.source.identityRoot,
+			AssetPath: f.AssetPath, RelativePath: f.RelativePath, MetadataLanguage: f.MetadataLanguage})
+		if err != nil {
+			return nil, err
+		}
+		if f.Part != projection.Part {
+			return nil, ErrConflict
+		}
+		metadata := InventoryFilenameMetadata{f.Title, f.SortTitle, f.SortKey, f.SortHead, f.SortKeyKeepArticles, f.SortHeadKeepArticles, f.MetadataLanguage}
+		if f.SourceKey != projection.SourceKey || f.Year != projection.Year || metadata != projection.Metadata {
+			return nil, ErrConflict
+		}
 	}
 	command, err := NewInventoryAcceptCommand(p.identity, input)
 	if err != nil {
@@ -96,7 +100,7 @@ func (p *N1Preparation) Freeze(ctx context.Context, input InventoryAcceptInput) 
 		return nil, ErrInvalid
 	}
 	candidate = c
-	if _, err = prepareInventoryFreshObservation(c); err != nil {
+	if err = prepareInventoryFreshBatch(c); err != nil {
 		return nil, err
 	}
 	reference, err := InventoryAcceptReference(c)
@@ -108,21 +112,29 @@ func (p *N1Preparation) Freeze(ctx context.Context, input InventoryAcceptInput) 
 }
 
 func (p *N1Preparation) matchesInventoryObservation(input InventoryAcceptInput, page nativeinventory.Page) bool {
-	if len(input.Files) != 1 || len(page.Entries) != 1 || len(page.Issues) != 0 || page.Version != 1 || page.ErrorCode != "" || page.Unstable || page.Complete {
+	if len(input.Files) < 1 || len(input.Files) > maxInventoryAcceptFiles || len(page.Entries) != len(input.Files) || len(page.Issues) != 0 || page.Version != 1 || page.ErrorCode != "" || page.Unstable || page.Complete {
 		return false
 	}
-	t, s, f, e := p.template, input.Source, input.Files[0], page.Entries[0]
+	t, s := p.template, input.Source
 	if input.Scope != t.Scope || input.Run != t.Run || !bytes.Equal(s.ResolvedRoot, t.Source.ResolvedRoot) ||
 		s.ID != t.Source.ID || s.Incarnation != t.Source.Incarnation || s.RootIdentity != t.Source.RootIdentity || s.Generation != t.Source.Generation || s.FollowSymlinks != t.Source.FollowSymlinks {
 		return false
 	}
 	d, want := input.Directory, t.Directory
-	return string(want.Path) == "." && bytes.Equal(d.Path, want.Path) && d.Identity == want.Identity && d.Revision == want.Revision &&
+	if !(string(want.Path) == "." && bytes.Equal(d.Path, want.Path) && d.Identity == want.Identity && d.Revision == want.Revision &&
 		d.ExpectedCursor == want.ExpectedCursor && d.Pages == want.Pages && d.Skipped == want.Skipped && d.CursorKind == want.CursorKind &&
-		d.NextCursor == page.NextCursor && d.Complete == page.Complete && d.Unstable == page.Unstable && d.RawNames == 1 &&
-		page.RootIdentity == s.RootIdentity && page.DirectoryIdentity == d.Identity && page.DirectoryRevision == d.Revision &&
-		!e.Directory && !f.Directory && bytes.Equal(f.RelativePath, e.Name) && bytes.Equal(f.AssetPath, e.Path) &&
-		f.ObjectIdentity == e.ObjectIdentity && f.ChangeToken == e.ChangeToken && f.Size == e.Size && f.ModifiedNS == e.ModifiedNS
+		d.NextCursor == page.NextCursor && d.Complete == page.Complete && d.Unstable == page.Unstable && d.RawNames == int64(len(input.Files)) &&
+		page.RootIdentity == s.RootIdentity && page.DirectoryIdentity == d.Identity && page.DirectoryRevision == d.Revision) {
+		return false
+	}
+	for i, f := range input.Files {
+		e := page.Entries[i]
+		if !(!e.Directory && !f.Directory && bytes.Equal(f.RelativePath, e.Name) && bytes.Equal(f.AssetPath, e.Path) &&
+			f.ObjectIdentity == e.ObjectIdentity && f.ChangeToken == e.ChangeToken && f.Size == e.Size && f.ModifiedNS == e.ModifiedNS) {
+			return false
+		}
+	}
+	return true
 }
 
 // No conversions or derived allocations. SC's ONE workspace arithmetic is
@@ -130,6 +142,22 @@ func (p *N1Preparation) matchesInventoryObservation(input InventoryAcceptInput, 
 // private frozen command and exported preparation snapshot. The actual native
 // page and retained logical identity root are counted in addition, never lent.
 func inventoryPreparationRequiredBytes(input InventoryAcceptInput, page nativeinventory.Page, identityRootBytes uint64) (uint64, error) {
+	if len(input.Files) > 1 && len(input.Files) <= maxInventoryAcceptFiles {
+		var total uint64
+		for i := range input.Files {
+			member := input
+			member.Files = input.Files[i : i+1]
+			n, e := inventoryPreparationRequiredBytes(member, page, identityRootBytes)
+			if e != nil {
+				return 0, e
+			}
+			if n > math.MaxUint64-total {
+				return 0, ErrCap
+			}
+			total += n
+		}
+		return total, nil
+	}
 	if len(input.Files) != 1 {
 		return 0, ErrInvalid
 	}

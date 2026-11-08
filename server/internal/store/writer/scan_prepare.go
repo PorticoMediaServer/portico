@@ -55,7 +55,7 @@ type InventoryFilenameInput struct {
 	MetadataLanguage                                                               string
 }
 
-// NewInventoryAcceptCommand freezes ONE bounded ordinary-movie input through
+// NewInventoryAcceptCommand freezes one bounded ordered ordinary-movie batch through
 // the existing private constructor and canonical encoder. No clock, ID, grant,
 // principal, SQL or availability is created. It is not a complete driver/run/
 // directory/EOF/Basic API. Unsupported fresh shapes remain unqualified at W.
@@ -69,14 +69,17 @@ func NewInventoryAcceptCommand(identity CommandIdentity, input InventoryAcceptIn
 	if err := inventoryPublicPathPreflight(input); err != nil {
 		return nil, err
 	}
-	// Fixed N1 projection after ALL public payload lengths have been checked.
+	// Fixed ordinary-movie projection after ALL public payload lengths have been checked.
 	// Byte-to-string conversion is exact; the private constructor separately
 	// preflights its full typed canonical wire before hashing and freezing.
-	f := input.Files[0]
-	files := [1]inventoryFile{{sourceKey: f.SourceKey, relativePath: string(f.RelativePath), assetPath: string(f.AssetPath),
-		objectIdentity: f.ObjectIdentity, revision: f.Revision, changeToken: f.ChangeToken, directory: f.Directory, size: f.Size, modifiedNS: f.ModifiedNS,
-		title: f.Title, sortTitle: f.SortTitle, sortKey: f.SortKey, sortHead: f.SortHead, sortKeyKeepArticles: f.SortKeyKeepArticles,
-		sortHeadKeepArticles: f.SortHeadKeepArticles, year: f.Year, part: f.Part, metadataLanguage: f.MetadataLanguage}}
+	files := make([]inventoryFile, len(input.Files))
+	for i, f := range input.Files {
+		files[i] = inventoryFile{sourceKey: f.SourceKey, relativePath: string(f.RelativePath), assetPath: string(f.AssetPath),
+			objectIdentity: f.ObjectIdentity, revision: f.Revision, changeToken: f.ChangeToken, directory: f.Directory, size: f.Size, modifiedNS: f.ModifiedNS,
+			title: f.Title, sortTitle: f.SortTitle, sortKey: f.SortKey, sortHead: f.SortHead, sortKeyKeepArticles: f.SortKeyKeepArticles,
+			sortHeadKeepArticles: f.SortHeadKeepArticles, year: f.Year, part: f.Part, metadataLanguage: f.MetadataLanguage}
+	}
+
 	s, r, d := input.Source, input.Run, input.Directory
 	in := inventoryAcceptRequest{variant: inventoryOrdinaryBatch,
 		scope:  inventoryScope{runID: input.Scope.RunID, libraryKey: input.Scope.LibraryKey, libraryID: input.Scope.LibraryID},
@@ -99,33 +102,58 @@ func NewInventoryAcceptCommand(identity CommandIdentity, input InventoryAcceptIn
 // Lengths of ALL inputs are checked before any byte-to-string copy. The shared
 // constructor separately preflights the complete canonical wire before hashing.
 func inventoryPublicPathPreflight(in InventoryAcceptInput) error {
-	f, s, r, d := in.Files[0], in.Source, in.Run, in.Directory
-	texts := [...]string{inventoryOrdinaryBatch, in.Scope.RunID, in.Scope.LibraryKey, s.ID, s.Incarnation, s.RootIdentity,
-		r.Phase, r.ScanMode, d.Identity, d.Revision, d.ExpectedCursor, d.NextCursor, d.CursorKind,
-		f.SourceKey, f.ObjectIdentity, f.Revision, f.ChangeToken, f.Title, f.SortTitle, f.SortKey, f.SortHead, f.SortKeyKeepArticles, f.SortHeadKeepArticles, f.MetadataLanguage}
-	paths := [...][]byte{s.ResolvedRoot, d.Path, f.RelativePath, f.AssetPath}
+	if len(in.Files) < 1 || len(in.Files) > maxInventoryAcceptFiles {
+		return ErrInvalid
+	}
+	s, r, d := in.Source, in.Run, in.Directory
 	remaining := uint64(maxCanonicalRequestBytes)
-	for _, v := range texts {
-		if uint64(len(v)) > remaining {
-			return inventoryRequestCapacity()
+	chargeText := func(texts ...string) error {
+		for _, v := range texts {
+			if uint64(len(v)) > remaining {
+				return inventoryRequestCapacity()
+			}
+			remaining -= uint64(len(v))
 		}
-		remaining -= uint64(len(v))
+		return nil
 	}
-	for _, v := range paths {
-		if uint64(len(v)) > remaining {
-			return inventoryRequestCapacity()
+	chargePath := func(paths ...[]byte) error {
+		for _, v := range paths {
+			if uint64(len(v)) > remaining {
+				return inventoryRequestCapacity()
+			}
+			remaining -= uint64(len(v))
 		}
-		remaining -= uint64(len(v))
+		return nil
 	}
-	// NUL is invalid native input, never the filename_unrepresentable poison
-	// case. Check ALL paths first, including mixed NUL/invalid-UTF8 input.
-	for _, v := range paths {
-		if bytes.IndexByte(v, 0) >= 0 {
+	if err := chargeText(inventoryOrdinaryBatch, in.Scope.RunID, in.Scope.LibraryKey, s.ID, s.Incarnation, s.RootIdentity,
+		r.Phase, r.ScanMode, d.Identity, d.Revision, d.ExpectedCursor, d.NextCursor, d.CursorKind); err != nil {
+		return err
+	}
+	if err := chargePath(s.ResolvedRoot, d.Path); err != nil {
+		return err
+	}
+	for _, f := range in.Files {
+		if err := chargeText(f.SourceKey, f.ObjectIdentity, f.Revision, f.ChangeToken, f.Title, f.SortTitle, f.SortKey, f.SortHead, f.SortKeyKeepArticles, f.SortHeadKeepArticles, f.MetadataLanguage); err != nil {
+			return err
+		}
+		if err := chargePath(f.RelativePath, f.AssetPath); err != nil {
+			return err
+		}
+	}
+	// All lengths precede scans or conversions, including a late oversized file.
+	if bytes.IndexByte(s.ResolvedRoot, 0) >= 0 || bytes.IndexByte(d.Path, 0) >= 0 {
+		return invalid("inventory_native_path")
+	}
+	for _, f := range in.Files {
+		if bytes.IndexByte(f.RelativePath, 0) >= 0 || bytes.IndexByte(f.AssetPath, 0) >= 0 {
 			return invalid("inventory_native_path")
 		}
 	}
-	for _, v := range paths[1:] {
-		if !utf8.Valid(v) {
+	if !utf8.Valid(d.Path) {
+		return &PolicyError{Field: "inventory_native_path", Cause: ErrFilenameUnrepresentable}
+	}
+	for _, f := range in.Files {
+		if !utf8.Valid(f.RelativePath) || !utf8.Valid(f.AssetPath) {
 			return &PolicyError{Field: "inventory_native_path", Cause: ErrFilenameUnrepresentable}
 		}
 	}

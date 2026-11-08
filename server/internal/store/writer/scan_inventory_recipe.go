@@ -121,7 +121,7 @@ func freezeInventoryDriverPlan(w *executor, p effectivePlan) (effectivePlan, err
 		return effectivePlan{}, err
 	}
 	remaining := subtract(subtract(p.recipe.limit, p.recipe.setup), p.recipe.terminal)
-	if _, err := reserveInventoryDriverSteps(remaining, p.steps); err != nil {
+	if _, err := reserveInventoryBatchSteps(remaining, p.steps, inventoryPlanBatchFiles(p)); err != nil {
 		return effectivePlan{}, err
 	}
 	return p, nil

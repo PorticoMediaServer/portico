@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"slices"
 	"sync/atomic"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -32,6 +33,7 @@ type N1Preparation struct {
 	reference                                  ScanReceiptRequest
 	last                                       InventoryResult
 	historyOnly, acknowledged, resultPublished bool
+	batchFeedback                              bool
 	read, closed                               bool
 	observationFailed                          atomic.Bool
 }
@@ -411,6 +413,16 @@ func (p *N1Preparation) Accept(ctx context.Context, command InventoryAcceptComma
 	call := &scanIssuerInvocation{driver: d, action: scanIssuerN1Apply, retained: p.preparation, work: work, deadline: p.preparation.expected.Deadline}
 	out, _, err := d.writer.effective.runCommand(ctx, d.writer, nil, EnrichmentReceiptRequest{}, nil, false,
 		&inventoryInvocation{disclosure: d.sourceDisclosure(ref), request: ref, input: c, issuer: call})
+	if !p.batchFeedback && !out.inventory.Outcome.Replayed && d.writer.effective.inventoryDriverPlan != nil {
+		// Replay is history, not a new throughput sample. Failure only backs off
+		// future originals; this preparation and any retry keep the frozen limit.
+		hold := time.Duration(0)
+		if e := out.inventory.Outcome.Evidence; e != nil && e.PhysicalReturnedAt != nil {
+			hold = e.PhysicalReturnedAt.Sub(e.HoldStartedAt)
+		}
+		d.batchPolicy.observe(inventoryPlanBatchFiles(*d.writer.effective.inventoryDriverPlan), len(c.request.files), hold, call.writerWait, err == nil && out.inventory.Outcome.State == Applied)
+		p.batchFeedback = true
+	}
 	if err != nil {
 		return value, err
 	}

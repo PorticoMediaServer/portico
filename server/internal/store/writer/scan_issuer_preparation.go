@@ -86,6 +86,11 @@ func (d *ScanDriver) retainIssuerPreparation(ctx context.Context, turn *commandT
 		candidate, err = newScanPreparation(ctx, d.opening, d.owner, r, nativeinventory.Observer{}, expected, decision.Grant, nativeinventory.Request{}, scanHistoryPreparation)
 	} else {
 		request := nativeinventory.Request{Root: source.source.resolvedRoot, RootIdentity: source.source.rootIdentity, RelativePath: []byte("."), FollowSymlinks: source.source.followSymlinks, Limit: 1}
+		// Select only for a new preparation. An unresolved original retains
+		// this exact native limit and frozen width through every retry.
+		if in.issuer.action == scanIssuerInventory && r.inventoryDriverPlan != nil {
+			request.Limit = d.batchPolicy.limit(inventoryPlanBatchFiles(*r.inventoryDriverPlan))
+		}
 		candidate, err = newScanPreparation(ctx, d.opening, d.owner, r, d.observer, expected, decision.Grant, request)
 	}
 	if err != nil {
