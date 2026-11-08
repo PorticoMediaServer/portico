@@ -1,3 +1,5 @@
+//go:build linux
+
 package writer
 
 import (
@@ -62,7 +64,7 @@ func checkInventoryBatchEffects(t *testing.T, e *executor, c *inventoryAcceptCom
 	r := c.request
 	var discovered, revision, sequence, processed, pages, children int64
 	var cursor string
-	if err := e.db.QueryRowContext(t.Context(), `SELECT discovered_count,revision,last_command_sequence FROM inventory_runs WHERE job_id=?`, r.scope.runID).Scan(&discovered, &revision, &sequence); err != nil {
+	if err := e.db.QueryRowContext(t.Context(), `SELECT discovered,job_revision,last_command_sequence FROM inventory_runs WHERE job_id=?`, r.scope.runID).Scan(&discovered, &revision, &sequence); err != nil {
 		return err
 	}
 	if err := e.db.QueryRowContext(t.Context(), `SELECT processed FROM jobs WHERE id=?`, r.scope.runID).Scan(&processed); err != nil {
@@ -88,6 +90,45 @@ func checkInventoryBatchEffects(t *testing.T, e *executor, c *inventoryAcceptCom
 	if data != b.LibraryData+n || order != b.LibraryOrder+n || metadata != b.LibraryMetadata+n || membership != b.Membership+n {
 		return fmt.Errorf("batch aggregate deltas")
 	}
+	for _, table := range []string{"catalog_subjects", "catalog_identities", "catalog_assets", "catalog_entities", "catalog_asset_links", "inventory_objects", "catalog_scalar_contributions", "catalog_asset_contributions", "scan_command_receipts", "scan_command_results", "search_publish_jobs"} {
+		var count int64
+		if err := e.db.QueryRowContext(t.Context(), "SELECT count(*) FROM "+n1DriverQuote(table)).Scan(&count); err != nil {
+			return err
+		}
+		delta := n
+		if table == "scan_command_receipts" {
+			delta = 1
+		}
+		if count != b.Counts[table]+delta {
+			return fmt.Errorf("batch %s cardinality %d", table, count)
+		}
+	}
+	var ageInput, agePublished, unrated, searchSequence, pending int64
+	if err := e.db.QueryRowContext(t.Context(), `SELECT age_input_revision,age_published_revision FROM libraries WHERE id=?`, r.scope.libraryKey).Scan(&ageInput, &agePublished); err != nil {
+		return err
+	}
+	wantPublished := b.LibraryAgePublished
+	if b.LibraryAgeInput == b.LibraryAgePublished && b.LibraryAgePending == 0 {
+		wantPublished += n
+	}
+	if ageInput != b.LibraryAgeInput+n || agePublished != wantPublished {
+		return errors.New("batch age publication")
+	}
+	if err := e.db.QueryRowContext(t.Context(), `SELECT total FROM catalog_age_item_counts WHERE library_id=? AND kind=1 AND block_unrated=0 AND admission_age=-1`, r.scope.libraryID).Scan(&unrated); err != nil {
+		return err
+	}
+	if unrated != max(0, b.AgeUnratedTotal)+n {
+		return errors.New("batch unrated count")
+	}
+	if err := e.db.QueryRowContext(t.Context(), `SELECT input_sequence FROM search_revision WHERE singleton=1`).Scan(&searchSequence); err != nil {
+		return err
+	}
+	if err := e.db.QueryRowContext(t.Context(), `SELECT pending_subjects FROM search_generations WHERE id=?`, b.SearchActiveGeneration).Scan(&pending); err != nil {
+		return err
+	}
+	if searchSequence != b.SearchInputSequence+n || pending != b.BankPending+n {
+		return errors.New("batch search invalidation")
+	}
 	for i, f := range r.files {
 		var object, title, revision, path string
 		var subject, asset, epoch, size, modified int64
@@ -105,6 +146,35 @@ WHERE i.library_id=? AND i.source_key=?`, r.scope.libraryID, f.sourceKey).Scan(&
 		want := InventoryMember{InputOrdinal: int64(i), ObjectID: object, LibraryID: r.scope.libraryID, SubjectID: subject, AssetID: asset, AcceptedAssetRevision: epoch}
 		if out.Members[i] != want {
 			return fmt.Errorf("batch result member %d differs from raw rows", i)
+		}
+		view := *c
+		view.request.files = c.request.files[i : i+1]
+		original := n1DriverInputFrom(&view)
+		stable, evidence, observedRevision, err := n1DriverObjectFacts(original)
+		if err != nil {
+			return err
+		}
+		if observedRevision != f.revision {
+			return errors.New("batch original evidence revision")
+		}
+		points := []struct {
+			query string
+			args  []any
+			want  []any
+		}{
+			{`SELECT sort_title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,year,metadata_language,retired FROM catalog_entities WHERE id=?`, []any{subject}, []any{f.sortTitle, f.sortKey, f.sortHead, f.sortKeyKeepArticles, f.sortHeadKeepArticles, f.year, f.metadataLanguage, int64(0)}},
+			{`SELECT object_identity,evidence_json,state,analysis_state,analysis_revision,has_analysis_probe_bindings FROM inventory_objects WHERE id=?`, []any{object}, []any{stable, evidence, "available", "pending", "", int64(0)}},
+			{`SELECT membership_sequence,membership_sequence= ? FROM catalog_scalar_contributions WHERE parent_id=? AND contributor_id=? AND source=0`, []any{b.Membership + int64(i) + 1, subject, subject}, []any{b.Membership + int64(i) + 1, int64(1)}},
+			{`SELECT membership_refs,authored_refs,file_size FROM catalog_asset_contributions WHERE parent_id=? AND asset_id=?`, []any{subject, asset}, []any{int64(1), int64(0), f.size}},
+		}
+		for _, point := range points {
+			raw, err := n1DriverRow(t.Context(), e.db, point.query, point.args...)
+			if err != nil {
+				return err
+			}
+			if !reflect.DeepEqual(raw, point.want) {
+				return fmt.Errorf("batch file %d raw %v != %v", i, raw, point.want)
+			}
 		}
 	}
 	return nil
@@ -127,5 +197,53 @@ func TestInventoryBatchPlanReservesAllDimensions(t *testing.T) {
 	}
 	if _, err := reserveInventoryBatchSteps(Work{}, p.steps, 2); !errors.Is(err, ErrQuantum) {
 		t.Fatal("unfunded prefix", err)
+	}
+}
+
+func TestInventoryBatchFailureRollsBackAndRetryKeepsWidth(t *testing.T) {
+	d, p, command, q := inventoryComposedDriverPrepared(t, 2, n1BatchForecastFixture)
+	e := d.opening.executor
+	c := command.(*inventoryAcceptCommand)
+	var collision int64
+	if err := e.db.QueryRowContext(t.Context(), `INSERT INTO catalog_subjects(public_id,library_id,kind) VALUES(randomblob(16),7,1) RETURNING id`).Scan(&collision); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.db.ExecContext(t.Context(), `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(7,?,?)`, c.request.files[1].sourceKey, collision); err != nil {
+		t.Fatal(err)
+	}
+	before, err := n1DriverCheckpoint(t.Context(), e.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := p.Accept(t.Context(), command)
+	if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, InventoryResult{}) {
+		t.Fatal("bad second member accepted a prefix", out, err)
+	}
+	after, err := n1DriverCheckpoint(t.Context(), e.db)
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatal("failed batch changed raw state", err)
+	}
+	pending, err := d.ResolveScan(t.Context(), q)
+	if err != nil || pending.Outcome.State != Pending {
+		t.Fatal("failed original unresolved", pending, err)
+	}
+	if _, err = e.db.ExecContext(t.Context(), `DELETE FROM catalog_identities WHERE library_id=7 AND source_key=?`, c.request.files[1].sourceKey); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = e.db.ExecContext(t.Context(), `DELETE FROM catalog_subjects WHERE id=?`, collision); err != nil {
+		t.Fatal(err)
+	}
+	// Force future originals to N=1. Retrying THIS already frozen original
+	// still submits both files; neither preparation nor Accept calls limit.
+	d.batchPolicy.width = 1
+	if p.preparation.request.Limit != 2 || len(c.request.files) != 2 {
+		t.Fatal("retry width changed before execution")
+	}
+	out, err = p.Accept(t.Context(), command)
+	if err != nil || out.ResultCount != 2 || out.Outcome.Replayed {
+		t.Fatal("same-original retry did not apply once", out, err)
+	}
+	if d.batchPolicy.width != 1 || p.preparation.request.Limit != 2 {
+		t.Fatal("retry resized the original")
 	}
 }
