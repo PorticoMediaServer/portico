@@ -161,7 +161,7 @@
         "server/internal/store/read/foreground.go"
       ],
       "files": ["server/internal/store/writer/n1_paired_export_test.go", "server/internal/store/writer/ec5_memory_external_test.go"],
-      "tests": ["TestEC2N1WALComposition", "TestEC2SustainedMeasurement", "TestEC5CgroupFunctional", "TestEC5MemoryChildControl", "TestEC5PairedMemoryMeasurement", "TestEC5SustainedMemoryMeasurement", "TestN1PairedMeasurement", "TestN1PairedSameDBAndLIVE"]
+      "tests": ["TestEC2N1WALComposition", "TestEC2SustainedMeasurement", "TestEC5CgroupFunctional", "TestEC5MemoryChildControl", "TestEC5PairedMemoryMeasurement", "TestEC5SustainedMemoryMeasurement", "TestN1PairedMeasurement", "TestN1PairedSameDBAndLIVE", "TestN1PairedCanonicalPopulationFunctional"]
     },
     {
       "package": "server/internal/compactcatalog/identityvalue",
