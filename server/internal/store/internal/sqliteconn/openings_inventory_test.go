@@ -23,6 +23,7 @@ var openingConstraints = map[string]string{
 	"writer/crash_scan_issuer_preparation_linux_test.go": "", // implicit _linux suffix; actual issuer original input checkpoint
 	"writer/crash_scan_issuer_oracle_linux_test.go":      "", // implicit _linux suffix; independent scan journal/digest model
 	"writer/crash_scan_issuer_linux_test.go":             "", // implicit _linux suffix; real issuer SIGKILL/reopen controls
+	"writer/crash_scan_ack_history_linux_test.go":        "", // implicit _linux suffix; post-restart scan ACK/retired rebind controls
 
 	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
 	"qual/scanbench/fixture_dir_other.go":        "//go:build !linux && !darwin",
