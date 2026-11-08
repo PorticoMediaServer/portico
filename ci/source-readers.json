@@ -376,6 +376,7 @@
         "TestNativeSearchReadJoinedStamp",
         "TestNativeSearchRefusesCandidateBudgetMisuse",
         "TestNativeSearchRefusesUnsupportedAndStaleProofs",
+        "TestNativeSearchRetainedLibrariesShareOneOperation",
         "TestNativeSearchUsesCapturedDomainBytePairs"
       ]
     }
