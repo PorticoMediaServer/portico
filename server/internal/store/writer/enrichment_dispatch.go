@@ -24,6 +24,7 @@ type enrichmentTurnLookup struct {
 	found    receiptFacts
 	decision receiptDecision
 	saved    savedSealReceipt
+	accepted *enrichAcceptResult
 }
 
 const enrichmentHistoryFixedBytes uint64 = 64 << 10
@@ -39,6 +40,8 @@ func enrichmentPlanIndex(id CommandID) (int, bool) {
 		return 2, true
 	case CreditSourceSeal:
 		return 3, true
+	case EnrichAccept:
+		return 4, true
 	default:
 		return 0, false
 	}
@@ -116,14 +119,25 @@ func enrichmentHistoryMaxUses(id stmt.ID) int {
 // Trusted one-time profile composition, following the existing scan-history
 // installation pattern. Only the two sealed-result families are executable in
 // this slice; stage and fresh provenance remain explicitly unqualified.
-func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evidence, source effectivePlan) (err error) {
+func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evidence, source effectivePlan, accepts ...effectivePlan) (err error) {
+	// The optional fifth plan installs ENRICH ACCEPT on the SAME dispatcher and
+	// registry. Omitted (or zero) leaves the fresh image accept explicitly
+	// unqualified; no other purpose gains its statements.
+	var accept effectivePlan
+	installAccept := len(accepts) == 1
+	if len(accepts) > 1 {
+		return ErrInvalid
+	}
+	if installAccept {
+		accept = accepts[0]
+	}
 	var locked, executorLocked, installed bool
 	var oldRegistry *stmt.Registry
 	defer func() {
 		_, err = finishCommand(ctx, ctx, struct{}{}, err)
 		if installed && err != nil {
 			r.registry = oldRegistry
-			r.enrichmentPlans = [4]*effectivePlan{}
+			r.enrichmentPlans = [5]*effectivePlan{}
 		}
 		if executorLocked {
 			r.executor.mu.Unlock()
@@ -148,10 +162,11 @@ func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evid
 	if r.fenced || r.executor.closed || r.executor.fenced || r.executor.ambiguous {
 		return ErrClosed
 	}
-	if r.enrichmentPlans != ([4]*effectivePlan{}) {
+	if r.enrichmentPlans != ([5]*effectivePlan{}) {
 		return ErrBusy
 	}
 	defs := enrichmentSealHistoryCommandDefinitions()
+	registryDefs := defs
 	evidence, err = freezeCommandPlan(r.executor, evidence, defs, EvidenceSeal)
 	if err != nil {
 		return err
@@ -160,16 +175,27 @@ func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evid
 	if err != nil {
 		return err
 	}
+	if installAccept {
+		acceptDefs := enrichmentAcceptCommandDefinitions()
+		accept, err = freezeCommandPlan(r.executor, accept, acceptDefs, EnrichAccept)
+		if err != nil {
+			return err
+		}
+		registryDefs = append(append([]stmt.Definition{}, defs...), acceptDefs...)
+	}
 	for _, p := range []effectivePlan{evidence, source} {
 		if p.enrichmentMemory.preparationBytes < enrichmentHistoryFixedBytes {
 			return &Refusal{Code: RefusalCapacity}
 		}
 	}
-	all := make([]stmt.Definition, 0, len(r.registry.Manifest())+len(defs))
+	if installAccept && accept.effectiveSourceMemory.preparationBytes < enrichmentHistoryFixedBytes {
+		return &Refusal{Code: RefusalCapacity}
+	}
+	all := make([]stmt.Definition, 0, len(r.registry.Manifest())+len(registryDefs))
 	for _, entry := range r.registry.Manifest() {
 		all = append(all, entry.Definition)
 	}
-	for _, d := range defs {
+	for _, d := range registryDefs {
 		exists := false
 		for _, old := range all {
 			if old.ID == d.ID {
@@ -184,7 +210,11 @@ func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evid
 			all = append(all, d)
 		}
 	}
-	registry, err := stmt.New(all, r.commandRegistrations(evidence.registration, source.registration)...)
+	receipts := r.commandRegistrations(evidence.registration, source.registration)
+	if installAccept {
+		receipts = append(receipts, accept.registration)
+	}
+	registry, err := stmt.New(all, receipts...)
 	if err != nil {
 		return err
 	}
@@ -193,6 +223,9 @@ func composeEnrichmentSealHistory(ctx context.Context, r *effectiveRuntime, evid
 	}
 	oldRegistry, r.registry = r.registry, registry
 	r.enrichmentPlans[2], r.enrichmentPlans[3] = &evidence, &source
+	if installAccept {
+		r.enrichmentPlans[4] = &accept
+	}
 	installed = true
 	return nil
 }
@@ -274,7 +307,7 @@ func discloseEnrichment(ctx context.Context, t *commandTurn, in *enrichmentInvoc
 
 func lookupEnrichmentSealTurn(ctx context.Context, t *commandTurn, in *enrichmentInvocation) (out enrichmentTurnLookup, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
-	if in.purpose != EvidenceSeal && in.purpose != CreditSourceSeal {
+	if in.purpose != EvidenceSeal && in.purpose != CreditSourceSeal && in.purpose != EnrichAccept {
 		return out, &Refusal{Code: RefusalUnqualified}
 	}
 	q := in.request
@@ -311,6 +344,8 @@ func lookupEnrichmentSealTurn(ctx context.Context, t *commandTurn, in *enrichmen
 			out.found.kind = EvidenceSeal
 		case "credit_source_seal":
 			out.found.kind = CreditSourceSeal
+		case "enrich_accept":
+			out.found.kind = EnrichAccept
 		default:
 			return out, ErrConflict
 		}
@@ -377,6 +412,10 @@ func lookupEnrichmentSealTurn(ctx context.Context, t *commandTurn, in *enrichmen
 			return out, ErrResolveRequired
 		}
 	}
+	if in.purpose == EnrichAccept {
+		out.accepted, err = decodeEnrichAcceptReceipt(values[0], q, out.found)
+		return out, err
+	}
 	out.saved, err = decodeSavedSealReceipt(values[0])
 	if err != nil {
 		return out, err
@@ -396,6 +435,11 @@ func enrichmentHistoricalResult(in *enrichmentInvocation, lookup enrichmentTurnL
 		out.Outcome.State = ResultRetired
 	case receiptReplay:
 		out.Outcome.State, out.Outcome.Replayed = Applied, true
+		if in.purpose == EnrichAccept {
+			out.Value.accepted = lookup.accepted
+			out.Digest = ResultDigest(lookup.found.resultDigest)
+			return out
+		}
 		out.Digest = lookup.saved.resultDigest
 		if in.purpose == EvidenceSeal {
 			v := evidenceSealResult{lookup.saved.facts}
