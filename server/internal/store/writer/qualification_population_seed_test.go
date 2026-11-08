@@ -15,8 +15,9 @@ import (
 )
 
 type qualificationPopulationSpec struct {
-	Seed      uint32 `json:"seed"`
-	Residents int    `json:"residents"`
+	Seed       uint32 `json:"seed"`
+	Residents  int    `json:"residents"`
+	SearchBank bool   `json:"search_bank,omitempty"`
 }
 
 type qualificationPopulationFacts struct {
@@ -29,9 +30,18 @@ type qualificationPopulationFacts struct {
 	LastID        int64            `json:"last_id"`
 	Counts        map[string]int64 `json:"counts"`
 	LogicalSHA256 string           `json:"logical_sha256"`
+	// SearchBank is present only for the search population shape. RD's read
+	// classes and the producer's ANALYZE policy travel with it.
+	SearchBank *qualificationSearchBankFacts `json:"search_bank,omitempty"`
+	Statistics string                        `json:"statistics,omitempty"`
 }
 
 const qualificationMovieShape = "canonical-movies-v1"
+
+// The search shape keeps the catalogue shape intact but adds one v1 search bank
+// for every resident plus the deterministic People/credit subset. Existing
+// canonical-movies-v1 artifacts and consumers are unchanged.
+const qualificationMovieSearchShape = "canonical-movies-v1-search"
 const qualificationMovieIDBase int64 = 1_000_000_000
 const qualificationMovieRoot = "/qualification-media"
 const qualificationMovieBatch = 4096
@@ -174,6 +184,10 @@ INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listen
 
 	facts := qualificationPopulationFacts{Version: qualificationMovieShape, Seed: spec.Seed, Residents: spec.Residents,
 		LibraryID: 7, LibraryKey: "qualification-movies", Counts: make(map[string]int64)}
+	if spec.SearchBank {
+		facts.Version = qualificationMovieSearchShape
+		facts.Statistics = qualificationSearchBankStatistics
+	}
 	qualificationPopulationReadback(t, conn, &facts)
 	return facts
 }
@@ -339,6 +353,9 @@ WHERE e.library_id=7 AND e.kind=1 AND e.retired=0 AND e.missing_since_ms IS NULL
 		{"search_image_seals", `SELECT count(*) FROM search_image_seals`},
 	}
 	for _, table := range absence {
+		if facts.Version == qualificationMovieSearchShape && (table.name == "search_publish_jobs" || table.name == "search_image_seals") {
+			continue // populated by the v1 bank for the search shape
+		}
 		var n int64
 		if err := conn.QueryRowContext(t.Context(), table.query).Scan(&n); err != nil || n != 0 {
 			t.Fatalf("population absence %s=%d: %v", table.name, n, err)
