@@ -48,6 +48,7 @@ type N1PairedComponent struct {
 	closed                         bool
 	reader                         *n1PairedReaderIdentity
 	memoryOpens                    ec5OpenLedger
+	native                         *ec2NativeComponent
 }
 
 type n1PairedReaderIdentity struct {
@@ -75,7 +76,7 @@ func NewN1PairedComponent(t *testing.T, data []byte, warmup int, cohort string) 
 	return newN1PairedPopulationComponent(t, data, warmup, cohort, attachN1PairedPopulation(t))
 }
 
-func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohort string, population *QualificationPopulationManifest) *N1PairedComponent {
+func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohort string, population *QualificationPopulationManifest, native ...bool) *N1PairedComponent {
 	t.Helper()
 	if *ec5MemoryEnabled && cohort != "native-counters" {
 		t.Fatal("EC5 native-memory instrumentation requires separate native-counters cohort")
@@ -130,10 +131,21 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	registry := nativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go", "../internal/readfixture/source.go")
 	gc := readfixture.LiveConfig(time.Now)
-	owner := newInventoryMemoryFixture(t, w, registry, original, inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20}, gc)
+	var owner *inventoryMemoryFixture
+	if len(native) > 1 {
+		t.Fatal("one compiled native composition")
+	}
+	if len(native) == 1 && native[0] {
+		owner, c.native = newEC2NativeOwner(t, w, path, original, c.trace, gc)
+		w = owner.executor
+	} else {
+		registry := nativeInventoryFixtureRegistry(t, w, inventoryCommandDefinitions(), "scan_fresh_test.go", "../internal/readfixture/source.go")
+		owner = newInventoryMemoryFixture(t, w, registry, original, inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20}, gc)
+	}
+	registry := owner.registry
 	c.fixture = &inventoryProgressiveFixture{owner: owner, base: original, limit: warmup + cfg.Fixtures, ready: true, sharedForeground: true}
+	c.fixture.sharedMaintenance = c.native != nil
 	c.fixture.snapshot, err = c.fixture.currentSnapshot(t)
 	if err != nil {
 		t.Fatal(err)
@@ -255,6 +267,9 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 			t.Fatal(err)
 		}
 	}
+	if c.native != nil {
+		c.attachEC2WC(t, population)
+	}
 	for i := 0; i < warmup; i++ {
 		if err := c.RunOriginal(t, t.Context(), time.Now(), true, cohort); err != nil {
 			t.Fatal(err)
@@ -370,7 +385,15 @@ func (c *N1PairedComponent) Close(cause error) error {
 	}
 	if c.fixture != nil {
 		w := c.fixture.owner.executor
-		writerErr = w.close()
+		if c.native != nil {
+			writerErr = c.closeEC2Native()
+		} else {
+			writerErr = w.close()
+		}
+		if c.Authority != nil {
+			observed := c.Authority.Usage()
+			usage = &observed
+		}
 		actualStats := w.db.Stats()
 		stats = actualStats
 		w.physicalFaults.mu.Lock()

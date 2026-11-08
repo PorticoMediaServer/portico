@@ -106,31 +106,47 @@ func (l *foregroundWriteLedger) action(op workload.EC2Operation, action workload
 	return func(ctx context.Context, offer workload.Offer, emit func(workload.Observation) error) error {
 		submitted := time.Now()
 		count := 0
+		recorded := false
+		var first workload.Observation
 		err := action(ctx, offer, func(o workload.Observation) error {
 			count++
 			if count == 1 {
-				fact := foregroundWait(op, offer, submitted, o)
+				first = o
+			}
+			// Preparation SNAPSHOT, replay, ACK and WAL observations are not the user's
+			// fresh commit. Preserve them raw; bind the wait fact to ACCEPT only.
+			selected := o.Phase == "ACCEPT" || (o.Phase == "" && o.Evidence != nil && o.Outcome != nil)
+			if selected && !recorded {
 				if len(l.facts) == foregroundWriteLimit {
 					l.overflow = true
 					return errors.Join(emit(o), errors.New("foreground write ledger overflow; incomplete"))
 				}
+				fact := foregroundWait(op, offer, submitted, o)
 				l.facts = append(l.facts, fact)
+				recorded = true
 				o.Result = foregroundWriteResult{Original: o.Result, Wait: fact}
 			}
 			return emit(o)
 		})
-		if count == 0 {
-			if err == nil {
-				err = errors.New("foreground Action emitted no original observation")
+		if !recorded {
+			o := first
+			if count == 0 {
+				if err == nil {
+					err = errors.New("foreground Action emitted no original observation")
+				}
+				o = workload.Observation{Phase: "FOREGROUND_SUBMISSION", CallError: err.Error()}
 			}
-			o := workload.Observation{Phase: "FOREGROUND_SUBMISSION", CallError: err.Error()}
 			fact := foregroundWait(op, offer, submitted, o)
 			if len(l.facts) < foregroundWriteLimit {
 				l.facts = append(l.facts, fact)
 			} else {
 				l.overflow = true
 			}
-			o.Result = foregroundWriteResult{Wait: fact}
+			// The original observation has already been emitted when present. Record a
+			// separate offered-but-no-fresh-commit fact, never manufacture a commit.
+			o.Phase = "FOREGROUND_NO_ACCEPT"
+			o.Result = foregroundWriteResult{Original: o.Result, Wait: fact}
+			o.Notice = "no fresh ACCEPT observed; preparation/coalescing/refusal remain incomplete for write-wait coverage"
 			err = errors.Join(err, emit(o))
 		}
 		if err != nil {
