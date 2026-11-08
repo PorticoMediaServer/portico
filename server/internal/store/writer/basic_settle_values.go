@@ -12,7 +12,7 @@ type basicLeafTechnicalBefore struct {
 	duration                                              sql.NullFloat64
 	resolution                                            sql.NullInt64
 	durationKey                                           float64
-	resolutionKey                                         int64
+	resolutionKey                                         sql.NullInt64 // NULL is the legitimate unknown RB cohort
 	scalarRevision, aggregateRevision, membershipSequence int64
 }
 type basicFirstLinkTechnical struct {
@@ -23,6 +23,7 @@ type basicLeafTechnicalAfter struct {
 	basicLeafTechnicalBefore
 	scalarChanged, aggregateChanged bool
 }
+
 
 // FIRST is an additive acceptance of an as-yet-unaccepted native link. Its
 // actual target may extend a MAX; this is not a maximum-removal/replacement
@@ -47,7 +48,18 @@ func projectBasicFirstLeafTechnical(before basicLeafTechnicalBefore, link basicF
 	if before.resolution.Valid {
 		expectedResolution = before.resolution.Int64
 	}
-	if before.durationKey != expectedDuration || before.resolutionKey != expectedResolution {
+	// The entity key is either the stored scalar value or the zero default for
+	// an absent scalar. A NULL key is the RB unknown cohort: it is consistent
+	// only when the scalar is absent too, and it becomes a value on this write.
+	switch {
+	case before.resolutionKey.Valid:
+		if before.resolutionKey.Int64 != expectedResolution {
+			return basicLeafTechnicalAfter{}, ErrConflict
+		}
+	case before.resolution.Valid:
+		return basicLeafTechnicalAfter{}, ErrConflict
+	}
+	if before.durationKey != expectedDuration {
 		return basicLeafTechnicalAfter{}, ErrConflict
 	}
 	next := basicLeafTechnicalAfter{basicLeafTechnicalBefore: before}
@@ -57,7 +69,8 @@ func projectBasicFirstLeafTechnical(before basicLeafTechnicalBefore, link basicF
 	if !next.resolution.Valid || height > next.resolution.Int64 {
 		next.resolution = sql.NullInt64{Int64: height, Valid: true}
 	}
-	next.durationKey, next.resolutionKey = next.duration.Float64, next.resolution.Int64
+	next.durationKey = next.duration.Float64
+	next.resolutionKey = sql.NullInt64{Int64: next.resolution.Int64, Valid: next.resolution.Valid}
 	next.scalarChanged = next.duration != before.duration || next.resolution != before.resolution
 	next.aggregateChanged = next.durationKey != before.durationKey || next.resolutionKey != before.resolutionKey
 	if next.scalarChanged {
