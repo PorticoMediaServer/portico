@@ -798,18 +798,11 @@ func crashN1DriverFixture(t *testing.T, witness *crashWitness) {
 			!e.ambiguous || !d.writer.effective.fenced {
 			t.Fatal("N1 uncertain COMMIT reported success or escaped quarantine", out, err)
 		}
-		if witness.Case.CommitFault == "after" {
-			journal, jerr := checkN1DriverCommitted(t.Context(), e.db, source)
-			if jerr != nil {
-				t.Fatal(jerr)
-			}
-			source.Journal = &journal
-		} else {
-			var receipts int64
-			if qerr := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM scan_command_receipts WHERE run_id=?`, source.Input.RunID).Scan(&receipts); qerr != nil || receipts != 0 {
-				t.Fatal("N1 ambiguous-before COMMIT wrote a receipt", receipts, qerr)
-			}
-		}
+		// The uncertain COMMIT quarantines and closes the writer pool, so the
+		// child cannot read the file here. The parent verifies the reopened raw
+		// state: committed-after against its independent journal model and
+		// ambiguous-before against the frozen initial checkpoint with zero
+		// receipts/children.
 		witness.Unknown = true
 		crashPoint(t, witness, "uncertain_return")
 		t.Fatal("N1 uncertain boundary was never reached", witness.Case)
