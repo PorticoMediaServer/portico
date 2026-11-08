@@ -43,6 +43,13 @@
       "tests": ["TestPreparationSourcePin"]
     },
     {
+      "package": "server/internal/store/search",
+      "why": "Pins the search bank's Go toolchain directive until a reviewed Unicode-fingerprint rebuild path lands",
+      "reads": ["server/go.mod"],
+      "files": ["server/internal/store/search/bank_upgrade_contract_test.go"],
+      "tests": ["TestSearchBankUpgradeContractPinnedToolchain"]
+    },
+    {
       "package": "server/internal/store/read",
       "why": "Owner-reverse Capture fixtures and the logical-sibling oracle prepare and hash the search package's exact read-pairing vector",
       "reads": ["server/internal/store/search/testdata/read-pairing.json"],
