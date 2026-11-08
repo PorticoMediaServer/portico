@@ -24,6 +24,10 @@ on:
         description: Export deadline in minutes (1..90)
         type: string
         default: '60'
+      search_bank:
+        description: Build the v1 search bank (canonical-movies-v1-search shape)
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -46,6 +50,7 @@ jobs:
           INPUT_SEED: ${{ inputs.seed }}
           INPUT_RESIDENTS: ${{ inputs.residents }}
           INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+          INPUT_SEARCH_BANK: ${{ inputs.search_bank }}
         run: python3 -B tools/ci/qual_fixture.py produce --source "$GITHUB_WORKSPACE/source" --output "$RUNNER_TEMP/qual-fixture" --work "$RUNNER_TEMP/qual-fixture-work"
       - name: Preserve a failure receipt if setup did not reach the producer
         if: always()
