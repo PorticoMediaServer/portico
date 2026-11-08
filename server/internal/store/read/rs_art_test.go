@@ -75,7 +75,7 @@ func TestRSArtInheritanceAndPublicRoles(t *testing.T) {
 func TestRSArtLockedAndReadySourceFences(t *testing.T) {
 	f, r := newRSArtFixture(t, false)
 	in := rsArtInput(f, 1104, 4, "poster", true)
-	f.exec(t, `UPDATE artwork_blobs SET status='deleting' WHERE digest=?`, rsArtDigest(2))
+	f.exec(t, `UPDATE artwork_blobs SET status='deleting',deletion_token=zeroblob(16) WHERE digest=?`, rsArtDigest(2))
 	d, _, err := r.artwork(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(err, ErrNotReady) || !reflect.DeepEqual(d, ArtworkFact{}) {
 		t.Fatal("revived matched art over unavailable locked choice", d, err)
