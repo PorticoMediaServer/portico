@@ -20,12 +20,13 @@ const canonicalN1Warmup = 8
 // Closed target recipe only; command Work, preparation/reserve and WAL caps
 // remain those of the ONE existing component owner. Maintenance has its OWN
 // explicitly funded partition, lifetime, startup, active and shutdown custody.
+// The adopted policy comes from the class-target kit, never a copied literal.
 func canonicalN1Maintenance() governedFixtureMaintenance {
-	policy := governor.Phase1aWALPolicy()
+	policy := classTargetWALDefault().Policy
 	policy.PassiveDeferMax = canonicalPassiveDefer()
 	return governedFixtureMaintenance{
 		policy: policy,
-		need:   governor.Amounts{governor.Reader: 2, governor.MemoryBytes: 8 << 20, governor.CPUMilli: 2000, governor.IOBytes: 2 * (2 * governor.Phase1aWALPolicy().HardBytes)},
+		need:   governor.Amounts{governor.Reader: 2, governor.MemoryBytes: 8 << 20, governor.CPUMilli: 2000, governor.IOBytes: 4 * policy.HardBytes},
 	}
 }
 
