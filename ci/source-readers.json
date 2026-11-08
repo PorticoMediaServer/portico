@@ -378,6 +378,13 @@
         "TestNativeSearchRefusesUnsupportedAndStaleProofs",
         "TestNativeSearchUsesCapturedDomainBytePairs"
       ]
+    },
+    {
+      "package": "server/internal/store/writer",
+      "why": "The opt-in EC4 screening binds the actual read policy to its exact definition sources and pins the files it executes",
+      "reads": ["server/internal/store/internal/readfixture/source.go", "server/internal/store/read/foreground.go"],
+      "files": ["server/internal/store/writer/ec4_screening_test.go"],
+      "tests": ["TestEC4NativeScreening"]
     }
   ],
   "reviewed": {
