@@ -16,6 +16,7 @@ import (
 // One factored trusted fixture builder. Options are compiled tests only; no
 // worker SQL, policy, grant, permit or opening can enter through the target ABI.
 type wcFixtureOptions struct {
+	attached    *wcFixtureAttachment
 	kind        string
 	actorTier   string
 	extraMemory int64
@@ -27,44 +28,70 @@ type wcFixtureOptions struct {
 	realClock   bool
 }
 
+// Test-only reuse of an already opened SAME executor/governor/registry. No
+// caller of a production API can supply this attachment.
+type wcFixtureAttachment struct {
+	opening   *scanOpening
+	governor  governor.Governor
+	authority *governor.Authority
+	wal       *governor.WALGate
+	receipt   stmt.Receipt
+	keeper    *canonicalN1MaintenanceOwner
+}
+
 func wcComponentFixture(t *testing.T, opts wcFixtureOptions) (*Writer, *WCProgressDriver, *governor.Authority, *canonicalN1MaintenanceOwner) {
 	t.Helper()
-	initial, path := testCanonicalExecutor(t)
-	if err := initial.close(); err != nil {
-		t.Fatal(err)
-	}
-	opening := openScanFixture(t, path, scanOpeningOwner(t, path))
-	e := opening.executor
-	now, warmup := wcCompositionFixtureClock(t, opts.realClock)
-	e.now = now
-	if opts.decorate != nil {
-		if err := e.db.Close(); err != nil {
+	var opening *scanOpening
+	var e *executor
+	var now func() time.Time
+	var warmup func()
+	if opts.attached != nil {
+		opening = opts.attached.opening
+		e = opening.executor
+		now = e.now
+		warmup = func() {}
+		if opts.decorate != nil || !opts.realClock || opts.attached.receipt == nil {
+			t.Fatal("invalid existing WC fixture attachment")
+		}
+	} else {
+		initial, seededPath := testCanonicalExecutor(t)
+		if err := initial.close(); err != nil {
 			t.Fatal(err)
 		}
-		if stats := e.db.Stats(); stats.InUse != 0 || stats.OpenConnections != 0 {
-			t.Fatal("opening pool not joined")
+		opening = openScanFixture(t, seededPath, scanOpeningOwner(t, seededPath))
+		e = opening.executor
+		now, warmup = wcCompositionFixtureClock(t, opts.realClock)
+		e.now = now
+		if opts.decorate != nil {
+			if err := e.db.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if stats := e.db.Stats(); stats.InUse != 0 || stats.OpenConnections != 0 {
+				t.Fatal("opening pool not joined")
+			}
+			e.physicalFaults.mu.Lock()
+			failed := e.physicalFaults.failed
+			e.physicalFaults.mu.Unlock()
+			if failed {
+				t.Fatal("opening native close fault")
+			}
+			connector, err := sqliteconn.Connector(seededPath, e.config, sqliteconn.ExistingFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.openPool(connector, opts.decorate)
 		}
-		e.physicalFaults.mu.Lock()
-		failed := e.physicalFaults.failed
-		e.physicalFaults.mu.Unlock()
-		if failed {
-			t.Fatal("opening native close fault")
-		}
-		connector, err := sqliteconn.Connector(path, e.config, sqliteconn.ExistingFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		e.openPool(connector, opts.decorate)
 	}
+	path := opening.binding.path
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
 	defs = append(defs, wcProgressCommandDefinitions()...)
 	defs = append(defs, wcProgressBirthDefinitions()...)
 	extras := [][]stmt.Definition{}
-	if opts.kind == "security" {
+	if opts.kind == "security" || opts.kind == "mixed" {
 		extras = append(extras, wcSecurityCommandDefinitions())
 	}
-	if opts.kind == "wc_reclaim" {
+	if opts.kind == "wc_reclaim" || opts.kind == "mixed" {
 		extras = append(extras, wcReclaimCommandDefinitions())
 	}
 	for _, definitions := range extras {
@@ -84,52 +111,67 @@ func wcComponentFixture(t *testing.T, opts wcFixtureOptions) (*Writer, *WCProgre
 			}
 		}
 	}
-	conn, err := e.db.Conn(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = conn.Close() })
-
-	source := "wc_progress_composition_test.go"
-	switch opts.kind {
-	case "security":
-		source = "wc_security_composition_test.go"
-	case "wc_reclaim":
-		source = "wc_reclaim_composition_test.go"
-	}
-	golden := captureEffectiveFixture(t, conn, e.config, defs, source, "wc_progress_fixture.go", "wc_component_fixture_test.go", "wc_fixture_clock_test.go")
-	if err = conn.Close(); err != nil {
-		t.Fatal(err)
-	}
 	p := effectiveFixturePlan()
-	p.registration = golden.Receipt()
+	var err error
+	if opts.attached != nil {
+		p.registration = opts.attached.receipt
+	} else {
+		conn, err := e.db.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = conn.Close() })
+
+		source := "wc_progress_composition_test.go"
+		switch opts.kind {
+		case "security":
+			source = "wc_security_composition_test.go"
+		case "wc_reclaim":
+			source = "wc_reclaim_composition_test.go"
+		}
+		golden := captureEffectiveFixture(t, conn, e.config, defs, source, "wc_progress_fixture.go", "wc_component_fixture_test.go", "wc_fixture_clock_test.go")
+		if err = conn.Close(); err != nil {
+			t.Fatal(err)
+		}
+		p.registration = golden.Receipt()
+	}
 	wc := p
 	wc.steps = nil
 	wc.wcProgressMemory = commandMemoryBudget{64 << 20, 64 << 20}
 	for _, d := range wcProgressCommandDefinitions() {
 		wc.steps = append(wc.steps, statementStep{d.ID, Work{16, 4000, 16, 65536, 100 * time.Microsecond}})
 	}
-	walPolicy := governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second}
-	if opts.maintenance {
-		walPolicy = canonicalN1Maintenance().policy
-	}
-	wal, err := governor.NewWALGate(walPolicy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var partitions [4]governor.Amounts
-	for i := range partitions {
-		partitions[i] = p.need
-		partitions[i][governor.MemoryBytes] += opts.extraMemory
-	}
-	if opts.maintenance {
-		for resource, n := range canonicalN1Maintenance().need {
-			partitions[governor.Recovery][resource] += n
+	var g governor.Governor
+	var a *governor.Authority
+	var wal *governor.WALGate
+	if opts.attached != nil {
+		g, a, wal = opts.attached.governor, opts.attached.authority, opts.attached.wal
+		if err = a.VerifyComposition(g, wal); err != nil {
+			t.Fatal(err)
 		}
-	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: opts.maxGrants, Now: now, WAL: wal})
-	if err != nil {
-		t.Fatal(err)
+	} else {
+		walPolicy := governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second}
+		if opts.maintenance {
+			walPolicy = canonicalN1Maintenance().policy
+		}
+		wal, err = governor.NewWALGate(walPolicy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var partitions [4]governor.Amounts
+		for i := range partitions {
+			partitions[i] = p.need
+			partitions[i][governor.MemoryBytes] += opts.extraMemory
+		}
+		if opts.maintenance {
+			for resource, n := range canonicalN1Maintenance().need {
+				partitions[governor.Recovery][resource] += n
+			}
+		}
+		g, a, err = governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: opts.maxGrants, Now: now, WAL: wal})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	r, err := newEffectiveRuntime(e, path, g, a, wal, 1, p)
 	if err != nil {
@@ -145,7 +187,9 @@ func wcComponentFixture(t *testing.T, opts wcFixtureOptions) (*Writer, *WCProgre
 	}
 	w := &Writer{effective: r}
 	var keeper *canonicalN1MaintenanceOwner
-	if opts.maintenance {
+	if opts.attached != nil {
+		keeper = opts.attached.keeper
+	} else if opts.maintenance {
 		keeper = newCanonicalCheckpointOwner(t, opening, g, a, wal, path)
 	}
 	member, err := wcRandomBirth()

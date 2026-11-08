@@ -89,6 +89,9 @@ func governedFixtureComposition(t *testing.T, now func() time.Time, extra govern
 	}
 	cfg := governor.Config{Partitions: partitions, MaxGrantsPerClass: 4, Now: now, WAL: wal}
 	if foreground != nil {
+		for resource, n := range foreground.Partitions[governor.Background] {
+			cfg.Partitions[governor.Background][resource] += n
+		}
 		cfg.Foreground = foreground.Foreground
 		cfg.Partitions[governor.Foreground] = foreground.Partitions[governor.Foreground]
 		cfg.MaxGrantsPerClass = foreground.MaxGrantsPerClass

@@ -52,3 +52,5 @@ Focused runner controls: `python3 -m unittest discover -s ci -p test_lane_focuse
 Hosted pilots of the first implementation: [two-shard connection/restart controls](https://github.com/PorticoMediaServer/portico/actions/runs/42314241494), [macOS race controls](https://github.com/PorticoMediaServer/portico/actions/runs/42314248504), and [automatic single-package N1 split](https://github.com/PorticoMediaServer/portico/actions/runs/42314280693) all passed with complete combined summaries. Because a new workflow cannot dispatch before it exists on main, pilot tooling commit `301bbd117d06c01fe841cd9e02dc1bc8d5918a57` ran the exact YAML through the existing manual `native-plan-pair.yml` entry on an isolated pilot branch; source remained pinned to `a055479469953f43c194615e49c568d4f1f00888`. Main and the existing diagnostic definition were untouched.
 
 `paired-canonical` runs the opt-in tiny canonical-parent paired N1/browse control; it sets `PORTICO_PAIRED_CANONICAL_FUNCTIONAL=1`. No1M or qualification run.
+
+`ec2-native` runs the opt-in tiny same-DB N1/WC/keeper functional composition, setting `PORTICO_EC2_NATIVE_FUNCTIONAL=1`; it is not a host measurement.

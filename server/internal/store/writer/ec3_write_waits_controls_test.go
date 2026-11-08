@@ -138,3 +138,23 @@ func TestEC3IndependentSubmissionLeavesReadsRunning(t *testing.T) {
 		t.Fatal("foreground submission blocked reads behind scan")
 	}
 }
+
+func TestEC3PreparationSnapshotCannotStandInForAccept(t *testing.T) {
+	ledger := newForegroundWriteLedger()
+	action := ledger.action(workload.EC2ProgressCapture, func(ctx context.Context, offer workload.Offer, emit func(workload.Observation) error) error {
+		snapshot := writeWaitControl(workload.EC2ProgressCapture, time.Now(), 0, time.Millisecond, 0)
+		snapshot.Phase = "SNAPSHOT"
+		snapshot.Requested = &writer.ReceiptReference{Identity: writer.CommandIdentity{Sequence: 11}}
+		if err := emit(snapshot); err != nil {
+			return err
+		}
+		accepted := writeWaitControl(workload.EC2ProgressCapture, time.Now(), 0, 2*time.Millisecond, 0)
+		accepted.Phase = "ACCEPT"
+		accepted.Requested = &writer.ReceiptReference{Identity: writer.CommandIdentity{Sequence: 12}}
+		return emit(accepted)
+	})
+	err := action(t.Context(), workload.Offer{Stream: "control", Slot: 1, ScheduledAt: time.Now()}, func(workload.Observation) error { return nil })
+	if err != nil || len(ledger.facts) != 1 || ledger.facts[0].HoldToCommitNS == nil || *ledger.facts[0].HoldToCommitNS != 2*time.Millisecond {
+		t.Fatal("preparation selected as user write", ledger, err)
+	}
+}

@@ -22,20 +22,21 @@ const inventoryProgressiveLimit = 128 // bounded future warmup + measured origin
 // factored W governor/recipe survive all originals, Resolve and ACK turns.
 // Nothing here enables the opt-in target's steady/positive-warmup populations.
 type inventoryProgressiveFixture struct {
-	sharedMaintenance bool // only the actual attached keeper/CP may coexist
-	sharedForeground  bool // only this independently owned class may coexist
-	owner             *inventoryMemoryFixture
-	base              *inventoryAcceptCommand
-	current           *inventoryAcceptCommand
-	turn              *commandTurn
-	resolveTurn       *commandTurn // observation-only private owner views
-	ackTurn           *commandTurn
-	acknowledged      *int64 // actual handler return; separate from physical outcome
-	resolved          *inventoryReceiptLookup
-	snapshot          inventoryProgressiveSnapshot
-	limit, offered    int
-	ready             bool
-	stopped           error
+	retainedBackground governor.Amounts // actual separately owned WC preparation only
+	sharedMaintenance  bool             // only the actual attached keeper/CP may coexist
+	sharedForeground   bool             // only this independently owned class may coexist
+	owner              *inventoryMemoryFixture
+	base               *inventoryAcceptCommand
+	current            *inventoryAcceptCommand
+	turn               *commandTurn
+	resolveTurn        *commandTurn // observation-only private owner views
+	ackTurn            *commandTurn
+	acknowledged       *int64 // actual handler return; separate from physical outcome
+	resolved           *inventoryReceiptLookup
+	snapshot           inventoryProgressiveSnapshot
+	limit, offered     int
+	ready              bool
+	stopped            error
 }
 
 type inventoryProgressiveSnapshot struct {
@@ -336,6 +337,12 @@ AND s.kind='local' AND s.classification='local' AND s.enabled=1 AND s.identity_c
 }
 
 func (f *inventoryProgressiveFixture) joinedUsage(usage [4]governor.Amounts) bool {
+	for resource, n := range f.retainedBackground {
+		if usage[governor.Background][resource] < n {
+			return false
+		}
+		usage[governor.Background][resource] -= n
+	}
 	if f.sharedForeground {
 		usage[governor.Foreground] = governor.Amounts{}
 	}
