@@ -328,8 +328,12 @@ func (s *Service) estimate(ctx context.Context, includeArtwork bool) (int64, err
 		}
 	}
 	if !includeArtwork {
+		closure, err := ownerArtworkClosure(ctx, s.db)
+		if err != nil {
+			return 0, err
+		}
 		var ownerBytes int64
-		if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(sum(bytes),0) FROM artwork_blobs WHERE digest IN (`+ownerArtworkReferences+`)`).Scan(&ownerBytes); err != nil {
+		if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(sum(bytes),0) FROM artwork_blobs WHERE digest IN (`+closure+`)`).Scan(&ownerBytes); err != nil {
 			return 0, err
 		}
 		total += ownerBytes
@@ -485,7 +489,7 @@ func copyOwnerArtwork(ctx context.Context, state, partial string, copied map[str
 		return nil, e
 	}
 	defer db.Close()
-	rows, e := db.QueryContext(ctx, ownerArtworkReferences)
+	rows, e := queryOwnerArtwork(ctx, db)
 	if e != nil {
 		return nil, e
 	}
@@ -623,12 +627,14 @@ func excludedDownloadedMetadata(name string) bool {
 	return name == "Metadata/artwork" || name == "Metadata/people" || name == "Metadata/guide-images" || name == "Metadata/analysis-artifacts"
 }
 
-// ownerArtworkReferences is the backup's artwork closure: every blob of every
-// source an owner made irreplaceable (uploads, locked or owner-chosen
-// selections, and undo history pins). Each source carries both slots and its
-// ambient effect; current embedded-audio fallback roots are also retained,
-// even while a sidecar hides them. A shared blob is listed once. Provider
-// art is re-fetched after a restore and is not carried.
+// ownerArtworkReferences is the backup's artwork closure for the legacy product
+// schema: every blob of every source an owner made irreplaceable (uploads,
+// locked or owner-chosen selections, and undo history pins). Each source
+// carries both slots and its ambient effect; current embedded-audio fallback
+// roots are also retained, even while a sidecar hides them. A shared blob is
+// listed once. Provider art is re-fetched after a restore and is not carried.
+// The legacy schema keeps undo pins as digests inside metadata_owner_history
+// JSON and names embedded covers in audio_file_metadata.artwork_key.
 const ownerArtworkReferences = `WITH roots(digest) AS (
  SELECT digest FROM artwork_uploads
  UNION SELECT digest FROM artwork_selections WHERE locked=1 OR actor<>''
@@ -637,3 +643,62 @@ const ownerArtworkReferences = `WITH roots(digest) AS (
  UNION SELECT j.value FROM metadata_owner_history h,json_tree(h.after_json) j WHERE j.type='text' AND length(j.value)=64
  ), sources AS MATERIALIZED (SELECT s.small_blob,s.large_blob,s.ambient_blob FROM roots r JOIN artwork_sources s ON s.digest=r.digest)
  SELECT small_blob FROM sources UNION SELECT large_blob FROM sources UNION SELECT ambient_blob FROM sources`
+
+// ownerArtworkReferencesV1 is the same closure for the schema-v1 database. An
+// owner's own art is a 'locked' selection (a locked selection with a NULL
+// digest is the explicit absence and names no file), and undo history keeps
+// its artwork pins normalized in metadata_owner_history_artwork. There is no
+// upload table, candidate id or embedded-audio key to consult, and provider
+// ('matched') art is re-fetched after a restore. Every referenced source has
+// non-NULL slot blobs, so no absent digest becomes a file reference.
+const ownerArtworkReferencesV1 = `WITH roots(digest) AS (
+ SELECT digest FROM artwork_selections WHERE choice='locked' AND digest IS NOT NULL
+ UNION SELECT digest FROM metadata_owner_history_artwork
+ ), sources AS MATERIALIZED (SELECT s.small_blob,s.large_blob,s.ambient_blob FROM roots r JOIN artwork_sources s ON s.digest=r.digest)
+ SELECT small_blob FROM sources UNION SELECT large_blob FROM sources UNION SELECT ambient_blob FROM sources`
+
+// ErrArtworkSchemaUnsupported refuses a database whose owner-artwork layout is
+// neither the legacy product schema nor schema-v1. Guessing could omit files an
+// owner cannot re-fetch, so the backup stops instead.
+var ErrArtworkSchemaUnsupported = errors.New("backup: database artwork ownership schema is not recognised")
+
+// ownerArtworkClosure picks the fixed closure statement from the schema the
+// actual database carries. Both the live database (size estimate) and a
+// finalized snapshot (copy) use it; every closure entry point goes through it
+// so copy, estimate, pre-restore preservation and stream apply agree.
+func ownerArtworkClosure(ctx context.Context, db *sql.DB) (string, error) {
+	rows, err := db.QueryContext(ctx, `PRAGMA table_info(artwork_selections)`)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	columns := map[string]bool{}
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, kind string
+		var defaultValue sql.NullString
+		if err = rows.Scan(&cid, &name, &kind, &notNull, &defaultValue, &primaryKey); err != nil {
+			return "", err
+		}
+		columns[name] = true
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
+	}
+	switch {
+	case columns["choice"]:
+		return ownerArtworkReferencesV1, nil
+	case columns["locked"]:
+		return ownerArtworkReferences, nil
+	}
+	return "", ErrArtworkSchemaUnsupported
+}
+
+// queryOwnerArtwork resolves and runs the closure for one database handle.
+func queryOwnerArtwork(ctx context.Context, db *sql.DB) (*sql.Rows, error) {
+	closure, err := ownerArtworkClosure(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	return db.QueryContext(ctx, closure)
+}
