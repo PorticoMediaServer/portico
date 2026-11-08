@@ -116,12 +116,16 @@ func screenBankAtScale(t *testing.T, residents int) {
 		MaxPollNS  int64
 		Error      string
 		Unavail    bool
+		Distinct   int
+		PollIDs    [][]int64
+		CandSum    int
 	}
 	var reports []termReport
 	for i, term := range oracle.Terms {
 		r := termReport{Class: term.Class.String(), Term: term.Text, Expected: oracle.Expected(i)}
 		var after *FullSearchCursor
 		var pages []FullSearchPage
+		seen := map[int64]int{}
 		var walkStart = time.Now()
 		for poll := 0; poll < 400; poll++ {
 			begin := time.Now()
@@ -138,6 +142,15 @@ func screenBankAtScale(t *testing.T, residents int) {
 			}
 			pages = append(pages, page)
 			r.Hits += len(page.Hits)
+			r.CandSum += page.NativeCandidates
+			var ids []int64
+			for _, h := range page.Hits {
+				seen[h.ID]++
+				ids = append(ids, h.ID)
+			}
+			if r.Class == "rare" || r.Class == "conjunction" {
+				r.PollIDs = append(r.PollIDs, ids)
+			}
 			if r.ReadyNS == 0 && (len(page.Hits) > 0 || page.Exhausted && !page.Partial) {
 				r.ReadyNS = time.Since(walkStart).Nanoseconds()
 				r.ReadyPolls = r.Polls
@@ -150,6 +163,7 @@ func screenBankAtScale(t *testing.T, residents int) {
 			after = page.Next
 		}
 		r.TotalNS = time.Since(walkStart).Nanoseconds()
+		r.Distinct = len(seen)
 		if r.Error == "" {
 			if cerr := oracle.CheckWalk(i, pages); cerr != nil {
 				r.Error = cerr.Error()
@@ -171,4 +185,4 @@ func screenBankAtScale(t *testing.T, residents int) {
 
 func TestScreenBank30k(t *testing.T)  { screenBankAtScale(t, 30_000) }
 func TestScreenBank200k(t *testing.T) { screenBankAtScale(t, 200_000) }
-func TestScreenBank1M(t *testing.T) { screenBankAtScale(t, 999_000) }
+func TestScreenBank1M(t *testing.T)   { screenBankAtScale(t, 999_000) }
