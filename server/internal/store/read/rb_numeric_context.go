@@ -541,7 +541,16 @@ func (p *RBNumericContextPreparation) reduce(scope *governor.ReadScope, raw [][]
 			return false, e
 		}
 		next = position
-		item := [7]any{id, year, nil, nil, row[7], nil, row[8]}
+		retired, ok := row[7].(int64)
+		if !ok {
+			return false, ErrUnqualified
+		}
+		if row[8] != nil {
+			if _, ok := row[8].(int64); !ok {
+				return false, ErrUnqualified
+			}
+		}
+		item := [7]any{id, year, nil, nil, retired, nil, row[8]}
 		if !admittedItem(item[:], f) {
 			continue
 		}

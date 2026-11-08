@@ -29,8 +29,10 @@ import (
 //     every positive form is FALSE when absent and its negative form TRUE.
 //   - library and entityKind are opaque identity/enum values compared exactly.
 //
-// Unsupported fields/operators/types refuse at compile time, including inside a
-// negated group; they can never become a false predicate that NOT turns into
+// The published online `match` attention fact has no schema-v1 source in this
+// packet's tables and is not part of this native recipe. Unsupported
+// fields/operators/types refuse at compile time, including inside a negated
+// group; they can never become a false predicate that NOT turns into
 // permission.
 type rbScalarCompleteFilter struct{ node *rbFilterNode }
 
