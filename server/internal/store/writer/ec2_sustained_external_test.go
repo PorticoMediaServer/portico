@@ -360,8 +360,25 @@ func TestEC2N1WALComposition(t *testing.T) {
 			t.Fatal(err)
 		}
 		r := wrapper.Record
-		if r.ID == "" || r.Ordinal == nil || r.Before == nil || r.After == nil || r.Before.State == nil || r.After.State == nil || r.Before.TokenBefore == nil || r.After.TokenAfter == nil || r.After.FileAfter == nil {
-			t.Fatal("missing actual physical WAL join", string(row["record"]))
+		if r.ID == "" || r.Ordinal == nil {
+			t.Fatal("missing physical turn", string(row["record"]))
+		}
+		// ONE advisory bracket per original chain: the chain-start role carries the
+		// before snapshot, the chain-end role the after snapshot, and the middle role
+		// adds no probe so observer work stays off the serial writer path.
+		switch r.Role {
+		case "fresh_begin":
+			if r.Before == nil || r.Before.State == nil || r.Before.TokenBefore == nil {
+				t.Fatal("missing chain-start WAL bracket", string(row["record"]))
+			}
+		case "ack":
+			if r.After == nil || r.After.State == nil || r.After.TokenAfter == nil || r.After.FileAfter == nil {
+				t.Fatal("missing chain-end WAL bracket", string(row["record"]))
+			}
+		case "resolve":
+			if r.Before != nil || r.After != nil {
+				t.Fatal("middle role added an advisory WAL probe", string(row["record"]))
+			}
 		}
 		if r.Reference == nil || r.Reference.Identity.Sequence <= 0 {
 			t.Fatal("lost original", r)
