@@ -16,15 +16,16 @@ import (
 // One factored trusted fixture builder. Options are compiled tests only; no
 // worker SQL, policy, grant, permit or opening can enter through the target ABI.
 type wcFixtureOptions struct {
-	kind        string
-	actorTier   string
-	extraMemory int64
-	maxGrants   int
-	principal   context.Context
-	catalog     *wcProgressExistingCatalog
-	decorate    func(driver.Conn) driver.Conn
-	maintenance bool
-	realClock   bool
+	kind          string
+	actorTier     string
+	extraMemory   int64
+	maxGrants     int
+	principal     context.Context
+	catalog       *wcProgressExistingCatalog
+	decorate      func(driver.Conn) driver.Conn
+	maintenance   bool
+	pressureBytes int64 // tiny functional-control profile only; targets leave zero
+	realClock     bool
 }
 
 func wcComponentFixture(t *testing.T, opts wcFixtureOptions) (*Writer, *WCProgressDriver, *governor.Authority, *canonicalN1MaintenanceOwner) {
@@ -112,6 +113,9 @@ func wcComponentFixture(t *testing.T, opts wcFixtureOptions) (*Writer, *WCProgre
 	walPolicy := governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second}
 	if opts.maintenance {
 		walPolicy = canonicalN1Maintenance().policy
+		if opts.pressureBytes > 0 {
+			walPolicy.ActivePressureBytes = opts.pressureBytes
+		}
 	}
 	wal, err := governor.NewWALGate(walPolicy)
 	if err != nil {

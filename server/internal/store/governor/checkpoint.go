@@ -20,6 +20,7 @@ var (
 	ErrCheckpointBudget    = errors.New("checkpoint whole-prefix forecast exceeded")
 	ErrCheckpointOverrun   = errors.New("checkpoint physical holding exceeded forecast")
 	ErrCheckpointUncertain = errors.New("checkpoint physical disposal remains unproven")
+	ErrCheckpointDeferred  = errors.New("checkpoint native BUSY; no maintenance completion")
 )
 
 type CheckpointPolicy struct {
@@ -30,6 +31,7 @@ type CheckpointPolicy struct {
 }
 
 type CheckpointResult struct {
+	Deferred                                                         bool   // native BUSY; counts may be -1 (unavailable), never invented repayment
 	Recovery                                                         bool   // exceptional exclusive TRUNCATE, never the normal PASSIVE path
 	BeforeUnavailable                                                string // nonempty means Before is unavailable, not a zero-sized WAL
 	SampleUnavailable                                                string
@@ -97,7 +99,14 @@ func (c *Checkpointer) RecoverWAL(parent context.Context, r Request) (Checkpoint
 	return c.step(parent, r, true)
 }
 
-func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (out CheckpointResult, err error) {
+func (c *Checkpointer) step(parent context.Context, r Request, recovery bool, prospective ...*Request) (out CheckpointResult, err error) {
+	var next *Request
+	if len(prospective) > 1 {
+		return out, ErrGrant
+	}
+	if len(prospective) == 1 {
+		next = prospective[0]
+	}
 	out.Recovery = recovery
 	out.Key = r.Key
 	out.Budget = r.Budget
@@ -277,7 +286,7 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 						err = errors.Join(err, sampleErr, publishErr)
 					}
 
-					if recovery && err == nil && !out.NativeStarted.IsZero() && (sampleErr != nil || publishErr != nil || after.ActiveBytes != 0 || after.PhysicalBytes != 0) {
+					if recovery && !out.Deferred && err == nil && !out.NativeStarted.IsZero() && (sampleErr != nil || publishErr != nil || after.ActiveBytes != 0 || after.PhysicalBytes != 0) {
 						c.authority.EnterStatic()
 						if c.keeper != nil {
 							c.keeper.fail()
@@ -385,7 +394,12 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 		frames = uint64((prefix - 32) / (int64(pageSize) + 24))
 	}
 	if recovery && !c.wal.recoveryPressure(out.Before) {
-		return out, ErrCheckpointBudget
+		if next == nil {
+			return out, ErrCheckpointBudget
+		}
+		if !c.wal.writerPressure(out.Before, next.Need[WALBytes]) {
+			return out, nil // pressure disappeared while the original-deadline drain joined
+		}
 	}
 	if prefix > out.PrefixLimit || prefix > r.Need[IOBytes]/2 ||
 		2*frames+1 > uint64(r.Budget.Pages) || c.sequence == math.MaxUint64 {
@@ -404,13 +418,21 @@ func (c *Checkpointer) step(parent context.Context, r Request, recovery bool) (o
 		err = scope.conn.QueryRowContext(queries, "PRAGMA wal_checkpoint(PASSIVE)").Scan(&out.Busy, &out.Frames, &out.Backfilled)
 	}
 	out.NativeEnded = c.authority.ledger.config.Now()
-	if err == nil && (out.Busy < 0 || out.Busy > 1 || out.Frames < 0 || out.Backfilled < 0 || out.Backfilled > out.Frames) {
+	if err == nil && !validCheckpointCounts(out.Busy, out.Frames, out.Backfilled) {
 		err = ErrWALObservation
 	}
-	if recovery && err == nil && (out.Busy != 0 || out.Frames != 0 || out.Backfilled != 0) {
+	out.Deferred = err == nil && out.Busy == 1
+	if recovery && !out.Deferred && err == nil && (out.Busy != 0 || out.Frames != 0 || out.Backfilled != 0) {
 		err = ErrWALObservation
 	}
 	return out, err
+}
+
+func validCheckpointCounts(busy, frames, backfilled int) bool {
+	// SQLite's OP_Checkpoint initializes both counts to -1, then converts
+	// SQLITE_BUSY into a result row. No acquired checkpoint can mean no counts.
+	return busy == 1 && frames == -1 && backfilled == -1 ||
+		(busy == 0 || busy == 1) && frames >= 0 && backfilled >= 0 && backfilled <= frames
 }
 
 func minTime(a, b time.Time) time.Time {

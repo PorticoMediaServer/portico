@@ -34,9 +34,10 @@ type canonicalN1CheckpointClock struct {
 }
 
 type canonicalN1Checkpoint struct {
-	Result governor.CheckpointResult  `json:"result"`
-	Error  string                     `json:"error"`
-	Clock  canonicalN1CheckpointClock `json:"owner_clock"`
+	Result   governor.CheckpointResult  `json:"result"`
+	Error    string                     `json:"error"`
+	Clock    canonicalN1CheckpointClock `json:"owner_clock"`
+	Deferral string                     `json:"deferral,omitempty"`
 }
 
 // Derive from the original in-process time.Time values BEFORE JSON discards
@@ -70,13 +71,14 @@ type canonicalN1MaintenanceOwner struct {
 	shutdownRequest    governor.Request
 	stop               chan struct{}
 	done               chan struct{}
-	results            chan canonicalN1Checkpoint
+	results            chan checkpointMaintenanceRecord
 	once               sync.Once
 	workerStarted      bool
 	closed             bool
 	startup            *governor.Grant
 	overflow           bool // written by worker; read only AFTER done
-	started, completed int  // main owns these counters while draining records
+	started, completed int
+	deferred           int // main owns these counters while draining records
 	incomplete         bool
 }
 
@@ -130,7 +132,7 @@ func newCanonicalCheckpointOwner(t *testing.T, opening *scanOpening, g governor.
 	if shape.domain == 0 || shape.prefix == "" || shape.hardBytes <= 0 || shape.hardBytes > 1<<30 {
 		t.Fatal("closed checkpoint shape invalid")
 	}
-	m := &canonicalN1MaintenanceOwner{shape: shape, opening: opening, executor: opening.executor, governor: g, authority: a, stop: make(chan struct{}), done: make(chan struct{}), results: make(chan canonicalN1Checkpoint, 128)}
+	m := &canonicalN1MaintenanceOwner{shape: shape, opening: opening, executor: opening.executor, governor: g, authority: a, stop: make(chan struct{}), done: make(chan struct{}), results: make(chan checkpointMaintenanceRecord, 128)}
 	// Installed before any fallible keeper setup; retain partial cleanup on Fatal.
 	t.Cleanup(func() {
 		if err := m.close(); err != nil {
@@ -167,13 +169,13 @@ func newCanonicalCheckpointOwner(t *testing.T, opening *scanOpening, g governor.
 	return m
 }
 func (m *canonicalN1MaintenanceOwner) request(role string) governor.Request {
-	r := governor.Request{Key: governor.JobKey{Domain: uint16(m.shape.domain), ID: m.shape.prefix + "/" + role}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.MemoryBytes: 64 << 10, governor.CPUMilli: 1000, governor.IOBytes: 2 * m.shape.hardBytes}, Deadline: time.Now().Add(time.Hour)}
+	r := governor.Request{Key: governor.JobKey{Domain: uint16(m.shape.domain), ID: m.shape.prefix + "/" + role}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.MemoryBytes: 64 << 10, governor.CPUMilli: 1000, governor.IOBytes: 2 * m.shape.hardBytes}, Deadline: m.executor.now().Add(time.Hour)}
 	r.IO = []governor.DeviceIO{{DeviceID: fmt.Sprintf("filesystem-device:%d", m.opening.binding.device), Class: governor.Sequential, Outstanding: 1, Bytes: r.Need[governor.IOBytes]}}
 	if role == "passive" {
 		r.Need[governor.Reader] = 1
 		r.MaxHold = 5 * time.Second
 		r.Budget = governor.UnitBudget{RawRows: 1, VMOps: 10000000, Pages: uint32(2*(m.shape.hardBytes/4120) + 1)}
-		r.Deadline = time.Now().Add(6 * time.Second)
+		r.Deadline = m.executor.now().Add(6 * time.Second)
 	}
 	return r
 }
@@ -185,9 +187,9 @@ func (m *canonicalN1MaintenanceOwner) grant(t *testing.T, r governor.Request) *g
 	}
 	return d.Grant
 }
-func (m *canonicalN1MaintenanceOwner) step(ctx context.Context) canonicalN1Checkpoint {
+func (m *canonicalN1MaintenanceOwner) step(ctx context.Context) checkpointMaintenanceRecord {
 	out, err := m.cp.Step(ctx, m.request("passive"))
-	return canonicalN1Checkpoint{Result: out, Error: checkpointError(err)}
+	return checkpointRecord(out, err)
 }
 func (m *canonicalN1MaintenanceOwner) start(ctx context.Context) {
 	m.workerStarted = true
@@ -211,7 +213,7 @@ func (m *canonicalN1MaintenanceOwner) start(ctx context.Context) {
 				m.overflow = true
 				return
 			}
-			if record.Error != "" || record.Result.Refusal != nil || !record.Result.PhysicalSafe {
+			if record.failed() {
 				return
 			}
 		}
@@ -220,11 +222,16 @@ func (m *canonicalN1MaintenanceOwner) start(ctx context.Context) {
 func (m *canonicalN1MaintenanceOwner) drain(stream *n1Stream) error {
 	for {
 		select {
-		case record := <-m.results:
+		case native := <-m.results:
+			record := canonicalN1Checkpoint{Result: native.Result, Error: native.Error, Deferral: native.Deferral}
 			record.observeClock(stream.origin)
 			m.started++
-			if record.Error == "" && record.Result.Refusal == nil && record.Result.PhysicalSafe {
-				m.completed++
+			if !native.failed() {
+				if native.Deferral != "" {
+					m.deferred++
+				} else {
+					m.completed++
+				}
 			} else {
 				m.incomplete = true
 			}

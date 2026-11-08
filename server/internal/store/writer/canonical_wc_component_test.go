@@ -120,6 +120,7 @@ func newCanonicalWCFixtureComponent(t *testing.T, ctx context.Context, cfg canon
 	}
 	w, pd, _, keeper := wcComponentFixture(t, wcFixtureOptions{kind: cfg.Class, actorTier: tier, extraMemory: 2 << 20, maxGrants: 5, catalog: &catalog, decorate: c.trace.decorate, maintenance: true, realClock: true})
 	c.Writer, c.Progress, c.keeper = w, pd, keeper
+	w.effective.maintenance = &checkpointMaintenance{request: keeper.request("passive"), results: keeper.results}
 	c.trace.useRegistry(w.effective.registry)
 	switch cfg.Class {
 	case "progress":

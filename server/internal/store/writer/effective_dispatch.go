@@ -79,7 +79,8 @@ type effectiveRuntime struct {
 	fenced                   bool
 	cleanupPanics            []terminalPanic
 
-	clockHighWater time.Time // composition custody under mu, then transferred into the frame
+	clockHighWater time.Time              // composition custody under mu, then transferred into the frame
+	maintenance    *checkpointMaintenance // optional trusted, funded keeper composition
 
 	// Private, explicitly composed WC profiles share the same dispatcher.
 	wcProgressPlan      *effectivePlan
@@ -526,6 +527,16 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		Class: class, Writer: true, Need: plan.need, IO: plan.io, MaxHold: plan.recipe.limit.Hold, Deadline: deadline,
 		Budget:    governor.UnitBudget{RawRows: uint32(plan.recipe.limit.Rows), VMOps: plan.recipe.limit.VMOps, Pages: uint32(plan.recipe.limit.Pages)},
 		Footprint: []governor.Scope{{Library: libraryID, Domain: uint16(purpose)}}}
+	maintained, maintenanceErr := r.prepareCheckpoint(ctx, expected)
+	if maintenanceErr != nil {
+		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, maintenanceErr)
+	}
+	if maintained {
+		before, err = r.refreshAfterCheckpoint(ctx, &expected)
+		if err != nil {
+			return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
+		}
+	}
 	if scan != nil && scan.issuer != nil && scan.issuer.work != nil {
 		if err = scan.issuer.work.submitting(); err != nil {
 			return out, acknowledged, err

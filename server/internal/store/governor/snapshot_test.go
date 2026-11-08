@@ -85,9 +85,10 @@ type snapshotConnector struct {
 	failClose                 atomic.Bool
 	checkpointPanic           atomic.Bool
 	checkpointError           atomic.Bool
+	checkpointTuple           *[3]int64
 	checkpointCancelEntered   chan struct{}
-	checkpointEntered chan struct{}
-	checkpointRelease chan struct{}
+	checkpointEntered         chan struct{}
+	checkpointRelease         chan struct{}
 	closeEntered              chan struct{}
 	mainIdentityError         error
 	releaseClose              chan struct{}
