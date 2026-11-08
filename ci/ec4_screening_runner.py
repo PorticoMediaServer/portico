@@ -309,14 +309,14 @@ class UnitCgroupMonitor(threading.Thread):
         super().__init__(daemon=True)
         self.unit = unit
         self.snapshot: dict | None = None
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
 
     def run(self) -> None:
         candidates = [
             Path(f"/sys/fs/cgroup/system.slice/{self.unit}.service"),
             Path(f"/sys/fs/cgroup/{self.unit}.service"),
         ]
-        while not self._stop.wait(1.0):
+        while not self._stop_event.wait(1.0):
             for candidate in candidates:
                 if not candidate.is_dir():
                     continue
@@ -331,7 +331,7 @@ class UnitCgroupMonitor(threading.Thread):
                     break
 
     def stop(self) -> None:
-        self._stop.set()
+        self._stop_event.set()
         self.join(timeout=5)
 
 
