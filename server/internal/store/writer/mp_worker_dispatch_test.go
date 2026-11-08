@@ -143,9 +143,10 @@ func TestMPWorkerRepeatOriginalReplayAndPhysicalStop(t *testing.T) {
 	if out.Outcome.Evidence == nil || out.Outcome.Evidence.Purpose != MPQueueRepeat || out.Outcome.Evidence.Commit != CommitSucceeded {
 		t.Fatal("missing sole writer terminal", out)
 	}
-	var retired, exited, obligations, events, rows, bytes, actual int64
-	if err = f.e.db.QueryRowContext(t.Context(), `SELECT mp_retired_generation,mp_exited_generation FROM playback_sessions WHERE id='mp-media'`).Scan(&retired, &exited); err != nil || retired != 2 || exited != 0 {
-		t.Fatal("request became exit", retired, exited, err)
+	var retired, exited, grantRetired, physicalRevision, obligations, events, rows, bytes, actual int64
+	var physicalState string
+	if err = f.e.db.QueryRowContext(t.Context(), `SELECT mp_retired_generation,mp_exited_generation,state,mp_grant_retired,mp_revision FROM playback_sessions WHERE id='mp-media'`).Scan(&retired, &exited, &physicalState, &grantRetired, &physicalRevision); err != nil || retired != 2 || exited != 0 || physicalState != "stopped" || grantRetired != 1 || physicalRevision != 2 {
+		t.Fatal("incomplete physical retirement or invented exit", retired, exited, physicalState, grantRetired, physicalRevision, err)
 	}
 	if err = f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_next_stop_obligations`).Scan(&obligations); err != nil || obligations != 1 {
 		t.Fatal(obligations, err)
@@ -176,15 +177,34 @@ func TestMPWorkerRepeatOriginalReplayAndPhysicalStop(t *testing.T) {
 	if after != events {
 		t.Fatal("replay event", after)
 	}
+
+	if _, err = f.e.db.ExecContext(t.Context(), `UPDATE mp_queue_command_receipts SET result_digest=zeroblob(32)`); err != nil {
+		t.Fatal(err)
+	}
+	if invalid, err := f.run(t.Context(), nil); !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(invalid, mpWorkerResult{}) {
+		t.Fatal("saved digest mismatch disclosed result", invalid, err)
+	}
 	mpWorkerAssertReturned(t, f)
 }
 
 func TestMPWorkerRepeatNoopConflictAndCurrentDenial(t *testing.T) {
-	for _, name := range []string{"noop", "stale-cas", "revoked", "device", "copied", "digest"} {
+	for _, name := range []string{"noop", "stale-cas", "revoked", "device", "copied", "digest", "two-prepared", "other-account", "null-generation"} {
 		t.Run(name, func(t *testing.T) {
-			f := mpWorkerFixture(t, false)
+			f := mpWorkerFixture(t, name == "noop" || name == "two-prepared" || name == "other-account" || name == "null-generation")
 			c := f.command
 			switch name {
+			case "two-prepared":
+				if _, err := f.e.db.ExecContext(t.Context(), `INSERT INTO playback_v1_prepared(token,queue_id,device_id,create_key,digest,session_id,session_generation,session_state,queue_revision,next_position,entry_id,item_id,media_session_id,request,presentation,expires_ms,state,created_ms,mp_media_generation) SELECT 'second-next',queue_id,device_id,'second-create',digest,session_id,session_generation,session_state,queue_revision,next_position,entry_id,item_id,media_session_id,request,presentation,expires_ms,state,created_ms,mp_media_generation FROM playback_v1_prepared WHERE token='mp-next'`); err != nil {
+					t.Fatal(err)
+				}
+			case "other-account":
+				if _, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_sessions SET account_id='other-account' WHERE id='mp-media'`); err != nil {
+					t.Fatal(err)
+				}
+			case "null-generation":
+				if _, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_v1_prepared SET mp_media_generation=NULL WHERE token='mp-next'`); err != nil {
+					t.Fatal(err)
+				}
 			case "noop":
 				q := c.input
 				q.Repeat = "off"
@@ -212,6 +232,16 @@ func TestMPWorkerRepeatNoopConflictAndCurrentDenial(t *testing.T) {
 				_ = f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM api_events`).Scan(&n)
 				if n != 0 {
 					t.Fatal("noop event")
+				}
+				var state string
+				var retired, obligations int64
+				if err := f.e.db.QueryRowContext(t.Context(), `SELECT state FROM playback_v1_prepared WHERE token='mp-next'`).Scan(&state); err != nil {
+					t.Fatal(err)
+				}
+				_ = f.e.db.QueryRowContext(t.Context(), `SELECT mp_retired_generation FROM playback_sessions WHERE id='mp-media'`).Scan(&retired)
+				_ = f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_next_stop_obligations`).Scan(&obligations)
+				if state != "prepared" || retired != 0 || obligations != 0 {
+					t.Fatal("noop canceled pending next", state, retired, obligations)
 				}
 			} else if err == nil || !reflect.DeepEqual(out, mpWorkerResult{}) {
 				t.Fatal("failure exposed result", out, err)
@@ -300,12 +330,28 @@ func TestMPWorkerRepeatUnknownCommitNeverApplied(t *testing.T) {
 			if !errors.Is(err, ErrResolveRequired) || out.Outcome.State == Applied || !reflect.DeepEqual(out, mpWorkerResult{}) {
 				t.Fatal("uncertain commit exposed success", out, err)
 			}
-			var revision, receipts, obligations int64
-			if err = f.e.db.QueryRowContext(t.Context(), `SELECT revision FROM queues_v1 WHERE id='mp-queue'`).Scan(&revision); err != nil {
+
+			if !f.e.ambiguous || !f.e.fenced || !f.w.effective.fenced {
+				t.Fatal("uncertain writer was not fenced")
+			}
+			// Quarantine deliberately closes the writer pool. Observe durable state
+			// through a new read-only native connection, never reopen the writer.
+			reader, _, err := sqliteconn.Open(t.Context(), f.w.effective.path, sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Full}, sqliteconn.ExistingFile)
+			if err != nil {
 				t.Fatal(err)
 			}
-			_ = f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_queue_command_receipts`).Scan(&receipts)
-			_ = f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_next_stop_obligations`).Scan(&obligations)
+			defer reader.Close()
+			var revision, receipts, obligations int64
+			if err = reader.QueryRowContext(t.Context(), `SELECT revision FROM queues_v1 WHERE id='mp-queue'`).Scan(&revision); err != nil {
+				t.Fatal(err)
+			}
+			if err = reader.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_queue_command_receipts`).Scan(&receipts); err != nil {
+				t.Fatal(err)
+			}
+			if err = reader.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_next_stop_obligations`).Scan(&obligations); err != nil {
+				t.Fatal(err)
+			}
+
 			want := int64(0)
 			if after {
 				want = 1
@@ -464,7 +510,7 @@ func mpWorkerCaptureFixture(t *testing.T, c *sql.Conn, cfg sqliteconn.Config, de
 
 func TestMPWorkerRepeatKeepsExistingStopIdentity(t *testing.T) {
 	f := mpWorkerFixture(t, true)
-	if _, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_sessions SET mp_retired_generation=2,mp_retire_request_id='older-stop' WHERE id='mp-media'`); err != nil {
+	if _, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_sessions SET state='stopped',mp_grant_retired=1,mp_revision=mp_revision+1,mp_retired_generation=2,mp_retire_request_id='older-stop' WHERE id='mp-media'`); err != nil {
 		t.Fatal(err)
 	}
 	out, err := f.run(t.Context(), f.command)
@@ -493,6 +539,39 @@ func TestMPWorkerRepeatQuotaFailureRollsBack(t *testing.T) {
 	_ = f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM api_events`).Scan(&events)
 	if revision != 3 || retired != 0 || receipts != 0 || events != 0 {
 		t.Fatal("quota left partial effects", revision, retired, receipts, events)
+	}
+	mpWorkerAssertReturned(t, f)
+}
+
+func TestMPWorkerRepeatRowQuotaRefusesSecondReceipt(t *testing.T) {
+	f := mpWorkerFixture(t, false)
+	if _, err := f.run(t.Context(), f.command); err != nil {
+		t.Fatal(err)
+	}
+	// Acknowledging advances only the floor: first receipt and bytes stay live.
+	if _, err := f.e.db.ExecContext(t.Context(), `UPDATE queues_v1 SET mp_command_acknowledged_sequence=1 WHERE id='mp-queue'`); err != nil {
+		t.Fatal(err)
+	}
+	p := *f.w.effective.mpRepeatPlan
+	p.mpWorkerLimits.rows = 1
+	f.w.effective.mpRepeatPlan = &p
+	q := f.command.input
+	q.ExpectedRevision = 4
+	q.Repeat = "one"
+	id := f.command.reference.Identity
+	id.Sequence = 2
+	id.OperationID = [16]byte{90}
+	command, err := newMPRepeatCommand(id, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := f.w.runMPRepeat(t.Context(), f.cap, q.Queue, command.reference, command)
+	if err == nil || !reflect.DeepEqual(out, mpWorkerResult{}) {
+		t.Fatal("row quota bypass", out, err)
+	}
+	var rows, revision int64
+	if err = f.e.db.QueryRowContext(t.Context(), `SELECT mp_receipt_rows,revision FROM queues_v1 WHERE id='mp-queue'`).Scan(&rows, &revision); err != nil || rows != 1 || revision != 4 {
+		t.Fatal(rows, revision, err)
 	}
 	mpWorkerAssertReturned(t, f)
 }

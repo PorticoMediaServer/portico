@@ -2,6 +2,7 @@ package writer
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/apievents"
 	"strconv"
@@ -67,9 +68,14 @@ func applyMPRepeat(ctx context.Context, t *commandTurn, q mpQueueRepeatRequest, 
 		if err != nil {
 			return out, err
 		}
-		if err = row.Scan(&out.CanceledToken, &out.Media, &out.Generation); err != nil {
+		var generation sql.NullInt64
+		if err = row.Scan(&out.CanceledToken, &out.Media, &generation); err != nil {
 			return out, err
 		}
+		if !generation.Valid || generation.Int64 <= 0 {
+			return out, ErrResolveRequired
+		}
+		out.Generation = generation.Int64
 		if out.CanceledToken != nextKey || int64(len(out.CanceledToken)) != tokenBytes || int64(len(out.Media)) != mediaBytes || !mpWorkerID(out.Media) || out.Generation <= 0 {
 			return out, ErrResolveRequired
 		}
@@ -80,18 +86,32 @@ func applyMPRepeat(ctx context.Context, t *commandTurn, q mpQueueRepeatRequest, 
 		if err != nil {
 			return out, err
 		}
-		var stopBytes, retired, exited int64
-		if err = row.Scan(&stopBytes, &retired, &exited); err != nil {
+		var stopBytes, retired, exited, physicalRevision, executionBytes int64
+		if err = row.Scan(&stopBytes, &retired, &exited, &physicalRevision, &executionBytes); err != nil {
 			return out, err
 		}
 		if stopBytes < 0 || stopBytes > 128 || retired < 0 || retired > out.Generation || exited < 0 || exited > retired || retired == out.Generation && stopBytes == 0 {
 			return out, ErrResolveRequired
 		}
+		if physicalRevision <= 0 || physicalRevision == 9223372036854775807 || executionBytes <= 0 || executionBytes > 512 {
+			return out, ErrResolveRequired
+		}
+		row, err = wc008DraftQuery(ctx, t, mpRepeatExecution, out.Media, out.Generation, physicalRevision, q.Account, q.Profile)
+		if err != nil {
+			return out, err
+		}
+		var execution string
+		if err = row.Scan(&execution); err != nil {
+			return out, errors.Join(ErrConflict, err)
+		}
+		if int64(len(execution)) != executionBytes {
+			return out, ErrResolveRequired
+		}
 		// REQUEST retirement; never accept a caller's physical-exit observation.
 		if retired == out.Generation {
-			row, err = wc008DraftQuery(ctx, t, mpRepeatExistingStop, out.Media, out.Generation, q.Account, q.Profile)
+			row, err = wc008DraftQuery(ctx, t, mpRepeatExistingStop, out.Media, out.Generation, q.Account, q.Profile, physicalRevision, execution)
 		} else {
-			row, err = wc008DraftQuery(ctx, t, mpRepeatStop, q.StopRequest, out.Media, out.Generation, q.Account, q.Profile)
+			row, err = wc008DraftQuery(ctx, t, mpRepeatStop, q.StopRequest, out.Media, physicalRevision, out.Generation, execution, q.Account, q.Profile)
 		}
 		if err != nil {
 			return out, err

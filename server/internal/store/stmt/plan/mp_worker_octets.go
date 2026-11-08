@@ -17,7 +17,7 @@ func init() {
 		params          []stmt.Param
 	}{
 		{"mp.repeat.next_bytes", `SELECT octet_length(token),octet_length(media_session_id) FROM playback_v1_prepared INDEXED BY sqlite_autoindex_playback_v1_prepared_1 WHERE token=? AND queue_id=? AND state='prepared'`, "playback_v1_prepared", "token", []stmt.Param{{Name: "next", Type: stmt.Text}, {Name: "queue", Type: stmt.Text}}},
-		{"mp.repeat.stop_bytes", `SELECT octet_length(mp_retire_request_id),mp_retired_generation,mp_exited_generation FROM playback_sessions INDEXED BY sqlite_autoindex_playback_sessions_1 WHERE id=? AND generation=?`, "playback_sessions", "id", []stmt.Param{{Name: "media", Type: stmt.Text}, {Name: "generation", Type: stmt.Integer}}},
+		{"mp.repeat.stop_bytes", `SELECT octet_length(mp_retire_request_id),mp_retired_generation,mp_exited_generation,mp_revision,octet_length(mp_execution_id) FROM playback_sessions INDEXED BY sqlite_autoindex_playback_sessions_1 WHERE id=? AND generation=?`, "playback_sessions", "id", []stmt.Param{{Name: "media", Type: stmt.Text}, {Name: "generation", Type: stmt.Integer}}},
 	} {
 		p := p
 		index := "sqlite_autoindex_" + p.table + "_1"
