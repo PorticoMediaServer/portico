@@ -83,7 +83,7 @@ func TestInventoryCommandCompleteBudgetHasNoPartialSuccess(t *testing.T) {
 		steps[i] = statementStep{id: def.ID, work: Work{Rows: 1, VMOps: 1, Pages: 1, WALBytes: 1, Hold: time.Microsecond}}
 	}
 	before := append([]statementStep(nil), steps...)
-	limit := Work{Rows: 58, VMOps: 58, Pages: 58, WALBytes: 58, Hold: 58 * time.Microsecond}
+	limit := Work{Rows: 65, VMOps: 65, Pages: 65, WALBytes: 65, Hold: 65 * time.Microsecond}
 	if got, err := reserveCommandSteps(limit, steps, defs, InventoryAccept); err != nil || got != (Work{}) {
 		t.Fatalf("exact complete budget: %v %v", got, err)
 	}
