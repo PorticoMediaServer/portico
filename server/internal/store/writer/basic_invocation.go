@@ -1,0 +1,60 @@
+package writer
+
+import "context"
+
+// A closed private arm of the existing scan invocation. The opaque disclosure
+// is still W-issued; these inert values cannot mint authority or open a turn.
+// Accept remains closed until its complete activation/cohort contract lands.
+type basicInvocation struct {
+	request BasicReceiptRequest
+	accept  *basicAcceptCommand
+	work    *scanDriverWork // W-owned transient envelope; never in the request digest
+}
+
+func (in *basicInvocation) validate() (CommandID, error) {
+	if in == nil || in.request.Scan.RunID == "" || in.request.Scan.LibraryID <= 0 || in.request.Scan.LibraryKey == "" || in.request.Scan.Receipt.Identity.Sequence <= 0 {
+		return 0, ErrInvalid
+	}
+	kind, err := basicResourceCommand(in.request.Purpose)
+	if err != nil || kind != BasicAccept {
+		return 0, ErrInvalid
+	}
+	var original BasicReceiptRequest
+	switch {
+	case in.accept != nil:
+		if kind != BasicAccept {
+			return 0, ErrInvalid
+		}
+		original, err = in.accept.receiptRequest()
+	default:
+		return kind, nil // original Resolve/ACK; never a fresh effects request
+	}
+	if err != nil || original != in.request {
+		return 0, ErrInvalid
+	}
+	return kind, nil
+}
+
+func (in *basicInvocation) fresh() bool {
+	return in != nil && (in.accept != nil)
+}
+
+func (in *basicInvocation) leaseExpiresMS() int64 {
+	if in != nil && in.accept != nil {
+		return in.accept.request.original.run.leaseExpiresMS
+	}
+	return 0
+}
+
+// Domain bodies use the SAME commandTurn after current disclosure and receipt
+// classification. They never assign Outcome or perform physical publication.
+func (in *basicInvocation) apply(ctx context.Context, turn *commandTurn) (value BasicResult, err error) {
+	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
+	if _, err = in.validate(); err != nil {
+		return value, err
+	}
+	if in.accept != nil {
+		return applyBasicAccept(ctx, turn, in.accept)
+	}
+	return value, ErrInvalid
+}
