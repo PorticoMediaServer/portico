@@ -14,6 +14,8 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
 // This fixture is mechanical read-contract evidence only. It does not exercise
@@ -75,11 +77,13 @@ func rsAlbumProviderFixture(t *testing.T, mutate func(*testing.T, *browseFixture
 	defs = append(defs, TitleFactsDefinitions()...)
 	defs = append(defs, ArtworkDefinitions()...)
 	hash := rsArtistProviderHash()
-	// Actual Reader Capture and pool issuance happen inside composeReadFixture
-	// before any read. The parent's no-provider analyzed-profile capture stays
-	// untouched; a populated runtime singleton makes ANALYZE choose SCAN for the
-	// production NOT INDEXED points, which is outside this read-ABI fixture.
-	f := composeReadFixture(t, source, defs, cfg, true, hash)
+	// Capture the actual closed registry in both native planner profiles.
+	f := composeReadFixture(t, source, defs, cfg, false, hash)
+	f.exec(t, "ANALYZE")
+	analyzed := captureBrowse(t, f, defs, plan.Analyzed, hash)
+	if _, err := stmt.New(defs, analyzed.Receipt()); err != nil {
+		t.Fatal(err)
+	}
 	r, err := NewRSArtistAlbumReader(f.snapshots, f.authority)
 	if err != nil {
 		t.Fatal(err)

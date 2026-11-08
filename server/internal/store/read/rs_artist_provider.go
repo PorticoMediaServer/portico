@@ -180,7 +180,7 @@ func (r *RSArtistAlbumReader) providerFences(ctx context.Context, req governor.R
 		}
 		return nil, nil
 	}
-	w := &rsByteWindow{source: r.snapshots, preflightCalls: uint16(3*len(p.cards) + 16), goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}
+	w := &rsByteWindow{source: r.snapshots, preflightCalls: uint16(4*len(p.cards) + 16), goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}
 	_, c, e := rsPeoplePublish(ctx, w, req, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[struct{}]{func(context.Context, browseQuery, browseFence, *struct{}) error { return nil }}, root)
 	addSearchReadCost(cost, &c)
 	return e
@@ -207,16 +207,40 @@ func rsAlbumProviderSource(q browseQuery, id, library int64) ([]any, []any, erro
 	if e != nil {
 		return nil, nil, e
 	}
-	if len(state) > 1 || len(state) == 1 && len(state[0]) != 20 {
+	if len(state) > 1 || len(state) == 1 && len(state[0]) != 18 {
 		return nil, nil, ErrUnqualified
 	}
 	flat := append([]any(nil), entity[0]...)
 	if len(slot) > 0 {
 		flat = append(flat, slot[0]...)
 	}
+	// Consent is an independent exact singleton point. Joining the singleton
+	// lets ANALYZE prefer a table SCAN; the point remains SEARCH in both profiles.
+	runtime, e := q("rs.album.provider.runtime", int64(1))
+	if e != nil {
+		return nil, nil, e
+	}
+	if len(runtime) > 1 || len(runtime) == 1 && len(runtime[0]) != 2 {
+		return nil, nil, ErrUnqualified
+	}
+	flat = append(flat, int64(len(runtime)))
+	if len(runtime) == 1 {
+		flat = append(flat, runtime[0]...)
+	}
 	if len(state) == 0 {
 		return flat, nil, nil
 	}
 	flat = append(flat, state[0]...)
+	if len(runtime) == 0 {
+		return flat, nil, nil
+	}
+	epoch, ok := runtime[0][0].(int64)
+	online, ok2 := runtime[0][1].(int64)
+	if !ok || !ok2 || epoch < 0 || online < 0 || online > 1 {
+		return nil, nil, ErrUnqualified
+	}
+	if online != 1 || state[0][11] != epoch {
+		return flat, nil, nil
+	}
 	return flat, state[0], nil
 }
