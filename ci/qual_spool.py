@@ -1,10 +1,13 @@
 """Bounded gzip observer outside the measured engine cgroup; no SQLite."""
+import argparse
 import gzip
 import hashlib
 import json
 import os
 from pathlib import Path
 import socket
+import subprocess
+import sys
 import threading
 import time
 import zlib
@@ -183,3 +186,53 @@ def timeline(root, stop):
     finally:
         result.update(samples=samples,compressed_bytes=sum(p['compressed_bytes'] for p in result['parts']))
         q.atomic_json(root/'timeline.json',result)
+
+
+def run(root, cwd, argv, timeout=3300):
+    """Own the external gzip observer, then launch the engine against raw.sock.
+
+    The engine writes records to the socket only: the caller owns every
+    compression allocation, and no plain stream file is created or fsynced on
+    the measured device. The engine exit code is returned; the observer's
+    round-trip proof is required before the cell can be treated as complete.
+    """
+    root, cwd = Path(root), Path(cwd)
+    q.require(root.is_absolute() and root == root.resolve() and cwd.is_dir(), 'absolute observer root and real engine cwd required')
+    root.mkdir(parents=True, exist_ok=True)
+    q.require(not (root/'capture.json').exists(), 'fresh observer root required')
+    if argv and argv[0] == '--':
+        argv = argv[1:]
+    q.require(len(argv) > 0, 'engine argv required')
+    env = dict(os.environ, PORTICO_CANONICAL_HELD_STREAM='unix-gzip-v1')
+    def invoke():
+        return subprocess.run(argv, cwd=cwd, env=env, check=False, timeout=timeout).returncode
+    code = observe(root, invoke)
+    capture = json.loads((root/'capture.json').read_text(), object_pairs_hook=q.no_duplicates)
+    q.require(capture.get('complete') is True and capture.get('verified_roundtrip') is True,
+              'observer capture incomplete: ' + str(capture.get('error')))
+    capture['engine_exit_code'] = code
+    q.atomic_json(root/'capture.json', capture)
+    print(json.dumps(dict(method=capture['method'], engine_exit_code=code,
+                          original_bytes=capture['original_bytes'],
+                          original_sha256=capture['original_sha256'],
+                          stored_bytes=capture['stored_bytes'],
+                          observer_cgroup=capture['observer_cgroup'])))
+    return code
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='Bounded external gzip observer for EC2/EC3 raw streams')
+    commands = parser.add_subparsers(dest='command', required=True)
+    launch = commands.add_parser('run', help='observe one engine run that streams to raw.sock')
+    launch.add_argument('--root', required=True, help='output root; receives raw.sock, raw.ndjson.gz and capture.json')
+    launch.add_argument('--cwd', required=True, help='engine working directory')
+    launch.add_argument('--timeout', type=int, default=3300, help='engine wall limit in seconds')
+    launch.add_argument('engine', nargs=argparse.REMAINDER, help='engine argv after --')
+    args = parser.parse_args(argv)
+    if args.command == 'run':
+        return run(args.root, args.cwd, args.engine, args.timeout)
+    parser.error('unknown command')
+
+
+if __name__ == '__main__':
+    sys.exit(main())

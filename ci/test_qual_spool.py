@@ -1,11 +1,14 @@
 """Tiny streaming/compression controls, never database or qualification runs."""
+import contextlib
 import gzip
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -96,3 +99,34 @@ q.atomic_json(root/'engine-check.json',s.wait_capture(root))
         c.persist_memory(root,output)
         self.assertEqual(gzip.decompress((output/'raw.ndjson.gz').read_bytes()),raw)
         self.assertFalse(any(root.iterdir()))
+
+
+class RunCommand(unittest.TestCase):
+    """The screening `run` CLI: engine on raw.sock, compressed spool retained."""
+
+    def test_run_streams_the_engine_to_gzip_and_keeps_its_exit_code(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = (Path(tmp)/'out').resolve(); root.mkdir()
+            engine = Path(tmp)/'engine.py'
+            engine.write_text(
+                'import socket,sys\n'
+                's=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n'
+                's.connect(sys.argv[1]);s.sendall(b\'{"kind":"final","complete":true}\\n\');s.close()\n'
+                'sys.exit(3)\n')
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = s.run(root, Path(tmp), [sys.executable, str(engine), str(root/'raw.sock')], timeout=30)
+            self.assertEqual(code, 3)
+            capture = json.loads((root/'capture.json').read_text())
+            self.assertTrue(capture['complete']); self.assertTrue(capture['verified_roundtrip'])
+            self.assertEqual(capture['engine_exit_code'], 3)
+            self.assertEqual(gzip.decompress((root/'raw.ndjson.gz').read_bytes()),
+                             b'{"kind":"final","complete":true}\n')
+            self.assertFalse((root/'raw.ndjson').exists())
+
+    def test_run_requires_the_engine_to_connect(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = (Path(tmp)/'out').resolve(); root.mkdir()
+            with contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(ValueError, 'never connected'):
+                    s.run(root, Path(tmp), [sys.executable, '-c', 'pass'], timeout=30)
+            self.assertFalse((root/'raw.ndjson').exists())
