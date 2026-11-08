@@ -13,15 +13,17 @@ type enrichAcceptCommand struct {
 }
 
 type enrichAcceptRequest struct {
-	variant       string
-	beginIdentity CommandIdentity
-	beginRequest  RequestDigest
-	beginResult   EffectiveStageBeginResult
-	owner         effectiveBeginOwner
-	entity        effectiveBeginEntity
-	producer      effectiveBeginProducer
-	image         enrichAcceptImage
-	rows          []effectiveCreditTuple
+	variant                  string
+	beginIdentity            CommandIdentity
+	beginRequest             RequestDigest
+	beginResult              EffectiveStageBeginResult
+	owner                    effectiveBeginOwner
+	entity                   effectiveBeginEntity
+	producer                 effectiveBeginProducer
+	image                    enrichAcceptImage
+	rows                     []effectiveCreditTuple
+	prior                    enrichAcceptPrior
+	stageSlot, reservedBytes int64
 }
 
 // Complete prospective image intent and observed current revision. Actual
@@ -32,4 +34,13 @@ type enrichAcceptImage struct {
 	header                   effectiveBeginHeader
 	stagedCount, stagedBytes int64
 	seed, chain              [32]byte
+}
+
+// The exact old CURRENT reservation moves into this candidate's prior stage
+// slot. Its bytes and pins remain charged until actual downstream cleanup.
+type enrichAcceptPrior struct {
+	exists                                     bool
+	owner                                      string
+	incarnation                                [16]byte
+	generation, image, pinUnits, reservedBytes int64
 }
