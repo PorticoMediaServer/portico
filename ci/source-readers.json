@@ -369,6 +369,7 @@
         "TestNativeSearchPublicationDenialAndRetirement",
         "TestNativeSearchReadJoinedStamp",
         "TestNativeSearchRefusesUnsupportedAndStaleProofs",
+        "TestNativeSearchRetainedLibrariesShareOneOperation",
         "TestNativeSearchUsesCapturedDomainBytePairs"
       ]
     }
