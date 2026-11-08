@@ -5,142 +5,60 @@ import (
 	"testing"
 )
 
-// The pre-registry gate expressions as of e0953113, frozen as the behaviour
-// oracle. Live helpers are replaced by their then-exact sets, and only those
-// legacy purposes are compared, so new domain purposes never edit this file.
-var (
-	frozenDirectory  = map[CommandID]bool{InventoryDirectoryDiscover: true, InventoryDirectoryEOF: true, InventoryDirectoryRefuse: true, InventoryTraversalComplete: true}
-	frozenPublisher  = map[CommandID]bool{SearchFragmentStage: true, SearchHeadPublish: true}
-	frozenEnrichment = map[CommandID]bool{EvidenceStage: true, CreditStage: true, EvidenceSeal: true, CreditSourceSeal: true}
-	frozenEffective  = map[CommandID]bool{EffectiveStage: true, EnrichAccept: true}
-)
-
-// Intended post-legacy plan openings, each tied to the PR that opened it. Only
-// the plan gate may differ; memory, clock and partition facts stay frozen.
-var sanctionedPlanOpenings = map[CommandID]bool{BasicAccept: true, BasicStage: true, BasicSeal: true} // #1670; Stage/Seal: Basic P4a
-
-func frozenLegacyPurposes() []CommandID {
-	ids := []CommandID{InventoryAccept, InventoryCreate, InventoryClaim, SearchImageStage, BasicStage, BasicSeal, BasicAccept,
-		ProgressAccept, SecurityAccept, ProgressReceiptReclaim}
-	for _, set := range []map[CommandID]bool{frozenDirectory, frozenPublisher, frozenEnrichment, frozenEffective} {
-		for id := range set {
-			ids = append(ids, id)
-		}
+// The purpose registry replaced the pre-registry gate expressions frozen at
+// e0953113. This file holds every declaration to the shared gates' invariants
+// instead of pinning per-purpose sets: a global purpose list was a hotspot that
+// every new domain purpose had to edit (#1680). The registry is the only source
+// of purpose facts.
+func TestCommandPurposeRegistryInvariants(t *testing.T) {
+	if len(closedCommandPurposes) == 0 {
+		t.Fatal("no command purposes")
 	}
-	return ids
-}
-func legacyPlanPurpose(p CommandID) bool {
-	return !(p != EffectiveStage && p != EnrichAccept && p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && !frozenDirectory[p] && !frozenPublisher[p] && !frozenEnrichment[p])
-}
-
-func legacyMemoryPurpose(p CommandID) bool {
-	return !(p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != BasicStage && p != BasicSeal && p != BasicAccept && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && p != EffectiveStage && p != EnrichAccept && !frozenDirectory[p] && !frozenPublisher[p] && !frozenEnrichment[p])
-}
-
-// The legacy last-assignment-wins partition selection.
-func legacyPartition(p CommandID) memoryPartition {
-	b := inventoryPartition
-	if frozenEnrichment[p] {
-		b = enrichmentPartition
-	}
-	if p == SearchImageStage {
-		b = searchImagePartition
-	}
-	if p == InventoryCreate || p == InventoryClaim {
-		b = scanLifecyclePartition
-	}
-	if p == BasicStage || p == BasicSeal || p == BasicAccept {
-		b = basicPartition
-	}
-	if p == ProgressAccept {
-		b = wcProgressPartition
-	}
-	if p == ProgressReceiptReclaim {
-		b = wcReclaimPartition
-	}
-	if p == SecurityAccept {
-		b = wcSecurityPartition
-	}
-	if frozenDirectory[p] {
-		b = directoryPartition
-	}
-	if frozenPublisher[p] {
-		b = publisherPartition
-	}
-	if frozenEffective[p] {
-		b = effectiveSourcePartition
-	}
-	return b
-}
-
-// The legacy freezeCommandPlan per-field purpose predicates.
-func legacyPartitionAllowed(p CommandID, part memoryPartition) bool {
-	switch part {
-	case inventoryPartition:
-		return p == InventoryAccept
-	case searchImagePartition:
-		return p == SearchImageStage
-	case scanLifecyclePartition:
-		return p == InventoryCreate || p == InventoryClaim
-	case enrichmentPartition:
-		return frozenEnrichment[p]
-	case basicPartition:
-		return p == BasicStage || p == BasicSeal || p == BasicAccept
-	case wcProgressPartition:
-		return p == ProgressAccept
-	case wcSecurityPartition:
-		return p == SecurityAccept
-	case wcReclaimPartition:
-		return p == ProgressReceiptReclaim
-	case directoryPartition:
-		return frozenDirectory[p]
-	case publisherPartition:
-		return frozenPublisher[p]
-	case effectiveSourcePartition:
-		return frozenEffective[p]
-	}
-	return false
-}
-
-func legacyClock(p CommandID) commandClock {
-	if p != InventoryAccept && p != SearchImageStage && p != InventoryCreate && p != InventoryClaim && p != BasicStage && p != BasicSeal && p != BasicAccept && p != ProgressAccept && p != SecurityAccept && p != ProgressReceiptReclaim && !frozenDirectory[p] && !frozenPublisher[p] {
-		return noCommandClock
-	}
-	if p == InventoryCreate || p == ProgressAccept || p == SecurityAccept || p == ProgressReceiptReclaim {
-		return clockWithoutLease
-	}
-	return clockUnderLease
-}
-
-func TestCommandPurposeRegistryMatchesLegacyGates(t *testing.T) {
-	for _, id := range frozenLegacyPurposes() {
-		facts, ok := commandPurposeFacts(id)
-		if commandPlanPurpose(id) != (legacyPlanPurpose(id) || sanctionedPlanOpenings[id]) {
-			t.Fatal("plan gate changed", id)
-		}
-		wantMemory := noMemoryPartition
-		if legacyMemoryPurpose(id) {
-			wantMemory = legacyPartition(id)
-		}
-		if facts.memory != wantMemory {
-			t.Fatal("memory partition changed", id, facts.memory, wantMemory)
-		}
-		if facts.clock != legacyClock(id) {
-			t.Fatal("clock gate changed", id, facts.clock, legacyClock(id))
-		}
-		for part := noMemoryPartition + 1; part < memoryPartitionCount; part++ {
-			if purposeUsesPartition(id, part) != legacyPartitionAllowed(id, part) {
-				t.Fatal("plan partition purpose changed", id, part)
-			}
-		}
-		if ok != (legacyPlanPurpose(id) || legacyMemoryPurpose(id) || legacyClock(id) != noCommandClock) {
-			t.Fatal("registry membership changed", id)
-		}
-	}
-	// Every registry entry, legacy or new, is a closed command with builder-valid facts.
+	byPartition := map[memoryPartition][]CommandID{}
 	for id, p := range closedCommandPurposes {
+		// Every entry names a closed command and carries builder-valid facts.
 		if _, closed := closedCommandDescriptors[id]; !closed || p.id != id || p.memory >= memoryPartitionCount || p.clock > clockUnderLease {
 			t.Fatal("registry entry escaped builder invariants", id)
+		}
+		// A plan purpose must hold an enforceable fact: freezeCommandPlan installs
+		// a profile and the purpose then gates a memory partition or a clock mode.
+		if p.plan && p.memory == noMemoryPartition && p.clock == noCommandClock {
+			t.Fatal("plan purpose holds neither a partition nor a clock", id)
+		}
+		// A purpose belongs to exactly one partition, and the partition gate must
+		// report the declared one only (the per-field legacy predicates, #1680).
+		claims := 0
+		for part := noMemoryPartition + 1; part < memoryPartitionCount; part++ {
+			if purposeUsesPartition(id, part) {
+				claims++
+			}
+		}
+		if claims > 1 || (claims == 1) != (p.memory != noMemoryPartition) {
+			t.Fatal("partition gate disagrees with declared facts", id, claims, p.memory)
+		}
+		if p.memory != noMemoryPartition {
+			byPartition[p.memory] = append(byPartition[p.memory], id)
+		}
+	}
+	// A partition is one plan profile field: no declared partition may be dead.
+	for part := noMemoryPartition + 1; part < memoryPartitionCount; part++ {
+		if len(byPartition[part]) == 0 {
+			t.Fatal("declared partition has no purpose", part)
+		}
+	}
+	// Membership is total: every closed command is either registered or refused
+	// by every shared gate. Only the registry can admit a purpose.
+	for id := range closedCommandDescriptors {
+		if _, declared := commandPurposeFacts(id); declared {
+			continue
+		}
+		if commandPlanPurpose(id) {
+			t.Fatal("undeclared purpose reached the plan gate", id)
+		}
+		for part := noMemoryPartition + 1; part < memoryPartitionCount; part++ {
+			if purposeUsesPartition(id, part) {
+				t.Fatal("undeclared purpose reached the partition gate", id, part)
+			}
 		}
 	}
 }
