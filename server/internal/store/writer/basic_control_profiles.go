@@ -21,9 +21,11 @@ func (r *effectiveRuntime) basicPlan(kind CommandID) *effectivePlan {
 	return nil
 }
 
-// Exact maximum uses inside ONE Stage or Seal command: shared history and
-// control reads, then exactly one family body. A media Stage installs at most
-// basicStageMaxRows rows of its family; a media Seal reads its rows once.
+// Upper-bound uses inside ONE Stage or Seal command: shared history and
+// control reads, then exactly one family body. The profile covers every
+// operation of its purpose, so a stream turn reserves media points it does not
+// run; a media Stage installs at most basicStageMaxRows rows of ONE family, and
+// a media Seal reads its rows once. Forecasts are conservative, never short.
 func basicControlMaxUses(purpose CommandID, id stmt.ID) int {
 	switch id {
 	case inventoryDisclosureJob, inventoryDisclosureLibrary, scanReceiptOwner, scanReceiptAck, scanReceiptReclaimKey,
