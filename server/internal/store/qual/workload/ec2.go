@@ -22,6 +22,7 @@ const (
 	EC2Detail          EC2Operation = "detail"
 	EC2Playback        EC2Operation = "playback_lookup"
 	EC2Continue        EC2Operation = "continue_watching"
+	EC2FullSearch      EC2Operation = "full_search"
 	EC2Passive         EC2Operation = "passive"
 	EC2Recovery        EC2Operation = "recover_wal"
 	EC2WAL             EC2Operation = "wal_observe"
@@ -35,9 +36,9 @@ var ErrEC2Composition = errors.New("EC2 source-bound native composition unavaila
 // Recovery is a separate request cadence: only GV may establish hard pressure,
 // drain custody and perform recovery. An offer never proves a reset occurred.
 type EC2Schedule struct {
-	WriterEvery, ReaderEvery, PassiveEvery, RecoveryEvery, WALEvery time.Duration
-	WriterPattern, ReaderPattern                                    []EC2Operation
-	CheckpointMode                                                  string // serialized or concurrent; declaration only
+	WriterEvery, ReaderEvery, SearchEvery, PassiveEvery, RecoveryEvery, WALEvery time.Duration
+	WriterPattern, ReaderPattern                                                 []EC2Operation
+	CheckpointMode                                                               string // serialized or concurrent; declaration only
 }
 
 // EC2Bindings contains already-owned typed Actions, not constructors, SQL or
@@ -61,7 +62,7 @@ type EC2Manifest struct {
 func EC2Streams(s EC2Schedule, bindings EC2Bindings) ([]Stream, EC2Manifest, error) {
 	m := EC2Manifest{Schedule: s, Missing: []EC2Operation{}, Scope: "selected component only; qualification=false; WAL-BOUND/WAL-RESET unclassified"}
 	validEvery := func(v time.Duration) bool { return v >= time.Millisecond && v <= 2*time.Hour }
-	if !validEvery(s.WriterEvery) || !validEvery(s.WALEvery) || len(s.WriterPattern) == 0 || len(s.WriterPattern) > 32 || len(s.ReaderPattern) > 4 ||
+	if !validEvery(s.WriterEvery) || !validEvery(s.WALEvery) || len(s.WriterPattern) == 0 || len(s.WriterPattern) > 32 || len(s.ReaderPattern) > 32 ||
 		(s.CheckpointMode != "serialized" && s.CheckpointMode != "concurrent") ||
 		(len(s.ReaderPattern) > 0 && !validEvery(s.ReaderEvery)) || (len(s.ReaderPattern) == 0 && s.ReaderEvery != 0) ||
 		(s.PassiveEvery != 0 && (s.PassiveEvery < 50*time.Millisecond || s.PassiveEvery > 2*time.Hour)) ||
@@ -105,13 +106,14 @@ func EC2Streams(s EC2Schedule, bindings EC2Bindings) ([]Stream, EC2Manifest, err
 	}
 	streams := []Stream{writer}
 	if len(s.ReaderPattern) > 0 {
+		// One serial foreground worker (the fixture's Reader:1 profile). The
+		// pattern may repeat entries to declare a realistic share, e.g. search
+		// well below browse/detail, without a second concurrent reader.
 		readers := Stream{Name: "foreground", Every: s.ReaderEvery}
-		seen := map[EC2Operation]bool{}
 		for _, op := range s.ReaderPattern {
-			if (op != EC2Browse && op != EC2Detail && op != EC2Playback && op != EC2Continue) || seen[op] {
+			if op != EC2Browse && op != EC2Detail && op != EC2Playback && op != EC2Continue && op != EC2FullSearch {
 				return nil, m, errors.New("invalid EC2 reader pattern")
 			}
-			seen[op] = true
 			readers.Pattern = append(readers.Pattern, bind(op))
 		}
 		streams = append(streams, readers)

@@ -38,6 +38,7 @@ type pairedSink struct {
 	finalSeen, complete bool
 	drivers             bool
 	progress            map[string]workload.StreamProgress
+	search              []workload.Observation
 }
 
 func (s *pairedSink) Append(record workload.Record) error {
@@ -51,6 +52,9 @@ func (s *pairedSink) Append(record workload.Record) error {
 			s.progress = map[string]workload.StreamProgress{}
 		}
 		s.progress[record.Progress.Name] = *record.Progress
+	}
+	if record.Offer != nil && record.Offer.Operation == "full_search" && record.Observation != nil {
+		s.search = append(s.search, *record.Observation)
 	}
 	raw, err := json.Marshal(record)
 	if err != nil {

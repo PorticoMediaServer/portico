@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"testing"
 
@@ -19,6 +20,22 @@ import (
 // It confers no production source, permission, admission or resource proof.
 func nativeFixtureRegistry(t *testing.T, conn *sql.Conn, policy sqliteconn.Config, defs []stmt.Definition, sources ...string) *stmt.Registry {
 	t.Helper()
+	// Composition layers may repeat the same compiled definition (for example
+	// the shared browse set inside NativeFullSearchDefinitions). One catalogue
+	// entry per ID is required; a differing duplicate is a fixture error.
+	unique := make([]stmt.Definition, 0, len(defs))
+	seen := map[stmt.ID]stmt.Definition{}
+	for _, def := range defs {
+		if prior, ok := seen[def.ID]; ok {
+			if prior.SQL != def.SQL || fmt.Sprint(prior.Params) != fmt.Sprint(def.Params) {
+				t.Fatalf("conflicting duplicate definition %s", def.ID)
+			}
+			continue
+		}
+		seen[def.ID] = def
+		unique = append(unique, def)
+	}
+	defs = unique
 	catalogue, err := stmt.Describe(defs)
 	if err != nil {
 		t.Fatal(err)

@@ -158,10 +158,15 @@
         "server/internal/store/internal/readfixture/source.go",
         "server/internal/store/internal/readfixture/config.go",
         "server/internal/store/qual/workload/foreground.go",
-        "server/internal/store/read/foreground.go"
+        "server/internal/store/read/foreground.go",
+        "server/internal/store/read/native_full_search.go",
+        "server/internal/store/read/native_postings.go",
+        "server/internal/store/read/native_search_statements.go",
+        "server/internal/store/read/owner_reverse.go",
+        "server/internal/store/read/native_auto_statements.go"
       ],
       "files": ["server/internal/store/writer/n1_paired_export_test.go", "server/internal/store/writer/ec5_memory_external_test.go"],
-      "tests": ["TestEC2N1WALComposition", "TestEC2NativeFunctional", "TestEC2SustainedMeasurement", "TestEC5CgroupFunctional", "TestEC5MemoryChildControl", "TestEC5PairedMemoryMeasurement", "TestEC5SustainedMemoryMeasurement", "TestN1PairedCanonicalPopulationFunctional", "TestN1PairedMeasurement", "TestN1PairedSameDBAndLIVE"]
+      "tests": ["TestEC2N1WALComposition", "TestEC2NativeFullSearchFunctional", "TestEC2NativeFunctional", "TestEC2SustainedMeasurement", "TestEC5CgroupFunctional", "TestEC5MemoryChildControl", "TestEC5PairedMemoryMeasurement", "TestEC5SustainedMemoryMeasurement", "TestN1PairedCanonicalPopulationFunctional", "TestN1PairedMeasurement", "TestN1PairedSameDBAndLIVE"]
     },
     {
       "package": "server/internal/compactcatalog/identityvalue",
