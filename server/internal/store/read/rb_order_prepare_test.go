@@ -567,3 +567,91 @@ func TestRBOrderPreparePageDriftAndDisposal(t *testing.T) {
 		}
 	})
 }
+
+func TestRBOrderPreparePageForeignCursorRefused(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBOrderPrepareFixture(t)
+		begin := func(key RBOrderKey) *RBOrderPreparation {
+			t.Helper()
+			job, err := r.BeginRBOrderPrepare(t.Context(), 1, 1<<20, RBOrderPrepareInput{View: f.input, Key: key})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rbOrderPrepareRun(t, job)
+			return job
+		}
+		firstPage := func(job *RBOrderPreparation) *RBOrderPrepareCursor {
+			t.Helper()
+			page, _, err := rbOrderPrepareRead(t, f, job, f.input, nil, 40)
+			if err != nil || page.After == nil {
+				t.Fatalf("first page: %+v %v", page, err)
+			}
+			return page.After
+		}
+		// A cursor naming another order source is refused, never replayed. One
+		// preparation per owner is funded at a time, so the foreign cursor is
+		// captured, its job retired, and the visiting job begins afterwards.
+		byTitle := begin(RBOrderByTitle)
+		foreign := *firstPage(byTitle)
+		if err := byTitle.Close(); err != nil {
+			t.Fatal(err)
+		}
+		byID := begin(RBOrderByID)
+		if _, _, err := rbOrderPrepareRead(t, f, byID, f.input, &foreign, 40); !errors.Is(err, ErrStale) {
+			t.Fatal("page accepted a foreign-query cursor", err)
+		}
+		if !byID.entry.closed || f.authority.Usage()[governor.Foreground][governor.MemoryBytes] != 0 {
+			t.Fatal("foreign-query cursor retained values or bytes")
+		}
+		// A cursor carrying a fence this publication never observed is refused
+		// even for its own source, so a stale token/horizon cannot page values.
+		job := begin(RBOrderByID)
+		foreign = *firstPage(job)
+		foreign.fence.horizon = "2000-01-01T00:00:00Z"
+		if _, _, err := rbOrderPrepareRead(t, f, job, f.input, &foreign, 40); !errors.Is(err, ErrStale) {
+			t.Fatal("page accepted a foreign-fence cursor", err)
+		}
+		if !job.entry.closed || f.authority.Usage()[governor.Foreground][governor.MemoryBytes] != 0 {
+			t.Fatal("foreign-fence cursor retained values or bytes")
+		}
+		if err := job.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestRBOrderPrepareTitleOrderMatchesSQLiteNoCase(t *testing.T) {
+	// The expectation below comes from SQLite's own `ORDER BY ... COLLATE
+	// NOCASE, id`, never from the production fold. Keys without an embedded NUL
+	// are the reachable domain: sqlite3_strnicmp stops comparing at a NUL.
+	f := newBrowseFixture(t)
+	f.exec(t, `CREATE TEMP TABLE rb_order_oracle(id INTEGER PRIMARY KEY, key TEXT NOT NULL)`)
+	keys := []string{"", " ", "A", "a", "AA", "aa", "ab", "ab c", "The A", "the a", "z", "Z", "~", "\u007f", "a!", "a0", "a_", "a\u00e9", "A\u00e9", "a\u0301", "\u00e9", "\u00c9", "\u00df", "\u03c3", "\u03a3", "\u4e2d", "\ufb01", "\U0001f600"}
+	for i, key := range keys {
+		f.exec(t, `INSERT INTO rb_order_oracle(id,key) VALUES(?,?)`, int64(i+1), key)
+	}
+	rows, err := f.conn.QueryContext(t.Context(), `SELECT id, key FROM rb_order_oracle ORDER BY key COLLATE NOCASE, id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want []rbOrderSourceKey
+	for rows.Next() {
+		var row rbOrderSourceKey
+		if err = rows.Scan(&row.id, &row.key); err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, row)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slices.Clone(want)
+	slices.SortFunc(got, func(a, b rbOrderSourceKey) int {
+		return rbOrderCompare(a, b, RBOrderByTitle)
+	})
+	if !slices.Equal(got, want) {
+		t.Fatal("Go title order differs from SQLite NOCASE", got, want)
+	}
+}
