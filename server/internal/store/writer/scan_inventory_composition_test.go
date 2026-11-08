@@ -43,11 +43,6 @@ func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixture
 	}
 	realClock := len(selected) == 1 && selected[0] == n1OperatingForecastTimingFixture
 	cp := newCheckpointComponent(t, true, realClock)
-	// Explicit component input, obtained from the actual existing file. Setting
-	// the assertion changes no page size; Assert repeats the read before BEGIN.
-	if err := cp.w.db.QueryRowContext(t.Context(), "PRAGMA main.page_size").Scan(&cp.w.config.WriterPageSize); err != nil {
-		t.Fatal(err)
-	}
 	seedScanLifecycle(t, cp.w)
 	for _, q := range []string{
 		`UPDATE libraries SET metadata_language='en-US',data_revision=71,data_order_revision=73,data_metadata_revision=79,age_input_revision=83,age_published_revision=83 WHERE id='lifecycle-library'`,
@@ -66,6 +61,25 @@ func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixture
 		t.Fatal(err)
 	}
 	if _, err := cp.w.db.ExecContext(t.Context(), `UPDATE search_revision SET revision=103,input_sequence=107,active_generation_id=1 WHERE singleton=1`); err != nil {
+		t.Fatal(err)
+	}
+	return n1ComposedDriverCompose(t, cp, realClock, selected...)
+}
+
+// n1ComposedDriverOnExisting rebinds the SAME composed public driver on an
+// existing canonical file after a restart. It seeds nothing and replays no
+// initialization SQL; only the real registry/plans/governor are reconstructed.
+func n1ComposedDriverOnExisting(t *testing.T, path string) *ScanDriver {
+	t.Helper()
+	d, _, _ := n1ComposedDriverCompose(t, newCheckpointComponentAt(t, path, true, false), false)
+	return d
+}
+
+func n1ComposedDriverCompose(t *testing.T, cp *checkpointComponent, realClock bool, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport, *checkpointComponent) {
+	t.Helper()
+	// Explicit component input, obtained from the actual existing file. Setting
+	// the assertion changes no page size; Assert repeats the read before BEGIN.
+	if err := cp.w.db.QueryRowContext(t.Context(), "PRAGMA main.page_size").Scan(&cp.w.config.WriterPageSize); err != nil {
 		t.Fatal(err)
 	}
 	defs := scanLifecycleCommandDefinitions()
