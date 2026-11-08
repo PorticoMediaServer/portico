@@ -163,7 +163,8 @@ def split_units(units, requested, weights=None, target_seconds=900, max_shards=6
     # from the measured weights (about 60% of the 25 minute Go deadline) and the
     # 25-parent cap; a single long parent still gets its own shard.
     def weight(unit):
-        return weights.get(unit['Package'] + '::' + unit['Name'], 5.0)
+        package = unit['Package'].split('/server/')[-1].removeprefix('./')
+        return weights.get(package + '::' + unit['Name'], 5.0)
     if requested != 'auto':
         count = min(requested, len(units))
         ordered = sorted(units, key=lambda u: (-weight(u), u['Package'], u['Name']))
@@ -175,7 +176,7 @@ def split_units(units, requested, weights=None, target_seconds=900, max_shards=6
         return [sorted(b, key=lambda u: (u['Package'], u['Name'])) for b in bins]
     # Isolate every parent longer than half the target; combining two of them
     # would immediately exceed the shard budget. The rest pack under 25 parents.
-    isolate = target_seconds / 2
+    isolate = 400.0
     heavy = sorted((u for u in units if weight(u) >= isolate), key=lambda u: (-weight(u), u['Package'], u['Name']))
     rest = sorted((u for u in units if weight(u) < isolate), key=lambda u: (-weight(u), u['Package'], u['Name']))
     count = max(math.ceil(sum(map(weight, units)) / target_seconds), len(heavy) + math.ceil(len(rest) / 25))
