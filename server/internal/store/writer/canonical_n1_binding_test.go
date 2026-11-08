@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -20,9 +22,26 @@ const canonicalN1Warmup = 8
 // explicitly funded partition, lifetime, startup, active and shutdown custody.
 func canonicalN1Maintenance() governedFixtureMaintenance {
 	return governedFixtureMaintenance{
-		policy: governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second, ConcurrentPassive: true, CheckpointMaxHold: 5 * time.Second},
-		need:   governor.Amounts{governor.Reader: 2, governor.MemoryBytes: 8 << 20, governor.CPUMilli: 2000, governor.IOBytes: 2 * (2 * (1 << 29))},
+		policy: governor.Phase1aWALPolicy(),
+		need:   governor.Amounts{governor.Reader: 2, governor.MemoryBytes: 8 << 20, governor.CPUMilli: 2000, governor.IOBytes: 2 * (2 * governor.Phase1aWALPolicy().HardBytes)},
 	}
+}
+
+// canonicalCheckpointCadence is the keeper's normal PASSIVE offer interval: the
+// 50 ms default, or the SCREENING-only PORTICO_GV_CP_INTERVAL_MS value (the class
+// workflow records it and refuses it for qualification). The governor's own
+// minimum start spacing (50 ms) still applies, and every checkpoint record keeps
+// its actual Requested/Started times.
+func canonicalCheckpointCadence() time.Duration {
+	v := os.Getenv("PORTICO_GV_CP_INTERVAL_MS")
+	if v == "" {
+		return 50 * time.Millisecond
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 50 || n > 5000 {
+		panic("PORTICO_GV_CP_INTERVAL_MS must be 50..5000")
+	}
+	return time.Duration(n) * time.Millisecond
 }
 
 type canonicalN1CheckpointClock struct {
@@ -205,7 +224,7 @@ func (m *canonicalN1MaintenanceOwner) start(ctx context.Context) {
 	go func() {
 		defer close(m.done)
 		for {
-			timer := time.NewTimer(50 * time.Millisecond)
+			timer := time.NewTimer(canonicalCheckpointCadence())
 			select {
 			case <-m.stop:
 				timer.Stop()
