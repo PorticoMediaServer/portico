@@ -48,6 +48,7 @@ type crashWitness struct {
 	InventoryJournal *inventoryCrashJournal // raw pre-COMMIT observation, never a writer result
 	FreshIdentity    *freshCrashIdentity
 	N1Driver         *n1DriverCrashSource
+	N1Claim          *ScanRunReference
 	ScanRun          *ScanRunReference
 	ScanSaved        *ScanRunSnapshot
 	ScanClockMS      int64
@@ -277,6 +278,14 @@ func TestCrashReplayChild(t *testing.T) {
 	}
 	if witness.Case.Domain == "wc_n1_history" {
 		crashN1HistoryFixture(t, &witness)
+		return
+	}
+	if witness.Case.Domain == "n1_retry" {
+		crashN1RetryFixture(t, &witness)
+		return
+	}
+	if witness.Case.Domain == "scan_retry" {
+		crashScanRetryFixture(t, &witness)
 		return
 	}
 	if witness.Case.Domain == "inventory_native" {

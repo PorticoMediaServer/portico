@@ -71,8 +71,16 @@ func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixture
 // initialization SQL; only the real registry/plans/governor are reconstructed.
 func n1ComposedDriverOnExisting(t *testing.T, path string) *ScanDriver {
 	t.Helper()
-	d, _, _ := n1ComposedDriverCompose(t, newCheckpointComponentAt(t, path, true, false), false)
+	d, _ := n1ComposedDriverOnExistingTransport(t, path)
 	return d
+}
+
+// The same existing-file rebind, additionally exposing the native observation
+// transport so a retry supplies the same test-only directory page.
+func n1ComposedDriverOnExistingTransport(t *testing.T, path string) (*ScanDriver, *scanObservationFaultTransport) {
+	t.Helper()
+	d, transport, _ := n1ComposedDriverCompose(t, newCheckpointComponentAt(t, path, true, false), false)
+	return d, transport
 }
 
 func n1ComposedDriverCompose(t *testing.T, cp *checkpointComponent, realClock bool, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport, *checkpointComponent) {

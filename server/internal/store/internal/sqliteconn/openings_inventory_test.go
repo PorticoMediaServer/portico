@@ -36,6 +36,7 @@ var openingConstraints = map[string]string{
 	"writer/crash_inventory_fresh_linux_test.go": "", // implicit _linux suffix; fresh SIGKILL component uses the Linux harness
 	"writer/crash_scan_n1_driver_linux_test.go":  "", // implicit _linux suffix; merged N1 public-path SIGKILL/reopen controls
 	"writer/crash_scan_n1_history_linux_test.go": "", // implicit _linux suffix; N1 child-bearing ACK/retired rebind controls
+	"writer/crash_fresh_retry_linux_test.go":     "", // implicit _linux suffix; pre-COMMIT retry execute-once/replay cells
 	"qual/namespace_other.go":                    "//go:build !linux",
 	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
 	"governor/snapshot_binding_counters_test.go": "//go:build memory.counters && !libc.memgrind",
