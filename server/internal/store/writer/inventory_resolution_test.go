@@ -257,7 +257,7 @@ func TestInventoryLookupRejectsConflictAndIncompleteProof(t *testing.T) {
 
 func TestInventoryLookupMissingAboveFloorAndN1Boundary(t *testing.T) {
 	w, requests, registry := inventoryLookupFixture(t)
-	for _, count := range []int64{0, 2, math.MaxInt64} {
+	for _, count := range []int64{0, inventoryReceiptMaxMembers + 1, math.MaxInt64} {
 		t.Run(strconv.FormatInt(count, 10), func(t *testing.T) {
 			turn, tx := inventoryLookupTurn(t, w, registry)
 			if _, err := tx.conn.ExecContext(tx.ctx, `UPDATE scan_command_receipts SET result_count=? WHERE run_id='scan-hit'`, count); err != nil {

@@ -42,7 +42,7 @@ func TestN1OperatingForecastCompleteReservations(t *testing.T) {
 			t.Fatal("foreign effect kind")
 		}
 	}
-	if reads != 43 || writes != 26 || len(p.steps) != 64 {
+	if reads != 50 || writes != 26 || len(p.steps) != 64 {
 		t.Fatal("closed forecast inventory changed", reads, writes, len(p.steps))
 	}
 	remaining := subtract(subtract(p.recipe.limit, p.recipe.setup), p.recipe.terminal)

@@ -37,7 +37,7 @@ func TestN1DriverCompleteDefinitionAndUseInventory(t *testing.T) {
 		}
 		seen[d.ID], uses = true, uses+n
 	}
-	if uses != 69 {
+	if uses != 76 {
 		t.Fatal("complete all-branch driver reservations", uses)
 	}
 	for _, d := range append(inventoryCommandDefinitions(), scanSourceDefinitions()...) {

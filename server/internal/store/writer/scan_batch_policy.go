@@ -26,6 +26,10 @@ func (p *inventoryBatchPolicy) limit(maximum int) int {
 }
 
 func (p *inventoryBatchPolicy) observe(maximum, files int, hold, wait time.Duration, applied bool) {
+	if maximum < 1 || maximum > maxInventoryBatchFiles {
+		p.width, p.short = 1, 0
+		return
+	}
 	width := p.limit(maximum)
 	if !applied || hold <= 0 || wait < 0 || hold > inventoryBatchHoldTarget || wait > inventoryBatchHoldTarget {
 		p.width, p.short = max(1, width/2), 0

@@ -72,3 +72,37 @@ func TestInventoryBatchPolicyNeedsCompleteEvidence(t *testing.T) {
 		t.Fatal("profile maximum escaped", p)
 	}
 }
+
+func TestInventoryBatchPolicyStreakAndBoundaries(t *testing.T) {
+	var p inventoryBatchPolicy
+	for range 7 {
+		p.observe(8, 2, time.Millisecond, 0, true)
+	}
+	p.observe(8, 2, 5*time.Millisecond, 0, true)
+	p.observe(8, 2, time.Millisecond, 0, true)
+	if p.limit(8) != 2 || p.short != 1 {
+		t.Fatal("middle sample did not reset streak", p)
+	}
+	for range 7 {
+		p.observe(8, 2, 4*time.Millisecond, 4*time.Millisecond, true)
+	}
+	if p.limit(8) != 3 {
+		t.Fatal("4ms boundary excluded growth", p)
+	}
+	p.observe(8, 3, 8*time.Millisecond, 8*time.Millisecond, true)
+	if p.limit(8) != 3 || p.short != 0 {
+		t.Fatal("8ms boundary shrank or grew", p)
+	}
+	p.observe(8, 3, 8*time.Millisecond+1, 0, true)
+	if p.limit(8) != 1 {
+		t.Fatal("over-8ms boundary did not shrink", p)
+	}
+	for _, maximum := range []int{-1, 0, 9} {
+		for range 8 {
+			p.observe(maximum, 1, time.Millisecond, 0, true)
+		}
+		if p.width != 1 || p.short != 0 {
+			t.Fatal("invalid maximum changed policy", maximum, p)
+		}
+	}
+}
