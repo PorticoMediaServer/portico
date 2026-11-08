@@ -70,11 +70,12 @@ func (r *BrowseReader) homeActivityWindow(ctx context.Context, request governor.
 	var result BrowseReadResult
 	var err error
 	var copied int64
+	var principal publicationPrincipalPin
 	for n := 0; n < 2; n++ {
 		current := in
 		current.View.Now = in.View.Now.Add(time.Since(started))
 		var one BrowseReadResult
-		page, one, err = r.homeActivityAttempt(ctx, request, time.Until(deadline), output, current, &copied)
+		page, one, err = r.homeActivityAttempt(ctx, request, time.Until(deadline), output, current, &copied, &principal)
 		mergeHomeReadResult(&result, one)
 		result.Attempts = n + 1
 		if !errors.Is(err, ErrStale) || ctx.Err() != nil || !time.Now().Before(deadline) {
@@ -88,7 +89,7 @@ func (r *BrowseReader) homeActivityWindow(ctx context.Context, request governor.
 	}
 	return page, result, err
 }
-func (r *BrowseReader) homeActivityAttempt(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in HomeActivityInput, copied *int64) (HomeActivityPage, BrowseReadResult, error) {
+func (r *BrowseReader) homeActivityAttempt(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in HomeActivityInput, copied *int64, principal *publicationPrincipalPin) (HomeActivityPage, BrowseReadResult, error) {
 	started := time.Now()
 	deadline := homeMinTime(request.Deadline, started.Add(budget))
 	var initial browseFence
@@ -167,7 +168,7 @@ func (r *BrowseReader) homeActivityAttempt(ctx context.Context, request governor
 		}
 		return nil
 	}}
-	sourcePage, result, e := publishAttempt(ctx, r.snapshots, request, time.Until(deadline), output, in.View, steps, copied, root)
+	sourcePage, result, e := publishPinnedAttempt(ctx, r.snapshots, request, time.Until(deadline), output, in.View, steps, copied, principal, root)
 	if e != nil {
 		return HomeActivityPage{}, result, e
 	}
@@ -186,7 +187,7 @@ func (r *BrowseReader) homeActivityAttempt(ctx context.Context, request governor
 	}
 	view := in.View
 	view.Now = view.Now.Add(time.Since(started))
-	page, targetResult, e := publishAttempt(ctx, r.snapshots, request, time.Until(deadline), output, view, steps, copied, root)
+	page, targetResult, e := publishPinnedAttempt(ctx, r.snapshots, request, time.Until(deadline), output, view, steps, copied, principal, root)
 	mergeHomeReadResult(&result, targetResult)
 	return page, result, e
 }
