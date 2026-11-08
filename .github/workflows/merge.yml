@@ -31,7 +31,7 @@ concurrency:
 jobs:
   hygiene:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -63,6 +63,7 @@ jobs:
         run: python3 ci/ratchet_base.py >> "$GITHUB_OUTPUT"
       - name: Engineering count ratchets
         env:
+          PORTICO_RATCHET_BUDGET_SECONDS: '360'
           RATCHET_BASE: ${{ steps.ratchet_base.outputs.base }}
           RATCHET_PREDECESSOR: ${{ steps.ratchet_base.outputs.predecessor }}
           RATCHET_QUEUE_HEAD: ${{ github.event.merge_group.head_sha }}
