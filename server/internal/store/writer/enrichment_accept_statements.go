@@ -118,8 +118,7 @@ func enrichmentAcceptMaxUses(id stmt.ID) int {
 		effectiveSourcePinEvidenceLengths, effectiveSourcePinPublicationLengths,
 		effectiveSourcePinEvidenceCopy, effectiveSourcePinPublicationCopy,
 		effectiveSourceBuildControl, effectiveSourceCustodyControl,
-		enrichmentEffectiveOwner, enrichmentEffectiveReceipt, enrichmentEffectiveEntity,
-		enrichmentEffectiveInsert, enrichmentEffectiveAttach, enrichmentEffectiveRecord,
+		enrichmentEffectiveOwner, enrichmentEffectiveEntity,
 		enrichmentEffectiveLibrary, enrichmentEffectiveLanguage, enrichmentEffectivePolicy,
 		enrichmentEffectiveProvider, enrichmentEffectiveConsent, enrichmentEffectiveSelection,
 		enrichmentEffectiveEvidence, enrichmentEffectiveSubject, enrichmentEffectivePublication,
@@ -141,7 +140,13 @@ func enrichmentAcceptMaxUses(id stmt.ID) int {
 // the materialized-image, head-flip and retained-source-proof points.
 func enrichmentAcceptCommandDefinitions() []stmt.Definition {
 	defs := enrichmentSealHistoryCommandDefinitions()
-	defs = append(defs, enrichmentEffectiveBeginDefinitions()...)
+	// Only the two owner/entity point reads the final command uses; the BEGIN
+	// header writes stay on the BEGIN purpose and are never reserved here.
+	for _, d := range enrichmentEffectiveBeginDefinitions() {
+		if d.ID == enrichmentEffectiveOwner || d.ID == enrichmentEffectiveEntity {
+			defs = append(defs, d)
+		}
+	}
 	defs = append(defs, enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, enrichmentAcceptDefinitions()...)
 	defs = append(defs, enrichmentAcceptWriteDefinitions()...)
