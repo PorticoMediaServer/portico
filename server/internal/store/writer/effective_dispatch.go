@@ -42,6 +42,7 @@ type effectivePlan struct {
 	steps                 []statementStep
 	need                  governor.Amounts
 	io                    []governor.DeviceIO
+	inventoryBatchFiles   int                       // zero preserves N=1; full driver only
 	inventoryPageSize     int32                     // frozen read-only assertion; zero cannot enable N1
 	inventoryRecords      inventoryRecordEnvelope   // extra native-record work inside the SAME grant
 	inventoryEngine       sqliteconn.EngineIdentity // exact profile implementation, observed again before BEGIN
@@ -639,7 +640,15 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 			return out, acknowledged, err
 		}
 	}
+	var queueStart time.Time
+	if scan != nil && scan.issuer != nil && scan.issuer.action == scanIssuerN1Apply {
+		queueStart = r.executor.now()
+	}
 	decision := r.authority.TryContext(ctx, expected)
+	if !queueStart.IsZero() {
+		scan.issuer.writerWait = r.executor.now().Sub(queueStart)
+	}
+
 	if decision.Grant == nil {
 		if submittedWork != nil {
 			err = submittedWork.refused(decision)

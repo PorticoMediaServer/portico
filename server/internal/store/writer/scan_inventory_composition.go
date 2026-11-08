@@ -128,6 +128,9 @@ func checkInventoryDriverTurn(ctx context.Context, turn *commandTurn, in *invent
 	if r.inventoryDriverPlan == nil {
 		return &Refusal{Code: RefusalUnqualified}
 	}
+	if in.input == nil || len(in.input.request.files) > inventoryPlanBatchFiles(*r.inventoryDriverPlan) {
+		return &Refusal{Code: RefusalUnqualified}
+	}
 	if turn.registry != r.registry || turn.transaction.writer != r.executor || turn.transaction.workLimit != r.inventoryDriverPlan.recipe.limit {
 		return ErrInvalid
 	}

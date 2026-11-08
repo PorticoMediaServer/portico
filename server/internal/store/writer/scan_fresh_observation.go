@@ -22,6 +22,22 @@ import (
 // conversion, RETURNING and retained result buffers. The fixed 64KiB covers
 // bounded argument/row/entropy/encoder bookkeeping for the finite N1 recipe.
 func inventoryFreshRequiredBytes(c *inventoryAcceptCommand) (uint64, error) {
+	if c != nil && c.valid && len(c.request.files) > 1 && len(c.request.files) <= maxInventoryAcceptFiles {
+		var total uint64
+		for i := range c.request.files {
+			member := *c
+			member.request.files = c.request.files[i : i+1]
+			n, e := inventoryFreshRequiredBytes(&member)
+			if e != nil {
+				return 0, e
+			}
+			if n > math.MaxUint64-total {
+				return 0, ErrCap
+			}
+			total += n
+		}
+		return total, nil
+	}
 	if c == nil || !c.valid || len(c.request.files) != 1 {
 		return 0, ErrInvalid
 	}

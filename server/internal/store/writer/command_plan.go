@@ -39,6 +39,9 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if plan.inventoryEngine != (sqliteconn.EngineIdentity{}) && (purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions())) {
 		return effectivePlan{}, invalid("inventory_engine_purpose")
 	}
+	if plan.inventoryBatchFiles != 0 && (plan.inventoryBatchFiles < 1 || plan.inventoryBatchFiles > maxInventoryBatchFiles || purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions())) {
+		return effectivePlan{}, invalid("inventory_batch_purpose")
+	}
 	if plan.inventoryPageSize != 0 && (purpose != InventoryAccept || len(defs) != len(inventoryDriverCommandDefinitions())) {
 		return effectivePlan{}, invalid("inventory_page_size_purpose")
 	}

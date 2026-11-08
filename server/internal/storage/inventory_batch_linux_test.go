@@ -5,11 +5,15 @@ package storage
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 )
 
 func TestNativeInventoryBatchDrainsShortPageBeforeEOF(t *testing.T) {
@@ -67,5 +71,46 @@ func TestNativeInventoryBatchDrainsShortPageBeforeEOF(t *testing.T) {
 			}
 			t.Fatal("no empty EOF")
 		})
+	}
+}
+
+func TestNativeInventoryBatchCursorRequiresRevision(t *testing.T) {
+	r := NativeInventoryRequest{Root: []byte(t.TempDir()), RelativePath: []byte("."), Limit: 8}
+	if !nativeinventory.ValidRequest(r) {
+		t.Fatal("initial observation refused")
+	}
+	r.Cursor = "42"
+	if nativeinventory.ValidRequest(r) {
+		t.Fatal("unbound continuation accepted")
+	}
+	r.DirectoryRevision = "observed-revision"
+	if !nativeinventory.ValidRequest(r) {
+		t.Fatal("bound continuation refused")
+	}
+}
+
+func TestNativeInventoryBatchShortPageRefusesChangedDirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Film.mkv"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, owner := nativeClient(t)
+	r := NativeInventoryRequest{Root: []byte(root), RelativePath: []byte("."), Limit: 8}
+	page, err := c.NativeInventoryPage(t.Context(), owner, "batch-stale", r)
+	if err != nil || page.Complete || len(page.Entries) != 1 || page.NextCursor == "" {
+		t.Fatal("short page did not retain a cookie", page, err)
+	}
+	r.RootIdentity, r.DirectoryRevision, r.Cursor = page.RootIdentity, page.DirectoryRevision, page.NextCursor
+	if err = os.WriteFile(filepath.Join(root, "Added.mkv"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Force a distinct native directory timestamp even on coarse clocks.
+	changed := time.Now().Add(time.Hour)
+	if err = os.Chtimes(root, changed, changed); err != nil {
+		t.Fatal(err)
+	}
+	page, err = c.NativeInventoryPage(t.Context(), owner, "batch-stale", r)
+	if !errors.Is(err, ErrInventoryChanged) || !reflect.DeepEqual(page, NativeInventoryPage{}) {
+		t.Fatal("changed directory reused its old cookie", page, err)
 	}
 }

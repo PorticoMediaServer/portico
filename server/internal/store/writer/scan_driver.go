@@ -34,6 +34,7 @@ type ScanDriver struct {
 	preparation   *scanPreparation // attached BEFORE exposing/starting the native read
 	leaseOwner    int64
 	leaseDuration time.Duration
+	batchPolicy   inventoryBatchPolicy
 	readyPlan     scanPreparationPlan
 	lease         *ScanRunLease
 	predecessor   *scanReturnedWork
