@@ -6,17 +6,20 @@ import (
 	"testing"
 )
 
-func TestBasicAcceptInvocationKeepsStageAndSealClosed(t *testing.T) {
+// Original Resolve/ACK keeps each closed purpose distinct; unknown purposes refuse.
+func TestBasicInvocationPurposesStayClosedAndDistinct(t *testing.T) {
 	q := BasicReceiptRequest{Scan: ScanReceiptRequest{RunID: "run", LibraryID: 7, LibraryKey: "library", Receipt: ReceiptReference{Identity: CommandIdentity{Sequence: 1}}}}
-	for _, purpose := range []BasicPurpose{BasicPurposeStage, BasicPurposeSeal, "", "inventory_accept"} {
+	for _, purpose := range []BasicPurpose{"", "inventory_accept", "basic_activate"} {
 		q.Purpose = purpose
 		if _, err := (&basicInvocation{request: q}).validate(); !errors.Is(err, ErrInvalid) {
-			t.Fatal("another arm entered Accept", purpose, err)
+			t.Fatal("unknown purpose entered a Basic arm", purpose, err)
 		}
 	}
-	q.Purpose = BasicPurposeAccept
-	if kind, err := (&basicInvocation{request: q}).validate(); err != nil || kind != BasicAccept {
-		t.Fatal(kind, err)
+	for purpose, want := range map[BasicPurpose]CommandID{BasicPurposeStage: BasicStage, BasicPurposeSeal: BasicSeal, BasicPurposeAccept: BasicAccept} {
+		q.Purpose = purpose
+		if kind, err := (&basicInvocation{request: q}).validate(); err != nil || kind != want {
+			t.Fatal(purpose, kind, err)
+		}
 	}
 }
 

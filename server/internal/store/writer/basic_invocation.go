@@ -8,6 +8,8 @@ import "context"
 type basicInvocation struct {
 	request BasicReceiptRequest
 	accept  *basicAcceptCommand
+	stage   *basicStageCommand
+	seal    *basicSealCommand
 	work    *scanDriverWork // W-owned transient envelope; never in the request digest
 }
 
@@ -16,7 +18,16 @@ func (in *basicInvocation) validate() (CommandID, error) {
 		return 0, ErrInvalid
 	}
 	kind, err := basicResourceCommand(in.request.Purpose)
-	if err != nil || kind != BasicAccept {
+	if err != nil {
+		return 0, ErrInvalid
+	}
+	set := 0
+	for _, present := range []bool{in.accept != nil, in.stage != nil, in.seal != nil} {
+		if present {
+			set++
+		}
+	}
+	if set > 1 {
 		return 0, ErrInvalid
 	}
 	var original BasicReceiptRequest
@@ -26,6 +37,16 @@ func (in *basicInvocation) validate() (CommandID, error) {
 			return 0, ErrInvalid
 		}
 		original, err = in.accept.receiptRequest()
+	case in.stage != nil:
+		if kind != BasicStage {
+			return 0, ErrInvalid
+		}
+		original, err = in.stage.receiptRequest()
+	case in.seal != nil:
+		if kind != BasicSeal {
+			return 0, ErrInvalid
+		}
+		original, err = in.seal.receiptRequest()
 	default:
 		return kind, nil // original Resolve/ACK; never a fresh effects request
 	}
@@ -36,12 +57,12 @@ func (in *basicInvocation) validate() (CommandID, error) {
 }
 
 func (in *basicInvocation) fresh() bool {
-	return in != nil && (in.accept != nil)
+	return in != nil && (in.accept != nil || in.stage != nil || in.seal != nil)
 }
 
 func (in *basicInvocation) leaseExpiresMS() int64 {
-	if in != nil && in.accept != nil {
-		return in.accept.request.original.run.leaseExpiresMS
+	if original, ok := in.freshOriginal(); ok {
+		return original.run.leaseExpiresMS
 	}
 	return 0
 }
@@ -53,8 +74,42 @@ func (in *basicInvocation) apply(ctx context.Context, turn *commandTurn) (value 
 	if _, err = in.validate(); err != nil {
 		return value, err
 	}
-	if in.accept != nil {
+	switch {
+	case in.accept != nil:
 		return applyBasicAccept(ctx, turn, in.accept)
+	case in.stage != nil:
+		return applyBasicStage(ctx, turn, in.stage)
+	case in.seal != nil:
+		return applyBasicSeal(ctx, turn, in.seal)
 	}
 	return value, ErrInvalid
+}
+
+// The frozen original scope and source of the ONE fresh command, if any.
+func (in *basicInvocation) freshOriginal() (basicOriginalScope, bool) {
+	switch {
+	case in == nil:
+		return basicOriginalScope{}, false
+	case in.accept != nil:
+		return in.accept.request.original, true
+	case in.stage != nil:
+		return in.stage.request.original, true
+	case in.seal != nil:
+		return in.seal.request.original, true
+	}
+	return basicOriginalScope{}, false
+}
+
+func (in *basicInvocation) freshSource() (basicStreamFactStage, bool) {
+	switch {
+	case in == nil:
+		return basicStreamFactStage{}, false
+	case in.accept != nil:
+		return in.accept.request.activation.source, true
+	case in.stage != nil:
+		return in.stage.request.source, true
+	case in.seal != nil:
+		return in.seal.request.source, true
+	}
+	return basicStreamFactStage{}, false
 }

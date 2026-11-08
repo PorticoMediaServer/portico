@@ -60,8 +60,8 @@ func checkBasicFreshWork(in *basicInvocation) error {
 		return nil
 	}
 	generation := int64(0)
-	if in.accept != nil {
-		generation = in.accept.request.original.run.leaseGeneration
+	if original, ok := in.freshOriginal(); ok {
+		generation = original.run.leaseGeneration
 	}
 	if generation <= 0 || generation != in.work.generation {
 		return ErrConflict

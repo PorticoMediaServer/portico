@@ -1,8 +1,8 @@
 package writer
 
-// SC Basic purposes. Their profiles are not installed through freezeCommandPlan.
+// SC Basic purposes. All three install their closed profiles through freezeCommandPlan.
 var basicCommandPurposes = commandPurposeRegistration{owner: "basic", purposes: []commandPurpose{
-	{id: BasicStage, memory: basicPartition, clock: clockUnderLease},
-	{id: BasicSeal, memory: basicPartition, clock: clockUnderLease},
+	{id: BasicStage, plan: true, memory: basicPartition, clock: clockUnderLease},
+	{id: BasicSeal, plan: true, memory: basicPartition, clock: clockUnderLease},
 	{id: BasicAccept, plan: true, memory: basicPartition, clock: clockUnderLease},
 }}

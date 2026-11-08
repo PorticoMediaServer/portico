@@ -82,6 +82,9 @@ func (r *effectiveRuntime) runBasicTurn(ctx context.Context, w *Writer, turn *co
 			return value, false, err
 		}
 	}
+	if (in.stage != nil && r.basicStagePlan == nil) || (in.seal != nil && r.basicSealPlan == nil) {
+		return value, false, ErrNotImplemented
+	}
 	value, err = in.apply(ctx, turn)
 	if err != nil {
 		return value, false, err
@@ -110,11 +113,8 @@ func validateBasicFreshResult(in *basicInvocation, value BasicResult) error {
 	if _, err := in.validate(); err != nil || !in.fresh() || value.Outcome != (ReceiptOutcome{}) {
 		return ErrConflict
 	}
-	var original basicOriginalScope
-	var source basicStreamFactStage
-	if in.accept != nil {
-		original, source = in.accept.request.original, in.accept.request.activation.source
-	}
+	original, _ := in.freshOriginal()
+	source, _ := in.freshSource()
 	if original.run.revision == math.MaxInt64 || value.Purpose != in.request.Purpose || value.RunID != in.request.Scan.RunID ||
 		value.AcceptedRunRevision != original.run.revision+1 || value.SourceID != source.sourceID || value.SourceIncarnation != source.incarnation ||
 		value.SourceRevision != source.objectRevision || value.ExpectedEpoch != source.expectedEpoch || value.ChangeID <= 0 ||
