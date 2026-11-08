@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -66,13 +67,152 @@ func TestRSCollectionCompleteAuthoredPages(t *testing.T) {
 		t.Fatalf("order got %v want %v", got, want)
 	}
 	// A continuation is bound to its exact collection, source and viewer.
+	for _, changed := range []struct {
+		name   string
+		mutate func(*CollectionDetailCursor)
+	}{
+		{"collection", func(c *CollectionDetailCursor) { c.collection = 1102 }},
+		{"token", func(c *CollectionDetailCursor) { c.fence.token = "other" }},
+		{"profile", func(c *CollectionDetailCursor) { c.fence.profile = "other" }},
+	} {
+		p = rsBeginCompleteCollection(t, f, r)
+		rsCompleteAuthored(t, f, p)
+		bad := *after
+		changed.mutate(&bad)
+		if d, _, err := rsAuthoredLiveDetail(t, f, p, &bad); !errors.Is(err, ErrStale) || !reflect.DeepEqual(d, CollectionDetail{}) {
+			t.Fatalf("%s foreign cursor released a page %+v %v", changed.name, d, err)
+		}
+	}
+}
+
+func TestRSCollectionCompleteCursorSurvivesLimitChange(t *testing.T) {
+	f, r := newRSCollectionCompleteFixture(t, nil)
+	f.input.Limit = 5
+	p := rsBeginCompleteCollection(t, f, r)
+	rsCompleteAuthored(t, f, p)
+	d, _, err := rsAuthoredLiveDetail(t, f, p, nil)
+	if err != nil || len(d.Items) != 5 || d.Next == nil || d.Next.offset != 5 || d.ExactCount != 179 {
+		t.Fatalf("first page %+v %v", d, err)
+	}
+	after := d.Next
+	// The private continuation names an absolute rank, never the page size that
+	// produced it; a changed limit only changes the next page's width.
+	f.input.Limit = 2
 	p = rsBeginCompleteCollection(t, f, r)
 	rsCompleteAuthored(t, f, p)
-	bad := *after
-	bad.collection = 1102
-	if d, _, err := rsAuthoredLiveDetail(t, f, p, &bad); !errors.Is(err, ErrStale) || !reflect.DeepEqual(d, CollectionDetail{}) {
-		t.Fatalf("foreign cursor released a page %+v %v", d, err)
+	d, _, err = rsAuthoredLiveDetail(t, f, p, after)
+	if err != nil || d.Offset != 5 || d.NextOffset != 7 || len(d.Items) != 2 || d.ExactCount != 179 || d.Exhausted || d.Next == nil {
+		t.Fatalf("changed-limit page %+v %v", d, err)
 	}
+	want := rsAuthoredVisibleIDs(t)[5:7]
+	for i, item := range d.Items {
+		if item.ID != want[i] {
+			t.Fatalf("changed-limit order %v want %v", d.Items, want)
+		}
+	}
+}
+
+func TestRSCollectionCompleteConcurrentClose(t *testing.T) {
+	f, r := newRSCollectionCompleteFixture(t, nil)
+	const goroutines = 4
+	for round := 0; round < 3; round++ {
+		p := rsBeginCompleteCollection(t, f, r)
+		rsCompleteAuthored(t, f, p)
+		start := make(chan struct{})
+		errs := make([]error, goroutines)
+		var wg sync.WaitGroup
+		for i := range goroutines {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				errs[i] = p.Close()
+			}()
+		}
+		close(start)
+		wg.Wait()
+		for i, err := range errs {
+			if err != nil {
+				t.Fatalf("round %d close %d: %v", round, i, err)
+			}
+		}
+		if p.nodes != nil || p.source != nil || p.fence != nil || p.in.Collection != 0 || !p.closed {
+			t.Fatalf("round %d retained state after close", round)
+		}
+		if err := f.authority.CheckPreparation(p.lease); err == nil {
+			t.Fatalf("round %d lease survived close", round)
+		}
+	}
+}
+
+func TestRSCollectionCompleteCloseRacesAdvance(t *testing.T) {
+	f, r := newRSCollectionCompleteLiveFixture(t, nil)
+	p := rsBeginCompleteCollection(t, f, r)
+	start := make(chan struct{})
+	advanced := make(chan error, 1)
+	go func() {
+		<-start
+		q, request, output := liveRequests("rs-collection-close-advance")
+		_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+			_, _, e := p.Advance(ctx, request, time.Second, out)
+			return e
+		})
+		advanced <- err
+	}()
+	closed := make(chan error, 1)
+	go func() {
+		<-start
+		closed <- p.Close()
+	}()
+	close(start)
+	if err := <-closed; err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if err := <-advanced; err != nil && !errors.Is(err, ErrInput) && !errors.Is(err, governor.ErrPreparation) {
+		t.Fatalf("advance: %v", err)
+	}
+	if !p.closed {
+		t.Fatal("close did not linearize")
+	}
+	if _, _, err := p.Advance(t.Context(), foregroundRequest(), time.Second, BrowseOutput{}); !errors.Is(err, ErrInput) {
+		t.Fatalf("closed preparation polled: %v", err)
+	}
+	if err := f.authority.CheckPreparation(p.lease); err == nil {
+		t.Fatal("lease survived concurrent close")
+	}
+	assertLiveUsage(t, f, 0, 0)
+}
+
+func TestRSCollectionCompleteCloseRacesDetail(t *testing.T) {
+	f, r := newRSCollectionCompleteLiveFixture(t, nil)
+	p := rsBeginCompleteCollection(t, f, r)
+	rsCompleteAuthoredLive(t, f, p)
+	start := make(chan struct{})
+	detailed := make(chan error, 1)
+	go func() {
+		<-start
+		_, _, err := rsAuthoredLiveDetail(t, f, p, nil)
+		detailed <- err
+	}()
+	closed := make(chan error, 1)
+	go func() {
+		<-start
+		closed <- p.Close()
+	}()
+	close(start)
+	if err := <-closed; err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if err := <-detailed; err != nil && !errors.Is(err, ErrInput) {
+		t.Fatalf("detail: %v", err)
+	}
+	if !p.closed {
+		t.Fatal("close did not linearize")
+	}
+	if err := f.authority.CheckPreparation(p.lease); err == nil {
+		t.Fatal("lease survived concurrent close")
+	}
+	assertLiveUsage(t, f, 0, 0)
 }
 
 func TestRSCollectionCompleteAllHiddenAndEmpty(t *testing.T) {
