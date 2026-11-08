@@ -25,7 +25,9 @@ import (
 //
 // Samples are batched (100 per record) so the measured chain gains no appends.
 // The sampler never takes the stream's I/O path itself: records go through the
-// asynchronous writer. Disable with PORTICO_EC_HOST_SAMPLER_MS=0.
+// asynchronous writer. On by default, including in formal counting runs, so a missed
+// cell carries its own stall classification; PORTICO_EC_HOST_SAMPLER_MS=0 disables
+// it. Its own cost is reported in the summary (own_cost).
 const (
 	hostSamplerDefaultInterval = 10 * time.Millisecond
 	hostSamplerBatch           = 100
@@ -71,6 +73,12 @@ type hostSampler struct {
 	late100  int64
 	maxRead  int64
 	failures int64
+
+	readWallSum   int64 // summed wake-to-read-done wall time (includes any descheduling)
+	appendCalls   int64 // stream append calls made by the sampler (header + batches)
+	appendWallSum int64
+	cpuStart      int64
+	cpuEnd        int64
 }
 
 // startHostSampler returns nil when disabled. databaseDir picks the device whose
@@ -98,7 +106,8 @@ func startHostSampler(stream *n1Stream, databaseDir string) *hostSampler {
 		"disk_key": s.diskKey, "origin_utc_ns": stream.origin.UnixNano(),
 		"cpu_max": readTrim(s.cgroup + "/cpu.max"), "scope": "10 ms host/cgroup/disk samples with the sampler's own tick lateness; PSI/cpu.stat/diskstats are cumulative counters, join by differencing around a call",
 	}
-	_ = stream.append("host_sampler_start", s.header)
+	s.cpuStart = processCPUNS()
+	s.timedAppend("host_sampler_start", s.header)
 	go s.run()
 	return s
 }
@@ -110,7 +119,7 @@ func (s *hostSampler) run() {
 		if len(batch) == 0 {
 			return
 		}
-		_ = s.stream.append("host_samples", map[string]any{"samples": append([]hostSample(nil), batch...)})
+		s.timedAppend("host_samples", map[string]any{"samples": append([]hostSample(nil), batch...)})
 		batch = batch[:0]
 	}
 	start := time.Now()
@@ -142,6 +151,7 @@ func (s *hostSampler) run() {
 		s.samples++
 		s.maxLate = max(s.maxLate, sample.LateNS)
 		s.maxRead = max(s.maxRead, sample.ReadNS)
+		s.readWallSum += sample.ReadNS
 		if sample.LateNS > 25e6 {
 			s.late25++
 		}
@@ -167,6 +177,11 @@ func (s *hostSampler) close() {
 	}
 	s.once.Do(func() { close(s.stop) })
 	<-s.done
+	s.mu.Lock()
+	if s.cpuEnd == 0 {
+		s.cpuEnd = processCPUNS()
+	}
+	s.mu.Unlock()
 }
 
 func (s *hostSampler) read() hostSample {
@@ -308,5 +323,32 @@ func (s *hostSampler) summary() any {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return map[string]any{"samples": s.samples, "max_tick_late_ns": s.maxLate, "ticks_late_over_25ms": s.late25, "ticks_late_over_100ms": s.late100, "max_read_ns": s.maxRead, "read_error_samples": s.failures, "interval_ns": s.interval.Nanoseconds()}
+	return map[string]any{"samples": s.samples, "max_tick_late_ns": s.maxLate, "ticks_late_over_25ms": s.late25, "ticks_late_over_100ms": s.late100, "max_read_ns": s.maxRead, "read_error_samples": s.failures, "interval_ns": s.interval.Nanoseconds(),
+		// The sampler's OWN cost, labelled by what each number really is.
+		"own_cost": map[string]any{
+			"sum_read_wall_ns":               s.readWallSum,
+			"read_wall_scope":                "summed wall time from tick wake-up to all sources read; an upper bound on the sampler's CPU use (it also counts any descheduling)",
+			"stream_append_calls":            s.appendCalls,
+			"stream_append_wall_ns":          s.appendWallSum,
+			"process_cpu_ns_during_sampling": cpuDelta(s.cpuStart, s.cpuEnd),
+			"process_cpu_scope":              "rusage user+system of the WHOLE process between sampler start and stop, not the sampler alone; compare it with sum_read_wall_ns",
+		}}
+}
+
+// timedAppend appends one record and charges the call to the sampler's own cost.
+func (s *hostSampler) timedAppend(kind string, fields map[string]any) {
+	start := time.Now()
+	_ = s.stream.append(kind, fields)
+	d := time.Since(start).Nanoseconds()
+	s.mu.Lock()
+	s.appendCalls++
+	s.appendWallSum += d
+	s.mu.Unlock()
+}
+
+func cpuDelta(start, end int64) any {
+	if start == 0 || end == 0 {
+		return nil
+	}
+	return end - start
 }
