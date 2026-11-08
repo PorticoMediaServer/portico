@@ -3,6 +3,7 @@ package read
 import (
 	"cmp"
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -224,8 +225,13 @@ func (r *RSSelectedTechnicalReader) poll(ctx context.Context, request governor.R
 	original := w.in
 	original.View.Now = in.View.Now
 	in.Work = nil
-	if w.closed || w.handed || w.failure != nil || w.owner != request.Owner || output.Authority != w.authority || original != in {
+	if w.closed || w.handed || w.owner != request.Owner || output.Authority != w.authority || original != in {
 		return RSTechnicalFacts{}, BrowseReadResult{}, ErrInput
+	}
+	// A failed preparation stays failed with the same error class; a later poll
+	// of this job must not reclassify it as bad input.
+	if w.failure != nil {
+		return RSTechnicalFacts{}, BrowseReadResult{}, w.failure
 	}
 	if e := w.authority.CheckPreparation(w.lease); e != nil {
 		return RSTechnicalFacts{}, BrowseReadResult{}, e
@@ -293,6 +299,7 @@ func (r *RSSelectedTechnicalReader) poll(ctx context.Context, request governor.R
 		w.fence = f
 		w.bound = true
 		w.ownerRole = f.role == "owner"
+		// s[7], s[8] and s[43] are reserved source positions the reader does not consume today.
 		w.facts.PartIndex = s[39].(int64)
 		w.facts.Edition = s[40].(string)
 		w.facts.StartSeconds = rsTechnicalFloat(s[41])
@@ -370,6 +377,13 @@ func (r *RSSelectedTechnicalReader) poll(ctx context.Context, request governor.R
 				return governor.ErrSnapshotBudget
 			}
 			rows, e := q("rs.technical."+w.family+"_keys", id, int64(rsTechnicalRows+1))
+			if errors.Is(e, governor.ErrSnapshotBudget) && request.Budget.RawRows >= rsTechnicalRows {
+				// The shared read window admits at most the family cap. A key
+				// inventory bounded to one extra key can only exhaust that window
+				// by exceeding the cap, so refuse the family's own typed capacity
+				// error instead of publishing the 4096-row prefix as complete.
+				return ErrUnqualified
+			}
 			if e != nil {
 				return e
 			}
@@ -425,19 +439,33 @@ func (r *RSSelectedTechnicalReader) poll(ctx context.Context, request governor.R
 			return e
 		}
 		return windows.arm(max(n+scratch, 1), 3)
+	}, func(_ context.Context, q browseQuery, _ browseFence, _ *RSTechnicalFacts) error {
+		// The point row gets its own window. A disc title's chapter inventory
+		// needs the whole shared row allowance at the 4096 boundary, so it must
+		// not share that window with the title row it describes.
+		selected = nil
+		if w.index >= len(w.keys) || point == "" {
+			return nil
+		}
+		rows, e := q(point, args...)
+		if e != nil {
+			return e
+		}
+		if len(rows) != 1 {
+			return ErrStale
+		}
+		selected = rows[0]
+		return nil
 	}, func(_ context.Context, q browseQuery, _ browseFence, p *RSTechnicalFacts) error {
-		if point != "" {
-			rows, e := q(point, args...)
-			if e != nil {
-				return e
-			}
-			if len(rows) != 1 {
-				return ErrStale
-			}
-			selected = rows[0]
+		if selected != nil {
 			if w.family == "media" || w.family == "disctitle" {
 				v := rsTechnicalDecodeDisctitle(selected)
 				chapters, err := q("rs.technical.discchapters", w.source[1], v.key, int64(rsTechnicalRows+1))
+				if errors.Is(err, governor.ErrSnapshotBudget) && request.Budget.RawRows >= rsTechnicalRows {
+					// One chapter beyond the family cap is a typed refusal, never
+					// a chapter count silently capped at 4096.
+					return ErrUnqualified
+				}
 				if err != nil {
 					return err
 				}

@@ -51,10 +51,10 @@
     },
     {
       "package": "server/internal/store/read",
-      "why": "Owner-reverse Capture fixtures and the logical-sibling oracle prepare and hash the search package's exact read-pairing vector",
-      "reads": ["server/internal/store/search/testdata/read-pairing.json"],
-      "files": ["server/internal/store/read/owner_reverse_test.go"],
-      "tests": ["TestOwnerLogicalSiblingReadOracle", "TestOwnerReverseKeysetTraversal", "TestOwnerReversePlans"]
+      "why": "Owner-reverse Capture fixtures and the logical-sibling oracle prepare and hash the search package's exact read-pairing vector, and the technical detail mirror parses the owner's StreamDetailVersion literal without importing its SQL-function package",
+      "reads": ["server/internal/store/search/testdata/read-pairing.json", "server/internal/assets/*.go"],
+      "files": ["server/internal/store/read/owner_reverse_test.go", "server/internal/store/read/rs_technical_source_guard_test.go"],
+      "tests": ["TestOwnerLogicalSiblingReadOracle", "TestOwnerReverseKeysetTraversal", "TestOwnerReversePlans", "TestRSTechnicalStreamDetailVersionMirrorsAssets"]
     },
     {
       "package": "server/internal/store/internal/searchmanifest",

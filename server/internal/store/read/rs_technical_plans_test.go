@@ -19,8 +19,9 @@ var recordRSTechnicalPlans = flag.Bool("record-rs-technical-plans", false, "deli
 
 // TestRSTechnicalPlans records the actual unanalyzed and analyzed plans of the
 // inert technical inventory against the exact fixture the reader composes. The
-// golden's fixture hash covers this file and rs_technical_test.go, so any change
-// to the fixture or its controls requires a deliberate re-record.
+// golden's fixture hash covers rs_technical_test.go and
+// rs_technical_fixture_test.go, so any change to the fixture or its controls
+// requires a deliberate re-record.
 func TestRSTechnicalPlans(t *testing.T) {
 	f := rsTechnicalSource(t)
 	definitions := TechnicalFactsDefinitions()
