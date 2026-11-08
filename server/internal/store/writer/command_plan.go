@@ -27,7 +27,7 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 // qualification claim. Reserve every possible registered use, setup and
 // terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) && !enrichmentPurpose(purpose) {
+	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && purpose != BasicAccept && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) && !enrichmentPurpose(purpose) {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
 	if !enrichmentPurpose(purpose) && plan.enrichmentMemory != (commandMemoryBudget{}) {
@@ -73,6 +73,9 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	}
 	if err := validateMemoryPartition(plan.effectiveSourceMemory, plan.need[governor.MemoryBytes], "effective_source_memory_partition"); err != nil {
 		return effectivePlan{}, err
+	}
+	if (purpose == BasicStage || purpose == BasicSeal || purpose == BasicAccept) && plan.basicMemory == (commandMemoryBudget{}) {
+		return effectivePlan{}, &Refusal{Code: RefusalUnqualified}
 	}
 	if err := validateMemoryPartition(plan.basicMemory, plan.need[governor.MemoryBytes], "basic_memory_partition"); err != nil {
 		return effectivePlan{}, err
@@ -139,8 +142,22 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 		}
 		remaining = subtract(remaining, work)
 	}
-	if _, err := reserveCommandSteps(remaining, plan.steps, defs, purpose); err != nil {
-		return effectivePlan{}, err
+	var forecastErr error
+	if purpose == BasicAccept {
+		for _, step := range plan.steps {
+			if step.work.Rows < basicFinalRows(plan.basicAcceptBounds, step.id) {
+				return effectivePlan{}, invalid("basic_accept_row_forecast")
+			}
+		}
+		_, forecastErr = reserveCommandSteps(remaining, plan.steps, defs, purpose, plan.basicAcceptBounds)
+	} else {
+		if plan.basicAcceptBounds != (basicAcceptBounds{}) {
+			return effectivePlan{}, invalid("basic_accept_bounds_purpose")
+		}
+		_, forecastErr = reserveCommandSteps(remaining, plan.steps, defs, purpose)
+	}
+	if forecastErr != nil {
+		return effectivePlan{}, forecastErr
 	}
 	plan.steps = append([]statementStep(nil), plan.steps...)
 	plan.io = append([]governor.DeviceIO(nil), plan.io...)
