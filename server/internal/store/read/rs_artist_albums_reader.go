@@ -226,6 +226,11 @@ func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out 
 		page.Pending = true
 		return
 	}
+	if len(p.cards) > 0 {
+		if err = r.providerFences(ctx, q, out, p, at, &cost); err != nil {
+			return
+		}
+	}
 	needed := int64(4096)
 	for _, c := range p.cards {
 		needed += artistAlbumCardBytes(c)

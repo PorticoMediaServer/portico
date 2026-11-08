@@ -12,6 +12,8 @@ import (
 // LIVE/output operation. No provider cache, lookup or second lease is opened.
 type rsAlbumProviderWork struct {
 	source        []any
+	state         []any
+	evidence      string
 	fact          *RSAlbumProviderFact
 	after         int64
 	header, ready bool
@@ -32,40 +34,40 @@ func (r *RSArtistAlbumReader) provider(ctx context.Context, req governor.Request
 	w := &rsByteWindow{source: r.snapshots, preflightCalls: 24, goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}
 	var ordinal int64 = -1
 	root := func(query browseQuery) ([]any, error) {
-		rows, e := query("rs.album.provider.state", id, p.input.View.Library)
+		flat, state, e := rsAlbumProviderSource(query, id, p.input.View.Library)
 		if e != nil {
 			return nil, e
 		}
-		if len(rows) != 1 || len(rows[0]) != 24 {
-			return nil, ErrUnqualified
-		}
-		if work.source != nil && !equalSource(work.source, rows[0]) {
+		if work.source != nil && !equalSource(work.source, flat) {
 			return nil, ErrStale
 		}
 		if work.source == nil {
 			if e = p.charge(2048); e != nil {
 				return nil, e
 			}
-			work.source = rows[0]
+			work.source, work.state = flat, state
 		}
-		return rows[0], nil
+		return flat, nil
 	}
 	_, one, e := rsPeoplePublish(ctx, w, req, time.Until(p.lease.Deadline()), out, p.view(at, 6, id), []readStep[struct{}]{
 		func(_ context.Context, q browseQuery, _ browseFence, _ *struct{}) error {
-			source := work.source
-			// Missing accepted head or current provider permission has no provider
-			// fact. A stored/pending observation is never substituted for that head.
-			if source[7] != int64(1) || source[8] != int64(1) || source[9] != int64(1) || source[18] != int64(1) || source[19] != int64(1) || source[20] != int64(1) {
+			source := work.state
+			if len(source) == 0 {
 				work.ready = true
 				return nil
 			}
-			if source[23] != int64(1) {
-				return ErrUnqualified
-			}
+			// Only a currently coherent, complete accepted source yields a fact.
+			// Stored/pending observations do not substitute for that source.
 			name := "rs.album.provider.header_octets"
 			args := []any{id, p.input.View.Library}
 			if work.header {
-				rows, e := q("rs.album.provider.next_type", id, p.input.View.Library, work.after)
+				nextName := "rs.album.provider.next_type"
+				nextArgs := []any{work.evidence, work.after}
+				if work.after < 0 {
+					nextName = "rs.album.provider.first_type"
+					nextArgs = nextArgs[:1]
+				}
+				rows, e := q(nextName, nextArgs...)
 				if e != nil {
 					return e
 				}
@@ -78,7 +80,7 @@ func (r *RSArtistAlbumReader) provider(ctx context.Context, req governor.Request
 					return ErrUnqualified
 				}
 				name = "rs.album.provider.type_octets"
-				args = append(args, ordinal)
+				args = []any{work.evidence, ordinal}
 			}
 			rows, e := q(name, args...)
 			if e != nil {
@@ -109,14 +111,15 @@ func (r *RSArtistAlbumReader) provider(ctx context.Context, req governor.Request
 				}
 				row := rows[0]
 				fact := rsAlbumProviderValues(row[0].(string), row[1].(string), row[2].(string), row[3].(string), row[4].(string), nil)
-				if e = p.charge(512 + artistAlbumWideBytes(reflect.ValueOf(fact))); e != nil {
+				if e = p.charge(512 + artistAlbumWideBytes(reflect.ValueOf(fact)) + 4*int64(len(row[5].(string)))); e != nil {
 					return e
 				}
+				work.evidence = row[5].(string)
 				work.fact = &fact
 				work.header = true
 				return nil
 			}
-			rows, e := q("rs.album.provider.type", id, p.input.View.Library, ordinal)
+			rows, e := q("rs.album.provider.type", work.evidence, ordinal)
 			if e != nil {
 				return e
 			}
@@ -153,4 +156,67 @@ func (r *RSArtistAlbumReader) provider(ctx context.Context, req governor.Request
 		p.hydratedArt = false
 	}
 	return nil
+}
+
+// Recheck every retained source at delivery; a cached observation never
+// authorizes itself. These fixed source points join the original global
+// footprint and current artist/principal fence in the shared two-view driver.
+func (r *RSArtistAlbumReader) providerFences(ctx context.Context, req governor.Request, out BrowseOutput, p *RSArtistAlbumPreparation, at time.Time, cost *BrowseReadResult) error {
+	root := func(q browseQuery) ([]any, error) {
+		if len(p.providerWork) != len(p.cards) {
+			return nil, ErrUnqualified
+		}
+		for i, work := range p.providerWork {
+			if !work.ready || work.source == nil {
+				return nil, ErrUnqualified
+			}
+			flat, _, e := rsAlbumProviderSource(q, p.selected[i], p.input.View.Library)
+			if e != nil {
+				return nil, e
+			}
+			if !equalSource(work.source, flat) {
+				return nil, ErrStale
+			}
+		}
+		return nil, nil
+	}
+	w := &rsByteWindow{source: r.snapshots, preflightCalls: uint16(3*len(p.cards) + 16), goCopyBytes: out.Request.Need[governor.MemoryBytes] / 2}
+	_, c, e := rsPeoplePublish(ctx, w, req, time.Until(p.lease.Deadline()), out, p.view(at, 5, p.input.Artist), []readStep[struct{}]{func(context.Context, browseQuery, browseFence, *struct{}) error { return nil }}, root)
+	addSearchReadCost(cost, &c)
+	return e
+}
+
+// Fixed entity identity remains fenced even when the exact provider slot does
+// not exist. Other providers/roles are not substitutes for the primary release.
+func rsAlbumProviderSource(q browseQuery, id, library int64) ([]any, []any, error) {
+	entity, e := q("rs.detail.source", id, library, int64(6))
+	if e != nil {
+		return nil, nil, e
+	}
+	if len(entity) != 1 {
+		return nil, nil, ErrDenied
+	}
+	slot, e := q("rs.album.provider.slot", id)
+	if e != nil {
+		return nil, nil, e
+	}
+	if len(slot) > 1 {
+		return nil, nil, ErrUnqualified
+	}
+	state, e := q("rs.album.provider.state", id, library)
+	if e != nil {
+		return nil, nil, e
+	}
+	if len(state) > 1 || len(state) == 1 && len(state[0]) != 20 {
+		return nil, nil, ErrUnqualified
+	}
+	flat := append([]any(nil), entity[0]...)
+	if len(slot) > 0 {
+		flat = append(flat, slot[0]...)
+	}
+	if len(state) == 0 {
+		return flat, nil, nil
+	}
+	flat = append(flat, state[0]...)
+	return flat, state[0], nil
 }
