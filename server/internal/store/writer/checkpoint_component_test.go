@@ -352,6 +352,11 @@ type checkpointTurnSample struct {
 	PayloadBytes                           int
 }
 
+// The turn's 25 ms is the MaxHold TARGET carried by the recipe. The caller
+// deadline is the 3 s runtime safety ceiling: a slow COMMIT after a reset (host
+// writeback stall) must not be cancelled mid-COMMIT into an uncertain outcome.
+const checkpointTurnCallerDeadline = 3 * time.Second
+
 func (f *checkpointComponent) turn(t *testing.T, discard bool, payload int) (out checkpointTurnSample) {
 	t.Helper()
 	out.Started = time.Now()
@@ -376,7 +381,7 @@ func (f *checkpointComponent) turn(t *testing.T, discard bool, payload int) (out
 		return
 	}
 	recipe := turnRecipe{limit: Work{4096, 1000000, 16384, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}
-	r := governor.Request{Key: governor.JobKey{Domain: uint16(ProgressAccept), ID: "cp-overlap"}, Owner: 1, Class: governor.Foreground, Writer: true, Need: governor.Amounts{governor.MemoryBytes: int64(4<<20) + 3*int64(payload), governor.CPUMilli: 1000, governor.IOBytes: int64(recipe.limit.WALBytes) * 2, governor.WALBytes: int64(recipe.limit.WALBytes)}, Budget: governor.UnitBudget{RawRows: 4096, VMOps: 1000000, Pages: 16384}, MaxHold: recipe.limit.Hold, Deadline: f.now().Add(25 * time.Millisecond), RestartRisk: risk}
+	r := governor.Request{Key: governor.JobKey{Domain: uint16(ProgressAccept), ID: "cp-overlap"}, Owner: 1, Class: governor.Foreground, Writer: true, Need: governor.Amounts{governor.MemoryBytes: int64(4<<20) + 3*int64(payload), governor.CPUMilli: 1000, governor.IOBytes: int64(recipe.limit.WALBytes) * 2, governor.WALBytes: int64(recipe.limit.WALBytes)}, Budget: governor.UnitBudget{RawRows: 4096, VMOps: 1000000, Pages: 16384}, MaxHold: recipe.limit.Hold, Deadline: f.now().Add(checkpointTurnCallerDeadline), RestartRisk: risk}
 	r.IO = []governor.DeviceIO{{DeviceID: fmt.Sprintf("filesystem-device:%d", f.opening.binding.device), Class: governor.Seeking, Outstanding: 1, Bytes: r.Need[governor.IOBytes]}}
 	out.Request = r
 	decision := f.g.Try(r)
