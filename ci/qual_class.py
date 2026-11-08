@@ -33,6 +33,15 @@ TARGETS = {
     'publisher_flip': 'TestCanonicalHeldPublisherFlip',
 }
 TARGETS.update({key:'TestDiagnosticConcurrentKeeper/'+case for key,case in CHECKPOINT_CASES.items()})
+# Non-test source that decides how a population image is read/interpreted:
+# toolchain and driver pins, the embedded schema, the projection and the sort
+# keys/collation baked into the image's indexes. These must be unchanged since
+# the producer. The producer's seed test is deliberately absent: population
+# content identity (shape, seed, residents, logical digest) covers its effect.
+COMPATIBILITY_PATHS = [
+    'server/go.mod', 'server/go.sum', 'server/internal/store/schema/schema.sql',
+    'server/internal/store/writer/scan_metadata.go', 'server/internal/sorttext',
+]
 ATTEMPTS = 10000
 # Transport-only ceiling: 30k role records at the retained ~235kB/record
 # exceed the old4GiB guard. Streaming keeps this independent of process RAM.
@@ -144,6 +153,18 @@ def verify_producer(receipt, run, cfg):
               and run.get('head_sha') == receipt.get('tooling_commit'), 'successful main producer attempt not proven')
 
 
+def compatibility_changes(changed):
+    """Changed paths inside the non-test compatibility set (prefix aware)."""
+    return sorted(path for path in set(changed)
+                  if any(path == root or path.startswith(root + '/') for root in COMPATIBILITY_PATHS))
+
+
+def require_unchanged_sources(changed):
+    """Refuse when non-test source that interprets the image moved since the producer."""
+    offending = compatibility_changes(changed)
+    q.require(not offending, 'population compatibility: non-test source differs since the producer: ' + ' '.join(offending))
+
+
 def prepare(source, artifact, output, work, producer_run):
     cfg = inputs(os.environ)
     q.require(all(p.is_absolute() and p == p.resolve() for p in (source, artifact, output, work)), 'canonical absolute paths required')
@@ -189,11 +210,15 @@ def prepare(source, artifact, output, work, producer_run):
         population, _ = q.validate_artifact(artifact, source=producer, schema=schema, seed=m['facts']['seed'],
                                           residents=1000000, manifest_sha=cfg['manifest'])
         cmd(['git', 'merge-base', '--is-ancestor', producer, actual], source, 'producer-ancestry')
+        changed = cmd(['git', 'diff', '--name-only', producer, actual, '--', *COMPATIBILITY_PATHS],
+                      source, 'population-compatibility').read_text().split()
+        require_unchanged_sources(changed)
         archive = work / 'source.tar'
         cmd(['git', 'archive', '--format=tar', '-o', str(archive), actual], source, 'source-archive')
         receipt.update(source_commit=actual, archive_sha256=q.file_hash(archive), population=population,
                        producer_manifest_sha256=cfg['manifest'], population_content=content,
-                       compatibility='population content identity (shape, residents, logical digest); source bytes not compared',
+                       compatibility_paths=COMPATIBILITY_PATHS,
+                       compatibility='non-test source paths unchanged since the producer plus reviewed population content identity (shape, seed, residents, logical digest); the producer seed test source is not compared',
                        timing_stratum='source-owned; raw warmup/connection evidence required, never inferred by dispatcher',
                        fixture_cache_state='download/hash/private-copy setup may warm OS cache; not OS-cold',
                        profile_properties=profile_properties(cfg['profile']))

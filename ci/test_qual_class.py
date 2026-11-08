@@ -471,4 +471,28 @@ class PopulationContent(unittest.TestCase):
                 self.check(manifest)
 
 
+class CompatibilitySources(unittest.TestCase):
+    """Non-test source that interprets an image must not move; the seed test may."""
+    SEED_TEST = 'server/internal/store/writer/qualification_population_seed_test.go'
+
+    def test_non_test_source_changes_are_refused_by_name(self):
+        for changed in (['server/go.mod'], ['server/go.sum'],
+                        ['server/internal/store/schema/schema.sql'],
+                        ['server/internal/store/writer/scan_metadata.go'],
+                        ['server/internal/sorttext/sort.go'],
+                        ['server/go.mod', 'ci/qual_class.py']):
+            with self.subTest(changed=changed), self.assertRaisesRegex(ValueError, 'non-test source differs'):
+                c.require_unchanged_sources(changed)
+        for root in c.COMPATIBILITY_PATHS:
+            with self.subTest(root=root), self.assertRaisesRegex(ValueError, root):
+                c.require_unchanged_sources([root])
+
+    def test_only_the_seed_test_source_change_is_not_a_path_change(self):
+        self.assertNotIn(self.SEED_TEST, c.COMPATIBILITY_PATHS)
+        c.require_unchanged_sources([])
+        c.require_unchanged_sources([self.SEED_TEST])
+        c.require_unchanged_sources([self.SEED_TEST, 'ci/qual_class.py', 'docs/readme.md'])
+        self.assertEqual(c.compatibility_changes([self.SEED_TEST]), [])
+
+
 if __name__ == '__main__': unittest.main()

@@ -54,16 +54,21 @@ Those joins permit observed overlap accounting, not a causal IO attribution.
 
 All six jobs download the SAME successful producer attempt and image. The
 producer workflow/API attempt, main tooling, receipt, source, manifest and full
-image hashes are checked. Compatibility is keyed on population CONTENT, not on
-test-source bytes: the recorded shape (kinds and counts), seed, resident count
-and logical digest must equal the reviewed content identity for that shape, and
-the schema SHA must match the consumer's embedded schema exactly. Any mismatch
-refuses with a named reason. A shape with no reviewed content identity (the
-search shape until its paired artifact is attached) refuses rather than being
-guessed. Never relabel a schema010 image as011. After an embed or real content
-change, generate and review a new artifact. The minimal movie population is not
-all-kind/enriched or production seal proof; the class owner adds its actual
-legal recipe state to that populated library7 through its test-only composition.
+image hashes are checked. Compatibility has two parts. Non-test source that
+decides how the image is read must be unchanged since the producer
+(`server/go.mod`, `server/go.sum`, `server/internal/store/schema/schema.sql`,
+`server/internal/store/writer/scan_metadata.go` and the `server/internal/sorttext`
+package); a change refuses by path. The population content must also equal the
+reviewed content identity for its shape: recorded shape (kinds and counts),
+seed, resident count and logical digest, with the schema SHA matched exactly.
+The producer's seed test source is not compared, so an edit that leaves the
+recorded content unchanged stays compatible. Any mismatch refuses with a named
+reason. A shape with no reviewed content identity (the search shape until its
+paired artifact is attached) refuses rather than being guessed. Never relabel a
+schema010 image as011. After an embed or real content change, generate and
+review a new artifact. The minimal movie population is not all-kind/enriched or
+production seal proof; the class owner adds its actual legal recipe state to
+that populated library7 through its test-only composition.
 
 The standard profile uses four allowed vCPUs /400% quota and unrestricted memory
 on the 16GB-class VM. Legacy8 retains four allowed vCPUs with200% quota,

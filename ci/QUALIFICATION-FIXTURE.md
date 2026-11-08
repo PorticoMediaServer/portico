@@ -184,16 +184,19 @@ UseQualificationPopulation(t, artifactDir, pinnedManifestSHA)
 immutable source image for the same test owner and leaves existing connection
 openers/policy unchanged. Shards never open or mutate the downloaded image in
 place. The producer source and workload consumer source are separately pinned. A
-later reviewed class target accepts the image through its population content
-identity, not by comparing test-source bytes: the recorded shape (kinds and
-counts), seed, resident count, logical digest and embedded schema must equal
-what that consumer reviewed. A matching schema alone is not that decision, and
-a shape with no reviewed identity refuses. If population semantics changed,
-generate a new artifact and record its new content identity. Do not rewrite the
-producer source in its manifest or relabel the old binary as the new target. The
-Python verifier checks the producer source pin; the parent API checks embedded
-schema and the trusted manifest digest. Each workload receipt records both
-identities. No automatic adoption across source revisions occurs.
+later reviewed class target accepts the image only when the non-test source that
+interprets it (module/toolchain pins, embedded schema, projection and sorttext)
+is unchanged since the producer and the recorded population content identity
+(shape, kinds/counts, seed, resident count, logical digest) equals what that
+consumer reviewed. The producer's seed test source is not compared, so an edit
+that leaves the content unchanged stays compatible; a matching schema alone is
+not that decision, and a shape with no reviewed identity refuses. If population
+semantics changed, generate a new artifact and record its new content identity.
+Do not rewrite the producer source in its manifest or relabel the old binary as
+the new target. The Python verifier checks the producer source pin; the parent
+API checks embedded schema and the trusted manifest digest. Each workload
+receipt records both identities. No automatic adoption across source revisions
+occurs.
 
 Focused local protocol controls only:
 `python3 -B -m unittest discover -s ci -p test_qual_fixture.py`.
