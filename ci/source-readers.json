@@ -370,9 +370,11 @@
         "TestNativeSearchPeopleEqualIDBirth",
         "TestNativeSearchPerHitPolicyRecheckedBeforePublication",
         "TestNativeSearchPlans",
+        "TestNativeSearchPreviewCursorIsBoundToItsQuery",
         "TestNativeSearchPreviewTheReturnsPartial",
         "TestNativeSearchPublicationDenialAndRetirement",
         "TestNativeSearchReadJoinedStamp",
+        "TestNativeSearchRefusesCandidateBudgetMisuse",
         "TestNativeSearchRefusesUnsupportedAndStaleProofs",
         "TestNativeSearchUsesCapturedDomainBytePairs"
       ]

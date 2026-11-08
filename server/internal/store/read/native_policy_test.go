@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
 )
 
@@ -150,5 +151,42 @@ func TestNativeSearchCanonicalGroupFacts(t *testing.T) {
 	source.item[18] = nil
 	if err := nativeHitFacts(&hit, source); err != nil || hit.AddedAt != "" {
 		t.Fatal("NULL added_at", hit, err)
+	}
+}
+
+func TestNativeRetainedStampsAreBoundedAndBoundToTheirRead(t *testing.T) {
+	pool := new(governor.Snapshots)
+	reader := &NativeFullSearchReader{pool: pool, snapshots: pool}
+	fence := nativeSearchFence{bank: 1}
+	over := make([]*FullSearchReadStamp, MaxNativeRetained+1)
+	for i := range over {
+		over[i] = &FullSearchReadStamp{pool: pool, output: new(governor.Grant), fence: fence, query: "the"}
+	}
+	if _, _, err := nativeRetainedPolicies(over, fence, "the", reader); !errors.Is(err, ErrInput) {
+		t.Fatal("129 retained stamps accepted", err)
+	}
+	if _, _, err := nativeRetainedPolicies(over[:MaxNativeRetained], fence, "the", reader); err != nil {
+		t.Fatal("128 retained stamps refused", err)
+	}
+	for name, bad := range map[string]*FullSearchReadStamp{
+		"nil":        nil,
+		"query":      {pool: pool, fence: fence, query: "story"},
+		"fence":      {pool: pool, fence: nativeSearchFence{bank: 2}, query: "the"},
+		"other pool": {pool: new(governor.Snapshots), fence: fence, query: "the"},
+	} {
+		if _, _, err := nativeRetainedPolicies([]*FullSearchReadStamp{bad}, fence, "the", reader); !errors.Is(err, ErrStale) {
+			t.Fatal("retained stamp from another read accepted", name, err)
+		}
+	}
+}
+
+func TestReadLibraryFenceRefusesABoundKindPolicy(t *testing.T) {
+	never := func(string, ...any) ([][]any, error) {
+		t.Fatal("a bound policy must be refused before any SQL")
+		return nil, nil
+	}
+	in := BrowseInput{policy: readPolicyBinding{nativeSearch: true, subject: 1}}
+	if _, err := readLibraryFence(never, in); !errors.Is(err, ErrUnqualified) {
+		t.Fatal("library-only fence accepted a bound per-kind policy", err)
 	}
 }

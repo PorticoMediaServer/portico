@@ -122,6 +122,11 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 	if in.FullAfter != nil && query.Mode() == search.ReadTitles {
 		return out, ErrInput
 	}
+	// All-kinds (Kind 0) is only meaningful for full search; title discovery
+	// keeps requiring one concrete kind.
+	if in.View.Kind == 0 && query.Mode() == search.ReadTitles {
+		return out, ErrInput
+	}
 	var after *FullSearchCursor
 	if query.Mode() == search.ReadFull {
 		after = cloneFullCursor(in.FullAfter)

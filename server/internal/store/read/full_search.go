@@ -61,7 +61,8 @@ type FullSearchPage struct {
 	Next        *FullSearchCursor
 	Exhausted   bool
 	Partial     bool
-	// Internal work progress, never an authorized logical result count.
+	// Internal work progress: raw bank-wide MATCH rows consumed, never an
+	// authorized logical result count. It must not be put on the wire.
 	NativeCandidates int
 	CountStatus      SearchCountStatus
 	Count            uint64
@@ -147,11 +148,18 @@ type fullSearchTop struct {
 	more  bool
 }
 
+// boundTo reports whether the cursor was issued for exactly this folded query,
+// bank, revision and input. Every continuation path (exact, native and native
+// preview) must check it before consuming any cursor-held position.
+func (c *FullSearchCursor) boundTo(scope *fullQueryScope) bool {
+	return c != nil && scope != nil && c.query == scope.query.Fold() && c.bank == scope.bank && c.revision == scope.revision && c.input == scope.input
+}
+
 func newFullSearchTop(scope *fullQueryScope, limit int, after *FullSearchCursor) (*fullSearchTop, error) {
 	if scope == nil || limit < 1 || limit > MaxSearchTitles {
 		return nil, ErrInput
 	}
-	if after != nil && (after.query != scope.query.Fold() || after.bank != scope.bank || after.revision != scope.revision || after.input != scope.input) {
+	if after != nil && !after.boundTo(scope) {
 		return nil, ErrStale
 	}
 	return &fullSearchTop{scope: scope, limit: limit, after: cloneFullCursor(after)}, nil

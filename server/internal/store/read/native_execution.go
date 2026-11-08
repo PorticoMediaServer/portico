@@ -16,17 +16,18 @@ import (
 // Continuations retain only bounded values. No connection, rows, receipt,
 // query-wide seen set or permission survives a read window.
 type nativeContinuation struct {
-	fence             nativeSearchFence
-	term              int
-	slot              uint8
-	after             int64
-	counts            []uint64
-	populationDone    bool
-	expansion         *nativeExpansion
-	top               []nativeRankHit
-	more              bool
-	limit             int
-	preview           bool
+	fence          nativeSearchFence
+	term           int
+	slot           uint8
+	after          int64
+	counts         []uint64
+	populationDone bool
+	expansion      *nativeExpansion
+	top            []nativeRankHit
+	more           bool
+	limit          int
+	preview        bool
+	// Raw bank-wide MATCH rows used so far; internal budget only, never wire data.
 	candidates        int
 	previewIncomplete bool
 }
