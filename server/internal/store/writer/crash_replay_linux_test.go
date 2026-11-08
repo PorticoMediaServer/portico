@@ -619,6 +619,9 @@ func bindCrashInventory(t *testing.T, e *executor, path string, inventory effect
 }
 
 func TestCrashReplayInventoryHistory(t *testing.T) {
+	if raceDetector {
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
 	prototype, requests, e, _ := inventoryFacadeFixture(t)
 	profile := *prototype.effective.inventoryPlan
 	// Freeze original saved facts before any tested command. No ResolveScan
