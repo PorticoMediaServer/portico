@@ -121,5 +121,5 @@ func copyBasicFamily(ctx context.Context, turn *commandTurn, in basicControlRequ
 	if !ok {
 		return &Refusal{Code: RefusalUnqualified}
 	}
-	return spec.copy(ctx, turn, basicCopyTurn{source: in.source, changeRevision: in.changeRevision, entityID: in.entityID, shapeID: in.shapeID, entry: in.copy})
+	return spec.copy(ctx, turn, basicCopyTurn{family: in.family, source: in.source, changeRevision: in.changeRevision, entityID: in.entityID, shapeID: in.shapeID, entry: in.copy})
 }
