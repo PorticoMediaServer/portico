@@ -1,0 +1,12 @@
+{
+  "version": "portico-class-target-v1",
+  "class": "inventory_n1",
+  "profile": "legacy8",
+  "replicate": 1,
+  "target": "synthetic fixture target",
+  "target_flag": true,
+  "reason": "synthetic fixture; not evidence",
+  "gate": "cell_declared",
+  "min_holds_per_host": 3,
+  "synthetic": true
+}

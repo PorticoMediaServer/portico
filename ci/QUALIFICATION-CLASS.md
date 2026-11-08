@@ -26,6 +26,13 @@ that these bodies are runnable. Reads, maintenance and error-path experiments
 need their own composed targets and budgets; scalar-only/primitive success is
 not a composed read-class receipt. Phase1a lease/preparation remains OFF.
 
+Roll-up rows come from the downloaded artifacts, not from hand summarisation:
+`go run ./internal/store/qual/cmd/rollup -artifacts DIR -out DIR` emits markdown
+and JSON with per-VM tables, each cell's own `target.json` flag and a computed
+verdict. See `server/internal/store/qual/cmd/rollup/README.md`. A row cannot
+pass if a cell's target flag is false, a profile lacks three distinct boot
+identities, a population is short, or a cell stopped or refused.
+
 Every class requests 10,000 originals, not an inferred 10,000 accepted holds.
 The owner keeps its actual warmup and each recipe/phase separate. A successful
 wire/exit means only owner-execution completion. Per-host per-recipe counts,
