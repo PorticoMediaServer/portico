@@ -50,6 +50,11 @@ on:
         required: true
         default: 250ms
         type: string
+      ec2_pattern:
+        description: EC2 bounded writer pattern
+        required: true
+        default: inventory
+        type: string
 permissions:
   contents: read
   actions: read
@@ -104,6 +109,7 @@ jobs:
       CELLS: ${{ inputs.cells }}
       REPLICATES: ${{ inputs.replicates }}
       EC3_WRITE_EVERY: ${{ inputs.ec3_write_every }}
+      EC2_PATTERN: ${{ inputs.ec2_pattern }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {path: tools, persist-credentials: false}
@@ -245,7 +251,7 @@ jobs:
               export PORTICO_WRITER_EC2=1
               export PORTICO_WRITER_EC2_CONFIG="$OUTPUT/config.json"
               ARGS=(-test.run=^TestEC2SustainedMeasurement$ -test.count=1 -test.v -test.timeout=45m
-                    -ec2-sustained=true -ec2-writer-pattern=inventory -ec2-warmup=8
+                    -ec2-sustained=true -ec2-writer-pattern="$EC2_PATTERN" -ec2-warmup=8
                     -ec2-cohort=timing -ec2-cadence=realistic)
               if [ "$CELL" = ec3-write ]; then
                 ARGS+=(-ec3-foreground-write-every="$EC3_WRITE_EVERY" -ec3-foreground-write-pattern=progress_capture,progress_drain,security)
