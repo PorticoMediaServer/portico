@@ -107,8 +107,8 @@ func TestEffectiveSourceNativePointsRefuseLegacyAndUnfundedProof(t *testing.T) {
 				if !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified {
 					t.Fatal("missing same-grant partition did not refuse", err)
 				}
-			} else if !errors.Is(err, ErrInvalid) {
-				t.Fatal("legacy body with NULL proof fields was accepted", err)
+			} else if !errors.Is(err, ErrResolveRequired) {
+				t.Fatal("legacy body without immutable seal proof did not require resolution", err)
 			}
 			_, _ = turn.transaction.rollback(err)
 			if a.Usage() != ([4]governor.Amounts{}) {
