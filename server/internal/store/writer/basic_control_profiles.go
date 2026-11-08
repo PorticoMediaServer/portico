@@ -55,6 +55,9 @@ func basicControlMaxUses(purpose CommandID, id stmt.ID) int {
 			basicMediaSubtitleFactInsert, basicMediaSidecarInsert, basicMediaSubtitleInsert, basicMediaEvidenceInsert:
 			return basicStageMaxRows
 		default:
+			if n := basicAbandonMaxUses(id); n > 0 {
+				return n
+			}
 			if n := basicCopyFamilyMaxUses(id); n > 0 {
 				return n // registered copy family statements, from their own files
 			}
@@ -76,7 +79,7 @@ func basicControlCommandDefinitions(purpose CommandID) []stmt.Definition {
 	}
 	groups := [][]stmt.Definition{inventoryDisclosureDefinitions(), basicReceiptDefinitions(), basicControlDefinitions(),
 		basicStreamStageDefinitions(), basicMediaDefinitions(), basicProbeDefinitions(), basicShapeDefinitions(),
-		basicFreezeDefinitions(), basicCopyDefinitions(), basicCopyFamilyDefinitions()}
+		basicFreezeDefinitions(), basicCopyDefinitions(), basicCopyFamilyDefinitions(), basicAbandonDefinitions()}
 	for _, d := range scanReceiptDefinitions() {
 		switch d.ID {
 		case scanReceiptOwner, scanReceiptAck, scanReceiptReclaimKey: // zero-member replay decode

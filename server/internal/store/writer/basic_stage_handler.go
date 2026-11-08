@@ -53,12 +53,26 @@ func applyBasicControl(ctx context.Context, turn *commandTurn, kind CommandID, i
 	if err != nil {
 		return value, err
 	}
-	if err = runBasicControlBody(ctx, turn, purpose, in); err != nil {
-		return value, err
+	removed := false
+	if in.operation == basicControlAbandon {
+		removed, err = abandonBasicInput(ctx, turn, in)
+	} else {
+		err = runBasicControlBody(ctx, turn, purpose, in)
 	}
-	continuation, err := readBasicControlPostState(ctx, turn, s)
 	if err != nil {
 		return value, err
+	}
+	// An abandon reports only "call again" or, once the header is gone, the zero
+	// continuation: the marked header's raw cursor has no result encoding.
+	var continuation BasicContinuation
+	switch {
+	case removed:
+	case in.operation == basicControlAbandon:
+		continuation = BasicContinuation{NextFamily: 1}
+	default:
+		if continuation, err = readBasicControlPostState(ctx, turn, s); err != nil {
+			return value, err
+		}
 	}
 	if facts.revision == math.MaxInt64 {
 		return value, ErrCap
