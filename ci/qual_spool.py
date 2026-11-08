@@ -140,7 +140,7 @@ def engine_memory_peak():
 def timeline(root, stop):
     """External scoped raw counters, actual page units and missing values; no zeros."""
     path=root/'timeline.jsonl.gz'
-    result=dict(complete=False,interval_requested_ns=10000000,page_bytes=os.sysconf('SC_PAGE_SIZE'),scope='host plus actual engine cgroup; observer outside engine')
+    result=dict(complete=False,origin_utc_ns=time.time_ns(),origin_monotonic_ns=time.monotonic_ns(),interval_requested_ns=10000000,page_bytes=os.sysconf('SC_PAGE_SIZE'),scope='host plus actual engine cgroup; observer outside engine')
     samples=0
     try:
         with path.open('xb') as file:
@@ -160,7 +160,7 @@ def timeline(root, stop):
                 for name,source in sources.items():
                     try:values[name]=source.read_text()
                     except OSError as error:values[name]=None;unavailable[name]=str(error)
-                row=dict(started_monotonic_ns=before,returned_monotonic_ns=time.monotonic_ns(),raw=values,unavailable_reasons=unavailable)
+                row=dict(started_utc_ns=time.time_ns(),started_monotonic_ns=before,returned_monotonic_ns=time.monotonic_ns(),raw=values,unavailable_reasons=unavailable)
                 capped.write(compressor.compress((json.dumps(row,separators=(',',':'))+'\n').encode()))
                 samples+=1
                 if stop.wait(.01):break
