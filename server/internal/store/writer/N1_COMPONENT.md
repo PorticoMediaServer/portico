@@ -690,8 +690,11 @@ against B-READS' 200ms 1M ready p95 and 50ms working first-ready targets; this i
 directional component evidence, never a qualification. The canonical 1M
 population seeds no search bank, so screening normally records
 SearchUnavailable/no hits and that is reported, not repaired; the default
-positive control `TestEC2NativeFullSearchFunctional` seeds one real v1 bank and
-proves the native read returns hits and a joined stamp. `TestEC2FullSearch-
+opt-in native positive control `TestEC2NativeFullSearchFunctional`
+(`PORTICO_EC2_NATIVE_FUNCTIONAL=1`, `ec2-native` harness target) seeds one real
+v1 bank and proves the native read returns hits and a joined stamp; it is opt-in
+because the read carries a real 1s LIVE deadline that race-contended CI shards
+can legitimately miss, and the default run keeps only the fail-closed control. `TestEC2FullSearch-
 RefusesWithoutComposition` proves the binding fails closed when the reader or
 prepare composition is absent.
 

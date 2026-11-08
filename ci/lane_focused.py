@@ -30,7 +30,7 @@ CAPTURES = {
     'hn-foreground': ('read', 'TestForegroundPlans', 'record-foreground-plans', ['foreground-plans.json.gz']),
 }
 HARNESSES = {
-    'ec2-native': ('./internal/store/writer', '^TestEC2NativeFunctional$'),
+    'ec2-native': ('./internal/store/writer', '^(TestEC2NativeFunctional|TestEC2NativeFullSearchFunctional)$'),
     'paired-canonical': ('./internal/store/writer', '^TestN1PairedCanonicalPopulationFunctional$'),
     'ec1-rare': ('./internal/store/writer', '^TestEC1RareErrorPaths$'),
     'canonical-publisher': ('./internal/store/writer', '^TestCanonicalPublisherFundedKeeperFunctional$'),
