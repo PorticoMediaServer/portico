@@ -329,9 +329,6 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if enrichment != nil {
 		purpose, plan, reference, key, libraryID = enrichment.purpose, nil, enrichment.request.Receipt, enrichment.request.ProviderOperationID, enrichment.request.LibraryID
 		outcome = &out.enrichment.Outcome
-		if purpose == EnrichAccept {
-			key = enrichmentAcceptGrantKey(enrichment.request.Receipt.Identity, enrichment.request.Receipt.RequestDigest)
-		}
 	}
 	if scan != nil {
 		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || (scan.directory == 0 && (scan.directoryInput != nil || scan.directoryTerminalInput != nil)) {
