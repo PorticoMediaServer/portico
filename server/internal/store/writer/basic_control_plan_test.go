@@ -50,10 +50,10 @@ func TestBasicControlStatementPlans(t *testing.T) {
 func captureBasicControlPlans(t *testing.T) ([]byte, []byte) {
 	t.Helper()
 	parts := []struct{ name, sha string }{
-		{"basic_control.go", "57181bc88298c11f3fa924b986b6a03f9ed8c60172e0bc79775823ad58db62d5"},
+		{"basic_control.go", "3a3a439e8bb8161ddb1582aa43d7b11d3ebd2646d8c72814ceccf916a2a99db8"},
 		{"basic_control_statements.go", "cae20d889dc5a37925dedf58142fa872ab6108ac38745cd0b6320c340eb70b4a"},
 		{"basic_control_test.go", "3025acbc66b43e25982fa7761664b3a8eb2f24bb77f0cd461befd2e180148a3b"},
-		{"basic_original.go", "5015f3cc2fafad60e60b004129e72a89a77037d1168076f02071a8f94812c3da"},
+		{"basic_original.go", "6e3f4a9722285ec053270743ff7d19408b22ac1bb541b4e8dba003e299b154df"},
 		{"basic_stage_test.go", "8e8da49da22747d1d709405398198f8c3fd46400bc63c9fb434758c553a17966"},
 		{"basic_stage.go", "b2adbf700ce9928f1a2b388322124455b564780b85d71a6026861342aed52b23"},
 	}
