@@ -60,6 +60,15 @@ class CompressedSpool(unittest.TestCase):
         with mock.patch.object(s,'cgroup',return_value='/engine'):
             with self.assertRaisesRegex(ValueError,'outside engine'):s.wait_capture(self.root)
 
+    def test_timeline_retains_scopes_and_page_units_without_zero_defaults(self):
+        stop=threading.Event();stop.set();s.timeline(self.root,stop)
+        receipt=json.loads((self.root/'timeline.json').read_text())
+        row=json.loads(gzip.decompress((self.root/'timeline.jsonl.gz').read_bytes()))
+        self.assertTrue(receipt['complete']);self.assertEqual(receipt['samples'],1)
+        self.assertGreater(receipt['page_bytes'],0)
+        self.assertIn('vmstat',row['raw']);self.assertIn('pressure/io',row['raw'])
+        self.assertEqual(row['unavailable_reasons']['engine_cgroup'],'not yet observed')
+
     def test_real_runner_mount_and_external_cgroup(self):
         if os.environ.get('PORTICO_CLASS_SPOOL_PROTOCOL')!='1':
             self.skipTest('PR-only actual tmpfs/systemd protocol')

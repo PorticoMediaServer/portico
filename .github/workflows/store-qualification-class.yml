@@ -1,16 +1,18 @@
 name: Canonical per-class qualification cells
+run-name: ${{ inputs.purpose || 'qualification' }} / ${{ inputs.class || 'protocol' }} / ${{ inputs.source_commit || github.sha }}
 # Raw evidence transport. No automatic qualification or release decision.
 on:
   pull_request:
     paths: ['.github/workflows/store-qualification-class.yml', 'ci/qual_class.py', 'ci/qual_fixture.py', 'ci/test_qual_class.py', 'ci/qual_spool.py', 'ci/test_qual_spool.py', 'server/internal/store/writer/canonical_held_stream_test.go', 'server/internal/store/writer/canonical_held_targets_test.go', 'server/internal/store/writer/n1_component_target_test.go']
   workflow_dispatch:
     inputs:
+      purpose: {description: 'SCREENING permits branch tooling; never sign-off', default: qualification, type: choice, options: [qualification, screening]}
       source_commit: {description: Reviewed merged full workload SHA, required: true, type: string}
       class:
         description: Closed accepting owner class
         required: true
         type: choice
-        options: [inventory_n1, basic_accept, staged_enrich, progress, security, wc_reclaim, publisher_fragment, publisher_flip]
+        options: [inventory_n1, basic_accept, staged_enrich, progress, security, wc_reclaim, publisher_fragment, publisher_flip, checkpoint_1mib, checkpoint_8mib, checkpoint_64mib, checkpoint_hardcap]
       producer_run: {description: Immutable successful 1M producer run ID, required: true, type: string}
       producer_attempt: {description: Producer attempt, default: '1', type: string}
       manifest_sha256: {description: Independently checked producer receipt manifest SHA256, required: true, type: string}
@@ -52,6 +54,7 @@ jobs:
         profile: [standard, legacy8]
         replicate: [1, 2, 3]
     env:
+      INPUT_PURPOSE: ${{ inputs.purpose }}
       INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
       INPUT_CLASS: ${{ inputs.class }}
       INPUT_PRODUCER_RUN: ${{ inputs.producer_run }}

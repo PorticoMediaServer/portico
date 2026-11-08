@@ -43,6 +43,20 @@ class ClassProtocol(unittest.TestCase):
                 with self.assertRaises(ValueError): c.inputs(dict(env, **{key: value}))
                 popen.assert_not_called()
 
+    def test_checkpoint_screening_purpose_and_complete_native_census(self):
+        env=dict(INPUT_SOURCE_COMMIT='a'*40,INPUT_MANIFEST_SHA256='b'*64,INPUT_CLASS='checkpoint_1mib',PROFILE='standard',REPLICATE='1',INPUT_PRODUCER_RUN='1',GITHUB_RUN_ID='2',GITHUB_RUN_ATTEMPT='1')
+        with self.assertRaises(ValueError):c.inputs(env)
+        self.assertEqual(c.inputs(dict(env,INPUT_PURPOSE='screening'))['purpose'],'screening')
+        record=dict(Cell='1MiB',Kind='concurrent',CheckpointError='',Checkpoint=dict(Refusal=None,PhysicalSafe=True),CheckpointHoldNS=42)
+        raw=self.root/'cp.gz'
+        def write(n):raw.write_bytes(gzip.compress(b''.join(b'    owner.go:42: GV_KEEPER_CONCURRENT_V1 '+json.dumps(record).encode()+b'\n' for _ in range(n))))
+        with mock.patch.object(c,'ATTEMPTS',2):
+            write(2);self.assertEqual(c.verify_checkpoint_stream(raw,'1MiB')['records'],2)
+            write(1)
+            with self.assertRaises(ValueError):c.verify_checkpoint_stream(raw,'1MiB')
+            record['CheckpointError']='retained native error';write(2)
+            with self.assertRaises(ValueError):c.verify_checkpoint_stream(raw,'1MiB')
+
     def test_owner_completion_is_not_qualification(self):
         path = self.records([{'kind': 'start'}, {'kind': 'final', 'complete': True}])
         result = c.verify_stream(path, self.cfg)
