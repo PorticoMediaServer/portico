@@ -431,6 +431,8 @@ type transaction struct {
 	cleanupPanics       []terminalPanic
 
 	compositionClock *time.Time // real runtime's same mark survives all admission failures
+
+	mpPhysicalRelease *mpPhysicalRelease // sealed native exit, checked again before COMMIT
 }
 
 // observeTime records every trusted admission/helper sample, even a helper read
@@ -530,6 +532,9 @@ func (t *transaction) commit() (turnResult, error) {
 	}
 	if err == nil {
 		err = t.checkPublicationCommit()
+	}
+	if err == nil {
+		err = t.checkMPPhysicalCommit()
 	}
 	if err == nil {
 		now := t.writer.now()
