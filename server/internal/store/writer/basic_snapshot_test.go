@@ -9,8 +9,13 @@ import (
 )
 
 func basicSnapshotValues() (CommandIdentity, scanRunSnapshot, scanSourceFacts, basicOriginalScope) {
-	in, identity := basicStageFactCommandFixture()
-	o := in.original
+	// Inert native-value fixture; the separate issuer controls use real rows.
+	identity := CommandIdentity{Incarnation: [16]byte{1}, Sequence: 19, OperationID: [16]byte{3}}
+	o := basicOriginalScope{
+		scope:  inventoryScope{runID: "basic-run", libraryID: 7, libraryKey: "basic-library"},
+		source: inventorySource{id: "basic-source", incarnation: "source-incarnation", rootIdentity: "source-root-identity", resolvedRoot: []byte("/physical/media"), generation: 23},
+		run:    inventoryRun{revision: 41, policyRevision: 29, phase: "inventory", scanMode: "first-import", leaseOwner: 5, leaseGeneration: 7, leaseExpiresMS: 300000, lastSequence: 18, acknowledgedSequence: 18},
+	}
 	n := scanRunSnapshot{run: scanRunNative{scope: scanRunScope{runID: o.scope.runID, libraryID: o.scope.libraryID, libraryKey: o.scope.libraryKey,
 		resolvedRoot: string(o.source.resolvedRoot), sourceID: o.source.id, incarnation: o.source.incarnation, rootIdentity: o.source.rootIdentity,
 		sourceGeneration: o.source.generation, followSymlinks: basicBool(o.source.followSymlinks), policyRevision: o.run.policyRevision,
