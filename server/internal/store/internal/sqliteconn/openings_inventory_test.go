@@ -29,15 +29,17 @@ var openingConstraints = map[string]string{
 	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
 	"qual/scanbench/fixture_dir_other.go":        "//go:build !linux && !darwin",
 	"qual/scanbench/fixture_dir_test.go":         "//go:build linux || darwin",
-	"qual/namespace_linux.go":                    "", // implicit _linux filename constraint
-	"writer/crash_passive_linux_test.go":         "", // implicit _linux suffix; native PASSIVE SIGKILL controls are Linux-only
-	"writer/crash_oracle_linux_test.go":          "", // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
-	"writer/crash_effective_steps_linux_test.go": "", // implicit _linux suffix; native-step SIGKILL/reopen controls are Linux-only
-	"writer/crash_replay_linux_test.go":          "", // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
-	"writer/crash_inventory_fresh_linux_test.go": "", // implicit _linux suffix; fresh SIGKILL component uses the Linux harness
-	"writer/crash_scan_n1_driver_linux_test.go":  "", // implicit _linux suffix; merged N1 public-path SIGKILL/reopen controls
-	"writer/crash_scan_n1_history_linux_test.go": "", // implicit _linux suffix; N1 child-bearing ACK/retired rebind controls
-	"writer/crash_fresh_retry_linux_test.go":     "", // implicit _linux suffix; pre-COMMIT retry execute-once/replay cells
+	"qual/namespace_linux.go":                    "",                 // implicit _linux filename constraint
+	"writer/crash_passive_linux_test.go":         "",                 // implicit _linux suffix; native PASSIVE SIGKILL controls are Linux-only
+	"writer/crash_oracle_linux_test.go":          "",                 // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
+	"writer/crash_effective_steps_linux_test.go": "",                 // implicit _linux suffix; native-step SIGKILL/reopen controls are Linux-only
+	"writer/crash_replay_linux_test.go":          "",                 // implicit _linux suffix; SIGKILL/native reopen harness is Linux-only
+	"writer/crash_inventory_fresh_linux_test.go": "",                 // implicit _linux suffix; fresh SIGKILL component uses the Linux harness
+	"writer/crash_scan_n1_driver_linux_test.go":  "",                 // implicit _linux suffix; merged N1 public-path SIGKILL/reopen controls
+	"writer/crash_scan_n1_history_linux_test.go": "",                 // implicit _linux suffix; N1 child-bearing ACK/retired rebind controls
+	"writer/crash_fresh_retry_linux_test.go":     "",                 // implicit _linux suffix; pre-COMMIT retry execute-once/replay cells
+	"writer/race_on_test.go":                     "//go:build race",  // crash-child deadline scaled for the detector
+	"writer/race_off_test.go":                    "//go:build !race", // established crash-child deadline
 	"qual/namespace_other.go":                    "//go:build !linux",
 	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
 	"governor/snapshot_binding_counters_test.go": "//go:build memory.counters && !libc.memgrind",
