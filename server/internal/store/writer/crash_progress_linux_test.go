@@ -468,6 +468,13 @@ func verifyProgressCrash(t *testing.T, witness crashWitness) {
 }
 
 func TestCrashReplayProgressComponents(t *testing.T) {
+	t.Helper()
+	if raceDetector {
+		// This sequential child matrix exceeds one shard's race budget. The
+		// same cells run without -race; a skipped opt-in target is not evidence.
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+
 	for _, operation := range []string{"capture", "drain", "drain_pending", "ack_empty", "ack_due", "ack_retry", "ack_capture", "ring_gap", "ring_empty", "ring_capacity"} {
 		t.Run(operation, func(t *testing.T) {
 			witness := crashWitness{Case: crashCase{"wc_progress", operation, "trace", ""}}

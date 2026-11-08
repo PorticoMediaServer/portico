@@ -143,12 +143,66 @@ def decode_stream(raw):
         raw = raw.lstrip()[end:]
 
 
-def split_units(units, requested):
-    # Intentionally simple: stable round-robin parents, 25 parents/runner by
-    # default, capped at32. A large SINGLE package is split too.
-    count = min(32, max(1, math.ceil(len(units) / 25))) if requested == 'auto' else requested
+def race_weights():
+    # Measured per-parent -race seconds from lane-focused runs. Unknown parents
+    # use a small default; the table exists to isolate the long tail.
+    path = TOOLS / 'race_durations.json'
+    if not path.is_file():
+        return {}
+    return {str(k): float(v) for k, v in json.loads(path.read_text()).items()}
+
+
+def split_units(units, requested, weights=None, target_seconds=900, max_shards=64):
+    if not weights:
+        # Intentionally simple: stable round-robin parents, 25 parents/runner by
+        # default, capped at32. A large SINGLE package is split too.
+        count = min(32, max(1, math.ceil(len(units) / 25))) if requested == 'auto' else requested
+        count = min(count, len(units))
+        return [units[i::count] for i in range(count)]
+    # Race mode: deterministic longest-processing-time packing. Shard count comes
+    # from the measured weights (about 60% of the 25 minute Go deadline) and the
+    # 25-parent cap; a single long parent still gets its own shard.
+    def weight(unit):
+        return weights.get(unit['Package'] + '::' + unit['Name'], 5.0)
+    if requested != 'auto':
+        count = min(requested, len(units))
+        ordered = sorted(units, key=lambda u: (-weight(u), u['Package'], u['Name']))
+        bins, load = [[] for _ in range(count)], [0.0] * count
+        for unit in ordered:
+            index = min(range(count), key=lambda i: (load[i], i))
+            bins[index].append(unit)
+            load[index] += weight(unit)
+        return [sorted(b, key=lambda u: (u['Package'], u['Name'])) for b in bins]
+    # Isolate every parent longer than half the target; combining two of them
+    # would immediately exceed the shard budget. The rest pack under 25 parents.
+    isolate = target_seconds / 2
+    heavy = sorted((u for u in units if weight(u) >= isolate), key=lambda u: (-weight(u), u['Package'], u['Name']))
+    rest = sorted((u for u in units if weight(u) < isolate), key=lambda u: (-weight(u), u['Package'], u['Name']))
+    count = max(math.ceil(sum(map(weight, units)) / target_seconds), len(heavy) + math.ceil(len(rest) / 25))
+    count = min(max_shards, max(1, count))
     count = min(count, len(units))
-    return [units[i::count] for i in range(count)]
+    bins = [[unit] for unit in heavy]
+    load = [weight(unit) for unit in heavy]
+    used = [1] * len(heavy)
+    bins += [[] for _ in range(max(0, count - len(heavy)))]
+    load += [0.0] * max(0, count - len(heavy))
+    used += [0] * max(0, count - len(heavy))
+    first_rest = len(heavy)
+    for unit in rest:
+        candidates = [i for i in range(first_rest, len(bins)) if used[i] < 25]
+        if not candidates:
+            if first_rest < len(bins):
+                candidates = list(range(first_rest, len(bins)))
+            else:
+                bins.append([])
+                load.append(0.0)
+                used.append(0)
+                candidates = [len(bins) - 1]
+        index = min(candidates, key=lambda i: (load[i], i))
+        bins[index].append(unit)
+        load[index] += weight(unit)
+        used[index] += 1
+    return [sorted(b, key=lambda u: (u['Package'], u['Name'])) for b in bins if b]
 
 
 def plan(source, output):
@@ -200,7 +254,7 @@ def plan(source, output):
     units = sorted({(u['Package'], u['Name']): u for u in units}.values(), key=lambda u: (u['Package'], u['Name']))
     if not units:
         raise ValueError('empty test/capture plan')
-    bins = split_units(units, cfg['shards'])
+    bins = split_units(units, cfg['shards'], race_weights() if cfg['race'] else None)
     result = dict(config=cfg, source_sha=sha, tags=tags, parents=parents, shards=bins, qualification=False,
                   run_url=f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
     write(output / 'plan.json', result)
