@@ -70,7 +70,7 @@ func (r *RSReadingReader) facts(ctx context.Context, request governor.Request, b
 		in.View.policy.recipe = rsReadingMobiPolicy
 	}
 
-	windows := &rsByteWindow{source: r.snapshots, preflightCalls: 768}
+	windows := &rsByteWindow{source: r.snapshots, preflightCalls: 768, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	var inventory *rsReadingInventory
 	var pubs [][]any
 	var library string
