@@ -208,7 +208,7 @@ func (c *N1PairedComponent) EC2Checkpoint(ctx context.Context, recovery bool) (g
 	}
 	record := canonicalN1Checkpoint{Result: out, Error: n1Error(err)}
 	record.observeClock(c.stream.origin)
-	return out, errors.Join(err, c.stream.append("ec2_checkpoint", map[string]any{"checkpoint": record, "recovery_requested": recovery, "qualification": false}))
+	return out, errors.Join(err, c.stream.append("ec2_checkpoint", map[string]any{"checkpoint": record, "recovery_requested": recovery, "recovery_drain_started_ns": n1NS(c.stream.origin, out.RecoveryDrainStarted), "recovery_drain_ended_ns": n1NS(c.stream.origin, out.RecoveryDrainEnded), "qualification": false}))
 }
 func (c *N1PairedComponent) ObserveEC2WC(v CanonicalWCObservation, purpose CommandID) error {
 	var window *n1OwnerWindow
@@ -217,7 +217,10 @@ func (c *N1PairedComponent) ObserveEC2WC(v CanonicalWCObservation, purpose Comma
 			window = n1BindOwnerWindowForPurpose(view, c.stream.origin, *v.Started, *v.Returned, purpose)
 		}
 	}
-	raw, _ := json.Marshal(v.Raw)
+	raw, err := json.Marshal(v.Raw)
+	if err != nil {
+		return err
+	}
 	return c.stream.append("ec2_wc", map[string]any{"phase": v.Phase, "started_ns": n1NullableTime(c.stream.origin, v.Started), "returned_ns": n1NullableTime(c.stream.origin, v.Returned), "purpose": purpose, "private_owner_window": window, "raw": json.RawMessage(raw), "native_begin_census": c.trace.nativeBegins, "error": v.Error, "scope": "call-bound observation; failed public Evidence stays zero; no later Resolve reconstruction"})
 }
 func n1NullableTime(origin time.Time, p *time.Time) *int64 {

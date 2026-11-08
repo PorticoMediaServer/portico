@@ -93,6 +93,8 @@ type n1FixtureSetup struct {
 }
 
 type n1SteadyControls struct {
+	initialConnections  *uint64
+	initialCloses       *int
 	canonical           *QualificationPopulationManifest // compiled canonical target; never an alternate opener/profile
 	restart             bool                             // component-only canonical close/reopen, no production authority
 	fullPrefix          bool                             // closed target cell, not a recipe/limit selector
@@ -368,6 +370,9 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 		n1ObserveOwnerWindow(record, f.owner.executor, stream.origin, ownerStarted)
 		record.Continuity.observeAfter(trace)
 		expectedConnections, expectedCloses := uint64(1), 0
+		if control.initialConnections != nil && control.initialCloses != nil {
+			expectedConnections, expectedCloses = *control.initialConnections, *control.initialCloses
+		}
 		if control.restart && role != "fresh_begin" {
 			expectedConnections, expectedCloses = 2, 1
 		}
