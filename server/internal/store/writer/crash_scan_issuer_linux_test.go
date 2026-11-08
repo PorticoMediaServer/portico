@@ -330,31 +330,37 @@ func verifyScanIssuerCrash(t *testing.T, witness crashWitness) {
 	scanCrashCheckJournal(t, f.driver.opening.executor, want)
 }
 
-func TestCrashReplayScanIssuer(t *testing.T) {
-	for _, action := range []string{"create", "claim", "resolve", "ack", "retired"} {
-		t.Run(action, func(t *testing.T) {
-			witness := crashWitness{Case: crashCase{"scan_issuer", action, "trace", ""}}
-			f, source := crashScanIssuerFixture(t, &witness)
-			closeScanCrashFixture(t, f)
-			phases := append([]string{}, source.Trace...)
-			if action == "create" {
-				phases = append(phases, "before_begin", "after_begin", "before_commit", "after_commit", "physical_return")
-			}
-			for _, phase := range append(phases, "api_return") {
-				t.Run(phase, func(t *testing.T) {
-					verifyScanIssuerCrash(t, runCrashChild(t, crashCase{"scan_issuer", action, phase, ""}))
-				})
-			}
-			if action == "create" {
-				for _, fault := range []string{"before", "after"} {
-					t.Run("uncertain_return/"+fault, func(t *testing.T) {
-						verifyScanIssuerCrash(t, runCrashChild(t, crashCase{"scan_issuer", action, "uncertain_return", fault}))
-					})
-				}
-			}
+func runScanIssuerCrashCase(t *testing.T, action string) {
+	witness := crashWitness{Case: crashCase{"scan_issuer", action, "trace", ""}}
+	f, source := crashScanIssuerFixture(t, &witness)
+	closeScanCrashFixture(t, f)
+	phases := append([]string{}, source.Trace...)
+	if action == "create" {
+		phases = append(phases, "before_begin", "after_begin", "before_commit", "after_commit", "physical_return")
+	}
+	for _, phase := range append(phases, "api_return") {
+		t.Run(phase, func(t *testing.T) {
+			verifyScanIssuerCrash(t, runCrashChild(t, crashCase{"scan_issuer", action, phase, ""}))
 		})
 	}
+	if action == "create" {
+		for _, fault := range []string{"before", "after"} {
+			t.Run("uncertain_return/"+fault, func(t *testing.T) {
+				verifyScanIssuerCrash(t, runCrashChild(t, crashCase{"scan_issuer", action, "uncertain_return", fault}))
+			})
+		}
+	}
 }
+
+func TestCrashReplayScanIssuerCreate(t *testing.T) { runScanIssuerCrashCase(t, "create") }
+
+func TestCrashReplayScanIssuerClaim(t *testing.T) { runScanIssuerCrashCase(t, "claim") }
+
+func TestCrashReplayScanIssuerResolve(t *testing.T) { runScanIssuerCrashCase(t, "resolve") }
+
+func TestCrashReplayScanIssuerAck(t *testing.T) { runScanIssuerCrashCase(t, "ack") }
+
+func TestCrashReplayScanIssuerRetired(t *testing.T) { runScanIssuerCrashCase(t, "retired") }
 
 func TestScanIssuerCrashCorruption(t *testing.T) {
 	for _, control := range []struct{ action, name, sql string }{
@@ -427,7 +433,7 @@ func TestScanIssuerCrashMutants(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 			defer cancel()
-			cmd := exec.CommandContext(ctx, "go", "test", "-overlay", overlay, "-p", "2", "-parallel", "2", "-count=1", "-timeout=2m", "-run", "^TestCrashReplayScanIssuer$/^"+m.action+"$/^api_return$", ".")
+			cmd := exec.CommandContext(ctx, "go", "test", "-overlay", overlay, "-p", "2", "-parallel", "2", "-count=1", "-timeout=2m", "-run", "^TestCrashReplayScanIssuer"+strings.ToUpper(m.action[:1])+m.action[1:]+"$/^api_return$", ".")
 			cmd.Env = append(os.Environ(), "TMPDIR="+root, "GOTMPDIR="+root)
 			output, err := cmd.CombinedOutput()
 			if err == nil || ctx.Err() != nil || !strings.Contains(string(output), m.reason) || !strings.Contains(string(output), "TestCrashReplayChild") || strings.Contains(string(output), "[build failed]") {
