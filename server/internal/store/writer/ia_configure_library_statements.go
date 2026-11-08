@@ -4,8 +4,9 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
 // IA-06 statement family. Every statement is a point or one finite insert on
 // the adopted or exact group C draft relations; there is no OFFSET, temp sort or
-// library-wide scan. The idempotent namespace/policy inserts only settle a
-// pre-existing exact row, never a second library.
+// library-wide scan. Each insert must change exactly one new row: a pre-existing
+// namespace or policy row makes wc008DraftChanged return ErrConflict, so the
+// ON CONFLICT clauses never settle or rewrite a second library.
 const (
 	iaLibraryNamespaceKey    stmt.ID = "ia.library.namespace_key"
 	iaLibraryLivePoint       stmt.ID = "ia.library.live_point"

@@ -208,13 +208,18 @@ func TestIAConfigureLibraryImmutableNamespace(t *testing.T) {
 			other := q
 			other.reference = iaConfigureLibraryReference(19, 20, 21)
 			other.libraryID = 911
+			// Fresh source identity keeps the source-point guard from masking the
+			// key namespace check under test.
+			other.sources = []iaConfigureLibrarySource{iaConfigureLibrarySourceFixture(9, "/immutable/other")}
 			return other
 		}(),
 	} {
 		t.Run(name, func(t *testing.T) {
 			turn, budget := iaConfigureLibraryTurn(t, w, r, mutate)
 			out, err := configureIALibrary(t.Context(), turn, p, t.Context(), budget, mutate)
-			if out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.sources) != 0 || err == nil {
+			// ErrConflict is the namespace/live-row guard's own refusal, not a
+			// downstream UNIQUE/PK failure that would pass a weaker assertion.
+			if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.sources) != 0 {
 				t.Fatal("namespace mutation admitted", out, err)
 			}
 			turn.transaction.rollback(nil)
@@ -234,6 +239,28 @@ func TestIAConfigureLibraryImmutableNamespace(t *testing.T) {
 	turn, budget = iaConfigureLibraryTurn(t, w, r, fresh)
 	if out, err := configureIALibrary(t.Context(), turn, p, t.Context(), budget, fresh); !errors.Is(err, ErrConflict) || out.decision != 0 {
 		t.Fatal("retired namespace accepted a fresh birth", out, err)
+	}
+}
+
+// A live library row must agree with the requested name and kind even when no
+// retained namespace row exists for it yet. Without that check the namespace
+// insert would succeed and only the later live PK conflict would appear, with a
+// different error and a partial effect set.
+func TestIAConfigureLibraryLiveRowMustAgree(t *testing.T) {
+	w, r, p := iaConfigureLibraryFixture(t)
+	wc008NativeExec(t, w, `INSERT INTO libraries(id,name,kind,root,configuration_present,configuration_revision,configuration_metadata_revision) VALUES('lib-live','Old','movie','/live',1,1,1)`)
+	q := iaConfigureLibraryRequest{
+		reference: iaConfigureLibraryReference(62, 63, 64), libraryID: 954, libraryKey: "lib-live", name: "New", kind: "tv",
+		sources: []iaConfigureLibrarySource{iaConfigureLibrarySourceFixture(0, "/live")},
+	}
+	turn, budget := iaConfigureLibraryTurn(t, w, r, q)
+	out, err := configureIALibrary(t.Context(), turn, p, t.Context(), budget, q)
+	if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.sources) != 0 {
+		t.Fatal("live row disagreement", out, err)
+	}
+	turn.transaction.rollback(nil)
+	if got := iaConfigureLibraryCount(t, w, `SELECT count(*) FROM catalog_libraries`); got != 0 {
+		t.Fatal("refused live row wrote namespace", got)
 	}
 }
 

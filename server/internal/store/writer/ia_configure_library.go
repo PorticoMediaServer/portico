@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -51,9 +54,52 @@ func iaConfigureLibraryText(s string, limit int) bool {
 	return len(s) > 0 && len(s) <= limit && utf8.ValidString(s) && strings.IndexByte(s, 0) < 0
 }
 
-func iaConfigureLibraryRoot(s string) bool {
-	return len(s) > 0 && len(s) <= iaConfigureLibraryMaxRoot && utf8.ValidString(s) && strings.IndexByte(s, 0) < 0 && strings.IndexFunc(s, unicode.IsControl) < 0
+// A local root becomes the immutable catalog_libraries.root and libraries.root
+// AND the strict Basic intent's native root, so it must already be one native
+// absolute path in this host's spelling. Basic later requires filepath.IsAbs and
+// refuses a relative root, and an unclean spelling would persist a second name
+// for the same directory that the same key can never re-claim. Remote-kind roots
+// are opaque provider locations, not local paths: their driver owns validation,
+// so this command bounds them as text only.
+func iaConfigureLibraryRoot(s, kind string) bool {
+	if len(s) == 0 || len(s) > iaConfigureLibraryMaxRoot || !utf8.ValidString(s) || strings.IndexByte(s, 0) >= 0 || strings.IndexFunc(s, unicode.IsControl) >= 0 {
+		return false
+	}
+	if kind == "remote" {
+		return true
+	}
+	return iaConfigureLibraryLocalRoot(s, runtime.GOOS == "windows")
 }
+
+// iaConfigureLibraryLocalRoot is the native absolute/clean rule. The windows
+// argument keeps the Windows grammar provable on a Unix test host; production
+// always passes the actual GOOS so a root that this host cannot open is never
+// persisted.
+func iaConfigureLibraryLocalRoot(root string, windows bool) bool {
+	if !windows {
+		return filepath.IsAbs(root) && filepath.Clean(root) == root
+	}
+	normalized := strings.ReplaceAll(root, `\`, "/")
+	if strings.HasPrefix(normalized, "//") {
+		// UNC share: //server/share[/tail]. Device namespaces are not a source.
+		server, rest, found := strings.Cut(normalized[2:], "/")
+		if !found || server == "" || server == "." || server == "?" {
+			return false
+		}
+		share, tail, _ := strings.Cut(rest, "/")
+		if share == "" {
+			return false
+		}
+		return tail == "" || path.Clean(tail) == tail
+	}
+	if len(normalized) < 3 || !isASCIILetter(normalized[0]) || normalized[1] != ':' || normalized[2] != '/' {
+		return false
+	}
+	tail := normalized[2:]
+	return path.Clean(tail) == tail
+}
+
+func isASCIILetter(b byte) bool { return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' }
 
 func iaConfigureLibraryKindName(kind string) bool {
 	switch kind {
@@ -83,7 +129,7 @@ func validateIAConfigureLibraryRequest(q iaConfigureLibraryRequest) error {
 	roots := make(map[string]bool, len(q.sources))
 	for _, s := range q.sources {
 		if !iaConfigureLibraryText(s.id, 128) || !iaConfigureLibraryText(s.name, 100) || !iaConfigureLibraryText(s.incarnation, 128) || !iaConfigureLibraryText(s.rootIdentity, 256) ||
-			!iaConfigureLibraryRoot(s.configuredRoot) || !iaConfigureLibraryRoot(s.resolvedRoot) || ids[s.id] || roots[s.resolvedRoot] ||
+			!iaConfigureLibraryRoot(s.configuredRoot, s.kind) || !iaConfigureLibraryRoot(s.resolvedRoot, s.kind) || ids[s.id] || roots[s.resolvedRoot] ||
 			(s.kind != "local" && s.kind != "remote") || (s.classification != "local" && s.classification != "network") ||
 			s.intervalSeconds < 0 || s.intervalSeconds > 0 && s.intervalSeconds < 900 || s.kind == "remote" && s.followSymlinks {
 			return ErrInvalid
@@ -156,6 +202,7 @@ func iaConfigureLibraryFacts(q iaConfigureLibraryRequest, appliedMS int64) iaCon
 // event, all in the caller's single transaction. Any later failure rolls the
 // whole set back; a conflicting namespace or source is refused before writes.
 func applyIAConfigureLibrary(ctx context.Context, turn *commandTurn, entry *iaCommandEntry, q iaConfigureLibraryRequest) (out iaConfigureLibraryOutcome, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	appliedMS := turn.transaction.writer.now().UnixMilli()
 	facts := iaConfigureLibraryFacts(q, appliedMS)
 	if err = preflightIAConfigurationResult(IAConfigureLibrary, q.reference.Identity, q.reference.RequestDigest, facts); err != nil {
