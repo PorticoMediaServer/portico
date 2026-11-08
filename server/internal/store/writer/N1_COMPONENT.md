@@ -676,3 +676,15 @@ refusals and all partials remain failures; no caps, retries or missing-zero repa
 The full captured union, extra WC unit funding, retained preparations, actual
 setup/reopen counts and final all-class retirement are emitted. Effective remains
 unbound. All profiles remain test-only and qualification=false.
+
+EC1 rare-error tier is a separate opt-in cell (`-ec1-rare-errors`,
+`-ec1-rare-iterations=10000`). It exercises the common refusal paths on the real
+native composition and reports each separately: saved-receipt replay (repeated
+Resolve must return the identical saved Applied result with zero new receipts or
+events), stale/fence ACK with a never-issued digest, unknown/undeclared purpose
+at the closed registry, and the durable-resolution refusal while a retained saved
+original makes a different capture require resolution first. Every sample is one
+real facade call; p50/p99/max are compared with the 100ms rare-error ceiling and
+unexpected outcomes fail the cell. The uncertain-COMMIT variant is not
+deterministically producible in this component cell and stays a follow-up; no
+qualification claim and no product change.
