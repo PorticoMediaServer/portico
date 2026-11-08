@@ -105,6 +105,17 @@ func rbTermsCreditField(field string) bool {
 	return false
 }
 
+// rbTermsIdentityField reports a field whose values are opaque identities. The
+// legacy contract's browseIdentityField compares these exactly: no Unicode fold
+// and no case fold. A person token is an identity, not display text.
+func rbTermsIdentityField(field string) bool {
+	switch field {
+	case "person", "cast", "crew":
+		return true
+	}
+	return false
+}
+
 func compileRBFilterTerms(raw json.RawMessage) (rbTermsFilter, error) {
 	n, err := parseRBClosedNode(raw, rbParseTermsPredicate)
 	if err != nil {
@@ -228,38 +239,50 @@ func rbEvalTerms(n *rbFilterNode, f rbTermsFacts) bool {
 		return false
 	}
 	values := f[n.Field]
+	set, identity := rbTermsSetField(n.Field), rbTermsIdentityField(n.Field)
 	switch n.Operator {
 	case "is-present":
 		return len(values) > 0
 	case "is-missing":
 		return len(values) == 0
 	case "not-equals":
-		return !rbTermsPositive(values, rbTermsSetField(n.Field), "equals", n.Value)
+		return !rbTermsPositive(values, set, identity, "equals", n.Value)
 	case "not-in":
-		return !rbTermsPositive(values, rbTermsSetField(n.Field), "in", n.Value)
+		return !rbTermsPositive(values, set, identity, "in", n.Value)
 	case "contains-all":
 		list, ok := n.Value.([]any)
 		if !ok {
 			return false
 		}
 		for _, value := range list {
-			if !rbTermsPositive(values, true, "equals", value) {
+			if !rbTermsPositive(values, true, identity, "equals", value) {
 				return false
 			}
 		}
 		return true
 	}
-	return rbTermsPositive(values, rbTermsSetField(n.Field), n.Operator, n.Value)
+	return rbTermsPositive(values, set, identity, n.Operator, n.Value)
 }
 
-// rbTermsPositive mirrors the public EXISTS forms for one positive atom.
-func rbTermsPositive(values []string, set bool, op string, value any) bool {
+// rbTermsPositive mirrors the public EXISTS forms for one positive atom. Set
+// fields treat contains as exact member equality; identity fields (person,
+// cast, crew) compare their tokens exactly, as browseIdentityField does.
+func rbTermsPositive(values []string, set, identity bool, op string, value any) bool {
 	fold := func(v any) (string, bool) {
 		text, ok := v.(string)
 		if !ok {
 			return "", false
 		}
+		if identity {
+			return text, true
+		}
 		return sorttext.Fold(text), true
+	}
+	norm := func(candidate string) string {
+		if identity {
+			return candidate
+		}
+		return sorttext.Fold(candidate)
 	}
 	switch op {
 	case "contains":
@@ -288,7 +311,7 @@ func rbTermsPositive(values []string, set bool, op string, value any) bool {
 			folded = append(folded, text)
 		}
 		for _, candidate := range values {
-			text := sorttext.Fold(candidate)
+			text := norm(candidate)
 			for _, target := range folded {
 				if text == target {
 					return true
@@ -302,7 +325,7 @@ func rbTermsPositive(values []string, set bool, op string, value any) bool {
 			return false
 		}
 		for _, candidate := range values {
-			if strings.HasPrefix(sorttext.Fold(candidate), prefix) {
+			if strings.HasPrefix(norm(candidate), prefix) {
 				return true
 			}
 		}
@@ -315,7 +338,7 @@ func rbTermsPositive(values []string, set bool, op string, value any) bool {
 			return false
 		}
 		for _, candidate := range values {
-			if strings.Contains(sorttext.Fold(candidate), needle) {
+			if strings.Contains(norm(candidate), needle) {
 				return true
 			}
 		}
@@ -575,19 +598,32 @@ func readRBTermsFacts(s *savedViewSession, q browseQuery, in TermsFilterInput, f
 		return set
 	}
 
+	// Ancestry is per fact class, exactly as the legacy browse contract scopes
+	// it (server/internal/catalog/browse_contract.go, differentially checked by
+	// TestRBFilterTermsLegacyOracle):
+	//
+	//	genre                        ts.entity_id IN(bei.item_id,bei.entity_id,ep.show_id)
+	//	actor, director, writer      cc.entity_id = bei.item_id
+	//	person, cast, crew           credit.entity_id IN(bei.item_id,bei.entity_id)
+	//	tag, label, contentRating,
+	//	studio, network              ca.item_id = bei.item_id
+	//
+	// On the title pivot every title has one self membership, so bei.item_id and
+	// bei.entity_id are the same item integer. Credit and attribute classes
+	// therefore read the item alone; only genre also reads the episode's show.
 	itemIDs := make([]int64, 0, len(items))
-	ancestry := map[int64]bool{}
+	genreIDs := map[int64]bool{}
 	for _, item := range items {
 		itemIDs = append(itemIDs, item.id)
-		ancestry[item.id] = true
-		ancestry[item.work] = true
+		genreIDs[item.id] = true
+		genreIDs[item.work] = true
 	}
 	sort.Slice(itemIDs, func(i, j int) bool { return itemIDs[i] < itemIDs[j] })
-	ancestryIDs := make([]int64, 0, len(ancestry))
-	for id := range ancestry {
-		ancestryIDs = append(ancestryIDs, id)
+	genreAncestry := make([]int64, 0, len(genreIDs))
+	for id := range genreIDs {
+		genreAncestry = append(genreAncestry, id)
 	}
-	sort.Slice(ancestryIDs, func(i, j int) bool { return ancestryIDs[i] < ancestryIDs[j] })
+	sort.Slice(genreAncestry, func(i, j int) bool { return genreAncestry[i] < genreAncestry[j] })
 
 	if rbTermsUsesAttribute(fields) {
 		for _, chunk := range rbTermsChunks(itemIDs, rbTermsFactSlots) {
@@ -607,7 +643,7 @@ func readRBTermsFacts(s *savedViewSession, q browseQuery, in TermsFilterInput, f
 		}
 	}
 	if fields["genre"] {
-		for _, chunk := range rbTermsChunks(ancestryIDs, rbTermsFactSlots) {
+		for _, chunk := range rbTermsChunks(genreAncestry, rbTermsFactSlots) {
 			args := append(rbTermsSlots(chunk), in.View.Library, int64(rbTermsFactLimit))
 			rows, e := rbTermsFactRows(s, q, "rb.filter_terms.term", args, 1, rbTermsFactLimit)
 			if e != nil {
@@ -640,7 +676,7 @@ func readRBTermsFacts(s *savedViewSession, q browseQuery, in TermsFilterInput, f
 			}
 		}
 		if department[0] != int64(-1) || department[1] != int64(-1) || department[2] != int64(-1) {
-			for _, chunk := range rbTermsChunks(ancestryIDs, rbTermsFactSlots) {
+			for _, chunk := range rbTermsChunks(itemIDs, rbTermsFactSlots) {
 				args := append(append([]any(nil), department...), in.View.Library)
 				args = append(args, rbTermsSlots(chunk)...)
 				args = append(args, int64(rbTermsFactLimit))
@@ -654,7 +690,7 @@ func readRBTermsFacts(s *savedViewSession, q browseQuery, in TermsFilterInput, f
 			}
 		}
 		if role[0] != int64(-1) || role[1] != int64(-1) || role[2] != int64(-1) {
-			for _, chunk := range rbTermsChunks(ancestryIDs, rbTermsFactSlots) {
+			for _, chunk := range rbTermsChunks(itemIDs, rbTermsFactSlots) {
 				args := append(append([]any(nil), role...), in.View.Library)
 				args = append(args, rbTermsSlots(chunk)...)
 				args = append(args, int64(rbTermsFactLimit))
@@ -674,7 +710,7 @@ func readRBTermsFacts(s *savedViewSession, q browseQuery, in TermsFilterInput, f
 			return nil, e
 		}
 		for _, tokenChunk := range rbTermsChunks(tokens, rbTermsFactSlots) {
-			for _, chunk := range rbTermsChunks(ancestryIDs, rbTermsFactSlots) {
+			for _, chunk := range rbTermsChunks(itemIDs, rbTermsFactSlots) {
 				args := append(rbTermsTokenSlots(tokenChunk), in.View.Library)
 				args = append(args, rbTermsSlots(chunk)...)
 				args = append(args, int64(rbTermsFactLimit))
@@ -692,10 +728,20 @@ func readRBTermsFacts(s *savedViewSession, q browseQuery, in TermsFilterInput, f
 		dst := facts[item.id]
 		rbTermsMerge(dst, entities[item.id])
 		if item.work != item.id {
-			rbTermsMerge(dst, entities[item.work])
+			rbTermsMergeShowGenre(dst, entities[item.work])
 		}
 	}
 	return facts, nil
+}
+
+// rbTermsMergeShowGenre carries only a show's genre values into its episode.
+// Genre is the one class the legacy contract widens to the episode's show; a
+// show's credits and attributes are never inherited by its episodes, so merging
+// the whole work entity would grant ancestry the contract does not.
+func rbTermsMergeShowGenre(dst, src rbTermsFacts) {
+	for _, value := range src["genre"] {
+		rbTermsAdd(dst, "genre", value)
+	}
 }
 
 // rbTermsCreditRows classifies one credit row by its exact public labels. The
