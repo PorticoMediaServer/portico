@@ -25,6 +25,10 @@ func (a *Authority) queueCheckpoint(until time.Time, spacing time.Duration) (*ch
 func (a *Authority) queueCheckpointMode(until time.Time, spacing time.Duration, recovery bool) (*checkpointTicket, error) {
 	return a.queueCheckpointContext(context.Background(), until, spacing, recovery)
 }
+
+// maxPassiveDeferOffers backstops the elapsed-time bound on a frozen or zero clock.
+const maxPassiveDeferOffers = 10000
+
 func (a *Authority) queueCheckpointContext(ctx context.Context, until time.Time, spacing time.Duration, recovery bool) (*checkpointTicket, error) {
 	w := a.ledger.config.WAL
 	now := a.ledger.config.Now()
@@ -51,14 +55,21 @@ func (a *Authority) queueCheckpointContext(ctx context.Context, until time.Time,
 		// proceeds, whatever the caller's offer cadence. An offer arriving at least
 		// PassiveDeferMax after the first deferral is never deferred, so a steady
 		// Foreground stream delays the PASSIVE by at most that long plus one offer.
-		if w.deferFrom.IsZero() {
-			w.deferFrom = now
+		// Two backstops keep the bound real on an unusual clock: a clock that steps
+		// backward counts as the bound spent (never extended), and a frozen or zero
+		// clock is bounded by an offer count.
+		if !w.deferring {
+			w.deferring, w.deferFrom, w.deferOffers = true, now, 0
 		}
-		if now.Sub(w.deferFrom) < w.policy.PassiveDeferMax {
+		elapsed := now.Sub(w.deferFrom)
+		if elapsed >= 0 && elapsed < w.policy.PassiveDeferMax && w.deferOffers < maxPassiveDeferOffers {
+			w.deferOffers++
 			return nil, admissionError(CauseCheckpointForeground, ErrCheckpointForeground)
 		}
 	}
-	w.deferFrom = time.Time{} // the PASSIVE proceeds
+	// The PASSIVE proceeds, or is already pending/active (the ErrBusy path below):
+	// either way the deferral episode is over.
+	w.deferring, w.deferFrom, w.deferOffers = false, time.Time{}, 0
 	if w.pendingCheckpoint != nil || w.checkpoint {
 		return nil, admissionError(CauseCheckpointActive, ErrBusy)
 	}

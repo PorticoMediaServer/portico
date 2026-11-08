@@ -35,3 +35,15 @@ func TestCanonicalPassiveDeferFlagIsOffByDefaultAndOnlyChangesItself(t *testing.
 		}()
 	}
 }
+
+// A foreground deferral is recorded as a deferral, never as a maintenance failure.
+func TestForegroundDeferralIsARecordedDeferralNotAFailure(t *testing.T) {
+	record := checkpointRecord(governor.CheckpointResult{}, governor.ErrCheckpointForeground)
+	if record.Deferral != "foreground" || record.failed() {
+		t.Fatal("a foreground deferral must be a non-failing deferral", record)
+	}
+	started := governor.CheckpointResult{Started: time.Unix(1, 0)}
+	if !checkpointRecord(started, governor.ErrCheckpointForeground).failed() {
+		t.Fatal("an error after a start is still a failure")
+	}
+}

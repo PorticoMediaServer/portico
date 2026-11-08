@@ -26,12 +26,16 @@ func checkpointRecord(out governor.CheckpointResult, err error) checkpointMainte
 		// Pressure maintenance can advance the shared cadence while a periodic
 		// offer waits. No grant/native call occurred; keep the typed observation.
 		r.Deferral = "cadence"
+	} else if errors.Is(err, governor.ErrCheckpointForeground) && out.Started.IsZero() && out.NativeStarted.IsZero() {
+		// The screening experiment deferred this start for an in-flight Foreground
+		// writer. No grant/native call occurred; it is a deferral, not a failure.
+		r.Deferral = "foreground"
 	}
 	return r
 }
 
 func (r checkpointMaintenanceRecord) failed() bool {
-	if r.Deferral == "cadence" && r.Result.Started.IsZero() && r.Result.NativeStarted.IsZero() {
+	if (r.Deferral == "cadence" || r.Deferral == "foreground") && r.Result.Started.IsZero() && r.Result.NativeStarted.IsZero() {
 		return false
 	}
 	return r.Error != "" || r.Result.Refusal != nil || !r.Result.PhysicalSafe
