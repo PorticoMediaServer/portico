@@ -35,18 +35,18 @@ func drainUSFamilyFenceWitnesses(ctx context.Context, turn *commandTurn, s usFam
 	if tx.descriptor.ID != 582 || tx.descriptor.Durability != Full || !tx.begun || tx.done || !tx.policyVerified || tx.settings.Synchronous != 2 {
 		return out, ErrInvalid
 	}
-	for _, v := range []string{s.family, s.server, s.account, s.profile, s.device, s.lineage} {
+	for _, v := range []string{s.family, s.server, s.account, s.profile} {
 		if !usIdentifier(v) {
 			return out, ErrInvalid
 		}
 	}
-	if !usHex(s.member, 32) || !usHex(s.lifetime, 32) || s.incarnation == ([16]byte{}) || s.generation <= 0 || s.acknowledged < 0 {
+	if (s.device != "" && !usIdentifier(s.device)) || (s.lineage != "" && !usIdentifier(s.lineage)) || !usHex(s.member, 32) || !usHex(s.lifetime, 32) || s.incarnation == ([16]byte{}) || s.generation <= 0 || s.acknowledged < 0 {
 		return out, ErrInvalid
 	}
 	if err = turn.checkLifetimes(ctx); err != nil {
 		return out, err
 	}
-	row, e := wc008DraftQuery(ctx, turn, usFenceDrainFamily, s.family, s.server, s.account, s.profile, s.member, s.lifetime, s.incarnation[:], s.generation, s.acknowledged, s.acknowledged, s.device, s.lineage)
+	row, e := wc008DraftQuery(ctx, turn, usFenceDrainFamily, s.family, s.server, s.account, s.profile, s.member, s.lifetime, s.incarnation[:], s.generation, s.acknowledged, s.acknowledged, usFenceDrainOptionalID(s.device), usFenceDrainOptionalID(s.lineage))
 	if e != nil {
 		return out, e
 	}
@@ -71,13 +71,18 @@ func drainUSFamilyFenceWitnesses(ctx context.Context, turn *commandTurn, s usFam
 		if fence <= 0 || generation <= 0 {
 			return out, ErrConflict
 		}
-		profile, lifetime, device, lineage := s.profile, s.lifetime, "", ""
+		profile, lifetime := s.profile, s.lifetime
+		var device, lineage any = "", ""
 		if scope == "device" {
-			profile, lifetime, device = "", "", s.device
+			profile, lifetime, device = "", "", usFenceDrainOptionalID(s.device)
 		}
 		if scope == "profile_lineage" {
-			lineage = s.lineage
+			lineage = usFenceDrainOptionalID(s.lineage)
 		}
+		// A deleted source device/lineage is NULL in the family. Its retained
+		// child still names one exact (fence_id,scope_kind) FK and generation;
+		// validate the fence's original account/member/profile tuple. Missing
+		// live pointers neither invent identity nor grant retirement authority.
 		row, e = wc008DraftQuery(ctx, turn, usFenceDrainFence, fence, scope, s.account, s.member, profile, lifetime, device, lineage)
 		if e != nil {
 			return out, e
@@ -120,4 +125,12 @@ func usFenceDrainScanError(err error) error {
 		return ErrConflict
 	}
 	return err
+}
+
+// Empty optional comparison means SQL NULL only; it never matches empty TEXT.
+func usFenceDrainOptionalID(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }

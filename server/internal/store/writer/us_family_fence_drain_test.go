@@ -96,9 +96,8 @@ func TestUSFamilyFenceDrainChildrenBeforeParent(t *testing.T) {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
 			w, s := usFenceDrainFixture(t, n)
 			if n > 0 {
-				if _, e := w.db.ExecContext(t.Context(), `DELETE FROM authorization_session_families WHERE id='target'`); e == nil {
-					t.Fatal("parent deleted before drain")
-				}
+				_, e := w.db.ExecContext(t.Context(), `DELETE FROM authorization_session_families WHERE id='target'`)
+				usFenceDrainRequireFK(t, e)
 			}
 			// Already advanced/denied retained fences do not turn lawful cleanup into
 			// fresh issuer authorization; remove only the old family's own witnesses.
@@ -137,9 +136,8 @@ func TestUSFamilyFenceDrainPrefixRollback(t *testing.T) {
 	if e := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM authorization_family_security_fences WHERE family_id='target'`).Scan(&count); e != nil || count != 4 {
 		t.Fatal(count, e)
 	}
-	if _, e := w.db.ExecContext(t.Context(), `DELETE FROM authorization_session_families WHERE id='target'`); e == nil {
-		t.Fatal("parent no longer guarded after rollback")
-	}
+	_, e := w.db.ExecContext(t.Context(), `DELETE FROM authorization_session_families WHERE id='target'`)
+	usFenceDrainRequireFK(t, e)
 }
 func TestUSFamilyFenceDrainStaleSourceAndCAS(t *testing.T) {
 	for _, mode := range []string{"incarnation", "ack", "generation", "wrong_fence_scope"} {
@@ -210,4 +208,178 @@ func TestUSFamilyFenceDrainFullFrameAndLifetime(t *testing.T) {
 func TestUSFamilyFenceDrainNativePrepare(t *testing.T) {
 	w, _ := usFenceDrainFixture(t, 1)
 	wc008NativePrepare(t, w, usFamilyFenceDrainDefinitions())
+}
+
+func usFenceDrainRequireFK(t *testing.T, err error) {
+	t.Helper()
+	var coded interface{ Code() int }
+	if !errors.As(err, &coded) || coded.Code() != 787 {
+		t.Fatalf("want native FK787, got %v", err)
+	}
+}
+func usFenceDrainRevokeHeader(t *testing.T, w *executor) {
+	t.Helper()
+	wc008NativeExec(t, w, `UPDATE authorization_session_families SET command_last_sequence=1,command_acknowledged_sequence=0,revoke_command_sequence=1,revoke_operation_id=zeroblob(16),revoke_request_digest=zeroblob(32),revoke_command_kind='admin_revoke',revoke_result_version=1,revoke_issuer_account_id='issuer',revoke_issuer_profile_id='issuer-profile',revoke_issuer_member_incarnation='cccccccccccccccccccccccccccccccc',revoke_issuer_profile_lifetime='dddddddddddddddddddddddddddddddd',revoke_issuer_family_id='issuer-family',revoke_result_reason='admin_revoke',revoke_result_at='2026-11-08T00:00:00Z',revoke_applied_ms=1,revoke_result_count=1,revoke_result_digest=zeroblob(32),revoked_reason='admin_revoke' WHERE id='target'`)
+}
+func TestUSFamilyFenceDrainNullablePointers(t *testing.T) {
+	for _, n := range []int{0, 2, 4} {
+		for _, mode := range []string{"device", "lineage", "both"} {
+			t.Run(fmt.Sprint(n)+mode, func(t *testing.T) {
+				w, s := usFenceDrainFixture(t, n)
+				if mode == "device" || mode == "both" {
+					wc008NativeExec(t, w, `DELETE FROM identity_devices WHERE id='device'`)
+					s.device = ""
+				}
+				if mode == "lineage" || mode == "both" {
+					wc008NativeExec(t, w, `DELETE FROM identity_pin_lineages WHERE id='lineage'`)
+					s.lineage = ""
+				}
+				turn := usFenceDrainTurn(t, w)
+				out, err := drainUSFamilyFenceWitnesses(t.Context(), turn, s)
+				if err != nil || out.removed != int64(n) {
+					t.Fatal(out, err)
+				}
+				if _, err = turn.transaction.conn.ExecContext(t.Context(), `DELETE FROM authorization_session_families WHERE id='target'`); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = turn.transaction.commit(); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	}
+}
+func TestUSFamilyFenceDrainNullComparisonAndFence(t *testing.T) {
+	for _, mode := range []string{"expected_null_device", "expected_null_lineage", "expected_live_device", "expected_live_lineage", "foreign_fence_with_null"} {
+		t.Run(mode, func(t *testing.T) {
+			w, s := usFenceDrainFixture(t, 4)
+			switch mode {
+			case "expected_null_device":
+				s.device = ""
+			case "expected_null_lineage":
+				s.lineage = ""
+			case "expected_live_device":
+				wc008NativeExec(t, w, `DELETE FROM identity_devices WHERE id='device'`)
+			case "expected_live_lineage":
+				wc008NativeExec(t, w, `DELETE FROM identity_pin_lineages WHERE id='lineage'`)
+			case "foreign_fence_with_null":
+				wc008NativeExec(t, w, `DELETE FROM identity_devices WHERE id='device'; UPDATE identity_security_fences SET member_incarnation='dddddddddddddddddddddddddddddddd' WHERE id=1`)
+				s.device = ""
+			}
+			turn := usFenceDrainTurn(t, w)
+			if out, e := drainUSFamilyFenceWitnesses(t.Context(), turn, s); out != (usFamilyFenceDrainEffect{}) || !errors.Is(e, ErrConflict) {
+				t.Fatal(out, e)
+			}
+		})
+	}
+}
+func TestUSFamilyFenceDrainLiveAndUnacknowledged(t *testing.T) {
+	for _, mode := range []string{"live", "last", "ack"} {
+		t.Run(mode, func(t *testing.T) {
+			w, s := usFenceDrainFixture(t, 4)
+			if mode == "live" {
+				wc008NativeExec(t, w, `UPDATE authorization_session_families SET revoked=0 WHERE id='target'`)
+			} else {
+				usFenceDrainRevokeHeader(t, w)
+				if mode == "ack" {
+					s.acknowledged = 1
+				}
+			}
+			turn := usFenceDrainTurn(t, w)
+			if out, e := drainUSFamilyFenceWitnesses(t.Context(), turn, s); out != (usFamilyFenceDrainEffect{}) || !errors.Is(e, ErrConflict) {
+				t.Fatal(mode, out, e)
+			}
+		})
+	}
+}
+func TestUSFamilyFenceDrainUnexpectedScope(t *testing.T) {
+	w, s := usFenceDrainFixture(t, 4)
+	// Test-only future child shape: widen the scope and retain family/fence PK
+	// references. It models a new scope unknown to this four-case implementation;
+	// canonical schema and constraint enforcement are untouched.
+	wc008NativeExec(t, w, `ALTER TABLE authorization_family_security_fences RENAME TO old_fence_children;
+ CREATE TABLE authorization_family_security_fences(family_id TEXT NOT NULL REFERENCES authorization_session_families(id),scope_kind TEXT NOT NULL CHECK(scope_kind IN('device','profile_pin','profile_remember','profile_lineage','future')),fence_id INTEGER NOT NULL REFERENCES identity_security_fences(id),confirmed_generation INTEGER NOT NULL CHECK(confirmed_generation>0),PRIMARY KEY(family_id,scope_kind)) WITHOUT ROWID,STRICT;
+ INSERT INTO authorization_family_security_fences SELECT * FROM old_fence_children;
+ DROP TABLE old_fence_children;
+ INSERT INTO authorization_family_security_fences VALUES('target','future',1,1)`)
+	turn := usFenceDrainTurn(t, w)
+	out, err := drainUSFamilyFenceWitnesses(t.Context(), turn, s)
+	if out != (usFamilyFenceDrainEffect{}) || !errors.Is(err, ErrConflict) {
+		t.Fatal(out, err)
+	}
+	if _, e := turn.transaction.rollback(err); !errors.Is(e, err) {
+		t.Fatal(e)
+	}
+	var count int
+	if e := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM authorization_family_security_fences WHERE family_id='target'`).Scan(&count); e != nil || count != 5 {
+		t.Fatal(count, e)
+	}
+}
+func TestUSFamilyFenceDrainMalformedAndRedacted(t *testing.T) {
+	w, original := usFenceDrainFixture(t, 1)
+	turn := usFenceDrainTurn(t, w)
+	for _, mode := range []string{"family", "server", "account", "profile", "member", "lifetime", "incarnation", "generation", "ack", "device", "lineage"} {
+		s := original
+		switch mode {
+		case "family":
+			s.family = ""
+		case "server":
+			s.server = ""
+		case "account":
+			s.account = ""
+		case "profile":
+			s.profile = ""
+		case "member":
+			s.member = "short"
+		case "lifetime":
+			s.lifetime = "bad"
+		case "incarnation":
+			s.incarnation = [16]byte{}
+		case "generation":
+			s.generation = 0
+		case "ack":
+			s.acknowledged = -1
+		case "device":
+			s.device = strings.Repeat("x", 129)
+		case "lineage":
+			s.lineage = strings.Repeat("x", 129)
+		}
+		if out, e := drainUSFamilyFenceWitnesses(t.Context(), turn, s); out != (usFamilyFenceDrainEffect{}) || !errors.Is(e, ErrInvalid) {
+			t.Fatal(mode, out, e)
+		}
+	}
+	for _, f := range []string{"%v", "%+v", "%#v"} {
+		got := fmt.Sprintf(f, original)
+		if !strings.Contains(got, "redacted") || strings.Contains(got, original.member) {
+			t.Fatal("scope leaked", got)
+		}
+	}
+}
+func TestUSFamilyFenceDrainCancelAfterPrefix(t *testing.T) {
+	w, s := usFenceDrainFixture(t, 4)
+	turn := usFenceDrainTurn(t, w)
+	tx := turn.transaction
+	sawPrefix := false
+	tx.custody.(*testCustody).checkHook = func() {
+		var count int
+		if e := tx.conn.QueryRowContext(context.Background(), `SELECT count(*) FROM authorization_family_security_fences WHERE family_id='target'`).Scan(&count); e != nil {
+			t.Fatal(e)
+		}
+		if count < 4 {
+			sawPrefix = true
+			tx.cancel()
+		}
+	}
+	out, err := drainUSFamilyFenceWitnesses(t.Context(), turn, s)
+	if !sawPrefix || out != (usFamilyFenceDrainEffect{}) || !errors.Is(err, context.Canceled) {
+		t.Fatal(sawPrefix, out, err)
+	}
+	tx.custody.(*testCustody).checkHook = nil
+	if _, e := tx.rollback(err); !errors.Is(e, err) {
+		t.Fatal(e)
+	}
+	var count int
+	if e := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM authorization_family_security_fences WHERE family_id='target'`).Scan(&count); e != nil || count != 4 {
+		t.Fatal(count, e)
+	}
 }
