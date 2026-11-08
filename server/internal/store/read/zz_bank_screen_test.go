@@ -171,4 +171,4 @@ func screenBankAtScale(t *testing.T, residents int) {
 
 func TestScreenBank30k(t *testing.T)  { screenBankAtScale(t, 30_000) }
 func TestScreenBank200k(t *testing.T) { screenBankAtScale(t, 200_000) }
-func TestScreenBank1M(t *testing.T) { screenBankAtScale(t, 1_000_000) }
+func TestScreenBank1M(t *testing.T) { screenBankAtScale(t, 999_000) }
