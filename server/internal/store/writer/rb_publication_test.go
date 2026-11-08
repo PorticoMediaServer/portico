@@ -9,7 +9,7 @@ import (
 )
 
 func TestRBPublicationNativeCommitFootprintGate(t *testing.T) {
-	for _, mode := range []string{"covered", "widened", "unresolved", "undeclared", "disabled"} {
+	for _, mode := range []string{"covered", "widened", "unresolved", "undeclared", "undeclared-unresolved", "disabled"} {
 		t.Run(mode, func(t *testing.T) {
 			w, path, clock := testExecutor(t)
 			now := func() time.Time { return *clock }
@@ -33,7 +33,7 @@ func TestRBPublicationNativeCommitFootprintGate(t *testing.T) {
 			}
 			limit := testRecipe().limit
 			r := governor.Request{Key: governor.JobKey{Domain: uint16(InventoryAccept), ID: "phase2-footprint"}, Owner: 1, Class: governor.ScanMinimum, Writer: true, MaxHold: limit.Hold, Deadline: now().Add(time.Second), Budget: governor.UnitBudget{RawRows: uint32(limit.Rows), VMOps: limit.VMOps, Pages: uint32(limit.Pages)}, Need: governor.Amounts{governor.MemoryBytes: 65536, governor.WALBytes: int64(limit.WALBytes)}, Footprint: []governor.Scope{{Library: 8}}}
-			if mode == "undeclared" {
+			if mode == "undeclared" || mode == "undeclared-unresolved" {
 				r.Footprint = nil
 			}
 			d := g.Try(r)
@@ -65,7 +65,7 @@ func TestRBPublicationNativeCommitFootprintGate(t *testing.T) {
 			}
 			mutateFixture(t, tx)
 			result, err := tx.commit()
-			want := mode == "covered" || mode == "undeclared" || mode == "disabled"
+			want := mode == "covered" || mode == "undeclared" || mode == "undeclared-unresolved" || mode == "disabled"
 			if want {
 				if err != nil || result.state != committed || readRevision(t, path) != 2 {
 					t.Fatal(result, err)

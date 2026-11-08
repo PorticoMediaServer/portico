@@ -443,6 +443,14 @@ func (a *Authority) InterruptPreparations(f PublicationFootprint) error {
 // target must roll back, expand its footprint and re-admit from zero custody.
 // When phase2 is disabled this is a no-op, preserving phase1a qualification.
 func (a *Authority) CheckPublication(p *Grant, expected Request, actual PublicationFootprint) error {
+	return a.CheckPublicationContext(context.Background(), p, expected, actual)
+}
+
+// CheckPublicationContext waits for already admitted validation within the
+// issuer's original admitted deadline and observes earlier operation
+// cancellation too. As with CheckContext, transient mutex contention is never
+// itself a refusal and never invalidates admitted custody.
+func (a *Authority) CheckPublicationContext(ctx context.Context, p *Grant, expected Request, actual PublicationFootprint) error {
 	if a == nil || a.ledger == nil {
 		return ErrGrant
 	}
@@ -450,10 +458,24 @@ func (a *Authority) CheckPublication(p *Grant, expected Request, actual Publicat
 	if g.preparation.profile.MaxActive == 0 {
 		return nil
 	}
+	if ctx == nil || p == nil || p.issuer != g || p.cancelled.Load() || p.epoch != g.state.Load() {
+		return ErrGrant
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !g.mu.TryLock() {
-		return ErrBusy
+		// This is already admitted authority, not a new capacity request. The
+		// issuer-captured deadline prevents a caller from extending custody, and
+		// the grant's own cancellation interrupts the wait.
+		if err := g.mu.lockWithin(p.deadline.Sub(g.config.Now()), p.cancelledDone, ctx); err != nil {
+			return err
+		}
 	}
 	defer g.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	h := g.find(p)
 	now := g.config.Now()
 	if h == nil || !expected.Writer || p.cancelled.Load() || p.epoch != g.state.Load() || !h.request.Deadline.After(now) || !sameRequest(h.request, expected) {
