@@ -145,6 +145,7 @@ type checkpointFixtureMode uint8
 
 const checkpointScreeningReader checkpointFixtureMode = 1
 const checkpointBatchWriter checkpointFixtureMode = 2 // explicit full-batch resource unit, default fixtures unchanged
+const checkpointBatchScreeningReader checkpointFixtureMode = 3
 
 func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpointFixtureMode) *checkpointComponent {
 	t.Helper()
@@ -158,11 +159,11 @@ func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpoin
 // newCheckpointComponentAt reuses an EXISTING canonical file. It never seeds,
 // resets a floor or replays initialization SQL.
 func newCheckpointComponentAt(t *testing.T, path string, keep, real bool, selected ...checkpointFixtureMode) *checkpointComponent {
-	if len(selected) > 1 || len(selected) == 1 && selected[0] != checkpointScreeningReader && selected[0] != checkpointBatchWriter {
+	if len(selected) > 1 || len(selected) == 1 && selected[0] != checkpointScreeningReader && selected[0] != checkpointBatchWriter && selected[0] != checkpointBatchScreeningReader {
 		t.Fatal("unknown closed checkpoint fixture selector")
 	}
-	screening := len(selected) == 1 && selected[0] == checkpointScreeningReader
-	batch := len(selected) == 1 && selected[0] == checkpointBatchWriter
+	screening := len(selected) == 1 && (selected[0] == checkpointScreeningReader || selected[0] == checkpointBatchScreeningReader)
+	batch := len(selected) == 1 && (selected[0] == checkpointBatchWriter || selected[0] == checkpointBatchScreeningReader)
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("native file identity unsupported")

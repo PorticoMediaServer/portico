@@ -29,6 +29,7 @@ const (
 	n1EC4ScreeningFixture            n1CompositionFixtureProfile = 3
 	n1BatchForecastFixture           n1CompositionFixtureProfile = 4
 	n1BatchTimingFixture             n1CompositionFixtureProfile = 5
+	n1BatchEC4Fixture                n1CompositionFixtureProfile = 6
 )
 
 func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport) {
@@ -41,16 +42,19 @@ func n1ComposedDriverFixture(t *testing.T, selected ...n1CompositionFixtureProfi
 // No callback, grant constructor, profile override or second opening is added.
 func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixtureProfile) (*ScanDriver, *scanObservationFaultTransport, *checkpointComponent) {
 	t.Helper()
-	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture && selected[0] != n1OperatingForecastTimingFixture && selected[0] != n1EC4ScreeningFixture && selected[0] != n1BatchForecastFixture && selected[0] != n1BatchTimingFixture) {
+	if len(selected) > 1 || (len(selected) == 1 && selected[0] != n1OperatingForecastFixture && selected[0] != n1OperatingForecastTimingFixture && selected[0] != n1EC4ScreeningFixture && selected[0] != n1BatchForecastFixture && selected[0] != n1BatchTimingFixture && selected[0] != n1BatchEC4Fixture) {
 		t.Fatal("unknown closed composition fixture profile")
 	}
-	realClock := len(selected) == 1 && (selected[0] == n1OperatingForecastTimingFixture || selected[0] == n1EC4ScreeningFixture || selected[0] == n1BatchTimingFixture)
+	realClock := len(selected) == 1 && (selected[0] == n1OperatingForecastTimingFixture || selected[0] == n1EC4ScreeningFixture || selected[0] == n1BatchTimingFixture || selected[0] == n1BatchEC4Fixture)
 	var modes []checkpointFixtureMode
 	if len(selected) == 1 && selected[0] == n1EC4ScreeningFixture {
 		modes = []checkpointFixtureMode{checkpointScreeningReader}
 	}
 	if len(selected) == 1 && (selected[0] == n1BatchForecastFixture || selected[0] == n1BatchTimingFixture) {
 		modes = []checkpointFixtureMode{checkpointBatchWriter}
+	}
+	if len(selected) == 1 && selected[0] == n1BatchEC4Fixture {
+		modes = []checkpointFixtureMode{checkpointBatchScreeningReader}
 	}
 	cp := newCheckpointComponent(t, true, realClock, modes...)
 	seedScanLifecycle(t, cp.w)
@@ -156,7 +160,7 @@ func n1ComposedDriverCompose(t *testing.T, cp *checkpointComponent, realClock bo
 		if len(defs) == len(inventoryDriverCommandDefinitions()) {
 			if len(selected) == 1 {
 				forecastFor := inventoryN1Forecast
-				if selected[0] == n1BatchForecastFixture || selected[0] == n1BatchTimingFixture {
+				if selected[0] == n1BatchForecastFixture || selected[0] == n1BatchTimingFixture || selected[0] == n1BatchEC4Fixture {
 					forecastFor = inventoryBatchForecast
 				}
 				forecast, err := forecastFor(golden.Receipt(), engine, cp.w.config.WriterPageSize, cp.opening.binding.device)
