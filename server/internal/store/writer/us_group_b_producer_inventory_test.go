@@ -143,6 +143,11 @@ var usGroupBProducers = []usGroupBProducer{
 	{File: "server/internal/store/writer/us_refresh_receipt_compat_test.go", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", PendingPR: "#1813", Note: "Refresh receipt compatibility fixtures: two ordinary families, kind 0 at embed"},
 	{File: "server/internal/store/writer/us_family_birth_statements.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBV1Native, Purpose: usGroupBMixed, Fixture: "P05", Note: "V1 US family birth statement chooses ordinary or credential kind explicitly", Prefix: `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,pin_gate,device_id,p`}, // line 40
 	{File: "server/internal/store/writer/us_family_birth_statements.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "P05", Note: "V1 US family birth API credential device birth", Prefix: `INSERT INTO identity_devices(id,authority,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen,remember_account,retired_ms) VALUES(?,'l`},                                       // line 51
+
+	// US-06 receipt adapter: a second current local-owner installation, used to
+	// prove issuer scoping. Both rows choose security_kind explicitly.
+	{File: "server/internal/store/writer/us_policy_receipts_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 US policy receipt second-session fixture device", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('issuer-device-2','issuer',?,'Issuer two',`},
+	{File: "server/internal/store/writer/us_policy_receipts_test.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 US policy receipt second-session owner family (security_kind=0)", Prefix: `INSERT INTO authorization_session_families(security_kind,id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device`},
 }
 
 // usGroupBOtherSources are the non-Go sites this census tracks. The Python baseline
