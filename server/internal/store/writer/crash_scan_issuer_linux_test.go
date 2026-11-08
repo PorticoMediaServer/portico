@@ -77,7 +77,13 @@ func scanCrashPrepare(t *testing.T, action string) (*scanDriverFixture, *ScanRun
 			t.Fatal(ack, err)
 		}
 		scanCrashEvidence(t, ack.Evidence, InventoryCreate)
-		progressSet(scanCrashFind(want, "inventory_runs", "job_id", source.Reference.Scan.RunID), "acknowledged_command_sequence", int64(1))
+		ackSource := source
+		ackSource.Action = "ack"
+		ackSource.Initial = want
+		want, _, err = expectedScanIssuer(ackSource)
+		if err != nil {
+			t.Fatal(err)
+		}
 		scanCrashCheckJournal(t, f.driver.opening.executor, want)
 	}
 	if action == "claim" {
@@ -354,7 +360,7 @@ func TestScanIssuerCrashCorruption(t *testing.T) {
 	for _, control := range []struct{ action, name, sql string }{
 		{"create", "receipt_digest", `UPDATE scan_command_receipts SET result_digest=zeroblob(32) WHERE run_id=?`},
 		{"create", "immutable_source", `UPDATE inventory_runs SET root_incarnation='wrong-original' WHERE job_id=?`},
-		{"ack", "retained_payload", `UPDATE scan_command_receipts SET result_root_revision='wrong-saved-root' WHERE run_id=?`},
+		{"ack", "retired_anchor", `UPDATE inventory_runs SET create_request_digest=zeroblob(32) WHERE job_id=?`},
 	} {
 		t.Run(control.name, func(t *testing.T) {
 			witness := crashWitness{Case: crashCase{"scan_issuer", control.action, "trace", ""}}
