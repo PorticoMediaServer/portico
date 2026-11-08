@@ -109,6 +109,9 @@ func basicCrashSeedCommand(t *testing.T) (*executor, *basicAcceptCommand) {
 	t.Helper()
 	w, command := basicFirstAcceptCommandFixture(t)
 	w.now = func() time.Time { return basicCrashClock }
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_info_changes SET job_attempts=3,job_next_attempt_ms=1 WHERE id=51`); err != nil {
+		t.Fatal(err)
+	}
 	return w, command
 }
 
@@ -302,6 +305,19 @@ func verifyBasicCrash(t *testing.T, witness crashWitness) {
 	q := facts.Receipt
 	committed := basicCrashCommitted(witness.Case)
 	receipts, epoch, pending, shape, linkPending := basicCrashState(t, t.Context(), e.db)
+	var attempts int64
+	var next sql.NullInt64
+	if err = e.db.QueryRowContext(t.Context(), `SELECT job_attempts,job_next_attempt_ms FROM catalog_info_changes WHERE id=51`).Scan(&attempts, &next); err != nil {
+		t.Fatal(err)
+	}
+	if committed {
+		if attempts != 0 || next.Valid {
+			t.Fatal("committed Accept stranded retry state", attempts, next)
+		}
+	} else if attempts != 3 || !next.Valid || next.Int64 != 1 {
+		t.Fatal("pre-COMMIT cut lost retry state", attempts, next)
+	}
+
 	if committed {
 		if receipts != 1 || epoch != 18 || pending != 0 || shape != 61 || linkPending.Valid {
 			t.Fatalf("committed survivor state receipts=%d epoch=%d pending=%d shape=%d linkPending=%v", receipts, epoch, pending, shape, linkPending)
@@ -320,6 +336,9 @@ func verifyBasicCrash(t *testing.T, witness crashWitness) {
 		if receipts != 1 || epoch != 18 || pending != 0 || shape != 61 || linkPending.Valid {
 			t.Fatalf("retry state receipts=%d epoch=%d pending=%d shape=%d linkPending=%v", receipts, epoch, pending, shape, linkPending)
 		}
+	}
+	if err = e.db.QueryRowContext(t.Context(), `SELECT job_attempts,job_next_attempt_ms FROM catalog_info_changes WHERE id=51`).Scan(&attempts, &next); err != nil || attempts != 0 || next.Valid {
+		t.Fatal("retry did not reach retirement idle state", attempts, next, err)
 	}
 	defs := basicFirstAcceptTestDefinitions()
 	registry := retryRegistry

@@ -37,12 +37,14 @@ func basicResumeAssertHidden(t *testing.T, walk basicWalk) {
 type basicResumeTestState struct {
 	header                              string
 	runRevision, ack, receipts, streams int64
+	assetPending                        int64
+	linkPending                         sql.NullInt64
 }
 
 func basicResumeReadState(t *testing.T, walk basicWalk) basicResumeTestState {
 	t.Helper()
 	var s basicResumeTestState
-	if err := walk.e.db.QueryRowContext(t.Context(), `SELECT json_array(phase,job_revision,copy_family,copy_phase,copy_id,copy_aux,copy_key,copy_key2,copy_key3,job_lease_owner,job_lease_generation,job_lease_expires_ms,job_attempts,job_next_attempt_ms,fault),(SELECT job_revision FROM inventory_runs WHERE job_id='basic-run'),(SELECT acknowledged_command_sequence FROM inventory_runs WHERE job_id='basic-run'),(SELECT count(*) FROM scan_command_receipts WHERE run_id='basic-run'),(SELECT count(*) FROM asset_streams WHERE asset_id='basic-asset') FROM catalog_info_changes WHERE id=51`).Scan(&s.header, &s.runRevision, &s.ack, &s.receipts, &s.streams); err != nil {
+	if err := walk.e.db.QueryRowContext(t.Context(), `SELECT json_array(phase,job_revision,copy_family,copy_phase,copy_id,copy_aux,copy_key,copy_key2,copy_key3,job_lease_owner,job_lease_generation,job_lease_expires_ms,job_attempts,job_next_attempt_ms,fault),(SELECT job_revision FROM inventory_runs WHERE job_id='basic-run'),(SELECT acknowledged_command_sequence FROM inventory_runs WHERE job_id='basic-run'),(SELECT count(*) FROM scan_command_receipts WHERE run_id='basic-run'),(SELECT count(*) FROM asset_streams WHERE asset_id='basic-asset'),(SELECT info_publication_pending FROM catalog_assets WHERE id=41),(SELECT info_pending_change FROM catalog_asset_links WHERE entity_id=31 AND asset_id=41) FROM catalog_info_changes WHERE id=51`).Scan(&s.header, &s.runRevision, &s.ack, &s.receipts, &s.streams, &s.assetPending, &s.linkPending); err != nil {
 		t.Fatal(err)
 	}
 	return s
@@ -112,6 +114,8 @@ func TestBasicResumeRefusalsLeaveHeaderHidden(t *testing.T) {
 		{"changed_input_revision", `UPDATE catalog_info_changes SET input_revision=input_revision+1 WHERE id=51`},
 		{"changed_witness", `UPDATE catalog_info_input_witnesses SET policy_revision=policy_revision+1 WHERE change_id=51`},
 		{"stale_asset", `UPDATE catalog_assets SET modified_ns=modified_ns+1 WHERE id=41`},
+		{"missing_publication_fence", `UPDATE catalog_assets SET info_publication_pending=0 WHERE id=41`},
+		{"missing_link_fence", `UPDATE catalog_asset_links SET info_pending_change=NULL WHERE entity_id=31 AND asset_id=41`},
 		{"lost_run_lease", `UPDATE inventory_runs SET job_lease_generation=job_lease_generation+1 WHERE job_id='basic-run'`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -127,7 +131,7 @@ func TestBasicResumeRefusalsLeaveHeaderHidden(t *testing.T) {
 			if after := basicResumeReadState(t, walk); before != after {
 				t.Fatal("refused resume changed native state", before, after)
 			}
-			if tc.name != "changed_input_revision" {
+			if tc.name != "changed_input_revision" && tc.name != "missing_publication_fence" && tc.name != "missing_link_fence" {
 				basicResumeAssertHidden(t, walk)
 			}
 			basicDispatchReturned(t, walk.e, walk.authority)

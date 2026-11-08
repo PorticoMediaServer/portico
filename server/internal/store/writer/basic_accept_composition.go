@@ -38,7 +38,7 @@ func basicFinalMaxUses(b basicAcceptBounds, id stmt.ID) int {
 		return 1
 	case basicStageHeader, basicStageAsset, basicStageWitness:
 		return 1 + nfo + b.artwork
-	case basicActivationHeader, basicActivationFact, basicActivationAssetCAS:
+	case basicActivationHeader, basicActivationFact, basicActivationAssetCAS, basicAcceptRetryIdle:
 		return 1
 	case basicActivationChangeCAS:
 		return 2
@@ -67,7 +67,7 @@ func basicFinalDefinitions(b basicAcceptBounds) []stmt.Definition {
 	if !b.valid() {
 		return nil
 	}
-	groups := [][]stmt.Definition{inventoryDisclosureDefinitions(), basicReceiptDefinitions(), basicReceiptMemberDefinitions(), basicControlDefinitions(), basicStreamStageDefinitions(), basicActivationDefinitions(), basicSettleLeafDefinitions(), basicPublishLeafDefinitions(), basicObjectAnalysisDefinitions(), basicAcceptControlDefinitions(), basicFirstScalarOldDefinitions(), basicNFODefinitions(), basicArtworkDefinitions()}
+	groups := [][]stmt.Definition{inventoryDisclosureDefinitions(), basicReceiptDefinitions(), basicReceiptMemberDefinitions(), basicControlDefinitions(), basicStreamStageDefinitions(), basicActivationDefinitions(), basicSettleLeafDefinitions(), basicPublishLeafDefinitions(), basicObjectAnalysisDefinitions(), basicAcceptControlDefinitions(), basicFirstScalarOldDefinitions(), basicNFODefinitions(), basicArtworkDefinitions(), basicAcceptRetryDefinitions()}
 	for _, d := range scanReceiptDefinitions() {
 		switch d.ID {
 		case scanReceiptOwner, scanReceiptAck, scanResultInsert:
