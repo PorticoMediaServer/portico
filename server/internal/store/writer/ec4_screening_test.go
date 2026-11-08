@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,6 +46,8 @@ type ec4ScreenReport struct {
 	Requested, Accepted, ReaderVisible, Renewals, Checkpoints, Recoveries, HistoryResolutions int
 	GenerationNS, ScanNS, MaintenanceNS                                                       int64
 	FirstFilenameVisibleNS, AllFilenameVisibleNS, FirstBasicNS, AllBasicNS                    *int64
+	CheckpointOverlappingCommands, AcceptOver25MS, AcceptOverlapOver25MS                      int
+	AcceptMaxNS, AcceptMaxOverlapNS, CheckpointMaxNativeNS, CheckpointMaxCallNS               int64
 	Fixture                                                                                   ec4ScreenFixture
 	NativeEOFObserved                                                                         bool
 	TraversalCommitted                                                                        bool
@@ -215,6 +219,193 @@ func ec4MapObserved(s InventoryPreparationSnapshot, page storage.NativeInventory
 	return in, nil
 }
 
+const ec4CheckpointCadence = 50 * time.Millisecond
+
+// ec4ConcurrentCheckpoints runs the SAME owned keeper PASSIVE turn on its own
+// goroutine at the existing cadence, matching production where checkpoints are
+// concurrent with the writer instead of an inline delay in the scan loop. It
+// serialises Step/RecoverWAL on one goroutine, keeps the maintenance journal and
+// counters race-free, and records whether a PASSIVE turn coincided with the
+// writer's Accept call so a slow checkpoint can be compared with command time.
+type ec4ConcurrentCheckpoints struct {
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	cp       *checkpointComponent
+	journal  *os.File
+	progress chan struct{}
+	stepMu   sync.Mutex
+	ticks    atomic.Int64
+
+	mu            sync.Mutex
+	checkpoints   int
+	recoveries    int
+	totalNS       int64
+	nativeMax     int64
+	callMax       int64
+	acceptMax     int64
+	overlapCount  int
+	overlapMax    int64
+	over25        int
+	overlapOver25 int
+	err           error
+}
+
+func newEC4ConcurrentCheckpoints(ctx context.Context, cp *checkpointComponent, journal *os.File) *ec4ConcurrentCheckpoints {
+	c, cancel := context.WithCancel(ctx)
+	return &ec4ConcurrentCheckpoints{ctx: c, cancel: cancel, cp: cp, journal: journal, progress: make(chan struct{}, 1)}
+}
+
+func (c *ec4ConcurrentCheckpoints) start() {
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		timer := time.NewTimer(0)
+		defer timer.Stop()
+		for {
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-timer.C:
+			}
+			if err := c.step(false); err != nil {
+				if c.ctx.Err() == nil {
+					c.mu.Lock()
+					if c.err == nil {
+						c.err = err
+					}
+					c.mu.Unlock()
+				}
+				return
+			}
+			timer.Reset(ec4CheckpointCadence)
+		}
+	}()
+}
+
+// stop cancels any in-flight PASSIVE turn and joins the one owned goroutine.
+func (c *ec4ConcurrentCheckpoints) stop() {
+	c.cancel()
+	c.wg.Wait()
+}
+
+func (c *ec4ConcurrentCheckpoints) ticksSnapshot() int64 { return c.ticks.Load() }
+
+func (c *ec4ConcurrentCheckpoints) errValue() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.err
+}
+
+func (c *ec4ConcurrentCheckpoints) recordAccept(ns int64, overlapped bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if ns > c.acceptMax {
+		c.acceptMax = ns
+	}
+	if ns > int64(25*time.Millisecond) {
+		c.over25++
+	}
+	if overlapped {
+		c.overlapCount++
+		if ns > c.overlapMax {
+			c.overlapMax = ns
+		}
+		if ns > int64(25*time.Millisecond) {
+			c.overlapOver25++
+		}
+	}
+}
+
+func (c *ec4ConcurrentCheckpoints) report(r ec4ScreenReport) ec4ScreenReport {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	r.Checkpoints, r.Recoveries = c.checkpoints, c.recoveries
+	r.MaintenanceNS = c.totalNS
+	r.CheckpointOverlappingCommands = c.overlapCount
+	r.AcceptMaxNS = c.acceptMax
+	r.AcceptMaxOverlapNS = c.overlapMax
+	r.AcceptOver25MS = c.over25
+	r.AcceptOverlapOver25MS = c.overlapOver25
+	r.CheckpointMaxNativeNS = c.nativeMax
+	r.CheckpointMaxCallNS = c.callMax
+	return r
+}
+
+// step issues ONE existing owned PASSIVE (or recovery) turn. Step and RecoverWAL
+// share stepMu, so the one goroutine plus a rare recovery request can never
+// overlap the keeper.
+func (c *ec4ConcurrentCheckpoints) step(recovery bool) error {
+	c.stepMu.Lock()
+	defer c.stepMu.Unlock()
+	if c.ctx.Err() != nil {
+		return nil
+	}
+	started := time.Now()
+	c.ticks.Add(1)
+	var result governor.CheckpointResult
+	var err error
+	if recovery {
+		result, err = c.cp.cp.RecoverWAL(c.ctx, c.cp.cpRequest())
+	} else {
+		result, err = c.cp.cp.Step(c.ctx, c.cp.cpRequest())
+	}
+	c.ticks.Add(1)
+	callNS := time.Since(started).Nanoseconds()
+	var nativeNS int64
+	if !result.NativeStarted.IsZero() && result.NativeEnded.After(result.NativeStarted) {
+		nativeNS = result.NativeEnded.Sub(result.NativeStarted).Nanoseconds()
+	}
+	if journalErr := ec4Journal(c.journal, map[string]any{"recovery": recovery, "result": result, "error": checkpointError(err)}); journalErr != nil {
+		err = errors.Join(err, journalErr)
+	}
+	c.mu.Lock()
+	if recovery {
+		c.recoveries++
+	} else {
+		c.checkpoints++
+	}
+	c.totalNS += callNS
+	if nativeNS > c.nativeMax {
+		c.nativeMax = nativeNS
+	}
+	if callNS > c.callMax {
+		c.callMax = callNS
+	}
+	c.mu.Unlock()
+	select {
+	case c.progress <- struct{}{}:
+	default:
+	}
+	if err != nil {
+		return err
+	}
+	if result.Refusal != nil || !result.PhysicalSafe {
+		return fmt.Errorf("screening maintenance refused: %v physical_safe=%v", result.Refusal, result.PhysicalSafe)
+	}
+	return nil
+}
+
+// waitStep waits for the next completed concurrent PASSIVE turn instead of
+// running an inline one, so the scan loop never blocks on checkpoint work.
+func (c *ec4ConcurrentCheckpoints) waitStep(ctx context.Context) error {
+	select {
+	case <-c.progress:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.ctx.Done():
+		if err := c.errValue(); err != nil {
+			return err
+		}
+		return ErrClosed
+	}
+}
+
+// recoverNow is the rare WAL-space recovery path, serialised with the owned
+// PASSIVE turn on the same keeper.
+func (c *ec4ConcurrentCheckpoints) recoverNow() error { return c.step(true) }
+
 func TestEC4NativeScreening(t *testing.T) {
 	if os.Getenv("PORTICO_EC4_SCREENING") != "1" {
 		t.Skip("opt-in SCREENING only")
@@ -228,11 +419,16 @@ func TestEC4NativeScreening(t *testing.T) {
 	if data, e := os.ReadFile("/proc/self/cgroup"); e == nil {
 		r.Cgroup = string(data)
 	}
+	var checkpoints *ec4ConcurrentCheckpoints
 	defer func() {
 		if t.Failed() && r.Error == "" {
 			r.Error = "screening setup failed; see raw test output"
 		}
-		if e := ec4WriteReport(out, r); e != nil {
+		report := r
+		if checkpoints != nil {
+			report = checkpoints.report(report)
+		}
+		if e := ec4WriteReport(out, report); e != nil {
 			t.Error(e)
 		}
 	}()
@@ -280,31 +476,11 @@ func TestEC4NativeScreening(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer maintenanceJournal.Close()
-	maintenance := func(recovery bool) error {
-		started := time.Now()
-		var result governor.CheckpointResult
-		var err error
-		if recovery {
-			result, err = cp.cp.RecoverWAL(t.Context(), cp.cpRequest())
-			r.Recoveries++
-		} else {
-			result, err = cp.cp.Step(t.Context(), cp.cpRequest())
-			r.Checkpoints++
-		}
-		r.MaintenanceNS += time.Since(started).Nanoseconds()
-		if journalErr := ec4Journal(maintenanceJournal, map[string]any{"recovery": recovery, "result": result, "error": checkpointError(err)}); journalErr != nil {
-			return errors.Join(err, journalErr)
-		}
-		if err != nil {
-			return err
-		}
-		if result.Refusal != nil || !result.PhysicalSafe {
-			return fmt.Errorf("screening maintenance refused: %v physical_safe=%v", result.Refusal, result.PhysicalSafe)
-		}
-		return nil
-	}
 	r.Phase = "create"
 	origin := time.Now()
+	// The owned keeper PASSIVE turn runs on its own goroutine, concurrent with
+	// the writer like production; the scan loop never steps checkpoints inline.
+	checkpoints = newEC4ConcurrentCheckpoints(t.Context(), cp, maintenanceJournal)
 	run := func() error {
 		create, e := d.PrepareCreate(t.Context(), ScanRunInput{7, "lifecycle-library", "lifecycle-new-source", "first-import"})
 		if e != nil {
@@ -325,16 +501,11 @@ func TestEC4NativeScreening(t *testing.T) {
 		last := claimRef
 		renewed := time.Now()
 		seen := make([]bool, count)
-		lastMaintenance := time.Now()
+		checkpoints.start()
+		defer checkpoints.stop()
 		for r.Accepted < count {
-			// Keep is resident custody, not a scheduler. Offer the SAME owner's
-			// normal bounded PASSIVE turn between commands, at its existing cadence.
-			if time.Since(lastMaintenance) >= 50*time.Millisecond {
-				r.Phase = "maintenance"
-				if e = maintenance(false); e != nil {
-					return e
-				}
-				lastMaintenance = time.Now()
+			if e = checkpoints.errValue(); e != nil {
+				return e
 			}
 			if time.Since(renewed) > 250*time.Millisecond {
 				r.Phase = "renew"
@@ -396,8 +567,10 @@ func TestEC4NativeScreening(t *testing.T) {
 			}
 			r.Phase = "accept"
 			acceptStarted := time.Now()
+			acceptTicks := checkpoints.ticksSnapshot()
 			historyOnly := false
 			result, e := preparation.Accept(t.Context(), command)
+			checkpoints.recordAccept(time.Since(acceptStarted).Nanoseconds(), checkpoints.ticksSnapshot() != acceptTicks)
 			if e != nil {
 				acceptErr := e
 				if e = ec4Journal(journal, map[string]any{"phase": "accept_error", "original": original, "at": time.Now(), "error": acceptErr.Error(), "prepare_to_accept_ns": acceptStarted.Sub(preparedAt).Nanoseconds(), "original_save_ns": acceptStarted.Sub(saveStarted).Nanoseconds(), "accept_ns": time.Since(acceptStarted).Nanoseconds()}); e != nil {
@@ -405,13 +578,14 @@ func TestEC4NativeScreening(t *testing.T) {
 				}
 				var admission *governor.AdmissionError
 				if errors.As(acceptErr, &admission) && (admission.Cause == governor.CauseWALDebt || admission.Cause == governor.CauseWALActive || admission.Cause == governor.CauseWALSpace) {
-					if e = maintenance(false); e != nil {
-						return e
-					}
+					// Wait for the concurrent owned PASSIVE turn instead of
+					// stepping inline; only WAL-space recovery runs synchronously.
 					if admission.Cause == governor.CauseWALSpace {
-						if e = maintenance(true); e != nil {
-							return e
+						if e = checkpoints.recoverNow(); e != nil {
+							return errors.Join(acceptErr, e)
 						}
+					} else if e = checkpoints.waitStep(t.Context()); e != nil {
+						return errors.Join(acceptErr, e)
 					}
 				}
 				// A refused or ambiguous ORIGINAL is never replaced/replayed.
@@ -472,7 +646,7 @@ func TestEC4NativeScreening(t *testing.T) {
 			}
 			if r.Accepted%100 == 0 {
 				r.ScanNS = time.Since(origin).Nanoseconds()
-				if e = ec4WriteReport(out, r); e != nil {
+				if e = ec4WriteReport(out, checkpoints.report(r)); e != nil {
 					return e
 				}
 			}
@@ -516,7 +690,7 @@ func TestEC4NativeScreening(t *testing.T) {
 	r.ScanNS = time.Since(origin).Nanoseconds()
 	if e != nil {
 		r.Error = e.Error()
-		_ = ec4WriteReport(out, r)
+		_ = ec4WriteReport(out, checkpoints.report(r))
 		t.Fatal(r.Phase, e)
 	}
 	t.Logf("SCREENING profile=%s accepted=%d reader_visible=%d first_filename=%s all_filename=%s Basic=null folder=null qualification=false", r.Profile, r.Accepted, r.ReaderVisible, time.Duration(*r.FirstFilenameVisibleNS), time.Duration(*r.AllFilenameVisibleNS))
