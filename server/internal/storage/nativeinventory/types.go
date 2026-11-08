@@ -52,6 +52,11 @@ type Wire struct {
 var ErrNativeInventory = errors.New("invalid native-byte inventory transport")
 
 func validNativeRequest(r NativeInventoryRequest) bool {
+	// A native directory cookie has meaning only in the observed revision of
+	// that directory. Never accept a continuation without its change fence.
+	if r.Cursor != "" && r.DirectoryRevision == "" {
+		return false
+	}
 	if len(r.Root) > naming.MaxPathBytes || len(r.RelativePath) > naming.MaxPathBytes || len(r.Cursor) > 4096 || r.Limit < 1 || r.Limit > 128 ||
 		bytes.IndexByte(r.Root, 0) >= 0 || bytes.IndexByte(r.RelativePath, 0) >= 0 ||
 		!filepath.IsAbs(string(r.Root)) || string(r.RelativePath) != "." && !filepath.IsLocal(string(r.RelativePath)) {
