@@ -86,6 +86,8 @@ func (c *governedTurn) memoryPartition(p memoryPartition) (commandMemoryBudget, 
 		return c.directoryMemory, nil
 	case publisherPartition:
 		return c.publisherMemory, nil
+	case mpWorkerPartition:
+		return c.mpWorkerMemory, nil
 	case effectiveSourcePartition:
 		return c.effectiveSourceMemory, nil
 	default:

@@ -116,6 +116,12 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if err := validateMemoryPartition(plan.publisherMemory, plan.need[governor.MemoryBytes], "search_publisher_memory_partition"); err != nil {
 		return effectivePlan{}, err
 	}
+	if !purposeUsesPartition(purpose, mpWorkerPartition) && (plan.mpWorkerMemory != (commandMemoryBudget{}) || plan.mpWorkerLimits != (mpWorkerReceiptLimits{})) {
+		return effectivePlan{}, invalid("mp_worker_purpose")
+	}
+	if err := validateMemoryPartition(plan.mpWorkerMemory, plan.need[governor.MemoryBytes], "mp_worker_memory"); err != nil {
+		return effectivePlan{}, err
+	}
 	// Each profile must itself carry a real matching registration. Another
 	// profile's broad receipt must never compensate for a missing/foreign one.
 	if _, err := stmt.New(defs, plan.registration); err != nil {
