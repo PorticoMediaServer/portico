@@ -5,17 +5,19 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/PorticoMediaServer/portico/server/internal/mediasource"
-	"github.com/PorticoMediaServer/portico/server/internal/storage/objectidentity"
 )
 
 // These are real public N1 path process-crash controls over W/SC's merged
@@ -276,62 +278,67 @@ func n1DriverIdentity(in n1DriverInput) (CommandIdentity, RequestDigest, error) 
 }
 
 func n1DriverObjectFacts(in n1DriverInput) (stable, evidence string, revision string, err error) {
-	stable = objectidentity.StableObjectIdentity(in.FileObjectIdentity, in.SourceRootIdentity)
-	object := stable
-	if object == "" {
-		object = "path:" + in.FileAssetPath
+	// This fixture deliberately uses a non-Unix root identity. Its observed
+	// Unix child keeps the device and inode verbatim; reject unsupported inputs.
+	if in.SourceRootIdentity != "source-root" || in.FileObjectIdentity != "dev:7:ino:31" {
+		return "", "", "", errors.New("unsupported N1 fixture object identity")
 	}
-	e := mediasource.InventoryEvidence{Kind: "local", Scope: in.SourceID + ":" + in.SourceIncarnation,
-		Object: object, Size: in.FileSize, ModifiedNS: in.FileModifiedNS, ChangeToken: in.FileChangeToken}
-	revision, err = e.Revision()
-	if err != nil {
-		return "", "", "", err
-	}
+	stable = in.FileObjectIdentity
+	// Independent documented inventory-v1 JSON wire, without the production
+	// evidence struct, revision helper or object-identity projection.
+	e := struct {
+		Kind        string `json:"kind"`
+		Scope       string `json:"scope"`
+		Object      string `json:"object"`
+		Size        int64  `json:"size"`
+		ModifiedNS  int64  `json:"modifiedNs"`
+		ChangeToken string `json:"changeToken"`
+	}{"local", in.SourceID + ":" + in.SourceIncarnation, stable, in.FileSize, in.FileModifiedNS, in.FileChangeToken}
 	raw, err := json.Marshal(e)
 	if err != nil {
 		return "", "", "", err
 	}
-	return stable, string(raw), revision, nil
+	digest := sha256.Sum256(append([]byte("portico.inventory.v1\x00"), raw...))
+	return stable, string(raw), hex.EncodeToString(digest[:]), nil
 }
 
-// n1DriverResultDigest reproduces the canonical v1 result wire independently.
-// It reuses only the bounded byte/integer/text primitives; the production
-// inventory result writer, decoder and reducer are never invoked.
+// Independent fixed-octet, big-endian v1 result wire. No writer encoder,
+// decoder, reducer or canonical codec constant supplies expected bytes.
 func n1DriverResultDigest(identity CommandIdentity, request RequestDigest, result inventoryAcceptResult) (ResultDigest, error) {
-	e := requestEncoder{h: sha256.New()}
-	e.bytes([]byte(canonicalResultCodec))
-	e.bytes([]byte{0, 1})
-	e.text("inventory_accept")
-	e.text("ordinary_batch")
-	e.text("applied")
-	e.text(result.RunID)
-	e.bytes(identity.Incarnation[:])
-	e.number(uint64(identity.Sequence))
-	e.bytes(identity.OperationID[:])
-	e.bytes(request[:])
-	e.number(uint64(result.AcceptedRunRevision))
-	e.number(uint64(result.AppliedMS))
-	e.text(result.SourceID)
-	e.text(result.SourceIncarnation)
-	e.text(result.SourceRevision)
-	e.text(result.NextCursor)
-	e.number(uint64(result.ResultCount))
-	e.number(uint64(len(result.Members)))
+	h := sha256.New()
+	put := func(p []byte) { _, _ = h.Write(p) }
+	number := func(n int64) { var p [8]byte; binary.BigEndian.PutUint64(p[:], uint64(n)); put(p[:]) }
+	text := func(v string) { number(int64(len(v))); put([]byte(v)) }
+	put([]byte("portico-writer-result-sha256-v1\x00"))
+	put([]byte{0, 1})
+	text("inventory_accept")
+	text("ordinary_batch")
+	text("applied")
+	text(result.RunID)
+	put(identity.Incarnation[:])
+	number(identity.Sequence)
+	put(identity.OperationID[:])
+	put(request[:])
+	number(result.AcceptedRunRevision)
+	number(result.AppliedMS)
+	text(result.SourceID)
+	text(result.SourceIncarnation)
+	text(result.SourceRevision)
+	text(result.NextCursor)
+	number(result.ResultCount)
+	number(int64(len(result.Members)))
 	for _, m := range result.Members {
-		e.number(uint64(m.InputOrdinal))
-		e.number(uint64(m.ChildKind))
-		e.number(uint64(m.ChildOrdinal))
-		e.text(m.ObjectID)
-		e.number(uint64(m.LibraryID))
-		e.number(uint64(m.SubjectID))
-		e.number(uint64(m.AssetID))
-		e.number(uint64(m.AcceptedAssetRevision))
-	}
-	if e.err != nil {
-		return ResultDigest{}, e.err
+		number(m.InputOrdinal)
+		number(m.ChildKind)
+		number(m.ChildOrdinal)
+		text(m.ObjectID)
+		number(m.LibraryID)
+		number(m.SubjectID)
+		number(m.AssetID)
+		number(m.AcceptedAssetRevision)
 	}
 	var digest ResultDigest
-	copy(digest[:], e.h.Sum(nil))
+	copy(digest[:], h.Sum(nil))
 	return digest, nil
 }
 
@@ -362,6 +369,10 @@ func n1DriverExpectedResult(source n1DriverCrashSource, journal inventoryCrashJo
 }
 
 func compareN1DriverResult(want, got InventoryResult) error {
+	e := got.Outcome.Evidence
+	if e == nil || e.Purpose != InventoryAccept || e.Commit != CommitSucceeded || e.Policy == nil || e.CommitAttemptedAt == nil || e.CommitReturnedAt == nil || e.PhysicalReturnedAt == nil {
+		return errors.New("N1 public return lacks actual frame evidence")
+	}
 	got.Outcome.Evidence = nil // actual per-call frame evidence is output, not immutable result data
 	if !reflect.DeepEqual(want, got) {
 		return fmt.Errorf("N1 public return changed: got %+v, want %+v", got, want)
@@ -462,6 +473,9 @@ func checkN1DriverCommitted(ctx context.Context, reader inventoryCrashReader, so
 		Kind: "inventory_accept", AcceptedRevision: b.RunRevision + 1, AppliedMS: b.ClockMS,
 		SourceID: in.SourceID, SourceIncarnation: in.SourceIncarnation, SourceRevision: in.FileRevision,
 		NextCursor: in.NextCursor, ResultCount: 1, ResultDigest: append([]byte(nil), digest[:]...)}
+	if err := n1DriverCheckWholeHeader(ctx, reader, in, wantHeader); err != nil {
+		return zero, err
+	}
 	if !reflect.DeepEqual(wantHeader, journal.Header) {
 		return zero, fmt.Errorf("N1 receipt header changed: got %+v, want %+v", journal.Header, wantHeader)
 	}
@@ -469,6 +483,61 @@ func checkN1DriverCommitted(ctx context.Context, reader inventoryCrashReader, so
 		return zero, err
 	}
 	return journal, nil
+}
+
+// Check every canonical header column, including NULL lifecycle/directory
+// projections omitted by the historical shared header struct. Schema growth
+// fails closed until its new column is explicitly modeled here.
+func n1DriverCheckWholeHeader(ctx context.Context, reader inventoryCrashReader, in n1DriverInput, h inventoryCrashHeader) error {
+	want := map[string]any{
+		"run_id": h.RunID, "command_incarnation": h.Incarnation, "command_sequence": h.Sequence,
+		"operation_id": h.OperationID, "request_digest": h.RequestDigest, "command_kind": h.Kind,
+		"accepted_revision": h.AcceptedRevision, "applied_ms": h.AppliedMS,
+		"source_id": h.SourceID, "source_incarnation": h.SourceIncarnation, "source_revision": h.SourceRevision,
+		"change_id": nil, "next_cursor": h.NextCursor, "next_family": int64(0), "next_copy_phase": int64(0),
+		"next_copy_id": int64(0), "next_copy_aux": int64(0), "next_copy_key": "", "next_copy_key2": "", "next_copy_key3": "",
+		"after_entity": int64(0), "expected_epoch": int64(0), "result_count": int64(1), "result_digest": h.ResultDigest,
+	}
+	for _, name := range strings.Fields(`refused_relative_path refusal_code cursor_kind cursor_directory_path cursor_directory_identity cursor_directory_revision cursor_expected_payload cursor_next_payload
+ result_lease_owner result_lease_generation result_lease_expires_ms result_acknowledged_sequence result_discovered result_processed result_root_identity result_root_revision result_root_cursor result_root_pages result_root_skipped
+ result_directory_path result_directory_identity result_directory_revision result_directory_cursor result_directory_state result_directory_pages result_directory_skipped result_parent_pages result_parent_skipped result_inventory_completed_at result_traversal_blocked result_traversal_protected refused_entry_kind refused_directory_identity refused_directory_revision`) {
+		want[name] = nil
+	}
+	rows, err := reader.QueryContext(ctx, "SELECT * FROM scan_command_receipts WHERE run_id=? AND command_incarnation=? AND command_sequence=?", in.RunID, in.IdentityIncarnation, in.IdentitySequence)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	if len(columns) != len(want) {
+		return fmt.Errorf("N1 header column inventory: got %d want %d", len(columns), len(want))
+	}
+	if !rows.Next() {
+		return errors.Join(sql.ErrNoRows, rows.Err())
+	}
+	values, dest := make([]any, len(columns)), make([]any, len(columns))
+	for i := range values {
+		dest[i] = &values[i]
+	}
+	if err = rows.Scan(dest...); err != nil {
+		return err
+	}
+	for i, name := range columns {
+		v, ok := want[name]
+		if !ok {
+			return fmt.Errorf("N1 unmodeled header column %s", name)
+		}
+		if err := n1DriverEqual("header "+name, values[i], v); err != nil {
+			return err
+		}
+	}
+	if rows.Next() {
+		return errors.New("N1 duplicate original header")
+	}
+	return rows.Err()
 }
 
 func checkN1DriverEffects(ctx context.Context, reader inventoryCrashReader, in n1DriverInput, b n1DriverBaseline, child inventoryCrashChild, journal inventoryCrashJournal) error {
@@ -973,6 +1042,57 @@ func TestCrashN1DriverOracleRejectsCorruption(t *testing.T) {
 			if _, err := conn.ExecContext(t.Context(), "RELEASE crash_n1_oracle"); err != nil {
 				t.Fatal(err)
 			}
+		})
+	}
+}
+
+// Three actual production overlays are explicit runner controls, rather than
+// nested compiler jobs in ordinary unit CI. Only the killed child is mutated.
+func TestCrashN1DriverProductionMutants(t *testing.T) {
+	if os.Getenv("PORTICO_LANE_EVIDENCE_DIR") == "" {
+		t.Skip("explicit hosted production-mutant proof")
+	}
+	for _, m := range []struct{ name, file, old, new, reason string }{
+		{"public_return", "scan_inventory_preparation.go", "return out.inventory, nil", "if os.Getenv(\"PORTICO_CRASH_CASE\") != \"\" {out.inventory.SourceID=\"WRONG-N1-PUBLIC-PROJECTION\"}; return out.inventory, nil", "N1 public return changed"},
+		{"saved_digest", "scan_fresh.go", "if err = execInventoryFreshOne(ctx, turn, scanReceiptInsert", "if os.Getenv(\"PORTICO_CRASH_CASE\") != \"\" {digest[0]++}; if err = execInventoryFreshOne(ctx, turn, scanReceiptInsert", "N1 header result_digest"},
+		{"saved_child", "scan_fresh.go", "m.ObjectID, m.LibraryID, m.SubjectID", "func() string {if os.Getenv(\"PORTICO_CRASH_CASE\") != \"\" {return \"ffffffffffffffffffffffffffffffff\"};return m.ObjectID}(), m.LibraryID, m.SubjectID", "N1 header result_digest"},
+	} {
+		t.Run(m.name, func(t *testing.T) {
+			data, err := os.ReadFile(m.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Count(string(data), m.old) != 1 {
+				t.Fatal("N1 mutant source locator changed", m.file)
+			}
+			changed := strings.Replace(string(data), m.old, m.new, 1)
+			changed = strings.Replace(changed, "import (", "import (\n\"os\"", 1)
+			root := t.TempDir()
+			replacement := filepath.Join(root, "mutant.go")
+			if err = os.WriteFile(replacement, []byte(changed), 0600); err != nil {
+				t.Fatal(err)
+			}
+			original, err := filepath.Abs(m.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload, err := json.Marshal(map[string]any{"Replace": map[string]string{original: replacement}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			overlay := filepath.Join(root, "overlay.json")
+			if err = os.WriteFile(overlay, payload, 0600); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "go", "test", "-overlay", overlay, "-p", "2", "-parallel", "2", "-count=1", "-timeout=2m", "-run", "^TestCrashReplayN1DriverPublicPath$/^api_return$", ".")
+			cmd.Env = append(os.Environ(), "TMPDIR="+root, "GOTMPDIR="+root)
+			output, err := cmd.CombinedOutput()
+			if err == nil || ctx.Err() != nil || !strings.Contains(string(output), m.reason) || !strings.Contains(string(output), "TestCrashReplayChild") || strings.Contains(string(output), "[build failed]") {
+				t.Fatalf("N1 mutant escaped intended child check: %v\n%s", err, output)
+			}
+			t.Log("rejected production mutation at child semantic check:", m.reason)
 		})
 	}
 }
