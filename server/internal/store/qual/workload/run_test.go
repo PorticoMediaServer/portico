@@ -179,7 +179,7 @@ func TestWorkloadErrorsAndOutputFailuresStop(t *testing.T) {
 				case "empty":
 					return nil
 				case "too-many":
-					for range 4 {
+					for range maxActionObservations + 1 {
 						_ = emit(Observation{Phase: "CONTROL"})
 					}
 					return nil
@@ -198,6 +198,37 @@ func TestWorkloadErrorsAndOutputFailuresStop(t *testing.T) {
 				t.Fatal("error marked complete")
 			}
 		})
+	}
+}
+
+// A real WC action emits its before-snapshot, ACCEPT, RESOLVE, ACK and
+// after-snapshot plus one caller-side bracket. The bound must retain all six,
+// while the existing too-many control still stops one record beyond it.
+func TestWorkloadActionObservationBound(t *testing.T) {
+	config := testConfig()
+	config.Duration = 60 * time.Millisecond
+	emitted := 0
+	action := func(_ context.Context, _ Offer, emit func(Observation) error) error {
+		emitted++
+		for i := range maxActionObservations {
+			if err := emit(Observation{Phase: fmt.Sprintf("CONTROL_%d", i)}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	sink := &memorySink{}
+	if err := Run(t.Context(), config, stream(action), sink); err != nil {
+		t.Fatal(err)
+	}
+	records := 0
+	for _, r := range sink.records {
+		if r.Observation != nil {
+			records++
+		}
+	}
+	if emitted == 0 || records != emitted*maxActionObservations {
+		t.Fatal(emitted, records)
 	}
 }
 

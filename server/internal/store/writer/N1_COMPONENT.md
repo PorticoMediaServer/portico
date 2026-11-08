@@ -647,9 +647,13 @@ keeper lifecycle as canonical N1, plus WC's one factored birth/driver builder.
 Progress capture/drain, FULL security and retained reclaim are actual merged
 Actions. The serial writer queue is shared by scan and independent user-write
 submissions; reads and funded PASSIVE remain separate. Select
-`-ec2-writer-pattern=inventory` with `-ec3-foreground-write-every=50ms` for the
-user-write cell; the default foreground pattern is capture, drain, security.
-The wait ledger selects ACCEPT, preserving SNAPSHOT/Resolve/ACK separately.
+`-ec2-writer-pattern=inventory` with a sustainable
+`-ec3-foreground-write-every` for the user-write cell (250ms is the screening
+pin; 50ms remains the wait target that the ledger classifies against, not the
+offer cadence: at a 50ms cadence one action over the interval is a missed offer
+and the bounded schedule is correctly incomplete). The default foreground
+pattern is capture, drain, security. The wait ledger selects ACCEPT, preserving
+SNAPSHOT/Resolve/ACK separately.
 
 Default mixed sustained writer pattern is inventory/security. Optional writer
 entries progress_capture, progress_drain and reclaim stay real source operations;
