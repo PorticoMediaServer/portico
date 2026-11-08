@@ -629,3 +629,15 @@ future WC owner-proven IDs/order must be retained; none is manufactured here.
 No native foreground-write qualification is executable until WC's same-owner
 Actions/diagnostics land. Frozen clocks, raw SQL and failed-cell p99 claims remain
 forbidden. Functional controls run on GitHub with Go1.26.10.
+
+Canonical population screening attachment: set BOTH
+`PORTICO_PAIRED_POPULATION_DIRECTORY` and
+`PORTICO_PAIRED_POPULATION_MANIFEST_SHA256` for paired, EC2 or EC5 constructors.
+The unchanged five-field workload config and existing opt-in flags still apply.
+The actual exact-t `UseQualificationPopulation` copy seeds library7 without
+reinserting its parents; browse selects that full population. Detail/playback/
+personal routes retain the existing library1 overlay and are labelled separately.
+EC5 controller forwards the same coordinates with `--population-directory` and
+`--population-manifest-sha256`. Missing/invalid pairs fail, never fall back.
+This slice attaches population only; EC2 native WC/CP/recovery composition remains
+explicitly missing until the following composition slice. No qualification claim.

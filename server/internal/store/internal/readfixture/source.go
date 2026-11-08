@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -28,15 +29,16 @@ type browseFact struct {
 	age       *int64
 }
 type browseFixture struct {
-	sharedMovieKind bool
-	temporalOrigin  time.Time
-	temporalShift   time.Duration
-	borrowed        bool
-	path            string
-	conn            *sql.Conn
-	db              *sql.DB
-	facts           []browseFact
-	closed          bool
+	sharedMovieKind     bool
+	existingLibraryKeys []string
+	temporalOrigin      time.Time
+	temporalShift       time.Duration
+	borrowed            bool
+	path                string
+	conn                *sql.Conn
+	db                  *sql.DB
+	facts               []browseFact
+	closed              bool
 }
 type Fact struct {
 	ID        int64
@@ -76,13 +78,16 @@ var attachment struct {
 	source *browseFixture
 }
 
-func ForegroundOn(t *testing.T, path string, conn *sql.Conn) *Source {
+func ForegroundOn(t *testing.T, path string, conn *sql.Conn, existingLibraryKeys ...string) *Source {
 	t.Helper()
 	if conn == nil || path == "" {
 		t.Fatal("missing owned fixture attachment")
 	}
+	if len(existingLibraryKeys) > 1 || (len(existingLibraryKeys) == 1 && existingLibraryKeys[0] != "qualification-movies") {
+		t.Fatal("closed canonical foreground library attachment required")
+	}
 	origin := time.Now().UTC()
-	f := &browseFixture{path: path, conn: conn, borrowed: true, sharedMovieKind: true, temporalOrigin: origin, temporalShift: origin.Sub(time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC))}
+	f := &browseFixture{existingLibraryKeys: append([]string(nil), existingLibraryKeys...), path: path, conn: conn, borrowed: true, sharedMovieKind: true, temporalOrigin: origin, temporalShift: origin.Sub(time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC))}
 	attachment.Lock()
 	if attachment.owner != nil {
 		attachment.Unlock()
@@ -137,6 +142,15 @@ func (f *browseFixture) exec(t *testing.T, q string, args ...any) {
 	// kind1; omit the existing two-kind seed statement, never repair/delete rows.
 	if f.sharedMovieKind && strings.HasPrefix(q, "INSERT INTO catalog_kinds(") {
 		return
+	}
+	// The same trusted fixture membership can also select the exact canonical
+	// parent. Keep the standalone journal/overlay unchanged; no production authority.
+	if len(f.existingLibraryKeys) != 0 && strings.HasPrefix(q, "INSERT INTO direct_memberships(") {
+		allowed, err := json.Marshal(append([]string{"movies"}, f.existingLibraryKeys...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		q = strings.Replace(q, `'["movies"]'`, "'"+strings.ReplaceAll(string(allowed), "'", "''")+"'", 1)
 	}
 	// Preserve the existing synthetic authority/data time offsets, but rebase
 	// them ONCE before paired preparation to the actual clock. Standalone RD2
