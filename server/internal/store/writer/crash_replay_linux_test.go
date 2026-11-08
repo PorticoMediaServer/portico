@@ -263,6 +263,10 @@ func TestCrashReplayChild(t *testing.T) {
 		crashN1DriverFixture(t, &witness)
 		return
 	}
+	if witness.Case.Domain == "wc_n1_history" {
+		crashN1HistoryFixture(t, &witness)
+		return
+	}
 	if witness.Case.Domain == "inventory_native" {
 		crashInventoryNativeFixture(t, &witness)
 		return
