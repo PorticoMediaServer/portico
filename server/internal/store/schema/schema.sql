@@ -7062,13 +7062,7 @@ CREATE TABLE personal_items(
  container_revision INTEGER NOT NULL DEFAULT 0 CHECK(typeof(container_revision)='integer' AND container_revision>=0),
  radio_last_started_at TEXT,
  radio_last_session_id TEXT,
- reading_format TEXT CHECK(reading_format IS NULL OR reading_format IN('epub','pdf','cbz','cb7','cbr')),
- reading_cfi TEXT,
- reading_section TEXT,
- reading_page_index INTEGER,
- reading_progression REAL CHECK(reading_progression IS NULL OR (typeof(reading_progression) IN('real','integer') AND reading_progression BETWEEN 0 AND 1)),
  reading_revision INTEGER,
- reading_observed_ms INTEGER,
  chapter_manifest_digest BLOB CHECK(chapter_manifest_digest IS NULL OR (typeof(chapter_manifest_digest)='blob' AND length(chapter_manifest_digest)=32)),
  chapter_asset_id INTEGER,
  chapter_asset_revision INTEGER,
@@ -7122,13 +7116,7 @@ CREATE TABLE personal_items(
  CHECK(container_revision IS NULL OR typeof(container_revision)='integer'),
  CHECK(radio_last_started_at IS NULL OR typeof(radio_last_started_at)='text'),
  CHECK(radio_last_session_id IS NULL OR typeof(radio_last_session_id)='text'),
- CHECK(reading_format IS NULL OR typeof(reading_format)='text'),
- CHECK(reading_cfi IS NULL OR typeof(reading_cfi)='text'),
- CHECK(reading_section IS NULL OR typeof(reading_section)='text'),
- CHECK(reading_page_index IS NULL OR typeof(reading_page_index)='integer'),
- CHECK(reading_progression IS NULL OR typeof(reading_progression)IN('real','integer')),
  CHECK(reading_revision IS NULL OR typeof(reading_revision)='integer'),
- CHECK(reading_observed_ms IS NULL OR typeof(reading_observed_ms)='integer'),
  CHECK(chapter_manifest_digest IS NULL OR typeof(chapter_manifest_digest)='blob'),
  CHECK(chapter_asset_id IS NULL OR typeof(chapter_asset_id)='integer'),
  CHECK(chapter_asset_revision IS NULL OR typeof(chapter_asset_revision)='integer'),
@@ -7138,7 +7126,6 @@ CREATE TABLE personal_items(
  CHECK(retained_kind IS NULL OR typeof(retained_kind)='integer'),
  CHECK(retained_title IS NULL OR typeof(retained_title)='text'),
  CHECK(retained_at_ms IS NULL OR typeof(retained_at_ms)='integer'),
- CHECK(reading_format IS NULL OR (reading_format='epub' AND reading_page_index IS NULL) OR (reading_format IN('pdf','cbz','cb7','cbr') AND reading_page_index IS NOT NULL AND reading_cfi IS NULL AND reading_section IS NULL)),
  FOREIGN KEY(item_id,item_public_id) REFERENCES catalog_subjects(id,public_id),
  CHECK(typeof("id")IN('null','integer')),
  CHECK(typeof("profile_id")IN('null','text')),
@@ -7179,13 +7166,7 @@ CREATE TABLE personal_items(
  CHECK(typeof("container_revision")IN('null','integer')),
  CHECK(typeof("radio_last_started_at")IN('null','text')),
  CHECK(typeof("radio_last_session_id")IN('null','text')),
- CHECK(typeof("reading_format")IN('null','text')),
- CHECK(typeof("reading_cfi")IN('null','text')),
- CHECK(typeof("reading_section")IN('null','text')),
- CHECK(typeof("reading_page_index")IN('null','integer')),
- CHECK(typeof("reading_progression")IN('null','integer','real')),
  CHECK(typeof("reading_revision")IN('null','integer')),
- CHECK(typeof("reading_observed_ms")IN('null','integer')),
  CHECK(typeof("chapter_manifest_digest")IN('null','blob')),
  CHECK(typeof("chapter_asset_id")IN('null','integer')),
  CHECK(typeof("chapter_asset_revision")IN('null','integer')),
@@ -7978,11 +7959,24 @@ CREATE TABLE playback_hls_stages(
 ) STRICT;
 
 CREATE TABLE playback_hls_windows(
- session_id TEXT NOT NULL REFERENCES playback_sessions(id) ON DELETE CASCADE,
+ session_id TEXT NOT NULL REFERENCES playback_sessions(id) ON DELETE NO ACTION,
  start_index INTEGER NOT NULL CHECK(start_index>=0),
  status TEXT NOT NULL CHECK(status IN ('running','throttled','complete','failed')),
  highest_produced INTEGER NOT NULL DEFAULT -1,
  started_at_ms INTEGER NOT NULL,
+ mp_physical_generation INTEGER NOT NULL DEFAULT 0 CHECK(mp_physical_generation>=0) CHECK(mp_physical_generation IS NULL OR typeof(mp_physical_generation) IN('integer')),
+ mp_execution_id TEXT NOT NULL DEFAULT '' CHECK(mp_execution_id IS NULL OR typeof(mp_execution_id) IN('text')),
+ mp_source_request_id TEXT NOT NULL DEFAULT '' CHECK(mp_source_request_id IS NULL OR typeof(mp_source_request_id) IN('text')),
+ mp_writes_retired INTEGER NOT NULL DEFAULT 0 CHECK(mp_writes_retired IN(0,1)) CHECK(mp_writes_retired IS NULL OR typeof(mp_writes_retired) IN('integer')),
+ mp_exit_confirmed INTEGER NOT NULL DEFAULT 0 CHECK(mp_exit_confirmed IN(0,1) AND mp_exit_confirmed<=mp_writes_retired AND ((mp_physical_generation=0 AND mp_execution_id='' AND mp_source_request_id='' AND mp_writes_retired=0 AND mp_exit_confirmed=0) OR (mp_physical_generation>0 AND mp_execution_id<>'' AND mp_source_request_id<>''))) CHECK(mp_exit_confirmed IS NULL OR typeof(mp_exit_confirmed) IN('integer')),
+ mp_execution_generation INTEGER NOT NULL DEFAULT 0 CHECK(mp_execution_generation>=0) CHECK(mp_execution_generation IS NULL OR typeof(mp_execution_generation) IN('integer')),
+ mp_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_revision>0) CHECK(mp_revision IS NULL OR typeof(mp_revision) IN('integer')),
+ mp_end_index INTEGER NOT NULL DEFAULT 0 CHECK(mp_end_index>=0) CHECK(mp_end_index IS NULL OR typeof(mp_end_index) IN('integer')),
+ mp_plan_digest TEXT NOT NULL DEFAULT '' CHECK(mp_plan_digest='' OR length(mp_plan_digest)=64) CHECK(mp_plan_digest IS NULL OR typeof(mp_plan_digest) IN('text')),
+ mp_cleaned INTEGER NOT NULL DEFAULT 0 CHECK(mp_cleaned IN(0,1) AND mp_cleaned<=mp_exit_confirmed) CHECK(mp_cleaned IS NULL OR typeof(mp_cleaned) IN('integer')),
+ mp_exit_digest TEXT NOT NULL DEFAULT '' CHECK(mp_exit_digest='' OR length(mp_exit_digest)=64) CHECK(mp_exit_digest IS NULL OR typeof(mp_exit_digest) IN('text')),
+ mp_cleanup_cursor INTEGER NOT NULL DEFAULT 0 CHECK(mp_cleanup_cursor>=0) CHECK(mp_cleanup_cursor IS NULL OR typeof(mp_cleanup_cursor) IN('integer')),
+ mp_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_execution_id AS BLOB)),0)+coalesce(length(CAST(mp_source_request_id AS BLOB)),0)+coalesce(length(CAST(mp_plan_digest AS BLOB)),0)+coalesce(length(CAST(mp_exit_digest AS BLOB)),0)) VIRTUAL,
  PRIMARY KEY(session_id,start_index)
 ) STRICT;
 
@@ -8265,6 +8259,48 @@ CREATE TABLE playback_sessions(
  request_id TEXT NOT NULL,
  duration REAL NOT NULL,
  mode TEXT NOT NULL DEFAULT 'direct',
+ mp_retired_generation INTEGER NOT NULL DEFAULT 0 CHECK(mp_retired_generation>=0) CHECK(mp_retired_generation IS NULL OR typeof(mp_retired_generation) IN('integer')),
+ mp_exited_generation INTEGER NOT NULL DEFAULT 0 CHECK(mp_exited_generation>=0 AND mp_exited_generation<=mp_retired_generation) CHECK(mp_exited_generation IS NULL OR typeof(mp_exited_generation) IN('integer')),
+ mp_retire_request_id TEXT NOT NULL DEFAULT '' CHECK((mp_retired_generation=0 AND mp_retire_request_id='') OR (mp_retired_generation>0 AND mp_retire_request_id<>'')) CHECK(mp_retire_request_id IS NULL OR typeof(mp_retire_request_id) IN('text')),
+ mp_exit_supervisor_incarnation BLOB CHECK(mp_exit_supervisor_incarnation IS NULL OR length(mp_exit_supervisor_incarnation)=16) CHECK(mp_exit_supervisor_incarnation IS NULL OR typeof(mp_exit_supervisor_incarnation) IN('blob')),
+ mp_exited_ms INTEGER NOT NULL DEFAULT 0 CHECK(mp_exited_ms>=0) CHECK(mp_exited_ms IS NULL OR typeof(mp_exited_ms) IN('integer')),
+ mp_exit_request_id TEXT NOT NULL DEFAULT '' CHECK((mp_exited_generation=0 AND mp_exit_request_id='' AND mp_exit_supervisor_incarnation IS NULL AND mp_exited_ms=0) OR (mp_exited_generation>0 AND mp_exit_request_id=mp_retire_request_id AND mp_exit_supervisor_incarnation IS NOT NULL AND mp_exited_ms>0)) CHECK(mp_exit_request_id IS NULL OR typeof(mp_exit_request_id) IN('text')),
+ mp_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_revision>0) CHECK(mp_revision IS NULL OR typeof(mp_revision) IN('integer')),
+ mp_execution_id TEXT NOT NULL DEFAULT '' CHECK(mp_execution_id IS NULL OR typeof(mp_execution_id) IN('text')),
+ mp_cleanup_cursor INTEGER NOT NULL DEFAULT 0 CHECK(mp_cleanup_cursor>=0) CHECK(mp_cleanup_cursor IS NULL OR typeof(mp_cleanup_cursor) IN('integer')),
+ mp_cleanup_complete INTEGER NOT NULL DEFAULT 0 CHECK(mp_cleanup_complete IN(0,1) AND (mp_cleanup_complete=0 OR mp_exited_generation=generation)) CHECK(mp_cleanup_complete IS NULL OR typeof(mp_cleanup_complete) IN('integer')),
+ mp_exit_digest TEXT NOT NULL DEFAULT '' CHECK(mp_exit_digest='' OR length(mp_exit_digest)=64) CHECK(mp_exit_digest IS NULL OR typeof(mp_exit_digest) IN('text')),
+ mp_grant_retired INTEGER NOT NULL DEFAULT 0 CHECK(mp_grant_retired IN(0,1)) CHECK(mp_grant_retired IS NULL OR typeof(mp_grant_retired) IN('integer')),
+ mp_delivery_ready INTEGER NOT NULL DEFAULT 0 CHECK(mp_delivery_ready IN(0,1)) CHECK(mp_delivery_ready IS NULL OR typeof(mp_delivery_ready) IN('integer')),
+ mp_media_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_retire_request_id AS BLOB)),0)+coalesce(length(CAST(mp_exit_supervisor_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_exit_request_id AS BLOB)),0)+coalesce(length(CAST(mp_execution_id AS BLOB)),0)+coalesce(length(CAST(mp_exit_digest AS BLOB)),0)) VIRTUAL,
+ mp_command_incarnation BLOB CHECK(mp_command_incarnation IS NULL OR length(mp_command_incarnation)=16) CHECK(mp_command_incarnation IS NULL OR typeof(mp_command_incarnation) IN('blob')),
+ mp_command_last_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_last_sequence>=0) CHECK(mp_command_last_sequence IS NULL OR typeof(mp_command_last_sequence) IN('integer')),
+ mp_command_acknowledged_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_acknowledged_sequence>=0 AND mp_command_acknowledged_sequence<=mp_command_last_sequence AND mp_command_last_sequence-mp_command_acknowledged_sequence<=1 AND (mp_command_incarnation IS NOT NULL OR mp_command_last_sequence=0)) CHECK(mp_command_acknowledged_sequence IS NULL OR typeof(mp_command_acknowledged_sequence) IN('integer')),
+ mp_owner_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_owner_revision>0) CHECK(mp_owner_revision IS NULL OR typeof(mp_owner_revision) IN('integer')),
+ mp_user_root_id TEXT CHECK(mp_user_root_id IS NULL OR length(CAST(mp_user_root_id AS BLOB))=22) CHECK(mp_user_root_id IS NULL OR typeof(mp_user_root_id) IN('text')),
+ mp_owner_member_incarnation TEXT CHECK(mp_owner_member_incarnation IS NULL OR length(mp_owner_member_incarnation)=32) CHECK(mp_owner_member_incarnation IS NULL OR typeof(mp_owner_member_incarnation) IN('text')),
+ mp_owner_profile_lifetime TEXT CHECK(mp_owner_profile_lifetime IS NULL OR length(mp_owner_profile_lifetime)=32) CHECK(mp_owner_profile_lifetime IS NULL OR typeof(mp_owner_profile_lifetime) IN('text')),
+ mp_receipt_rows INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_rows>=0) CHECK(mp_receipt_rows IS NULL OR typeof(mp_receipt_rows) IN('integer')),
+ mp_receipt_variable_bytes INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_variable_bytes>=0 AND ((mp_receipt_rows=0)=(mp_receipt_variable_bytes=0))) CHECK(mp_receipt_variable_bytes IS NULL OR typeof(mp_receipt_variable_bytes) IN('integer')),
+ mp_receipt_reclaim_after_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_reclaim_after_sequence>=0 AND mp_receipt_reclaim_after_sequence<=mp_command_acknowledged_sequence) CHECK(mp_receipt_reclaim_after_sequence IS NULL OR typeof(mp_receipt_reclaim_after_sequence) IN('integer')),
+ mp_receipt_reclaim_due_ms INTEGER CHECK(mp_receipt_reclaim_due_ms IS NULL OR mp_receipt_reclaim_due_ms>=0) CHECK(mp_receipt_reclaim_due_ms IS NULL OR typeof(mp_receipt_reclaim_due_ms) IN('integer')),
+ mp_reclaim_sequence INTEGER CHECK(mp_reclaim_sequence IS NULL OR typeof(mp_reclaim_sequence) IN('integer')),
+ mp_reclaim_operation_id BLOB CHECK(mp_reclaim_operation_id IS NULL OR length(mp_reclaim_operation_id)=16) CHECK(mp_reclaim_operation_id IS NULL OR typeof(mp_reclaim_operation_id) IN('blob')),
+ mp_reclaim_request_digest BLOB CHECK(mp_reclaim_request_digest IS NULL OR length(mp_reclaim_request_digest)=32) CHECK(mp_reclaim_request_digest IS NULL OR typeof(mp_reclaim_request_digest) IN('blob')),
+ mp_reclaim_command_kind INTEGER CHECK(mp_reclaim_command_kind IS NULL OR mp_reclaim_command_kind=782) CHECK(mp_reclaim_command_kind IS NULL OR typeof(mp_reclaim_command_kind) IN('integer')),
+ mp_reclaim_result_version INTEGER CHECK(mp_reclaim_result_version IS NULL OR typeof(mp_reclaim_result_version) IN('integer')),
+ mp_reclaim_result_count INTEGER CHECK(mp_reclaim_result_count IS NULL OR typeof(mp_reclaim_result_count) IN('integer')),
+ mp_reclaim_result_digest BLOB CHECK(mp_reclaim_result_digest IS NULL OR length(mp_reclaim_result_digest)=32) CHECK(mp_reclaim_result_digest IS NULL OR typeof(mp_reclaim_result_digest) IN('blob')),
+ mp_reclaim_result_payload BLOB CHECK(mp_reclaim_result_payload IS NULL OR length(mp_reclaim_result_payload) BETWEEN 1 AND 4096) CHECK(mp_reclaim_result_payload IS NULL OR typeof(mp_reclaim_result_payload) IN('blob')),
+ mp_reclaim_captured_ack INTEGER CHECK(mp_reclaim_captured_ack IS NULL OR typeof(mp_reclaim_captured_ack) IN('integer')),
+ mp_reclaim_before_cursor INTEGER CHECK(mp_reclaim_before_cursor IS NULL OR typeof(mp_reclaim_before_cursor) IN('integer')),
+ mp_reclaim_removed_sequence INTEGER CHECK(mp_reclaim_removed_sequence IS NULL OR typeof(mp_reclaim_removed_sequence) IN('integer')),
+ mp_reclaim_removed_bytes INTEGER CHECK(mp_reclaim_removed_bytes IS NULL OR typeof(mp_reclaim_removed_bytes) IN('integer')),
+ mp_reclaim_after_cursor INTEGER CHECK(mp_reclaim_after_cursor IS NULL OR typeof(mp_reclaim_after_cursor) IN('integer')),
+ mp_reclaim_no_next INTEGER CHECK(mp_reclaim_no_next IS NULL OR typeof(mp_reclaim_no_next) IN('integer')),
+ mp_reclaim_applied_ms INTEGER CHECK(mp_reclaim_applied_ms IS NULL OR typeof(mp_reclaim_applied_ms) IN('integer')),
+ mp_retirement_state TEXT NOT NULL DEFAULT 'live' CHECK(mp_retirement_state IN('live','draining','retired') AND ((mp_reclaim_sequence IS NULL AND mp_reclaim_operation_id IS NULL AND mp_reclaim_request_digest IS NULL AND mp_reclaim_command_kind IS NULL AND mp_reclaim_result_version IS NULL AND mp_reclaim_result_count IS NULL AND mp_reclaim_result_digest IS NULL AND mp_reclaim_result_payload IS NULL AND mp_reclaim_captured_ack IS NULL AND mp_reclaim_before_cursor IS NULL AND mp_reclaim_removed_bytes IS NULL AND mp_reclaim_after_cursor IS NULL AND mp_reclaim_no_next IS NULL AND mp_reclaim_applied_ms IS NULL AND mp_reclaim_removed_sequence IS NULL) OR (mp_reclaim_sequence IS NOT NULL AND mp_reclaim_operation_id IS NOT NULL AND mp_reclaim_request_digest IS NOT NULL AND mp_reclaim_command_kind IS NOT NULL AND mp_reclaim_result_version IS NOT NULL AND mp_reclaim_result_count IS NOT NULL AND mp_reclaim_result_digest IS NOT NULL AND mp_reclaim_result_payload IS NOT NULL AND mp_reclaim_captured_ack IS NOT NULL AND mp_reclaim_before_cursor IS NOT NULL AND mp_reclaim_removed_bytes IS NOT NULL AND mp_reclaim_after_cursor IS NOT NULL AND mp_reclaim_no_next IS NOT NULL AND mp_reclaim_applied_ms IS NOT NULL AND mp_reclaim_sequence>0 AND mp_reclaim_sequence<=mp_command_last_sequence AND mp_reclaim_result_version=1 AND mp_reclaim_result_count IN(0,1) AND mp_reclaim_captured_ack>=0 AND mp_reclaim_captured_ack<mp_reclaim_sequence AND mp_reclaim_before_cursor>=0 AND mp_reclaim_before_cursor<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>=0 AND mp_reclaim_after_cursor>=mp_reclaim_before_cursor AND mp_reclaim_after_cursor<=mp_reclaim_captured_ack AND mp_reclaim_no_next IN(0,1) AND mp_reclaim_applied_ms>=0 AND ((mp_reclaim_result_count=0 AND mp_reclaim_removed_sequence IS NULL AND mp_reclaim_removed_bytes=0 AND mp_reclaim_after_cursor=mp_reclaim_before_cursor AND mp_reclaim_no_next=1) OR (mp_reclaim_result_count=1 AND mp_reclaim_removed_sequence IS NOT NULL AND mp_reclaim_removed_sequence>mp_reclaim_before_cursor AND mp_reclaim_removed_sequence<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>0 AND mp_reclaim_after_cursor=mp_reclaim_removed_sequence))))) CHECK(mp_retirement_state IS NULL OR typeof(mp_retirement_state) IN('text')),
+ mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_command_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_user_root_id AS BLOB)),0)+coalesce(length(CAST(mp_owner_member_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_owner_profile_lifetime AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_operation_id AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_request_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_payload AS BLOB)),0)+coalesce(length(CAST(mp_retirement_state AS BLOB)),0)) VIRTUAL CHECK(mp_control_variable_bytes IS NULL OR typeof(mp_control_variable_bytes) IN('integer')),
  UNIQUE(account_id,profile_id,request_id)
 ) STRICT;
 
@@ -8364,6 +8400,34 @@ CREATE TABLE playback_start_preparations(
  token_expires_ms INTEGER NOT NULL,
  created_ms INTEGER NOT NULL CHECK(created_ms>0),
  deadline_ms INTEGER NOT NULL CHECK(deadline_ms>created_ms  AND deadline_ms<=token_expires_ms),
+ mp_command_incarnation BLOB CHECK(mp_command_incarnation IS NULL OR length(mp_command_incarnation)=16) CHECK(mp_command_incarnation IS NULL OR typeof(mp_command_incarnation) IN('blob')),
+ mp_command_last_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_last_sequence>=0) CHECK(mp_command_last_sequence IS NULL OR typeof(mp_command_last_sequence) IN('integer')),
+ mp_command_acknowledged_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_acknowledged_sequence>=0 AND mp_command_acknowledged_sequence<=mp_command_last_sequence AND mp_command_last_sequence-mp_command_acknowledged_sequence<=1 AND (mp_command_incarnation IS NOT NULL OR mp_command_last_sequence=0)) CHECK(mp_command_acknowledged_sequence IS NULL OR typeof(mp_command_acknowledged_sequence) IN('integer')),
+ mp_owner_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_owner_revision>0) CHECK(mp_owner_revision IS NULL OR typeof(mp_owner_revision) IN('integer')),
+ mp_user_root_id TEXT CHECK(mp_user_root_id IS NULL OR length(CAST(mp_user_root_id AS BLOB))=22) CHECK(mp_user_root_id IS NULL OR typeof(mp_user_root_id) IN('text')),
+ mp_owner_member_incarnation TEXT CHECK(mp_owner_member_incarnation IS NULL OR length(mp_owner_member_incarnation)=32) CHECK(mp_owner_member_incarnation IS NULL OR typeof(mp_owner_member_incarnation) IN('text')),
+ mp_owner_profile_lifetime TEXT CHECK(mp_owner_profile_lifetime IS NULL OR length(mp_owner_profile_lifetime)=32) CHECK(mp_owner_profile_lifetime IS NULL OR typeof(mp_owner_profile_lifetime) IN('text')),
+ mp_receipt_rows INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_rows>=0) CHECK(mp_receipt_rows IS NULL OR typeof(mp_receipt_rows) IN('integer')),
+ mp_receipt_variable_bytes INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_variable_bytes>=0 AND ((mp_receipt_rows=0)=(mp_receipt_variable_bytes=0))) CHECK(mp_receipt_variable_bytes IS NULL OR typeof(mp_receipt_variable_bytes) IN('integer')),
+ mp_receipt_reclaim_after_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_reclaim_after_sequence>=0 AND mp_receipt_reclaim_after_sequence<=mp_command_acknowledged_sequence) CHECK(mp_receipt_reclaim_after_sequence IS NULL OR typeof(mp_receipt_reclaim_after_sequence) IN('integer')),
+ mp_receipt_reclaim_due_ms INTEGER CHECK(mp_receipt_reclaim_due_ms IS NULL OR mp_receipt_reclaim_due_ms>=0) CHECK(mp_receipt_reclaim_due_ms IS NULL OR typeof(mp_receipt_reclaim_due_ms) IN('integer')),
+ mp_reclaim_sequence INTEGER CHECK(mp_reclaim_sequence IS NULL OR typeof(mp_reclaim_sequence) IN('integer')),
+ mp_reclaim_operation_id BLOB CHECK(mp_reclaim_operation_id IS NULL OR length(mp_reclaim_operation_id)=16) CHECK(mp_reclaim_operation_id IS NULL OR typeof(mp_reclaim_operation_id) IN('blob')),
+ mp_reclaim_request_digest BLOB CHECK(mp_reclaim_request_digest IS NULL OR length(mp_reclaim_request_digest)=32) CHECK(mp_reclaim_request_digest IS NULL OR typeof(mp_reclaim_request_digest) IN('blob')),
+ mp_reclaim_command_kind INTEGER CHECK(mp_reclaim_command_kind IS NULL OR mp_reclaim_command_kind=781) CHECK(mp_reclaim_command_kind IS NULL OR typeof(mp_reclaim_command_kind) IN('integer')),
+ mp_reclaim_result_version INTEGER CHECK(mp_reclaim_result_version IS NULL OR typeof(mp_reclaim_result_version) IN('integer')),
+ mp_reclaim_result_count INTEGER CHECK(mp_reclaim_result_count IS NULL OR typeof(mp_reclaim_result_count) IN('integer')),
+ mp_reclaim_result_digest BLOB CHECK(mp_reclaim_result_digest IS NULL OR length(mp_reclaim_result_digest)=32) CHECK(mp_reclaim_result_digest IS NULL OR typeof(mp_reclaim_result_digest) IN('blob')),
+ mp_reclaim_result_payload BLOB CHECK(mp_reclaim_result_payload IS NULL OR length(mp_reclaim_result_payload) BETWEEN 1 AND 4096) CHECK(mp_reclaim_result_payload IS NULL OR typeof(mp_reclaim_result_payload) IN('blob')),
+ mp_reclaim_captured_ack INTEGER CHECK(mp_reclaim_captured_ack IS NULL OR typeof(mp_reclaim_captured_ack) IN('integer')),
+ mp_reclaim_before_cursor INTEGER CHECK(mp_reclaim_before_cursor IS NULL OR typeof(mp_reclaim_before_cursor) IN('integer')),
+ mp_reclaim_removed_sequence INTEGER CHECK(mp_reclaim_removed_sequence IS NULL OR typeof(mp_reclaim_removed_sequence) IN('integer')),
+ mp_reclaim_removed_bytes INTEGER CHECK(mp_reclaim_removed_bytes IS NULL OR typeof(mp_reclaim_removed_bytes) IN('integer')),
+ mp_reclaim_after_cursor INTEGER CHECK(mp_reclaim_after_cursor IS NULL OR typeof(mp_reclaim_after_cursor) IN('integer')),
+ mp_reclaim_no_next INTEGER CHECK(mp_reclaim_no_next IS NULL OR typeof(mp_reclaim_no_next) IN('integer')),
+ mp_reclaim_applied_ms INTEGER CHECK(mp_reclaim_applied_ms IS NULL OR typeof(mp_reclaim_applied_ms) IN('integer')),
+ mp_retirement_state TEXT NOT NULL DEFAULT 'live' CHECK(mp_retirement_state IN('live','draining','retired') AND ((mp_reclaim_sequence IS NULL AND mp_reclaim_operation_id IS NULL AND mp_reclaim_request_digest IS NULL AND mp_reclaim_command_kind IS NULL AND mp_reclaim_result_version IS NULL AND mp_reclaim_result_count IS NULL AND mp_reclaim_result_digest IS NULL AND mp_reclaim_result_payload IS NULL AND mp_reclaim_captured_ack IS NULL AND mp_reclaim_before_cursor IS NULL AND mp_reclaim_removed_bytes IS NULL AND mp_reclaim_after_cursor IS NULL AND mp_reclaim_no_next IS NULL AND mp_reclaim_applied_ms IS NULL AND mp_reclaim_removed_sequence IS NULL) OR (mp_reclaim_sequence IS NOT NULL AND mp_reclaim_operation_id IS NOT NULL AND mp_reclaim_request_digest IS NOT NULL AND mp_reclaim_command_kind IS NOT NULL AND mp_reclaim_result_version IS NOT NULL AND mp_reclaim_result_count IS NOT NULL AND mp_reclaim_result_digest IS NOT NULL AND mp_reclaim_result_payload IS NOT NULL AND mp_reclaim_captured_ack IS NOT NULL AND mp_reclaim_before_cursor IS NOT NULL AND mp_reclaim_removed_bytes IS NOT NULL AND mp_reclaim_after_cursor IS NOT NULL AND mp_reclaim_no_next IS NOT NULL AND mp_reclaim_applied_ms IS NOT NULL AND mp_reclaim_sequence>0 AND mp_reclaim_sequence<=mp_command_last_sequence AND mp_reclaim_result_version=1 AND mp_reclaim_result_count IN(0,1) AND mp_reclaim_captured_ack>=0 AND mp_reclaim_captured_ack<mp_reclaim_sequence AND mp_reclaim_before_cursor>=0 AND mp_reclaim_before_cursor<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>=0 AND mp_reclaim_after_cursor>=mp_reclaim_before_cursor AND mp_reclaim_after_cursor<=mp_reclaim_captured_ack AND mp_reclaim_no_next IN(0,1) AND mp_reclaim_applied_ms>=0 AND ((mp_reclaim_result_count=0 AND mp_reclaim_removed_sequence IS NULL AND mp_reclaim_removed_bytes=0 AND mp_reclaim_after_cursor=mp_reclaim_before_cursor AND mp_reclaim_no_next=1) OR (mp_reclaim_result_count=1 AND mp_reclaim_removed_sequence IS NOT NULL AND mp_reclaim_removed_sequence>mp_reclaim_before_cursor AND mp_reclaim_removed_sequence<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>0 AND mp_reclaim_after_cursor=mp_reclaim_removed_sequence))))) CHECK(mp_retirement_state IS NULL OR typeof(mp_retirement_state) IN('text')),
+ mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_command_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_user_root_id AS BLOB)),0)+coalesce(length(CAST(mp_owner_member_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_owner_profile_lifetime AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_operation_id AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_request_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_payload AS BLOB)),0)+coalesce(length(CAST(mp_retirement_state AS BLOB)),0)) VIRTUAL CHECK(mp_control_variable_bytes IS NULL OR typeof(mp_control_variable_bytes) IN('integer')),
  UNIQUE(device_id,start_key_digest),
  CHECK((replaces_session_id='' AND replaces_generation=0) OR (replaces_session_id<>'' AND replaces_generation>0))
 ) STRICT;
@@ -8397,7 +8461,7 @@ CREATE TABLE playback_subtitle_state(
 
 CREATE TABLE playback_v1_prepared(
  token TEXT PRIMARY KEY,
- queue_id TEXT NOT NULL REFERENCES queues_v1(id) ON DELETE CASCADE,
+ queue_id TEXT NOT NULL REFERENCES queues_v1(id) ON DELETE NO ACTION,
  device_id TEXT NOT NULL,
  create_key TEXT NOT NULL,
  digest TEXT NOT NULL,
@@ -8416,6 +8480,44 @@ CREATE TABLE playback_v1_prepared(
  cancel_reason TEXT NOT NULL DEFAULT '',
  response TEXT NOT NULL DEFAULT '',
  created_ms INTEGER NOT NULL,
+ mp_family_id TEXT CHECK(mp_family_id IS NULL OR typeof(mp_family_id) IN('text')),
+ mp_current_entry_id TEXT CHECK(mp_current_entry_id IS NULL OR typeof(mp_current_entry_id) IN('text')),
+ mp_custody_generation INTEGER CHECK(mp_custody_generation IS NULL OR mp_custody_generation>=0) CHECK(mp_custody_generation IS NULL OR typeof(mp_custody_generation) IN('integer')),
+ mp_next_lap INTEGER CHECK(mp_next_lap IS NULL OR mp_next_lap>=0) CHECK(mp_next_lap IS NULL OR typeof(mp_next_lap) IN('integer')),
+ mp_media_generation INTEGER CHECK(mp_media_generation IS NULL OR mp_media_generation>0) CHECK(mp_media_generation IS NULL OR typeof(mp_media_generation) IN('integer')),
+ mp_source_revision TEXT CHECK(mp_source_revision IS NULL OR typeof(mp_source_revision) IN('text')),
+ mp_predecessor_media_id TEXT CHECK(mp_predecessor_media_id IS NULL OR typeof(mp_predecessor_media_id) IN('text')),
+ mp_predecessor_media_generation INTEGER CHECK(mp_predecessor_media_generation IS NULL OR mp_predecessor_media_generation>0) CHECK(mp_predecessor_media_generation IS NULL OR typeof(mp_predecessor_media_generation) IN('integer')),
+ mp_prepared_revision INTEGER CHECK(mp_prepared_revision IS NULL OR mp_prepared_revision>0) CHECK(mp_prepared_revision IS NULL OR typeof(mp_prepared_revision) IN('integer')),
+ mp_media_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_family_id AS BLOB)),0)+coalesce(length(CAST(mp_current_entry_id AS BLOB)),0)+coalesce(length(CAST(mp_source_revision AS BLOB)),0)+coalesce(length(CAST(mp_predecessor_media_id AS BLOB)),0)) VIRTUAL,
+ mp_command_incarnation BLOB CHECK(mp_command_incarnation IS NULL OR length(mp_command_incarnation)=16) CHECK(mp_command_incarnation IS NULL OR typeof(mp_command_incarnation) IN('blob')),
+ mp_command_last_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_last_sequence>=0) CHECK(mp_command_last_sequence IS NULL OR typeof(mp_command_last_sequence) IN('integer')),
+ mp_command_acknowledged_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_acknowledged_sequence>=0 AND mp_command_acknowledged_sequence<=mp_command_last_sequence AND mp_command_last_sequence-mp_command_acknowledged_sequence<=1 AND (mp_command_incarnation IS NOT NULL OR mp_command_last_sequence=0)) CHECK(mp_command_acknowledged_sequence IS NULL OR typeof(mp_command_acknowledged_sequence) IN('integer')),
+ mp_owner_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_owner_revision>0) CHECK(mp_owner_revision IS NULL OR typeof(mp_owner_revision) IN('integer')),
+ mp_user_root_id TEXT CHECK(mp_user_root_id IS NULL OR length(CAST(mp_user_root_id AS BLOB))=22) CHECK(mp_user_root_id IS NULL OR typeof(mp_user_root_id) IN('text')),
+ mp_owner_member_incarnation TEXT CHECK(mp_owner_member_incarnation IS NULL OR length(mp_owner_member_incarnation)=32) CHECK(mp_owner_member_incarnation IS NULL OR typeof(mp_owner_member_incarnation) IN('text')),
+ mp_owner_profile_lifetime TEXT CHECK(mp_owner_profile_lifetime IS NULL OR length(mp_owner_profile_lifetime)=32) CHECK(mp_owner_profile_lifetime IS NULL OR typeof(mp_owner_profile_lifetime) IN('text')),
+ mp_receipt_rows INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_rows>=0) CHECK(mp_receipt_rows IS NULL OR typeof(mp_receipt_rows) IN('integer')),
+ mp_receipt_variable_bytes INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_variable_bytes>=0 AND ((mp_receipt_rows=0)=(mp_receipt_variable_bytes=0))) CHECK(mp_receipt_variable_bytes IS NULL OR typeof(mp_receipt_variable_bytes) IN('integer')),
+ mp_receipt_reclaim_after_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_reclaim_after_sequence>=0 AND mp_receipt_reclaim_after_sequence<=mp_command_acknowledged_sequence) CHECK(mp_receipt_reclaim_after_sequence IS NULL OR typeof(mp_receipt_reclaim_after_sequence) IN('integer')),
+ mp_receipt_reclaim_due_ms INTEGER CHECK(mp_receipt_reclaim_due_ms IS NULL OR mp_receipt_reclaim_due_ms>=0) CHECK(mp_receipt_reclaim_due_ms IS NULL OR typeof(mp_receipt_reclaim_due_ms) IN('integer')),
+ mp_reclaim_sequence INTEGER CHECK(mp_reclaim_sequence IS NULL OR typeof(mp_reclaim_sequence) IN('integer')),
+ mp_reclaim_operation_id BLOB CHECK(mp_reclaim_operation_id IS NULL OR length(mp_reclaim_operation_id)=16) CHECK(mp_reclaim_operation_id IS NULL OR typeof(mp_reclaim_operation_id) IN('blob')),
+ mp_reclaim_request_digest BLOB CHECK(mp_reclaim_request_digest IS NULL OR length(mp_reclaim_request_digest)=32) CHECK(mp_reclaim_request_digest IS NULL OR typeof(mp_reclaim_request_digest) IN('blob')),
+ mp_reclaim_command_kind INTEGER CHECK(mp_reclaim_command_kind IS NULL OR mp_reclaim_command_kind=787) CHECK(mp_reclaim_command_kind IS NULL OR typeof(mp_reclaim_command_kind) IN('integer')),
+ mp_reclaim_result_version INTEGER CHECK(mp_reclaim_result_version IS NULL OR typeof(mp_reclaim_result_version) IN('integer')),
+ mp_reclaim_result_count INTEGER CHECK(mp_reclaim_result_count IS NULL OR typeof(mp_reclaim_result_count) IN('integer')),
+ mp_reclaim_result_digest BLOB CHECK(mp_reclaim_result_digest IS NULL OR length(mp_reclaim_result_digest)=32) CHECK(mp_reclaim_result_digest IS NULL OR typeof(mp_reclaim_result_digest) IN('blob')),
+ mp_reclaim_result_payload BLOB CHECK(mp_reclaim_result_payload IS NULL OR length(mp_reclaim_result_payload) BETWEEN 1 AND 4096) CHECK(mp_reclaim_result_payload IS NULL OR typeof(mp_reclaim_result_payload) IN('blob')),
+ mp_reclaim_captured_ack INTEGER CHECK(mp_reclaim_captured_ack IS NULL OR typeof(mp_reclaim_captured_ack) IN('integer')),
+ mp_reclaim_before_cursor INTEGER CHECK(mp_reclaim_before_cursor IS NULL OR typeof(mp_reclaim_before_cursor) IN('integer')),
+ mp_reclaim_removed_sequence INTEGER CHECK(mp_reclaim_removed_sequence IS NULL OR typeof(mp_reclaim_removed_sequence) IN('integer')),
+ mp_reclaim_removed_bytes INTEGER CHECK(mp_reclaim_removed_bytes IS NULL OR typeof(mp_reclaim_removed_bytes) IN('integer')),
+ mp_reclaim_after_cursor INTEGER CHECK(mp_reclaim_after_cursor IS NULL OR typeof(mp_reclaim_after_cursor) IN('integer')),
+ mp_reclaim_no_next INTEGER CHECK(mp_reclaim_no_next IS NULL OR typeof(mp_reclaim_no_next) IN('integer')),
+ mp_reclaim_applied_ms INTEGER CHECK(mp_reclaim_applied_ms IS NULL OR typeof(mp_reclaim_applied_ms) IN('integer')),
+ mp_retirement_state TEXT NOT NULL DEFAULT 'live' CHECK(mp_retirement_state IN('live','draining','retired') AND ((mp_reclaim_sequence IS NULL AND mp_reclaim_operation_id IS NULL AND mp_reclaim_request_digest IS NULL AND mp_reclaim_command_kind IS NULL AND mp_reclaim_result_version IS NULL AND mp_reclaim_result_count IS NULL AND mp_reclaim_result_digest IS NULL AND mp_reclaim_result_payload IS NULL AND mp_reclaim_captured_ack IS NULL AND mp_reclaim_before_cursor IS NULL AND mp_reclaim_removed_bytes IS NULL AND mp_reclaim_after_cursor IS NULL AND mp_reclaim_no_next IS NULL AND mp_reclaim_applied_ms IS NULL AND mp_reclaim_removed_sequence IS NULL) OR (mp_reclaim_sequence IS NOT NULL AND mp_reclaim_operation_id IS NOT NULL AND mp_reclaim_request_digest IS NOT NULL AND mp_reclaim_command_kind IS NOT NULL AND mp_reclaim_result_version IS NOT NULL AND mp_reclaim_result_count IS NOT NULL AND mp_reclaim_result_digest IS NOT NULL AND mp_reclaim_result_payload IS NOT NULL AND mp_reclaim_captured_ack IS NOT NULL AND mp_reclaim_before_cursor IS NOT NULL AND mp_reclaim_removed_bytes IS NOT NULL AND mp_reclaim_after_cursor IS NOT NULL AND mp_reclaim_no_next IS NOT NULL AND mp_reclaim_applied_ms IS NOT NULL AND mp_reclaim_sequence>0 AND mp_reclaim_sequence<=mp_command_last_sequence AND mp_reclaim_result_version=1 AND mp_reclaim_result_count IN(0,1) AND mp_reclaim_captured_ack>=0 AND mp_reclaim_captured_ack<mp_reclaim_sequence AND mp_reclaim_before_cursor>=0 AND mp_reclaim_before_cursor<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>=0 AND mp_reclaim_after_cursor>=mp_reclaim_before_cursor AND mp_reclaim_after_cursor<=mp_reclaim_captured_ack AND mp_reclaim_no_next IN(0,1) AND mp_reclaim_applied_ms>=0 AND ((mp_reclaim_result_count=0 AND mp_reclaim_removed_sequence IS NULL AND mp_reclaim_removed_bytes=0 AND mp_reclaim_after_cursor=mp_reclaim_before_cursor AND mp_reclaim_no_next=1) OR (mp_reclaim_result_count=1 AND mp_reclaim_removed_sequence IS NOT NULL AND mp_reclaim_removed_sequence>mp_reclaim_before_cursor AND mp_reclaim_removed_sequence<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>0 AND mp_reclaim_after_cursor=mp_reclaim_removed_sequence))))) CHECK(mp_retirement_state IS NULL OR typeof(mp_retirement_state) IN('text')),
+ mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_command_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_user_root_id AS BLOB)),0)+coalesce(length(CAST(mp_owner_member_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_owner_profile_lifetime AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_operation_id AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_request_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_payload AS BLOB)),0)+coalesce(length(CAST(mp_retirement_state AS BLOB)),0)) VIRTUAL CHECK(mp_control_variable_bytes IS NULL OR typeof(mp_control_variable_bytes) IN('integer')),
  UNIQUE(device_id,create_key)
 ) STRICT;
 
@@ -8460,6 +8562,39 @@ CREATE TABLE playback_v1_sessions(
  message TEXT NOT NULL DEFAULT '',
  buffering_since_ms INTEGER NOT NULL DEFAULT 0,
  paused_since_ms INTEGER NOT NULL DEFAULT 0,
+ mp_presentation_generation INTEGER NOT NULL DEFAULT 1 CHECK(mp_presentation_generation>0) CHECK(mp_presentation_generation IS NULL OR typeof(mp_presentation_generation) IN('integer')),
+ mp_engine TEXT NOT NULL DEFAULT 'native' CHECK(mp_engine IN('native','mpv')) CHECK(mp_engine IS NULL OR typeof(mp_engine) IN('text')),
+ mp_presentation_url TEXT NOT NULL DEFAULT '' CHECK(mp_presentation_url IS NULL OR typeof(mp_presentation_url) IN('text')),
+ mp_desired_state TEXT NOT NULL DEFAULT 'playing' CHECK(mp_desired_state IN('playing','paused')) CHECK(mp_desired_state IS NULL OR typeof(mp_desired_state) IN('text')),
+ mp_media_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_engine AS BLOB)),0)+coalesce(length(CAST(mp_presentation_url AS BLOB)),0)+coalesce(length(CAST(mp_desired_state AS BLOB)),0)) VIRTUAL,
+ mp_command_incarnation BLOB CHECK(mp_command_incarnation IS NULL OR length(mp_command_incarnation)=16) CHECK(mp_command_incarnation IS NULL OR typeof(mp_command_incarnation) IN('blob')),
+ mp_command_last_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_last_sequence>=0) CHECK(mp_command_last_sequence IS NULL OR typeof(mp_command_last_sequence) IN('integer')),
+ mp_command_acknowledged_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_acknowledged_sequence>=0 AND mp_command_acknowledged_sequence<=mp_command_last_sequence AND mp_command_last_sequence-mp_command_acknowledged_sequence<=1 AND (mp_command_incarnation IS NOT NULL OR mp_command_last_sequence=0)) CHECK(mp_command_acknowledged_sequence IS NULL OR typeof(mp_command_acknowledged_sequence) IN('integer')),
+ mp_owner_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_owner_revision>0) CHECK(mp_owner_revision IS NULL OR typeof(mp_owner_revision) IN('integer')),
+ mp_user_root_id TEXT CHECK(mp_user_root_id IS NULL OR length(CAST(mp_user_root_id AS BLOB))=22) CHECK(mp_user_root_id IS NULL OR typeof(mp_user_root_id) IN('text')),
+ mp_owner_member_incarnation TEXT CHECK(mp_owner_member_incarnation IS NULL OR length(mp_owner_member_incarnation)=32) CHECK(mp_owner_member_incarnation IS NULL OR typeof(mp_owner_member_incarnation) IN('text')),
+ mp_owner_profile_lifetime TEXT CHECK(mp_owner_profile_lifetime IS NULL OR length(mp_owner_profile_lifetime)=32) CHECK(mp_owner_profile_lifetime IS NULL OR typeof(mp_owner_profile_lifetime) IN('text')),
+ mp_receipt_rows INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_rows>=0) CHECK(mp_receipt_rows IS NULL OR typeof(mp_receipt_rows) IN('integer')),
+ mp_receipt_variable_bytes INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_variable_bytes>=0 AND ((mp_receipt_rows=0)=(mp_receipt_variable_bytes=0))) CHECK(mp_receipt_variable_bytes IS NULL OR typeof(mp_receipt_variable_bytes) IN('integer')),
+ mp_receipt_reclaim_after_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_reclaim_after_sequence>=0 AND mp_receipt_reclaim_after_sequence<=mp_command_acknowledged_sequence) CHECK(mp_receipt_reclaim_after_sequence IS NULL OR typeof(mp_receipt_reclaim_after_sequence) IN('integer')),
+ mp_receipt_reclaim_due_ms INTEGER CHECK(mp_receipt_reclaim_due_ms IS NULL OR mp_receipt_reclaim_due_ms>=0) CHECK(mp_receipt_reclaim_due_ms IS NULL OR typeof(mp_receipt_reclaim_due_ms) IN('integer')),
+ mp_reclaim_sequence INTEGER CHECK(mp_reclaim_sequence IS NULL OR typeof(mp_reclaim_sequence) IN('integer')),
+ mp_reclaim_operation_id BLOB CHECK(mp_reclaim_operation_id IS NULL OR length(mp_reclaim_operation_id)=16) CHECK(mp_reclaim_operation_id IS NULL OR typeof(mp_reclaim_operation_id) IN('blob')),
+ mp_reclaim_request_digest BLOB CHECK(mp_reclaim_request_digest IS NULL OR length(mp_reclaim_request_digest)=32) CHECK(mp_reclaim_request_digest IS NULL OR typeof(mp_reclaim_request_digest) IN('blob')),
+ mp_reclaim_command_kind INTEGER CHECK(mp_reclaim_command_kind IS NULL OR mp_reclaim_command_kind=783) CHECK(mp_reclaim_command_kind IS NULL OR typeof(mp_reclaim_command_kind) IN('integer')),
+ mp_reclaim_result_version INTEGER CHECK(mp_reclaim_result_version IS NULL OR typeof(mp_reclaim_result_version) IN('integer')),
+ mp_reclaim_result_count INTEGER CHECK(mp_reclaim_result_count IS NULL OR typeof(mp_reclaim_result_count) IN('integer')),
+ mp_reclaim_result_digest BLOB CHECK(mp_reclaim_result_digest IS NULL OR length(mp_reclaim_result_digest)=32) CHECK(mp_reclaim_result_digest IS NULL OR typeof(mp_reclaim_result_digest) IN('blob')),
+ mp_reclaim_result_payload BLOB CHECK(mp_reclaim_result_payload IS NULL OR length(mp_reclaim_result_payload) BETWEEN 1 AND 4096) CHECK(mp_reclaim_result_payload IS NULL OR typeof(mp_reclaim_result_payload) IN('blob')),
+ mp_reclaim_captured_ack INTEGER CHECK(mp_reclaim_captured_ack IS NULL OR typeof(mp_reclaim_captured_ack) IN('integer')),
+ mp_reclaim_before_cursor INTEGER CHECK(mp_reclaim_before_cursor IS NULL OR typeof(mp_reclaim_before_cursor) IN('integer')),
+ mp_reclaim_removed_sequence INTEGER CHECK(mp_reclaim_removed_sequence IS NULL OR typeof(mp_reclaim_removed_sequence) IN('integer')),
+ mp_reclaim_removed_bytes INTEGER CHECK(mp_reclaim_removed_bytes IS NULL OR typeof(mp_reclaim_removed_bytes) IN('integer')),
+ mp_reclaim_after_cursor INTEGER CHECK(mp_reclaim_after_cursor IS NULL OR typeof(mp_reclaim_after_cursor) IN('integer')),
+ mp_reclaim_no_next INTEGER CHECK(mp_reclaim_no_next IS NULL OR typeof(mp_reclaim_no_next) IN('integer')),
+ mp_reclaim_applied_ms INTEGER CHECK(mp_reclaim_applied_ms IS NULL OR typeof(mp_reclaim_applied_ms) IN('integer')),
+ mp_retirement_state TEXT NOT NULL DEFAULT 'live' CHECK(mp_retirement_state IN('live','draining','retired') AND ((mp_reclaim_sequence IS NULL AND mp_reclaim_operation_id IS NULL AND mp_reclaim_request_digest IS NULL AND mp_reclaim_command_kind IS NULL AND mp_reclaim_result_version IS NULL AND mp_reclaim_result_count IS NULL AND mp_reclaim_result_digest IS NULL AND mp_reclaim_result_payload IS NULL AND mp_reclaim_captured_ack IS NULL AND mp_reclaim_before_cursor IS NULL AND mp_reclaim_removed_bytes IS NULL AND mp_reclaim_after_cursor IS NULL AND mp_reclaim_no_next IS NULL AND mp_reclaim_applied_ms IS NULL AND mp_reclaim_removed_sequence IS NULL) OR (mp_reclaim_sequence IS NOT NULL AND mp_reclaim_operation_id IS NOT NULL AND mp_reclaim_request_digest IS NOT NULL AND mp_reclaim_command_kind IS NOT NULL AND mp_reclaim_result_version IS NOT NULL AND mp_reclaim_result_count IS NOT NULL AND mp_reclaim_result_digest IS NOT NULL AND mp_reclaim_result_payload IS NOT NULL AND mp_reclaim_captured_ack IS NOT NULL AND mp_reclaim_before_cursor IS NOT NULL AND mp_reclaim_removed_bytes IS NOT NULL AND mp_reclaim_after_cursor IS NOT NULL AND mp_reclaim_no_next IS NOT NULL AND mp_reclaim_applied_ms IS NOT NULL AND mp_reclaim_sequence>0 AND mp_reclaim_sequence<=mp_command_last_sequence AND mp_reclaim_result_version=1 AND mp_reclaim_result_count IN(0,1) AND mp_reclaim_captured_ack>=0 AND mp_reclaim_captured_ack<mp_reclaim_sequence AND mp_reclaim_before_cursor>=0 AND mp_reclaim_before_cursor<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>=0 AND mp_reclaim_after_cursor>=mp_reclaim_before_cursor AND mp_reclaim_after_cursor<=mp_reclaim_captured_ack AND mp_reclaim_no_next IN(0,1) AND mp_reclaim_applied_ms>=0 AND ((mp_reclaim_result_count=0 AND mp_reclaim_removed_sequence IS NULL AND mp_reclaim_removed_bytes=0 AND mp_reclaim_after_cursor=mp_reclaim_before_cursor AND mp_reclaim_no_next=1) OR (mp_reclaim_result_count=1 AND mp_reclaim_removed_sequence IS NOT NULL AND mp_reclaim_removed_sequence>mp_reclaim_before_cursor AND mp_reclaim_removed_sequence<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>0 AND mp_reclaim_after_cursor=mp_reclaim_removed_sequence))))) CHECK(mp_retirement_state IS NULL OR typeof(mp_retirement_state) IN('text')),
+ mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_command_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_user_root_id AS BLOB)),0)+coalesce(length(CAST(mp_owner_member_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_owner_profile_lifetime AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_operation_id AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_request_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_payload AS BLOB)),0)+coalesce(length(CAST(mp_retirement_state AS BLOB)),0)) VIRTUAL CHECK(mp_control_variable_bytes IS NULL OR typeof(mp_control_variable_bytes) IN('integer')),
  UNIQUE(device_id,start_key)
 ) STRICT;
 
@@ -8625,6 +8760,34 @@ CREATE TABLE prepared_media_jobs(
  job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
  job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
  job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
+ mp_command_incarnation BLOB CHECK(mp_command_incarnation IS NULL OR length(mp_command_incarnation)=16) CHECK(mp_command_incarnation IS NULL OR typeof(mp_command_incarnation) IN('blob')),
+ mp_command_last_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_last_sequence>=0) CHECK(mp_command_last_sequence IS NULL OR typeof(mp_command_last_sequence) IN('integer')),
+ mp_command_acknowledged_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_acknowledged_sequence>=0 AND mp_command_acknowledged_sequence<=mp_command_last_sequence AND mp_command_last_sequence-mp_command_acknowledged_sequence<=1 AND (mp_command_incarnation IS NOT NULL OR mp_command_last_sequence=0)) CHECK(mp_command_acknowledged_sequence IS NULL OR typeof(mp_command_acknowledged_sequence) IN('integer')),
+ mp_owner_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_owner_revision>0) CHECK(mp_owner_revision IS NULL OR typeof(mp_owner_revision) IN('integer')),
+ mp_user_root_id TEXT CHECK(mp_user_root_id IS NULL OR length(CAST(mp_user_root_id AS BLOB))=22) CHECK(mp_user_root_id IS NULL OR typeof(mp_user_root_id) IN('text')),
+ mp_owner_member_incarnation TEXT CHECK(mp_owner_member_incarnation IS NULL OR length(mp_owner_member_incarnation)=32) CHECK(mp_owner_member_incarnation IS NULL OR typeof(mp_owner_member_incarnation) IN('text')),
+ mp_owner_profile_lifetime TEXT CHECK(mp_owner_profile_lifetime IS NULL OR length(mp_owner_profile_lifetime)=32) CHECK(mp_owner_profile_lifetime IS NULL OR typeof(mp_owner_profile_lifetime) IN('text')),
+ mp_receipt_rows INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_rows>=0) CHECK(mp_receipt_rows IS NULL OR typeof(mp_receipt_rows) IN('integer')),
+ mp_receipt_variable_bytes INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_variable_bytes>=0 AND ((mp_receipt_rows=0)=(mp_receipt_variable_bytes=0))) CHECK(mp_receipt_variable_bytes IS NULL OR typeof(mp_receipt_variable_bytes) IN('integer')),
+ mp_receipt_reclaim_after_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_reclaim_after_sequence>=0 AND mp_receipt_reclaim_after_sequence<=mp_command_acknowledged_sequence) CHECK(mp_receipt_reclaim_after_sequence IS NULL OR typeof(mp_receipt_reclaim_after_sequence) IN('integer')),
+ mp_receipt_reclaim_due_ms INTEGER CHECK(mp_receipt_reclaim_due_ms IS NULL OR mp_receipt_reclaim_due_ms>=0) CHECK(mp_receipt_reclaim_due_ms IS NULL OR typeof(mp_receipt_reclaim_due_ms) IN('integer')),
+ mp_reclaim_sequence INTEGER CHECK(mp_reclaim_sequence IS NULL OR typeof(mp_reclaim_sequence) IN('integer')),
+ mp_reclaim_operation_id BLOB CHECK(mp_reclaim_operation_id IS NULL OR length(mp_reclaim_operation_id)=16) CHECK(mp_reclaim_operation_id IS NULL OR typeof(mp_reclaim_operation_id) IN('blob')),
+ mp_reclaim_request_digest BLOB CHECK(mp_reclaim_request_digest IS NULL OR length(mp_reclaim_request_digest)=32) CHECK(mp_reclaim_request_digest IS NULL OR typeof(mp_reclaim_request_digest) IN('blob')),
+ mp_reclaim_command_kind INTEGER CHECK(mp_reclaim_command_kind IS NULL OR mp_reclaim_command_kind=784) CHECK(mp_reclaim_command_kind IS NULL OR typeof(mp_reclaim_command_kind) IN('integer')),
+ mp_reclaim_result_version INTEGER CHECK(mp_reclaim_result_version IS NULL OR typeof(mp_reclaim_result_version) IN('integer')),
+ mp_reclaim_result_count INTEGER CHECK(mp_reclaim_result_count IS NULL OR typeof(mp_reclaim_result_count) IN('integer')),
+ mp_reclaim_result_digest BLOB CHECK(mp_reclaim_result_digest IS NULL OR length(mp_reclaim_result_digest)=32) CHECK(mp_reclaim_result_digest IS NULL OR typeof(mp_reclaim_result_digest) IN('blob')),
+ mp_reclaim_result_payload BLOB CHECK(mp_reclaim_result_payload IS NULL OR length(mp_reclaim_result_payload) BETWEEN 1 AND 4096) CHECK(mp_reclaim_result_payload IS NULL OR typeof(mp_reclaim_result_payload) IN('blob')),
+ mp_reclaim_captured_ack INTEGER CHECK(mp_reclaim_captured_ack IS NULL OR typeof(mp_reclaim_captured_ack) IN('integer')),
+ mp_reclaim_before_cursor INTEGER CHECK(mp_reclaim_before_cursor IS NULL OR typeof(mp_reclaim_before_cursor) IN('integer')),
+ mp_reclaim_removed_sequence INTEGER CHECK(mp_reclaim_removed_sequence IS NULL OR typeof(mp_reclaim_removed_sequence) IN('integer')),
+ mp_reclaim_removed_bytes INTEGER CHECK(mp_reclaim_removed_bytes IS NULL OR typeof(mp_reclaim_removed_bytes) IN('integer')),
+ mp_reclaim_after_cursor INTEGER CHECK(mp_reclaim_after_cursor IS NULL OR typeof(mp_reclaim_after_cursor) IN('integer')),
+ mp_reclaim_no_next INTEGER CHECK(mp_reclaim_no_next IS NULL OR typeof(mp_reclaim_no_next) IN('integer')),
+ mp_reclaim_applied_ms INTEGER CHECK(mp_reclaim_applied_ms IS NULL OR typeof(mp_reclaim_applied_ms) IN('integer')),
+ mp_retirement_state TEXT NOT NULL DEFAULT 'live' CHECK(mp_retirement_state IN('live','draining','retired') AND ((mp_reclaim_sequence IS NULL AND mp_reclaim_operation_id IS NULL AND mp_reclaim_request_digest IS NULL AND mp_reclaim_command_kind IS NULL AND mp_reclaim_result_version IS NULL AND mp_reclaim_result_count IS NULL AND mp_reclaim_result_digest IS NULL AND mp_reclaim_result_payload IS NULL AND mp_reclaim_captured_ack IS NULL AND mp_reclaim_before_cursor IS NULL AND mp_reclaim_removed_bytes IS NULL AND mp_reclaim_after_cursor IS NULL AND mp_reclaim_no_next IS NULL AND mp_reclaim_applied_ms IS NULL AND mp_reclaim_removed_sequence IS NULL) OR (mp_reclaim_sequence IS NOT NULL AND mp_reclaim_operation_id IS NOT NULL AND mp_reclaim_request_digest IS NOT NULL AND mp_reclaim_command_kind IS NOT NULL AND mp_reclaim_result_version IS NOT NULL AND mp_reclaim_result_count IS NOT NULL AND mp_reclaim_result_digest IS NOT NULL AND mp_reclaim_result_payload IS NOT NULL AND mp_reclaim_captured_ack IS NOT NULL AND mp_reclaim_before_cursor IS NOT NULL AND mp_reclaim_removed_bytes IS NOT NULL AND mp_reclaim_after_cursor IS NOT NULL AND mp_reclaim_no_next IS NOT NULL AND mp_reclaim_applied_ms IS NOT NULL AND mp_reclaim_sequence>0 AND mp_reclaim_sequence<=mp_command_last_sequence AND mp_reclaim_result_version=1 AND mp_reclaim_result_count IN(0,1) AND mp_reclaim_captured_ack>=0 AND mp_reclaim_captured_ack<mp_reclaim_sequence AND mp_reclaim_before_cursor>=0 AND mp_reclaim_before_cursor<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>=0 AND mp_reclaim_after_cursor>=mp_reclaim_before_cursor AND mp_reclaim_after_cursor<=mp_reclaim_captured_ack AND mp_reclaim_no_next IN(0,1) AND mp_reclaim_applied_ms>=0 AND ((mp_reclaim_result_count=0 AND mp_reclaim_removed_sequence IS NULL AND mp_reclaim_removed_bytes=0 AND mp_reclaim_after_cursor=mp_reclaim_before_cursor AND mp_reclaim_no_next=1) OR (mp_reclaim_result_count=1 AND mp_reclaim_removed_sequence IS NOT NULL AND mp_reclaim_removed_sequence>mp_reclaim_before_cursor AND mp_reclaim_removed_sequence<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>0 AND mp_reclaim_after_cursor=mp_reclaim_removed_sequence))))) CHECK(mp_retirement_state IS NULL OR typeof(mp_retirement_state) IN('text')),
+ mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_command_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_user_root_id AS BLOB)),0)+coalesce(length(CAST(mp_owner_member_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_owner_profile_lifetime AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_operation_id AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_request_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_payload AS BLOB)),0)+coalesce(length(CAST(mp_retirement_state AS BLOB)),0)) VIRTUAL CHECK(mp_control_variable_bytes IS NULL OR typeof(mp_control_variable_bytes) IN('integer')),
  CHECK(typeof("id")IN('null','text')),
  CHECK(typeof("item_id")IN('null','integer')),
  CHECK(typeof("asset_id")IN('null','text')),
@@ -8678,6 +8841,34 @@ CREATE TABLE prepared_media_versions(
  revision INTEGER NOT NULL DEFAULT 1,
  created_ms INTEGER NOT NULL,
  job_id TEXT NOT NULL REFERENCES prepared_media_jobs(id),
+ mp_command_incarnation BLOB CHECK(mp_command_incarnation IS NULL OR length(mp_command_incarnation)=16) CHECK(mp_command_incarnation IS NULL OR typeof(mp_command_incarnation) IN('blob')),
+ mp_command_last_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_last_sequence>=0) CHECK(mp_command_last_sequence IS NULL OR typeof(mp_command_last_sequence) IN('integer')),
+ mp_command_acknowledged_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_acknowledged_sequence>=0 AND mp_command_acknowledged_sequence<=mp_command_last_sequence AND mp_command_last_sequence-mp_command_acknowledged_sequence<=1 AND (mp_command_incarnation IS NOT NULL OR mp_command_last_sequence=0)) CHECK(mp_command_acknowledged_sequence IS NULL OR typeof(mp_command_acknowledged_sequence) IN('integer')),
+ mp_owner_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_owner_revision>0) CHECK(mp_owner_revision IS NULL OR typeof(mp_owner_revision) IN('integer')),
+ mp_user_root_id TEXT CHECK(mp_user_root_id IS NULL OR length(CAST(mp_user_root_id AS BLOB))=22) CHECK(mp_user_root_id IS NULL OR typeof(mp_user_root_id) IN('text')),
+ mp_owner_member_incarnation TEXT CHECK(mp_owner_member_incarnation IS NULL OR length(mp_owner_member_incarnation)=32) CHECK(mp_owner_member_incarnation IS NULL OR typeof(mp_owner_member_incarnation) IN('text')),
+ mp_owner_profile_lifetime TEXT CHECK(mp_owner_profile_lifetime IS NULL OR length(mp_owner_profile_lifetime)=32) CHECK(mp_owner_profile_lifetime IS NULL OR typeof(mp_owner_profile_lifetime) IN('text')),
+ mp_receipt_rows INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_rows>=0) CHECK(mp_receipt_rows IS NULL OR typeof(mp_receipt_rows) IN('integer')),
+ mp_receipt_variable_bytes INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_variable_bytes>=0 AND ((mp_receipt_rows=0)=(mp_receipt_variable_bytes=0))) CHECK(mp_receipt_variable_bytes IS NULL OR typeof(mp_receipt_variable_bytes) IN('integer')),
+ mp_receipt_reclaim_after_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_reclaim_after_sequence>=0 AND mp_receipt_reclaim_after_sequence<=mp_command_acknowledged_sequence) CHECK(mp_receipt_reclaim_after_sequence IS NULL OR typeof(mp_receipt_reclaim_after_sequence) IN('integer')),
+ mp_receipt_reclaim_due_ms INTEGER CHECK(mp_receipt_reclaim_due_ms IS NULL OR mp_receipt_reclaim_due_ms>=0) CHECK(mp_receipt_reclaim_due_ms IS NULL OR typeof(mp_receipt_reclaim_due_ms) IN('integer')),
+ mp_reclaim_sequence INTEGER CHECK(mp_reclaim_sequence IS NULL OR typeof(mp_reclaim_sequence) IN('integer')),
+ mp_reclaim_operation_id BLOB CHECK(mp_reclaim_operation_id IS NULL OR length(mp_reclaim_operation_id)=16) CHECK(mp_reclaim_operation_id IS NULL OR typeof(mp_reclaim_operation_id) IN('blob')),
+ mp_reclaim_request_digest BLOB CHECK(mp_reclaim_request_digest IS NULL OR length(mp_reclaim_request_digest)=32) CHECK(mp_reclaim_request_digest IS NULL OR typeof(mp_reclaim_request_digest) IN('blob')),
+ mp_reclaim_command_kind INTEGER CHECK(mp_reclaim_command_kind IS NULL OR mp_reclaim_command_kind=785) CHECK(mp_reclaim_command_kind IS NULL OR typeof(mp_reclaim_command_kind) IN('integer')),
+ mp_reclaim_result_version INTEGER CHECK(mp_reclaim_result_version IS NULL OR typeof(mp_reclaim_result_version) IN('integer')),
+ mp_reclaim_result_count INTEGER CHECK(mp_reclaim_result_count IS NULL OR typeof(mp_reclaim_result_count) IN('integer')),
+ mp_reclaim_result_digest BLOB CHECK(mp_reclaim_result_digest IS NULL OR length(mp_reclaim_result_digest)=32) CHECK(mp_reclaim_result_digest IS NULL OR typeof(mp_reclaim_result_digest) IN('blob')),
+ mp_reclaim_result_payload BLOB CHECK(mp_reclaim_result_payload IS NULL OR length(mp_reclaim_result_payload) BETWEEN 1 AND 4096) CHECK(mp_reclaim_result_payload IS NULL OR typeof(mp_reclaim_result_payload) IN('blob')),
+ mp_reclaim_captured_ack INTEGER CHECK(mp_reclaim_captured_ack IS NULL OR typeof(mp_reclaim_captured_ack) IN('integer')),
+ mp_reclaim_before_cursor INTEGER CHECK(mp_reclaim_before_cursor IS NULL OR typeof(mp_reclaim_before_cursor) IN('integer')),
+ mp_reclaim_removed_sequence INTEGER CHECK(mp_reclaim_removed_sequence IS NULL OR typeof(mp_reclaim_removed_sequence) IN('integer')),
+ mp_reclaim_removed_bytes INTEGER CHECK(mp_reclaim_removed_bytes IS NULL OR typeof(mp_reclaim_removed_bytes) IN('integer')),
+ mp_reclaim_after_cursor INTEGER CHECK(mp_reclaim_after_cursor IS NULL OR typeof(mp_reclaim_after_cursor) IN('integer')),
+ mp_reclaim_no_next INTEGER CHECK(mp_reclaim_no_next IS NULL OR typeof(mp_reclaim_no_next) IN('integer')),
+ mp_reclaim_applied_ms INTEGER CHECK(mp_reclaim_applied_ms IS NULL OR typeof(mp_reclaim_applied_ms) IN('integer')),
+ mp_retirement_state TEXT NOT NULL DEFAULT 'live' CHECK(mp_retirement_state IN('live','draining','retired') AND ((mp_reclaim_sequence IS NULL AND mp_reclaim_operation_id IS NULL AND mp_reclaim_request_digest IS NULL AND mp_reclaim_command_kind IS NULL AND mp_reclaim_result_version IS NULL AND mp_reclaim_result_count IS NULL AND mp_reclaim_result_digest IS NULL AND mp_reclaim_result_payload IS NULL AND mp_reclaim_captured_ack IS NULL AND mp_reclaim_before_cursor IS NULL AND mp_reclaim_removed_bytes IS NULL AND mp_reclaim_after_cursor IS NULL AND mp_reclaim_no_next IS NULL AND mp_reclaim_applied_ms IS NULL AND mp_reclaim_removed_sequence IS NULL) OR (mp_reclaim_sequence IS NOT NULL AND mp_reclaim_operation_id IS NOT NULL AND mp_reclaim_request_digest IS NOT NULL AND mp_reclaim_command_kind IS NOT NULL AND mp_reclaim_result_version IS NOT NULL AND mp_reclaim_result_count IS NOT NULL AND mp_reclaim_result_digest IS NOT NULL AND mp_reclaim_result_payload IS NOT NULL AND mp_reclaim_captured_ack IS NOT NULL AND mp_reclaim_before_cursor IS NOT NULL AND mp_reclaim_removed_bytes IS NOT NULL AND mp_reclaim_after_cursor IS NOT NULL AND mp_reclaim_no_next IS NOT NULL AND mp_reclaim_applied_ms IS NOT NULL AND mp_reclaim_sequence>0 AND mp_reclaim_sequence<=mp_command_last_sequence AND mp_reclaim_result_version=1 AND mp_reclaim_result_count IN(0,1) AND mp_reclaim_captured_ack>=0 AND mp_reclaim_captured_ack<mp_reclaim_sequence AND mp_reclaim_before_cursor>=0 AND mp_reclaim_before_cursor<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>=0 AND mp_reclaim_after_cursor>=mp_reclaim_before_cursor AND mp_reclaim_after_cursor<=mp_reclaim_captured_ack AND mp_reclaim_no_next IN(0,1) AND mp_reclaim_applied_ms>=0 AND ((mp_reclaim_result_count=0 AND mp_reclaim_removed_sequence IS NULL AND mp_reclaim_removed_bytes=0 AND mp_reclaim_after_cursor=mp_reclaim_before_cursor AND mp_reclaim_no_next=1) OR (mp_reclaim_result_count=1 AND mp_reclaim_removed_sequence IS NOT NULL AND mp_reclaim_removed_sequence>mp_reclaim_before_cursor AND mp_reclaim_removed_sequence<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>0 AND mp_reclaim_after_cursor=mp_reclaim_removed_sequence))))) CHECK(mp_retirement_state IS NULL OR typeof(mp_retirement_state) IN('text')),
+ mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_command_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_user_root_id AS BLOB)),0)+coalesce(length(CAST(mp_owner_member_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_owner_profile_lifetime AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_operation_id AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_request_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_payload AS BLOB)),0)+coalesce(length(CAST(mp_retirement_state AS BLOB)),0)) VIRTUAL CHECK(mp_control_variable_bytes IS NULL OR typeof(mp_control_variable_bytes) IN('integer')),
  CHECK(typeof("id")IN('null','text')),
  CHECK(typeof("item_id")IN('null','integer')),
  CHECK(typeof("asset_id")IN('null','text')),
@@ -8857,7 +9048,35 @@ CREATE TABLE queues_v1(
  shuffle_first INTEGER NOT NULL DEFAULT 0,
  session_id TEXT NOT NULL DEFAULT '',
  created_ms INTEGER NOT NULL,
- updated_ms INTEGER NOT NULL
+ updated_ms INTEGER NOT NULL,
+ mp_command_incarnation BLOB CHECK(mp_command_incarnation IS NULL OR length(mp_command_incarnation)=16) CHECK(mp_command_incarnation IS NULL OR typeof(mp_command_incarnation) IN('blob')),
+ mp_command_last_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_last_sequence>=0) CHECK(mp_command_last_sequence IS NULL OR typeof(mp_command_last_sequence) IN('integer')),
+ mp_command_acknowledged_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_command_acknowledged_sequence>=0 AND mp_command_acknowledged_sequence<=mp_command_last_sequence AND mp_command_last_sequence-mp_command_acknowledged_sequence<=1 AND (mp_command_incarnation IS NOT NULL OR mp_command_last_sequence=0)) CHECK(mp_command_acknowledged_sequence IS NULL OR typeof(mp_command_acknowledged_sequence) IN('integer')),
+ mp_owner_revision INTEGER NOT NULL DEFAULT 1 CHECK(mp_owner_revision>0) CHECK(mp_owner_revision IS NULL OR typeof(mp_owner_revision) IN('integer')),
+ mp_user_root_id TEXT CHECK(mp_user_root_id IS NULL OR length(CAST(mp_user_root_id AS BLOB))=22) CHECK(mp_user_root_id IS NULL OR typeof(mp_user_root_id) IN('text')),
+ mp_owner_member_incarnation TEXT CHECK(mp_owner_member_incarnation IS NULL OR length(mp_owner_member_incarnation)=32) CHECK(mp_owner_member_incarnation IS NULL OR typeof(mp_owner_member_incarnation) IN('text')),
+ mp_owner_profile_lifetime TEXT CHECK(mp_owner_profile_lifetime IS NULL OR length(mp_owner_profile_lifetime)=32) CHECK(mp_owner_profile_lifetime IS NULL OR typeof(mp_owner_profile_lifetime) IN('text')),
+ mp_receipt_rows INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_rows>=0) CHECK(mp_receipt_rows IS NULL OR typeof(mp_receipt_rows) IN('integer')),
+ mp_receipt_variable_bytes INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_variable_bytes>=0 AND ((mp_receipt_rows=0)=(mp_receipt_variable_bytes=0))) CHECK(mp_receipt_variable_bytes IS NULL OR typeof(mp_receipt_variable_bytes) IN('integer')),
+ mp_receipt_reclaim_after_sequence INTEGER NOT NULL DEFAULT 0 CHECK(mp_receipt_reclaim_after_sequence>=0 AND mp_receipt_reclaim_after_sequence<=mp_command_acknowledged_sequence) CHECK(mp_receipt_reclaim_after_sequence IS NULL OR typeof(mp_receipt_reclaim_after_sequence) IN('integer')),
+ mp_receipt_reclaim_due_ms INTEGER CHECK(mp_receipt_reclaim_due_ms IS NULL OR mp_receipt_reclaim_due_ms>=0) CHECK(mp_receipt_reclaim_due_ms IS NULL OR typeof(mp_receipt_reclaim_due_ms) IN('integer')),
+ mp_reclaim_sequence INTEGER CHECK(mp_reclaim_sequence IS NULL OR typeof(mp_reclaim_sequence) IN('integer')),
+ mp_reclaim_operation_id BLOB CHECK(mp_reclaim_operation_id IS NULL OR length(mp_reclaim_operation_id)=16) CHECK(mp_reclaim_operation_id IS NULL OR typeof(mp_reclaim_operation_id) IN('blob')),
+ mp_reclaim_request_digest BLOB CHECK(mp_reclaim_request_digest IS NULL OR length(mp_reclaim_request_digest)=32) CHECK(mp_reclaim_request_digest IS NULL OR typeof(mp_reclaim_request_digest) IN('blob')),
+ mp_reclaim_command_kind INTEGER CHECK(mp_reclaim_command_kind IS NULL OR mp_reclaim_command_kind=786) CHECK(mp_reclaim_command_kind IS NULL OR typeof(mp_reclaim_command_kind) IN('integer')),
+ mp_reclaim_result_version INTEGER CHECK(mp_reclaim_result_version IS NULL OR typeof(mp_reclaim_result_version) IN('integer')),
+ mp_reclaim_result_count INTEGER CHECK(mp_reclaim_result_count IS NULL OR typeof(mp_reclaim_result_count) IN('integer')),
+ mp_reclaim_result_digest BLOB CHECK(mp_reclaim_result_digest IS NULL OR length(mp_reclaim_result_digest)=32) CHECK(mp_reclaim_result_digest IS NULL OR typeof(mp_reclaim_result_digest) IN('blob')),
+ mp_reclaim_result_payload BLOB CHECK(mp_reclaim_result_payload IS NULL OR length(mp_reclaim_result_payload) BETWEEN 1 AND 4096) CHECK(mp_reclaim_result_payload IS NULL OR typeof(mp_reclaim_result_payload) IN('blob')),
+ mp_reclaim_captured_ack INTEGER CHECK(mp_reclaim_captured_ack IS NULL OR typeof(mp_reclaim_captured_ack) IN('integer')),
+ mp_reclaim_before_cursor INTEGER CHECK(mp_reclaim_before_cursor IS NULL OR typeof(mp_reclaim_before_cursor) IN('integer')),
+ mp_reclaim_removed_sequence INTEGER CHECK(mp_reclaim_removed_sequence IS NULL OR typeof(mp_reclaim_removed_sequence) IN('integer')),
+ mp_reclaim_removed_bytes INTEGER CHECK(mp_reclaim_removed_bytes IS NULL OR typeof(mp_reclaim_removed_bytes) IN('integer')),
+ mp_reclaim_after_cursor INTEGER CHECK(mp_reclaim_after_cursor IS NULL OR typeof(mp_reclaim_after_cursor) IN('integer')),
+ mp_reclaim_no_next INTEGER CHECK(mp_reclaim_no_next IS NULL OR typeof(mp_reclaim_no_next) IN('integer')),
+ mp_reclaim_applied_ms INTEGER CHECK(mp_reclaim_applied_ms IS NULL OR typeof(mp_reclaim_applied_ms) IN('integer')),
+ mp_retirement_state TEXT NOT NULL DEFAULT 'live' CHECK(mp_retirement_state IN('live','draining','retired') AND ((mp_reclaim_sequence IS NULL AND mp_reclaim_operation_id IS NULL AND mp_reclaim_request_digest IS NULL AND mp_reclaim_command_kind IS NULL AND mp_reclaim_result_version IS NULL AND mp_reclaim_result_count IS NULL AND mp_reclaim_result_digest IS NULL AND mp_reclaim_result_payload IS NULL AND mp_reclaim_captured_ack IS NULL AND mp_reclaim_before_cursor IS NULL AND mp_reclaim_removed_bytes IS NULL AND mp_reclaim_after_cursor IS NULL AND mp_reclaim_no_next IS NULL AND mp_reclaim_applied_ms IS NULL AND mp_reclaim_removed_sequence IS NULL) OR (mp_reclaim_sequence IS NOT NULL AND mp_reclaim_operation_id IS NOT NULL AND mp_reclaim_request_digest IS NOT NULL AND mp_reclaim_command_kind IS NOT NULL AND mp_reclaim_result_version IS NOT NULL AND mp_reclaim_result_count IS NOT NULL AND mp_reclaim_result_digest IS NOT NULL AND mp_reclaim_result_payload IS NOT NULL AND mp_reclaim_captured_ack IS NOT NULL AND mp_reclaim_before_cursor IS NOT NULL AND mp_reclaim_removed_bytes IS NOT NULL AND mp_reclaim_after_cursor IS NOT NULL AND mp_reclaim_no_next IS NOT NULL AND mp_reclaim_applied_ms IS NOT NULL AND mp_reclaim_sequence>0 AND mp_reclaim_sequence<=mp_command_last_sequence AND mp_reclaim_result_version=1 AND mp_reclaim_result_count IN(0,1) AND mp_reclaim_captured_ack>=0 AND mp_reclaim_captured_ack<mp_reclaim_sequence AND mp_reclaim_before_cursor>=0 AND mp_reclaim_before_cursor<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>=0 AND mp_reclaim_after_cursor>=mp_reclaim_before_cursor AND mp_reclaim_after_cursor<=mp_reclaim_captured_ack AND mp_reclaim_no_next IN(0,1) AND mp_reclaim_applied_ms>=0 AND ((mp_reclaim_result_count=0 AND mp_reclaim_removed_sequence IS NULL AND mp_reclaim_removed_bytes=0 AND mp_reclaim_after_cursor=mp_reclaim_before_cursor AND mp_reclaim_no_next=1) OR (mp_reclaim_result_count=1 AND mp_reclaim_removed_sequence IS NOT NULL AND mp_reclaim_removed_sequence>mp_reclaim_before_cursor AND mp_reclaim_removed_sequence<=mp_reclaim_captured_ack AND mp_reclaim_removed_bytes>0 AND mp_reclaim_after_cursor=mp_reclaim_removed_sequence))))) CHECK(mp_retirement_state IS NULL OR typeof(mp_retirement_state) IN('text')),
+ mp_control_variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(mp_command_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_user_root_id AS BLOB)),0)+coalesce(length(CAST(mp_owner_member_incarnation AS BLOB)),0)+coalesce(length(CAST(mp_owner_profile_lifetime AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_operation_id AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_request_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_digest AS BLOB)),0)+coalesce(length(CAST(mp_reclaim_result_payload AS BLOB)),0)+coalesce(length(CAST(mp_retirement_state AS BLOB)),0)) VIRTUAL CHECK(mp_control_variable_bytes IS NULL OR typeof(mp_control_variable_bytes) IN('integer'))
 ) STRICT;
 
 CREATE TABLE quick_connect_v1(
@@ -18016,3 +18235,631 @@ CREATE INDEX metadata_ip_receipt_due ON metadata_provider_operations(ip_receipt_
 CREATE UNIQUE INDEX metadata_provider_ip_reclaim_operation ON metadata_provider_operations(ip_reclaim_operation_id) WHERE ip_reclaim_operation_id IS NOT NULL;
 
 CREATE UNIQUE INDEX metadata_evidence_build_ip_owner_evidence ON metadata_evidence_builds(id,owner_operation,owner_incarnation,evidence_id);
+
+CREATE UNIQUE INDEX mp_start_command_owner ON playback_start_preparations(id,mp_command_incarnation);
+
+CREATE INDEX mp_start_receipt_due ON playback_start_preparations(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL;
+
+CREATE TABLE mp_start_command_receipts(
+ owner_id TEXT NOT NULL CHECK(owner_id IS NULL OR typeof(owner_id) IN('text')),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16) CHECK(command_incarnation IS NULL OR typeof(command_incarnation) IN('blob')),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0) CHECK(command_sequence IS NULL OR typeof(command_sequence) IN('integer')),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16) CHECK(operation_id IS NULL OR typeof(operation_id) IN('blob')),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(701,702,703,704,705)) CHECK(command_kind IS NULL OR typeof(command_kind) IN('integer')),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32) CHECK(request_digest IS NULL OR typeof(request_digest) IN('blob')),
+ result_version INTEGER NOT NULL CHECK(result_version=1) CHECK(result_version IS NULL OR typeof(result_version) IN('integer')),
+ result_count INTEGER NOT NULL CHECK(result_count BETWEEN 0 AND 10000) CHECK(result_count IS NULL OR typeof(result_count) IN('integer')),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32) CHECK(result_digest IS NULL OR typeof(result_digest) IN('blob')),
+ result_payload BLOB NOT NULL CHECK(length(result_payload) BETWEEN 1 AND 65536) CHECK(result_payload IS NULL OR typeof(result_payload) IN('blob')),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0) CHECK(applied_ms IS NULL OR typeof(applied_ms) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(owner_id AS BLOB)),0)+coalesce(length(CAST(command_incarnation AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(request_digest AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)+coalesce(length(CAST(result_payload AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ UNIQUE(owner_id,command_incarnation,operation_id),
+ FOREIGN KEY(owner_id,command_incarnation) REFERENCES playback_start_preparations(id,mp_command_incarnation) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX mp_physical_command_owner ON playback_sessions(id,mp_command_incarnation);
+
+CREATE INDEX mp_physical_receipt_due ON playback_sessions(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL;
+
+CREATE TABLE mp_physical_command_receipts(
+ owner_id TEXT NOT NULL CHECK(owner_id IS NULL OR typeof(owner_id) IN('text')),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16) CHECK(command_incarnation IS NULL OR typeof(command_incarnation) IN('blob')),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0) CHECK(command_sequence IS NULL OR typeof(command_sequence) IN('integer')),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16) CHECK(operation_id IS NULL OR typeof(operation_id) IN('blob')),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(720,721,722,723,724,725,726,727,728,729,730,731,732,733,734,735,736,737,738,739)) CHECK(command_kind IS NULL OR typeof(command_kind) IN('integer')),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32) CHECK(request_digest IS NULL OR typeof(request_digest) IN('blob')),
+ result_version INTEGER NOT NULL CHECK(result_version=1) CHECK(result_version IS NULL OR typeof(result_version) IN('integer')),
+ result_count INTEGER NOT NULL CHECK(result_count BETWEEN 0 AND 10000) CHECK(result_count IS NULL OR typeof(result_count) IN('integer')),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32) CHECK(result_digest IS NULL OR typeof(result_digest) IN('blob')),
+ result_payload BLOB NOT NULL CHECK(length(result_payload) BETWEEN 1 AND 65536) CHECK(result_payload IS NULL OR typeof(result_payload) IN('blob')),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0) CHECK(applied_ms IS NULL OR typeof(applied_ms) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(owner_id AS BLOB)),0)+coalesce(length(CAST(command_incarnation AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(request_digest AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)+coalesce(length(CAST(result_payload AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ UNIQUE(owner_id,command_incarnation,operation_id),
+ FOREIGN KEY(owner_id,command_incarnation) REFERENCES playback_sessions(id,mp_command_incarnation) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX mp_session_command_owner ON playback_v1_sessions(id,mp_command_incarnation);
+
+CREATE INDEX mp_session_receipt_due ON playback_v1_sessions(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL;
+
+CREATE TABLE mp_session_command_receipts(
+ owner_id TEXT NOT NULL CHECK(owner_id IS NULL OR typeof(owner_id) IN('text')),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16) CHECK(command_incarnation IS NULL OR typeof(command_incarnation) IN('blob')),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0) CHECK(command_sequence IS NULL OR typeof(command_sequence) IN('integer')),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16) CHECK(operation_id IS NULL OR typeof(operation_id) IN('blob')),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(711,712,713,714,715,716,717,718,719)) CHECK(command_kind IS NULL OR typeof(command_kind) IN('integer')),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32) CHECK(request_digest IS NULL OR typeof(request_digest) IN('blob')),
+ result_version INTEGER NOT NULL CHECK(result_version=1) CHECK(result_version IS NULL OR typeof(result_version) IN('integer')),
+ result_count INTEGER NOT NULL CHECK(result_count BETWEEN 0 AND 10000) CHECK(result_count IS NULL OR typeof(result_count) IN('integer')),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32) CHECK(result_digest IS NULL OR typeof(result_digest) IN('blob')),
+ result_payload BLOB NOT NULL CHECK(length(result_payload) BETWEEN 1 AND 65536) CHECK(result_payload IS NULL OR typeof(result_payload) IN('blob')),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0) CHECK(applied_ms IS NULL OR typeof(applied_ms) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(owner_id AS BLOB)),0)+coalesce(length(CAST(command_incarnation AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(request_digest AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)+coalesce(length(CAST(result_payload AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ UNIQUE(owner_id,command_incarnation,operation_id),
+ FOREIGN KEY(owner_id,command_incarnation) REFERENCES playback_v1_sessions(id,mp_command_incarnation) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX mp_job_command_owner ON prepared_media_jobs(id,mp_command_incarnation);
+
+CREATE INDEX mp_job_receipt_due ON prepared_media_jobs(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL;
+
+CREATE TABLE mp_job_command_receipts(
+ owner_id TEXT NOT NULL CHECK(owner_id IS NULL OR typeof(owner_id) IN('text')),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16) CHECK(command_incarnation IS NULL OR typeof(command_incarnation) IN('blob')),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0) CHECK(command_sequence IS NULL OR typeof(command_sequence) IN('integer')),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16) CHECK(operation_id IS NULL OR typeof(operation_id) IN('blob')),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(741,742,743,744,746,747,748)) CHECK(command_kind IS NULL OR typeof(command_kind) IN('integer')),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32) CHECK(request_digest IS NULL OR typeof(request_digest) IN('blob')),
+ result_version INTEGER NOT NULL CHECK(result_version=1) CHECK(result_version IS NULL OR typeof(result_version) IN('integer')),
+ result_count INTEGER NOT NULL CHECK(result_count BETWEEN 0 AND 10000) CHECK(result_count IS NULL OR typeof(result_count) IN('integer')),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32) CHECK(result_digest IS NULL OR typeof(result_digest) IN('blob')),
+ result_payload BLOB NOT NULL CHECK(length(result_payload) BETWEEN 1 AND 65536) CHECK(result_payload IS NULL OR typeof(result_payload) IN('blob')),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0) CHECK(applied_ms IS NULL OR typeof(applied_ms) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(owner_id AS BLOB)),0)+coalesce(length(CAST(command_incarnation AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(request_digest AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)+coalesce(length(CAST(result_payload AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ UNIQUE(owner_id,command_incarnation,operation_id),
+ FOREIGN KEY(owner_id,command_incarnation) REFERENCES prepared_media_jobs(id,mp_command_incarnation) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX mp_version_command_owner ON prepared_media_versions(id,mp_command_incarnation);
+
+CREATE INDEX mp_version_receipt_due ON prepared_media_versions(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL;
+
+CREATE TABLE mp_version_command_receipts(
+ owner_id TEXT NOT NULL CHECK(owner_id IS NULL OR typeof(owner_id) IN('text')),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16) CHECK(command_incarnation IS NULL OR typeof(command_incarnation) IN('blob')),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0) CHECK(command_sequence IS NULL OR typeof(command_sequence) IN('integer')),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16) CHECK(operation_id IS NULL OR typeof(operation_id) IN('blob')),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(745,749)) CHECK(command_kind IS NULL OR typeof(command_kind) IN('integer')),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32) CHECK(request_digest IS NULL OR typeof(request_digest) IN('blob')),
+ result_version INTEGER NOT NULL CHECK(result_version=1) CHECK(result_version IS NULL OR typeof(result_version) IN('integer')),
+ result_count INTEGER NOT NULL CHECK(result_count BETWEEN 0 AND 10000) CHECK(result_count IS NULL OR typeof(result_count) IN('integer')),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32) CHECK(result_digest IS NULL OR typeof(result_digest) IN('blob')),
+ result_payload BLOB NOT NULL CHECK(length(result_payload) BETWEEN 1 AND 65536) CHECK(result_payload IS NULL OR typeof(result_payload) IN('blob')),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0) CHECK(applied_ms IS NULL OR typeof(applied_ms) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(owner_id AS BLOB)),0)+coalesce(length(CAST(command_incarnation AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(request_digest AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)+coalesce(length(CAST(result_payload AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ UNIQUE(owner_id,command_incarnation,operation_id),
+ FOREIGN KEY(owner_id,command_incarnation) REFERENCES prepared_media_versions(id,mp_command_incarnation) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX mp_queue_command_owner ON queues_v1(id,mp_command_incarnation);
+
+CREATE INDEX mp_queue_receipt_due ON queues_v1(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL;
+
+CREATE TABLE mp_queue_command_receipts(
+ owner_id TEXT NOT NULL CHECK(owner_id IS NULL OR typeof(owner_id) IN('text')),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16) CHECK(command_incarnation IS NULL OR typeof(command_incarnation) IN('blob')),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0) CHECK(command_sequence IS NULL OR typeof(command_sequence) IN('integer')),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16) CHECK(operation_id IS NULL OR typeof(operation_id) IN('blob')),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(751,752,753,754,755,756,757,758,759,760)) CHECK(command_kind IS NULL OR typeof(command_kind) IN('integer')),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32) CHECK(request_digest IS NULL OR typeof(request_digest) IN('blob')),
+ result_version INTEGER NOT NULL CHECK(result_version=1) CHECK(result_version IS NULL OR typeof(result_version) IN('integer')),
+ result_count INTEGER NOT NULL CHECK(result_count BETWEEN 0 AND 10000) CHECK(result_count IS NULL OR typeof(result_count) IN('integer')),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32) CHECK(result_digest IS NULL OR typeof(result_digest) IN('blob')),
+ result_payload BLOB NOT NULL CHECK(length(result_payload) BETWEEN 1 AND 65536) CHECK(result_payload IS NULL OR typeof(result_payload) IN('blob')),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0) CHECK(applied_ms IS NULL OR typeof(applied_ms) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(owner_id AS BLOB)),0)+coalesce(length(CAST(command_incarnation AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(request_digest AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)+coalesce(length(CAST(result_payload AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ UNIQUE(owner_id,command_incarnation,operation_id),
+ FOREIGN KEY(owner_id,command_incarnation) REFERENCES queues_v1(id,mp_command_incarnation) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX mp_next_command_owner ON playback_v1_prepared(token,mp_command_incarnation);
+
+CREATE INDEX mp_next_receipt_due ON playback_v1_prepared(mp_receipt_reclaim_due_ms,token) WHERE mp_receipt_reclaim_due_ms IS NOT NULL;
+
+CREATE TABLE mp_next_command_receipts(
+ owner_id TEXT NOT NULL CHECK(owner_id IS NULL OR typeof(owner_id) IN('text')),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16) CHECK(command_incarnation IS NULL OR typeof(command_incarnation) IN('blob')),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0) CHECK(command_sequence IS NULL OR typeof(command_sequence) IN('integer')),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16) CHECK(operation_id IS NULL OR typeof(operation_id) IN('blob')),
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(762,763,764)) CHECK(command_kind IS NULL OR typeof(command_kind) IN('integer')),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32) CHECK(request_digest IS NULL OR typeof(request_digest) IN('blob')),
+ result_version INTEGER NOT NULL CHECK(result_version=1) CHECK(result_version IS NULL OR typeof(result_version) IN('integer')),
+ result_count INTEGER NOT NULL CHECK(result_count BETWEEN 0 AND 10000) CHECK(result_count IS NULL OR typeof(result_count) IN('integer')),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32) CHECK(result_digest IS NULL OR typeof(result_digest) IN('blob')),
+ result_payload BLOB NOT NULL CHECK(length(result_payload) BETWEEN 1 AND 65536) CHECK(result_payload IS NULL OR typeof(result_payload) IN('blob')),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0) CHECK(applied_ms IS NULL OR typeof(applied_ms) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(owner_id AS BLOB)),0)+coalesce(length(CAST(command_incarnation AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(request_digest AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)+coalesce(length(CAST(result_payload AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ UNIQUE(owner_id,command_incarnation,operation_id),
+ FOREIGN KEY(owner_id,command_incarnation) REFERENCES playback_v1_prepared(token,mp_command_incarnation) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE TABLE mp_start_execution(
+ custody_media_session_id TEXT NOT NULL DEFAULT '',
+ operation_id TEXT NOT NULL,
+ execution_id TEXT NOT NULL CHECK(execution_id<>''),
+ physical_exited INTEGER NOT NULL DEFAULT 0 CHECK(physical_exited IN(0,1)),
+ cleaned INTEGER NOT NULL DEFAULT 0 CHECK(cleaned IN(0,1) AND cleaned<=physical_exited),
+ exit_digest TEXT NOT NULL DEFAULT '' CHECK(exit_digest='' OR length(exit_digest)=64),
+ result_digest TEXT NOT NULL DEFAULT '' CHECK(result_digest='' OR length(result_digest)=64),
+ staged_rows INTEGER NOT NULL DEFAULT 0 CHECK(staged_rows BETWEEN 0 AND 256),
+ staged_bytes INTEGER NOT NULL DEFAULT 0 CHECK(staged_bytes BETWEEN 0 AND 1048576),
+ cleanup_cursor INTEGER NOT NULL DEFAULT 0 CHECK(cleanup_cursor>=0),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(custody_media_session_id AS BLOB)),0)+coalesce(length(CAST(operation_id AS BLOB)),0)+coalesce(length(CAST(execution_id AS BLOB)),0)+coalesce(length(CAST(exit_digest AS BLOB)),0)+coalesce(length(CAST(result_digest AS BLOB)),0)) VIRTUAL,
+ PRIMARY KEY(operation_id),
+ UNIQUE(execution_id),
+ FOREIGN KEY(operation_id) REFERENCES playback_start_preparations(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK((physical_exited=0 AND exit_digest='') OR (physical_exited=1 AND length(exit_digest)=64)),
+ CHECK(custody_media_session_id IS NULL OR typeof(custody_media_session_id) IN('text')),
+ CHECK(operation_id IS NULL OR typeof(operation_id) IN('text')),
+ CHECK(execution_id IS NULL OR typeof(execution_id) IN('text')),
+ CHECK(physical_exited IS NULL OR typeof(physical_exited) IN('integer')),
+ CHECK(cleaned IS NULL OR typeof(cleaned) IN('integer')),
+ CHECK(exit_digest IS NULL OR typeof(exit_digest) IN('text')),
+ CHECK(result_digest IS NULL OR typeof(result_digest) IN('text')),
+ CHECK(staged_rows IS NULL OR typeof(staged_rows) IN('integer')),
+ CHECK(staged_bytes IS NULL OR typeof(staged_bytes) IN('integer')),
+ CHECK(cleanup_cursor IS NULL OR typeof(cleanup_cursor) IN('integer')),
+ CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE mp_job_inputs(
+ job_id TEXT NOT NULL,
+ server_id TEXT NOT NULL,
+ authority TEXT NOT NULL CHECK(authority IN('local','hosted')),
+ account_id TEXT NOT NULL,
+ actor_profile_id TEXT NOT NULL,
+ device_id TEXT NOT NULL,
+ family_id TEXT NOT NULL,
+ grant_id TEXT NOT NULL,
+ session_hash TEXT NOT NULL CHECK(length(session_hash)=64),
+ epoch INTEGER NOT NULL CHECK(epoch>=0),
+ token_generation INTEGER NOT NULL CHECK(token_generation>0),
+ original_horizon_ms INTEGER NOT NULL CHECK(original_horizon_ms>0),
+ library_id TEXT NOT NULL,
+ library_source_id TEXT NOT NULL,
+ asset_id TEXT NOT NULL,
+ inventory_object_id TEXT NOT NULL,
+ inventory_revision TEXT NOT NULL,
+ root_identity TEXT NOT NULL,
+ incarnation TEXT NOT NULL,
+ remote_source_id TEXT NOT NULL,
+ effective_configuration TEXT NOT NULL,
+ read_policy_witness TEXT NOT NULL,
+ read_authority_witness TEXT NOT NULL,
+ library_generation INTEGER NOT NULL CHECK(library_generation>0),
+ raw_configuration_generation INTEGER NOT NULL CHECK(raw_configuration_generation>0),
+ profile_revision INTEGER NOT NULL CHECK(profile_revision>=0),
+ size INTEGER NOT NULL CHECK(size>0),
+ modified_ns INTEGER NOT NULL CHECK(modified_ns>=0),
+ transformation_digest TEXT NOT NULL CHECK(length(transformation_digest)=64),
+ part_index INTEGER NOT NULL CHECK(part_index>=0),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(job_id AS BLOB)),0)+coalesce(length(CAST(server_id AS BLOB)),0)+coalesce(length(CAST(authority AS BLOB)),0)+coalesce(length(CAST(account_id AS BLOB)),0)+coalesce(length(CAST(actor_profile_id AS BLOB)),0)+coalesce(length(CAST(device_id AS BLOB)),0)+coalesce(length(CAST(family_id AS BLOB)),0)+coalesce(length(CAST(grant_id AS BLOB)),0)+coalesce(length(CAST(session_hash AS BLOB)),0)+coalesce(length(CAST(library_id AS BLOB)),0)+coalesce(length(CAST(library_source_id AS BLOB)),0)+coalesce(length(CAST(asset_id AS BLOB)),0)+coalesce(length(CAST(inventory_object_id AS BLOB)),0)+coalesce(length(CAST(inventory_revision AS BLOB)),0)+coalesce(length(CAST(root_identity AS BLOB)),0)+coalesce(length(CAST(incarnation AS BLOB)),0)+coalesce(length(CAST(remote_source_id AS BLOB)),0)+coalesce(length(CAST(effective_configuration AS BLOB)),0)+coalesce(length(CAST(read_policy_witness AS BLOB)),0)+coalesce(length(CAST(read_authority_witness AS BLOB)),0)+coalesce(length(CAST(transformation_digest AS BLOB)),0)) VIRTUAL,
+ PRIMARY KEY(job_id),
+ FOREIGN KEY(job_id) REFERENCES prepared_media_jobs(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK(job_id IS NULL OR typeof(job_id) IN('text')),
+ CHECK(server_id IS NULL OR typeof(server_id) IN('text')),
+ CHECK(authority IS NULL OR typeof(authority) IN('text')),
+ CHECK(account_id IS NULL OR typeof(account_id) IN('text')),
+ CHECK(actor_profile_id IS NULL OR typeof(actor_profile_id) IN('text')),
+ CHECK(device_id IS NULL OR typeof(device_id) IN('text')),
+ CHECK(family_id IS NULL OR typeof(family_id) IN('text')),
+ CHECK(grant_id IS NULL OR typeof(grant_id) IN('text')),
+ CHECK(session_hash IS NULL OR typeof(session_hash) IN('text')),
+ CHECK(epoch IS NULL OR typeof(epoch) IN('integer')),
+ CHECK(token_generation IS NULL OR typeof(token_generation) IN('integer')),
+ CHECK(original_horizon_ms IS NULL OR typeof(original_horizon_ms) IN('integer')),
+ CHECK(library_id IS NULL OR typeof(library_id) IN('text')),
+ CHECK(library_source_id IS NULL OR typeof(library_source_id) IN('text')),
+ CHECK(asset_id IS NULL OR typeof(asset_id) IN('text')),
+ CHECK(inventory_object_id IS NULL OR typeof(inventory_object_id) IN('text')),
+ CHECK(inventory_revision IS NULL OR typeof(inventory_revision) IN('text')),
+ CHECK(root_identity IS NULL OR typeof(root_identity) IN('text')),
+ CHECK(incarnation IS NULL OR typeof(incarnation) IN('text')),
+ CHECK(remote_source_id IS NULL OR typeof(remote_source_id) IN('text')),
+ CHECK(effective_configuration IS NULL OR typeof(effective_configuration) IN('text')),
+ CHECK(read_policy_witness IS NULL OR typeof(read_policy_witness) IN('text')),
+ CHECK(read_authority_witness IS NULL OR typeof(read_authority_witness) IN('text')),
+ CHECK(library_generation IS NULL OR typeof(library_generation) IN('integer')),
+ CHECK(raw_configuration_generation IS NULL OR typeof(raw_configuration_generation) IN('integer')),
+ CHECK(profile_revision IS NULL OR typeof(profile_revision) IN('integer')),
+ CHECK(size IS NULL OR typeof(size) IN('integer')),
+ CHECK(modified_ns IS NULL OR typeof(modified_ns) IN('integer')),
+ CHECK(transformation_digest IS NULL OR typeof(transformation_digest) IN('text')),
+ CHECK(part_index IS NULL OR typeof(part_index) IN('integer')),
+ CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE mp_job_custody(
+ job_id TEXT NOT NULL,
+ generation INTEGER NOT NULL CHECK(generation>=0),
+ execution_id TEXT NOT NULL DEFAULT '',
+ physical_exited INTEGER NOT NULL CHECK(physical_exited IN(0,1)),
+ cleaned INTEGER NOT NULL CHECK(cleaned IN(0,1) AND cleaned<=physical_exited),
+ exit_digest TEXT NOT NULL DEFAULT '' CHECK(exit_digest='' OR length(exit_digest)=64),
+ cleanup_cursor INTEGER NOT NULL CHECK(cleanup_cursor>=0),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(job_id AS BLOB)),0)+coalesce(length(CAST(execution_id AS BLOB)),0)+coalesce(length(CAST(exit_digest AS BLOB)),0)) VIRTUAL,
+ PRIMARY KEY(job_id),
+ FOREIGN KEY(job_id) REFERENCES prepared_media_jobs(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK((generation=0 AND execution_id='' AND physical_exited=1 AND cleaned=1 AND exit_digest='') OR (generation>0 AND execution_id<>'' AND ((physical_exited=0 AND exit_digest='') OR (physical_exited=1 AND length(exit_digest)=64)))),
+ CHECK(job_id IS NULL OR typeof(job_id) IN('text')),
+ CHECK(generation IS NULL OR typeof(generation) IN('integer')),
+ CHECK(execution_id IS NULL OR typeof(execution_id) IN('text')),
+ CHECK(physical_exited IS NULL OR typeof(physical_exited) IN('integer')),
+ CHECK(cleaned IS NULL OR typeof(cleaned) IN('integer')),
+ CHECK(exit_digest IS NULL OR typeof(exit_digest) IN('text')),
+ CHECK(cleanup_cursor IS NULL OR typeof(cleanup_cursor) IN('integer')),
+ CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE mp_version_custody(
+ version_id TEXT NOT NULL,
+ request_id TEXT NOT NULL CHECK(request_id<>''),
+ generation INTEGER NOT NULL DEFAULT 0 CHECK(generation>=0),
+ execution_id TEXT NOT NULL DEFAULT '',
+ physical_exited INTEGER NOT NULL DEFAULT 1 CHECK(physical_exited IN(0,1)),
+ cleaned INTEGER NOT NULL DEFAULT 1 CHECK(cleaned IN(0,1) AND cleaned<=physical_exited),
+ exit_digest TEXT NOT NULL DEFAULT '' CHECK(exit_digest='' OR length(exit_digest)=64),
+ cleanup_cursor INTEGER NOT NULL DEFAULT 0 CHECK(cleanup_cursor>=0),
+ finished INTEGER NOT NULL DEFAULT 0 CHECK(finished IN(0,1) AND finished<=cleaned),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(version_id AS BLOB)),0)+coalesce(length(CAST(request_id AS BLOB)),0)+coalesce(length(CAST(execution_id AS BLOB)),0)+coalesce(length(CAST(exit_digest AS BLOB)),0)) VIRTUAL,
+ PRIMARY KEY(version_id),
+ UNIQUE(request_id),
+ FOREIGN KEY(version_id) REFERENCES prepared_media_versions(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK((generation=0 AND execution_id='' AND physical_exited=1 AND cleaned=1 AND exit_digest='' AND finished=0 AND cleanup_cursor=0) OR (generation>0 AND execution_id<>'' AND ((physical_exited=0 AND exit_digest='' AND cleaned=0 AND finished=0) OR (physical_exited=1 AND length(exit_digest)=64)))),
+ CHECK(version_id IS NULL OR typeof(version_id) IN('text')),
+ CHECK(request_id IS NULL OR typeof(request_id) IN('text')),
+ CHECK(generation IS NULL OR typeof(generation) IN('integer')),
+ CHECK(execution_id IS NULL OR typeof(execution_id) IN('text')),
+ CHECK(physical_exited IS NULL OR typeof(physical_exited) IN('integer')),
+ CHECK(cleaned IS NULL OR typeof(cleaned) IN('integer')),
+ CHECK(exit_digest IS NULL OR typeof(exit_digest) IN('text')),
+ CHECK(cleanup_cursor IS NULL OR typeof(cleanup_cursor) IN('integer')),
+ CHECK(finished IS NULL OR typeof(finished) IN('integer')),
+ CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE mp_queue_stop_obligations(
+ queue_id TEXT NOT NULL,
+ media_session_id TEXT NOT NULL,
+ media_generation INTEGER NOT NULL CHECK(media_generation>0),
+ request_id TEXT NOT NULL CHECK(request_id<>''),
+ reason TEXT NOT NULL,
+ requested_ms INTEGER NOT NULL CHECK(requested_ms>0),
+ exited_ms INTEGER CHECK(exited_ms IS NULL OR exited_ms>=requested_ms),
+ logical_session_id TEXT NOT NULL,
+ logical_generation INTEGER NOT NULL CHECK(logical_generation>0),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(queue_id AS BLOB)),0)+coalesce(length(CAST(media_session_id AS BLOB)),0)+coalesce(length(CAST(request_id AS BLOB)),0)+coalesce(length(CAST(reason AS BLOB)),0)+coalesce(length(CAST(logical_session_id AS BLOB)),0)) VIRTUAL,
+ PRIMARY KEY(queue_id,media_session_id,media_generation),
+ FOREIGN KEY(queue_id) REFERENCES queues_v1(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(media_session_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK(queue_id IS NULL OR typeof(queue_id) IN('text')),
+ CHECK(media_session_id IS NULL OR typeof(media_session_id) IN('text')),
+ CHECK(media_generation IS NULL OR typeof(media_generation) IN('integer')),
+ CHECK(request_id IS NULL OR typeof(request_id) IN('text')),
+ CHECK(reason IS NULL OR typeof(reason) IN('text')),
+ CHECK(requested_ms IS NULL OR typeof(requested_ms) IN('integer')),
+ CHECK(exited_ms IS NULL OR typeof(exited_ms) IN('integer')),
+ CHECK(logical_session_id IS NULL OR typeof(logical_session_id) IN('text')),
+ CHECK(logical_generation IS NULL OR typeof(logical_generation) IN('integer')),
+ CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE mp_next_stop_obligations(
+ next_id TEXT NOT NULL,
+ media_session_id TEXT NOT NULL,
+ media_generation INTEGER NOT NULL CHECK(media_generation>0),
+ request_id TEXT NOT NULL CHECK(request_id<>''),
+ reason TEXT NOT NULL,
+ requested_ms INTEGER NOT NULL CHECK(requested_ms>0),
+ exited_ms INTEGER CHECK(exited_ms IS NULL OR exited_ms>=requested_ms),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(next_id AS BLOB)),0)+coalesce(length(CAST(media_session_id AS BLOB)),0)+coalesce(length(CAST(request_id AS BLOB)),0)+coalesce(length(CAST(reason AS BLOB)),0)) VIRTUAL,
+ PRIMARY KEY(next_id,media_session_id,media_generation),
+ FOREIGN KEY(next_id) REFERENCES playback_v1_prepared(token) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(media_session_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK(next_id IS NULL OR typeof(next_id) IN('text')),
+ CHECK(media_session_id IS NULL OR typeof(media_session_id) IN('text')),
+ CHECK(media_generation IS NULL OR typeof(media_generation) IN('integer')),
+ CHECK(request_id IS NULL OR typeof(request_id) IN('text')),
+ CHECK(reason IS NULL OR typeof(reason) IN('text')),
+ CHECK(requested_ms IS NULL OR typeof(requested_ms) IN('integer')),
+ CHECK(exited_ms IS NULL OR typeof(exited_ms) IN('integer')),
+ CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer'))
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX mp_job_custody_execution ON mp_job_custody(execution_id) WHERE execution_id<>'';
+
+CREATE UNIQUE INDEX mp_version_custody_execution ON mp_version_custody(execution_id) WHERE execution_id<>'';
+
+CREATE INDEX mp_queue_stop_media_fk ON mp_queue_stop_obligations(media_session_id,queue_id,media_generation);
+
+CREATE INDEX mp_next_stop_media_fk ON mp_next_stop_obligations(media_session_id,next_id,media_generation);
+
+CREATE TABLE mp_media_inputs(
+ media_session_id TEXT NOT NULL CHECK(media_session_id IS NULL OR typeof(media_session_id) IN('text')),
+ server_id TEXT NOT NULL CHECK(server_id IS NULL OR typeof(server_id) IN('text')),
+ authority TEXT NOT NULL CHECK(authority IS NULL OR typeof(authority) IN('text')),
+ account_id TEXT NOT NULL CHECK(account_id IS NULL OR typeof(account_id) IN('text')),
+ profile_id TEXT NOT NULL CHECK(profile_id IS NULL OR typeof(profile_id) IN('text')),
+ device_id TEXT NOT NULL CHECK(device_id IS NULL OR typeof(device_id) IN('text')),
+ family_id TEXT NOT NULL CHECK(family_id IS NULL OR typeof(family_id) IN('text')),
+ grant_id TEXT NOT NULL CHECK(grant_id IS NULL OR typeof(grant_id) IN('text')),
+ session_hash TEXT NOT NULL CHECK(session_hash IS NULL OR typeof(session_hash) IN('text')),
+ epoch INTEGER NOT NULL CHECK(epoch>=0) CHECK(epoch IS NULL OR typeof(epoch) IN('integer')),
+ token_generation INTEGER NOT NULL CHECK(token_generation>0) CHECK(token_generation IS NULL OR typeof(token_generation) IN('integer')),
+ original_horizon_ms INTEGER NOT NULL CHECK(original_horizon_ms>0) CHECK(original_horizon_ms IS NULL OR typeof(original_horizon_ms) IN('integer')),
+ library_id TEXT NOT NULL CHECK(library_id IS NULL OR typeof(library_id) IN('text')),
+ library_source_id TEXT NOT NULL CHECK(library_source_id IS NULL OR typeof(library_source_id) IN('text')),
+ asset_id TEXT NOT NULL CHECK(asset_id IS NULL OR typeof(asset_id) IN('text')),
+ inventory_object_id TEXT NOT NULL CHECK(inventory_object_id IS NULL OR typeof(inventory_object_id) IN('text')),
+ inventory_revision TEXT NOT NULL CHECK(inventory_revision IS NULL OR typeof(inventory_revision) IN('text')),
+ root_identity TEXT NOT NULL CHECK(root_identity IS NULL OR typeof(root_identity) IN('text')),
+ incarnation TEXT NOT NULL CHECK(incarnation IS NULL OR typeof(incarnation) IN('text')),
+ remote_source_id TEXT NOT NULL CHECK(remote_source_id IS NULL OR typeof(remote_source_id) IN('text')),
+ effective_configuration TEXT NOT NULL CHECK(effective_configuration IS NULL OR typeof(effective_configuration) IN('text')),
+ read_policy_witness TEXT NOT NULL CHECK(read_policy_witness IS NULL OR typeof(read_policy_witness) IN('text')),
+ read_authority_witness TEXT NOT NULL CHECK(read_authority_witness IS NULL OR typeof(read_authority_witness) IN('text')),
+ library_generation INTEGER NOT NULL CHECK(library_generation>0) CHECK(library_generation IS NULL OR typeof(library_generation) IN('integer')),
+ raw_configuration_generation INTEGER NOT NULL CHECK(raw_configuration_generation>0) CHECK(raw_configuration_generation IS NULL OR typeof(raw_configuration_generation) IN('integer')),
+ profile_revision INTEGER NOT NULL CHECK(profile_revision>=0) CHECK(profile_revision IS NULL OR typeof(profile_revision) IN('integer')),
+ size INTEGER NOT NULL CHECK(size>0) CHECK(size IS NULL OR typeof(size) IN('integer')),
+ modified_ns INTEGER NOT NULL CHECK(modified_ns>=0) CHECK(modified_ns IS NULL OR typeof(modified_ns) IN('integer')),
+ queue_id TEXT NOT NULL CHECK(queue_id IS NULL OR typeof(queue_id) IN('text')),
+ queue_entry_id TEXT NOT NULL CHECK(queue_entry_id IS NULL OR typeof(queue_entry_id) IN('text')),
+ queue_owner_kind TEXT NOT NULL CHECK(queue_owner_kind IS NULL OR typeof(queue_owner_kind) IN('text')),
+ queue_owner_id TEXT NOT NULL CHECK(queue_owner_id IS NULL OR typeof(queue_owner_id) IN('text')),
+ queue_revision INTEGER NOT NULL CHECK(queue_revision>=0) CHECK(queue_revision IS NULL OR typeof(queue_revision) IN('integer')),
+ queue_custody_generation INTEGER NOT NULL CHECK(queue_custody_generation>=0) CHECK(queue_custody_generation IS NULL OR typeof(queue_custody_generation) IN('integer')),
+ part_index INTEGER NOT NULL CHECK(part_index>=0) CHECK(part_index IS NULL OR typeof(part_index) IN('integer')),
+ item_public_id BLOB NOT NULL CHECK(length(item_public_id)=16) CHECK(item_public_id IS NULL OR typeof(item_public_id) IN('blob')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(media_session_id AS BLOB)),0)+coalesce(length(CAST(server_id AS BLOB)),0)+coalesce(length(CAST(authority AS BLOB)),0)+coalesce(length(CAST(account_id AS BLOB)),0)+coalesce(length(CAST(profile_id AS BLOB)),0)+coalesce(length(CAST(device_id AS BLOB)),0)+coalesce(length(CAST(family_id AS BLOB)),0)+coalesce(length(CAST(grant_id AS BLOB)),0)+coalesce(length(CAST(session_hash AS BLOB)),0)+coalesce(length(CAST(library_id AS BLOB)),0)+coalesce(length(CAST(library_source_id AS BLOB)),0)+coalesce(length(CAST(asset_id AS BLOB)),0)+coalesce(length(CAST(inventory_object_id AS BLOB)),0)+coalesce(length(CAST(inventory_revision AS BLOB)),0)+coalesce(length(CAST(root_identity AS BLOB)),0)+coalesce(length(CAST(incarnation AS BLOB)),0)+coalesce(length(CAST(remote_source_id AS BLOB)),0)+coalesce(length(CAST(effective_configuration AS BLOB)),0)+coalesce(length(CAST(read_policy_witness AS BLOB)),0)+coalesce(length(CAST(read_authority_witness AS BLOB)),0)+coalesce(length(CAST(queue_id AS BLOB)),0)+coalesce(length(CAST(queue_entry_id AS BLOB)),0)+coalesce(length(CAST(queue_owner_kind AS BLOB)),0)+coalesce(length(CAST(queue_owner_id AS BLOB)),0)+coalesce(length(CAST(item_public_id AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(media_session_id),
+ FOREIGN KEY(media_session_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK(authority IN('local','hosted')),
+ CHECK(length(session_hash)=64)
+) WITHOUT ROWID;
+
+CREATE TABLE mp_session_replacements(
+ session_id TEXT NOT NULL CHECK(session_id IS NULL OR typeof(session_id) IN('text')),
+ old_media_id TEXT NOT NULL CHECK(old_media_id IS NULL OR typeof(old_media_id) IN('text')),
+ old_media_generation INTEGER NOT NULL CHECK(old_media_generation>0) CHECK(old_media_generation IS NULL OR typeof(old_media_generation) IN('integer')),
+ old_logical_generation INTEGER NOT NULL CHECK(old_logical_generation>0) CHECK(old_logical_generation IS NULL OR typeof(old_logical_generation) IN('integer')),
+ old_execution_id TEXT NOT NULL CHECK(old_execution_id IS NULL OR typeof(old_execution_id) IN('text')),
+ new_media_id TEXT NOT NULL CHECK(new_media_id IS NULL OR typeof(new_media_id) IN('text')),
+ new_execution_id TEXT NOT NULL CHECK(new_execution_id IS NULL OR typeof(new_execution_id) IN('text')),
+ new_media_incarnation BLOB NOT NULL CHECK(length(new_media_incarnation)=16) CHECK(new_media_incarnation IS NULL OR typeof(new_media_incarnation) IN('blob')),
+ input_digest BLOB NOT NULL CHECK(length(input_digest)=32) CHECK(input_digest IS NULL OR typeof(input_digest) IN('blob')),
+ phase TEXT NOT NULL CHECK(phase IN('requested','installed')) CHECK(phase IS NULL OR typeof(phase) IN('text')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(session_id AS BLOB)),0)+coalesce(length(CAST(old_media_id AS BLOB)),0)+coalesce(length(CAST(old_execution_id AS BLOB)),0)+coalesce(length(CAST(new_media_id AS BLOB)),0)+coalesce(length(CAST(new_execution_id AS BLOB)),0)+coalesce(length(CAST(new_media_incarnation AS BLOB)),0)+coalesce(length(CAST(input_digest AS BLOB)),0)+coalesce(length(CAST(phase AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(session_id),
+ FOREIGN KEY(session_id) REFERENCES playback_v1_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(old_media_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE INDEX mp_session_replacement_old_media_fk ON mp_session_replacements(old_media_id,session_id);
+
+CREATE TABLE mp_remote_delivery_inputs(
+ media_session_id TEXT NOT NULL CHECK(media_session_id IS NULL OR typeof(media_session_id) IN('text')),
+ origin_version TEXT NOT NULL CHECK(origin_version IS NULL OR typeof(origin_version) IN('text')),
+ descriptor_version TEXT NOT NULL CHECK(descriptor_version IS NULL OR typeof(descriptor_version) IN('text')),
+ evidence TEXT NOT NULL CHECK(evidence IS NULL OR typeof(evidence) IN('text')),
+ policy_digest TEXT NOT NULL CHECK(length(policy_digest)=64) CHECK(policy_digest IS NULL OR typeof(policy_digest) IN('text')),
+ endpoint_digest TEXT NOT NULL CHECK(length(endpoint_digest)=64) CHECK(endpoint_digest IS NULL OR typeof(endpoint_digest) IN('text')),
+ size INTEGER NOT NULL CHECK(size>0) CHECK(size IS NULL OR typeof(size) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(media_session_id AS BLOB)),0)+coalesce(length(CAST(origin_version AS BLOB)),0)+coalesce(length(CAST(descriptor_version AS BLOB)),0)+coalesce(length(CAST(evidence AS BLOB)),0)+coalesce(length(CAST(policy_digest AS BLOB)),0)+coalesce(length(CAST(endpoint_digest AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(media_session_id),
+ FOREIGN KEY(media_session_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE TABLE mp_direct_delivery(
+ session_id TEXT NOT NULL CHECK(session_id IS NULL OR typeof(session_id) IN('text')),
+ source_version TEXT NOT NULL CHECK(source_version IS NULL OR typeof(source_version) IN('text')),
+ descriptor_version TEXT NOT NULL CHECK(descriptor_version IS NULL OR typeof(descriptor_version) IN('text')),
+ backend TEXT NOT NULL CHECK(backend IN('native','remote','prepared')) CHECK(backend IS NULL OR typeof(backend) IN('text')),
+ size INTEGER NOT NULL CHECK(size>0) CHECK(size IS NULL OR typeof(size) IN('integer')),
+ occurrence_generation INTEGER NOT NULL CHECK(occurrence_generation>0) CHECK(occurrence_generation IS NULL OR typeof(occurrence_generation) IN('integer')),
+ execution_id TEXT NOT NULL CHECK(execution_id IS NULL OR typeof(execution_id) IN('text')),
+ prepared_version_id TEXT NOT NULL DEFAULT '' CHECK(prepared_version_id IS NULL OR typeof(prepared_version_id) IN('text')),
+ artifact_digest TEXT NOT NULL DEFAULT '' CHECK(artifact_digest IS NULL OR typeof(artifact_digest) IN('text')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(session_id AS BLOB)),0)+coalesce(length(CAST(source_version AS BLOB)),0)+coalesce(length(CAST(descriptor_version AS BLOB)),0)+coalesce(length(CAST(backend AS BLOB)),0)+coalesce(length(CAST(execution_id AS BLOB)),0)+coalesce(length(CAST(prepared_version_id AS BLOB)),0)+coalesce(length(CAST(artifact_digest AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(session_id),
+ FOREIGN KEY(session_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK((backend='prepared' AND prepared_version_id<>'' AND length(artifact_digest)=64) OR (backend IN('native','remote') AND prepared_version_id='' AND artifact_digest=''))
+) WITHOUT ROWID;
+
+CREATE TABLE mp_media_read_pins(
+ pin_id TEXT NOT NULL CHECK(pin_id IS NULL OR typeof(pin_id) IN('text')),
+ media_session_id TEXT NOT NULL CHECK(media_session_id IS NULL OR typeof(media_session_id) IN('text')),
+ execution_id TEXT NOT NULL CHECK(execution_id IS NULL OR typeof(execution_id) IN('text')),
+ occurrence_generation INTEGER NOT NULL CHECK(occurrence_generation>0) CHECK(occurrence_generation IS NULL OR typeof(occurrence_generation) IN('integer')),
+ source_version TEXT NOT NULL CHECK(source_version IS NULL OR typeof(source_version) IN('text')),
+ artifact_digest TEXT NOT NULL DEFAULT '' CHECK(artifact_digest='' OR length(artifact_digest)=64) CHECK(artifact_digest IS NULL OR typeof(artifact_digest) IN('text')),
+ from_byte INTEGER NOT NULL CHECK(from_byte>=0) CHECK(from_byte IS NULL OR typeof(from_byte) IN('integer')),
+ size INTEGER NOT NULL CHECK(size>0) CHECK(size IS NULL OR typeof(size) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(pin_id AS BLOB)),0)+coalesce(length(CAST(media_session_id AS BLOB)),0)+coalesce(length(CAST(execution_id AS BLOB)),0)+coalesce(length(CAST(source_version AS BLOB)),0)+coalesce(length(CAST(artifact_digest AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(pin_id),
+ FOREIGN KEY(media_session_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE INDEX mp_media_read_pins_media ON mp_media_read_pins(media_session_id,pin_id);
+
+CREATE INDEX mp_media_read_pins_artifact ON mp_media_read_pins(media_session_id,artifact_digest,pin_id);
+
+CREATE TABLE mp_hls_plans(
+ session_id TEXT NOT NULL CHECK(session_id IS NULL OR typeof(session_id) IN('text')),
+ plan_digest TEXT NOT NULL CHECK(length(plan_digest)=64) CHECK(plan_digest IS NULL OR typeof(plan_digest) IN('text')),
+ timeline_kind INTEGER NOT NULL CHECK(timeline_kind IN(1,2)) CHECK(timeline_kind IS NULL OR typeof(timeline_kind) IN('integer')),
+ timeline_digest TEXT NOT NULL CHECK(length(timeline_digest)=64) CHECK(timeline_digest IS NULL OR typeof(timeline_digest) IN('text')),
+ backend TEXT NOT NULL CHECK(backend IS NULL OR typeof(backend) IN('text')),
+ strategy TEXT NOT NULL CHECK(strategy IN('copy_remux','audio_conversion','video_conversion')) CHECK(strategy IS NULL OR typeof(strategy) IN('text')),
+ rendition_count INTEGER NOT NULL CHECK(rendition_count BETWEEN 1 AND 32) CHECK(rendition_count IS NULL OR typeof(rendition_count) IN('integer')),
+ segment_count INTEGER NOT NULL CHECK(segment_count>0) CHECK(segment_count IS NULL OR typeof(segment_count) IN('integer')),
+ duration_us INTEGER NOT NULL CHECK(duration_us>0) CHECK(duration_us IS NULL OR typeof(duration_us) IN('integer')),
+ source_size INTEGER NOT NULL CHECK(source_size>0) CHECK(source_size IS NULL OR typeof(source_size) IN('integer')),
+ source_modified_ns INTEGER NOT NULL CHECK(source_modified_ns>=0) CHECK(source_modified_ns IS NULL OR typeof(source_modified_ns) IN('integer')),
+ staged_count INTEGER NOT NULL CHECK(staged_count BETWEEN 0 AND rendition_count) CHECK(staged_count IS NULL OR typeof(staged_count) IN('integer')),
+ sealed INTEGER NOT NULL CHECK(sealed IN(0,1) AND (sealed=0 OR staged_count=rendition_count)) CHECK(sealed IS NULL OR typeof(sealed) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(session_id AS BLOB)),0)+coalesce(length(CAST(plan_digest AS BLOB)),0)+coalesce(length(CAST(timeline_digest AS BLOB)),0)+coalesce(length(CAST(backend AS BLOB)),0)+coalesce(length(CAST(strategy AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(session_id),
+ FOREIGN KEY(session_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK((timeline_kind=1 AND strategy='copy_remux') OR (timeline_kind=2 AND strategy IN('audio_conversion','video_conversion')))
+) WITHOUT ROWID;
+
+CREATE TABLE mp_hls_renditions(
+ session_id TEXT NOT NULL CHECK(session_id IS NULL OR typeof(session_id) IN('text')),
+ rendition_id TEXT NOT NULL CHECK(rendition_id IS NULL OR typeof(rendition_id) IN('text')),
+ ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 31) CHECK(ordinal IS NULL OR typeof(ordinal) IN('integer')),
+ codec TEXT NOT NULL CHECK(codec IS NULL OR typeof(codec) IN('text')),
+ container TEXT NOT NULL CHECK(container IS NULL OR typeof(container) IN('text')),
+ init_name TEXT NOT NULL CHECK(init_name IS NULL OR typeof(init_name) IN('text')),
+ bitrate INTEGER NOT NULL CHECK(bitrate>=0) CHECK(bitrate IS NULL OR typeof(bitrate) IN('integer')),
+ width INTEGER NOT NULL CHECK(width>=0) CHECK(width IS NULL OR typeof(width) IN('integer')),
+ height INTEGER NOT NULL CHECK(height>=0) CHECK(height IS NULL OR typeof(height) IN('integer')),
+ plan_digest TEXT NOT NULL CHECK(length(plan_digest)=64) CHECK(plan_digest IS NULL OR typeof(plan_digest) IN('text')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(session_id AS BLOB)),0)+coalesce(length(CAST(rendition_id AS BLOB)),0)+coalesce(length(CAST(codec AS BLOB)),0)+coalesce(length(CAST(container AS BLOB)),0)+coalesce(length(CAST(init_name AS BLOB)),0)+coalesce(length(CAST(plan_digest AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(session_id,rendition_id),
+ UNIQUE(session_id,ordinal),
+ FOREIGN KEY(session_id) REFERENCES mp_hls_plans(session_id) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX mp_hls_window_generation ON playback_hls_windows(session_id,start_index,mp_execution_generation);
+
+CREATE TABLE mp_hls_window_renditions(
+ session_id TEXT NOT NULL CHECK(session_id IS NULL OR typeof(session_id) IN('text')),
+ window_start INTEGER NOT NULL CHECK(window_start>=0) CHECK(window_start IS NULL OR typeof(window_start) IN('integer')),
+ window_generation INTEGER NOT NULL CHECK(window_generation>0) CHECK(window_generation IS NULL OR typeof(window_generation) IN('integer')),
+ rendition_id TEXT NOT NULL CHECK(rendition_id IS NULL OR typeof(rendition_id) IN('text')),
+ highest_produced INTEGER NOT NULL CHECK(highest_produced>=window_start-1) CHECK(highest_produced IS NULL OR typeof(highest_produced) IN('integer')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(session_id AS BLOB)),0)+coalesce(length(CAST(rendition_id AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(session_id,window_start,window_generation,rendition_id),
+ FOREIGN KEY(session_id,window_start,window_generation) REFERENCES playback_hls_windows(session_id,start_index,mp_execution_generation) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(session_id,rendition_id) REFERENCES mp_hls_renditions(session_id,rendition_id) ON DELETE NO ACTION ON UPDATE NO ACTION
+) WITHOUT ROWID;
+
+CREATE INDEX mp_hls_progress_rendition_fk ON mp_hls_window_renditions(session_id,rendition_id,window_start,window_generation);
+
+CREATE TABLE mp_hls_artifacts(
+ session_id TEXT NOT NULL CHECK(session_id IS NULL OR typeof(session_id) IN('text')),
+ rendition_id TEXT NOT NULL CHECK(rendition_id IS NULL OR typeof(rendition_id) IN('text')),
+ segment_index INTEGER NOT NULL CHECK(segment_index>=-1) CHECK(segment_index IS NULL OR typeof(segment_index) IN('integer')),
+ kind INTEGER NOT NULL CHECK(kind IN(1,2)) CHECK(kind IS NULL OR typeof(kind) IN('integer')),
+ name TEXT NOT NULL CHECK(name IS NULL OR typeof(name) IN('text')),
+ digest TEXT NOT NULL CHECK(length(digest)=64) CHECK(digest IS NULL OR typeof(digest) IN('text')),
+ size INTEGER NOT NULL CHECK(size>0) CHECK(size IS NULL OR typeof(size) IN('integer')),
+ start_us INTEGER NOT NULL CHECK(start_us>=0) CHECK(start_us IS NULL OR typeof(start_us) IN('integer')),
+ end_us INTEGER NOT NULL CHECK(end_us>=0) CHECK(end_us IS NULL OR typeof(end_us) IN('integer')),
+ decode_from_us INTEGER NOT NULL CHECK(decode_from_us>=0) CHECK(decode_from_us IS NULL OR typeof(decode_from_us) IN('integer')),
+ window_start INTEGER NOT NULL CHECK(window_start>=0) CHECK(window_start IS NULL OR typeof(window_start) IN('integer')),
+ window_generation INTEGER NOT NULL CHECK(window_generation>0) CHECK(window_generation IS NULL OR typeof(window_generation) IN('integer')),
+ execution_id TEXT NOT NULL CHECK(execution_id IS NULL OR typeof(execution_id) IN('text')),
+ occurrence_generation INTEGER NOT NULL CHECK(occurrence_generation>0) CHECK(occurrence_generation IS NULL OR typeof(occurrence_generation) IN('integer')),
+ plan_digest TEXT NOT NULL CHECK(length(plan_digest)=64) CHECK(plan_digest IS NULL OR typeof(plan_digest) IN('text')),
+ status TEXT NOT NULL CHECK(status IN('published','deleting')) CHECK(status IS NULL OR typeof(status) IN('text')),
+ variable_bytes INTEGER GENERATED ALWAYS AS (coalesce(length(CAST(session_id AS BLOB)),0)+coalesce(length(CAST(rendition_id AS BLOB)),0)+coalesce(length(CAST(name AS BLOB)),0)+coalesce(length(CAST(digest AS BLOB)),0)+coalesce(length(CAST(execution_id AS BLOB)),0)+coalesce(length(CAST(plan_digest AS BLOB)),0)+coalesce(length(CAST(status AS BLOB)),0)) VIRTUAL CHECK(variable_bytes IS NULL OR typeof(variable_bytes) IN('integer')),
+ PRIMARY KEY(session_id,rendition_id,segment_index,kind),
+ FOREIGN KEY(session_id,window_start,window_generation) REFERENCES playback_hls_windows(session_id,start_index,mp_execution_generation) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(session_id,rendition_id) REFERENCES mp_hls_renditions(session_id,rendition_id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK((kind=1 AND segment_index>=0 AND end_us>start_us AND decode_from_us<=start_us) OR (kind=2 AND segment_index=-1 AND start_us=0 AND end_us=0 AND decode_from_us=0))
+) WITHOUT ROWID;
+
+CREATE INDEX mp_hls_artifacts_window ON mp_hls_artifacts(session_id,window_start,window_generation,rendition_id,segment_index,kind);
+
+CREATE UNIQUE INDEX mp_guide_physical_occurrence ON playback_sessions(id,generation,mp_execution_id);
+
+CREATE TABLE mp_external_guide_pins(
+ media_session_id TEXT NOT NULL CHECK(typeof(media_session_id)='text' AND length(CAST(media_session_id AS BLOB)) BETWEEN 1 AND 128),
+ occurrence_generation INTEGER NOT NULL CHECK(typeof(occurrence_generation)='integer' AND occurrence_generation>0),
+ execution_id TEXT NOT NULL CHECK(typeof(execution_id)='text' AND length(CAST(execution_id AS BLOB)) BETWEEN 1 AND 512),
+ source_request_id TEXT NOT NULL CHECK(typeof(source_request_id)='text' AND length(CAST(source_request_id AS BLOB)) BETWEEN 1 AND 512),
+ captured_source_id TEXT NOT NULL CHECK(typeof(captured_source_id)='text' AND length(CAST(captured_source_id AS BLOB)) BETWEEN 1 AND 512),
+ captured_generation_id TEXT NOT NULL CHECK(typeof(captured_generation_id)='text' AND length(CAST(captured_generation_id AS BLOB)) BETWEEN 1 AND 512),
+ captured_channel_id TEXT NOT NULL CHECK(typeof(captured_channel_id)='text' AND length(CAST(captured_channel_id AS BLOB)) BETWEEN 1 AND 512),
+ captured_programme_id TEXT CHECK(captured_programme_id IS NULL OR (typeof(captured_programme_id)='text' AND length(CAST(captured_programme_id AS BLOB)) BETWEEN 1 AND 512)),
+ captured_ms INTEGER NOT NULL CHECK(typeof(captured_ms)='integer' AND captured_ms>0),
+ current_occurrence_generation INTEGER CHECK(current_occurrence_generation IS NULL OR typeof(current_occurrence_generation)='integer'),
+ current_execution_id TEXT CHECK(current_execution_id IS NULL OR typeof(current_execution_id)='text'),
+ current_source_id TEXT CHECK(current_source_id IS NULL OR typeof(current_source_id)='text'),
+ current_generation_id TEXT CHECK(current_generation_id IS NULL OR typeof(current_generation_id)='text'),
+ current_channel_id TEXT CHECK(current_channel_id IS NULL OR typeof(current_channel_id)='text'),
+ current_programme_id TEXT CHECK(current_programme_id IS NULL OR typeof(current_programme_id)='text'),
+ released_ms INTEGER NOT NULL DEFAULT 0 CHECK(typeof(released_ms)='integer' AND (released_ms=0 OR released_ms>=captured_ms)),
+ variable_bytes INTEGER GENERATED ALWAYS AS (length(CAST(media_session_id AS BLOB))+length(CAST(execution_id AS BLOB))+length(CAST(source_request_id AS BLOB))+length(CAST(captured_source_id AS BLOB))+length(CAST(captured_generation_id AS BLOB))+length(CAST(captured_channel_id AS BLOB))+coalesce(length(CAST(captured_programme_id AS BLOB)),0)+coalesce(length(CAST(current_execution_id AS BLOB)),0)+coalesce(length(CAST(current_source_id AS BLOB)),0)+coalesce(length(CAST(current_generation_id AS BLOB)),0)+coalesce(length(CAST(current_channel_id AS BLOB)),0)+coalesce(length(CAST(current_programme_id AS BLOB)),0)) VIRTUAL,
+ PRIMARY KEY(media_session_id,occurrence_generation,execution_id),
+ FOREIGN KEY(media_session_id) REFERENCES playback_sessions(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(media_session_id,current_occurrence_generation,current_execution_id) REFERENCES playback_sessions(id,generation,mp_execution_id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(current_generation_id,current_source_id) REFERENCES live_generations(id,source_id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(current_generation_id,current_channel_id) REFERENCES live_channel_versions(generation_id,channel_id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ FOREIGN KEY(current_generation_id,current_programme_id) REFERENCES live_programmes(generation_id,id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ CHECK((released_ms=0 AND current_occurrence_generation IS NOT NULL AND current_execution_id IS NOT NULL AND current_source_id IS NOT NULL AND current_generation_id IS NOT NULL AND current_channel_id IS NOT NULL AND current_occurrence_generation=occurrence_generation AND current_execution_id=execution_id AND current_source_id=captured_source_id AND current_generation_id=captured_generation_id AND current_channel_id=captured_channel_id AND current_programme_id IS captured_programme_id) OR (released_ms>0 AND current_occurrence_generation IS NULL AND current_execution_id IS NULL AND current_source_id IS NULL AND current_generation_id IS NULL AND current_channel_id IS NULL AND current_programme_id IS NULL))
+) WITHOUT ROWID;
+
+CREATE INDEX mp_guide_pin_current_execution ON mp_external_guide_pins(media_session_id,current_occurrence_generation,current_execution_id) WHERE current_execution_id IS NOT NULL;
+
+CREATE INDEX mp_guide_pin_current_generation_source ON mp_external_guide_pins(current_generation_id,current_source_id) WHERE current_generation_id IS NOT NULL;
+
+CREATE INDEX mp_guide_pin_current_channel ON mp_external_guide_pins(current_generation_id,current_channel_id) WHERE current_generation_id IS NOT NULL;
+
+CREATE INDEX mp_guide_pin_current_programme ON mp_external_guide_pins(current_generation_id,current_programme_id) WHERE current_programme_id IS NOT NULL;
+
+CREATE INDEX playback_v1_sessions_authority_account_id_active ON playback_v1_sessions(authority,account_id,id) WHERE ended_ms=0;
+
+CREATE INDEX playback_start_preparations_deadline ON playback_start_preparations(deadline_ms,id);
+
+CREATE TABLE personal_reading_resumes(
+ personal_item_id INTEGER NOT NULL REFERENCES personal_items(id) ON DELETE NO ACTION,
+ asset_id INTEGER NOT NULL CHECK(asset_id>0),
+ source_token TEXT NOT NULL CHECK(length(CAST(source_token AS BLOB)) BETWEEN 1 AND 512 AND instr(source_token,char(0))=0),
+ source_revision TEXT NOT NULL CHECK(length(CAST(source_revision AS BLOB))=64 AND source_revision NOT GLOB '*[^0-9a-f]*'),
+ format TEXT NOT NULL CHECK(format IN('epub','pdf','cbz','cb7','cbr')),
+ cfi TEXT,
+ section TEXT,
+ page_index INTEGER CHECK(page_index BETWEEN 0 AND 1000000),
+ progression REAL NOT NULL CHECK(progression BETWEEN 0 AND 1),
+ revision INTEGER NOT NULL CHECK(revision BETWEEN 1 AND 9007199254740991),
+ observed_ms INTEGER NOT NULL CHECK(observed_ms BETWEEN 0 AND 9999999999999),
+ variable_bytes INTEGER GENERATED ALWAYS AS (length(CAST(source_token AS BLOB))+length(CAST(source_revision AS BLOB))+length(CAST(format AS BLOB))+coalesce(length(CAST(cfi AS BLOB)),0)+coalesce(length(CAST(section AS BLOB)),0)) VIRTUAL,
+ PRIMARY KEY(personal_item_id,asset_id),
+ CHECK((format='epub' AND cfi IS NOT NULL AND length(CAST(cfi AS BLOB)) BETWEEN 1 AND 4096 AND page_index IS NULL AND (section IS NULL OR length(CAST(section AS BLOB))<=1024)) OR (format IN('pdf','cbz','cb7','cbr') AND cfi IS NULL AND section IS NULL AND page_index IS NOT NULL))
+) STRICT;
+
+CREATE INDEX personal_reading_resumes_latest ON personal_reading_resumes(personal_item_id,observed_ms DESC,asset_id DESC);
+
+CREATE TABLE user_mutation_reading_results(
+ receipt_key TEXT PRIMARY KEY REFERENCES user_mutation_receipts(key) ON DELETE NO ACTION,
+ command_kind INTEGER NOT NULL CHECK(command_kind IN(770,771)),
+ result_version INTEGER NOT NULL CHECK(result_version=1),
+ item_public_id BLOB NOT NULL CHECK(length(item_public_id)=16),
+ asset_id INTEGER CHECK(asset_id>0),
+ source_token TEXT,
+ source_revision TEXT,
+ format TEXT CHECK(format IN('epub','pdf','cbz','cb7','cbr')),
+ cfi TEXT,
+ section TEXT,
+ page_index INTEGER CHECK(page_index BETWEEN 0 AND 1000000),
+ progression REAL CHECK(progression BETWEEN 0 AND 1),
+ reading_revision INTEGER NOT NULL CHECK(reading_revision BETWEEN 0 AND 9007199254740991),
+ personal_revision INTEGER NOT NULL CHECK(personal_revision BETWEEN 0 AND 9007199254740991),
+ observed_ms INTEGER NOT NULL CHECK(observed_ms BETWEEN 0 AND 9999999999999),
+ accepted INTEGER NOT NULL CHECK(accepted IN(0,1)),
+ stale INTEGER NOT NULL CHECK(stale IN(0,1)),
+ cleared INTEGER NOT NULL CHECK(cleared IN(0,1)),
+ reason TEXT NOT NULL CHECK(length(CAST(reason AS BLOB))<=128 AND instr(reason,char(0))=0),
+ variable_bytes INTEGER GENERATED ALWAYS AS (length(CAST(receipt_key AS BLOB))+length(item_public_id)+coalesce(length(CAST(source_token AS BLOB)),0)+coalesce(length(CAST(source_revision AS BLOB)),0)+coalesce(length(CAST(format AS BLOB)),0)+coalesce(length(CAST(cfi AS BLOB)),0)+coalesce(length(CAST(section AS BLOB)),0)+length(CAST(reason AS BLOB))) VIRTUAL,
+ CHECK((format IS NULL AND asset_id IS NULL AND source_token IS NULL AND source_revision IS NULL AND cfi IS NULL AND section IS NULL AND page_index IS NULL AND progression IS NULL) OR (format IS NOT NULL AND asset_id IS NOT NULL AND source_token IS NOT NULL AND length(CAST(source_token AS BLOB)) BETWEEN 1 AND 512 AND instr(source_token,char(0))=0 AND source_revision IS NOT NULL AND length(CAST(source_revision AS BLOB))=64 AND source_revision NOT GLOB '*[^0-9a-f]*' AND progression IS NOT NULL AND ((format='epub' AND cfi IS NOT NULL AND length(CAST(cfi AS BLOB)) BETWEEN 1 AND 4096 AND page_index IS NULL AND (section IS NULL OR length(CAST(section AS BLOB))<=1024)) OR (format IN('pdf','cbz','cb7','cbr') AND cfi IS NULL AND section IS NULL AND page_index IS NOT NULL))))
+) STRICT;

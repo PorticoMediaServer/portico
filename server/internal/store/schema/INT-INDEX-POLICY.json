@@ -1357,6 +1357,90 @@
       "predicate": "ip_reclaim_operation_id IS NOT NULL",
       "choice": "repeat_exact_predicate",
       "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "mp_start_receipt_due",
+      "predicate": "mp_receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_physical_receipt_due",
+      "predicate": "mp_receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_session_receipt_due",
+      "predicate": "mp_receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_job_receipt_due",
+      "predicate": "mp_receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_version_receipt_due",
+      "predicate": "mp_receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_queue_receipt_due",
+      "predicate": "mp_receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_next_receipt_due",
+      "predicate": "mp_receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_job_custody_execution",
+      "predicate": "execution_id<>''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_version_custody_execution",
+      "predicate": "execution_id<>''",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_guide_pin_current_execution",
+      "predicate": "current_execution_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_guide_pin_current_generation_source",
+      "predicate": "current_generation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_guide_pin_current_channel",
+      "predicate": "current_generation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "mp_guide_pin_current_programme",
+      "predicate": "current_programme_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "playback_v1_sessions_authority_account_id_active",
+      "predicate": "ended_ms=0",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
     }
   ]
 }
