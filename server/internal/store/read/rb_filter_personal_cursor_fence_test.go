@@ -26,7 +26,7 @@ func TestRBPersonalTitleCursorWholeFence(t *testing.T) {
 					// unchanged, so a query-hash mismatch cannot conceal a missing fence.
 					f.exec(t, `UPDATE direct_memberships SET allowed_libraries='["movies"]',revision=revision+1 WHERE account_id='b'`)
 					f.exec(t, `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('device-q','b','installation-q','fixture','test','test','1','2026-11-05T00:00:00Z','2026-11-05T00:00:00Z')`)
-					f.exec(t, `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,command_member_incarnation,command_profile_lifetime,command_incarnation) SELECT 'family-q','s','b','q','local','member',1,'2026-11-07T00:00:00Z',1,'device-q',m.incarnation,p.lifetime,x'00800000000000000000000000000002' FROM direct_memberships AS m JOIN direct_profiles AS p ON p.account_id=m.account_id WHERE m.account_id='b' AND p.id='q'`)
+					f.exec(t, `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,command_member_incarnation,command_profile_lifetime,command_incarnation,security_kind) SELECT 'family-q','s','b','q','local','member',1,'2026-11-07T00:00:00Z',1,'device-q',m.incarnation,p.lifetime,x'00800000000000000000000000000002',0 FROM direct_memberships AS m JOIN direct_profiles AS p ON p.account_id=m.account_id WHERE m.account_id='b' AND p.id='q'`)
 					f.exec(t, `INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES('token-q','family-q',1,'2026-11-07T00:00:00Z')`)
 					in.View.TokenHash = "token-q"
 					fresh, _, err := rbPersonalWindowRead(t, f, in)
