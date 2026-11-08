@@ -160,7 +160,10 @@ def prepare(source, artifact, output, work, producer_run):
         actual = cmd(['git', 'rev-parse', 'HEAD'], source, 'actual-source').read_text().strip()
         q.require(actual == cfg['source'], 'source checkout mismatch')
         cmd(['git', 'fetch', '--no-tags', 'origin', 'refs/heads/main'], source, 'fetch-main')
-        cmd(['git', 'merge-base', '--is-ancestor', actual, 'FETCH_HEAD'], source, 'merged-source')
+        # SCREENING may use an unmerged draft; only qualification requires a
+        # merged ancestor. The receipt records the exact SHA and purpose.
+        if cfg['purpose'] != 'screening':
+            cmd(['git', 'merge-base', '--is-ancestor', actual, 'FETCH_HEAD'], source, 'merged-source')
         module = source / 'server'
         q.require(re.findall(r'^go\s+(\S+)\s*$', (module / 'go.mod').read_text(), re.M) == ['1.26.10'], 'Go pin drift')
         q.require(cmd(['go', 'version'], module, 'go-version').read_text().strip() == 'go version go1.26.10 linux/amd64', 'toolchain drift')

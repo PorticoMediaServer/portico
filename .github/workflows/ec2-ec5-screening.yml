@@ -35,6 +35,21 @@ on:
         default: standard
         type: choice
         options: [standard, legacy8]
+      cells:
+        description: Comma-separated EC cells to run
+        required: true
+        default: 'ec2,ec3-read,ec3-write,ec5-paired,ec5-sustained'
+        type: string
+      replicates:
+        description: Independent VMs per cell (1..6)
+        required: true
+        default: '1'
+        type: string
+      ec3_write_every:
+        description: EC3 foreground write offer cadence
+        required: true
+        default: 250ms
+        type: string
 permissions:
   contents: read
   actions: read
@@ -51,10 +66,18 @@ jobs:
         run: |
           set -euo pipefail
           python3 - "${{ inputs.profile }}" <<'PY'
-          import json, os, sys
+          import json, os, re, sys
           profile = sys.argv[1]
-          cells = ["ec2", "ec3-read", "ec3-write", "ec5-paired", "ec5-sustained"]
-          include = [{"cell": cell, "profile": "assigned" if cell.startswith("ec5") else profile} for cell in cells]
+          cells = [c for c in os.environ["CELLS"].split(",") if c]
+          known = ("ec2", "ec3-read", "ec3-write", "ec5-paired", "ec5-sustained")
+          if not cells or any(c not in known for c in cells):
+              raise SystemExit("closed cell list required")
+          if not re.fullmatch(r"[1-6]", os.environ["REPLICATES"]):
+              raise SystemExit("replicates must be 1..6")
+          include = []
+          for cell in cells:
+              for replicate in range(1, int(os.environ["REPLICATES"]) + 1):
+                  include.append({"cell": cell, "profile": "assigned" if cell.startswith("ec5") else profile, "replicate": replicate})
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
               handle.write("matrix=" + json.dumps({"include": include}) + "\n")
           PY
@@ -69,11 +92,15 @@ jobs:
     env:
       CELL: ${{ matrix.cell }}
       PROFILE: ${{ matrix.profile }}
+      REPLICATE: ${{ matrix.replicate }}
       INPUT_SOURCE_REF: ${{ inputs.source_ref }}
       INPUT_PRODUCER_RUN: ${{ inputs.producer_run }}
       INPUT_PRODUCER_ATTEMPT: ${{ inputs.producer_attempt }}
       INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
       INPUT_FIXTURES: ${{ inputs.fixtures }}
+      CELLS: ${{ inputs.cells }}
+      REPLICATES: ${{ inputs.replicates }}
+      EC3_WRITE_EVERY: ${{ inputs.ec3_write_every }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {path: tools, persist-credentials: false}
@@ -177,7 +204,7 @@ jobs:
           kernel = platform.release()
           out = pathlib.Path(os.environ["OUTPUT"])
           config = {
-              "run_id": f"screen-{os.environ['CELL']}-{os.environ['PROFILE']}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
+              "run_id": f"screen-{os.environ['CELL']}-{os.environ['PROFILE']}-{os.environ['REPLICATE']}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
               "host_epoch": f"{boot}-k{kernel}",
               "source_commit": source,
               "output_path": str((out / "raw.ndjson").resolve()),
@@ -218,7 +245,7 @@ jobs:
                     -ec2-sustained=true -ec2-writer-pattern=inventory -ec2-warmup=8
                     -ec2-cohort=timing -ec2-cadence=realistic)
               if [ "$CELL" = ec3-write ]; then
-                ARGS+=(-ec3-foreground-write-every=50ms -ec3-foreground-write-pattern=progress_capture,progress_drain,security)
+                ARGS+=(-ec3-foreground-write-every="$EC3_WRITE_EVERY" -ec3-foreground-write-pattern=progress_capture,progress_drain,security)
               fi
               set +e
               ( cd source/server/internal/store/writer && "$RUNNER_TEMP/writer.test" "${ARGS[@]}" ) > "$OUTPUT/target.log" 2>&1
@@ -254,7 +281,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: screening-${{ matrix.cell }}-${{ matrix.profile }}
+          name: screening-${{ matrix.cell }}-${{ matrix.profile }}-${{ matrix.replicate }}
           path: ${{ runner.temp }}/screening/
           compression-level: 1
           retention-days: 14
