@@ -28,7 +28,11 @@ func inventoryN1Forecast(registration stmt.Receipt, engine sqliteconn.EngineIden
 	p := effectivePlan{
 		registration: registration,
 		recipe: turnRecipe{
-			limit:    Work{16384, 131072, 16384, 32 << 20, 25 * time.Millisecond},
+			// Hold is the shared 25ms admission/quantum TARGET (MaxCommandHold),
+			// never an elapsed-time abort: a slow success stays a success and
+			// only reports HoldTargetExceeded. Runtime failure and fencing use
+			// MaxCommandSafetyHold (3s) and the original caller deadlines.
+			limit:    Work{16384, 131072, 16384, 32 << 20, MaxCommandHold},
 			setup:    Work{32, 1024, 32, 65536, time.Millisecond},
 			terminal: Work{32, 1024, 512, 2 << 20, 8 * time.Millisecond},
 		},
