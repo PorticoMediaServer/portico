@@ -40,6 +40,15 @@ MAX_FILES = 400000
 HEADROOM_BYTES = 4 << 30
 BANDWIDTH_BYTES = 50_000_000
 IOPS = 80
+# governor.Phase1aWALPolicy(): the ONE adopted phase 1a policy. Formal
+# qualification requires the harness report to carry exactly these values.
+QUALIFICATION_WAL_POLICY = {
+    "hard_bytes": 512 << 20,
+    "reserve_bytes": 64 << 20,
+    "soft_debt_bytes": 64 << 20,
+    "active_pressure_bytes": 256 << 20,
+    "concurrent_passive": True,
+}
 
 
 def utc_now() -> str:
@@ -476,12 +485,19 @@ def ensure_qualification_source(source: Path, git: dict, source_ref: str) -> Non
         raise RuntimeError(f"qualification requested {source_ref} but checkout is {git['actual_sha']}")
     if git["dirty"]:
         raise RuntimeError("qualification requires a clean source tree")
-    fetch = run_capture(["git", "-C", str(source), "fetch", "--no-tags", "--depth=1", "origin", "main"], timeout=120)
+    fetch = run_capture(["git", "-C", str(source), "fetch", "--no-tags", "origin", "main"], timeout=300)
     if fetch.returncode != 0:
         raise RuntimeError("qualification could not fetch origin/main: " + (fetch.stderr or "").strip()[:4096])
     ancestor = run_capture(["git", "-C", str(source), "merge-base", "--is-ancestor", git["actual_sha"], "FETCH_HEAD"], timeout=60)
     if ancestor.returncode != 0:
         raise RuntimeError("qualification source SHA is not an ancestor of origin/main")
+
+
+def qualification_policy_matches(report_data: dict, qualification: bool) -> bool:
+    """The report's actual WAL policy must be Phase1a iff this is a qualification run."""
+    policy = report_data.get("WALPolicy") or {}
+    adopted = all(policy.get(key) == value for key, value in QUALIFICATION_WAL_POLICY.items())
+    return adopted if qualification else not adopted
 
 
 def main(argv: list[str]) -> int:
@@ -544,9 +560,7 @@ def main(argv: list[str]) -> int:
                 "clean": not git["dirty"],
                 "ancestor_of_origin_main": True,
                 "wal_policy_source": "governor.Phase1aWALPolicy",
-                "wal_policy": {"hard_bytes": 512 << 20, "reserve_bytes": 64 << 20,
-                               "soft_debt_bytes": 64 << 20, "active_pressure_bytes": 256 << 20,
-                               "concurrent_passive": True, "checkpoint_max_hold_seconds": 5},
+                "wal_policy": {k: v for k, v in QUALIFICATION_WAL_POLICY.items()} | {"checkpoint_max_hold_seconds": 5},
                 "io_profile": {"limited": args.cell == "throttled-hdd",
                                "read_bandwidth_bytes_per_second": BANDWIDTH_BYTES, "read_iops": IOPS},
                 "io_profile_reason": "io.max bounds media reads on the same root device; it stands in for a slow consumer HDD and is not physical seek geometry, DB-on-SSD placement or a cold-cache claim",
@@ -720,15 +734,21 @@ def main(argv: list[str]) -> int:
                 state["status"] = "failed"
                 state["errors"].append(f"unreadable report.json: {exc}")
             else:
+                policy = report_data.get("WALPolicy") or {}
                 if str(report_data.get("label", "")) != state["label"] or bool(report_data.get("qualification")) != qualification:
                     state["status"] = "failed"
                     state["errors"].append(
                         f"report label/qualification mismatch: {report_data.get('label')!r}/{report_data.get('qualification')!r}")
+                elif not qualification_policy_matches(report_data, qualification):
+                    state["status"] = "failed"
+                    reason = ("qualification report WALPolicy is not governor.Phase1aWALPolicy"
+                              if qualification else "screening report used the adopted Phase1a WAL policy; labels would drift")
+                    state["errors"].append(f"{reason}: {policy!r}")
                 else:
                     state["status"] = "passed"
                     state["report_label"] = report_data.get("label")
                     state["report_qualification"] = report_data.get("qualification")
-                    state["wal_policy"] = report_data.get("WALPolicy")
+                    state["wal_policy"] = policy
         state["finished_at"] = utc_now()
         write_json(launcher_path, state)
         return 0 if state["status"] == "passed" else 1

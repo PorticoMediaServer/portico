@@ -484,6 +484,7 @@ func TestEC4NativeScreening(t *testing.T) {
 	label := "SCREENING"
 	missing := []string{
 		"Basic readiness null: no end-to-end Basic producer exists; the lock row derives it from the qualified Basic write class times the population",
+		"folder completion timing awaits the SC harness binding",
 		"sparse metadata fixture, not media-read qualification",
 		"generated directory metadata is warm; applied io.max is not cold-HDD qualification",
 		"single-writer isolated browse observation; formal current asset/info_epoch witness not claimed",
