@@ -24,7 +24,6 @@ type basicLeafTechnicalAfter struct {
 	scalarChanged, aggregateChanged bool
 }
 
-
 // FIRST is an additive acceptance of an as-yet-unaccepted native link. Its
 // actual target may extend a MAX; this is not a maximum-removal/replacement
 // recipe. An already accepted link requires that separate bounded protocol.
@@ -48,9 +47,10 @@ func projectBasicFirstLeafTechnical(before basicLeafTechnicalBefore, link basicF
 	if before.resolution.Valid {
 		expectedResolution = before.resolution.Int64
 	}
-	// The entity key is either the stored scalar value or the zero default for
-	// an absent scalar. A NULL key is the RB unknown cohort: it is consistent
-	// only when the scalar is absent too, and it becomes a value on this write.
+	// The entity key is either the stored scalar value or the 0 the fresh layer
+	// writes for an absent scalar. A NULL key is the RB unknown cohort: it is
+	// consistent only when the scalar is absent too, and it becomes a value on
+	// this write.
 	switch {
 	case before.resolutionKey.Valid:
 		if before.resolutionKey.Int64 != expectedResolution {
@@ -70,7 +70,7 @@ func projectBasicFirstLeafTechnical(before basicLeafTechnicalBefore, link basicF
 		next.resolution = sql.NullInt64{Int64: height, Valid: true}
 	}
 	next.durationKey = next.duration.Float64
-	next.resolutionKey = sql.NullInt64{Int64: next.resolution.Int64, Valid: next.resolution.Valid}
+	next.resolutionKey = sql.NullInt64{Int64: next.resolution.Int64, Valid: true}
 	next.scalarChanged = next.duration != before.duration || next.resolution != before.resolution
 	next.aggregateChanged = next.durationKey != before.durationKey || next.resolutionKey != before.resolutionKey
 	if next.scalarChanged {
