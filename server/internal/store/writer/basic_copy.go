@@ -87,6 +87,12 @@ func (c basicCopyTurn) headerArgs() []any {
 	return append(args, c.shapeID)
 }
 
+// A key collision on a copy INSERT means the staged identity already belongs
+// to a different canonical row: a typed conflict, never a raw driver error.
+func basicCopyInsertError(err error) error {
+	return basicStreamFactInsertError(basicStageError(err))
+}
+
 // checkBasicCopyEntry proves the input is in the copy phase at exactly the
 // requested entry cursor. Every copy family body calls this first.
 func checkBasicCopyEntry(ctx context.Context, turn *commandTurn, c basicCopyTurn) (err error) {

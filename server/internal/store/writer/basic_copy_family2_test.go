@@ -89,3 +89,49 @@ func TestBasicCopyFamily2StreamsDispatch(t *testing.T) {
 		t.Fatal("refusal moved the change", revision, err)
 	}
 }
+
+// Nine staged streams and nineteen canonical keys span the install checkpoint
+// and every cleanup page, each turn entering at the previous actual cursor.
+func TestBasicCopyFamily2AcrossTurns(t *testing.T) {
+	w, e, authority, s, original, identity := basicControlDispatchFixture(t)
+	seedBasicFirstOrdinaryOwner(t, e)
+	seedBasicCopy2First(t, e, 2, 2, basicCopyCursor{family: 2})
+	for _, q := range []string{
+		`INSERT INTO asset_stream_facts(asset_id,revision,size,modified_ns,fingerprint,detail_version) VALUES('basic-asset',31,42,-11,'probe-fingerprint',1)`,
+		`INSERT INTO catalog_info_new_stream_facts(change_id,input_ordinal,asset_id,revision,size,modified_ns,fingerprint,detail_version) VALUES(51,0,'basic-asset',31,42,-11,'probe-fingerprint',1)`,
+	} {
+		if _, err := e.db.ExecContext(t.Context(), q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	for n := 0; n < 9; n++ {
+		if _, err := e.db.ExecContext(t.Context(), `INSERT INTO catalog_info_new_streams(change_id,input_ordinal,asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced,color_transfer,color_primaries,detail_json) VALUES(51,?,'basic-asset',?,'audio','aac','','Staged',2,'stereo',0,0,'','','')`, n, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for n := 20; n < 30; n++ {
+		if _, err := e.db.ExecContext(t.Context(), `INSERT INTO asset_streams(asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced,color_transfer,color_primaries,detail_json) VALUES('basic-asset',?,'audio','ac3','','Obsolete',2,'stereo',0,0,'','','')`, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	chain := &basicControlChain{t: t, w: w, original: original, identity: identity}
+	entry, revision := basicCopyCursor{family: 2}, int64(2)
+	for n, want := range []BasicContinuation{
+		{NextFamily: 2, NextCopyID: 7, AfterEntity: 31},
+		{NextFamily: 2, NextCopyPhase: 1, AfterEntity: 31},
+		{NextFamily: 2, NextCopyPhase: 1, NextCopyID: 7, NextCopyAux: 1, AfterEntity: 31},
+		{NextFamily: 2, NextCopyPhase: 1, NextCopyID: 26, NextCopyAux: 1, AfterEntity: 31},
+		{NextFamily: 3, AfterEntity: 31},
+	} {
+		got, err := chain.stage(basicCopyFamilyRequest(s, 2, revision, entry))
+		if err != nil || got.Continuation != want {
+			t.Fatal("family-2 turn", n, got.Continuation, err)
+		}
+		entry, revision = basicCopyCursor{family: 2, phase: want.NextCopyPhase, id: want.NextCopyID, aux: want.NextCopyAux}, revision+1
+	}
+	basicDispatchReturned(t, e, authority)
+	var installed, obsolete int64
+	if err := e.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM asset_streams WHERE asset_id='basic-asset' AND codec='aac'),(SELECT count(*) FROM asset_streams WHERE asset_id='basic-asset' AND codec='ac3')`).Scan(&installed, &obsolete); err != nil || installed != 9 || obsolete != 0 {
+		t.Fatal("family-2 population", installed, obsolete, err)
+	}
+}

@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -68,5 +69,32 @@ func TestBasicCopyFamily7Dispatch(t *testing.T) {
 	}
 	if phase, family, _, _, _, _, _, _, revision, _, _, _ := readBasicCopyState(t, e); phase != 2 || family != 8 || revision != 6 {
 		t.Fatal("refused family-7 replay moved the change", phase, family, revision)
+	}
+}
+
+// A staged id already held by a sidecar at another path is a typed conflict.
+func TestBasicCopyFamily7RefusesStagedIDHeldByAnotherPath(t *testing.T) {
+	w, e, authority, s, original, identity := basicControlDispatchFixture(t)
+	seedBasicFirstOrdinaryOwner(t, e)
+	seedBasicCopyHeader(t, e, 7, 4)
+	for _, q := range []string{
+		`INSERT INTO catalog_info_new_subtitle_sidecars(change_id,input_ordinal,id,path,size,modified_ns,digest) VALUES(51,0,'sidecar-1','/media/Arrival.srt',30,-7,'sidecar:30')`,
+		`INSERT INTO subtitle_sidecars(id,path,size,modified_ns,digest) VALUES('sidecar-1','/media/Other.srt',11,-1,'other')`,
+	} {
+		if _, err := e.db.ExecContext(t.Context(), q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	chain := &basicControlChain{t: t, w: w, original: original, identity: identity}
+	if _, err := chain.stage(basicCopyFamilyRequest(s, 7, 4, basicCopyCursor{family: 7})); !errors.Is(err, ErrConflict) {
+		t.Fatal("colliding staged id was not refused", err)
+	}
+	basicDispatchReturned(t, e, authority)
+	var rows int64
+	if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM subtitle_sidecars`).Scan(&rows); err != nil || rows != 1 {
+		t.Fatal("refused family-7 install wrote a sidecar", rows, err)
+	}
+	if phase, family, _, _, _, _, _, _, revision, _, _, _ := readBasicCopyState(t, e); phase != 2 || family != 7 || revision != 4 {
+		t.Fatal("refused family-7 install moved the change", phase, family, revision)
 	}
 }

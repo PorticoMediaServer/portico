@@ -132,11 +132,11 @@ func installBasicCopyFamily8(ctx context.Context, turn *commandTurn, c basicCopy
 				staged.streamIndex, nullableSidecar(staged.sidecar), staged.format, staged.language, staged.title,
 				staged.isDefault, staged.isForced, staged.reason, staged.hearingImpaired)
 			if err != nil {
-				return basicCopyCursor{}, err
+				return basicCopyCursor{}, basicCopyInsertError(err)
 			}
 			if err = row.Scan(&got.id, &gotAsset, &got.origin, &got.locator, &got.streamIndex, &got.sidecar, &got.format, &got.language,
 				&got.title, &got.isDefault, &got.isForced, &got.reason, &got.hearingImpaired); err != nil {
-				return basicCopyCursor{}, basicStageError(err)
+				return basicCopyCursor{}, basicCopyInsertError(err)
 			}
 			if got.id != staged.id {
 				return basicCopyCursor{}, ErrConflict

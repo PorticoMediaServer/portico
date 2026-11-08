@@ -138,4 +138,94 @@ func TestBasicCopyFamily8Dispatch(t *testing.T) {
 			t.Fatal("refused family-8 install moved the change", phase, family, after, revision)
 		}
 	})
+
+	seedFact := func(t *testing.T, e *executor) {
+		t.Helper()
+		for _, q := range []string{
+			`INSERT INTO asset_subtitle_facts(asset_id,revision,size,modified_ns,origin_us,timing_known,status,fingerprint) VALUES('basic-asset',31,42,-11,0,1,'known','subtitles:31')`,
+			`INSERT INTO catalog_info_new_subtitle_facts(change_id,input_ordinal,asset_id,revision,size,modified_ns,origin_us,timing_known,status,fingerprint) VALUES(51,0,'basic-asset',31,42,-11,0,1,'known','subtitles:31')`,
+		} {
+			if _, err := e.db.ExecContext(t.Context(), q); err != nil {
+				t.Fatal(q, err)
+			}
+		}
+	}
+	stageTrack := func(t *testing.T, e *executor, ordinal int, id, origin, locator string, sidecar any) {
+		t.Helper()
+		index := 1
+		if origin == "sidecar" {
+			index = -1
+		}
+		if _, err := e.db.ExecContext(t.Context(), `INSERT INTO catalog_info_new_subtitles(change_id,input_ordinal,id,asset_id,origin,locator,stream_index,sidecar_id,format,language,title,is_default,is_forced,reason,hearing_impaired) VALUES(51,?,?,'basic-asset',?,?,?,?,'subrip','en','Track',0,0,'',0)`, ordinal, id, origin, locator, index, sidecar); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("install_continues_past_eight_rows", func(t *testing.T) {
+		w, e, authority, s, original, identity := basicControlDispatchFixture(t)
+		seedBasicFirstOrdinaryOwner(t, e)
+		seedBasicCopyHeader(t, e, 8, 4)
+		seedFact(t, e)
+		for n := 0; n < 9; n++ {
+			stageTrack(t, e, n, fmt.Sprintf("track-%d", n), "embedded", fmt.Sprint(n), nil)
+		}
+		chain := &basicControlChain{t: t, w: w, original: original, identity: identity}
+		got, err := chain.stage(basicCopyFamilyRequest(s, 8, 4, basicCopyCursor{family: 8}))
+		if err != nil || got.Continuation != (BasicContinuation{NextFamily: 8, NextCopyID: 7, AfterEntity: 31}) {
+			t.Fatal("family-8 first install turn", got, err)
+		}
+		var rows int64
+		if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM asset_subtitles WHERE asset_id='basic-asset'`).Scan(&rows); err != nil || rows != 8 {
+			t.Fatal("family-8 first install bound", rows, err)
+		}
+		got, err = chain.stage(basicCopyFamilyRequest(s, 8, 5, basicCopyCursor{family: 8, id: 7}))
+		if err != nil || got.Continuation != (BasicContinuation{NextFamily: 8, NextCopyPhase: 1, AfterEntity: 31}) {
+			t.Fatal("family-8 install remainder", got, err)
+		}
+		basicDispatchReturned(t, e, authority)
+		if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM asset_subtitles WHERE asset_id='basic-asset'`).Scan(&rows); err != nil || rows != 9 {
+			t.Fatal("family-8 installed population", rows, err)
+		}
+	})
+
+	refused := func(t *testing.T, seed func(*executor), want error) {
+		t.Helper()
+		w, e, authority, s, original, identity := basicControlDispatchFixture(t)
+		seedBasicFirstOrdinaryOwner(t, e)
+		seedBasicCopyHeader(t, e, 8, 4)
+		seedFact(t, e)
+		seed(e)
+		var before int64
+		if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM asset_subtitles`).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		chain := &basicControlChain{t: t, w: w, original: original, identity: identity}
+		if _, err := chain.stage(basicCopyFamilyRequest(s, 8, 4, basicCopyCursor{family: 8})); !errors.Is(err, want) {
+			t.Fatal("family-8 install was not refused", err)
+		}
+		basicDispatchReturned(t, e, authority)
+		var rows int64
+		if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM asset_subtitles`).Scan(&rows); err != nil || rows != before {
+			t.Fatal("refused family-8 install wrote tracks", rows, before, err)
+		}
+		if phase, family, _, _, _, _, _, _, revision, _, _, _ := readBasicCopyState(t, e); phase != 2 || family != 8 || revision != 4 {
+			t.Fatal("refused family-8 install moved the change", phase, family, revision)
+		}
+	}
+	t.Run("sidecar_track_without_canonical_sidecar", func(t *testing.T) {
+		refused(t, func(e *executor) {
+			if _, err := e.db.ExecContext(t.Context(), `INSERT INTO catalog_info_new_subtitle_sidecars(change_id,input_ordinal,id,path,size,modified_ns,digest) VALUES(51,0,'sidecar-1','/media/Arrival.srt',30,-7,'sidecar:30')`); err != nil {
+				t.Fatal(err)
+			}
+			stageTrack(t, e, 0, "track-0", "sidecar", "/media/Arrival.srt", "sidecar-1")
+		}, ErrConflict)
+	})
+	t.Run("staged_id_held_by_another_canonical_track", func(t *testing.T) {
+		refused(t, func(e *executor) {
+			if _, err := e.db.ExecContext(t.Context(), `INSERT INTO asset_subtitles(id,asset_id,origin,locator,stream_index,sidecar_id,format,language,title,is_default,is_forced,reason,hearing_impaired) VALUES('track-0','basic-asset','embedded','other',1,NULL,'subrip','en','Other',0,0,'',0)`); err != nil {
+				t.Fatal(err)
+			}
+			stageTrack(t, e, 0, "track-0", "embedded", "2", nil)
+		}, ErrConflict)
+	})
 }
