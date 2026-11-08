@@ -107,7 +107,7 @@ func RSAlbumProviderDefinitions() []stmt.Definition {
 		{"first_type", rsAlbumProviderFirstTypeSQL, true, false}, {"next_type", rsAlbumProviderNextTypeSQL, true, true}, {"type", rsAlbumProviderTypeSQL, true, false}, {"type_octets", rsAlbumProviderTypeOctetsSQL, true, false},
 	} {
 		params := []stmt.Param{{Name: "album", Type: stmt.Integer}, {Name: "library", Type: stmt.Integer}}
-		present := []any{int64(3001), int64(1)}
+		present := []any{int64(2001), int64(1)}
 		empty := []any{int64(999999), int64(1)}
 		plan := stmt.Plan{Hot: true, PrimaryKeys: []string{"e", "p", "pol", "pr", "rt", "subj", "proof"}, Indexes: []string{auto[0].Name, auto[1].Name, auto[2].Name}, AutoIndexes: auto}
 		if v.name == "state" || v.name == "header" || v.name == "header_octets" {
