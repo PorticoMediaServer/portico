@@ -73,10 +73,13 @@ func savedViewPersonalKey(f browseFence) (string, error) {
 	}
 	return "viewer:" + base64.RawURLEncoding.EncodeToString(raw), nil
 }
-func (s *savedViewSession) directoryFrame(q browseQuery, in BrowseInput) (savedViewDirectoryFrame, error) {
+func (s *savedViewSession) directoryFrame(q browseQuery, in BrowseInput, principal *publicationPrincipalPin) (savedViewDirectoryFrame, error) {
 	var frame savedViewDirectoryFrame
 	f, e := readSavedViewPrincipal(q, s.input(in))
 	if e != nil {
+		return frame, e
+	}
+	if e = principal.observe(f); e != nil {
 		return frame, e
 	}
 	frame.fence = f
@@ -282,10 +285,15 @@ func (r *SavedViewReader) Directory(ctx context.Context, request governor.Reques
 		if e != nil {
 			return SavedViewDirectoryPage{}, BrowseReadResult{}, e
 		}
+		var principal publicationPrincipalPin
 		for attempt := 0; attempt < 2; attempt++ {
 			s.cost.Attempts = attempt + 1
 			var initial savedViewDirectoryFrame
-			e = s.window(false, savedViewDirectoryQueries, func(q browseQuery) error { var e error; initial, e = s.directoryFrame(q, in.View); return e })
+			e = s.window(false, savedViewDirectoryQueries, func(q browseQuery) error {
+				var e error
+				initial, e = s.directoryFrame(q, in.View, &principal)
+				return e
+			})
 			if e == nil {
 				var page SavedViewDirectoryPage
 				nameBytes := int64(0)
@@ -297,7 +305,7 @@ func (r *SavedViewReader) Directory(ctx context.Context, request governor.Reques
 				}
 				prior := e
 				final := s.window(true, savedViewDirectoryQueries, func(q browseQuery) error {
-					current, e := s.directoryFrame(q, in.View)
+					current, e := s.directoryFrame(q, in.View, &principal)
 					if e != nil {
 						return e
 					}

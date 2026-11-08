@@ -255,9 +255,16 @@ func homeManifestLibraryRead(s *savedViewSession, q browseQuery, f browseFence, 
 	return fact, out, nil
 }
 func homeManifestFrameRead(s *savedViewSession, q browseQuery, in BrowseInput) (homeManifestFrame, error) {
+	var principal publicationPrincipalPin
+	return homeManifestPinnedFrameRead(s, q, in, &principal)
+}
+func homeManifestPinnedFrameRead(s *savedViewSession, q browseQuery, in BrowseInput, principal *publicationPrincipalPin) (homeManifestFrame, error) {
 	var frame homeManifestFrame
 	f, e := readHomeManifestPrincipal(q, s.input(in))
 	if e != nil {
+		return frame, e
+	}
+	if e = principal.observe(f); e != nil {
 		return frame, e
 	}
 	frame.Principal = f
@@ -400,10 +407,15 @@ func (r *HomeManifestReader) Read(ctx context.Context, request governor.Request,
 		if e = s.reserve(1 << 20); e != nil {
 			return HomeManifestDocument{}, s.result(), e
 		}
+		var principal publicationPrincipalPin
 		for attempt := 0; attempt < 2; attempt++ {
 			s.cost.Attempts = attempt + 1
 			var first homeManifestFrame
-			e = s.window(false, homeManifestQueries, func(q browseQuery) error { var e error; first, e = homeManifestFrameRead(s, q, in.View); return e })
+			e = s.window(false, homeManifestQueries, func(q browseQuery) error {
+				var e error
+				first, e = homeManifestPinnedFrameRead(s, q, in.View, &principal)
+				return e
+			})
 			if e == nil {
 				var doc HomeManifestDocument
 				if e = s.reserve(2048 * int64(12+len(first.ViewDescriptors))); e == nil {
@@ -411,7 +423,7 @@ func (r *HomeManifestReader) Read(ctx context.Context, request governor.Request,
 				}
 				prior := e
 				final := s.window(true, homeManifestQueries, func(q browseQuery) error {
-					now, e := homeManifestFrameRead(s, q, in.View)
+					now, e := homeManifestPinnedFrameRead(s, q, in.View, &principal)
 					if e != nil {
 						return e
 					}
