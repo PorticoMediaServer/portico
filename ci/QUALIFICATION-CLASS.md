@@ -217,3 +217,12 @@ record separates measured file/width counts from warmup. It measures held-comman
 cost over trusted native observation fixtures. Physical-filesystem EC4 throughput
 and paired EC3 foreground write-wait are separate evidence; this target reports
 those as unavailable rather than inferring a pass from scan hold times.
+
+The batch owner's `final.target` declares this cell's result using the reviewed
+per-host rule in `qual.EvaluateHostedHolds`, separately for measured ACCEPT,
+RESOLVE and ACK. Every role needs exactly 10,000 complete positive holds; warmup
+is excluded. A short population emits a null flag; a failed owner/cleanup,
+invalid or extra population, or a p99 U95 above 10 ms emits false. The generic
+owner-target transport writes that declaration to `target.json`; the roll-up
+still verifies three distinct VM identities and the median-split rule. This
+flag covers hosted holds only; it does not qualify quiet maximum or EC3.

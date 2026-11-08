@@ -36,6 +36,7 @@ type canonicalBatchComponent struct {
 	measured                      bool
 	measuredFiles                 int
 	measuredWidths                map[int]int
+	measuredHolds                 map[string][]time.Duration
 }
 
 // Reuse the N1 seed, complete native composition, resource owner and funded
@@ -86,7 +87,7 @@ func newCanonicalBatchComponent(t *testing.T, stream *n1Stream, canonical, measu
 		t.Fatal("batch class changed adopted WAL policy")
 	}
 	trace.useRegistry(d.writer.effective.registry)
-	c := &canonicalBatchComponent{driver: d, transport: transport, keeper: m, trace: trace, stream: stream, widths: map[int]int{}, measuredWidths: map[int]int{}, measured: measured}
+	c := &canonicalBatchComponent{driver: d, transport: transport, keeper: m, trace: trace, stream: stream, widths: map[int]int{}, measuredWidths: map[int]int{}, measuredHolds: map[string][]time.Duration{}, measured: measured}
 	create, err := d.PrepareCreate(t.Context(), ScanRunInput{7, "qualification-movies", "canonical-batch-source", "first-import"})
 	if err != nil {
 		t.Fatal(err)
@@ -236,6 +237,9 @@ func (c *canonicalBatchComponent) action(t *testing.T, ctx context.Context, ordi
 		if c.measured && (evidence == nil || evidence.Purpose != InventoryAccept || evidence.Class != governor.ScanMinimum || evidence.Durability != Normal || evidence.Policy == nil || evidence.Commit != CommitSucceeded || clock.HoldNS == nil || *clock.HoldNS <= 0) {
 			callErr = errors.Join(callErr, errors.New("batch physical evidence missing"))
 		}
+		if population == "measured" && callErr == nil && clock != nil && clock.HoldNS != nil {
+			c.measuredHolds[role] = append(c.measuredHolds[role], time.Duration(*clock.HoldNS))
+		}
 		var window *n1OwnerWindow
 		if view, ok := c.driver.opening.executor.lastOwnerWindow(); ok {
 			window = n1BindOwnerWindowForPurpose(view, c.stream.origin, start, returned, InventoryAccept)
@@ -301,7 +305,9 @@ func runCanonicalHeldBatch(t *testing.T, ctx context.Context, cfg canonicalHeldC
 		if usage := c.driver.writer.effective.authority.Usage(); usage != ([4]governor.Amounts{}) {
 			primary = errors.Join(primary, errors.New("batch shutdown retained custody"))
 		}
-		primary = errors.Join(primary, stream.append("final", map[string]any{"complete": primary == nil && c.accepted == cfg.Attempts+canonicalN1Warmup && c.acked == c.accepted, "recipe": canonicalBatchRecipe, "fresh_batches": c.accepted, "files": c.measuredFiles, "width_distribution": c.measuredWidths, "all_files_including_warmup": c.files, "all_widths_including_warmup": c.widths, "calls": c.calls, "elapsed_ns": time.Since(started).Nanoseconds(), "foreground_write_wait_ns": nil, "foreground_unavailable_reason": "this normal-command class target does not compose EC3 foreground offers; paired EC3 remains separate", "physical_filesystem_scan": false, "qualification": false, "error": checkpointError(primary)}))
+		complete := primary == nil && c.accepted == cfg.Attempts+canonicalN1Warmup && c.acked == c.accepted
+		target := canonicalBatchOwnerTarget(complete, cfg.HostEpoch, c.measuredHolds)
+		primary = errors.Join(primary, stream.append("final", map[string]any{"complete": complete, "target": target, "recipe": canonicalBatchRecipe, "fresh_batches": c.accepted, "files": c.measuredFiles, "width_distribution": c.measuredWidths, "all_files_including_warmup": c.files, "all_widths_including_warmup": c.widths, "calls": c.calls, "elapsed_ns": time.Since(started).Nanoseconds(), "foreground_write_wait_ns": nil, "foreground_unavailable_reason": "this normal-command class target does not compose EC3 foreground offers; paired EC3 remains separate", "physical_filesystem_scan": false, "qualification": false, "error": checkpointError(primary)}))
 	}()
 	for n := 0; n < cfg.Attempts+canonicalN1Warmup; n++ {
 		if n == canonicalN1Warmup {
@@ -347,6 +353,9 @@ func TestCanonicalBatchPublicDriverAction(t *testing.T) {
 	}
 	if c.accepted != 3 || c.acked != 3 || c.files < 3 {
 		t.Fatal("incomplete batch action")
+	}
+	if len(c.measuredHolds) != 0 {
+		t.Fatal("control population entered the measured hold census")
 	}
 	if err := c.driver.Close(context.Background()); err != nil {
 		t.Fatal(err)
