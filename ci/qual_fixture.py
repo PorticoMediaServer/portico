@@ -13,6 +13,7 @@ import subprocess
 
 VERSION = 'portico-qualification-population-v1'
 SHAPE = 'canonical-movies-v1'
+SEARCH_SHAPE = 'canonical-movies-v1-search'
 GO = 'go1.26.10'
 ENGINE = '3.53.4'
 MAX_IMAGE = 8 << 30
@@ -23,6 +24,12 @@ MANIFEST_KEYS = set(('version source_commit schema_sha256 engine engine_source '
                      'database_bytes facts').split())
 FACT_KEYS = set(('version seed residents library_id library_key first_id last_id '
                  'counts logical_sha256').split())
+SEARCH_FACT_KEYS = FACT_KEYS | set(('search_bank statistics search_bank_integrity '
+                                    'search_bank_foreign_keys').split())
+SEARCH_BANK_KEYS = set(('version profile entities people credits search_publications '
+                        'search_publish_jobs search_fragments prepared_bytes '
+                        'search_own_prefix_docsize search_image_seals logical_sha256 '
+                        'statistics').split())
 
 
 def require(ok, message):
@@ -38,6 +45,11 @@ def uint(value, low, high, name):
 
 def bounded_int(value, low, high):
     return type(value) is int and low <= value <= high
+
+
+def search_bank(value):
+    require(value in ('true', 'false', ''), 'search_bank must be true or false')
+    return value == 'true'
 
 
 def source_ref(value):
@@ -60,7 +72,8 @@ def inputs(env):
     return dict(fetch_ref=source_ref(env.get('INPUT_SOURCE_REF', '')),
                 purpose=purpose, seed=uint(env.get('INPUT_SEED', '0'), 0, 2**32-1, 'seed'),
                 residents=uint(env.get('INPUT_RESIDENTS', '1000000'), 1, 1000000, 'residents'),
-                timeout_minutes=uint(env.get('INPUT_TIMEOUT_MINUTES', '60'), 1, 90, 'timeout'))
+                timeout_minutes=uint(env.get('INPUT_TIMEOUT_MINUTES', '60'), 1, 90, 'timeout'),
+                search_bank=search_bank(env.get('INPUT_SEARCH_BANK', 'false')))
 
 
 def file_hash(path):
@@ -96,7 +109,7 @@ def regular(path, maximum):
     return info.st_size
 
 
-def validate_artifact(directory, *, source, schema, seed, residents, manifest_sha=None):
+def validate_artifact(directory, *, source, schema, seed, residents, manifest_sha=None, search=False):
     """Validate bytes without opening SQLite or changing caller authority.
 
     The v1 envelope and facts are closed. counts is a source-owned table-name
@@ -139,8 +152,8 @@ def validate_artifact(directory, *, source, schema, seed, residents, manifest_sh
         require(all(type(x) is int and x == 0 for x in p['ReadLimits'].values()),
                 'unexpected writer read limits')
     f = m['facts']
-    closed_object(f, FACT_KEYS, 'facts')
-    require(f['version'] == SHAPE and bounded_int(f['seed'], 0, 2**32-1)
+    closed_object(f, SEARCH_FACT_KEYS if search else FACT_KEYS, 'facts')
+    require(f['version'] == (SEARCH_SHAPE if search else SHAPE) and bounded_int(f['seed'], 0, 2**32-1)
             and f['seed'] == seed and bounded_int(f['residents'], 1, 1000000)
             and f['residents'] == residents and type(f['library_id']) is int
             and f['library_id'] == 7 and f['library_key'] == 'qualification-movies'
@@ -159,6 +172,20 @@ def validate_artifact(directory, *, source, schema, seed, residents, manifest_sh
         require(f['counts'].get(name) == residents, 'population resident count mismatch: ' + name)
     for name in ('libraries', 'catalog_libraries', 'catalog_kinds', 'catalog_membership_clock', 'catalog_age_item_counts'):
         require(f['counts'].get(name) == 1, 'population singleton count mismatch: ' + name)
+    if search:
+        b = f['search_bank']
+        closed_object(b, SEARCH_BANK_KEYS, 'search_bank')
+        require(b['version'] == 'canonical-search-v1' and type(b['profile']) is dict
+                and bounded_int(b['entities'], 1, 1000000) and b['entities'] == residents
+                and all(bounded_int(b[k], 1, 100000000) for k in
+                        ('people', 'credits', 'search_publications', 'search_publish_jobs',
+                         'search_fragments', 'prepared_bytes', 'search_image_seals'))
+                and b['search_own_prefix_docsize'] == residents
+                and isinstance(b['logical_sha256'], str) and re.fullmatch(SHA, b['logical_sha256']),
+                'invalid search bank facts')
+        require(isinstance(f['statistics'], str) and 1 <= len(f['statistics']) <= 256
+                and f['search_bank_integrity'] == 'ok'
+                and f['search_bank_foreign_keys'] == 'empty', 'invalid search bank verification facts')
 
     require(bounded_int(m['database_bytes'], 1, MAX_IMAGE)
             and isinstance(m['database_sha256'], str) and re.fullmatch(SHA, m['database_sha256']),
@@ -306,8 +333,10 @@ def produce(source, output, work):
                        runner=dict(os='ubuntu-24.04', image=os.environ.get('ImageVersion')),
                        go_mod_sha256=file_hash(module / 'go.mod'),
                        go_sum_sha256=file_hash(module / 'go.sum'))
-        identity = dict(source_commit=actual, schema_sha256=schema, version=SHAPE,
-                        seed=cfg['seed'], residents=cfg['residents'])
+        identity = dict(source_commit=actual, schema_sha256=schema,
+                        version=SEARCH_SHAPE if cfg['search_bank'] else SHAPE,
+                        seed=cfg['seed'], residents=cfg['residents'],
+                        search_bank=cfg['search_bank'])
         receipt['cache_identity'] = identity
         receipt['cache_key'] = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         binary = work / 'writer.test'
@@ -323,7 +352,8 @@ def produce(source, output, work):
         staging = work / 'export'
         config_path = work / 'export-config.json'
         atomic_json(config_path, dict(output_dir=str(staging), source_commit=actual,
-                                      seed=cfg['seed'], residents=cfg['residents']))
+                                      seed=cfg['seed'], residents=cfg['residents'],
+                                      search_bank=cfg['search_bank']))
         env.update(PORTICO_QUAL_FIXTURE='1', PORTICO_QUAL_FIXTURE_HOSTED='1',
                    PORTICO_QUAL_FIXTURE_CONFIG=str(config_path))
         minutes = cfg['timeout_minutes']
@@ -331,7 +361,8 @@ def produce(source, output, work):
                      f'-test.timeout={minutes}m', '-test.v'], module / 'internal/store/writer',
                     'export', minutes * 60 + 30)
         publish(staging, output, receipt, source=actual, schema=schema,
-                seed=cfg['seed'], residents=cfg['residents'])
+                seed=cfg['seed'], residents=cfg['residents'],
+                search=cfg['search_bank'])
     except BaseException as error:
         receipt.update(status='failed', error=f'{type(error).__name__}: {error}')
         for name in ('population.sqlite', 'population.json'):
@@ -374,6 +405,7 @@ def main():
         v.add_argument('--' + key, required=True)
     v.add_argument('--seed', required=True)
     v.add_argument('--residents', required=True)
+    v.add_argument('--search-bank', action='store_true')
     args = parser.parse_args()
     if args.mode == 'produce':
         produce(args.source, args.output, args.work)
@@ -383,7 +415,7 @@ def main():
         _, digest = validate_artifact(args.artifact, source=args.source, schema=args.schema,
                                      seed=uint(args.seed, 0, 2**32-1, 'seed'),
                                      residents=uint(args.residents, 1, 1000000, 'residents'),
-                                     manifest_sha=args.manifest_sha)
+                                     manifest_sha=args.manifest_sha, search=args.search_bank)
         print('Verified population manifest ' + digest)
 
 

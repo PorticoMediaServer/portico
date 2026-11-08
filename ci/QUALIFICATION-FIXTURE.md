@@ -3,9 +3,12 @@
 This manual producer runs once on GitHub's standard `ubuntu-24.04` runner. All
 consumer shards reuse the **same producer run ID and artifact name**. It does
 not measure, profile, qualify timing, adopt evidence or change production
-enablement, openers or authority. The current `canonical-movies-v1` shape is a
+enablement, openers or authority. The default `canonical-movies-v1` shape is a
 minimal movie population, not the enriched/search/probe workload or production
-authority. No 100k+ generation belongs on a development host.
+authority. `-f search_bank=true` selects the separate `canonical-movies-v1-search`
+shape, which keeps the same catalogue and adds one real v1 search bank for every
+resident plus a deterministic People/credit subset; the plain shape and its
+consumers are unchanged. No 100k+ generation belongs on a development host.
 
 ## Dispatch and retrieve
 
@@ -17,7 +20,7 @@ population with the exact reviewed, merged 40-character source SHA:
 gh workflow run store-qualification-fixture.yml \
   --repo PorticoMediaServer/portico --ref main \
   -f source_ref=REVIEWED_MERGED_FULL_SHA -f purpose=qualification \
-  -f seed=0 -f residents=1000000 -f timeout_minutes=60
+  -f seed=0 -f residents=1000000 -f timeout_minutes=60 -f search_bank=false
 gh run list --repo PorticoMediaServer/portico \
   --workflow store-qualification-fixture.yml --limit 5
 gh run watch PRODUCER_RUN_ID --repo PorticoMediaServer/portico --exit-status
@@ -91,7 +94,8 @@ The strict JSON config has exactly four fields:
   "output_dir": "/absolute/private/work/export",
   "source_commit": "0123456789abcdef0123456789abcdef01234567",
   "seed": 0,
-  "residents": 1000000
+  "residents": 1000000,
+  "search_bank": false
 }
 ```
 
@@ -103,7 +107,13 @@ policy, explicit `dqs_ddl`/`dqs_dml`, image SHA/length, and facts (shape, seed,
 resident count, library 7 / `qualification-movies`, first/last IDs, counts and
 logical hash). Top-level and facts fields are closed for this v1 contract;
 counts is a bounded source-owned table-name map. A shape/envelope change needs
-an explicit producer update. Actual Settings keep their source JSON spelling
+an explicit producer update. The search shape adds `facts.search_bank`
+(entities/people/credits/publications/jobs/fragments/prepared bytes/own-prefix/
+seals/logical digest), the concrete `facts.statistics` statement (the producer
+runs no ANALYZE, so statistics are absent), and the post-bank
+`search_bank_integrity`/`search_bank_foreign_keys` results (`ok`/`empty`). Its
+People/credit coverage is a path subset (first and every 128th resident), not
+People at scale. Actual Settings keep their source JSON spelling
 and optional omitted zero DQS/read-limit fields.
 
 Validation binds source/schema/seed/residents and checks the policy, ID/count
@@ -124,8 +134,8 @@ The external receipt independently records the actual image and manifest
 hashes, binary hash and `go version -m` build identity, source/tooling/workflow,
 full `git archive` SHA-256 (archive scratch removed),
 module/sum hashes, runner image, actual policy and immutable run/artifact lookup.
-Cache identity is source SHA + schema SHA + shape version + seed + resident
-count; it is **not** an image digest. Deterministic logical content has its own
+Cache identity is source SHA + schema SHA + shape version (including the search
+flag) + seed + resident count; it is **not** an image digest. Deterministic logical content has its own
 `facts.logical_sha256`; separate generations need not have identical SQLite
 bytes. Consumers pin the actual image through the trusted manifest SHA.
 
@@ -159,6 +169,7 @@ steps:
     run: |
       test "$(git rev-parse HEAD)" = "$CONSUMER_SOURCE"
       python3 -B ci/qual_fixture.py verify --artifact "$GITHUB_WORKSPACE/population" --source "$POPULATION_SOURCE" --schema "$POPULATION_SCHEMA" --manifest-sha "$POPULATION_MANIFEST" --seed 0 --residents 1000000
+# add --search-bank for a canonical-movies-v1-search artifact
 ```
 
 The owner test then calls the parent test-only API before its existing canonical
