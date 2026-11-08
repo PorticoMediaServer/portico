@@ -49,10 +49,19 @@ type Offer struct {
 	ScheduledAt       time.Time
 }
 
-// Action emits at most three records (e.g. ACCEPT, RESOLVE, ACK), immediately
-// after each synchronous facade call returns. It must honour cancellation and join
-// its own work. The driver never launches a goroutine around a native call.
-// Any error/panic stops all new offers; returned partial observations survive.
+// maxActionObservations bounds one synchronous action. The real WC protocol
+// emits a before-snapshot, ACCEPT, RESOLVE, ACK and after-snapshot, and a native
+// binding may add one caller-side bracket: six records. A wrapper that also
+// records an offered-but-no-fresh-commit fact only does so when ACCEPT was not
+// observed, so the bound still holds. It remains a hard cap; an action that
+// loops or drifts phases fails instead of growing the raw stream without limit.
+const maxActionObservations = 6
+
+// Action emits at most maxActionObservations records (the native WC protocol's
+// five phases plus one caller-side bracket), immediately after each synchronous
+// facade call returns. It must honour cancellation and join its own work. The
+// driver never launches a goroutine around a native call. Any error/panic stops
+// all new offers; returned partial observations survive.
 type Action func(context.Context, Offer, func(Observation) error) error
 
 type Record struct {
@@ -213,8 +222,8 @@ func Run(parent context.Context, c Config, streams []Stream, sink Sink) error {
 				var emitErr error
 				emit := func(o Observation) error {
 					count++
-					if count > 3 {
-						emitErr = errors.New("action exceeded three observations")
+					if count > maxActionObservations {
+						emitErr = fmt.Errorf("action exceeded %d observations", maxActionObservations)
 						return emitErr
 					}
 					progress.Calls++
