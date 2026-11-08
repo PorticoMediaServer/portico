@@ -13,10 +13,6 @@ import (
 // with a seven-digit ordinal. Pure data; no bank, snapshot or runtime is built.
 func fullSearchTestTitle(ordinal int) string {
 	phrases := [...]string{"The Amber River", "A Quiet Orbit", "An Autumn Map", "Blue Harbour", "Étoile", "9 Lanterns", "North & South", "The Glass Island"}
-	if ordinal%11 == 0 {
-		// The generator's explicit-title cohort.
-		return fmt.Sprintf("Archive %07d", ordinal)
-	}
 	return fmt.Sprintf("%s %07d", phrases[ordinal%len(phrases)], ordinal)
 }
 
