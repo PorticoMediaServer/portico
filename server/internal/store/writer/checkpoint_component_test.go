@@ -185,6 +185,11 @@ func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpoin
 		t.Fatal(err)
 	}
 	f.policy = governor.WALPolicy{HardBytes: 192 << 20, ReserveBytes: 16 << 20, SoftDebtBytes: 64 << 20, ActivePressureBytes: 96 << 20, MaxSampleAge: time.Second, ConcurrentPassive: keep, CheckpointMaxHold: 5 * time.Second}
+	if screening && os.Getenv("PORTICO_EC4_QUALIFICATION") == "1" {
+		// Formal qualification uses the ONE adopted phase 1a policy; the 96 MiB
+		// value above is the labelled screening stress fixture, not a profile.
+		f.policy = governor.Phase1aWALPolicy()
+	}
 	if !keep {
 		f.policy.CheckpointMaxHold = 0
 	}

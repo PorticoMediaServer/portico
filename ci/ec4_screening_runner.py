@@ -468,8 +468,25 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return args
 
 
+def ensure_qualification_source(source: Path, git: dict, source_ref: str) -> None:
+    """Refuse a qualification run unless it is an exact clean SHA in origin/main."""
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", source_ref or ""):
+        raise RuntimeError("qualification requires an exact 40-character source SHA")
+    if source_ref.lower() != git["actual_sha"]:
+        raise RuntimeError(f"qualification requested {source_ref} but checkout is {git['actual_sha']}")
+    if git["dirty"]:
+        raise RuntimeError("qualification requires a clean source tree")
+    fetch = run_capture(["git", "-C", str(source), "fetch", "--no-tags", "--depth=1", "origin", "main"], timeout=120)
+    if fetch.returncode != 0:
+        raise RuntimeError("qualification could not fetch origin/main: " + (fetch.stderr or "").strip()[:4096])
+    ancestor = run_capture(["git", "-C", str(source), "merge-base", "--is-ancestor", git["actual_sha"], "FETCH_HEAD"], timeout=60)
+    if ancestor.returncode != 0:
+        raise RuntimeError("qualification source SHA is not an ancestor of origin/main")
+
+
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    qualification = os.environ.get("PORTICO_EC4_QUALIFICATION") == "1"
     source = Path(args.source).resolve()
     artifact = Path(args.artifact).resolve()
     runner_temp = Path(os.environ.get("RUNNER_TEMP") or "/tmp").resolve()
@@ -479,9 +496,9 @@ def main(argv: list[str]) -> int:
     artifact.mkdir(parents=True, exist_ok=True)
     state: dict = {
         "schema": "ec4-screening-launcher-v1",
-        "label": "SCREENING",
-        "qualification": False,
-        "unmerged_source": True,
+        "label": "QUALIFICATION" if qualification else "SCREENING",
+        "qualification": qualification,
+        "unmerged_source": not qualification,
         "generated_at": utc_now(),
         "cell": args.cell,
         "replica": args.replica,
@@ -520,6 +537,21 @@ def main(argv: list[str]) -> int:
             if args.source_ref.lower() != git["actual_sha"]:
                 raise RuntimeError(
                     f"requested full SHA {args.source_ref} but checkout is {git['actual_sha']}")
+        if qualification:
+            ensure_qualification_source(source, git, args.source_ref)
+            state["qualification_basis"] = {
+                "source_sha": git["actual_sha"],
+                "clean": not git["dirty"],
+                "ancestor_of_origin_main": True,
+                "wal_policy_source": "governor.Phase1aWALPolicy",
+                "wal_policy": {"hard_bytes": 512 << 20, "reserve_bytes": 64 << 20,
+                               "soft_debt_bytes": 64 << 20, "active_pressure_bytes": 256 << 20,
+                               "concurrent_passive": True, "checkpoint_max_hold_seconds": 5},
+                "io_profile": {"limited": args.cell == "throttled-hdd",
+                               "read_bandwidth_bytes_per_second": BANDWIDTH_BYTES, "read_iops": IOPS},
+                "io_profile_reason": "io.max bounds media reads on the same root device; it stands in for a slow consumer HDD and is not physical seek geometry, DB-on-SSD placement or a cold-cache claim",
+                "basic_clock": "DERIVED from the qualified Basic write class times the population; no end-to-end Basic producer exists, so no measured Basic clock",
+            }
 
         media = choose_media_root(runner_temp, args.files, uid, gid)
         media_base = media["base"] / f"ec4-screening-{args.cell}-r{args.replica}-{stamp}-media"
@@ -607,6 +639,7 @@ def main(argv: list[str]) -> int:
             "PORTICO_EC4_OUTPUT": str(artifact / "report.json"),
             "PORTICO_EC4_SOURCE": git["actual_sha"],
             "PORTICO_EC4_FEATURES": "inventory",
+            "PORTICO_EC4_QUALIFICATION": "1" if qualification else "",
             "GOMAXPROCS": "2",
             "TMPDIR": str(db_tmp),
             "HOME": str(home),
@@ -681,7 +714,21 @@ def main(argv: list[str]) -> int:
             state["status"] = "failed"
             state["errors"].append(f"{TEST_NAME} passed but wrote no report.json")
         else:
-            state["status"] = "passed"
+            try:
+                report_data = json.loads(report.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                state["status"] = "failed"
+                state["errors"].append(f"unreadable report.json: {exc}")
+            else:
+                if str(report_data.get("label", "")) != state["label"] or bool(report_data.get("qualification")) != qualification:
+                    state["status"] = "failed"
+                    state["errors"].append(
+                        f"report label/qualification mismatch: {report_data.get('label')!r}/{report_data.get('qualification')!r}")
+                else:
+                    state["status"] = "passed"
+                    state["report_label"] = report_data.get("label")
+                    state["report_qualification"] = report_data.get("qualification")
+                    state["wal_policy"] = report_data.get("WALPolicy")
         state["finished_at"] = utc_now()
         write_json(launcher_path, state)
         return 0 if state["status"] == "passed" else 1
