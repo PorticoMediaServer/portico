@@ -13,6 +13,12 @@ func TestMPPurposeMetadataDoesNotAdmitExecution(t *testing.T) {
 		}
 		// The MP family bodies/authority/receipts and measured resource recipes are
 		// separate publication gates. Merely naming a purpose cannot acquire class.
+		if d.ID == MPQueueRepeat {
+			if !commandPlanPurpose(d.ID) {
+				t.Fatal("missing closed first instance")
+			}
+			continue
+		}
 		if _, err = commandClass(d.ID); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("metadata admitted media purpose %d: %v", d.ID, err)
 		}

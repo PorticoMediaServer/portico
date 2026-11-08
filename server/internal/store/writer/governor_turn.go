@@ -18,6 +18,8 @@ func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
 	case InventoryAccept, BasicAccept, BasicStage, BasicSeal, InventoryCreate, InventoryClaim, InventoryDirectoryDiscover, InventoryDirectoryEOF, InventoryDirectoryRefuse, InventoryTraversalComplete:
 		return governor.ScanMinimum, nil
+	case MPQueueRepeat:
+		return governor.Foreground, nil
 	case ProgressAccept:
 		return governor.Foreground, nil
 	case ProgressReceiptReclaim:
@@ -55,6 +57,7 @@ type governedTurn struct {
 	wcProgressMemory      commandMemoryBudget
 	wcSecurityMemory      commandMemoryBudget
 	wcReclaimMemory       commandMemoryBudget
+	mpWorkerMemory        commandMemoryBudget
 	directoryMemory       commandMemoryBudget
 	publisherMemory       commandMemoryBudget
 	effectiveSourceMemory commandMemoryBudget // exact Effective source-proof partition; zero is unqualified
