@@ -34,6 +34,12 @@ type ipPolicyRequest struct {
 
 // One durable sweep request per provider/purpose. It only resets the retained
 // RAW cursor to the first entity phase; a later page command owns scheduling.
+// The request is immediately discoverable through metadata_refresh_sweep_due
+// because it sets job_next_attempt_ms (and therefore the generated job_due_ms)
+// to the applied time. Begin never advances generation: IP-04 treats a changed
+// generation as stale. epoch_ms is the applied now, not max(previous, now).
+// Begin is refused while job_lease_owner is nonzero even if that lease has
+// expired; IP-04 must clear the lease before a new request is accepted.
 // Artwork never borrows the MusicBrainz metadata eligibility.
 type ipRefreshRequest struct {
 	provider, purpose                    string
@@ -858,16 +864,16 @@ func applyIPRefreshBegin(ctx context.Context, turn *commandTurn, p *usOwnerAutho
 	if appliedMS < 0 {
 		return zero, ErrInvalid
 	}
-	var generation, revision, epochMS int64
+	var generation, revision, epochMS, dueMS int64
 	if lookup.create {
 		if c.identity.Sequence != 1 || q.expectedGeneration != 0 || q.expectedRevision != 0 {
 			return zero, ErrConflict
 		}
-		row, e := wc008DraftQuery(ctx, turn, ipRefreshInsert, q.provider, q.purpose, appliedMS, c.identity.Incarnation[:])
+		row, e := wc008DraftQuery(ctx, turn, ipRefreshInsert, q.provider, q.purpose, appliedMS, appliedMS, c.identity.Incarnation[:])
 		if e != nil {
 			return zero, errors.Join(ErrConflict, e)
 		}
-		if e = row.Scan(&revision, &generation, &epochMS); e != nil || revision != 1 || generation != 1 || epochMS != appliedMS {
+		if e = row.Scan(&revision, &generation, &epochMS, &dueMS); e != nil || revision != 1 || generation != 1 || epochMS != appliedMS || dueMS != appliedMS {
 			return zero, errors.Join(ErrResolveRequired, e)
 		}
 	} else {
@@ -875,14 +881,14 @@ func applyIPRefreshBegin(ctx context.Context, turn *commandTurn, p *usOwnerAutho
 			q.expectedRevision == math.MaxInt64 {
 			return zero, ErrConflict
 		}
-		row, e := wc008DraftQuery(ctx, turn, ipRefreshUpdate, appliedMS, c.identity.Sequence, q.provider,
+		row, e := wc008DraftQuery(ctx, turn, ipRefreshUpdate, appliedMS, appliedMS, c.identity.Sequence, q.provider,
 			q.purpose, c.identity.Incarnation[:], q.expectedGeneration, q.expectedRevision,
 			lookup.owner.lastSequence, lookup.owner.acknowledgedSequence)
 		if e != nil {
 			return zero, errors.Join(ErrConflict, e)
 		}
-		if e = row.Scan(&revision, &generation, &epochMS); e != nil || revision != q.expectedRevision+1 ||
-			generation != q.expectedGeneration || epochMS != appliedMS {
+		if e = row.Scan(&revision, &generation, &epochMS, &dueMS); e != nil || revision != q.expectedRevision+1 ||
+			generation != q.expectedGeneration || epochMS != appliedMS || dueMS != appliedMS {
 			return zero, errors.Join(ErrConflict, e)
 		}
 	}

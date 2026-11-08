@@ -344,17 +344,7 @@ func TestIPPolicyCurrentAuthorityBeforeReceipt(t *testing.T) {
 				t.Fatal(out, err)
 			}
 			ipPolicyCommitTurn(t, turn, tx)
-			proof := p
-			switch mode {
-			case "revoked_family":
-				ipPolicyExec(t, w, `UPDATE authorization_session_families SET revoked=1 WHERE id='issuer-family'`)
-			case "revoked_membership":
-				ipPolicyExec(t, w, `UPDATE direct_memberships SET disabled=1 WHERE account_id='issuer'`)
-			case "forged_proof":
-				forged := *p
-				forged.witness.issuer.family = "forged-family"
-				proof = &forged
-			}
+			proof := ipPolicyRevoke(t, w, p, mode)
 			turn, tx, b = ipPolicyTurn(t, w, r, IPPolicySet)
 			out, err := applyIPPolicySet(t.Context(), turn, proof, t.Context(), b, cmd)
 			if out != (ipPolicyCommandResult{}) || !errors.Is(err, ErrDisclosureDenied) {
@@ -497,6 +487,15 @@ func TestIPRefreshBeginFreshReplayAndRetired(t *testing.T) {
 	}
 	ipPolicyCommitTurn(t, turn, tx)
 	original := out
+	// The request is discoverable through the due keyset at the applied time.
+	for query, want := range map[string]int64{
+		`SELECT job_next_attempt_ms FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`: w.now().UnixMilli(),
+		`SELECT job_due_ms FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:          w.now().UnixMilli(),
+	} {
+		if got := ipPolicyQueryInt(t, w, query); got != want {
+			t.Fatal(query, got)
+		}
+	}
 
 	ipPolicyExec(t, w, `UPDATE metadata_providers SET enabled=0 WHERE code='tmdb'`)
 	ipPolicyExec(t, w, `UPDATE screen_metadata_consent SET confirmed=0`)
@@ -544,13 +543,15 @@ func TestIPRefreshBeginSecondRevisionResetsCursor(t *testing.T) {
 	}
 	ipPolicyCommitTurn(t, turn, tx)
 	for query, want := range map[string]int64{
-		`SELECT after_id FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:        0,
-		`SELECT page_from_id FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:    0,
-		`SELECT page_until_id FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:   0,
-		`SELECT page_waiting FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:    0,
-		`SELECT job_lease_owner FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`: 0,
-		`SELECT revision FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:        2,
-		`SELECT count(*) FROM metadata_refresh_receipts`:                                                   2,
+		`SELECT after_id FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:            0,
+		`SELECT page_from_id FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:        0,
+		`SELECT page_until_id FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:       0,
+		`SELECT page_waiting FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:        0,
+		`SELECT job_lease_owner FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:     0,
+		`SELECT job_next_attempt_ms FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`: w.now().UnixMilli(),
+		`SELECT job_due_ms FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:          w.now().UnixMilli(),
+		`SELECT revision FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:            2,
+		`SELECT count(*) FROM metadata_refresh_receipts`:                                                       2,
 	} {
 		if got := ipPolicyQueryInt(t, w, query); got != want {
 			t.Fatal(query, got)

@@ -123,15 +123,24 @@ func ipPolicyDefinitions() []stmt.Definition {
 			},
 		},
 		{
-			ID: ipRefreshInsert, SQL: `INSERT INTO metadata_refresh_sweeps(provider,purpose,generation,revision,epoch_ms,phase,after_id,page_from_id,page_until_id,page_waiting,job_lease_owner,job_lease_generation,job_lease_expires_ms,job_next_attempt_ms,command_incarnation,last_command_sequence,acknowledged_command_sequence) VALUES(?,?,1,1,?,'entities',0,0,0,0,0,0,0,NULL,?,1,0) RETURNING revision,generation,epoch_ms`,
-			Params:  []stmt.Param{t("provider"), t("purpose"), i("epoch_ms"), b("command_incarnation")},
-			Cohorts: []stmt.Cohort{{Name: "created", Bindings: []any{"tmdb", "metadata", int64(1), make([]byte, 16)}}},
+			// A requested sweep is immediately discoverable through
+			// metadata_refresh_sweep_due: the generated job_due_ms stays NULL while
+			// job_next_attempt_ms is NULL, so the request sets it to the applied
+			// time. IP-04 selects that index; no synchronous refresh happens here.
+			ID: ipRefreshInsert, SQL: `INSERT INTO metadata_refresh_sweeps(provider,purpose,generation,revision,epoch_ms,phase,after_id,page_from_id,page_until_id,page_waiting,job_lease_owner,job_lease_generation,job_lease_expires_ms,job_next_attempt_ms,command_incarnation,last_command_sequence,acknowledged_command_sequence) VALUES(?,?,1,1,?,'entities',0,0,0,0,0,0,0,?,?,1,0) RETURNING revision,generation,epoch_ms,job_due_ms`,
+			Params:  []stmt.Param{t("provider"), t("purpose"), i("epoch_ms"), i("job_next_attempt_ms"), b("command_incarnation")},
+			Cohorts: []stmt.Cohort{{Name: "created", Bindings: []any{"tmdb", "metadata", int64(1), int64(1), make([]byte, 16)}}},
 			Plan:    stmt.Plan{Hot: true},
 		},
 		{
-			ID: ipRefreshUpdate, SQL: `UPDATE metadata_refresh_sweeps SET revision=revision+1,epoch_ms=?,phase='entities',after_id=0,page_from_id=0,page_until_id=0,page_waiting=0,job_lease_owner=0,job_lease_generation=0,job_lease_expires_ms=0,job_next_attempt_ms=NULL,last_command_sequence=? WHERE provider=? AND purpose=? AND command_incarnation=? AND generation=? AND revision=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND job_lease_owner=0 RETURNING revision,generation,epoch_ms`,
-			Params:  []stmt.Param{i("epoch_ms"), i("new_sequence"), t("provider"), t("purpose"), b("command_incarnation"), i("generation"), i("revision"), i("last_sequence"), i("acknowledged_sequence")},
-			Cohorts: []stmt.Cohort{{Name: "cas", Bindings: []any{int64(1), int64(1), "tmdb", "metadata", make([]byte, 16), int64(1), int64(1), int64(0), int64(0)}}},
+			// The CAS carries the same due request. generation deliberately does
+			// not advance on begin (IP-04 treats a generation change as stale);
+			// epoch_ms is the applied now, not max(previous, now). job_lease_owner=0
+			// refuses while another worker owns the row, even if that lease has
+			// expired: IP-04's page/finish path must clear it first.
+			ID: ipRefreshUpdate, SQL: `UPDATE metadata_refresh_sweeps SET revision=revision+1,epoch_ms=?,phase='entities',after_id=0,page_from_id=0,page_until_id=0,page_waiting=0,job_lease_owner=0,job_lease_generation=0,job_lease_expires_ms=0,job_next_attempt_ms=?,last_command_sequence=? WHERE provider=? AND purpose=? AND command_incarnation=? AND generation=? AND revision=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND job_lease_owner=0 RETURNING revision,generation,epoch_ms,job_due_ms`,
+			Params:  []stmt.Param{i("epoch_ms"), i("job_next_attempt_ms"), i("new_sequence"), t("provider"), t("purpose"), b("command_incarnation"), i("generation"), i("revision"), i("last_sequence"), i("acknowledged_sequence")},
+			Cohorts: []stmt.Cohort{{Name: "cas", Bindings: []any{int64(1), int64(1), int64(1), "tmdb", "metadata", make([]byte, 16), int64(1), int64(1), int64(0), int64(0)}}},
 			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_refresh_sweeps"}},
 		},
 		{
