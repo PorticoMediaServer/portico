@@ -51,8 +51,9 @@ type FullSearchTerm struct {
 // broadWords are phrase words of the canonical movie title generator
 // ("The Amber River", "A Quiet Orbit", ...). At one million residents each of
 // these is a six-figure population, so the 2,000-candidate budget always ends
-// the walk. "archive" is the explicit-title cohort; "etoile" needs accent fold.
-var broadWords = []string{"the", "amber", "river", "harbour", "lanterns", "archive", "etoile"}
+// the walk. "etoile" needs accent fold. The generator's explicit "Archive"
+// cohort is a SORT title, not a catalog title, so it is deliberately not a term.
+var broadWords = []string{"the", "amber", "river", "harbour", "lanterns", "etoile"}
 
 const (
 	fullSearchNoneText = "zzqxvw"
