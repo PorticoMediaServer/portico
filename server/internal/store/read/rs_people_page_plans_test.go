@@ -46,7 +46,7 @@ func rsPeoplePageCaptures(t *testing.T) []byte {
 		if _, err := stmt.New(definitions, golden.Receipt()); err != nil {
 			t.Fatal(err)
 		}
-		if len(golden.Manifest) != 6 || len(golden.Plans) != 12 {
+		if len(golden.Manifest) != 7 || len(golden.Plans) != 14 {
 			t.Fatal("incomplete own statement/cohort inventory")
 		}
 		captures = append(captures, capture{string(stats), golden})

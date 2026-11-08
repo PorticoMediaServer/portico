@@ -624,6 +624,8 @@ func (r *RSPeoplePageReader) peoplePortrait(ctx context.Context, request governo
 	view.Now = at
 	w := &rsByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	choice := ""
+	var digest string
+	var revision int64
 	_, one, err := rsPeoplePublish(ctx, w, request, time.Until(p.lease.Deadline()), output, view, []readStep[struct{}]{
 		func(context.Context, browseQuery, browseFence, *struct{}) error { return nil },
 		func(_ context.Context, q browseQuery, _ browseFence, _ *struct{}) error {
@@ -676,14 +678,29 @@ func (r *RSPeoplePageReader) peoplePortrait(ctx context.Context, request governo
 				return nil
 			}
 			if v[1] == nil {
-				// A nonempty selection whose source row is unavailable or
-				// retiring is distinct from locked-empty and is not served.
+				// A nonempty selection whose source is unavailable or retiring
+				// is distinct from locked-empty and is not served.
 				return ErrStale
 			}
-			c.portrait = &RSPersonPortrait{Small: v[1].(string), Large: v[2].(string), Ambient: v[3].(string), MIME: v[4].(string), Width: v[5].(int64), Height: v[6].(int64), Revision: v[7].(int64)}
+			digest = v[0].(string)
+			revision = v[7].(int64)
+			c.portrait = &RSPersonPortrait{Small: v[1].(string), Large: v[2].(string), Ambient: v[3].(string), MIME: v[4].(string), Width: v[5].(int64), Height: v[6].(int64), Revision: revision}
 			return nil
 		},
 	}, func(q browseQuery) ([]any, error) {
+		if digest != "" {
+			// The final snapshot re-proves the selected digest/revision is still
+			// served by a source that is not retiring. A source that begins
+			// retiring after the payload window never publishes.
+			rows, e := q("rs.people.page.portrait_verify", c.person, choice, digest, revision)
+			if e != nil {
+				return nil, e
+			}
+			if len(rows) != 1 {
+				c.portrait = nil
+				return nil, ErrStale
+			}
+		}
 		rows, e := q("rs.people.source", c.person)
 		if e != nil {
 			return nil, e
