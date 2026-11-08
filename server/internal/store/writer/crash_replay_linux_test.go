@@ -55,6 +55,21 @@ type crashWitness struct {
 	Unknown          bool
 
 	HistoryState map[string][32]byte
+	// Payload carries per-command typed facts for registered domains. It is
+	// test-only data, never a permit, authority or reconstructed result.
+	Payload json.RawMessage
+}
+
+// extraCrashDomains lets a command-specific crash file register its real
+// fixture without editing this shared child switch. Registration happens at
+// test-binary init, before any child process imports the package.
+var extraCrashDomains = map[string]func(*testing.T, *crashWitness){}
+
+func registerCrashDomain(domain string, fixture func(*testing.T, *crashWitness)) {
+	if domain == "" || fixture == nil || extraCrashDomains[domain] != nil {
+		panic("duplicate or empty crash domain")
+	}
+	extraCrashDomains[domain] = fixture
 }
 
 func crashPoint(t *testing.T, witness *crashWitness, boundary string) {
@@ -231,6 +246,10 @@ func TestCrashReplayChild(t *testing.T) {
 	witness := crashWitness{Version: 1, SchemaSHA: schema.SHA256, Engine: schema.NativeSQLiteVersion}
 	if err := json.Unmarshal([]byte(encoded), &witness.Case); err != nil {
 		t.Fatal(err)
+	}
+	if fixture, ok := extraCrashDomains[witness.Case.Domain]; ok {
+		fixture(t, &witness)
+		return
 	}
 	if witness.Case.Domain == "scan_issuer" {
 		crashScanIssuerFixture(t, &witness)
