@@ -185,6 +185,9 @@ func (a *iaEntryAuthorization) recheck(ctx context.Context, turn *commandTurn) (
 	if a == nil || a.turn != turn || turn == nil || turn.transaction == nil || turn.transaction.done || a.lifetime == nil || a.lifetime.Err() != nil {
 		return ErrDisclosureDenied
 	}
+	if !a.until.After(turn.transaction.writer.now()) {
+		return ErrDisclosureDenied
+	}
 	_, err = authorizeIAEntryOwner(ctx, turn, &a.proof, a.lifetime, a.budget)
 	return err
 }

@@ -19,14 +19,14 @@ const (
 // ConfigureSource includes disable/replacement, so its one static descriptor
 // uses FULL for every variant; a caller cannot downgrade a denial action.
 var iaCommands = commandRegistration{owner: "IA", descriptors: []Descriptor{
-	{IAConfigureLibrary, "configure_library", Normal},
-	{IAConfigureSource, "configure_source", Full},
-	{IARetireLibrary, "retire_library", Full},
-	{IARetireSource, "retire_source", Full},
-	{IARetireStep, "retire_step", Normal},
-	{IAAcceptEpisodeInventory, "episode_inventory_accept", Normal},
-	{IAAcceptAudioInventory, "audio_inventory_accept", Normal},
-	{IAAcceptReadingInventory, "reading_inventory_accept", Normal},
-	{IAAcceptExtraInventory, "extra_inventory_accept", Normal},
-	{IAAcceptMembership, "membership_accept", Normal},
+	{IAConfigureLibrary, "ia_configure_library", Normal},
+	{IAConfigureSource, "ia_configure_source", Full},
+	{IARetireLibrary, "ia_retire_library", Full},
+	{IARetireSource, "ia_retire_source", Full},
+	{IARetireStep, "ia_retire_step", Normal},
+	{IAAcceptEpisodeInventory, "ia_accept_episode_inventory", Normal},
+	{IAAcceptAudioInventory, "ia_accept_audio_inventory", Normal},
+	{IAAcceptReadingInventory, "ia_accept_reading_inventory", Normal},
+	{IAAcceptExtraInventory, "ia_accept_extra_inventory", Normal},
+	{IAAcceptMembership, "ia_accept_membership", Normal},
 }}

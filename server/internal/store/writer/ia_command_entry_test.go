@@ -133,19 +133,22 @@ func iaEntryTurn(t *testing.T, w *executor, r *iaEntryRegistry, q iaEntryRequest
 }
 func seedIAEntryHistory(t *testing.T, w *executor, q iaEntryRequest, ack bool) {
 	t.Helper()
-	d, _ := Describe(q.purpose)
+	kindName, err := iaEntryCommandKind(q.purpose)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var source any
 	if q.sourceID != "" {
 		source = q.sourceID
 	}
-	wc008NativeExec(t, w, `INSERT INTO catalog_configuration_operations(original_operation_id,original_request_digest,command_incarnation,command_kind,original_library_id,original_library_key,original_source_id,last_command_sequence,acknowledged_command_sequence) VALUES(?,?,?,?,?,?,?,1,?)`, q.reference.Identity.OperationID[:], q.reference.RequestDigest[:], q.reference.Identity.Incarnation[:], d.Name, q.libraryID, q.libraryKey, source, map[bool]int{false: 0, true: 1}[ack])
+	wc008NativeExec(t, w, `INSERT INTO catalog_configuration_operations(original_operation_id,original_request_digest,command_incarnation,command_kind,original_library_id,original_library_key,original_source_id,last_command_sequence,acknowledged_command_sequence) VALUES(?,?,?,?,?,?,?,1,?)`, q.reference.Identity.OperationID[:], q.reference.RequestDigest[:], q.reference.Identity.Incarnation[:], kindName, q.libraryID, q.libraryKey, source, map[bool]int{false: 0, true: 1}[ack])
 	var libraryName, kind any
-	charge := int64(160 + len(d.Name))
+	charge := int64(160 + len(kindName))
 	if q.purpose == IAConfigureLibrary {
 		libraryName, kind = "Saved name", "movies"
 		charge += 16
 	}
-	wc008NativeExec(t, w, `INSERT INTO catalog_configuration_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_library_name,result_library_kind,result_count,result_digest,retained_bytes) VALUES(?,?,1,?,?,?,1,1,1,?,?,1,?,?)`, q.reference.Identity.OperationID[:], q.reference.Identity.Incarnation[:], q.reference.Identity.OperationID[:], q.reference.RequestDigest[:], d.Name, libraryName, kind, make([]byte, 32), charge)
+	wc008NativeExec(t, w, `INSERT INTO catalog_configuration_receipts(original_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,accepted_revision,applied_ms,result_library_name,result_library_kind,result_count,result_digest,retained_bytes) VALUES(?,?,1,?,?,?,1,1,1,?,?,1,?,?)`, q.reference.Identity.OperationID[:], q.reference.Identity.Incarnation[:], q.reference.Identity.OperationID[:], q.reference.RequestDigest[:], kindName, libraryName, kind, make([]byte, 32), charge)
 }
 func TestIAEntryFreshResolveHistory(t *testing.T) {
 	for _, mode := range []string{"fresh", "resolve_absent", "replay", "retired", "retired_conflict", "missing_header", "changed_source"} {
@@ -260,10 +263,17 @@ func TestIAEntryAdmissionAndFinalRecheck(t *testing.T) {
 	}
 }
 func TestIAEntryDescriptorAndPurposeIdentity(t *testing.T) {
+	d, err := Describe(IAConfigureLibrary)
+	if err != nil || d.Name != "ia_configure_library" {
+		t.Fatal(d, err)
+	}
+	if kind, err := iaEntryCommandKind(0); kind != "" || !errors.Is(err, ErrInvalid) {
+		t.Fatal(kind, err)
+	}
 	for id, want := range map[CommandID]string{100: "configure_library", 101: "configure_source", 102: "retire_library", 103: "retire_source", 104: "retire_step", 110: "episode_inventory_accept", 111: "audio_inventory_accept", 112: "reading_inventory_accept", 113: "extra_inventory_accept", 114: "membership_accept"} {
-		d, err := Describe(id)
-		if err != nil || d.Name != want {
-			t.Fatal(d, err)
+		kind, err := iaEntryCommandKind(id)
+		if err != nil || kind != want {
+			t.Fatal(kind, err)
 		}
 	}
 	//110 and114 may have identical link images, but ORIGINAL purpose is exclusive.
@@ -288,6 +298,9 @@ func TestIAEntryNativePlans(t *testing.T) {
 				var detail string
 				if err = rows.Scan(&id, &parent, &unused, &detail); err != nil {
 					t.Fatal(err)
+				}
+				if d.ID == iaEntryFreshSource && !strings.Contains(detail, "USING INDEX sqlite_autoindex_library_sources_1 (id=?)") {
+					t.Fatal("fresh-source plan differs from its declaration", detail)
 				}
 				if !strings.Contains(detail, "SEARCH ") || strings.Contains(detail, "TEMP B-TREE") {
 					t.Fatal(detail)
