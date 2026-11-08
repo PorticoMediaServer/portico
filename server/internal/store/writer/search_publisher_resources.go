@@ -7,8 +7,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
+// The publisher job namespace is the registry's publisher partition without the
+// independent reclaimer, which shares the profile field but not the job receipt
+// namespace. A new job purpose needs its registry line only.
 func searchPublisherPurpose(purpose CommandID) bool {
-	return purpose == SearchFragmentStage || purpose == SearchHeadPublish
+	return purposeUsesPartition(purpose, publisherPartition) && purpose != SearchFragmentReclaim
 }
 
 // Resource eligibility is wider than the publisher-job receipt namespace.

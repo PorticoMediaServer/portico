@@ -46,6 +46,10 @@ func enrichmentPlanIndex(id CommandID) (int, bool) {
 		return 0, false
 	}
 }
+
+// The enrichment dispatch family is the compiled plan-slot table below, not a
+// memory partition: EnrichAccept shares the effective-source partition but is
+// dispatched through this path, so a partition predicate would drop it.
 func enrichmentPurpose(id CommandID) bool { _, ok := enrichmentPlanIndex(id); return ok }
 
 // The admit key follows the shared BEGIN convention: the ORIGINAL provider

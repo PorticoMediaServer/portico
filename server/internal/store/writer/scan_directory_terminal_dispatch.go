@@ -11,8 +11,11 @@ import (
 func scanDirectoryTerminalPurpose(k CommandID) bool {
 	return k == InventoryDirectoryRefuse || k == InventoryTraversalComplete
 }
+
+// The directory family is the registry's directory partition, so a new
+// directory purpose needs its registry line only.
 func scanDirectoryPurpose(k CommandID) bool {
-	return k == InventoryDirectoryDiscover || k == InventoryDirectoryEOF || scanDirectoryTerminalPurpose(k)
+	return purposeUsesPartition(k, directoryPartition)
 }
 
 // Same one-time, closed composition as discovery/EOF; no new dispatcher,
