@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"errors"
+	"slices"
 )
 
 var errNativeCandidateBudget = errors.New("native preview candidate budget reached")
@@ -76,7 +77,23 @@ func nativePreviewAdvance(ctx context.Context, q browseQuery, scope *fullQuerySc
 	lead := nativeSearchLead{preview: scope.terms[0]}
 	finish := func(exhausted, budget bool) (FullSearchPage, error) {
 		complete := exhausted && !state.previewIncomplete
-		page := FullSearchPage{Disposition: SearchResults, Hits: top.hits, Partial: !complete, Exhausted: complete, CountStatus: SearchCountUnknown}
+		// One entity can be found through several postings in different polls;
+		// emit it once per walk. The seen keys are bounded by the candidate
+		// allowance, and the same bound ends the walk if it would be exceeded.
+		fresh := make([]FullSearchHit, 0, len(top.hits))
+		for _, hit := range top.hits {
+			key := nativeSeenKey{hit.Subject, hit.ID}
+			if slices.Contains(state.seen, key) {
+				continue
+			}
+			if len(state.seen) >= NativePreviewCandidates {
+				budget = true
+				break
+			}
+			state.seen = append(state.seen, key)
+			fresh = append(fresh, hit)
+		}
+		page := FullSearchPage{Disposition: SearchResults, Hits: fresh, Partial: !complete, Exhausted: complete, CountStatus: SearchCountUnknown}
 		if len(page.Hits) > 0 {
 			page.CountStatus = SearchCountLowerBound
 			page.Count = uint64(len(page.Hits))
