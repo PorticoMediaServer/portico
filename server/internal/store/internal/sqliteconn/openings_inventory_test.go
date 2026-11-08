@@ -42,6 +42,7 @@ var openingConstraints = map[string]string{
 	"writer/crash_scan_batch_linux_test.go":      "//go:build linux", // batch SIGKILL/reopen witnesses use the Linux harness
 	"writer/scan_batch_accept_test.go":           "//go:build linux", // batch acceptance controls share the Linux raw-state oracle
 	"writer/crash_fresh_retry_linux_test.go":     "",                 // implicit _linux suffix; pre-COMMIT retry execute-once/replay cells
+	"writer/crash_basic_resume_linux_test.go":    "",                 // implicit _linux suffix; Basic saved-cursor reset/copy kill/restart cells
 	"writer/crash_basic_accept_linux_test.go":    "",                 // implicit _linux suffix; Basic Accept kill/restart cells
 	"writer/crash_publisher_linux_test.go":       "",                 // implicit _linux suffix; publisher fragment/flip kill/restart cells
 	"writer/crash_reclaimer_linux_test.go":       "",                 // implicit _linux suffix; independent reclaimer kill/restart cells

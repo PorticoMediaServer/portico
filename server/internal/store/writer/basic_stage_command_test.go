@@ -46,7 +46,7 @@ func TestBasicControlCommandsAreClosedAndDistinct(t *testing.T) {
 		"stream_family":   func(r *basicControlRequest) { r.family = 2 },
 		"stream_rows":     func(r *basicControlRequest) { r.rows = []basicStageMediaRow{} },
 		"stream_range":    func(r *basicControlRequest) { r.start, r.end = 0, 1 },
-		"unknown_op":      func(r *basicControlRequest) { r.operation = 9 },
+		"unknown_op":      func(r *basicControlRequest) { r.operation = 255 },
 		"foreign_run":     func(r *basicControlRequest) { r.source.runID = "other-run" },
 		"foreign_library": func(r *basicControlRequest) { r.source.libraryID++ },
 		"no_change":       func(r *basicControlRequest) { r.source.changeID = 0 },
