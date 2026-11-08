@@ -44,6 +44,12 @@ func readScanByteLengths(ctx context.Context, turn *commandTurn, id stmt.ID, arg
 	}
 	switch turn.transaction.descriptor.ID {
 	case InventoryCreate, InventoryClaim, InventoryAccept:
+	case InventoryDirectoryDiscover, InventoryDirectoryEOF, InventoryDirectoryRefuse, InventoryTraversalComplete:
+		// Directory source capture owns this existing point only; lifecycle
+		// and N1 receipt/member byte readers are not Directory permissions.
+		if id != scanSourceLengths {
+			return value, ErrInvalid
+		}
 	default:
 		return value, ErrInvalid
 	}
@@ -119,6 +125,8 @@ func requireScanByteMemory(ctx context.Context, turn *commandTurn, required uint
 		return turn.requireScanLifecycleMemory(ctx, required)
 	case InventoryAccept:
 		return turn.requireInventoryMemory(ctx, required)
+	case InventoryDirectoryDiscover, InventoryDirectoryEOF, InventoryDirectoryRefuse, InventoryTraversalComplete:
+		return turn.requireCommandMemory(ctx, turn.transaction.descriptor.ID, required, "directory_memory_partition")
 	default:
 		return ErrInvalid
 	}
