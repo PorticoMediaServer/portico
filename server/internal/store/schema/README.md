@@ -242,3 +242,18 @@ This bootstrap adds no migration, startup repair, runtime command or product
 cutover. The #1556 shared schema baseline is regenerated once per embed; only
 actual changed statement/VM/decoder plans require owner recapture. Writer
 receipt/authority/custody and hold/physical qualification remain separate gates.
+
+CHANGE-015 is adopted as storage only. Its six artifacts copy canonical phase0
+at internal599dcccd99230606a893d0f4cde77f67cda7df03 verbatim; SHA256SUMS and
+schema.go identify the exact bytes. Sixteen security/public-root tables and five
+explicit indexes add the fourteen closed US purpose/result families, scalar
+security witnesses and retained credential secrets. Ordinary family births write
+security_kind=0; credential family births write1. The required column has no default.
+
+The current native layout is dc87abe7/2172 objects/724 tables on bundledSQLite3.53.4.
+Earlier schema files fail exact verification and remain untouched. Existing legacy
+application tables/openers are separate; no migration, startup repair or old-family
+kind inference is supplied. Non14 US purposes remain blocked until the concrete
+US-17 amendment is adopted and embedded. This grants no authority or qualification.
+The shared #1556 baseline is refreshed once; only actual owner SQL/VM changes
+are recaptured with reviewed native producer and child-first retirement fixtures.
