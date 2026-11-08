@@ -16,7 +16,7 @@ import (
 // field. New purposes must acquire an explicit policy here before execution.
 func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
-	case IPPolicySet, IPRefreshBegin, IPFieldEdit, IPFieldLock, IPFieldRestore:
+	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPFieldEdit, IPFieldLock, IPFieldRestore:
 		return governor.Background, nil
 	case IAConfigureLibrary, IAConfigureSource:
 		return governor.Background, nil
