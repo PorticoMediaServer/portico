@@ -287,6 +287,10 @@ func runN1HistoryTrace(t *testing.T) (ackPhases, retiredPhases []string) {
 }
 
 func TestCrashReplayN1ChildBearingHistory(t *testing.T) {
+	if raceDetector {
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
+
 	ackPhases, retiredPhases := runN1HistoryTrace(t)
 	ackPhases = append([]string{"before_begin", "after_begin"}, ackPhases...)
 	ackPhases = append(ackPhases, "before_commit", "after_commit", "physical_return", "api_return")
