@@ -132,7 +132,7 @@ func TestBasicNFOStatementPlans(t *testing.T) {
 			t.Fatal(err)
 		}
 		probes := len(independent.Plans) * 3
-		if len(independent.Plans) != 686 || probes != 2058 {
+		if plan.CheckSchemaForeignKeys(&independent) != nil {
 			t.Fatal("incomplete independent FK audit", len(independent.Plans), probes)
 		}
 		if g.ForeignKeys == nil {
@@ -150,7 +150,7 @@ func TestBasicNFOStatementPlans(t *testing.T) {
 				t.Fatal("Capture FK differs from independent audit", err)
 			}
 		}
-		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
+		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || plan.CheckSchemaForeignKeys(g.ForeignKeys) != nil {
 			t.Fatal("incomplete Basic NFO statement/destination/FK audit")
 		}
 		for _, p := range g.Plans {
@@ -209,7 +209,7 @@ func TestBasicNFOStatementPlans(t *testing.T) {
 	}
 	reference := readScanFreshFK(t, filepath.Join("testdata", "scan-basic-media-fk.json.gz"))
 	if err := plan.CompareExactJSON(reference, fkJSON); err != nil {
-		t.Fatal("Basic NFO changed existing complete686-FK image", err)
+		t.Fatal("Basic NFO changed existing complete shared FK image", err)
 	}
 	actual, err := json.MarshalIndent(captures, "", "  ")
 	if err != nil {
@@ -243,5 +243,5 @@ func TestBasicNFOStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("7IDs/7cohorts/one actual NFO population/%dVM/%dSEARCH/2INSERT/686FK2058probes; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
+	t.Logf("7IDs/7cohorts/one actual NFO population/%dVM/%dSEARCH/2INSERT/complete shared FK/probe graph; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
 }

@@ -94,8 +94,8 @@ func TestPlanAutoindexRealJoinedFences(t *testing.T) {
 		`INSERT INTO direct_memberships(account_id,role,allowed_libraries) VALUES('a','member','["movies"]'),('b','member','["other"]')`,
 		`INSERT INTO direct_profiles(id,account_id,name) VALUES('p','a','Alice'),('q','b','Bob')`,
 		`INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('d','a','i','fixture','test','test','1','2026-11-05T00:00:00Z','2026-11-05T00:00:00Z')`,
-		`INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,command_member_incarnation,command_profile_lifetime,command_incarnation)
- SELECT 'f','s','a','p','local','member',1,'2026-11-07T00:00:00Z',1,'d',m.incarnation,p.lifetime,X'01010101010101010101010101010101'
+		`INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,command_member_incarnation,command_profile_lifetime,command_incarnation,security_kind)
+ SELECT 'f','s','a','p','local','member',1,'2026-11-07T00:00:00Z',1,'d',m.incarnation,p.lifetime,X'01010101010101010101010101010101',0
  FROM direct_memberships m JOIN direct_profiles p ON p.account_id=m.account_id
  WHERE m.account_id='a' AND p.id='p'`,
 		`INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES('token','f',1,'2026-11-07T00:00:00Z')`,
