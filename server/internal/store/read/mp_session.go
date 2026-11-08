@@ -2,6 +2,7 @@ package read
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -51,33 +52,61 @@ func (r *ForegroundReader) sessionHead(ctx context.Context, request governor.Req
 	if r == nil || !validMediaSessionInput(in) {
 		return MediaSessionHead{}, BrowseReadResult{}, ErrInput
 	}
-	var source []any
+	windows := &mpByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	root := func(q browseQuery) ([]any, error) {
-		rows, err := q("foreground.mp.session_head", in.View.TokenHash, in.Session, in.Item, in.View.Library, in.View.Kind)
+		rows, err := q("foreground.mp.session_source", in.View.TokenHash, in.Session, in.Item, in.View.Library, in.View.Kind)
 		if err != nil {
 			return nil, err
 		}
 		if len(rows) != 1 {
 			return nil, ErrDenied
 		}
-		source = rows[0]
-		return source, nil
+		return rows[0], nil
 	}
-	return publishRead(ctx, r.snapshots, request, budget, output, in.View, []readStep[MediaSessionHead]{func(ctx context.Context, _ browseQuery, f browseFence, out *MediaSessionHead) error {
-		v := source
-		if !admittedItem(v[22:29], f) {
-			return ErrDenied
-		}
-		item, err := itemValue(v[22:29])
-		if err != nil {
-			return err
-		}
-		*out = MediaSessionHead{ID: v[0].(string), Kind: v[1].(string), Role: v[2].(string), State: v[3].(string), Version: v[4].(string), Queue: v[5].(string), Entry: v[6].(string), MediaSession: v[7].(string), Part: v[8].(int64), Revision: v[9].(int64), Generation: v[10].(int64), MediaGeneration: v[11].(int64), PositionMS: v[12].(int64), StartPositionMS: v[13].(int64), LastSequence: v[14].(int64), LeaseExpiresMS: v[15].(int64), CreatedMS: v[16].(int64), UpdatedMS: v[17].(int64), EndedMS: v[18].(int64), EndReason: v[19].(string), Item: item}
-		if out.Revision <= 0 || out.Generation <= 0 || out.MediaGeneration < 0 || out.Part < 0 || out.PositionMS < 0 || out.StartPositionMS < 0 || out.LastSequence < 0 || out.LeaseExpiresMS <= 0 || out.EndedMS < 0 {
-			return ErrUnqualified
-		}
-		return ctx.Err()
-	}}, root)
+	return publishRead(ctx, windows, request, budget, output, in.View, []readStep[MediaSessionHead]{
+		func(ctx context.Context, q browseQuery, _ browseFence, _ *MediaSessionHead) error {
+			sizes, err := q("foreground.mp.session_head_octets", in.View.TokenHash, in.Session, in.Item, in.View.Library, in.View.Kind)
+			if err != nil {
+				return err
+			}
+			if len(sizes) != 1 {
+				return ErrDenied
+			}
+			bytes, err := mpPointBytes(sizes[0])
+			if err != nil {
+				return err
+			}
+			if err = ctx.Err(); err != nil {
+				return err
+			}
+			return windows.arm(bytes, 3)
+		},
+		func(ctx context.Context, q browseQuery, f browseFence, out *MediaSessionHead) error {
+			rows, err := q("foreground.mp.session_head", in.View.TokenHash, in.Session, in.Item, in.View.Library, in.View.Kind)
+			if err != nil {
+				if errors.Is(err, governor.ErrSnapshotBudget) {
+					return mpByteGrowth(windows, q, "foreground.mp.session_head_octets", in.View.TokenHash, in.Session, in.Item, in.View.Library, in.View.Kind)
+				}
+				return err
+			}
+			if len(rows) != 1 {
+				return ErrDenied
+			}
+			v := rows[0]
+			if !admittedItem(v[22:29], f) {
+				return ErrDenied
+			}
+			item, err := itemValue(v[22:29])
+			if err != nil {
+				return err
+			}
+			*out = MediaSessionHead{ID: v[0].(string), Kind: v[1].(string), Role: v[2].(string), State: v[3].(string), Version: v[4].(string), Queue: v[5].(string), Entry: v[6].(string), MediaSession: v[7].(string), Part: v[8].(int64), Revision: v[9].(int64), Generation: v[10].(int64), MediaGeneration: v[11].(int64), PositionMS: v[12].(int64), StartPositionMS: v[13].(int64), LastSequence: v[14].(int64), LeaseExpiresMS: v[15].(int64), CreatedMS: v[16].(int64), UpdatedMS: v[17].(int64), EndedMS: v[18].(int64), EndReason: v[19].(string), Item: item}
+			if out.Revision <= 0 || out.Generation <= 0 || out.MediaGeneration < 0 || out.Part < 0 || out.PositionMS < 0 || out.StartPositionMS < 0 || out.LastSequence < 0 || out.LeaseExpiresMS <= 0 || out.EndedMS < 0 {
+				return ErrUnqualified
+			}
+			return ctx.Err()
+		},
+	}, root)
 }
 
 // MediaSessionHarnessDefinitions is explicit harness composition only; capture

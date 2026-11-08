@@ -2,6 +2,7 @@ package read
 
 import (
 	"context"
+	"errors"
 	"time"
 	"unicode/utf8"
 
@@ -70,21 +71,47 @@ func (r *MediaReader) queueHead(ctx context.Context, request governor.Request, b
 	if r == nil || !validMediaID(in.Queue) || in.View.After != nil || in.View.Descending || in.View.KeepArticles {
 		return MediaQueueHead{}, BrowseReadResult{}, ErrInput
 	}
-	var source []any
+	windows := &mpByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	root := func(q browseQuery) ([]any, error) {
-		rows, err := q("foreground.mp.queue_head", in.View.TokenHash, in.Queue)
+		rows, err := q("foreground.mp.queue_source", in.View.TokenHash, in.Queue)
 		if err != nil {
 			return nil, err
 		}
 		if len(rows) != 1 {
 			return nil, ErrDenied
 		}
-		source = rows[0]
-		return source, nil
+		return rows[0], nil
 	}
-	return publishRead(ctx, r.snapshots, request, budget, output, in.View, []readStep[MediaQueueHead]{
-		func(ctx context.Context, _ browseQuery, _ browseFence, out *MediaQueueHead) error {
-			v := source
+	return publishRead(ctx, windows, request, budget, output, in.View, []readStep[MediaQueueHead]{
+		func(ctx context.Context, q browseQuery, _ browseFence, _ *MediaQueueHead) error {
+			sizes, err := q("foreground.mp.queue_head_octets", in.View.TokenHash, in.Queue)
+			if err != nil {
+				return err
+			}
+			if len(sizes) != 1 {
+				return ErrDenied
+			}
+			bytes, err := mpPointBytes(sizes[0])
+			if err != nil {
+				return err
+			}
+			if err = ctx.Err(); err != nil {
+				return err
+			}
+			return windows.arm(bytes, 3)
+		},
+		func(ctx context.Context, q browseQuery, _ browseFence, out *MediaQueueHead) error {
+			rows, err := q("foreground.mp.queue_head", in.View.TokenHash, in.Queue)
+			if err != nil {
+				if errors.Is(err, governor.ErrSnapshotBudget) {
+					return mpByteGrowth(windows, q, "foreground.mp.queue_head_octets", in.View.TokenHash, in.Queue)
+				}
+				return err
+			}
+			if len(rows) != 1 {
+				return ErrDenied
+			}
+			v := rows[0]
 			*out = MediaQueueHead{ID: v[0].(string), Revision: v[1].(int64), CustodyGeneration: v[2].(int64), CurrentEntry: v[3].(string), Position: v[4].(int64), Repeat: v[5].(string), Shuffle: v[6].(int64) == 1, ShuffleSeed: v[7].(int64), ShuffleLap: v[8].(int64), ShuffleDomain: v[9].(int64), ShuffleFirst: v[10].(int64), Session: v[11].(string), AutomaticAdvances: v[12].(int64), CreatedMS: v[13].(int64), UpdatedMS: v[14].(int64)}
 			if out.Revision <= 0 || out.CustodyGeneration < 0 || out.Position < 0 || out.AutomaticAdvances < 0 || v[6].(int64) < 0 || v[6].(int64) > 1 || (out.Repeat != "off" && out.Repeat != "one" && out.Repeat != "all") {
 				return ErrUnqualified
