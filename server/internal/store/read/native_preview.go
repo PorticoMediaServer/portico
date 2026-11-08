@@ -97,6 +97,12 @@ func nativePreviewAdvance(ctx context.Context, q browseQuery, scope *fullQuerySc
 			state.seen = append(state.seen, key)
 			fresh = append(fresh, hit)
 		}
+		// The bounded top-k drops matches beyond the page limit inside one window
+		// and the walk never revisits them, so such a walk can never claim to be
+		// exhaustive (the flag travels in the cursor to later polls).
+		if top.more {
+			state.previewIncomplete = true
+		}
 		// A hit dropped at the seen bound makes this window incomplete even on
 		// the last poll, so completeness is decided after the loop.
 		complete := exhausted && !state.previewIncomplete && !budget

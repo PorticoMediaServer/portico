@@ -380,6 +380,7 @@
         "TestNativeSearchPreviewSeenBoundNeverReportsFalseCompletion",
         "TestNativeSearchPreviewTheReturnsPartial",
         "TestNativeSearchPreviewWalkEmitsEachHitOnce",
+        "TestNativeSearchPreviewWindowOverflowIsNeverReportedComplete",
         "TestNativeSearchPublicationDenialAndRetirement",
         "TestNativeSearchReadJoinedStamp",
         "TestNativeSearchRefusesCandidateBudgetMisuse",
