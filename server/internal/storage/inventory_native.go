@@ -55,7 +55,7 @@ func nativeInventoryMount(root []byte) error {
 func nativeInventoryEmit(w *nativeInventoryWire, out io.Writer) error {
 	// Conversion occurs only after lossless byte decoding, for OS APIs. No path
 	// string crosses a JSON boundary. Stream=false always selects native d_off.
-	r := InventoryRequest{Root: string(w.Root), RelativePath: string(w.RelativePath), RootIdentity: w.RootIdentity,
+	r := InventoryRequest{nativeSeparateEOF: true, Root: string(w.Root), RelativePath: string(w.RelativePath), RootIdentity: w.RootIdentity,
 		DirectoryRevision: w.DirectoryRevision, Cursor: w.Cursor, Limit: w.Limit, FollowSymlinks: w.FollowSymlinks}
 	p, err := LocalInventoryPage(r)
 	if err != nil {
