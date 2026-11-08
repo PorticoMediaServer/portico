@@ -226,20 +226,19 @@ func localInventoryPage(r InventoryRequest) (p InventoryPage, raw int, err error
 	p = InventoryPage{RootIdentity: rootID, DirectoryIdentity: before.ObjectIdentity, DirectoryRevision: rev, Entries: []Snapshot{}}
 	rules, issues := inventoryIgnoreRules(retained, r)
 	p.Issues = append(p.Issues, issues...)
-	readNames := inventoryNames
-	if r.nativeSeparateEOF && runtime.GOOS == "linux" {
-		readNames = func(f *os.File, cursor string, limit int) ([]string, string, bool, error) {
-			return inventoryNamesPage(f, cursor, limit, true)
-		}
-	}
-	if r.Stream || runtime.GOOS != "linux" {
+	var names []string
+	var next string
+	var done bool
+	switch {
+	case r.Stream || runtime.GOOS != "linux":
 		// Open by the already resolved absolute path, not os.Root's display name.
 		// SameFile below compares it with this anchored descriptor before use.
-		readNames = func(f *os.File, cursor string, limit int) ([]string, string, bool, error) {
-			return retainedInventoryNamesAt(f, path, cursor, limit)
-		}
+		names, next, done, err = retainedInventoryNamesAt(f, path, r.Cursor, r.Limit)
+	case r.nativeSeparateEOF:
+		names, next, done, err = inventoryNamesPage(f, r.Cursor, r.Limit, true)
+	default:
+		names, next, done, err = inventoryNames(f, r.Cursor, r.Limit)
 	}
-	names, next, done, err := readNames(f, r.Cursor, r.Limit)
 	if err != nil {
 		return p, raw, err
 	}
