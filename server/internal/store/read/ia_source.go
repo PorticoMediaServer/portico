@@ -190,7 +190,7 @@ func (r *ForegroundReader) iaSourcePoint(ctx context.Context, request governor.R
 	}}
 	page, result, e := publishRead(ctx, s, request, budget, output, in.View, steps, root)
 	// Exact point pairs bypass browseQuery, but remain native registered queries.
-	// Each attempt has two business windows followed by fresh publication.
+	// Each attempt runs both pairs in the lookup window and again in publication.
 	for _, calls := range s.extra {
 		if calls.publication {
 			result.PublicationStatements += calls.n
