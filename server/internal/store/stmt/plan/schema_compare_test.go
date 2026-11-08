@@ -25,7 +25,8 @@ var comparisonCatalog struct {
 func currentComparisonCatalog(t *testing.T) Rows {
 	t.Helper()
 	comparisonCatalog.once.Do(func() {
-		db, policy, err := sqliteconn.Open(t.Context(), schematest.Clone(t), sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 4096, Synchronous: sqliteconn.Full})
+		policy := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 4096, Synchronous: sqliteconn.Full}
+		db, _, err := sqliteconn.Open(t.Context(), schematest.Clone(t), policy)
 		if err != nil {
 			comparisonCatalog.err = err
 			return
