@@ -1,0 +1,32 @@
+{
+  "version": "portico-canonical-class-execution-v1",
+  "status": "owner-execution-complete",
+  "qualification_verdict": null,
+  "declared": {
+    "source": "1111111111111111111111111111111111111111",
+    "manifest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "name": "inventory_n1",
+    "profile": "legacy8",
+    "replicate": 3,
+    "producer_run": 42400000000,
+    "producer_attempt": 1,
+    "workflow_run": 42400000001,
+    "workflow_attempt": 1
+  },
+  "attempts_requested": 3,
+  "run_url": "https://github.com/PorticoMediaServer/portico/actions/runs/42400000001",
+  "source_commit": "1111111111111111111111111111111111111111",
+  "target_exit_code": 0,
+  "actual_config": {
+    "host_epoch": "66666666-6666-4666-8666-666666666666-k7.0.0-fixture",
+    "class": "inventory_n1",
+    "profile": "legacy8"
+  },
+  "host_before": {
+    "host": {
+      "files": {
+        "proc/sys/kernel/random/boot_id": "66666666-6666-4666-8666-666666666666\n"
+      }
+    }
+  }
+}
