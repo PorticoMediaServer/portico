@@ -16,7 +16,12 @@ func TestCanonicalHeldStreamTransport(t *testing.T) {
 		t.Skip("runner Unix socket transport")
 	}
 	t.Setenv("PORTICO_CANONICAL_HELD_STREAM", "unix-gzip-v1")
-	path := filepath.Join(t.TempDir(), "raw.sock")
+	root, err := os.MkdirTemp("", "chs") // short Unix socket path on darwin
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	path := filepath.Join(root, "raw.sock")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
@@ -52,11 +57,11 @@ func TestCanonicalHeldStreamTransport(t *testing.T) {
 		t.Fatal(record)
 	}
 	// Broken or unknown transports cannot silently fall back to disk.
-	if _, _, err := openCanonicalHeldOutput(filepath.Join(t.TempDir(), "absent.sock")); err == nil {
+	if _, _, err := openCanonicalHeldOutput(filepath.Join(root, "absent.sock")); err == nil {
 		t.Fatal("missing observer accepted")
 	}
 	t.Setenv("PORTICO_CANONICAL_HELD_STREAM", "other")
-	fallback := filepath.Join(t.TempDir(), "must-not-exist")
+	fallback := filepath.Join(root, "must-not-exist")
 	if _, _, err := openCanonicalHeldOutput(fallback); err == nil {
 		t.Fatal("unknown transport accepted")
 	}
