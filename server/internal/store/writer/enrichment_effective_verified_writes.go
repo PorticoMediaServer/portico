@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	effectiveBeginReservation   stmt.ID = "enrichment.effective_stage.proof_reservation"
 	effectiveBeginSourceRetain  stmt.ID = "enrichment.effective_stage.retain_source"
 	effectiveBeginImageSource   stmt.ID = "enrichment.effective_stage.image_source"
 	effectiveBeginReceiptSource stmt.ID = "enrichment.effective_stage.receipt_source"
@@ -22,15 +23,19 @@ func enrichmentEffectiveVerifiedDefinitions() []stmt.Definition {
 	integer := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	blob := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
 	defs := []stmt.Definition{
+		{ID: effectiveBeginReservation, Kind: stmt.Read, SQL: `SELECT proof_reserved_bytes FROM metadata_provider_operations
+ WHERE id=? AND command_incarnation=? AND entity_id=? AND provider=? AND generation=?
+ AND source_publication_id=? AND source_content_revision=? AND proof_cleanup_phase='idle'
+ AND (proof_stage_slot IS NOT NULL OR proof_current_slot=1) AND proof_pin_units>=2 AND proof_reserved_bytes>=?`,
+			Params: []stmt.Param{text("owner"), blob("owner_incarnation"), integer("entity"), text("provider"), integer("owner_generation"), text("publication"), integer("source_revision"), integer("full_reserved_bytes")},
+			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_3"}, Seeks: []string{"id=? AND command_incarnation=?"}}},
+
 		{ID: effectiveBeginSourceRetain, SQL: `UPDATE enrichment_command_receipts SET proof_pin_count=proof_pin_count+2,proof_revision=proof_revision+1
  WHERE provider_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind='credit_source_seal'
  AND publication_id=? AND entity_id=? AND seal_provider=? AND proof_revision=? AND proof_pin_count=?
- AND proof_pin_count>0 AND proof_pin_count<=9223372036854775805 AND proof_revision<9223372036854775807 AND proof_cleanup_after_sequence=0
- AND EXISTS(SELECT 1 FROM metadata_provider_operations o WHERE o.id=? AND o.command_incarnation=? AND o.entity_id=? AND o.provider=?
- AND o.generation=? AND o.source_publication_id=? AND o.source_content_revision=? AND o.proof_cleanup_phase='idle'
- AND (o.proof_stage_slot IS NOT NULL OR o.proof_current_slot=1) AND o.proof_pin_units>=2 AND o.proof_reserved_bytes>=?)`,
-			Params: []stmt.Param{text("source_owner"), blob("source_incarnation"), integer("source_sequence"), text("publication"), integer("entity"), text("provider"), integer("proof_revision"), integer("proof_pins"), text("owner"), blob("owner_incarnation"), integer("owner_entity"), text("owner_provider"), integer("owner_generation"), text("owner_publication"), integer("source_revision"), integer("full_reserved_bytes")},
-			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"enrichment_command_receipts"}, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_3"}}},
+ AND proof_pin_count>0 AND proof_pin_count<=9223372036854775805 AND proof_revision<9223372036854775807 AND proof_cleanup_after_sequence=0`,
+			Params: []stmt.Param{text("source_owner"), blob("source_incarnation"), integer("source_sequence"), text("publication"), integer("entity"), text("provider"), integer("proof_revision"), integer("proof_pins")},
+			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"enrichment_command_receipts"}}},
 		{ID: effectiveBeginImageSource, SQL: `UPDATE catalog_credit_images SET source_proof_owner=?,source_proof_incarnation=?,source_proof_sequence=?,source_proof_publication_id=?,source_proof_provider=?
  WHERE id=? AND entity_id=? AND revision=? AND sealed=0 AND source_proof_owner IS NULL`,
 			Params: []stmt.Param{text("source_owner"), blob("source_incarnation"), integer("source_sequence"), text("source_publication"), text("source_provider"), integer("image"), integer("entity"), integer("image_revision")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_credit_images"}, Seeks: []string{"rowid=?"}}},
@@ -40,7 +45,10 @@ func enrichmentEffectiveVerifiedDefinitions() []stmt.Definition {
 			Params: []stmt.Param{text("source_owner"), blob("source_incarnation"), integer("source_sequence"), text("source_publication"), text("source_provider"), text("owner"), blob("incarnation"), integer("sequence"), blob("operation"), blob("request"), integer("image"), integer("image_revision"), integer("entity"), blob("result")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"enrichment_command_receipts"}, Seeks: []string{"provider_operation_id=? AND command_incarnation=? AND command_sequence=?"}}},
 	}
 	for i := range defs {
-		defs[i].Owner, defs[i].Kind = "writer.enrichment", stmt.Write
+		defs[i].Owner = "writer.enrichment"
+		if defs[i].ID != effectiveBeginReservation {
+			defs[i].Kind = stmt.Write
+		}
 		defs[i].CallSites = []string{"writer/enrichment_effective_verified_writes.go:retainEffectiveBeginSource", "writer/enrichment_effective_verified_writes.go:attachEffectiveBeginReceiptSource"}
 		defs[i].Cohorts = []stmt.Cohort{{Name: "missing_native_proof", Bindings: missingSealBindings(defs[i].Params)}}
 	}
@@ -62,8 +70,23 @@ func retainEffectiveBeginSource(ctx context.Context, turn *commandTurn, input *e
 		return ErrInvalid
 	}
 	ref := input.sourceReferences.source
-	args := []any{ref.owner, ref.receipt.Identity.Incarnation[:], ref.receipt.Identity.Sequence, s.PublicationID.Value, s.EntityID, s.Provider, proof.source.proof.revision, proof.source.proof.pinCount,
-		input.request.ownerID, input.identity.Incarnation[:], input.request.entity.id, input.request.owner.provider, input.request.owner.generation, s.PublicationID.Value, s.ContentRevision, e.RetainedBytes + s.RetainedBytes}
+	required := e.RetainedBytes + s.RetainedBytes
+	step, err := sealStep(turn, effectiveBeginReservation)
+	if err != nil {
+		return err
+	}
+	row, err := turn.queryRow(ctx, step, input.request.ownerID, input.identity.Incarnation[:], input.request.entity.id, input.request.owner.provider, input.request.owner.generation, s.PublicationID.Value, s.ContentRevision, required)
+	if err != nil {
+		return err
+	}
+	var reserved int64
+	if err = row.Scan(&reserved); err != nil {
+		return ErrConflict
+	}
+	if reserved < required {
+		return ErrConflict
+	}
+	args := []any{ref.owner, ref.receipt.Identity.Incarnation[:], ref.receipt.Identity.Sequence, s.PublicationID.Value, s.EntityID, s.Provider, proof.source.proof.revision, proof.source.proof.pinCount}
 	if err := execSealOne(ctx, turn, effectiveBeginSourceRetain, args...); err != nil {
 		return err
 	}
