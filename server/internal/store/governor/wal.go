@@ -179,7 +179,7 @@ type WALGate struct {
 	havePrevious             bool
 	resets                   uint64
 	writerClass              Class
-	deferFrom, deferLast     time.Time // current PASSIVE foreground-deferral episode
+	deferFrom                time.Time // first deferral of the current PASSIVE episode
 	writerForecast           WALRestartObservation
 	awaitWriterSample        bool
 	lastRestart              WALRestartObservation

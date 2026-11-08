@@ -40,12 +40,18 @@ func TestPassiveStartDefersForAFlightForegroundWriterAndIsBounded(t *testing.T) 
 	}
 	retire(t, f.a, w)
 	f.sample(t)
-	// A later busy writer begins a NEW episode: the old first deferral never waives it.
-	f.clock.ms.Add(5000)
-	f.sample(t)
+	// Under a steady Foreground stream the bound holds whatever the offer cadence:
+	// an offer arriving long after the first deferral is never deferred again.
 	w = grant(t, f.g, concurrentWriter(t, f))
 	if out, err = deferredStep(t, f); !errors.Is(err, ErrCheckpointForeground) {
-		t.Fatal("a stale episode must not waive a new deferral", out, err)
+		t.Fatal("a fresh episode starts with a deferral", out, err)
+	}
+	retire(t, f.a, w)
+	f.clock.ms.Add(5000) // the caller's next offer is far later than the bound
+	f.sample(t)
+	w = grant(t, f.g, concurrentWriter(t, f)) // the stream is still busy
+	if out, err = deferredStep(t, f); err != nil || out.NativeStarted.IsZero() {
+		t.Fatal("an offer past the bound must start, never starve behind a steady stream", out, err)
 	}
 	retire(t, f.a, w)
 }

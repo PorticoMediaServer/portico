@@ -47,17 +47,18 @@ func (a *Authority) queueCheckpointContext(ctx context.Context, until time.Time,
 		return nil, admissionError(CauseCheckpointCadence, ErrCheckpointCadence)
 	}
 	if !recovery && w.policy.PassiveDeferMax > 0 && w.writer && w.writerClass == Foreground {
-		// A new episode starts when the previous deferral is stale, so a long-past
-		// first deferral never waives the wait for a later busy writer.
-		if w.deferFrom.IsZero() || now.Sub(w.deferLast) > w.policy.PassiveDeferMax {
+		// The episode starts at the first deferral and ends only when a PASSIVE
+		// proceeds, whatever the caller's offer cadence. An offer arriving at least
+		// PassiveDeferMax after the first deferral is never deferred, so a steady
+		// Foreground stream delays the PASSIVE by at most that long plus one offer.
+		if w.deferFrom.IsZero() {
 			w.deferFrom = now
 		}
-		w.deferLast = now
 		if now.Sub(w.deferFrom) < w.policy.PassiveDeferMax {
 			return nil, admissionError(CauseCheckpointForeground, ErrCheckpointForeground)
 		}
 	}
-	w.deferFrom, w.deferLast = time.Time{}, time.Time{} // the PASSIVE proceeds
+	w.deferFrom = time.Time{} // the PASSIVE proceeds
 	if w.pendingCheckpoint != nil || w.checkpoint {
 		return nil, admissionError(CauseCheckpointActive, ErrBusy)
 	}
