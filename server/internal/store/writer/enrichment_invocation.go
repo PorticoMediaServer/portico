@@ -33,6 +33,7 @@ type enrichmentFrozenPayload struct {
 	sourceAppend   *enrichmentSourceAppendPayload
 	evidenceSeal   *enrichmentEvidenceSealPayload
 	sourceSeal     *enrichmentSourceSealPayload
+	accept         *enrichAcceptCommand
 }
 
 type enrichmentPayloadVariant uint8
@@ -44,6 +45,7 @@ const (
 	enrichmentSourceAppend
 	enrichmentEvidenceSeal
 	enrichmentSourceSeal
+	enrichmentAccept
 )
 
 type enrichmentEvidenceBeginPayload struct {
@@ -83,4 +85,5 @@ type enrichmentNativeResult struct {
 	sourceProgress *sourceStageProgress
 	evidenceSeal   *evidenceSealResult
 	sourceSeal     *creditSourceSealResult
+	accepted       *enrichAcceptResult
 }
