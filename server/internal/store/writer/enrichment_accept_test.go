@@ -380,12 +380,23 @@ func TestEnrichmentAcceptCommandConstructorAndGrantKey(t *testing.T) {
 		if err := corrupt.check(); err == nil {
 			t.Fatal("corrupted final digest passed check")
 		}
-		if enrichmentAcceptGrantKey(cmd.identity, cmd.digest) == enrichmentAcceptGrantKey(cmd.identity, corrupt.digest) {
-			t.Fatal("grant key does not bind the request digest")
+		// The admit key is the ORIGINAL provider operation (shared BEGIN
+		// convention); the frozen FINAL identity/digest and its original owner
+		// must agree with that key.
+		w, cap, q, a := acceptRuntime(t, e, begin, cmd)
+		if cmd.originalBegin.request.ownerID != q.ProviderOperationID {
+			t.Fatal("final command is not bound to the original provider operation")
+		}
+		good := &governedTurn{expected: governor.Request{Key: governor.JobKey{Domain: uint16(EnrichAccept), ID: q.ProviderOperationID}}}
+		if err := checkEnrichmentAcceptGrant(good, acceptInvocation(cmd, cap, q), q.ProviderOperationID); err != nil {
+			t.Fatal("shared admit key refused", err)
+		}
+		wrongKey := &governedTurn{expected: governor.Request{Key: governor.JobKey{Domain: uint16(EnrichAccept), ID: "another-operation"}}}
+		if err := checkEnrichmentAcceptGrant(wrongKey, acceptInvocation(cmd, cap, q), "another-operation"); err == nil {
+			t.Fatal("foreign admit key accepted")
 		}
 		// The dispatcher refuses a payload command that is not the admitted
 		// identity/digest before any command turn starts.
-		w, cap, q, a := acceptRuntime(t, e, begin, cmd)
 		other := *cmd
 		other.identity.Sequence++
 		wrong := acceptInvocation(&other, cap, q)
