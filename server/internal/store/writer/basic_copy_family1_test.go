@@ -258,6 +258,71 @@ func TestBasicFreezeAndEntityPublicationFences(t *testing.T) {
 	})
 }
 
+// A leaf settle would refuse never reaches a fence: freeze refuses it while the
+// asset is still visible and the change is still at phase 0.
+func TestBasicFreezeRefusesLeafSettleWouldRefuse(t *testing.T) {
+	for name, seed := range map[string]func(*testing.T, *executor){
+		"cue_link": func(t *testing.T, e *executor) {
+			execBasicSeed(t, e, `UPDATE catalog_asset_links SET cue_ordinal=1 WHERE entity_id=31 AND asset_id=41`)
+		},
+		"ranged_start": func(t *testing.T, e *executor) {
+			execBasicSeed(t, e, `UPDATE catalog_asset_links SET start_seconds=5 WHERE entity_id=31 AND asset_id=41`)
+		},
+		"ranged_end": func(t *testing.T, e *executor) {
+			execBasicSeed(t, e, `UPDATE catalog_asset_links SET end_seconds=10 WHERE entity_id=31 AND asset_id=41`)
+		},
+		"retired": func(t *testing.T, e *executor) {
+			execBasicSeed(t, e, `UPDATE catalog_entities SET retired=1 WHERE id=31`)
+		},
+		"child_entity": func(t *testing.T, e *executor) {
+			seedBasicFirstOwnerEntity(t, e, 32, 0x52)
+			execBasicSeed(t, e, `DELETE FROM catalog_asset_links WHERE entity_id=32`)
+			execBasicSeed(t, e, `UPDATE catalog_entities SET parent_id=32 WHERE id=31`)
+		},
+		"aggregate_owned": func(t *testing.T, e *executor) {
+			conn, err := e.db.Conn(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			for _, q := range []string{`PRAGMA foreign_keys=OFF`, `UPDATE catalog_entities SET aggregate_publication_id=99 WHERE id=31`, `PRAGMA foreign_keys=ON`} {
+				if _, err := conn.ExecContext(t.Context(), q); err != nil {
+					t.Fatal(q, err)
+				}
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, e, authority, s, original, identity := basicControlDispatchFixture(t)
+			seedBasicFirstOrdinaryOwner(t, e)
+			execBasicSeed(t, e, `INSERT INTO catalog_info_shapes(id,container,video_codec,height,ref_count) VALUES(61,'mkv','h264',1080,1)`)
+			execBasicSeed(t, e, `UPDATE catalog_info_changes SET family_mask=511,target_shape_id=61,copy_family=1,job_revision=2 WHERE id=51`)
+			execBasicSeed(t, e, `UPDATE catalog_info_input_families SET rows_staged=1,sealed=1 WHERE change_id=51 AND family=1`)
+			execBasicSeed(t, e, `INSERT INTO catalog_info_input_families(change_id,family,witness_ordinal,rows_expected,rows_staged,sealed) VALUES(51,2,0,0,0,1),(51,3,0,0,0,1),(51,4,0,0,0,1),(51,5,0,0,0,1),(51,6,0,0,0,1),(51,7,0,0,0,1),(51,8,0,0,0,1),(51,9,0,0,0,1)`)
+			seed(t, e)
+			chain := &basicControlChain{t: t, w: w, original: original, identity: identity}
+			var refusal *Refusal
+			if _, err := chain.stage(basicControlRequest{operation: basicControlFreeze, source: s, changeRevision: 2, entityID: 31, shapeID: 61}); !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified {
+				t.Fatal("freeze was not refused", err)
+			}
+			basicDispatchReturned(t, e, authority)
+			// Refused at phase 0: the header stays, the asset stays visible.
+			var phase, revision, pending int64
+			var link sql.NullInt64
+			if err := e.db.QueryRowContext(t.Context(), `SELECT (SELECT phase FROM catalog_info_changes WHERE id=51),(SELECT job_revision FROM catalog_info_changes WHERE id=51),(SELECT info_publication_pending FROM catalog_assets WHERE id=41),(SELECT info_pending_change FROM catalog_asset_links WHERE entity_id=31 AND asset_id=41)`).Scan(&phase, &revision, &pending, &link); err != nil || phase != 0 || revision != 2 || pending != 0 || link.Valid {
+				t.Fatal("refused freeze had an effect", phase, revision, pending, link, err)
+			}
+		})
+	}
+}
+
+func execBasicSeed(t *testing.T, e *executor, q string) {
+	t.Helper()
+	if _, err := e.db.ExecContext(t.Context(), q); err != nil {
+		t.Fatal(q, err)
+	}
+}
+
 func TestBasicCopyFamilyRegistrationIsClosed(t *testing.T) {
 	if _, ok := basicCopyFamilies[1]; !ok || len(basicCopyFamilyOrder()) == 0 || basicCopyFamilyOrder()[0] != 1 {
 		t.Fatal("family 1 not registered", basicCopyFamilyOrder())

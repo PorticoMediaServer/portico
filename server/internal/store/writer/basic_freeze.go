@@ -2,7 +2,11 @@ package writer
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"math"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // The ONE leaf entity linked to the FIRST asset. A second link refuses: FIRST
@@ -34,6 +38,33 @@ func readBasicSoleLeaf(ctx context.Context, turn *commandTurn, s basicStreamFact
 	return entity, nil
 }
 
+// A leaf settle would refuse (a cue or ranged link, a child or aggregate-owned
+// entity) must refuse here: past this point the asset is hidden from playback.
+func checkBasicLeafSettleable(ctx context.Context, turn *commandTurn, s basicStreamFactStage, entity int64) error {
+	for _, read := range []struct {
+		id   stmt.ID
+		args []any
+	}{
+		{basicFreezeLink, []any{entity, s.assetID, s.libraryID}},
+		{basicFreezeEntity, []any{entity, s.libraryID}},
+	} {
+		row, err := basicStageRead(ctx, turn, read.id, read.args...)
+		if err != nil {
+			return err
+		}
+		var got int64
+		if err = row.Scan(&got); errors.Is(err, sql.ErrNoRows) {
+			return &Refusal{Code: RefusalUnqualified}
+		} else if err != nil {
+			return err
+		}
+		if got != entity {
+			return ErrConflict
+		}
+	}
+	return nil
+}
+
 // freezeBasicFirstInput moves a pinned FIRST input 0->1 after all nine masked
 // families are sealed at their exact staged counts. It freezes the target as
 // available with the genuine NULL/NULL owner and bounds the walk at the sole
@@ -56,6 +87,9 @@ func freezeBasicFirstInput(ctx context.Context, turn *commandTurn, in basicContr
 	}
 	if leaf != in.entityID {
 		return ErrConflict
+	}
+	if err = checkBasicLeafSettleable(ctx, turn, s, leaf); err != nil {
+		return err
 	}
 	row, err := basicStageRead(ctx, turn, basicFreezeCAS, in.entityID, in.changeRevision+1, s.changeID, s.assetID, s.assetToken, s.expectedEpoch, s.inputRevision, s.witnessFingerprint[:], in.changeRevision, in.shapeID)
 	if err != nil {
