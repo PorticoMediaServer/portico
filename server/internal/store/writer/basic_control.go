@@ -167,7 +167,7 @@ func writeBasicControlReceipt(ctx context.Context, turn *commandTurn, identity C
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	if ctx == nil || turn == nil || identity.Sequence <= 0 || request == (RequestDigest{}) || result.Digest == (ResultDigest{}) ||
 		result.RunID == "" || result.AcceptedRunRevision <= 0 || result.AppliedMS < 0 || result.SourceID == "" || result.SourceIncarnation == "" || result.SourceRevision == "" ||
-		result.ChangeID <= 0 || result.ExpectedEpoch <= 0 || result.Outcome != (ReceiptOutcome{}) || result.ResultCount != 0 || result.Members == nil || len(result.Members) != 0 || result.Continuation.NextCursor != "" {
+		result.ChangeID <= 0 || result.ExpectedEpoch <= 0 || result.Outcome != (ReceiptOutcome{}) || result.Members == nil || result.Continuation.NextCursor != "" {
 		return ErrInvalid
 	}
 	var kind string
@@ -176,7 +176,16 @@ func writeBasicControlReceipt(ctx context.Context, turn *commandTurn, identity C
 		kind = "basic_stage"
 	case BasicPurposeSeal:
 		kind = "basic_seal"
+	case BasicPurposeAccept:
+		kind = "basic_accept"
 	default:
+		return ErrInvalid
+	}
+	count := int64(0)
+	if result.Purpose == BasicPurposeAccept {
+		count = 1
+	}
+	if result.ResultCount != count || int64(len(result.Members)) != count {
 		return ErrInvalid
 	}
 	c := result.Continuation
@@ -202,7 +211,7 @@ func writeBasicControlReceipt(ctx context.Context, turn *commandTurn, identity C
 	}
 	stored, err := turn.exec(ctx, step.statementStep, result.RunID, identity.Incarnation[:], identity.Sequence, identity.OperationID[:], request[:], kind,
 		result.AcceptedRunRevision, result.AppliedMS, result.SourceID, result.SourceIncarnation, result.SourceRevision, result.ChangeID, c.NextCursor,
-		c.NextFamily, c.NextCopyPhase, c.NextCopyID, c.NextCopyAux, c.NextCopyKey, c.NextCopyKey2, c.NextCopyKey3, c.AfterEntity, result.ExpectedEpoch, int64(0), result.Digest[:])
+		c.NextFamily, c.NextCopyPhase, c.NextCopyID, c.NextCopyAux, c.NextCopyKey, c.NextCopyKey2, c.NextCopyKey3, c.AfterEntity, result.ExpectedEpoch, result.ResultCount, result.Digest[:])
 	if err != nil {
 		return err
 	}

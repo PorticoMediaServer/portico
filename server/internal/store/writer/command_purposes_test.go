@@ -15,6 +15,10 @@ var (
 	frozenEffective  = map[CommandID]bool{EffectiveStage: true, EnrichAccept: true}
 )
 
+// Intended post-legacy plan openings, each tied to the PR that opened it. Only
+// the plan gate may differ; memory, clock and partition facts stay frozen.
+var sanctionedPlanOpenings = map[CommandID]bool{BasicAccept: true} // #1670
+
 func frozenLegacyPurposes() []CommandID {
 	ids := []CommandID{InventoryAccept, InventoryCreate, InventoryClaim, SearchImageStage, BasicStage, BasicSeal, BasicAccept,
 		ProgressAccept, SecurityAccept, ProgressReceiptReclaim}
@@ -111,7 +115,7 @@ func legacyClock(p CommandID) commandClock {
 func TestCommandPurposeRegistryMatchesLegacyGates(t *testing.T) {
 	for _, id := range frozenLegacyPurposes() {
 		facts, ok := commandPurposeFacts(id)
-		if commandPlanPurpose(id) != legacyPlanPurpose(id) {
+		if commandPlanPurpose(id) != (legacyPlanPurpose(id) || sanctionedPlanOpenings[id]) {
 			t.Fatal("plan gate changed", id)
 		}
 		wantMemory := noMemoryPartition

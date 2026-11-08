@@ -4,5 +4,5 @@ package writer
 var basicCommandPurposes = commandPurposeRegistration{owner: "basic", purposes: []commandPurpose{
 	{id: BasicStage, memory: basicPartition, clock: clockUnderLease},
 	{id: BasicSeal, memory: basicPartition, clock: clockUnderLease},
-	{id: BasicAccept, memory: basicPartition, clock: clockUnderLease},
+	{id: BasicAccept, plan: true, memory: basicPartition, clock: clockUnderLease},
 }}

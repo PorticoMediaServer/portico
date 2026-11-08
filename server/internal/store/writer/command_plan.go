@@ -139,8 +139,22 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 		}
 		remaining = subtract(remaining, work)
 	}
-	if _, err := reserveCommandSteps(remaining, plan.steps, defs, purpose); err != nil {
-		return effectivePlan{}, err
+	var forecastErr error
+	if purpose == BasicAccept {
+		for _, step := range plan.steps {
+			if step.work.Rows < basicFinalRows(plan.basicAcceptBounds, step.id) {
+				return effectivePlan{}, invalid("basic_accept_row_forecast")
+			}
+		}
+		_, forecastErr = reserveCommandSteps(remaining, plan.steps, defs, purpose, plan.basicAcceptBounds)
+	} else {
+		if plan.basicAcceptBounds != (basicAcceptBounds{}) {
+			return effectivePlan{}, invalid("basic_accept_bounds_purpose")
+		}
+		_, forecastErr = reserveCommandSteps(remaining, plan.steps, defs, purpose)
+	}
+	if forecastErr != nil {
+		return effectivePlan{}, forecastErr
 	}
 	plan.steps = append([]statementStep(nil), plan.steps...)
 	plan.io = append([]governor.DeviceIO(nil), plan.io...)
