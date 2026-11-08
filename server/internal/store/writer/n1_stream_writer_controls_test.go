@@ -3,8 +3,11 @@ package writer
 import (
 	"bufio"
 	"encoding/json"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -191,4 +194,111 @@ func TestN1AsyncStreamWriterErrorsSurface(t *testing.T) {
 	if err := s.close(); err == nil {
 		t.Fatal("a failed sink must fail close")
 	}
+}
+
+// The screened EC2/EC3 cells stream raw records to the runner's external gzip
+// observer over a Unix socket. An fsync on a socket fails, so this control is
+// live rather than assumed: the socket really refuses a sync; the streamOnly
+// async stream appends, joins and closes cleanly (so no sync was attempted);
+// and the same writer WITHOUT streamOnly surfaces that same sync failure at
+// close, which is exactly what the guard prevents on the measured device.
+func TestN1AsyncSocketStreamNeverFsyncs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("runner Unix socket transport")
+	}
+	t.Setenv("PORTICO_CANONICAL_HELD_STREAM", "unix-gzip-v1")
+	root, err := os.MkdirTemp("", "n1sock") // short Unix socket path on darwin
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	path := filepath.Join(root, "raw.sock")
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	accepted := make(chan net.Conn, 2)
+	go func() {
+		for {
+			conn, err := listener.AcceptUnix()
+			if err != nil {
+				return
+			}
+			accepted <- conn
+		}
+	}()
+	drain := func() []map[string]any {
+		t.Helper()
+		var conn net.Conn
+		select {
+		case conn = <-accepted:
+		case <-time.After(30 * time.Second):
+			t.Fatal("stream never connected to the observer socket")
+		}
+		defer conn.Close()
+		raw, err := io.ReadAll(conn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var records []map[string]any
+		for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+			if line == "" {
+				continue
+			}
+			var record map[string]any
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatal(err)
+			}
+			records = append(records, record)
+		}
+		return records
+	}
+
+	file, streamOnly, err := openCanonicalHeldOutput(path)
+	if err != nil || !streamOnly {
+		t.Fatal(streamOnly, err)
+	}
+	if err := file.Sync(); err == nil {
+		t.Fatal("the control is blind: an fsync on the observer socket must fail")
+	}
+	s := &n1Stream{file: file, streamOnly: streamOnly, origin: time.Now(), base: map[string]any{"scope": "socket control"}}
+	s.enableAsync()
+	for i := 0; i < 8; i++ {
+		if err := s.append("attempt", map[string]any{"i": i}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.append("final", map[string]any{"complete": true, "stream_writer": s.writerStats()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.close(); err != nil {
+		t.Fatalf("a streamOnly socket stream must never fsync: %v", err)
+	}
+	records := drain()
+	if len(records) != 9 {
+		t.Fatalf("observer received %d records, want 9", len(records))
+	}
+	if records[len(records)-1]["kind"] != "final" {
+		t.Fatal("the final record must be last")
+	}
+	if _, ok := records[len(records)-1]["stream_writer"].(map[string]any); !ok {
+		t.Fatal("the final record must carry the async writer statistics")
+	}
+
+	// Negative control: the same socket and async writer with the guard removed
+	// fails at its close-time fsync. That is the syscall the streamOnly path skips.
+	plain, plainOnly, err := openCanonicalHeldOutput(path)
+	if err != nil || !plainOnly {
+		t.Fatal(plainOnly, err)
+	}
+	unguarded := &n1Stream{file: plain, streamOnly: false, origin: time.Now(), base: map[string]any{"scope": "socket control"}}
+	unguarded.enableAsync()
+	if err := unguarded.append("attempt", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := unguarded.close(); err == nil || !strings.Contains(strings.ToLower(err.Error()), "sync") {
+		t.Fatalf("without streamOnly the socket writer must surface its fsync failure: %v", err)
+	}
+	drain() // the negative control's bytes; its close error is the point
 }

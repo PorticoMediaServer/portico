@@ -87,14 +87,18 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 	if err != nil || cfg.Fixtures > 64 || warmup < 1 || warmup > 64 || cfg.Fixtures+warmup > inventoryProgressiveLimit || (cohort != "timing" && cohort != "native-counters") {
 		t.Fatal("invalid bounded paired config", err)
 	}
-	file, err := openFirstLightOutput(cfg.OutputPath)
+	// The screened cell may stream raw records to the runner's bounded external
+	// gzip observer over a Unix socket instead of writing and fsyncing a plain
+	// file on the measured device. The opt-in transport is the same one the
+	// canonical class cells use; every other caller keeps the plain file.
+	file, streamOnly, err := openCanonicalHeldOutput(cfg.OutputPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	origin := time.Now()
 	c := &N1PairedComponent{RunID: cfg.RunID, HostEpoch: cfg.HostEpoch, SourceCommit: cfg.SourceCommit, Measured: cfg.Fixtures, warmup: warmup}
 	c.DatabaseID = fmt.Sprintf("%s/%d/%d/db", cfg.RunID, os.Getpid(), origin.UnixNano())
-	c.stream = &n1Stream{file: file, origin: origin, base: map[string]any{"schema": "portico-n1-component-v1", "component_layout": "n1-paired-foreground-v1", "label": "N1 PAIRED COMPONENT DIRECTIONAL", "qualification": false, "run_id": cfg.RunID, "process_epoch": c.DatabaseID, "qualified_profile_ready": false}}
+	c.stream = &n1Stream{file: file, streamOnly: streamOnly, origin: origin, base: map[string]any{"schema": "portico-n1-component-v1", "component_layout": "n1-paired-foreground-v1", "label": "N1 PAIRED COMPONENT DIRECTIONAL", "qualification": false, "run_id": cfg.RunID, "process_epoch": c.DatabaseID, "qualified_profile_ready": false}}
 	c.stream.enableAsync() // EC2/EC3: no per-record fsync or write ever stalls the serial owner chain
 	if err := c.stream.append("composition_start", map[string]any{"declared_source_commit": cfg.SourceCommit, "host_epoch": cfg.HostEpoch, "database_id": c.DatabaseID, "requested_measured_originals": cfg.Fixtures, "requested_warmup_originals": warmup, "cohort": cohort}); err != nil {
 		_ = c.stream.close()

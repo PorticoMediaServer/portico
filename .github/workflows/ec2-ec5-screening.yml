@@ -2,6 +2,12 @@ name: EC/Basic canonical screening
 # Disposable SCREENING evidence only. Never a qualification, release or merge
 # gate. Raw owner records are retained; no quantiles are minted here and every
 # verdict stays directional until reviewed merged source runs formally.
+#
+# EC2/EC3 raw records stream to the bounded external gzip observer over a Unix
+# socket (no plain stream file and no fsync on the measured device; the in-binary
+# control proves the streamOnly path never syncs). EC3 runs the bounded
+# 64-original maximum so its adopted 50 ms user-write cadence yields ~1,280
+# offers per cell: p99 must not rest on 128 samples.
 on:
   workflow_dispatch:
     inputs:
@@ -183,6 +189,17 @@ jobs:
           go -C source/server test -p 1 -c -o "$RUNNER_TEMP/writer.test" ./internal/store/writer
           go version -m "$RUNNER_TEMP/writer.test" > "$OUTPUT/binary-build-info.txt"
           sha256sum "$RUNNER_TEMP/writer.test" > "$OUTPUT/binary-sha256.txt"
+      - name: Prove the raw stream never fsyncs the observer socket
+        shell: bash
+        env:
+          OUTPUT: ${{ runner.temp }}/screening
+        run: |
+          set -euo pipefail
+          # Live control in the screened binary: fsync on the Unix socket fails,
+          # the streamOnly async stream closes cleanly (so no sync was attempted),
+          # and the same writer without streamOnly surfaces that fsync failure.
+          "$RUNNER_TEMP/writer.test" -test.run=^TestN1AsyncSocketStreamNeverFsyncs$ \
+            -test.count=1 -test.v > "$OUTPUT/no-fsync-control.log" 2>&1
       - name: Write the workload config
         shell: bash
         env:
@@ -209,12 +226,33 @@ jobs:
                   "manifest_sha256": os.environ["INPUT_MANIFEST_SHA256"],
               }
           else:
+              cell = os.environ["CELL"]
+              # EC2/EC3 raw records go to the external gzip observer over a Unix
+              # socket: no plain stream file is created or fsynced on the measured
+              # device. EC5 keeps its plain-file controller path.
+              streamed = cell in ("ec2", "ec3-read", "ec3-write")
+              fixtures = int(os.environ["INPUT_FIXTURES"])
+              output_path = (out / ("raw.sock" if streamed else "raw.ndjson")).resolve()
+              if cell == "ec3-write":
+                  # The adopted user-write cadence is 50 ms and p99 must rest on
+                  # >=1000 offers, so run the bounded 64-original maximum. The
+                  # schedule is fixtures x 1 writer slot x 1 s -> 64 s -> 1280
+                  # planned offers (128 samples per cell was the lock-gate failure).
+                  fixtures = max(fixtures, 64)
+                  planned = (fixtures * 1_000_000_000 - 1) // 50_000_000 + 1
+                  if planned < 1000:
+                      raise SystemExit(f"EC3 planned offers below 1000: {planned}")
+                  (out / "offer-plan.json").write_text(json.dumps({
+                      "cell": cell, "fixtures": fixtures, "writer_slots": 1,
+                      "writer_every_ns": 1_000_000_000, "cadence_ns": 50_000_000,
+                      "planned_offers": planned,
+                      "label": "SCREENING / qualification=false"}, indent=2) + "\n")
               config = {
                   "run_id": run_id,
                   "host_epoch": f"{boot}-k{kernel}",
                   "source_commit": source,
-                  "output_path": str((out / "raw.ndjson").resolve()),
-                  "fixtures": int(os.environ["INPUT_FIXTURES"]),
+                  "output_path": str(output_path),
+                  "fixtures": fixtures,
               }
           (out / "config.json").write_text(json.dumps(config, indent=2) + "\n")
           facts = {
@@ -260,7 +298,12 @@ jobs:
                 if [ "$CELL" = ec3-write ]; then
                   ARGS+=(-ec3-foreground-write-every=50ms -ec3-foreground-write-pattern=progress_capture,progress_drain,security)
                 fi
-                ( cd source/server/internal/store/writer && "$RUNNER_TEMP/writer.test" "${ARGS[@]}" ) > "$OUTPUT/target.log" 2>&1
+                # The cell streams raw records to the external gzip observer over
+                # raw.sock; nothing is written or fsynced to a plain stream file on
+                # the measured device.
+                python3 -B "$GITHUB_WORKSPACE/tools/ci/qual_spool.py" run \
+                  --root "$OUTPUT" --cwd source/server/internal/store/writer --timeout 3300 \
+                  -- "$RUNNER_TEMP/writer.test" "${ARGS[@]}" > "$OUTPUT/target.log" 2>&1
                 code=$?
                 ;;
               ec5-paired|ec5-sustained)
@@ -280,6 +323,16 @@ jobs:
             esac
           fi
           set -e
+          if [ "$KIND" = ec ] && { [ "$CELL" = ec2 ] || [ "$CELL" = ec3-read ] || [ "$CELL" = ec3-write ]; }; then
+            if [ ! -s "$OUTPUT/raw.ndjson.gz" ]; then
+              echo "socket observer spool missing or empty; the cell produced no raw evidence" >&2
+              code=1
+            fi
+            if [ -e "$OUTPUT/raw.ndjson" ]; then
+              echo "plain stream file exists; the cell did not use the socket transport" >&2
+              code=1
+            fi
+          fi
           echo "$code" > "$OUTPUT/target-exit-code.txt"
           python3 - "$OUTPUT" "${code}" <<'PY'
           import json, os, pathlib, sys
