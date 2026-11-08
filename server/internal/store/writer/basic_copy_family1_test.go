@@ -121,7 +121,12 @@ func TestBasicTransitionRequestsAreClosed(t *testing.T) {
 		t.Fatal("family-1 copy request", err)
 	}
 	for name, r := range map[string]basicControlRequest{
-		"seal_freeze":       func() basicControlRequest { x := base; x.operation = basicControlFreeze; x.purpose = BasicPurposeSeal; return x }(),
+		"seal_freeze": func() basicControlRequest {
+			x := base
+			x.operation = basicControlFreeze
+			x.purpose = BasicPurposeSeal
+			return x
+		}(),
 		"freeze_family":     func() basicControlRequest { x := base; x.operation, x.family = basicControlFreeze, 1; return x }(),
 		"copy_family_zero":  func() basicControlRequest { x := base; x.operation = basicControlCopyFamily; return x }(),
 		"copy_family_ten":   func() basicControlRequest { x := base; x.operation, x.family = basicControlCopyFamily, 10; return x }(),
@@ -130,7 +135,11 @@ func TestBasicTransitionRequestsAreClosed(t *testing.T) {
 		"no_revision":       func() basicControlRequest { x := ok; x.changeRevision = 0; return x }(),
 		"no_entity":         func() basicControlRequest { x := ok; x.entityID = 0; return x }(),
 		"stream_with_head":  {original: original, source: s, operation: basicControlStreamFact, family: 1, changeRevision: 2},
-		"pin_without_probe": func() basicControlRequest { x := base; x.operation, x.changeRevision, x.entityID, x.shapeID = basicControlPinShape, 0, 0, 0; return x }(),
+		"pin_without_probe": func() basicControlRequest {
+			x := base
+			x.operation, x.changeRevision, x.entityID, x.shapeID = basicControlPinShape, 0, 0, 0
+			return x
+		}(),
 	} {
 		var err error
 		if r.purpose == BasicPurposeSeal {
@@ -167,5 +176,35 @@ func TestBasicFreezeRefusesUnsealedFamily(t *testing.T) {
 	var phase, revision int64
 	if err := e.db.QueryRowContext(t.Context(), `SELECT phase,job_revision FROM catalog_info_changes WHERE id=51`).Scan(&phase, &revision); err != nil || phase != 0 || revision != 2 {
 		t.Fatal("refused freeze moved the change", phase, revision, err)
+	}
+}
+
+func TestBasicCopyFamilyRegistrationIsClosed(t *testing.T) {
+	if _, ok := basicCopyFamilies[1]; !ok || len(basicCopyFamilyOrder()) == 0 || basicCopyFamilyOrder()[0] != 1 {
+		t.Fatal("family 1 not registered", basicCopyFamilyOrder())
+	}
+	if basicControlMaxUses(BasicStage, basicCopy1Insert) != 1 || basicControlMaxUses(BasicSeal, basicCopy1Insert) != 0 {
+		t.Fatal("family-1 uses leaked outside Stage")
+	}
+	spec := basicCopyFamilies[1]
+	for name, f := range map[string]func(){
+		"duplicate":  func() { registerBasicCopyFamily(1, spec) },
+		"family_0":   func() { registerBasicCopyFamily(0, spec) },
+		"family_10":  func() { registerBasicCopyFamily(10, spec) },
+		"no_body":    func() { registerBasicCopyFamily(9, basicCopyFamilySpec{defs: spec.defs, maxUses: spec.maxUses}) },
+		"no_defs":    func() { registerBasicCopyFamily(9, basicCopyFamilySpec{copy: spec.copy, maxUses: spec.maxUses}) },
+		"no_maxuses": func() { registerBasicCopyFamily(9, basicCopyFamilySpec{copy: spec.copy, defs: spec.defs}) },
+	} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("invalid copy family registration accepted", name)
+				}
+			}()
+			f()
+		}()
+	}
+	if _, ok := basicCopyFamilies[9]; ok && len(basicCopyFamilies) == 1 {
+		t.Fatal("a refused registration was installed")
 	}
 }

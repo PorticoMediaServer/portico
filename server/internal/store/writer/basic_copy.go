@@ -2,8 +2,62 @@ package writer
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"sort"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
+
+// One copy family's closed contribution, registered from its OWN file so no
+// family edits a shared hunk: its turn body, its statements and their
+// upper-bound uses inside one copy turn.
+type basicCopyFamilySpec struct {
+	copy    func(context.Context, *commandTurn, basicCopyTurn) error
+	defs    func() []stmt.Definition
+	maxUses func(stmt.ID) int
+}
+
+var basicCopyFamilies = map[int64]basicCopyFamilySpec{}
+
+// Called only from package-level declarations; a duplicate or incomplete
+// registration panics at init, never at runtime.
+func registerBasicCopyFamily(family int64, spec basicCopyFamilySpec) bool {
+	if family < 1 || family > 9 || spec.copy == nil || spec.defs == nil || spec.maxUses == nil {
+		panic(fmt.Sprintf("writer: invalid Basic copy family %d", family))
+	}
+	if _, dup := basicCopyFamilies[family]; dup {
+		panic(fmt.Sprintf("writer: Basic copy family %d registered twice", family))
+	}
+	basicCopyFamilies[family] = spec
+	return true
+}
+
+func basicCopyFamilyOrder() []int64 {
+	out := make([]int64, 0, len(basicCopyFamilies))
+	for f := range basicCopyFamilies {
+		out = append(out, f)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func basicCopyFamilyDefinitions() []stmt.Definition {
+	var defs []stmt.Definition
+	for _, f := range basicCopyFamilyOrder() {
+		defs = append(defs, basicCopyFamilies[f].defs()...)
+	}
+	return defs
+}
+
+// The largest use any ONE registered family makes of id in one copy turn.
+func basicCopyFamilyMaxUses(id stmt.ID) int {
+	n := 0
+	for _, f := range basicCopyFamilyOrder() {
+		n = max(n, basicCopyFamilies[f].maxUses(id))
+	}
+	return n
+}
 
 // The exact copy cursor a copy turn enters with and leaves behind. It mirrors
 // catalog_info_changes copy_family/copy_phase/copy_id/copy_aux/copy_key{,2,3}.

@@ -11,6 +11,16 @@ const (
 	basicCopy1Update    stmt.ID = "scan.basic_copy.family1_update"
 )
 
+var _ = registerBasicCopyFamily(1, basicCopyFamilySpec{copy: copyBasicFamily1, defs: basicCopyFamily1Definitions, maxUses: basicCopyFamily1MaxUses})
+
+func basicCopyFamily1MaxUses(id stmt.ID) int {
+	switch id {
+	case basicCopy1Staged, basicCopy1Canonical, basicCopy1Children, basicCopy1Delete, basicCopy1Insert, basicCopy1Update:
+		return 1
+	}
+	return 0
+}
+
 // Family 1 (asset_stream_facts): one row per asset, asset-scoped by token.
 // Every statement is a PRIMARY KEY access; nothing scans a family.
 func basicCopyFamily1Definitions() []stmt.Definition {
