@@ -262,6 +262,9 @@ func (s *n1Stream) writerStats() any {
 	})
 	return map[string]any{
 		"scope":                    "asynchronous raw stream writer: at_ns stamped before the lock; tiny lock covers sequence/marshal/non-blocking enqueue only; fsync at most every 1 s and at close",
+		"transport":                s.transportName(),
+		"real_fsync":               !s.streamOnly,
+		"sync_calls_scope":         "fsyncs/max_fsync_ns count the writer's sync CALLS; they are real fsyncs only when real_fsync is true (a plain file). On the unix socket transport the sync closure is a no-op.",
 		"queued_records":           w.queued,
 		"written_records_so_far":   w.written,
 		"dropped_records":          w.dropped,
@@ -306,4 +309,11 @@ func (s *n1Stream) close() error {
 		return errors.Join(werr, dropErr)
 	}
 	return errors.Join(werr, dropErr, s.file.Close())
+}
+
+func (s *n1Stream) transportName() string {
+	if s.streamOnly {
+		return "unix-socket (external gzip observer; never fsynced)"
+	}
+	return "plain file (fsync at most every 1 s and at close)"
 }
