@@ -57,6 +57,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 	switch v := result.(type) {
 	case mgSourceOriginalDenial:
 		return preflightMGSourceDenial(v)
+	case uoRootOperationResult:
+		return preflightUORootOperation(v)
 	case mpQueueRepeatValue:
 		return preflightMPRepeatValue(v)
 	case evidenceSealResult:
@@ -152,6 +154,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 	switch v := result.(type) {
 	case mgSourceOriginalDenial:
 		return writeMGSourceDenial(e, identity, request, v)
+	case uoRootOperationResult:
+		return writeUORootOperation(e, identity, request, v)
 	case mpQueueRepeatValue:
 		return writeMPRepeatValue(e, identity, request, v)
 	case evidenceSealResult:
