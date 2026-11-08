@@ -34,13 +34,17 @@ func (s canonicalBasicSeed) packet(n int, original basicOriginalScope, identity 
 	source.changeID = int64(51 + n)
 	source.assetToken = fmt.Sprintf("canonical-basic-asset-%d", n)
 	source.objectID = fmt.Sprintf("canonical-basic-object-%d", n)
-	analysis, err := prepareBasicObjectAnalysis(source, original.scope.libraryKey, "canonical-basic-probe-v1", `["probe"]`, `["probe"]`, false)
+	analysis, err := prepareBasicObjectAnalysis(source, original.scope.libraryKey, "canonical-basic-probe-v1", `["probe","local_metadata","subtitles"]`, `["probe","local_metadata","subtitles"]`, false)
+	if err != nil {
+		return nil, err
+	}
+	nfo, err := prepareBasicNFOSet(source, original.scope.libraryKey, nil, nil, nil, basicNFOStatus{status: "observed"}, true)
 	if err != nil {
 		return nil, err
 	}
 	return newBasicAcceptCommand(identity, basicAcceptRequest{original: original, purpose: BasicPurposeAccept, operation: basicAcceptFirstOrdinaryLeaf,
 		activation: basicActivationEffects{source: source, changeRevision: 13, familyMask: 511, shapeID: 61, invalidationRevision: 1, fileSizeRevision: 1},
-		entityID:   int64(31 + n), duration: 100, height: 1080, analysis: *analysis})
+		entityID:   int64(31 + n), duration: 100, height: 1080, analysis: *analysis, nfo: nfo})
 }
 func seedCanonicalBasicInputs(t *testing.T, e *executor, count int) canonicalBasicSeed {
 	t.Helper()
