@@ -6,6 +6,7 @@ package writer
 const (
 	IPPolicySet    CommandID = 200
 	IPRefreshBegin CommandID = 201
+	IPRefreshPage  CommandID = 202
 
 	IPFieldEdit    CommandID = 240
 	IPFieldLock    CommandID = 241
@@ -15,6 +16,7 @@ const (
 var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPPolicySet, "ip_policy_set", Normal},
 	{IPRefreshBegin, "ip_refresh_begin", Normal},
+	{IPRefreshPage, "ip_refresh_page", Normal},
 	{IPFieldEdit, "ip_field_edit", Normal},
 	{IPFieldLock, "ip_field_lock", Normal},
 	{IPFieldRestore, "ip_field_restore", Normal},
