@@ -18,6 +18,9 @@ import qual_fixture as q
 import qual_spool as spool
 
 CHECKPOINT_CASES = dict(checkpoint_1mib='1MiB', checkpoint_8mib='8MiB', checkpoint_64mib='64MiB', checkpoint_hardcap='HardCap')
+# Maintenance/recovery tier: one iteration is a 64MiB/hard-cap checkpoint (~1-2s),
+# so 10k is not meaningful. 1/8MiB keep the ordinary 10k population.
+CHECKPOINT_ITERATIONS = dict(checkpoint_1mib=10000, checkpoint_8mib=10000, checkpoint_64mib=300, checkpoint_hardcap=300)
 TARGETS = {
     'inventory_n1': 'TestCanonicalHeldInventoryN1',
     'basic_accept': 'TestCanonicalHeldBasic',
@@ -100,7 +103,7 @@ def verify_stream(path, cfg, compressed=False):
                 qualification_verdict=None, verdict_reason='Owner raw evidence still needs per-recipe reduction and protocol gates')
 
 
-def verify_checkpoint_stream(path, case):
+def verify_checkpoint_stream(path, case, attempts):
     q.regular(path,spool.COMPRESSED_BYTES)
     count=0
     with gzip.open(path,'rb') as f:
@@ -112,9 +115,9 @@ def verify_checkpoint_stream(path, case):
             q.require(not record['CheckpointError'] and record['Checkpoint']['Refusal'] is None and record['Checkpoint']['PhysicalSafe'] is True,'failed checkpoint retained')
             q.require(type(record['CheckpointHoldNS']) is int and record['CheckpointHoldNS']>0,'missing checkpoint hold')
             count+=1
-            q.require(count<=ATTEMPTS,'excess checkpoint samples')
-    q.require(count==ATTEMPTS,'incomplete checkpoint population')
-    return dict(records=count,case=case,qualification_verdict=None,reason='SCREENING component only; raw maintenance p99 is not a normal-writer/1M gate')
+            q.require(count<=attempts,'excess checkpoint samples')
+    q.require(count==attempts,'incomplete checkpoint population')
+    return dict(records=count,case=case,attempts_requested=attempts,qualification_verdict=None,reason='SCREENING component only; raw maintenance p99 is not a normal-writer/1M gate')
 
 
 def profile_properties(profile):
@@ -153,7 +156,7 @@ def prepare(source, artifact, output, work, producer_run):
     work.mkdir(mode=0o700)
     report = output
     receipt = dict(version='portico-canonical-class-execution-v1', status='failed', qualification_verdict=None,
-                   declared=cfg, execution_purpose=cfg['purpose'], sign_off_eligible=cfg['purpose']=='qualification', attempts_requested=ATTEMPTS, ordinary_refusal_budget=0,
+                   declared=cfg, execution_purpose=cfg['purpose'], sign_off_eligible=cfg['purpose']=='qualification', attempts_requested=CHECKPOINT_ITERATIONS.get(cfg['name'],ATTEMPTS), ordinary_refusal_budget=0,
                    run_url=f"https://github.com/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}")
     q.atomic_json(report / 'receipt.json', receipt)
     env = q.clean_env(work)
@@ -266,7 +269,9 @@ def run(launch_path):
         argv = [str(binary), '-test.run=^' + TARGETS[cfg['name']] + '$', '-test.count=1',
                 '-test.timeout=75m', '-test.v', '-canonical-held=true']
         if checkpoint:
-            argv=[str(binary),'-test.run=^'+TARGETS[cfg['name']]+'$','-test.count='+str(ATTEMPTS),'-test.failfast','-test.timeout=75m','-test.v']
+            attempts = CHECKPOINT_ITERATIONS[cfg['name']]
+            argv=[str(binary),'-test.run=^'+TARGETS[cfg['name']]+'$','-test.count='+str(attempts),'-test.failfast','-test.timeout=75m','-test.v']
+            receipt['checkpoint_iterations']=attempts
         q.atomic_json(output / 'target.argv.json', dict(argv=argv, uid=launch['uid'], gid=launch['gid']))
         with (output / 'target.log').open('wb') as log:
             receipt['launch_before_monotonic_ns'] = time.monotonic_ns()
@@ -295,7 +300,7 @@ def run(launch_path):
                 receipt['raw_capture'] = spool.wait_capture(raw.parent)
         receipt['target_exit_code'] = code
         q.require(code == 0, 'owner target failed; retain every refusal/error/partial record')
-        receipt.update(wire=verify_checkpoint_stream(raw.parent/'raw.ndjson.gz',CHECKPOINT_CASES[cfg['name']]) if checkpoint else verify_stream(raw.parent/'raw.ndjson.gz', c, compressed=True), status='owner-execution-complete')
+        receipt.update(wire=verify_checkpoint_stream(raw.parent/'raw.ndjson.gz',CHECKPOINT_CASES[cfg['name']],receipt['checkpoint_iterations']) if checkpoint else verify_stream(raw.parent/'raw.ndjson.gz', c, compressed=True), status='owner-execution-complete')
     except BaseException as error:
         receipt.update(status='failed', error=f'{type(error).__name__}: {error}')
         raise
@@ -434,10 +439,9 @@ def observe_launch(launch_path):
             stop.set();sampler.join(timeout=30)
             q.require(not sampler.is_alive(),'timeline observer unjoined')
             retired_unit()
-            for name in ('timeline.jsonl.gz','timeline.json','engine-path.json'):
-                source=root/name
+            for source in [*sorted(root.glob('timeline-*.jsonl.gz')), *(root/name for name in ('timeline.json','engine-path.json'))]:
                 if source.exists():
-                    target=Path(launch['output'])/name
+                    target=Path(launch['output'])/source.name
                     shutil.copyfile(source,target)
                     q.require(q.file_hash(source)==q.file_hash(target),'timeline persistence mismatch')
                     source.unlink()

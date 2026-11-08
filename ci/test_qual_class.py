@@ -64,11 +64,11 @@ class ClassProtocol(unittest.TestCase):
         raw=self.root/'cp.gz'
         def write(n):raw.write_bytes(gzip.compress(b''.join(b'    owner.go:42: GV_KEEPER_CONCURRENT_V1 '+json.dumps(record).encode()+b'\n' for _ in range(n))))
         with mock.patch.object(c,'ATTEMPTS',2):
-            write(2);self.assertEqual(c.verify_checkpoint_stream(raw,'1MiB')['records'],2)
+            write(2);self.assertEqual(c.verify_checkpoint_stream(raw,'1MiB',2)['records'],2)
             write(1)
-            with self.assertRaises(ValueError):c.verify_checkpoint_stream(raw,'1MiB')
+            with self.assertRaises(ValueError):c.verify_checkpoint_stream(raw,'1MiB',2)
             record['CheckpointError']='retained native error';write(2)
-            with self.assertRaises(ValueError):c.verify_checkpoint_stream(raw,'1MiB')
+            with self.assertRaises(ValueError):c.verify_checkpoint_stream(raw,'1MiB',2)
 
     def test_owner_completion_is_not_qualification(self):
         path = self.records([{'kind': 'start'}, {'kind': 'final', 'complete': True}])
