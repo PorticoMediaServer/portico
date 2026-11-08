@@ -144,7 +144,7 @@ func newN1PairedPopulationComponent(t *testing.T, data []byte, warmup int, cohor
 	raw, _ := json.Marshal(registry.Manifest())
 	digest := sha256.Sum256(raw)
 	facts := &n1Attempt{}
-	n1ReadFixtureFacts(t, t.Context(), w, facts)
+	n1ReadFixtureFacts(t, t.Context(), w, facts, original.request.scope.libraryKey)
 	c.summary = n1SteadySummary{FixtureSetup: &n1FixtureSetup{facts.AgeState, facts.StoredProfiles, facts.Cardinalities}, RequestedWarmup: warmup, RequestedMeasured: cfg.Fixtures, DatabaseID: c.DatabaseID, RegistrySHA256: hex.EncodeToString(digest[:]), Turns: map[string]*n1TurnCensus{}, WarmupOriginals: []ReceiptReference{}}
 	for _, role := range []string{"fresh_begin", "resolve", "ack"} {
 		c.summary.Turns[role] = &n1TurnCensus{}
