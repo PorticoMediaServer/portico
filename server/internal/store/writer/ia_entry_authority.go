@@ -23,7 +23,7 @@ func (b iaEntryBudget) check(ctx context.Context, turn *commandTurn, bytes int64
 	}
 	tx := turn.transaction
 	switch tx.descriptor.ID {
-	case IAConfigureLibrary, IAConfigureSource:
+	case IAConfigureLibrary, IAConfigureSource, IARefreshBegin, IARefreshStep, IARefreshRollback, IARefreshFinalize:
 	default:
 		return ErrInvalid
 	}
