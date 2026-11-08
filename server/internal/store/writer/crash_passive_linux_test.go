@@ -609,6 +609,9 @@ func TestCrashPassiveRejectsCorruption(t *testing.T) {
 }
 
 func TestCrashReplayGovernedPassive(t *testing.T) {
+	if raceDetector {
+		t.Skip("crash replay is covered without -race; race child matrix exceeds the shard budget")
+	}
 	for _, operation := range []string{"free", "pinned", "resumed"} {
 		t.Run(operation, func(t *testing.T) {
 			witness := crashWitness{Case: crashCase{"passive_native", operation, "trace", ""}}
