@@ -1,4 +1,7 @@
 {
+  "github.com/PorticoMediaServer/portico/server/internal/store/writer.TestCrashReplayInventoryBatchEveryStepWidth2": 216.38,
+  "github.com/PorticoMediaServer/portico/server/internal/store/writer.TestCrashReplayInventoryBatchEveryStepWidth8A": 355.0,
+  "github.com/PorticoMediaServer/portico/server/internal/store/writer.TestCrashReplayInventoryBatchEveryStepWidth8B": 355.0,
   "portico.local/server/cmd/server.TestALargeLibraryAnswersWithinTheStartupBudget": 0.0,
   "portico.local/server/cmd/server.TestASecondRunAnswersWithinTheStartupBudget": 0.0,
   "portico.local/server/cmd/server.TestAccessURLsForPublicationComposesDomainRoute": 0.0,

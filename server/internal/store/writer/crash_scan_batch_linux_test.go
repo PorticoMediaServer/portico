@@ -175,34 +175,98 @@ func checkInventoryBatchCrashCommitted(t *testing.T, e *executor, s inventoryBat
 	return out, nil
 }
 
-func TestCrashReplayInventoryBatchEveryStep(t *testing.T) {
+func TestCrashReplayInventoryBatchEveryStepWidth2(t *testing.T) {
+	runInventoryBatchCrashPart(t, 2, 0, 1)
+}
+
+func TestCrashReplayInventoryBatchEveryStepWidth8A(t *testing.T) {
+	runInventoryBatchCrashPart(t, maxInventoryBatchFiles, 0, 2)
+}
+
+func TestCrashReplayInventoryBatchEveryStepWidth8B(t *testing.T) {
+	runInventoryBatchCrashPart(t, maxInventoryBatchFiles, 1, 2)
+}
+
+func inventoryBatchCrashCases(width int, native []string) []crashCase {
+	boundaries := append([]string{"before_begin", "after_begin"}, native...)
+	boundaries = append(boundaries, "before_commit", "after_commit", "physical_return", "api_return")
+	cases := make([]crashCase, 0, len(boundaries)+2)
+	for _, phase := range boundaries {
+		cases = append(cases, crashCase{"inventory_batch", strconv.Itoa(width), phase, ""})
+	}
+	for _, fault := range []string{"before", "after"} {
+		cases = append(cases, crashCase{"inventory_batch", strconv.Itoa(width), "uncertain_return", fault})
+	}
+	return cases
+}
+
+func inventoryBatchCrashPartition(cases []crashCase, part, parts int) []crashCase {
+	if parts < 1 || part < 0 || part >= parts {
+		return nil
+	}
+	var selected []crashCase
+	for i := part; i < len(cases); i += parts {
+		selected = append(selected, cases[i])
+	}
+	return selected
+}
+
+// Separate parents let ordinary exact-name CI distribute every cut across VMs.
+// Each parent builds the same full native trace, then owns a disjoint partition.
+func runInventoryBatchCrashPart(t *testing.T, width, part, parts int) {
+	t.Helper()
 	if raceDetector {
 		t.Skip("SIGKILL matrix runs without race; run deterministic batch controls under race")
 	}
+	trace := crashWitness{Case: crashCase{Domain: "inventory_batch", Operation: strconv.Itoa(width), Boundary: "trace"}}
+	crashInventoryBatchChild(t, &trace)
+	var original inventoryBatchCrashSource
+	if err := json.Unmarshal(trace.Payload, &original); err != nil {
+		t.Fatal(err)
+	}
+	if len(original.Trace) < width*20 {
+		t.Fatal("batch trace missed repeated members", len(original.Trace))
+	}
+	cases := inventoryBatchCrashPartition(inventoryBatchCrashCases(width, original.Trace), part, parts)
+	if len(cases) == 0 {
+		t.Fatal("empty crash partition")
+	}
+	for _, cell := range cases {
+		name := cell.Boundary
+		if cell.CommitFault != "" {
+			name = "uncertain_" + cell.CommitFault
+		}
+		t.Run(name, func(t *testing.T) {
+			verifyInventoryBatchCrash(t, runCrashChild(t, cell))
+		})
+	}
+}
+
+func TestInventoryBatchCrashPartitionsCoverEveryCut(t *testing.T) {
+	native := []string{"native_step_001", "native_step_002", "native_other_001"}
 	for _, width := range []int{2, maxInventoryBatchFiles} {
-		t.Run(strconv.Itoa(width), func(t *testing.T) {
-			trace := crashWitness{Case: crashCase{Domain: "inventory_batch", Operation: strconv.Itoa(width), Boundary: "trace"}}
-			crashInventoryBatchChild(t, &trace)
-			var original inventoryBatchCrashSource
-			if err := json.Unmarshal(trace.Payload, &original); err != nil {
-				t.Fatal(err)
+		for _, parts := range []int{1, 2} {
+			seen := map[crashCase]int{}
+			cases := inventoryBatchCrashCases(width, native)
+			for part := 0; part < parts; part++ {
+				for _, cell := range inventoryBatchCrashPartition(cases, part, parts) {
+					seen[cell]++
+				}
 			}
-			if len(original.Trace) < width*20 {
-				t.Fatal("batch trace missed repeated members", len(original.Trace))
-			}
-			boundaries := append([]string{"before_begin", "after_begin"}, original.Trace...)
-			boundaries = append(boundaries, "before_commit", "after_commit", "physical_return", "api_return")
-			for _, phase := range boundaries {
-				t.Run(phase, func(t *testing.T) {
-					verifyInventoryBatchCrash(t, runCrashChild(t, crashCase{"inventory_batch", strconv.Itoa(width), phase, ""}))
-				})
+			for _, phase := range []string{"before_begin", "after_begin", "native_step_001", "native_step_002", "native_other_001", "before_commit", "after_commit", "physical_return", "api_return"} {
+				if seen[crashCase{"inventory_batch", strconv.Itoa(width), phase, ""}] != 1 {
+					t.Fatal("lost or repeated native/terminal cut", width, parts, phase)
+				}
 			}
 			for _, fault := range []string{"before", "after"} {
-				t.Run("uncertain_"+fault, func(t *testing.T) {
-					verifyInventoryBatchCrash(t, runCrashChild(t, crashCase{"inventory_batch", strconv.Itoa(width), "uncertain_return", fault}))
-				})
+				if seen[crashCase{"inventory_batch", strconv.Itoa(width), "uncertain_return", fault}] != 1 {
+					t.Fatal("lost or repeated uncertain COMMIT cut", width, parts, fault)
+				}
 			}
-		})
+			if len(seen) != 11 {
+				t.Fatal("unexpected crash cut", width, parts, seen)
+			}
+		}
 	}
 }
 
