@@ -20,9 +20,16 @@ import (
 
 // Protocol fixtures only: virtual time and deliberately synthetic complete
 // forecasts. This is NOT production source/seal proof or a latency profile.
-func effectiveFacadeFixture(t *testing.T) (*Writer, *EnrichmentDisclosure, *effectiveStageBeginCommand, *executor, *governor.Authority) {
+func effectiveFacadeFixture(t *testing.T, clock ...*time.Time) (*Writer, *EnrichmentDisclosure, *effectiveStageBeginCommand, *executor, *governor.Authority) {
 	t.Helper()
 	executor, _, input, identity := effectiveBeginWholeFixture(t)
+	if len(clock) > 1 || (len(clock) == 1 && clock[0] == nil) {
+		t.Fatal("invalid fixture clock")
+	}
+	if len(clock) == 1 {
+		*clock[0] = executor.now()
+		executor.now = func() time.Time { return *clock[0] }
+	}
 	command, err := newEffectiveStageBeginCommand(identity, input)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +68,9 @@ func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effe
 	for i := range partitions {
 		partitions[i] = plan.need
 	}
-	g, authority, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: func() time.Time { return executor.now() }, WAL: wal})
+	// Capture the clock function: later cancellation instrumentation may read
+	// Authority.Usage, which must never run recursively under GV's mutex.
+	g, authority, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: executor.now, WAL: wal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +425,8 @@ func TestEffectiveFacadeMissingUnackedProofFailsClosed(t *testing.T) {
 }
 
 func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
-	w, cap, command, executor, authority := effectiveFacadeFixture(t)
+	var clock time.Time
+	w, cap, command, executor, authority := effectiveFacadeFixture(t, &clock)
 	seedEffectiveReceipt(t, executor, command)
 	path := w.effective.path
 	if err := executor.db.Close(); err != nil {
@@ -426,9 +436,7 @@ func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseNow := executor.now()
-	clock := baseNow
-	executor.now = func() time.Time { return clock }
+	baseNow := clock
 	fault := &faultConnector{Connector: connector, afterNativeCommit: func() { clock = baseNow.Add(30 * time.Millisecond) }}
 	installFaultPool(executor, fault)
 	primeEffectiveFixturePool(t, executor)

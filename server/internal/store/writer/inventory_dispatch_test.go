@@ -16,9 +16,16 @@ import (
 
 // Protocol-only source facts and synthetic complete profiles. This is not
 // production ScanDriver issuance, native-byte qualification or a latency run.
-func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptRequest, *executor, *governor.Authority) {
+func inventoryFacadeFixture(t *testing.T, clock ...*time.Time) (*Writer, map[string]ScanReceiptRequest, *executor, *governor.Authority) {
 	t.Helper()
 	e, requests, _ := inventoryLookupFixture(t)
+	if len(clock) > 1 || (len(clock) == 1 && clock[0] == nil) {
+		t.Fatal("invalid fixture clock")
+	}
+	if len(clock) == 1 {
+		*clock[0] = e.now()
+		e.now = func() time.Time { return *clock[0] }
+	}
 	if _, err := e.db.ExecContext(t.Context(), "INSERT INTO catalog_libraries(id,library_id,root,retired) VALUES(8,'retired-library','/retired',1)"); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +69,9 @@ func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptReques
 	for i := range partitions {
 		partitions[i] = p.need
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: func() time.Time { return e.now() }, WAL: gate})
+	// Capture the clock function: later cancellation instrumentation may read
+	// Authority.Usage, which must never run recursively under GV's mutex.
+	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: e.now, WAL: gate})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +425,8 @@ func TestInventoryPlanClosedOwnedAndWhole(t *testing.T) {
 func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 	for _, mode := range []string{"overrun", "ambiguous", "revoke_after_commit"} {
 		t.Run(mode, func(t *testing.T) {
-			w, requests, e, a := inventoryFacadeFixture(t)
+			var clock time.Time
+			w, requests, e, a := inventoryFacadeFixture(t, &clock)
 			q := requests["hit"]
 			cap := inventoryTestDisclosure(t, w, q)
 			if err := e.db.Close(); err != nil {
@@ -426,9 +436,7 @@ func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			clock := e.now()
 			start := clock
-			e.now = func() time.Time { return clock }
 			fault := &faultConnector{Connector: connector}
 			switch mode {
 			case "overrun":
