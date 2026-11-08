@@ -58,10 +58,10 @@ func copyBasicFamily7(ctx context.Context, turn *commandTurn, c basicCopyTurn) (
 		case errors.Is(scanErr, sql.ErrNoRows):
 			row, err = basicStageRead(ctx, turn, basicCopy7Insert, id, path, size, modifiedNS, digest)
 			if err != nil {
-				return err
+				return basicCopyInsertError(err)
 			}
 			if err = row.Scan(&gotID, &gotPath, &gotSize, &gotModifiedNS, &gotDigest); err != nil {
-				return basicStageError(err)
+				return basicCopyInsertError(err)
 			}
 			if gotID != id {
 				return ErrConflict
@@ -75,6 +75,9 @@ func copyBasicFamily7(ctx context.Context, turn *commandTurn, c basicCopyTurn) (
 			}
 			if err = row.Scan(&gotID, &gotPath, &gotSize, &gotModifiedNS, &gotDigest); err != nil {
 				return basicStageError(err)
+			}
+			if gotID != canonicalID {
+				return ErrConflict
 			}
 		}
 		if gotPath != path || gotSize != size || gotModifiedNS != modifiedNS || gotDigest != digest {

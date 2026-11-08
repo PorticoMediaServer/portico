@@ -18,6 +18,9 @@ import (
 //     RETURNING proves the exact row.
 //   - ONE cursor CAS per turn; the phase-0 completion checkpoint is the phase-1
 //     start cursor {phase:1,id:0,aux:0} and the family exit is {family:3}.
+//
+// has_asset_stream_breadth and the breadth_* columns belong to family 3: this
+// family leaves them alone, so a restaged stream keeps its old breadth until then.
 const (
 	basicCopy2Install = 8 // ordinals installed per phase-0 turn
 	basicCopy2Collect = 10
