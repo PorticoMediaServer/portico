@@ -151,8 +151,18 @@ func n1ComposedDriverFixtureState(t *testing.T, selected ...n1CompositionFixture
 	lifecycle := profile(scanLifecycleCommandDefinitions(), false)
 	readyNeed := lifecycle.need
 	readyNeed[governor.WALBytes], readyNeed[governor.IOBytes] = 0, 0
-	ready := scanPreparationPlan{need: readyNeed, budget: governor.UnitBudget{RawRows: 4096, VMOps: 1000000, Pages: 4096}, ready: time.Second}
-	if err = configureScanIssuer(t.Context(), d, lifecycle, lifecycle, ready, time.Second); err != nil {
+	// Trusted issuer horizons. The frozen-clock default keeps its 1s synthetic
+	// values. The opt-in real-clock timing profile uses realistic horizons: an
+	// N1 preparation's funded deadline is min(now+ready, lease expiry) and a
+	// renewal never extends one in flight, so a 1s lease would let one ordinary
+	// hosted disk/checkpoint stall end a long scan. Product horizons remain an
+	// unselected profile choice; per-command 3s safety is unchanged.
+	readyWindow, leaseHorizon := time.Second, time.Second
+	if realClock {
+		readyWindow, leaseHorizon = 10*time.Second, 60*time.Second
+	}
+	ready := scanPreparationPlan{need: readyNeed, budget: governor.UnitBudget{RawRows: 4096, VMOps: 1000000, Pages: 4096}, ready: readyWindow}
+	if err = configureScanIssuer(t.Context(), d, lifecycle, lifecycle, ready, leaseHorizon); err != nil {
 		t.Fatal(err)
 	}
 	if err = composeInventoryPreparation(t.Context(), d, profile(inventoryPreparationDefinitions(), true), profile(inventoryHistoryDefinitions(), true)); err != nil {
