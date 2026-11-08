@@ -205,7 +205,7 @@ func (c *N1PairedComponent) EC2Checkpoint(ctx context.Context, recovery bool) (g
 		r.Key.ID = "canonical-ec2-cp/recovery"
 		out, err = c.native.keeper.cp.RecoverWAL(ctx, r)
 	} else {
-		out, err = c.native.keeper.cp.Step(ctx, r)
+		out, err = stepSeekingWriterGap(ctx, c.native.keeper.cp, r)
 	}
 	record := canonicalN1Checkpoint{Result: out, Error: n1Error(err)}
 	record.observeClock(c.stream.origin)

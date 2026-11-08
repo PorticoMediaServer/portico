@@ -54,7 +54,9 @@ func governedFixtureComposition(t *testing.T, now func() time.Time, extra govern
 		// The canonical fixtures adopt the named phase 1a WAL policy; the keeper and
 		// the writer must share that exact policy, never widen or rewrite it.
 		adopted := governor.Phase1aWALPolicy()
-		if maintenance.policy != adopted {
+		compared := maintenance.policy
+		compared.PassiveDeferMax = 0 // the screening experiment flag is the only permitted difference
+		if compared != adopted {
 			t.Fatal("maintenance changed writer WAL limits")
 		}
 		policy = maintenance.policy

@@ -21,10 +21,28 @@ const canonicalN1Warmup = 8
 // remain those of the ONE existing component owner. Maintenance has its OWN
 // explicitly funded partition, lifetime, startup, active and shutdown custody.
 func canonicalN1Maintenance() governedFixtureMaintenance {
+	policy := governor.Phase1aWALPolicy()
+	policy.PassiveDeferMax = canonicalPassiveDefer()
 	return governedFixtureMaintenance{
-		policy: governor.Phase1aWALPolicy(),
+		policy: policy,
 		need:   governor.Amounts{governor.Reader: 2, governor.MemoryBytes: 8 << 20, governor.CPUMilli: 2000, governor.IOBytes: 2 * (2 * governor.Phase1aWALPolicy().HardBytes)},
 	}
+}
+
+// canonicalPassiveDefer is the SCREENING experiment flag (default off):
+// PORTICO_GV_PASSIVE_DEFER_MS (0..5000) lets a normal PASSIVE start wait, up to that
+// long per episode, while a Foreground writer is in flight. The policy value is
+// recorded in the stream's wal_policy record; everything else stays Phase1aWALPolicy.
+func canonicalPassiveDefer() time.Duration {
+	v := os.Getenv("PORTICO_GV_PASSIVE_DEFER_MS")
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 || n > 5000 {
+		panic("PORTICO_GV_PASSIVE_DEFER_MS must be 0..5000")
+	}
+	return time.Duration(n) * time.Millisecond
 }
 
 // canonicalCheckpointCadence is the keeper's normal PASSIVE offer interval: the
@@ -216,8 +234,25 @@ func (m *canonicalN1MaintenanceOwner) grant(t *testing.T, r governor.Request) *g
 	return d.Grant
 }
 func (m *canonicalN1MaintenanceOwner) step(ctx context.Context) checkpointMaintenanceRecord {
-	out, err := m.cp.Step(ctx, m.request("passive"))
+	out, err := stepSeekingWriterGap(ctx, m.cp, m.request("passive"))
 	return checkpointRecord(out, err)
+}
+
+// stepSeekingWriterGap offers a normal PASSIVE and, only when the experiment
+// defers it for an in-flight Foreground writer, retries every 2 ms until the gap
+// opens or the governor's own bound lets it start. With the flag off it is one Step.
+func stepSeekingWriterGap(ctx context.Context, cp *governor.Checkpointer, r governor.Request) (governor.CheckpointResult, error) {
+	for {
+		out, err := cp.Step(ctx, r)
+		if !errors.Is(err, governor.ErrCheckpointForeground) {
+			return out, err
+		}
+		select {
+		case <-ctx.Done():
+			return out, err
+		case <-time.After(2 * time.Millisecond):
+		}
+	}
 }
 func (m *canonicalN1MaintenanceOwner) start(ctx context.Context) {
 	m.workerStarted = true

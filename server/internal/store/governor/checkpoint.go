@@ -15,12 +15,13 @@ import (
 )
 
 var (
-	ErrCheckpointClosed    = errors.New("checkpoint driver closed")
-	ErrCheckpointCadence   = errors.New("checkpoint minimum start spacing")
-	ErrCheckpointBudget    = errors.New("checkpoint whole-prefix forecast exceeded")
-	ErrCheckpointOverrun   = errors.New("checkpoint physical holding exceeded forecast")
-	ErrCheckpointUncertain = errors.New("checkpoint physical disposal remains unproven")
-	ErrCheckpointDeferred  = errors.New("checkpoint native BUSY; no maintenance completion")
+	ErrCheckpointClosed     = errors.New("checkpoint driver closed")
+	ErrCheckpointCadence    = errors.New("checkpoint minimum start spacing")
+	ErrCheckpointForeground = errors.New("checkpoint start deferred while a foreground writer is in flight")
+	ErrCheckpointBudget     = errors.New("checkpoint whole-prefix forecast exceeded")
+	ErrCheckpointOverrun    = errors.New("checkpoint physical holding exceeded forecast")
+	ErrCheckpointUncertain  = errors.New("checkpoint physical disposal remains unproven")
+	ErrCheckpointDeferred   = errors.New("checkpoint native BUSY; no maintenance completion")
 )
 
 type CheckpointPolicy struct {
