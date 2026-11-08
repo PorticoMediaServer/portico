@@ -8,7 +8,7 @@ import (
 )
 
 // SHA256 identifies the exact schema.sql bytes under INT change control.
-const SHA256 = "7462ff7631edfda0fc21a70015156f28d077a1fbd8f8a9d948768451db8d6f91"
+const SHA256 = "484242fbb520ace5b4bfc1db015e2f3530dc01cfa5ff08bfd22a5244812905ca"
 
 //go:embed schema.sql
 var ddl string
@@ -28,11 +28,11 @@ type Artifact struct {
 // Contracts returns an independent inventory of the embedded query contracts.
 func Contracts() []Artifact {
 	return []Artifact{
-		{"INT-INDEX-POLICY.json", "974646a47e6e330e848c16f17cba5e73f89d5c72fd2e050e213fe2bfdf57a26a"},
-		{"INT-TYPE-TABLES.json", "3e3ae6775774a92e431d207ce825704fcaa621c712e179189a126fa0f37a84e9"},
+		{"INT-INDEX-POLICY.json", "7bed1c51584c5349656d4eeef1366e7c085ef0e212fff75862e84591d2e9bc93"},
+		{"INT-TYPE-TABLES.json", "eea05a016b83af5148209d0e200d9953f80503dea04ea61a94be01e5a9b4cb32"},
 		{"INT-CONTRIBUTIONS.sql", "c6c39b37ee2133f6c06601d5254022210e5f265ead7a3a4fa79dad59ea3371f6"},
-		{"INT-LARGE-INDEXES.json", "68f0f6d294ddaf2c2456ac497cc6d8e71f2e807351ef066024920a672b40879e"},
-		{"INT-STATEMENT-MAP.md", "58de60bbd1750220250814aa01f3b2200e5cb6ec29ef82a1850b16b509978a62"},
+		{"INT-LARGE-INDEXES.json", "a7421b760ed247fb30aabd51a0dad97dfae2f796f49e613f124a172a2bba12ee"},
+		{"INT-STATEMENT-MAP.md", "e5039dae1a217180fa29928449bff92bed3cf417a9b9f31670eca9100f33ee57"},
 	}
 }
 

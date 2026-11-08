@@ -260,6 +260,29 @@
     "metadata_repair_work_receipts",
     "metadata_selection_receipts",
     "metadata_subject_providers",
+    "mp_direct_delivery",
+    "mp_external_guide_pins",
+    "mp_hls_artifacts",
+    "mp_hls_plans",
+    "mp_hls_renditions",
+    "mp_hls_window_renditions",
+    "mp_job_command_receipts",
+    "mp_job_custody",
+    "mp_job_inputs",
+    "mp_media_inputs",
+    "mp_media_read_pins",
+    "mp_next_command_receipts",
+    "mp_next_stop_obligations",
+    "mp_physical_command_receipts",
+    "mp_queue_command_receipts",
+    "mp_queue_stop_obligations",
+    "mp_remote_delivery_inputs",
+    "mp_session_command_receipts",
+    "mp_session_replacements",
+    "mp_start_command_receipts",
+    "mp_start_execution",
+    "mp_version_command_receipts",
+    "mp_version_custody",
     "music_sonic_embeddings",
     "music_sonic_tags",
     "notification_acknowledgments",
@@ -2328,6 +2351,121 @@
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
     },
+    "mp_direct_delivery": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_external_guide_pins": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_hls_artifacts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_hls_plans": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_hls_renditions": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_hls_window_renditions": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_job_command_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_job_custody": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_job_inputs": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_media_inputs": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_media_read_pins": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_next_command_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_next_stop_obligations": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_physical_command_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_queue_command_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_queue_stop_obligations": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_remote_delivery_inputs": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_session_command_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_session_replacements": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_start_command_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_start_execution": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_version_command_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "mp_version_custody": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
     "music_acoustid_health": {
       "policy": "STRICT",
       "grain": "server singleton"
@@ -2509,6 +2647,11 @@
     "personal_jobs": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
+    "personal_reading_resumes": {
+      "policy": "STRICT",
+      "grain": "Exact upstream typed reading source observation/result; retained per personal item and source or immutable public command. STRICT is the frozen owning draft choice; no density or admission-cap claim.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
     },
     "personal_receipts": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -3493,6 +3636,11 @@
     "user_mutation_global": {
       "policy": "STRICT",
       "grain": "server singleton"
+    },
+    "user_mutation_reading_results": {
+      "policy": "STRICT",
+      "grain": "Exact upstream typed reading source observation/result; retained per personal item and source or immutable public command. STRICT is the frozen owning draft choice; no density or admission-cap claim.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
     },
     "user_mutation_receipts": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
