@@ -15,7 +15,10 @@ import (
 const iaSourcePointOctetsSQL = `SELECT octet_length(id),octet_length(library_id),octet_length(kind),octet_length(name),octet_length(configured_root),octet_length(root),octet_length(classification),octet_length(incarnation),octet_length(root_identity),octet_length(health) FROM library_sources WHERE id=? AND library_id=?`
 const iaSourceRootsOctetsSQL = `SELECT octet_length(library_id),octet_length(root) FROM catalog_libraries WHERE id=?`
 
-const iaSourcePointIndex = "sqlite_autoindex_library_sources_1"
+const (
+	iaSourcePointIndex       = "sqlite_autoindex_library_sources_1"
+	iaSourceLibraryRootIndex = "sqlite_autoindex_library_sources_2"
+)
 
 func init() {
 	type shape struct {
@@ -90,7 +93,7 @@ func auditIASourceOctets(ctx context.Context, c *sql.Conn, table, shape string) 
 		if e != nil {
 			return e
 		}
-		found := false
+		found, unique := false, false
 		for _, row := range indexes.Values {
 			if len(row) != 5 {
 				return fmt.Errorf("IA source: invalid native index metadata")
@@ -101,9 +104,20 @@ func auditIASourceOctets(ctx context.Context, c *sql.Conn, table, shape string) 
 				}
 				found = true
 			}
+			// The point filters this pair; keep its UNIQUE(library_id,root)
+			// constraint certified so one library cannot own two equal roots.
+			if row[1] == iaSourceLibraryRootIndex {
+				if origin, err := autoindexOrigin(row); err != nil || origin != "u" {
+					return fmt.Errorf("IA source: native library/root UNIQUE required")
+				}
+				unique = true
+			}
 		}
 		if !found {
 			return fmt.Errorf("IA source: pinned native id key missing")
+		}
+		if !unique {
+			return fmt.Errorf("IA source: native library/root UNIQUE missing")
 		}
 		info, e := query(ctx, c, "PRAGMA main.index_info("+iaSourcePointIndex+")")
 		if e != nil {
@@ -111,6 +125,13 @@ func auditIASourceOctets(ctx context.Context, c *sql.Conn, table, shape string) 
 		}
 		if len(info.Values) != 1 || len(info.Values[0]) != 3 || info.Values[0][2] != "id" {
 			return fmt.Errorf("IA source: native key must be exactly id")
+		}
+		info, e = query(ctx, c, "PRAGMA main.index_info("+iaSourceLibraryRootIndex+")")
+		if e != nil {
+			return e
+		}
+		if len(info.Values) != 2 || info.Values[0][2] != "library_id" || info.Values[1][2] != "root" {
+			return fmt.Errorf("IA source: native library/root key must be exactly library_id,root")
 		}
 		return nil
 	}
