@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "49b3df34c79bd2d524860cea42909dd0d818d785b999bbe4221045e2b2ad4fe0",
+  "ddl_sha256": "7462ff7631edfda0fc21a70015156f28d077a1fbd8f8a9d948768451db8d6f91",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online. CHANGE-012 also inventories affected G control index sets for complete new-key review; no claim of10M control density or change to inherited STRICT policy.",
   "tables": [
     {
@@ -9934,6 +9934,123 @@
       ]
     },
     {
+      "table": "metadata_acquisition_jobs",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_acquisition_sweep",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_acquisition_sweep ON metadata_acquisition_jobs(provider,purpose,entity_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_acquisition_provider",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_acquisition_provider ON metadata_acquisition_jobs(provider,entity_id,purpose)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_acquisition_ready",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "status",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "next_attempt_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_acquisition_ready ON metadata_acquisition_jobs(status,next_attempt_ms,entity_id,provider,purpose)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_acquisition_jobs_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
       "table": "metadata_candidate_aliases",
       "grain": "provider observations/typed children and captured sets",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -10578,6 +10695,51 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "complete_release_indexes": [
         {
+          "name": "metadata_evidence_ip_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "ip_seal_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_seal_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_seal_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_seal_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "parser_version",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_evidence_ip_proof ON metadata_evidence(ip_seal_owner,ip_seal_incarnation,ip_seal_sequence,ip_seal_kind,id,subject_id,parser_version)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
           "name": "metadata_evidence_seal_proof",
           "unique": false,
           "origin": "c",
@@ -10619,7 +10781,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_evidence_seal_proof ON metadata_evidence(seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind,id,subject_id,parser_version)"
+          "sql": "CREATE INDEX metadata_evidence_seal_proof ON metadata_evidence(seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind,id,subject_id,parser_version)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "metadata_evidence_subject",
@@ -10639,14 +10802,44 @@
             }
           ],
           "sql": "CREATE INDEX metadata_evidence_subject ON metadata_evidence(subject_id,id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
-          "name": "sqlite_autoindex_metadata_evidence_1",
+          "name": "sqlite_autoindex_metadata_evidence_6",
           "unique": true,
-          "origin": "pk",
+          "origin": "u",
           "partial": false,
           "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_evidence_5",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
             {
               "column": "id",
               "collation": "BINARY",
@@ -10654,7 +10847,57 @@
             }
           ],
           "sql": null,
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_evidence_4",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_evidence_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_2",
@@ -10699,74 +10942,14 @@
             }
           ],
           "sql": null,
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
-          "name": "sqlite_autoindex_metadata_evidence_3",
+          "name": "sqlite_autoindex_metadata_evidence_1",
           "unique": true,
-          "origin": "u",
+          "origin": "pk",
           "partial": false,
           "keys": [
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "provider",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "subject_kind",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "provider_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null,
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "sqlite_autoindex_metadata_evidence_4",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "subject_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null,
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "sqlite_autoindex_metadata_evidence_5",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "provider",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "subject_kind",
-              "collation": "BINARY",
-              "descending": false
-            },
             {
               "column": "id",
               "collation": "BINARY",
@@ -10774,27 +10957,7 @@
             }
           ],
           "sql": null,
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "sqlite_autoindex_metadata_evidence_6",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "provider_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null,
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         }
       ]
     },
@@ -10863,6 +11026,56 @@
       "policy": "Existing row-grain type policy unchanged by009.",
       "complete_release_indexes": [
         {
+          "name": "metadata_evidence_build_ip_owner_evidence",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_operation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_evidence_build_ip_owner_evidence ON metadata_evidence_builds(id,owner_operation,owner_incarnation,evidence_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_build_state",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "state",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_build_state ON metadata_evidence_builds(state,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
           "name": "metadata_build_owner",
           "unique": false,
           "origin": "c",
@@ -10889,26 +11102,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_build_owner ON metadata_evidence_builds(owner_operation,owner_incarnation,state,id)"
-        },
-        {
-          "name": "metadata_build_parent",
-          "unique": false,
-          "origin": "c",
-          "partial": false,
-          "keys": [
-            {
-              "column": "parent_build",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX metadata_build_parent ON metadata_evidence_builds(parent_build,id)"
+          "sql": "CREATE INDEX metadata_build_owner ON metadata_evidence_builds(owner_operation,owner_incarnation,state,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "metadata_build_root_active",
@@ -10927,16 +11122,17 @@
               "descending": false
             }
           ],
-          "sql": "CREATE UNIQUE INDEX metadata_build_root_active ON metadata_evidence_builds(owner_operation,owner_incarnation) WHERE owner_operation<>'' AND parent_build IS NULL AND state IN('building','ready')"
+          "sql": "CREATE UNIQUE INDEX metadata_build_root_active ON metadata_evidence_builds(owner_operation,owner_incarnation) WHERE owner_operation<>'' AND parent_build IS NULL AND state IN('building','ready')",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
-          "name": "metadata_build_state",
+          "name": "metadata_build_parent",
           "unique": false,
           "origin": "c",
           "partial": false,
           "keys": [
             {
-              "column": "state",
+              "column": "parent_build",
               "collation": "BINARY",
               "descending": false
             },
@@ -10946,35 +11142,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_build_state ON metadata_evidence_builds(state,id)"
-        },
-        {
-          "name": "sqlite_autoindex_metadata_evidence_builds_1",
-          "unique": true,
-          "origin": "pk",
-          "partial": false,
-          "keys": [
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null
-        },
-        {
-          "name": "sqlite_autoindex_metadata_evidence_builds_2",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "evidence_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null
+          "sql": "CREATE INDEX metadata_build_parent ON metadata_evidence_builds(parent_build,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_builds_3",
@@ -10998,7 +11167,38 @@
               "descending": false
             }
           ],
-          "sql": null
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_evidence_builds_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_evidence_builds_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         }
       ]
     },
@@ -11691,6 +11891,273 @@
       ]
     },
     {
+      "table": "metadata_ip_receipts",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "STRICT actual-owner/proof control",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_ip_receipt_publication_proof",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_ip_receipt_publication_proof ON metadata_ip_receipts(owner_id,command_incarnation,command_sequence,command_kind,evidence_id,entity_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_ip_receipt_publication",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_ip_receipt_publication ON metadata_ip_receipts(publication_id,owner_id,command_incarnation,evidence_id) WHERE publication_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_ip_receipt_set",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "set_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_ip_receipt_set ON metadata_ip_receipts(set_id,owner_id) WHERE set_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_ip_receipt_build",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "build_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_ip_receipt_build ON metadata_ip_receipts(build_id,owner_id,command_incarnation,evidence_id) WHERE build_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_ip_receipt_evidence",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_ip_receipt_evidence ON metadata_ip_receipts(evidence_id,owner_id) WHERE evidence_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_ip_receipts_4",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "set_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_ip_receipts_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "parser_version",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_ip_receipts_2",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_ip_receipts_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
       "table": "metadata_operation_artists",
       "grain": "provider observations/typed children and captured sets",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -11994,6 +12461,148 @@
       ]
     },
     {
+      "table": "metadata_person_builds",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_person_build_reclaim",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_build_reclaim ON metadata_person_builds(reclaim_due_ms,id) WHERE reclaim_due_ms IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_build_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "seal_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_build_proof ON metadata_person_builds(seal_owner,seal_incarnation,seal_sequence,seal_kind,evidence_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_build_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_person_build_owner ON metadata_person_builds(owner_id,owner_incarnation)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_builds_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_builds_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_builds_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
       "table": "metadata_person_external_ids",
       "grain": "provider observations/typed children and captured sets",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -12051,6 +12660,823 @@
       ]
     },
     {
+      "table": "metadata_person_field_origins",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_person_field_publication",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_field_publication ON metadata_person_field_origins(person_id,provider,provider_id,publication_id,evidence_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_field_origins_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "field",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_person_operations",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_person_operations_reclaim_operation",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "reclaim_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_person_operations_reclaim_operation ON metadata_person_operations(reclaim_operation_id) WHERE reclaim_operation_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_operation_reclaim",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_operation_reclaim ON metadata_person_operations(receipt_reclaim_due_ms,id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_operation_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "job_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_operation_due ON metadata_person_operations(job_due_ms,id) WHERE job_due_ms IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_operation_namespace",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "language",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "region",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "request_shape",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_operation_namespace ON metadata_person_operations(subject_id,provider,subject_kind,provider_id,language,region,request_shape)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_operation_library",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_operation_library ON metadata_person_operations(library_id,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_operation_provider",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_operation_provider ON metadata_person_operations(provider,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_operation_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_operation_subject ON metadata_person_operations(person_id,provider,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_operations_4",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "language",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "region",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "request_shape",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_operations_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_operations_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_operations_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_person_publications",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_person_publication_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "proof_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "proof_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "proof_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_publication_proof ON metadata_person_publications(proof_owner,proof_incarnation,proof_sequence,proof_kind,evidence_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_publication_evidence",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_publication_evidence ON metadata_person_publications(evidence_id,provider,subject_kind,provider_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_publication_operation",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_publication_operation ON metadata_person_publications(operation_id,person_id,provider,provider_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_publications_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_publications_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_publications_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_person_receipts",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_person_receipt_publication",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_receipt_publication ON metadata_person_receipts(publication_id,owner_id) WHERE publication_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_receipt_build",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "build_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_receipt_build ON metadata_person_receipts(build_id,owner_id) WHERE build_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_receipt_evidence",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_receipt_evidence ON metadata_person_receipts(evidence_id,owner_id) WHERE evidence_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_receipts_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_receipts_2",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_receipts_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_person_sources",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_person_source_publication",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "accepted_publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "accepted_evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_source_publication ON metadata_person_sources(person_id,provider,provider_id,accepted_publication_id,accepted_evidence_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_person_source_provider",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_person_source_provider ON metadata_person_sources(provider,person_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_person_sources_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "person_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "role",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_policy_receipts",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_metadata_policy_receipts_2",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_policy_receipts_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
       "table": "metadata_provider_operation_sources",
       "grain": "provider observations/typed children and captured sets",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -12103,18 +13529,69 @@
       "policy": "Existing row-grain type policy unchanged by009.",
       "complete_release_indexes": [
         {
-          "name": "metadata_operation_credit_image",
+          "name": "metadata_provider_ip_reclaim_operation",
           "unique": true,
           "origin": "c",
           "partial": true,
           "keys": [
             {
-              "column": "credit_image_id",
+              "column": "ip_reclaim_operation_id",
               "collation": "BINARY",
               "descending": false
             }
           ],
-          "sql": "CREATE UNIQUE INDEX metadata_operation_credit_image ON metadata_provider_operations(credit_image_id) WHERE credit_image_id IS NOT NULL"
+          "sql": "CREATE UNIQUE INDEX metadata_provider_ip_reclaim_operation ON metadata_provider_operations(ip_reclaim_operation_id) WHERE ip_reclaim_operation_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_ip_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "ip_receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_ip_receipt_due ON metadata_provider_operations(ip_receipt_reclaim_due_ms,id) WHERE ip_receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_provider_ip_owner_scope",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_provider_ip_owner_scope ON metadata_provider_operations(id,command_incarnation,entity_id,provider)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "metadata_operation_proof_due",
@@ -12133,45 +13610,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_operation_proof_due ON metadata_provider_operations(proof_reclaim_due_ms,id)"
-        },
-        {
-          "name": "metadata_operation_set",
-          "unique": false,
-          "origin": "c",
-          "partial": false,
-          "keys": [
-            {
-              "column": "set_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX metadata_operation_set ON metadata_provider_operations(set_id,id)"
-        },
-        {
-          "name": "metadata_operation_source_evidence_body",
-          "unique": false,
-          "origin": "c",
-          "partial": false,
-          "keys": [
-            {
-              "column": "source_evidence_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "source_subject_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX metadata_operation_source_evidence_body ON metadata_provider_operations(source_evidence_id,source_subject_id)"
+          "sql": "CREATE INDEX metadata_operation_proof_due ON metadata_provider_operations(proof_reclaim_due_ms,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "metadata_operation_source_evidence_proof",
@@ -12215,7 +13655,28 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_operation_source_evidence_proof ON metadata_provider_operations(source_evidence_owner,source_evidence_incarnation,source_evidence_sequence,source_evidence_kind,source_evidence_id,source_subject_id,source_parser_version)"
+          "sql": "CREATE INDEX metadata_operation_source_evidence_proof ON metadata_provider_operations(source_evidence_owner,source_evidence_incarnation,source_evidence_sequence,source_evidence_kind,source_evidence_id,source_subject_id,source_parser_version)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_operation_source_evidence_body",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "source_evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_subject_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_source_evidence_body ON metadata_provider_operations(source_evidence_id,source_subject_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "metadata_operation_source_publication",
@@ -12239,7 +13700,43 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_operation_source_publication ON metadata_provider_operations(source_publication_id,entity_id,provider)"
+          "sql": "CREATE INDEX metadata_operation_source_publication ON metadata_provider_operations(source_publication_id,entity_id,provider)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_operation_credit_image",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "credit_image_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_operation_credit_image ON metadata_provider_operations(credit_image_id) WHERE credit_image_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_operation_set",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "set_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_set ON metadata_provider_operations(set_id,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "metadata_operation_subject",
@@ -12263,92 +13760,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_operation_subject ON metadata_provider_operations(entity_id,provider,id)"
-        },
-        {
-          "name": "sqlite_autoindex_metadata_provider_operations_1",
-          "unique": true,
-          "origin": "pk",
-          "partial": false,
-          "keys": [
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null
-        },
-        {
-          "name": "sqlite_autoindex_metadata_provider_operations_2",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "provider",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null
-        },
-        {
-          "name": "sqlite_autoindex_metadata_provider_operations_3",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "command_incarnation",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null
-        },
-        {
-          "name": "sqlite_autoindex_metadata_provider_operations_4",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "source_publication_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null
-        },
-        {
-          "name": "sqlite_autoindex_metadata_provider_operations_5",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "provider",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "proof_stage_slot",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null
+          "sql": "CREATE INDEX metadata_operation_subject ON metadata_provider_operations(entity_id,provider,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "sqlite_autoindex_metadata_provider_operations_6",
@@ -12372,7 +13785,205 @@
               "descending": false
             }
           ],
-          "sql": null
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_5",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "proof_stage_slot",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_4",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "source_publication_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_provider_policy",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "STRICT actual-owner/proof control",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_provider_policy_reclaim_operation",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "reclaim_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_provider_policy_reclaim_operation ON metadata_provider_policy(reclaim_operation_id) WHERE reclaim_operation_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_policy_reclaim",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_policy_reclaim ON metadata_provider_policy(receipt_reclaim_due_ms,library_id,provider) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_policy_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_policy_command_owner ON metadata_provider_policy(library_id,provider,command_incarnation)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "fk_child_metadata_provider_policy_0",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_policy_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         }
       ]
     },
@@ -12504,6 +14115,41 @@
       "policy": "Existing row-grain type policy unchanged by009.",
       "complete_release_indexes": [
         {
+          "name": "metadata_publication_sets_ip_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "ip_proof_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_proof_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_proof_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_publication_sets_ip_proof ON metadata_publication_sets(ip_proof_owner,ip_proof_incarnation,ip_proof_sequence,ip_proof_kind,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
           "name": "metadata_set_provider",
           "unique": false,
           "origin": "c",
@@ -12520,7 +14166,8 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_set_provider ON metadata_publication_sets(provider,id)"
+          "sql": "CREATE INDEX metadata_set_provider ON metadata_publication_sets(provider,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "metadata_sets_subject",
@@ -12544,21 +14191,58 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX metadata_sets_subject ON metadata_publication_sets(entity_id,provider,id)"
+          "sql": "CREATE INDEX metadata_sets_subject ON metadata_publication_sets(entity_id,provider,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
-          "name": "sqlite_autoindex_metadata_publication_sets_1",
+          "name": "sqlite_autoindex_metadata_publication_sets_4",
           "unique": true,
-          "origin": "pk",
+          "origin": "u",
           "partial": false,
           "keys": [
             {
               "column": "id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "ip_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_operation_incarnation",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": null
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publication_sets_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "member_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
           "name": "sqlite_autoindex_metadata_publication_sets_2",
@@ -12592,10 +14276,198 @@
               "descending": false
             }
           ],
-          "sql": null
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         },
         {
-          "name": "sqlite_autoindex_metadata_publication_sets_3",
+          "name": "sqlite_autoindex_metadata_publication_sets_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_publications",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_publications_ip_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "ip_proof_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_proof_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_proof_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_publications_ip_proof ON metadata_publications(ip_proof_owner,ip_proof_incarnation,ip_proof_sequence,ip_proof_kind,evidence_id,entity_id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_publication_previous",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "previous_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_publication_previous ON metadata_publications(previous_id,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_publication_set",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "set_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_publication_set ON metadata_publications(set_id,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_publication_evidence",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_publication_evidence ON metadata_publications(evidence_id,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_publication_provider",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_publication_provider ON metadata_publications(provider,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_publication_operation",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_publication_operation ON metadata_publications(operation_id,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_publication_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_publication_subject ON metadata_publications(entity_id,provider,id)",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publications_6",
           "unique": true,
           "origin": "u",
           "partial": false,
@@ -12606,17 +14478,347 @@
               "descending": false
             },
             {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publications_5",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ip_proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publications_4",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
               "column": "provider",
               "collation": "BINARY",
               "descending": false
             },
             {
-              "column": "member_kind",
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "set_id",
               "collation": "BINARY",
               "descending": false
             }
           ],
-          "sql": null
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publications_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publications_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publications_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_refresh_receipts",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_metadata_refresh_receipts_2",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_refresh_receipts_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        }
+      ]
+    },
+    {
+      "table": "metadata_refresh_sweeps",
+      "grain": "Retained per-command proof, source or original-input custody; complete changed-table/index-owner inventory, no high-density claim for active configuration.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_refresh_sweeps_reclaim_operation",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "reclaim_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_refresh_sweeps_reclaim_operation ON metadata_refresh_sweeps(reclaim_operation_id) WHERE reclaim_operation_id IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_refresh_sweep_reclaim",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_refresh_sweep_reclaim ON metadata_refresh_sweeps(receipt_reclaim_due_ms,provider,purpose) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "metadata_refresh_sweep_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "job_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_refresh_sweep_due ON metadata_refresh_sweeps(job_due_ms,provider,purpose) WHERE job_due_ms IS NOT NULL",
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_refresh_sweeps_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_refresh_sweeps_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "purpose",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
         }
       ]
     },
@@ -16917,5 +19119,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "CHANGE-016 amended B1-B3: preserve adopted015 and all E index DDL; complete changed-table native index_list/index_xinfo inventories. Cleanup CHECKs bind due/state/cursor/mask; locked-empty/result-purpose closure does not add an index."
+  "change_control": "CHANGE-017 N1/N2 over adopted016: preserve all E/base indexes; extend only D proof/reverse keys and add exact build-owner-evidence key. Complete native selected index_list/index_xinfo inventories include every changed table/index owner."
 }
