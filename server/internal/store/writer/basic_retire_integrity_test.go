@@ -48,6 +48,10 @@ func basicChargedRetirementFixture(t *testing.T) (*executor, basicRetireFirstEff
 	if _, err = w.db.ExecContext(t.Context(), `UPDATE catalog_info_input_families SET rows_staged=rows_expected,sealed=1 WHERE change_id=?`, begun.source.changeID); err != nil {
 		t.Fatal(err)
 	}
+	// The prerequisite component frames returned a NORMAL connection. Start
+	// retirement registration on a fresh DSN-configured FULL connection.
+	w.db.SetMaxIdleConns(0)
+	w.db.SetMaxIdleConns(w.config.Connections)
 	return w, basicRetireFirstEffects{source: begun.source, currentAssetEpoch: 18, changeRevision: 15, shapeID: 61, entityID: 31, counts: input.counts}, baseline, charged
 }
 
