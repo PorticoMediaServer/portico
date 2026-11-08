@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/qual"
 	"github.com/PorticoMediaServer/portico/server/internal/store/qual/workload"
 	"github.com/PorticoMediaServer/portico/server/internal/store/read"
@@ -29,7 +30,11 @@ var ec3WritePattern = flag.String("ec3-foreground-write-pattern", "progress_capt
 var ec2Enabled = flag.Bool("ec2-sustained", false, "opt-in EC2 component; never qualification")
 var ec2Every = flag.Duration("ec2-writer-every", time.Second, "declared serial writer cycle spacing,1ms..30s")
 var ec2Readers = flag.Duration("ec2-reader-every", 250*time.Millisecond, "one bounded serial foreground worker spacing,>=1ms")
-var ec2Passive = flag.Duration("ec2-passive-every", 250*time.Millisecond, "requested CP cadence,>=50ms;0 explicitly omits CP in a subset")
+
+// The adopted keeper offer cadence is 50ms (the cadence lever was dropped from
+// the WAL policy); this cell must not run an arbitrary slower sweep. The
+// governor's own minimum start spacing still applies.
+var ec2Passive = flag.Duration("ec2-passive-every", 50*time.Millisecond, "adopted keeper CP offer cadence,50ms default,>=50ms;0 explicitly omits CP in a subset")
 var ec2Recovery = flag.Duration("ec2-recovery-every", time.Second, "requested GV recovery cadence;0 explicitly omits recovery")
 var ec2Observe = flag.Duration("ec2-wal-every", time.Second, "advisory observation cadence,>=1ms")
 var ec2Pattern = flag.String("ec2-writer-pattern", "inventory,security", "bounded writer pattern; exactly one inventory entry; missing native bindings fail")
@@ -146,6 +151,12 @@ func ec2Bindings(t *testing.T, c *writer.N1PairedComponent, cohort string) workl
 				out, err := c.EC2Checkpoint(ctx, op == workload.EC2Recovery)
 				end := time.Now()
 				wall := end.Sub(start)
+				if errors.Is(err, governor.ErrCheckpointCadence) {
+					// The adopted 50ms offer cadence sits exactly on the keeper's minimum
+					// start spacing; an early offer is a deferral, not a maintenance or
+					// writer failure. Record it raw and keep the schedule moving.
+					return emit(workload.Observation{Phase: "CHECKPOINT_DEFERRED", CallStarted: &start, CallReturned: &end, WallNS: &wall, Result: out, Notice: "offer inside the keeper minimum start spacing; no checkpoint started; recorded deferral"})
+				}
 				observation := workload.Observation{Phase: strings.ToUpper(string(op)), CallStarted: &start, CallReturned: &end, WallNS: &wall, Result: out, RefusalError: out.Refusal != nil}
 				if err != nil {
 					observation.CallError = err.Error()
