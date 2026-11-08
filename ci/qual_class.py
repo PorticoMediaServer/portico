@@ -58,11 +58,16 @@ def inputs(env):
     q.require(re.fullmatch(q.COMMIT, source) and re.fullmatch(q.SHA, manifest), 'full source/manifest pins required')
     q.require(name in TARGETS and profile in ('standard', 'legacy8'), 'closed class/profile required')
     q.require(name not in CHECKPOINT_CASES or purpose=='screening','checkpoint components are SCREENING only')
+    rate = env.get('INPUT_OFFERED_RATE_PER_SEC', '')
+    if rate:
+        q.require(name in ('progress', 'security', 'wc_reclaim') and re.fullmatch(r'[0-9]{1,4}(\.[0-9]{1,2})?', rate) and 0.1 <= float(rate) <= 1000,
+                  'offered rate is an originals/s 0.1..1000 input for the canonical WC classes only')
     interval = env.get('INPUT_CHECKPOINT_INTERVAL_MS', '')
     if interval:
         q.require(purpose == 'screening' and name not in CHECKPOINT_CASES and re.fullmatch(r'[1-9][0-9]{1,3}', interval) and 50 <= int(interval) <= 5000,
                   'checkpoint interval is a SCREENING-only 50..5000 ms variable for canonical owner classes')
     return dict(source=source, manifest=manifest, name=name, profile=profile, purpose=purpose,
+                offered_rate_per_sec=float(rate) if rate else None,
                 checkpoint_interval_ms=int(interval) if interval else None,
                 replicate=q.uint(env.get('REPLICATE', ''), 1, 3, 'replicate'),
                 producer_run=identity(env.get('INPUT_PRODUCER_RUN', ''), 'producer run'),
@@ -247,6 +252,8 @@ def run(launch_path):
              host_epoch=f"{boot}-k{os.uname().release}", source_commit=cfg['source'],
              output_path=str(work.parent / 'qual-class-memory' / 'raw.sock'), **{'class': cfg['name']}, profile=cfg['profile'],
              attempts=ATTEMPTS, artifact_directory=launch['artifact'], manifest_sha256=cfg['manifest'])
+    if cfg.get('offered_rate_per_sec'):
+        c['offered_rate_per_sec'] = cfg['offered_rate_per_sec']  # open-loop originals/s
     q.atomic_json(work / 'config.json', c)
     env.update(PORTICO_CANONICAL_HELD_STREAM='unix-gzip-v1', PORTICO_CANONICAL_HELD='1', PORTICO_CANONICAL_HELD_CONFIG=str(work / 'config.json'))
     if cfg.get('checkpoint_interval_ms'):
