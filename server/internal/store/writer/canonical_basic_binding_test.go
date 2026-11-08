@@ -50,10 +50,7 @@ func newCanonicalBasicComponent(t *testing.T, count int, stream *n1Stream, canon
 		t.Fatal(err)
 	}
 	e.openPool(connector, trace.decorate)
-	if !measured {
-		now := time.Now()
-		e.now = func() time.Time { return now }
-	}
+
 	first, err := prepared.packet(0, prepared.original, prepared.identity)
 	if err != nil {
 		t.Fatal(err)
@@ -199,7 +196,7 @@ func TestCanonicalBasicAcceptActionUsesExistingRuntimeAndSavedReceipt(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	stream := &n1Stream{file: file, origin: time.Now(), base: map[string]any{"qualification": false, "scope": "tiny frozen-clock functional control"}}
+	stream := &n1Stream{file: file, origin: time.Now(), base: map[string]any{"qualification": false, "scope": "tiny functional control; no wall-clock hold assertions"}}
 	c := newCanonicalBasicComponent(t, 2, stream, false, false)
 	for n := 0; n < 2; n++ {
 		if err := c.action(t, t.Context(), n, "control"); err != nil {
