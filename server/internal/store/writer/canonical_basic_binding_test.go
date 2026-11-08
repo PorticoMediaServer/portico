@@ -58,6 +58,9 @@ func newCanonicalBasicComponent(t *testing.T, count int, stream *n1Stream, canon
 	w, _, _, _, _ := basicAcceptRuntimeFixture(t, e, first, canonicalN1Maintenance())
 	trace.useRegistry(w.effective.registry)
 	m := newCanonicalCheckpointOwner(t, opening, w.effective.governor, w.effective.authority, w.effective.wal, path, canonicalCheckpointShape{BasicAccept, "canonical-basic-cp", 1 << 29})
+	// The funded keeper must be the runtime's own maintenance hook, or
+	// prepareCheckpoint returns early and admission refuses on WAL pressure.
+	w.effective.maintenance = &checkpointMaintenance{request: m.request("passive"), results: m.results}
 	c := &canonicalBasicComponent{writer: w, opening: opening, maintenance: m, seed: prepared, trace: trace, stream: stream, original: prepared.original, identity: prepared.identity, measured: measured}
 	if err := stream.append("prepared", map[string]any{"recipe": canonicalBasicRecipe, "prepared_inputs": count, "scope": "actual native frozen ordinary inputs; physical probe/Stage/copy clocks excluded and unqualified", "preparation_clock": nil, "probe_clock": nil, "product_enable": false, "profile_memory": map[string]uint64{"preparation_bytes": w.effective.basicAcceptPlan.basicMemory.preparationBytes, "reserved_bytes": w.effective.basicAcceptPlan.basicMemory.reservedBytes}, "need": w.effective.basicAcceptPlan.need, "recipe_limit": w.effective.basicAcceptPlan.recipe.limit, "qualification": false}); err != nil {
 		t.Fatal(err)
