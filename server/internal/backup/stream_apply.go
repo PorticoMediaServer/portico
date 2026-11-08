@@ -405,7 +405,7 @@ func checkPreviousArtworkPaths(ctx context.Context, state, pre string) error {
 		return err
 	}
 	defer db.Close()
-	rows, err := db.QueryContext(ctx, ownerArtworkReferences)
+	rows, err := queryOwnerArtwork(ctx, db)
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
