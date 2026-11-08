@@ -638,3 +638,56 @@ func TestNativeSearchPeopleEqualIDBirth(t *testing.T) {
 		t.Fatal("old People publication rebased onto equal ID", page, err)
 	}
 }
+
+func TestNativeSearchUsesCapturedDomainBytePairs(t *testing.T) {
+	for _, complete := range []bool{false, true} {
+		t.Run(fmt.Sprint(complete), func(t *testing.T) {
+			f := newNativeSource(t)
+			f.exec(t, "BEGIN")
+			f.exec(t, "PRAGMA defer_foreign_keys=ON")
+			f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(33,'native-byte-test',0,0,1,1,0)`)
+			f.exec(t, `UPDATE catalog_subjects SET kind=33 WHERE id=55`)
+			f.exec(t, `UPDATE catalog_entities SET kind=33,title='The pair',retired=0 WHERE id=55`)
+			nativeFixtureImage(t, f, search.ManifestEntity, 55, 2055, []nativeFixtureField{{1, "The pair"}})
+			f.exec(t, "COMMIT")
+			defs := NativeFullSearchDefinitions()
+			if complete {
+				defs = append(defs, TitleFactsDefinitions()...)
+			}
+			f = composeReadFixture(t, f, defs, readfixture.LiveConfig(time.Now), false, nativeScenarioFixtureHash(t))
+			r, err := NewNativeFullSearchReader(f.snapshots)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.input.Kind = 0
+			f.input.Limit = 20
+			query, err := search.PlanQuery("the", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			live, request, output := liveRequests("native-byte-pair")
+			request.Budget.RawRows = 4096
+			var page FullSearchPage
+			var cost *BrowseReadResult
+			_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+				var e error
+				page, cost, e = r.Read(ctx, request, time.Second, out, FullSearchInput{View: f.input, Preview: true, CandidateBudget: 1}, query)
+				return e
+			})
+			if !complete {
+				if err == nil || !reflect.DeepEqual(page, FullSearchPage{}) {
+					t.Fatal("missing domain catalogue released output", page, err)
+				}
+				return
+			}
+			if err != nil || len(page.Hits) != 1 || page.Hits[0].ID != 55 {
+				t.Fatal("captured byte-pair domain", page, err)
+			}
+			// Seven common native fences, then item + kind + the two physical
+			// octet/payload attempts. The logical pair must not be counted as one.
+			if cost == nil || cost.PublicationStatements != 11 {
+				t.Fatal("paired attempt evidence", cost)
+			}
+		})
+	}
+}

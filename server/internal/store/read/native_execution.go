@@ -214,13 +214,13 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 				copies += 128
 				return fact.rows(), nil
 			}
-			calls++
-			cost.LookupStatements++
 			isMatch := strings.HasPrefix(name, "full.native.fts.")
 			if isMatch && work.limit > 0 && work.used >= work.limit {
 				return nil, errNativeCandidateBudget
 			}
-			rows, e := scope.Query(readStatementID(name), args...)
+			rows, attempts, e := queryReadScope(scope, name, args...)
+			calls += attempts
+			cost.LookupStatements += attempts
 			if e != nil {
 				return nil, e
 			}
@@ -236,7 +236,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 				}
 			}
 			nativeRememberKind(kindCache, name, rows)
-			copies += 4096
+			copies += 4096 * int64(attempts)
 			for _, row := range rows {
 				copies += 64 + int64(len(row))*32
 				for _, v := range row {
@@ -337,13 +337,13 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 				copies += 128
 				return fact.rows(), nil
 			}
-			cost.PublicationStatements++
-			rows, e := scope.Query(readStatementID(name), args...)
+			rows, attempts, e := queryReadScope(scope, name, args...)
+			cost.PublicationStatements += attempts
 			if e != nil {
 				return nil, e
 			}
 			nativeRememberKind(kindCache, name, rows)
-			copies += 4096
+			copies += 4096 * int64(attempts)
 			for _, row := range rows {
 				copies += 64 + int64(len(row))*32
 				for _, value := range row {
