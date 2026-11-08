@@ -57,7 +57,7 @@ Group B adds `authorization_session_families.security_kind INTEGER NOT NULL` wit
 | 41 | `server/internal/store/read/rb_filter_personal_cursor_fence_test.go:28` | insert | `identity_devices` | v1-native | ordinary | P06 | V1 RB personal-fence fixture device |
 | 42 | `server/internal/store/read/rb_filter_personal_cursor_fence_test.go:29` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 RB personal-fence fixture ordinary family (INSERT-SELECT) |
 | 43 | `server/internal/store/read/rs_detail_composed_test.go:170` | insert | `identity_devices` | v1-native | ordinary | P06 | V1 RS detail-composed profile-q fixture device |
-| 44 | `server/internal/store/read/rs_detail_composed_test.go:171` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 RS detail-composed profile-q fixture family (INSERT-SELECT) |
+| 44 | `server/internal/store/read/rs_detail_composed_test.go:171` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 RS detail-composed profile-q fixture family (INSERT-SELECT; security_kind explicit) |
 | 45 | `server/internal/store/stmt/plan/autoindex_fences_test.go:96` | insert | `identity_devices` | v1-native | ordinary | P06 | V1 plan autoindex fence fixture device |
 | 46 | `server/internal/store/stmt/plan/autoindex_fences_test.go:97` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 plan autoindex fence fixture ordinary family (INSERT-SELECT) |
 | 47 | `server/internal/store/writer/crash_security_linux_test.go:204` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 WC security crash fixture ordinary family copy (INSERT-SELECT) |
@@ -135,7 +135,7 @@ Each list is disjoint. A prep task updates only its own files; no product schema
 
 - `server/internal/store/internal/readfixture/source.go` - device and ordinary family fixture (lines 206-207)
 - `server/internal/store/read/rb_filter_personal_cursor_fence_test.go` - device and ordinary family fixture (lines 28-29)
-- `server/internal/store/read/rs_detail_composed_test.go` - device and ordinary family fixture (lines 170-171)
+- `server/internal/store/read/rs_detail_composed_test.go` - device and ordinary family fixture (lines 170-171; family names `security_kind=0`)
 - `server/internal/store/stmt/plan/autoindex_fences_test.go` - device and ordinary family fixture (lines 96-97)
 
 ## Notes for the embed task
