@@ -96,11 +96,12 @@ func TestN1AsyncStreamStampsTheEventBeforeTheLock(t *testing.T) {
 	now.Store(1000)
 	stamped := make(chan struct{}, 1)
 	s.clock = func() int64 {
+		v := now.Load() // read BEFORE signalling, so the test cannot change it first
 		select {
 		case stamped <- struct{}{}: // first read is the event stamp
 		default:
 		}
-		return now.Load()
+		return v
 	}
 	s.mu.Lock()
 	done := make(chan error, 1)
