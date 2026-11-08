@@ -135,6 +135,9 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 			inventory++
 		}
 	}
+	if *ec2CPMode != "concurrent" {
+		t.Fatal("native EC2 keeper requires the declared concurrent checkpoint mode")
+	}
 	if inventory != 1 {
 		t.Fatal("existing progressive fixture requires exactly one inventory entry per pattern")
 	}
