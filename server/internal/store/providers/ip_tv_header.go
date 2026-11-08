@@ -45,7 +45,12 @@ type TVObservation struct {
 type TVHeader struct {
 	header writer.EvidenceHeader
 	route  TVRoute
-	fields TVFields
+	// fields is the source-presence mask; nulls is its JSON-null subset. A
+	// declared field absent from fields was omitted by the source. A field in
+	// fields but not in nulls was supplied, possibly as empty text; a field in
+	// both was explicitly null. The projected header text is "" for both null
+	// and empty, so only the pair of masks keeps them apart.
+	fields, nulls TVFields
 }
 
 type TVFields uint8
@@ -61,7 +66,15 @@ const (
 
 func (d TVHeader) Header() writer.EvidenceHeader { return d.header }
 func (d TVHeader) Route() TVRoute                { return d.route }
-func (d TVHeader) Fields() TVFields              { return d.fields }
+
+// Fields reports which declared fields the source supplied. It is the
+// presence mask, so an omitted field has no bit regardless of projected text.
+func (d TVHeader) Fields() TVFields { return d.fields }
+
+// Nulls reports the supplied fields whose JSON value was null. It is always a
+// subset of Fields and never includes child families: a scalar header carries
+// no completeness or clearing evidence for credits, episodes or artwork.
+func (d TVHeader) Nulls() TVFields { return d.nulls }
 
 // PrepareTMDBTVHeader requires an explicit existing TMDB preparation policy,
 // freezes the body before validation/hash/decode and preserves the original
@@ -114,18 +127,20 @@ func PrepareTMDBTVHeader(policy enrich.TMDBPolicy, observation TVObservation, bo
 	if !enrich.ValidTMDBObservationJSON(frozen) {
 		return TVHeader{}, ErrTVHeader
 	}
-	values, fields, err := decodeTVHeader(frozen, observation.Route)
+	values, fields, nulls, err := decodeTVHeader(frozen, observation.Route)
 	if err != nil {
 		return TVHeader{}, err
 	}
 	h.ObservationDigest = sha256.Sum256(frozen)
-	h.Title, h.Overview, h.OriginalTitle, h.Tagline, h.ReleaseDate = values.name, values.overview, values.original, values.tagline, values.date
-	if values.date != "" {
-		date, err := time.Parse("2006-01-02", values.date)
+	h.Title, h.Overview, h.OriginalTitle, h.Tagline = tvText(values.name), tvText(values.overview), tvText(values.original), tvText(values.tagline)
+	date := tvText(values.date)
+	h.ReleaseDate = date
+	if date != "" {
+		parsed, err := time.Parse("2006-01-02", date)
 		if err != nil {
 			return TVHeader{}, ErrTVHeader
 		}
-		h.Year = int64(date.Year())
+		h.Year = int64(parsed.Year())
 	}
 	if values.runtime != nil {
 		if *values.runtime < 0 || *values.runtime > math.MaxInt64/60000 {
@@ -140,7 +155,16 @@ func PrepareTMDBTVHeader(policy enrich.TMDBPolicy, observation TVObservation, bo
 	route := observation.Route
 	route.Kind = enrich.SubjectKind(strings.Clone(string(route.Kind)))
 	route.ProviderID, route.SeriesID = strings.Clone(route.ProviderID), strings.Clone(route.SeriesID)
-	return TVHeader{header: header, route: route, fields: fields}, nil
+	return TVHeader{header: header, route: route, fields: fields, nulls: nulls}, nil
+}
+
+// tvText projects a nullable source text. A null and an explicit empty string
+// both render empty here; Nulls() retains the difference for future publishers.
+func tvText(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func canonicalPositiveID(id string) bool {
@@ -173,18 +197,20 @@ func tvPath(route TVRoute) (string, bool) {
 	}
 }
 
+// tvScalars keeps selected source values typed so JSON null stays distinct
+// from an empty string: a null decodes to a nil pointer, "" to a non-nil one.
 type tvScalars struct {
 	id, season, episode                     *int64
-	name, overview, original, tagline, date string
+	name, overview, original, tagline, date *string
 	runtime                                 *int64
 }
 
-func decodeTVHeader(body []byte, route TVRoute) (tvScalars, TVFields, error) {
+func decodeTVHeader(body []byte, route TVRoute) (tvScalars, TVFields, TVFields, error) {
 	var out tvScalars
-	var fields TVFields
+	var fields, nulls TVFields
 	d := json.NewDecoder(bytes.NewReader(body))
 	if token, err := d.Token(); err != nil || token != json.Delim('{') {
-		return out, 0, ErrTVHeader
+		return tvScalars{}, 0, 0, ErrTVHeader
 	}
 	dateKey := "air_date"
 	if route.Kind == enrich.Series {
@@ -197,11 +223,11 @@ func decodeTVHeader(body []byte, route TVRoute) (tvScalars, TVFields, error) {
 	for d.More() {
 		token, err := d.Token()
 		if err != nil {
-			return tvScalars{}, 0, ErrTVHeader
+			return tvScalars{}, 0, 0, ErrTVHeader
 		}
 		key, ok := token.(string)
 		if !ok {
-			return tvScalars{}, 0, ErrTVHeader
+			return tvScalars{}, 0, 0, ErrTVHeader
 		}
 		var target any
 		var bit TVFields
@@ -236,24 +262,41 @@ func decodeTVHeader(body []byte, route TVRoute) (tvScalars, TVFields, error) {
 		if target == nil {
 			var discard json.RawMessage
 			if d.Decode(&discard) != nil {
-				return tvScalars{}, 0, ErrTVHeader
+				return tvScalars{}, 0, 0, ErrTVHeader
 			}
 			continue
 		}
 		if seen[key] || d.Decode(target) != nil {
-			return tvScalars{}, 0, ErrTVHeader
+			return tvScalars{}, 0, 0, ErrTVHeader
+		}
+		if bit != 0 && tvNull(target) {
+			nulls |= bit
 		}
 		seen[key], fields = true, fields|bit
 	}
 	if token, err := d.Token(); err != nil || token != json.Delim('}') {
-		return tvScalars{}, 0, ErrTVHeader
+		return tvScalars{}, 0, 0, ErrTVHeader
 	}
 	var trailing json.RawMessage
 	if d.Decode(&trailing) != io.EOF || out.id == nil || strconv.FormatInt(*out.id, 10) != route.ProviderID ||
-		strings.TrimSpace(out.name) == "" || fields&(TVName|TVOverview|TVDate) != TVName|TVOverview|TVDate ||
+		out.name == nil || strings.TrimSpace(*out.name) == "" || fields&(TVName|TVOverview|TVDate) != TVName|TVOverview|TVDate ||
 		(route.Kind != enrich.Series && (out.season == nil || *out.season != route.Season)) ||
 		(route.Kind == enrich.Episode && (out.episode == nil || *out.episode != route.Episode)) {
-		return tvScalars{}, 0, ErrTVHeader
+		return tvScalars{}, 0, 0, ErrTVHeader
 	}
-	return out, fields, nil
+	return out, fields, nulls, nil
+}
+
+// tvNull reports whether a decoded selected field was supplied as JSON null.
+// Text fields decode into *string, and nullable integers into *int64, so a nil
+// inner pointer is the null signal.
+func tvNull(target any) bool {
+	switch value := target.(type) {
+	case **string:
+		return *value == nil
+	case **int64:
+		return *value == nil
+	default:
+		return false
+	}
 }
