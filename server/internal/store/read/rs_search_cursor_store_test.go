@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"sync"
@@ -250,8 +251,9 @@ func TestRSSearchCursorStoreExpiryEvictionAndRestart(t *testing.T) {
 		t.Fatalf("past ceiling accepted: %v", err)
 	}
 
-	// Global capacity retires the earliest-expiring handle, never leaving an
-	// unbounded set, and every surviving handle stays resolvable.
+	// Global capacity never retires another owner's live handle: a new owner is
+	// refused once the store is full, and a continuing owner only displaces its
+	// own superseded handle.
 	clock = &rsCursorStoreClock{at: rsCursorStoreEpoch}
 	small := rsCursorStoreTestLimit()
 	small.MaxEntries = 2
@@ -268,14 +270,26 @@ func TestRSSearchCursorStoreExpiryEvictionAndRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	third, _, err := evicting.Issue(3, owned(3))
+	if _, _, err := evicting.Issue(3, owned(3)); !errors.Is(err, governor.ErrBusy) {
+		t.Fatalf("a new owner displaced live handles: %v", err)
+	}
+	for owner, token := range map[governor.OwnerID]string{1: first, 2: second} {
+		got, _, err := evicting.Resolve(token, RSSearchCursorRequest{Owner: owner, Input: in, Bank: 4, Revision: 2})
+		if err != nil || got == nil {
+			t.Fatalf("refused owner lost a live handle: %v", err)
+		}
+	}
+	if _, _, err := evicting.Issue(1, owned(1)); !errors.Is(err, governor.ErrBusy) {
+		t.Fatalf("per-owner allowance accepted a fifth handle: %v", err)
+	}
+	third, _, err := evicting.IssueNext(1, first, owned(1), time.Time{})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("continuing owner could not displace its own handle: %v", err)
 	}
 	if _, _, err := evicting.Resolve(first, req); !errors.Is(err, ErrStale) {
-		t.Fatalf("evicted handle survived: %v", err)
+		t.Fatalf("superseded handle survived: %v", err)
 	}
-	for owner, token := range map[governor.OwnerID]string{2: second, 3: third} {
+	for owner, token := range map[governor.OwnerID]string{2: second, 1: third} {
 		got, _, err := evicting.Resolve(token, RSSearchCursorRequest{Owner: owner, Input: in, Bank: 4, Revision: 2})
 		if err != nil || got == nil {
 			t.Fatalf("surviving handle lost: %v", err)
@@ -283,6 +297,83 @@ func TestRSSearchCursorStoreExpiryEvictionAndRestart(t *testing.T) {
 	}
 	if stats := evicting.Stats(); stats.Entries != 2 || stats.Bytes > small.MaxBytes || stats.Entries > small.MaxEntries {
 		t.Fatalf("store exceeded its ceiling: %v", stats)
+	}
+}
+
+func TestRSSearchCursorStoreMultiOwnerFloodKeepsLiveHandles(t *testing.T) {
+	clock := &rsCursorStoreClock{at: rsCursorStoreEpoch}
+	limit := rsCursorStoreTestLimit()
+	limit.MaxEntries = 4
+	limit.MaxPerOwner = 4
+	limit.TTL = time.Minute
+	store := rsCursorStoreTestStore(t, clock, limit)
+	in := rsCursorStoreInput(t, "hello", 1, "token")
+	owned := func(o governor.OwnerID) *RSSearchCursor {
+		return rsCursorStoreCursor(t, rsCursorStoreIdentity(t, o, in), in.Query.Fold(), 4, 2, 2)
+	}
+	req := func(o governor.OwnerID) RSSearchCursorRequest {
+		return RSSearchCursorRequest{Owner: o, Input: in, Bank: 4, Revision: 2}
+	}
+	resolves := func(o governor.OwnerID, token string) bool {
+		_, _, err := store.Resolve(token, req(o))
+		return err == nil
+	}
+
+	first, _, err := store.Issue(1, owned(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerOne := []string{first}
+	for i := 0; i < 2; i++ {
+		token, _, err := store.Issue(1, owned(1))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ownerOne = append(ownerOne, token)
+	}
+	ownerTwo, _, err := store.Issue(2, owned(2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats := store.Stats(); stats.Entries != 4 {
+		t.Fatalf("store not filled: %v", stats)
+	}
+	if _, _, err := store.Issue(3, owned(3)); !errors.Is(err, governor.ErrBusy) {
+		t.Fatalf("a ninth owner evicted a live handle: %v", err)
+	}
+	for i, token := range ownerOne {
+		if !resolves(1, token) {
+			t.Fatalf("refused newcomer lost owner 1 handle %d", i)
+		}
+	}
+	if !resolves(2, ownerTwo) {
+		t.Fatal("refused newcomer lost owner 2 handle")
+	}
+
+	// The flooding owner may displace only its own oldest live handle.
+	replacement, _, err := store.Issue(1, owned(1))
+	if err != nil {
+		t.Fatalf("flooding owner could not displace its own handle: %v", err)
+	}
+	if resolves(1, ownerOne[0]) {
+		t.Fatal("own oldest handle was not displaced")
+	}
+	for i, token := range ownerOne[1:] {
+		if !resolves(1, token) {
+			t.Fatalf("flood displaced a newer own handle %d", i+1)
+		}
+	}
+	if !resolves(2, ownerTwo) {
+		t.Fatal("flood displaced another owner's live handle")
+	}
+	if _, _, err := store.Issue(4, owned(4)); !errors.Is(err, governor.ErrBusy) {
+		t.Fatalf("second newcomer evicted a live handle: %v", err)
+	}
+	if !resolves(1, replacement) || !resolves(2, ownerTwo) {
+		t.Fatal("refusal damaged a live handle")
+	}
+	if stats := store.Stats(); stats.Entries > limit.MaxEntries || stats.Bytes > limit.MaxBytes {
+		t.Fatalf("flood escaped its ceiling: %v", stats)
 	}
 }
 
@@ -319,20 +410,29 @@ func TestRSSearchCursorStoreFloodBoundedAndCharged(t *testing.T) {
 		t.Fatalf("flood refused a live handle: %v", err)
 	}
 
-	// Other viewers may use the remaining global slots; the totals stay capped.
+	// Other viewers may use the remaining global slots, but once the store is
+	// full a new viewer is refused instead of evicting a live handle.
 	stores := make([]string, 0, 4)
-	for owner := governor.OwnerID(2); owner <= 4; owner++ {
+	for owner := governor.OwnerID(2); owner <= 3; owner++ {
 		token, _, err := store.Issue(owner, rsCursorStoreCursor(t, rsCursorStoreIdentity(t, owner, in), in.Query.Fold(), 8, 3, 16))
 		if err != nil {
 			t.Fatal(err)
 		}
 		stores = append(stores, token)
 	}
+	if _, _, err := store.Issue(4, rsCursorStoreCursor(t, rsCursorStoreIdentity(t, 4, in), in.Query.Fold(), 8, 3, 16)); !errors.Is(err, governor.ErrBusy) {
+		t.Fatalf("new viewer displaced a live handle: %v", err)
+	}
 	if stats := store.Stats(); stats.Entries > limit.MaxEntries || stats.Bytes > limit.MaxBytes {
 		t.Fatalf("global ceiling escaped: %v", stats)
 	}
-	if len(stores) != 3 {
-		t.Fatal("expected every other viewer to receive one bounded handle", len(stores))
+	if len(stores) != 2 {
+		t.Fatal("expected every other viewer with room to receive one bounded handle", len(stores))
+	}
+	for owner, token := range map[governor.OwnerID]string{1: first, 2: stores[0], 3: stores[1]} {
+		if _, _, err := store.Resolve(token, RSSearchCursorRequest{Owner: owner, Input: in, Bank: 8, Revision: 3}); err != nil {
+			t.Fatalf("live handle of owner %d lost to the flood refusal: %v", owner, err)
+		}
 	}
 
 	// A single cursor larger than its entry allowance is refused rather than
@@ -367,18 +467,24 @@ func TestRSSearchCursorStoreFloodBoundedAndCharged(t *testing.T) {
 
 func TestRSSearchCursorStoreExactReachabilityDedup(t *testing.T) {
 	clock := &rsCursorStoreClock{at: rsCursorStoreEpoch}
-	store := rsCursorStoreTestStore(t, clock, rsCursorStoreTestLimit())
+	limit := DefaultRSSearchCursorStoreLimit()
+	store := rsCursorStoreTestStore(t, clock, limit)
 	owner := governor.OwnerID(7)
 	in := rsCursorStoreInput(t, "hello", 1, "token")
 	identity := rsCursorStoreIdentity(t, owner, in)
 	req := RSSearchCursorRequest{Owner: owner, Input: in, Bank: 11, Revision: 5}
 	cursor := rsCursorStoreCursor(t, identity, in.Query.Fold(), 11, 5, 0)
 
+	// Walk three times the per-owner allowance at one page per second. Every
+	// consumed handle must be superseded, so the walk never reaches ErrBusy and
+	// only the live page stays charged.
+	const pages = 3 * 4
 	seen := map[int64]struct{}{}
 	var emitted []int64
 	var ceiling time.Time
 	tokenLength := 0
-	for page := 0; page < 3; page++ {
+	predecessor := ""
+	for page := 0; page < pages; page++ {
 		fresh := make([]nativeSeenKey, 0, 7)
 		for i := 0; i < 7; i++ {
 			id := int64(100*page + i)
@@ -393,9 +499,16 @@ func TestRSSearchCursorStoreExactReachabilityDedup(t *testing.T) {
 		if page == 1 {
 			cursor.anchor = &FullSearchReadStamp{query: in.Query.Fold(), fence: nativeSearchFence{bank: 11, revision: 5}, started: clock.now(), clock: clock.now(), deadline: clock.now().Add(time.Hour)}
 		}
-		token, expires, err := store.IssueUntil(owner, cursor, ceiling)
+		var token string
+		var expires time.Time
+		var err error
+		if page == 0 {
+			token, expires, err = store.IssueUntil(owner, cursor, ceiling)
+		} else {
+			token, expires, err = store.IssueNext(owner, predecessor, cursor, ceiling)
+		}
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("page %d: %v", page, err)
 		}
 		if page == 0 {
 			ceiling = expires
@@ -405,6 +518,14 @@ func TestRSSearchCursorStoreExactReachabilityDedup(t *testing.T) {
 			}
 		} else if !expires.Equal(ceiling) || len(token) != tokenLength {
 			t.Fatalf("page %d changed the retained handle shape: %v %d", page, expires, len(token))
+		}
+		if predecessor != "" {
+			if _, _, err := store.Resolve(predecessor, req); !errors.Is(err, ErrStale) {
+				t.Fatalf("page %d did not retire its predecessor: %v", page, err)
+			}
+		}
+		if stats := store.Stats(); stats.Entries != 1 {
+			t.Fatalf("page %d retained a consumed handle: %v", page, stats)
 		}
 		got, until, err := store.Resolve(token, req)
 		if err != nil || !until.Equal(ceiling) {
@@ -416,9 +537,11 @@ func TestRSSearchCursorStoreExactReachabilityDedup(t *testing.T) {
 		if page == 1 && (got.anchor == nil || len(got.anchor.libraries) != 0) {
 			t.Fatal("retained source stamp was not carried server-side", got.anchor)
 		}
+		predecessor = token
+		clock.advance(time.Second)
 	}
-	if len(emitted) != 21 || len(seen) != len(emitted) {
-		t.Fatalf("walk lost or duplicated hits: %v", emitted)
+	if len(emitted) != pages*7 || len(seen) != len(emitted) {
+		t.Fatalf("walk lost or duplicated hits: %d/%d", len(emitted), pages)
 	}
 	for _, id := range emitted {
 		found := false
@@ -429,15 +552,17 @@ func TestRSSearchCursorStoreExactReachabilityDedup(t *testing.T) {
 			t.Fatalf("final continuation cannot reach hit %d", id)
 		}
 	}
-	if stats := store.Stats(); stats.Entries != 3 || stats.Bytes <= 0 {
-		t.Fatalf("pages were not charged: %v", stats)
+	if stats := store.Stats(); stats.Entries != 1 || stats.Bytes <= 0 {
+		t.Fatalf("live page was not charged: %v", stats)
 	}
-	clock.advance(time.Minute + time.Second)
-	if removed := store.Sweep(); removed != 3 {
-		t.Fatalf("expired walk not swept: %d", removed)
+
+	// An abandoned (never superseded) handle still frees at its TTL.
+	clock.advance(limit.TTL + time.Second)
+	if _, _, err := store.Resolve(predecessor, req); !errors.Is(err, ErrStale) {
+		t.Fatalf("abandoned handle outlived its TTL: %v", err)
 	}
 	if stats := store.Stats(); stats.Entries != 0 || stats.Bytes != 0 {
-		t.Fatalf("swept bytes still charged: %v", stats)
+		t.Fatalf("expired abandoned handle still charged: %v", stats)
 	}
 }
 
@@ -475,6 +600,65 @@ func TestRSSearchCursorStoreIdentityMatchesBegin(t *testing.T) {
 		if err := p.Close(); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// TestRSSearchCursorStoreIdentityGolden pins the identity hash bytes. A new
+// pointer field in BrowseInput would otherwise silently hash an address instead
+// of its value, so the pin fails loudly for review.
+func TestRSSearchCursorStoreIdentityGolden(t *testing.T) {
+	in := rsCursorStoreInput(t, "hello", 7, "pin-token")
+	id := rsCursorStoreIdentity(t, 12, in)
+	const want = "76ad5c0c1b86dfcbe7b94ef39dd6a3a65da8ced892787a285ae2781453621e92"
+	if got := fmt.Sprintf("%x", id); got != want {
+		t.Fatalf("identity hash drifted: got %s", got)
+	}
+}
+
+// TestRSSearchCursorStoreResolveSurvivesBegin proves Begin copies the resolved
+// continuation rather than mutating the store's shared pointer.
+func TestRSSearchCursorStoreResolveSurvivesBegin(t *testing.T) {
+	f, _ := newRSSearchFixture(t)
+	clock := &rsCursorStoreClock{at: rsCursorStoreEpoch}
+	store := rsCursorStoreTestStore(t, clock, rsCursorStoreTestLimit())
+	owner := governor.OwnerID(1)
+	query := rsCursorStoreQuery(t, "hello")
+	view := f.input
+	view.Kind, view.Limit, view.After = 0, 0, nil
+	in := RSSearchInput{Views: []BrowseInput{view}, Query: query, Group: 1, Full: true, Order: "relevance", Capacity: 64}
+	cursor := rsCursorStoreCursor(t, rsCursorStoreIdentity(t, owner, in), query.Fold(), 11, 5, 4)
+	cursor.rank.native = nil // Begin accepts a rank cursor without a native continuation
+	token, _, err := store.Issue(owner, cursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := store.Resolve(token, RSSearchCursorRequest{Owner: owner, Input: in, Bank: 11, Revision: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := *got
+	before.rank = cloneFullCursor(got.rank)
+	if got.order != nil {
+		order := *got.order
+		before.order = &order
+	}
+	reader, err := newRSSearchReaderWithRead(f.authority, func(context.Context, governor.Request, time.Duration, BrowseOutput, FullSearchInput, search.Query) (FullSearchPage, *BrowseReadResult, error) {
+		return FullSearchPage{}, nil, ErrUnqualified
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := in
+	next.After = got
+	p, refusal, err := reader.Begin(t.Context(), owner, time.Now().Add(10*time.Second), 1<<20, next)
+	if err != nil || refusal != nil {
+		t.Fatalf("begin: %v %v", err, refusal)
+	}
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, &before) {
+		t.Fatal("Begin mutated the resolved continuation")
 	}
 }
 
