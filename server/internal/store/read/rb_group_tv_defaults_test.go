@@ -27,10 +27,10 @@ func rbTVDefaultsSource(t *testing.T) *browseFixture {
 	f.input.Kind = 2
 	return f
 }
-func TestRBTVProvisionalSourceDefaults(t *testing.T) {
-	synctest.Test(t, testRBTVProvisionalSourceDefaults)
+func TestRBTVSourceSettingsPresence(t *testing.T) {
+	synctest.Test(t, testRBTVSourceSettingsPresence)
 }
-func testRBTVProvisionalSourceDefaults(t *testing.T) {
+func testRBTVSourceSettingsPresence(t *testing.T) {
 	f := rbTVDefaultsSource(t)
 	defs := append(browseDefinitions(), RBTVDefaultsDefinitions()...)
 	// Both are actual captures of this test's merged schema and custom journal.
@@ -66,33 +66,45 @@ func testRBTVProvisionalSourceDefaults(t *testing.T) {
 		return p
 	}
 	p := read()
-	if !p.ProvisionalInheritance || !p.AbsoluteNumbering || p.SavedAbsoluteNumbering || p.LibraryPreferenceRevision != 1 || !p.LibraryPreferencePresent {
-		t.Fatal("provisional inherit is not absence proof", p)
+	if p.SettingsPresent || !p.AbsoluteNumbering || p.SavedAbsoluteNumbering || p.LibraryPreferenceRevision != 1 || !p.LibraryPreferencePresent {
+		t.Fatal("absent show settings inherit current library numbering", p)
 	}
 	f.exec(t, `UPDATE libraries SET preference_present=0,preference_revision=NULL,preference_group_collections=NULL,preference_local_tags=NULL,preference_lyrics_source=NULL,preference_title_source=NULL,preference_episode_numbering=NULL,preference_find_extras=NULL,preference_sort_ignore_articles=NULL WHERE id='movies'`)
 	p = read()
-	if !p.ProvisionalInheritance || p.AbsoluteNumbering || p.LibraryPreferencePresent || p.LibraryNumbering != "season" {
+	if p.SettingsPresent || p.AbsoluteNumbering || p.LibraryPreferencePresent || p.LibraryNumbering != "season" {
 		t.Fatal("absent library preference defaults to seasonal", p)
 	}
 	f.exec(t, `UPDATE libraries SET preference_present=1,preference_revision=1,preference_group_collections=0,preference_local_tags='off',preference_lyrics_source='files',preference_title_source='tags',preference_episode_numbering='absolute',preference_find_extras=0,preference_sort_ignore_articles=1 WHERE id='movies'`)
 	f.exec(t, `UPDATE libraries SET preference_episode_numbering='season',preference_revision=2 WHERE id='movies'`)
 	p = read()
-	if !p.ProvisionalInheritance || p.AbsoluteNumbering || p.LibraryPreferenceRevision != 2 {
+	if p.SettingsPresent || p.AbsoluteNumbering || p.LibraryPreferenceRevision != 2 {
 		t.Fatal("current library preference", p)
 	}
+	// A newer settings revision is not presence: an absent owner save still
+	// inherits the CURRENT library numbering.
 	f.exec(t, `UPDATE libraries SET preference_episode_numbering='absolute',preference_revision=3 WHERE id='movies'`)
 	f.exec(t, `UPDATE catalog_entities SET show_settings_revision=2 WHERE id=2001`)
 	p = read()
-	if p.ProvisionalInheritance || p.AbsoluteNumbering || p.SettingsRevision != 2 {
-		t.Fatal("saved false suppresses inheritance", p)
+	if p.SettingsPresent || !p.AbsoluteNumbering || p.SettingsRevision != 2 {
+		t.Fatal("revision is not presence", p)
 	}
-	f.exec(t, `UPDATE catalog_entities SET show_settings_revision=1,hide_seasons=1 WHERE id=2001`)
+	// Presence one is an explicit save even when every field is default at
+	// revision one.
+	f.exec(t, `UPDATE catalog_entities SET show_settings_present=1,show_settings_revision=1,hide_seasons=0,absolute_numbering=0,newest_first=0,show_ranges='' WHERE id=2001`)
 	p = read()
-	if p.ProvisionalInheritance || !p.HideSeasons || p.AbsoluteNumbering {
-		t.Fatal("nondefault revision one is explicit", p)
+	if !p.SettingsPresent || p.AbsoluteNumbering || p.SavedAbsoluteNumbering || p.SettingsRevision != 1 {
+		t.Fatal("saved all-false revision one is explicit", p)
 	}
-	// Changes without a revision bump also fail the actual source-value witness.
-	f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE catalog_entities SET absolute_numbering=1 WHERE id=2001`) }}
+	// Explicit nondefault values are the source facts, not the library default.
+	f.exec(t, `UPDATE catalog_entities SET show_settings_present=1,show_settings_revision=7,hide_seasons=1,absolute_numbering=1,newest_first=1,show_ranges='1-3' WHERE id=2001`)
+	p = read()
+	if !p.SettingsPresent || !p.HideSeasons || !p.AbsoluteNumbering || !p.SavedAbsoluteNumbering || !p.NewestFirst || p.Ranges != "1-3" || p.SettingsRevision != 7 {
+		t.Fatal("explicit nondefault settings", p)
+	}
+	// A presence change with unchanged booleans invalidates the original
+	// source witness, even without a settings revision bump.
+	f.exec(t, `UPDATE catalog_entities SET show_settings_present=0,show_settings_revision=1,hide_seasons=0,absolute_numbering=0,newest_first=0,show_ranges='' WHERE id=2001`)
+	f.reader.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE catalog_entities SET show_settings_present=1 WHERE id=2001`) }}
 	q, request, output := liveRequests("rb-tv-defaults-drift")
 	_, e := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
 		p, _, e := f.reader.RBTVSourceDefaults(ctx, request, time.Second, out, f.input, 2001)
@@ -104,7 +116,7 @@ func testRBTVProvisionalSourceDefaults(t *testing.T) {
 	if !errors.Is(e, ErrStale) {
 		t.Fatal("LIVE must retain the publication refusal", e)
 	}
-	t.Logf("PROVISIONAL lead rule; actual Reader Capture both statistics schema=%s fixture=%s", captures["analyzed"].Environment.SchemaSHA256, rbTVDefaultsHash(t))
+	t.Logf("PRESENCE source fact; actual Reader Capture both statistics schema=%s fixture=%s", captures["analyzed"].Environment.SchemaSHA256, rbTVDefaultsHash(t))
 }
 
 func TestRBTVDefaultsExactWitness(t *testing.T) {
