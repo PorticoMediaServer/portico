@@ -56,18 +56,20 @@ Group B adds `authorization_session_families.security_kind INTEGER NOT NULL` wit
 | 40 | `server/internal/store/internal/readfixture/source.go:207` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 readfixture ordinary family |
 | 41 | `server/internal/store/read/rb_filter_personal_cursor_fence_test.go:28` | insert | `identity_devices` | v1-native | ordinary | P06 | V1 RB personal-fence fixture device |
 | 42 | `server/internal/store/read/rb_filter_personal_cursor_fence_test.go:29` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 RB personal-fence fixture ordinary family (INSERT-SELECT) |
-| 43 | `server/internal/store/stmt/plan/autoindex_fences_test.go:96` | insert | `identity_devices` | v1-native | ordinary | P06 | V1 plan autoindex fence fixture device |
-| 44 | `server/internal/store/stmt/plan/autoindex_fences_test.go:97` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 plan autoindex fence fixture ordinary family (INSERT-SELECT) |
-| 45 | `server/internal/store/writer/crash_security_linux_test.go:204` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 WC security crash fixture ordinary family copy (INSERT-SELECT) |
-| 46 | `server/internal/store/writer/us_authority_fixture_test.go:83` | insert | `identity_devices` | v1-native | ordinary | P05 | V1 US owner-authority fixture device |
-| 47 | `server/internal/store/writer/us_authority_fixture_test.go:86` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 US owner-authority fixture ordinary family (security_kind explicit) |
-| 48 | `server/internal/store/writer/us_authority_test.go:87` | insert | `api_credentials` | v1-native | credential | P05 | V1 US owner-authority credential marker fixture |
-| 49 | `server/internal/store/writer/us_authority_test.go:95` | delete | `api_credentials` | v1-native | credential | P05 | V1 US owner-authority credential marker drain |
-| 50 | `server/internal/store/writer/us_pin_fences_test.go:57` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 US PIN fence fixture ordinary family (security_kind=0) |
-| 51 | `server/internal/store/writer/wc_progress_fixture.go:38` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 WC progress fixture ordinary family birth |
-| 52 | `server/internal/store/writer/wc_security_008_native_test.go:17` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 WC security native fixture ordinary family |
-| 53 | `server/internal/testauth/session.go:22` | insert | `identity_devices` | legacy | ordinary | - | Legacy generic test-session device |
-| 54 | `server/internal/testauth/session.go:23` | insert | `authorization_session_families` | legacy | ordinary | - | Legacy generic test-session family |
+| 43 | `server/internal/store/read/rs_detail_composed_test.go:170` | insert | `identity_devices` | v1-native | ordinary | P06 | V1 RS detail-composed profile-q fixture device |
+| 44 | `server/internal/store/read/rs_detail_composed_test.go:171` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 RS detail-composed profile-q fixture family (INSERT-SELECT) |
+| 45 | `server/internal/store/stmt/plan/autoindex_fences_test.go:96` | insert | `identity_devices` | v1-native | ordinary | P06 | V1 plan autoindex fence fixture device |
+| 46 | `server/internal/store/stmt/plan/autoindex_fences_test.go:97` | insert | `authorization_session_families` | v1-native | ordinary | P06 | V1 plan autoindex fence fixture ordinary family (INSERT-SELECT) |
+| 47 | `server/internal/store/writer/crash_security_linux_test.go:204` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 WC security crash fixture ordinary family copy (INSERT-SELECT) |
+| 48 | `server/internal/store/writer/us_authority_fixture_test.go:83` | insert | `identity_devices` | v1-native | ordinary | P05 | V1 US owner-authority fixture device |
+| 49 | `server/internal/store/writer/us_authority_fixture_test.go:86` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 US owner-authority fixture ordinary family (security_kind explicit) |
+| 50 | `server/internal/store/writer/us_authority_test.go:87` | insert | `api_credentials` | v1-native | credential | P05 | V1 US owner-authority credential marker fixture |
+| 51 | `server/internal/store/writer/us_authority_test.go:95` | delete | `api_credentials` | v1-native | credential | P05 | V1 US owner-authority credential marker drain |
+| 52 | `server/internal/store/writer/us_pin_fences_test.go:57` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 US PIN fence fixture ordinary family (security_kind=0) |
+| 53 | `server/internal/store/writer/wc_progress_fixture.go:38` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 WC progress fixture ordinary family birth |
+| 54 | `server/internal/store/writer/wc_security_008_native_test.go:17` | insert | `authorization_session_families` | v1-native | ordinary | P05 | V1 WC security native fixture ordinary family |
+| 55 | `server/internal/testauth/session.go:22` | insert | `identity_devices` | legacy | ordinary | - | Legacy generic test-session device |
+| 56 | `server/internal/testauth/session.go:23` | insert | `authorization_session_families` | legacy | ordinary | - | Legacy generic test-session family |
 
 ## Pending v1-native fixtures (unmerged branches)
 
@@ -133,6 +135,7 @@ Each list is disjoint. A prep task updates only its own files; no product schema
 
 - `server/internal/store/internal/readfixture/source.go` - device and ordinary family fixture (lines 206-207)
 - `server/internal/store/read/rb_filter_personal_cursor_fence_test.go` - device and ordinary family fixture (lines 28-29)
+- `server/internal/store/read/rs_detail_composed_test.go` - device and ordinary family fixture (lines 170-171)
 - `server/internal/store/stmt/plan/autoindex_fences_test.go` - device and ordinary family fixture (lines 96-97)
 
 ## Notes for the embed task
