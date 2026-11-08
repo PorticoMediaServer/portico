@@ -33,8 +33,8 @@ func effectiveBeginNativePopulation(t *testing.T, w *executor) (effectiveBeginOw
 	}
 	for _, q := range []string{
 		`INSERT INTO libraries(id,name,kind,root) VALUES('library-native','Library','movie','/media')`,
-		`INSERT INTO catalog_libraries(id,library_id,root) VALUES(7,'library-native','/namespace')`,
-		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0)`,
+		`INSERT OR IGNORE INTO catalog_libraries(id,library_id,root) VALUES(7,'library-native','/namespace')`,
+		`INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0)`,
 		`INSERT INTO metadata_providers(code,adapter,enabled) VALUES('fixture','fixture-adapter',1)`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
