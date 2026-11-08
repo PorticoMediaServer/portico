@@ -168,14 +168,23 @@ func newCanonicalCheckpointOwner(t *testing.T, opening *scanOpening, g governor.
 	}
 	return m
 }
+
+// clock follows the executor's clock when one is bound; the pure caps controls
+// build a bare owner with no executor and use wall time.
+func (m *canonicalN1MaintenanceOwner) clock() time.Time {
+	if m.executor != nil && m.executor.now != nil {
+		return m.executor.now()
+	}
+	return time.Now()
+}
 func (m *canonicalN1MaintenanceOwner) request(role string) governor.Request {
-	r := governor.Request{Key: governor.JobKey{Domain: uint16(m.shape.domain), ID: m.shape.prefix + "/" + role}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.MemoryBytes: 64 << 10, governor.CPUMilli: 1000, governor.IOBytes: 2 * m.shape.hardBytes}, Deadline: m.executor.now().Add(time.Hour)}
+	r := governor.Request{Key: governor.JobKey{Domain: uint16(m.shape.domain), ID: m.shape.prefix + "/" + role}, Owner: 1, Class: governor.Recovery, Need: governor.Amounts{governor.MemoryBytes: 64 << 10, governor.CPUMilli: 1000, governor.IOBytes: 2 * m.shape.hardBytes}, Deadline: m.clock().Add(time.Hour)}
 	r.IO = []governor.DeviceIO{{DeviceID: fmt.Sprintf("filesystem-device:%d", m.opening.binding.device), Class: governor.Sequential, Outstanding: 1, Bytes: r.Need[governor.IOBytes]}}
 	if role == "passive" {
 		r.Need[governor.Reader] = 1
 		r.MaxHold = 5 * time.Second
 		r.Budget = governor.UnitBudget{RawRows: 1, VMOps: 10000000, Pages: uint32(2*(m.shape.hardBytes/4120) + 1)}
-		r.Deadline = m.executor.now().Add(6 * time.Second)
+		r.Deadline = m.clock().Add(6 * time.Second)
 	}
 	return r
 }
