@@ -83,7 +83,25 @@ func crashPoint(t *testing.T, witness *crashWitness, boundary string) {
 	}
 	// Only the parent kills the process. A missing hook, early ordinary exit,
 	// timeout or wrong signal fails instead of counting as a crash case.
-	<-t.Context().Done()
+	//
+	// The wait must be real blocking I/O, not <-t.Context().Done(): this hook
+	// also runs inside a testing/synctest bubble (enrichCrashWithDonor), where a
+	// channel receive is a durable block. Once every goroutine in the bubble is
+	// durably blocked, synctest wakes its root and panics with "deadlock: all
+	// goroutines in bubble are blocked" if the parent's SIGKILL is at all late,
+	// which turned a witnessed kill into exit status 2 on loaded runners. A read
+	// from a pipe that nothing writes stays in I/O wait, which synctest never
+	// treats as idle, so the bubble waits for the real signal.
+	stay, keep, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keep.Close()
+	defer stay.Close()
+	var blocked [1]byte
+	if _, err := stay.Read(blocked[:]); err != nil {
+		t.Fatal("boundary hold failed before the parent killed the process:", err)
+	}
 	t.Fatal("parent failed to SIGKILL the boundary process")
 }
 
