@@ -71,6 +71,10 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightEvidenceBeginResult(v)
 	case effectiveBeginResult:
 		return preflightEffectiveBeginResult(v)
+	case ipPolicyResult:
+		return preflightIPPolicyResult(v)
+	case ipRefreshResult:
+		return preflightIPRefreshResult(v)
 	case enrichAcceptResult:
 		return preflightEnrichAcceptResult(v)
 	case inventoryAcceptResult:
@@ -156,6 +160,10 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeEvidenceBeginResult(e, identity, request, v)
 	case effectiveBeginResult:
 		return writeEffectiveBeginResult(e, identity, request, v)
+	case ipPolicyResult:
+		return writeIPPolicyResult(e, identity, request, v)
+	case ipRefreshResult:
+		return writeIPRefreshResult(e, identity, request, v)
 	case enrichAcceptResult:
 		return writeEnrichAcceptResult(e, identity, request, v)
 	case inventoryAcceptResult:
