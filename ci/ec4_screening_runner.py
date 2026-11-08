@@ -493,16 +493,17 @@ def ensure_qualification_source(source: Path, git: dict, source_ref: str) -> Non
         raise RuntimeError("qualification source SHA is not an ancestor of origin/main")
 
 
-def qualification_policy_matches(report_data: dict, qualification: bool) -> bool:
-    """The report's actual WAL policy must be Phase1a iff this is a qualification run."""
+def qualification_policy_matches(report_data: dict, qualification: bool, batch: bool = False) -> bool:
+    """Formal cells and explicit batch screening use the adopted policy."""
     policy = report_data.get("WALPolicy") or {}
     adopted = all(policy.get(key) == value for key, value in QUALIFICATION_WAL_POLICY.items())
-    return adopted if qualification else not adopted
+    return adopted if qualification or batch else not adopted
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     qualification = os.environ.get("PORTICO_EC4_QUALIFICATION") == "1"
+    batch = os.environ.get("PORTICO_EC4_BATCH") == "1"
     source = Path(args.source).resolve()
     artifact = Path(args.artifact).resolve()
     runner_temp = Path(os.environ.get("RUNNER_TEMP") or "/tmp").resolve()
@@ -652,9 +653,9 @@ def main(argv: list[str]) -> int:
             "PORTICO_EC4_MEDIA_ROOT": str(library),
             "PORTICO_EC4_OUTPUT": str(artifact / "report.json"),
             "PORTICO_EC4_SOURCE": git["actual_sha"],
-            "PORTICO_EC4_FEATURES": "inventory",
+            "PORTICO_EC4_FEATURES": "inventory_batch" if batch else "inventory",
             "PORTICO_EC4_QUALIFICATION": "1" if qualification else "",
-            "PORTICO_EC4_BATCH": "1" if os.environ.get("PORTICO_EC4_BATCH") == "1" else "",
+            "PORTICO_EC4_BATCH": "1" if batch else "",
             "GOMAXPROCS": "2",
             "TMPDIR": str(db_tmp),
             "HOME": str(home),
@@ -740,10 +741,13 @@ def main(argv: list[str]) -> int:
                     state["status"] = "failed"
                     state["errors"].append(
                         f"report label/qualification mismatch: {report_data.get('label')!r}/{report_data.get('qualification')!r}")
-                elif not qualification_policy_matches(report_data, qualification):
+                elif report_data.get("Batch", False) is not batch:
+                    state["status"] = "failed"
+                    state["errors"].append("report batch mode disagrees with the dispatched mode")
+                elif not qualification_policy_matches(report_data, qualification, batch):
                     state["status"] = "failed"
                     reason = ("qualification report WALPolicy is not governor.Phase1aWALPolicy"
-                              if qualification else "screening report used the adopted Phase1a WAL policy; labels would drift")
+                              if qualification or batch else "legacy screening report used the adopted Phase1a WAL policy; labels would drift")
                     state["errors"].append(f"{reason}: {policy!r}")
                 else:
                     state["status"] = "passed"
