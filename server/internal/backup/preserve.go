@@ -115,7 +115,7 @@ func currentOwnerArtworkNames(ctx context.Context, pre string) ([]string, error)
 		return nil, err
 	}
 	defer db.Close()
-	rows, err := db.QueryContext(ctx, ownerArtworkReferences)
+	rows, err := queryOwnerArtwork(ctx, db)
 	if err != nil {
 		return nil, err
 	}
