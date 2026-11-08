@@ -312,26 +312,45 @@ func (c *N1PairedComponent) runOriginal(t *testing.T, ctx context.Context, ready
 		c.stopped = err
 		return err
 	}
-	for _, role := range []string{"fresh_begin", "resolve", "ack"} {
-		var before *walobserve.WALSnapshot
-		if telemetry {
-			var err error
-			before, err = c.ObserveEC2WAL(ctx)
-			if err != nil {
-				raw, _ := json.Marshal(map[string]any{"original_reference": ReceiptReference{command.identity, command.digest}, "turn_role": role, "physical_attempt_id": nil, "before": before, "after": nil, "before_error": err.Error(), "after_error": nil})
-				c.stopped = errors.Join(err, c.EmitEC2("wal_turn", raw))
-				return c.stopped
-			}
+	// One advisory WAL bracket per original chain. A per-role typed probe waits
+	// behind a concurrent funded PASSIVE checkpoint (observed 0.4-0.5s at 1M),
+	// which inflates the serial writer path; the single before/after bracket keeps
+	// observer work off that path while retaining the full-chain delta.
+	roles := []string{"fresh_begin", "resolve", "ack"}
+	var chainBefore *walobserve.WALSnapshot
+	if telemetry {
+		var err error
+		chainBefore, err = c.ObserveEC2WAL(ctx)
+		if err != nil {
+			raw, _ := json.Marshal(map[string]any{"original_reference": ReceiptReference{command.identity, command.digest}, "turn_role": roles[0], "physical_attempt_id": nil, "before": chainBefore, "after": nil, "before_error": err.Error(), "after_error": nil, "wal_bracket_scope": "chain-start advisory bracket"})
+			c.stopped = errors.Join(err, c.EmitEC2("wal_turn", raw))
+			return c.stopped
 		}
+	}
+	for i, role := range roles {
 		nativeBeginsBefore := c.trace.nativeBegins
 		c.call++
 		c.summary.Turns[role].Started++
 		record := runN1SteadyTurn(t, ctx, c.stream, c.fixture, c.trace, &c.summary, c.original, c.call, population, role, cohort, c.baseline, n1SteadyControls{clock: time.Now, initialConnections: &c.baselineConnections, initialCloses: &c.baselineCloses})
 		if telemetry {
-			// Always collect after a returned physical call, even on command failure or
-			// cancellation. These finite file probes own no native rows/transaction.
-			after, observeErr := c.ObserveEC2WAL(context.WithoutCancel(ctx))
-			raw, _ := json.Marshal(map[string]any{"original_reference": record.Reference, "turn_role": role, "physical_attempt_id": record.ID, "physical_attempt_ordinal": record.PhysicalAttemptOrdinal, "physical_ordinal_scope": "selected N1 turns only; use native begin census for full mixed writer order", "writer_native_begins_before": nativeBeginsBefore, "writer_native_begins_after": c.trace.nativeBegins, "before": before, "after": after, "before_error": "", "after_error": n1Error(observeErr), "header_sync_ns": nil, "header_sync_unavailable_reason": "typed native WAL IO has no isolated header-sync/xSync interval"})
+			// ONE after-probe at the end of the chain; middle roles add no probe.
+			var before, after *walobserve.WALSnapshot
+			var observeErr error
+			beforeErr, afterErr := "", ""
+			if i == 0 {
+				before = chainBefore
+			} else {
+				beforeErr = "advisory bracket taken once at chain start; middle roles share the per-original bracket"
+			}
+			if i == len(roles)-1 {
+				// Collect after a returned physical call, even on command failure or
+				// cancellation. These finite file probes own no native rows/transaction.
+				after, observeErr = c.ObserveEC2WAL(context.WithoutCancel(ctx))
+				afterErr = n1Error(observeErr)
+			} else {
+				afterErr = "advisory bracket completes after the last role; middle roles add no probe"
+			}
+			raw, _ := json.Marshal(map[string]any{"original_reference": record.Reference, "turn_role": role, "physical_attempt_id": record.ID, "physical_attempt_ordinal": record.PhysicalAttemptOrdinal, "physical_ordinal_scope": "selected N1 turns only; use native begin census for full mixed writer order", "writer_native_begins_before": nativeBeginsBefore, "writer_native_begins_after": c.trace.nativeBegins, "before": before, "after": after, "before_error": beforeErr, "after_error": afterErr, "header_sync_ns": nil, "header_sync_unavailable_reason": "typed native WAL IO has no isolated header-sync/xSync interval", "wal_bracket_scope": "one advisory before at chain start and one after at chain end; per-role probes removed so observer work cannot block the serial writer path"})
 			if err := errors.Join(observeErr, c.EmitEC2("wal_turn", raw)); err != nil {
 				c.stopped = err
 				return err
