@@ -996,3 +996,34 @@ func TestNativeSearchPreviewRefusesForgedSeenSets(t *testing.T) {
 		}
 	}
 }
+
+// A window can find more matches than the page limit (one owner expansion can
+// emit many works). The extras are dropped by the bounded top-k, so the walk
+// must not claim to be exhaustive afterwards.
+func TestNativeSearchPreviewWindowOverflowIsNeverReportedComplete(t *testing.T) {
+	f, r := nativePreviewFixture(t)
+	f.input.Limit = 2 // four hits per window overflow it
+	var after *FullSearchCursor
+	seen := map[int64]bool{}
+	var last FullSearchPage
+	for poll := 0; poll < 400; poll++ {
+		page, err := nativePreviewRead(t, f, r, "story", after, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, hit := range page.Hits {
+			seen[hit.ID] = true
+		}
+		last = page
+		if page.Next == nil {
+			break
+		}
+		after = page.Next
+	}
+	if last.Next != nil {
+		t.Fatal("walk did not finish")
+	}
+	if len(seen) < 21 && (last.Exhausted || !last.Partial) {
+		t.Fatal("walk dropped hits at the window limit but reported itself complete", len(seen), last)
+	}
+}
