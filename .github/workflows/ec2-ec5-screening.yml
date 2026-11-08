@@ -63,6 +63,9 @@ jobs:
       - name: Select screening cells
         id: cells
         shell: bash
+        env:
+          CELLS: ${{ inputs.cells }}
+          REPLICATES: ${{ inputs.replicates }}
         run: |
           set -euo pipefail
           python3 - "${{ inputs.profile }}" <<'PY'
