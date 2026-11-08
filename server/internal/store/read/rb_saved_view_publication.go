@@ -245,6 +245,7 @@ func (r *SavedViewReader) Execute(ctx context.Context, request governor.Request,
 			return SavedViewExecutionPage{}, BrowseReadResult{}, e
 		}
 		var page SavedViewExecutionPage
+		var principal publicationPrincipalPin
 		for attempt := 0; attempt < 2; attempt++ {
 			s.cost.Attempts = attempt + 1
 			page = SavedViewExecutionPage{}
@@ -256,6 +257,9 @@ func (r *SavedViewReader) Execute(ctx context.Context, request governor.Request,
 				var e error
 				f, e = readSavedViewPrincipal(q, s.input(effective))
 				if e != nil {
+					return e
+				}
+				if e = principal.observe(f); e != nil {
 					return e
 				}
 				resource, e = s.resource(q, f, in.Resource)
@@ -324,6 +328,9 @@ func (r *SavedViewReader) Execute(ctx context.Context, request governor.Request,
 				final := s.window(true, 0, func(q browseQuery) error {
 					current, e := readBrowseFence(q, s.input(effective))
 					if e != nil {
+						return e
+					}
+					if e = principal.observe(current); e != nil {
 						return e
 					}
 					now, e := s.resource(q, current, in.Resource)

@@ -102,6 +102,7 @@ func publishRead[T any](ctx context.Context, snapshots browseSnapshots, request 
 	}
 	request.Deadline = deadline
 	var copied int64
+	var principal publicationPrincipalPin
 	attempts := 1
 	if len(roots) > 0 {
 		attempts = 2
@@ -110,7 +111,7 @@ func publishRead[T any](ctx context.Context, snapshots browseSnapshots, request 
 		attemptInput := in
 		attemptInput.Now = in.Now.Add(time.Since(started))
 		var one BrowseReadResult
-		page, one, err = publishAttempt(ctx, snapshots, request, time.Until(deadline), output, attemptInput, steps, &copied, roots...)
+		page, one, err = publishPinnedAttempt(ctx, snapshots, request, time.Until(deadline), output, attemptInput, steps, &copied, &principal, roots...)
 		result.Lookup = one.Lookup
 		result.Publication = one.Publication
 		result.Refusal = one.Refusal
@@ -135,7 +136,40 @@ func publishRead[T any](ctx context.Context, snapshots browseSnapshots, request 
 
 type rootRead func(browseQuery) ([]any, error)
 
+// publicationPrincipalPin belongs to ONE logical read, including all retry and
+// composition stages. It pins authenticated births and permissions, independently
+// of catalogue/root facts that may legitimately change during a content retry.
+type publicationPrincipalPin struct {
+	first browseFence
+	ready bool
+}
+
+func (p *publicationPrincipalPin) observe(f browseFence) error {
+	principal := browseFence{
+		database: f.database, token: f.token, account: f.account, profile: f.profile,
+		membership: f.membership, lifetime: f.lifetime, epoch: f.epoch, authority: f.authority,
+		membershipRevision: f.membershipRevision, profileRevision: f.profileRevision,
+		restrictionRevision: f.restrictionRevision, maximumAge: f.maximumAge, allowUnrated: f.allowUnrated,
+		role: f.role, memberLibraries: f.memberLibraries, profileLibraries: f.profileLibraries,
+		profileLabels: f.profileLabels, profileRestricted: f.profileRestricted,
+		expiresAt: f.expiresAt, horizon: f.horizon,
+	}
+	if !p.ready {
+		p.first, p.ready = principal, true
+	} else if p.first != principal {
+		// Security drift is terminal, never the content-stale signal that permits
+		// another attempt under newly derived authority.
+		return ErrDenied
+	}
+	return nil
+}
+
 func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput, steps []readStep[T], copied *int64, roots ...rootRead) (page T, result BrowseReadResult, err error) {
+	var principal publicationPrincipalPin
+	return publishPinnedAttempt(ctx, snapshots, request, budget, output, in, steps, copied, &principal, roots...)
+}
+
+func publishPinnedAttempt[T any](ctx context.Context, snapshots browseSnapshots, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput, steps []readStep[T], copied *int64, principal *publicationPrincipalPin, roots ...rootRead) (page T, result BrowseReadResult, err error) {
 
 	var zero T
 	started := time.Now()
@@ -232,6 +266,9 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 				if e != nil {
 					return e
 				}
+				if e = principal.observe(initial); e != nil {
+					return e
+				}
 				fenceReady = true
 			}
 			if stepIndex == 0 && len(roots) > 0 {
@@ -294,6 +331,9 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 		}
 		current, e := readBrowseFence(query, currentInput)
 		if e != nil {
+			return e
+		}
+		if e = principal.observe(current); e != nil {
 			return e
 		}
 		if current != initial {

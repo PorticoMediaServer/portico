@@ -152,7 +152,7 @@ func TestBrowsePublicationRejectsUnversionedPolicyDrift(t *testing.T) {
 		f.exec(t, `UPDATE profile_restrictions SET maximum_age=12 WHERE profile_id='p'`)
 	}}
 	page, _, err := f.window(t, t.Context(), f.input)
-	if !errors.Is(err, ErrStale) {
+	if !errors.Is(err, ErrDenied) {
 		t.Fatal("unversioned item-policy change released old results", err)
 	}
 	requireNoBrowsePage(t, page)
