@@ -121,3 +121,30 @@ Cell receipts also record filesystem total/used/free immediately before the
 child starts and after it exits. These are checkpoints, not minimum free space
 or peak disk usage. Actions step timestamps retain compression/upload elapsed
 time; inspect these and the first redispatch's receipts for runner-disk pressure.
+
+Raw collection during the next epoch uses a dedicated 7 GiB `tmpfs,noswap`
+mount with verified filesystem type, source, byte limit and a device different
+from the database/work directory. This removes per-record database-disk sync:
+the unchanged Go encoder writes the identical record bytes and its Sync calls
+reach memory, not the database filesystem. Linux documents `noswap` as disabling
+swap for this mount: https://docs.kernel.org/filesystems/tmpfs.html . Missing or
+mismatched mount evidence refuses execution; there is no disk fallback during
+measurement.
+
+Only after the unit is stopped/drained does the runner stream-compress raw to
+disk, verify original digest/length and gzip round-trip, then unlink memory raw.
+A compression failure remains nonpassing and retains an independently verified
+bulk copy of the original on disk after measurement. Unmount refuses while any
+unpersisted data remains; ownership marker, empty unmount/path-removal proof,
+then ordinary scratch cleanup are retained before artifact upload.
+
+The 7 GiB spool limit is observer memory, charged inside the unchanged cell memory
+limit (legacy8 remains 8 GiB). Its explicit charge leaves 1 GiB of that hard limit
+for other charges; this is NOT a legal recipe/native-memory or EC5 fit claim.
+The previous full raw stream was 7,130,041,472 B, below the 7,516,192,768 B spool
+limit; future larger evidence fails visibly instead of increasing a profile.
+Record shmem pressure and keep this method/source epoch separate from the old
+same-disk synced log. No per-record fields, command budgets, policy or runtime
+enforcement change. A PR-only standard-runner protocol job mounts the real
+no-swap tmpfs and proves byte-exact persistence/cleanup without opening SQLite;
+local controls mock mount evidence and never allocate a large population.

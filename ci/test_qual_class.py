@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -141,12 +142,13 @@ class ClassProtocol(unittest.TestCase):
             def waited(timeout):
                 self.cfg=json.loads((work/'config.json').read_text())
                 raw=self.records([{'kind':'start'}, {'kind':'final', 'complete':True}])
-                (output/'raw.ndjson').write_bytes(raw.read_bytes())
+                target=Path(self.cfg['output_path']); target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(raw.read_bytes())
                 return exit_code
             process=mock.Mock(pid=12345); process.wait.side_effect=waited
             with mock.patch.object(c.os, 'geteuid', return_value=0), mock.patch.object(Path, 'read_text', read), \
                  mock.patch.object(c.q, 'command', side_effect=host), \
                  mock.patch.object(c.subprocess, 'Popen', return_value=process) as popen, \
+                 mock.patch.object(c, 'memory_evidence', return_value={'synthetic':'not actual tmpfs evidence'}), \
                  mock.patch.object(c, 'own_cgroup_members', return_value=[os.getpid(), 999999] if leftovers else [os.getpid()]):
                 if exit_code or leftovers:
                     with self.assertRaises(ValueError): c.run(work/'launch.json')
@@ -236,6 +238,63 @@ class ClassProtocol(unittest.TestCase):
         proof=json.loads((temporary/'qual-class-out/cleanup.json').read_text())
         self.assertTrue(proof['errors'])
         self.assertEqual(json.loads((temporary/'qual-class-out/receipt.json').read_text())['status'],'failed')
+
+    def test_memory_spool_requires_real_bounded_distinct_tmpfs(self):
+        root=self.root/'qual-class-memory'; root.mkdir(); database=self.root/'database'; database.mkdir()
+        actual_stat=Path.stat
+        def stat(path,*args,**kwargs):
+            result=actual_stat(path,*args,**kwargs)
+            if path==root:
+                fields=list(result);fields[2]+=1;return os.stat_result(fields)
+            return result
+        mount={'filesystems':[{'target':str(root),'fstype':'tmpfs','source':'portico-class-raw','options':'rw,noswap,nosuid,nodev,noexec'}]}
+        result=mock.Mock(stdout=json.dumps(mount))
+        with mock.patch.object(c.subprocess,'run',return_value=result), \
+             mock.patch.object(Path,'stat',stat), \
+             mock.patch.object(c.os,'statvfs',return_value=SimpleNamespace(f_blocks=c.RAW_MEMORY_BYTES//4096,f_frsize=4096)):
+            self.assertEqual(c.memory_evidence(root,database)['limit_bytes'],7<<30)
+            mount['filesystems'][0]['fstype']='ext4';result.stdout=json.dumps(mount)
+            with self.assertRaises(ValueError): c.memory_evidence(root,database)
+            mount['filesystems'][0]['fstype']='tmpfs';mount['filesystems'][0]['options']='rw,nosuid,nodev,noexec';result.stdout=json.dumps(mount)
+            with self.assertRaises(ValueError): c.memory_evidence(root,database)
+            mount['filesystems'][0]['options']='rw,noswap,nosuid,nodev,noexec';result.stdout=json.dumps(mount)
+            with mock.patch.object(c.os,'statvfs',return_value=SimpleNamespace(f_blocks=1,f_frsize=4096)):
+                with self.assertRaises(ValueError): c.memory_evidence(root,database)
+        with mock.patch.object(c.subprocess,'run',return_value=result), \
+             mock.patch.object(c.os,'statvfs',return_value=SimpleNamespace(f_blocks=c.RAW_MEMORY_BYTES//4096,f_frsize=4096)):
+            with self.assertRaises(ValueError): c.memory_evidence(root,database)
+
+    def test_memory_persist_preserves_exact_raw_after_join_and_failure(self):
+        for fail in (False,True):
+            root=self.root/str(fail)/'qual-class-memory';root.mkdir(parents=True)
+            output=root.parent/'out';output.mkdir();original=b'{"sequence":1,"unchanged":"raw bytes"}\n'
+            raw=root/'raw.ndjson';raw.write_bytes(original)
+            c.q.atomic_json(output/'receipt.json',{'status':'failed'})
+            with mock.patch.object(c,'retired_unit',return_value={'ActiveState':'inactive'}), \
+                 mock.patch.object(c,'memory_evidence',return_value={'synthetic':True}):
+                if fail:
+                    with mock.patch.object(c,'pack_raw',side_effect=ValueError('compression mismatch')):
+                        with self.assertRaises(ValueError): c.persist_memory(root,output)
+                    self.assertEqual((output/'raw.ndjson').read_bytes(),original)
+                else:
+                    c.persist_memory(root,output)
+                    self.assertEqual(gzip.decompress((output/'raw.ndjson.gz').read_bytes()),original)
+                self.assertFalse(raw.exists())
+            self.assertEqual(json.loads((output/'receipt.json').read_text())['status'],'failed')
+        with mock.patch.object(c,'retired_unit',side_effect=ValueError('still running')), \
+             mock.patch.object(c,'pack_raw') as pack:
+            with self.assertRaises(ValueError): c.persist_memory(root,output)
+            pack.assert_not_called()
+
+    def test_memory_unmount_refuses_unpersisted_raw(self):
+        root=self.root/'qual-class-memory';root.mkdir();(root/'raw.ndjson').write_bytes(b'preserve original')
+        c.q.atomic_json(root.parent/'qual-class-memory-owner.json',{'path':str(root)})
+        with mock.patch.object(c,'retired_unit',return_value={}), mock.patch.object(c.os,'geteuid',return_value=0), \
+             mock.patch.object(c.os.path,'ismount',return_value=True), mock.patch.object(c,'memory_evidence',return_value={}), \
+             mock.patch.object(c.subprocess,'run') as command:
+            with self.assertRaises(ValueError):c.memory_cleanup(root,self.root/'out')
+            command.assert_not_called()
+        self.assertEqual((root/'raw.ndjson').read_bytes(),b'preserve original')
 
     def test_finalize_roundtrips_compressed_raw_without_changing_verification(self):
         for status in ('failed', 'owner-execution-complete'):

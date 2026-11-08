@@ -1,6 +1,8 @@
 name: Canonical per-class qualification cells
 # Raw evidence transport. No automatic qualification or release decision.
 on:
+  pull_request:
+    paths: ['.github/workflows/store-qualification-class.yml', 'ci/qual_class.py', 'ci/qual_fixture.py', 'ci/test_qual_class.py']
   workflow_dispatch:
     inputs:
       source_commit: {description: Reviewed merged full workload SHA, required: true, type: string}
@@ -16,7 +18,47 @@ permissions:
   contents: read
   actions: read
 jobs:
+  raw-spool-protocol:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - name: Create real no-swap memory mount (protocol only, no store run)
+        run: sudo python3 -B ci/qual_class.py memory-setup --root "$RUNNER_TEMP/qual-class-memory" --uid "$(id -u)" --gid "$(id -g)"
+      - name: Prove unchanged raw round-trip after the stopped-cell boundary
+        env:
+          PYTHONPATH: ci
+        run: |
+          python3 -B - <<'PYCONTROL'
+          import gzip, json, os
+          from pathlib import Path
+          import qual_class as c
+          root=Path(os.environ['RUNNER_TEMP'])/'qual-class-memory'
+          output=root.parent/'qual-class-out'; output.mkdir()
+          raw=b'{"synthetic_protocol_only":true,"native_run":false}\n'
+          with (root/'raw.ndjson').open('wb') as f:
+              f.write(raw); f.flush(); os.fsync(f.fileno())
+          c.q.atomic_json(output/'receipt.json', {'status':'failed','synthetic_protocol_only':True})
+          c.persist_memory(root,output)
+          assert gzip.decompress((output/'raw.ndjson.gz').read_bytes())==raw
+          assert json.loads((output/'raw-storage.json').read_text())['verified_roundtrip'] is True
+          assert not (root/'raw.ndjson').exists()
+          print('PASS: actual tmpfs/noswap/mount identity/size and byte-exact persistence; NO SQLite or qualification')
+          PYCONTROL
+      - name: Retire protocol memory mount
+        if: always()
+        run: sudo python3 -B ci/qual_class.py memory-cleanup --root "$RUNNER_TEMP/qual-class-memory" --output "$RUNNER_TEMP/qual-class-out"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: raw-spool-protocol-proof
+          path: ${{ runner.temp }}/qual-class-out/
+          retention-days: 7
+          if-no-files-found: error
   class-cell:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -55,6 +97,8 @@ jobs:
           PRODUCER_RUN: ${{ steps.plan.outputs.producer_run }}
           PRODUCER_ATTEMPT: ${{ steps.plan.outputs.producer_attempt }}
         run: gh api "repos/PorticoMediaServer/portico/actions/runs/$PRODUCER_RUN/attempts/$PRODUCER_ATTEMPT" > "$RUNNER_TEMP/producer-run.json"
+      - name: Create bounded observer tmpfs (inside unchanged cell memory limit)
+        run: sudo python3 -B tools/ci/qual_class.py memory-setup --root "$RUNNER_TEMP/qual-class-memory" --uid "$(id -u)" --gid "$(id -g)"
       - name: Pin source and build with the shared population
         run: python3 -B tools/ci/qual_class.py prepare --source "$GITHUB_WORKSPACE/source" --artifact "$GITHUB_WORKSPACE/population" --output "$RUNNER_TEMP/qual-class-out" --work "$RUNNER_TEMP/qual-class-work" --producer-run "$RUNNER_TEMP/producer-run.json"
       - name: Run under proven effective profile limits
@@ -80,6 +124,12 @@ jobs:
         run: |
           set -euo pipefail
           sudo systemctl stop portico-canonical-class.service || test "$(systemctl show portico-canonical-class.service -p LoadState --value)" = not-found
+      - name: Compress and persist memory raw after the cell stops
+        if: always()
+        run: python3 -B tools/ci/qual_class.py persist-memory --root "$RUNNER_TEMP/qual-class-memory" --output "$RUNNER_TEMP/qual-class-out"
+      - name: Unmount the empty observer spool and retain proof
+        if: always()
+        run: sudo python3 -B tools/ci/qual_class.py memory-cleanup --root "$RUNNER_TEMP/qual-class-memory" --output "$RUNNER_TEMP/qual-class-out"
       - name: Remove own scratch and retain cleanup proof
         if: always()
         run: python3 -B tools/ci/qual_class.py cleanup --keep-output
@@ -98,7 +148,7 @@ jobs:
         if: always()
         run: python3 -B tools/ci/qual_class.py cleanup
   summary:
-    if: always()
+    if: always() && github.event_name == 'workflow_dispatch'
     needs: class-cell
     runs-on: ubuntu-24.04
     timeout-minutes: 10
