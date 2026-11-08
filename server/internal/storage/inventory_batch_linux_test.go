@@ -23,6 +23,7 @@ func TestNativeInventoryBatchDrainsShortPageBeforeEOF(t *testing.T) {
 			}
 			q := NativeInventoryRequest{Root: []byte(root), RelativePath: []byte("."), Limit: 8}
 			seen := 0
+			names := map[string]bool{}
 			for turns := 0; turns < 4; turns++ {
 				var buf bytes.Buffer
 				if err := nativeInventoryEmit(&nativeInventoryWire{NativeInventoryRequest: q}, &buf); err != nil {
@@ -35,6 +36,11 @@ func TestNativeInventoryBatchDrainsShortPageBeforeEOF(t *testing.T) {
 				if page.Complete {
 					if seen != count || len(page.Entries) != 0 || page.NextCursor != "" {
 						t.Fatal("EOF lost names", seen, page)
+					}
+					for i := 0; i < count; i++ {
+						if !names[fmt.Sprintf("Film %d.mkv", i)] {
+							t.Fatal("missing original filename", i)
+						}
 					}
 					return
 				}
@@ -50,6 +56,13 @@ func TestNativeInventoryBatchDrainsShortPageBeforeEOF(t *testing.T) {
 					t.Fatal("uncommitted page changed", page, again, err)
 				}
 				seen += len(page.Entries)
+				for _, entry := range page.Entries {
+					name := string(entry.Name)
+					if names[name] {
+						t.Fatal("duplicate filename", name)
+					}
+					names[name] = true
+				}
 				q.RootIdentity, q.DirectoryRevision, q.Cursor = page.RootIdentity, page.DirectoryRevision, page.NextCursor
 			}
 			t.Fatal("no empty EOF")
