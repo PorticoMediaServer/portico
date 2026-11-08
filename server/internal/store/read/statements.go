@@ -12,7 +12,7 @@ func readStatementID(name string) stmt.ID {
 	if strings.HasPrefix(name, "read.") {
 		return stmt.ID(name)
 	}
-	if strings.HasPrefix(name, "foreground.") || strings.HasPrefix(name, "full.") || strings.HasPrefix(name, "rs.") {
+	if strings.HasPrefix(name, "foreground.") || strings.HasPrefix(name, "full.") {
 		return stmt.ID("read." + name)
 	}
 	return statementID(name)
