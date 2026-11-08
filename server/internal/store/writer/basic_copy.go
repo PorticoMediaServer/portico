@@ -72,6 +72,7 @@ func (c basicCopyCursor) args() []any {
 
 // The fixed header facts of one copy turn, from the frozen request.
 type basicCopyTurn struct {
+	family         int64 // the ONE family this turn copies (1..9)
 	source         basicStreamFactStage
 	changeRevision int64 // header job_revision on entry
 	entityID       int64 // after_entity == upper_entity
@@ -90,7 +91,8 @@ func (c basicCopyTurn) headerArgs() []any {
 // requested entry cursor. Every copy family body calls this first.
 func checkBasicCopyEntry(ctx context.Context, turn *commandTurn, c basicCopyTurn) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
-	if ctx == nil || turn == nil || c.changeRevision <= 0 || c.changeRevision == math.MaxInt64 || c.entityID <= 0 || c.shapeID <= 0 ||
+	if ctx == nil || turn == nil || c.family < 1 || c.family > 9 || c.changeRevision <= 0 || c.changeRevision == math.MaxInt64 || c.entityID <= 0 || c.shapeID <= 0 ||
+		(c.family == 1 && c.entry != (basicCopyCursor{})) || (c.family > 1 && c.entry.family != c.family) ||
 		c.entry.family < 0 || c.entry.family > 9 || c.entry.phase < 0 || c.entry.id < 0 || c.entry.aux < 0 || c.entry.aux > 1 {
 		return ErrInvalid
 	}
@@ -111,11 +113,49 @@ func checkBasicCopyEntry(ctx context.Context, turn *commandTurn, c basicCopyTurn
 	return nil
 }
 
+// basicCopyStepAllowed is the framework's ONLY cursor transition rule, so no
+// family body can move the walk backwards, skip a family, or finish early:
+//   - a checkpoint inside the SAME family that strictly advances the entry
+//     (a later phase, or the same phase with a larger (aux, id, key) tuple);
+//   - {family: f+1} with a zero cursor, for f < 9, still at phase 2;
+//   - the zero cursor at phase 3, only when family 9 completes.
+func basicCopyStepAllowed(c basicCopyTurn, phase int64, next basicCopyCursor) bool {
+	if c.family < 1 || c.family > 9 || next.aux < 0 || next.aux > 1 || next.phase < 0 || next.id < 0 {
+		return false
+	}
+	switch {
+	case phase == 3:
+		return c.family == 9 && next == (basicCopyCursor{})
+	case phase != 2:
+		return false
+	case next == (basicCopyCursor{family: c.family + 1}):
+		return c.family < 9
+	case next.family != c.family || c.entry.family != c.family:
+		return false // family 1 has no visible in-family checkpoint
+	case next.phase != c.entry.phase:
+		return next.phase > c.entry.phase
+	}
+	e := c.entry
+	if next.aux != e.aux {
+		return next.aux > e.aux
+	}
+	if next.id != e.id {
+		return next.id > e.id
+	}
+	if next.key != e.key {
+		return next.key > e.key // byte order, as SQLite BINARY
+	}
+	if next.key2 != e.key2 {
+		return next.key2 > e.key2
+	}
+	return next.key3 > e.key3
+}
+
 // advanceBasicCopyCursor is the ONE terminal CAS of a copy turn. phase is 2
-// while copying and 3 only when the last masked family completes.
+// while copying and 3 only when family 9 completes.
 func advanceBasicCopyCursor(ctx context.Context, turn *commandTurn, c basicCopyTurn, phase int64, next basicCopyCursor) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
-	if (phase != 2 && phase != 3) || (phase == 3 && next != (basicCopyCursor{})) || next.family < 0 || next.family > 9 || next.aux < 0 || next.aux > 1 {
+	if !basicCopyStepAllowed(c, phase, next) {
 		return ErrInvalid
 	}
 	args := append([]any{phase}, next.args()...)
