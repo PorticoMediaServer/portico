@@ -85,14 +85,15 @@ func (r *HomeFixedReader) Row(ctx context.Context, request governor.Request, bud
 		if e = s.reserve(384 << 10); e != nil {
 			return HomeFixedPage{}, s.result(), e
 		}
+		var principal publicationPrincipalPin
 		for attempt := 0; attempt < 2; attempt++ {
 			s.cost.Attempts = attempt + 1
 			var first homeFixedFrame
-			e = s.window(false, 2048, func(q browseQuery) error { var e error; first, e = readHomeFixedFrame(s, q, in); return e })
+			e = s.window(false, 2048, func(q browseQuery) error { var e error; first, e = readHomeFixedFrame(s, q, in, &principal); return e })
 			if e == nil {
 				page, prior := composeHomeFixed(first, in.RowID, s.input(in.View).Now)
 				final := s.window(true, 2048, func(q browseQuery) error {
-					current, e := readHomeFixedFrame(s, q, in)
+					current, e := readHomeFixedFrame(s, q, in, &principal)
 					if e != nil {
 						return e
 					}
@@ -117,8 +118,8 @@ func (r *HomeFixedReader) Row(ctx context.Context, request governor.Request, bud
 		return HomeFixedPage{}, s.result(), e
 	})
 }
-func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput) (frame homeFixedFrame, err error) {
-	frame.Policy, err = homeManifestSourceFrameRead(s, q, in.View)
+func readHomeFixedFrame(s *savedViewSession, q browseQuery, in HomeFixedInput, principal *publicationPrincipalPin) (frame homeFixedFrame, err error) {
+	frame.Policy, err = homeManifestSourcePinnedFrameRead(s, q, in.View, principal)
 	frame.Manifest = frame.Policy.Manifest
 	if err != nil {
 		return
