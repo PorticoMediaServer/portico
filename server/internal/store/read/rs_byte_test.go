@@ -90,7 +90,9 @@ type rsByteForecastSpy struct {
 }
 
 func (s *rsByteForecastSpy) ReadForecasted(ctx context.Context, request governor.Request, budget time.Duration, forecast governor.SnapshotForecast, read func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
-	s.forecast, s.ceiling = forecast, request.Need[governor.MemoryBytes]
+	if forecast.NativeRowBytes < s.NativeRowReservation() {
+		s.forecast, s.ceiling = forecast, request.Need[governor.MemoryBytes]
+	}
 	return s.Snapshots.ReadForecasted(ctx, request, budget, forecast, read)
 }
 
@@ -119,6 +121,8 @@ func (s *rsByteBoundarySnapshots) ReadForecasted(ctx context.Context, r governor
 
 func TestRSPeoplePreflightsNamesAndCreditText(t *testing.T) {
 	f, r := newRSPeopleFixture(t, false)
+	spy := &rsByteForecastSpy{Snapshots: f.snapshots}
+	r.snapshots = spy
 	name, job, credited := "é\x00Person", "Réalisateur\x00界", "Credited\x00é"
 	biography := strings.Repeat("界", 100)
 	f.exec(t, `UPDATE catalog_people SET name=?,biography=? WHERE id=1`, name, biography)
@@ -161,21 +165,23 @@ func TestRSPeoplePreflightsNamesAndCreditText(t *testing.T) {
 	if err != nil || p.Person == nil || p.Person.Name != name || p.Person.Biography != biography || len(p.Credits) != 1 || p.Credits[0].Item.ID != 100 || p.Credits[0].CreditedName != credited || p.Credits[0].Role != job {
 		t.Fatal("wide person/credit bytes changed", p, err)
 	}
-	if len(cost.LookupWindows) != 2 || cost.LookupWindows[1].NativeReservedBytes != want {
+	if len(cost.LookupWindows) != 2 || spy.forecast.NativeRowBytes != want || cost.LookupWindows[1].NativeReservedBytes <= want || cost.LookupWindows[1].GoReservedBytes != f.output.Request.Need[governor.MemoryBytes]/2 || spy.ceiling != foregroundRequest().Need[governor.MemoryBytes] {
 		t.Fatal("actual largest point not reserved", want, cost)
 	}
 	for _, point := range []struct {
 		name string
 		args []any
 	}{{"rs.people.person", []any{int64(1)}}, {"rs.people.credit", []any{int64(100), int64(1), int64(1), int64(1), int64(1)}}} {
-		_, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2}, func(scope *governor.ReadScope) error {
+		called := false
+		_, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2, GoCopyBytes: 64 << 10}, func(scope *governor.ReadScope) error {
+			called = true
 			rows, _, err := queryReadScope(scope, point.name, point.args...)
 			if !errors.Is(err, governor.ErrSnapshotBudget) || rows != nil {
 				t.Fatal("person/credit copied without preflight permission", point.name, rows, err)
 			}
 			return err
 		})
-		if !errors.Is(err, governor.ErrSnapshotBudget) {
+		if !called || !errors.Is(err, governor.ErrSnapshotBudget) {
 			t.Fatal(point.name, err)
 		}
 	}
