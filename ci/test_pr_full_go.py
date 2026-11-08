@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -58,6 +59,27 @@ class FullPackageSelection(unittest.TestCase):
         costs = {'p.' + t['name']: 20 for t in tests}
         self.assertEqual(len(plan.balance_short_censuses(tests, costs, max_count=20)[0]), 20)
         self.assertEqual(len(plan.balance(tests, costs)[0]), 10)
+
+    def test_batch_crash_parents_keep_complete_inventory_on_separate_shards(self):
+        package = 'github.com/PorticoMediaServer/portico/server/internal/store/writer'
+        parents = {'TestCrashReplayInventoryBatchEveryStepWidth2',
+                   'TestCrashReplayInventoryBatchEveryStepWidth8A',
+                   'TestCrashReplayInventoryBatchEveryStepWidth8B'}
+        source = (plan.ROOT / 'server/internal/store/writer/crash_scan_batch_linux_test.go').read_text()
+        self.assertEqual(set(re.findall(r'^func (TestCrashReplayInventoryBatchEveryStep\w*)\(', source, re.M)), parents)
+        durations = json.loads((plan.ROOT / 'ci/durations.json').read_text())
+        for name in parents:
+            self.assertGreater(durations[package + '.' + name], 150)
+        tests = [{'package': package, 'name': name} for name in sorted(parents)]
+        tests += [{'package': package, 'name': 'TestFast' + str(i)} for i in range(1000)]
+        for limit in (10, 20):
+            with self.subTest(shard_limit=limit):
+                bins, costs = plan.balance(tests, durations, max_count=limit)
+                owners = [i for i, shard in enumerate(bins) for test in shard if test['name'] in parents]
+                self.assertEqual(len(owners), 3)
+                self.assertEqual(len(set(owners)), 3)
+                self.assertEqual(sorted(t['name'] for shard in bins for t in shard), sorted(t['name'] for t in tests))
+                self.assertLess(max(costs), 780)
 
 
 class FullPlan(unittest.TestCase):
