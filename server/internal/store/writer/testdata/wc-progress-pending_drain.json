@@ -1,9 +1,5 @@
 {
   "environment": {
-    "schemaBinding": {
-      "version": 1,
-      "sqlSha256": "782904d74a9f18bb81ef2a26ba9091d7501b843b73b7b853b2c27cadf4effc1a"
-    },
     "connection": {
       "Engine": "3.53.4",
       "JournalMode": "wal",
@@ -16,7 +12,7 @@
       "QueryOnly": 0,
       "TempStore": 1
     },
-    "indexPolicySha256": "8064ce7a7db516acd60dfd126992f5df80cc242774f5c6fbfe5510537eac7b4b",
+    "indexPolicySha256": "05c677a9b67af063439dbd103472add0b1d1a56fb7622662ba0c7da28084dfa4",
     "fixture": {
       "connectionPolicy": {
         "Role": 1,
@@ -4363,13 +4359,6 @@
         ],
         [
           "index",
-          "personal_current_favorite",
-          "personal_items",
-          2389,
-          "CREATE INDEX personal_current_favorite ON personal_items(profile_id,item_public_id) WHERE favorite=1"
-        ],
-        [
-          "index",
           "personal_current_library",
           "personal_items",
           2044,
@@ -4388,13 +4377,6 @@
           "personal_items",
           2043,
           "CREATE INDEX personal_current_live_item ON personal_items(item_id,profile_id)"
-        ],
-        [
-          "index",
-          "personal_current_not_interested",
-          "personal_items",
-          2390,
-          "CREATE INDEX personal_current_not_interested ON personal_items(profile_id,item_public_id) WHERE not_interested=1"
         ],
         [
           "index",
@@ -4430,13 +4412,6 @@
           "personal_items",
           2052,
           "CREATE INDEX personal_current_retained ON personal_items(profile_id,retained_at_ms,id) WHERE retained_at_ms IS NOT NULL"
-        ],
-        [
-          "index",
-          "personal_current_watchlist",
-          "personal_items",
-          2387,
-          "CREATE INDEX personal_current_watchlist ON personal_items(profile_id,item_public_id) WHERE watchlisted=1"
         ],
         [
           "index",
@@ -13193,7 +13168,7 @@
           "notification_ack_heads",
           "notification_ack_heads",
           1439,
-          "CREATE TABLE notification_ack_heads(\n principal_key TEXT PRIMARY KEY,\n read_through_ms INTEGER NOT NULL DEFAULT 0 CHECK(read_through_ms\u003e=0),\n read_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(read_through_sequence\u003e=0),\n archive_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(archive_through_sequence\u003e=0),\n revision INTEGER NOT NULL DEFAULT 1 CHECK(revision\u003e0)\n) STRICT"
+          "CREATE TABLE notification_ack_heads(\n principal_key TEXT PRIMARY KEY,\n read_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(read_through_sequence\u003e=0),\n archive_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(archive_through_sequence\u003e=0),\n revision INTEGER NOT NULL DEFAULT 1 CHECK(revision\u003e0)\n) STRICT"
         ],
         [
           "table",
@@ -15199,7 +15174,7 @@
         ]
       ]
     },
-    "schemaSha256": "9b0855aaeee94d1dfeb3b8f3237fd59eb05fe439b143479e731f163cd78b7355",
+    "schemaSha256": "e8f75b78643d0915ee207eb60ea404bc961b73e52334bd8bffc5be431c0e6d6e",
     "statistics": {},
     "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
     "pragmas": {
