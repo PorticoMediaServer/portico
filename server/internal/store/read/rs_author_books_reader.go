@@ -49,6 +49,8 @@ type RSAuthorBookCursor struct {
 type RSAuthorBookCard struct {
 	Facts    TitleFacts
 	Personal *PersonalState
+	// MP/UO own the typed child/source decoder after lock; raw Personal is not Resume.
+	ResumePending bool
 
 	Artwork               ArtworkFact
 	MissingCanonicalFacts []string
@@ -452,6 +454,7 @@ func (r *RSAuthorBookReader) hydrate(ctx context.Context, q governor.Request, ou
 			e = p.charge(authorBookCardBytes(*card))
 			if e == nil {
 				card.MissingCanonicalFacts = []string{"book_resume.item_id/position", "catalog_book_context.series_index"}
+				card.ResumePending = true
 				p.hydratedArt = true
 			}
 		}
