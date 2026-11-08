@@ -33,6 +33,7 @@ ATTEMPTS = 10000
 # Transport-only ceiling: 30k role records at the retained ~235kB/record
 # exceed the old4GiB guard. Streaming keeps this independent of process RAM.
 MAX_STREAM_BYTES = 16 << 30
+RAW_MEMORY_BYTES = 7 << 30 # unchanged8GiB cell retains at least1GiB for other charges
 
 
 def identity(value, name, maximum=20):
@@ -207,7 +208,7 @@ def run(launch_path):
     q.require(re.fullmatch(r'[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}', boot), 'actual boot identity missing')
     c = dict(run_id=f"gh-{cfg['workflow_run']}-{cfg['workflow_attempt']}-{cfg['name']}-{cfg['profile']}-{cfg['replicate']}",
              host_epoch=f"{boot}-k{os.uname().release}", source_commit=cfg['source'],
-             output_path=str(output / 'raw.ndjson'), **{'class': cfg['name']}, profile=cfg['profile'],
+             output_path=str(work.parent / 'qual-class-memory' / 'raw.ndjson'), **{'class': cfg['name']}, profile=cfg['profile'],
              attempts=ATTEMPTS, artifact_directory=launch['artifact'], manifest_sha256=cfg['manifest'])
     q.atomic_json(work / 'config.json', c)
     env.update(PORTICO_CANONICAL_HELD='1', PORTICO_CANONICAL_HELD_CONFIG=str(work / 'config.json'))
@@ -215,6 +216,8 @@ def run(launch_path):
                    disk_before_target=shutil.disk_usage(work)._asdict(),
                    host_scope='same cgroup/namespace as target; collector root, target unprivileged',
                    qualification_verdict=None)
+    receipt['raw_spool'] = memory_evidence(work.parent / 'qual-class-memory', work)
+    raw = Path(c['output_path'])
     host_args = [str(host), '-source', cfg['source'], '-archive-sha256', launch['archive_sha256'],
                  '-profile', cfg['profile'], '-replicate', str(cfg['replicate'])]
     try:
@@ -241,7 +244,7 @@ def run(launch_path):
                 receipt['process_joined_monotonic_ns'] = time.monotonic_ns()
         receipt['target_exit_code'] = code
         q.require(code == 0, 'owner target failed; retain every refusal/error/partial record')
-        receipt.update(wire=verify_stream(output / 'raw.ndjson', c), status='owner-execution-complete')
+        receipt.update(wire=verify_stream(raw, c), status='owner-execution-complete')
     except BaseException as error:
         receipt.update(status='failed', error=f'{type(error).__name__}: {error}')
         raise
@@ -267,8 +270,9 @@ def plan():
         f.write(f"producer_artifact=qual-population-{cfg['producer_run']}-{cfg['producer_attempt']}\n")
 
 
-def pack_raw(output, receipt):
-    raw, stored = output/'raw.ndjson', output/'raw.ndjson.gz'
+def pack_raw(output, receipt, raw=None):
+    raw = output/'raw.ndjson' if raw is None else raw
+    stored = output/'raw.ndjson.gz'
     if not raw.exists():
         return
     q.regular(raw, MAX_STREAM_BYTES)
@@ -296,6 +300,73 @@ def pack_raw(output, receipt):
                   compression_returned_monotonic_ns=time.monotonic_ns(),
                   disk_before_original_removal=shutil.disk_usage(output)._asdict()))
     raw.unlink()  # only after independent round-trip and stored metadata
+
+
+def memory_evidence(root, database):
+    q.require(root.is_absolute() and root == root.resolve() and root.name == 'qual-class-memory', 'fixed canonical memory spool required')
+    result = subprocess.run(['findmnt', '--json', '--mountpoint', str(root), '--output', 'TARGET,FSTYPE,SOURCE,OPTIONS'],
+                            check=True, capture_output=True, text=True, timeout=30)
+    mounts = json.loads(result.stdout, object_pairs_hook=q.no_duplicates)['filesystems']
+    q.require(len(mounts)==1 and mounts[0]['target']==str(root) and mounts[0]['fstype']=='tmpfs'
+              and mounts[0]['source']=='portico-class-raw'
+              and {'noswap','nosuid','nodev','noexec'}.issubset(mounts[0].get('options','').split(',')), 'own tmpfs mount not proven')
+    stat = os.statvfs(root)
+    q.require(stat.f_blocks*stat.f_frsize==RAW_MEMORY_BYTES and root.stat().st_dev!=database.stat().st_dev,
+              'memory bound/database-filesystem separation not proven')
+    return dict(path=str(root), filesystem=mounts[0], limit_bytes=RAW_MEMORY_BYTES,
+                device=root.stat().st_dev, database_device=database.stat().st_dev,
+                accounting='observer shmem is charged within the unchanged engine memory limit; not an EC5 fit proof')
+
+
+def memory_setup(root, uid, gid):
+    q.require(os.geteuid()==0 and uid>0 and gid>0 and root.is_absolute() and root==root.resolve()
+              and root.name=='qual-class-memory' and not root.exists() and not (root.parent/'qual-class-memory-owner.json').exists(), 'fresh own root/runner identity required')
+    root.mkdir(mode=0o700)
+    q.atomic_json(root.parent/'qual-class-memory-owner.json', dict(path=str(root), source='portico-class-raw', uid=uid, gid=gid))
+    subprocess.run(['mount', '-t', 'tmpfs', '-o', f'size={RAW_MEMORY_BYTES},noswap,nosuid,nodev,noexec,mode=0700,uid={uid},gid={gid}',
+                    'portico-class-raw', str(root)], check=True, timeout=30)
+    memory_evidence(root, root.parent)
+
+
+def persist_memory(root, output):
+    retired_unit() # no measurement process may still be writing
+    output.mkdir(parents=True, exist_ok=True)
+    memory_evidence(root, output)
+    receipt_path=output/'receipt.json'
+    receipt=json.loads(receipt_path.read_text(), object_pairs_hook=q.no_duplicates) if receipt_path.exists() else dict(status='failed', qualification_verdict=None)
+    raw=root/'raw.ndjson'
+    try:
+        pack_raw(output, receipt, raw)
+    except (OSError, ValueError, EOFError) as error:
+        receipt.update(status='failed', compression_error=str(error), qualification_verdict=None)
+        # Retain even a compression-failure prefix after measurement, with no
+        # per-record disk sync. Never drop its sole copy to make cleanup pass.
+        if raw.exists():
+            target=output/'raw.ndjson'
+            q.require(not target.exists(), 'fallback raw already exists')
+            shutil.copyfile(raw, target)
+            q.require(raw.stat().st_size==target.stat().st_size and q.file_hash(raw)==q.file_hash(target), 'fallback retention mismatch')
+            raw.unlink()
+        raise
+    finally:
+        q.atomic_json(receipt_path, receipt)
+
+
+def memory_cleanup(root, output):
+    retired_unit()
+    q.require(os.geteuid()==0 and root.is_absolute() and root==root.resolve() and root.name=='qual-class-memory', 'own root required')
+    marker=root.parent/'qual-class-memory-owner.json'
+    if root.exists():
+        q.require(marker.is_file() and json.loads(marker.read_text()).get('path')==str(root), 'observer root ownership unproven')
+        if os.path.ismount(root):
+            memory_evidence(root, output)
+            q.require(not any(root.iterdir()), 'unpersisted memory-spool data remains')
+            subprocess.run(['umount', str(root)], check=True, timeout=30)
+        q.require(not os.path.ismount(root), 'memory mount remains')
+        root.rmdir()
+    if marker.exists(): marker.unlink()
+    output.mkdir(parents=True, exist_ok=True)
+    q.atomic_json(output/'raw-memory-cleanup.json', dict(path=str(root), mounted=False, absent=not root.exists()))
 
 
 def finalize(output):
@@ -436,6 +507,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='mode', required=True)
     sub.add_parser('plan')
+    ms=sub.add_parser('memory-setup'); ms.add_argument('--root', required=True, type=Path); ms.add_argument('--uid', required=True, type=int); ms.add_argument('--gid', required=True, type=int)
+    for name in ('persist-memory', 'memory-cleanup'):
+        m=sub.add_parser(name); m.add_argument('--root', required=True, type=Path); m.add_argument('--output', required=True, type=Path)
     cleanup_args = sub.add_parser('cleanup'); cleanup_args.add_argument('--keep-output', action='store_true')
     f = sub.add_parser('finalize'); f.add_argument('--output', required=True, type=Path)
     a = sub.add_parser('summarize'); a.add_argument('--artifacts', required=True, type=Path); a.add_argument('--output', required=True, type=Path)
@@ -447,6 +521,12 @@ def main():
     args = parser.parse_args()
     if args.mode == 'plan':
         plan()
+    elif args.mode == 'memory-setup':
+        memory_setup(args.root, args.uid, args.gid)
+    elif args.mode == 'persist-memory':
+        persist_memory(args.root, args.output)
+    elif args.mode == 'memory-cleanup':
+        memory_cleanup(args.root, args.output)
     elif args.mode == 'cleanup':
         cleanup(args.keep_output)
     elif args.mode == 'finalize':
