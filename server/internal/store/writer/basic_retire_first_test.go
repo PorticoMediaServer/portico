@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -16,6 +17,30 @@ func basicRetireFirstTestDefinitions() []stmt.Definition {
 		}
 	}
 	return defs
+}
+
+// Synthetic component envelope for this bounded maintenance body. It uses the
+// existing frame and real Capture registry, without a production profile,
+// authority, receipt, admission or timing qualification.
+func basicRetireFirstComponentTurn(t *testing.T, w *executor, defs []stmt.Definition) *commandTurn {
+	t.Helper()
+	registry := nativeInventoryFixtureRegistry(t, w, defs, "basic_retire_first.go", "basic_retire_first_statements.go", "basic_retire_first_test.go")
+	recipe := turnRecipe{limit: Work{65536, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, time.Millisecond}}
+	tx, err := w.begin(t.Context(), BasicStage, recipe, &testCustody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = tx.rollback(nil) })
+	steps := make([]statementStep, 0, len(defs))
+	for _, d := range defs {
+		steps = append(steps, statementStep{d.ID, Work{16, 10000, 16, 65536, 25 * time.Microsecond}})
+	}
+	turn, err := newCommandTurn(tx, registry, steps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = turn.closeRows() })
+	return turn
 }
 
 func seedBasicRetiredFirstInput(t *testing.T, w *executor, s basicStreamFactStage) (basicRetireFirstEffects, int64) {
@@ -69,7 +94,7 @@ func basicRetireFirstFixture(t *testing.T, setup string, fault string) (*executo
 			}
 		}
 	}
-	return w, basicProbeTestTurn(t, w, defs), in, charge
+	return w, basicRetireFirstComponentTurn(t, w, defs), in, charge
 }
 
 func TestBasicRetireFirstDeletesOnlyInputAndRefundsActualDebt(t *testing.T) {
