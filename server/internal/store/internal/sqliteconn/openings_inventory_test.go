@@ -20,10 +20,12 @@ import (
 // These are the ONLY reviewed constrained store sources. All bodies must be
 // type-resolved: host, Linux/non-Unix fixture variants, and GV's tagged audits.
 var openingConstraints = map[string]string{
-	"writer/crash_scan_issuer_preparation_linux_test.go": "", // implicit _linux suffix; actual issuer original input checkpoint
-	"writer/crash_scan_issuer_oracle_linux_test.go":      "", // implicit _linux suffix; independent scan journal/digest model
-	"writer/crash_scan_issuer_linux_test.go":             "", // implicit _linux suffix; real issuer SIGKILL/reopen controls
-	"writer/crash_scan_ack_history_linux_test.go":        "", // implicit _linux suffix; post-restart scan ACK/retired rebind controls
+	"writer/crash_scan_issuer_preparation_linux_test.go": "",                  // implicit _linux suffix; actual issuer original input checkpoint
+	"writer/crash_scan_issuer_oracle_linux_test.go":      "",                  // implicit _linux suffix; independent scan journal/digest model
+	"writer/crash_scan_issuer_linux_test.go":             "",                  // implicit _linux suffix; real issuer SIGKILL/reopen controls
+	"writer/crash_scan_ack_history_linux_test.go":        "",                  // implicit _linux suffix; post-restart scan ACK/retired rebind controls
+	"writer/ec_host_sampler_linux_test.go":               "",                  // implicit _linux suffix; host/cgroup/disk sampler reads /proc
+	"writer/ec_host_sampler_other_test.go":               "//go:build !linux", // non-Linux stub of the host sampler device lookup
 
 	"writer/ec4_screening_test.go":               "//go:build linux && portico_ec4_screening",
 	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
