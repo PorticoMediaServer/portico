@@ -77,7 +77,10 @@ func commandStatementMaxUses(purpose CommandID, id stmt.ID) int {
 // reserveCommandSteps checks pure forecast arithmetic AFTER setup and terminal
 // have been reserved. It neither creates a Quantum nor admits work. On any
 // error it returns zero, never a usable prefix or a partially frozen plan.
-func reserveCommandSteps(remaining Work, steps []statementStep, defs []stmt.Definition, purpose CommandID) (Work, error) {
+func reserveCommandSteps(remaining Work, steps []statementStep, defs []stmt.Definition, purpose CommandID, bounds ...basicAcceptBounds) (Work, error) {
+	if (purpose == BasicAccept && (len(bounds) != 1 || !bounds[0].valid())) || (purpose != BasicAccept && len(bounds) != 0) {
+		return Work{}, invalid("basic_accept_forecast_bounds")
+	}
 	allowed := make(map[stmt.ID]bool, len(defs))
 	for _, def := range defs {
 		if allowed[def.ID] {
@@ -87,6 +90,9 @@ func reserveCommandSteps(remaining Work, steps []statementStep, defs []stmt.Defi
 	}
 	for _, step := range steps {
 		uses := commandStatementMaxUses(purpose, step.id)
+		if purpose == BasicAccept {
+			uses = basicFinalMaxUses(bounds[0], step.id)
+		}
 		if !allowed[step.id] || uses == 0 || step.work.Rows == 0 || step.work.VMOps == 0 || step.work.Hold <= 0 {
 			return Work{}, invalid("command_step")
 		}
