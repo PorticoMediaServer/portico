@@ -65,6 +65,8 @@ func enrichmentAcceptDefinitions() []stmt.Definition {
 }
 
 const (
+	enrichAcceptEvidenceBytes  stmt.ID = "enrichment.accept.evidence_retained_bytes"
+	enrichAcceptSourceBytes    stmt.ID = "enrichment.accept.source_retained_bytes"
 	enrichAcceptNoCurrent      stmt.ID = "enrichment.accept.no_current_context"
 	enrichAcceptOldContext     stmt.ID = "enrichment.accept.current_context"
 	enrichAcceptReleaseCurrent stmt.ID = "enrichment.accept.release_current"
@@ -78,6 +80,9 @@ func enrichmentAcceptWriteDefinitions() []stmt.Definition {
 	num := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	blob := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
 	defs := []stmt.Definition{
+		{ID: enrichAcceptEvidenceBytes, Kind: stmt.Read, SQL: `SELECT seal_retained_bytes FROM enrichment_command_receipts WHERE provider_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind='evidence_seal'`, Params: []stmt.Param{text("owner"), blob("incarnation"), num("sequence")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"enrichment_command_receipts"}}},
+		{ID: enrichAcceptSourceBytes, Kind: stmt.Read, SQL: `SELECT seal_retained_bytes FROM enrichment_command_receipts WHERE provider_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind='credit_source_seal'`, Params: []stmt.Param{text("owner"), blob("incarnation"), num("sequence")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"enrichment_command_receipts"}}},
+
 		{ID: enrichAcceptOldContext, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_provider_operations WHERE entity_id=? AND provider=? AND proof_current_slot=1 AND id=? AND command_incarnation=? AND generation=? AND credit_image_id=? AND proof_pin_units=? AND proof_reserved_bytes=? AND proof_stage_slot IS NULL AND proof_cleanup_phase='idle'`, Params: []stmt.Param{num("entity"), text("provider"), text("old_owner"), blob("old_incarnation"), num("generation"), num("old_image"), num("pin_units"), num("reserved_bytes")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_6"}}},
 		{ID: enrichAcceptNoCurrent, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_provider_operations WHERE entity_id=? AND provider=? AND proof_current_slot=1`, Params: []stmt.Param{num("entity"), text("provider")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_6"}}},
 		{ID: enrichAcceptReleaseCurrent, Kind: stmt.Write, SQL: `UPDATE metadata_provider_operations SET proof_current_slot=NULL WHERE id=? AND command_incarnation=? AND generation=? AND credit_image_id=? AND proof_pin_units=? AND proof_reserved_bytes=? AND proof_current_slot=1 AND proof_stage_slot IS NULL AND proof_cleanup_phase='idle'`, Params: []stmt.Param{text("old_owner"), blob("old_incarnation"), num("old_generation"), num("old_image"), num("old_pin_units"), num("old_reserved_bytes")}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_3"}}},
