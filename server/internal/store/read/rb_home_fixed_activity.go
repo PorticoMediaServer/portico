@@ -106,11 +106,13 @@ func homeFixedActivity(frame homeFixedFrame, page HomeFixedPage, row string, _ t
 				eligible := []homeFixedEntity{}
 				var latest *homeFixedEntity
 				for _, leaf := range leaves {
-					if !leaf.Available {
-						continue
+					if leaf.Available {
+						eligible = append(eligible, leaf)
 					}
-					eligible = append(eligible, leaf)
-					if len(leaf.Personal) != 1 || leaf.Personal[0][11] == nil || leaf.Personal[0][13] != int64(1) {
+					// Latest activity is an album fact, chosen BEFORE target
+					// availability/visibility. A missing newer track must not
+					// revive an older in-progress track.
+					if len(leaf.Personal) != 1 || leaf.Personal[0][11] == nil {
 						continue
 					}
 					cmp := 1
@@ -139,6 +141,9 @@ func homeFixedActivity(frame homeFixedFrame, page HomeFixedPage, row string, _ t
 					if !found {
 						continue
 					}
+				}
+				if !target.Available || latest.Personal[0][13] != int64(1) {
+					continue
 				}
 				if homeFixedDismissed(latest.Personal[0]) || len(target.Personal) == 1 && homeFixedDismissed(target.Personal[0]) {
 					return pending("album_leaf_dismissal_policy_uncomposed")
