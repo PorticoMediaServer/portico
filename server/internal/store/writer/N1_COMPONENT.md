@@ -694,3 +694,15 @@ positive control `TestEC2NativeFullSearchFunctional` seeds one real v1 bank and
 proves the native read returns hits and a joined stamp. `TestEC2FullSearch-
 RefusesWithoutComposition` proves the binding fails closed when the reader or
 prepare composition is absent.
+
+EC1 rare-error tier is a separate opt-in cell (`-ec1-rare-errors`,
+`-ec1-rare-iterations=10000`). It exercises the common refusal paths on the real
+native composition and reports each separately: saved-receipt replay (repeated
+Resolve must return the identical saved Applied result with zero new receipts or
+events), stale/fence ACK with a never-issued digest, unknown/undeclared purpose
+at the closed registry, and the durable-resolution refusal while a retained saved
+original makes a different capture require resolution first. Every sample is one
+real facade call; p50/p99/max are compared with the 100ms rare-error ceiling and
+unexpected outcomes fail the cell. The uncertain-COMMIT variant is not
+deterministically producible in this component cell and stays a follow-up; no
+qualification claim and no product change.
