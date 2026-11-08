@@ -329,6 +329,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	if enrichment != nil {
 		purpose, plan, reference, key, libraryID = enrichment.purpose, nil, enrichment.request.Receipt, enrichment.request.ProviderOperationID, enrichment.request.LibraryID
 		outcome = &out.enrichment.Outcome
+		if purpose == EnrichAccept {
+			key = enrichmentAcceptGrantKey(enrichment.request.Receipt.Identity, enrichment.request.Receipt.RequestDigest)
+		}
 	}
 	if scan != nil {
 		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || (scan.directory == 0 && (scan.directoryInput != nil || scan.directoryTerminalInput != nil)) {
@@ -650,6 +653,11 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	custody.publisherMemory = plan.publisherMemory
 	custody.effectiveSourceMemory = plan.effectiveSourceMemory
 	custody.clockHighWater = &r.clockHighWater
+	if enrichment != nil && purpose == EnrichAccept {
+		if err = checkEnrichmentAcceptGrant(custody, enrichment, key); err != nil {
+			return out, acknowledged, err
+		}
+	}
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
 		transferred = true
