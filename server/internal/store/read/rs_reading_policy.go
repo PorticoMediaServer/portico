@@ -11,12 +11,14 @@ const rsReadingMobiPolicy readPolicyID = 41
 const rsReadingPublicationCap = 64
 
 func init() {
+	// Native search uses the native-format recipe only. Converter permission
+	// remains private to its configured reader and cannot be selected by a hit.
 	for _, recipe := range []struct {
 		id   readPolicyID
 		mobi bool
 	}{{rsReadingNativePolicy, false}, {rsReadingMobiPolicy, true}} {
 		mobi := recipe.mobi
-		registerReadPolicy(readPolicyRecipe{id: recipe.id, domain: "reading-leaf", kinds: []int64{20, 21}, validate: func(q browseQuery, in BrowseInput, f browseFence) (string, error) {
+		registerReadPolicy(readPolicyRecipe{id: recipe.id, domain: "reading-leaf", kinds: []int64{20, 21}, nativeSearch: recipe.id == rsReadingNativePolicy, validate: func(q browseQuery, in BrowseInput, f browseFence) (string, error) {
 			if in.policy.subject <= 0 || f.container != 0 {
 				return "", ErrInput
 			}
