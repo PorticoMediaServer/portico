@@ -32,6 +32,7 @@ CAPTURES = {
 HARNESSES = {
     'ec2-native': ('./internal/store/writer', '^TestEC2NativeFunctional$'),
     'paired-canonical': ('./internal/store/writer', '^TestN1PairedCanonicalPopulationFunctional$'),
+    'ec1-rare': ('./internal/store/writer', '^TestEC1RareErrorPaths$'),
     'canonical-publisher': ('./internal/store/writer', '^TestCanonicalPublisherFundedKeeperFunctional$'),
     'canonical-wc': ('./internal/store/writer', '^TestCanonicalWCFunctional$'),
     'ec5-memory': ('./internal/store/writer', '^TestEC5'),
@@ -162,6 +163,8 @@ def plan(source, output):
         env['PORTICO_CANONICAL_PB_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'canonical-wc' in cfg['targets']:
         env['PORTICO_CANONICAL_WC_FUNCTIONAL'] = '1'
+    if cfg['mode'] == 'harness' and 'ec1-rare' in cfg['targets']:
+        env['PORTICO_EC1_RARE_ERRORS'] = '1'
     command(['git', 'fetch', '--no-tags', '--depth=1', 'origin', cfg['fetch_ref']], source)
     sha = command(['git', 'rev-parse', '--verify', 'FETCH_HEAD^{commit}'], source).strip()
     if not re.fullmatch('[0-9a-f]{40}', sha):
@@ -268,6 +271,8 @@ def worker(source, output, plan_path, index):
         env['PORTICO_CANONICAL_WC_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'ec5-memory' in cfg['targets']:
         env['PORTICO_EC5_FUNCTIONAL'] = '1'
+    if cfg['mode'] == 'harness' and 'ec1-rare' in cfg['targets']:
+        env['PORTICO_EC1_RARE_ERRORS'] = '1'
     groups = {}
     for u in p['shards'][index]:
         groups.setdefault((u['Package'], u.get('run')), []).append(u)
