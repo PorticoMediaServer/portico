@@ -49,11 +49,20 @@ type ec4ScreenReport struct {
 	CheckpointOverlappingCommands, AcceptOver25MS, AcceptOverlapOver25MS                      int
 	AcceptMaxNS, AcceptMaxOverlapNS, CheckpointMaxNativeNS, CheckpointMaxCallNS               int64
 	DispatcherRecoveries                                                                      int
+	WALPolicy                                                                                 ec4WALPolicy
 	Fixture                                                                                   ec4ScreenFixture
 	NativeEOFObserved                                                                         bool
 	TraversalCommitted                                                                        bool
 	Missing                                                                                   []string
 	Cgroup                                                                                    string
+}
+
+type ec4WALPolicy struct {
+	HardBytes           int64 `json:"hard_bytes"`
+	ReserveBytes        int64 `json:"reserve_bytes"`
+	SoftDebtBytes       int64 `json:"soft_debt_bytes"`
+	ActivePressureBytes int64 `json:"active_pressure_bytes"`
+	ConcurrentPassive   bool  `json:"concurrent_passive"`
 }
 
 func ec4WriteReport(path string, r ec4ScreenReport) error {
@@ -471,7 +480,21 @@ func TestEC4NativeScreening(t *testing.T) {
 		t.Fatal("invalid screening count")
 	}
 	out := os.Getenv("PORTICO_EC4_OUTPUT")
-	r := ec4ScreenReport{Features: os.Getenv("PORTICO_EC4_FEATURES"), Capabilities: map[string]bool{"inventory": true, "Basic_binding": false, "folder_binding": false}, Label: "SCREENING", Source: os.Getenv("PORTICO_EC4_SOURCE"), Profile: os.Getenv("PORTICO_EC4_STORAGE"), Requested: count, Phase: "fixture", Missing: []string{"Basic accepting/reader timing awaits SC harness binding", "folder completion timing awaits SC harness binding", "sparse metadata fixture, not media-read qualification", "generated directory metadata is warm; applied io.max is not cold-HDD qualification", "single-writer isolated browse observation; formal current asset/info_epoch witness not claimed"}}
+	qualification := os.Getenv("PORTICO_EC4_QUALIFICATION") == "1"
+	label := "SCREENING"
+	missing := []string{
+		"Basic readiness null: no end-to-end Basic producer exists; the lock row derives it from the qualified Basic write class times the population",
+		"sparse metadata fixture, not media-read qualification",
+		"generated directory metadata is warm; applied io.max is not cold-HDD qualification",
+		"single-writer isolated browse observation; formal current asset/info_epoch witness not claimed",
+	}
+	if qualification {
+		label = "QUALIFICATION"
+		missing = append(missing, "qualification runs the adopted governor.Phase1aWALPolicy")
+	} else {
+		missing = append(missing, "screening uses the 96 MiB stress WAL fixture, not the adopted Phase1a policy")
+	}
+	r := ec4ScreenReport{Features: os.Getenv("PORTICO_EC4_FEATURES"), Capabilities: map[string]bool{"inventory": true, "Basic_binding": false, "folder_binding": false}, Label: label, Qualification: qualification, Source: os.Getenv("PORTICO_EC4_SOURCE"), Profile: os.Getenv("PORTICO_EC4_STORAGE"), Requested: count, Phase: "fixture", Missing: missing}
 	if data, e := os.ReadFile("/proc/self/cgroup"); e == nil {
 		r.Cgroup = string(data)
 	}
@@ -501,6 +524,7 @@ func TestEC4NativeScreening(t *testing.T) {
 	r.Fixture, r.GenerationNS = fixture, time.Since(started).Nanoseconds()
 	r.Phase = "composition"
 	d, _, cp := n1ComposedDriverFixtureState(t, n1EC4ScreeningFixture)
+	r.WALPolicy = ec4WALPolicy{HardBytes: cp.policy.HardBytes, ReserveBytes: cp.policy.ReserveBytes, SoftDebtBytes: cp.policy.SoftDebtBytes, ActivePressureBytes: cp.policy.ActivePressureBytes, ConcurrentPassive: cp.policy.ConcurrentPassive}
 	// #1620's pressure recovery only runs when trusted composition attaches the
 	// SAME funded keeper's request/results hook (the WC and publisher targets do
 	// this); without it a steady scan refuses on observed WAL pressure forever.
@@ -758,5 +782,5 @@ func TestEC4NativeScreening(t *testing.T) {
 		_ = ec4WriteReport(out, checkpoints.report(r))
 		t.Fatal(r.Phase, e)
 	}
-	t.Logf("SCREENING profile=%s accepted=%d reader_visible=%d first_filename=%s all_filename=%s Basic=null folder=null qualification=false", r.Profile, r.Accepted, r.ReaderVisible, time.Duration(*r.FirstFilenameVisibleNS), time.Duration(*r.AllFilenameVisibleNS))
+	t.Logf("%s profile=%s accepted=%d reader_visible=%d first_filename=%s all_filename=%s Basic=null(derived) folder=null qualification=%v", r.Label, r.Profile, r.Accepted, r.ReaderVisible, time.Duration(*r.FirstFilenameVisibleNS), time.Duration(*r.AllFilenameVisibleNS), r.Qualification)
 }
