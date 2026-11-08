@@ -64,6 +64,25 @@ func applyEnrichAccept(ctx context.Context, turn *commandTurn, input *enrichAcce
 	if err = checkEnrichAcceptVerifiedSource(ctx, turn, input, proof); err != nil {
 		return out, digest, err
 	}
+	// Full pinner charge comes from the two ACTUAL immutable native proofs,
+	// not a caller limit, SQLite maximum or a column-count multiplication.
+	var retained int64
+	for _, p := range []struct {
+		id  stmt.ID
+		ref effectiveBeginSealReference
+	}{{enrichAcceptEvidenceBytes, b.sourceReferences.evidence}, {enrichAcceptSourceBytes, b.sourceReferences.source}} {
+		n, e := enrichAcceptReturning(ctx, turn, p.id, p.ref.owner, p.ref.receipt.Identity.Incarnation[:], p.ref.receipt.Identity.Sequence)
+		if e != nil {
+			return out, digest, e
+		}
+		if n > maxSealRetainedBytes {
+			return out, digest, ErrConflict
+		}
+		retained += n
+	}
+	if q.reservedBytes < retained {
+		return out, digest, &Refusal{Code: RefusalCapacity}
+	}
 	// All native cohort/context proofs are complete BEFORE the first write.
 	now, err = turn.transaction.clockTime()
 	if err != nil {
