@@ -221,6 +221,9 @@ func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 		{os.Environ(), []string{"-p=1", "-tags=libc.memgrind"}, "./internal/store/governor"},
 		{os.Environ(), []string{"-p=1", "-tags=memory.counters"}, "./internal/store/governor"},
 		{openingEnv("linux"), []string{"-p=1", "-tags=portico_ec4_screening"}, "./internal/store/writer"},
+		// The race-tagged crash-child budget file is excluded from every other
+		// profile. Resolve its body under the declared `race` constraint too.
+		{os.Environ(), []string{"-p=1", "-tags=race"}, "./internal/store/writer"},
 	}
 	for _, target := range openingOtherPlatforms(runtime.GOOS) {
 		profiles = append(profiles, struct {
