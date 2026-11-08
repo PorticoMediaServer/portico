@@ -22,7 +22,7 @@ func validateMemoryPartition(b commandMemoryBudget, total int64, field string) e
 
 func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandID, requiredBytes uint64, partitionField string) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
-	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && purpose != EffectiveStage && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) {
+	if purpose != InventoryAccept && purpose != SearchImageStage && purpose != InventoryCreate && purpose != InventoryClaim && purpose != BasicStage && purpose != BasicSeal && purpose != BasicAccept && purpose != ProgressAccept && purpose != SecurityAccept && purpose != ProgressReceiptReclaim && purpose != EffectiveStage && purpose != EnrichAccept && !scanDirectoryPurpose(purpose) && !searchPublisherPurpose(purpose) {
 		return ErrInvalid
 	}
 	if ctx == nil || t == nil || t.transaction == nil || requiredBytes == 0 {
@@ -71,7 +71,7 @@ func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandI
 	if searchPublisherPurpose(purpose) {
 		b = c.publisherMemory
 	}
-	if purpose == EffectiveStage {
+	if effectiveSourceProofPurpose(purpose) {
 		b = c.effectiveSourceMemory
 	}
 	if err := validateMemoryPartition(b, c.expected.Need[governor.MemoryBytes], partitionField); err != nil {
