@@ -39,11 +39,20 @@ func TestCanonicalPassiveDeferFlagIsOffByDefaultAndOnlyChangesItself(t *testing.
 // A foreground deferral is recorded as a deferral, never as a maintenance failure.
 func TestForegroundDeferralIsARecordedDeferralNotAFailure(t *testing.T) {
 	record := checkpointRecord(governor.CheckpointResult{}, governor.ErrCheckpointForeground)
-	if record.Deferral != "foreground" || record.failed() {
+	if record.Deferral != deferralForeground || record.failed() {
 		t.Fatal("a foreground deferral must be a non-failing deferral", record)
 	}
 	started := governor.CheckpointResult{Started: time.Unix(1, 0)}
 	if !checkpointRecord(started, governor.ErrCheckpointForeground).failed() {
 		t.Fatal("an error after a start is still a failure")
+	}
+	// The && in checkpointRecord and failed(): either timestamp alone means a grant
+	// or a native call happened, so it is no pre-grant deferral.
+	nativeOnly := governor.CheckpointResult{NativeStarted: time.Unix(1, 0)}
+	if r := checkpointRecord(nativeOnly, governor.ErrCheckpointForeground); r.Deferral != "" || !r.failed() {
+		t.Fatal("an error after a native start is a failure, not a deferral", r)
+	}
+	if r := checkpointRecord(nativeOnly, governor.ErrCheckpointCadence); r.Deferral != "" || !r.failed() {
+		t.Fatal("a cadence error after a native start is a failure, not a deferral", r)
 	}
 }
