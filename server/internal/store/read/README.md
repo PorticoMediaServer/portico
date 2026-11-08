@@ -227,7 +227,13 @@ container's own age cannot replace its complete visible-member proof. Every
 future domain must keep its eligibility inputs within the shared source/revision
 fence used by native continuations; opting in is not a writer or epoch proof. Domain validators may use fully qualified `read.*` statement IDs (or
 `rs.*` names); trusted composition must include their inert definitions in the
-SAME actual Capture/closed read registry. The opt-in adds no executable SQL.
+SAME actual Capture/closed read registry. The opt-in adds no executable SQL. Native lookup and fresh-final queries use the shared
+`queryReadScope` path, so registered octet/payload pairs retain their existing
+`QueryExactBytes` protocol and count as two physical attempts. Legacy `rs.*`
+names resolve to `read.browse.rs.*`; fully qualified `read.*` IDs stay exact.
+Every fixture or pool that activates a domain must explicitly capture its owned
+definitions with the native catalogue. Missing definitions refuse with no page;
+opt-in never installs statements implicitly.
 
 Hits additionally carry canonical `SortKey`, `Year` and `AddedAt` for RS grouping.
 Entities use the same current source row's `sort_key`, `year` and `added_at`;
