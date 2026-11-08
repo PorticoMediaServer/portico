@@ -144,6 +144,7 @@ func crashN1RetryFixture(t *testing.T, witness *crashWitness) {
 	source.Input.ClockMS = clock.UnixMilli()
 	source.Baseline = n1DriverCaptureBaseline(t, t.Context(), e.db, source.Input)
 	witness.Path, witness.Reference, witness.N1Driver, witness.N1Claim = path, original.Receipt, &source, &claimRef
+	witness.ScanClockMS = clock.UnixMilli()
 	installCrashDriverAt(t, e, path, witness, clock, nil)
 	if _, err := preparation.Accept(t.Context(), command); err == nil {
 		t.Fatal("pre-COMMIT retry crash was not observed")
@@ -159,6 +160,12 @@ func TestCrashRetryN1AcceptExecutesOnceThenReplays(t *testing.T) {
 	}
 	d, transport := n1ComposedDriverOnExistingTransport(t, witness.Path)
 	e := d.opening.executor
+	// A client retries only after the crashed process's claim lease expired.
+	// Model that durable elapsed input explicitly; this is not an effect under
+	// test and both the raw checkpoint and the retry below still see it.
+	if _, err := e.db.ExecContext(t.Context(), `UPDATE inventory_runs SET job_lease_expires_ms=job_lease_expires_ms-3600000 WHERE job_id=?`, source.Input.RunID); err != nil {
+		t.Fatal(err)
+	}
 	if ack, last := n1HistoryFloor(t, t.Context(), e.db, source.Input.RunID); last != source.Input.IdentitySequence-1 && last != source.Input.LastSequence {
 		t.Fatal("crashed Accept advanced the run sequence", ack, last)
 	}
