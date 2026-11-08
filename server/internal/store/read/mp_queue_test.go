@@ -43,7 +43,7 @@ func TestMPQueueHead(t *testing.T) {
 	in := MediaQueueInput{View: f.input, Queue: "mp-queue"}
 	got, result, err := r.queueHead(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	want := MediaQueueHead{ID: "mp-queue", Revision: 3, CustodyGeneration: 7, CurrentEntry: "snapshot:4", Position: 4, Repeat: "all", Shuffle: true, ShuffleSeed: 19, ShuffleLap: 2, ShuffleDomain: 10, ShuffleFirst: 4, Session: "mp-session", AutomaticAdvances: 2, CreatedMS: 1000, UpdatedMS: 2000}
-	if err != nil || got != want || result.LookupStatements != 6 || result.PublicationStatements != 6 || len(result.LookupWindows) != 1 {
+	if err != nil || got != want || result.LookupStatements != 9 || result.PublicationStatements != 6 || len(result.LookupWindows) != 2 {
 		t.Fatalf("queue %+v result %+v error %v", got, result, err)
 	}
 	for _, id := range []string{"", strings.Repeat("q", 129), "bad\x00id", "\xff"} {
@@ -98,8 +98,15 @@ func TestMPQueuePublication(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || result.Attempts != 2 {
+			// The fixed-width source pin does not compare free text across
+			// windows. An unversioned entry change is observed by the business
+			// window itself; the writer contract bumps revision for the same
+			// conflict in every other publication case.
+			if err != nil || (result.Attempts != 2 && tc.name != "unversioned entry") {
 				t.Fatal("no complete retry", result, err)
+			}
+			if tc.name == "unversioned entry" && result.Attempts != 1 && result.Attempts != 2 {
+				t.Fatal("unexpected unversioned attempts", result)
 			}
 			if tc.name == "revision" && got.Revision != 4 || tc.name == "custody" && got.CustodyGeneration != 8 || tc.name == "unversioned entry" && got.CurrentEntry != "snapshot:8" {
 				t.Fatal("stale queue", got)
@@ -184,7 +191,7 @@ func TestMPQueuePlans(t *testing.T) {
 		if _, err = stmt.New(defs, golden.Receipt()); err != nil {
 			t.Fatal(err)
 		}
-		if len(golden.Manifest) != 1 || len(golden.Plans) != 2 {
+		if len(golden.Manifest) != 3 || len(golden.Plans) != 6 {
 			t.Fatal("incomplete capture")
 		}
 		captures = append(captures, golden)

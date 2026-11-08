@@ -41,7 +41,7 @@ func TestMPSessionHead(t *testing.T) {
 	f, r := mpSessionFixture(t)
 	in := MediaSessionInput{View: f.input, Session: "mp-session", Item: 1}
 	got, result, err := r.sessionHead(t.Context(), foregroundRequest(), time.Second, f.output, in)
-	if err != nil || got.ID != "mp-session" || got.Item.ID != 1 || got.Revision != 3 || got.Generation != 2 || got.MediaGeneration != 4 || got.PositionMS != 1500 || got.LastSequence != 7 || result.LookupStatements != 6 || result.PublicationStatements != 6 {
+	if err != nil || got.ID != "mp-session" || got.Item.ID != 1 || got.Revision != 3 || got.Generation != 2 || got.MediaGeneration != 4 || got.PositionMS != 1500 || got.LastSequence != 7 || result.LookupStatements != 9 || result.PublicationStatements != 6 || len(result.LookupWindows) != 2 {
 		t.Fatal(got, result, err)
 	}
 	for _, id := range []string{"", strings.Repeat("s", 129), "bad\x00id", "\xff"} {
@@ -193,7 +193,7 @@ func TestMPSessionPlans(t *testing.T) {
 		if _, err = stmt.New(defs, golden.Receipt()); err != nil {
 			t.Fatal(err)
 		}
-		if len(golden.Manifest) != 1 || len(golden.Plans) != 2 {
+		if len(golden.Manifest) != 3 || len(golden.Plans) != 6 {
 			t.Fatal("incomplete capture")
 		}
 		captures = append(captures, golden)
