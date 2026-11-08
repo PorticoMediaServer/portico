@@ -70,7 +70,9 @@ func newCanonicalBatchComponent(t *testing.T, stream *n1Stream, canonical, measu
 	// Actual preparation (8MiB) and writer (16MiB) coexist under one
 	// 32MiB ScanMinimum partition; neither lends memory to the other.
 	maintenance := canonicalN1Maintenance()
-	g, a, wal, _ := governedFixtureComposition(t, time.Now, governor.Amounts{governor.CPUMilli: 2000, governor.IOBytes: 128 << 20}, nil, &maintenance, governedFixtureProfile{effectiveFixturePlan().recipe, 32 << 20})
+	batchUnit := effectiveFixturePlan().recipe
+	batchUnit.limit.WALBytes = inventoryBatchWALBytes
+	g, a, wal, _ := governedFixtureComposition(t, time.Now, governor.Amounts{governor.CPUMilli: 2000, governor.IOBytes: inventoryBatchIOBytes}, nil, &maintenance, governedFixtureProfile{batchUnit, 32 << 20})
 	m := newCanonicalCheckpointOwner(t, opening, g, a, wal, path)
 	cp := &checkpointComponent{owner: owner, opening: opening, w: e, path: path, g: g, a: a, wal: wal, now: time.Now, origin: stream.origin}
 	d, transport, _ := n1ComposedDriverCompose(t, cp, true, n1BatchTimingFixture)
