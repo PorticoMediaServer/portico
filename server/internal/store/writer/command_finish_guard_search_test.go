@@ -3,10 +3,19 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "search",
-		resultTypes: []string{"SearchImageStageResult", "publisherReceiptLookup", "publisherInvocation", "searchFragmentStageResult"},
-		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts"},
+		resultTypes: []string{"SearchImageStageResult", "publisherReceiptLookup", "publisherInvocation", "searchFragmentStageResult", "searchHeadPublishResult", "searchPublisherCommandResult", "searchFragmentReclaimResult"},
+		names:       []string{"searchImageEngine", "requireSearchImageMemory", "searchImageTimeMS", "acknowledgeSearchPublisher", "searchImageStageFreshFacts", "searchFragmentStageFreshFacts", "searchHeadPublishFreshFacts", "searchPublisherStageFacts", "composeSearchPublisherCommands", "discloseSearchPublisher", "searchPublisherEngine", "searchPublisherTimeMS", "requireSearchPublisherMemory", "checkSearchPublisherTerminal", "acknowledgeSearchPublisherFacts", "searchFragmentReclaimFreshFacts", "readSearchReclaimOwner"},
 		prefixes:    []string{"checkSearchImage"},
 		bypasses: []string{
+			`func reclaimRelease(ctx context.Context)(out searchFragmentReclaimResult,err error){return searchFragmentReclaimResult{},nil}`,
+			`func searchFragmentReclaimFreshFacts(ctx context.Context)(out searchFragmentReclaimRequest,err error){return searchFragmentReclaimRequest{},nil}`,
+			`func readSearchReclaimOwner(ctx context.Context)(out searchFragmentReclaimOwner,err error){return searchFragmentReclaimOwner{},nil}`,
+			`func publisherRelease(ctx context.Context)(out searchPublisherCommandResult,err error){return out,nil}`,
+			`func searchPublisherTimeMS(ctx context.Context)(out int64,err error){return 1,nil}`,
+			`func requireSearchPublisherMemory(ctx context.Context)(err error){return nil}`,
+			`func headRelease(ctx context.Context)(out searchHeadPublishResult,err error){return searchHeadPublishResult{},nil}`,
+			`func searchHeadPublishFreshFacts(ctx context.Context)(out searchHeadPublishRequest,err error){return searchHeadPublishRequest{},nil}`,
+			`func searchPublisherStageFacts(ctx context.Context)(out searchFragmentStageSnapshot,err error){return searchFragmentStageSnapshot{},nil}`,
 			`func fragmentRelease(ctx context.Context)(out searchFragmentStageResult,err error){return searchFragmentStageResult{},nil}`,
 			`func searchFragmentStageFreshFacts(ctx context.Context,turn *commandTurn,want searchFragmentStageSnapshot)(out searchFragmentStageSnapshot,err error){return want,nil}`,
 			`func searchImageEngine(ctx context.Context)(out searchpolicy.Engine,err error){return searchpolicy.Engine{Version:"saved"},nil}`,

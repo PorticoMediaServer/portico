@@ -14,6 +14,7 @@ import sys
 
 TOOLS = Path(__file__).resolve().parent
 CAPTURES = {
+    'hn-schema-evidence': ('stmt/plan', 'TestPlanSharedSchemaEvidence', 'record-schema-evidence', ['schema-evidence.json.gz']),
     'hn-canonical': ('stmt/plan', 'TestPlanCanonicalSchemaFKAndStatementContracts', 'record-plans', ['canonical.json', 'canonical-fk.json.gz']),
     'hn-issuer': ('stmt/plan', 'TestIssuerSourceOctetLengthsGolden', 'record-issuer-octets', ['issuer-source-octets.json']),
     'hn-issuer-library': ('stmt/plan', 'TestIssuerLibraryRootOctetLengthsGolden', 'record-issuer-library-octets', ['issuer-library-root-octets.json']),
@@ -29,6 +30,7 @@ CAPTURES = {
     'hn-foreground': ('read', 'TestForegroundPlans', 'record-foreground-plans', ['foreground-plans.json.gz']),
 }
 HARNESSES = {
+    'canonical-publisher': ('./internal/store/writer', '^TestCanonicalPublisherFundedKeeperFunctional$'),
     'canonical-wc': ('./internal/store/writer', '^TestCanonicalWCFunctional$'),
     'ec5-memory': ('./internal/store/writer', '^TestEC5'),
     'connections': ('./internal/store/qual', '^TestConnection'),
@@ -150,6 +152,8 @@ def split_units(units, requested):
 def plan(source, output):
     cfg = validated(os.environ)  # before fetch or executing source tooling
     env = clean_env(output)
+    if cfg['mode'] == 'harness' and 'canonical-publisher' in cfg['targets']:
+        env['PORTICO_CANONICAL_PB_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'canonical-wc' in cfg['targets']:
         env['PORTICO_CANONICAL_WC_FUNCTIONAL'] = '1'
     command(['git', 'fetch', '--no-tags', '--depth=1', 'origin', cfg['fetch_ref']], source)
@@ -248,6 +252,8 @@ def worker(source, output, plan_path, index):
     if index < 0 or index >= len(p['shards']) or command(['git', 'rev-parse', 'HEAD'], source).strip() != p['source_sha']:
         raise ValueError('shard/source binding mismatch')
     env = clean_env(output)
+    if cfg['mode'] == 'harness' and 'canonical-publisher' in cfg['targets']:
+        env['PORTICO_CANONICAL_PB_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'canonical-wc' in cfg['targets']:
         env['PORTICO_CANONICAL_WC_FUNCTIONAL'] = '1'
     if cfg['mode'] == 'harness' and 'ec5-memory' in cfg['targets']:

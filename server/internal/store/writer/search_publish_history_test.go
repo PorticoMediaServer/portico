@@ -26,7 +26,11 @@ func searchPublisherHistorySeed(t *testing.T) *executor {
 		}
 	}
 	exec(`INSERT INTO catalog_libraries(id,library_id,root) VALUES(3,'publisher-fixture','/publisher')`)
-	exec(`INSERT INTO catalog_kinds VALUES(1,'movie',1,0,1,1,0)`)
+	// A verified canonical clone already owns the global movie-kind dictionary
+	// row. Preserve it; only the unchanged standalone fixture creates that row.
+	if !publisherHasCanonicalPopulation(t) {
+		exec(`INSERT INTO catalog_kinds VALUES(1,'movie',1,0,1,1,0)`)
+	}
 	exec(`INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms)
 VALUES(7,'v1',?,?,?,'active',1000)`, searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint)
 	exec(`UPDATE search_revision SET active_generation_id=7 WHERE singleton=1`)
@@ -262,4 +266,13 @@ func TestSearchPublisherAckProtocolFactsCannotAdvanceOtherOwner(t *testing.T) {
 	if _, err := turn.transaction.rollback(nil); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Observation of the existing exact-t transport, AFTER testExecutor consumed
+// it. This supplies no opener/SQL/authority and cannot skip standalone setup.
+func publisherHasCanonicalPopulation(t *testing.T) bool {
+	qualificationPopulationAttachments.Lock()
+	defer qualificationPopulationAttachments.Unlock()
+	a := qualificationPopulationAttachments.byTest[t]
+	return a != nil && a.consumed
 }

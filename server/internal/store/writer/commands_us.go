@@ -3,6 +3,9 @@ package writer
 // US owns explicit 500–599 identities. Descriptors are preparation metadata,
 // never permission, a governor grant or physical qualification.
 const (
+	usMemberRoleChange     CommandID = 501
+	usMembershipDisable    CommandID = 502
+	usAccountEpochAdvance  CommandID = 503
 	usLocalPasswordReplace CommandID = 520
 	usAPICredentialIssue   CommandID = 521
 	usAPICredentialRevoke  CommandID = 522
@@ -13,6 +16,9 @@ const (
 )
 
 var usCommands = commandRegistration{owner: "US", descriptors: []Descriptor{
+	{ID: usMemberRoleChange, Name: "us_member_role_change", Durability: Full},
+	{ID: usMembershipDisable, Name: "us_membership_disable", Durability: Full},
+	{ID: usAccountEpochAdvance, Name: "us_account_epoch_advance", Durability: Full},
 	{ID: usLocalPasswordReplace, Name: "us_local_password_replace", Durability: Full},
 	{ID: usAPICredentialIssue, Name: "us_api_credential_issue", Durability: Full},
 	{ID: usAPICredentialRevoke, Name: "us_api_credential_revoke", Durability: Full},

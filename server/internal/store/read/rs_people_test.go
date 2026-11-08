@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ func TestRSPeopleCompleteCreditTraversal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if p.RawRows > MaxRaw || p.RawPositions > p.RawRows || len(p.Credits) > 7 || cost.LookupStatements > 10 || cost.PublicationStatements != 6 {
+			if p.RawRows > MaxRaw || p.RawPositions > p.RawRows || len(p.Credits) > 7 || cost.LookupStatements > 204 || cost.PublicationStatements != 6 {
 				t.Fatalf("unbounded %+v %+v", p, cost)
 			}
 			if len(p.Credits) > 0 && (p.Person == nil || p.Person.Name != "Person" || p.Person.Biography != "Accepted biography") {
@@ -78,7 +79,7 @@ func TestRSPeopleCompleteCreditTraversal(t *testing.T) {
 	f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id<=100`)
 	in.Person = 1
 	p, _, err = r.credits(t.Context(), foregroundRequest(), time.Second, f.output, in)
-	if err != nil || p.Person != nil || len(p.Credits) != 0 || p.Exhausted || p.Next == nil || p.RawPositions != MaxRaw {
+	if err != nil || p.Person != nil || len(p.Credits) != 0 || p.Exhausted || p.Next == nil || p.RawPositions != rsPeopleRaw {
 		t.Fatal("hidden raw page", p, err)
 	}
 	in.After = p.Next
@@ -96,19 +97,43 @@ func TestRSPeoplePublicationLIVEAndRestriction(t *testing.T) {
 	if !errors.Is(err, ErrInput) || !reflect.DeepEqual(p, PersonCreditsPage{}) {
 		t.Fatal("unadmitted read", err)
 	}
-	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
-		p, _, err := r.Credits(ctx, request, time.Second, out, in)
-		if err != nil || len(p.Credits) == 0 || p.Person == nil || f.authority.ForegroundUsage().Live != 1 {
-			t.Fatal("public people", p, err)
+
+	found := false
+	for n := 0; n < 100; n++ {
+		q, request, output = liveRequests(fmt.Sprintf("rs-people-%d", n))
+		_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
+			p, _, err := r.Credits(ctx, request, time.Second, out, in)
+			if err != nil {
+				return err
+			}
+			if f.authority.ForegroundUsage().Live != 1 {
+				t.Fatal("public people lost LIVE")
+			}
+			found = len(p.Credits) > 0
+			if found && p.Person == nil {
+				t.Fatal("missing visible person")
+			}
+			if !found && (p.Exhausted || p.Next == nil) {
+				t.Fatal("visible witness missing")
+			}
+			in.After = p.Next
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
+		if found {
+			break
+		}
 	}
+	if !found {
+		t.Fatal("visible credit never reached")
+	}
+	in.After = nil
+
 	assertLiveUsage(t, f, 0, 0)
 	// Final authority, not a returned person source row, controls disclosure.
-	r.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
+	r.snapshots = &rsByteBoundarySnapshots{Snapshots: f.snapshots, after: func() { f.exec(t, `UPDATE authorization_session_families SET revoked=1`) }}
 	q, request, output = liveRequests("rs-people-revoked")
 	_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, out BrowseOutput) error {
 		p, _, err := r.Credits(ctx, request, time.Second, out, in)
@@ -126,7 +151,7 @@ func TestRSPeopleRestrictedWitnessAndCursorBinding(t *testing.T) {
 	f, r := newRSPeopleFixture(t, false)
 	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
 	in := PersonCreditsInput{View: f.input, Person: 1}
-	p, _, err := r.credits(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	p, _, err := rsPeopleFirstCredit(t, r, f, &in)
 	if err != nil || p.Person == nil || p.Next == nil {
 		t.Fatal("restricted page", p, err)
 	}
@@ -149,4 +174,22 @@ func TestRSPeopleRestrictedWitnessAndCursorBinding(t *testing.T) {
 		t.Fatal("obsolete owner image escaped", p, err)
 	}
 
+}
+
+// A bounded raw prefix can contain only obsolete images or hidden works. Keep
+// polling its exact continuation before making a visible-person assertion.
+func rsPeopleFirstCredit(t *testing.T, r *PersonReader, f *browseFixture, in *PersonCreditsInput) (PersonCreditsPage, BrowseReadResult, error) {
+	t.Helper()
+	for n := 0; n < 100; n++ {
+		p, cost, err := r.credits(t.Context(), foregroundRequest(), time.Second, f.output, *in)
+		if err != nil || len(p.Credits) > 0 || p.Exhausted {
+			return p, cost, err
+		}
+		if p.Next == nil {
+			t.Fatal("pending raw people window lacks continuation")
+		}
+		in.After = p.Next
+	}
+	t.Fatal("visible credit traversal did not finish")
+	return PersonCreditsPage{}, BrowseReadResult{}, ErrUnqualified
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -37,6 +38,7 @@ type Rows struct {
 	Values  [][]any  `json:"values"`
 }
 type Environment struct {
+	SchemaBinding     *SchemaBinding      `json:"schemaBinding,omitempty"`
 	Connection        sqliteconn.Settings `json:"connection"`
 	IndexPolicySHA256 string              `json:"indexPolicySha256"`
 	Fixture           Fixture             `json:"fixture"`
@@ -227,6 +229,19 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert, AutoIndexes: autoIndexes, NativeInsert: native, NativeRetained: retained, NativeRead: nativeRead})
 		}
 	}
+	// Keep statement-specific source/builtin audits first. No failed or partial
+	// Capture gains a schema binding or receipt; the shared gate is mandatory
+	// before source classification is sealed and qualification is minted.
+	if policy.sha256 == embeddedPolicySHA() {
+		if err := checkEmbeddedCatalog(env.Schema); err != nil {
+			return g, err
+		}
+		env.SchemaBinding = &SchemaBinding{Version: 1, SQLSHA256: schemaSQLSHA()}
+		if err := validateDerivedEnvironment(env, runtime.GOOS+"/"+runtime.GOARCH); err != nil {
+			return g, err
+		}
+	}
+	g.Environment = env
 	sources, err := capturedSources(ctx, conn, g.Manifest)
 	if err != nil {
 		return g, err

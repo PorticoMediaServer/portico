@@ -35,7 +35,7 @@ func basicBeginAbsent(t *testing.T, w *executor) {
 }
 func TestBasicBeginNativeAllocationWitnessAndManifest(t *testing.T) {
 	w, in := basicBeginFixture(t)
-	turn := basicBoundedComponentTurn(t, w, basicBeginTestDefinitions())
+	turn := basicProbeTestTurn(t, w, basicBeginTestDefinitions())
 	out, err := beginBasicInput(t.Context(), turn, in, 2000)
 	if err != nil || out.source.changeID <= 0 || out.source.inputRevision != 1 || out.changeRevision != 1 {
 		t.Fatal(out, err)
@@ -87,7 +87,7 @@ func TestBasicBeginWholeUnitRollbackAndZeroResult(t *testing.T) {
 	for _, scenario := range []string{"debt_capacity", "existing_input", "late_family_refusal", "raw_chapter_cap"} {
 		t.Run(scenario, func(t *testing.T) {
 			w, in := basicBeginFixture(t)
-			turn := basicBoundedComponentTurn(t, w, basicBeginTestDefinitions())
+			turn := basicProbeTestTurn(t, w, basicBeginTestDefinitions())
 			switch scenario {
 			case "debt_capacity":
 				if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE catalog_info_input_budget SET used_bytes=33554432`); err != nil {

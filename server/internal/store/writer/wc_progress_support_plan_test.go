@@ -153,7 +153,7 @@ func TestWCProgressSupportStatementPlans(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(fk.Plans) != 686 {
+			if plan.CheckSchemaForeignKeys(&fk) != nil {
 				t.Fatal("FK coverage changed")
 			}
 			for _, p := range fk.Plans {
@@ -216,7 +216,7 @@ func TestWCProgressSupportStatementPlans(t *testing.T) {
 			if err := plan.CompareExactJSON(expectedFK, fkJSON); err != nil {
 				t.Fatal(err)
 			}
-			t.Logf("%dIDs/%dcohorts/%dVM/%dEQP SEARCH rows/%dINSERT destinations/686FK2058probes; exact receipt; no production profile", wantDefinitions, len(golden.Plans), vm, search, inserts)
+			t.Logf("%dIDs/%dcohorts/%dVM/%dEQP SEARCH rows/%dINSERT destinations/shared-schema FK audit; exact receipt; no production profile", wantDefinitions, len(golden.Plans), vm, search, inserts)
 		})
 	}
 }

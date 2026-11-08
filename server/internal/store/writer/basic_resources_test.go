@@ -51,7 +51,7 @@ func TestBasicResourcesPurposeAndOriginalLease(t *testing.T) {
 			*clock = clock.Truncate(time.Millisecond)
 			turn, _ := basicResourceTestTurn(t, w, path, id, commandMemoryBudget{})
 			deadline, ok := turn.transaction.ctx.Deadline()
-			if !ok || deadline != clock.Add(testRecipe().limit.Hold) {
+			if !ok || deadline != turn.transaction.custody.(*governedTurn).expected.Deadline {
 				t.Fatal("missing original protected deadline", deadline)
 			}
 			expires := deadline.UnixMilli()
@@ -83,8 +83,10 @@ func TestBasicResourcesPurposeAndOriginalLease(t *testing.T) {
 				t.Fatal("terminal changed accepted timestamp", accepted)
 			}
 			*clock = deadline
-			if err := checkBasicTerminal(t.Context(), turn, purpose, expires); !errors.Is(err, ErrConflict) {
-				t.Fatal("expired original lease reached terminal", err)
+			// The grant is the original protected deadline here; its exact
+			// expiry check precedes the native lease check and must still refuse.
+			if err := checkBasicTerminal(t.Context(), turn, purpose, expires); !errors.Is(err, governor.ErrGrant) {
+				t.Fatal("expired original grant reached terminal", err)
 			}
 		})
 	}

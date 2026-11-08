@@ -69,6 +69,12 @@ func (r *BrowseReader) rbGroupWindow(ctx context.Context, request governor.Reque
 	if !ok || in.Subject <= 0 || in.View.After != nil || !rbGroupKind(spec, in.View.Kind) {
 		return page, result, ErrInput
 	}
+	// An author requires a current eligible-book proof. The initial generic
+	// member source does not establish that proof, so it cannot expose authors
+	// through collection/playlist candidates until the author recipe is complete.
+	if in.View.Kind == 13 {
+		return page, result, ErrUnqualified
+	}
 	if in.After != nil && (in.After.family != in.Family || in.After.subject != in.Subject) {
 		return page, result, ErrStale
 	}
@@ -89,6 +95,9 @@ func (r *BrowseReader) rbGroupWindow(ctx context.Context, request governor.Reque
 					return ErrDenied
 				}
 				in.author = rows[0][13].(string)
+				if e := rbAuthorIndexedName(in.author); e != nil {
+					return e
+				}
 			}
 			return nil
 		},

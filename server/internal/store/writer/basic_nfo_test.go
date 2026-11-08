@@ -31,7 +31,7 @@ func TestBasicNFONativeCompleteSetReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	after.payload = `{"title":"Caller mutation"}`
-	turn := basicBoundedComponentTurn(t, w, basicNFOTestDefs())
+	turn := basicProbeTestTurn(t, w, basicNFOTestDefs())
 	got, err := applyBasicNFO(t.Context(), turn, prepared, 2000)
 	if err != nil || got != (basicNFOProgress{1, 1}) {
 		t.Fatal(got, err)
@@ -79,7 +79,7 @@ func TestBasicNFOHiddenOldRowAndWrongScopeRefuse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			turn := basicBoundedComponentTurn(t, w, basicNFOTestDefs())
+			turn := basicProbeTestTurn(t, w, basicNFOTestDefs())
 			got, err := applyBasicNFO(t.Context(), turn, prepared, 2000)
 			if !errors.Is(err, ErrConflict) || got != (basicNFOProgress{}) {
 				t.Fatal(got, err)
@@ -107,7 +107,7 @@ func TestBasicNFOKnownAbsenceAndIncompleteObservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn := basicBoundedComponentTurn(t, w, basicNFOTestDefs())
+	turn := basicProbeTestTurn(t, w, basicNFOTestDefs())
 	got, err := applyBasicNFO(t.Context(), turn, prepared, 2000)
 	if err != nil || got != (basicNFOProgress{1, 0}) {
 		t.Fatal(got, err)
@@ -134,7 +134,7 @@ func TestBasicNFOPreflightAndLateFailureRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn := basicBoundedComponentTurn(t, w, basicNFOTestDefs())
+	turn := basicProbeTestTurn(t, w, basicNFOTestDefs())
 	// A missing terminal statement is a real pre-SQL refusal AFTER row effects.
 	// It must clear the progress value and leave the whole source transaction
 	// available for rollback, never a partially replaced visible NFO cohort.

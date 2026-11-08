@@ -7,12 +7,16 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
 func TestRBGroupRelationshipChargesRetainedStrings(t *testing.T) {
+	synctest.Test(t, testRBGroupRelationshipChargesRetainedStrings)
+}
+func testRBGroupRelationshipChargesRetainedStrings(t *testing.T) {
 	f := rbGroupFixture(t, false)
 	wide := strings.Repeat("a", 8<<10)
 	// Each 64-row source quantum fits its own 4MiB Go-copy reservation, while
@@ -30,6 +34,9 @@ func TestRBGroupRelationshipChargesRetainedStrings(t *testing.T) {
 }
 
 func TestRBGroupRelationshipCompleteOrder(t *testing.T) {
+	synctest.Test(t, testRBGroupRelationshipCompleteOrder)
+}
+func testRBGroupRelationshipCompleteOrder(t *testing.T) {
 	f := rbGroupFixture(t, false)
 	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2008,x'08080000000000000000000000000000',1,6)`)
 	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id) VALUES(2008,x'08080000000000000000000000000000',1,6,'Other album','SAME','s','The Same','t',0,zeroblob(16),zeroblob(16),2003)`)
@@ -78,6 +85,9 @@ func TestRBGroupRelationshipCompleteOrder(t *testing.T) {
 	}
 }
 func TestRBGroupRelationshipRejectsIncompleteAndPublication(t *testing.T) {
+	synctest.Test(t, testRBGroupRelationshipRejectsIncompleteAndPublication)
+}
+func testRBGroupRelationshipRejectsIncompleteAndPublication(t *testing.T) {
 	f := rbGroupFixture(t, false)
 	// Expand beyond the complete-set ceiling. Every inserted row is retired:
 	// eligibility cannot make this appear to be a small/exhausted raw library.

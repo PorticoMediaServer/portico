@@ -145,6 +145,56 @@ func TestUSPolicyOctetNativeKeys(t *testing.T) {
 	}
 }
 
+// Expected values come from fixed stored bytes, independently of either
+// production SQL constant or the definition validator that shares that SQL.
+// In particular member-life is 11 bytes, while the selected role is 6.
+func TestUSPolicyOctetActualProjection(t *testing.T) {
+	c, f, p := usOctetTestFixture(t, "account_id", "account_id,id")
+	// Give the policy a length distinct from incarnation, role and both keys.
+	if _, err := c.ExecContext(t.Context(), `UPDATE direct_memberships SET allowed_libraries='["música","界"]' WHERE account_id='account'`); err != nil {
+		t.Fatal(err)
+	}
+	for _, profile := range []bool{false, true} {
+		d := usOctetTestDefinition(profile)
+		g, err := usCaptureOctet(t, c, f, p, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := stmt.New([]stmt.Definition{d}, g.Receipt())
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := r.Lookup(d.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bound, err := s.Bind(d.Cohorts[0].Bindings...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, value := range []struct {
+			policy any
+			bytes  int64
+		}{{nil, 0}, {"[]", 2}, {`["界"]`, 7}} {
+			if _, err := c.ExecContext(t.Context(), `UPDATE direct_profiles SET allowed_libraries=? WHERE id='profile'`, value.policy); err != nil {
+				t.Fatal(err)
+			}
+			var role, memberPolicy, profilePolicy int64
+			dest := []any{&role, &memberPolicy}
+			if profile {
+				dest = append(dest, &profilePolicy)
+			}
+			if err := bound.QueryRowContext(t.Context(), c).Scan(dest...); err != nil {
+				t.Fatal(err)
+			}
+			// The member policy is literal ["música","界"]: 17 UTF-8 bytes.
+			if role != 6 || memberPolicy != 17 || profile && profilePolicy != value.bytes {
+				t.Fatalf("wrong native octet projection for %s: role=%d member=%d profile=%d", d.ID, role, memberPolicy, profilePolicy)
+			}
+		}
+	}
+}
+
 func TestUSPolicyOctetRejectsShadowedFunction(t *testing.T) {
 	const flag = "PORTICO_US_POLICY_OCTET_SHADOW"
 	if os.Getenv(flag) != "1" {

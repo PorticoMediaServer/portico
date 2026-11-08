@@ -3,8 +3,8 @@
 These closed TEST-ONLY entrypoints are scaffolding for QL's ONE canonical 1M
 population. `inventory_n1` is executable through the existing test-only N1
 owner and a real funded concurrent PASSIVE keeper. WC progress/security/reclaim
-now use their actual merged Actions and a factored trusted owner fixture. Other classes emit
-explicit failed bindings. No production issuer, profile, SQL callback, authority
+now use their actual merged Actions and a factored trusted owner fixture. PB parents
+reuse their existing fixture/loop with the same funded keeper lifecycle as N1. Other classes emit explicit failed bindings. No production issuer, profile, SQL callback, authority
 or qualification report is introduced. Merged command bodies alone do not open
 an accepting workload path.
 
@@ -16,8 +16,8 @@ an accepting workload path.
 | progress | TestCanonicalHeldProgress | WC actual Progress Action |
 | security | TestCanonicalHeldSecurity | WC actual FULL Security Action |
 | wc_reclaim | TestCanonicalHeldWCReclaim | WC retained receipt/source reclaim; actual ProgressReceiptReclaim, never publisher reclaim |
-| publisher_fragment | TestCanonicalHeldPublisherFragment | PB accepting fragment composition |
-| publisher_flip | TestCanonicalHeldPublisherFlip | PB accepting head-publish/flip composition |
+| publisher_fragment | TestCanonicalHeldPublisherFragment | PB real fixture/loop +native census +funded concurrent PASSIVE keeper |
+| publisher_flip | TestCanonicalHeldPublisherFlip | PB real fixture/loop +native census +funded concurrent PASSIVE keeper |
 | checkpoint | TestCanonicalHeldCheckpoint | GV governed maintenance owner, outside writer HOLD |
 | mp.queue_head | TestCanonicalQueueHeadRead | MP current device-owned queue, proposed6lookup+6final statements |
 | mp.session | TestCanonicalSessionHeadRead | MP current session point read, proposed6+6 |
@@ -335,3 +335,63 @@ SEARCH goldens establish no1M latency/resource profile pass. These classes remai
 UNQUALIFIED; explicit opt-in currently emits durable failed bindings and a
 nonpassing final with no native calls. No host run or capture refresh is requested
 or enabled by this scaffold.
+
+## PB canonical fixture attachment and census
+
+publisher_fragment / TestCanonicalHeldPublisherFragment and publisher_flip /
+TestCanonicalHeldPublisherFlip factor the existing TestSearchPublisherQualification
+fixture and fresh → saved-original Resolve → ACK loop. The standalone PB target
+keeps its strict eight-field config. Canonical parents use the existing canonical
+config and attach UseQualificationPopulation at the EXACT child t that invokes
+the actual native constructor, so child setup failure still leaves a parent final.
+No SQL, issuer, opener, command profile, cap or production enable is added.
+
+The closed recipes canonical-publisher-fragment-title-overlay-v1 and
+canonical-publisher-head-title-overlay-v1 request eight warmup graphs, configured
+measured graphs (at least10k through the canonical config), and ZERO additional
+background graphs. Canonical1M/library7 remains a separate baseline on the SAME
+database; PB's unchanged fixed seed and uniform title-only publisher graph owners
+remain library3. It is not an exact1M total catalogue or a claim to1M indexed
+publisher graphs. Raw census_before_graphs includes the canonical clone plus PB's
+fixed seed; census_after_graphs separately counts actual subjects/entities/jobs,
+images/seals/reclaimers/fragments and native FTS docsize rows. Prepared measured,
+warmup and background graph counts are explicit. The original PB background_count
+means added sealed graphs, not catalogue size. No smoke is relabelled as a full
+population or a representative source corpus.
+
+The seeded executor must physically close with zero pool residents and no sticky
+close fault before reusing N1's attested existing-file opening on that SAME copy.
+The reopened executor must have exactly the same sqliteconn.Config as the seed.
+N1's actual keeper binder, concurrent PASSIVE worker, post-writer observations
+and shutdown/retirement sequence are reused. PB's existing WAL hard/reserve/soft/
+active caps remain unchanged. The separate maintenance partition is Reader2,
+8MiB, CPU2000 and4GiB IO: keeper lifetime plus active checkpoint and reserved
+shutdown, with each native maintenance call funded for twice the1GiB hard prefix.
+The lead-approved TEST-ONLY keeper configuration uses global MaxGrantsPerClass4,
+compared with standalone PB's2. This also changes the Background metadata-slot
+limit; it is not a Recovery-only allowance. Raw output declares both values.
+The PB command stream remains serial; command, WAL and resource caps do not change.
+A Recovery-only allowance is deferred unless a production profile needs it.
+A missing keeper emits failed_binding before accepting commands. Refused, partial
+or failed checkpoints stay raw and stop the target; no retries or cap repair.
+Constructor work is not HOLD/COMMIT throughput. No host qualification dispatch is
+requested by this composition.
+
+The shared PB loop retains original references/results, sticky errors and joined
+custody. The canonical sink emits pre-custody call starts and distinct original,
+role and physical IDs, warmup versus measured populations, nullable relative
+owner clocks and strictly call-bound private owner windows. Failed public
+Evidence stays zero; it is never reconstructed from later Resolve. PB's actual
+COMMIT/WAL/result/error packet is retained verbatim; native call_error remains
+separate from combined protocol/timing validation error. All observer file IO
+runs outside HOLD. Checkpoint records retain N1's nullable same-origin native/
+physical/retirement clocks, admission facts and errors. Final reports checkpoint
+counts/overflow separately from the actual W/keeper physical-close witness and
+all-class authority usage. A checkpoint failure does not by itself negate a
+successful physical join. No qualification, quantile, legal-MAX or profile
+readiness claim is made.
+
+The tiny two-purpose functional control is opt-in with
+PORTICO_CANONICAL_PB_FUNCTIONAL=1 (lane-focused harness canonical-publisher).
+It joins real fresh/Resolve/ACK calls and the keeper on a16-row canonical copy;
+it is neither a1M nor a10k qualification run. Default tests skip real-clock holds.

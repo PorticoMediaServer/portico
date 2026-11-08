@@ -16,9 +16,16 @@ import (
 
 // Protocol-only source facts and synthetic complete profiles. This is not
 // production ScanDriver issuance, native-byte qualification or a latency run.
-func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptRequest, *executor, *governor.Authority) {
+func inventoryFacadeFixture(t *testing.T, clock ...*time.Time) (*Writer, map[string]ScanReceiptRequest, *executor, *governor.Authority) {
 	t.Helper()
 	e, requests, _ := inventoryLookupFixture(t)
+	if len(clock) > 1 || (len(clock) == 1 && clock[0] == nil) {
+		t.Fatal("invalid fixture clock")
+	}
+	if len(clock) == 1 {
+		*clock[0] = e.now()
+		e.now = func() time.Time { return *clock[0] }
+	}
 	if _, err := e.db.ExecContext(t.Context(), "INSERT INTO catalog_libraries(id,library_id,root,retired) VALUES(8,'retired-library','/retired',1)"); err != nil {
 		t.Fatal(err)
 	}
@@ -62,6 +69,8 @@ func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptReques
 	for i := range partitions {
 		partitions[i] = p.need
 	}
+	// Capture the clock function: later cancellation instrumentation may read
+	// Authority.Usage, which must never run recursively under GV's mutex.
 	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: e.now, WAL: gate})
 	if err != nil {
 		t.Fatal(err)
@@ -416,7 +425,8 @@ func TestInventoryPlanClosedOwnedAndWhole(t *testing.T) {
 func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 	for _, mode := range []string{"overrun", "ambiguous", "revoke_after_commit"} {
 		t.Run(mode, func(t *testing.T) {
-			w, requests, e, a := inventoryFacadeFixture(t)
+			var clock time.Time
+			w, requests, e, a := inventoryFacadeFixture(t, &clock)
 			q := requests["hit"]
 			cap := inventoryTestDisclosure(t, w, q)
 			if err := e.db.Close(); err != nil {
@@ -426,9 +436,7 @@ func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			clock := e.now()
 			start := clock
-			e.now = func() time.Time { return clock }
 			fault := &faultConnector{Connector: connector}
 			switch mode {
 			case "overrun":
@@ -441,8 +449,17 @@ func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 			installFaultPool(e, fault)
 			primeEffectiveFixturePool(t, e)
 			ack, err := w.AckScan(t.Context(), cap, q)
-			if !reflect.DeepEqual(ack, AckResult{}) || a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
-				t.Fatal("ACK lost physical outcome or grant custody", ack, err)
+			if a.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
+				t.Fatal("ACK lost grant custody", ack, err)
+			}
+			if mode == "overrun" {
+				if err != nil || ack.AcknowledgedThrough != q.Receipt.Identity.Sequence || ack.Evidence == nil ||
+					!ack.Evidence.HoldTargetExceeded || ack.Evidence.HoldTarget <= 0 || ack.Evidence.HoldTarget > MaxCommandHold ||
+					ack.Evidence.HoldSafetyCeiling != MaxCommandSafetyHold {
+					t.Fatal("over-target ACK failed or lost evidence", ack, err)
+				}
+			} else if !reflect.DeepEqual(ack, AckResult{}) {
+				t.Fatal("ACK lost physical outcome", ack, err)
 			}
 			if mode == "overrun" {
 				db, _, openErr := sqliteconn.Open(t.Context(), w.effective.path, e.config)
@@ -458,8 +475,12 @@ func TestInventoryFacadeAckPhysicalOutcomesAndLateRevocation(t *testing.T) {
 			}
 			switch mode {
 			case "overrun":
-				if !errors.Is(err, ErrOverrun) || !w.effective.fenced {
-					t.Fatal("committed overrun became retryable rollback", ack, err)
+				if err != nil || e.fenced || w.effective.fenced || e.holdTargetOverruns.Load() != 1 {
+					t.Fatal("over-target ACK fenced or lost counter", ack, err)
+				}
+				retired, resolveErr := w.ResolveScan(t.Context(), cap, q)
+				if resolveErr != nil || retired.Outcome.State != ResultRetired || retired.RunID != "" || len(retired.Members) != 0 || retired.Digest != (ResultDigest{}) {
+					t.Fatal("next original resolution did not remain retired", retired, resolveErr)
 				}
 			case "ambiguous":
 				if !errors.Is(err, ErrResolveRequired) || !w.effective.fenced || !fault.nativeClosed.Load() {

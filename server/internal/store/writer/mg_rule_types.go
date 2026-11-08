@@ -1,15 +1,15 @@
 package writer
 
+import "github.com/PorticoMediaServer/portico/server/internal/store/internal/mglimits"
+
 const (
 	MGSaveRule   CommandID = 824
 	MGDeleteRule CommandID = 825
 )
 
-// Today's DVR decoder accepts 384 KiB. Canonical RuleConfig permits 2,000
-// allowed plus 2,000 blocked 64-byte IDs and forty bounded keywords, including
-// JSON escaping. The transport bound covers that accepted range, not a new
-// 64 KiB restriction on the stored configuration.
-const mgRuleMaxConfigBytes = 384 << 10
+// Shared serialized-config validation ceiling; not a resource reservation.
+// Consumers reserve actual bytes, as counted by variableBytes below.
+const mgRuleMaxConfigBytes = mglimits.RuleConfigBytes
 
 func mgRuleDescriptors() []Descriptor {
 	return []Descriptor{{MGSaveRule, "mg.rule.save", Normal}, {MGDeleteRule, "mg.rule.delete", Normal}}

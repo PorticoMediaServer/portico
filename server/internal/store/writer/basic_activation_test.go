@@ -5,32 +5,45 @@ import (
 	"errors"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 func basicActivationFixture(t *testing.T) (*executor, basicActivationEffects) {
 	t.Helper()
-	w, in := basicOrdinaryInputAcceptFixture(t)
+	w, in := basicStreamFixture(t)
 	for _, q := range []string{
+		`INSERT INTO catalog_info_shapes(id,container,video_codec,height,ref_count) VALUES(61,'mkv','h264',1080,1)`,
+		`UPDATE catalog_assets SET container='mkv',video_codec='h264',height=1080,info_publication_pending=1 WHERE id=41`,
+		`UPDATE catalog_info_changes SET job_revision=13,target_shape_id=61,phase=3,copy_family=0,target_available=1,target_owner_object=NULL,target_owner_revision=NULL WHERE id=51`,
 		`INSERT INTO library_sources(id,library_id,configured_root,root,incarnation,root_identity) VALUES('basic-source','basic-library','/media','/media','basic-incarnation','native-root')`,
 		`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,revision,evidence_json,size,modified_ns) VALUES('basic-object','basic-source','basic-asset','basic-incarnation','Arrival.mkv','object:019','{"Path":"Arrival.mkv"}',42,-11)`,
-		`UPDATE catalog_assets SET info_publication_pending=1 WHERE id=41`,
-		`UPDATE catalog_info_changes SET phase=3,copy_family=0,target_available=1,target_owner_object=NULL,target_owner_revision=NULL WHERE id=51`,
 		`INSERT INTO asset_stream_facts VALUES('basic-asset',31,42,-11,'probe-fingerprint',1)`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	return w, basicActivationEffects{source: in.source, changeRevision: 13, familyMask: 7, shapeID: 61, invalidationRevision: 1, fileSizeRevision: 1}
+	return w, basicActivationEffects{source: in, changeRevision: 13, familyMask: 7, shapeID: 61, invalidationRevision: 1, fileSizeRevision: 1}
 }
 func basicActivationTestDefs() []stmt.Definition {
 	return append(basicStreamStageDefinitions(), basicActivationDefinitions()...)
 }
+
+// Synthetic test forecasts only; this does not qualify production hold budgets.
+func basicActivationTestTurn(t *testing.T, w *executor, defs []stmt.Definition) *commandTurn {
+	t.Helper()
+	turn := basicComponentTurn(t, w, defs)
+	for id, step := range turn.steps {
+		step.work.Hold = 25 * time.Microsecond
+		turn.steps[id] = step
+	}
+	return turn
+}
 func TestBasicActivationActualEpochIndependentOfChangeInput(t *testing.T) {
 	w, in := basicActivationFixture(t)
-	turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
+	turn := basicActivationTestTurn(t, w, basicActivationTestDefs())
 	got, err := activateBasicAsset(t.Context(), turn, in)
 	if err != nil || got != (basicActivatedAsset{41, 18, 14, 4, 1, sql.NullString{}, sql.NullString{}}) {
 		t.Fatal(got, err)
@@ -66,7 +79,7 @@ func TestBasicActivationRefusesIncompleteCopyAndProbeDrift(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
+			turn := basicActivationTestTurn(t, w, basicActivationTestDefs())
 			got, err := activateBasicAsset(t.Context(), turn, in)
 			if !errors.Is(err, ErrConflict) || got != (basicActivatedAsset{}) {
 				t.Fatal(got, err)
@@ -76,7 +89,7 @@ func TestBasicActivationRefusesIncompleteCopyAndProbeDrift(t *testing.T) {
 }
 func TestBasicActivationLateFailureRollsBackNativeEpoch(t *testing.T) {
 	w, in := basicActivationFixture(t)
-	turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
+	turn := basicActivationTestTurn(t, w, basicActivationTestDefs())
 	delete(turn.steps, basicActivationChangeCAS)
 	got, err := activateBasicAsset(t.Context(), turn, in)
 	if err == nil || got != (basicActivatedAsset{}) {
@@ -113,7 +126,7 @@ func TestBasicActivationPreservesNullableChoiceIndependently(t *testing.T) {
 				}
 				in.ownerObject, in.ownerRevision = sql.NullString{String: "retained-choice", Valid: true}, sql.NullString{String: "choice:777", Valid: true}
 			}
-			turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
+			turn := basicActivationTestTurn(t, w, basicActivationTestDefs())
 			got, err := activateBasicAsset(t.Context(), turn, in)
 			if choice {
 				var refusal *Refusal
@@ -155,7 +168,7 @@ func TestBasicActivationPreservesIndependentFences(t *testing.T) {
 			if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 				t.Fatal(err)
 			}
-			turn := basicBoundedComponentTurn(t, w, basicActivationTestDefs())
+			turn := basicActivationTestTurn(t, w, basicActivationTestDefs())
 			got, err := activateBasicAsset(t.Context(), turn, in)
 			if scenario == "preserved_max" {
 				if err != nil || got.infoEpoch != 18 {

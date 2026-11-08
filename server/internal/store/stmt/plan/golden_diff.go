@@ -40,12 +40,18 @@ func compareJSONForPlatform(expected, actual []byte, platform string) error {
 	if err := json.Compact(&got, actual); err != nil {
 		return fmt.Errorf("plan: invalid actual JSON: %w", err)
 	}
-	matched, err := compileOptionEquivalence(want.Bytes(), got.Bytes(), platform)
+	projectedWant, projectedGot, err := schemaComparisonForPlatform(want.Bytes(), got.Bytes(), platform)
+	if err != nil {
+		return fmt.Errorf("plan: schema evidence: %w", err)
+	}
+	matched, err := compileOptionEquivalence(projectedWant, projectedGot, platform)
 	if err != nil {
 		return fmt.Errorf("plan: compile-option profile: %w", err)
 	}
 	want.Reset()
 	want.Write(matched)
+	got.Reset()
+	got.Write(projectedGot)
 	if bytes.Equal(want.Bytes(), got.Bytes()) {
 		return nil
 	}
@@ -250,6 +256,11 @@ func differenceValues(want, got any) (string, string) {
 func CompareExactJSON(expected, actual []byte) error {
 	if len(expected) == 0 {
 		return fmt.Errorf("plan: missing reviewed golden")
+	}
+	if before, after, err := schemaComparison(expected, actual); err != nil {
+		return err
+	} else if !bytes.Equal(before, expected) || !bytes.Equal(after, actual) {
+		return CompareJSON(expected, actual)
 	}
 	if bytes.Equal(expected, actual) {
 		return nil

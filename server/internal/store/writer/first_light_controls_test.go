@@ -112,7 +112,7 @@ func TestFirstLightStreamRetainsCommittedErrorAndRejectsStub(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				fault := &faultConnector{Connector: connector, afterNativeCommit: func() { clock = clock.Add(30 * time.Millisecond) }}
+				fault := &faultConnector{Connector: connector, afterNativeCommit: func() { clock = clock.Add(MaxCommandSafetyHold + time.Millisecond) }}
 				installFaultPool(fixture.executor, fault)
 				primeEffectiveFixturePool(t, fixture.executor)
 			}

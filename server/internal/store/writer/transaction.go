@@ -19,7 +19,7 @@ var (
 	ErrBusy            = errors.New("writer custody unavailable")
 	ErrClosed          = errors.New("writer closed")
 	ErrResolveRequired = errors.New("writer commit requires durable resolution")
-	ErrOverrun         = errors.New("writer complete hold exceeded admitted limit")
+	ErrOverrun         = errors.New("writer runtime safety hold ceiling exceeded")
 )
 
 // ResultState is the domain receipt vocabulary. A transaction commit by itself
@@ -54,18 +54,19 @@ type turnRecipe struct {
 // transaction is exported. Closed domain adapters and HN statements will use
 // this frame after INT's exact receipt DDL and R controls land.
 type executor struct {
-	mu               sync.Mutex
-	db               *sql.DB
-	config           sqliteconn.Config
-	now              func() time.Time
-	closed           bool
-	ambiguous        bool
-	fenced           bool
-	physicalFaults   *physicalCloseFaults
-	driverPanics     *driverPanicLog
-	fileBinding      *scanFileBinding // nil for existing harness frames
-	ownerObservation atomic.Pointer[ownerWindowObservation]
-	keeper           atomic.Pointer[governor.CheckpointWriterService]
+	mu                 sync.Mutex
+	db                 *sql.DB
+	config             sqliteconn.Config
+	now                func() time.Time
+	closed             bool
+	ambiguous          bool
+	fenced             bool
+	physicalFaults     *physicalCloseFaults
+	driverPanics       *driverPanicLog
+	fileBinding        *scanFileBinding // nil for existing harness frames
+	ownerObservation   atomic.Pointer[ownerWindowObservation]
+	holdTargetOverruns atomic.Uint64 // bounded telemetry; never admission or authority
+	keeper             atomic.Pointer[governor.CheckpointWriterService]
 }
 
 // These are the bundled driver's contextual interfaces. Interposing only Close
@@ -332,7 +333,11 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 	if err != nil {
 		return nil, err
 	}
-	turnCtx, cancel := context.WithDeadline(ctx, start.Add(r.limit.Hold))
+	deadline := start.Add(MaxCommandSafetyHold)
+	if governed, ok := c.(*governedTurn); ok && governed.expected.Deadline.Before(deadline) {
+		deadline = governed.expected.Deadline
+	}
+	turnCtx, cancel := context.WithDeadline(ctx, deadline)
 	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, clockHighWater: clockHighWater, compositionClock: compositionClock, limit: r.limit.Hold, workLimit: r.limit, descriptor: desc, ownerWindow: window}
 	now := w.now()
 	if err = t.observeTime(now); err != nil {
@@ -364,6 +369,9 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		t.settings, err = sqliteconn.Assert(turnCtx, conn, cfg)
 		t.policyVerified = err == nil
 	}
+	if governed, ok := c.(*governedTurn); err == nil && ok && governed.inventoryEngine != (sqliteconn.EngineIdentity{}) {
+		t.engineIdentity, err = attestInventoryDriverEngine(turnCtx, t, governed.inventoryEngine)
+	}
 	if err == nil {
 		err = c.check(id, r.limit)
 	}
@@ -392,6 +400,7 @@ type transaction struct {
 	quantum        *Quantum
 	descriptor     Descriptor
 	settings       sqliteconn.Settings
+	engineIdentity sqliteconn.EngineIdentity // same acquired native connection, before BEGIN
 	policyVerified bool
 	start          time.Time
 	clockHighWater time.Time // same turn: setup, helper reads and statement/terminal admission
@@ -500,7 +509,7 @@ const (
 )
 
 // turnResult reports physical transaction custody only, never an invented
-// Applied receipt. A committed overrun stays committed and fences the driver;
+// Applied receipt. A committed safety overrun stays committed and fences the driver;
 // retrying its effects would be wrong even when an error accompanies it.
 type turnResult struct {
 	state    commitState
@@ -614,7 +623,7 @@ func (t *transaction) rollbackOwned(cause error) (turnResult, error) {
 	if t.begun {
 		// Producer cancellation must not suppress rollback. Native return/close,
 		// not context expiry, is the physical retirement boundary.
-		cleanup, cancel := context.WithTimeout(context.Background(), MaxCommandHold)
+		cleanup, cancel := context.WithTimeout(context.Background(), MaxCommandSafetyHold)
 		defer cancel()
 		t.rollbackStartedAt = time.Now()
 		_, err := t.conn.ExecContext(cleanup, "ROLLBACK")
@@ -767,7 +776,7 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		return nil
 	}
 	add(t.cleanupCall("hold clock", measure))
-	overrun := t.limit > 0 && (t.result.hold > t.limit || t.result.hold < 0)
+	overrun := t.limit > 0 && (t.result.hold > MaxCommandSafetyHold || t.result.hold < 0)
 	if overrun {
 		t.finishErr = errors.Join(t.finishErr, ErrOverrun)
 	}
@@ -790,7 +799,7 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		add(err)
 	}
 	add(t.cleanupCall("complete hold clock", measure))
-	if t.limit > 0 && (t.result.hold > t.limit || t.result.hold < 0) {
+	if t.limit > 0 && (t.result.hold > MaxCommandSafetyHold || t.result.hold < 0) {
 		mustFence = true
 		t.finishErr = errors.Join(t.finishErr, ErrOverrun)
 	}
@@ -802,7 +811,7 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		add(t.closePool())
 	}
 	add(t.cleanupCall("final hold clock", measure))
-	if t.limit > 0 && (t.result.hold > t.limit || t.result.hold < 0) {
+	if t.limit > 0 && (t.result.hold > MaxCommandSafetyHold || t.result.hold < 0) {
 		mustFence = true
 		t.finishErr = errors.Join(t.finishErr, ErrOverrun)
 	}
@@ -814,6 +823,9 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		add(t.cleanupCall("quarantined hold clock", measure))
 	}
 	w.fenced = mustFence || failed || !t.retirementComplete || !t.connectionReturned
+	if t.limit > 0 && t.result.hold > t.limit {
+		w.holdTargetOverruns.Add(1)
+	}
 	t.cleanupComplete = true
 	if t.primaryPanic == nil && len(t.cleanupPanics) != 0 {
 		panic(t.cleanupPanics[0].value)

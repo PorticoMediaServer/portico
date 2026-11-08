@@ -26,22 +26,24 @@ const (
 	scanIssuerN1History
 	scanIssuerN1Recover
 	scanIssuerN1Apply
+	scanIssuerBasicSource // read-only issuer snapshot; issues no domain effect
 )
 
 type scanIssuerInvocation struct {
-	lease     *ScanRunLease
-	driver    *ScanDriver
-	action    scanIssuerAction
-	sourceID  string
-	create    *inventoryCreateCommand
-	claim     *inventoryClaimCommand
-	birth     *scanBirth
-	work      *scanDriverWork
-	deadline  time.Time // ORIGINAL already-funded preparation deadline
-	retained  *scanPreparation
-	frame     *transaction
-	claimMode scanRunClaimMode
-	expiresMS int64
+	lease        *ScanRunLease
+	driver       *ScanDriver
+	action       scanIssuerAction
+	sourceID     string
+	create       *inventoryCreateCommand
+	claim        *inventoryClaimCommand
+	birth        *scanBirth
+	work         *scanDriverWork
+	deadline     time.Time // ORIGINAL already-funded preparation deadline
+	retained     *scanPreparation
+	frame        *transaction
+	claimMode    scanRunClaimMode
+	expiresMS    int64
+	basicPurpose CommandID // exact target of the retained non-writer holding
 }
 
 func validateScanIssuerInvocation(r *effectiveRuntime, w *Writer, in *inventoryInvocation) error {
@@ -55,6 +57,9 @@ func validateScanIssuerInvocation(r *effectiveRuntime, w *Writer, in *inventoryI
 	}
 	if err := d.current(); err != nil {
 		return errors.Join(ErrDisclosureDenied, err)
+	}
+	if v.action != scanIssuerBasicSource && v.basicPurpose != 0 {
+		return ErrInvalid
 	}
 	if isScanInventoryHistory(v.action) {
 		if in.lifecycle != 0 || (in.input != nil && v.action != scanIssuerN1Apply) || v.create != nil || v.claim != nil || v.lease != nil || (v.work != nil && v.action != scanIssuerN1Apply) {
@@ -89,6 +94,13 @@ func validateScanIssuerInvocation(r *effectiveRuntime, w *Writer, in *inventoryI
 	case scanIssuerRecover:
 		if v.create != nil || v.claim != nil || v.work != nil || v.retained != nil {
 			return ErrInvalid
+		}
+	case scanIssuerBasicSource:
+		if in.lifecycle != InventoryClaim || !basicSourcePreparationPurpose(v.basicPurpose) || v.sourceID != "" || v.create != nil || v.claim != nil || v.birth != nil || v.work != nil || v.retained != nil {
+			return ErrInvalid
+		}
+		if v.lease == nil || v.lease.self != v.lease || v.lease.driver != d || d.lease != v.lease || v.lease.revoked.Load() {
+			return ErrDisclosureDenied
 		}
 	case scanIssuerInventory:
 		if v.lease == nil || v.lease.self != v.lease || v.lease.driver != d || d.lease != v.lease || v.lease.revoked.Load() {
@@ -179,6 +191,12 @@ func runScanIssuerTurn(ctx context.Context, turn *commandTurn, in *inventoryInvo
 	}
 	if v.action == scanIssuerInventory {
 		return runInventoryPreparationTurn(ctx, turn, in)
+	}
+	if v.action == scanIssuerBasicSource {
+		if ack {
+			return out, false, ErrInvalid
+		}
+		return runBasicSourcePreparationTurn(ctx, turn, in)
 	}
 	if err = turn.requireScanLifecycleMemory(ctx, scanLifecycleHistoryBytes); err != nil {
 		return out, false, err

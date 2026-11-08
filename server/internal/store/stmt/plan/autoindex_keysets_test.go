@@ -102,6 +102,7 @@ func policyKeysetDefinition(next bool) stmt.Definition {
 
 func TestPlanAutoindexPolicyChildKeysetGolden(t *testing.T) {
 	type snapshot struct {
+		Environment                *plan.Environment `json:"environment,omitempty"`
 		Fixture                    plan.Fixture
 		Connection                 sqliteconn.Settings
 		Schema, Policy, Statistics string
@@ -146,7 +147,7 @@ func TestPlanAutoindexPolicyChildKeysetGolden(t *testing.T) {
 				t.Fatal(ordinal, want)
 			}
 		}
-		snapshots = append(snapshots, snapshot{f, g.Environment.Connection, g.Environment.SchemaSHA256, g.Environment.IndexPolicySHA256, g.Environment.StatisticsSHA256, g.Manifest, g.Plans})
+		snapshots = append(snapshots, snapshot{&g.Environment, f, g.Environment.Connection, g.Environment.SchemaSHA256, g.Environment.IndexPolicySHA256, g.Environment.StatisticsSHA256, g.Manifest, g.Plans})
 	}
 	data, err := json.MarshalIndent(snapshots, "", "  ")
 	if err != nil {
@@ -408,6 +409,7 @@ func TestPlanAutoindexLimitBindingRefusesUnboundedExecution(t *testing.T) {
 
 func TestPlanAutoindexInclusiveChannelKeysetsGolden(t *testing.T) {
 	type snapshot struct {
+		Environment                *plan.Environment `json:"environment,omitempty"`
 		Fixture                    plan.Fixture
 		Connection                 sqliteconn.Settings
 		Schema, Policy, Statistics string
@@ -503,7 +505,7 @@ func TestPlanAutoindexInclusiveChannelKeysetsGolden(t *testing.T) {
 		if denied, err := plan.Capture(t.Context(), conn, catalogue, f, policy); err == nil || denied.Receipt() != nil || !strings.Contains(err.Error(), "leading key prefix") {
 			t.Fatal("two inclusive ranges qualified or failed before the range guard", err)
 		}
-		snapshots = append(snapshots, snapshot{f, g.Environment.Connection, g.Environment.SchemaSHA256, g.Environment.IndexPolicySHA256, g.Environment.StatisticsSHA256, g.Manifest, g.Plans})
+		snapshots = append(snapshots, snapshot{&g.Environment, f, g.Environment.Connection, g.Environment.SchemaSHA256, g.Environment.IndexPolicySHA256, g.Environment.StatisticsSHA256, g.Manifest, g.Plans})
 	}
 	data, err := json.MarshalIndent(snapshots, "", "  ")
 	if err != nil {

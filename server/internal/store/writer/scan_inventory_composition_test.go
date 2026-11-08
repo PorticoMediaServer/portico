@@ -12,6 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/storage/objectidentity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -65,6 +66,10 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 		t.Fatal(err)
 	}
 	golden := captureEffectiveFixture(t, conn, cp.w.config, defs, "scan_inventory_composition_test.go", "scan_run_lifecycle_test.go")
+	engine, err := sqliteconn.AttestEngine(t.Context(), conn)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err = conn.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -96,6 +101,7 @@ func n1ComposedDriverFixture(t *testing.T) (*ScanDriver, *scanObservationFaultTr
 			p.scanLifecycleMemory = commandMemoryBudget{4 << 20, 4 << 20}
 		}
 		if len(defs) == len(inventoryDriverCommandDefinitions()) {
+			p.inventoryEngine = engine
 			unit := Work{16, 2000, 16, 65536, 100 * time.Microsecond}
 			// Derive the synthetic record envelope from the UNCHANGED unit's
 			// page/WAL funds, rather than claiming 64KiB fits 16 physical pages.

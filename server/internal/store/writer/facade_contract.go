@@ -147,6 +147,10 @@ type WALObservation struct {
 // Policy is actual asserted native settings. WAL samples retain their actual
 // observation time/token, not a fictional transaction-boundary observation.
 type ExecutionEvidence struct {
+	// Target is the admitted forecast; exceeding it is evidence only. Safety
+	// is an independent runtime ceiling, still capped by original deadlines.
+	HoldTarget, HoldSafetyCeiling       time.Duration
+	HoldTargetExceeded                  bool
 	Purpose                             CommandID
 	Class                               governor.Class
 	Durability                          Durability

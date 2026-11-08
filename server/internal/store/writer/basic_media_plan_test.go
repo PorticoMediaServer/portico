@@ -185,7 +185,7 @@ func TestBasicMediaStatementPlans(t *testing.T) {
 			}
 			g.ForeignKeys = &fk
 		}
-		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 686 {
+		if len(g.Manifest) != len(group) || len(g.Plans) != len(group) || g.ForeignKeys == nil || plan.CheckSchemaForeignKeys(g.ForeignKeys) != nil {
 			t.Fatal("incomplete Basic statement/destination/FK audit")
 		}
 		for _, p := range g.Plans {
@@ -260,7 +260,7 @@ func TestBasicMediaStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("16IDs/16cohorts/two actual component populations/%dVM/%dSEARCH/8INSERT/686FK2058probes; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
+	t.Logf("16IDs/16cohorts/two actual component populations/%dVM/%dSEARCH/8INSERT/shared-schema FK audit; seed journal%s; no Basic admission/authority/HOLD qualification", vm, search, journal)
 }
 
 // Exact normalized values from the owner's two native stage/seal controls.

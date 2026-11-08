@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -26,7 +27,7 @@ func basicProbeTestDefinitions() []stmt.Definition {
 }
 func TestBasicProbeReplacesSixScalarsAndCapturesOld(t *testing.T) {
 	w, in := basicProbeFixture(t)
-	turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
+	turn := basicProbeTestTurn(t, w, basicProbeTestDefinitions())
 	got, err := applyBasicProbeScalars(t.Context(), turn, in)
 	if err != nil || got != (basicProbeProgress{6, 102, 104}) {
 		t.Fatal(got, err)
@@ -57,7 +58,7 @@ func TestBasicProbeNoopAndPreservedMaximumCounters(t *testing.T) {
 			if same {
 				in.after = in.before
 			}
-			turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
+			turn := basicProbeTestTurn(t, w, basicProbeTestDefinitions())
 			got, err := applyBasicProbeScalars(t.Context(), turn, in)
 			if err != nil || got.playbackRevision != math.MaxInt64 || got.preparedRevision != math.MaxInt64 || (same && got.changedFields != 0) || (!same && got.changedFields != 5) {
 				t.Fatal(got, err)
@@ -91,7 +92,7 @@ func TestBasicProbeInvalidAndStaleVectorsRefuse(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
+			turn := basicProbeTestTurn(t, w, basicProbeTestDefinitions())
 			got, err := applyBasicProbeScalars(t.Context(), turn, in)
 			if err == nil || got != (basicProbeProgress{}) {
 				t.Fatal("bad probe accepted", got, err)
@@ -107,7 +108,7 @@ func TestBasicProbeInvalidAndStaleVectorsRefuse(t *testing.T) {
 }
 func TestBasicProbeLateFailureRollsBackOldAndDebt(t *testing.T) {
 	w, in := basicProbeFixture(t)
-	turn := basicBoundedComponentTurn(t, w, basicProbeTestDefinitions())
+	turn := basicProbeTestTurn(t, w, basicProbeTestDefinitions())
 	delete(turn.steps, basicProbeAssetCAS)
 	got, err := applyBasicProbeScalars(t.Context(), turn, in)
 	if err == nil || got != (basicProbeProgress{}) {
@@ -129,4 +130,15 @@ func TestBasicProbeLateFailureRollsBackOldAndDebt(t *testing.T) {
 	if _, err = applyBasicProbeScalars(nil, nil, in); !errors.Is(err, ErrInvalid) {
 		t.Fatal(err)
 	}
+}
+
+// Synthetic test forecasts only; this does not qualify production hold budgets.
+func basicProbeTestTurn(t *testing.T, w *executor, defs []stmt.Definition) *commandTurn {
+	t.Helper()
+	turn := basicComponentTurn(t, w, defs)
+	for id, step := range turn.steps {
+		step.work.Hold = 25 * time.Microsecond
+		turn.steps[id] = step
+	}
+	return turn
 }

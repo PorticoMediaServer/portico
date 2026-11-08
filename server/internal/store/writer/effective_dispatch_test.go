@@ -20,9 +20,16 @@ import (
 
 // Protocol fixtures only: virtual time and deliberately synthetic complete
 // forecasts. This is NOT production source/seal proof or a latency profile.
-func effectiveFacadeFixture(t *testing.T) (*Writer, *EnrichmentDisclosure, *effectiveStageBeginCommand, *executor, *governor.Authority) {
+func effectiveFacadeFixture(t *testing.T, clock ...*time.Time) (*Writer, *EnrichmentDisclosure, *effectiveStageBeginCommand, *executor, *governor.Authority) {
 	t.Helper()
 	executor, _, input, identity := effectiveBeginWholeFixture(t)
+	if len(clock) > 1 || (len(clock) == 1 && clock[0] == nil) {
+		t.Fatal("invalid fixture clock")
+	}
+	if len(clock) == 1 {
+		*clock[0] = executor.now()
+		executor.now = func() time.Time { return *clock[0] }
+	}
 	command, err := newEffectiveStageBeginCommand(identity, input)
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +68,8 @@ func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effe
 	for i := range partitions {
 		partitions[i] = plan.need
 	}
+	// Capture the clock function: later cancellation instrumentation may read
+	// Authority.Usage, which must never run recursively under GV's mutex.
 	g, authority, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: executor.now, WAL: wal})
 	if err != nil {
 		t.Fatal(err)
@@ -416,7 +425,8 @@ func TestEffectiveFacadeMissingUnackedProofFailsClosed(t *testing.T) {
 }
 
 func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
-	w, cap, command, executor, authority := effectiveFacadeFixture(t)
+	var clock time.Time
+	w, cap, command, executor, authority := effectiveFacadeFixture(t, &clock)
 	seedEffectiveReceipt(t, executor, command)
 	path := w.effective.path
 	if err := executor.db.Close(); err != nil {
@@ -426,19 +436,19 @@ func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseNow := executor.now()
-	clock := baseNow
-	executor.now = func() time.Time { return clock }
+	baseNow := clock
 	fault := &faultConnector{Connector: connector, afterNativeCommit: func() { clock = baseNow.Add(30 * time.Millisecond) }}
 	installFaultPool(executor, fault)
 	primeEffectiveFixturePool(t, executor)
 	ack, err := w.AckEffective(t.Context(), cap, effectiveReference(command))
-	if !errors.Is(err, ErrOverrun) || !reflect.DeepEqual(ack, AckResult{}) {
-		t.Fatal("committed ACK became retryable failure", ack, err)
+	if err != nil || ack.AcknowledgedThrough != command.identity.Sequence || ack.Evidence == nil ||
+		!ack.Evidence.HoldTargetExceeded || ack.Evidence.HoldTarget <= 0 || ack.Evidence.HoldTarget > MaxCommandHold ||
+		ack.Evidence.HoldSafetyCeiling != MaxCommandSafetyHold {
+		t.Fatal("committed ACK above target became failure", ack, err)
 	}
 	var nativeFloor int64
-	// Quarantine closed the private pool; independently inspect actual native
-	// state with the shared policy opener. Zero output never proves rollback.
+	// Independently inspect actual native state with the shared policy opener;
+	// a target miss must neither erase the floor nor quarantine the pool.
 	db, _, openErr := sqliteconn.Open(t.Context(), path, executor.config)
 	if openErr != nil {
 		t.Fatal(openErr)
@@ -451,11 +461,12 @@ func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
 	if nativeFloor != command.identity.Sequence {
 		t.Fatal("committed floor was lost", nativeFloor)
 	}
-	if !executor.fenced || !w.effective.fenced || authority.Usage()[governor.Background] != (governor.Amounts{}) {
-		t.Fatal("overrun lost fence/physical return")
+	if executor.fenced || w.effective.fenced || executor.holdTargetOverruns.Load() != 1 || authority.Usage()[governor.Background] != (governor.Amounts{}) {
+		t.Fatal("over-target ACK fenced or lost counter/physical return")
 	}
-	if _, err := w.ResolveEffective(t.Context(), cap, effectiveReference(command)); !errors.Is(err, ErrClosed) {
-		t.Fatal("fenced facade admitted next call", err)
+	retired, err := w.ResolveEffective(t.Context(), cap, effectiveReference(command))
+	if err != nil || retired.Outcome.State != ResultRetired {
+		t.Fatal("next original resolution did not remain retired", retired, err)
 	}
 }
 

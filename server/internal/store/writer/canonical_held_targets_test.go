@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,6 +112,12 @@ type canonicalInternalRun func(*testing.T, context.Context, canonicalHeldConfig,
 
 func (canonicalInternalRun) isCanonicalClassRun() {}
 
+// This runner owns attachment at its actual child constructor, rather than
+// leaving a parent-t attachment unconsumed when setup is a contained subtest.
+type canonicalFixtureRun func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream) error
+
+func (canonicalFixtureRun) isCanonicalClassRun() {}
+
 type canonicalWCFactory func(*testing.T, context.Context, canonicalHeldConfig, *n1Stream, QualificationPopulationManifest) *CanonicalWCComponent
 
 func (canonicalWCFactory) isCanonicalClassRun() {}
@@ -141,8 +148,8 @@ func canonicalHeldClasses() []canonicalHeldClass {
 		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC progress; complete observed counters remain nullable"},
 		{name: "security", owner: "WC", kind: "normal_write", purpose: &security, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC FULL security; complete observed counters remain nullable"},
 		{name: "wc_reclaim", owner: "WC", kind: "normal_write", purpose: &reclaim, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC retained Progress receipt reclaim; not publisher reclaim"},
-		{name: "publisher_fragment", owner: "PB", kind: "normal_write", purpose: &fragment, reason: "canonical publisher fragment writer composition not attached"},
-		{name: "publisher_flip", owner: "PB", kind: "normal_write", purpose: &flip, reason: "canonical publisher head flip writer composition not attached"},
+		{name: "publisher_fragment", owner: "PB", kind: "normal_write", purpose: &fragment, run: canonicalFixtureRun(runCanonicalPublisher), reason: "PB fixture/loop attached; sustained keeper composition remains explicitly gated"},
+		{name: "publisher_flip", owner: "PB", kind: "normal_write", purpose: &flip, run: canonicalFixtureRun(runCanonicalPublisher), reason: "PB fixture/loop attached; sustained keeper composition remains explicitly gated"},
 		{name: "checkpoint", owner: "GV", kind: "maintenance", reason: "canonical governed checkpointer owner Action not attached; no normal-write budget"},
 		{name: "mp.queue_head", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged MediaReader/ConsumeForeground +canonical device-owned queue fixture not attached; never a writer HOLD/COMMIT"},
 		{name: "mp.session", owner: "P2-MP", kind: "foreground_read", reason: "required reviewed/merged SessionHead/ConsumeForeground +canonical session fixture not attached"},
@@ -215,7 +222,7 @@ func canonicalHeldStart(t *testing.T, class string) (canonicalHeldConfig, *n1Str
 	if cfg.Class != class {
 		t.Fatal("selected parent/class/config mismatch")
 	}
-	output, err := openFirstLightOutput(cfg.OutputPath)
+	output, streamOnly, err := openCanonicalHeldOutput(cfg.OutputPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +232,7 @@ func canonicalHeldStart(t *testing.T, class string) (canonicalHeldConfig, *n1Str
 			_ = output.Close()
 		}
 	}()
-	stream := &n1Stream{file: output, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "label": "CANONICAL PER-CLASS RAW TARGET", "qualification": false, "qualified_profile_ready": false, "run_id": cfg.RunID, "host_epoch": cfg.HostEpoch, "declared_source_commit": cfg.SourceCommit, "profile": cfg.Profile, "class": class, "process_epoch": fmt.Sprintf("%s/%d/%d", cfg.RunID, os.Getpid(), time.Now().UnixNano())}}
+	stream := &n1Stream{file: output, streamOnly: streamOnly, origin: time.Now(), base: map[string]any{"schema": canonicalHeldSchema, "label": "CANONICAL PER-CLASS RAW TARGET", "qualification": false, "qualified_profile_ready": false, "run_id": cfg.RunID, "host_epoch": cfg.HostEpoch, "declared_source_commit": cfg.SourceCommit, "profile": cfg.Profile, "class": class, "process_epoch": fmt.Sprintf("%s/%d/%d", cfg.RunID, os.Getpid(), time.Now().UnixNano())}}
 	definition, _ := canonicalHeldClassFor(class)
 	if err := emitCanonicalHeldPrefix(stream, cfg, definition); err != nil {
 		t.Fatal(err)
@@ -240,6 +247,12 @@ func canonicalHeldRun(t *testing.T, class string) {
 	t.Helper()
 	cfg, stream, definition := canonicalHeldStart(t, class)
 	defer stream.file.Close()
+	if run, ok := definition.run.(canonicalFixtureRun); ok {
+		if err := run(t, t.Context(), cfg, stream); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
 	run, ok := definition.run.(canonicalInternalRun)
 	if !ok {
 		t.Fatal("external WC parent required")
@@ -307,4 +320,34 @@ func TestCanonicalIAAudiobookBookRead(t *testing.T) {
 }
 func TestCanonicalIAAudiobookFileRead(t *testing.T) {
 	canonicalHeldRun(t, "IA-membership-audiobook-file")
+}
+
+// Only the opt-in canonical target can connect to the runner's external observer.
+// JSON encoding is unchanged; socket backpressure is outside physical HOLD.
+func openCanonicalHeldOutput(path string) (*os.File, bool, error) {
+	mode := os.Getenv("PORTICO_CANONICAL_HELD_STREAM")
+	if mode == "" {
+		f, err := openFirstLightOutput(path)
+		return f, false, err
+	}
+	if mode != "unix-gzip-v1" {
+		return nil, false, errors.New("unknown canonical stream transport")
+	}
+	c, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		return nil, false, err
+	}
+	if err := c.SetWriteBuffer(64 << 10); err != nil {
+		_ = c.Close()
+		return nil, false, err
+	}
+	f, fileErr := c.File()
+	closeErr := c.Close()
+	if fileErr != nil || closeErr != nil {
+		if f != nil {
+			_ = f.Close()
+		}
+		return nil, false, errors.Join(fileErr, closeErr)
+	}
+	return f, true, nil
 }

@@ -14,7 +14,14 @@ import (
 // witnesses; it supplies NO image entry, purpose resources or acceptance time.
 func searchFragmentStageFreshFacts(ctx context.Context, turn *commandTurn, want searchFragmentStageSnapshot) (out searchFragmentStageSnapshot, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if ctx == nil || turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != SearchFragmentStage {
+	return searchPublisherStageFacts(ctx, turn, SearchFragmentStage, want)
+}
+
+// Shared domain witness reads only. Each caller supplies a CLOSED matching
+// command purpose; no resource helper, clock, issuer or entry is borrowed.
+func searchPublisherStageFacts(ctx context.Context, turn *commandTurn, purpose CommandID, want searchFragmentStageSnapshot) (out searchFragmentStageSnapshot, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if ctx == nil || turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != purpose || (purpose != SearchFragmentStage && purpose != SearchHeadPublish) {
 		return out, ErrInvalid
 	}
 	defer turn.transaction.guardPanic()

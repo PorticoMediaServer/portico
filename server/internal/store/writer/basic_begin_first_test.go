@@ -42,13 +42,18 @@ func TestBasicBeginNonFirstHolderRefusesBeforeDebt(t *testing.T) {
 			case "shared":
 				seedBasicFirstOwnerEntity(t, w, 32, 0x52)
 			case "multiple_assets":
-				basicAcceptAddLinkedAsset(t, w, 42, 0)
+				for _, q := range []string{`INSERT INTO catalog_assets(id,token,library_id,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,info_epoch)
+VALUES(42,'basic-asset-42',7,'/media/Arrival-42.mkv',42,-11,'','','',0,0,0,17)`, `INSERT INTO catalog_asset_links(library_id,entity_id,asset_id) VALUES(7,31,42)`} {
+					if _, err := w.db.ExecContext(t.Context(), q); err != nil {
+						t.Fatal(err)
+					}
+				}
 			case "retired":
 				if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_entities SET retired=1 WHERE id=31`); err != nil {
 					t.Fatal(err)
 				}
 			}
-			turn := basicBoundedComponentTurn(t, w, basicBeginTestDefinitions())
+			turn := basicProbeTestTurn(t, w, basicBeginTestDefinitions())
 			var beforeChanges, beforeDebt int64
 			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes(),used_bytes FROM catalog_info_input_budget WHERE singleton=1`).Scan(&beforeChanges, &beforeDebt); err != nil {
 				t.Fatal(err)
