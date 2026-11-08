@@ -1,15 +1,12 @@
 package read
 
-// Show-workspace default resolution remains blocked on one exact source fact:
-// whether an owner show-settings row exists. Legacy readShowSettings inherits
-// library_preferences.episode_numbering only when catalog_show_settings has no
-// row; an explicitly saved all-false row suppresses that inheritance. The merged
-// schema has entity hide_seasons/absolute_numbering/newest_first defaults of0 and
-// show_settings_revision default1, with no presence/source discriminator. Library
-// preference_present/preference_episode_numbering IS representable, but does not
-// distinguish the two show states. A typed harness flag would invent provenance.
-// Owner decision: preserve an explicit show-settings presence fact, or approve
-// changed inheritance semantics. No DDL change is drafted/adopted by this helper.
+// Show-workspace default resolution now has its exact source fact:
+// catalog_entities.show_settings_present. Zero inherits the CURRENT library
+// episode numbering even above settings revision one; one is an explicit owner
+// save and suppresses inheritance even when every saved field is default.
+// Library preference_present/preference_episode_numbering remains a separate
+// source fact. RBTVSourceDefaults reads and fences both; a typed harness flag
+// would still invent provenance. No DDL change is drafted/adopted here.
 //
 // RBTVGroupExact is deliberately the separate explicit browse groupOrder
 // contract (browse_group_scope.go showEpisodeOrder), not workspace defaults,
