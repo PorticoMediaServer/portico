@@ -21,8 +21,8 @@ func enrichmentEffectiveSourceControlDefinitions() []stmt.Definition {
 	number := func(name string) stmt.Param { return stmt.Param{Name: name, Type: stmt.Integer} }
 	blob := func(name string) stmt.Param { return stmt.Param{Name: name, Type: stmt.Blob} }
 	defs := []stmt.Definition{
-		{ID: effectiveSourceBuildControl, SQL: `SELECT 1 FROM metadata_evidence_builds b INDEXED BY sqlite_autoindex_metadata_evidence_builds_1
-JOIN metadata_provider_operations o INDEXED BY sqlite_autoindex_metadata_provider_operations_1 ON o.id=b.owner_operation AND o.command_incarnation=b.owner_incarnation
+		{ID: effectiveSourceBuildControl, SQL: `SELECT 1 FROM metadata_evidence_builds AS b INDEXED BY sqlite_autoindex_metadata_evidence_builds_1
+JOIN metadata_provider_operations AS o INDEXED BY sqlite_autoindex_metadata_provider_operations_1 ON o.id=b.owner_operation AND o.command_incarnation=b.owner_incarnation
 WHERE b.id=? AND b.evidence_id=? AND b.generation=? AND b.owner_operation=? AND b.owner_incarnation=? AND b.owner_generation=?
 AND b.parent_build IS NULL AND b.cursor=? AND b.expected_rows=? AND b.materialized_rows=? AND b.content_revision=? AND b.materialized_digest=?
 AND o.proof_cleanup_phase IN('idle','source_members','source_header','receipts')`,
