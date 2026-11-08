@@ -71,6 +71,7 @@ type inventoryInvocation struct {
 	directory              CommandID
 	directoryInput         *scanDirectoryCommand
 	directoryTerminalInput *scanDirectoryTerminalCommand
+	basic                  *basicInvocation
 }
 
 func (r *effectiveRuntime) currentRunDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation) error {
