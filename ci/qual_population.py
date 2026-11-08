@@ -74,7 +74,7 @@ def require_content(manifest, *, schema):
     if type(manifest) is not dict or type(manifest.get('schema_sha256')) is not str:
         _refuse('population content record invalid: manifest/schema missing')
     image_schema = manifest['schema_sha256']
-    if not SHA.fullmatch(schema):
+    if not isinstance(schema, str) or not SHA.fullmatch(schema):
         _refuse('consumer schema SHA-256 invalid')
     if image_schema != schema:
         _refuse(f'population schema mismatch: image {image_schema} consumer {schema}')
