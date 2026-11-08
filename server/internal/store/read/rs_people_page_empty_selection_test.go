@@ -147,3 +147,31 @@ func TestRSPeoplePageLockedEmptyPortraitLIVE(t *testing.T) {
 	}
 	assertLiveUsage(t, f, 0, 0)
 }
+
+// Marking an existing source for retirement must not make its selected bytes
+// available to a newly prepared page; the digest still blocks matched fallback.
+func TestRSPeoplePagePortraitRetiringSourceStaysStale(t *testing.T) {
+	f, r := newRSPeoplePageFixture(t, false)
+	before := finishRSPage(t, f, r, beginRSPage(t, f, r, RSPersonPageInput{}))
+	if before.Portrait == nil {
+		t.Fatal("ready portrait control missing")
+	}
+	f.exec(t, `UPDATE artwork_sources SET retiring=1,retirement_token=zeroblob(16) WHERE digest=printf('%064d',1)`)
+	p := beginRSPage(t, f, r, RSPersonPageInput{})
+	var err error
+	var out RSPersonPage
+	for n := 0; n < 30; n++ {
+		out, _, err = r.page(t.Context(), foregroundRequest(), time.Second, f.output, p, f.input.Now)
+		if err != nil || out.Complete {
+			break
+		}
+	}
+	if !errors.Is(err, ErrStale) || !reflect.DeepEqual(out, RSPersonPage{}) {
+		t.Fatalf("retiring nonempty portrait escaped: %+v %v", out, err)
+	}
+	f.exec(t, `UPDATE artwork_sources SET retiring=0,retirement_token=NULL WHERE digest=printf('%064d',1)`)
+	after := finishRSPage(t, f, r, beginRSPage(t, f, r, RSPersonPageInput{}))
+	if after.Portrait == nil || !reflect.DeepEqual(before.Portrait, after.Portrait) {
+		t.Fatalf("ready portrait after exact reset: before=%+v after=%+v", before.Portrait, after.Portrait)
+	}
+}
