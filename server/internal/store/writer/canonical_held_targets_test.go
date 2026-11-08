@@ -152,7 +152,7 @@ func canonicalHeldClasses() []canonicalHeldClass {
 	return []canonicalHeldClass{
 		{name: "inventory_n1", owner: "SC/W", kind: "normal_write", purpose: &n1, run: canonicalInternalRun(runCanonicalHeldN1), reason: "timing cohort does not expose complete observed statement-byte totals; inspect nullable per-attempt profile facts"},
 		{name: "basic_accept", owner: "SC/W", kind: "normal_write", purpose: &basic, run: canonicalInternalRun(runCanonicalHeldBasic), reason: "prepared ordinary-leaf input; probe/Stage/copy clocks excluded and unqualified"},
-		{name: "staged_enrich", owner: "EN/W", kind: "normal_write", purpose: &enrich, reason: "canonical staged-enrich owner Action not attached"},
+		{name: "staged_enrich", owner: "EN/W", kind: "normal_write", purpose: &enrich, run: canonicalInternalRun(runCanonicalHeldStagedEnrich), reason: "prepared operation-owned source seal, hidden image and BEGIN receipt per original; final EnrichAccept measured; preparation excluded and unqualified"},
 		{name: "progress", owner: "WC", kind: "normal_write", purpose: &progress, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC progress; complete observed counters remain nullable"},
 		{name: "security", owner: "WC", kind: "normal_write", purpose: &security, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC FULL security; complete observed counters remain nullable"},
 		{name: "wc_reclaim", owner: "WC", kind: "normal_write", purpose: &reclaim, run: canonicalWCFactory(newCanonicalWCComponent), reason: "source-bound WC retained Progress receipt reclaim; not publisher reclaim"},
