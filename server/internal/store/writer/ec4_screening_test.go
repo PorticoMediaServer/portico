@@ -48,6 +48,7 @@ type ec4ScreenReport struct {
 	FirstFilenameVisibleNS, AllFilenameVisibleNS, FirstBasicNS, AllBasicNS                    *int64
 	CheckpointOverlappingCommands, AcceptOver25MS, AcceptOverlapOver25MS                      int
 	AcceptMaxNS, AcceptMaxOverlapNS, CheckpointMaxNativeNS, CheckpointMaxCallNS               int64
+	DispatcherRecoveries                                                                      int
 	Fixture                                                                                   ec4ScreenFixture
 	NativeEOFObserved                                                                         bool
 	TraversalCommitted                                                                        bool
@@ -219,6 +220,17 @@ func ec4MapObserved(s InventoryPreparationSnapshot, page storage.NativeInventory
 	return in, nil
 }
 
+// ec4RecoveryGate refuses the screening start unless the trusted pressure
+// recovery hook is attached to the same funded keeper the writer uses.
+func ec4RecoveryGate(d *ScanDriver) error {
+	if d == nil || d.writer == nil || d.writer.effective == nil || d.writer.effective.executor == nil ||
+		d.writer.effective.maintenance == nil || d.writer.effective.maintenance.request.Key.ID == "" ||
+		d.writer.effective.maintenance.results == nil || d.writer.effective.executor.keeper.Load() == nil {
+		return errors.New("screening pressure recovery unavailable: funded keeper hook not attached")
+	}
+	return nil
+}
+
 const ec4CheckpointCadence = 50 * time.Millisecond
 
 // ec4ConcurrentCheckpoints runs the SAME owned keeper PASSIVE turn on its own
@@ -233,6 +245,7 @@ type ec4ConcurrentCheckpoints struct {
 	wg       sync.WaitGroup
 	cp       *checkpointComponent
 	journal  *os.File
+	records  <-chan checkpointMaintenanceRecord
 	progress chan struct{}
 	stepMu   sync.Mutex
 	ticks    atomic.Int64
@@ -240,6 +253,7 @@ type ec4ConcurrentCheckpoints struct {
 	mu            sync.Mutex
 	checkpoints   int
 	recoveries    int
+	dispatcherRec int
 	totalNS       int64
 	nativeMax     int64
 	callMax       int64
@@ -251,9 +265,9 @@ type ec4ConcurrentCheckpoints struct {
 	err           error
 }
 
-func newEC4ConcurrentCheckpoints(ctx context.Context, cp *checkpointComponent, journal *os.File) *ec4ConcurrentCheckpoints {
+func newEC4ConcurrentCheckpoints(ctx context.Context, cp *checkpointComponent, journal *os.File, records <-chan checkpointMaintenanceRecord) *ec4ConcurrentCheckpoints {
 	c, cancel := context.WithCancel(ctx)
-	return &ec4ConcurrentCheckpoints{ctx: c, cancel: cancel, cp: cp, journal: journal, progress: make(chan struct{}, 1)}
+	return &ec4ConcurrentCheckpoints{ctx: c, cancel: cancel, cp: cp, journal: journal, records: records, progress: make(chan struct{}, 1)}
 }
 
 func (c *ec4ConcurrentCheckpoints) start() {
@@ -281,6 +295,41 @@ func (c *ec4ConcurrentCheckpoints) start() {
 			timer.Reset(ec4CheckpointCadence)
 		}
 	}()
+	// The writer's trusted pressure-recovery hook publishes on a bounded channel;
+	// drain it continuously so recovery is never refused for capacity and the
+	// observation is retained in the maintenance journal.
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		for {
+			select {
+			case <-c.ctx.Done():
+				for {
+					select {
+					case record := <-c.records:
+						c.recordRecovery(record)
+					default:
+						return
+					}
+				}
+			case record := <-c.records:
+				c.recordRecovery(record)
+			}
+		}
+	}()
+}
+
+func (c *ec4ConcurrentCheckpoints) recordRecovery(record checkpointMaintenanceRecord) {
+	if err := ec4Journal(c.journal, map[string]any{"phase": "dispatcher_recovery", "recovery": record.Result.Recovery, "result": record.Result, "error": record.Error, "deferral": record.Deferral}); err != nil {
+		c.mu.Lock()
+		if c.err == nil {
+			c.err = err
+		}
+		c.mu.Unlock()
+	}
+	c.mu.Lock()
+	c.dispatcherRec++
+	c.mu.Unlock()
 }
 
 // stop cancels any in-flight PASSIVE turn and joins the one owned goroutine.
@@ -329,6 +378,7 @@ func (c *ec4ConcurrentCheckpoints) report(r ec4ScreenReport) ec4ScreenReport {
 	r.AcceptOverlapOver25MS = c.overlapOver25
 	r.CheckpointMaxNativeNS = c.nativeMax
 	r.CheckpointMaxCallNS = c.callMax
+	r.DispatcherRecoveries = c.dispatcherRec
 	return r
 }
 
@@ -445,6 +495,14 @@ func TestEC4NativeScreening(t *testing.T) {
 	r.Fixture, r.GenerationNS = fixture, time.Since(started).Nanoseconds()
 	r.Phase = "composition"
 	d, _, cp := n1ComposedDriverFixtureState(t, n1EC4ScreeningFixture)
+	// #1620's pressure recovery only runs when trusted composition attaches the
+	// SAME funded keeper's request/results hook (the WC and publisher targets do
+	// this); without it a steady scan refuses on observed WAL pressure forever.
+	recoveryRecords := make(chan checkpointMaintenanceRecord, 256)
+	d.writer.effective.maintenance = &checkpointMaintenance{request: cp.cpRequest(), results: recoveryRecords}
+	if e := ec4RecoveryGate(d); e != nil {
+		t.Fatal(e)
+	}
 	binary, e := os.Executable()
 	if e != nil {
 		t.Fatal(e)
@@ -480,7 +538,7 @@ func TestEC4NativeScreening(t *testing.T) {
 	origin := time.Now()
 	// The owned keeper PASSIVE turn runs on its own goroutine, concurrent with
 	// the writer like production; the scan loop never steps checkpoints inline.
-	checkpoints = newEC4ConcurrentCheckpoints(t.Context(), cp, maintenanceJournal)
+	checkpoints = newEC4ConcurrentCheckpoints(t.Context(), cp, maintenanceJournal, recoveryRecords)
 	run := func() error {
 		create, e := d.PrepareCreate(t.Context(), ScanRunInput{7, "lifecycle-library", "lifecycle-new-source", "first-import"})
 		if e != nil {
