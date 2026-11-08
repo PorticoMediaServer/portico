@@ -20,6 +20,7 @@ func TestBasicDriverWorkIndependentGrantGuards(t *testing.T) {
 			switch guard {
 			case "writer":
 				p.expected.Writer = true
+				p.expected.Need[governor.WALBytes] = 65536
 			case "class":
 				p.expected.Class = governor.Foreground
 			case "reverse_mode":
