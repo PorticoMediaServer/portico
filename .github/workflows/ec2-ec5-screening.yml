@@ -77,7 +77,7 @@ jobs:
           import json, os, re, sys
           profile = sys.argv[1]
           cells = [c for c in os.environ["CELLS"].split(",") if c]
-          known = ("ec2", "ec3-read", "ec3-write", "ec5-paired", "ec5-sustained")
+          known = ("ec2", "ec3-read", "ec3-write", "ec5-paired", "ec5-sustained", "ec1-rare")
           if not cells or any(c not in known for c in cells):
               raise SystemExit("closed cell list required")
           if not re.fullmatch(r"[1-6]", os.environ["REPLICATES"]):
@@ -262,6 +262,14 @@ jobs:
               ( cd source/server/internal/store/writer && "$RUNNER_TEMP/writer.test" "${ARGS[@]}" ) > "$OUTPUT/target.log" 2>&1
               code=$?
               set -e
+              echo "$code" > "$OUTPUT/target-exit-code.txt"
+              ;;
+            ec1-rare)
+              mkdir -p "$OUTPUT/evidence"
+              PORTICO_LANE_EVIDENCE_DIR="$OUTPUT/evidence" PORTICO_EC1_RARE_ERRORS=1 PORTICO_EC1_RARE_ITERATIONS=10000 \
+                "$RUNNER_TEMP/writer.test" -test.run=^TestEC1RareErrorPaths$ -test.count=1 -test.v -test.timeout=30m \
+                > "$OUTPUT/target.log" 2>&1
+              code=$?
               echo "$code" > "$OUTPUT/target-exit-code.txt"
               ;;
             ec5-paired|ec5-sustained)
