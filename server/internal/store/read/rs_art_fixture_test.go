@@ -41,6 +41,8 @@ func newRSArtSource(t *testing.T) *browseFixture {
 	rsArtSelect(t, f, 1107, "cover", "matched", 9)
 	rsArtSelect(t, f, 1108, "cover", "matched", 10)
 	rsArtSelect(t, f, 1110, "poster", "matched", 11)
+	// An explicit locked-empty point gives the NULL-digest witness its own row.
+	rsArtSelectEmpty(t, f, 1109, "banner")
 	f.exec(t, `INSERT INTO library_sources(id,library_id,configured_root,root,incarnation) VALUES('art-source','movies','/media','/media','root-a')`)
 	f.exec(t, `INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,revision,evidence_json,size,modified_ns) VALUES('art-object','art-source','asset','root-a','cover.jpg','r1','{}',1000,1)`)
 	f.exec(t, `UPDATE artwork_selections SET source_object_id='art-object',source_object_revision='r1' WHERE entity_id=1103 AND choice='matched'`)

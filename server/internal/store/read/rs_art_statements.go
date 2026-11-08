@@ -13,7 +13,7 @@ LEFT JOIN catalog_entities AS se NOT INDEXED ON se.id=e.season_id AND se.library
 LEFT JOIN catalog_entities AS al NOT INDEXED ON al.id=e.album_id AND al.library_id=e.library_id AND al.kind=? AND al.retired=0
 LEFT JOIN catalog_entities AS bk NOT INDEXED ON bk.id=e.book_id AND bk.library_id=e.library_id AND bk.kind=? AND bk.retired=0
 WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`
-const rsArtPointSQL = `SELECT a.entity_id,own.kind,a.role,a.choice,a.digest,own.public_id,a.revision,sb.digest,sb.mime,sb.width,sb.height,sb.bytes,lb.digest,lb.mime,lb.width,lb.height,lb.bytes,sb.status,lb.status,a.source_fence,a.source_object_id,a.source_object_revision,o.id,o.revision,o.retired,o.root_incarnation,ls.incarnation,ls.library_id,cl.library_id,asset.available,asset.size,asset.modified_ns,o.size,o.modified_ns
+const rsArtPointSQL = `SELECT a.entity_id,own.kind,a.role,a.choice,a.digest,own.public_id,a.revision,sb.digest,sb.mime,sb.width,sb.height,sb.bytes,lb.digest,lb.mime,lb.width,lb.height,lb.bytes,sb.status,lb.status,a.source_fence,a.source_object_id,a.source_object_revision,o.id,o.revision,o.retired,o.root_incarnation,ls.incarnation,ls.library_id,cl.library_id,asset.available,asset.size,asset.modified_ns,o.size,o.modified_ns,s.retiring
 FROM artwork_selections AS a NOT INDEXED
 LEFT JOIN catalog_entities AS own NOT INDEXED ON own.id=a.entity_id
 LEFT JOIN catalog_libraries AS cl NOT INDEXED ON cl.id=own.library_id
@@ -53,6 +53,14 @@ CROSS JOIN library_sources AS ls INDEXED BY sqlite_autoindex_library_sources_1 O
 CROSS JOIN catalog_assets AS asset INDEXED BY sqlite_autoindex_catalog_assets_1 ON asset.token=o.asset_id AND asset.library_id=own.library_id
 WHERE a.kind='entity' AND a.entity_id=? AND own.kind=? AND a.role=? AND a.choice=? AND a.digest=? AND own.public_id=? AND a.revision=? AND sb.digest=? AND sb.mime=? AND sb.width=? AND sb.height=? AND sb.bytes=? AND lb.digest=? AND lb.mime=? AND lb.width=? AND lb.height=? AND lb.bytes=? AND sb.status=? AND lb.status=? AND a.source_fence=? AND a.source_object_id=? AND a.source_object_revision=? AND o.id=? AND o.revision=? AND o.retired=? AND o.root_incarnation=? AND ls.incarnation=? AND ls.library_id=? AND cl.library_id=? AND asset.available=? AND asset.size=? AND asset.modified_ns=? AND o.size=? AND o.modified_ns=?`
 
+// An explicit locked choice without a digest is a first-class empty selection.
+// It has no artwork_sources row to join, so its exact final witness is the
+// WITHOUT ROWID selection key itself: NULL cannot evade source equality.
+const rsArtVerifyEmptySQL = `SELECT a.revision
+FROM artwork_selections AS a
+CROSS JOIN catalog_entities AS own NOT INDEXED ON own.id=a.entity_id
+WHERE a.kind='entity' AND a.entity_id=? AND own.kind=? AND a.role=? AND a.choice='locked' AND a.digest IS NULL AND own.public_id=? AND a.revision=? AND a.source_fence=? AND a.source_object_id IS NULL`
+
 var rsArtVariableColumns = []int{2, 3, 4, 5, 7, 8, 12, 13, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28}
 
 func init() {
@@ -64,7 +72,7 @@ func ArtworkDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	s := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	var out []stmt.Definition
-	for _, d := range []struct{ name, sql string }{{"source", rsArtSourceSQL}, {"point", rsArtPointSQL}, {"octets", rsArtOctetsSQL}, {"verify", rsArtVerifySQL}, {"verify_local", rsArtVerifyLocalSQL}} {
+	for _, d := range []struct{ name, sql string }{{"source", rsArtSourceSQL}, {"point", rsArtPointSQL}, {"octets", rsArtOctetsSQL}, {"verify", rsArtVerifySQL}, {"verify_local", rsArtVerifyLocalSQL}, {"verify_empty", rsArtVerifyEmptySQL}} {
 		params := []stmt.Param{i("owner"), s("role")}
 		present := []any{int64(1103), "poster"}
 		empty := []any{int64(999999), "poster"}
@@ -72,6 +80,11 @@ func ArtworkDefinitions() []stmt.Definition {
 			params = []stmt.Param{i("show_kind"), i("season_kind"), i("album_kind"), i("book_kind"), i("item"), i("library"), i("kind")}
 			present = rsArtSourceArgs(1104, 1, 4)
 			empty = rsArtSourceArgs(999999, 1, 4)
+		}
+		if d.name == "verify_empty" {
+			params = []stmt.Param{i("owner"), i("kind"), s("role"), {Name: "public_id", Type: stmt.Blob}, i("revision"), s("fence")}
+			present = []any{int64(1109), int64(9), "banner", []byte{128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9}, int64(1), "accepted-fence"}
+			empty = []any{int64(999999), int64(9), "banner", []byte{128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9}, int64(1), "accepted-fence"}
 		}
 		if d.name == "verify" || d.name == "verify_local" {
 			params = nil
@@ -139,6 +152,9 @@ func rsArtPlan(name string) stmt.Plan {
 		rsArtKey("artwork_sources", "sqlite_autoindex_artwork_sources_1", "pk", "digest"), rsArtKey("artwork_blobs", "sqlite_autoindex_artwork_blobs_1", "pk", "digest"), rsArtKey("inventory_objects", "sqlite_autoindex_inventory_objects_1", "pk", "id"), rsArtKey("library_sources", "sqlite_autoindex_library_sources_1", "pk", "id"), rsArtKey("catalog_assets", "sqlite_autoindex_catalog_assets_1", "u", "token")}}
 	if name == "source" {
 		return stmt.Plan{Hot: true, PrimaryKeys: []string{"e", "sh", "se", "al", "bk"}}
+	}
+	if name == "verify_empty" {
+		return stmt.Plan{Hot: true, PrimaryKeys: []string{"a", "own"}}
 	}
 	if name == "verify" {
 		p.PrimaryKeys = []string{"a", "own"}
