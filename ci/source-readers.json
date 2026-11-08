@@ -386,7 +386,8 @@
         "TestNativeSearchRefusesCandidateBudgetMisuse",
         "TestNativeSearchRefusesUnsupportedAndStaleProofs",
         "TestNativeSearchRetainedLibrariesShareOneOperation",
-        "TestNativeSearchUsesCapturedDomainBytePairs"
+        "TestNativeSearchUsesCapturedDomainBytePairs",
+        "TestRSSearchPublishFreshFenceAndJoinedConsumer"
       ]
     },
     {
