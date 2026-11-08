@@ -38,6 +38,7 @@ type CanonicalWCComponent struct {
 	lineage                                     any
 	variants                                    map[string]int
 	purpose                                     CommandID
+	offers                                      *canonicalOfferSchedule
 }
 
 type CanonicalWCObservation struct {
@@ -104,6 +105,11 @@ func CanonicalWCFunctionalComponent(t *testing.T, class string) *CanonicalWCComp
 func newCanonicalWCFixtureComponent(t *testing.T, ctx context.Context, cfg canonicalHeldConfig, stream *n1Stream, manifest QualificationPopulationManifest, warmup int) *CanonicalWCComponent {
 	t.Helper()
 	c := &CanonicalWCComponent{Class: cfg.Class, Attempts: cfg.Attempts, Warmup: warmup, stream: stream, manifest: manifest, trace: newN1Trace(stream.origin, false), variants: map[string]int{}}
+	offers, scheduleErr := newCanonicalOfferSchedule(cfg.OfferedRate, nil, nil)
+	if scheduleErr != nil {
+		t.Fatal(scheduleErr)
+	}
+	c.offers = offers
 	t.Cleanup(func() {
 		if !c.closed {
 			if err := c.Finish(errors.New("parent exited before explicit joined finish")); err != nil && !t.Failed() {
@@ -150,6 +156,16 @@ func newCanonicalWCFixtureComponent(t *testing.T, ctx context.Context, cfg canon
 }
 func (c *CanonicalWCComponent) Recipe() string {
 	return "canonical-wc-" + c.Class + "-original-chain-v1"
+}
+
+// PaceOffer waits for the next original's OPEN-LOOP scheduled instant (no wait
+// when the offered rate is unlimited) and returns it for the Offer. Call it once
+// before each original, outside every command HOLD.
+func (c *CanonicalWCComponent) PaceOffer(ctx context.Context) (time.Time, error) {
+	if c.offers == nil {
+		return time.Now(), nil
+	}
+	return c.offers.wait(ctx)
 }
 func (c *CanonicalWCComponent) IsPending() bool       { return c.lastProgress.Pending }
 func (c *CanonicalWCComponent) ReportSequence() int64 { return c.lastProgress.LastAcceptedSequence + 1 }
@@ -356,7 +372,7 @@ func (c *CanonicalWCComponent) Finish(primary error) error {
 		joined = r.executor.closed && stats.InUse == 0 && stats.OpenConnections == 0 && !fault && c.trace.activeRows == 0 && u == ([4]governor.Amounts{})
 	}
 	complete := c.failed == nil && joined && c.measured == c.Attempts && c.warmup == c.Warmup && c.keeper != nil && !c.keeper.overflow && !c.trace.closeOverflow
-	c.failed = errors.Join(c.failed, c.stream.append("final", map[string]any{"complete": complete, "recipe": c.Recipe(), "measured_originals_complete": c.measured, "measured_originals_by_variant": c.variants, "warmup_originals_complete": c.warmup, "auxiliary_originals_complete": c.auxiliary, "all_offered_originals": c.offerOrdinal, "known_actual_physical_turns": c.trace.nativeBegins, "physical_attempt_ordinal_scope": "one actual W native BEGIN-attempt stream, includes fixture/auxiliary and failed attempts; no success renumbering", "native_closes": c.trace.closes[:c.trace.closeCount], "native_close_overflow": c.trace.closeOverflow, "authority_usage_after_close": usage, "native_joined": joined, "error": checkpointError(c.failed), "report": nil, "qualification": false, "qualified_profile_ready": false}))
+	c.failed = errors.Join(c.failed, c.stream.append("final", map[string]any{"complete": complete, "recipe": c.Recipe(), "measured_originals_complete": c.measured, "measured_originals_by_variant": c.variants, "warmup_originals_complete": c.warmup, "auxiliary_originals_complete": c.auxiliary, "all_offered_originals": c.offerOrdinal, "known_actual_physical_turns": c.trace.nativeBegins, "offered_rate": c.offerReport(), "physical_attempt_ordinal_scope": "one actual W native BEGIN-attempt stream, includes fixture/auxiliary and failed attempts; no success renumbering", "native_closes": c.trace.closes[:c.trace.closeCount], "native_close_overflow": c.trace.closeOverflow, "authority_usage_after_close": usage, "native_joined": joined, "error": checkpointError(c.failed), "report": nil, "qualification": false, "qualified_profile_ready": false}))
 	c.closed = true
 	c.failed = errors.Join(c.failed, c.stream.file.Close())
 	if !complete && c.failed == nil {
@@ -376,4 +392,11 @@ func (c *CanonicalWCComponent) observeLineage() {
 		}
 		c.lineage = map[string]any{"actual_capture_reference": reference, "playback_id": c.Progress.scope.playbackID, "command_incarnation": c.Progress.scope.incarnation, "clock": p.source.proof.clockIncarnation, "accepted_report_sequence": p.root.source.lastAcceptedSequence, "source_from_ms": p.root.source.fromMS, "source_until_ms": p.root.source.untilMS, "prepared_cursor_ms": p.source.cursorMS, "last_observed_progress_snapshot": c.lastProgress, "scope": "actual retained root at this offer; split/drain progress remains in raw before/result/after snapshots"}
 	}
+}
+
+func (c *CanonicalWCComponent) offerReport() any {
+	if c.offers == nil {
+		return nil
+	}
+	return c.offers.report()
 }
