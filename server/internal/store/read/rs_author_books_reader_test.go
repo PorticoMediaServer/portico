@@ -13,6 +13,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -68,6 +69,10 @@ func authorBookFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture
 	return f, r
 }
 func TestRSAuthorBookReaderLIVEAndMembership(t *testing.T) {
+	synctest.Test(t, rsAuthorBookReaderLIVEAndMembership)
+}
+
+func rsAuthorBookReaderLIVEAndMembership(t *testing.T) {
 	f, r := authorBookFixture(t)
 	v := f.input
 	v.Kind = 13
@@ -162,6 +167,10 @@ func TestRSAuthorBookReaderLifecycle(t *testing.T) {
 }
 
 func TestRSAuthorBookReaderFenceAndCursorControls(t *testing.T) {
+	synctest.Test(t, rsAuthorBookReaderFenceAndCursorControls)
+}
+
+func rsAuthorBookReaderFenceAndCursorControls(t *testing.T) {
 	for _, mode := range []string{"source", "authority", "limit", "artist", "LIVE", "capacity"} {
 		t.Run(mode, func(t *testing.T) {
 			f, r := authorBookFixture(t)
@@ -259,6 +268,10 @@ func TestRSAuthorBookReaderAbsoluteExpiry(t *testing.T) {
 }
 
 func TestRSAuthorBookReaderPostEncodingFence(t *testing.T) {
+	synctest.Test(t, rsAuthorBookReaderPostEncodingFence)
+}
+
+func rsAuthorBookReaderPostEncodingFence(t *testing.T) {
 	f, r := authorBookFixture(t)
 	v := f.input
 	v.Kind = 13
@@ -292,6 +305,10 @@ func TestRSAuthorBookReaderPostEncodingFence(t *testing.T) {
 }
 
 func TestRSAuthorBookReaderCrossPage(t *testing.T) {
+	synctest.Test(t, rsAuthorBookReaderCrossPage)
+}
+
+func rsAuthorBookReaderCrossPage(t *testing.T) {
 	f, r := authorBookFixture(t)
 	v := f.input
 	v.Kind = 13
@@ -339,6 +356,10 @@ func TestRSAuthorBookReaderCrossPage(t *testing.T) {
 }
 
 func TestRSAuthorBookReaderRestrictedFiles(t *testing.T) {
+	synctest.Test(t, rsAuthorBookReaderRestrictedFiles)
+}
+
+func rsAuthorBookReaderRestrictedFiles(t *testing.T) {
 	f, r := authorBookFixture(t)
 	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,1) ON CONFLICT(profile_id) DO UPDATE SET maximum_age=12,allow_unrated=1`)
 	v := f.input
