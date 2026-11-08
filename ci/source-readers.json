@@ -407,6 +407,13 @@
       ],
       "files": ["server/internal/store/writer/us_member_profile_image_test.go"],
       "tests": ["TestUSMemberProfileSourceShape"]
+    },
+    {
+      "package": "server/internal/store/writer",
+      "why": "The native DirectSnapshot image parity check parses the live identity declarations, so an added, removed, reordered or retyped public DTO field fails the writer image",
+      "reads": ["server/internal/identity/direct_accounts.go", "server/internal/identity/direct_profiles.go", "server/internal/identity/sign_in_kind.go"],
+      "files": ["server/internal/store/writer/us_direct_snapshot_image_test.go"],
+      "tests": ["TestUSDirectSnapshotImageSourceShape"]
     }
   ],
   "reviewed": {
