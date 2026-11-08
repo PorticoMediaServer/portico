@@ -46,6 +46,11 @@ func TestProjectBasicFirstLeafNullResolutionTransitions(t *testing.T) {
 			b.resolutionKey = sql.NullInt64{Int64: 0, Valid: true}
 			return b
 		}(), 100, 1080, 1080, true, nil},
+		{"nonzero_key_scalar_absent", func() basicLeafTechnicalBefore {
+			b := base
+			b.resolution = sql.NullInt64{}
+			return b
+		}(), 100, 1080, 0, false, ErrConflict},
 		{"null_key_with_scalar_value", func() basicLeafTechnicalBefore {
 			b := base
 			b.resolutionKey = sql.NullInt64{}
