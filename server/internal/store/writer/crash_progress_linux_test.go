@@ -16,7 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-const progressCrashSchema010 = "9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05"
+const progressCrashSchema014 = "782904d74a9f18bb81ef2a26ba9091d7501b843b73b7b853b2c27cadf4effc1a"
 
 func progressCrashDefinitions() []stmt.Definition {
 	defs := append(wcProgressDefinitions(), wcProgressAckDefinitions()...)
@@ -88,8 +88,8 @@ func progressCrashInput(t *testing.T, operation string) (*executor, string, wc00
 
 func progressCrashRegistry(t *testing.T, w *executor) *stmt.Registry {
 	t.Helper()
-	if schema.SHA256 != progressCrashSchema010 {
-		t.Fatal("PROGRESS native captures require merged010/#1267", schema.SHA256)
+	if schema.SHA256 != progressCrashSchema014 {
+		t.Fatal("PROGRESS native captures require schema014", schema.SHA256)
 	}
 	defs := progressCrashDefinitions()
 	if len(defs) != 42 {

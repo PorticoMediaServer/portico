@@ -82,9 +82,11 @@ func seedQualificationPopulation(t *testing.T, w *executor, spec qualificationPo
 	if err := validateQualificationPopulationSpec(spec); err != nil {
 		t.Fatal(err)
 	}
-	// A shape version must be reconsidered if its schema/defaults change.
-	if schema.SHA256 != "9d9aa39dfcdb99d4943f61b91ce7307f17026bf5ff7afed36a248f6b55b21f05" {
-		t.Fatal("canonical-movies-v1 requires exact canonical schema010")
+	// CHANGE-014 adds personal indexes and a bulk notification time; the movie
+	// population SQL/defaults and logical shape are unchanged. Export fresh images
+	// with this exact schema; manifests from earlier schemas remain refused.
+	if schema.SHA256 != "782904d74a9f18bb81ef2a26ba9091d7501b843b73b7b853b2c27cadf4effc1a" {
+		t.Fatal("canonical-movies-v1 requires exact canonical schema014")
 	}
 	conn, err := w.db.Conn(t.Context())
 	if err != nil {
