@@ -234,7 +234,20 @@ func (c *N1PairedComponent) closeEC2Native() error {
 		return nil
 	}
 	n := c.native
-	return errors.Join(n.reclaim.Close(context.Background()), n.security.Close(context.Background()), n.progress.Close(context.Background()), n.keeper.close())
+	var err error
+	if n.reclaim != nil {
+		err = errors.Join(err, n.reclaim.Close(context.Background()))
+	}
+	if n.security != nil {
+		err = errors.Join(err, n.security.Close(context.Background()))
+	}
+	if n.progress != nil {
+		err = errors.Join(err, n.progress.Close(context.Background()))
+	}
+	if n.keeper != nil {
+		err = errors.Join(err, n.keeper.close())
+	}
+	return err
 }
 
 // Tiny actual artifact, same owner path; no relaxation of the public1M gate.
@@ -249,3 +262,10 @@ func EC2NativeFunctionalComponent(t *testing.T) *N1PairedComponent {
 	return newN1PairedPopulationComponent(t, data, 1, "timing", &manifest, true)
 }
 func (c *N1PairedComponent) EC2ProgressPending() bool { return c.native.lastProgress.Pending }
+
+func (c *N1PairedComponent) missingEC2Bindings() []string {
+	if c.native != nil {
+		return []string{"Effective Actions"}
+	}
+	return []string{"WC/Effective Actions", "GV concurrent/recovery"}
+}

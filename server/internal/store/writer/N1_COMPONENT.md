@@ -641,3 +641,22 @@ EC5 controller forwards the same coordinates with `--population-directory` and
 `--population-manifest-sha256`. Missing/invalid pairs fail, never fall back.
 This slice attaches population only; EC2 native WC/CP/recovery composition remains
 explicitly missing until the following composition slice. No qualification claim.
+
+EC2 native composition uses the same attested existing-file opening and funded
+keeper lifecycle as canonical N1, plus WC's one factored birth/driver builder.
+Progress capture/drain, FULL security and retained reclaim are actual merged
+Actions. The serial writer queue is shared by scan and independent user-write
+submissions; reads and funded PASSIVE remain separate. Select
+`-ec2-writer-pattern=inventory` with `-ec3-foreground-write-every=50ms` for the
+user-write cell; the default foreground pattern is capture, drain, security.
+The wait ledger selects ACCEPT, preserving SNAPSHOT/Resolve/ACK separately.
+
+Default mixed sustained writer pattern is inventory/security. Optional writer
+entries progress_capture, progress_drain and reclaim stay real source operations;
+undrained pending state/refusals stop rather than being repaired. Real recovery
+is requested only at the observed hard-minus-reserve threshold. A below-threshold
+probe emits RECOVERY_NOT_DUE, with no native interval/reset proof. Actual space
+refusals and all partials remain failures; no caps, retries or missing-zero repair.
+The full captured union, extra WC unit funding, retained preparations, actual
+setup/reopen counts and final all-class retirement are emitted. Effective remains
+unbound. All profiles remain test-only and qualification=false.
