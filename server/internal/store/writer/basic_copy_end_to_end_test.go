@@ -274,6 +274,11 @@ func TestBasicFirstWalkEndToEnd(t *testing.T) {
 	if err := e.db.QueryRowContext(t.Context(), `SELECT (SELECT phase FROM catalog_info_changes WHERE id=51),(SELECT info_epoch FROM catalog_assets WHERE id=41)`).Scan(&finalPhase, &epoch); err != nil || finalPhase != 5 || epoch != s.expectedEpoch+1 {
 		t.Fatal("after activation", finalPhase, epoch, err)
 	}
+	var cleared int64
+	var linkPending, linkShape sql.NullInt64
+	if err := e.db.QueryRowContext(t.Context(), `SELECT (SELECT info_publication_pending FROM catalog_assets WHERE id=41),(SELECT info_pending_change FROM catalog_asset_links WHERE entity_id=31 AND asset_id=41),(SELECT info_shape_id FROM catalog_asset_links WHERE entity_id=31 AND asset_id=41)`).Scan(&cleared, &linkPending, &linkShape); err != nil || cleared != 0 || linkPending.Valid || !linkShape.Valid {
+		t.Fatal("publication fences after Accept", cleared, linkPending, linkShape, err)
+	}
 }
 
 // The OLD scalars the real probe recorded, in the Accept command's field order.
