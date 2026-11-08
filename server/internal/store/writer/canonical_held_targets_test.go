@@ -33,6 +33,8 @@ type canonicalHeldConfig struct {
 	Attempts          int    `json:"attempts"`
 	ArtifactDirectory string `json:"artifact_directory"`
 	ManifestSHA256    string `json:"manifest_sha256"`
+	// Offered originals/s for the canonical WC targets; absent or 0 = unlimited stress.
+	OfferedRate float64 `json:"offered_rate_per_sec,omitempty"`
 }
 
 func decodeCanonicalHeldConfig(raw []byte) (canonicalHeldConfig, error) {
@@ -97,6 +99,12 @@ func decodeCanonicalHeldConfig(raw []byte) (canonicalHeldConfig, error) {
 				return c, errors.New("trusted producer manifest pin requires lower hex")
 			}
 		}
+	}
+	if _, err := newCanonicalOfferSchedule(c.OfferedRate, nil, nil); err != nil {
+		return c, err
+	}
+	if c.OfferedRate != 0 && c.Class != "progress" && c.Class != "security" && c.Class != "wc_reclaim" {
+		return c, errors.New("offered rate applies to the canonical WC classes only")
 	}
 	if _, err := canonicalHeldClassFor(c.Class); err != nil {
 		return c, err

@@ -56,6 +56,18 @@ class ClassProtocol(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 c.inputs(dict(env, **bad))
 
+    def test_offered_rate_is_a_wc_class_input_allowed_for_qualification(self):
+        env = dict(INPUT_SOURCE_COMMIT='a'*40, INPUT_MANIFEST_SHA256='b'*64, INPUT_CLASS='security', PROFILE='standard',
+                   REPLICATE='1', INPUT_PRODUCER_RUN='1', GITHUB_RUN_ID='2', GITHUB_RUN_ATTEMPT='1')
+        self.assertIsNone(c.inputs(env)['offered_rate_per_sec'])
+        self.assertEqual(c.inputs(dict(env, INPUT_OFFERED_RATE_PER_SEC='20'))['offered_rate_per_sec'], 20.0)
+        self.assertEqual(c.inputs(dict(env, INPUT_OFFERED_RATE_PER_SEC='0.5'))['offered_rate_per_sec'], 0.5)
+        for bad in ['0', '0.05', '1001', '1e2', '-3', '20/s', ' 20']:
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                c.inputs(dict(env, INPUT_OFFERED_RATE_PER_SEC=bad))
+        with self.assertRaises(ValueError):  # WC classes only
+            c.inputs(dict(env, INPUT_CLASS='inventory_n1', INPUT_OFFERED_RATE_PER_SEC='20'))
+
     def test_checkpoint_screening_purpose_and_complete_native_census(self):
         env=dict(INPUT_SOURCE_COMMIT='a'*40,INPUT_MANIFEST_SHA256='b'*64,INPUT_CLASS='checkpoint_1mib',PROFILE='standard',REPLICATE='1',INPUT_PRODUCER_RUN='1',GITHUB_RUN_ID='2',GITHUB_RUN_ATTEMPT='1')
         with self.assertRaises(ValueError):c.inputs(env)

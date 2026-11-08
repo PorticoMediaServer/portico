@@ -42,11 +42,12 @@ func runCanonicalWCComponent(t *testing.T, c *writer.CanonicalWCComponent) {
 		}
 	}()
 	ctx := t.Context()
+	scheduledAt := time.Now()
 	run := func(population, operation string, purpose writer.CommandID, action workload.Action) error {
 		if err := c.Begin(population, operation, purpose); err != nil {
 			return err
 		}
-		offer := workload.Offer{Stream: class, Operation: operation, ScheduledAt: time.Now()}
+		offer := workload.Offer{Stream: class, Operation: operation, ScheduledAt: scheduledAt}
 		err := action(ctx, offer, func(o workload.Observation) error {
 			if value, ok := o.Result.(writer.ProgressSnapshot); ok && o.CallError == "" {
 				c.ProgressSnapshot(value)
@@ -63,6 +64,13 @@ func runCanonicalWCComponent(t *testing.T, c *writer.CanonicalWCComponent) {
 	for i := 1; i <= c.Warmup+c.Attempts; i++ {
 		if err := ctx.Err(); err != nil {
 			stop = err
+			return
+		}
+		// One open-loop offer slot per iteration (unlimited by default). The Offer's
+		// ScheduledAt is the slot, so any queueing behind it counts as latency.
+		var paceErr error
+		if scheduledAt, paceErr = c.PaceOffer(ctx); paceErr != nil {
+			stop = paceErr
 			return
 		}
 		population := "measured"
