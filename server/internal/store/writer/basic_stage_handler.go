@@ -27,7 +27,7 @@ func applyBasicSeal(ctx context.Context, turn *commandTurn, command *basicSealCo
 func applyBasicControl(ctx context.Context, turn *commandTurn, kind CommandID, identity CommandIdentity, digest RequestDigest, in basicControlRequest) (value BasicResult, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
 	purpose, err := basicPurposeForCommand(kind)
-	if err != nil || ctx == nil || turn == nil || turn.transaction == nil || (kind != BasicStage && kind != BasicSeal) {
+	if err != nil || ctx == nil || turn == nil || turn.transaction == nil || (kind != BasicStage && kind != BasicSeal) || turn.transaction.descriptor.ID != kind {
 		return value, ErrInvalid
 	}
 	if err = validateBasicControlRequest(identity, in, purpose); err != nil {

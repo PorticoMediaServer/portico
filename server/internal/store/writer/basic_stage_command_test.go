@@ -291,3 +291,44 @@ func TestBasicStageRefusesWithoutInstalledProfile(t *testing.T) {
 	}
 	basicDispatchReturned(t, e, authority)
 }
+
+// Seal before Stage, and a stale original run revision, are refused by the
+// native family/run CAS through the SAME dispatcher with no receipt or effect.
+func TestBasicControlDispatchRefusesSealBeforeStageAndStaleRun(t *testing.T) {
+	w, e, authority, s, original, identity := basicControlDispatchFixture(t)
+	counts := func() (receipts, revision, staged int64) {
+		t.Helper()
+		if err := e.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM scan_command_receipts),(SELECT job_revision FROM inventory_runs WHERE job_id='basic-run'),(SELECT rows_staged FROM catalog_info_input_families WHERE change_id=51 AND family=1)`).Scan(&receipts, &revision, &staged); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	r0, v0, f0 := counts()
+	seal, err := newBasicSealCommand(identity, basicStreamControlRequest(original, s, BasicPurposeSeal))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, _ := seal.receiptRequest()
+	disclosure := inventoryTestDisclosure(t, w, q.Scan)
+	if got, _, err := w.effective.runBasic(t.Context(), w, disclosure, basicInvocation{request: q, seal: seal}, false); err == nil || got.Outcome.State == Applied {
+		t.Fatal("Seal ran before Stage", got, err)
+	}
+	basicDispatchReturned(t, e, authority)
+	if r, v, f := counts(); r != r0 || v != v0 || f != f0 {
+		t.Fatal("refused Seal left effects", r, v, f)
+	}
+	stale := original
+	stale.run.revision--
+	stage, err := newBasicStageCommand(identity, basicStreamControlRequest(stale, s, BasicPurposeStage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, _ = stage.receiptRequest()
+	if got, _, err := w.effective.runBasic(t.Context(), w, disclosure, basicInvocation{request: q, stage: stage}, false); err == nil || got.Outcome.State == Applied {
+		t.Fatal("stale run revision staged", got, err)
+	}
+	basicDispatchReturned(t, e, authority)
+	if r, v, f := counts(); r != r0 || v != v0 || f != f0 {
+		t.Fatal("stale Stage left effects", r, v, f)
+	}
+}
