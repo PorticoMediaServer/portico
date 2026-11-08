@@ -122,8 +122,8 @@ func TestUSPolicyStatementPlans(t *testing.T) {
 	if err := reader.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(bytes.TrimSpace(expected), bytes.TrimSpace(actual)) {
-		t.Fatal("native US point plan changed; inspect before recording")
+	if err := plan.CompareJSON(expected, actual); err != nil {
+		t.Fatal("native US point plan changed; inspect before recording:", err)
 	}
 }
 
