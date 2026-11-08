@@ -360,7 +360,7 @@ func (r *RSSearchReader) pollLocked(ctx context.Context, request governor.Reques
 			return
 		}
 		for _, h := range page.Hits {
-			if h.Library != v.Library || h.Subject == search.ManifestPerson && h.Kind != 0 || h.Subject == search.ManifestEntity && (h.Kind <= 0 || h.Kind > 99) || v.Kind > 0 && (h.Subject != search.ManifestEntity || h.Kind != v.Kind) {
+			if h.Subject == search.ManifestEntity && h.Library != v.Library || h.Subject == search.ManifestPerson && (h.Library != 0 && h.Library != v.Library || h.Kind != 0) || h.Subject == search.ManifestEntity && (h.Kind <= 0 || h.Kind > 99) || v.Kind > 0 && (h.Subject != search.ManifestEntity || h.Kind != v.Kind) {
 				err = ErrInput
 				return
 			}
