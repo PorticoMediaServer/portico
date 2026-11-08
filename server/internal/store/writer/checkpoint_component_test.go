@@ -146,6 +146,17 @@ type checkpointFixtureMode uint8
 const checkpointScreeningReader checkpointFixtureMode = 1
 
 func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpointFixtureMode) *checkpointComponent {
+	t.Helper()
+	seed, path, _ := testExecutor(t)
+	if err := seed.close(); err != nil {
+		t.Fatal(err)
+	}
+	return newCheckpointComponentAt(t, path, keep, real, selected...)
+}
+
+// newCheckpointComponentAt reuses an EXISTING canonical file. It never seeds,
+// resets a floor or replays initialization SQL.
+func newCheckpointComponentAt(t *testing.T, path string, keep, real bool, selected ...checkpointFixtureMode) *checkpointComponent {
 	if len(selected) > 1 || len(selected) == 1 && selected[0] != checkpointScreeningReader {
 		t.Fatal("unknown closed checkpoint fixture selector")
 	}
@@ -153,10 +164,6 @@ func newCheckpointComponent(t *testing.T, keep, real bool, selected ...checkpoin
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("native file identity unsupported")
-	}
-	seed, path, _ := testExecutor(t)
-	if err := seed.close(); err != nil {
-		t.Fatal(err)
 	}
 	owner := scanOpeningOwner(t, path)
 	opening, err := openScanStore(t.Context(), owner, path, 1024)
