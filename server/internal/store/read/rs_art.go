@@ -70,7 +70,7 @@ func (r *ForegroundReader) artwork(ctx context.Context, request governor.Request
 		return ArtworkFact{}, BrowseReadResult{}, ErrUnqualified
 	}
 
-	windows := &rsByteWindow{source: r.snapshots}
+	windows := &rsByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	var source []any
 	var selected []any
 	var choices []rsArtCandidate
