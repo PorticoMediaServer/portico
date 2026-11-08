@@ -8,6 +8,7 @@ Group B adds `authorization_session_families.security_kind INTEGER NOT NULL` wit
 - `server/internal/store/writer/us_group_b_producer_inventory_test.go` (prefix `TestUSGroupBProducerInventory`) enforces this table: every Go statement site in the server module is matched by file, operation, table and the first 160 bytes of whitespace-collapsed SQL. A new unlisted site fails the test; a changed statement shows the new SQL in the failure message. Update this table and the allowlist together.
 - The census scans every server Go file, production and test, including inactive build tags. It skips its own file so its prefixes are not counted twice.
 - `TestUSGroupBProducerInventorySchemaGuards` enforces the P08 guard list below: it scans text files under `server/` and `docs/` for the three known schema SHAs and for the writer crash schema guard references, and fails on an unlisted guard carrying the 014 SHA.
+- Pending entries are matched by file, not by SQL prefix, while their candidate branch is unmerged (see below); the merging task replaces each one with exact statement entries.
 
 ## Sites
 
@@ -68,6 +69,17 @@ Group B adds `authorization_session_families.security_kind INTEGER NOT NULL` wit
 | 53 | `server/internal/testauth/session.go:22` | insert | `identity_devices` | legacy | ordinary | - | Legacy generic test-session device |
 | 54 | `server/internal/testauth/session.go:23` | insert | `authorization_session_families` | legacy | ordinary | - | Legacy generic test-session family |
 
+## Pending v1-native fixtures (unmerged branches)
+
+These files exist only on candidate branches and use test-only B subsets. The census matches them by file until their PR merges, so the embed work does not fight a moving branch. All are P05; each merging task replaces its pending entry with exact op/table/prefix entries. A pending file may gain sites before it merges, which is why the marker is per file.
+
+| File | PR | Sites at that PR head | Purpose at embed |
+|---|---|---|---|
+| `server/internal/store/writer/us_family_birth_test.go` | #1809 | device insert, two api_credentials inserts plus their deletes, ordinary family insert | ordinary family birth; credential marker fixtures write 1 |
+| `server/internal/store/writer/us_family_fence_drain_test.go` | #1810 | device insert, ordinary family insert, three family deletes | ordinary family and fence drain |
+| `server/internal/store/writer/us_credential_secret_drain_test.go` | #1812 | family insert, api_credentials insert, three api_credentials deletes | credential row and its family write 1 |
+| `server/internal/store/writer/us_refresh_receipt_compat_test.go` | #1813 | one family insert reused for two families | ordinary refresh families write 0 |
+
 ## SCHEMA SHA GUARDS (P08-owned, hash-only edits)
 
 Ownership: P05 and P06 change only the INSERT/producer fixtures above. The schema-guard edits are applied by P08 (embed owner) after P05/P06, in the embed PR. No producer task edits these files.
@@ -112,6 +124,10 @@ Each list is disjoint. A prep task updates only its own files; no product schema
 - `server/internal/store/writer/us_authority_fixture_test.go` - device and ordinary family fixture (lines 83, 86; family already names `security_kind`)
 - `server/internal/store/writer/us_authority_test.go` - credential marker insert and drain (lines 87, 95)
 - `server/internal/store/writer/us_pin_fences_test.go` - ordinary family fixture with `security_kind=0` (line 57)
+- `server/internal/store/writer/us_family_birth_test.go` - pending, lands with PR #1809
+- `server/internal/store/writer/us_family_fence_drain_test.go` - pending, lands with PR #1810
+- `server/internal/store/writer/us_credential_secret_drain_test.go` - pending, lands with PR #1812
+- `server/internal/store/writer/us_refresh_receipt_compat_test.go` - pending, lands with PR #1813
 
 ### P06 - read, plan and readfixture fixtures
 
