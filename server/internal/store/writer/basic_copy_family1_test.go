@@ -1,8 +1,11 @@
 package writer
 
 import (
+	"database/sql"
 	"errors"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
 // basicControlChain issues consecutive Basic control commands on ONE run,
@@ -177,6 +180,82 @@ func TestBasicFreezeRefusesUnsealedFamily(t *testing.T) {
 	if err := e.db.QueryRowContext(t.Context(), `SELECT phase,job_revision FROM catalog_info_changes WHERE id=51`).Scan(&phase, &revision); err != nil || phase != 0 || revision != 2 {
 		t.Fatal("refused freeze moved the change", phase, revision, err)
 	}
+}
+
+// Freeze opens the asset's publication obligation and entity pre-fences the
+// sole leaf; each is a compare-and-set whose failure rolls back the whole turn.
+func TestBasicFreezeAndEntityPublicationFences(t *testing.T) {
+	setup := func(t *testing.T) (*basicControlChain, *executor, *governor.Authority, basicStreamFactStage) {
+		w, e, authority, s, original, identity := basicControlDispatchFixture(t)
+		seedBasicFirstOrdinaryOwner(t, e)
+		for _, q := range []string{
+			`INSERT INTO catalog_info_shapes(id,container,video_codec,height,ref_count) VALUES(61,'mkv','h264',1080,1)`,
+			`UPDATE catalog_info_changes SET family_mask=511,target_shape_id=61,copy_family=1,job_revision=2 WHERE id=51`,
+			`UPDATE catalog_info_input_families SET rows_staged=1,sealed=1 WHERE change_id=51 AND family=1`,
+			`INSERT INTO catalog_info_input_families(change_id,family,witness_ordinal,rows_expected,rows_staged,sealed) VALUES(51,2,0,0,0,1),(51,3,0,0,0,1),(51,4,0,0,0,1),(51,5,0,0,0,1),(51,6,0,0,0,1),(51,7,0,0,0,1),(51,8,0,0,0,1),(51,9,0,0,0,1)`,
+		} {
+			if _, err := e.db.ExecContext(t.Context(), q); err != nil {
+				t.Fatal(q, err)
+			}
+		}
+		return &basicControlChain{t: t, w: w, original: original, identity: identity}, e, authority, s
+	}
+	state := func(t *testing.T, e *executor) (phase, revision, pending int64, link sql.NullInt64) {
+		t.Helper()
+		if err := e.db.QueryRowContext(t.Context(), `SELECT (SELECT phase FROM catalog_info_changes WHERE id=51),(SELECT job_revision FROM catalog_info_changes WHERE id=51),(SELECT info_publication_pending FROM catalog_assets WHERE id=41),(SELECT info_pending_change FROM catalog_asset_links WHERE entity_id=31 AND asset_id=41)`).Scan(&phase, &revision, &pending, &link); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	t.Run("set_in_order", func(t *testing.T) {
+		chain, e, authority, s := setup(t)
+		head := basicControlRequest{source: s, entityID: 31, shapeID: 61}
+		freeze, entity := head, head
+		freeze.operation, freeze.changeRevision = basicControlFreeze, 2
+		entity.operation, entity.changeRevision = basicControlSelectEntity, 3
+		if _, err := chain.stage(freeze); err != nil {
+			t.Fatal(err)
+		}
+		if phase, _, pending, link := state(t, e); phase != 1 || pending != 1 || link.Valid {
+			t.Fatal("after freeze", phase, pending, link)
+		}
+		if _, err := chain.stage(entity); err != nil {
+			t.Fatal(err)
+		}
+		if phase, _, pending, link := state(t, e); phase != 2 || pending != 1 || !link.Valid || link.Int64 != 51 {
+			t.Fatal("after entity", phase, pending, link)
+		}
+		basicDispatchReturned(t, e, authority)
+	})
+	t.Run("freeze_refuses_open_obligation", func(t *testing.T) {
+		chain, e, authority, s := setup(t)
+		if _, err := e.db.ExecContext(t.Context(), `UPDATE catalog_assets SET info_publication_pending=1 WHERE id=41`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := chain.stage(basicControlRequest{operation: basicControlFreeze, source: s, changeRevision: 2, entityID: 31, shapeID: 61}); !errors.Is(err, ErrConflict) {
+			t.Fatal(err)
+		}
+		basicDispatchReturned(t, e, authority)
+		if phase, revision, _, _ := state(t, e); phase != 0 || revision != 2 {
+			t.Fatal("refused freeze moved the change", phase, revision)
+		}
+	})
+	t.Run("entity_refuses_fenced_leaf", func(t *testing.T) {
+		chain, e, authority, s := setup(t)
+		if _, err := chain.stage(basicControlRequest{operation: basicControlFreeze, source: s, changeRevision: 2, entityID: 31, shapeID: 61}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.db.ExecContext(t.Context(), `UPDATE catalog_asset_links SET info_pending_change=51 WHERE entity_id=31 AND asset_id=41`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := chain.stage(basicControlRequest{operation: basicControlSelectEntity, source: s, changeRevision: 3, entityID: 31, shapeID: 61}); !errors.Is(err, ErrConflict) {
+			t.Fatal(err)
+		}
+		basicDispatchReturned(t, e, authority)
+		if phase, revision, pending, _ := state(t, e); phase != 1 || revision != 3 || pending != 1 {
+			t.Fatal("refused entity moved the change", phase, revision, pending)
+		}
+	})
 }
 
 func TestBasicCopyFamilyRegistrationIsClosed(t *testing.T) {

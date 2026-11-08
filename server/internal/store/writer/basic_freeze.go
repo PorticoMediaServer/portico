@@ -68,6 +68,19 @@ func freezeBasicFirstInput(ctx context.Context, turn *commandTurn, in basicContr
 	if phase != 1 || hasAfter != 0 || available != 1 || upper != in.entityID || revision != in.changeRevision+1 {
 		return ErrConflict
 	}
+	// Begin and the probe require this obligation clear, so it opens here and
+	// holds through copy and activation until the whole publication completes.
+	row, err = basicStageRead(ctx, turn, basicFreezeAsset, s.assetID, s.assetToken, s.libraryID, s.expectedEpoch)
+	if err != nil {
+		return err
+	}
+	var asset, pending int64
+	if err = row.Scan(&asset, &pending); err != nil {
+		return basicStageError(err)
+	}
+	if asset != s.assetID || pending != 1 {
+		return ErrConflict
+	}
 	return nil
 }
 
@@ -99,6 +112,18 @@ func selectBasicFirstEntity(ctx context.Context, turn *commandTurn, in basicCont
 		return basicStageError(err)
 	}
 	if phase != 2 || hasAfter != 1 || after != in.entityID || family != 0 || revision != in.changeRevision+1 {
+		return ErrConflict
+	}
+	// Pre-fence the sole leaf before any copy: settle and publish require it.
+	row, err = basicStageRead(ctx, turn, basicEntityLink, s.changeID, in.entityID, s.assetID, s.libraryID)
+	if err != nil {
+		return err
+	}
+	var entity, asset, pending int64
+	if err = row.Scan(&entity, &asset, &pending); err != nil {
+		return basicStageError(err)
+	}
+	if entity != in.entityID || asset != s.assetID || pending != s.changeID {
 		return ErrConflict
 	}
 	return nil
