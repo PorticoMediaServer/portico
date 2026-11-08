@@ -1153,6 +1153,102 @@
       "predicate": "receipt_reclaim_due_ms IS NOT NULL",
       "choice": "repeat_exact_predicate",
       "build_gate": "Fixed actual-root receipt-due raw (due,root_id) first/tie continuation; force key, SEARCH-only/no temporary sorter, same-snapshot native bytes before result copy. ACK is floor only."
+    },
+    {
+      "index": "artwork_subject_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_edit_owner_reclaim",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_edit_receipt_history",
+      "predicate": "history_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_discovery_stage_reclaim",
+      "predicate": "reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_material_intent_reclaim",
+      "predicate": "reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_receipt_stage_id",
+      "predicate": "stage_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_receipt_material_intent_id",
+      "predicate": "material_intent_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_receipt_selected_digest",
+      "predicate": "selected_digest IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_receipt_previous_digest",
+      "predicate": "previous_digest IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_receipt_history_id",
+      "predicate": "history_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_edit_batch_entity",
+      "predicate": "entity_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_edit_batch_edit_receipt",
+      "predicate": "edit_owner_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_edit_owners_reclaim_operation",
+      "predicate": "reclaim_operation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_subject_jobs_reclaim_operation",
+      "predicate": "reclaim_operation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_repair_cascades_reclaim_operation",
+      "predicate": "descriptive_reclaim_operation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "artwork_receipt_blob_digest",
+      "predicate": "blob_digest IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
     }
   ]
 }

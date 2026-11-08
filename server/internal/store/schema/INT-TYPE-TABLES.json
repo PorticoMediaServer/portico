@@ -16,9 +16,14 @@
     "api_idempotency",
     "app_report_entries",
     "artwork_blobs",
+    "artwork_command_receipts",
     "artwork_compaction_failures",
     "artwork_discovery",
+    "artwork_discovery_candidates",
+    "artwork_discovery_stages",
     "artwork_jobs",
+    "artwork_material_intents",
+    "artwork_material_slots",
     "artwork_selections",
     "artwork_sources",
     "asset_chapter_facts",
@@ -199,6 +204,12 @@
     "metadata_discovery_items",
     "metadata_discovery_refresh",
     "metadata_document_freshness",
+    "metadata_edit_batch_fields",
+    "metadata_edit_batch_receipts",
+    "metadata_edit_batch_targets",
+    "metadata_edit_owners",
+    "metadata_edit_receipt_fields",
+    "metadata_edit_receipts",
     "metadata_entity_external_ids",
     "metadata_evidence",
     "metadata_evidence_accounting",
@@ -220,6 +231,8 @@
     "metadata_operation_subjects",
     "metadata_owner_fields",
     "metadata_owner_history",
+    "metadata_owner_history_artwork",
+    "metadata_owner_history_fields",
     "metadata_person_external_ids",
     "metadata_projection_targets",
     "metadata_provider_operation_sources",
@@ -485,6 +498,11 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "artwork_command_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-subject/provider discovery or material construction history, with ordered candidates/slots and child-first retirement.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
     "artwork_compaction_failures": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
@@ -495,6 +513,16 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "artwork_discovery_candidates": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-subject/provider discovery or material construction history, with ordered candidates/slots and child-first retirement.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
+    "artwork_discovery_stages": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-subject/provider discovery or material construction history, with ordered candidates/slots and child-first retirement.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
     "artwork_encoding_counters": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
@@ -504,10 +532,20 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "artwork_material_intents": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-subject/provider discovery or material construction history, with ordered candidates/slots and child-first retirement.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
+    "artwork_material_slots": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-subject/provider discovery or material construction history, with ordered candidates/slots and child-first retirement.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
     "artwork_selections": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
+      "grain": "Retained per-subject/provider discovery or material construction history, with ordered candidates/slots and child-first retirement.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
     },
     "artwork_sources": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -1957,6 +1995,36 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "metadata_edit_batch_fields": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained command/audit/original-request child grain; ordered per-field/per-target rows and saved source results.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
+    "metadata_edit_batch_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained command/audit/original-request child grain; ordered per-field/per-target rows and saved source results.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
+    "metadata_edit_batch_targets": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained command/audit/original-request child grain; ordered per-field/per-target rows and saved source results.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
+    "metadata_edit_owners": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Per-subject retained descriptive edit owner; one entity/person custody root survives unresolved history.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
+    "metadata_edit_receipt_fields": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained command/audit/original-request child grain; ordered per-field/per-target rows and saved source results.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
+    "metadata_edit_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained command/audit/original-request child grain; ordered per-field/per-target rows and saved source results.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
     "metadata_entity_external_ids": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
@@ -2069,6 +2137,16 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_owner_history_artwork": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained command/audit/original-request child grain; ordered per-field/per-target rows and saved source results.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
+    },
+    "metadata_owner_history_fields": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained command/audit/original-request child grain; ordered per-field/per-target rows and saved source results.",
+      "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
     },
     "metadata_person_external_ids": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
