@@ -61,11 +61,11 @@ func TestN1DriverReservesTheSecondFreshLibraryUse(t *testing.T) {
 	for _, d := range inventoryDriverCommandDefinitions() {
 		steps = append(steps, statementStep{d.ID, unit})
 	}
-	exact := Work{69, 69, 69, 69, 69 * time.Microsecond}
+	exact := Work{76, 76, 76, 76, 76 * time.Microsecond}
 	if left, err := reserveInventoryDriverSteps(exact, steps); err != nil || left != (Work{}) {
 		t.Fatal("complete recipe did not reserve exactly", left, err)
 	}
-	short := Work{68, 68, 68, 68, 68 * time.Microsecond}
+	short := Work{75, 75, 75, 75, 75 * time.Microsecond}
 	if left, err := reserveInventoryDriverSteps(short, steps); !errors.Is(err, ErrQuantum) || left != (Work{}) {
 		t.Fatal("source check borrowed an unreserved fresh-library use", left, err)
 	}
