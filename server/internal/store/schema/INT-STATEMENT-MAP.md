@@ -819,3 +819,21 @@ Job claim/renew carry no material intent; clear carries no selected digest. NULL
 
 ## CHANGE-017 provider/person binding and fixed receipt custody
 N1 binds entity publication proof and operation to the same entity/provider. N2 binds saved build/publication results to exact evidence using full parent/reverse keys while preserving shorter owner FKs for nullable variants. EN parser/purpose/proof declarations remain byte-identical. IP17/218 body retirement is separate from IP28 fixed receipt-GC slot/debt/due on the actual provider owner; no driver or recursive receipt. Semantic seals, actual byte registration, authority and physical custody remain producer gates. #1556 once; actual changed captures after adoption.
+
+
+## CHANGE-018 media worker custody and typed reading draft
+
+Seven concrete worker streams retain independent sequence/ACK/debt and fixed GC
+results; public births remain UO/B-owned. Typed reading results bind the real
+user_mutation_receipts(key); prune the child before each bounded parent batch.
+Per-source personal reading observations keep stale source tokens/asset scalars.
+Guide holds bind exact physical (id,generation,mp_execution_id), and released pin
+rows require explicit child-first reclaim before parent deletion. Lease/ACK/logical
+replacement never releases a physical hold. External G reclaim stays OFF through
+F embed AND accepting MP15 tests. The two inherited custody-reaching CASCADE edges are NO ACTION. Full FK-on SQL
+models cover all 23 media child tables, seven worker receipt/GC slots, point drains,
+held stop/replacement/pin rows, prefix rollback and exact install/release/reclaim.
+These simulated observations establish no physical exit or authority qualification.
+The current MPReadingSource decoder selects evidence and uses exact14 fields;
+owner controls and actual F-schema captures remain separate gates. #1556 once;
+retain metadata-only golden bytes, record actual changed composed registries only.

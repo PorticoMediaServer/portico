@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "7462ff7631edfda0fc21a70015156f28d077a1fbd8f8a9d948768451db8d6f91",
+  "ddl_sha256": "484242fbb520ace5b4bfc1db015e2f3530dc01cfa5ff08bfd22a5244812905ca",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online. CHANGE-012 also inventories affected G control index sets for complete new-key review; no claim of10M control density or change to inherited STRICT policy.",
   "tables": [
     {
@@ -15052,6 +15052,1172 @@
       ]
     },
     {
+      "table": "mp_direct_delivery",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_direct_delivery_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_external_guide_pins",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_guide_pin_current_programme",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "current_generation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "current_programme_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_guide_pin_current_programme ON mp_external_guide_pins(current_generation_id,current_programme_id) WHERE current_programme_id IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_guide_pin_current_channel",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "current_generation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "current_channel_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_guide_pin_current_channel ON mp_external_guide_pins(current_generation_id,current_channel_id) WHERE current_generation_id IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_guide_pin_current_generation_source",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "current_generation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "current_source_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_guide_pin_current_generation_source ON mp_external_guide_pins(current_generation_id,current_source_id) WHERE current_generation_id IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_guide_pin_current_execution",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "current_occurrence_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "current_execution_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_guide_pin_current_execution ON mp_external_guide_pins(media_session_id,current_occurrence_generation,current_execution_id) WHERE current_execution_id IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_external_guide_pins_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "occurrence_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "execution_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_hls_artifacts",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_hls_artifacts_window",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "window_start",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "window_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "rendition_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "segment_index",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_hls_artifacts_window ON mp_hls_artifacts(session_id,window_start,window_generation,rendition_id,segment_index,kind)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_hls_artifacts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "rendition_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "segment_index",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_hls_plans",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_hls_plans_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_hls_renditions",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_hls_renditions_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_hls_renditions_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "rendition_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_hls_window_renditions",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_hls_progress_rendition_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "rendition_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "window_start",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "window_generation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_hls_progress_rendition_fk ON mp_hls_window_renditions(session_id,rendition_id,window_start,window_generation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_hls_window_renditions_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "window_start",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "window_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "rendition_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_job_command_receipts",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_job_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_job_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_job_custody",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_job_custody_execution",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "execution_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_job_custody_execution ON mp_job_custody(execution_id) WHERE execution_id<>''",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_job_custody_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "job_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_job_inputs",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_job_inputs_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "job_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_media_inputs",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_media_inputs_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_media_read_pins",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_media_read_pins_artifact",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "artifact_digest",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "pin_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_media_read_pins_artifact ON mp_media_read_pins(media_session_id,artifact_digest,pin_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_media_read_pins_media",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "pin_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_media_read_pins_media ON mp_media_read_pins(media_session_id,pin_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_media_read_pins_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "pin_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_next_command_receipts",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_next_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_next_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_next_stop_obligations",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_next_stop_media_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "next_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "media_generation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_next_stop_media_fk ON mp_next_stop_obligations(media_session_id,next_id,media_generation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_next_stop_obligations_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "next_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "media_generation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_physical_command_receipts",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_physical_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_physical_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_queue_command_receipts",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_queue_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_queue_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_queue_stop_obligations",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_queue_stop_media_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "queue_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "media_generation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_queue_stop_media_fk ON mp_queue_stop_obligations(media_session_id,queue_id,media_generation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_queue_stop_obligations_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "queue_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "media_generation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_remote_delivery_inputs",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_remote_delivery_inputs_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_session_command_receipts",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_session_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_session_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_session_replacements",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_session_replacement_old_media_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "old_media_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_session_replacement_old_media_fk ON mp_session_replacements(old_media_id,session_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_session_replacements_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_start_command_receipts",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_start_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_start_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_start_execution",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_start_execution_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "execution_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_start_execution_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_version_command_receipts",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_mp_version_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_version_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "mp_version_custody",
+      "grain": "Retained media command receipt, physical execution/input/guide pin or normalized delivery/custody child; no public user-birth graph.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_version_custody_execution",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "execution_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_version_custody_execution ON mp_version_custody(execution_id) WHERE execution_id<>''",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_version_custody_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "request_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_mp_version_custody_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "version_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
       "table": "notification_acknowledgments",
       "grain": "retained history/events/replay and sparse user-by-item state",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -15403,19 +16569,164 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "complete_release_indexes": [
         {
-          "name": "INTEGER PRIMARY KEY rowid",
-          "unique": true,
-          "origin": "rowid",
-          "partial": false,
+          "name": "personal_current_not_interested",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
           "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_not_interested ON personal_items(profile_id,item_public_id) WHERE not_interested=1",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "personal_current_favorite",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_favorite ON personal_items(profile_id,item_public_id) WHERE favorite=1",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "personal_current_watchlist",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_watchlist ON personal_items(profile_id,item_public_id) WHERE watchlisted=1",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "personal_current_retained",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "retained_at_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
             {
               "column": "id",
               "collation": "BINARY",
               "descending": false
             }
           ],
-          "sql": null,
-          "access": "Native primary point/range path; no extra B-tree."
+          "sql": "CREATE INDEX personal_current_retained ON personal_items(profile_id,retained_at_ms,id) WHERE retained_at_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "personal_current_radio",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "radio_last_started_at",
+              "collation": "BINARY",
+              "descending": true
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_radio ON personal_items(profile_id,radio_last_started_at DESC,item_public_id) WHERE radio_last_started_at IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "personal_current_plays",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "play_count",
+              "collation": "BINARY",
+              "descending": true
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_plays ON personal_items(profile_id,play_count DESC,item_public_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "personal_current_rating",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "rating",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_public_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_rating ON personal_items(profile_id,rating,item_public_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "personal_current_activity",
@@ -15445,7 +16756,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_activity ON personal_items(profile_id,activity_visible,activity_at DESC,item_public_id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "personal_current_completed",
@@ -15475,187 +16786,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_completed ON personal_items(profile_id,activity_visible,last_completed_at DESC,item_public_id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "personal_current_favorite",
-          "unique": false,
-          "origin": "c",
-          "partial": true,
-          "keys": [
-            {
-              "column": "profile_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "item_public_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX personal_current_favorite ON personal_items(profile_id,item_public_id) WHERE favorite=1",
-          "access": "Own profile + exclusive public-ID raw keyset with exact partial predicate; LIMIT64 before bounded current authorization. No per-user catalogue copies."
-        },
-        {
-          "name": "personal_current_library",
-          "unique": false,
-          "origin": "c",
-          "partial": false,
-          "keys": [
-            {
-              "column": "library_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "profile_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "item_public_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX personal_current_library ON personal_items(library_id,profile_id,item_public_id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "personal_current_live",
-          "unique": true,
-          "origin": "c",
-          "partial": false,
-          "keys": [
-            {
-              "column": "profile_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "item_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE UNIQUE INDEX personal_current_live ON personal_items(profile_id,item_id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "personal_current_live_item",
-          "unique": false,
-          "origin": "c",
-          "partial": false,
-          "keys": [
-            {
-              "column": "item_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "profile_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX personal_current_live_item ON personal_items(item_id,profile_id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "personal_current_not_interested",
-          "unique": false,
-          "origin": "c",
-          "partial": true,
-          "keys": [
-            {
-              "column": "profile_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "item_public_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX personal_current_not_interested ON personal_items(profile_id,item_public_id) WHERE not_interested=1",
-          "access": "Own profile + exclusive public-ID raw keyset with exact partial predicate; LIMIT64 before bounded current authorization. No per-user catalogue copies."
-        },
-        {
-          "name": "personal_current_plays",
-          "unique": false,
-          "origin": "c",
-          "partial": false,
-          "keys": [
-            {
-              "column": "profile_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "play_count",
-              "collation": "BINARY",
-              "descending": true
-            },
-            {
-              "column": "item_public_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX personal_current_plays ON personal_items(profile_id,play_count DESC,item_public_id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "personal_current_radio",
-          "unique": false,
-          "origin": "c",
-          "partial": true,
-          "keys": [
-            {
-              "column": "profile_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "radio_last_started_at",
-              "collation": "BINARY",
-              "descending": true
-            },
-            {
-              "column": "item_public_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX personal_current_radio ON personal_items(profile_id,radio_last_started_at DESC,item_public_id) WHERE radio_last_started_at IS NOT NULL",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "personal_current_rating",
-          "unique": false,
-          "origin": "c",
-          "partial": false,
-          "keys": [
-            {
-              "column": "profile_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "rating",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "item_public_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX personal_current_rating ON personal_items(profile_id,rating,item_public_id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "personal_current_recent",
@@ -15685,39 +16816,19 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_recent ON personal_items(profile_id,activity_visible,last_played_at DESC,item_public_id)",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
-          "name": "personal_current_retained",
+          "name": "personal_current_library",
           "unique": false,
           "origin": "c",
-          "partial": true,
+          "partial": false,
           "keys": [
             {
-              "column": "profile_id",
+              "column": "library_id",
               "collation": "BINARY",
               "descending": false
             },
-            {
-              "column": "retained_at_ms",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": "CREATE INDEX personal_current_retained ON personal_items(profile_id,retained_at_ms,id) WHERE retained_at_ms IS NOT NULL",
-          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
-        },
-        {
-          "name": "personal_current_watchlist",
-          "unique": false,
-          "origin": "c",
-          "partial": true,
-          "keys": [
             {
               "column": "profile_id",
               "collation": "BINARY",
@@ -15729,8 +16840,48 @@
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX personal_current_watchlist ON personal_items(profile_id,item_public_id) WHERE watchlisted=1",
-          "access": "Own profile + exclusive public-ID raw keyset with exact partial predicate; LIMIT64 before bounded current authorization. No per-user catalogue copies."
+          "sql": "CREATE INDEX personal_current_library ON personal_items(library_id,profile_id,item_public_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "personal_current_live_item",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX personal_current_live_item ON personal_items(item_id,profile_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "personal_current_live",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX personal_current_live ON personal_items(profile_id,item_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         }
       ]
     },
@@ -15805,6 +16956,58 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "personal_reading_resumes",
+      "grain": "Exact upstream typed reading source observation/result; retained per personal item and source or immutable public command. STRICT is the frozen owning draft choice; no density or admission-cap claim.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "personal_reading_resumes_latest",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "personal_item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "observed_ms",
+              "collation": "BINARY",
+              "descending": true
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": true
+            }
+          ],
+          "sql": "CREATE INDEX personal_reading_resumes_latest ON personal_reading_resumes(personal_item_id,observed_ms DESC,asset_id DESC)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_personal_reading_resumes_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "personal_item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         }
       ]
     },
@@ -16367,6 +17570,58 @@
       ]
     },
     {
+      "table": "playback_hls_windows",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "mp_hls_window_generation",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "start_index",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_execution_generation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_hls_window_generation ON playback_hls_windows(session_id,start_index,mp_execution_generation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_hls_windows_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "start_index",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
       "table": "playback_personal_claims",
       "grain": "Actual retained claim per playback occurrence owner; lifetime own plays, no user cap.",
       "policy": "non-STRICT + full typeof + explicit PK NOT NULL",
@@ -16540,6 +17795,694 @@
       ]
     },
     {
+      "table": "playback_sessions",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "mp_guide_physical_occurrence",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_execution_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_guide_physical_occurrence ON playback_sessions(id,generation,mp_execution_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_physical_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "mp_receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_physical_receipt_due ON playback_sessions(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_physical_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_physical_command_owner ON playback_sessions(id,mp_command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_sessions_session_hash",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "session_hash",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_sessions_session_hash ON playback_sessions(session_hash)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_sessions_item_id_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_sessions_item_id_fk ON playback_sessions(item_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_sessions_asset_id_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_sessions_asset_id_fk ON playback_sessions(asset_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_sessions_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "request_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_sessions_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "grant_hash",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_sessions_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "playback_start_preparations",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "playback_start_preparations_deadline",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "deadline_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_start_preparations_deadline ON playback_start_preparations(deadline_ms,id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_start_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "mp_receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_start_receipt_due ON playback_start_preparations(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_start_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_start_command_owner ON playback_start_preparations(id,mp_command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_start_preparations_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "device_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "start_key_digest",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_start_preparations_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "playback_v1_prepared",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "mp_next_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "mp_receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "token",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_next_receipt_due ON playback_v1_prepared(mp_receipt_reclaim_due_ms,token) WHERE mp_receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_next_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "token",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_next_command_owner ON playback_v1_prepared(token,mp_command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_prepared_session",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "session_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_prepared_session ON playback_v1_prepared(session_id) WHERE state='prepared'",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_prepared_queue_id_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "queue_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_prepared_queue_id_fk ON playback_v1_prepared(queue_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_prepared_queue",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "queue_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_prepared_queue ON playback_v1_prepared(queue_id) WHERE state='prepared'",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_prepared_age",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_prepared_age ON playback_v1_prepared(created_ms)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_v1_prepared_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "device_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "create_key",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_v1_prepared_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "token",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "playback_v1_sessions",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "playback_v1_sessions_authority_account_id_active",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "authority",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_authority_account_id_active ON playback_v1_sessions(authority,account_id,id) WHERE ended_ms=0",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_session_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "mp_receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_session_receipt_due ON playback_v1_sessions(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_session_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_session_command_owner ON playback_v1_sessions(id,mp_command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_sessions_paused",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "paused_since_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_paused ON playback_v1_sessions(paused_since_ms) WHERE ended_ms=0 AND state='paused'",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_sessions_media",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "media_session_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_media ON playback_v1_sessions(media_session_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_sessions_lease",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "lease_expires_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_lease ON playback_v1_sessions(lease_expires_ms) WHERE ended_ms=0",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_sessions_ended",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "ended_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_ended ON playback_v1_sessions(ended_ms) WHERE ended_ms>0",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_sessions_device",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "device_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_device ON playback_v1_sessions(device_id,created_ms) WHERE ended_ms=0",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_sessions_created",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_created ON playback_v1_sessions(created_ms,id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_sessions_active",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": true
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_active ON playback_v1_sessions(created_ms DESC,id) WHERE ended_ms=0",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "playback_v1_sessions_account",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_v1_sessions_account ON playback_v1_sessions(account_id,created_ms) WHERE ended_ms=0",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "p2_62_purge_playback_v1",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX p2_62_purge_playback_v1 ON playback_v1_sessions(account_id,profile_id,id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_v1_sessions_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "device_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "start_key",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_playback_v1_sessions_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
       "table": "playlist_receipts",
       "grain": "retained history/events/replay and sparse user-by-item state",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -16588,6 +18531,522 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "prepared_media_jobs",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_job_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "mp_receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_job_receipt_due ON prepared_media_jobs(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_job_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_job_command_owner ON prepared_media_jobs(id,mp_command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "prepared_media_jobs_governor_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "job_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX prepared_media_jobs_governor_due ON prepared_media_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "separate_asset_jobs",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "state",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX separate_asset_jobs ON prepared_media_jobs(item_id,asset_id,state,id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "prepared_media_work",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "state",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX prepared_media_work ON prepared_media_jobs(state,created_ms,id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "prepared_media_retirement_jobs",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "state",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX prepared_media_retirement_jobs ON prepared_media_jobs(item_id,state,id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "prepared_media_item_jobs",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": true
+            }
+          ],
+          "sql": "CREATE INDEX prepared_media_item_jobs ON prepared_media_jobs(item_id,created_ms DESC)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "p2_62_purge_prepared_actor",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "expression",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "expression",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "expression",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX p2_62_purge_prepared_actor ON prepared_media_jobs(\n json_extract(principal_json,'$.authority'),\n json_extract(principal_json,'$.accountId'),\n json_extract(principal_json,'$.profileId'),id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_prepared_media_jobs_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "prepared_media_versions",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "mp_version_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "mp_receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_version_receipt_due ON prepared_media_versions(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_version_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_version_command_owner ON prepared_media_versions(id,mp_command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "separate_asset_versions",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX separate_asset_versions ON prepared_media_versions(item_id,asset_id,created_ms) WHERE state='published'",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "prepared_media_versions_job_id_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "job_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX prepared_media_versions_job_id_fk ON prepared_media_versions(job_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "prepared_media_object_refs",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "digest",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "state",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX prepared_media_object_refs ON prepared_media_versions(digest,state)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "prepared_media_item_versions",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "state",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX prepared_media_item_versions ON prepared_media_versions(item_id,state,created_ms)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "prepared_media_download_pinned",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_revision",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "created_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX prepared_media_download_pinned ON prepared_media_versions(\n item_id,asset_id,profile_id,source_revision,created_ms,id)\n WHERE state='published' AND length(digest)=64 AND digest NOT GLOB '*[^0-9a-f]*'",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_prepared_media_versions_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "queues_v1",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "mp_queue_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "mp_receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX mp_queue_receipt_due ON queues_v1(mp_receipt_reclaim_due_ms,id) WHERE mp_receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "mp_queue_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "mp_command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX mp_queue_command_owner ON queues_v1(id,mp_command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "queues_v1_owner",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX queues_v1_owner ON queues_v1(owner_kind,owner_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "queues_v1_idle",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "updated_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX queues_v1_idle ON queues_v1(updated_ms)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "p2_62_purge_queues_v1",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX p2_62_purge_queues_v1 ON queues_v1(account_id,profile_id,id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_queues_v1_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         }
       ]
     },
@@ -18884,6 +21343,28 @@
       ]
     },
     {
+      "table": "user_mutation_reading_results",
+      "grain": "Exact upstream typed reading source observation/result; retained per personal item and source or immutable public command. STRICT is the frozen owning draft choice; no density or admission-cap claim.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_user_mutation_reading_results_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "receipt_key",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
       "table": "user_mutation_receipts",
       "grain": "retained history/events/replay and sparse user-by-item state",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -19119,5 +21600,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "CHANGE-017 N1/N2 over adopted016: preserve all E/base indexes; extend only D proof/reverse keys and add exact build-owner-evidence key. Complete native selected index_list/index_xinfo inventories include every changed table/index owner."
+  "change_control": "CHANGE-018 draft over adopted017. Preserve inherited release keys; complete native inventories for all 34 F changed/new tables. Full native storage models pass; real worker/physical accepting code and producer gates remain open."
 }
