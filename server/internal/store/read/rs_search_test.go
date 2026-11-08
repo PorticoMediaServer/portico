@@ -129,10 +129,16 @@ func TestRSSearchRefusalsAndExpiry(t *testing.T) {
 	r.read = func(context.Context, governor.Request, time.Duration, BrowseOutput, FullSearchInput, search.Query) (FullSearchPage, *BrowseReadResult, error) {
 		return FullSearchPage{Disposition: SearchResults, Exhausted: true}, nil, nil
 	}
-	for _, change := range []func(*RSSearchInput){func(i *RSSearchInput) { i.Views = append(i.Views, v) }, func(i *RSSearchInput) { i.Group = RSSearchLiveTV }} {
+	for _, tc := range []struct {
+		change func(*RSSearchInput)
+		want   error
+	}{
+		{func(i *RSSearchInput) { i.Views = append(i.Views, v) }, ErrInput},
+		{func(i *RSSearchInput) { i.Group = RSSearchLiveTV }, ErrUnqualified},
+	} {
 		c := in
-		change(&c)
-		if _, _, e := r.Begin(t.Context(), 1, time.Now().Add(time.Second), 1<<20, c); !errors.Is(e, ErrUnqualified) {
+		tc.change(&c)
+		if _, _, e := r.Begin(t.Context(), 1, time.Now().Add(time.Second), 1<<20, c); !errors.Is(e, tc.want) {
 			t.Fatal(e)
 		}
 	}
