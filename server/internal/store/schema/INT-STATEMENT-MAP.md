@@ -806,3 +806,12 @@ keysets and no temp sort. Source receipt PK deletion publishes its exact origina
 fixed cleanup slot and actual removed bytes in one turn; ACK refunds zero. No
 recursive cleanup child or speculative idle cleanup. Future US non14 purposes,
 including US-26/582 cleanup, require the concrete US-17 schema amendment first.
+
+
+## CHANGE-016 artwork and descriptive custody
+
+IP artwork/discovery/material/selection/GC and descriptive edit/bulk producers own typed source byte registrations. Exact fixed cleanup result uses actual source deletion, original owner/incarnation and captured ACK; ACK does not release source/blob/history holds. E CONTROLS.json supplies native SEARCH plans for due and reverse receipt paths. #1556 is the one environment baseline; actual changed captures follow adoption. No live provider or physical unlink qualification.
+
+
+### CHANGE-016 B1-B3 amendment
+Job claim/renew carry no material intent; clear carries no selected digest. NULL-digest locked selections retain no provider/source identity. Retiring/done stage/intent due discovery and cursor/mask domains are closed. Artwork receipt ACK cursor gap and due marker co-publish; actual row/byte reclamation and physical-exit proof remain writer gates. See PRODUCER-IMPACT.md for mandatory NULL/presence consumers and affected captures.
