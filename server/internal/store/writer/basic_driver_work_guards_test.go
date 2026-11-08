@@ -28,6 +28,9 @@ func TestBasicDriverWorkIndependentGrantGuards(t *testing.T) {
 				p.expected.Key.Domain = uint16(purpose)
 				p.expected.Footprint[0].Domain = uint16(purpose)
 			}
+			if err := r.wal.Publish(r.wal.Observation(), governor.WALState{PageSize: 4096}, p.runtime.executor.now()); err != nil {
+				t.Fatal(err)
+			}
 			decision := r.governor.Try(p.expected)
 			if decision.Grant == nil {
 				t.Fatal("test guard funding", decision.Refusal)
