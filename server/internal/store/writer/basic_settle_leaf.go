@@ -193,7 +193,14 @@ func settleBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafSe
 	if returnedShape != a.shapeID || returnedRefs != shapeRefs+1 {
 		return value, ErrConflict
 	}
-	row, e = basicStageRead(ctx, turn, basicSettleEntityCAS, next.durationKey, next.resolutionKey, next.scalarRevision, next.aggregateRevision, in.entityID, s.libraryID, before.durationKey, before.resolutionKey, before.scalarRevision, before.aggregateRevision)
+	entityCAS, entityArgs := basicSettleEntityCAS, []any{next.durationKey, next.resolutionKey.Int64, next.scalarRevision, next.aggregateRevision, in.entityID, s.libraryID, before.durationKey}
+	if before.resolutionKey.Valid {
+		entityArgs = append(entityArgs, before.resolutionKey.Int64)
+	} else {
+		entityCAS = basicSettleEntityNullCAS
+	}
+	entityArgs = append(entityArgs, before.scalarRevision, before.aggregateRevision)
+	row, e = basicStageRead(ctx, turn, entityCAS, entityArgs...)
 	if e != nil {
 		return value, e
 	}
@@ -202,7 +209,7 @@ func settleBasicFirstLeaf(ctx context.Context, turn *commandTurn, in basicLeafSe
 	if e = row.Scan(&entity, &library, &dk, &rk, &sr, &ar); e != nil {
 		return value, basicStageError(e)
 	}
-	if entity != in.entityID || library != s.libraryID || dk != next.durationKey || rk != next.resolutionKey || sr != next.scalarRevision || ar != next.aggregateRevision {
+	if entity != in.entityID || library != s.libraryID || dk != next.durationKey || rk != next.resolutionKey.Int64 || sr != next.scalarRevision || ar != next.aggregateRevision {
 		return value, ErrConflict
 	}
 	return next, nil

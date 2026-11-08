@@ -99,7 +99,7 @@ func readBasicLeafPublicationProof(ctx context.Context, turn *commandTurn, in ba
 	if ctx == nil || turn == nil || turn.transaction == nil || in.entityID <= 0 || a.familyMask != 511 || a.shapeID <= 0 ||
 		a.changeRevision <= 0 || a.changeRevision == math.MaxInt64 || s.expectedEpoch <= 0 || s.expectedEpoch == math.MaxInt64 ||
 		a.fileSizeRevision <= 0 || a.invalidationRevision <= 0 || a.ownerObject.Valid || a.ownerRevision.Valid || a.ownerObject.String != "" || a.ownerRevision.String != "" ||
-		!n.duration.Valid || !n.resolution.Valid || n.duration.Float64 <= 0 || n.resolution.Int64 < 0 || n.durationKey != n.duration.Float64 || n.resolutionKey != n.resolution.Int64 ||
+		!n.duration.Valid || !n.resolution.Valid || n.duration.Float64 <= 0 || n.resolution.Int64 < 0 || n.durationKey != n.duration.Float64 || !n.resolutionKey.Valid || n.resolutionKey.Int64 != n.resolution.Int64 ||
 		math.IsNaN(n.duration.Float64) || math.IsInf(n.duration.Float64, 0) || in.duration <= 0 || math.IsNaN(in.duration) || math.IsInf(in.duration, 0) ||
 		n.scalarRevision <= 0 || n.aggregateRevision <= 0 || n.membershipSequence <= 0 {
 		return 0, ErrInvalid
