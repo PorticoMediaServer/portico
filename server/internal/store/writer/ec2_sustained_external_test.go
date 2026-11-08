@@ -19,6 +19,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/qual"
 	"github.com/PorticoMediaServer/portico/server/internal/store/qual/workload"
+	"github.com/PorticoMediaServer/portico/server/internal/store/read"
 	"github.com/PorticoMediaServer/portico/server/internal/store/writer"
 )
 
@@ -36,6 +37,49 @@ var ec2CPMode = flag.String("ec2-checkpoint-mode", "concurrent", "declared seria
 var ec2Warmup = flag.Int("ec2-warmup", 1, "actual retained N1 warmup originals,1..64")
 var ec2Cohort = flag.String("ec2-cohort", "timing", "timing or native-counters, never pooled")
 var ec2Cadence = flag.String("ec2-cadence", "realistic", "realistic or accelerated declaration")
+
+// A bounded scheduler may miss the paired offer. Never submit a progress phase
+// the owner driver would refuse as unresolved work: record the deferral raw and
+// do no write. The missed offer stays visible in stream_end and the cell verdict,
+// so a deferral never turns a gap into a success.
+func deferProgressPhase(phase string, valid func() bool, action workload.Action) workload.Action {
+	return func(ctx context.Context, offer workload.Offer, emit func(workload.Observation) error) error {
+		if !valid() {
+			return emit(workload.Observation{Phase: phase + "_DEFERRED", Notice: "paired progress phase not valid at this bounded offer; no write attempted; the missed offer remains an incomplete schedule"})
+		}
+		return action(ctx, offer, emit)
+	}
+}
+
+// Concurrent ingest can change a read's publication fence between its first and
+// final window. That is the read contract's stale-continuation deferral, not a
+// failed composition: retain the stale attempt raw and retry the offered read
+// once. A non-stale error is returned unchanged.
+func retryStaleRead(action workload.Action) workload.Action {
+	return func(ctx context.Context, offer workload.Offer, emit func(workload.Observation) error) error {
+		var buffered []workload.Observation
+		err := action(ctx, offer, func(o workload.Observation) error {
+			buffered = append(buffered, o)
+			return nil
+		})
+		if !errors.Is(err, read.ErrStale) {
+			for _, o := range buffered {
+				if emitErr := emit(o); emitErr != nil {
+					return errors.Join(err, emitErr)
+				}
+			}
+			return err
+		}
+		for _, o := range buffered {
+			o.CallError = ""
+			o.Notice = "read fence changed by concurrent ingest; stale attempt retained raw, offered read retried once"
+			if emitErr := emit(o); emitErr != nil {
+				return errors.Join(err, emitErr)
+			}
+		}
+		return action(ctx, offer, emit)
+	}
+}
 
 func ec2Bindings(t *testing.T, c *writer.N1PairedComponent, cohort string) workload.EC2Bindings {
 	bindings := workload.EC2Bindings{}
@@ -59,7 +103,7 @@ func ec2Bindings(t *testing.T, c *writer.N1PairedComponent, cohort string) workl
 		op   workload.EC2Operation
 		name string
 	}{{workload.EC2Browse, "browse"}, {workload.EC2Detail, "detail"}, {workload.EC2Playback, "playback"}, {workload.EC2Continue, "continue"}} {
-		bindings[route.op] = recordPaired(c, pairedAction(c, route.name, nil))
+		bindings[route.op] = retryStaleRead(recordPaired(c, pairedAction(c, route.name, nil)))
 	}
 	bindings[workload.EC2WAL] = func(ctx context.Context, _ workload.Offer, emit func(workload.Observation) error) error {
 		start := time.Now()
@@ -76,8 +120,8 @@ func ec2Bindings(t *testing.T, c *writer.N1PairedComponent, cohort string) workl
 		progress := workload.ProgressBinding{Writer: c.EC2Writer(), Driver: c.EC2Progress(), Report: func(context.Context, workload.Offer) (workload.ProgressReport, error) {
 			return workload.ProgressReport{Sequence: c.EC2ReportSequence(), PositionSeconds: 5, DurationSeconds: 100, State: "playing"}, nil
 		}}
-		bindings[workload.EC2ProgressCapture] = boundEC2WC(c, writer.ProgressAccept, workload.ProgressCapture(progress))
-		bindings[workload.EC2ProgressDrain] = boundEC2WC(c, writer.ProgressAccept, workload.ProgressDrain(progress))
+		bindings[workload.EC2ProgressCapture] = deferProgressPhase("PROGRESS_CAPTURE", func() bool { return !c.EC2ProgressPending() }, boundEC2WC(c, writer.ProgressAccept, workload.ProgressCapture(progress)))
+		bindings[workload.EC2ProgressDrain] = deferProgressPhase("PROGRESS_DRAIN", c.EC2ProgressPending, boundEC2WC(c, writer.ProgressAccept, workload.ProgressDrain(progress)))
 		bindings[workload.EC2Security] = boundEC2WC(c, writer.SecurityAccept, workload.Security(workload.SecurityBinding{Writer: c.EC2Writer(), Driver: c.EC2Security(), Target: func(ctx context.Context, _ workload.Offer) (string, error) { return c.EC2SecurityTarget(t, ctx) }}))
 		bindings[workload.EC2Reclaim] = boundEC2WC(c, writer.ProgressReceiptReclaim, workload.Reclaim(workload.ReclaimBinding{Writer: c.EC2Writer(), Driver: c.EC2Reclaim()}))
 		for _, operation := range []workload.EC2Operation{workload.EC2Passive, workload.EC2Recovery} {
@@ -202,13 +246,25 @@ func TestEC2SustainedMeasurement(t *testing.T) {
 	defer stop()
 	sink := &pairedSink{c: c}
 	runErr := workload.Run(ctx, cfg, streams, sink)
-	if runErr == nil && (!sink.finalSeen || !sink.complete) {
-		runErr = errors.New("incomplete EC2 offered schedule; retain all missed/unserved/error prefixes")
+	if runErr == nil && (!sink.finalSeen || !sink.drivers) {
+		runErr = errors.New("workload drivers did not return a final; retain all raw prefixes")
+	}
+	if runErr == nil && writeLedger == nil {
+		// The EC2 target is the serial ingest writer. Read, checkpoint and WAL
+		// workers are concurrent load; their missed offers are recorded gaps, not
+		// an ingest failure. Every action error still fails the run above.
+		if gap := sink.streamGap("writer"); gap != "" {
+			runErr = errors.New(gap)
+		}
 	}
 	if writeLedger != nil {
 		expected := int((duration-1) / *ec3WriteEvery) + 1
-		raw, _ := json.Marshal(writeLedger.report(expected, sink.finalSeen && sink.complete))
+		report := writeLedger.report(expected, sink.finalSeen && sink.complete)
+		raw, _ := json.Marshal(report)
 		runErr = errors.Join(runErr, c.EmitEC2("foreground_write_report", raw))
+		if runErr == nil && !report.CoverageComplete {
+			runErr = errors.New("foreground write coverage incomplete; retain all raw prefixes")
+		}
 	}
 	if err := c.Close(runErr); err != nil {
 		t.Fatal(err)
@@ -306,5 +362,61 @@ func TestEC2N1WALComposition(t *testing.T) {
 	}
 	if len(roles) != 3 {
 		t.Fatal(fmt.Sprintf("physical role joins=%v, want BEGIN/Resolve/ACK", roles))
+	}
+}
+
+// Pure controls for the bounded-composition wrappers. No database or clock.
+func TestEC2StaleReadRetryRetainsStaleAttempt(t *testing.T) {
+	calls := 0
+	inner := func(_ context.Context, _ workload.Offer, emit func(workload.Observation) error) error {
+		calls++
+		if calls == 1 {
+			return errors.Join(read.ErrStale, emit(workload.Observation{Phase: "BROWSE", CallError: read.ErrStale.Error()}))
+		}
+		return emit(workload.Observation{Phase: "BROWSE"})
+	}
+	var got []workload.Observation
+	err := retryStaleRead(inner)(t.Context(), workload.Offer{}, func(o workload.Observation) error {
+		got = append(got, o)
+		return nil
+	})
+	if err != nil || calls != 2 || len(got) != 2 {
+		t.Fatal(err, calls, got)
+	}
+	if got[0].CallError != "" || !strings.Contains(got[0].Notice, "stale attempt retained") || got[1].CallError != "" {
+		t.Fatal(got)
+	}
+	// A non-stale failure is returned unchanged and its observation keeps the error.
+	boom := errors.New("control failure")
+	failing := func(_ context.Context, _ workload.Offer, emit func(workload.Observation) error) error {
+		return errors.Join(boom, emit(workload.Observation{Phase: "BROWSE", CallError: boom.Error()}))
+	}
+	got = nil
+	err = retryStaleRead(failing)(t.Context(), workload.Offer{}, func(o workload.Observation) error {
+		got = append(got, o)
+		return nil
+	})
+	if !errors.Is(err, boom) || len(got) != 1 || got[0].CallError != boom.Error() {
+		t.Fatal(err, got)
+	}
+}
+
+func TestEC2ProgressPhaseDeferralRecordsWithoutWrite(t *testing.T) {
+	valid, called := false, false
+	action := func(context.Context, workload.Offer, func(workload.Observation) error) error {
+		called = true
+		return nil
+	}
+	var got workload.Observation
+	err := deferProgressPhase("PROGRESS_DRAIN", func() bool { return valid }, action)(t.Context(), workload.Offer{}, func(o workload.Observation) error {
+		got = o
+		return nil
+	})
+	if err != nil || called || got.Phase != "PROGRESS_DRAIN_DEFERRED" || got.CallError != "" {
+		t.Fatal(err, called, got)
+	}
+	valid = true
+	if err := deferProgressPhase("PROGRESS_DRAIN", func() bool { return valid }, action)(t.Context(), workload.Offer{}, func(workload.Observation) error { return nil }); err != nil || !called {
+		t.Fatal(err, called)
 	}
 }
