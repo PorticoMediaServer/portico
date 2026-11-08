@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -224,6 +225,9 @@ func (s *checkpointFaultStmt) QueryContext(ctx context.Context, args []driver.Na
 	if s.owner.checkpointPanic.Load() {
 		panic(checkpointInjectedPanic)
 	}
+	if s.owner.checkpointTuple != nil {
+		return &checkpointTupleRows{tuple: *s.owner.checkpointTuple}, nil
+	}
 	rows, err := s.Stmt.(driver.StmtQueryContext).QueryContext(ctx, args)
 	if err != nil {
 		return rows, err
@@ -390,4 +394,23 @@ func TestNativePassiveErrorAndCancelCleanup(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Inject only the native result tuple; shared statement/connection cleanup is real.
+type checkpointTupleRows struct {
+	tuple [3]int64
+	done  bool
+}
+
+func (r *checkpointTupleRows) Columns() []string { return []string{"busy", "log", "checkpointed"} }
+func (r *checkpointTupleRows) Close() error      { r.done = true; return nil }
+func (r *checkpointTupleRows) Next(values []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	r.done = true
+	for i, v := range r.tuple {
+		values[i] = v
+	}
+	return nil
 }
