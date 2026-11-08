@@ -815,3 +815,7 @@ IP artwork/discovery/material/selection/GC and descriptive edit/bulk producers o
 
 ### CHANGE-016 B1-B3 amendment
 Job claim/renew carry no material intent; clear carries no selected digest. NULL-digest locked selections retain no provider/source identity. Retiring/done stage/intent due discovery and cursor/mask domains are closed. Artwork receipt ACK cursor gap and due marker co-publish; actual row/byte reclamation and physical-exit proof remain writer gates. See PRODUCER-IMPACT.md for mandatory NULL/presence consumers and affected captures.
+
+
+## CHANGE-017 provider/person binding and fixed receipt custody
+N1 binds entity publication proof and operation to the same entity/provider. N2 binds saved build/publication results to exact evidence using full parent/reverse keys while preserving shorter owner FKs for nullable variants. EN parser/purpose/proof declarations remain byte-identical. IP17/218 body retirement is separate from IP28 fixed receipt-GC slot/debt/due on the actual provider owner; no driver or recursive receipt. Semantic seals, actual byte registration, authority and physical custody remain producer gates. #1556 once; actual changed captures after adoption.

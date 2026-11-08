@@ -1249,6 +1249,114 @@
       "predicate": "blob_digest IS NOT NULL",
       "choice": "repeat_exact_predicate",
       "build_gate": "Exact partial predicate and INDEXED BY; first/tied continuation SEARCH plans, no temp B-tree. Native E storage controls; producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_person_operation_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_person_operation_reclaim",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_person_receipt_evidence",
+      "predicate": "evidence_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_person_build_reclaim",
+      "predicate": "reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_policy_reclaim",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_refresh_sweep_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_refresh_sweep_reclaim",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_person_operations_reclaim_operation",
+      "predicate": "reclaim_operation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_provider_policy_reclaim_operation",
+      "predicate": "reclaim_operation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_refresh_sweeps_reclaim_operation",
+      "predicate": "reclaim_operation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_person_receipt_build",
+      "predicate": "build_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_person_receipt_publication",
+      "predicate": "publication_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_ip_receipt_evidence",
+      "predicate": "evidence_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_ip_receipt_build",
+      "predicate": "build_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_ip_receipt_set",
+      "predicate": "set_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_ip_receipt_publication",
+      "predicate": "publication_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_ip_receipt_due",
+      "predicate": "ip_receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
+    },
+    {
+      "index": "metadata_provider_ip_reclaim_operation",
+      "predicate": "ip_reclaim_operation_id IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared predicate, intended INDEXED BY hot path, full owner/evidence reverse key and tied due cursor SEARCH; no temp B-tree. Producer byte registration remains lane-owned."
     }
   ]
 }

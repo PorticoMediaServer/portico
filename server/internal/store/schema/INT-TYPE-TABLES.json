@@ -233,7 +233,14 @@
     "metadata_owner_history",
     "metadata_owner_history_artwork",
     "metadata_owner_history_fields",
+    "metadata_person_builds",
     "metadata_person_external_ids",
+    "metadata_person_field_origins",
+    "metadata_person_operations",
+    "metadata_person_publications",
+    "metadata_person_receipts",
+    "metadata_person_sources",
+    "metadata_policy_receipts",
     "metadata_projection_targets",
     "metadata_provider_operation_sources",
     "metadata_provider_operations",
@@ -244,6 +251,8 @@
     "metadata_publications",
     "metadata_ratings",
     "metadata_reconciliations",
+    "metadata_refresh_receipts",
+    "metadata_refresh_sweeps",
     "metadata_relationship_decisions",
     "metadata_repair_cascade_items",
     "metadata_repair_cascades",
@@ -2032,8 +2041,8 @@
     },
     "metadata_evidence": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
     },
     "metadata_evidence_accounting": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -2109,6 +2118,11 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "metadata_ip_receipts": {
+      "policy": "STRICT",
+      "grain": "Retained typed entity-IP proof bridge; keep reviewed STRICT representation during binding repair; possible high-fanout alignment remains a non-blocking measured follow-up.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
+    },
     "metadata_kept_files": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
@@ -2148,10 +2162,45 @@
       "grain": "Retained command/audit/original-request child grain; ordered per-field/per-target rows and saved source results.",
       "threshold": "plausibly >100000 rows across uncapped library subjects and retained commands; not an admission cap"
     },
+    "metadata_person_builds": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
+    },
     "metadata_person_external_ids": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_person_field_origins": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
+    },
+    "metadata_person_operations": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
+    },
+    "metadata_person_publications": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
+    },
+    "metadata_person_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
+    },
+    "metadata_person_sources": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
+    },
+    "metadata_policy_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
     },
     "metadata_projection_targets": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -2193,13 +2242,13 @@
     },
     "metadata_publication_sets": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
     },
     "metadata_publications": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
     },
     "metadata_ratings": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -2214,6 +2263,16 @@
     "metadata_refresh_budget": {
       "policy": "STRICT",
       "grain": "compiled vocabulary/current head or bounded configuration grain"
+    },
+    "metadata_refresh_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
+    },
+    "metadata_refresh_sweeps": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Retained per-person/provider operation, evidence, saved result or normalized publication/source grain across uncapped library subjects.",
+      "threshold": "plausibly >100000 rows for retained command/proof history; not an admission cap"
     },
     "metadata_relationship_decisions": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
