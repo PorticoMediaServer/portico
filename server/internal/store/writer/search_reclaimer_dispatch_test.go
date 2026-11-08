@@ -202,6 +202,11 @@ func TestSearchReclaimerClosedPlanAndOriginalBinding(t *testing.T) {
 	if searchPublisherMaxUses(SearchFragmentReclaim, "unknown") != 0 || searchPublisherPurpose(SearchFragmentReclaim) {
 		t.Fatal("resource eligibility became publisher-job authority")
 	}
+	// An unmapped purpose has no closed plan index; it must refuse rather than
+	// index the array. SearchImageStage has its own closed facade elsewhere.
+	if index, ok := searchPublisherPlanIndex(SearchImageStage); ok || index != 0 {
+		t.Fatal("unmapped publisher purpose received a plan index")
+	}
 	// A typed reclaimer envelope cannot carry even a zero-valued publisher request.
 	v, err := prepareSearchReclaimerCommand(t.Context(), f.w, f.cap, f.rq, nil, false)
 	if err != nil {
