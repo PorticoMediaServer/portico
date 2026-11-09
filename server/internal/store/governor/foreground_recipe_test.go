@@ -30,6 +30,10 @@ func TestForegroundReadRecipeFundsMaximumConcurrentWindows(t *testing.T) {
 			outputs := int64(n) * (8 << 20)
 			metadata := int64(n+1) * 4096
 			partition := reads + outputs + metadata
+			available := tc.memory - tc.nonBrowse - (tc.memory+4)/5
+			if partition > available {
+				t.Fatal("maximum concurrent partition consumes protected server reserve", partition, available)
+			}
 			cfg := Config{Now: func() time.Time { return now }, MaxGrantsPerClass: 3*n + 1, Foreground: profile}
 			cfg.Partitions[Foreground] = Amounts{Reader: int64(n), MemoryBytes: partition, QueueBytes: metadata}
 			g, a, err := newGovernor(cfg, 0) // arithmetic/control, not host capacity qualification
