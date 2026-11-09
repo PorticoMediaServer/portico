@@ -15,6 +15,11 @@ const (
 	ReclaimNotices         CommandID = 625
 )
 
+const ClaimOperationalJob CommandID = 650
+const RenewOperationalJob CommandID = 651
+const CompleteOperationalJob CommandID = 652
+const ReclaimOperationalJob CommandID = 653
+
 var uoCommands = commandRegistration{owner: "UO", descriptors: []Descriptor{
 	{ID: SetPersonalFlags, Name: "uo_set_personal_flags", Durability: Normal},
 	{ID: PublishNotice, Name: "uo_publish_notice", Durability: Normal},
@@ -23,4 +28,8 @@ var uoCommands = commandRegistration{owner: "UO", descriptors: []Descriptor{
 	{ID: ReadAllNotices, Name: "uo_read_all_notices", Durability: Normal},
 	{ID: AdvanceNoticeOperation, Name: "uo_advance_notice_operation", Durability: Normal},
 	{ID: ReclaimNotices, Name: "uo_reclaim_notices", Durability: Normal},
+	{ID: ClaimOperationalJob, Name: "uo_claim_operational_job", Durability: Normal},
+	{ID: RenewOperationalJob, Name: "uo_renew_operational_job", Durability: Normal},
+	{ID: CompleteOperationalJob, Name: "uo_complete_operational_job", Durability: Normal},
+	{ID: ReclaimOperationalJob, Name: "uo_reclaim_operational_job", Durability: Normal},
 }}
