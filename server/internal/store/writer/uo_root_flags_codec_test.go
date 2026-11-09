@@ -44,6 +44,16 @@ func TestUORootFlagsClosedCanonicalResult(t *testing.T) {
 			t.Fatal("noncanonical boolean decoded", offset)
 		}
 	}
+	// Trailing and truncated bytes can never ride along: the exact saved bytes
+	// must re-encode to the same canonical digest and length.
+	for _, bad := range [][]byte{
+		append(append([]byte(nil), p...), 0),
+		p[:len(p)-1],
+	} {
+		if _, err := decodeUORootFlags(i, q, v.root, bad, ResultDigest(sha256.Sum256(bad))); err == nil {
+			t.Fatal("noncanonical length decoded", len(bad))
+		}
+	}
 	if _, _, err := encodeUORootCanonical(i, q, struct{ Payload []byte }{p}); err == nil {
 		t.Fatal("unregistered result accepted")
 	}

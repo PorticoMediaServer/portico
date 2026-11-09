@@ -11,20 +11,35 @@ import (
 	"unicode/utf8"
 )
 
-// Complete scalar effect result for native purpose 600. It carries only native
-// facts captured in the SAME freshly authorized turn: the acting profile's
-// public subject identity, all three sparse flags, the nullable rating (a
-// present zero stays present), the actual personal revision, the viewer and
-// selection heads and the applied time. It is never current authority, an
-// Applied/COMMIT facade or a public input shape.
+// uoRootFlagsResult is the INERT scalar primitive currently saved for native
+// purpose 600. It carries only native facts captured in the SAME freshly
+// authorized turn: the acting profile's public subject identity, all three
+// sparse flags, the nullable rating (a present zero stays present), the actual
+// personal revision, the viewer and selection heads and the applied time.
+//
+// This is NOT the completed public 600 result. The public original must be the
+// complete catalog.PersonalReceipt (used at detail.go:189, defined at
+// detail_types.go:162): its identity, library, viewer fence and receipt
+// lifetime plus Personal catalog.PersonalState (ContinueDismissed,
+// watched/progressSeconds/lastPlayedAt/status/conflicts, all flags, the
+// nullable rating and revision) and optional Current, loaded post-effect in the
+// SAME frame. A replay may not synthesize a stub or read mutable progress. The
+// public adapter stays HELD until that storage/image is adopted; nothing here is
+// a wire result, current authority or a public input shape.
 type uoRootFlagsResult struct {
 	root      string
 	public    [16]byte
 	effect    uoPersonalFlagsEffect
 	appliedMS int64
+	// retired marks an ACKed sequence answered as the retired class. It is
+	// never encoded into a receipt original.
+	retired bool
 }
 
 func preflightUORootFlags(v uoRootFlagsResult) error {
+	if v.retired {
+		return ErrInvalid
+	}
 	s, e := v.effect.state, v.effect
 	if len(v.root) != 22 || !utf8.ValidString(v.root) || v.public == [16]byte{} || v.appliedMS <= 0 || s.revision < 0 || s.rating.Valid && (s.rating.Int64 < 0 || s.rating.Int64 > 10) || !s.rating.Valid && s.rating.Int64 != 0 || e.viewerRevision < 0 || e.selectionRevision < 0 || e.changed && (s.revision == 0 || e.viewerRevision == 0 || e.selectionRevision == 0) || !e.changed && (e.viewerRevision != 0 || e.selectionRevision != 0) {
 		return ErrInvalid
@@ -149,8 +164,9 @@ func persistUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCur
 		return out, err
 	}
 	// A revocation or root change during the effects cannot return a digest
-	// that looks Applied.
-	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, receiptFresh); err != nil {
+	// that looks Applied. 600 keeps the domain rule: a Fresh patch must end on
+	// an active root, not the 654 maintenance exception.
+	if err = uoFlagsRelease(ctx, turn, proof, q.root, receiptFresh); err != nil {
 		return out, err
 	}
 	return digest, turn.checkLifetimes(ctx)
@@ -205,9 +221,11 @@ func acknowledgeUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRoo
 		}
 		return acknowledgeUORootVerified(ctx, turn, proof, lookup, nowMS)
 	case receiptRetired:
-		// The first real caller of the shared wrapper: a repeat ACK needs no
-		// restore and must return the already durable floor with zero writes.
-		return acknowledgeUORootOperation(ctx, turn, proof, lookup, nowMS)
+		// A repeat ACK needs no restore and must return the already durable floor
+		// with zero writes. Call the scalar Verified body directly, the same shape
+		// acknowledgeUORootReclaim uses; acknowledgeUORootOperation adds nothing
+		// for the retired arm.
+		return acknowledgeUORootVerified(ctx, turn, proof, lookup, nowMS)
 	default:
 		return 0, ErrResolveRequired
 	}
