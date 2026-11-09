@@ -14,9 +14,10 @@ import (
 )
 
 // Witnesses are bounded, owned comparison inputs, never permissions. This
-// recipe checks only the approved FULL policy frames (540/541) for a current
-// direct-owner main-profile interactive session with a registered installation
-// and device. It excludes reset-file sessions and narrow grants. It proves no
+// recipe checks only the approved FULL frames (540/541 policy and the ordinary
+// 520 local owner password replacement) for a current direct-owner main-profile
+// interactive session with a registered installation and device. It excludes
+// reset-file sessions and narrow grants. It proves no
 // root/admin/setup/Hosted/factor/recovery/ownership-transfer authority and grants
 // no command. Each consumer must state its extra conditions and recheck before
 // release. Raw installation proof never enters receipts, events, errors or
@@ -80,8 +81,11 @@ func (b usOwnerAuthorityBudget) check(ctx context.Context, turn *commandTurn, by
 	}
 	// The domain's reserved number range is not recipe authority. A new
 	// consumer must be reviewed with its own additional admission conditions.
+	// 520 is admitted only for the ordinary local owner password replacement,
+	// whose own composition refuses every non-own-account target and any
+	// reset/factor/credential family.
 	switch tx.descriptor.ID {
-	case USMemberLibraries, USProfileLibraries:
+	case USMemberLibraries, USProfileLibraries, usLocalPasswordReplace:
 	default:
 		return ErrInvalid
 	}
