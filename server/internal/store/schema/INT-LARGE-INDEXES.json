@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "484242fbb520ace5b4bfc1db015e2f3530dc01cfa5ff08bfd22a5244812905ca",
+  "ddl_sha256": "81d6971a2eeb98f07304cf9e889af5f0bf94572c9c8f3fa8539a099d7f98d46b",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online. CHANGE-012 also inventories affected G control index sets for complete new-key review; no claim of10M control density or change to inherited STRICT policy.",
   "tables": [
     {
@@ -2445,6 +2445,103 @@
       ]
     },
     {
+      "table": "catalog_assets",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "catalog_assets_id_token",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "token",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_assets_id_token ON catalog_assets(id,token)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_info_owner_object",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "info_owner_object",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_info_owner_object ON catalog_assets(info_owner_object) WHERE info_owner_object IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_assets_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "path",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_assets_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_assets_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "token",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
       "table": "catalog_attribute_terms",
       "grain": "repeated term/member/role/asset contributions across catalogue",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -2569,6 +2666,90 @@
       ]
     },
     {
+      "table": "catalog_book_series_heads",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "catalog_book_series_source",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_asset_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "book_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_book_series_source ON catalog_book_series_heads(library_id,source_asset_id,book_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_book_series_members",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "catalog_book_series_name",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "series_name",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "book_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_book_series_name ON catalog_book_series_members(series_name COLLATE BINARY,book_id,ordinal)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_book_series_members_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "book_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
       "table": "catalog_collection_members",
       "grain": "repeated term/member/role/asset contributions across catalogue",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -2637,6 +2818,232 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "catalog_configuration_operations",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "catalog_configuration_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_configuration_receipt_due ON catalog_configuration_operations(receipt_reclaim_due_ms,original_operation_id) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_configuration_reclaim_operation",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "reclaim_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_configuration_reclaim_operation ON catalog_configuration_operations(reclaim_operation_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_configuration_original_library",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_library_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_configuration_original_library ON catalog_configuration_operations(original_library_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_configuration_operation_kind",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_configuration_operation_kind ON catalog_configuration_operations(original_operation_id,command_incarnation,command_kind)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_configuration_operations_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_configuration_receipts",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_configuration_receipts_2",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_configuration_receipts_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_configuration_sources",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "catalog_configuration_source_once",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_configuration_source_once ON catalog_configuration_sources(original_operation_id,command_incarnation,command_sequence,command_kind,source_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_configuration_sources_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         }
       ]
     },
@@ -3143,6 +3550,31 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "complete_release_indexes": [
         {
+          "name": "catalog_entities_book_author_identity",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "book_author_identity_key",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_entities_book_author_identity\n ON catalog_entities(library_id,book_author_identity_key,id) WHERE kind=8",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
           "name": "catalog_entities_album_search",
           "unique": false,
           "origin": "c",
@@ -3160,7 +3592,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_album_search ON catalog_entities(album_id,id) WHERE album_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_automatic_local",
@@ -3185,7 +3617,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_automatic_local ON catalog_entities(library_id,automatic_collection_name_key,id) WHERE kind=1 AND retired=0",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_known_age_added",
@@ -3220,7 +3652,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_known_age_added ON catalog_entities(library_id,kind,admission_known_age,added_at,id) WHERE admission_known_age IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_age_added",
@@ -3255,7 +3687,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_age_added ON catalog_entities(library_id,kind,admission_allow_age,added_at,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_known_age_title",
@@ -3290,7 +3722,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_known_age_title ON catalog_entities(library_id,kind,admission_known_age,sort_key,id) WHERE admission_known_age IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_age_title",
@@ -3325,7 +3757,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_age_title ON catalog_entities(library_id,kind,admission_allow_age,sort_key,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "reading_entity_series_seek",
@@ -3370,7 +3802,7 @@
             }
           ],
           "sql": "CREATE INDEX reading_entity_series_seek ON catalog_entities(library_id,kind,reading_series_id,reading_numbered_order,reading_number_value,sort_key COLLATE BINARY,id) WHERE has_reading_attribution_members=1",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "reading_entity_series_facet",
@@ -3405,7 +3837,7 @@
             }
           ],
           "sql": "CREATE INDEX reading_entity_series_facet ON catalog_entities(library_id,kind,reading_series_key COLLATE BINARY,reading_series_value COLLATE BINARY,id) WHERE has_reading_attribution_members=1",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "reading_entity_series",
@@ -3445,7 +3877,7 @@
             }
           ],
           "sql": "CREATE INDEX reading_entity_series ON catalog_entities(library_id,kind,reading_series_key,reading_numbered_order,reading_number_value,id) WHERE has_reading_attribution_members=1 AND reading_series_key IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "reading_entity_issue_date",
@@ -3485,7 +3917,7 @@
             }
           ],
           "sql": "CREATE INDEX reading_entity_issue_date ON catalog_entities(library_id,kind,reading_publication_type,reading_series_id,reading_issue_date,id) WHERE has_reading_attribution_members=1",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "reading_entity_author_facet",
@@ -3520,7 +3952,7 @@
             }
           ],
           "sql": "CREATE INDEX reading_entity_author_facet ON catalog_entities(library_id,kind,reading_author_key COLLATE BINARY,reading_author_value COLLATE BINARY,id) WHERE has_reading_attribution_members=1",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_year",
@@ -3550,7 +3982,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_year ON catalog_entities(library_id,kind,year,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_track",
@@ -3580,7 +4012,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_track ON catalog_entities(library_id,kind,track_key,id) WHERE kind=7",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_title_keep_articles",
@@ -3610,7 +4042,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_title_keep_articles ON catalog_entities(library_id,kind,sort_key_keep_articles,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_show_fk",
@@ -3630,7 +4062,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_show_fk ON catalog_entities(show_id,id) WHERE show_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_show",
@@ -3660,7 +4092,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_show ON catalog_entities(show_id,season_id,episode_number,id) WHERE show_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_season_number",
@@ -3680,7 +4112,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX catalog_entities_season_number ON catalog_entities(show_id,season_number) WHERE kind=3",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_season",
@@ -3705,7 +4137,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_season ON catalog_entities(season_id,episode_number,id) WHERE season_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_resolution",
@@ -3735,7 +4167,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_resolution ON catalog_entities(library_id,kind,resolution_key,id) WHERE kind IN(1,2,3,4,10)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_release",
@@ -3765,7 +4197,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_release ON catalog_entities(library_id,kind,release_key,id) WHERE kind IN(1,2,3,4,6,8)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_rating",
@@ -3795,7 +4227,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_rating ON catalog_entities(library_id,kind,community_rating_key,id) WHERE kind IN(1,2,3,4,5,6,7,8,9,10,13)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_random",
@@ -3825,7 +4257,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_random ON catalog_entities(library_id,kind,random_key,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_parent_resolution_key",
@@ -3855,7 +4287,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_parent_resolution_key ON catalog_entities(parent_id,kind,resolution_key,id) WHERE parent_id IS NOT NULL AND kind IN(1,2,3,4,10)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_parent_latest_aired_key",
@@ -3885,7 +4317,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_parent_latest_aired_key ON catalog_entities(parent_id,kind,latest_aired_key,id) WHERE parent_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_parent_file_size_key",
@@ -3915,7 +4347,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_parent_file_size_key ON catalog_entities(parent_id,kind,file_size_key,id) WHERE parent_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_parent_duration_key",
@@ -3945,7 +4377,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_parent_duration_key ON catalog_entities(parent_id,kind,duration_key,id) WHERE parent_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_parent_critic_rating_key",
@@ -3975,7 +4407,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_parent_critic_rating_key ON catalog_entities(parent_id,kind,critic_rating_key,id) WHERE parent_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_parent_community_rating_key",
@@ -4005,7 +4437,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_parent_community_rating_key ON catalog_entities(parent_id,kind,community_rating_key,id) WHERE parent_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_missing",
@@ -4035,7 +4467,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_missing ON catalog_entities(library_id,kind,missing_since_ms,id) WHERE missing_since_ms IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_local",
@@ -4060,7 +4492,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_local ON catalog_entities(kind,local_key,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_latest_aired",
@@ -4090,7 +4522,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_latest_aired ON catalog_entities(library_id,kind,latest_aired_key,id) WHERE kind IN(2,3)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_file_size",
@@ -4120,7 +4552,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_file_size ON catalog_entities(library_id,kind,file_size_key,id) WHERE kind IN(1,2,3,4,5,6,7,8,9,10)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_episode_position",
@@ -4150,7 +4582,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX catalog_entities_episode_position ON catalog_entities(show_id,COALESCE(season_id,0),numbering,episode_number) WHERE kind=4",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_episode_count",
@@ -4180,7 +4612,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_episode_count ON catalog_entities(library_id,kind,episode_count,id) WHERE kind IN(2,3)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_duration",
@@ -4210,7 +4642,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_duration ON catalog_entities(library_id,kind,duration_key,id) WHERE kind IN(1,2,3,4,5,6,7,8,9,10)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_critic",
@@ -4240,7 +4672,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_critic ON catalog_entities(library_id,kind,critic_rating_key,id) WHERE kind IN(1,2,3,4,10)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_content_added",
@@ -4270,7 +4702,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_content_added ON catalog_entities(library_id,kind,last_content_added_at,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_collection_name",
@@ -4290,7 +4722,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX catalog_entities_collection_name ON catalog_entities(library_id,collection_name_key) WHERE kind=10",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_book_author",
@@ -4320,7 +4752,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_book_author ON catalog_entities(library_id,kind,author COLLATE NOCASE,id) WHERE kind=8",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_book",
@@ -4350,7 +4782,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_book ON catalog_entities(book_id,COALESCE(disc_number,1),COALESCE(part_number,0),id) WHERE book_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_artist",
@@ -4370,7 +4802,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_artist ON catalog_entities(artist_id,id) WHERE artist_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_album",
@@ -4400,7 +4832,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_album ON catalog_entities(album_id,COALESCE(disc_number,1),COALESCE(track_number,0),id) WHERE album_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_added_v1",
@@ -4430,7 +4862,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_added_v1 ON catalog_entities(library_id,kind,added_at,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_title",
@@ -4460,7 +4892,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_title ON catalog_entities(library_id,kind,sort_key,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_parent",
@@ -4480,7 +4912,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_parent ON catalog_entities(parent_id,id) WHERE parent_id IS NOT NULL",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_library_id",
@@ -4500,7 +4932,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX catalog_entities_library_id ON catalog_entities(library_id,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "catalog_entities_library",
@@ -4525,7 +4957,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_entities_library ON catalog_entities(library_id,kind,id)",
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "sqlite_autoindex_catalog_entities_1",
@@ -4540,7 +4972,7 @@
             }
           ],
           "sql": null,
-          "access": "Declared owner/FK/reverse custody or due range; exact retained native index_xinfo. Hot statement captures remain producer-owned."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         }
       ]
     },
@@ -5430,6 +5862,399 @@
       ]
     },
     {
+      "table": "catalog_info_refresh_receipts",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_info_refresh_receipts_2",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_info_refresh_receipts_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_info_refresh_undo",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "catalog_info_refresh_active_asset",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_info_refresh_active_asset ON catalog_info_refresh_undo(asset_id) WHERE state IN('copying','restoring')",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_info_refresh_original",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "change_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_info_refresh_original ON catalog_info_refresh_undo(change_id,command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_info_refresh_asset",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_token",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_info_refresh_asset ON catalog_info_refresh_undo(asset_id,asset_token,refresh_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_info_refresh_command_owner",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_info_refresh_command_owner ON catalog_info_refresh_undo(refresh_id,command_incarnation)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_info_refresh_token",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "asset_token",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_info_refresh_token ON catalog_info_refresh_undo(asset_token,refresh_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_info_refresh_run",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_info_refresh_run ON catalog_info_refresh_undo(original_run_id,refresh_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_info_undo_asset_chapter_facts",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_info_undo_asset_chapter_facts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_info_undo_asset_chapters",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_info_undo_asset_chapters_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "chapter_index",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_info_undo_asset_stream_facts",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_info_undo_asset_stream_facts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_info_undo_asset_streams",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_info_undo_asset_streams_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "stream_index",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_info_undo_asset_subtitle_facts",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_info_undo_asset_subtitle_facts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_info_undo_asset_subtitles",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_info_undo_asset_subtitles_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_info_undo_subtitle_sidecars",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "catalog_info_undo_sidecar_key",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_info_undo_sidecar_key ON catalog_info_undo_subtitle_sidecars(id,refresh_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_info_undo_subtitle_sidecars_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "refresh_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
       "table": "catalog_item_attribute_edges",
       "grain": "repeated term/member/role/asset contributions across catalogue",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -5632,6 +6457,205 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "catalog_removal_progress",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "catalog_removal_receipt_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "target",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_removal_receipt_due ON catalog_removal_progress(receipt_reclaim_due_ms,kind,target) WHERE receipt_reclaim_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_removal_reclaim_operation",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "reclaim_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_removal_reclaim_operation ON catalog_removal_progress(reclaim_operation_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_removal_original_library",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_library_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_removal_original_library ON catalog_removal_progress(original_library_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_removal_operation",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "target",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX catalog_removal_operation ON catalog_removal_progress(original_operation_id,command_incarnation,kind,target)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "catalog_removal_progress_governor_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "job_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_removal_progress_governor_due ON catalog_removal_progress(job_due_ms) WHERE job_due_ms IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_removal_progress_2",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "target",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_removal_progress_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "catalog_removal_receipts",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_catalog_removal_receipts_2",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "original_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "result_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "result_target",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_removal_receipts_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         }
       ]
     },
@@ -19502,6 +20526,56 @@
       "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
       "complete_release_indexes": [
         {
+          "name": "scan_receipt_ia_kind",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX scan_receipt_ia_kind ON scan_command_receipts(run_id,command_incarnation,command_sequence,command_kind)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "scan_receipt_refused_directory_identity",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "refused_directory_identity",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX scan_receipt_refused_directory_identity ON scan_command_receipts(run_id,refused_directory_identity) WHERE refused_directory_identity IS NOT NULL",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
           "name": "scan_receipt_refusal_kind",
           "unique": true,
           "origin": "c",
@@ -19524,27 +20598,22 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX scan_receipt_refusal_kind ON scan_command_receipts(run_id,operation_id,refused_entry_kind)",
-          "access": "Complete native release index/FK custody; exact forced-query goldens in010 controls."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
-          "name": "scan_receipt_refused_directory_identity",
-          "unique": false,
-          "origin": "c",
-          "partial": true,
+          "name": "sqlite_autoindex_scan_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
           "keys": [
             {
-              "column": "run_id",
-              "collation": "BINARY",
-              "descending": false
-            },
-            {
-              "column": "refused_directory_identity",
+              "column": "operation_id",
               "collation": "BINARY",
               "descending": false
             }
           ],
-          "sql": "CREATE INDEX scan_receipt_refused_directory_identity ON scan_command_receipts(run_id,refused_directory_identity) WHERE refused_directory_identity IS NOT NULL",
-          "access": "Run-wide durable refused native directory identity exclusion for both fresh discover and refusal, across ACK/lease/restart; exact point LIMIT1."
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         },
         {
           "name": "sqlite_autoindex_scan_command_receipts_1",
@@ -19569,22 +20638,7 @@
             }
           ],
           "sql": null,
-          "access": "Complete native release index/FK custody; exact forced-query goldens in010 controls."
-        },
-        {
-          "name": "sqlite_autoindex_scan_command_receipts_2",
-          "unique": true,
-          "origin": "u",
-          "partial": false,
-          "keys": [
-            {
-              "column": "operation_id",
-              "collation": "BINARY",
-              "descending": false
-            }
-          ],
-          "sql": null,
-          "access": "Complete native release index/FK custody; exact forced-query goldens in010 controls."
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         }
       ]
     },
@@ -19672,6 +20726,185 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "scan_media_result_members",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "scan_media_result_asset",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX scan_media_result_asset ON scan_media_result_members(library_id,asset_id)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "scan_media_result_ancestor",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ancestor_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ancestor_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX scan_media_result_ancestor ON scan_media_result_members(library_id,ancestor_id,ancestor_kind)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "scan_media_result_parent",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "parent_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "parent_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX scan_media_result_parent ON scan_media_result_members(library_id,parent_id,parent_kind)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "scan_media_result_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX scan_media_result_subject ON scan_media_result_members(library_id,subject_id,subject_kind)",
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        },
+        {
+          "name": "sqlite_autoindex_scan_media_result_members_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
+        }
+      ]
+    },
+    {
+      "table": "scan_reconcile_members",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "policy": "STRICT",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_scan_reconcile_members_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Exact selected native index_list/index_xinfo; owner/receipt reverse custody or due range. Actual composed hot-path plans and byte registrations remain owner gates."
         }
       ]
     },
@@ -21600,5 +22833,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "CHANGE-018 draft over adopted017. Preserve inherited release keys; complete native inventories for all 34 F changed/new tables. Full native storage models pass; real worker/physical accepting code and producer gates remain open."
+  "change_control": "CHANGE-019 draft over adopted018. Preserve inherited release keys; complete native inventories for all new/changed/index-owner C tables. C1 and C2 SQL models are distinct from real writer/lease/codec/authority and exposure qualification."
 }

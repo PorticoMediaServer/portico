@@ -782,10 +782,35 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "catalog_book_series_heads": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_book_series_members": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
     "catalog_collection_members": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_configuration_operations": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_configuration_receipts": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_configuration_sources": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
     },
     "catalog_credit_images": {
       "policy": "ordinary +full typeof +nonrowid key NOT NULL",
@@ -939,6 +964,16 @@
       "grain": "technical stream/chapter/fact/section/source child or per-item capture; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "catalog_info_refresh_receipts": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_info_refresh_undo": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
     "catalog_info_scalar_old": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "technical stream/chapter/fact/section/source child or per-item capture; >100k plausible",
@@ -948,6 +983,41 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "technical stream/chapter/fact/section/source child or per-item capture; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_info_undo_asset_chapter_facts": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_info_undo_asset_chapters": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_info_undo_asset_stream_facts": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_info_undo_asset_streams": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_info_undo_asset_subtitle_facts": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_info_undo_asset_subtitles": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "catalog_info_undo_subtitle_sidecars": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
     },
     "catalog_item_attribute_edges": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -1005,6 +1075,11 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_removal_receipts": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
     },
     "catalog_retention_cursors": {
       "policy": "STRICT",
@@ -3322,6 +3397,16 @@
     "scan_command_results": {
       "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
       "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "scan_media_result_members": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
+    },
+    "scan_reconcile_members": {
+      "policy": "STRICT",
+      "grain": "Exact C1/C2 typed command, accepted local series or refresh inverse/source grain. STRICT is the owning draft representation, no admission or row-density cap.",
+      "threshold": "Potentially >100000 retained rows; no population cap or performance qualification. Exact source representation remains subject to independent type-policy review."
     },
     "screen_anime_seasons": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
