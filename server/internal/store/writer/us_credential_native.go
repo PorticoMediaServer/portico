@@ -205,7 +205,7 @@ func usCredentialReceiptDefinitions() []stmt.Definition {
 		AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("security_command_receipts", "sqlite_autoindex_security_command_receipts_2", "u", "owner_id", "command_incarnation", "operation_id")}}
 	headerPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"security_command_receipts"}, Seeks: []string{"owner_id=? AND command_incarnation=? AND command_sequence=?"}}
 	resultPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"security_credential_results"}, Seeks: []string{"owner_id=? AND command_incarnation=? AND command_sequence=?"}}
-	scopePlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"security_credential_result_scopes"}, Seeks: []string{"owner_id=? AND command_incarnation=? AND command_sequence=? AND ordinal=?"}}
+	scopePlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"security_credential_result_scopes"}, Seeks: []string{"owner_id=? AND command_incarnation=? AND command_sequence=?"}}
 	defs := []stmt.Definition{
 		{ID: usCredentialOwner, Kind: stmt.Read, SQL: `SELECT command_incarnation,original_family_id,last_sequence,acknowledged_sequence,reclaimed_sequence,retained_count,retained_variable_bytes,retired_ms
 FROM security_command_owners INDEXED BY sqlite_autoindex_security_command_owners_1
@@ -912,7 +912,8 @@ func readUSCredentialResult(ctx context.Context, turn *commandTurn, q usCredenti
 		return out, 0, 0, err
 	}
 	var member, lifetime, familyIncarnation []byte
-	var keyID, nonce, body, aad sql.RawBytes
+	var keyID sql.NullString
+	var nonce, body, aad []byte
 	out.purpose, out.owner = q.kind, q.ownerID
 	if err = row.Scan(&out.id, &out.kind, &out.name, &out.hint, &out.state, &out.endedReason, &out.account, &member, &out.username, &out.profile, &lifetime, &out.profileName, &out.family, &familyIncarnation, &out.device, &out.secretHash, &out.createdMS, &out.expiresMS, &out.lastUsedMS, &out.revokedMS, &keyID, &nonce, &body, &aad, &scopeCount, &typedBytes); err != nil {
 		return out, 0, 0, errors.Join(ErrResolveRequired, err)
@@ -922,8 +923,10 @@ func readUSCredentialResult(ctx context.Context, turn *commandTurn, q usCredenti
 	}
 	out.memberIncarnation, out.profileLifetime = string(member), string(lifetime)
 	copy(out.familyIncarnation[:], familyIncarnation)
-	if keyID != nil {
-		value := string(keyID)
+	// NULL versus present-empty stays distinguishable without a raw driver
+	// destination: NULL leaves these nil/!Valid, an empty value stays non-nil.
+	if keyID.Valid {
+		value := keyID.String
 		out.secret.keyID = &value
 	}
 	if nonce != nil {
