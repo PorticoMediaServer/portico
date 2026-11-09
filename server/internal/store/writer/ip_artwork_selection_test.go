@@ -37,7 +37,7 @@ func ipArtworkSelectionFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usO
 		}
 	}
 	for _, query := range []string{
-		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0),(6,'album',1,0,1,1,1),(7,'song',1,0,1,1,1)`,
+		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0),(5,'artist',0,1,1,1,1),(6,'album',1,0,1,1,1),(7,'song',1,0,1,1,1)`,
 		`INSERT INTO catalog_libraries(id,library_id,root) VALUES(777,'ip-library','/media')`,
 		`INSERT INTO metadata_providers(code,adapter,enabled) VALUES('tmdb','tmdb',1),('tvdb','tvdb',1),('musicbrainz','musicbrainz',1)`,
 		`INSERT INTO screen_metadata_consent(singleton,revision,confirmed) VALUES(1,1,1) ON CONFLICT(singleton) DO UPDATE SET revision=1,confirmed=1`,
@@ -45,9 +45,10 @@ func ipArtworkSelectionFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usO
 	} {
 		ipPolicyExec(t, w, query)
 	}
-	ipArtworkSelectionSeedEntity(t, w, 778, 1, [16]byte{4}, 1)
-	ipArtworkSelectionSeedEntity(t, w, 779, 6, [16]byte{7}, 1)
-	ipArtworkSelectionSeedEntity(t, w, 780, 7, [16]byte{8}, 1)
+	ipArtworkSelectionSeedEntity(t, w, 778, 1, [16]byte{4}, 1, 0, 0)
+	ipArtworkSelectionSeedEntity(t, w, 781, 5, [16]byte{11}, 1, 0, 0)
+	ipArtworkSelectionSeedEntity(t, w, 779, 6, [16]byte{7}, 1, 781, 0)
+	ipArtworkSelectionSeedEntity(t, w, 780, 7, [16]byte{8}, 1, 0, 779)
 	ipPolicyExec(t, w, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name,artwork_incarnation,artwork_revision) VALUES(778,'person-token','person:key','Person','person',X'05000000000000000000000000000000',2)`)
 	leaseUntil := int64(1) << 50
 	for _, row := range []struct {
@@ -75,13 +76,13 @@ func ipArtworkSelectionFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usO
 	return w, &ipPolicyRegistry{r, keeper}, p
 }
 
-func ipArtworkSelectionSeedEntity(t *testing.T, w *executor, id, kind int64, incarnation [16]byte, revision int64) {
+func ipArtworkSelectionSeedEntity(t *testing.T, w *executor, id, kind int64, incarnation [16]byte, revision int64, artistID, albumID int64) {
 	t.Helper()
 	public := make([]byte, 16)
 	public[8], public[9] = byte(id>>8), byte(id&0xff)
 	ipPolicyExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,777,?)`, id, public, kind)
-	ipPolicyExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,source_revision,identity_revision,metadata_revision,artwork_revision) VALUES(?,?,777,?,'Title','title','t','title','t',0,X'03000000000000000000000000000000',?,1,1,1,?)`,
-		id, public, kind, incarnation[:], revision)
+	ipPolicyExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,artist_id,album_id,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,source_revision,identity_revision,metadata_revision,artwork_revision) VALUES(?,?,777,?,NULLIF(?,0),NULLIF(?,0),'Title','title','t','title','t',0,X'03000000000000000000000000000000',?,1,1,1,?)`,
+		id, public, kind, artistID, albumID, incarnation[:], revision)
 }
 
 func ipArtworkSelectionMovieOwner() ipArtworkMaterialOwner {
@@ -124,7 +125,7 @@ func ipArtworkSelectionBytes32(n byte) []byte {
 
 // One accepted source with its three ready slots and (optionally) the retained
 // original upload bytes. It is content custody only, not a selection.
-func ipArtworkSelectionSource(t *testing.T, w *executor, seed int, original bool) (string, [3]string) {
+func seedIPArtworkSelectionSource(t *testing.T, w *executor, seed int, original bool) (string, [3]string) {
 	t.Helper()
 	digest := ipArtworkSelectionHex(seed)
 	var blobs [3]string
@@ -174,7 +175,7 @@ func ipArtworkSelectionCommandFor(t *testing.T, kind CommandID, sequence int64, 
 	return c
 }
 
-func ipArtworkSelectionApply(t *testing.T, w *executor, r *ipPolicyRegistry, p *usOwnerAuthorityProof, c *ipArtworkSelectionCommand) (ipArtworkSelectionCommandResult, *commandTurn, *transaction, ipPolicyBudget) {
+func applyIPArtworkSelectionCommand(t *testing.T, w *executor, r *ipPolicyRegistry, p *usOwnerAuthorityProof, c *ipArtworkSelectionCommand) (ipArtworkSelectionCommandResult, *commandTurn, *transaction, ipPolicyBudget) {
 	t.Helper()
 	turn, tx, b := ipPolicyTurn(t, w, r, c.kind)
 	out, err := applyIPArtworkSelection(t.Context(), turn, p, t.Context(), b, c)
@@ -259,12 +260,12 @@ func ipArtworkSelectionClean(t *testing.T, w *executor, selections int64) {
 // selected source keeps all three ready slots plus a normalized history pin.
 func TestIPArtworkSelectionLockedChoiceAcrossSourceSlots(t *testing.T) {
 	w, r, p := ipArtworkSelectionFixture(t)
-	digest, blobs := ipArtworkSelectionSource(t, w, 1, false)
+	digest, blobs := seedIPArtworkSelectionSource(t, w, 1, false)
 	owner := ipArtworkSelectionMovieOwner()
 	for n, role := range []string{"poster", "backdrop", "still"} {
 		cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, int64(n+1), byte(n+2), owner, role,
 			ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
-		out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, cmd)
+		out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, cmd)
 		if out.Outcome.State != Applied || out.Outcome.Replayed || out.Value.Count != 1 ||
 			out.Value.Selected != digest || out.Value.Previous != "" ||
 			out.Value.SelectionRevision != 1 || !out.Value.History.Present || out.Digest == (ResultDigest{}) {
@@ -295,14 +296,14 @@ func TestIPArtworkSelectionLockedChoiceAcrossSourceSlots(t *testing.T) {
 // digest, and clear removes only the lock.
 func TestIPArtworkSelectionLockedEmptyPersistsAndUpdates(t *testing.T) {
 	w, r, p := ipArtworkSelectionFixture(t)
-	matched, _ := ipArtworkSelectionSource(t, w, 2, false)
-	digest, blobs := ipArtworkSelectionSource(t, w, 3, false)
+	matched, _ := seedIPArtworkSelectionSource(t, w, 2, false)
+	digest, blobs := seedIPArtworkSelectionSource(t, w, 3, false)
 	owner := ipArtworkSelectionMovieOwner()
 	ipArtworkSelectionSeedMatched(t, w, owner, "poster", matched)
 
 	empty := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, owner, "poster",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionFacts{})
-	out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, empty)
+	out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, empty)
 	if out.Outcome.State != Applied || out.Value.Count != 1 || out.Value.Selected != "" ||
 		out.Value.Previous != "" || out.Value.SelectionRevision != 1 || !out.Value.History.Present {
 		t.Fatal(out)
@@ -318,7 +319,7 @@ func TestIPArtworkSelectionLockedEmptyPersistsAndUpdates(t *testing.T) {
 	owner = ipArtworkSelectionAdvance(t, w, owner, 1)
 	again := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 2, 3, owner, "poster",
 		ipArtworkSelectionBeforeFor(t, w, owner, "poster"), ipArtworkSelectionFacts{})
-	out, turn, tx, _ = ipArtworkSelectionApply(t, w, r, p, again)
+	out, turn, tx, _ = applyIPArtworkSelectionCommand(t, w, r, p, again)
 	if out.Outcome.State != Applied || out.Value.Count != 0 || out.Value.History.Present ||
 		out.Value.Selected != "" || out.Value.Previous != "" || out.Value.SelectionRevision != 1 {
 		t.Fatal("repeated locked-empty was a new effect", out)
@@ -331,7 +332,7 @@ func TestIPArtworkSelectionLockedEmptyPersistsAndUpdates(t *testing.T) {
 	owner = ipArtworkSelectionAdvance(t, w, owner, 2)
 	real := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 3, 4, owner, "poster",
 		ipArtworkSelectionBeforeFor(t, w, owner, "poster"), ipArtworkSelectionFactsFor(digest))
-	out, turn, tx, _ = ipArtworkSelectionApply(t, w, r, p, real)
+	out, turn, tx, _ = applyIPArtworkSelectionCommand(t, w, r, p, real)
 	if out.Outcome.State != Applied || out.Value.Count != 1 || out.Value.Selected != digest ||
 		out.Value.Previous != "" || out.Value.SelectionRevision != 2 {
 		t.Fatal(out)
@@ -343,7 +344,7 @@ func TestIPArtworkSelectionLockedEmptyPersistsAndUpdates(t *testing.T) {
 	owner = ipArtworkSelectionAdvance(t, w, owner, 3)
 	clear := ipArtworkSelectionCommandFor(t, IPArtworkClear, 4, 5, owner, "poster",
 		ipArtworkSelectionBeforeFor(t, w, owner, "poster"), ipArtworkSelectionFacts{})
-	out, turn, tx, _ = ipArtworkSelectionApply(t, w, r, p, clear)
+	out, turn, tx, _ = applyIPArtworkSelectionCommand(t, w, r, p, clear)
 	if out.Outcome.State != Applied || out.Value.Count != 1 || out.Value.Selected != "" ||
 		out.Value.Previous != digest || out.Value.SelectionRevision != 3 {
 		t.Fatal(out)
@@ -362,14 +363,14 @@ func TestIPArtworkSelectionLockedEmptyPersistsAndUpdates(t *testing.T) {
 // owner's lock, and clearing an absent lock is not an ownership change.
 func TestIPArtworkSelectionAutoCandidateBeneathLockAndClear(t *testing.T) {
 	w, r, p := ipArtworkSelectionFixture(t)
-	matched, _ := ipArtworkSelectionSource(t, w, 2, false)
-	digest, _ := ipArtworkSelectionSource(t, w, 3, false)
+	matched, _ := seedIPArtworkSelectionSource(t, w, 2, false)
+	digest, _ := seedIPArtworkSelectionSource(t, w, 3, false)
 	owner := ipArtworkSelectionMovieOwner()
 	ipArtworkSelectionSeedMatched(t, w, owner, "poster", matched)
 
 	selectCmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, owner, "poster",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
-	out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, selectCmd)
+	out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, selectCmd)
 	if out.Outcome.State != Applied || out.Value.Count != 1 {
 		t.Fatal(out)
 	}
@@ -380,7 +381,7 @@ func TestIPArtworkSelectionAutoCandidateBeneathLockAndClear(t *testing.T) {
 	owner = ipArtworkSelectionAdvance(t, w, owner, 1)
 	clearCmd := ipArtworkSelectionCommandFor(t, IPArtworkClear, 2, 3, owner, "poster",
 		ipArtworkSelectionBeforeFor(t, w, owner, "poster"), ipArtworkSelectionFacts{})
-	out, turn, tx, _ = ipArtworkSelectionApply(t, w, r, p, clearCmd)
+	out, turn, tx, _ = applyIPArtworkSelectionCommand(t, w, r, p, clearCmd)
 	if out.Outcome.State != Applied || out.Value.Count != 1 || out.Value.Previous != digest ||
 		out.Value.Selected != "" {
 		t.Fatal(out)
@@ -393,7 +394,7 @@ func TestIPArtworkSelectionAutoCandidateBeneathLockAndClear(t *testing.T) {
 	owner = ipArtworkSelectionAdvance(t, w, owner, 2)
 	noop := ipArtworkSelectionCommandFor(t, IPArtworkClear, 3, 4, owner, "poster",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionFacts{})
-	out, turn, tx, _ = ipArtworkSelectionApply(t, w, r, p, noop)
+	out, turn, tx, _ = applyIPArtworkSelectionCommand(t, w, r, p, noop)
 	if out.Outcome.State != Applied || out.Value.Count != 0 || out.Value.History.Present ||
 		out.Value.Previous != "" || out.Value.Selected != "" {
 		t.Fatal("matched row was treated as owner ownership", out)
@@ -408,12 +409,12 @@ func TestIPArtworkSelectionAutoCandidateBeneathLockAndClear(t *testing.T) {
 // namespace with the same numeric ID.
 func TestIPArtworkSelectionOwnerRevisionAndNoContainerCopy(t *testing.T) {
 	w, r, p := ipArtworkSelectionFixture(t)
-	digest, _ := ipArtworkSelectionSource(t, w, 1, false)
+	digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
 
 	album := ipArtworkSelectionAlbumOwner()
 	cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, album, "cover",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
-	if out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, cmd); true {
+	if out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, cmd); true {
 		if out.Outcome.State != Applied || out.Value.Count != 1 {
 			t.Fatal(out)
 		}
@@ -428,7 +429,7 @@ func TestIPArtworkSelectionOwnerRevisionAndNoContainerCopy(t *testing.T) {
 	song := ipArtworkSelectionSongOwner()
 	cmd = ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 3, song, "poster",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
-	if out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, cmd); true {
+	if out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, cmd); true {
 		if out.Outcome.State != Applied || out.Value.Count != 1 {
 			t.Fatal(out)
 		}
@@ -444,7 +445,7 @@ func TestIPArtworkSelectionOwnerRevisionAndNoContainerCopy(t *testing.T) {
 	person := ipArtworkSelectionPersonOwner()
 	cmd = ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 4, person, "portrait",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionUploadFacts(digest))
-	if out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, cmd); true {
+	if out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, cmd); true {
 		if out.Outcome.State != Applied || out.Value.Count != 1 {
 			t.Fatal(out)
 		}
@@ -462,7 +463,7 @@ func TestIPArtworkSelectionOwnerRevisionAndNoContainerCopy(t *testing.T) {
 func TestIPArtworkSelectionClearKeepsOriginalCustody(t *testing.T) {
 	const intent = "job-entity-poster"
 	w, r, p := ipArtworkSelectionFixture(t)
-	digest, blobs := ipArtworkSelectionSource(t, w, 1, true)
+	digest, blobs := seedIPArtworkSelectionSource(t, w, 1, true)
 	ipPolicyExec(t, w, `INSERT INTO artwork_material_intents(id,owner_id,owner_incarnation,generation,revision,source_digest,accepted_mime,accepted_width,accepted_height,large_edge,encoder_revision,state,expected_slots,staged_slots) VALUES(?,901,X'01000000000000000000000000000000',1,2,?,'image/jpeg',3000,2000,1920,3,'installed',4,4)`,
 		intent, digest)
 	for n := 0; n < 3; n++ {
@@ -474,7 +475,7 @@ func TestIPArtworkSelectionClearKeepsOriginalCustody(t *testing.T) {
 	owner := ipArtworkSelectionMovieOwner()
 	cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, owner, "poster",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
-	if out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, cmd); true {
+	if out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, cmd); true {
 		if out.Outcome.State != Applied || out.Value.Count != 1 {
 			t.Fatal(out)
 		}
@@ -483,7 +484,7 @@ func TestIPArtworkSelectionClearKeepsOriginalCustody(t *testing.T) {
 	owner = ipArtworkSelectionAdvance(t, w, owner, 1)
 	clear := ipArtworkSelectionCommandFor(t, IPArtworkClear, 2, 3, owner, "poster",
 		ipArtworkSelectionBeforeFor(t, w, owner, "poster"), ipArtworkSelectionFacts{})
-	out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, clear)
+	out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, clear)
 	if out.Outcome.State != Applied || out.Value.Count != 1 || out.Value.Selected != "" ||
 		out.Value.Previous != digest {
 		t.Fatal(out)
@@ -538,8 +539,8 @@ func TestIPArtworkSelectionFences(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			w, r, p := ipArtworkSelectionFixture(t)
-			digest, _ := ipArtworkSelectionSource(t, w, 1, false)
-			next, nextBlobs := ipArtworkSelectionSource(t, w, 2, false)
+			digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
+			next, nextBlobs := seedIPArtworkSelectionSource(t, w, 2, false)
 			owner := ipArtworkSelectionMovieOwner()
 			if tc.seed {
 				if tc.name == "matched_is_not_lock" {
@@ -597,7 +598,7 @@ func TestIPArtworkSelectionFences(t *testing.T) {
 func TestIPArtworkSelectionSequenceAndIdentity(t *testing.T) {
 	t.Run("sequence_gap", func(t *testing.T) {
 		w, r, p := ipArtworkSelectionFixture(t)
-		digest, _ := ipArtworkSelectionSource(t, w, 1, false)
+		digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
 		cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 2, 3, ipArtworkSelectionMovieOwner(), "poster",
 			ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
 		turn, tx, b := ipPolicyTurn(t, w, r, IPArtworkSelect)
@@ -611,11 +612,11 @@ func TestIPArtworkSelectionSequenceAndIdentity(t *testing.T) {
 	})
 	t.Run("conflicting_request", func(t *testing.T) {
 		w, r, p := ipArtworkSelectionFixture(t)
-		digest, _ := ipArtworkSelectionSource(t, w, 1, false)
-		other, _ := ipArtworkSelectionSource(t, w, 2, false)
+		digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
+		other, _ := seedIPArtworkSelectionSource(t, w, 2, false)
 		first := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, ipArtworkSelectionMovieOwner(), "poster",
 			ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
-		if _, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, first); true {
+		if _, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, first); true {
 			ipPolicyCommitTurn(t, turn, tx)
 		}
 		conflicting := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, ipArtworkSelectionMovieOwner(), "poster",
@@ -632,7 +633,7 @@ func TestIPArtworkSelectionSequenceAndIdentity(t *testing.T) {
 	})
 	t.Run("missing_owner", func(t *testing.T) {
 		w, r, p := ipArtworkSelectionFixture(t)
-		digest, _ := ipArtworkSelectionSource(t, w, 1, false)
+		digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
 		owner := ipArtworkSelectionMovieOwner()
 		owner.id = 999
 		cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, owner, "poster",
@@ -646,7 +647,7 @@ func TestIPArtworkSelectionSequenceAndIdentity(t *testing.T) {
 	})
 	t.Run("foreign_incarnation", func(t *testing.T) {
 		w, r, p := ipArtworkSelectionFixture(t)
-		digest, _ := ipArtworkSelectionSource(t, w, 1, false)
+		digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
 		owner := ipArtworkSelectionMovieOwner()
 		owner.incarnation = [16]byte{9}
 		cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, owner, "poster",
@@ -666,7 +667,7 @@ func TestIPArtworkSelectionCurrentAuthorityAndLifetime(t *testing.T) {
 	for _, mode := range []string{"revoked_family", "forged_proof", "revoked_membership", "cancelled_lifetime"} {
 		t.Run(mode, func(t *testing.T) {
 			w, r, p := ipArtworkSelectionFixture(t)
-			digest, _ := ipArtworkSelectionSource(t, w, 1, false)
+			digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
 			cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, ipArtworkSelectionMovieOwner(), "poster",
 				ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
 			lifetime := context.Background()
@@ -695,7 +696,7 @@ func TestIPArtworkSelectionCurrentAuthorityAndLifetime(t *testing.T) {
 // connection; the quarantined pool serves no saved choice afterwards.
 func TestIPArtworkSelectionUnknownCommitFreshRead(t *testing.T) {
 	w, r, p := ipArtworkSelectionFixture(t)
-	digest, _ := ipArtworkSelectionSource(t, w, 1, false)
+	digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
 	cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, ipArtworkSelectionMovieOwner(), "poster",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
 	path := ipPolicyDatabasePath(t, w)
@@ -742,10 +743,10 @@ func TestIPArtworkSelectionUnknownCommitFreshRead(t *testing.T) {
 // and automatic rows move; at or below ACK it is Retired instead.
 func TestIPArtworkSelectionReplayAfterChangesAndRetired(t *testing.T) {
 	w, r, p := ipArtworkSelectionFixture(t)
-	digest, _ := ipArtworkSelectionSource(t, w, 1, false)
+	digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
 	cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, ipArtworkSelectionMovieOwner(), "poster",
 		ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(digest))
-	out, turn, tx, _ := ipArtworkSelectionApply(t, w, r, p, cmd)
+	out, turn, tx, _ := applyIPArtworkSelectionCommand(t, w, r, p, cmd)
 	if out.Outcome.State != Applied || out.Value.Count != 1 {
 		t.Fatal(out)
 	}
@@ -816,8 +817,8 @@ func TestIPArtworkSelectionMalformedReceiptRefused(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			w, r, _ := ipArtworkSelectionFixture(t)
-			digest, _ := ipArtworkSelectionSource(t, w, 1, false)
-			other, _ := ipArtworkSelectionSource(t, w, 2, false)
+			digest, _ := seedIPArtworkSelectionSource(t, w, 1, false)
+			other, _ := seedIPArtworkSelectionSource(t, w, 2, false)
 			after := ipArtworkSelectionFactsFor(digest)
 			if tc.kind == IPArtworkClear {
 				after = ipArtworkSelectionFacts{}
