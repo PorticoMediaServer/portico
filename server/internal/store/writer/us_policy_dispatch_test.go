@@ -172,14 +172,9 @@ func TestUSPolicyDispatchPhysicalOriginalReplayAndACK(t *testing.T) {
 	if !reflect.DeepEqual(out.Value.libraries, []string{"movies", "music"}) || out.ChargedBytes <= 0 || out.EventID <= 0 || out.OwnerCount != 1 || out.OwnerBytes != out.ChargedBytes {
 		t.Fatal("original accounting", out)
 	}
-	if out.Image.Member == nil || out.Image.Profile != nil {
-		t.Fatal("540 must return the DirectSnapshot image", out.Image)
-	}
-	image := out.Image.Member
-	if image.Account.ID != "target" || image.Account.Revision != 2 || !reflect.DeepEqual(image.Account.AllowedLibraries, []string{"movies", "music"}) ||
-		len(image.Profiles) != 2 || image.Profiles[0].ID != "target-profile" || image.Profiles[1].ID != "target-second" ||
-		!reflect.DeepEqual(image.Profiles[0].AllowedLibraries, []string{}) || image.Authority != "local" || image.ServerID != "server" || !image.CanManage {
-		t.Fatalf("540 frozen image is not complete: %+v", image)
+	// 540's product response is empty/204: no original-response image at all.
+	if out.Image.Snapshot != nil || out.ImageBytes != 0 {
+		t.Fatal("540 returned an original-response image", out.Image)
 	}
 	revision, libraries, events := usPolicyDispatchSource(t, w, USMemberLibraries)
 	if revision != 2 || libraries.String != `["movies","music"]` || events != 1 {
@@ -200,7 +195,7 @@ func TestUSPolicyDispatchPhysicalOriginalReplayAndACK(t *testing.T) {
 	if replay.Outcome.State != Applied || !replay.Outcome.Replayed || replay.Digest != out.Digest || !reflect.DeepEqual(replay.Value, out.Value) {
 		t.Fatal("replay did not return the saved original", replay)
 	}
-	if replay.Image.Member != nil || replay.Image.Profile != nil || replay.ChargedBytes != 0 || replay.EventID != 0 {
+	if replay.Image.Snapshot != nil || replay.ImageBytes != 0 || replay.ChargedBytes != 0 || replay.EventID != 0 {
 		t.Fatal("replay rebuilt a response image or charged again", replay)
 	}
 	if after := usPolicyDispatchQuery(t, w, `SELECT total_changes()`); after != before {
@@ -287,8 +282,9 @@ func TestUSPolicyDispatchMemberNilSavesExplicitEmptyList(t *testing.T) {
 	}
 }
 
-// 541 is read live on the profile's next request: no event, and the public
-// image keeps the product's explicit-list shape while the result keeps inherit.
+// 541 is read live on the profile's next request: no event, and its original
+// response is the CALLER's complete post-effect DirectSnapshot (never the edited
+// target's MemberProfile and never a 540 member snapshot).
 func TestUSPolicyDispatchProfilePolicyHasNoEvent(t *testing.T) {
 	for _, mode := range []struct {
 		name      string
@@ -313,14 +309,21 @@ func TestUSPolicyDispatchProfilePolicyHasNoEvent(t *testing.T) {
 			if len(out.Value.libraries) != len(mode.libraries) {
 				t.Fatal("result libraries", out.Value.libraries)
 			}
-			if out.Image.Profile == nil || out.Image.Member != nil {
-				t.Fatal("541 must return the MemberProfile image", out.Image)
+			if out.Image.Snapshot == nil || out.ImageBytes <= 0 {
+				t.Fatal("541 must return the caller snapshot", out.Image)
 			}
-			image := out.Image.Profile
-			if image.ID != usPolicyIssuerSecondaryProfile || image.Revision != 2 || image.Primary ||
-				!reflect.DeepEqual(image.AllowedLibraries, mode.imageList) ||
-				image.Restrictions.ProfileID != usPolicyIssuerSecondaryProfile || image.Restrictions.Revision != 1 || image.Restrictions.MaximumAge != -1 || !image.Restrictions.AllowUnrated || !image.Restrictions.AllowDownloads || !image.Restrictions.AllowLiveTV || image.Restrictions.AllowDVR || !image.Restrictions.AllowWatchTogether || image.Restrictions.BlockedLabels == nil {
-				t.Fatalf("541 frozen image is not complete: %+v", image)
+			image := out.Image.Snapshot
+			if image.Authority != "local" || image.ServerID != "server" || image.Account.ID != "issuer" ||
+				image.Account.PrimaryProfileID != "issuer-profile" || image.Account.Role != "owner" || image.Account.Revision != 1 ||
+				image.Account.Disabled || !reflect.DeepEqual(image.Account.AllowedLibraries, []string{}) ||
+				!image.CanManage || image.Capabilities != (USDirectCapabilitiesImage{ManageAccount: true, ManagePeople: true, ManageServer: true, ManageSignIn: true}) ||
+				image.TwoStepSetupRequired || image.CustodyPending || !image.RememberProfiles || image.ManagePINRequired {
+				t.Fatalf("541 caller snapshot is not the product image: %+v", image)
+			}
+			if len(image.Profiles) != 2 || image.Profiles[0].ID != "issuer-profile" || !image.Profiles[0].Primary ||
+				image.Profiles[1].ID != usPolicyIssuerSecondaryProfile || image.Profiles[1].Primary ||
+				image.Profiles[1].Revision != 2 || !reflect.DeepEqual(image.Profiles[1].AllowedLibraries, mode.imageList) {
+				t.Fatalf("541 caller profiles: %+v", image.Profiles)
 			}
 			var events int64
 			if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM api_events`).Scan(&events); err != nil || events != 0 {
@@ -330,6 +333,21 @@ func TestUSPolicyDispatchProfilePolicyHasNoEvent(t *testing.T) {
 				if n := usPolicyDispatchQuery(t, w, `SELECT allowed_libraries IS NULL FROM direct_profiles WHERE id=?`, usPolicyIssuerSecondaryProfile); n != 1 {
 					t.Fatal("inherit did not save SQL NULL")
 				}
+			}
+			// A replay returns the retained original and constructs no image.
+			turn, a, _ = usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+			for id := range turn.steps {
+				switch id {
+				case usPolicyImageAccountOctets, usPolicyImageFamilyOctets, usPolicyImagePolicyOctets, usPolicyImageHostedOctets,
+					usPolicyImageCustodianOctets, usPolicyImageProfilesOctets, usPolicyImageAccount, usPolicyImageFamily,
+					usPolicyImagePolicy, usPolicyImageFactor, usPolicyImageHosted, usPolicyImageCustodian, usPolicyImageProfiles:
+					delete(turn.steps, id)
+				}
+			}
+			replay, _, err := runUSPolicyDispatch(t.Context(), turn, a, &usPolicyInvocation{request: usPolicyDispatchInput(t, input).request})
+			if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed || replay.Image.Snapshot != nil ||
+				replay.ImageBytes != 0 || !reflect.DeepEqual(replay.Value, out.Value) {
+				t.Fatal("replay reconstructed an image", replay, err)
 			}
 		})
 	}
@@ -601,7 +619,7 @@ func usPolicyDispatchSourceRevision(t *testing.T, w *executor) int64 {
 // The statement inventory stays closed, hot and plan-captured.
 func TestUSPolicyDispatchStatementCapture(t *testing.T) {
 	defs := usPolicyDispatchDefinitions()
-	if len(defs) != 7 {
+	if len(defs) != 14 {
 		t.Fatal("dispatch statement inventory changed", len(defs))
 	}
 	for _, d := range defs {
@@ -621,7 +639,7 @@ func TestUSPolicyDispatchStatementCapture(t *testing.T) {
 
 // The dispatch image and result redact cleanly in logs and JSON.
 func TestUSPolicyDispatchRedaction(t *testing.T) {
-	image := usPolicyPublicImage{Member: &USDirectSnapshotImage{Account: USDirectAccountImage{Username: "secret-user"}}}
+	image := usPolicyPublicImage{Snapshot: &USDirectSnapshotImage{Account: USDirectAccountImage{Username: "secret-user"}}}
 	var out usPolicyDispatchResult
 	for _, value := range []any{image, out, usPolicyCompletion{}} {
 		for _, rendered := range []string{fmtValue(value), fmtGoValue(value)} {
@@ -630,6 +648,251 @@ func TestUSPolicyDispatchRedaction(t *testing.T) {
 			}
 		}
 	}
+}
+
+// First-instance review fixes, all in one focused function: a bare Resolve is
+// never Applied, a reorder-only 540 writes quietly, a committed overrun carries
+// no output, and the 541 caller snapshot follows the product's own rules with a
+// charged INTEGER preflight and no retired-row leakage.
+func TestUSPolicyDispatchReviewFixes(t *testing.T) {
+	t.Run("resolve_never_applied", func(t *testing.T) {
+		w, _, r, proof, input := usPolicyDispatchFixture(t, USMemberLibraries, []string{"movies", "music"})
+		inv := usPolicyDispatchInput(t, input)
+		turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+		// Force the original's prefix to roll back after its source effect.
+		delete(turn.steps, wcAPIEventInsert)
+		if out, _, err := runUSPolicyDispatch(t.Context(), turn, a, inv); err == nil || !reflect.DeepEqual(out, usPolicyDispatchResult{}) {
+			t.Fatal("forced rollback escaped", out, err)
+		}
+		if usPolicyDispatchQuery(t, w, `SELECT last_sequence FROM security_command_owners`) != 0 ||
+			usPolicyDispatchQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
+			t.Fatal("forced rollback left a prefix")
+		}
+		// A bare Resolve at last+1 (0+1) is a fresh classification with no input:
+		// it may report Pending but must never become Applied or deliver a zero
+		// Value/Digest as an applied original.
+		turn, a, _ = usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+		out, floor, err := runUSPolicyDispatch(t.Context(), turn, a, &usPolicyInvocation{request: inv.request})
+		if err != nil {
+			t.Fatal("bare Resolve failed", err)
+		}
+		if out.Outcome.State == Applied || out.Value.revision != 0 || out.Digest != (ResultDigest{}) ||
+			out.ChargedBytes != 0 || out.EventID != 0 || floor.AcknowledgedThrough != 0 {
+			t.Fatal("bare Resolve was delivered as an applied original", out, floor)
+		}
+		if usPolicyDispatchQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 ||
+			usPolicyDispatchQuery(t, w, `SELECT count(*) FROM api_events`) != 0 {
+			t.Fatal("bare Resolve wrote a receipt or event")
+		}
+	})
+
+	t.Run("reorder_writes_without_event", func(t *testing.T) {
+		w, _, r, proof, first := usPolicyDispatchFixture(t, USMemberLibraries, []string{"movies", "music"})
+		turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, first.kind, 0)
+		if _, _, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, first)); err != nil {
+			t.Fatal(err)
+		}
+		turn, a, _ = usPolicyDispatchTurn(t, w, r, proof, first.kind, 0)
+		if _, _, err := runUSPolicyDispatch(t.Context(), turn, a, &usPolicyInvocation{request: usPolicyDispatchInput(t, first).request, ack: true}); err != nil {
+			t.Fatal(err)
+		}
+		identity := first.identity
+		identity.Sequence = 2
+		identity.OperationID = [16]byte{3}
+		request := first.request
+		request.expectedRevision = 2
+		request.libraries = []string{"music", "movies"}
+		next, err := prepareUSLibraryPolicy(first.kind, identity, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn, a, _ = usPolicyDispatchTurn(t, w, r, proof, first.kind, 0)
+		out, _, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, next))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.Outcome.State != Applied || out.Value.changed || out.Value.revision != 3 || out.EventID != 0 {
+			t.Fatal("reorder-only 540", out)
+		}
+		revision, libraries, events := usPolicyDispatchSource(t, w, USMemberLibraries)
+		if revision != 3 || libraries.String != `["music","movies"]` || events != 1 {
+			t.Fatal("reorder did not write the prepared order quietly", revision, libraries, events)
+		}
+	})
+
+	t.Run("committed_overrun_zeroes_output", func(t *testing.T) {
+		w, path, r, proof, input := usPolicyDispatchFixture(t, USMemberLibraries, []string{"movies", "music"})
+		connector, err := sqliteconn.Connector(path, w.config, sqliteconn.ExistingFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := w.now()
+		fault := &faultConnector{Connector: connector}
+		fault.afterNativeCommit = func() { now = now.Add(MaxCommandSafetyHold + time.Millisecond) }
+		installFaultPool(w, fault)
+		w.now = func() time.Time { return now }
+		turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+		out, floor, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, input))
+		if !errors.Is(err, ErrOverrun) || !reflect.DeepEqual(out, usPolicyDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+			t.Fatal("committed overrun carried output", out, floor, err)
+		}
+		// The physical prefix committed; only the caller-visible result is zero.
+		// The overrun fence closed the private pool, so read the committed file
+		// through a fresh independent reader.
+		read := func(query string) int64 {
+			cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
+			db, _, openErr := sqliteconn.Open(t.Context(), path, cfg)
+			if openErr != nil {
+				t.Fatal(openErr)
+			}
+			defer db.Close()
+			var n int64
+			if scanErr := db.QueryRowContext(t.Context(), query).Scan(&n); scanErr != nil {
+				t.Fatal(scanErr)
+			}
+			return n
+		}
+		if read(`SELECT revision FROM direct_memberships WHERE account_id='target'`) != 2 ||
+			read(`SELECT count(*) FROM api_events`) != 1 ||
+			read(`SELECT count(*) FROM security_command_receipts`) != 1 {
+			t.Fatal("overrun did not commit the physical prefix")
+		}
+	})
+
+	t.Run("caller_snapshot_product_rules", func(t *testing.T) {
+		for _, mode := range []struct {
+			name           string
+			hosted         bool
+			custodian      sql.NullString
+			custodyPending bool
+		}{
+			{"no_hosted_link", false, sql.NullString{}, false},
+			{"custodian_null", true, sql.NullString{}, false},
+			{"custodian_other", true, sql.NullString{String: "custodian-other", Valid: true}, true},
+			{"custodian_same", true, sql.NullString{String: "hosted-1", Valid: true}, false},
+		} {
+			t.Run(mode.name, func(t *testing.T) {
+				w, _, r, proof, input := usPolicyDispatchFixture(t, USProfileLibraries, []string{"movies"})
+				if mode.hosted {
+					wc008NativeExec(t, w, `INSERT INTO account_portico_links(account_id,hosted_account_id) VALUES('issuer','hosted-1')`)
+				}
+				if mode.custodian.Valid {
+					wc008NativeExec(t, w, `INSERT INTO hosted_membership_sync(singleton,custodian) VALUES(1,?)`, mode.custodian.String)
+				}
+				if mode.name == "custodian_same" {
+					wc008NativeExec(t, w, `UPDATE identity_sign_in_policy SET pin_remember_days=0`)
+				}
+				turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+				out, _, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, input))
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot := out.Image.Snapshot
+				if snapshot == nil || out.ImageBytes <= 0 {
+					t.Fatal("541 snapshot missing", out.Image)
+				}
+				hostedAccount := ""
+				if mode.hosted {
+					hostedAccount = "hosted-1"
+				}
+				if snapshot.CustodyPending != mode.custodyPending || snapshot.Account.HostedAccountID != hostedAccount {
+					t.Fatal("custody facts", snapshot.CustodyPending, snapshot.Account.HostedAccountID)
+				}
+				if mode.name == "custodian_same" && snapshot.RememberProfiles {
+					t.Fatal("sign-in policy fact was not read")
+				}
+				// Product rules: owner main profile, no PIN, so the owner manages
+				// everything; no account-scope factor setup; no manage lock.
+				if !snapshot.CanManage || snapshot.TwoStepSetupRequired || snapshot.ManagePINRequired ||
+					snapshot.Capabilities.ManageSignIn != true || snapshot.Account.Revision != 1 {
+					t.Fatalf("product management facts: %+v", snapshot)
+				}
+			})
+		}
+	})
+
+	t.Run("snapshot_rejects_inherit_mismatch", func(t *testing.T) {
+		w, _, r, proof, inherit := usPolicyDispatchFixture(t, USProfileLibraries, nil)
+		// Make the edited profile's source SQL NULL (inherit), then claim an
+		// explicit saved list: a NULL image must not be accepted as explicit.
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries=NULL WHERE id=?`, usPolicyIssuerSecondaryProfile)
+		turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, inherit.kind, 0)
+		explicit := usPolicySavedResult{kind: USProfileLibraries, account: "issuer", profile: usPolicyIssuerSecondaryProfile,
+			profileLifetime: inherit.request.profileLifetime, revision: 2, inherits: false, libraries: []string{"movies"}}
+		if _, _, err := captureUSPolicyCallerSnapshot(t.Context(), turn, a, inherit, explicit, w.now().UnixMilli()); !errors.Is(err, ErrResolveRequired) {
+			t.Fatal("an image NULL against a saved explicit list was accepted", err)
+		}
+		// The reverse: an explicit source against a saved inherit.
+		w, _, r, proof, explicitCommand := usPolicyDispatchFixture(t, USProfileLibraries, []string{"movies"})
+		turn, a, _ = usPolicyDispatchTurn(t, w, r, proof, explicitCommand.kind, 0)
+		if _, _, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, explicitCommand)); err != nil {
+			t.Fatal(err)
+		}
+		inheritSaved := usPolicySavedResult{kind: USProfileLibraries, account: "issuer", profile: usPolicyIssuerSecondaryProfile,
+			profileLifetime: explicitCommand.request.profileLifetime, revision: 2, inherits: true, libraries: nil}
+		turn, a, _ = usPolicyDispatchTurn(t, w, r, proof, explicitCommand.kind, 0)
+		if _, _, err := captureUSPolicyCallerSnapshot(t.Context(), turn, a, explicitCommand, inheritSaved, w.now().UnixMilli()); !errors.Is(err, ErrResolveRequired) {
+			t.Fatal("an image list against a saved inherit was accepted", err)
+		}
+	})
+
+	t.Run("retired_profiles_do_not_consume_cap", func(t *testing.T) {
+		w, _, r, proof, input := usPolicyDispatchFixture(t, USProfileLibraries, []string{"movies"})
+		for i := 0; i < 58; i++ {
+			if _, err := w.db.ExecContext(t.Context(), `INSERT INTO direct_profiles(id,account_id,lifetime,name,is_primary,position,deleted) VALUES(?, 'issuer', ?, 'Retired', 0, ?, 1)`,
+				fmt.Sprintf("retired-%02d", i), fmt.Sprintf("%032x", i+1), 100+i); err != nil {
+				t.Fatal(err)
+			}
+		}
+		turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+		out, _, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.Image.Snapshot == nil || len(out.Image.Snapshot.Profiles) != 2 ||
+			out.Image.Snapshot.Profiles[0].ID != "issuer-profile" || out.Image.Snapshot.Profiles[1].ID != usPolicyIssuerSecondaryProfile {
+			t.Fatalf("retired rows consumed the live cap: %+v", out.Image.Snapshot)
+		}
+	})
+
+	t.Run("too_many_live_profiles_refused", func(t *testing.T) {
+		w, _, r, proof, input := usPolicyDispatchFixture(t, USProfileLibraries, []string{"movies"})
+		for i := 0; i < 63; i++ {
+			if _, err := w.db.ExecContext(t.Context(), `INSERT INTO direct_profiles(id,account_id,lifetime,name,is_primary,position) VALUES(?, 'issuer', ?, ?, 0, ?)`,
+				fmt.Sprintf("live-%02d", i), fmt.Sprintf("%032x", i+100), fmt.Sprintf("Live %02d", i), 10+i); err != nil {
+				t.Fatal(err)
+			}
+		}
+		turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+		out, _, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, input))
+		var refusal *Refusal
+		if !errors.As(err, &refusal) || refusal.Code != RefusalCapacity || !reflect.DeepEqual(out, usPolicyDispatchResult{}) {
+			t.Fatal("65 live profiles were not refused", out, err)
+		}
+		if revision, _, events := usPolicyDispatchSource(t, w, USProfileLibraries); revision != 1 || events != 0 {
+			t.Fatal("refused image left a source prefix", revision, events)
+		}
+	})
+
+	t.Run("oversize_libraries_refused_before_materialization", func(t *testing.T) {
+		w, _, r, proof, input := usPolicyDispatchFixture(t, USProfileLibraries, []string{"movies"})
+		big := `["` + strings.Repeat("a", 200000) + `"]`
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries=? WHERE id='issuer-profile'`, big)
+		turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+		// The TEXT materialization points are absent: only the INTEGER preflight
+		// may be reached, so the same refusal proves nothing was materialized.
+		for _, id := range []stmt.ID{usPolicyImageAccount, usPolicyImageFamily, usPolicyImagePolicy, usPolicyImageFactor, usPolicyImageHosted, usPolicyImageCustodian, usPolicyImageProfiles} {
+			delete(turn.steps, id)
+		}
+		out, _, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, input))
+		var refusal *Refusal
+		if !errors.As(err, &refusal) || refusal.Code != RefusalCapacity || !reflect.DeepEqual(out, usPolicyDispatchResult{}) {
+			t.Fatal("oversize libraries were not refused before materialization", out, err)
+		}
+		if revision, _, _ := usPolicyDispatchSource(t, w, USProfileLibraries); revision != 1 {
+			t.Fatal("refused image wrote source", revision)
+		}
+	})
 }
 
 // usPolicyStepClock recovers the validated instant, then steps once over a

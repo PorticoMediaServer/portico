@@ -8,8 +8,8 @@ package writer
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "us_policy_dispatch",
-		resultTypes: []string{"usPolicyQuotaFacts", "usPolicyPublicImage", "usPolicySignInFacts"},
-		names:       []string{"executeUSPolicyInvocation", "usPolicyCaptureImage", "captureUSPolicyMemberImage", "captureUSPolicyProfileImage", "readUSPolicySignInFacts", "readUSPolicyQuota", "readUSPolicyFreshTarget"},
+		resultTypes: []string{"usPolicyPublicImage"},
+		names:       []string{"executeUSPolicyInvocation", "captureUSPolicyCallerSnapshot", "readUSPolicyQuota", "readUSPolicyFreshTarget"},
 		bypasses: []string{
 			`func quotaBypass(ctx context.Context)(out usPolicyQuotaFacts,err error){return out,nil}`,
 			`func imageBypass(ctx context.Context)(out usPolicyPublicImage,err error){return out,nil}`,
