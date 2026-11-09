@@ -144,8 +144,12 @@ func (s *mpPhysicalSupervisor) start(root mpPhysicalRoot, supervisor mpPhysicalR
 	registry.executions[root.occurrence()] = e
 	retired, returned := e.retired, e.returned
 	supervise.Go("writer.mp.physical.run", func() {
+		defer close(returned)
+		// A panic (or Goexit) leaves a terminal error for join while supervise
+		// records the panic. Retirement, reader/window exit and cleanup still
+		// have to finish before that error can refund the physical root.
+		e.runErr = errors.New("mp physical runner ended before returning")
 		e.runErr = supervisor.RunOwnedLinear(s.life, "mp-physical:"+root.execution, cmd, func(r io.Reader) error { _, err := io.Copy(io.Discard, r); return err }, nil, func() { close(retired) })
-		close(returned)
 	})
 	return e, nil
 }
