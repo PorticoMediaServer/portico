@@ -487,9 +487,21 @@ func ipPersonPhase(value string) bool {
 // ipPersonOwnerFresh proves the exact live owner: lease generation and expiry,
 // captured person token/revision, immutable provider subject and current policy
 // revision. A new observation, policy revision, consent revision or lease loss
-// is stale. No latest/MAX person, subject or policy lookup exists.
+// is stale. No latest/MAX person, subject or policy lookup exists. Every caller
+// that continues work (renew, begin, append, seal, accept, delta) also requires
+// the current GLOBAL provider enablement; only FINISH passes false.
 func ipPersonOwnerFresh(ctx context.Context, turn *commandTurn, owner ipPersonOwner, provider, providerID, lease string,
-	personID, generation, revision, leaseGeneration, leaseUntilMS, appliedMS int64) (err error) {
+	personID, generation, revision, leaseGeneration, leaseUntilMS, appliedMS int64) error {
+	return ipPersonOwnerFreshGated(ctx, turn, owner, provider, providerID, lease,
+		personID, generation, revision, leaseGeneration, leaseUntilMS, appliedMS, true)
+}
+
+// ipPersonOwnerFreshGated is ipPersonOwnerFresh with an explicit global-provider
+// gate. FINISH uses requireProviderEnabled=false because exact-owner custody
+// closure must still settle after a disable; it still proves the lease, person,
+// subject, policy and consent witnesses and performs no acquisition side effect.
+func ipPersonOwnerFreshGated(ctx context.Context, turn *commandTurn, owner ipPersonOwner, provider, providerID, lease string,
+	personID, generation, revision, leaseGeneration, leaseUntilMS, appliedMS int64, requireProviderEnabled bool) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	if !owner.exists || owner.lease != lease || owner.generation != generation ||
 		owner.revision != revision || owner.leaseGeneration != leaseGeneration ||
@@ -550,8 +562,10 @@ func ipPersonOwnerFresh(ctx context.Context, turn *commandTurn, owner ipPersonOw
 	if owner.libraryRetired != 0 {
 		return ErrDisclosureDenied
 	}
-	if err = ipPolicyProviderEnabled(ctx, turn, provider); err != nil {
-		return err
+	if requireProviderEnabled {
+		if err = ipPolicyProviderEnabled(ctx, turn, provider); err != nil {
+			return err
+		}
 	}
 	return ipPolicyProviderConsent(ctx, turn, provider, owner.consentRevision)
 }
@@ -776,9 +790,11 @@ func applyIPPersonClaim(ctx context.Context, turn *commandTurn, p *usOwnerAuthor
 	return out, nil
 }
 
-// Renew extends only the exact live person owner's lease. The lease generation,
-// operation generation/revision, captured person revision and subject/policy
-// witnesses must still match before the owner floor advances.
+// Renew extends only the exact live person owner's lease. A fresh renew grants
+// continued work, so it requires the current GLOBAL provider enablement as well
+// as the lease generation, operation generation/revision, captured person
+// revision and subject/policy/consent witnesses before the owner floor advances.
+// FINISH is the only lifecycle command that omits the global gate.
 func applyIPPersonRenew(ctx context.Context, turn *commandTurn, p *usOwnerAuthorityProof, lifetime context.Context,
 	b ipPolicyBudget, c *ipPersonCommand) (out ipPersonCommandResult, err error) {
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
@@ -879,7 +895,11 @@ func applyIPPersonRenew(ctx context.Context, turn *commandTurn, p *usOwnerAuthor
 
 // Finish records the truthful terminal outcome of the exact live person owner.
 // Done closes the operation and forbids any later build; retry keeps the phase
-// but schedules the next attempt. Neither accepts nor publishes person data.
+// but schedules the next attempt. It is custody closure: it deliberately does
+// NOT require the global provider enablement that claim and renew do, so an
+// exact owner can still settle after a disable. Neither outcome accepts,
+// publishes, leases or starts IO, and a retried owner still cannot begin work
+// while the provider is disabled.
 func applyIPPersonFinish(ctx context.Context, turn *commandTurn, p *usOwnerAuthorityProof, lifetime context.Context,
 	b ipPolicyBudget, c *ipPersonCommand) (out ipPersonCommandResult, err error) {
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
@@ -940,8 +960,8 @@ func applyIPPersonFinish(ctx context.Context, turn *commandTurn, p *usOwnerAutho
 	if appliedMS < 0 {
 		return zero, ErrInvalid
 	}
-	if err = ipPersonOwnerFresh(ctx, turn, lookup.owner, q.provider, q.providerID, q.lease,
-		q.personID, q.generation, q.revision, q.leaseGeneration, q.leaseUntilMS, appliedMS); err != nil {
+	if err = ipPersonOwnerFreshGated(ctx, turn, lookup.owner, q.provider, q.providerID, q.lease,
+		q.personID, q.generation, q.revision, q.leaseGeneration, q.leaseUntilMS, appliedMS, false); err != nil {
 		return zero, err
 	}
 	phase, nextAttempt := lookup.owner.phase, any(nil)

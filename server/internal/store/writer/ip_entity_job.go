@@ -704,7 +704,9 @@ func applyIPEntityClaim(ctx context.Context, turn *commandTurn, p *usOwnerAuthor
 	return out, nil
 }
 
-// Renew extends only the exact live owner's lease. The lease generation, job
+// Renew extends only the exact live owner's lease. A fresh renew grants
+// continued work, so it requires the current GLOBAL provider enablement exactly
+// as claim does (finish does not inherit that gate). The lease generation, job
 // generation/revision and observation witnesses must still match before IO.
 func applyIPEntityRenew(ctx context.Context, turn *commandTurn, p *usOwnerAuthorityProof, lifetime context.Context,
 	b ipPolicyBudget, c *ipEntityJobCommand) (out ipEntityJobCommandResult, err error) {
@@ -746,6 +748,11 @@ func applyIPEntityRenew(ctx context.Context, turn *commandTurn, p *usOwnerAuthor
 		return zero, ErrResolveRequired
 	}
 	if err = auth.ipPolicyAuthorityRecheck(ctx, turn); err != nil {
+		return zero, err
+	}
+	// Fresh renew is acquisition work, not custody closure: a globally
+	// disabled provider must refuse it before any lease or receipt effect.
+	if err = ipPolicyProviderEnabled(ctx, turn, q.provider); err != nil {
 		return zero, err
 	}
 	now, err := turn.transaction.clockTime()
@@ -795,8 +802,11 @@ func applyIPEntityRenew(ctx context.Context, turn *commandTurn, p *usOwnerAuthor
 	return out, nil
 }
 
-// Finish records the truthful terminal outcome of the exact live owner. Done
-// does not publish or accept provider metadata; retry reschedules the job.
+// Finish records the truthful terminal outcome of the exact live owner. It is
+// custody closure, so it deliberately does NOT require the global provider
+// enablement that claim and renew do: exact-owner bookkeeping must still settle
+// after a disable. Done does not publish, accept or lease anything and starts no
+// IO; retry only records a passive reschedule that claim refuses while disabled.
 func applyIPEntityFinish(ctx context.Context, turn *commandTurn, p *usOwnerAuthorityProof, lifetime context.Context,
 	b ipPolicyBudget, c *ipEntityJobCommand) (out ipEntityJobCommandResult, err error) {
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
