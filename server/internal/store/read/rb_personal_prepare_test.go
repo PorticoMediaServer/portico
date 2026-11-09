@@ -914,6 +914,17 @@ func TestRBPersonalPrepareRestartFixedSplit(t *testing.T) {
 		if !staged {
 			t.Fatal("restart was not injected inside the valued phase")
 		}
+		// The reset itself keeps both allocations and empties both lengths.
+		job.restartAttempt()
+		if job.staged == nil || len(job.staged) != 0 || job.stagedBytes != job.stagedFixedBytes() {
+			t.Fatal("restart did not empty the staged length inside its fixed allocation")
+		}
+		job.entry.cache.mu.Lock()
+		resetIDs, resetCap := len(job.entry.ids), cap(job.entry.ids)
+		job.entry.cache.mu.Unlock()
+		if resetIDs != 0 || resetCap != first.idsCap {
+			t.Fatalf("restart did not reset the ID length inside cap_ids: len=%d cap=%d want %d", resetIDs, resetCap, first.idsCap)
+		}
 		f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='movies'`)
 		restarted, ready := false, false
 		for n := 0; n < 128 && !ready; n++ {
@@ -931,14 +942,10 @@ func TestRBPersonalPrepareRestartFixedSplit(t *testing.T) {
 			}
 			if advance.Restarts > 0 && !restarted {
 				restarted = true
+				// Attempt two restarts at the remainder source; the reused W is
+				// still allocated but empty.
 				if job.staged == nil || len(job.staged) != 0 {
 					t.Fatalf("restart kept attempt-one staged values: %d", len(job.staged))
-				}
-				job.entry.cache.mu.Lock()
-				retained := len(job.entry.ids)
-				job.entry.cache.mu.Unlock()
-				if retained > 0 {
-					t.Fatalf("restart kept %d retained IDs from attempt one", retained)
 				}
 			}
 			ready = advance.Ready
