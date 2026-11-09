@@ -268,10 +268,13 @@ func TestRBHomePreparePersonalScope(t *testing.T) {
 			rbHomePrepareMovieSeed(t, f, 2000, "2026-10-01T00:00:00.000000000Z")
 			rbHomePrepareAssetSeed(t, f, 2000, 1, "fixed-source", "fixed-inc")
 			rbHomePrepareStateSeed(t, f, 2000, 5000, "in_progress")
-			// The default fixture leaves stale personal rows for profile p. One
-			// of them points at the out-of-scope "Other" library (native 2);
-			// legacy iterates visible membership, so it is skipped.
-			f.exec(t, `UPDATE personal_items SET library_id=2 WHERE id=1`)
+			// A second, playable movie with its own progress row deliberately
+			// names the out-of-scope "Other" library (native 2). Legacy iterates
+			// visible membership, so that row is not part of the shelf and is not
+			// a denial for the whole row.
+			rbHomePrepareMovieSeed(t, f, 2001, "2026-10-02T00:00:00.000000000Z")
+			rbHomePrepareAssetSeed(t, f, 2001, 1, "fixed-source", "fixed-inc")
+			f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,resume_position,resume_unit,activity_at,activity_state,resume_playback_id) SELECT 'p',public_id,id,2,5000,0,'2026-11-02T12:00:00.000000000Z','in_progress','prep-play' FROM catalog_entities WHERE id=2001`)
 		})
 		job := rbHomePrepareBegin(t, r, f, "continue")
 		defer job.Close()
