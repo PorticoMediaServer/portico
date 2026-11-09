@@ -18,6 +18,16 @@ const (
 	rbContainerMetricsPayloadColumns = `e.id,e.library_id,e.kind,e.retired,e.revision,e.admission_own_age,e.duration_key,e.community_rating_key,e.critic_rating_key,e.file_size_key,e.resolution_key,e.latest_aired_key,e.episode_count,p.rating,p.play_count,p.last_played_at`
 	// Only these two variable octet groups are ever copied from a child row.
 	rbContainerMetricsOctetColumns = `e.id,octet_length(e.latest_aired_key),COALESCE(octet_length(p.last_played_at),0)`
+
+	// rbContainerMetricsProfileSource puts the authorized profile's own keyed
+	// row ahead of the child source. With a profile constant bound straight
+	// onto personal_items' loop, SQLite 3.53 marks that loop self-culling and
+	// builds a Bloom filter by rewinding and walking every personal_items row
+	// before the first child. Here the profile row is the outer loop and the
+	// personal source compares profile_id to dp.id, a multi-table term, so the
+	// personal lookup stays a plain keyed SEARCH with no Bloom build.
+	rbContainerMetricsProfileSource = "direct_profiles AS dp CROSS JOIN "
+	rbContainerMetricsPersonalJoin  = " LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=dp.id AND p.item_id=e.id AND p.item_public_id=e.public_id"
 )
 
 // rbContainerMetricsChildKey is one compiled member-order key. The key is part
@@ -34,6 +44,8 @@ type rbContainerMetricsChildSpec struct {
 	kind      int64
 	from      string
 	where     string
+	scopeJoin string
+	extra     string
 	index     string
 	seek      string
 	order     string
@@ -50,25 +62,28 @@ func rbContainerMetricsChildSpecs() []rbContainerMetricsChildSpec {
 	return []rbContainerMetricsChildSpec{
 		{
 			name: "show", kind: 2,
-			from:  entity + "catalog_entities_show_fk",
-			where: "show_id IS NOT NULL AND e.show_id=? AND e.library_id=?",
-			index: "catalog_entities_show_fk", seek: "show_id=?", order: "k0 ASC",
+			from:      entity + "catalog_entities_show_fk",
+			where:     "show_id IS NOT NULL",
+			scopeJoin: "e.show_id=?",
+			index:     "catalog_entities_show_fk", seek: "show_id=?", order: "k0 ASC",
 			keys: []rbContainerMetricsChildKey{{sql: "e.id", alias: "k0"}}, kinds: []int64{4},
 			params: []stmt.Param{i("show"), i("library")}, binds: []any{int64(2000), int64(1)},
 		},
 		{
 			name: "season", kind: 3,
-			from:  entity + "catalog_entities_parent",
-			where: "parent_id IS NOT NULL AND e.parent_id=? AND e.library_id=?",
-			index: "catalog_entities_parent", seek: "parent_id=?", order: "k0 ASC",
+			from:      entity + "catalog_entities_parent",
+			where:     "parent_id IS NOT NULL",
+			scopeJoin: "e.parent_id=?",
+			index:     "catalog_entities_parent", seek: "parent_id=?", order: "k0 ASC",
 			keys: []rbContainerMetricsChildKey{{sql: "e.id", alias: "k0"}}, kinds: []int64{4},
 			params: []stmt.Param{i("parent"), i("library")}, binds: []any{int64(2000), int64(1)},
 		},
 		{
 			name: "album", kind: 6,
-			from:  entity + "catalog_entities_album",
-			where: "album_id IS NOT NULL AND e.album_id=? AND e.library_id=?",
-			index: "catalog_entities_album", seek: "album_id=?",
+			from:      entity + "catalog_entities_album",
+			where:     "album_id IS NOT NULL",
+			scopeJoin: "e.album_id=?",
+			index:     "catalog_entities_album", seek: "album_id=?",
 			order: "k0 ASC,k1 ASC,k2 ASC",
 			keys: []rbContainerMetricsChildKey{
 				{sql: "COALESCE(e.disc_number,1)", alias: "k0"},
@@ -80,9 +95,10 @@ func rbContainerMetricsChildSpecs() []rbContainerMetricsChildSpec {
 		},
 		{
 			name: "book", kind: 8,
-			from:  entity + "catalog_entities_book",
-			where: "book_id IS NOT NULL AND e.book_id=? AND e.library_id=?",
-			index: "catalog_entities_book", seek: "book_id=?",
+			from:      entity + "catalog_entities_book",
+			where:     "book_id IS NOT NULL",
+			scopeJoin: "e.book_id=?",
+			index:     "catalog_entities_book", seek: "book_id=?",
 			order: "k0 ASC,k1 ASC,k2 ASC",
 			keys: []rbContainerMetricsChildKey{
 				{sql: "COALESCE(e.disc_number,1)", alias: "k0"},
@@ -94,9 +110,10 @@ func rbContainerMetricsChildSpecs() []rbContainerMetricsChildSpec {
 		},
 		{
 			name: "collection", kind: 10,
-			from:  "catalog_collection_members AS m INDEXED BY catalog_collection_members_page CROSS JOIN catalog_entities AS e ON e.id=m.item_id",
-			where: "m.collection_id=? AND e.library_id=?",
-			index: "catalog_collection_members_page", seek: "collection_id=?", order: "k0 ASC,k1 ASC",
+			from:      "catalog_collection_members AS m INDEXED BY catalog_collection_members_page",
+			scopeJoin: "m.collection_id=?",
+			extra:     " CROSS JOIN catalog_entities AS e ON e.id=m.item_id",
+			index:     "catalog_collection_members_page", seek: "collection_id=?", order: "k0 ASC,k1 ASC",
 			keys: []rbContainerMetricsChildKey{{sql: "m.order_key", text: true, alias: "k0"}, {sql: "m.item_id", alias: "k1"}},
 			// Authored collection members may only be leaf media. A nested
 			// container is refused by the reducer, never silently flattened.
@@ -140,15 +157,19 @@ func rbContainerMetricsKeyColumns(spec rbContainerMetricsChildSpec) string {
 }
 
 // rbContainerMetricsSelect builds one closed statement. preds are compiled key
-// predicates; requests never contribute one.
+// predicates; requests never contribute one. The profile row, the child source
+// and the personal row are all keyed lookups; none is a scanned inner source.
 func rbContainerMetricsSelect(spec rbContainerMetricsChildSpec, projection string, preds []string, order string) string {
-	where := spec.where
+	where := "dp.id=? AND e.library_id=?"
+	if spec.where != "" {
+		where = "dp.id=? AND " + spec.where + " AND e.library_id=?"
+	}
 	for _, pred := range preds {
 		where += " AND " + pred
 	}
 	return "SELECT " + projection + "," + rbContainerMetricsKeyColumns(spec) +
-		" FROM " + spec.from +
-		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id AND p.item_public_id=e.public_id" +
+		" FROM " + rbContainerMetricsProfileSource + spec.from + " ON " + spec.scopeJoin + spec.extra +
+		rbContainerMetricsPersonalJoin +
 		" WHERE " + where + " ORDER BY " + order + " LIMIT ?"
 }
 
@@ -186,23 +207,13 @@ func rbContainerMetricsDefinitions() []stmt.Definition {
 	add("point.collection", `SELECT e.id,e.library_id,e.kind,e.retired,e.public_id,e.metadata_incarnation,e.revision,e.source_revision,e.identity_revision,e.metadata_revision,e.tv_hierarchy_revision,e.music_membership_revision,e.collection_revision,e.aggregate_revision,a.entity_id FROM catalog_entities AS e LEFT JOIN catalog_automatic_collections AS a INDEXED BY catalog_automatic_collection_entity ON a.entity_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? LIMIT 2`, []stmt.Param{i("subject"), i("library"), i("kind")}, []any{int64(2001), int64(1), int64(10)}, []any{int64(999999), int64(1), int64(10)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}, Indexes: []string{"catalog_automatic_collection_entity"}, Seeks: []string{"entity_id=?"}})
 
 	for _, spec := range rbContainerMetricsChildSpecs() {
-		plan := stmt.Plan{Hot: true, Indexes: []string{spec.index, "personal_current_live"}, Seeks: []string{spec.seek, "profile_id=? AND item_id=?"}}
+		plan := stmt.Plan{Hot: true, Indexes: []string{spec.index, "personal_current_live", "sqlite_autoindex_direct_profiles_1"}, Seeks: []string{spec.seek, "profile_id=? AND item_id=?", "id=?"}}
 		if spec.name == "collection" {
 			plan.PrimaryKeys = []string{"e"}
 		}
 		addChild := func(leg string, preds []string, keyParams []stmt.Param, keyBinds []any) {
-			// The personal LEFT JOIN's profile binds first, before spec.where.
-			params := append([]stmt.Param{s("profile")}, spec.params...)
-			params = append(params, keyParams...)
-			params = append(params, i("limit"))
 			legPlan := func(name string) stmt.Plan {
 				p := plan
-				p.Waivers = append(append([]stmt.Waiver(nil), plan.Waivers...), stmt.Waiver{
-					StatementID: readStatementID("rb.container_metrics.children." + spec.name + "." + name),
-					Stage:       "eqp", Form: "BLOOM FILTER",
-					Match:  "BLOOM FILTER ON p (profile_id=? AND item_id=?)",
-					Reason: "bundled planner join bloom filter; the current-personal index seek is still pinned",
-				})
 				if spec.name == "album" || spec.name == "book" {
 					// These authored-order indexes are expression indexes, so the
 					// bounded keyset EQP names <expr> instead of a column. Waive that
@@ -222,7 +233,7 @@ func rbContainerMetricsDefinitions() []stmt.Definition {
 						}
 						parts = append(parts, column+op)
 					}
-					p.Waivers = append(p.Waivers, stmt.Waiver{
+					p.Waivers = append(append([]stmt.Waiver(nil), plan.Waivers...), stmt.Waiver{
 						StatementID: readStatementID("rb.container_metrics.children." + spec.name + "." + name),
 						Stage:       "eqp", Form: "UNRECOGNIZED EQP",
 						Match:  "SEARCH e USING INDEX " + spec.index + " (" + strings.Join(parts, " AND ") + ")",
@@ -231,11 +242,17 @@ func rbContainerMetricsDefinitions() []stmt.Definition {
 				}
 				return p
 			}
-			present := append([]any{"p"}, spec.binds...)
+			// Parameter order follows SQL text: the child scope equality in the
+			// join, then the profile row's PK bind in WHERE, then library, keys
+			// and the window limit.
+			params := []stmt.Param{spec.params[0], s("profile"), spec.params[1]}
+			params = append(params, keyParams...)
+			params = append(params, i("limit"))
+			present := []any{spec.binds[0], "p", spec.binds[1]}
 			present = append(present, keyBinds...)
 			present = append(present, int64(rbContainerMetricsRaw+1))
 			empty := append([]any(nil), present...)
-			empty[1] = int64(-1)
+			empty[0] = int64(-1)
 			name := "children." + spec.name + "." + leg
 			order := spec.order
 			if leg != "first" {
