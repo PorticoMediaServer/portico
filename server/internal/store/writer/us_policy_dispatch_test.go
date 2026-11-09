@@ -24,15 +24,23 @@ const usPolicyIssuerSecondaryProfile = "issuer-profile-2"
 // statement set on the canonical schema.
 func usPolicyDispatchFixture(t *testing.T, kind CommandID, libraries []string) (w *executor, path string, r *stmt.Registry, proof *usOwnerAuthorityProof, command *usLibraryPolicyCommand) {
 	t.Helper()
+	return usPolicyDispatchFixtureIssuer(t, kind, libraries, nil)
+}
+
+func usPolicyDispatchFixtureIssuer(t *testing.T, kind CommandID, libraries []string, issuer func(*usPolicyIssuer)) (w *executor, path string, r *stmt.Registry, proof *usOwnerAuthorityProof, command *usLibraryPolicyCommand) {
+	t.Helper()
 	// The issuer session and its proof come from the reviewed US-01 fixture, so
 	// this task adds no new producer of its own for the ordinary family/device.
-	w, _, proof = usOwnerAuthorityFixture(t)
+	w, _, proof = usOwnerAuthorityFixtureIssuer(t, issuer)
 	// The writer's own file, not a second clone: an injected physical fault must
 	// land in the same database this turn opened.
 	if err := w.db.QueryRowContext(t.Context(), `SELECT file FROM pragma_database_list WHERE name='main'`).Scan(&path); err != nil {
 		t.Fatal(err)
 	}
 	identity, request := usPolicyFixture()
+	if issuer != nil {
+		issuer(&request.issuer)
+	}
 	if kind == USProfileLibraries {
 		// The profile-manager recipe edits the issuer's OWN account, never a
 		// cross-account profile.
@@ -64,7 +72,7 @@ func usPolicyDispatchFixture(t *testing.T, kind CommandID, libraries []string) (
 			}
 		}
 	} else {
-		if _, err = w.db.ExecContext(t.Context(), `INSERT INTO direct_profiles(id,account_id,lifetime,name,is_primary,position,allowed_libraries) VALUES(?,'issuer',?,'Second',0,2,'["music"]')`, usPolicyIssuerSecondaryProfile, request.profileLifetime); err != nil {
+		if _, err = w.db.ExecContext(t.Context(), `INSERT INTO direct_profiles(id,account_id,lifetime,name,is_primary,position,allowed_libraries) VALUES(?,?,?,'Second',0,2,'["music"]')`, usPolicyIssuerSecondaryProfile, i.account, request.profileLifetime); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -353,6 +361,91 @@ func TestUSPolicyDispatchProfilePolicyHasNoEvent(t *testing.T) {
 	}
 }
 
+// Identity Token() values are 32 random bytes in base64.RawURLEncoding: 43
+// octets. Real server/account IDs are that shape, while the image adds
+// Authority/ServerID/Account.ID that no source column preflights; an ordinary
+// 541 must still capture instead of refusing after the effect.
+func TestUSPolicyDispatchTokenSizedSnapshot(t *testing.T) {
+	serverID, accountID := strings.Repeat("s", 43), strings.Repeat("a", 43)
+	w, _, r, proof, input := usPolicyDispatchFixtureIssuer(t, USProfileLibraries, []string{"movies"}, func(i *usPolicyIssuer) {
+		i.server, i.account = serverID, accountID
+	})
+	turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+	out, _, err := runUSPolicyDispatch(t.Context(), turn, a, usPolicyDispatchInput(t, input))
+	if err != nil {
+		t.Fatal("volume bound refused a Token-sized identity", err)
+	}
+	snapshot := out.Image.Snapshot
+	if out.Outcome.State != Applied || snapshot == nil || out.ImageBytes <= 0 {
+		t.Fatal("Token-sized 541 did not capture", out)
+	}
+	if snapshot.Authority != "local" || snapshot.ServerID != serverID || snapshot.Account.ID != accountID ||
+		snapshot.Account.PrimaryProfileID != "issuer-profile" || !snapshot.CanManage {
+		t.Fatalf("Token-sized snapshot: %+v", snapshot)
+	}
+	if image, e := USDirectSnapshotImageOctets(*snapshot); e != nil || image <= 0 {
+		t.Fatal("image octets", image, e)
+	}
+}
+
+// Under the US-01 owner stamp the family is always role='owner' and the issuer
+// profile is PIN-free (usAuthorityFamily requires f.role='owner';
+// usAuthorityPrincipal requires p.pin_hash IS NULL). The PIN, account-scope and
+// two-step branches therefore cannot be reached through runUSPolicyDispatch;
+// exercise the pure product-rule helper directly instead.
+func TestUSPolicyDispatchSnapshotManagement(t *testing.T) {
+	const now, later, past = "2026-11-08T12:00:00Z", "2026-11-08T12:30:00Z", "2026-11-08T11:00:00Z"
+	for _, mode := range []struct {
+		name                string
+		familyRole          string
+		primary, pin        bool
+		required, confirmed bool
+		remember, manage    string
+		canManage, twoStep  bool
+		managePIN           bool
+	}{
+		{"owner_without_pin", "owner", true, false, false, false, "", "", true, false, false},
+		{"account_scope_pin_blocks_manage", "account", true, true, false, false, "", "", false, false, false},
+		{"pin_window_open", "owner", true, true, false, false, later, later, true, false, false},
+		{"pin_manage_lapsed", "owner", true, true, false, false, later, past, true, false, true},
+		{"pin_empty_manage_until_is_lapsed", "owner", true, true, false, false, later, "", true, false, true},
+		{"pin_remember_expired", "owner", true, true, false, false, past, past, true, false, false},
+		{"two_step_missing_factor", "account", true, false, true, false, "", "", false, true, false},
+		{"two_step_factor_confirmed", "account", true, false, true, true, "", "", true, false, false},
+		{"two_step_not_required", "account", true, false, false, false, "", "", true, false, false},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			canManage, twoStep, managePIN := usPolicySnapshotManage(mode.familyRole, mode.primary, mode.pin,
+				mode.required, mode.confirmed, mode.remember, mode.manage, now)
+			if canManage != mode.canManage || twoStep != mode.twoStep || managePIN != mode.managePIN {
+				t.Fatalf("management facts: canManage=%v twoStep=%v managePIN=%v", canManage, twoStep, managePIN)
+			}
+			want := USDirectCapabilitiesImage{}
+			if canManage {
+				want = USDirectCapabilitiesImage{ManageAccount: true, ManagePeople: true, ManageServer: true, ManageSignIn: true}
+			}
+			if caps := usPolicySnapshotCapabilities(canManage, "owner"); caps != want {
+				t.Fatalf("capabilities: %+v", caps)
+			}
+		})
+	}
+	for _, mode := range []struct {
+		name                       string
+		requireTwoStep, kind, role string
+		required                   bool
+	}{
+		{"everyone_member", "everyone", "local", "member", true},
+		{"administrators_owner", "administrators", "local", "owner", true},
+		{"administrators_member", "administrators", "local", "member", false},
+		{"nobody_owner", "nobody", "local", "owner", false},
+		{"portico_everyone_owner", "everyone", "portico", "owner", false},
+	} {
+		if got := usPolicyTwoStepRequired(mode.requireTwoStep, mode.kind, mode.role); got != mode.required {
+			t.Fatalf("%s: two-step required = %v", mode.name, got)
+		}
+	}
+}
+
 // A stale proof preparation cannot execute: the fresh CAS is bound to the exact
 // expected revision.
 func TestUSPolicyDispatchStaleRevisionConflicts(t *testing.T) {
@@ -510,6 +603,33 @@ func TestUSPolicyDispatchReceiptQuotaRefusesBeforeEffects(t *testing.T) {
 	revision, libraries, events := usPolicyDispatchSource(t, w, USMemberLibraries)
 	if revision != 1 || libraries.String != `["movies"]` || events != 0 || usPolicyDispatchQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
 		t.Fatal("capacity refusal wrote an effect", revision, libraries, events)
+	}
+}
+
+// The retained COUNT bound is independent of the byte bound: 64 retained
+// receipts refuse a 65th before any source effect even with byte headroom.
+func TestUSPolicyDispatchReceiptCountQuotaRefusesBeforeEffects(t *testing.T) {
+	w, _, r, proof, input := usPolicyDispatchFixture(t, USMemberLibraries, []string{"movies", "music"})
+	wc008NativeExec(t, w, `UPDATE security_command_owners SET last_sequence=1,acknowledged_sequence=1,retained_count=64,retained_variable_bytes=1`)
+	identity := input.identity
+	identity.Sequence = 2
+	next, err := prepareUSLibraryPolicy(input.kind, identity, input.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+	nextRef, err := usPolicyReceiptForCommand(next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runUSPolicyDispatch(t.Context(), turn, a, &usPolicyInvocation{request: nextRef, input: next})
+	var refusal *Refusal
+	if !errors.As(err, &refusal) || refusal.Code != RefusalCapacity || !reflect.DeepEqual(out, usPolicyDispatchResult{}) {
+		t.Fatal("count quota", out, err)
+	}
+	revision, libraries, events := usPolicyDispatchSource(t, w, USMemberLibraries)
+	if revision != 1 || libraries.String != `["movies"]` || events != 0 || usPolicyDispatchQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
+		t.Fatal("count refusal wrote an effect", revision, libraries, events)
 	}
 }
 

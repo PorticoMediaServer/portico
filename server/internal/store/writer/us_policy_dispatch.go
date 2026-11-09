@@ -902,6 +902,17 @@ func captureUSPolicyCallerSnapshot(ctx context.Context, turn *commandTurn, a *us
 	if raw, err = usPolicyOctetsSum(raw, preflight.profiles); err != nil {
 		return nil, 0, err
 	}
+	// The image also carries three fixed strings that no source column supplies:
+	// Authority is the literal "local", and ServerID/Account.ID are the validated
+	// issuer's identity Token() values (32 random bytes in base64.RawURLEncoding,
+	// so 43 octets each). They are not source-derived, so preflight their exact
+	// lengths on the raw side before the comparison; otherwise an ordinary 541
+	// would exceed its own source octets and refuse after the effect.
+	for _, fixed := range []string{"local", issuer.server, issuer.account} {
+		if raw, err = usPolicyOctetsSum(raw, int64(len(fixed))); err != nil {
+			return nil, 0, err
+		}
+	}
 	// Both the retained native copy and the decoded DTO copy are resident while
 	// the image is built; per-profile slice overhead and the image header are
 	// additive. The charge is proved BEFORE any materialization.
@@ -957,14 +968,11 @@ func captureUSPolicyCallerSnapshot(ctx context.Context, turn *commandTurn, a *us
 	if !usPolicyFamilyRole(familyRole) || !primaryInt.Valid || (primaryInt.Int64 != 0 && primaryInt.Int64 != 1) {
 		return nil, 0, ErrResolveRequired
 	}
-	primaryPIN := pinLength.Valid && pinLength.Int64 > 0
-	// directSnapshotTx: CanManage starts as "this session's profile is the
-	// primary profile", then an account-scoped session whose primary profile has
-	// a PIN manages nothing.
-	canManage := primaryInt.Int64 == 1
-	if canManage && familyRole == "account" && primaryPIN {
-		canManage = false
-	}
+	// directSnapshotTx tests PIN presence (`pin_hash IS NOT NULL`), never a
+	// non-empty length: an empty stored hash still protects the profile. The
+	// closed projection grammar cannot spell IS NOT NULL, but length() is NULL
+	// only for a NULL hash, so NullInt64.Valid is that presence test exactly.
+	primaryPIN := pinLength.Valid
 
 	row, err = usPolicyRow(ctx, turn, usPolicyImagePolicy)
 	if err != nil {
@@ -978,30 +986,30 @@ func captureUSPolicyCallerSnapshot(ctx context.Context, turn *commandTurn, a *us
 		(signInKind != "local" && signInKind != "portico") || !rememberDays.Valid || rememberDays.Int64 < 0 {
 		return nil, 0, ErrResolveRequired
 	}
-	twoStep := false
-	if familyRole == "account" {
-		// missingRequiredFactorTx, from current native facts only.
-		required := signInKind == "local" && requireTwoStep != "nobody" && (requireTwoStep == "everyone" || role == "owner" || role == "admin")
-		confirmed := false
-		if required {
-			factor, e := usPolicyRow(ctx, turn, usPolicyImageFactor, issuer.account)
-			if e != nil {
-				return nil, 0, e
-			}
-			var present int64
-			switch scan := factor.Scan(&present); {
-			case scan == nil && present == 1:
-				confirmed = true
-			case scan == nil, errors.Is(scan, sql.ErrNoRows):
-			default:
-				return nil, 0, errors.Join(ErrResolveRequired, scan)
-			}
+	// missingRequiredFactorTx, from current native facts only.
+	required := usPolicyTwoStepRequired(requireTwoStep, signInKind, role)
+	factorConfirmed := false
+	if familyRole == "account" && required {
+		factor, e := usPolicyRow(ctx, turn, usPolicyImageFactor, issuer.account)
+		if e != nil {
+			return nil, 0, e
 		}
-		twoStep = required && !confirmed
-		if twoStep {
-			canManage = false
+		var present int64
+		switch scan := factor.Scan(&present); {
+		case scan == nil && present == 1:
+			factorConfirmed = true
+		case scan == nil, errors.Is(scan, sql.ErrNoRows):
+		default:
+			return nil, 0, errors.Join(ErrResolveRequired, scan)
 		}
 	}
+	// Under the US-01 stamp this family is always role='owner' and the issuer
+	// profile is PIN-free (usAuthorityFamily/usAuthorityPrincipal), so the PIN
+	// and account-scope branches below are unreachable through this loader;
+	// TestUSPolicyDispatchSnapshotManagement covers the helper directly.
+	canManage, twoStep, managePINRequired := usPolicySnapshotManage(familyRole,
+		primaryInt.Int64 == 1, primaryPIN, required, factorConfirmed, rememberUntil, manageUntil,
+		time.UnixMilli(nowMS).UTC().Format(time.RFC3339))
 
 	hostedAccount := ""
 	custodian := sql.NullString{}
@@ -1032,11 +1040,6 @@ func captureUSPolicyCallerSnapshot(ctx context.Context, turn *commandTurn, a *us
 		// is NOT pending; an empty or different string is.
 		custodyPending = custodian.Valid && custodian.String != hostedAccount
 	}
-	managePINRequired := false
-	if canManage && primaryPIN && manageUntil != "" && rememberUntil != "" {
-		now := time.UnixMilli(nowMS).UTC().Format(time.RFC3339)
-		managePINRequired = rememberUntil > now && manageUntil <= now
-	}
 
 	profiles := make([]USDirectProfileImage, 0, 8)
 	rows, err = usPolicyRows(ctx, turn, usPolicyImageProfiles, issuer.account, usPolicyImageMaxProfiles+1)
@@ -1054,7 +1057,7 @@ func captureUSPolicyCallerSnapshot(ctx context.Context, turn *commandTurn, a *us
 		if len(profiles) >= int(usPolicyImageMaxProfiles) {
 			return nil, 0, &Refusal{Code: RefusalCapacity}
 		}
-		p.PINRequired = pinHash.Valid && pinHash.Int64 > 0
+		p.PINRequired = pinHash.Valid
 		if libraries.Valid {
 			ids, e := decodeUSLibraryIDs(libraries.String)
 			if e != nil {
@@ -1105,6 +1108,35 @@ func captureUSPolicyCallerSnapshot(ctx context.Context, turn *commandTurn, a *us
 	}
 	done.image = out
 	return out, charged, nil
+}
+
+// usPolicyTwoStepRequired is directSnapshotTx's requiresFactorTx predicate over
+// already-validated native policy facts.
+func usPolicyTwoStepRequired(requireTwoStep, signInKind, role string) bool {
+	return signInKind == "local" && requireTwoStep != "nobody" &&
+		(requireTwoStep == "everyone" || role == "owner" || role == "admin")
+}
+
+// usPolicySnapshotManage derives the product's management facts from current
+// native facts exactly as directSnapshotTx does. It is pure so the PIN and
+// account-scope branches, which the US-01 owner stamp cannot reach in the
+// loader, stay directly exercised.
+func usPolicySnapshotManage(familyRole string, primary, pinPresent bool, twoStepRequired, factorConfirmed bool,
+	rememberUntil, manageUntil, now string) (canManage, twoStep, managePINRequired bool) {
+	canManage = primary
+	if canManage && familyRole == "account" && pinPresent {
+		canManage = false
+	}
+	twoStep = familyRole == "account" && twoStepRequired && !factorConfirmed
+	if twoStep {
+		canManage = false
+	}
+	if canManage && pinPresent {
+		// manageLockedTx: remember_until > now AND manage_until <= now. The empty
+		// string compares <= now in SQLite, so it must not be guarded away.
+		managePINRequired = rememberUntil > now && manageUntil <= now
+	}
+	return canManage, twoStep, managePINRequired
 }
 
 func usPolicySnapshotCapabilities(manage bool, role string) USDirectCapabilitiesImage {
