@@ -626,6 +626,12 @@ func TestUSPolicyDispatchStatementCapture(t *testing.T) {
 		if !d.Plan.Hot || len(d.Plan.Waivers) != 0 || len(d.Cohorts) == 0 {
 			t.Fatal("dispatch statement must stay hot, captured and waiver-free", d.ID)
 		}
+		// The closed octet points are grammar-checked with the octet registry
+		// enabled (plan.Capture below); plain LintSQL deliberately has no
+		// octet_length. Every other statement is linted here directly.
+		if strings.Contains(d.SQL, "octet_length(") {
+			continue
+		}
 		if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
 			t.Fatal(d.ID, issues)
 		}
