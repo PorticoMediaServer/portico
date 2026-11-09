@@ -28,8 +28,19 @@ import (
 // journal retains the first before-image (IA20 `hasOld`).
 //
 // Every read is a keyset successor (`> cursor ORDER BY key LIMIT 1`) or a
-// primary-key image lookup, so one turn never scans or buffers a family. A
-// per-asset family above iaRefreshWalkKeys is refused, never truncated.
+// primary-key image lookup, so one turn never scans or buffers a family.
+//
+// ONE journal cursor is shared by every pair of a refresh, so it normally names
+// a key of a DIFFERENT pair when this pair starts (forward: streams 1/2 then
+// chapters 3/4; restore: the reverse). A cursor outside this pair therefore
+// means "this pair has not started", never a refusal: forward begins as at the
+// Begin position and restore begins from this pair's own journalled parent or
+// highest child. A cursor inside the pair still resumes at exactly its key.
+//
+// The iaRefreshWalkKeys refusal bounds the caller's desired child rows. Live
+// child keys are never truncated either: each is named and journalled one
+// bounded keyset step per turn (tombstone or first old image), so the live side
+// is proportional to the native per-asset keyset, not capped here.
 const iaRefreshWalkKeys = 4096
 
 const (
@@ -74,49 +85,64 @@ func iaRefreshWalkFamilyValid(f iaRefreshWalkFamily) bool {
 		f.parentImage != "" && f.childImage != "" && f.childImageStart != ""
 }
 
+// iaRefreshWalkPosition is the ONE persisted walk position re-read for this
+// family pair. foreign reports a cursor that names a key of a DIFFERENT pair:
+// this pair has not started yet, so its forward walk begins as at the Begin
+// position and its restore begins at this pair's own parent or highest child.
+type iaRefreshWalkPosition struct {
+	state    string
+	revision int64
+	family   uint8
+	key      iaRefreshKey
+	foreign  bool
+}
+
 // iaRefreshWalkCursor reads the ONE persisted walk position. It also proves the
 // journal still belongs to this exact asset/epoch/input, so a misbound request
 // cannot walk another asset's family. after_family=0/” is the Begin position.
-func iaRefreshWalkCursor(ctx context.Context, turn *commandTurn, f iaRefreshWalkFamily, q iaRefreshRequest) (state string, revision int64, family uint8, key iaRefreshKey, err error) {
-	defer func() {
-		v, x := finishCommand(ctx, commandLifetime(turn), struct {
-			State    string
-			Revision int64
-			Family   uint8
-			Key      iaRefreshKey
-		}{state, revision, family, key}, err)
-		state, revision, family, key, err = v.State, v.Revision, v.Family, v.Key, x
-	}()
+func iaRefreshWalkCursor(ctx context.Context, turn *commandTurn, f iaRefreshWalkFamily, q iaRefreshRequest) (pos iaRefreshWalkPosition, err error) {
+	defer func() { pos, err = finishCommand(ctx, commandLifetime(turn), pos, err) }()
 	if turn == nil || turn.transaction == nil || !iaRefreshWalkFamilyValid(f) || q.refreshID <= 0 ||
 		q.scope.assetID <= 0 || q.scope.epoch <= 0 || q.scope.inputRevision <= 0 || !iaEntryText(q.scope.token) {
-		return "", 0, 0, iaRefreshKey{}, invalid("refresh_walk_cursor_scope")
+		return iaRefreshWalkPosition{}, invalid("refresh_walk_cursor_scope")
 	}
 	row, err := basicStageRead(ctx, turn, f.cursor, q.refreshID, q.reference.Identity.Incarnation[:])
 	if err != nil {
-		return "", 0, 0, iaRefreshKey{}, err
+		return iaRefreshWalkPosition{}, err
 	}
 	var asset, epoch, input, familyAt int64
 	var token, cursor string
-	if err = row.Scan(&state, &revision, &asset, &token, &epoch, &input, &familyAt, &cursor); err != nil {
+	if err = row.Scan(&pos.state, &pos.revision, &asset, &token, &epoch, &input, &familyAt, &cursor); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", 0, 0, iaRefreshKey{}, ErrResolveRequired
+			return iaRefreshWalkPosition{}, ErrResolveRequired
 		}
-		return "", 0, 0, iaRefreshKey{}, basicStageError(err)
+		return iaRefreshWalkPosition{}, basicStageError(err)
 	}
-	if revision <= 0 || asset != q.scope.assetID || token != q.scope.token || epoch != q.scope.epoch || input != q.scope.inputRevision || familyAt < 0 || familyAt > int64(f.child) {
-		return "", 0, 0, iaRefreshKey{}, ErrResolveRequired
+	if pos.revision <= 0 || asset != q.scope.assetID || token != q.scope.token || epoch != q.scope.epoch || input != q.scope.inputRevision || familyAt < 0 || familyAt > int64(len(iaRefreshShapes)-1) {
+		return iaRefreshWalkPosition{}, ErrResolveRequired
 	}
 	if familyAt == 0 {
 		if cursor != "" {
-			return "", 0, 0, iaRefreshKey{}, ErrResolveRequired
+			return iaRefreshWalkPosition{}, ErrResolveRequired
 		}
-		return state, revision, 0, iaRefreshKey{}, nil
+		return pos, nil
 	}
 	k, x := iaRefreshDecodeCursor(uint8(familyAt), cursor)
-	if x != nil || k.token != q.scope.token || (k.family == f.parent && k.index != 0) {
-		return "", 0, 0, iaRefreshKey{}, ErrResolveRequired
+	if x != nil || (k.family == f.parent && k.index != 0) {
+		return iaRefreshWalkPosition{}, ErrResolveRequired
 	}
-	return state, revision, k.family, k, nil
+	pos.family, pos.key = k.family, k
+	if k.family != f.parent && k.family != f.child {
+		// Another pair owns the cursor: this pair has not started. Its token is
+		// that pair's own key (a sidecar or subtitle id for families 6/7), so it
+		// is not compared to this asset token.
+		pos.foreign = true
+		return pos, nil
+	}
+	if k.token != q.scope.token {
+		return iaRefreshWalkPosition{}, ErrResolveRequired
+	}
+	return pos, nil
 }
 
 // iaRefreshWalkLive returns the smallest live child key after `below` (or the
@@ -273,12 +299,18 @@ func iaRefreshWalkNext(ctx context.Context, turn *commandTurn, f iaRefreshWalkFa
 	if err = iaRefreshWalkDesiredCheck(f, q, d); err != nil {
 		return iaRefreshWalkStep{}, err
 	}
-	state, revision, family, key, err := iaRefreshWalkCursor(ctx, turn, f, q)
+	pos, err := iaRefreshWalkCursor(ctx, turn, f, q)
 	if err != nil {
 		return iaRefreshWalkStep{}, err
 	}
-	if state != "copying" {
+	if pos.state != "copying" {
 		return iaRefreshWalkStep{}, ErrConflict
+	}
+	revision, family, key := pos.revision, pos.family, pos.key
+	if pos.foreign {
+		// Another pair owns the cursor, so THIS pair has not started. The fixed
+		// order is streams then chapters, so begin at the Begin position.
+		family, key = 0, iaRefreshKey{}
 	}
 	parent := iaRefreshKey{family: f.parent, token: q.scope.token}
 	switch family {
@@ -339,19 +371,23 @@ func iaRefreshWalkRestore(ctx context.Context, turn *commandTurn, f iaRefreshWal
 	if q.purpose != IARefreshRollback || q.action != iaEntryApply || q.row != nil || q.key != (iaRefreshKey{}) {
 		return iaRefreshWalkStep{}, invalid("refresh_walk_restore_binding")
 	}
-	state, revision, family, key, err := iaRefreshWalkCursor(ctx, turn, f, q)
+	pos, err := iaRefreshWalkCursor(ctx, turn, f, q)
 	if err != nil {
 		return iaRefreshWalkStep{}, err
 	}
-	if state != "copying" && state != "restoring" {
+	if pos.state != "copying" && pos.state != "restoring" {
 		return iaRefreshWalkStep{}, ErrConflict
 	}
+	state, revision, family, key := pos.state, pos.revision, pos.family, pos.key
 	old, exists, err := iaRefreshWalkParent(ctx, turn, f, q)
 	if err != nil {
 		return iaRefreshWalkStep{}, err
 	}
 	parent := iaRefreshKey{family: f.parent, token: q.scope.token}
-	if state == "copying" {
+	if state == "copying" || family == 0 || pos.foreign {
+		// This pair's restore has not started: its parent keeps the old row, so
+		// it goes first (the native FK), else children drop from the journal's
+		// highest key, else the absent parent goes last (no cascade escapes).
 		if old {
 			return iaRefreshWalkStep{key: parent, revision: revision, more: true}, nil
 		}
