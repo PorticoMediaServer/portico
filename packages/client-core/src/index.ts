@@ -414,7 +414,11 @@ export class HttpLocalApi {
       response.headers.forEach((value, key) => { answered[key] = value; });
       const text = await response.text();
       let body: unknown;
-      try { body = text ? JSON.parse(text) : undefined; } catch { body = undefined; }
+      try { body = text ? JSON.parse(text) : undefined; }
+      catch {
+        // A success that is not JSON is not this server's answer (a hotel sign-in page, a proxy's page): the write is kept.
+        if (response.ok) throw new Error('The answer did not come from the server.');
+      }
       const retryAfterMs = retryAfterFrom(response.headers);
       return {status: response.status, headers: answered, ...(body === undefined ? {} : {body}), ...(retryAfterMs ? {retryAfterMs} : {})};
     });

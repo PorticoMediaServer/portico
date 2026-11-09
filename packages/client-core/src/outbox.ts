@@ -6,7 +6,7 @@ import {nextDelay, systemScheduler, type Scheduler} from './timer.ts';
  * server answers it.
  *
  * An entry's id is its idempotency key, so sending it again is safe. A 2xx answer means it is saved
- * and the entry is deleted. No answer, a 5xx, a 429 or an ended sign-in keeps it for another try.
+ * and the entry is deleted. No answer, a 5xx, a redirect, a 429 or an ended sign-in keeps it for another try.
  * Any other 4xx deletes it and the person is told once. Entries belong to an account and profile:
  * they are sent only while that profile is the one signed in, wait across a new sign-in, and are
  * dropped (and reported) after 30 days. An empty outbox does nothing at all.
@@ -49,7 +49,9 @@ const storeFailed = (cause: unknown) => Object.assign(new Error('This device cou
 type Caller = {promise: Promise<OutboxAnswer>; resolve: (answer: OutboxAnswer) => void; reject: (error: unknown) => void};
 export const sameOutboxScope = (a: OutboxScope, b: OutboxScope) =>
   a.serverId === b.serverId && a.authority === b.authority && a.accountId === b.accountId && a.profileId === b.profileId;
-const kept = (status: number) => status >= 500 || status === 401 || status === 408 || status === 429 || status < 200;
+/** An answer settles an entry when it is a 2xx, or a 4xx that is about the write itself. Anything else (5xx, a redirect,
+ * 429, 408, an ended sign-in) says nothing about the write, and the entry is kept. */
+const settles = (status: number) => status >= 200 && status < 300 || status >= 400 && status < 500 && ![401, 408, 429].includes(status);
 
 export class Outbox {
   private entries: OutboxEntry[] = [];
@@ -149,7 +151,7 @@ export class Outbox {
         if (wait > 0) { this.timer = this.clock.setTimeout(() => { void this.pump(); }, wait); break; }
         const answer = await this.send(entry);
         if (this.stopped) break;
-        if (answer && !kept(answer.status)) { this.serverAskedToWait = false; await this.finish(entry, answer); continue; }
+        if (answer && settles(answer.status)) { this.serverAskedToWait = false; await this.finish(entry, answer); continue; }
         const again = {...entry, attempts: entry.attempts + 1};
         this.serverAskedToWait = !!answer?.retryAfterMs;
         this.retryIn(nextDelay(BACKOFF, again.attempts, {retryAfterMs: answer?.retryAfterMs}, this.options.random));
