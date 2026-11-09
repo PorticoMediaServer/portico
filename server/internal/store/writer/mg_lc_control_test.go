@@ -74,6 +74,53 @@ func mgLCControlReadDirectory(t *testing.T, w *executor) []mgLCControlChannel {
 
 func mgLCControlIssuer() [16]byte { return [16]byte{42} }
 
+// mgLCControlAcceptsOn installs the ordinary US owner population on w and
+// returns the actor proof every accepting control frame now requires.
+func mgLCControlAcceptsOn(t *testing.T, w *executor) *mgActorProof {
+	t.Helper()
+	now := w.now().UTC().Truncate(time.Second)
+	proof := usOwnerAuthorityPopulation(t, w, now)
+	return &mgActorProof{native: *proof, kind: mgActorOwner}
+}
+
+func mgLCControlFixture(t *testing.T) (*executor, mgLCBuild, *mgActorProof) {
+	t.Helper()
+	w, b := mgLCFixture(t)
+	return w, b, mgLCControlAcceptsOn(t, w)
+}
+
+// mgLCControlAuthorityTurn registers both the control and the MG actor
+// statements on the same native turn and funds one governor-shaped budget.
+func mgLCControlAuthorityTurn(t *testing.T, w *executor, purpose CommandID) (*commandTurn, mgAuthorityBudget) {
+	t.Helper()
+	defs := append(mgLCControlDefinitions(), mgAuthorityDefinitions()...)
+	registry, err := stmttest.New(t, defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipe := turnRecipe{limit: Work{10000, 10000000, 10000, 64 << 20, 25 * time.Millisecond},
+		setup: Work{8, 100, 8, 4096, time.Millisecond}, terminal: Work{8, 100, 8, 4096, time.Millisecond}}
+	tx, err := w.begin(t.Context(), purpose, recipe, &testCustody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if !tx.done {
+			_, _ = tx.rollback(nil)
+		}
+	})
+	steps := make([]statementStep, 0, len(defs))
+	for _, d := range defs {
+		steps = append(steps, statementStep{d.ID, Work{8, 5000, 8, 4096, 10 * time.Microsecond}})
+	}
+	turn, err := newCommandTurn(tx, registry, steps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = turn.closeRows() })
+	return turn, mgAuthorityBudget{memory: 4 << 20, fixture: &mgAuthorityFixturePermit{frame: tx}}
+}
+
 func mgLCControlSaveWitness(t *testing.T, w *executor, id string) mgLCControlWitness {
 	t.Helper()
 	return mgLCControlWitness{issuer: mgLCControlIssuer(), channel: mgLCControlReadWitness(t, w, id)}
@@ -96,11 +143,11 @@ func mgLCControlConfigFor(id, name string, enabled, position int64) mgLCControlC
 }
 
 // One committed control command.
-func mgLCControlApply(t *testing.T, w *executor, purpose CommandID, witness mgLCControlWitness, in mgLCControlInput, operation byte) mgLCControlSaved {
+func mgLCControlApply(t *testing.T, w *executor, proof *mgActorProof, purpose CommandID, witness mgLCControlWitness, in mgLCControlInput, operation byte) mgLCControlSaved {
 	t.Helper()
 	kind, _ := mgLCControlKindFor(purpose)
-	turn := mgLCControlTurn(t, w, purpose)
-	saved, decision, err := mgLCControlDispatch(t.Context(), turn, purpose, witness, mgLCControlCommandFor(kind, witness, in, operation), in)
+	turn, budget := mgLCControlAuthorityTurn(t, w, purpose)
+	saved, decision, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, purpose, witness, mgLCControlCommandFor(kind, witness, in, operation), in)
 	if err != nil {
 		t.Fatal(purpose, err)
 	}
@@ -113,12 +160,12 @@ func mgLCControlApply(t *testing.T, w *executor, purpose CommandID, witness mgLC
 
 // One control attempt that must fail; the turn is rolled back and the durable
 // row is read back through the ordinary writer pool afterwards.
-func mgLCControlRefuse(t *testing.T, w *executor, purpose CommandID, witness mgLCControlWitness, in mgLCControlInput, operation byte) error {
+func mgLCControlRefuse(t *testing.T, w *executor, proof *mgActorProof, purpose CommandID, witness mgLCControlWitness, in mgLCControlInput, operation byte) error {
 	t.Helper()
 	kind, _ := mgLCControlKindFor(purpose)
-	turn := mgLCControlTurn(t, w, purpose)
+	turn, budget := mgLCControlAuthorityTurn(t, w, purpose)
 	before := mgLCControlChanges(t, turn)
-	saved, _, err := mgLCControlDispatch(t.Context(), turn, purpose, witness, mgLCControlCommandFor(kind, witness, in, operation), in)
+	saved, _, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, purpose, witness, mgLCControlCommandFor(kind, witness, in, operation), in)
 	if err == nil || !reflect.DeepEqual(saved, mgLCControlSaved{}) {
 		t.Fatal("control attempt was not refused", saved, err)
 	}
@@ -154,10 +201,10 @@ func mgLCControlReceiptCount(t *testing.T, w *executor) int64 {
 
 func TestMGLCControlBirthEditAndNoHeadCustody(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, _ := mgLCFixture(t)
+		w, _, proof := mgLCControlFixture(t)
 		birth := mgLCControlWitness{issuer: mgLCControlIssuer(), channel: mgLCControlChannel{id: "control-new"}}
 		config := mgLCControlConfigFor("control-new", "New", 1, 0)
-		saved := mgLCControlApply(t, w, MGSaveLCConfiguration, birth, mgLCControlInput{config: &config}, 1)
+		saved := mgLCControlApply(t, w, proof, MGSaveLCConfiguration, birth, mgLCControlInput{config: &config}, 1)
 		if saved.kind != mgLCControlSaveKind || saved.result.channel.revision != 1 || saved.result.channel.head != "" ||
 			saved.result.channel.state != "generating" || saved.result.channel.enabled != 1 || saved.digest == (ResultDigest{}) {
 			t.Fatal("no-head birth", saved)
@@ -168,9 +215,9 @@ func TestMGLCControlBirthEditAndNoHeadCustody(t *testing.T) {
 			t.Fatal("birth invented a head", head, ref, err)
 		}
 		// The same original request replays the saved scalar with zero effects.
-		turn := mgLCControlTurn(t, w, MGSaveLCConfiguration)
+		turn, budget := mgLCControlAuthorityTurn(t, w, MGSaveLCConfiguration)
 		before := mgLCControlChanges(t, turn)
-		replay, decision, err := mgLCControlDispatch(t.Context(), turn, MGSaveLCConfiguration, birth,
+		replay, decision, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGSaveLCConfiguration, birth,
 			mgLCControlCommandFor(mgLCControlSaveKind, birth, mgLCControlInput{config: &config}, 1), mgLCControlInput{config: &config})
 		if err != nil || decision != receiptReplay || !reflect.DeepEqual(replay, saved) {
 			t.Fatal("birth replay", replay, decision, err)
@@ -184,7 +231,7 @@ func TestMGLCControlBirthEditAndNoHeadCustody(t *testing.T) {
 		// A headless edit keeps the empty stock head and its NULL generated ref.
 		editWitness := mgLCControlSaveWitness(t, w, "control-new")
 		edited := mgLCControlConfigFor("control-new", "Edited", 0, 3)
-		next := mgLCControlApply(t, w, MGSaveLCConfiguration, editWitness, mgLCControlInput{config: &edited}, 2)
+		next := mgLCControlApply(t, w, proof, MGSaveLCConfiguration, editWitness, mgLCControlInput{config: &edited}, 2)
 		if next.result.channel.revision != 2 || next.result.channel.name != "Edited" || next.result.channel.enabled != 0 ||
 			next.result.channel.state != "disabled" || next.result.channel.head != "" {
 			t.Fatal("headless edit", next)
@@ -193,7 +240,7 @@ func TestMGLCControlBirthEditAndNoHeadCustody(t *testing.T) {
 			t.Fatal("edit invented a head", head, ref, err)
 		}
 		// The same operation cannot be replayed with a different payload.
-		if err := mgLCControlRefuse(t, w, MGSaveLCConfiguration, editWitness, mgLCControlInput{config: &edited}, 1); !errors.Is(err, ErrConflict) {
+		if err := mgLCControlRefuse(t, w, proof, MGSaveLCConfiguration, editWitness, mgLCControlInput{config: &edited}, 1); !errors.Is(err, ErrConflict) {
 			t.Fatal("operation reuse with different input", err)
 		}
 	})
@@ -210,10 +257,10 @@ func mgLCControlInsertPending(t *testing.T, w *executor, id, channel string, rev
 
 func TestMGLCControlRegenerationSupersedesExactPending(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		mgLCControlInsertPending(t, w, "lc-pending", b.channel, 7, b.base, "lease-pending")
 		witness := mgLCControlSaveWitness(t, w, b.channel)
-		saved := mgLCControlApply(t, w, MGRequestLCRegeneration, witness, mgLCControlInput{}, 3)
+		saved := mgLCControlApply(t, w, proof, MGRequestLCRegeneration, witness, mgLCControlInput{}, 3)
 		if saved.result.channel.revision != 7 || saved.result.channel.state != "generating" ||
 			saved.result.channel.head != b.base || saved.result.channel.enabled != 1 {
 			t.Fatal("regeneration control", saved)
@@ -238,11 +285,11 @@ func TestMGLCControlRegenerationSupersedesExactPending(t *testing.T) {
 
 func TestMGLCControlPendingHeadConflictStaleAndCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		witness := mgLCControlSaveWitness(t, w, b.channel)
 		// A pending build at another revision is a stale head, never retargeted.
 		mgLCControlInsertPending(t, w, "lc-pending", b.channel, 8, b.base, "lease-pending")
-		if err := mgLCControlRefuse(t, w, MGRequestLCRegeneration, witness, mgLCControlInput{}, 4); !errors.Is(err, ErrConflict) {
+		if err := mgLCControlRefuse(t, w, proof, MGRequestLCRegeneration, witness, mgLCControlInput{}, 4); !errors.Is(err, ErrConflict) {
 			t.Fatal("pending head conflict", err)
 		}
 		var status string
@@ -252,15 +299,15 @@ func TestMGLCControlPendingHeadConflictStaleAndCancelled(t *testing.T) {
 		// A stale channel witness refuses before any effect.
 		stale := witness
 		stale.channel.revision++
-		if err := mgLCControlRefuse(t, w, MGSaveLCConfiguration, stale, mgLCControlInput{config: ptrControlConfig(mgLCControlConfigFor(b.channel, "Stale", 1, 0))}, 5); !errors.Is(err, ErrConflict) {
+		if err := mgLCControlRefuse(t, w, proof, MGSaveLCConfiguration, stale, mgLCControlInput{config: ptrControlConfig(mgLCControlConfigFor(b.channel, "Stale", 1, 0))}, 5); !errors.Is(err, ErrConflict) {
 			t.Fatal("stale witness", err)
 		}
 		// Cancellation is not a refusal that writes.
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		turn := mgLCControlTurn(t, w, MGSaveLCConfiguration)
+		turn, budget := mgLCControlAuthorityTurn(t, w, MGSaveLCConfiguration)
 		before := mgLCControlChanges(t, turn)
-		if _, _, err := mgLCControlDispatch(ctx, turn, MGSaveLCConfiguration, witness,
+		if _, _, err := mgLCControlDispatch(ctx, turn, proof, ctx, budget, MGSaveLCConfiguration, witness,
 			mgLCControlCommandFor(mgLCControlSaveKind, witness, mgLCControlInput{config: ptrControlConfig(mgLCControlConfigFor(b.channel, "Cancel", 1, 0))}, 6),
 			mgLCControlInput{config: ptrControlConfig(mgLCControlConfigFor(b.channel, "Cancel", 1, 0))}); !errors.Is(err, context.Canceled) {
 			t.Fatal("cancelled lifetime", err)
@@ -278,10 +325,10 @@ func ptrControlConfig(c mgLCControlConfig) *mgLCControlConfig { return &c }
 
 func TestMGLCControlRetireRetainsGenerationAndRefusesExpiredReference(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		witness := mgLCControlSaveWitness(t, w, b.channel)
 		// The fixture reference lease is long past, but expiry is not physical exit.
-		if err := mgLCControlRefuse(t, w, MGRetireLCChannel, witness, mgLCControlInput{}, 7); !errors.Is(err, ErrConflict) {
+		if err := mgLCControlRefuse(t, w, proof, MGRetireLCChannel, witness, mgLCControlInput{}, 7); !errors.Is(err, ErrConflict) {
 			t.Fatal("expired playback reference released", err)
 		}
 		var removed int64
@@ -292,7 +339,7 @@ func TestMGLCControlRetireRetainsGenerationAndRefusesExpiredReference(t *testing
 			t.Fatal(err)
 		}
 		mgLCControlInsertPending(t, w, "lc-pending", b.channel, 7, b.base, "lease-pending")
-		saved := mgLCControlApply(t, w, MGRetireLCChannel, witness, mgLCControlInput{}, 8)
+		saved := mgLCControlApply(t, w, proof, MGRetireLCChannel, witness, mgLCControlInput{}, 8)
 		if saved.result.channel.removed != 1 || saved.result.channel.enabled != 0 || saved.result.channel.state != "removed" ||
 			saved.result.channel.revision != 8 || saved.result.channel.head != b.base {
 			t.Fatal("retirement result", saved)
@@ -319,20 +366,20 @@ func TestMGLCControlRetireRetainsGenerationAndRefusesExpiredReference(t *testing
 
 func TestMGLCControlRetiredDisclosureAndOriginalReplay(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		// A saved pre-retirement result whose channel is later retired must not be
 		// disclosed as a current success; the retirement's own result still is.
 		saveWitness := mgLCControlSaveWitness(t, w, b.channel)
 		config := mgLCControlConfigFor(b.channel, "Before retire", 1, 0)
-		savedSave := mgLCControlApply(t, w, MGSaveLCConfiguration, saveWitness, mgLCControlInput{config: &config}, 9)
+		savedSave := mgLCControlApply(t, w, proof, MGSaveLCConfiguration, saveWitness, mgLCControlInput{config: &config}, 9)
 		if _, err := w.db.ExecContext(t.Context(), `DELETE FROM lc_playback_refs WHERE playback_id='active-player'`); err != nil {
 			t.Fatal(err)
 		}
 		retireWitness := mgLCControlSaveWitness(t, w, b.channel)
-		savedRetire := mgLCControlApply(t, w, MGRetireLCChannel, retireWitness, mgLCControlInput{}, 10)
-		turn := mgLCControlTurn(t, w, MGSaveLCConfiguration)
+		savedRetire := mgLCControlApply(t, w, proof, MGRetireLCChannel, retireWitness, mgLCControlInput{}, 10)
+		turn, budget := mgLCControlAuthorityTurn(t, w, MGSaveLCConfiguration)
 		before := mgLCControlChanges(t, turn)
-		got, decision, err := mgLCControlDispatch(t.Context(), turn, MGSaveLCConfiguration, saveWitness,
+		got, decision, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGSaveLCConfiguration, saveWitness,
 			mgLCControlCommandFor(mgLCControlSaveKind, saveWitness, mgLCControlInput{config: &config}, 9), mgLCControlInput{config: &config})
 		if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(got, mgLCControlSaved{}) {
 			t.Fatal("retired disclosure", got, decision, err)
@@ -343,8 +390,8 @@ func TestMGLCControlRetiredDisclosureAndOriginalReplay(t *testing.T) {
 		if _, err := turn.transaction.rollback(nil); err != nil {
 			t.Fatal(err)
 		}
-		turn = mgLCControlTurn(t, w, MGRetireLCChannel)
-		replay, decision, err := mgLCControlDispatch(t.Context(), turn, MGRetireLCChannel, retireWitness,
+		turn, budget = mgLCControlAuthorityTurn(t, w, MGRetireLCChannel)
+		replay, decision, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGRetireLCChannel, retireWitness,
 			mgLCControlCommandFor(mgLCControlRetireKind, retireWitness, mgLCControlInput{}, 10), mgLCControlInput{})
 		if err != nil || decision != receiptReplay || !reflect.DeepEqual(replay, savedRetire) {
 			t.Fatal("retirement replay", replay, decision, err)
@@ -363,7 +410,7 @@ func TestMGLCControlRetiredDisclosureAndOriginalReplay(t *testing.T) {
 
 func TestMGLCControlReorderAtomicDirectoryCAS(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO lc_channels(id,revision,config_json,enabled,position,name,state) VALUES('lc-second',3,'{"id":"lc-second"}',1,1,'Second','healthy')`); err != nil {
 			t.Fatal(err)
 		}
@@ -376,7 +423,7 @@ func TestMGLCControlReorderAtomicDirectoryCAS(t *testing.T) {
 			{channel: witness.directory[1], config: mgLCControlConfigFor("lc-second", "Second", 1, 0)},
 			{channel: witness.directory[0], config: mgLCControlConfigFor(b.channel, "Channel", 1, 1)},
 		}
-		saved := mgLCControlApply(t, w, MGReorderLCChannels, witness, mgLCControlInput{order: order}, 11)
+		saved := mgLCControlApply(t, w, proof, MGReorderLCChannels, witness, mgLCControlInput{order: order}, 11)
 		if len(saved.result.directory) != 2 || saved.result.directory[0].id != "lc-second" || saved.result.directory[0].position != 0 ||
 			saved.result.directory[1].id != b.channel || saved.result.directory[1].position != 1 ||
 			saved.result.directory[0].revision != 4 || saved.result.directory[1].revision != 8 {
@@ -409,7 +456,7 @@ func TestMGLCControlReorderAtomicDirectoryCAS(t *testing.T) {
 
 func TestMGLCControlReorderStaleDirectoryRefused(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO lc_channels(id,revision,config_json,enabled,position,name,state) VALUES('lc-second',3,'{"id":"lc-second"}',1,1,'Second','healthy')`); err != nil {
 			t.Fatal(err)
 		}
@@ -421,11 +468,11 @@ func TestMGLCControlReorderStaleDirectoryRefused(t *testing.T) {
 		if _, err := w.db.ExecContext(t.Context(), `UPDATE lc_channels SET revision=4 WHERE id='lc-second'`); err != nil {
 			t.Fatal(err)
 		}
-		if err := mgLCControlRefuse(t, w, MGReorderLCChannels, witness, mgLCControlInput{order: order}, 12); !errors.Is(err, ErrConflict) {
+		if err := mgLCControlRefuse(t, w, proof, MGReorderLCChannels, witness, mgLCControlInput{order: order}, 12); !errors.Is(err, ErrConflict) {
 			t.Fatal("stale directory reorder", err)
 		}
 		// An incomplete order list is never a partial reorder.
-		if err := mgLCControlRefuse(t, w, MGReorderLCChannels, witness, mgLCControlInput{order: order[:1]}, 18); !errors.Is(err, ErrConflict) {
+		if err := mgLCControlRefuse(t, w, proof, MGReorderLCChannels, witness, mgLCControlInput{order: order[:1]}, 18); !errors.Is(err, ErrConflict) {
 			t.Fatal("partial directory reorder", err)
 		}
 		var first, second int64
@@ -439,14 +486,14 @@ func TestMGLCControlReorderStaleDirectoryRefused(t *testing.T) {
 }
 
 func TestMGLCControlLostCommitObservedOnFreshReader(t *testing.T) {
-	w, _ := mgLCFixture(t)
+	w, _, proof := mgLCControlFixture(t)
 	path := mgGuideDatabasePath(t, w)
 	birth := mgLCControlWitness{issuer: mgLCControlIssuer(), channel: mgLCControlChannel{id: "control-lost"}}
 	config := mgLCControlConfigFor("control-lost", "Lost", 1, 0)
 	in := mgLCControlInput{config: &config}
 	command := mgLCControlCommandFor(mgLCControlSaveKind, birth, in, 13)
-	turn := mgLCControlTurn(t, w, MGSaveLCConfiguration)
-	saved, decision, err := mgLCControlDispatch(t.Context(), turn, MGSaveLCConfiguration, birth, command, in)
+	turn, budget := mgLCControlAuthorityTurn(t, w, MGSaveLCConfiguration)
+	saved, decision, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGSaveLCConfiguration, birth, command, in)
 	if err != nil || decision != receiptFresh {
 		t.Fatal(saved, decision, err)
 	}
@@ -467,9 +514,9 @@ func TestMGLCControlLostCommitObservedOnFreshReader(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(decoded, saved) {
 		t.Fatal("fresh receipt decode", decoded, saved, err)
 	}
-	turn = mgLCControlTurn(t, w, MGSaveLCConfiguration)
+	turn, budget = mgLCControlAuthorityTurn(t, w, MGSaveLCConfiguration)
 	before := mgLCControlChanges(t, turn)
-	replay, decision, err := mgLCControlDispatch(t.Context(), turn, MGSaveLCConfiguration, birth, command, in)
+	replay, decision, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGSaveLCConfiguration, birth, command, in)
 	if err != nil || decision != receiptReplay || !reflect.DeepEqual(replay, saved) {
 		t.Fatal("lost commit replay", replay, decision, err)
 	}
@@ -483,18 +530,18 @@ func TestMGLCControlLostCommitObservedOnFreshReader(t *testing.T) {
 
 func TestMGLCControlPurposeDurabilityAndForgedIssuer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		witness := mgLCControlSaveWitness(t, w, b.channel)
 		config := mgLCControlConfigFor(b.channel, "Native normal", 1, 0)
 		// A NORMAL native frame that merely claims the FULL purpose is refused.
-		turn := mgLCControlTurn(t, w, MGConfigureTuner)
+		turn, budget := mgLCControlAuthorityTurn(t, w, MGConfigureTuner)
 		full, err := Describe(MGSaveLCConfiguration)
 		if err != nil {
 			t.Fatal(err)
 		}
 		turn.transaction.descriptor = full
 		before := mgLCControlChanges(t, turn)
-		if _, _, err := mgLCControlDispatch(t.Context(), turn, MGSaveLCConfiguration, witness,
+		if _, _, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGSaveLCConfiguration, witness,
 			mgLCControlCommandFor(mgLCControlSaveKind, witness, mgLCControlInput{config: &config}, 14),
 			mgLCControlInput{config: &config}); !errors.Is(err, ErrInvalid) {
 			t.Fatal("native NORMAL FULL purpose", err)
@@ -509,10 +556,10 @@ func TestMGLCControlPurposeDurabilityAndForgedIssuer(t *testing.T) {
 		// the request digest is even considered.
 		forged := witness
 		forged.issuer[0] ^= 1
-		turn = mgLCControlTurn(t, w, MGSaveLCConfiguration)
+		turn, budget = mgLCControlAuthorityTurn(t, w, MGSaveLCConfiguration)
 		in := mgLCControlInput{config: &config}
 		command := mgLCControlCommandFor(mgLCControlSaveKind, witness, in, 15)
-		if _, _, err := mgLCControlDispatch(t.Context(), turn, MGSaveLCConfiguration, forged, command, in); !errors.Is(err, ErrInvalid) {
+		if _, _, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGSaveLCConfiguration, forged, command, in); !errors.Is(err, ErrInvalid) {
 			t.Fatal("forged issuer", err)
 		}
 		if _, err := turn.transaction.rollback(nil); err != nil {
@@ -521,9 +568,9 @@ func TestMGLCControlPurposeDurabilityAndForgedIssuer(t *testing.T) {
 		// A caller-chosen request digest cannot authorize a fresh effect.
 		bogus := mgLCControlCommandFor(mgLCControlSaveKind, witness, mgLCControlInput{config: &config}, 17)
 		bogus.request[0] ^= 1
-		turn = mgLCControlTurn(t, w, MGSaveLCConfiguration)
+		turn, budget = mgLCControlAuthorityTurn(t, w, MGSaveLCConfiguration)
 		before = mgLCControlChanges(t, turn)
-		if _, _, err := mgLCControlDispatch(t.Context(), turn, MGSaveLCConfiguration, witness, bogus, mgLCControlInput{config: &config}); !errors.Is(err, ErrConflict) {
+		if _, _, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGSaveLCConfiguration, witness, bogus, mgLCControlInput{config: &config}); !errors.Is(err, ErrConflict) {
 			t.Fatal("caller-chosen request digest", err)
 		}
 		if after := mgLCControlChanges(t, turn); after != before {
@@ -533,7 +580,7 @@ func TestMGLCControlPurposeDurabilityAndForgedIssuer(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A control purpose cannot borrow another purpose's input.
-		if err := mgLCControlRefuse(t, w, MGRequestLCRegeneration, witness, mgLCControlInput{config: &config}, 16); !errors.Is(err, ErrInvalid) {
+		if err := mgLCControlRefuse(t, w, proof, MGRequestLCRegeneration, witness, mgLCControlInput{config: &config}, 16); !errors.Is(err, ErrInvalid) {
 			t.Fatal("foreign input", err)
 		}
 	})
@@ -541,11 +588,11 @@ func TestMGLCControlPurposeDurabilityAndForgedIssuer(t *testing.T) {
 
 func TestMGLCControlBirthRefusesExistingAndAtCapacity(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		// An existing channel can never be born again, even from a no-head witness.
 		existing := mgLCControlWitness{issuer: mgLCControlIssuer(), channel: mgLCControlChannel{id: b.channel}}
 		config := mgLCControlConfigFor(b.channel, "Duplicate", 1, 0)
-		if err := mgLCControlRefuse(t, w, MGSaveLCConfiguration, existing, mgLCControlInput{config: &config}, 20); !errors.Is(err, ErrConflict) {
+		if err := mgLCControlRefuse(t, w, proof, MGSaveLCConfiguration, existing, mgLCControlInput{config: &config}, 20); !errors.Is(err, ErrConflict) {
 			t.Fatal("birth over an existing channel", err)
 		}
 		// Fill the directory to the 64-channel bound, then refuse a 65th birth.
@@ -557,7 +604,8 @@ func TestMGLCControlBirthRefusesExistingAndAtCapacity(t *testing.T) {
 		}
 		overflow := mgLCControlWitness{issuer: mgLCControlIssuer(), channel: mgLCControlChannel{id: "control-overflow"}}
 		overflowConfig := mgLCControlConfigFor("control-overflow", "Overflow", 1, 64)
-		if err := mgLCControlRefuse(t, w, MGSaveLCConfiguration, overflow, mgLCControlInput{config: &overflowConfig}, 21); !errors.Is(err, ErrInvalid) {
+		refusal := &Refusal{}
+		if err := mgLCControlRefuse(t, w, proof, MGSaveLCConfiguration, overflow, mgLCControlInput{config: &overflowConfig}, 21); !errors.As(err, &refusal) || refusal.Code != RefusalCapacity {
 			t.Fatal("birth beyond the directory bound", err)
 		}
 		var id string
@@ -569,16 +617,16 @@ func TestMGLCControlBirthRefusesExistingAndAtCapacity(t *testing.T) {
 
 func TestMGLCControlPendingReturningMismatchRollsBack(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, b := mgLCFixture(t)
+		w, b, proof := mgLCControlFixture(t)
 		mgLCControlInsertPending(t, w, "lc-pending", b.channel, 7, b.base, "lease-pending")
 		if _, err := w.db.ExecContext(t.Context(), `CREATE TRIGGER control_mismatch AFTER UPDATE ON lc_generations BEGIN UPDATE lc_generations SET lease_token='wrong' WHERE id=new.id; END`); err != nil {
 			t.Fatal(err)
 		}
 		witness := mgLCControlSaveWitness(t, w, b.channel)
 		kind, _ := mgLCControlKindFor(MGRequestLCRegeneration)
-		turn := mgLCControlTurn(t, w, MGRequestLCRegeneration)
+		turn, budget := mgLCControlAuthorityTurn(t, w, MGRequestLCRegeneration)
 		in := mgLCControlInput{}
-		if _, _, err := mgLCControlDispatch(t.Context(), turn, MGRequestLCRegeneration, witness,
+		if _, _, err := mgLCControlDispatch(t.Context(), turn, proof, t.Context(), budget, MGRequestLCRegeneration, witness,
 			mgLCControlCommandFor(kind, witness, in, 22), in); !errors.Is(err, ErrConflict) {
 			t.Fatal("returning mismatch accepted", err)
 		}

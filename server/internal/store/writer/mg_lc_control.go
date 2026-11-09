@@ -195,8 +195,10 @@ func (in mgLCControlInput) valid(kind mgLCControlKind) error {
 			}
 			seen[o.channel.id] = true
 			c := o.config
+			// Reorder moves position/config only; the channel's display name is
+			// not a reorder field and must match the existing witness exactly.
 			if !mgSourceText(c.canonical, true, mgLCControlConfigBytes) || !mgSourceText(c.name, true, 120) ||
-				c.position != int64(n) || c.enabled != o.channel.enabled {
+				c.position != int64(n) || c.enabled != o.channel.enabled || c.name != o.channel.name {
 				return ErrInvalid
 			}
 			total += len(c.canonical) + len(c.name)
@@ -207,6 +209,54 @@ func (in mgLCControlInput) valid(kind mgLCControlKind) error {
 		return nil
 	}
 	return ErrInvalid
+}
+
+// mgLCControlPlannedResult projects the exact result a fresh effect will return
+// from the validated witness and input alone. It lets the accepting frame refuse
+// an over-cap encoded receipt BEFORE any native write.
+func mgLCControlPlannedResult(kind mgLCControlKind, w mgLCControlWitness, in mgLCControlInput) (mgLCControlResult, bool) {
+	switch kind {
+	case mgLCControlSaveKind:
+		if in.config == nil {
+			return mgLCControlResult{}, false
+		}
+		c := *in.config
+		if w.channel.revision == 0 {
+			if !mgSourceText(w.channel.id, true, 128) {
+				return mgLCControlResult{}, false
+			}
+			return mgLCControlResult{channel: mgLCControlChannel{id: w.channel.id, revision: 1, config: c.canonical,
+				enabled: c.enabled, position: c.position, name: c.name, state: mgLCControlChannelState(c.enabled)}}, true
+		}
+		next := w.channel
+		next.revision++
+		next.config, next.name, next.position, next.enabled = c.canonical, c.name, c.position, c.enabled
+		next.state, next.health = mgLCControlChannelState(c.enabled), ""
+		return mgLCControlResult{channel: next}, true
+	case mgLCControlRegenerateKind:
+		next := w.channel
+		next.state, next.health = "generating", ""
+		return mgLCControlResult{channel: next}, true
+	case mgLCControlRetireKind:
+		next := w.channel
+		next.revision++
+		next.enabled, next.removed, next.state, next.health = 0, 1, "removed", ""
+		return mgLCControlResult{channel: next}, true
+	case mgLCControlReorderKind:
+		if len(in.order) == 0 {
+			return mgLCControlResult{}, false
+		}
+		out := make([]mgLCControlChannel, 0, len(in.order))
+		for n, o := range in.order {
+			next := o.channel
+			next.revision++
+			next.position = int64(n)
+			next.config = o.config.canonical
+			out = append(out, next)
+		}
+		return mgLCControlResult{directory: out}, true
+	}
+	return mgLCControlResult{}, false
 }
 
 // The private effects below are bounded by the supplied witness and every
@@ -522,7 +572,7 @@ func saveMGLCControlChannel(ctx context.Context, turn *commandTurn, w mgLCContro
 			return out, err
 		}
 		if int64(len(directory)) >= mgLCControlMaxChannels {
-			return out, ErrInvalid
+			return out, &Refusal{Code: RefusalCapacity}
 		}
 		row, err := mgLCControlRow(ctx, turn, mgLCControlInsert, w.channel.id, int64(1), c.canonical, c.enabled, c.position, c.name, "", mgLCControlChannelState(c.enabled))
 		if err != nil {
@@ -740,6 +790,9 @@ func reorderMGLCControlChannels(ctx context.Context, turn *commandTurn, w mgLCCo
 	result := make([]mgLCControlChannel, 0, len(order))
 	for n, o := range order {
 		before := current[o.channel.id]
+		if o.config.name != before.name {
+			return out, ErrInvalid
+		}
 		next := before
 		next.revision++
 		next.position = int64(n)
@@ -893,6 +946,8 @@ func decodeMGLCControlResult(body []byte, c mgLCControlCommand, kind mgLCControl
 		}
 		return int64(n), nil
 	}
+	// The raw channel parser validates nothing: the closed result kind decides
+	// whether this entry is a primary channel or a directory member.
 	channel := func() (mgLCControlChannel, error) {
 		var ch mgLCControlChannel
 		for _, target := range []*string{&ch.id, &ch.config, &ch.name, &ch.state, &ch.health, &ch.head} {
@@ -908,9 +963,6 @@ func decodeMGLCControlResult(body []byte, c mgLCControlCommand, kind mgLCControl
 				return ch, ErrResolveRequired
 			}
 			*target = n
-		}
-		if !ch.valid() {
-			return ch, ErrResolveRequired
 		}
 		return ch, nil
 	}
@@ -964,12 +1016,22 @@ func decodeMGLCControlResult(body []byte, c mgLCControlCommand, kind mgLCControl
 	var directory []mgLCControlChannel
 	for n := int64(0); n < count; n++ {
 		entry, err := channel()
-		if err != nil {
+		if err != nil || !entry.valid() {
 			return out, ErrResolveRequired
 		}
 		directory = append(directory, entry)
 	}
 	if r.Len() != 0 {
+		return out, ErrResolveRequired
+	}
+	// The stored result shape is closed by the kind: a reorder owns only the
+	// directory snapshot (zero primary channel); every single-channel effect
+	// owns only its primary channel (empty directory).
+	if kind == mgLCControlReorderKind {
+		if ch != (mgLCControlChannel{}) || len(directory) == 0 {
+			return out, ErrResolveRequired
+		}
+	} else if !ch.valid() || len(directory) != 0 {
 		return out, ErrResolveRequired
 	}
 	out = mgLCControlSaved{command: c, kind: kind, result: mgLCControlResult{channel: ch, directory: directory, applied: applied}}

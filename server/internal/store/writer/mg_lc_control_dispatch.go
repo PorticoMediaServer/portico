@@ -14,11 +14,13 @@ import (
 // this frame supplies the closed identity/request/receipt protocol and the FULL
 // native durability boundary for 868/870. No physical release happens here.
 
-// mgLCControlDispatch is the only entry to the four control purposes. A saved
+// mgLCControlDispatch is the only entry to the four control purposes. Current
+// owner authority is minted and rechecked BEFORE any retained receipt read and
+// again before the first effect, exactly like the MG-03 source family. A saved
 // original is disclosed without a fresh channel CAS; a retired channel denies
 // disclosure of non-retirement control results. Unknown/unprovable state is
 // never success.
-func mgLCControlDispatch(ctx context.Context, turn *commandTurn, purpose CommandID, w mgLCControlWitness, c mgLCControlCommand, in mgLCControlInput) (out mgLCControlSaved, decision receiptDecision, err error) {
+func mgLCControlDispatch(ctx context.Context, turn *commandTurn, proof *mgActorProof, lifetime context.Context, budget mgAuthorityBudget, purpose CommandID, w mgLCControlWitness, c mgLCControlCommand, in mgLCControlInput) (out mgLCControlSaved, decision receiptDecision, err error) {
 	defer func() {
 		value, failure := finishCommand(ctx, commandLifetime(turn), struct {
 			Saved    mgLCControlSaved
@@ -45,6 +47,19 @@ func mgLCControlDispatch(ctx context.Context, turn *commandTurn, purpose Command
 	if c.request != request {
 		return mgLCControlSaved{}, receiptConflict, ErrConflict
 	}
+	// Channel configuration is owner-level. A comparison witness can never
+	// stand in for the US owner/main-profile proof.
+	if proof == nil || proof.kind != mgActorOwner {
+		return mgLCControlSaved{}, receiptConflict, ErrDisclosureDenied
+	}
+	actor, err := authorizeMGActor(ctx, turn, proof, lifetime, budget)
+	if err != nil {
+		return mgLCControlSaved{}, receiptConflict, err
+	}
+	// Current authority precedes ANY receipt owner/payload read, replay included.
+	if err = actor.recheck(ctx, turn); err != nil {
+		return mgLCControlSaved{}, receiptConflict, err
+	}
 	decision, out, err = lookupMGLCControlReceipt(ctx, turn, kind, c)
 	if err != nil {
 		return mgLCControlSaved{}, decision, err
@@ -61,6 +76,20 @@ func mgLCControlDispatch(ctx context.Context, turn *commandTurn, purpose Command
 	case receiptFresh:
 	default:
 		return mgLCControlSaved{}, receiptConflict, ErrInvalid
+	}
+	// The encoded result is bounded before any native write; the post-effect
+	// receipt save must never be the first place an oversized body is refused.
+	planned, ok := mgLCControlPlannedResult(kind, w, in)
+	if !ok {
+		return mgLCControlSaved{}, receiptConflict, ErrInvalid
+	}
+	if len(mgLCControlResultBytes(mgLCControlSaved{command: c, kind: kind, result: planned})) > mgLCBytes {
+		return mgLCControlSaved{}, receiptConflict, &Refusal{Code: RefusalCapacity}
+	}
+	// Recheck immediately before the first effect; the lookup above may have
+	// consumed a stale horizon.
+	if err = actor.recheck(ctx, turn); err != nil {
+		return mgLCControlSaved{}, receiptConflict, err
 	}
 	var result mgLCControlResult
 	switch kind {
@@ -130,14 +159,28 @@ func lookupMGLCControlReceipt(ctx context.Context, turn *commandTurn, kind mgLCC
 	if decoded.digest == (ResultDigest{}) || hex.EncodeToString(decoded.digest[:]) != digest {
 		return receiptResolveRequired, saved, ErrResolveRequired
 	}
-	// Retirement ends the control lifecycle of every earlier saved result. The
-	// retirement's own original result remains disclosable.
-	current, err := readMGLCControlChannel(ctx, turn, decoded.result.channel.id)
-	switch {
-	case err == nil && current.removed != 0 && kind != mgLCControlRetireKind:
-		return receiptRetired, saved, nil
-	case err != nil && !errors.Is(err, ErrConflict):
-		return receiptConflict, saved, err
+	// Retirement ends the control lifecycle of every earlier saved result. A
+	// reorder original spans the whole directory, so ANY member retired since
+	// the reorder denies the whole snapshot. A missing or unprovable native row
+	// is denial as well: ErrConflict is not evidence that replay is safe.
+	ids := []string{decoded.result.channel.id}
+	if kind == mgLCControlReorderKind {
+		ids = ids[:0]
+		for _, ch := range decoded.result.directory {
+			ids = append(ids, ch.id)
+		}
+	}
+	for _, id := range ids {
+		current, err := readMGLCControlChannel(ctx, turn, id)
+		if err != nil {
+			if errors.Is(err, ErrConflict) {
+				return receiptRetired, saved, nil
+			}
+			return receiptConflict, saved, err
+		}
+		if current.removed != 0 && kind != mgLCControlRetireKind {
+			return receiptRetired, saved, nil
+		}
 	}
 	return receiptReplay, decoded, nil
 }

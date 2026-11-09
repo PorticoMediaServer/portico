@@ -71,6 +71,12 @@ func (b mgAuthorityBudget) check(ctx context.Context, t *commandTurn, bytes int6
 		if !b.maintenance {
 			return ErrInvalid
 		}
+	// LC channel control 868-871: save/retire keep their FULL native boundary,
+	// regenerate/reorder are NORMAL. Named here so no other domain ID can borrow
+	// this MG actor mint.
+	case MGSaveLCConfiguration, MGRetireLCChannel:
+		expected = Full
+	case MGRequestLCRegeneration, MGReorderLCChannels:
 	default:
 		return ErrInvalid
 	}
