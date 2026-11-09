@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"strings"
 	"testing"
 	"time"
@@ -104,6 +106,11 @@ func TestUOBirthStartNoOwnerSynthesisAndRootBinding(t *testing.T) {
 			if err == nil || out != nil {
 				t.Fatal(out, err)
 			}
+			if mode == "root-missing" || mode == "foreign-root" || mode == "draining" {
+				if !errors.Is(err, ErrUORootGone) || errors.Is(err, sql.ErrNoRows) {
+					t.Fatal("root failure class", err)
+				}
+			}
 			if mode == "owner-missing" && (!errors.Is(err, ErrResolveRequired) || !errors.Is(err, ErrOwnerUnavailable) || errors.Is(err, sql.ErrNoRows)) {
 				t.Fatal("missing owner escaped typed mapping", err)
 			}
@@ -116,7 +123,7 @@ func TestUOBirthStartNoOwnerSynthesisAndRootBinding(t *testing.T) {
 }
 
 func TestUOBirthStartWrongNativeOrUnsavedRollsBack(t *testing.T) {
-	for _, mode := range []string{"worker", "borrowed-worker", "member", "profile", "device", "unsaved", "header-prefix", "final-source", "final-authority", "final-header", "final-ledger"} {
+	for _, mode := range []string{"worker", "borrowed-worker", "member", "profile", "device", "native-root", "result-root", "unsaved", "header-prefix", "final-source", "final-authority", "final-header", "final-ledger"} {
 		t.Run(mode, func(t *testing.T) {
 			w, p, q, v := uoBirthStartFixture(t)
 			turn, a := uoBirthStartTurn(t, w, p)
@@ -134,6 +141,10 @@ func TestUOBirthStartWrongNativeOrUnsavedRollsBack(t *testing.T) {
 				_, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE playback_start_preparations SET mp_owner_member_incarnation=?`, strings.Repeat("f", 32))
 			case "profile":
 				_, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE playback_start_preparations SET mp_owner_profile_lifetime=?`, strings.Repeat("f", 32))
+			case "native-root":
+				_, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE playback_start_preparations SET mp_user_root_id='zyxwvutsrqponmlkjihgfe'`)
+			case "result-root":
+				v.root = "zyxwvutsrqponmlkjihgfe"
 			case "device":
 				v.device = "foreign"
 			case "header-prefix":
@@ -260,9 +271,9 @@ func TestUOBirthStartCodecAndPlans(t *testing.T) {
 	if err != nil || decoded != v {
 		t.Fatal(decoded, err)
 	}
-	for _, payload := range [][]byte{append(append([]byte{}, encoded...), 0), encoded[:len(encoded)-1]} {
-		if _, err = decodeUOBirthStart(q.identity, q.request, q.root, payload, digest); err == nil {
-			t.Fatal("malformed original accepted")
+	for _, payload := range [][]byte{append(append([]byte{}, encoded...), 0), encoded[:len(encoded)-1], encoded[:len(encoded)-8*8-1]} {
+		if _, err = decodeUOBirthStart(q.identity, q.request, q.root, payload, digest); !errors.Is(err, ErrResolveRequired) {
+			t.Fatal("malformed original class", err)
 		}
 	}
 	q.request[0]++
@@ -307,7 +318,7 @@ func TestUOBirthStartPreparedComparisonsAreNotAuthority(t *testing.T) {
 }
 
 func TestUOBirthStartNormalProofBindings(t *testing.T) {
-	for _, mode := range []string{"purpose", "deadline", "lifetime", "prior-frame", "finished", "rolled-back"} {
+	for _, mode := range []string{"purpose", "deadline", "lifetime", "live-lifetime", "prior-frame", "finished", "rolled-back"} {
 		t.Run(mode, func(t *testing.T) {
 			w, p, _, _ := uoBirthStartFixture(t)
 			turn, a := uoBirthStartTurn(t, w, p)
@@ -327,6 +338,10 @@ func TestUOBirthStartNormalProofBindings(t *testing.T) {
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
 				proof.lifetime = ctx
+			case "live-lifetime":
+				live, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				proof.lifetime = live
 			case "prior-frame":
 				_, _ = turn.transaction.rollback(nil)
 				turn, _ = uoBirthStartTurn(t, w, p)
@@ -337,6 +352,141 @@ func TestUOBirthStartNormalProofBindings(t *testing.T) {
 			}
 			if err = proof.current(turn); !errors.Is(err, ErrUORootCurrentFenceUnavailable) {
 				t.Fatal("reused NORMAL proof", err)
+			}
+		})
+	}
+}
+
+func TestUOBirthStartReplayDigestAndCurrentFence(t *testing.T) {
+	for _, mode := range []string{"digest", "current"} {
+		t.Run(mode, func(t *testing.T) {
+			w, p, q, v := uoBirthStartFixture(t)
+			turn, a := uoBirthStartTurn(t, w, p)
+			lookup, err := lookupUOBirthStart(t.Context(), turn, a, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			uoBirthStartRow(t, turn, p, v)
+			if _, err = persistUOBirthStart(t.Context(), turn, lookup, v); err != nil {
+				t.Fatal(err)
+			}
+			uoPublicReadingCommit(t, turn)
+			turn, a = uoBirthStartTurn(t, w, p)
+			want := ErrConflict
+			if mode == "digest" {
+				q.request[0]++
+			} else {
+				if _, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE identity_security_fences SET denied=1`); err != nil {
+					t.Fatal(err)
+				}
+				// An attempted payload read would now fail with ErrInvalid. Only the
+				// independent pre-lookup current fence may produce the expected denial.
+				delete(turn.steps, uoRootReceiptPayload)
+				want = ErrDisclosureDenied
+			}
+			out, err := lookupUOBirthStart(t.Context(), turn, a, q)
+			if !errors.Is(err, want) || out != nil {
+				t.Fatal(out, err)
+			}
+			if _, err = turn.transaction.commit(); err == nil {
+				t.Fatal("denied replay committed")
+			}
+			if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 1 {
+				t.Fatal(n)
+			}
+		})
+	}
+}
+
+func TestUOBirthStartDrainingBeforeCommit(t *testing.T) {
+	w, p, q, v := uoBirthStartFixture(t)
+	turn, a := uoBirthStartTurn(t, w, p)
+	lookup, err := lookupUOBirthStart(t.Context(), turn, a, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uoBirthStartRow(t, turn, p, v)
+	if _, err = persistUOBirthStart(t.Context(), turn, lookup, v); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET state='draining'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = turn.transaction.commit(); !errors.Is(err, ErrUORootGone) {
+		t.Fatal("Fresh survived drain", err)
+	}
+	if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 0 {
+		t.Fatal(n)
+	}
+	if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM playback_start_preparations`); n != 0 {
+		t.Fatal(n)
+	}
+}
+
+func TestUOBirthStartUnknownCommitNeverApplied(t *testing.T) {
+	for _, after := range []bool{false, true} {
+		t.Run(fmt.Sprint(after), func(t *testing.T) {
+			w, p, q, v := uoBirthStartFixture(t)
+			var seq int
+			var name, path string
+			if err := w.db.QueryRowContext(t.Context(), `PRAGMA database_list`).Scan(&seq, &name, &path); err != nil {
+				t.Fatal(err)
+			}
+			if err := w.db.Close(); err != nil {
+				t.Fatal(err)
+			}
+			base, err := sqliteconn.Connector(path, w.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			installFaultPool(w, &faultConnector{Connector: base, afterCommit: after, replyError: true})
+			turn, a := uoBirthStartTurn(t, w, p)
+			lookup, err := lookupUOBirthStart(t.Context(), turn, a, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			uoBirthStartRow(t, turn, p, v)
+			if _, err = persistUOBirthStart(t.Context(), turn, lookup, v); err != nil {
+				t.Fatal(err)
+			}
+			result, err := turn.transaction.commit()
+			if result.state != commitUnknown || !errors.Is(err, ErrResolveRequired) || !w.ambiguous {
+				t.Fatal("unknown treated as applied", result, err)
+			}
+			reader, _, err := sqliteconn.Open(t.Context(), path, sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}, sqliteconn.ExistingFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reader.Close()
+			want := 0
+			if after {
+				want = 1
+			}
+			for _, table := range []string{"playback_start_preparations", "user_mutation_command_receipts"} {
+				var n int
+				if err = reader.QueryRowContext(t.Context(), "SELECT count(*) FROM "+table).Scan(&n); err != nil || n != want {
+					t.Fatal(table, n, want, err)
+				}
+			}
+			if _, err = w.begin(t.Context(), 700, testRecipe(), &testCustody{}); !errors.Is(err, ErrResolveRequired) {
+				t.Fatal("ambiguous executor reused", err)
+			}
+		})
+	}
+}
+
+func TestUOBirthStartRootBridgePurposeIsClosed(t *testing.T) {
+	for _, kind := range []CommandID{600, 770, 771} {
+		t.Run(fmt.Sprint(kind), func(t *testing.T) {
+			w, p, _ := uoPublicReadingFixture(t, false)
+			turn, a := uoPublicReadingTurn(t, w, p, kind)
+			proof, err := bindUSCurrentUORoot(t.Context(), turn, a)
+			if kind == 600 {
+				if err != nil || proof == nil {
+					t.Fatal(proof, err)
+				}
+			} else if !errors.Is(err, ErrUORootCurrentFenceUnavailable) || proof != nil {
+				t.Fatal("public reading borrowed root scalar seam", proof, err)
 			}
 		})
 	}

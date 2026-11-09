@@ -10,6 +10,10 @@ import (
 	"unicode/utf8"
 )
 
+// Match the existing playbackdisc.MaxPreparationLifetime without importing
+// the legacy playback store (which registers SQLite functions via dbwork).
+const uoBirthStartMaxLifetimeMS int64 = 120_000
+
 // Complete 700 birth ORIGINAL, not a session, worker grant or new public DTO.
 // The public branch is the existing variant=wait/retryAfterMs=500. These exact
 // preparation/worker/deadline facts let the parent find that original without
@@ -24,7 +28,7 @@ type uoBirthStartResult struct {
 func (uoBirthStartResult) Format(s fmt.State, _ rune) { formatUSPreparation(s, "uoBirthStartResult") }
 
 func preflightUOBirthStart(v uoBirthStartResult) error {
-	if len(v.root) != 22 || v.worker == [16]byte{} || !usHex(v.startKey, 64) || !usHex(v.startBody, 64) || v.part < 0 || v.replacesGeneration < 0 || v.createdMS <= 0 || v.deadlineMS <= v.createdMS || v.deadlineMS-v.createdMS > 120000 || v.tokenExpiresMS < v.deadlineMS || v.revision != 1 || v.retryMS != 500 || v.appliedMS < v.createdMS || v.appliedMS >= v.deadlineMS {
+	if len(v.root) != 22 || v.worker == [16]byte{} || !usHex(v.startKey, 64) || !usHex(v.startBody, 64) || v.part < 0 || v.replacesGeneration < 0 || v.createdMS <= 0 || v.deadlineMS <= v.createdMS || v.deadlineMS-v.createdMS > uoBirthStartMaxLifetimeMS || v.tokenExpiresMS < v.deadlineMS || v.revision != 1 || v.retryMS != 500 || v.appliedMS < v.createdMS || v.appliedMS >= v.deadlineMS {
 		return ErrInvalid
 	}
 	if (v.replaces == "") != (v.replacesGeneration == 0) {
@@ -78,12 +82,12 @@ func decodeUOBirthStart(id CommandIdentity, q RequestDigest, root string, p []by
 		}
 		b := make([]byte, int(n))
 		if _, err = io.ReadFull(r, b); err != nil {
-			return uoBirthStartResult{}, err
+			return uoBirthStartResult{}, ErrResolveRequired
 		}
 		*dst = string(b)
 	}
 	if _, err = io.ReadFull(r, out.worker[:]); err != nil {
-		return uoBirthStartResult{}, err
+		return uoBirthStartResult{}, ErrResolveRequired
 	}
 	for _, dst := range []*int64{&out.part, &out.replacesGeneration, &out.createdMS, &out.deadlineMS, &out.tokenExpiresMS, &out.revision, &out.retryMS, &out.appliedMS} {
 		var n uint64

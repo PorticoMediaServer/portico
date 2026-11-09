@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 	"unicode/utf8"
 )
@@ -36,7 +37,7 @@ func (i uoRootIdentity) complete() bool {
 }
 
 // uoRootCurrentProof is the opaque NORMAL current-session proof seam. Its only
-// producer is Sol's writer/us_current_fence.go bridge below; callers have no
+// producer is the closed bindUSCurrentUORoot bridge below; callers have no
 // public constructor or exported field, so no caller bool, string or cached issuer
 // can stand in for it. Unsupported NORMAL purposes refuse with
 // ErrUORootCurrentFenceUnavailable. The frame, purpose, lifetime, deadline
@@ -58,7 +59,12 @@ func (p *uoRootCurrentProof) current(turn *commandTurn) error {
 	if !ok || !p.deadline.Equal(deadline) {
 		return ErrUORootCurrentFenceUnavailable
 	}
-	if p.session == nil || p.session.turn != turn || p.identity != uoRootSessionIdentity(p.session) {
+	if p.session == nil || p.session.turn != turn || p.lifetime != p.session.lifetime || p.identity != uoRootSessionIdentity(p.session) {
+		return ErrUORootCurrentFenceUnavailable
+	}
+	switch p.purpose {
+	case 600, 700:
+	default:
 		return ErrUORootCurrentFenceUnavailable
 	}
 	return p.session.recheck(turn.transaction.ctx, turn)
@@ -73,7 +79,12 @@ func uoRootSessionIdentity(a *usCurrentSessionAuthorization) uoRootIdentity {
 // Root matching remains independent and is repeated by every root operation.
 func bindUSCurrentUORoot(ctx context.Context, turn *commandTurn, a *usCurrentSessionAuthorization) (out *uoRootCurrentProof, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if a == nil || a.turn != turn {
+	if a == nil || a.turn != turn || turn == nil || turn.transaction == nil {
+		return nil, ErrUORootCurrentFenceUnavailable
+	}
+	switch turn.transaction.descriptor.ID {
+	case 600, 700:
+	default:
 		return nil, ErrUORootCurrentFenceUnavailable
 	}
 	if err = a.recheck(ctx, turn); err != nil {
@@ -100,6 +111,8 @@ type uoRootBinding struct {
 	current  *uoRootCurrentProof
 	identity uoRootIdentity
 }
+
+func (uoRootBinding) Format(s fmt.State, _ rune) { formatUSPreparation(s, "uoRootBinding") }
 
 func bindUORoot(turn *commandTurn, security *usOwnerAuthorization, current *uoRootCurrentProof) (out uoRootBinding, err error) {
 	if turn == nil || turn.transaction == nil || !turn.transaction.begun || turn.transaction.done {
