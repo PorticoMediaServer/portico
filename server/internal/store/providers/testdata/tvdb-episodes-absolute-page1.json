@@ -1,0 +1,35 @@
+{
+  "status": "success",
+  "data": {
+    "series": {
+      "id": 71663
+    },
+    "episodes": [
+      {
+        "id": 9103,
+        "seriesId": 71663,
+        "name": "Unnumbered",
+        "overview": null,
+        "seasonNumber": null,
+        "number": null,
+        "absoluteNumber": 4,
+        "aired": null
+      },
+      {
+        "id": 9104,
+        "seriesId": 71663,
+        "name": "Second Season",
+        "overview": "Second season opener.",
+        "seasonNumber": 2,
+        "number": 1,
+        "absoluteNumber": 2,
+        "aired": "2021-01-07"
+      }
+    ]
+  },
+  "links": {
+    "next": "",
+    "prev": "https://api4.thetvdb.com/v4/series/71663/episodes/absolute?page=0",
+    "self": "https://api4.thetvdb.com/v4/series/71663/episodes/absolute?page=1"
+  }
+}

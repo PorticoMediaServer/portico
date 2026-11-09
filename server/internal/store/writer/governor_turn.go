@@ -16,7 +16,17 @@ import (
 // field. New purposes must acquire an explicit policy here before execution.
 func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
-	case IPFieldEdit, IPFieldLock, IPFieldRestore:
+	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
+		IPPersonClaim, IPPersonRenew, IPPersonFinish, IPPersonEvidenceBegin,
+		IPPersonEvidenceAppend, IPPersonSeal,
+		IPEntityEvidenceBegin, IPEntityEvidenceAppend,
+		IPEntitySeal, IPTVSetBegin, IPTVSetPage, IPTVSetSeal, IPEntityAccept, IPEntityDelta,
+		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
+		IPFieldEdit, IPFieldLock, IPFieldRestore, IPEditBulkBegin, IPEditBulkPage, IPEditBulkFinish:
+		return governor.Background, nil
+	case IPArtworkMaterialIntent, IPArtworkMaterialInstalled, IPArtworkMaterialPublish,
+		IPArtworkSelect, IPArtworkClear, IPArtworkUploadAccept, IPArtworkReencode,
+		IPArtworkGCMark, IPArtworkGCFinish:
 		return governor.Background, nil
 	case IAConfigureLibrary, IAConfigureSource, IARetireStep, IAConfigureSourceDisable, IAAcceptEpisodeInventory, IAAcceptAudioInventory,
 		IAAcceptReadingInventory, IAAcceptExtraInventory, IAAcceptMembership, IAReconcileObject, IACoverageVerify, IAMarkMissing, IAFinishRescan,
