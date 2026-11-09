@@ -118,8 +118,8 @@ func securityCrashDefinitions() []stmt.Definition {
 
 func securityCrashRegistry(t *testing.T, w *executor) *stmt.Registry {
 	t.Helper()
-	if schema.SHA256 != progressCrashSchema015 {
-		t.Fatal("security captures require schema015", schema.SHA256)
+	if schema.SHA256 != progressCrashSchema016 {
+		t.Fatal("security captures require schema016", schema.SHA256)
 	}
 	defs := securityCrashDefinitions()
 	if len(defs) != 5 {
