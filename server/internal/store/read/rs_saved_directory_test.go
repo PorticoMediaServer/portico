@@ -6,13 +6,16 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/printer"
+	"go/token"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 )
@@ -35,7 +38,67 @@ func rsSavedDirectoryConfig() governor.Config {
 }
 
 func rsSavedDirectoryViewerKey() string {
-	return identity.PersonalKey(identity.Viewer{Authority: "local", AccountID: "a", ProfileID: "p"})
+	return rsSavedDirectoryPersonalKey("local", "a", "p")
+}
+
+// rsSavedDirectoryDecl finds one receiver-less function declaration.
+func rsSavedDirectoryDecl(t *testing.T, file *ast.File, name string) *ast.FuncDecl {
+	t.Helper()
+	for _, d := range file.Decls {
+		if f, ok := d.(*ast.FuncDecl); ok && f.Recv == nil && f.Name.Name == name {
+			return f
+		}
+	}
+	t.Fatalf("%s is gone", name)
+	return nil
+}
+
+// TestRSSavedDirectoryPersonalKeyDrift proves the local personal-key encoding
+// still matches the identity -> persistence source it mirrors. The read package
+// cannot import either package (persistence pulls in dbwork/worker, whose init()
+// registers legacy SQLite scalar functions and changes the function hash the
+// plan goldens bind), so the guard compares source text instead: the delegation
+// order in identity.PersonalKey and the tuple and prefix in
+// persistence.PersonalOwnerKey.
+func TestRSSavedDirectoryPersonalKeyDrift(t *testing.T) {
+	fset := token.NewFileSet()
+	identityFile, err := parser.ParseFile(fset, "../../identity/personal_key.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse identity/personal_key.go: %v", err)
+	}
+	key := rsSavedDirectoryDecl(t, identityFile, "PersonalKey")
+	var result ast.Expr
+	for _, s := range key.Body.List {
+		if r, ok := s.(*ast.ReturnStmt); ok && len(r.Results) == 1 {
+			result = r.Results[0]
+		}
+	}
+	if result == nil {
+		t.Fatal("identity.PersonalKey no longer returns a single expression")
+	}
+	var call strings.Builder
+	if err = printer.Fprint(&call, fset, result); err != nil {
+		t.Fatalf("print identity.PersonalKey result: %v", err)
+	}
+	if want := "persistence.PersonalOwnerKey(v.Authority, v.AccountID, v.ProfileID)"; call.String() != want {
+		t.Fatalf("identity.PersonalKey returns %s, want %s; rsSavedDirectoryPersonalKey encodes [authority,account,profile]", call.String(), want)
+	}
+	ownerFile, err := parser.ParseFile(fset, "../../persistence/personal_key.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse persistence/personal_key.go: %v", err)
+	}
+	owner := rsSavedDirectoryDecl(t, ownerFile, "PersonalOwnerKey")
+	var body strings.Builder
+	for _, s := range owner.Body.List {
+		if err = printer.Fprint(&body, fset, s); err != nil {
+			t.Fatalf("print persistence.PersonalOwnerKey body: %v", err)
+		}
+	}
+	for _, want := range []string{`[3]string{authority, account, profile}`, `"viewer:" + base64.RawURLEncoding.EncodeToString(`} {
+		if !strings.Contains(body.String(), want) {
+			t.Fatalf("persistence.PersonalOwnerKey no longer contains %s; rsSavedDirectoryPersonalKey must change with it", want)
+		}
+	}
 }
 
 // newRSSavedDirectorySource seeds the complete union: an owned collection, a

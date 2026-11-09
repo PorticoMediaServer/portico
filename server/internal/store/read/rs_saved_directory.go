@@ -3,6 +3,8 @@ package read
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash"
@@ -13,7 +15,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
@@ -272,8 +273,21 @@ func (p *SavedCollectionDirectoryWork) charge(n int64) error {
 	return nil
 }
 
+// rsSavedDirectoryPersonalKey is the canonical persisted encoding of the
+// [authority,account,profile] owner tuple: identity.PersonalKey delegates to
+// persistence.PersonalOwnerKey, which marshals that exact array and prefixes
+// "viewer:". The encoding is copied here because importing persistence pulls in
+// dbwork/worker, whose init() registers legacy SQLite scalar functions and
+// changes the pragma_function_list hash the plan goldens bind. Keep the bytes
+// identical; TestRSSavedDirectoryPersonalKeyDrift parses the source of both
+// originals to catch drift.
+func rsSavedDirectoryPersonalKey(authority, account, profile string) string {
+	raw, _ := json.Marshal([3]string{authority, account, profile})
+	return "viewer:" + base64.RawURLEncoding.EncodeToString(raw)
+}
+
 func rsSavedDirectoryOwner(f browseFence) string {
-	return identity.PersonalKey(identity.Viewer{Authority: "local", AccountID: f.account, ProfileID: f.profile})
+	return rsSavedDirectoryPersonalKey("local", f.account, f.profile)
 }
 
 // rsSavedDirectoryPermission verifies the current owner token, current server
