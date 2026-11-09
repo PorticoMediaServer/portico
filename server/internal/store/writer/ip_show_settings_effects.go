@@ -64,7 +64,10 @@ func ipShowSettingsDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: ipShowSettingsRead, Kind: stmt.Read, SQL: `SELECT show_settings_present,show_settings_revision,kind FROM catalog_entities WHERE id=? AND retired=0`, Params: []stmt.Param{i("entity")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_entities"}}, Cohorts: []stmt.Cohort{{Name: "missing", Bindings: []any{int64(0)}}}},
 		{ID: ipShowSettingsSave, Kind: stmt.Write, SQL: `UPDATE catalog_entities SET show_settings_present=1,show_settings_revision=show_settings_revision+1 WHERE id=? AND kind=2 AND retired=0 AND show_settings_revision=? RETURNING show_settings_revision,show_settings_present`, Params: []stmt.Param{i("entity"), i("revision")}, Cohorts: []stmt.Cohort{{Name: "stale", Bindings: []any{int64(0), int64(0)}}}},
-		{ID: ipShowSettingsRestore, Kind: stmt.Write, SQL: `UPDATE catalog_entities SET show_settings_present=0,show_settings_revision=show_settings_revision+1 WHERE id=? AND kind=2 AND retired=0 AND show_settings_revision=? AND show_settings_present=1 RETURNING show_settings_revision,show_settings_present`, Params: []stmt.Param{i("entity"), i("revision")}, Cohorts: []stmt.Cohort{{Name: "stale", Bindings: []any{int64(0), int64(0)}}}},
+		// The canonical CHECK requires the explicit numbering columns to be at
+		// their defaults whenever show_settings_present=0, so inheriting clears
+		// them in the same write that clears presence.
+		{ID: ipShowSettingsRestore, Kind: stmt.Write, SQL: `UPDATE catalog_entities SET show_settings_present=0,show_settings_revision=show_settings_revision+1,hide_seasons=0,absolute_numbering=0,newest_first=0,show_ranges='' WHERE id=? AND kind=2 AND retired=0 AND show_settings_revision=? AND show_settings_present=1 RETURNING show_settings_revision,show_settings_present`, Params: []stmt.Param{i("entity"), i("revision")}, Cohorts: []stmt.Cohort{{Name: "stale", Bindings: []any{int64(0), int64(0)}}}},
 		{ID: ipShowSettingsNumbering, Kind: stmt.Read, SQL: `SELECT e.show_settings_present,e.absolute_numbering,COALESCE(l.preference_episode_numbering,'') FROM catalog_entities AS e CROSS JOIN catalog_libraries AS c ON c.id=e.library_id CROSS JOIN libraries AS l INDEXED BY sqlite_autoindex_libraries_1 ON l.id=c.library_id WHERE e.id=? AND e.kind=2 AND e.retired=0`, Params: []stmt.Param{i("show")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"e", "c"}, Indexes: []string{"sqlite_autoindex_libraries_1"}}, Cohorts: []stmt.Cohort{{Name: "missing", Bindings: []any{int64(0)}}}},
 	}
 	for x := range defs {
@@ -128,8 +131,10 @@ func applyIPShowSettingsSave(ctx context.Context, turn *commandTurn, in ipShowSe
 }
 
 // applyIPShowSettingsRestore returns the show to library numbering inheritance:
-// presence clears and the revision advances under the same CAS. Restoring an
-// already-inheriting show is a conflict, never a silent second change.
+// presence clears, the explicit numbering columns return to their defaults (the
+// canonical CHECK forbids them while presence is absent) and the revision
+// advances under the same CAS. Restoring an already-inheriting show is a
+// conflict, never a silent second change.
 func applyIPShowSettingsRestore(ctx context.Context, turn *commandTurn, in ipShowSettingsInput) (out ipShowSettingsEffect, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if turn == nil || turn.transaction == nil || !ipShowSettingsInputValid(in) {

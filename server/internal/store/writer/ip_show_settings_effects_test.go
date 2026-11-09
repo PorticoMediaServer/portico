@@ -129,7 +129,7 @@ func TestIPShowSettingsNumberingInheritance(t *testing.T) {
 	if !facts.Present || facts.Effective != ipEpisodeSeason || facts.Absolute {
 		t.Fatal("saved all-false settings must use season", facts)
 	}
-	ipTextExec(t, w, `UPDATE catalog_entities SET absolute_numbering=1 WHERE id=780`)
+	ipTextExec(t, w, `UPDATE catalog_entities SET absolute_numbering=1,hide_seasons=1,newest_first=1,show_ranges='1-2' WHERE id=780`)
 	if facts = read(); !facts.Present || !facts.Absolute || facts.Effective != ipEpisodeAbsolute {
 		t.Fatal("saved absolute flag", facts)
 	}
@@ -150,7 +150,7 @@ func TestIPShowSettingsNumberingInheritance(t *testing.T) {
 	if facts = read(); facts.Effective != ipEpisodeSeason || facts.Library != "season" {
 		t.Fatal("library preference change", facts)
 	}
-	if value := ipTextQueryInt(t, w, `SELECT count(*) FROM catalog_entities WHERE id=780 AND show_settings_present=0 AND show_settings_revision=3 AND absolute_numbering=1`); value != 1 {
+	if value := ipTextQueryInt(t, w, `SELECT count(*) FROM catalog_entities WHERE id=780 AND show_settings_present=0 AND show_settings_revision=3 AND hide_seasons=0 AND absolute_numbering=0 AND newest_first=0 AND show_ranges=''`); value != 1 {
 		t.Fatal("library change fanned out to the show row", value)
 	}
 	ipTextExec(t, w, `UPDATE libraries SET preference_present=0,preference_revision=NULL,preference_group_collections=NULL,preference_local_tags=NULL,preference_lyrics_source=NULL,preference_title_source=NULL,preference_episode_numbering=NULL,preference_find_extras=NULL,preference_sort_ignore_articles=NULL WHERE id='ip-library'`)
