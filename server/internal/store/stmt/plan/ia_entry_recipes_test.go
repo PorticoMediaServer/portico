@@ -18,7 +18,7 @@ func TestIAEntryRecipesRequireExactDefinition(t *testing.T) {
 			}
 			for name, mutate := range map[string]func(*stmt.Definition){
 				"wrong_id":              func(d *stmt.Definition) { d.ID = "foreign.entry" },
-				"changed_sql":           func(d *stmt.Definition) { d.SQL += " " },
+				"changed_sql":           func(d *stmt.Definition) { d.SQL = "SELECT 1" },
 				"write_kind":            func(d *stmt.Definition) { d.Kind = stmt.Write },
 				"parameter_name":        func(d *stmt.Definition) { d.Params[0].Name = "foreign" },
 				"parameter_type":        func(d *stmt.Definition) { d.Params[0].Type = stmt.Boolean },
@@ -34,8 +34,12 @@ func TestIAEntryRecipesRequireExactDefinition(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					d := fresh()
 					mutate(&d)
-					if err := checkSyntax(d); err == nil {
+					err := checkSyntax(d)
+					if err == nil {
 						t.Fatal("changed projection definition accepted")
+					}
+					if !strings.Contains(err.Error(), "IA entry projection requires its exact compiled") {
+						t.Fatal("definition fence was not the refusal", err)
 					}
 				})
 			}
