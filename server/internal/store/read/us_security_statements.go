@@ -41,7 +41,7 @@ CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=f.accoun
 CROSS JOIN direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 ON m.account_id=a.id
 CROSS JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2 ON p.id=f.profile_id AND p.account_id=a.id
 CROSS JOIN identity_devices AS d INDEXED BY sqlite_autoindex_identity_devices_1 ON d.id=f.device_id
-CROSS JOIN identity_state AS st ON st.singleton=?
+CROSS JOIN identity_state AS st INDEXED BY fk_child_identity_state_0 ON st.singleton=? AND st.transition_id IS NULL
 CROSS JOIN configuration AS cfg INDEXED BY sqlite_autoindex_configuration_1 ON cfg.key=?
 LEFT JOIN identity_installations AS i INDEXED BY sqlite_autoindex_identity_installations_1 ON i.installation_hash=?
 LEFT JOIN authorization_family_grants AS g INDEXED BY sqlite_autoindex_authorization_family_grants_1 ON g.family_id=f.id
@@ -51,7 +51,7 @@ LEFT JOIN identity_move_waiting AS w INDEXED BY sqlite_autoindex_identity_move_w
 WHERE t.token_hash=? AND t.retired=0 AND t.generation=f.current_generation AND f.revoked=0
 AND f.authority='local' AND f.security_kind=0 AND d.authority='local' AND d.retired_ms=0
 AND d.account_id=f.account_id AND d.installation_id=? AND m.role=f.role
-AND a.must_change=0 AND st.sign_in_kind='local' AND st.authority_generation=f.authority_generation AND st.transition_id IS NULL
+AND a.must_change=0 AND st.sign_in_kind='local' AND st.authority_generation=f.authority_generation
 AND cfg.value=f.server_id AND i.installation_hash IS NOT NULL AND i.retired=0
 AND g.family_id IS NULL AND c.family_id IS NULL AND r.family_id IS NULL AND coalesce(w.state,'')<>'waiting'`
 
@@ -172,9 +172,8 @@ func usSecurityDefinitions() []stmt.Definition {
 	sessionPlan := stmt.Plan{
 		Hot: true,
 		Indexes: []string{tokenPK.Name, familyPK.Name, accountPK.Name, memberPK.Name, profileKey.Name,
-			devicePK.Name, configPK.Name, installPK.Name, grantPK.Name, credentialKey.Name, resetPK.Name, movePK.Name},
-		PrimaryKeys: []string{"st"},
-		Seeks: []string{"token_hash=?", "id=?", "account_id=?", "account_id=? AND id=?", "rowid=?", "key=?",
+			devicePK.Name, "fk_child_identity_state_0", configPK.Name, installPK.Name, grantPK.Name, credentialKey.Name, resetPK.Name, movePK.Name},
+		Seeks: []string{"token_hash=?", "id=?", "account_id=?", "account_id=? AND id=?", "transition_id=?", "rowid=?", "key=?",
 			"installation_hash=?", "family_id=?"},
 		AutoIndexes: []stmt.AutoIndexBinding{tokenPK, familyPK, accountPK, memberPK, profileKey, devicePK, configPK, installPK, grantPK, credentialKey, resetPK, movePK},
 	}

@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/access"
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
@@ -98,7 +96,9 @@ func usTestMemberB(t *testing.T, f *browseFixture) (USSecurityInput, string) {
 	t.Helper()
 	installation := strings.Repeat("j", 32)
 	usTestPrepareSession(t, f, "b", "q", "f2", "token2", "d2", "member", installation)
-	return usTestInput(f, installation), installation
+	in := usTestInput(f, installation)
+	in.View.TokenHash = "token2"
+	return in, installation
 }
 
 func usTestStatus(t *testing.T, r *USSecurityReader, f *browseFixture, in USSecurityInput) USSecurityStatus {
@@ -365,8 +365,53 @@ SELECT 'f',?,s.id,s.generation FROM identity_security_fences AS s WHERE s.accoun
 
 // TestUSSecurityDTOParity holds the local read values to the current public
 // response types. It is a name/type check only: the read code never imports
-// those adapters, and their SQL is not reused.
+// those adapters, and their SQL is not reused. The shapes are mirrored here
+// rather than imported because the identity and access packages register legacy
+// SQL scalars from init(); importing them into the read test binary changes the
+// package-wide pragma_function_list that plan capture hashes into every
+// golden's environment.functionsSha256.
 func TestUSSecurityDTOParity(t *testing.T) {
+	type publicProfile struct {
+		ID               string   `json:"id"`
+		Name             string   `json:"name"`
+		Primary          bool     `json:"primary"`
+		Position         int      `json:"position"`
+		Art              string   `json:"art"`
+		Revision         int64    `json:"revision"`
+		PINRevision      int64    `json:"pinRevision"`
+		PINRequired      bool     `json:"pinRequired"`
+		AllowedLibraries []string `json:"allowedLibraries"`
+	}
+	type publicDevice struct {
+		ID         string `json:"id"`
+		AccountID  string `json:"accountId"`
+		Username   string `json:"username"`
+		ProfileID  string `json:"profileId,omitempty"`
+		Name       string `json:"name"`
+		Platform   string `json:"platform"`
+		App        string `json:"app"`
+		AppVersion string `json:"appVersion"`
+		FirstSeen  string `json:"firstSeenAt"`
+		LastSeen   string `json:"lastSeenAt"`
+		Revision   int64  `json:"revision"`
+	}
+	type publicMember struct {
+		AccountID        string   `json:"accountId"`
+		Username         string   `json:"username"`
+		Email            string   `json:"email,omitempty"`
+		DisplayName      string   `json:"displayName"`
+		ProfileID        string   `json:"profileId"`
+		Role             string   `json:"role"`
+		Disabled         bool     `json:"disabled"`
+		DisabledAt       string   `json:"disabledAt,omitempty"`
+		DisabledReason   string   `json:"disabledReason,omitempty"`
+		Revision         int64    `json:"revision"`
+		AllowedLibraries []string `json:"allowedLibraries"`
+		Notes            *string  `json:"notes,omitempty"`
+		JoinedVia        string   `json:"joinedVia,omitempty"`
+		JoinedAt         string   `json:"joinedAt,omitempty"`
+	}
+
 	assertSubset := func(t *testing.T, local any, external reflect.Type, extras ...string) {
 		t.Helper()
 		localType := reflect.TypeOf(local)
@@ -385,9 +430,9 @@ func TestUSSecurityDTOParity(t *testing.T) {
 			}
 		}
 	}
-	assertSubset(t, USSecurityProfile{}, reflect.TypeOf(identity.DirectProfile{}))
-	assertSubset(t, USSecurityDevice{}, reflect.TypeOf(identity.MemberDevice{}), "RememberAccount")
-	assertSubset(t, USSecurityMember{}, reflect.TypeOf(access.Member{}))
+	assertSubset(t, USSecurityProfile{}, reflect.TypeOf(publicProfile{}))
+	assertSubset(t, USSecurityDevice{}, reflect.TypeOf(publicDevice{}), "RememberAccount")
+	assertSubset(t, USSecurityMember{}, reflect.TypeOf(publicMember{}))
 
 	// Secret-bearing or computed product fields never belong in this surface.
 	device := reflect.TypeOf(USSecurityDevice{})
