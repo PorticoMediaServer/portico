@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/PorticoMediaServer/portico/server/internal/storage/sourceops"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/physicalrun"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 )
 
@@ -18,9 +19,7 @@ import (
 // concrete type outside writer avoids importing legacy dbwork's global SQLite
 // function registrations. Trusted composition supplies the actual supervisor;
 // this port is not exported or a caller-selected runner/authority constructor.
-type mpPhysicalRunner interface {
-	RunOwnedLinear(context.Context, string, *exec.Cmd, func(io.Reader) error, func(), func()) error
-}
+type mpPhysicalRunner = physicalrun.Runner
 
 // One writer-owned registry survives supervisor replacement. Revocation denies
 // old proof disclosure; it never frees a live root's capacity or exclusion.
