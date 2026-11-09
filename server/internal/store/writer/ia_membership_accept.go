@@ -369,8 +369,8 @@ func iaMembershipReceiptFacts(ctx context.Context, turn *commandTurn, runID stri
 // Fresh effects are one complete unit: every retained subject is re-read and its
 // destination proven before the first write; no ancestry cycle, no partial
 // cohort. Reparents retain the subject ID (revision advances), link changes keep
-// edition/part/cue/range separate, and only the new destination membership is
-// written. There is no descendant art/name fanout.
+// edition/part/cue/range separate, and only the new destination membership and
+// its destination chronology are written. There is no descendant art/name fanout.
 func applyIAMembership(ctx context.Context, turn *commandTurn, authority *iaEntryAuthorization, command *iaMembershipAcceptCommand, reference ReceiptReference) (out iaMembershipAcceptOutcome, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	r := command.request
@@ -416,6 +416,9 @@ func applyIAMembership(ctx context.Context, turn *commandTurn, authority *iaEntr
 		if err = iaMembershipApplyChange(ctx, turn, r, asset, &planned[i]); err != nil {
 			return out, err
 		}
+	}
+	if err = iaMembershipAdvanceDestinationChronology(ctx, turn, r.scope.libraryID, planned, iaEpisodeAddedAt(appliedMS)); err != nil {
+		return out, err
 	}
 	if err = iaMembershipAdvanceDirectory(ctx, turn, r); err != nil {
 		return out, err
@@ -546,15 +549,25 @@ func iaMembershipReadLink(ctx context.Context, turn *commandTurn, libraryID, sub
 // The plan re-reads every retained subject, proves the exact observed revision,
 // resolves each destination and refuses a cycle before the first write.
 type iaMembershipPlanned struct {
-	change        iaMembershipChange
-	subjectID     int64
-	old           iaMembershipEntityFacts
-	revision      int64
-	destination   *iaMembershipEntityFacts
-	destinationID int64
-	link          iaMembershipLinkFacts
-	linkFound     bool
-	playback      [16]byte
+	change           iaMembershipChange
+	subjectID        int64
+	old              iaMembershipEntityFacts
+	revision         int64
+	destination      *iaMembershipEntityFacts
+	destinationID    int64
+	destinationAdded sql.NullString // moved episode's retained added_at, if any
+	link             iaMembershipLinkFacts
+	linkFound        bool
+	playback         [16]byte
+}
+
+// destinationMoved reports a genuinely new child membership: the episode's
+// accepted parent changes, so the destination season/show gains content. A
+// reparent that names the episode's current season rewrites the same edge and
+// is not new content.
+func (p iaMembershipPlanned) destinationMoved() bool {
+	return p.change.subjectKind == 4 && p.destination != nil &&
+		(!p.old.parent.Valid || p.old.parent.Int64 != p.destinationID)
 }
 
 func iaMembershipPlan(ctx context.Context, turn *commandTurn, r iaMembershipAcceptRequest, assetID int64) (out []iaMembershipPlanned, err error) {
@@ -639,6 +652,18 @@ func iaMembershipPlan(ctx context.Context, turn *commandTurn, r iaMembershipAcce
 		node.destination = &parent
 		node.destinationID = parentID
 		node.revision = entity.revision + 1
+		if node.destinationMoved() {
+			row, err = wc008DraftQuery(ctx, turn, iaMembershipEpisodeAdded, node.subjectID, r.scope.libraryID)
+			if err != nil {
+				return out, err
+			}
+			if err = row.Scan(&node.destinationAdded); errors.Is(err, sql.ErrNoRows) {
+				return out, ErrConflict
+			}
+			if err != nil {
+				return out, err
+			}
+		}
 		out[i] = node
 	}
 	for i := range out {
@@ -914,6 +939,49 @@ func iaMembershipLinkWriteArgs(full, nullEnd, nullCue, nullBoth stmt.ID, old iaM
 		args = append(args, old.cue)
 	}
 	return id, args
+}
+
+// A reparent adds a genuinely new child membership to the destination season and
+// its show. Every distinct destination container advances at most once, to the
+// moved episode's retained added time (or this unit's accepted instant when the
+// retained row carries none), and never backwards. Replay never reaches here.
+func iaMembershipAdvanceDestinationChronology(ctx context.Context, turn *commandTurn, libraryID int64, planned []iaMembershipPlanned, acceptedAt string) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
+	type container struct {
+		id, kind int64
+		at       string
+	}
+	var order []container
+	index := make(map[[2]int64]int)
+	for _, p := range planned {
+		if !p.destinationMoved() || !p.destination.show.Valid {
+			continue
+		}
+		at := acceptedAt
+		if p.destinationAdded.Valid && p.destinationAdded.String != "" {
+			at = p.destinationAdded.String
+		}
+		for _, c := range []container{{id: p.destinationID, kind: 3, at: at}, {id: p.destination.show.Int64, kind: 2, at: at}} {
+			if c.id <= 0 {
+				continue
+			}
+			key := [2]int64{c.id, c.kind}
+			if i, ok := index[key]; ok {
+				if c.at > order[i].at {
+					order[i].at = c.at
+				}
+				continue
+			}
+			index[key] = len(order)
+			order = append(order, c)
+		}
+	}
+	for _, c := range order {
+		if err = iaEpisodeAdvanceChronology(ctx, turn, libraryID, c.id, c.kind, c.at); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func iaMembershipAdvanceDirectory(ctx context.Context, turn *commandTurn, r iaMembershipAcceptRequest) (err error) {

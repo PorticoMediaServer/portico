@@ -33,8 +33,9 @@ const (
 	iaFinishWithWarnings           = "complete_with_warnings"
 	iaFinishMaxRows                = 8
 	// iaFinishPageRows bounds one keyset window, not a count. Exempt rows are
-	// paged until the frontier is exhausted so a run is never wedged by their
-	// number; a page that fills is followed by its keyset successor.
+	// paged until the frontier is exhausted, so their number alone cannot wedge
+	// a run; only more than iaFinishExemptMaxPrefixes disjoint topmost prefixes
+	// is the typed iaFinishExemptUnbounded hold (retryable, never success).
 	iaFinishPageRows = 64
 	// iaFinishExemptMaxPrefixes bounds the TOTAL distinct topmost exempt prefixes
 	// one finish may hold at once. Nested exempt rows collapse into their nearest

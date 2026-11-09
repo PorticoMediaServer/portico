@@ -166,9 +166,9 @@ func configureIASource(ctx context.Context, turn *commandTurn, p *usOwnerAuthori
 // unchanged: a source the scanner marked root_changed, removing, offline or
 // degraded, or one it never confirmed, does not become ready+confirmed just
 // because its configuration changed. A disable records the honest "disabled"
-// health and keeps the prior identity confirmation; only a root move in the
-// same request drops that confirmation, because the new root is never the old
-// confirmed one. Re-enabling keeps the
+// health and keeps the prior identity confirmation, but a disable that also
+// moves the root records "unknown" with identity_confirmed=0 instead, because
+// the old confirmation can never describe the new root. Re-enabling keeps the
 // scanner state too; only the disabled marker itself, which this command wrote,
 // becomes ready when the root was confirmed or unknown when it never was. A
 // root move cannot confirm the new root from inside this command, so it records
