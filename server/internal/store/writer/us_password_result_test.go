@@ -257,22 +257,41 @@ func TestUSPasswordDeferredDenialReplacesOutcome(t *testing.T) {
 		if !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrResolveRequired) || errors.Is(err, ErrConflict) || charged != 0 {
 			t.Fatal("deferred store denial joined or kept the body charge", charged, err)
 		}
-		// The zeroed output is not a missing body: the caller's rollback discards
-		// the prefix the body wrote before the deferred denial.
+		// The zeroed output is not a missing body: the deferred denial replaced a
+		// REAL in-frame charge. Read that prefix through the SAME frame, because
+		// the expired virtual clock quarantines the executor pool at terminal.
+		if n := usPasswordFrameCount(t, turn, `SELECT count(*) FROM security_command_receipts`); n != 1 {
+			t.Fatal("body prefix missing receipts", n)
+		}
+		if n := usPasswordFrameCount(t, turn, `SELECT count(*) FROM security_password_results`); n != 1 {
+			t.Fatal("body prefix missing the typed child", n)
+		}
+		if n := usPasswordFrameCount(t, turn, `SELECT retained_count FROM security_command_owners WHERE id=?`, usPasswordOwnerID); n != 1 {
+			t.Fatal("body prefix missing owner debt", n)
+		}
+		var epoch int64
+		var hash []byte
+		var mustChange bool
+		if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT epoch,password_hash,must_change FROM accounts WHERE id=?`, usPasswordAccountID).Scan(&epoch, &hash, &mustChange); err != nil {
+			t.Fatal(err)
+		}
+		if epoch != 1 || string(hash) != usPasswordPreviousHash || mustChange {
+			t.Fatal("denied store moved the source", epoch, mustChange)
+		}
 		_, _ = turn.transaction.rollback(err)
-		if n := usPasswordCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 0 {
-			t.Fatal("denied store kept a receipt", n)
-		}
-		if n := usPasswordCount(t, w, `SELECT count(*) FROM security_password_results`); n != 0 {
-			t.Fatal("denied store kept a typed child", n)
-		}
-		if n := usPasswordCount(t, w, `SELECT retained_count FROM security_command_owners WHERE id=?`, usPasswordOwnerID); n != 0 {
-			t.Fatal("denied store kept owner debt", n)
-		}
-		if epoch, hash, _ := usPasswordAccount(t, w, usPasswordAccountID); epoch != 1 || string(hash) != usPasswordPreviousHash {
-			t.Fatal("denied store moved the source", epoch)
-		}
 	})
+}
+
+// usPasswordFrameCount reads an oracle count through the OPEN frame's own
+// connection. It is used only where the executor pool is not a legal reader
+// (an expired virtual clock quarantines the pool at terminal).
+func usPasswordFrameCount(t *testing.T, turn *commandTurn, q string, args ...any) int64 {
+	t.Helper()
+	var n int64
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), q, args...).Scan(&n); err != nil {
+		t.Fatal(q, err)
+	}
+	return n
 }
 
 // The 520 release proof reads the frame's post-effect state and fails closed on
