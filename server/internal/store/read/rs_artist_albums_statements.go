@@ -21,8 +21,19 @@ func RSAudioRelationDefinitions() []stmt.Definition {
 	return out
 }
 
-// RSArtistAlbumDefinitions adds current primary-artist liveness to the union
-// registry; callers compose it with the existing common/Facts/art definitions.
+// RSArtistAlbumDefinitions adds current primary-artist liveness, the legacy
+// release-order key and the visible-member proof to the union registry; callers
+// compose it with the existing common/Facts/art definitions.
 func RSArtistAlbumDefinitions() []stmt.Definition {
-	return append(RSAudioRelationDefinitions(), stmt.Definition{ID: readStatementID("rs.audio.album_artist"), SQL: `SELECT a.artist_id FROM catalog_entities AS a CROSS JOIN catalog_entities AS ar ON ar.id=a.artist_id AND ar.kind=5 AND ar.retired=0 WHERE a.id=? AND a.library_id=? AND a.kind=6 AND a.retired=0`, Params: []stmt.Param{{Name: "album", Type: stmt.Integer}, {Name: "library", Type: stmt.Integer}}, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/rs_artist_albums_reader.go:enumerate"}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(3001), int64(1)}}, {Name: "empty", Bindings: []any{int64(999999), int64(1)}}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"a", "ar"}}})
+	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
+	return append(RSAudioRelationDefinitions(),
+		// Year and title are the album entity's current legacy ordering key.
+		// The new embedded schema has no legacy catalog_albums side table; the
+		// primary-artist relation lives on the album entity, so that tuple is
+		// this contract's catalog_albums equivalent (task 11 owns richer roles).
+		stmt.Definition{ID: readStatementID("rs.audio.album_artist"), SQL: `SELECT a.artist_id,a.year,a.title FROM catalog_entities AS a CROSS JOIN catalog_entities AS ar ON ar.id=a.artist_id AND ar.kind=5 AND ar.retired=0 WHERE a.id=? AND a.library_id=? AND a.kind=6 AND a.retired=0`, Params: []stmt.Param{{Name: "album", Type: stmt.Integer}, {Name: "library", Type: stmt.Integer}}, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/rs_artist_albums_reader.go:enumerate"}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(9001), int64(1)}}, {Name: "empty", Bindings: []any{int64(999999), int64(1)}}}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"a", "ar"}}},
+		// One current visible member under the accepted scalar item band. This is
+		// the read-side equivalent of legacy listeningSectionVisibility plus
+		// EXISTS(catalog_songs): unknown year is not a member witness.
+		stmt.Definition{ID: readStatementID("rs.audio.album_member"), SQL: `SELECT id FROM catalog_entities INDEXED BY catalog_entities_album WHERE album_id IS NOT NULL AND album_id=? AND library_id=? AND kind=7 AND retired=0 AND COALESCE(admission_own_age,?)<=? LIMIT 1`, Params: []stmt.Param{i("album"), i("library"), i("unrated_age"), i("visible_age_cap")}, Kind: stmt.Read, Owner: "store/read", CallSites: []string{"store/read/rs_artist_albums_reader.go:enumerate"}, Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{int64(2001), int64(1), int64(0), int64(1 << 62)}}, {Name: "empty", Bindings: []any{int64(999999), int64(1), int64(0), int64(1 << 62)}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_album"}, Seeks: []string{"album_id=?"}}})
 }

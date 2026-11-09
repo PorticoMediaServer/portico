@@ -35,10 +35,17 @@ type RSArtistAlbumInput struct {
 	Limit  int
 	After  *RSArtistAlbumCursor
 }
+
+// RSArtistAlbumCursor carries the last published ordering key: the album year
+// and title bytes that produced the order, the entity id tie-break, and the
+// order version. The identity binds those keys to the complete union, fence,
+// artist, library and limit as before.
 type RSArtistAlbumCursor struct {
 	identity                     [32]byte
 	artist, library, kind, after int64
-	limit                        int
+	year                         int64
+	limit, order                 int
+	title                        string
 }
 
 // MissingCanonicalFacts identifies facts unavailable in the accepted scalar
@@ -75,7 +82,8 @@ type RSArtistAlbumPreparation struct {
 	set               rsArtistAlbumSet
 	primary, featured int64
 	phase             int
-	selected          []int64
+	selected          []rsArtistAlbumEntry
+	more              bool
 	cards             []RSArtistAlbumCard
 	hydrate           int
 }
@@ -125,6 +133,13 @@ func (r *RSArtistAlbumReader) Begin(ctx context.Context, owner governor.OwnerID,
 	p.input.View.TokenHash = strings.Clone(v.TokenHash)
 	if in.After != nil {
 		a := *in.After
+		// The cursor key is retained output too: charge its actual title bytes
+		// and fixed overhead before cloning them.
+		if err := p.charge(128 + 4*int64(len(a.title))); err != nil {
+			_ = p.close()
+			return nil, nil, err
+		}
+		a.title = strings.Clone(a.title)
 		p.input.After = &a
 	}
 	return p, nil, nil
@@ -181,7 +196,9 @@ func (r *RSArtistAlbumReader) fence(ctx context.Context, q governor.Request, out
 	return nil
 }
 func (p *RSArtistAlbumPreparation) identity() [32]byte {
-	return sha256.Sum256([]byte(fmt.Sprintf("%#v/%v", p.fence, p.set.ids)))
+	// The complete ordered key set is provenance: a changed year/title/id or a
+	// different order cannot reuse a cursor minted against this union.
+	return sha256.Sum256([]byte(fmt.Sprintf("%#v/%#v/%d", p.fence, p.set.entries, rsArtistAlbumOrderVersion)))
 }
 func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out BrowseOutput, p *RSArtistAlbumPreparation, at time.Time) (page RSArtistAlbumPage, cost BrowseReadResult, err error) {
 	if err = r.fence(ctx, q, out, p, at, &cost); err != nil {
@@ -190,17 +207,23 @@ func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out 
 	if p.phase < 2 {
 		err = r.enumerate(ctx, q, out, p, at, &cost)
 	} else if p.phase == 2 {
+		if err = p.set.finish(); err != nil {
+			return
+		}
 		id := p.identity()
 		in := p.input
-		after := int64(0)
+		after := rsArtistAlbumEntry{}
+		hasAfter := false
 		if a := in.After; a != nil {
-			if a.identity != id || a.artist != in.Artist || a.library != in.View.Library || a.kind != 6 || a.limit != in.Limit {
+			if a.identity != id || a.artist != in.Artist || a.library != in.View.Library || a.kind != 6 || a.limit != in.Limit || a.order != rsArtistAlbumOrderVersion {
 				return page, cost, ErrStale
 			}
-			after = a.after
+			after = rsArtistAlbumEntry{id: a.after, year: a.year, title: a.title}
+			hasAfter = true
 		}
-		p.set.complete = true
-		p.selected, _, err = p.set.page(after, in.Limit)
+		var done bool
+		p.selected, done, err = p.set.page(after, hasAfter, in.Limit)
+		p.more = !done
 		if err == nil {
 			if err = p.charge(int64(len(p.selected)) * 4096); err == nil {
 				p.cards = make([]RSArtistAlbumCard, len(p.selected))
@@ -229,6 +252,16 @@ func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out 
 	if needed > out.Request.Need[governor.MemoryBytes]/2 {
 		return page, cost, governor.ErrSnapshotBudget
 	}
+	var next *RSArtistAlbumCursor
+	if p.more {
+		last := p.selected[len(p.selected)-1]
+		// A continuation retains the last ordering key verbatim, including its
+		// actual UTF-8/NUL title bytes.
+		if err = p.charge(128 + 4*int64(len(last.title))); err != nil {
+			return
+		}
+		next = &RSArtistAlbumCursor{identity: p.identity(), artist: p.input.Artist, library: p.input.View.Library, kind: 6, limit: p.input.Limit, order: rsArtistAlbumOrderVersion, year: last.year, title: strings.Clone(last.title), after: last.id}
+	}
 	if err = r.authority.ReadyPreparation(p.lease); err != nil {
 		return
 	}
@@ -243,10 +276,7 @@ func (r *RSArtistAlbumReader) poll(ctx context.Context, q governor.Request, out 
 	if err = r.authority.HandoffPreparation(p.lease); err != nil {
 		return
 	}
-	page = RSArtistAlbumPage{Cards: p.cards, Total: len(p.set.ids), Complete: true}
-	if len(p.selected) > 0 && p.selected[len(p.selected)-1] < p.set.ids[len(p.set.ids)-1] {
-		page.Next = &RSArtistAlbumCursor{identity: p.identity(), artist: p.input.Artist, library: p.input.View.Library, kind: 6, limit: p.input.Limit, after: p.selected[len(p.selected)-1]}
-	}
+	page = RSArtistAlbumPage{Cards: p.cards, Total: len(p.set.entries), Next: next, Complete: true}
 	// Output now owns the charged values; retiring the preparation drops all
 	// references without mutating the consumer's copied page.
 	err = p.close()
@@ -314,18 +344,48 @@ func (r *RSArtistAlbumReader) enumerate(ctx context.Context, q governor.Request,
 		if len(rows) != 1 {
 			return nil
 		}
+		row := rows[0]
+		if len(row) != 3 || row[0] == nil || row[1] == nil || row[2] == nil {
+			return ErrUnqualified
+		}
+		year, yearOK := row[1].(int64)
+		title, titleOK := row[2].(string)
+		if !yearOK || !titleOK || title == "" {
+			return ErrUnqualified
+		}
+		// Legacy listening visibility requires one current visible member even
+		// though subject42 admits count==0 containers. Apply the same accepted
+		// scalar item band this reader already uses for featured songs; a
+		// memberless or wholly hidden album is absent, not an empty container.
+		// COALESCE maps an unrated member to a visible or impossible sentinel
+		// without a grouped predicate the closed SQL grammar rejects.
+		unratedAge, ageCap := int64(0), int64(1<<62)
+		if f.maximumAge >= 0 {
+			ageCap = f.maximumAge
+			unratedAge = f.maximumAge + 1
+			if f.allowUnrated != 0 || unratedAge < 0 {
+				unratedAge = f.maximumAge
+			}
+		}
+		members, e := query("rs.audio.album_member", id, p.input.View.Library, unratedAge, ageCap)
+		if e != nil {
+			return e
+		}
+		if len(members) == 0 {
+			return nil
+		}
 		// Current primary artist must exist and be live; it is context, not a
 		// substitute authority proof for the album's accepted child band.
 		if slices.Contains(p.set.ids, id) {
 			return nil
 		}
-		if e = p.charge(int64(len(p.set.ids)+1) * 8); e != nil {
+		if e = p.charge(int64(len(p.set.entries)+1)*64 + 4*int64(len(title))); e != nil {
 			return e
 		}
-		ids := make([]int64, len(p.set.ids), len(p.set.ids)+1)
-		copy(ids, p.set.ids)
-		p.set.ids = ids
-		return p.set.add(id)
+		if e = p.set.grow(); e != nil {
+			return e
+		}
+		return p.set.add(id, year, title)
 	}})
 	addSearchReadCost(cost, &c)
 	return e
@@ -360,7 +420,7 @@ func artistAlbumWideBytes(v reflect.Value) int64 {
 	return 0
 }
 func (r *RSArtistAlbumReader) hydrate(ctx context.Context, q governor.Request, out BrowseOutput, p *RSArtistAlbumPreparation, at time.Time, cost *BrowseReadResult) error {
-	id := p.selected[p.hydrate]
+	id := p.selected[p.hydrate].id
 	f := &ForegroundReader{snapshots: r.snapshots, pool: r.pool}
 	card := &p.cards[p.hydrate]
 	// Private recipes stay inside the caller's single LIVE operation. Each poll
