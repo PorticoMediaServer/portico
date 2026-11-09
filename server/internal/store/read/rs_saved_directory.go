@@ -115,11 +115,15 @@ type rsSavedDirectoryCurrent struct {
 	resource            SavedCollectionDirectoryItem
 	entryID, key        string
 	item, library, kind int64
-	libraryName         string
-	memberStarted       bool
-	view                BrowseInput
-	card                SavedCollectionEntry
-	inner               *CollectionPreparation
+	// revision is pinned by the item eligibility point and rechecked by the
+	// card/reading/art sample reads. A member whose revision moves between
+	// quanta is stale, never a silently upgraded card.
+	revision      int64
+	libraryName   string
+	memberStarted bool
+	view          BrowseInput
+	card          SavedCollectionEntry
+	inner         *CollectionPreparation
 }
 
 // SavedCollectionDirectoryWork is caller-owned typed ephemeral work under RB's
@@ -498,6 +502,7 @@ func (p *SavedCollectionDirectoryWork) advance(ctx context.Context, req governor
 			return consume(rows[0])
 		})
 	}
+	commitSample := false
 	switch p.stage {
 	case rsSavedDirectoryStart:
 		// Bind the viewer's own arrangement revision before the union so a pin
@@ -800,10 +805,11 @@ func (p *SavedCollectionDirectoryWork) advance(ctx context.Context, req governor
 				p.stage = rsSavedDirectoryEntry
 				return nil
 			}
-			if len(rows) != 1 {
+			if len(rows) != 1 || rows[0][4].(int64) <= 0 {
 				return ErrUnqualified
 			}
 			c.library, c.kind = rows[0][1].(int64), rows[0][2].(int64)
+			c.revision = rows[0][4].(int64)
 			c.view = p.view
 			c.view.Library, c.view.Kind, c.view.Now = c.library, c.kind, at
 			c.view.policy = readPolicyBinding{recipe: rsDetailSubjectPolicy, subject: c.item}
@@ -875,19 +881,20 @@ func (p *SavedCollectionDirectoryWork) advance(ctx context.Context, req governor
 			return cost, nil
 		}
 		c := &p.current
-		if c.inner.nonempty && len(c.inner.nodes) == 0 {
-			p.closeInner()
-			p.stage = rsSavedDirectoryEntry
-			return cost, nil
-		}
 		if p.fence == nil || rsSavedPrincipal(*c.inner.fence) != rsSavedPrincipal(*p.fence) {
 			return cost, ErrStale
 		}
-		c.libraryName = c.inner.fence.library
-		c.view.policy = readPolicyBinding{recipe: rsCollectionDeliveryPolicy, subject: c.item, state: c.inner}
-		return cost, p.markEligible()
+		// The authored reducer refuses an automatic root in its own rootRead, so
+		// this backstop is not reached while task 05 is absent. If a composed
+		// reducer ever returns ready here, the automatic owner must still prove
+		// inferred R21 membership; publishing an authored-empty card or copying
+		// c.inner.fence.library (the library id) into the card's library name
+		// would be wrong. Name the refusal instead.
+		p.closeInner()
+		p.stage = rsSavedDirectoryEntry
+		return cost, ErrUnqualified
 	case rsSavedDirectoryCard:
-		point("card", []any{p.fence.profile, p.current.item, p.current.library, p.current.kind}, func(v []any) error {
+		point("card", []any{p.fence.profile, p.current.item, p.current.library, p.current.kind, p.current.revision}, func(v []any) error {
 			item, e := itemValue(v)
 			if e != nil {
 				return e
@@ -936,13 +943,21 @@ func (p *SavedCollectionDirectoryWork) advance(ctx context.Context, req governor
 		if e = p.charge(256 + rsSavedDataBytes(art)); e != nil {
 			return cost, e
 		}
-		p.current.resource.Samples = append(p.current.resource.Samples, p.current.card)
-		p.current.card = SavedCollectionEntry{}
-		if p.current.inner != nil {
-			p.closeInner()
-		}
-		p.stage = rsSavedDirectoryEntry
-		return cost, p.authority.CheckPreparation(p.lease)
+		// Reading facts and page art each read in their own snapshot. Re-pin the
+		// member revision captured by the eligibility point before the sample is
+		// committed, so a revision moved between quanta refuses the whole job
+		// instead of publishing a card from a different accepted revision.
+		steps = append(steps, func(_ context.Context, q browseQuery, _ browseFence, _ *struct{}) error {
+			rows, e := q("rs.saved.directory.item", p.current.item)
+			if e != nil {
+				return e
+			}
+			if len(rows) != 1 || rows[0][3].(int64) != 0 || rows[0][4].(int64) != p.current.revision {
+				return ErrStale
+			}
+			return nil
+		})
+		commitSample = true
 	case rsSavedDirectoryFinish:
 		p.records = append(p.records, p.current.resource)
 		p.current = rsSavedDirectoryCurrent{}
@@ -954,6 +969,17 @@ func (p *SavedCollectionDirectoryWork) advance(ctx context.Context, req governor
 	cost, err := p.run(ctx, req, budget, out, at, w, steps)
 	if err != nil {
 		return cost, err
+	}
+	if commitSample {
+		p.current.resource.Samples = append(p.current.resource.Samples, p.current.card)
+		p.current.card = SavedCollectionEntry{}
+		if p.current.inner != nil {
+			p.closeInner()
+		}
+		p.stage = rsSavedDirectoryEntry
+		if err = p.authority.CheckPreparation(p.lease); err != nil {
+			return cost, err
+		}
 	}
 	if p.stage == rsSavedDirectoryDone {
 		keys := make(map[string]string, len(p.records))

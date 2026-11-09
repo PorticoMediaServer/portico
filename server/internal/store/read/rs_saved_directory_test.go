@@ -131,9 +131,33 @@ func newRSSavedDirectorySource(t *testing.T) *browseFixture {
 	return f
 }
 
+// seedRSSavedDirectoryAutomatic adds one inferred-R21 (automatic) collection to
+// the owned 'saved' resource. The authored reducer cannot prove its membership;
+// the directory must name that refusal rather than count it as authored-empty.
+func seedRSSavedDirectoryAutomatic(t *testing.T, f *browseFixture) {
+	t.Helper()
+	f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening)VALUES(10,'collection',0,1,1,1,0)`)
+	public := make([]byte, 16)
+	public[0], public[14], public[15] = 0xe3, 0x05, 0x15
+	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(1301,?,1,10)`, public)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,admission_own_age,admission_member_count)VALUES(1301,?,1,10,'Automatic','auto','a','auto','a',0,?,?,0,0)`, public, public, public)
+	f.exec(t, `INSERT INTO catalog_automatic_collections(library_id,provider,provider_id,entity_id)VALUES(1,'fixture','C',1301)`)
+	f.exec(t, `INSERT INTO saved_resource_entries(id,resource_id,item_id,order_key)VALUES('automatic','saved',1301,'f')`)
+}
+
 func newRSSavedDirectoryFixture(t *testing.T) (*browseFixture, *SavedCollectionReader) {
 	t.Helper()
-	f := composeReadFixture(t, newRSSavedDirectorySource(t), SavedCollectionDirectoryHarnessDefinitions(), rsSavedDirectoryConfig(), false, rsSavedDirectoryHash(t))
+	return newRSSavedDirectoryFixtureLimited(t, 4)
+}
+
+// newRSSavedDirectoryFixtureLimited composes the family with an explicit
+// MaxActive. The default family uses 4; the borrowed nested reducer is also
+// exercised at MaxActive 1 so a second lease cannot hide behind the fixture.
+func newRSSavedDirectoryFixtureLimited(t *testing.T, active int) (*browseFixture, *SavedCollectionReader) {
+	t.Helper()
+	cfg := rsSavedDirectoryConfig()
+	cfg.Preparation.MaxActive = active
+	f := composeReadFixture(t, newRSSavedDirectorySource(t), SavedCollectionDirectoryHarnessDefinitions(), cfg, false, rsSavedDirectoryHash(t))
 	r, e := NewSavedCollectionReader(f.snapshots)
 	if e != nil {
 		t.Fatal(e)
@@ -528,13 +552,7 @@ func TestRSSavedDirectoryMixedReadingAndAutomaticSamples(t *testing.T) {
 	})
 	t.Run("automatic", func(t *testing.T) {
 		f, r := newRSSavedDirectoryFixture(t)
-		f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening)VALUES(10,'collection',0,1,1,1,0)`)
-		public := make([]byte, 16)
-		public[0], public[14], public[15] = 0xe3, 0x05, 0x15
-		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(1301,?,1,10)`, public)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,admission_own_age,admission_member_count)VALUES(1301,?,1,10,'Automatic','auto','a','auto','a',0,?,?,0,0)`, public, public, public)
-		f.exec(t, `INSERT INTO catalog_automatic_collections(library_id,provider,provider_id,entity_id)VALUES(1,'fixture','C',1301)`)
-		f.exec(t, `INSERT INTO saved_resource_entries(id,resource_id,item_id,order_key)VALUES('automatic','saved',1301,'f')`)
+		seedRSSavedDirectoryAutomatic(t, f)
 		// The complete automatic reducer is task 05. Until it is composed beside
 		// this family the directory refuses the automatic sample explicitly; it
 		// never invents an authored empty collection or a partial directory.
@@ -542,6 +560,164 @@ func TestRSSavedDirectoryMixedReadingAndAutomaticSamples(t *testing.T) {
 			t.Fatal("automatic sample must stay explicit", e)
 		}
 	})
+}
+
+type rsSavedDirectoryObserveSnapshots struct {
+	*governor.Snapshots
+	after func()
+}
+
+func (b *rsSavedDirectoryObserveSnapshots) Read(ctx context.Context, r governor.Request, d time.Duration, fn func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	s, e := b.Snapshots.Read(ctx, r, d, fn)
+	if b.after != nil {
+		b.after()
+	}
+	return s, e
+}
+func (b *rsSavedDirectoryObserveSnapshots) ReadForecasted(ctx context.Context, r governor.Request, d time.Duration, f governor.SnapshotForecast, fn func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	s, e := b.Snapshots.ReadForecasted(ctx, r, d, f, fn)
+	if b.after != nil {
+		b.after()
+	}
+	return s, e
+}
+
+// TestRSSavedDirectoryAutomaticBorrowsOneLeaseAtMaxActive1 proves the nested
+// automatic reducer borrows the directory's single preparation lease. At
+// MaxActive 1 a second BeginPreparation would be refused, so reaching the
+// named automatic refusal with the nested reducer observed on the SAME lease is
+// the only way through. The automatic root itself stays an explicit refusal
+// until task 05 composes the complete inferred-membership reducer.
+func TestRSSavedDirectoryAutomaticBorrowsOneLeaseAtMaxActive1(t *testing.T) {
+	f, r := newRSSavedDirectoryFixtureLimited(t, 1)
+	seedRSSavedDirectoryAutomatic(t, f)
+	in := SavedCollectionDirectoryInput{View: f.input}
+	p, ref, e := r.BeginDirectory(t.Context(), f.authority, 1, time.Now().Add(12*time.Second), 8<<20, in)
+	if e != nil || ref != nil {
+		t.Fatal(e, ref)
+	}
+	defer p.Close()
+	in.Work = p
+	observed := false
+	b := &rsSavedDirectoryObserveSnapshots{Snapshots: f.snapshots, after: func() {
+		if p.current.inner == nil || observed {
+			return
+		}
+		observed = true
+		if !p.current.inner.borrowed || p.current.inner.lease != p.lease {
+			t.Errorf("nested automatic reducer did not borrow the directory lease")
+		}
+	}}
+	r.snapshots = b
+	for poll := 0; poll < 2000; poll++ {
+		page, e := savedDirectoryPoll(t, f, r, in)
+		if e != nil {
+			if !errors.Is(e, ErrUnqualified) || !observed {
+				t.Fatalf("automatic root did not reach its named refusal on the borrowed lease: %v (observed %t)", e, observed)
+			}
+			return
+		}
+		if !page.Pending {
+			t.Fatal("automatic collection leaked an authored card", page)
+		}
+	}
+	t.Fatal("automatic directory did not terminate")
+}
+
+func TestRSSavedDirectoryShareDeletionCursorReplay(t *testing.T) {
+	f, r := newRSSavedDirectoryFixture(t)
+	in := SavedCollectionDirectoryInput{View: f.input}
+	in.View.Limit = 1
+	first := savedDirectoryComplete(t, f, r, in)
+	if first.Next == nil || first.Exhausted {
+		t.Fatal("fixture needs a continuation", first)
+	}
+	// The share stream was part of the captured union. Removing the share after
+	// the first page must change the complete-set proof, not resume past it.
+	f.exec(t, `DELETE FROM saved_resource_shares WHERE resource_id='shared'`)
+	in.After = first.Next
+	if e := savedDirectoryResumeError(t, f, r, in); !errors.Is(e, ErrStale) {
+		t.Fatal("share deletion resumed a stale union", e)
+	}
+}
+
+func TestRSSavedDirectorySecondPrincipalCursorRejected(t *testing.T) {
+	f, r := newRSSavedDirectoryFixture(t)
+	in := SavedCollectionDirectoryInput{View: f.input}
+	in.View.Limit = 1
+	first := savedDirectoryComplete(t, f, r, in)
+	if first.Next == nil {
+		t.Fatal("fixture needs a continuation")
+	}
+	// The same SQL database and token but a different authenticated owner is a
+	// different viewer; the cursor identity must not transfer.
+	p, ref, e := r.BeginDirectory(t.Context(), f.authority, 2, time.Now().Add(12*time.Second), 8<<20, SavedCollectionDirectoryInput{View: f.input, After: first.Next})
+	if !errors.Is(e, ErrStale) || p != nil || ref != nil {
+		t.Fatal("second-principal cursor was accepted", p, ref, e)
+	}
+}
+
+func TestRSSavedDirectoryMemberOrderTie(t *testing.T) {
+	f, r := newRSSavedDirectoryFixture(t)
+	// Two visible members share one order_key. Entry ids decide the tie, not
+	// insertion order: a2 (item 3) sorts before z1 (item 1). Item 2 stays hidden
+	// by its profile age, so it cannot join the order at all.
+	f.exec(t, `UPDATE saved_resource_entries SET id='z1',order_key='a' WHERE id='e1'`)
+	f.exec(t, `UPDATE saved_resource_entries SET id='a2',order_key='a' WHERE id='e3'`)
+	page := savedDirectoryComplete(t, f, r, SavedCollectionDirectoryInput{View: f.input})
+	var saved SavedCollectionDirectoryItem
+	for _, v := range page.Resources {
+		if v.ID == "saved" {
+			saved = v
+		}
+	}
+	want := rsSavedDirectoryMemberOracle(t, f, "saved")
+	if int64(len(want)) != saved.EntryCount || !slices.Equal(want, []int64{3, 1}) {
+		t.Fatal("independent tie oracle", want, saved.EntryCount)
+	}
+	var ids []int64
+	var entries []string
+	for _, e := range saved.Samples {
+		ids = append(ids, e.Item.ID)
+		entries = append(entries, e.EntryID)
+	}
+	if !slices.Equal(ids, want) || !slices.Equal(entries, []string{"a2", "z1"}) {
+		t.Fatal("order_key tie order", ids, entries, want)
+	}
+}
+
+func TestRSSavedDirectoryMemberRevisionChangedStale(t *testing.T) {
+	f, r := newRSSavedDirectoryFixture(t)
+	in := SavedCollectionDirectoryInput{View: f.input}
+	p, ref, e := r.BeginDirectory(t.Context(), f.authority, 1, time.Now().Add(12*time.Second), 8<<20, in)
+	if e != nil || ref != nil {
+		t.Fatal(e, ref)
+	}
+	defer p.Close()
+	in.Work = p
+	fired := false
+	b := &rsSavedDirectoryObserveSnapshots{Snapshots: f.snapshots, after: func() {
+		// Move the first sample's entity revision after its card was read and
+		// before the reading/art sample is committed.
+		if !fired && p.stage == rsSavedDirectoryArt && p.current.item == 1 {
+			fired = true
+			f.exec(t, `UPDATE catalog_entities SET revision=revision+1 WHERE id=1`)
+		}
+	}}
+	r.snapshots = b
+	for poll := 0; poll < 2000; poll++ {
+		page, e := savedDirectoryPoll(t, f, r, in)
+		if e != nil {
+			if !errors.Is(e, ErrStale) || !fired {
+				t.Fatalf("moved member revision was not stale: %v (fired %t)", e, fired)
+			}
+			return
+		}
+		if !page.Pending {
+			t.Fatal("moved member revision escaped into a card", page)
+		}
+	}
+	t.Fatal("revision-change directory did not terminate")
 }
 
 func TestRSSavedDirectoryNoLibraryPrincipal(t *testing.T) {
@@ -633,7 +809,7 @@ func TestRSSavedDirectoryBytePreflightRefusesPayload(t *testing.T) {
 		{"share_resource", []any{int64(1)}},
 		{"metadata", []any{"saved"}},
 		{"entry", []any{int64(1), "saved"}},
-		{"card", []any{"p", int64(1), int64(1), int64(1)}},
+		{"card", []any{"p", int64(1), int64(1), int64(1), int64(1)}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			result, err := f.snapshots.ReadForecasted(t.Context(), foregroundRequest(), time.Second, governor.SnapshotForecast{NativeRowBytes: 1, MaxQueries: 2, GoCopyBytes: 64 << 10}, func(scope *governor.ReadScope) error {

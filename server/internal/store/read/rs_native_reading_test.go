@@ -47,9 +47,10 @@ type rsReadingNativeOptions struct {
 	allowUnrated int64
 	// extraTitle seeds a second Reading item that matches the same query. It is
 	// the hidden neighbour in the skip tests; empty means a single-item fixture.
-	extraTitle  string
-	extraAge    int64
-	extraFormat string
+	extraTitle   string
+	extraAge     int64
+	extraFormat  string
+	extraRetired int64
 }
 
 func rsReadingNativePositiveOptions(kind int64) rsReadingNativeOptions {
@@ -102,8 +103,8 @@ func rsReadingNativeSource(t *testing.T, o rsReadingNativeOptions) *browseFixtur
 		extraPublic := []byte{0xf0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
 		f.exec(t, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(2,'reading-asset-hidden','/media/reading-hidden',1000,1,'reading','','',0,0,0,1)`)
 		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(1102,?,1,?)`, extraPublic, o.kind)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired,admission_own_age,has_reading_attribution_members,reading_numbered_order,reading_number_value,reading_author_value,reading_author_key,reading_author_source)VALUES(1102,?,1,?,?,?,?,?,?,0,?,?,0,?,1,1,0,'Hidden author','hidden author','owner')`,
-			extraPublic, o.kind, o.extraTitle, "native reading hidden", "native reading hidden", "native reading hidden", "native reading hidden", extraPublic, extraPublic, o.extraAge)
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired,admission_own_age,has_reading_attribution_members,reading_numbered_order,reading_number_value,reading_author_value,reading_author_key,reading_author_source)VALUES(1102,?,1,?,?,?,?,?,?,0,?,?,?,?,1,1,0,'Hidden author','hidden author','owner')`,
+			extraPublic, o.kind, o.extraTitle, "native reading hidden", "native reading hidden", "native reading hidden", "native reading hidden", extraPublic, extraPublic, o.extraRetired, o.extraAge)
 		f.exec(t, `INSERT INTO catalog_asset_links(entity_id,asset_id,library_id)VALUES(1102,2,1)`)
 		f.exec(t, `INSERT INTO reading_publications(item_id,asset_id,format)VALUES(1102,2,?)`, o.extraFormat)
 	}
@@ -310,6 +311,29 @@ func TestRSNativeReadingHiddenAgeSkipped(t *testing.T) {
 		assertRSNativeReadingHit(t, withoutHidden, 20)
 		if !reflect.DeepEqual(rsReadingNativeShape(withHidden), rsReadingNativeShape(withoutHidden)) {
 			t.Fatalf("hidden item changed the viewer-visible page shape: %+v vs %+v", rsReadingNativeShape(withHidden), rsReadingNativeShape(withoutHidden))
+		}
+	})
+}
+
+// A retired matching item returns from the item source before any domain check;
+// it is a skip, exactly like an unattributed item, and cannot change the
+// viewer-visible page shape.
+func TestRSNativeReadingRetiredSkipped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		visible := rsReadingNativePositiveOptions(20)
+		retired := visible
+		retired.extraTitle = "Native Reading Retired"
+		retired.extraAge = 0
+		retired.extraFormat = "epub"
+		retired.extraRetired = 1
+		f, r := rsReadingNativeFixture(t, retired, true)
+		withRetired := rsReadingNativeComplete(t, f, r)
+		assertRSNativeReadingHit(t, withRetired, 20)
+		g, s := rsReadingNativeFixture(t, visible, true)
+		withoutRetired := rsReadingNativeComplete(t, g, s)
+		assertRSNativeReadingHit(t, withoutRetired, 20)
+		if !reflect.DeepEqual(rsReadingNativeShape(withRetired), rsReadingNativeShape(withoutRetired)) {
+			t.Fatalf("retired item changed the viewer-visible page shape: %+v vs %+v", rsReadingNativeShape(withRetired), rsReadingNativeShape(withoutRetired))
 		}
 	})
 }

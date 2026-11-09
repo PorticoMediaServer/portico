@@ -318,19 +318,23 @@ func TestRSSearchRoutesCancellationGenerationAndBudget(t *testing.T) {
 
 		// Cancellation before preparation opens no adapter.
 		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
 		cancel()
 		if _, _, err := routes.Read(ctx, governor.Request{}, time.Second, BrowseOutput{}, in); !errors.Is(err, context.Canceled) || calls != 0 {
 			t.Fatal(err, calls)
 		}
 
 		// Cancellation observed after an adapter result suppresses that result.
+		// The adapter cancels the *second* context, so name it separately: vet
+		// cannot follow a cancel reachable only from a callback.
 		in = RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 1}, Text: "alpha"}}
+		ctx, cancelResult := context.WithCancel(t.Context())
+		t.Cleanup(cancelResult)
 		routes = NewRSSearchRoutes(nil, func(ctx context.Context, _ governor.Request, _ time.Duration, _ BrowseOutput, _ RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
 			calls++
-			cancel()
+			cancelResult()
 			return RSSearchPage{Complete: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, nil, nil
 		}, nil, nil, nil)
-		ctx, cancel = context.WithCancel(t.Context())
 		result, _, err := routes.Read(ctx, governor.Request{}, time.Second, BrowseOutput{}, in)
 		if !errors.Is(err, context.Canceled) || len(result.Page.Groups) != 0 {
 			t.Fatal("cancelled result escaped", result, err)

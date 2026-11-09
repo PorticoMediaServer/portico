@@ -95,8 +95,9 @@ func nativePolicyForSource(q browseQuery, in BrowseInput, f browseFence, source 
 	f.kind, f.container = kind, container
 	if err = validateReadPolicy(q, in, &f); err != nil {
 		// The compiled per-item recipe refuses an item this viewer may not see
-		// (retired, over the profile age, lacking attribution, or without a
-		// native-format edition). Native search treats that exactly like the
+		// (over the profile age, lacking attribution, or without a
+		// native-format edition). A retired item returned earlier above. Native
+		// search treats a recipe denial exactly like the
 		// admittedItem rejection below: the item is not a hit, and one hidden
 		// item cannot refuse the page. Retained and final rechecks still turn
 		// an inadmissible admitted item into ErrDenied in validateNativePolicy.
