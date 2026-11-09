@@ -25,7 +25,8 @@ func commandClass(id CommandID) (governor.Class, error) {
 		IPFieldEdit, IPFieldLock, IPFieldRestore, IPEditBulkBegin, IPEditBulkPage, IPEditBulkFinish:
 		return governor.Background, nil
 	case IPArtworkMaterialIntent, IPArtworkMaterialInstalled, IPArtworkMaterialPublish,
-		IPArtworkSelect, IPArtworkClear, IPArtworkGCMark, IPArtworkGCFinish:
+		IPArtworkSelect, IPArtworkClear, IPArtworkUploadAccept, IPArtworkReencode,
+		IPArtworkGCMark, IPArtworkGCFinish:
 		return governor.Background, nil
 	case IAConfigureLibrary, IAConfigureSource:
 		return governor.Background, nil

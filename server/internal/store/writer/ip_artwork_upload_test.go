@@ -525,6 +525,15 @@ func TestIPArtworkUploadMalformedReceiptRefused(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			w, r, _ := ipArtworkUploadFixture(t)
 			spec, slots := ipArtworkUploadSpec(), ipArtworkUploadSlots()
+			// artwork_sources' three encoded blobs are FK parents. Insert them so
+			// each malformed receipt is refused for its own reason, not a dangling
+			// blob reference.
+			for _, slot := range slots[:3] {
+				ipPolicyExec(t, w, `INSERT INTO artwork_blobs(digest,mime,width,height,bytes,created_at) VALUES(?,?,?,?,?,?)`,
+					slot.digest, slot.mime, int64(slot.width), int64(slot.height), int64(slot.bytes), "2026-01-01T00:00:00Z")
+			}
+			// The receipt's history_id=1 is a FK parent row too.
+			ipPolicyExec(t, w, `INSERT INTO metadata_owner_history(id,kind,entity_id,base_revision,revision,trigger,actor,observed_at,before_json,after_json) VALUES(1,'entity',778,'1','2','fixture','owner','2026-01-01T00:00:00Z','{}','{}')`)
 			tc.mutate(t, w, spec, slots)
 			ipPolicyExec(t, w, `UPDATE artwork_subject_jobs SET last_command_sequence=1 WHERE id=901`)
 			cmd := ipArtworkUploadCommandFor(t, 1, 2, ipArtworkUploadOwner(), spec, slots,
