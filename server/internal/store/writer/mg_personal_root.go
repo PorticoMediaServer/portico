@@ -249,6 +249,8 @@ func mgPersonalResultPayload(id CommandIdentity, q RequestDigest, result any) ([
 		return mgPersonalReminderPayload(id, q, v)
 	case mgSourceCommandResult:
 		return mgSourceCommandPayload(id, q, v)
+	case mgDVRPolicyResult:
+		return mgDVRPolicyResultPayload(id, q, v)
 	}
 	return nil, ResultDigest{}, ErrInvalid
 }
