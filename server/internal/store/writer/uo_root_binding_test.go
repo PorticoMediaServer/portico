@@ -136,29 +136,22 @@ func TestUORootSecurityConsumerBindsUSOwnerStamp(t *testing.T) {
 	}
 }
 
-// M1b: the pre-lookup authority check is separately observable. Revoking before
-// the lookup must deny; dropping only that check would return a replay here.
+// M1b: the pre-lookup authority check is separately observable. The owner row is
+// removed and the session revoked inside the same turn before the lookup. With
+// the pre-check, the error is Denied; if only that check were dropped, the owner
+// miss would return ResolveRequired and the final check would never be reached.
 func TestUORootCurrentAuthorityBeforeLookup(t *testing.T) {
 	w, proof, root := uoRootSecurityFixture(t)
 	q := uoRootSecurityRef(root)
-	// Seed a replayable original.
 	turn, binding := uoRootSecurityTurn(t, w, proof)
-	lookup, err := lookupUORootCommand(t.Context(), turn, binding, q)
-	if err != nil {
+	if _, err := turn.transaction.conn.ExecContext(t.Context(), `DELETE FROM user_mutation_command_owners WHERE root_id=?`, root); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := persistUORootOperation(t.Context(), turn, lookup, uoOperationResult{status: 2, revision: 1, appliedMS: 100, target: "operation"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := turn.transaction.commit(); err != nil {
-		t.Fatal(err)
-	}
-	turn, binding = uoRootSecurityTurn(t, w, proof)
 	if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE authorization_session_families SET revoked=1`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := lookupUORootCommand(t.Context(), turn, binding, q); !errors.Is(err, ErrDisclosureDenied) {
-		t.Fatal("revoked session reached retained custody before lookup", err)
+	if _, err := lookupUORootCommand(t.Context(), turn, binding, q); !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrResolveRequired) {
+		t.Fatal("revoked session reached the owner lookup before authority", err)
 	}
 	if _, err := turn.transaction.rollback(nil); err != nil {
 		t.Fatal(err)
