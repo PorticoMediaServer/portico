@@ -55,9 +55,10 @@ func usCredentialSecretFor(kind string) usCredentialResultSecret {
 }
 
 // usCredentialAuthorityFixture reuses the reviewed US-01 session fixture (so
-// its Group B rows stay in the listed helper) and adds the three current fences
-// the credential family birth requires. short expires the family token after one
-// second so a deterministic fake clock can cross it after entry.
+// its Group B rows stay in the listed helper) and adds the current fences the
+// credential family birth requires (PIN, remember, lineage and its own API
+// device). short expires the family token after one second so a deterministic
+// fake clock can cross it after entry.
 func usCredentialAuthorityFixture(t *testing.T, short bool) (*executor, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, _, proof := usOwnerAuthorityFixtureIssuer(t, func(i *usPolicyIssuer) {
@@ -85,6 +86,9 @@ func usCredentialAuthorityFixture(t *testing.T, short bool) (*executor, *usOwner
 		}
 		wc008NativeExec(t, w, `INSERT INTO identity_security_fences(id,scope_kind,account_id,member_incarnation,profile_id,profile_lifetime,lineage_id,updated_ms) VALUES(?,?,?,?,?,?,?,0)`, n+2, scope, i.account, i.memberIncarnation, i.profile, i.profileLifetime, lineage)
 	}
+	// The credential family is born with its own API device, not the issuer's, so
+	// the birth's device fence is a separate current witness.
+	wc008NativeExec(t, w, `INSERT INTO identity_security_fences(id,scope_kind,account_id,member_incarnation,device_id,updated_ms) VALUES(5,'device',?,?,?,0)`, i.account, i.memberIncarnation, usCredentialDeviceID)
 	return w, proof
 }
 
@@ -154,6 +158,27 @@ func usCredentialRegistry(t *testing.T) *stmt.Registry {
 	defs = append(defs, usFamilyBirthDefinitions()...)
 	defs = append(defs, usCredentialDefinitions()...)
 	defs = append(defs, usCredentialReceiptDefinitions()...)
+	// Family-birth statements are only ever executed through this fixture (the
+	// production birth path owns its own capture), so they carry no qualified
+	// cohort. Give each missing one the same synthetic, type-checked bindings the
+	// raw native turn uses; the fixture never treats them as evidence.
+	for i := range defs {
+		if len(defs[i].Cohorts) != 0 {
+			continue
+		}
+		var args []any
+		for _, p := range defs[i].Params {
+			switch p.Type {
+			case stmt.Text:
+				args = append(args, "unit")
+			case stmt.Blob:
+				args = append(args, []byte{1})
+			default:
+				args = append(args, int64(1))
+			}
+		}
+		defs[i].Cohorts = []stmt.Cohort{{Name: "unqualified-native-control", Bindings: args}}
+	}
 	r, err := stmttest.New(t, defs)
 	if err != nil {
 		t.Fatal(err)
