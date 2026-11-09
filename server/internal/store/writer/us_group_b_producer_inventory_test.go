@@ -541,6 +541,7 @@ var usGroupBSchemaGuards = []usGroupBSchemaGuard{
 	{File: "server/internal/store/stmt/plan/testdata/ia-audio-octets.json", Literals: 1, Guards: "IA audio octet evidence sha256", HashOnly: false},
 	{File: "server/internal/store/stmt/plan/testdata/ia-source-octets.json", Literals: 2, Guards: "IA source octet evidence sha256", HashOnly: false},
 	{File: "server/internal/store/stmt/plan/testdata/ia-tv-octets.json", Literals: 2, Guards: "IA TV octet evidence sha256", HashOnly: false},
+	{File: "server/internal/store/writer/testdata/uo-notice-reclaim-plans.json", Literals: 1, Guards: "UO-14 reclaim plan golden; sqlSha256 pinned by the plan recorder; re-record after any schema adoption; owner UO; no producer edits", HashOnly: false},
 }
 
 type usGroupBSchemaGuardFound struct {
