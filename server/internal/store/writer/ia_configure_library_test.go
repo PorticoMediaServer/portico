@@ -3,7 +3,6 @@ package writer
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,13 +13,7 @@ import (
 func iaConfigureLibraryFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-configure-library-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
+	requireC019Fixture(t)
 	// Frozen whole-second current clock, no real-clock assertion.
 	now := w.now().UTC().Truncate(time.Second)
 	w.now = func() time.Time { return now }

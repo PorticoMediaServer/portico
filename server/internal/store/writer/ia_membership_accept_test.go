@@ -3,7 +3,6 @@ package writer
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -36,13 +35,7 @@ const (
 func iaMembershipAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-episode-accept-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
+	requireC019Fixture(t)
 	for _, query := range []struct {
 		sql  string
 		args []any
@@ -69,7 +62,7 @@ func iaMembershipAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOw
 			[]any{searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint}},
 		{`UPDATE search_revision SET revision=1,active_generation_id=1,building_generation_id=NULL,input_sequence=0 WHERE singleton=1`, nil},
 	} {
-		if _, err = w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
+		if _, err := w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
 			t.Fatal(query.sql, err)
 		}
 	}

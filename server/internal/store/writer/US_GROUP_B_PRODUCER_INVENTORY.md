@@ -156,3 +156,5 @@ F018 integration P08: recognize adopted schema484242fb alongside historical
 no producer kind/default or reader qualification is inferred.
 
 F018 actual native VM captures also carry one schema literal each: `testdata/wc-progress-composition.json`, `testdata/wc-progress-capture_start.json`, and `testdata/wc-progress-pending_drain.json`. These are captured VM changes with unchanged manifests, not hash-only producer edits; INT owns their schema-binding census.
+
+C019 candidate recognizes only adopted81d6971a and the two exact `writer/ia_c019_fixture_test.go` / `read/ia_c019_fixture_test.go` full-schema guards. These replace C-only fixture DDL overlays, not production authority or legacy cutover. Separate CHANGE020 overlays and fail-closed absence gates remain.

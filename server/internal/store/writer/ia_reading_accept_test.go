@@ -3,7 +3,6 @@ package writer
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -65,13 +64,7 @@ func iaReadingAssetID(kind int64, format string) int64 {
 func iaReadingAcceptFixture(t *testing.T, kind int64) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-reading-accept-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
+	requireC019Fixture(t)
 	root, dir := iaReadingRoot(kind), iaReadingDirectoryPath(kind)
 	for _, query := range []struct {
 		sql  string

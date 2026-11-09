@@ -1,7 +1,6 @@
 package read
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -18,13 +17,7 @@ import (
 // table scan. The functional read test waits for the group C embed.
 func TestIABookSeriesPlans(t *testing.T) {
 	source := readfixture.Foreground(t)
-	ddl, err := os.ReadFile("testdata/ia-book-series-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = source.Conn().ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
+	requireC019ReadFixture(t)
 	db, _, err := sqliteconn.Open(t.Context(), source.Path(), readfixture.ReaderConfig())
 	if err != nil {
 		t.Fatal(err)

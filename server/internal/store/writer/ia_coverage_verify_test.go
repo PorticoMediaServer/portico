@@ -55,7 +55,8 @@ func iaCoverageVerifyFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwne
 func iaCoverageVerifyFixtureOverlay(t *testing.T, skippedIndex bool) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddlFiles := []string{"testdata/ia-coverage-verify-draft.sql"}
+	requireC019Fixture(t)
+	var ddlFiles []string
 	if skippedIndex {
 		ddlFiles = append(ddlFiles, "testdata/ia-skipped-directory-index-draft.sql")
 	}

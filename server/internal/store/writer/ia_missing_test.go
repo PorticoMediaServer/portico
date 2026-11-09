@@ -45,7 +45,8 @@ func iaMissingFinishFixture(t *testing.T) (*executor, *checkpointComponent, *usO
 func iaMissingFinishFixtureOverlay(t *testing.T, skippedIndex bool) (*executor, *checkpointComponent, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddlFiles := []string{"testdata/ia-missing-finish-draft.sql"}
+	requireC019Fixture(t)
+	var ddlFiles []string
 	if skippedIndex {
 		ddlFiles = append(ddlFiles, "testdata/ia-skipped-directory-index-draft.sql")
 	}
