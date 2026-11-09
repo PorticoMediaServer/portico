@@ -495,8 +495,9 @@ func TestUSGroupBProducerInventoryOtherSources(t *testing.T) {
 // the hash-only guard edits after P05 and P06, so a producer task must not touch these
 // files. The accepted prefixes cover the retained schema012+013 pin (9d9aa39d), the
 // adopted CHANGE-014 schema carried by PR #1803 (782904d7), and the group B proposal
-// after the embed (44411dfe), so the census stays true across both embeds.
-var usGroupBSchemaSHAPrefixes = []string{"9d9aa39d", "782904d7", "44411dfe"}
+// after the embed (44411dfe), plus adopted E artwork storage (49b3df34).
+// Only these exact adopted schema prefixes are recognized.
+var usGroupBSchemaSHAPrefixes = []string{"9d9aa39d", "782904d7", "44411dfe", "49b3df34"}
 
 var usGroupBSchemaGuardReference = regexp.MustCompile(`progressCrashSchema|requires schema[0-9]{3}`)
 
