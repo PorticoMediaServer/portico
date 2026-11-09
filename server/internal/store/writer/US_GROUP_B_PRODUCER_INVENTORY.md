@@ -150,3 +150,7 @@ Each list is disjoint. A prep task updates only its own files; no product schema
 E/CHANGE-016 embed adds adopted prefix `49b3df34` to the exact known-schema guard inventory. The three B producer tables and their required security choices remain unchanged. The population fixture now requires exact E bytes and exports fresh images; earlier-schema manifests remain refused.
 
 D/CHANGE-017 recognizes only the adopted `7462ff76` schema prefix in the exact guard census. Security producers and their B-table contracts are unchanged; no accepting IP authority follows from the provider/person storage embed.
+
+F018 integration P08: recognize adopted schema484242fb alongside historical
+9d9/014/015 pins. Added exact full-F fixture/participant guard sites: server/internal/store/writer/ia_retirement_step_test.go, server/internal/store/writer/mp_external_guide_pin_plans_test.go, server/internal/store/writer/mp_reading_plans_test.go, server/internal/store/writer/mp_session_stop_guard_plans_test.go, server/internal/store/writer/mp_worker_dispatch_test.go. Historical golden/schema bindings stay unchanged;
+no producer kind/default or reader qualification is inferred.
