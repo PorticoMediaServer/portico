@@ -127,7 +127,10 @@ func (u *undoOffers) take(token string, profileID int64) *undoOffer {
 // that takes the mark back for about a minute. Sending the same edit twice changes nothing more.
 func (d *DB) SetState(ctx context.Context, v Viewer, itemID string, edit StateEdit) (state State, undo string, err error) {
 	err = d.write(ctx, User, func(tx *sql.Tx) error {
-		w := &stateWriter{batchTx: newBatchTx(tx), viewer: v, now: time.Now().UnixMilli()}
+		w, err := newStateWriter(ctx, tx, v)
+		if err != nil {
+			return err
+		}
 		defer w.close()
 		var offer *undoOffer
 		if state, offer, err = w.apply(itemID, edit); err != nil {
@@ -146,7 +149,10 @@ func (d *DB) SetState(ctx context.Context, v Viewer, itemID string, edit StateEd
 func (d *DB) SetStates(ctx context.Context, p Priority, v Viewer, edits []ItemEdit) ([]State, []error, error) {
 	states, refusals := make([]State, len(edits)), make([]error, len(edits))
 	err := d.write(ctx, p, func(tx *sql.Tx) error {
-		w := &stateWriter{batchTx: newBatchTx(tx), viewer: v, now: time.Now().UnixMilli()}
+		w, err := newStateWriter(ctx, tx, v)
+		if err != nil {
+			return err
+		}
 		defer w.close()
 		for n, edit := range edits {
 			state, _, err := w.apply(edit.ItemID, edit.StateEdit)
@@ -163,6 +169,7 @@ func (d *DB) SetStates(ctx context.Context, p Priority, v Viewer, edits []ItemEd
 type stateWriter struct {
 	*batchTx
 	viewer Viewer
+	access access
 	now    int64
 }
 
@@ -185,6 +192,11 @@ type stateRow struct {
 	lastPlayedAt sql.NullInt64
 }
 
+func newStateWriter(ctx context.Context, tx *sql.Tx, v Viewer) (*stateWriter, error) {
+	acc, err := loadAccess(ctx, tx, v)
+	return &stateWriter{batchTx: newBatchTx(tx), viewer: v, access: acc, now: time.Now().UnixMilli()}, err
+}
+
 func (w *stateWriter) named(extra ...any) []any { return append(w.viewer.args(), extra...) }
 
 func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, error) {
@@ -194,7 +206,7 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 	var cleared sql.NullInt64
 	err := w.queryRow(`SELECT i.id, i.kind, i.library_id, ifnull(i.duration_ms, 0),
 		(SELECT history_cleared_at FROM profiles WHERE id = @viewer_profile)
-		FROM items i WHERE i.public_id = @item AND `+visibleTo("i"), w.named(sql.Named("item", itemID))...).
+		FROM items i WHERE i.public_id = @item AND `+w.access.visible("i"), w.named(sql.Named("item", itemID))...).
 		Scan(&id, &kind, &libraryID, &duration, &cleared)
 	if errors.Is(err, sql.ErrNoRows) {
 		return state, nil, ErrNotFound
@@ -341,7 +353,7 @@ func (w *stateWriter) read(itemID int64, kind ItemKind) (State, error) {
 	var leaves, watched int
 	err = w.queryRow(`SELECT count(*), count(w.item_id) FROM items c
 		LEFT JOIN user_item_state w ON w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1
-		WHERE (c.root_id = @id OR c.parent_id = @id) AND c.kind IN `+playableKindsSQL+` AND `+visibleTo("c"),
+		WHERE (c.root_id = @id OR c.parent_id = @id) AND c.kind IN `+playableKindsSQL+` AND `+w.access.visible("c"),
 		w.named(sql.Named("id", itemID))...).Scan(&leaves, &watched)
 	state.Watched = leaves > 0 && leaves == watched
 	return state, err
@@ -354,7 +366,7 @@ func (w *stateWriter) markLeaves(holderID int64, watched bool, at int64) (*undoO
 		expires: time.Now().Add(undoLifetime)}
 	rows, err := w.tx.Query(`SELECT c.id, ifnull(s.played, 0), s.played_at, s.position_ms, s.position_at FROM items c
 		LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = c.id
-		WHERE (c.root_id = @id OR c.parent_id = @id) AND c.kind IN `+playableKindsSQL+` AND `+visibleTo("c")+`
+		WHERE (c.root_id = @id OR c.parent_id = @id) AND c.kind IN `+playableKindsSQL+` AND `+w.access.visible("c")+`
 		AND ifnull(s.played_at, 0) <= @at AND (ifnull(s.played, 0) <> @watched OR ifnull(s.position_ms, 0) <> 0)`,
 		w.named(sql.Named("id", holderID), sql.Named("at", at), sql.Named("watched", watched))...)
 	if err != nil {

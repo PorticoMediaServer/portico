@@ -92,10 +92,14 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 		return out, err
 	}
 	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return out, err
+	}
 	args := append(v.args(), sql.Named("id", publicID))
 	err = scanItem(tx.QueryRowContext(ctx, `SELECT `+itemColumns+`, (SELECT public_id FROM libraries WHERE id = i.library_id),
 		ifnull(i.original_title, ''), ifnull(i.summary, ''), ifnull(i.tagline, ''), ifnull(i.edition, ''),
-		ifnull(i.critic_rating, 0), i.available`+itemFrom+`i.public_id = @id AND `+visibleTo("i"), args...),
+		ifnull(i.critic_rating, 0), i.available`+itemFrom+`i.public_id = @id AND `+acc.visible("i"), args...),
 		&out.Item, &out.LibraryID, &out.OriginalTitle, &out.Summary, &out.Tagline, &out.Edition, &out.CriticRating, &out.Available)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
@@ -107,7 +111,7 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 	if err := loadImages(ctx, tx, items); err != nil {
 		return out, err
 	}
-	if err := loadLeafCounts(ctx, tx, v, items); err != nil {
+	if err := loadLeafCounts(ctx, tx, v, acc, items); err != nil {
 		return out, err
 	}
 	out.Item = items[0]
@@ -192,10 +196,14 @@ func (d *DB) Credits(ctx context.Context, v Viewer, itemID string, offset, limit
 		return nil, 0, err
 	}
 	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, 0, err
+	}
 	var id int64
 	var total int
 	err = tx.QueryRowContext(ctx, `SELECT i.id, (SELECT count(*) FROM credits WHERE item_id = i.id) FROM items i
-		WHERE i.public_id = @id AND `+visibleTo("i"), append(v.args(), sql.Named("id", itemID))...).Scan(&id, &total)
+		WHERE i.public_id = ? AND `+acc.visible("i"), itemID).Scan(&id, &total)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, 0, ErrNotFound
 	}
@@ -275,10 +283,14 @@ func (d *DB) Person(ctx context.Context, v Viewer, publicID string) (Person, err
 		return p, err
 	}
 	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return p, err
+	}
 	err = tx.QueryRowContext(ctx, `SELECT p.id, p.public_id, p.name, ifnull(p.biography, ''), ifnull(p.birth_date, ''),
 		ifnull(p.death_date, ''), ifnull(p.birthplace, ''),
-		(SELECT count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND `+visibleTo("i")+`)
-		FROM people p WHERE p.public_id = @id`, append(v.args(), sql.Named("id", publicID))...).
+		(SELECT count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND `+acc.visible("i")+`)
+		FROM people p WHERE p.public_id = ?`, publicID).
 		Scan(&id, &p.PublicID, &p.Name, &p.Biography, &p.BirthDate, &p.DeathDate, &p.Birthplace, &p.Titles)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && p.Titles == 0 {
 		return Person{}, ErrNotFound
