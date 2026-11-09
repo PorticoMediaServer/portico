@@ -44,6 +44,8 @@ type mgRuleRequest struct {
 }
 
 // Parent owns public receipts/lifetimes, dependency and owner-revision effects,
-// future keep/cancel decisions, events, admission, COMMIT and candidate EOF.
-// Every effect error requires whole-frame rollback. No physical capture,
-// allocation, guide pin or reservation is changed by logical rule disable.
+// events, admission, COMMIT and candidate EOF. Every effect error requires
+// whole-frame rollback. No physical capture, allocation, guide pin or reservation
+// is changed by logical rule disable. The accepting delete frame (MG-11), not
+// this logical rule-row effect, owns the public future keep/cancel receipt and
+// its same-transaction legacy intent detach.

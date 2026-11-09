@@ -148,8 +148,11 @@ func acceptMGRuleSave(ctx context.Context, turn *commandTurn, root mgPersonalRoo
 // effect requires. It retains the rule's work row and any live lease/attempt
 // debt; no capture, allocation or scheduled recording is changed here. The
 // public future keep/cancel selector is bound into the original request identity
-// only: detaching future intents from the rule belongs to recording custody
-// (MG-10/12), not to this logical rule-row command.
+// and, for keep, performed here in this SAME transaction as the legacy
+// DeleteRule detach: the rule's scheduled/conflicted/waiting intents become
+// manual, rule-less recordings, and their bounded count is saved in the result
+// so a replay returns it with zero effects. future=cancel leaves intent custody
+// to MG-12's deleted-rule reconcile.
 func acceptMGRuleDelete(ctx context.Context, turn *commandTurn, root mgPersonalRootSeam, witness *usOwnerAuthorityProof, lifetime context.Context, reference ReceiptReference, request mgRuleDeleteRequest) (out mgRuleAcceptance, err error) {
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
 	command, err := newMGRuleDeleteCommand(reference.Identity, request)
@@ -189,7 +192,15 @@ func acceptMGRuleDelete(ctx context.Context, turn *commandTurn, root mgPersonalR
 		if err != nil {
 			return out, err
 		}
+		detached := int64(0)
+		if command.request.input.future == "keep" {
+			detached, err = detachMGRuleRecordings(ctx, turn, command.owner, facts.id, facts.updated)
+			if err != nil {
+				return out, err
+			}
+		}
 		result := mgRuleResultOf(facts)
+		result.detached = detached
 		digest, err := mgPersonalRootPersist(ctx, turn, lookup, result, 1)
 		if err != nil {
 			return out, err
@@ -323,6 +334,61 @@ func prepareMGRuleDelete(ctx context.Context, turn *commandTurn, c *mgRuleDelete
 	after.revision++
 	after.enabled, after.deleted, after.updated = 0, 1, now.UnixMilli()
 	return deleteMGRule(ctx, turn, mgRuleRequest{owner: owner, before: before, after: after, sourceRevision: sourceRevision, generation: generation})
+}
+
+// Legacy DeleteRule(future=keep) detaches the rule's scheduled/conflicted/
+// waiting intents before it deletes the rule row. The MG delete performs the
+// same bounded detach in this transaction; the count is the saved result.
+const mgRuleDetachMaxRecordings = 4096
+
+// One bounded primitive over the MG recording-intent rows. It first counts the
+// exact owner/rule/state set at the detach ceiling (LIMIT bound+1 is one row of
+// overshoot, never an unbounded UPDATE), refuses beyond the bound with a typed
+// policy error, and only then applies the legacy manual-keep columns to the
+// bounded set. Every effect is in the caller's delete transaction, so a later
+// denial or refused bound rolls the whole frame back.
+func detachMGRuleRecordings(ctx context.Context, turn *commandTurn, owner mgRecordingOwner, ruleID string, updated int64) (out int64, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if turn == nil || turn.transaction == nil || !owner.valid() || !mgRecordingHex(ruleID, 64) || updated < 0 {
+		return 0, ErrInvalid
+	}
+	countStep, ok := turn.steps[mgRuleDetachCount]
+	if !ok {
+		return 0, ErrInvalid
+	}
+	row, err := turn.queryRow(ctx, countStep.statementStep, ruleID, owner.key(), int64(mgRuleDetachMaxRecordings+1))
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	if err = row.Scan(&count); err != nil {
+		return 0, err
+	}
+	if count < 0 || count > mgRuleDetachMaxRecordings {
+		return 0, &PolicyError{Field: "mg_rule_delete_recordings", Limit: mgRuleDetachMaxRecordings, Cause: ErrCap}
+	}
+	if count == 0 {
+		return 0, turn.checkLifetimes(ctx)
+	}
+	detachStep, ok := turn.steps[mgRuleDetach]
+	if !ok {
+		return 0, ErrInvalid
+	}
+	result, err := turn.exec(ctx, detachStep.statementStep, updated, ruleID, owner.key(), int64(mgRuleDetachMaxRecordings))
+	if err != nil {
+		return 0, err
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if changed != count {
+		return 0, ErrConflict
+	}
+	if err = turn.checkLifetimes(ctx); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func mgRuleFlag(v bool) int64 {

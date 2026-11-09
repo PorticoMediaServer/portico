@@ -51,6 +51,20 @@ func mgRuleChange(ctx context.Context, t *commandTurn, id stmt.ID, args ...any) 
 	}
 	return t.checkLifetimes(ctx)
 }
+
+// Only the closed rule INSERT key constraints denote a duplicate identity.
+// CHECK/FK failures and operational errors retain their type.
+func mgRuleIdentityConflict(err error) error {
+	var coded interface{ Code() int }
+	if errors.As(err, &coded) {
+		switch coded.Code() {
+		case 1555, 2067: // SQLITE_CONSTRAINT_PRIMARYKEY, SQLITE_CONSTRAINT_UNIQUE
+			return errors.Join(ErrConflict, err)
+		}
+	}
+	return err
+}
+
 func (v mgRuleFacts) values() []any {
 	return []any{v.id, v.owner, v.account, v.profile, v.source, v.series, v.title, v.channel, v.config, v.revision, v.enabled, v.deleted, v.updated}
 }
@@ -145,6 +159,13 @@ func mutateMGRule(ctx context.Context, t *commandTurn, r mgRuleRequest, deleting
 	}
 	if fresh {
 		err = mgRuleChange(ctx, t, mgRuleInsert, append(a.values(), "local")...)
+		if err != nil {
+			// mgRuleSameIdentity reads only authority='local', but the native
+			// UNIQUE does not include authority: a non-local row with the same
+			// (owner,source,series,title,channel) identity collides here. That is
+			// a duplicate identity, never a raw constraint diagnostic.
+			return out, mgRuleIdentityConflict(err)
+		}
 	} else {
 		args := append([]any{a.config, a.revision, a.enabled, a.deleted, a.updated}, b.values()...)
 		err = mgRuleChange(ctx, t, mgRuleUpdate, args...)

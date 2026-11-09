@@ -27,15 +27,24 @@ func TestMGRuleCommandBoundsAndPreparedIdentity(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mgRuleCommit(t, turn)
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE user_mutation_command_owners SET acknowledged_command_sequence=1 WHERE root_id=?`, v.root); err != nil {
+		t.Fatal(err)
+	}
 	var stored string
 	if err := w.db.QueryRowContext(t.Context(), `SELECT config_json FROM dvr_rules WHERE id=?`, id).Scan(&stored); err != nil || len(stored) != mgRuleMaxConfigBytes || stored != padded {
 		t.Fatal("stored 384 KiB config changed", len(stored), err)
 	}
 
-	// One byte beyond the retained ceiling is refused before any effect.
+	// One byte beyond the retained ceiling is refused before any effect; the
+	// prepared string is fresh-only, so the refusal belongs to the fresh path.
 	tooLarge := mgRulePaddedPrepared(v, mgRuleMaxConfigBytes+1)
-	if _, err := newMGRuleSaveCommand(mgPersonalIdentity(1, 2), mgRuleSaveRequestFor(v, id, 0, config, tooLarge)); !errors.Is(err, ErrCap) {
-		t.Fatal("over-ceiling config admitted", err)
+	tooLargeRequest := mgRuleSaveRequestFor(v, id, 0, config, tooLarge)
+	turn = mgRuleCommandTurn(t, w, MGSaveRule)
+	if got, err := acceptMGRuleSave(t.Context(), turn, fake, v.proof, t.Context(), mgRuleSaveReference(t, mgPersonalIdentity(2, 2), tooLargeRequest), tooLargeRequest); !errors.Is(err, ErrCap) || got != (mgRuleAcceptance{}) {
+		t.Fatal("over-ceiling config admitted", got, err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
 	}
 
 	// A real largest semantic config (4000 channel ids, 20 keywords each side)
@@ -86,16 +95,19 @@ func TestMGRuleCommandBoundsAndPreparedIdentity(t *testing.T) {
 		t.Fatal("pathological padding refused at the writer boundary", err)
 	}
 
-	// The stored configuration's identity must match the digested original.
+	// The stored configuration's identity must match the digested original, but
+	// the adapter's prepared string is fresh-only: command construction does not
+	// read it, so replay/retired lookups never depend on it. The FRESH effect
+	// still refuses drift before any rule row exists.
 	drifted := strings.Replace(prepared, v.source, strings.Repeat("c", 48), 1)
 	if drifted == prepared {
 		t.Fatal("fixture did not contain the source id")
 	}
-	if _, err := newMGRuleSaveCommand(mgPersonalIdentity(1, 1), mgRuleSaveRequestFor(v, id, 0, config, drifted)); !errors.Is(err, ErrConflict) {
-		t.Fatal("prepared/original identity drift admitted", err)
+	if _, err := newMGRuleSaveCommand(mgPersonalIdentity(1, 1), mgRuleSaveRequestFor(v, id, 0, config, drifted)); err != nil {
+		t.Fatal("prepared drift leaked into original request identity", err)
 	}
-	if _, err := newMGRuleSaveCommand(mgPersonalIdentity(1, 1), mgRuleSaveRequestFor(v, id, 0, config, `{"sourceId":`)); err == nil {
-		t.Fatal("malformed prepared config admitted")
+	if _, err := newMGRuleSaveCommand(mgPersonalIdentity(1, 1), mgRuleSaveRequestFor(v, id, 0, config, `{"sourceId":`)); err != nil {
+		t.Fatal("malformed prepared string leaked into original request identity", err)
 	}
 
 	// The public delete request's future selector is part of its identity.
@@ -154,6 +166,20 @@ func TestMGRuleCommandResultCodec(t *testing.T) {
 	if err != nil || decoded != result {
 		t.Fatal(decoded, err)
 	}
+	// The saved delete result carries the bounded detach count; the codec keeps
+	// it through a strict round trip and the digest binds it.
+	detachedResult := mgRuleResult{
+		id: result.id, owner: result.owner, source: result.source, series: result.series, revision: 4,
+		updated: result.updated, configBytes: result.configBytes, configDigest: result.configDigest, deleted: true, detached: 7,
+	}
+	detachedPayload, detachedDigest, err := mgRulePayload(id, request, detachedResult)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decodedDetached, err := decodeMGRule(id, request, detachedPayload, detachedDigest)
+	if err != nil || decodedDetached != detachedResult {
+		t.Fatal(decodedDetached, err)
+	}
 	// The result digest binds the original command identity and request.
 	otherID := mgPersonalIdentity(2, 6)
 	if _, err := decodeMGRule(otherID, request, payload, digest); !errors.Is(err, ErrResolveRequired) {
@@ -178,6 +204,9 @@ func TestMGRuleCommandResultCodec(t *testing.T) {
 		{id: result.id, owner: result.owner, source: result.source, series: result.series, revision: result.revision, updated: result.updated, configBytes: 0, configDigest: result.configDigest},
 		{id: result.id, owner: result.owner, source: result.source, series: result.series, revision: result.revision, updated: result.updated, configBytes: mgRuleMaxConfigBytes + 1, configDigest: result.configDigest},
 		{id: result.id, owner: result.owner, source: result.source, series: result.series, revision: result.revision, updated: result.updated, enabled: true, deleted: true, configBytes: result.configBytes, configDigest: result.configDigest},
+		{id: result.id, owner: result.owner, source: result.source, series: result.series, revision: result.revision, updated: result.updated, configBytes: result.configBytes, configDigest: result.configDigest, detached: -1},
+		{id: result.id, owner: result.owner, source: result.source, series: result.series, revision: result.revision, updated: result.updated, configBytes: result.configBytes, configDigest: result.configDigest, detached: 1},
+		{id: result.id, owner: result.owner, source: result.source, series: result.series, revision: result.revision, updated: result.updated, configBytes: result.configBytes, configDigest: result.configDigest, deleted: true, detached: mgRuleDetachMaxRecordings + 1},
 	} {
 		if err := preflightMGRuleResult(mutated); err == nil {
 			t.Fatal("invalid result preflight accepted", mutated)

@@ -13,9 +13,11 @@ import (
 // never the 384 KiB configuration text: the bounded lifetime-root receipt is the
 // replay store, while MG-25 reads the complete native row under current
 // authority. It is not a current DTO: later edits never rewrite this value.
+// detached is the legacy future=keep detach count; it is appended to the codec
+// after the row flags so a replay returns the original count with no effects.
 type mgRuleResult struct {
 	id, owner, source, series, title, channel string
-	revision, updated, configBytes            int64
+	revision, updated, configBytes, detached  int64
 	enabled, deleted                          bool
 	configDigest                              [32]byte
 }
@@ -48,7 +50,8 @@ func preflightMGRuleResult(v mgRuleResult) error {
 		!mgRecordingText(v.series, false, 512) || !mgRecordingText(v.title, false, 512) ||
 		!mgRecordingText(v.channel, false, 64) || (v.series == "" && v.title == "") ||
 		v.revision < 1 || v.updated < 0 || v.configBytes < 1 || v.configBytes > mgRuleMaxConfigBytes ||
-		v.configDigest == ([32]byte{}) || (v.deleted && v.enabled) {
+		v.configDigest == ([32]byte{}) || (v.deleted && v.enabled) ||
+		v.detached < 0 || v.detached > mgRuleDetachMaxRecordings || (!v.deleted && v.detached != 0) {
 		return ErrResolveRequired
 	}
 	return nil
@@ -71,6 +74,7 @@ func writeMGRuleResult(e *requestEncoder, identity CommandIdentity, request Requ
 	e.number(uint64(v.configBytes))
 	e.flag(v.enabled)
 	e.flag(v.deleted)
+	e.number(uint64(v.detached))
 	e.bytes(v.configDigest[:])
 	return e.err
 }
@@ -198,6 +202,9 @@ func decodeMGRule(id CommandIdentity, q RequestDigest, payload []byte, digest Re
 		return out, err
 	}
 	if out.deleted, err = r.flag(); err != nil {
+		return out, err
+	}
+	if out.detached, err = r.number(); err != nil {
 		return out, err
 	}
 	p, err := r.take(32)

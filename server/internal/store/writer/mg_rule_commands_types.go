@@ -43,6 +43,14 @@ type mgRuleDeleteInput struct {
 // prepare the stored configuration separately with mginput.PrepareRuleConfig.
 // The fresh-only CAS heads are NOT part of the original request identity: a
 // retry after a guide refresh must still resolve to its original receipt.
+//
+// Cutover adapter contract: the writer hashes and stores the anchor,
+// useDefaults, config.episodes="new" and the rest of the original request, but
+// it does not ACT on them. Anchor/current-guide resolution, defaults, the
+// new-evidence interpretation of episodes="new", and source/channel grants or
+// programme visibility are resolved by the cutover adapter against the public
+// request before it composes the opaque prepared configuration and the frozen
+// owner/source CAS heads below. No field here grants authority.
 type mgRuleSaveRequest struct {
 	owner          mgRecordingOwner
 	input          mgRuleSaveInput
@@ -228,9 +236,10 @@ func newMGRuleSaveCommand(id CommandIdentity, r mgRuleSaveRequest) (*mgRuleSaveC
 	if err := r.validate(); err != nil {
 		return nil, err
 	}
-	if _, err := mgRuleConfigIdentityFor(r.input, r.prepared); err != nil {
-		return nil, err
-	}
+	// The prepared configuration is fresh-only: the original request digest never
+	// covers it, so a replay or retired lookup must not depend on the adapter's
+	// current prepared string. prepareMGRuleSave rechecks the stored identity
+	// against the digested original before ANY fresh effect.
 	request := mgRuleSaveIdentity{account: r.owner.account, profile: r.owner.profile, input: r.input}
 	digest, err := canonicalRequestDigest(MGSaveRule, mgRuleRequestVersion, id, request)
 	if err != nil {
