@@ -2,9 +2,11 @@ package writer
 
 // US password replacement (520) releases its results through finishCommand
 // before the physical terminal, because transaction.commit/rollback cancel the
-// frame lifetime: a deferred finish afterwards would report a committed command
-// as canceled. runUSPasswordDispatch keeps an explicit pre-terminal release;
-// the bound helpers below are the ones selected by name or result type.
+// frame lifetime: a lifetime-based deferred finish afterwards would report a
+// committed command as canceled. runUSPasswordDispatch therefore keeps its
+// explicit pre-terminal lifetime release and adds the shared dispatcher's final
+// deferred publication on the CALLER's context; the bound helpers below are the
+// ones selected by name or result type.
 func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "us_password_replace",
