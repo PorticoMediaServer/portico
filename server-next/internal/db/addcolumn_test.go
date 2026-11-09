@@ -21,7 +21,7 @@ func TestAddColumnCost(t *testing.T) {
 	ctx := context.Background()
 	result := map[string]any{}
 	for _, strict := range []bool{false, true} {
-		conn, err := open(filepath.Join(t.TempDir(), "items.db"), "rwc", 1)
+		conn, err := open(filepath.Join(t.TempDir(), "items.db"), "rwc", 1, writeCacheKiB)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -42,7 +42,7 @@ type DB struct {
 // Open opens the database at path, creating it with the current schema if it is new.
 // Every commit is synced to disk before it returns (synchronous=FULL).
 func Open(ctx context.Context, path string) (*DB, error) {
-	write, err := open(path, "rwc", 1)
+	write, err := open(path, "rwc", 1, writeCacheKiB)
 	if err != nil {
 		return nil, err
 	}
@@ -52,11 +52,11 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		write.Close()
 		return nil, err
 	}
-	if d.read, err = open(path, "ro", 8); err != nil {
+	if d.read, err = open(path, "ro", 8, readCacheKiB); err != nil {
 		write.Close()
 		return nil, err
 	}
-	if d.helper, err = open(path, "rw", 1); err != nil {
+	if d.helper, err = open(path, "rw", 1, 0); err != nil {
 		write.Close()
 		d.read.Close()
 		return nil, err
@@ -68,13 +68,24 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	return d, nil
 }
 
-func open(path, mode string, conns int) (*sql.DB, error) {
+// Page caches, per connection. The writer's is the one that matters to an import: every row
+// touches several index pages, and a page it has to read back costs far more than one it holds.
+// The eight read connections together hold up to 128 MiB.
+const (
+	writeCacheKiB = 64 << 10
+	readCacheKiB  = 16 << 10
+)
+
+func open(path, mode string, conns, cacheKiB int) (*sql.DB, error) {
 	q := url.Values{}
 	q.Set("mode", mode)
 	q.Set("_txlock", "immediate")
 	for _, pragma := range []string{"busy_timeout(5000)", "journal_mode(WAL)", "synchronous(FULL)", "foreign_keys(1)",
 		"wal_autocheckpoint(0)", fmt.Sprintf("journal_size_limit(%d)", walKeepBytes)} {
 		q.Add("_pragma", pragma)
+	}
+	if cacheKiB > 0 {
+		q.Add("_pragma", fmt.Sprintf("cache_size(-%d)", cacheKiB))
 	}
 	conn, err := sql.Open("sqlite", "file:"+url.PathEscape(path)+"?"+q.Encode())
 	if err != nil {
