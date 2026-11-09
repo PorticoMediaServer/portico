@@ -80,7 +80,18 @@ func (d *DB) RecentlyAdded(ctx context.Context, v Viewer) ([]Item, error) {
 	}{{KindMovie, "i.id"}, {KindEpisode, "ifnull(i.root_id, i.id)"}, {KindTrack, "ifnull(i.parent_id, i.id)"}, {KindBook, "i.id"},
 		{KindAudiobook, "i.id"}} {
 		for _, library := range libraries {
-			rows, err := queryAll(ctx, tx, `SELECT `+leaf.title+`, i.added_at FROM items i WHERE i.library_id = ? AND i.kind = ? AND `+
+			from := "items i"
+			rated, err := acc.ratedIn(ctx, tx, library, fmt.Sprintf("(%d)", leaf.kind))
+			if err != nil {
+				return nil, err
+			}
+			if rated == 0 {
+				continue
+			}
+			if rated < sparseRated {
+				from = "items i INDEXED BY items_by_rating"
+			}
+			rows, err := queryAll(ctx, tx, `SELECT `+leaf.title+`, i.added_at FROM `+from+` WHERE i.library_id = ? AND i.kind = ? AND `+
 				acc.visible("i")+` ORDER BY i.added_at DESC, i.id DESC LIMIT 400`, []any{library, leaf.kind},
 				func(n *newest) []any { return []any{&n.id, &n.addedAt} })
 			if err != nil {

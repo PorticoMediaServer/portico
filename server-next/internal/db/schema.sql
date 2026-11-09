@@ -232,6 +232,8 @@ CREATE INDEX items_by_title ON items (library_id, kind, sort_title, id);
 CREATE INDEX items_by_added ON items (library_id, kind, added_at, id);
 CREATE INDEX items_by_year ON items (library_id, kind, year, id);
 CREATE INDEX items_by_release ON items (library_id, kind, release_date, id);
+-- For a profile with a rating limit: how many titles of a kind it may see, and which, when few.
+CREATE INDEX items_by_rating ON items (library_id, kind, rating_age);
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
 CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_number, id);
 CREATE INDEX items_merged ON items (merged_into_id) WHERE merged_into_id IS NOT NULL;
@@ -459,6 +461,7 @@ CREATE TABLE profiles (
   position           INTEGER NOT NULL DEFAULT 0,
   pin_hash           TEXT,
   max_rating_age     INTEGER,
+  allow_unrated      INTEGER NOT NULL DEFAULT 0 CHECK (allow_unrated IN (0, 1)),
   all_libraries      INTEGER NOT NULL DEFAULT 1 CHECK (all_libraries IN (0, 1)),
   allow_downloads    INTEGER NOT NULL DEFAULT 1 CHECK (allow_downloads IN (0, 1)),
   allow_live_tv      INTEGER NOT NULL DEFAULT 1 CHECK (allow_live_tv IN (0, 1)),
