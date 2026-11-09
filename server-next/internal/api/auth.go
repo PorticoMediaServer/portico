@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/netip"
@@ -56,6 +57,8 @@ type RefreshRequest struct {
 type PasswordRequest struct {
 	CurrentPassword string `json:"currentPassword"`
 	NewPassword     string `json:"newPassword"`
+	// Code is the authenticator or recovery code, needed when the account has two-step sign-in.
+	Code string `json:"code,omitempty"`
 }
 
 // Session is the tokens of one sign-in on one device.
@@ -96,10 +99,19 @@ type Account struct {
 }
 
 // SignInResponse is the answer to a sign-in: the new session, the account and its profiles.
+// For an account with two-step sign-in the password gets a challenge instead, and
+// POST /v1/auth/two-factor with the challenge and a code gets the session.
 type SignInResponse struct {
-	Session  Session   `json:"session"`
-	Account  Account   `json:"account"`
-	Profiles []Profile `json:"profiles"`
+	Session   Session    `json:"session,omitzero"`
+	Account   Account    `json:"account,omitzero"`
+	Profiles  []Profile  `json:"profiles,omitempty"`
+	Challenge *Challenge `json:"challenge,omitempty"`
+}
+
+// Challenge is a password sign-in waiting for its second step.
+type Challenge struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // Me is who the caller is.
@@ -132,18 +144,22 @@ func (s *Server) authRoutes() {
 	Handle(s, "POST /v1/auth/refresh", Public, s.refresh)
 	Handle(s, "DELETE /v1/auth/session", Public, s.signOut)
 	Handle(s, "POST /v1/auth/password", SignedIn, s.changePassword)
-	Handle(s, "GET /v1/me", SignedIn, s.me)
+	// A tool with a key can ask who it is acting for.
+	Handle(s, "GET /v1/me", SignedIn, s.me).Scope = ScopeRead
+	Handle(s, "POST /v1/auth/password-reset/confirm", Public, s.resetPassword)
+	s.twoFactorRoutes()
+	s.codeRoutes()
 }
 
 // session mints the tokens that say what st says. issued is when they count from.
 func (s *Server) session(st db.SessionState, issued time.Time, refreshToken string) Session {
 	// Before a profile is selected the session can only choose one. Only the main profile
 	// carries the account's role and may manage the account; any other profile is a member,
-	// whoever owns the account.
+	// whoever owns the account. So is a TV that was approved from one of those profiles.
 	role, manage := "account", false
 	if st.ProfileID != 0 {
 		role = "member"
-		if st.ProfilePrimary {
+		if st.ProfilePrimary && !st.MemberOnly {
 			role, manage = st.UserRole, true
 		}
 	}
@@ -158,22 +174,36 @@ func (s *Server) session(st db.SessionState, issued time.Time, refreshToken stri
 	}
 }
 
-// newSession checks what the app said about its device and prepares a session for it.
-func (s *Server) newSession(r *http.Request, device DeviceInfo, now time.Time) (db.NewSession, string, error) {
+// checkDevice checks what an app said about the install it runs on.
+func checkDevice(device DeviceInfo) (db.DeviceInfo, error) {
 	switch {
 	case !auth.ValidToken(device.InstallationID, 32):
-		return db.NewSession{}, "", ErrField("device.installationId", "Send the id this app made for itself: 32 to 128 letters, digits, _ or -.")
+		return db.DeviceInfo{}, ErrField("device.installationId", "Send the id this app made for itself: 32 to 128 letters, digits, _ or -.")
 	case !auth.ValidName(device.Name):
-		return db.NewSession{}, "", ErrField("device.name", "Give the device a name of at most 120 characters.")
+		return db.DeviceInfo{}, ErrField("device.name", "Give the device a name of at most 120 characters.")
 	case len(device.Platform) > 64 || len(device.App) > 64 || len(device.AppVersion) > 64:
-		return db.NewSession{}, "", ErrField("device", "Platform, app and version are at most 64 characters each.")
+		return db.DeviceInfo{}, ErrField("device", "Platform, app and version are at most 64 characters each.")
 	}
+	return db.DeviceInfo{InstallationID: device.InstallationID, Name: device.Name, Platform: device.Platform, App: device.App, AppVersion: device.AppVersion}, nil
+}
+
+// mintSession prepares a session and its first refresh token. The device is filled in by
+// the caller, or by the stored request the session answers.
+func (s *Server) mintSession(r *http.Request, now time.Time) (db.NewSession, string) {
 	id := db.NewSessionID()
 	refresh := s.tokens.FirstRefresh(id)
-	return db.NewSession{
-		ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: remoteHost(r),
-		Device: db.DeviceInfo{InstallationID: device.InstallationID, Name: device.Name, Platform: device.Platform, App: device.App, AppVersion: device.AppVersion},
-	}, refresh, nil
+	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: remoteHost(r)}, refresh
+}
+
+// newSession checks what the app said about its device and prepares a session for it.
+func (s *Server) newSession(r *http.Request, device DeviceInfo, now time.Time) (db.NewSession, string, error) {
+	checked, err := checkDevice(device)
+	if err != nil {
+		return db.NewSession{}, "", err
+	}
+	session, refresh := s.mintSession(r, now)
+	session.Device = checked
+	return session, refresh, nil
 }
 
 // remoteHost is the address a request came from, without the port.
@@ -208,10 +238,12 @@ func passwordLimits(r *http.Request, account string) []db.Limit {
 }
 
 // passwordProof compares the caller's current password and returns the proof for the
-// transaction that will act on it. A wait already in force is refused here.
-func (s *Server) passwordProof(r *http.Request, password string) (db.PasswordProof, error) {
+// transaction that will act on it, with the two-step code for that transaction to check
+// if the account needs one. A wait already in force is refused here.
+func (s *Server) passwordProof(r *http.Request, password, code string) (db.PasswordProof, error) {
 	ctx, caller := r.Context(), CallerFrom(r.Context())
-	p := db.PasswordProof{UserID: caller.UserID, Limits: passwordLimits(r, "user:"+strconv.FormatInt(caller.UserID, 10))}
+	p := db.PasswordProof{UserID: caller.UserID, Limits: passwordLimits(r, "user:"+strconv.FormatInt(caller.UserID, 10)),
+		Second: secondProof(caller.UserID, code, s.now())}
 	if wait, err := s.db.LimitWait(ctx, s.now(), p.Limits...); err != nil {
 		return p, err
 	} else if wait > 0 {
@@ -235,7 +267,7 @@ func proofError(err error) error {
 	case errors.Is(err, db.ErrBadCredentials):
 		return refusal(http.StatusForbidden, "current_password_incorrect", "The current password is not correct.", false)
 	case errors.Is(err, db.ErrBadSecondStep):
-		return refusal(http.StatusForbidden, "two_factor_invalid", "That code is not correct.", false)
+		return errBadSecondStep()
 	}
 	return err
 }
@@ -329,8 +361,12 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 	if err != nil {
 		return SignInResponse{}, err
 	}
-	st, err := s.db.SignIn(ctx, db.SignInAttempt{UserID: creds.UserID, CheckedHash: creds.PasswordHash, PasswordOK: ok,
-		Limits: limits, Session: session, Now: now})
+	// If the account has two-step sign-in, this challenge is stored in place of a session.
+	device, _ := json.Marshal(session.Device)
+	challenge := Challenge{Token: auth.NewSecret(), ExpiresAt: now.Add(challengeLife).UTC()}
+	st, challenged, err := s.db.SignIn(ctx, db.SignInAttempt{UserID: creds.UserID, CheckedHash: creds.PasswordHash, PasswordOK: ok,
+		Limits: limits, Session: session, Now: now,
+		Challenge: db.Code{Kind: "two_factor", Hash: auth.Hash(challenge.Token), Payload: string(device), ExpiresAt: challenge.ExpiresAt}})
 	var limited *db.LimitedError
 	switch {
 	case errors.As(err, &limited):
@@ -339,6 +375,8 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 		return SignInResponse{}, errBadSignIn()
 	case err != nil:
 		return SignInResponse{}, err
+	case challenged:
+		return SignInResponse{Challenge: &challenge}, nil
 	}
 	return s.signedIn(ctx, st, now, refresh)
 }
@@ -399,7 +437,7 @@ func (s *Server) changePassword(r *http.Request, req PasswordRequest) (None, err
 	if problem := auth.PasswordProblem(req.NewPassword); problem != "" {
 		return None{}, ErrField("newPassword", problem)
 	}
-	proof, err := s.passwordProof(r, req.CurrentPassword)
+	proof, err := s.passwordProof(r, req.CurrentPassword, req.Code)
 	if err != nil {
 		return None{}, err
 	}

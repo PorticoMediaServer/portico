@@ -415,6 +415,8 @@ CREATE INDEX images_profile ON images (profile_id) WHERE profile_id IS NOT NULL;
 -- D. Users, sign-in and access
 -- ---------------------------------------------------------------------------------------
 
+-- two_factor_secret is set when enrolment starts and counts once two_factor_enabled_at is set.
+-- two_factor_last_step is the last authenticator time step accepted, so one code works once.
 CREATE TABLE users (
   id                  INTEGER NOT NULL PRIMARY KEY,
   public_id           TEXT    NOT NULL UNIQUE,
@@ -426,6 +428,7 @@ CREATE TABLE users (
   all_libraries       INTEGER NOT NULL DEFAULT 1 CHECK (all_libraries IN (0, 1)),
   two_factor_secret   BLOB,
   two_factor_enabled_at INTEGER,
+  two_factor_last_step INTEGER,
   disabled_at         INTEGER,
   notes               TEXT,
   extra               TEXT,
@@ -499,7 +502,8 @@ CREATE INDEX profile_restrictions_tag ON profile_restrictions (tag_id);
 -- One row per sign-in. The refresh token rotates on each renewal. The previous token's hash and
 -- the request id it was renewed with are kept until the next renewal, so a renewal whose reply
 -- was lost can be repeated; any other use of an old token revokes the session. profile_id is
--- NULL until a profile is selected.
+-- NULL until a profile is selected. scope is 'app', or 'member' for a sign-in that never has
+-- more than a member's rights: a TV approved from a profile other than the main one.
 CREATE TABLE sessions (
   id                    INTEGER NOT NULL PRIMARY KEY,
   public_id             TEXT    NOT NULL UNIQUE,
