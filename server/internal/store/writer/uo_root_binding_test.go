@@ -11,14 +11,16 @@ import (
 )
 
 // UO-01's security consumer is a FULL parent purpose. It must consume US-01's
-// current owner stamp for this SAME turn; ordinary NORMAL roots cannot carry one.
-// Followers copy these controls, not a new authority recipe or exported issuer.
+// current owner stamp for this SAME turn; ordinary NORMAL roots cannot carry one
+// and cannot borrow a stamp. Followers copy these controls, not a new authority
+// recipe or exported issuer.
 func uoRootSecurityFixture(t *testing.T) (*executor, *usOwnerAuthorityProof, string) {
 	t.Helper()
 	w, _, proof := usOwnerAuthorityFixture(t)
+	i := proof.witness.issuer
 	wc008NativeExec(t, w, `INSERT INTO user_mutation_global(singleton) VALUES(1) ON CONFLICT(singleton) DO NOTHING`)
 	root := "abcdefghijklmnopqrstuv"
-	wc008NativeExec(t, w, `INSERT INTO user_mutation_roots(id,installation_incarnation,account_id,profile_id,account_incarnation,profile_incarnation,family_id,registration_revision,state) VALUES(?,?,?,?,?,?,?,?,?)`, root, proof.witness.issuer.installation, "issuer", "issuer-profile", "issuer-birth", proof.witness.issuer.profileLifetime, proof.witness.issuer.family, int64(1), "active")
+	wc008NativeExec(t, w, `INSERT INTO user_mutation_roots(id,installation_incarnation,account_id,profile_id,account_incarnation,profile_incarnation,family_id,registration_revision,state) VALUES(?,?,?,?,?,?,?,?,?)`, root, i.installation, i.account, i.profile, i.memberIncarnation, i.profileLifetime, i.family, int64(1), "active")
 	wc008NativeExec(t, w, `INSERT INTO user_mutation_command_owners(root_id,command_incarnation) VALUES(?,?)`, root, []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
 	return w, proof, root
 }
@@ -76,7 +78,7 @@ func uoRootSecurityTurn(t *testing.T, w *executor, proof *usOwnerAuthorityProof)
 	if err != nil || stamp == nil {
 		t.Fatal("current US owner stamp", err)
 	}
-	binding, err := bindUORoot(turn, stamp)
+	binding, err := bindUORoot(turn, stamp, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +87,7 @@ func uoRootSecurityTurn(t *testing.T, w *executor, proof *usOwnerAuthorityProof)
 
 func TestUORootSecurityConsumerBindsUSOwnerStamp(t *testing.T) {
 	w, proof, root := uoRootSecurityFixture(t)
-	q := uoRootReference{root: root, kind: USMemberLibraries, identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, request: RequestDigest{3}}
+	q := uoRootSecurityRef(root)
 	turn, binding := uoRootSecurityTurn(t, w, proof)
 	lookup, err := lookupUORootCommand(t.Context(), turn, binding, q)
 	if err != nil || lookup.decision != receiptFresh {
@@ -99,7 +101,8 @@ func TestUORootSecurityConsumerBindsUSOwnerStamp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Original replay still works after its current mutable source drifts.
+	// Original replay still works after its current mutable source drifts. The
+	// changed field is not part of the root identity.
 	wc008NativeExec(t, w, `UPDATE direct_profiles SET name='drifted' WHERE id='issuer-profile'`)
 	turn, binding = uoRootSecurityTurn(t, w, proof)
 	replay, err := lookupUORootCommand(t.Context(), turn, binding, q)
@@ -133,6 +136,35 @@ func TestUORootSecurityConsumerBindsUSOwnerStamp(t *testing.T) {
 	}
 }
 
+// M1b: the pre-lookup authority check is separately observable. Revoking before
+// the lookup must deny; dropping only that check would return a replay here.
+func TestUORootCurrentAuthorityBeforeLookup(t *testing.T) {
+	w, proof, root := uoRootSecurityFixture(t)
+	q := uoRootSecurityRef(root)
+	// Seed a replayable original.
+	turn, binding := uoRootSecurityTurn(t, w, proof)
+	lookup, err := lookupUORootCommand(t.Context(), turn, binding, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := persistUORootOperation(t.Context(), turn, lookup, uoOperationResult{status: 2, revision: 1, appliedMS: 100, target: "operation"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	turn, binding = uoRootSecurityTurn(t, w, proof)
+	if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE authorization_session_families SET revoked=1`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lookupUORootCommand(t.Context(), turn, binding, q); !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal("revoked session reached retained custody before lookup", err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestUORootStaleInstallationRegistrationDeniesBeforeCustody(t *testing.T) {
 	w, proof, root := uoRootSecurityFixture(t)
 	wc008NativeExec(t, w, `UPDATE identity_installations SET incarnation='dddddddddddddddddddddddddddddddd'`)
@@ -140,10 +172,10 @@ func TestUORootStaleInstallationRegistrationDeniesBeforeCustody(t *testing.T) {
 	if stamp != nil || !errors.Is(err, ErrDisclosureDenied) {
 		t.Fatal("stale installation minted a stamp", stamp, err)
 	}
-	if _, err := bindUORoot(turn, nil); !errors.Is(err, ErrDisclosureDenied) {
+	if _, err := bindUORoot(turn, nil, nil); !errors.Is(err, ErrDisclosureDenied) {
 		t.Fatal("FULL consumer without a current stamp accepted", err)
 	}
-	q := uoRootReference{root: root, kind: USMemberLibraries, identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, request: RequestDigest{3}}
+	q := uoRootSecurityRef(root)
 	// With no current stamp there is no binding, so retained custody is
 	// unreachable even though the owner/receipt rows still exist.
 	if _, err := lookupUORootCommand(t.Context(), turn, nil, q); !errors.Is(err, ErrInvalid) {
@@ -154,40 +186,191 @@ func TestUORootStaleInstallationRegistrationDeniesBeforeCustody(t *testing.T) {
 	}
 }
 
-func TestUORootBindingRefusesNilAndForeignStamps(t *testing.T) {
-	w, proof, root := uoRootSecurityFixture(t)
-	ordinaryTurn := wc008NativeTurn(t, w, SetPersonalFlags, uoRootDefinitions())
-	ordinary, err := bindUORoot(ordinaryTurn, nil)
-	if err != nil {
+// The NORMAL arm is a closed seam until SOL-USERS's us_current_fence mint lands.
+// It refuses nil, zero, well-shaped, prior, finished and rolled-back proofs with
+// the same typed error; a US stamp cannot substitute and vice versa.
+func TestUORootNormalSeamRefusesWithoutMint(t *testing.T) {
+	w := wc008NativeExecutor(t)
+	normal := wc008NativeTurn(t, w, SetPersonalFlags, uoRootDefinitions())
+	if _, err := bindUORoot(normal, nil, nil); !errors.Is(err, ErrUORootCurrentFenceUnavailable) {
+		t.Fatal("nil NORMAL proof not the typed seam", err)
+	}
+	if _, err := bindUORoot(normal, nil, &uoRootCurrentProof{}); !errors.Is(err, ErrUORootCurrentFenceUnavailable) {
+		t.Fatal("zero NORMAL proof not the typed seam", err)
+	}
+	valid := uoRootNormalProof(t, normal)
+	// The shape is complete, but the authorized mint does not exist yet.
+	if _, err := bindUORoot(normal, nil, valid); !errors.Is(err, ErrUORootCurrentFenceUnavailable) {
+		t.Fatal("unminted NORMAL proof not the typed seam", err)
+	}
+	if _, err := bindUORoot(normal, &usOwnerAuthorization{}, nil); !errors.Is(err, ErrInvalid) {
+		t.Fatal("NORMAL purpose borrowed a US stamp", err)
+	}
+	if _, err := normal.transaction.rollback(nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ordinaryTurn.transaction.rollback(nil); err != nil {
+	if _, err := bindUORoot(normal, nil, valid); !errors.Is(err, ErrInvalid) {
+		t.Fatal("rolled-back frame itself not refused", err)
+	}
+
+	finished := wc008NativeTurn(t, w, SetPersonalFlags, uoRootDefinitions())
+	finishedProof := uoRootNormalProof(t, finished)
+	if _, err := finished.transaction.commit(); err != nil {
 		t.Fatal(err)
 	}
-	firstTurn, firstBinding := uoRootSecurityTurn(t, w, proof)
-	q := uoRootReference{root: root, kind: USMemberLibraries, identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, request: RequestDigest{3}}
-	if _, err := lookupUORootCommand(t.Context(), firstTurn, &ordinary, q); !errors.Is(err, ErrDisclosureDenied) {
-		t.Fatal("ordinary binding reached a FULL turn's custody", err)
+	if _, err := bindUORoot(finished, nil, finishedProof); !errors.Is(err, ErrInvalid) {
+		t.Fatal("finished frame itself not refused", err)
 	}
-	if _, err := bindUORoot(firstTurn, nil); !errors.Is(err, ErrDisclosureDenied) {
-		t.Fatal("FULL consumer without US stamp accepted", err)
+
+	prior := wc008NativeTurn(t, w, SetPersonalFlags, uoRootDefinitions())
+	priorProof := uoRootNormalProof(t, prior)
+	if _, err := prior.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := firstTurn.transaction.rollback(nil); err != nil {
+	current := wc008NativeTurn(t, w, SetPersonalFlags, uoRootDefinitions())
+	if _, err := bindUORoot(current, nil, priorProof); !errors.Is(err, ErrUORootCurrentFenceUnavailable) {
+		t.Fatal("prior-frame proof not refused", err)
+	}
+	if err := priorProof.current(current); !errors.Is(err, ErrUORootCurrentFenceUnavailable) {
+		t.Fatal("prior-frame proof validated on another frame", err)
+	}
+
+	securityW, proof, _ := uoRootSecurityFixture(t)
+	securityTurn, securityBinding := uoRootSecurityTurn(t, securityW, proof)
+	if _, err := bindUORoot(securityTurn, securityBinding.security, valid); !errors.Is(err, ErrInvalid) {
+		t.Fatal("FULL consumer accepted a NORMAL proof", err)
+	}
+	if _, err := securityTurn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func uoRootNormalProof(t *testing.T, turn *commandTurn) *uoRootCurrentProof {
+	t.Helper()
+	deadline, ok := turn.transaction.ctx.Deadline()
+	if !ok {
+		t.Fatal("turn has no deadline")
+	}
+	return &uoRootCurrentProof{turn: turn, purpose: SetPersonalFlags, lifetime: t.Context(), deadline: deadline, identity: uoRootIdentity{account: "account", memberIncarnation: "member", profile: "profile", profileLifetime: "lifetime", installation: "installation", family: "family"}}
+}
+
+// B1: the root PK is read before the command-owner lookup and must match the
+// validated stamp identity. Missing and every mismatch are one ErrUORootGone
+// class on lookup, fresh persistence and original replay.
+func TestUORootForeignRootIdentityIsGone(t *testing.T) {
+	changes := map[string]string{
+		"account":      `account_id='other-account'`,
+		"membership":   `account_incarnation='other-membership'`,
+		"profile":      `profile_id='other-profile'`,
+		"lifetime":     `profile_incarnation='dddddddddddddddddddddddddddddddd'`,
+		"family":       `family_id='other-family'`,
+		"installation": `installation_incarnation='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'`,
+	}
+	for name, set := range changes {
+		t.Run(name, func(t *testing.T) {
+			w, proof, root := uoRootSecurityFixture(t)
+			q := uoRootSecurityRef(root)
+			wc008NativeExec(t, w, `UPDATE user_mutation_roots SET `+set+` WHERE id=?`, root)
+			turn, binding := uoRootSecurityTurn(t, w, proof)
+			if _, err := lookupUORootCommand(t.Context(), turn, binding, q); !errors.Is(err, ErrUORootGone) {
+				t.Fatal("foreign root identity passed lookup", err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+
+			// Fresh persistence rechecks the same identity after the lookup.
+			w, proof, root = uoRootSecurityFixture(t)
+			q = uoRootSecurityRef(root)
+			turn, binding = uoRootSecurityTurn(t, w, proof)
+			lookup, err := lookupUORootCommand(t.Context(), turn, binding, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET `+set+` WHERE id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := persistUORootOperation(t.Context(), turn, lookup, uoOperationResult{status: 2, revision: 1, appliedMS: 100, target: "foreign"}); !errors.Is(err, ErrUORootGone) {
+				t.Fatal("foreign root identity passed persist", err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+
+			// Original replay is refused under the same class.
+			w, proof, root, q = uoRootPersisted(t)
+			wc008NativeExec(t, w, `UPDATE user_mutation_roots SET `+set+` WHERE id=?`, root)
+			turn, binding = uoRootSecurityTurn(t, w, proof)
+			if _, err := lookupUORootCommand(t.Context(), turn, binding, q); !errors.Is(err, ErrUORootGone) {
+				t.Fatal("foreign root identity passed replay", err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	// A missing root uses the identical class as a mismatched one.
+	w, proof, _ := uoRootSecurityFixture(t)
+	missing := uoRootReference{root: "zyxwvutsrqponmlkjihgfe", kind: USMemberLibraries, identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, request: RequestDigest{3}}
+	turn, binding := uoRootSecurityTurn(t, w, proof)
+	if _, err := lookupUORootCommand(t.Context(), turn, binding, missing); !errors.Is(err, ErrUORootGone) {
+		t.Fatal("missing root is not RootGone", err)
+	}
+}
+
+// B3: an active root admits Fresh and replay; a draining root admits only an
+// authorized original replay, never Fresh, and persistence rechecks active. A
+// draining root does not have to be the installation's newest root.
+func TestUORootDrainingRootReplaysOnly(t *testing.T) {
+	w, proof, root, q := uoRootPersisted(t)
+	wc008NativeExec(t, w, `UPDATE user_mutation_roots SET state='draining' WHERE id=?`, root)
+	// A newer active root for the same installation does not invalidate the
+	// draining root's authorized original replay.
+	wc008NativeExec(t, w, `INSERT INTO user_mutation_roots(id,installation_incarnation,account_id,profile_id,account_incarnation,profile_incarnation,family_id,registration_revision,state) SELECT 'zyxwvutsrqponmlkjihgfe',installation_incarnation,account_id,profile_id,account_incarnation,profile_incarnation,family_id,registration_revision+1,'active' FROM user_mutation_roots WHERE id=?`, root)
+	turn, binding := uoRootSecurityTurn(t, w, proof)
+	replay, err := lookupUORootCommand(t.Context(), turn, binding, q)
+	if err != nil || replay.decision != receiptReplay {
+		t.Fatal("draining root did not replay its original", replay.decision, err)
+	}
+	want := uoOperationResult{status: 2, revision: 1, appliedMS: 100, target: "operation"}
+	if got, err := restoreUORootOperation(t.Context(), turn, replay); err != nil || got != want {
+		t.Fatal(got, err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
 		t.Fatal(err)
 	}
 
-	// A stamp for a closed turn cannot be replayed on a later turn.
-	secondTurn, _ := uoRootSecurityTurn(t, w, proof)
-	if _, err := bindUORoot(secondTurn, firstBinding.security); !errors.Is(err, ErrDisclosureDenied) {
-		t.Fatal("stamp for another turn accepted", err)
+	// Fresh under a draining root is RootGone, even after the predecessor ACK.
+	wc008NativeExec(t, w, `UPDATE user_mutation_command_owners SET acknowledged_command_sequence=1 WHERE root_id=?`, root)
+	next := q
+	next.identity.Sequence = 2
+	turn, binding = uoRootSecurityTurn(t, w, proof)
+	if _, err := lookupUORootCommand(t.Context(), turn, binding, next); !errors.Is(err, ErrUORootGone) {
+		t.Fatal("draining root admitted Fresh", err)
 	}
-	if err := firstBinding.check(t.Context(), secondTurn); !errors.Is(err, ErrDisclosureDenied) {
-		t.Fatal("foreign binding checked another turn", err)
-	}
-	if _, err := secondTurn.transaction.rollback(nil); err != nil {
+	if _, err := turn.transaction.rollback(nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := bindUORoot(wc008NativeTurn(t, w, SetPersonalFlags, uoRootDefinitions()), firstBinding.security); !errors.Is(err, ErrInvalid) {
-		t.Fatal("NORMAL purpose borrowed a US stamp", err)
+
+	// Persistence rechecks active after a fresh lookup.
+	w, proof, root = uoRootSecurityFixture(t)
+	q = uoRootSecurityRef(root)
+	turn, binding = uoRootSecurityTurn(t, w, proof)
+	lookup, err := lookupUORootCommand(t.Context(), turn, binding, q)
+	if err != nil || lookup.decision != receiptFresh {
+		t.Fatal(lookup.decision, err)
+	}
+	if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET state='draining' WHERE id=?`, root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := persistUORootOperation(t.Context(), turn, lookup, uoOperationResult{status: 2, revision: 1, appliedMS: 100, target: "draining"}); !errors.Is(err, ErrUORootGone) {
+		t.Fatal("persistence did not recheck active", err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	var receipts int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM user_mutation_command_receipts WHERE root_id=?`, root).Scan(&receipts); err != nil || receipts != 0 {
+		t.Fatal("draining persistence left a receipt", receipts, err)
 	}
 }

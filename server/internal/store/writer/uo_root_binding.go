@@ -1,20 +1,80 @@
 package writer
 
-import "context"
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"time"
+	"unicode/utf8"
+)
+
+// ErrUORootGone is the single error class for a root that is not the live owner
+// for the validated identity: missing, deleted, or any account/membership,
+// profile lifetime, installation or family mismatch. A gone root may neither
+// apply nor replay, and missing and mismatched roots are indistinguishable.
+var ErrUORootGone = errors.New("writer UO root is gone")
+
+// ErrUORootCurrentFenceUnavailable is the typed NORMAL seam until SOL-USERS's
+// writer/us_current_fence.go supplies its only mint. It is not a retry signal
+// and never means the root is gone.
+var ErrUORootCurrentFenceUnavailable = errors.New("writer UO root current fence unavailable")
+
+// uoRootIdentity is the exact validated scope a retained root original must
+// still match. It is filled only from a validated US-01 stamp (FULL) or, once
+// the mint lands, from its opaque NORMAL proof. A caller string never fills it.
+type uoRootIdentity struct {
+	account, memberIncarnation, profile, profileLifetime, installation, family string
+}
+
+func (i uoRootIdentity) complete() bool {
+	for _, v := range []string{i.account, i.memberIncarnation, i.profile, i.profileLifetime, i.installation, i.family} {
+		if v == "" || !utf8.ValidString(v) {
+			return false
+		}
+	}
+	return true
+}
+
+// uoRootCurrentProof is the opaque NORMAL current-session proof seam. Its only
+// future producer is Sol's writer/us_current_fence.go mint; this file defines no
+// constructor and no exported field, so no caller bool, string or cached issuer
+// can stand in for it. Until that mint lands every NORMAL root command refuses
+// with ErrUORootCurrentFenceUnavailable. The frame, purpose, lifetime, deadline
+// and identity fields are what the mint will bind and what a reuse must fail.
+type uoRootCurrentProof struct {
+	turn     *commandTurn
+	purpose  CommandID
+	lifetime context.Context
+	deadline time.Time
+	identity uoRootIdentity
+}
+
+func (p *uoRootCurrentProof) current(turn *commandTurn) error {
+	if p == nil || turn == nil || turn.transaction == nil || turn.transaction.ctx == nil || p.turn != turn || p.lifetime == nil || p.lifetime.Err() != nil || p.purpose != turn.transaction.descriptor.ID || !turn.transaction.begun || turn.transaction.done || !p.identity.complete() {
+		return ErrUORootCurrentFenceUnavailable
+	}
+	deadline, ok := turn.transaction.ctx.Deadline()
+	if !ok || !p.deadline.Equal(deadline) {
+		return ErrUORootCurrentFenceUnavailable
+	}
+	return nil
+}
 
 // uoRootBinding is the only door from a domain command into the shared lifetime
 // root's retained owner/receipt/payload custody. It mints no authority and adds
-// no issuer: the sole non-test owner mint remains authorizeUSOwnerPolicy.
+// no issuer: the FULL arm consumes the reviewed US-01 stamp unchanged, and the
+// NORMAL arm can only present a private us_current_fence proof.
 //
 // Followers UO-02, UO-03, UO-05 and later copy exactly this rule: bind once at
-// entry, check before the first retained lookup, and recheck before releasing a
-// payload or digest. A NORMAL parent purpose uses its own current fence; a FULL
-// security consumer must present US-01's current owner stamp for this SAME turn.
+// entry, check before the first retained lookup, recheck root identity/state and
+// current authority at final release, and never substitute a caller bool, family
+// string or frozen issuer for the proof.
 type uoRootBinding struct {
 	security *usOwnerAuthorization
+	identity uoRootIdentity
 }
 
-func bindUORoot(turn *commandTurn, security *usOwnerAuthorization) (out uoRootBinding, err error) {
+func bindUORoot(turn *commandTurn, security *usOwnerAuthorization, current *uoRootCurrentProof) (out uoRootBinding, err error) {
 	if turn == nil || turn.transaction == nil || !turn.transaction.begun || turn.transaction.done {
 		return out, ErrInvalid
 	}
@@ -25,35 +85,88 @@ func bindUORoot(turn *commandTurn, security *usOwnerAuthorization) (out uoRootBi
 	}
 	switch descriptor.Durability {
 	case Normal:
-		// Ordinary user roots owe no US security stamp. Their parent command
-		// already owns the current profile/device fence.
+		// Durability does not select authority. There is no interactive owner
+		// token for background delivery/outbox either; those need their own
+		// reviewed lease/credential-generation proof.
 		if security != nil {
 			return out, ErrInvalid
 		}
+		if current == nil {
+			return out, ErrUORootCurrentFenceUnavailable
+		}
+		if err := current.current(turn); err != nil {
+			return out, err
+		}
+		// The proof shape is closed, but its authorized mint is not available
+		// yet. Refusing here is the seam; do not invent a second mint.
+		return out, ErrUORootCurrentFenceUnavailable
 	case Full:
-		// A FULL security consumer is exactly the case this stamp exists for.
+		if current != nil {
+			return out, ErrInvalid
+		}
 		if security == nil || security.turn != turn {
 			return out, ErrDisclosureDenied
 		}
+		identity := uoRootIdentity{
+			account:           security.proof.witness.issuer.account,
+			memberIncarnation: security.proof.witness.issuer.memberIncarnation,
+			profile:           security.proof.witness.issuer.profile,
+			profileLifetime:   security.proof.witness.issuer.profileLifetime,
+			installation:      security.proof.witness.issuer.installation,
+			family:            security.proof.witness.issuer.family,
+		}
+		if !identity.complete() {
+			return out, ErrDisclosureDenied
+		}
+		return uoRootBinding{security: security, identity: identity}, nil
 	default:
 		return out, ErrInvalid
 	}
-	return uoRootBinding{security: security}, nil
 }
 
 func (b *uoRootBinding) check(ctx context.Context, turn *commandTurn) error {
 	if b == nil || turn == nil || turn.transaction == nil || turn.transaction.done {
 		return ErrDisclosureDenied
 	}
-	if turn.transaction.descriptor.Durability == Full {
+	switch turn.transaction.descriptor.Durability {
+	case Full:
 		if b.security == nil || b.security.turn != turn {
 			return ErrDisclosureDenied
 		}
 		// US-01 re-runs every independent current source check on this turn.
 		return b.security.recheck(ctx, turn)
-	}
-	if turn.transaction.descriptor.Durability != Normal || b.security != nil {
+	case Normal:
+		// No us_current_fence mint exists yet, so no Normal binding can be
+		// trusted even if one was somehow retained.
+		return ErrUORootCurrentFenceUnavailable
+	default:
 		return ErrDisclosureDenied
 	}
-	return turn.checkLifetimes(ctx)
+}
+
+// root reads the native root PK before any command-owner/header/payload access
+// and proves it is the live owner for this binding's validated identity. A miss
+// and every identity mismatch return the same ErrUORootGone class.
+func (b *uoRootBinding) root(ctx context.Context, turn *commandTurn, rootID string) (state string, err error) {
+	if b == nil || turn == nil || !b.identity.complete() || len(rootID) != 22 {
+		return "", ErrUORootGone
+	}
+	row, err := wc008DraftQuery(ctx, turn, uoRootIdentityPoint, rootID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrUORootGone
+	}
+	if err != nil {
+		return "", err
+	}
+	var account, profile, accountIncarnation, profileIncarnation, family, installation, rootState string
+	if err = row.Scan(&account, &profile, &accountIncarnation, &profileIncarnation, &family, &installation, &rootState); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrUORootGone
+		}
+		return "", err
+	}
+	if account != b.identity.account || profile != b.identity.profile || accountIncarnation != b.identity.memberIncarnation || profileIncarnation != b.identity.profileLifetime || family != b.identity.family || installation != b.identity.installation || (rootState != "active" && rootState != "draining") {
+		return "", ErrUORootGone
+	}
+	return rootState, nil
 }
