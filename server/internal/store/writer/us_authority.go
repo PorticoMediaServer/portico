@@ -83,9 +83,11 @@ func (b usOwnerAuthorityBudget) check(ctx context.Context, turn *commandTurn, by
 	// consumer must be reviewed with its own additional admission conditions.
 	// 520 is admitted only for the ordinary local owner password replacement,
 	// whose own composition refuses every non-own-account target and any
-	// reset/factor/credential family.
+	// reset/factor/credential family. US-09 (532/533) adds the caller's
+	// own-account PIN composition; its extra conditions live in
+	// us_pin_receipts.go, not here.
 	switch tx.descriptor.ID {
-	case USMemberLibraries, USProfileLibraries, usLocalPasswordReplace:
+	case USMemberLibraries, USProfileLibraries, usLocalPasswordReplace, usPINSet, usPINClear:
 	default:
 		return ErrInvalid
 	}
