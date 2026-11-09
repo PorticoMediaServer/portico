@@ -16,6 +16,8 @@ class PolicyTests(unittest.TestCase):
         self.assertTrue(components(['server/deleted/file.go'])[1])
         self.assertEqual(components(['unknown.config']),components([],True))
         self.assertIn('apps/native',components(['packages/client-core/src/auth.ts'])[0])
+    def test_server_next_is_independent(self):
+        self.assertEqual(components(['server-next/go.mod', 'server-next/internal/db/schema.sql']), ([], False))
     def test_stream(self): self.assertEqual(decode_stream('{}\n{}'),[{},{}])
     def test_aggregate_absent_cancelled_skipped(self):
         p={'packages':[],'js':[]}; n={k:{'result':v} for k,v in [('planner','success'),('hygiene','success'),('go_build','skipped'),('go_vet_cross','skipped'),('go_tests','skipped'),('decoder_sandbox','skipped'),('js','skipped'),('js_static','skipped'),('android','skipped')]}
@@ -24,6 +26,12 @@ class PolicyTests(unittest.TestCase):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as directory, patch('run.ROOT',Path(directory)):
             aggregate(p,n)
+            for enabled in (False, True):
+                selected = dict(p, server_next=enabled)
+                results = dict(n, server_next={'result': 'success' if enabled else 'skipped'})
+                aggregate(selected, results)
+                with self.assertRaises(ValueError):
+                    aggregate(selected, dict(results, server_next={'result': 'failure'}))
             for state in ['cancelled','failure',None,'success']:
                 bad=dict(n); bad['go_tests']={'result':state}
                 with self.assertRaises(ValueError): aggregate(p,bad)
