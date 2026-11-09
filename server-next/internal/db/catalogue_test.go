@@ -73,10 +73,8 @@ func everything(t *testing.T, d *db.DB, v db.Viewer, q db.ItemQuery) []db.Item {
 // importing the same tree again writes nothing: every folder, file and item is found by its key.
 func TestImportIsSoundAndRepeatable(t *testing.T) {
 	l := newLibrary(t, 3000)
-	for _, v := range l.viewers {
-		if _, err := seed.State(ctx, l.d, v, 300, 7); err != nil {
-			t.Fatal(err)
-		}
+	if rows, err := seed.State(ctx, l.d, l.viewers, 300, 7); err != nil || rows < 2000 {
+		t.Fatalf("seeding state wrote %d rows: %v", rows, err)
 	}
 	if err := l.d.Check(ctx); err != nil {
 		t.Fatal(err)
