@@ -210,7 +210,7 @@ func mgGuideNativeTime(ctx context.Context, t *commandTurn) (out int64, err erro
 		return 0, ErrInvalid
 	}
 	switch t.transaction.descriptor.ID {
-	case MGGuideBegin, MGGuideStageChannels, MGGuideStageProgrammes, MGGuideStageChoices:
+	case MGGuideBegin, MGGuideStageChannels, MGGuideStageProgrammes, MGGuideStageChoices, MGGuideSeal, MGGuidePublish:
 	default:
 		return 0, ErrInvalid
 	}
