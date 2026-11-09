@@ -733,6 +733,7 @@ func TestUSCredentialPostCommitCallerCancel(t *testing.T) {
 		t.Fatal("committed receipt missing", n)
 	}
 	// Retry: the same original resolves, without the first-response secret.
+	before := usCredentialCount(t, w, `SELECT total_changes()`)
 	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
 	replay, _, err := runUSCredentialDispatch(t.Context(), turn, a, &usCredentialInvocation{request: usCredentialInput(t, command).request})
 	if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed {
@@ -742,6 +743,80 @@ func TestUSCredentialPostCommitCallerCancel(t *testing.T) {
 		t.Fatal("retry re-disclosed the sealed wire", replay)
 	}
 	usCredentialScanValue(t, "cancelled retry", replay)
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_credentials`); n != 1 {
+		t.Fatal("retry re-applied the source", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 0 {
+		t.Fatal("retry appended an event", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 1 {
+		t.Fatal("retry wrote a second receipt", n)
+	}
+	if after := usCredentialCount(t, w, `SELECT total_changes()`); after != before {
+		t.Fatal("retry made new effects", before, after)
+	}
+}
+
+// The same withdrawal applies to 522: a caller cancellation after the physical
+// COMMIT must publish nothing, and a retry resolves the ORIGINAL with no second
+// marker, device revision bump, hint event or receipt.
+func TestUSCredentialRevokePostCommitCallerCancel(t *testing.T) {
+	w, proof := usCredentialAuthorityFixture(t, false)
+	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+	r := usCredentialRegistry(t)
+	issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+	revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
+	var path string
+	if err := w.db.QueryRowContext(t.Context(), `SELECT file FROM pragma_database_list WHERE name='main'`).Scan(&path); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(path, w.config, sqliteconn.ExistingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	fault := &faultConnector{Connector: connector, afterNativeCommit: cancel}
+	installFaultPool(w, fault)
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+	out, floor, err := runUSCredentialDispatch(ctx, turn, a, usCredentialInput(t, revoke))
+	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("late caller cancel published output", out, floor, err)
+	}
+	if fault.commits.Load() != 1 {
+		t.Fatal("physical COMMIT did not happen", fault.commits.Load())
+	}
+	credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 1 {
+		t.Fatal("committed 522 receipt missing", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 1 {
+		t.Fatal("committed 522 hint missing", n)
+	}
+	// Retry: the same original resolves with no second source, marker, family,
+	// device, hint or receipt effect.
+	before := usCredentialCount(t, w, `SELECT total_changes()`)
+	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+	replay, _, err := runUSCredentialDispatch(t.Context(), turn, a, &usCredentialInvocation{request: usCredentialInput(t, revoke).request})
+	if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed || replay.Value.state != "revoked" || replay.Value.revokedMS <= 0 {
+		t.Fatal("retry did not resolve the original", replay, err)
+	}
+	credentialAgain, familyAgain, deviceAgain := usCredentialRevokeRows(t, w)
+	if credentialAgain != credentialAfter || familyAgain != familyAfter || deviceAgain != deviceAfter {
+		t.Fatal("retry wrote a source/family/device effect")
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 1 {
+		t.Fatal("retry appended an event", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT revision FROM identity_devices WHERE id=?`, usCredentialDeviceID); n != 2 {
+		t.Fatal("retry bumped the device revision", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 1 {
+		t.Fatal("retry wrote a second receipt", n)
+	}
+	if after := usCredentialCount(t, w, `SELECT total_changes()`); after != before {
+		t.Fatal("retry made new effects", before, after)
+	}
 }
 
 // A canceled preparation denies before any read and writes nothing.
@@ -847,6 +922,9 @@ func TestUSCredentialRecheckFunding(t *testing.T) {
 	}
 	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_credentials`); n != 0 {
 		t.Fatal("unfunded dispatch wrote source", n)
+	}
+	if usCredentialDispatchRechecks != 10 {
+		t.Fatal("declared recheck count changed without a funding review")
 	}
 }
 

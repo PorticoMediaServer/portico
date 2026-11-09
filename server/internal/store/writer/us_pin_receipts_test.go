@@ -612,6 +612,9 @@ func TestUSPINDispatchRecheckFunding(t *testing.T) {
 	if usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 0 {
 		t.Fatal("unfunded dispatch wrote a receipt")
 	}
+	if usPINDispatchRechecks != 10 {
+		t.Fatal("declared recheck count changed without a funding review")
+	}
 }
 
 // A denial at the entry or final release REPLACES the body outcome and rolls
@@ -673,6 +676,64 @@ func TestUSPINCanceledReleaseDeniesAndRollsBack(t *testing.T) {
 			t.Fatal("release-time denial left the applied prefix", revision, pinRevision, present)
 		}
 	})
+}
+
+// A caller cancellation landing only AFTER the physical COMMIT must withdraw the
+// publication: zero output and zero Image. The COMMIT is durable, so a retry on
+// a fresh caller context resolves the ORIGINAL through the receipt without a
+// second source effect, event or revision bump. Deleting the deferred final
+// publication in runUSPINDispatch makes this test publish the committed result.
+func TestUSPINDispatchCanceledAfterCommitPublishesNothing(t *testing.T) {
+	h := usPINDispatchFixture(t)
+	command := h.command(t, usPINSet, usPINIdentity(1), h.issuer.profile, h.issuer.profileLifetime, 1, 1)
+	inv := h.input(t, command)
+	turn, a, _ := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
+	caller, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	// Cancel from the first trusted clock sample AFTER COMMIT is attempted:
+	// physically the COMMIT has returned, and no pre-terminal context check
+	// remains. Only the deferred final publication can still clear the result.
+	originalNow := h.w.now
+	cancelled := false
+	h.w.now = func() time.Time {
+		if !cancelled && turn.transaction.commitAttempted && !turn.transaction.done {
+			cancelled = true
+			cancel()
+		}
+		return originalNow()
+	}
+	out, err := runUSPINDispatch(caller, turn, a, inv)
+	h.w.now = originalNow
+	if !cancelled || !errors.Is(err, context.Canceled) || !reflect.DeepEqual(out, usPINOutcome{}) {
+		t.Fatal("post-commit cancellation published a result", out, err)
+	}
+	revision, pinRevision, present := h.source(t, h.issuer.profile)
+	if revision != 2 || pinRevision != 2 || present != 1 ||
+		usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 1 ||
+		usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences WHERE scope_kind='profile_pin'`) != 1 {
+		t.Fatal("original source/receipt state", revision, pinRevision, present)
+	}
+	// Retry on a fresh caller context: the receipt returns the committed
+	// ORIGINAL, and the source is not applied a second time.
+	before := usPINQuery(t, h.w, `SELECT total_changes()`)
+	retry, err := h.dispatch(t, usPINSet, &usPINInvocation{request: inv.request})
+	if err != nil || retry.Result.Outcome.State != Applied || !retry.Result.Outcome.Replayed || retry.Floor.AcknowledgedThrough != 0 {
+		t.Fatal("retry did not resolve the original", retry, err)
+	}
+	if retry.Result.Value.revision != 2 || retry.Result.Value.pinRevision != 2 || !retry.Result.Value.pinRequired || retry.Result.Digest == (ResultDigest{}) {
+		t.Fatal("retry lost the original value", retry.Result.Value)
+	}
+	// A retried 532 has no fresh caller Image: the retained result body is the
+	// complete primitive result, never a source-derived snapshot.
+	if retry.Result.Image.Profile != nil || retry.Result.ImageBytes != 0 {
+		t.Fatal("retry rebuilt a response image", retry.Result.Image)
+	}
+	revision, pinRevision, present = h.source(t, h.issuer.profile)
+	if revision != 2 || pinRevision != 2 || present != 1 ||
+		usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 1 ||
+		usPINQuery(t, h.w, `SELECT total_changes()`) != before {
+		t.Fatal("retry re-applied the source", revision, pinRevision, present)
+	}
 }
 
 // This bounded composition admits only the caller's own account. A target
@@ -816,12 +877,15 @@ func TestUSPINHashNeverEscapesAndReplayAfterDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []any{got, got.Result, got.Result.Value, got.Result.Image, err} {
+	scan := func(value any) {
 		for _, rendered := range []string{fmt.Sprintf("%v", value), fmt.Sprintf("%+v", value), fmt.Sprintf("%#v", value)} {
 			if strings.Contains(rendered, string(h.hash)) || strings.Contains(rendered, "$2a$08$") {
 				t.Fatal("prepared hash escaped", rendered)
 			}
 		}
+	}
+	for _, value := range []any{got, got.Result, got.Result.Value, got.Result.Image} {
+		scan(value)
 	}
 	// Drift every live source fact the original image named, then replay: the
 	// saved result and digest are unchanged and no image is rebuilt. The turn is
@@ -845,6 +909,12 @@ func TestUSPINHashNeverEscapesAndReplayAfterDrift(t *testing.T) {
 		// Revoking the current family is a current-source denial, not a replay.
 		t.Fatal("drifted current authority was not denied", replay, err)
 	}
+	// The successful run above returned nil, so scan the ACTUAL failing error
+	// strings too: no prepared hash may ride an error out of a denial.
+	if err == nil {
+		t.Fatal("denied replay carried no error")
+	}
+	scan(err)
 	// The denied turn rolled its drift back; restore current authority but
 	// re-apply the original's source facts as drift for the replay.
 	wc008NativeExec(t, h.w, `UPDATE direct_memberships SET role='owner' WHERE account_id=?`, h.issuer.account)

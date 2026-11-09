@@ -35,9 +35,13 @@ const (
 	usPINOwnerReceipts     int64 = 64
 	usPINOwnerReceiptBytes int64 = 1 << 20
 
-	// Three dispatcher-owned rechecks: entry, the scoped owner re-read that
-	// settles retirement/quota, and the final current disclosure.
-	usPINDispatchRechecks int64 = 3
+	// Ten dispatcher-owned rechecks bound one fresh dispatch: the entry recheck
+	// before any owner or payload read, the scoped owner re-read that settles
+	// retirement/quota, the lookup custody's entry and deferred pre-terminal
+	// rechecks plus the lookup release check, the store's own entry and deferred
+	// rechecks plus the store custody's entry and deferred pre-terminal checks,
+	// and the final current disclosure before the terminal.
+	usPINDispatchRechecks int64 = 10
 	usPINRecheckBytes     int64 = 64 << 10
 )
 
@@ -71,8 +75,9 @@ func (usPINDispatchResult) Format(f fmt.State, _ rune) {
 
 // usPINOutcome is the closed dispatch completion. It deliberately carries no
 // released command result type or bare AckResult: the release rule runs BEFORE
-// the physical terminal, so a deferred finish here would misreport a committed
-// command as canceled.
+// the physical terminal, so only a LIFETIME-based deferred finish there would
+// misreport a committed command as canceled. The deferred final publication in
+// runUSPINDispatch uses the CALLER's context instead.
 type usPINOutcome struct {
 	Result     usPINDispatchResult
 	Floor      AckResult
@@ -565,6 +570,10 @@ func executeUSPINInvocation(ctx context.Context, turn *commandTurn, a *usOwnerAu
 // disclosure and the FULL physical terminal; the caller supplies only the
 // already admitted turn.
 func runUSPINDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, inv *usPINInvocation) (out usPINOutcome, err error) {
+	defer func() {
+		v, e := finishCommand(ctx, ctx, out, err)
+		out, err = v, e
+	}()
 	out, err = executeUSPINInvocation(ctx, turn, a, inv)
 	if err != nil {
 		return withdrawUSPIN(turn, err)
@@ -578,8 +587,13 @@ func runUSPINDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAuthoriz
 		return withdrawUSPIN(turn, ctxErr)
 	}
 	// The release rule runs BEFORE the terminal: the transaction cancels its own
-	// lifetime at commit/rollback, so a deferred finish afterwards would misreport
-	// a committed command as canceled.
+	// lifetime at commit/rollback, so this release uses the live frame lifetime.
+	// The deferred final publication rechecks the CALLER's context after
+	// physical return. It mirrors dispatchCommand's caller-context recheck but
+	// does not join currentCommandDisclosure / tx.lifetimeErr; before any
+	// production entry that defer must also check the in-memory a.lifetime.Err()
+	// and turn.transaction.lifetimeErr. Do NOT call a.recheck there: it denies
+	// once transaction.done is set (us_authority.go:296).
 	release, releaseErr := finishCommand(ctx, commandLifetime(turn), out, nil)
 	if releaseErr != nil {
 		return withdrawUSPIN(turn, releaseErr)
