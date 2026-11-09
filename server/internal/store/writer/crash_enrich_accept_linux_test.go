@@ -69,6 +69,7 @@ func enrichCrashWithDonor(t *testing.T, fn func(*testing.T, *enrichCrashDonor)) 
 		enrichCrashPinLibraries(t, e)
 		enrichCrashPinImage(t, e, image.id)
 		cmd := acceptRequestFixture(t, e, f, begin, image, result)
+		enrichCrashPinPolicy(t, e)
 		w, cap, q, _ := acceptRuntime(t, e, begin, cmd)
 		fn(t, &enrichCrashDonor{e: e, begin: begin, cmd: cmd, w: w, cap: cap, q: q, image: image, result: result})
 	})
@@ -104,6 +105,25 @@ func enrichCrashPinImage(t *testing.T, e *executor, imageID int64) {
 	}
 	if n, err := result.RowsAffected(); err != nil || n != 1 {
 		t.Fatal("pin hidden image incarnation", n, err)
+	}
+}
+
+// D gives provider policy its own random command incarnation. The EN accept
+// fixture does not use that IP command identity, but the raw checkpoint includes
+// it. Pin the one fixture row for the control and each child; compare every
+// column unchanged rather than filtering it out of the crash oracle.
+func enrichCrashPinPolicy(t *testing.T, e *executor) {
+	t.Helper()
+	pinned := make([]byte, 16)
+	for i := range pinned {
+		pinned[i] = byte(0xc0 + i)
+	}
+	result, err := e.db.ExecContext(t.Context(), `UPDATE metadata_provider_policy SET command_incarnation=? WHERE library_id=7 AND provider='tmdb'`, pinned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := result.RowsAffected(); err != nil || n != 1 {
+		t.Fatal("pin provider policy command incarnation", n, err)
 	}
 }
 
