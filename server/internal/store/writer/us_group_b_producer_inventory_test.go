@@ -517,7 +517,7 @@ func TestUSGroupBProducerInventoryOtherSources(t *testing.T) {
 // after the embed (44411dfe), adopted E artwork (49b3df34), D provider/person
 // storage (7462ff76), and F media (484242fb). Historical captures retain their
 // source/schema pair; only exact adopted prefixes are recognized.
-var usGroupBSchemaSHAPrefixes = []string{"9d9aa39d", "782904d7", "44411dfe", "49b3df34", "7462ff76", "484242fb"}
+var usGroupBSchemaSHAPrefixes = []string{"9d9aa39d", "782904d7", "44411dfe", "49b3df34", "7462ff76", "484242fb", "81d6971a"}
 
 var usGroupBSchemaGuardReference = regexp.MustCompile(`progressCrashSchema|requires schema[0-9]{3}`)
 
@@ -537,6 +537,8 @@ type usGroupBSchemaGuard struct {
 }
 
 var usGroupBSchemaGuards = []usGroupBSchemaGuard{
+	{File: "server/internal/store/writer/ia_c019_fixture_test.go", Literals: 1, Guards: "C019 complete adopted fixture guard; no DDL overlay", HashOnly: true},
+	{File: "server/internal/store/read/ia_c019_fixture_test.go", Literals: 1, Guards: "C019 complete adopted fixture guard; no DDL overlay", HashOnly: true},
 	{File: "server/internal/store/writer/testdata/wc-progress-composition.json", Literals: 1, Guards: "F018 actual native VM capture schema binding; preserve manifests and record only observed VM changes", HashOnly: false},
 	{File: "server/internal/store/writer/testdata/wc-progress-capture_start.json", Literals: 1, Guards: "F018 actual native VM capture schema binding; preserve manifests and record only observed VM changes", HashOnly: false},
 	{File: "server/internal/store/writer/testdata/wc-progress-pending_drain.json", Literals: 1, Guards: "F018 actual native VM capture schema binding; preserve manifests and record only observed VM changes", HashOnly: false},

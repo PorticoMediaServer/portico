@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -31,13 +30,7 @@ const (
 func iaEpisodeAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-episode-accept-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
+	requireC019Fixture(t)
 	for _, query := range []struct {
 		sql  string
 		args []any

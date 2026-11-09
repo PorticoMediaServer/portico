@@ -3,7 +3,6 @@ package writer
 import (
 	"errors"
 	"math"
-	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -15,13 +14,7 @@ import (
 func iaConfigureSourceFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-configure-source-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
+	requireC019Fixture(t)
 	registry, err := stmttest.New(t, iaConfigureSourceDefinitions())
 	if err != nil {
 		t.Fatal(err)

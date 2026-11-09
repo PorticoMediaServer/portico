@@ -1,13 +1,10 @@
 package writer
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,17 +18,7 @@ import (
 func iaRefreshFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof, iaRefreshRequest) {
 	t.Helper()
 	w, keeper, p := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-refresh-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256(ddl)
-	if hex.EncodeToString(sum[:]) != "f8dd6653780c7cf8d134b8714710cb4fbf9fbe19fce263d84bb7b5b26c400c36" {
-		t.Fatal("adopted C019 fragment changed")
-	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
+	requireC019Fixture(t)
 	for _, q := range []string{
 		`INSERT INTO libraries(id,name,kind,root) VALUES('refresh-library','Refresh','movie','/media')`,
 		`INSERT INTO catalog_libraries(id,library_id,root) VALUES(7,'refresh-library','/media')`,
@@ -45,6 +32,7 @@ func iaRefreshFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthor
 		wc008NativeExec(t, w, q)
 	}
 	s := iaRefreshScope{size: 42, modifiedNS: 11, sourceID: "refresh-source", sourceGeneration: 1, rootIncarnation: "root-v1", objectID: "refresh-object", objectRevision: "object-v1", policyRevision: 1, changeID: 51, assetID: 41, libraryID: 7, epoch: 2, inputRevision: 1, token: "refresh-asset", runID: "refresh-run", libraryKey: "refresh-library", fingerprint: [32]byte{7}, changeRevision: 1, leaseOwner: 1, leaseGeneration: 1, leaseExpiresMS: w.now().Add(time.Hour).UnixMilli()}
+	var err error
 	s.fingerprint, err = iaRefreshInputFingerprint(s)
 	if err != nil {
 		t.Fatal(err)

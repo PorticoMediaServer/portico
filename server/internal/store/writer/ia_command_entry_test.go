@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -65,13 +64,7 @@ func iaEntrySecurityFixture(t *testing.T) (*executor, *checkpointComponent, *usO
 func iaEntryFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof, iaEntryRequest) {
 	t.Helper()
 	w, keeper, p := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-entry-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
+	requireC019Fixture(t)
 	wc008NativeExec(t, w, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(777,'ia-library','/media')`)
 	q := iaEntryRequest{purpose: IAConfigureLibrary, action: iaEntryApply, libraryID: 777, libraryKey: "ia-library", reference: ReceiptReference{Identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, RequestDigest: RequestDigest{3}}}
 	r, err := stmttest.New(t, iaEntryDefinitions())
