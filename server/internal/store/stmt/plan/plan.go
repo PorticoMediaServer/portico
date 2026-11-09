@@ -37,6 +37,21 @@ type Fixture struct {
 	// are excluded from the recorded schema binding, whose canonical objects
 	// must still match the embedded native layout exactly. Empty for the
 	// canonical reader fixtures.
+	//
+	// A declared derived table is installed by the test fixture, not by the
+	// canonical read DDL, and its fixture DDL may be a reviewed SUBSET of the
+	// canonical writer layout: only the columns, constraints and indexes the
+	// reader recipe exercises. Exactness is therefore claimed only for the
+	// canonical read schema; it is never claimed for these derived shapes.
+	// Current membership-fixture subsets:
+	//   catalog_episodes        omits local_identity_status, ordering_basis and
+	//                           the catalog_episodes_show/season/position indexes
+	//   catalog_seasons         omits title, overview and UNIQUE(show_id,number)
+	//   catalog_albums          omits edition_key, provider_match_status,
+	//                           overview, label, tags, release_* and indexes
+	//   catalog_songs           omits release_status, recording_id, release_*,
+	//                           track_id, provider_* and indexes
+	//   catalog_browse_memberships is the canonical full shape
 	DerivedSchema []string `json:"derivedSchema,omitempty"`
 }
 type Rows struct {

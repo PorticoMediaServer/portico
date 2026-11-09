@@ -31,7 +31,7 @@ func TestRBFilterMembershipPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalogue.Manifest()) != 45 {
+	if len(catalogue.Manifest()) != 47 {
 		t.Fatalf("review changed statement inventory: %d", len(catalogue.Manifest()))
 	}
 	path := "testdata/rb-filter-membership-plans.json.gz"
@@ -103,7 +103,7 @@ func TestRBFilterMembershipPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capture := range captures {
-		if len(capture.Golden.Manifest) != 45 || len(capture.Golden.Plans) != 90 {
+		if len(capture.Golden.Manifest) != 47 || len(capture.Golden.Plans) != 94 {
 			t.Fatal("incomplete statement/cohort Capture coverage")
 		}
 	}
