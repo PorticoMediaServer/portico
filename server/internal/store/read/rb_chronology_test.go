@@ -55,12 +55,12 @@ func rbChronologyFixtureHash(t *testing.T) string {
 func newRBChronologyFixture(t *testing.T) *browseFixture {
 	t.Helper()
 	cfg := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	cfg.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	cfg.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundRequestBytes}
 	return composeReadFixture(t, newRBChronologySource(t), RBChronologyDefinitions(), cfg, true, rbChronologyFixtureHash(t))
 }
 func (f *browseFixture) chronology(t *testing.T, in ChronologyInput) (ChronologyPage, BrowseReadResult, error) {
 	t.Helper()
-	request := governor.Request{Key: governor.JobKey{Domain: 94, ID: "chronology"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	request := governor.Request{Key: governor.JobKey{Domain: 94, ID: "chronology"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 	return f.reader.chronologyWindow(t.Context(), request, time.Second, f.output, in)
 }
 func TestRBChronologyCapturePopulations(t *testing.T) {

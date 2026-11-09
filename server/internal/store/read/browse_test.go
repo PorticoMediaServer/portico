@@ -54,7 +54,7 @@ func newBrowseFixture(t *testing.T) *browseFixture {
 func composeBrowseFixture(t *testing.T, f *browseFixture, definitions []stmt.Definition) *browseFixture {
 	t.Helper()
 	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundRequestBytes}
 	return composeReadFixture(t, f, definitions, gc, true)
 }
 
@@ -129,7 +129,7 @@ func (f *browseFixture) exec(t *testing.T, q string, args ...any) {
 
 func (f *browseFixture) window(t *testing.T, ctx context.Context, in BrowseInput) (BrowsePage, BrowseReadResult, error) {
 	t.Helper()
-	r := governor.Request{Key: governor.JobKey{Domain: 71, ID: "browse-test"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(functionalReadTimeout)}
+	r := governor.Request{Key: governor.JobKey{Domain: 71, ID: "browse-test"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(functionalReadTimeout)}
 	// This fixture exercises the private fence kernel and retains its output
 	// through the last assertion. TestLive covers mandatory public admission.
 	return f.reader.window(ctx, r, functionalReadTimeout, f.output, in)

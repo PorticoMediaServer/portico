@@ -260,6 +260,16 @@ func nativeRead(t *testing.T, f *browseFixture, r *NativeFullSearchReader, text 
 }
 func TestNativeSearchCurrentAllKindsAndMixedOwners(t *testing.T) {
 	f, r := newNativeFixture(t)
+	// Exercise the actual foreground composition at the native reparse bound,
+	// not merely a governor request with a smaller synthetic row reservation.
+	cfg := readfixture.ReaderConfig()
+	_, request, _ := liveRequests("native-recipe129")
+	if cfg.ReadLimits.Columns != 129 || cfg.ReadLimits.LengthBytes != 65536 ||
+		f.snapshots.NativeRowReservation() != 129*65536 ||
+		request.Need[governor.MemoryBytes] != governor.ForegroundReadBytes ||
+		request.Need[governor.MemoryBytes]-f.snapshots.NativeRowReservation() != 4<<20 {
+		t.Fatal("foreground C129/L65536 recipe drift", cfg.ReadLimits, request.Need)
+	}
 	for _, v := range []struct {
 		query string
 		ids   []int64

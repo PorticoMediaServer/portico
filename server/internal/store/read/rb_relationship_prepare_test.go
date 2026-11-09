@@ -160,7 +160,7 @@ func newRBRelationshipFixture(t *testing.T) (*browseFixture, *RBRelationshipPrep
 }
 
 func rbRelationshipRequest() governor.Request {
-	return governor.Request{Key: governor.JobKey{Domain: 394, ID: "rb-relationship-prepare-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	return governor.Request{Key: governor.JobKey{Domain: 394, ID: "rb-relationship-prepare-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 }
 
 func rbRelationshipBegin(t *testing.T, r *RBRelationshipPrepareReader, view BrowseInput, sort RBRelationshipSort) *RBRelationshipPreparation {

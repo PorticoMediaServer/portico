@@ -22,7 +22,7 @@ func TestSnapshotFTSReadLimitUsesRealCaptureAndBind(t *testing.T) {
 	if _, err := writer.ExecContext(t.Context(), "INSERT INTO search_fragment_lexical(rowid,lexical_tokens) VALUES(1,'keanu'),(3,'keanu')"); err != nil {
 		t.Fatal(err)
 	}
-	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 128}}
+	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 129}}
 	descriptor := stmt.FTSRead{Slot: stmt.SearchFragmentLexicalReadV1, Shape: stmt.FTSFirst}
 	spec, _ := descriptor.Specification()
 	defs := []stmt.Definition{{ID: "fts.raw.first", Owner: "governed-native-read-test", CallSites: []string{"snapshot_fts_read_test.go"}, Kind: stmt.Read, SQL: spec.SQL, Params: []stmt.Param{{Name: "query", Type: stmt.Text}, {Name: "limit", Type: stmt.Integer}}, Cohorts: []stmt.Cohort{{Name: "raw_postings", Bindings: []any{"keanu", int64(1)}}}, Plan: stmt.Plan{Hot: true, NativeRead: &descriptor}}}
@@ -79,7 +79,7 @@ func TestSnapshotFTSReadLimitUsesRealCaptureAndBind(t *testing.T) {
 	defer snapshots.Close()
 	for _, limit := range []int64{0, -1, 65, 1, 64} {
 		request := snapshotRequest()
-		request.Need[MemoryBytes] = 12 << 20
+		request.Need[MemoryBytes] = ForegroundReadBytes
 		request.Budget.RawRows = 64
 		_, err := snapshots.Read(t.Context(), request, time.Second, func(scope *ReadScope) error {
 			rows, err := scope.Query("fts.raw.first", "keanu", limit)

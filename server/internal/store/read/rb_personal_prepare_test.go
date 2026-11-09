@@ -100,7 +100,7 @@ func newRBPersonalPrepareFixture(t *testing.T) (*browseFixture, *RBPersonalPrepa
 }
 
 func rbPersonalPrepareRequest() governor.Request {
-	return governor.Request{Key: governor.JobKey{Domain: 394, ID: "rb-personal-prepare-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	return governor.Request{Key: governor.JobKey{Domain: 394, ID: "rb-personal-prepare-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 }
 
 func rbPersonalPrepareRun(t *testing.T, job *RBPersonalPreparation) RBPersonalPrepareAdvance {
