@@ -25,15 +25,16 @@ import (
 func TestMain(m *testing.M) { os.Exit(schematest.Run(m)) }
 
 type browseFixture struct {
-	governor  governor.Governor
-	authority *governor.Authority
-	path      string
-	conn      *sql.Conn
-	snapshots *governor.Snapshots
-	reader    *BrowseReader
-	output    BrowseOutput
-	input     BrowseInput
-	facts     []browseFact
+	governor      governor.Governor
+	authority     *governor.Authority
+	path          string
+	conn          *sql.Conn
+	snapshots     *governor.Snapshots
+	reader        *BrowseReader
+	output        BrowseOutput
+	input         BrowseInput
+	facts         []browseFact
+	derivedSchema []string
 }
 type browseFact struct {
 	id        int64

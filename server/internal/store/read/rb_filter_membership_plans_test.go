@@ -55,7 +55,7 @@ func TestRBFilterMembershipPlans(t *testing.T) {
 		if stats == plan.Analyzed {
 			f.exec(t, "ANALYZE")
 		}
-		golden, err := plan.Capture(t.Context(), conn, catalogue, browsePlanFixture(cfg, fixtureHash, stats), policy)
+		golden, err := plan.Capture(t.Context(), conn, catalogue, browsePlanFixture(cfg, fixtureHash, stats, f.derivedSchema...), policy)
 		if err != nil {
 			t.Fatal(err)
 		}

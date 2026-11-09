@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
 	"strings"
@@ -744,7 +745,7 @@ func readRBMembershipFacts(s *savedViewSession, q browseQuery, in MembershipFilt
 			}
 		}
 		if rbMembershipNeedsPresence(filter.node, "collection") {
-			if err := addRows("collection.presence", rbMembershipPresenceArgs(titles, admission), "collection"); err != nil {
+			if err := addRows("collection.presence", rbMembershipPresenceArgs(titles, in.View.Library, admission), "collection"); err != nil {
 				return nil, err
 			}
 		}
@@ -806,7 +807,11 @@ func readRBMembershipFacts(s *savedViewSession, q browseQuery, in MembershipFilt
 				continue
 			}
 			name := map[string]string{"all": "episode.all", "specials": "episode.specials", "unassigned_absolute": "episode.unassigned"}[group]
-			rows, e := rbMembershipPointRows(s, q, name, rbMembershipEpisodeArgs(blob, titles))
+			libs := []int64{in.View.Library}
+			if group == "specials" {
+				libs = append(libs, in.View.Library)
+			}
+			rows, e := rbMembershipPointRows(s, q, name, rbMembershipEpisodeArgs(blob, titles, libs...))
 			if e != nil {
 				return nil, e
 			}
@@ -1065,11 +1070,15 @@ func rbMembershipPublicValues(n *rbFilterNode, field string) [][]byte {
 }
 
 func rbMembershipAdmissionArgs(f browseFence) []any {
-	allow := int64(1)
-	if f.allowUnrated == 0 {
-		allow = 0
+	maximum := f.maximumAge
+	if maximum < 0 {
+		maximum = math.MaxInt64
 	}
-	return []any{allow, f.maximumAge, f.maximumAge}
+	var nullAge any
+	if f.allowUnrated != 0 {
+		nullAge = maximum
+	}
+	return []any{nullAge, maximum}
 }
 
 func rbMembershipCollectionArgs(values [][]byte, titles []int64, admission []any) []any {
@@ -1080,9 +1089,10 @@ func rbMembershipCollectionArgs(values [][]byte, titles []int64, admission []any
 	return append(args, int64(rbMembershipFactLimit+1))
 }
 
-func rbMembershipPresenceArgs(titles []int64, admission []any) []any {
-	args := make([]any, 0, rbMembershipSlot+len(admission)+1)
+func rbMembershipPresenceArgs(titles []int64, library int64, admission []any) []any {
+	args := make([]any, 0, rbMembershipSlot+len(admission)+2)
 	args = append(args, rbMembershipTitleArgs(titles)...)
+	args = append(args, library)
 	args = append(args, admission...)
 	return append(args, int64(rbMembershipFactLimit+1))
 }
@@ -1098,8 +1108,8 @@ func rbMembershipSavedArgs(name string, values []string, titles []int64, admissi
 	owner := rbMembershipOwnerKey(f)
 	args := make([]any, 0, 4+rbMembershipValueSlot+rbMembershipSlot+len(admission)+1)
 	args = append(args, "local", f.account, f.profile)
-	args = append(args, owner)
 	args = append(args, rbMembershipTextArgs(values)...)
+	args = append(args, owner)
 	args = append(args, rbMembershipTitleArgs(titles)...)
 	if name == "saved.held" {
 		args = append(args, admission...)
@@ -1108,19 +1118,22 @@ func rbMembershipSavedArgs(name string, values []string, titles []int64, admissi
 }
 
 func rbMembershipPlaylistArgs(values []string, titles []int64, admission []any, f browseFence) []any {
-	args := make([]any, 0, 6+rbMembershipValueSlot+rbMembershipSlot+len(admission)+1)
-	args = append(args, "local", f.account, f.profile)
+	args := make([]any, 0, 4+rbMembershipValueSlot+rbMembershipSlot+len(admission)+1)
 	args = append(args, "local", f.account, f.profile)
 	args = append(args, rbMembershipTextArgs(values)...)
+	args = append(args, rbMembershipOwnerTag("local", f.account, f.profile))
 	args = append(args, rbMembershipTitleArgs(titles)...)
 	args = append(args, admission...)
 	return append(args, int64(rbMembershipFactLimit+1))
 }
 
-func rbMembershipEpisodeArgs(show []byte, titles []int64) []any {
-	args := make([]any, 0, 1+rbMembershipSlot+1)
+func rbMembershipEpisodeArgs(show []byte, titles []int64, libraries ...int64) []any {
+	args := make([]any, 0, 2+rbMembershipSlot+len(libraries))
 	args = append(args, show)
 	args = append(args, rbMembershipTitleArgs(titles)...)
+	for _, library := range libraries {
+		args = append(args, library)
+	}
 	return append(args, int64(rbMembershipFactLimit+1))
 }
 
