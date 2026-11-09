@@ -1,13 +1,16 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -151,8 +154,8 @@ func (s *Server) catalogueRoutes() {
 		return out, nil
 	})
 	Handle(s, "PUT /v1/items/{id}/state", WithProfile, func(r *http.Request, req StateRequest) (StateReply, error) {
-		if req.MadeAgoMs < 0 {
-			return StateReply{}, ErrField("madeAgoMs", "This cannot be negative.")
+		if req.MadeAgoMs < 0 || req.MadeAgoMs > db.MaxEditAge.Milliseconds() {
+			return StateReply{}, ErrField("madeAgoMs", "This must be between 0 and 35 days.")
 		}
 		edit := db.StateEdit{Watched: req.Watched, PositionMS: req.PositionMs, PositionText: req.Position, Favorite: req.Favorite,
 			InList: req.InList, Hidden: req.Hidden, Rating: req.Rating.Value, ClearRating: req.Rating.Set && req.Rating.Value == nil,
@@ -163,7 +166,7 @@ func (s *Server) catalogueRoutes() {
 		}
 		out := StateReply{ItemState: stateShape(state)}
 		if undo != "" {
-			out.Undo = &UndoOffer{Token: undo, ExpiresAt: s.now().Add(db.UndoLifetime).UTC().Format(time.RFC3339)}
+			out.Undo = &UndoOffer{Token: undo, ExpiresAt: s.now().Add(undoOffered).UTC().Format(time.RFC3339)}
 		}
 		return out, nil
 	})
@@ -283,6 +286,57 @@ func itemQuery(query url.Values) (db.ItemQuery, error) {
 	return q, nil
 }
 
+// undoOffered is how long an app is told it may undo a show or season mark. The server keeps
+// the data for twice as long.
+const undoOffered = db.UndoLifetime / 2
+
+// feedsPerSignIn is how many change feeds one sign-in may hold open. An app needs one; a
+// browser with several tabs shares a sign-in. One more than this closes the oldest.
+const feedsPerSignIn = 4
+
+// feeds tracks the open change feeds of each sign-in, oldest first.
+type feeds struct {
+	mu   sync.Mutex
+	next int
+	open map[string][]feed
+}
+
+type feed struct {
+	id    int
+	close context.CancelFunc
+}
+
+// join registers a feed and returns its context, which ends when the request does or when
+// newer feeds of the same sign-in push it out, and a function to call when the feed ends.
+func (f *feeds) join(ctx context.Context, c Caller) (context.Context, func()) {
+	key := fmt.Sprintf("session %d", c.SessionID)
+	if c.SessionID == 0 {
+		key = fmt.Sprintf("profile %d", c.ProfileID) // a request made with a key
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.open == nil {
+		f.open = map[string][]feed{}
+	}
+	if list := f.open[key]; len(list) >= feedsPerSignIn {
+		list[0].close()
+		f.open[key] = list[1:]
+	}
+	f.next++
+	id := f.next
+	f.open[key] = append(f.open[key], feed{id, cancel})
+	return ctx, func() {
+		cancel()
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.open[key] = slices.DeleteFunc(f.open[key], func(other feed) bool { return other.id == id })
+		if len(f.open[key]) == 0 {
+			delete(f.open, key)
+		}
+	}
+}
+
 // How the change feed behaves. An app reconnects with the id of the last event it saw.
 const (
 	eventsPoll      = time.Second      // how often a stream looks for new changes
@@ -303,7 +357,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 		s.writeError(w, r, err)
 		return
 	}
-	ctx, v := r.Context(), viewer(r)
+	ctx, leave := s.feeds.join(r.Context(), CallerFrom(r.Context()))
+	defer leave()
+	v := viewer(r)
 	cursor, given := r.Header.Get("Last-Event-ID"), true
 	if cursor == "" {
 		cursor = r.URL.Query().Get("cursor")

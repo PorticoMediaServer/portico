@@ -32,6 +32,10 @@ const (
 	walQuietGrowth    = 1 << 20 // less growth than this between two looks means writing has slowed
 	walHelperInterval = 500 * time.Millisecond
 	walRestartWait    = 50 * time.Millisecond
+	// Past walInsistBytes the writer waits much longer for reads to finish: a pause in writing
+	// is better than a file that never stops growing because some slow read is always running.
+	walInsistBytes = 384 << 20
+	walInsistWait  = 2 * time.Second
 )
 
 func (d *DB) walSize() (int64, time.Time) {
@@ -77,7 +81,11 @@ func (d *DB) restartWAL() {
 		return
 	}
 	ctx := context.Background()
-	d.writeConn.ExecContext(ctx, `PRAGMA busy_timeout = `+strconv.FormatInt(walRestartWait.Milliseconds(), 10))
+	wait := walRestartWait
+	if size, _ := d.walSize(); size >= walInsistBytes {
+		wait = walInsistWait
+	}
+	d.writeConn.ExecContext(ctx, `PRAGMA busy_timeout = `+strconv.FormatInt(wait.Milliseconds(), 10))
 	d.writeConn.ExecContext(ctx, `PRAGMA wal_checkpoint(RESTART)`)
 	d.writeConn.ExecContext(ctx, `PRAGMA busy_timeout = 5000`)
 }

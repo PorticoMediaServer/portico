@@ -240,8 +240,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		page.NextCursor = next.encode()
 	}
 	if q.WithTotal {
-		count := `SELECT count(*) FROM ` + where.countFrom + ` WHERE ` + where.countWhere()
-		if err := tx.QueryRowContext(ctx, count, where.args...).Scan(&page.Total); err != nil {
+		if page.Total, err = total(ctx, tx, where, acc); err != nil {
 			return page, err
 		}
 	}
@@ -251,10 +250,29 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	return page, loadLeafCounts(ctx, tx, v, acc, page.Items)
 }
 
+// total counts a whole list. What a blocked label hides is counted from the label's side and
+// subtracted, so the list itself is counted from an index without reading its rows.
+func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, error) {
+	var all, hidden int
+	count := `SELECT count(*) FROM ` + where.countFrom + ` WHERE ` + where.countWhere(false)
+	if where.tagTotal != "" {
+		count = where.tagTotal
+	}
+	err := tx.QueryRowContext(ctx, count, where.args...).Scan(&all)
+	if err != nil || len(acc.blockedTags) == 0 || all == 0 {
+		return all, err
+	}
+	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.countWhere(false)+
+		` AND i.id IN (`+acc.blockedIDs()+`)`, where.args...).Scan(&hidden)
+	return all - hidden, err
+}
+
 // listRun reads one run of a page: the rows that have a sort value, or the rows that do not.
 func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q ItemQuery, after *listCursor, nulls bool, page *ItemPage) error {
 	run := &query{args: append([]any(nil), where.args...)}
-	run.add(`SELECT `, itemColumns, ` FROM `, where.from, stateJoin, where.pageWhere())
+	// First the ids of the page's rows, in order, and nothing else: when a list has to be
+	// sorted, every candidate row passes through here, so it carries only what the sort needs.
+	run.add(`SELECT i.id FROM `, where.from, ` WHERE `, where.pageWhere())
 	columns := append(append([]string(nil), spec.columns...), "i.id")
 	if nulls {
 		run.add(` AND `, spec.columns[0], ` IS NULL`)
@@ -275,18 +293,29 @@ func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q Ite
 		run.add(` AND (`, strings.Join(columns, ", "), `) `, compare, ` (`, strings.Join(names, ", "), `)`)
 	}
 	run.add(` ORDER BY `, strings.Join(columns, direction+", "), direction, ` LIMIT `, fmt.Sprint(q.Limit+1-len(page.Items)))
-	rows, err := tx.QueryContext(ctx, run.sql.String(), run.args...)
+	found, err := ids(ctx, tx, run.sql.String(), run.args...)
+	if err != nil || len(found) == 0 {
+		return err
+	}
+	// Then those rows in full, with the viewer's state.
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+itemFrom+`i.id IN `+intList(found), where.args[:1]...)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
+	place := make(map[int64]int, len(found))
+	for n, id := range found {
+		place[id] = n
+	}
+	fetched := make([]Item, len(found))
 	for rows.Next() {
 		var it Item
 		if err := scanItem(rows, &it); err != nil {
 			return err
 		}
-		page.Items = append(page.Items, it)
+		fetched[place[it.ID]] = it
 	}
+	page.Items = append(page.Items, fetched...)
 	return rows.Err()
 }
 
@@ -326,12 +355,14 @@ var rareTag = 2000
 // filters writes the condition for everything but the page position: what the viewer may see,
 // and what was asked for. It reports false when a named tag does not exist, so nothing matches.
 func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access) (bool, error) {
-	w.add(acc.visible("i"))
+	w.add("(", acc.libraryVisible("i.library_id"), acc.rated("i"), "){labels}")
+	w.labels = acc.unblocked("i")
 	scoped := false
+	var library int64
+	var kindList string
 	if q.Library != "" {
 		// The library is looked up first, so a library the viewer may not see is an empty
 		// list at once instead of a walk through every row of it.
-		var library int64
 		err := tx.QueryRowContext(ctx, `SELECT l.id FROM libraries l WHERE l.public_id = ? AND `+acc.libraryVisible("l.id"), q.Library).Scan(&library)
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -359,6 +390,16 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		} else {
 			w.add(` AND i.kind IN (`, strings.Join(kinds, ", "), `)`)
 		}
+		kindList = "(" + strings.Join(kinds, ", ") + ")"
+		if library != 0 {
+			rated, err := acc.ratedIn(ctx, tx, library, kindList)
+			if err != nil || rated == 0 {
+				return false, err
+			}
+			if rated < sparseRated {
+				w.from = "items i INDEXED BY items_by_rating"
+			}
+		}
 	}
 	if q.Person != "" {
 		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = (SELECT id FROM people WHERE public_id = `, w.arg(q.Person), `))`)
@@ -380,8 +421,22 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// own order, skipping what does not match. Otherwise the tag's items are gathered
 		// first, and the total always is: it costs what matches, not the whole library.
 		walk := fmt.Sprintf(` AND EXISTS (SELECT 1 FROM item_tags t WHERE t.tag_id = %d AND t.item_id IN (i.id, i.root_id))`, tag)
+		under := ""
+		if len(q.Kinds) > 0 {
+			under = " AND d.kind IN " + kindList
+		}
 		gathered := fmt.Sprintf(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id = %[1]d UNION
-			SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id = %[1]d AND d.root_id = h.item_id)`, tag)
+			SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id = %[1]d AND d.root_id = h.item_id%[2]s)`, tag, under)
+		// With nothing asked for but a library, kinds and the tag, the total needs no item
+		// rows at all beyond the tagged titles themselves: what is under them is counted from
+		// an index.
+		if library != 0 && under != "" && acc.rated("i") == "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
+			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
+			w.tagTotal = fmt.Sprintf(`SELECT count(*) FROM (
+				SELECT r.id FROM item_tags h CROSS JOIN items r ON r.id = h.item_id WHERE h.tag_id = %[1]d AND r.library_id = %[2]d AND r.kind IN %[3]s
+				UNION SELECT d.id FROM item_tags h CROSS JOIN items r ON r.id = h.item_id CROSS JOIN items d ON d.root_id = r.id
+				WHERE h.tag_id = %[1]d AND r.library_id = %[2]d AND d.kind IN %[3]s)`, tag, library, kindList)
+		}
 		w.add("{tag}")
 		w.countFrom, w.tagCount = "items i NOT INDEXED", gathered
 		if scoped && uses >= rareTag {

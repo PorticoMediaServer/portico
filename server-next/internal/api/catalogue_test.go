@@ -166,6 +166,7 @@ func TestStateAndEvents(t *testing.T) {
 			for scanner := bufio.NewScanner(response.Body); scanner.Scan(); {
 				lines <- scanner.Text()
 			}
+			lines <- "<closed>"
 		}()
 		return func(want string) {
 			t.Helper()
@@ -209,6 +210,9 @@ func TestStateAndEvents(t *testing.T) {
 	if listed := get[Item](t, s, token, "/v1/items/"+show.ID); listed.Counts == nil || listed.Counts.Leaves == 0 || listed.Counts.UnwatchedLeaves != 0 {
 		t.Fatalf("the show after marking: %+v", listed.Counts)
 	}
+	if offered, _ := time.Parse(time.RFC3339, state.Undo.ExpiresAt); time.Until(offered) > 31*time.Second {
+		t.Fatalf("the undo is offered until %s, more than 30 seconds away", state.Undo.ExpiresAt)
+	}
 	if w := call(t, s, "POST", "/v1/items/state:undo", limited, UndoRequest{Token: state.Undo.Token}, nil); w.Code != 409 {
 		t.Fatalf("another profile's undo answered %d", w.Code)
 	}
@@ -222,7 +226,8 @@ func TestStateAndEvents(t *testing.T) {
 	if w := call(t, s, "POST", "/v1/items/state:undo", token, UndoRequest{Token: state.Undo.Token}, &refused); w.Code != 409 || refused.Error.Code != "undo_expired" {
 		t.Fatalf("a second undo: %d %s", w.Code, refused.Error.Code)
 	}
-	for _, body := range []map[string]any{{"rating": 11}, {"watched": true, "positionMs": 5}, {"madeAgoMs": -1, "favorite": true}} {
+	for _, body := range []map[string]any{{"rating": 11}, {"watched": true, "positionMs": 5}, {"madeAgoMs": -1, "favorite": true},
+		{"madeAgoMs": 36 * 24 * 3600 * 1000, "favorite": true}} {
 		if w := call(t, s, "PUT", "/v1/items/"+film.ID+"/state", token, body, &refused); w.Code != 400 {
 			t.Errorf("state %v answered %d", body, w.Code)
 		}
@@ -234,4 +239,10 @@ func TestStateAndEvents(t *testing.T) {
 	lost := feed("?cursor=999999999")
 	lost(fmt.Sprintf("id: %d", head))
 	lost("event: resync")
+
+	// One sign-in holds at most four feeds: the fifth closes the first.
+	for range 3 {
+		feed("")("event: ready")
+	}
+	expect("<closed>")
 }
