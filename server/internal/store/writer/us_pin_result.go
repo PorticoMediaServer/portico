@@ -51,11 +51,15 @@ func validateUSPINSavedResult(v usPINSavedResult) error {
 
 // Closed v1 codec, reusing W's bounded LP/integer primitives, with a distinct
 // semantic domain and explicit field order. Never reflection or arbitrary JSON.
-func usPINResultDigest(identity CommandIdentity, request RequestDigest, v usPINSavedResult) (ResultDigest, error) {
+func usPINResultDigest(identity CommandIdentity, request RequestDigest, variant usPINResultVariant, v usPINSavedResult) (ResultDigest, error) {
 	if identity.Incarnation == [16]byte{} || identity.OperationID == [16]byte{} || identity.Sequence <= 0 || request == (RequestDigest{}) {
 		return ResultDigest{}, ErrResolveRequired
 	}
 	if err := validateUSPINSavedResult(v); err != nil {
+		return ResultDigest{}, err
+	}
+	variantCodec, err := variant.codec()
+	if err != nil {
 		return ResultDigest{}, err
 	}
 	codec, _ := usPINCodec(v.kind)
@@ -64,6 +68,10 @@ func usPINResultDigest(identity CommandIdentity, request RequestDigest, v usPINS
 	e.bytes([]byte{0, 1})
 	e.text("users_security")
 	e.text(codec)
+	// The closed result arm is part of the original. A saved own-account
+	// snapshot can never be replayed as an administrative MemberProfile (or the
+	// reverse) even though every scalar result field is identical.
+	e.text(variantCodec)
 	e.text("applied")
 	e.bytes(identity.Incarnation[:])
 	e.number(uint64(identity.Sequence))
@@ -100,16 +108,22 @@ func usPINResultVariableBytes(v usPINSavedResult) (int64, error) {
 	return int64(len(v.owner) + 96 + len(codec) + len(v.account) + len(v.member) + len(v.profile) + len(v.lifetime)), nil
 }
 
-// usPINPublicImage is the frozen public shape of a fresh PIN original: the
-// complete MemberProfile of the edited profile, exactly memberProfileTx's
-// response after the edit, as the packet (US-04) specifies for this command.
-// The own-account 532/533 result is being changed to a retained DirectSnapshot
-// by the follow-up US-09b per SOL-USERS; only the admin clear of another
-// account's profile keeps this MemberProfile closed result. It is a response
-// image captured in the SAME frame, never a receipt field, and a replay never
-// reconstructs it from live source.
+// usPINPublicImage is the frozen public shape of a fresh PIN original. It has
+// the SAME two closed arms as US-01-side policy work:
+//
+//   - Snapshot: the CALLER's complete POST-EFFECT DirectSnapshot for an
+//     own-account 532/533 (including PINReset via EditDirectProfile).
+//   - Profile: the edited profile's complete MemberProfile, retained only for
+//     the administrative clear of ANOTHER account's profile (today's US-09
+//     shape).
+//
+// The arm is compiled into the codec and result digest by the validated entry,
+// authority and target. There is deliberately no caller-selectable field. It is
+// a response image captured in the SAME frame, never a receipt field, and a
+// replay never reconstructs or adapts it from live source.
 type usPINPublicImage struct {
-	Profile *USMemberProfileImage
+	Snapshot *USDirectSnapshotImage
+	Profile  *USMemberProfileImage
 }
 
 func (usPINPublicImage) String() string   { return "[us pin public image redacted]" }
@@ -250,7 +264,7 @@ func decodeUSPINLabels(raw string) ([]string, error) {
 // image will carry (including the two repeated profile IDs, the avatar URL and
 // the JSON cohorts), overflow-checked sum, funded-grant charge, and only then
 // any TEXT/BLOB Scan, JSON decode, slice or DTO allocation.
-func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, target usPINFenceScope, v usPINSavedResult) (out *USMemberProfileImage, charged int64, err error) {
+func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, variant usPINResultVariant, target usPINFenceScope, v usPINSavedResult) (out *USMemberProfileImage, charged int64, err error) {
 	var done struct {
 		image   *USMemberProfileImage
 		charged int64
@@ -266,9 +280,15 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 	if !usIdentifier(target.account) || !usIdentifier(target.profile) || !usHex(target.lifetime, 32) {
 		return nil, 0, ErrInvalid
 	}
-	// The image is the caller's own account profile. A cross-account image is a
-	// different product operation and is not admitted here.
-	if target.account != issuer.account || v.account != target.account || v.profile != target.profile || v.lifetime != target.lifetime {
+	// The MemberProfile arm retains the administrative shape while still binding
+	// the arm to the validated issuer/target: a mismatch is refused here even if
+	// a future caller passes a variant directly. The dispatcher selects this
+	// loader only for the administrative arm.
+	want, err := deriveUSPINResultVariant(v.kind, issuer.account, target.account)
+	if err != nil || want != variant {
+		return nil, 0, ErrDisclosureDenied
+	}
+	if target.account != v.account || v.profile != target.profile || v.lifetime != target.lifetime {
 		return nil, 0, ErrDisclosureDenied
 	}
 

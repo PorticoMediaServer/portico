@@ -24,7 +24,7 @@ func usPINResultFixture(t *testing.T) (CommandIdentity, RequestDigest, usPINSave
 
 func TestUSPINResultBindsEveryScalar(t *testing.T) {
 	i, request, v := usPINResultFixture(t)
-	original, err := usPINResultDigest(i, request, v)
+	original, err := usPINResultDigest(i, request, usPINVariantCallerSnapshot, v)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestUSPINResultBindsEveryScalar(t *testing.T) {
 			case "identity":
 				other := i
 				other.OperationID[1] = 1
-				actual, err := usPINResultDigest(other, request, v)
+				actual, err := usPINResultDigest(other, request, usPINVariantCallerSnapshot, v)
 				if err != nil || actual == original {
 					t.Fatal("identity omitted", err)
 				}
@@ -53,7 +53,7 @@ func TestUSPINResultBindsEveryScalar(t *testing.T) {
 			case "request_digest":
 				other := request
 				other[1] = 1
-				actual, err := usPINResultDigest(i, other, v)
+				actual, err := usPINResultDigest(i, other, usPINVariantCallerSnapshot, v)
 				if err != nil || actual == original {
 					t.Fatal("request digest omitted", err)
 				}
@@ -61,7 +61,7 @@ func TestUSPINResultBindsEveryScalar(t *testing.T) {
 			}
 			x := v
 			change(&x)
-			actual, err := usPINResultDigest(i, request, x)
+			actual, err := usPINResultDigest(i, request, usPINVariantCallerSnapshot, x)
 			if err != nil || actual == original {
 				t.Fatal("native result field omitted", err)
 			}
@@ -75,7 +75,7 @@ func TestUSPINResultBindsEveryScalar(t *testing.T) {
 	// instead of constructing an invalid purpose/flag combination.
 	clear := v
 	clear.kind, clear.pinRequired = usPINClear, false
-	clearDigest, err := usPINResultDigest(i, request, clear)
+	clearDigest, err := usPINResultDigest(i, request, usPINVariantCallerSnapshot, clear)
 	if err != nil {
 		t.Fatal("valid clear result refused", err)
 	}
@@ -83,26 +83,26 @@ func TestUSPINResultBindsEveryScalar(t *testing.T) {
 		t.Fatal("purpose or PIN flag omitted")
 	}
 	clear.pinRequired = true
-	if _, err := usPINResultDigest(i, request, clear); err == nil {
+	if _, err := usPINResultDigest(i, request, usPINVariantCallerSnapshot, clear); err == nil {
 		t.Fatal("clear claiming a PIN accepted")
 	}
 	// Both revisions always advance at least once.
 	for _, edit := range []func(*usPINSavedResult){func(v *usPINSavedResult) { v.revision = 1 }, func(v *usPINSavedResult) { v.pinRevision = 1 }} {
 		x := v
 		edit(&x)
-		if _, err := usPINResultDigest(i, request, x); err == nil {
+		if _, err := usPINResultDigest(i, request, usPINVariantCallerSnapshot, x); err == nil {
 			t.Fatal("unbumped revision accepted")
 		}
 	}
-	if _, err := usPINResultDigest(CommandIdentity{Sequence: 1}, request, v); err == nil {
+	if _, err := usPINResultDigest(CommandIdentity{Sequence: 1}, request, usPINVariantCallerSnapshot, v); err == nil {
 		t.Fatal("zero incarnation accepted")
 	}
-	if _, err := usPINResultDigest(i, RequestDigest{}, v); err == nil {
+	if _, err := usPINResultDigest(i, RequestDigest{}, usPINVariantCallerSnapshot, v); err == nil {
 		t.Fatal("zero request digest accepted")
 	}
 	unregistered := v
 	unregistered.kind = 999
-	if _, err := usPINResultDigest(i, request, unregistered); err == nil {
+	if _, err := usPINResultDigest(i, request, usPINVariantCallerSnapshot, unregistered); err == nil {
 		t.Fatal("unregistered purpose accepted")
 	}
 }
@@ -148,8 +148,9 @@ func TestUSPINProfileImageOctetsCountEveryString(t *testing.T) {
 
 func TestUSPINResultRedaction(t *testing.T) {
 	image := usPINPublicImage{Profile: &USMemberProfileImage{Name: "secret-name"}}
-	out := usPINDispatchResult{Value: usPINSavedResult{owner: "secret-owner"}}
-	for _, value := range []any{image, out, usPINOutcome{}} {
+	snapshot := usPINPublicImage{Snapshot: &USDirectSnapshotImage{Account: USDirectAccountImage{Username: "secret-user"}}}
+	out := usPINDispatchResult{Value: usPINSavedResult{owner: "secret-owner"}, Saved: []byte("secret-bytes")}
+	for _, value := range []any{image, snapshot, out, usPINOutcome{}} {
 		for _, rendered := range []string{fmt.Sprintf("%v", value), fmt.Sprintf("%+v", value), fmt.Sprintf("%#v", value)} {
 			if strings.Contains(rendered, "secret") {
 				t.Fatal("dispatch value leaked", rendered)
@@ -166,6 +167,7 @@ func TestUSPINResultRedaction(t *testing.T) {
 // their exact SQL/definition and native EQP key before any use.
 func TestUSPINStatementCapture(t *testing.T) {
 	defs := append([]stmt.Definition(nil), usPINImageDefinitions()...)
+	defs = append(defs, usPINSnapshotDefinitions()...)
 	defs = append(defs, usPINReceiptDefinitions()...)
 	defs = append(defs, usPINEffectDefinitions()...)
 	if len(defs) == 0 {
@@ -177,7 +179,7 @@ func TestUSPINStatementCapture(t *testing.T) {
 		}
 	}
 	w := wc008NativeExecutor(t)
-	registry := nativeInventoryFixtureRegistry(t, w, defs, "us_pin_result.go", "us_pin_receipt_statements.go", "us_pin_statements.go")
+	registry := nativeInventoryFixtureRegistry(t, w, defs, "us_pin_result.go", "us_pin_result_variants.go", "us_pin_receipt_statements.go", "us_pin_statements.go")
 	if len(registry.Manifest()) != len(defs) {
 		t.Fatal("registry did not bind the complete PIN inventory")
 	}

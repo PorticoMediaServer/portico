@@ -36,7 +36,12 @@ type usPINHarness struct {
 
 func usPINDispatchFixture(t *testing.T) *usPINHarness {
 	t.Helper()
-	w, _, proof := usOwnerAuthorityFixture(t)
+	return usPINDispatchFixtureIssuer(t, nil)
+}
+
+func usPINDispatchFixtureIssuer(t *testing.T, issuer func(*usPolicyIssuer)) *usPINHarness {
+	t.Helper()
+	w, _, proof := usOwnerAuthorityFixtureIssuer(t, issuer)
 	// The writer's own file, not a second clone: an injected physical fault must
 	// land in the same database this turn opened.
 	var path string
@@ -44,6 +49,9 @@ func usPINDispatchFixture(t *testing.T) *usPINHarness {
 		t.Fatal(err)
 	}
 	identity, policy := usPolicyFixture()
+	if issuer != nil {
+		issuer(&policy.issuer)
+	}
 	i := policy.issuer
 	// A secondary live profile of the caller's own account, for the own-account
 	// non-primary target and the default-restriction image.
@@ -51,12 +59,15 @@ func usPINDispatchFixture(t *testing.T) *usPINHarness {
 		usPINIssuerSecondary, i.account, strings.Repeat("d", 32))
 	wc008NativeExec(t, w, `INSERT INTO security_command_owners(id,command_incarnation,ingress,server_id,issuer_account_id,issuer_member_incarnation,issuer_profile_id,issuer_profile_lifetime,issuer_installation_incarnation,original_family_id,created_ms) VALUES(?,?,'authenticated',?,?,?,?,?,?,?,0)`,
 		policy.ownerID, identity.Incarnation[:], i.server, i.account, i.memberIncarnation, i.profile, i.profileLifetime, i.installation, i.family)
+	// The own-account DirectSnapshot reads the product's sign-in policy facts.
+	wc008NativeExec(t, w, `INSERT INTO identity_sign_in_policy(singleton) VALUES(1) ON CONFLICT(singleton) DO NOTHING`)
 	defs := append([]stmt.Definition(nil), usAuthorityDefinitions()...)
 	defs = append(defs, usPolicyReceiptDefinitions()...)
 	defs = append(defs, usPINEffectDefinitions()...)
 	defs = append(defs, usPINFenceDefinitions()...)
 	defs = append(defs, usPINReceiptDefinitions()...)
 	defs = append(defs, usPINImageDefinitions()...)
+	defs = append(defs, usPINSnapshotDefinitions()...)
 	r, err := stmttest.New(t, defs)
 	if err != nil {
 		t.Fatal(err)
@@ -124,6 +135,14 @@ func (h *usPINHarness) source(t *testing.T, profile string) (revision, pinRevisi
 	return revision, pinRevision, present
 }
 
+// usPINQueryer is the read half shared by the pooled fixture and an open
+// command turn, so a direct loader test can compare against the SAME
+// uncommitted source the loader read.
+type usPINQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
 // productImage is an INDEPENDENT plain-SQL oracle for the product's
 // memberProfileTx response. The adopted schema-v1 keeps the avatar on the
 // direct_profiles row (avatar_digest/avatar_source_mime/avatar_version/
@@ -132,11 +151,16 @@ func (h *usPINHarness) source(t *testing.T, profile string) (revision, pinRevisi
 // profile_restrictions, sharing no SQL with the loader under test.
 func (h *usPINHarness) productImage(t *testing.T, profile string) USMemberProfileImage {
 	t.Helper()
+	return h.productImageOn(t, h.w.db, profile)
+}
+
+func (h *usPINHarness) productImageOn(t *testing.T, q usPINQueryer, profile string) USMemberProfileImage {
+	t.Helper()
 	var out USMemberProfileImage
 	var libraries sql.NullString
 	var avatarPresent, avatarVersion int64
 	var avatarUpdated, avatarMime sql.NullString
-	err := h.w.db.QueryRowContext(t.Context(), `SELECT id,name,is_primary,position,art,revision,pin_revision,pin_hash IS NOT NULL,allowed_libraries,avatar_digest IS NOT NULL,avatar_version,avatar_updated_at,avatar_source_mime
+	err := q.QueryRowContext(t.Context(), `SELECT id,name,is_primary,position,art,revision,pin_revision,pin_hash IS NOT NULL,allowed_libraries,avatar_digest IS NOT NULL,avatar_version,avatar_updated_at,avatar_source_mime
 FROM direct_profiles WHERE account_id=? AND id=? AND deleted=0`, h.issuer.account, profile).
 		Scan(&out.ID, &out.Name, &out.Primary, &out.Position, &out.Art, &out.Revision, &out.PINRevision,
 			&out.PINRequired, &libraries, &avatarPresent, &avatarVersion, &avatarUpdated, &avatarMime)
@@ -153,14 +177,14 @@ FROM direct_profiles WHERE account_id=? AND id=? AND deleted=0`, h.issuer.accoun
 	}
 	var ratingSystem, maximumAgeRating, blockedLabels string
 	var maximumAge, allowUnrated, allowDownloads, allowLiveTV, allowDVR, allowWatchTogether, restrictionRevision int64
-	err = h.w.db.QueryRowContext(t.Context(), `SELECT rating_system,maximum_age_rating,blocked_labels,maximum_age,allow_unrated,allow_downloads,allow_live_tv,allow_dvr,allow_watch_together,revision
+	err = q.QueryRowContext(t.Context(), `SELECT rating_system,maximum_age_rating,blocked_labels,maximum_age,allow_unrated,allow_downloads,allow_live_tv,allow_dvr,allow_watch_together,revision
 FROM profile_restrictions WHERE profile_id=?`, profile).
 		Scan(&ratingSystem, &maximumAgeRating, &blockedLabels, &maximumAge, &allowUnrated,
 			&allowDownloads, &allowLiveTV, &allowDVR, &allowWatchTogether, &restrictionRevision)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		var defaultDVR int64
-		if err = h.w.db.QueryRowContext(t.Context(), `SELECT EXISTS(SELECT 1 FROM direct_profiles p JOIN direct_memberships m ON m.account_id=p.account_id WHERE p.id=? AND p.is_primary=1 AND p.deleted=0 AND m.role='owner' AND m.disabled=0)`, profile).Scan(&defaultDVR); err != nil {
+		if err = q.QueryRowContext(t.Context(), `SELECT EXISTS(SELECT 1 FROM direct_profiles p JOIN direct_memberships m ON m.account_id=p.account_id WHERE p.id=? AND p.is_primary=1 AND p.deleted=0 AND m.role='owner' AND m.disabled=0)`, profile).Scan(&defaultDVR); err != nil {
 			t.Fatal(err)
 		}
 		out.Restrictions = USMemberProfileRestrictionsImage{
@@ -237,12 +261,182 @@ func usPINImageMismatches(got, want USMemberProfileImage) []string {
 
 func (h *usPINHarness) assertImageParity(t *testing.T, image *USMemberProfileImage, profile string) {
 	t.Helper()
+	h.assertImageParityOn(t, h.w.db, image, profile)
+}
+
+func (h *usPINHarness) assertImageParityOn(t *testing.T, q usPINQueryer, image *USMemberProfileImage, profile string) {
+	t.Helper()
 	if image == nil {
 		t.Fatalf("no image for %q", profile)
 	}
-	if mismatches := usPINImageMismatches(*image, h.productImage(t, profile)); len(mismatches) > 0 {
+	if mismatches := usPINImageMismatches(*image, h.productImageOn(t, q, profile)); len(mismatches) > 0 {
 		t.Fatalf("image parity for %q:\n%s", profile, strings.Join(mismatches, "\n"))
 	}
+}
+
+// productSnapshot is an INDEPENDENT plain-SQL oracle for the product's
+// directSnapshotTx response, sharing no SQL with captureUSPINSelfSnapshot. It
+// derives the management facts from its own reads, so a wrong copy inside the
+// loader cannot agree with it by construction.
+func (h *usPINHarness) productSnapshot(t *testing.T, now time.Time) USDirectSnapshotImage {
+	t.Helper()
+	var username, primaryProfile, role, accountLibraries string
+	var accountRevision, disabled int64
+	if err := h.w.db.QueryRowContext(t.Context(), `SELECT username,profile_id FROM accounts WHERE id=?`, h.issuer.account).Scan(&username, &primaryProfile); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.w.db.QueryRowContext(t.Context(), `SELECT role,revision,disabled,allowed_libraries FROM direct_memberships WHERE account_id=?`, h.issuer.account).
+		Scan(&role, &accountRevision, &disabled, &accountLibraries); err != nil {
+		t.Fatal(err)
+	}
+	var familyRole, rememberUntil, manageUntil string
+	var primaryPIN, primary int64
+	if err := h.w.db.QueryRowContext(t.Context(), `SELECT role,remember_until,manage_until,pin_hash IS NOT NULL,is_primary FROM authorization_session_families JOIN direct_profiles ON direct_profiles.account_id=authorization_session_families.account_id AND direct_profiles.id=? WHERE authorization_session_families.id=?`,
+		h.issuer.profile, h.issuer.family).Scan(&familyRole, &rememberUntil, &manageUntil, &primaryPIN, &primary); err != nil {
+		t.Fatal(err)
+	}
+	var requireTwoStep, signInKind string
+	var rememberDays int64
+	if err := h.w.db.QueryRowContext(t.Context(), `SELECT require_two_step,pin_remember_days FROM identity_sign_in_policy WHERE singleton=1`).Scan(&requireTwoStep, &rememberDays); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.w.db.QueryRowContext(t.Context(), `SELECT sign_in_kind FROM identity_state WHERE singleton=1`).Scan(&signInKind); err != nil {
+		t.Fatal(err)
+	}
+	var hostedAccount string
+	hostedErr := h.w.db.QueryRowContext(t.Context(), `SELECT hosted_account_id FROM account_portico_links WHERE account_id=?`, h.issuer.account).Scan(&hostedAccount)
+	hosted := hostedErr == nil
+	if hostedErr != nil && !errors.Is(hostedErr, sql.ErrNoRows) {
+		t.Fatal(hostedErr)
+	}
+	var custodian sql.NullString
+	if hosted {
+		switch err := h.w.db.QueryRowContext(t.Context(), `SELECT custodian FROM hosted_membership_sync WHERE singleton=1`).Scan(&custodian); {
+		case errors.Is(err, sql.ErrNoRows):
+		case err != nil:
+			t.Fatal(err)
+		}
+	}
+	rows, err := h.w.db.QueryContext(t.Context(), `SELECT id,name,is_primary,position,art,revision,pin_revision,pin_hash IS NOT NULL,allowed_libraries FROM direct_profiles WHERE account_id=? AND deleted=0 ORDER BY position,id`, h.issuer.account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var profiles []USDirectProfileImage
+	for rows.Next() {
+		var p USDirectProfileImage
+		var libraries sql.NullString
+		if err := rows.Scan(&p.ID, &p.Name, &p.Primary, &p.Position, &p.Art, &p.Revision, &p.PINRevision, &p.PINRequired, &libraries); err != nil {
+			t.Fatal(err)
+		}
+		if libraries.Valid {
+			if err := json.Unmarshal([]byte(libraries.String), &p.AllowedLibraries); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if p.AllowedLibraries == nil {
+			p.AllowedLibraries = []string{}
+		}
+		profiles = append(profiles, p)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	var libraries []string
+	if err := json.Unmarshal([]byte(accountLibraries), &libraries); err != nil {
+		t.Fatal(err)
+	}
+	if libraries == nil {
+		libraries = []string{}
+	}
+	required := signInKind == "local" && requireTwoStep != "nobody" && (requireTwoStep == "everyone" || role == "owner" || role == "admin")
+	factorConfirmed := false
+	if familyRole == "account" && required {
+		var present int64
+		switch err := h.w.db.QueryRowContext(t.Context(), `SELECT EXISTS(SELECT 1 FROM identity_account_factors WHERE account_id=? AND confirmed=1)`, h.issuer.account).Scan(&present); {
+		case err != nil:
+			t.Fatal(err)
+		default:
+			factorConfirmed = present == 1
+		}
+	}
+	canManage := primary == 1
+	if canManage && familyRole == "account" && primaryPIN == 1 {
+		canManage = false
+	}
+	twoStep := familyRole == "account" && required && !factorConfirmed
+	if twoStep {
+		canManage = false
+	}
+	managePIN := false
+	if canManage && primaryPIN == 1 {
+		managePIN = rememberUntil > now.UTC().Format(time.RFC3339) && manageUntil <= now.UTC().Format(time.RFC3339)
+	}
+	caps := USDirectCapabilitiesImage{}
+	if canManage {
+		admin := role == "owner" || role == "admin"
+		caps = USDirectCapabilitiesImage{ManageAccount: true, ManagePeople: admin, ManageServer: admin, ManageSignIn: role == "owner"}
+	}
+	out := USDirectSnapshotImage{
+		TwoStepSetupRequired: twoStep,
+		Authority:            "local",
+		ServerID:             h.issuer.server,
+		Account: USDirectAccountImage{ID: h.issuer.account, Username: username, PrimaryProfileID: primaryProfile, Role: role,
+			Revision: accountRevision, Disabled: disabled != 0, AllowedLibraries: libraries, HostedAccountID: hostedAccount},
+		Profiles:          profiles,
+		CanManage:         canManage,
+		Capabilities:      caps,
+		CustodyPending:    hosted && role == "owner" && custodian.Valid && custodian.String != hostedAccount,
+		RememberProfiles:  rememberDays > 0,
+		ManagePINRequired: managePIN,
+	}
+	return out
+}
+
+func usPINSnapshotMismatches(got, want USDirectSnapshotImage) []string {
+	var out []string
+	add := func(name string, g, w any) {
+		if !reflect.DeepEqual(g, w) {
+			out = append(out, fmt.Sprintf("%s: got %v want %v", name, g, w))
+		}
+	}
+	add("TwoStepSetupRequired", got.TwoStepSetupRequired, want.TwoStepSetupRequired)
+	add("Authority", got.Authority, want.Authority)
+	add("ServerID", got.ServerID, want.ServerID)
+	add("Account", got.Account, want.Account)
+	add("Profiles", got.Profiles, want.Profiles)
+	add("CanManage", got.CanManage, want.CanManage)
+	add("Capabilities", got.Capabilities, want.Capabilities)
+	add("CustodyPending", got.CustodyPending, want.CustodyPending)
+	add("RememberProfiles", got.RememberProfiles, want.RememberProfiles)
+	add("ManagePINRequired", got.ManagePINRequired, want.ManagePINRequired)
+	return out
+}
+
+func (h *usPINHarness) assertSnapshotParity(t *testing.T, image *USDirectSnapshotImage) {
+	t.Helper()
+	if image == nil {
+		t.Fatal("no DirectSnapshot image")
+	}
+	if mismatches := usPINSnapshotMismatches(*image, h.productSnapshot(t, h.w.now())); len(mismatches) > 0 {
+		t.Fatalf("snapshot parity:\n%s", strings.Join(mismatches, "\n"))
+	}
+}
+
+// usPINSnapshotProfile returns the edited profile entry from the caller
+// snapshot, or fails when the loader dropped it.
+func usPINSnapshotProfile(t *testing.T, image *USDirectSnapshotImage, profile string) USDirectProfileImage {
+	t.Helper()
+	if image == nil {
+		t.Fatal("no DirectSnapshot image")
+	}
+	for _, p := range image.Profiles {
+		if p.ID == profile {
+			return p
+		}
+	}
+	t.Fatalf("edited profile %q missing from the caller snapshot", profile)
+	return USDirectProfileImage{}
 }
 
 // usPINDefinitionSQL returns the exact captured SQL for one statement ID.
@@ -286,17 +480,21 @@ func TestUSPINPhysicalOriginalReplayAndACK(t *testing.T) {
 		got.Result.Value.pinRevision != 2 || !got.Result.Value.pinRequired || got.Result.Digest == (ResultDigest{}) {
 		t.Fatal("original was not the closed accepted result", got.Result)
 	}
-	if got.Result.Image.Profile == nil || got.Result.ImageBytes <= 0 || got.Result.ChargedBytes != 204 ||
-		got.Result.OwnerCount != 1 || got.Result.OwnerBytes != got.Result.ChargedBytes {
+	if got.Result.Image.Snapshot == nil || got.Result.Image.Profile != nil || got.Result.ImageBytes <= 0 || len(got.Result.Saved) == 0 ||
+		got.Result.ChargedBytes != 204 || got.Result.OwnerCount != 1 || got.Result.OwnerBytes != got.Result.ChargedBytes {
 		t.Fatal("original accounting", got.Result)
 	}
-	// The complete US-04 image is the post-effect source, independently read
-	// through the product's own memberProfileTx.
-	h.assertImageParity(t, got.Result.Image.Profile, h.issuer.profile)
-	if image := got.Result.Image.Profile; image.PINRequired != true || image.Revision != 2 || image.PINRevision != 2 ||
-		image.Name != "Issuer" || image.Art != "blue" || image.Primary != true || !image.Restrictions.AllowDVR ||
-		image.Restrictions.MaximumAge != -1 || image.Restrictions.Revision != 1 || image.Avatar != nil {
-		t.Fatalf("complete image facts: %+v", *image)
+	// The complete post-effect caller DirectSnapshot is the own-account image,
+	// independently checked through the product's directSnapshotTx rules.
+	h.assertSnapshotParity(t, got.Result.Image.Snapshot)
+	edited := usPINSnapshotProfile(t, got.Result.Image.Snapshot, h.issuer.profile)
+	if !edited.PINRequired || edited.Revision != 2 || edited.PINRevision != 2 ||
+		edited.Name != "Issuer" || edited.Art != "blue" || !edited.Primary {
+		t.Fatalf("edited profile facts: %+v", edited)
+	}
+	if snapshot := got.Result.Image.Snapshot; snapshot.Authority != "local" || snapshot.Account.ID != h.issuer.account ||
+		snapshot.Account.Username != "issuer" || snapshot.Account.Role != "owner" || !snapshot.CanManage {
+		t.Fatalf("caller snapshot facts: %+v", *snapshot)
 	}
 	revision, pinRevision, present := h.source(t, h.issuer.profile)
 	if revision != 2 || pinRevision != 2 || present != 1 {
@@ -334,7 +532,10 @@ func TestUSPINPhysicalOriginalReplayAndACK(t *testing.T) {
 	for id := range turn.steps {
 		switch id {
 		case usPINImageProfileOctets, usPINImageProfile, usPINImageRestrictionOctets, usPINImageRestriction,
-			usPINImageDefaultDVR, usPINTargetSelf, usPINSetWrite, usPINClearWrite,
+			usPINImageDefaultDVR, usPINSnapshotAccountOctets, usPINSnapshotFamilyOctets, usPINSnapshotPolicyOctets,
+			usPINSnapshotHostedOctets, usPINSnapshotCustodianOctets, usPINSnapshotProfilesOctets, usPINSnapshotAccount,
+			usPINSnapshotFamily, usPINSnapshotPolicy, usPINSnapshotFactor, usPINSnapshotHosted, usPINSnapshotCustodian,
+			usPINSnapshotProfiles, usPINTargetSelf, usPINSetWrite, usPINClearWrite,
 			usPINReceiptInsert, usPolicyOwnerAdvance:
 			delete(turn.steps, id)
 		}
@@ -347,7 +548,8 @@ func TestUSPINPhysicalOriginalReplayAndACK(t *testing.T) {
 		!reflect.DeepEqual(replay.Result.Value, got.Result.Value) {
 		t.Fatal("replay did not return the saved original", replay.Result)
 	}
-	if replay.Result.Image.Profile != nil || replay.Result.ImageBytes != 0 || replay.Result.ChargedBytes != 0 {
+	if replay.Result.Image.Snapshot != nil || replay.Result.Image.Profile != nil || replay.Result.ImageBytes != 0 ||
+		replay.Result.Saved != nil || replay.Result.ChargedBytes != 0 {
 		t.Fatal("replay rebuilt a response image or charged again", replay.Result)
 	}
 	if after := usPINQuery(t, h.w, `SELECT total_changes()`); after != before {
@@ -399,9 +601,12 @@ func TestUSPINSetThenClearBothRevisionBumps(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Result.Outcome.State != Applied || got.Result.Value.kind != usPINClear || got.Result.Value.revision != 3 ||
-		got.Result.Value.pinRevision != 3 || got.Result.Value.pinRequired || got.Result.Image.Profile == nil ||
-		got.Result.Image.Profile.PINRequired {
+		got.Result.Value.pinRevision != 3 || got.Result.Value.pinRequired || got.Result.Image.Snapshot == nil {
 		t.Fatal("clear result", got.Result)
+	}
+	h.assertSnapshotParity(t, got.Result.Image.Snapshot)
+	if edited := usPINSnapshotProfile(t, got.Result.Image.Snapshot, h.issuer.profile); edited.PINRequired || edited.Revision != 3 || edited.PINRevision != 3 {
+		t.Fatal("clear snapshot image", edited)
 	}
 	revision, pinRevision, present := h.source(t, h.issuer.profile)
 	if revision != 3 || pinRevision != 3 || present != 0 {
@@ -432,6 +637,37 @@ func TestUSPINSetThenClearBothRevisionBumps(t *testing.T) {
 	}
 }
 
+// The MemberProfile arm stays the administrative image shape. It is loaded here
+// directly, after the real native effect in the same frame, so its parity with
+// memberProfileTx stays proven even though the own-account dispatch now returns
+// the caller DirectSnapshot.
+func (h *usPINHarness) profileImageDirect(t *testing.T, kind CommandID, profile, lifetime string) *USMemberProfileImage {
+	t.Helper()
+	revision, pinRevision, _ := h.source(t, profile)
+	command := h.command(t, kind, usPINIdentity(1), profile, lifetime, revision, pinRevision)
+	turn, a, _ := usPolicyDispatchTurn(t, h.w, h.r, h.proof, kind, 0)
+	effect, err := applyUSPIN(t.Context(), turn, &command.request.prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := usPINSavedResult{kind: kind, owner: h.owner, account: effect.account, member: h.member,
+		profile: effect.profile, lifetime: effect.lifetime, revision: effect.revision, pinRevision: effect.pinRevision,
+		pinRequired: effect.pinRequired, appliedMS: h.w.now().UnixMilli()}
+	scope := usPINFenceScope{account: effect.account, member: h.member, profile: effect.profile, lifetime: effect.lifetime}
+	image, _, err := captureUSPINProfileImage(t.Context(), turn, a, usPINVariantCallerSnapshot, scope, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Compare against the SAME uncommitted source through the turn's own
+	// connection, then release it so a second direct load in the same fixture
+	// can read the pool again.
+	if mismatches := usPINImageMismatches(*image, h.productImageOn(t, turn.transaction.conn, profile)); len(mismatches) > 0 {
+		t.Fatalf("image parity for %q:\n%s", profile, strings.Join(mismatches, "\n"))
+	}
+	_, _ = turn.transaction.rollback(nil)
+	return image
+}
+
 // The image of a secondary profile at stored position 2 is the complete product
 // MemberProfile for both a SET and a CLEAR, with its stored avatar present and
 // absent. The old parity fixture only ever compared the primary profile at the
@@ -446,29 +682,17 @@ func TestUSPINSecondaryProfileImageParity(t *testing.T) {
 				wc008NativeExec(t, h.w, `UPDATE direct_profiles SET avatar_digest=?,avatar_source_mime=?,avatar_version=?,avatar_updated_at=? WHERE account_id=? AND id=?`,
 					"secondary-digest", "image/jpeg", 5, "2026-11-09T01:02:03Z", h.issuer.account, usPINIssuerSecondary)
 			}
-			set := h.command(t, usPINSet, usPINIdentity(1), usPINIssuerSecondary, lifetime, 1, 1)
-			got, err := h.dispatch(t, usPINSet, h.input(t, set))
-			if err != nil || got.Result.Outcome.State != Applied || got.Result.Image.Profile == nil {
-				t.Fatal("secondary set", got, err)
+			image := h.profileImageDirect(t, usPINSet, usPINIssuerSecondary, lifetime)
+			if image == nil || image.Position != 2 || image.Primary || !image.PINRequired {
+				t.Fatalf("secondary set image facts: %+v", image)
 			}
-			if image := got.Result.Image.Profile; image.Position != 2 || image.Primary || !image.PINRequired {
-				t.Fatalf("secondary set image facts: position=%d primary=%v pin=%v", image.Position, image.Primary, image.PINRequired)
+			checkSecondaryAvatar(t, image, avatar)
+
+			image = h.profileImageDirect(t, usPINClear, usPINIssuerSecondary, lifetime)
+			if image == nil || image.Position != 2 || image.Primary || image.PINRequired {
+				t.Fatalf("secondary clear image facts: %+v", image)
 			}
-			h.assertImageParity(t, got.Result.Image.Profile, usPINIssuerSecondary)
-			checkSecondaryAvatar(t, got.Result.Image.Profile, avatar)
-			if _, err := h.dispatch(t, usPINSet, &usPINInvocation{request: h.input(t, set).request, ack: true}); err != nil {
-				t.Fatal(err)
-			}
-			clear := h.command(t, usPINClear, usPINIdentity(2), usPINIssuerSecondary, lifetime, 2, 2)
-			got, err = h.dispatch(t, usPINClear, h.input(t, clear))
-			if err != nil || got.Result.Outcome.State != Applied || got.Result.Image.Profile == nil {
-				t.Fatal("secondary clear", got, err)
-			}
-			if image := got.Result.Image.Profile; image.Position != 2 || image.Primary || image.PINRequired {
-				t.Fatalf("secondary clear image facts: position=%d primary=%v pin=%v", image.Position, image.Primary, image.PINRequired)
-			}
-			h.assertImageParity(t, got.Result.Image.Profile, usPINIssuerSecondary)
-			checkSecondaryAvatar(t, got.Result.Image.Profile, avatar)
+			checkSecondaryAvatar(t, image, avatar)
 		})
 	}
 }
@@ -645,7 +869,7 @@ func TestUSPINCanceledReleaseDeniesAndRollsBack(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		profileSQL := usPINDefinitionSQL(t, usPINImageDefinitions(), usPINImageProfile)
+		profileSQL := usPINDefinitionSQL(t, usPINSnapshotDefinitions(), usPINSnapshotProfiles)
 		receiptSQL := usPINDefinitionSQL(t, usPINReceiptDefinitions(), usPINReceiptInsert)
 		var effectApplied, canceled bool
 		var cancel context.CancelFunc
@@ -723,9 +947,10 @@ func TestUSPINDispatchCanceledAfterCommitPublishesNothing(t *testing.T) {
 	if retry.Result.Value.revision != 2 || retry.Result.Value.pinRevision != 2 || !retry.Result.Value.pinRequired || retry.Result.Digest == (ResultDigest{}) {
 		t.Fatal("retry lost the original value", retry.Result.Value)
 	}
-	// A retried 532 has no fresh caller Image: the retained result body is the
-	// complete primitive result, never a source-derived snapshot.
-	if retry.Result.Image.Profile != nil || retry.Result.ImageBytes != 0 {
+	// A retried 532 has no fresh caller image: the retained result body is the
+	// complete primitive result, never a source-derived snapshot or an adapted
+	// MemberProfile.
+	if retry.Result.Image.Snapshot != nil || retry.Result.Image.Profile != nil || retry.Result.ImageBytes != 0 || retry.Result.Saved != nil {
 		t.Fatal("retry rebuilt a response image", retry.Result.Image)
 	}
 	revision, pinRevision, present = h.source(t, h.issuer.profile)
@@ -884,7 +1109,7 @@ func TestUSPINHashNeverEscapesAndReplayAfterDrift(t *testing.T) {
 			}
 		}
 	}
-	for _, value := range []any{got, got.Result, got.Result.Value, got.Result.Image} {
+	for _, value := range []any{got, got.Result, got.Result.Value, got.Result.Image, got.Result.Saved} {
 		scan(value)
 	}
 	// Drift every live source fact the original image named, then replay: the
@@ -922,7 +1147,8 @@ func TestUSPINHashNeverEscapesAndReplayAfterDrift(t *testing.T) {
 	wc008NativeExec(t, h.w, `UPDATE direct_profiles SET name='Renamed',revision=revision+1,pin_hash=? WHERE id=?`, h.hash, h.issuer.profile)
 	replay, err = h.dispatch(t, usPINSet, &usPINInvocation{request: inv.request})
 	if err != nil || replay.Result.Outcome.State != Applied || !replay.Result.Outcome.Replayed ||
-		replay.Result.Image.Profile != nil || !reflect.DeepEqual(replay.Result.Value, got.Result.Value) {
+		replay.Result.Image.Snapshot != nil || replay.Result.Image.Profile != nil || replay.Result.Saved != nil ||
+		!reflect.DeepEqual(replay.Result.Value, got.Result.Value) {
 		t.Fatal("replay rebuilt from drifted source", replay, err)
 	}
 }
@@ -943,7 +1169,7 @@ func TestUSPINImagePreflightRefusesBeforeMaterialization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profileSQL := usPINDefinitionSQL(t, usPINImageDefinitions(), usPINImageProfile)
+	profileSQL := usPINDefinitionSQL(t, usPINSnapshotDefinitions(), usPINSnapshotProfiles)
 	var materialized bool
 	h.w.openPool(connector, func(conn driver.Conn) driver.Conn {
 		return &usPINOrderConn{writerDriverConn: conn.(writerDriverConn), onQuery: func(query string) {
@@ -969,21 +1195,16 @@ func TestUSPINImagePreflightRefusesBeforeMaterialization(t *testing.T) {
 	}
 }
 
-// The image includes a stored restriction cohort and an avatar when present,
-// with the product's default only when no row exists.
+// The MemberProfile arm includes a stored restriction cohort and an avatar when
+// present, with the product's default only when no row exists. Loaded directly
+// after the real effect in the same frame.
 func TestUSPINImageStoredRestrictionsAndAvatar(t *testing.T) {
 	h := usPINDispatchFixture(t)
 	wc008NativeExec(t, h.w, `INSERT INTO profile_restrictions(profile_id,rating_system,maximum_age_rating,maximum_age,allow_unrated,blocked_labels,allow_downloads,allow_live_tv,allow_dvr,allow_watch_together,revision) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
 		h.issuer.profile, "mpaa", "PG-13", 13, 0, `["violence","gore"]`, 0, 1, 0, 1, 4)
 	wc008NativeExec(t, h.w, `UPDATE direct_profiles SET avatar_digest=?,avatar_source_mime=?,avatar_version=?,avatar_updated_at=? WHERE account_id=? AND id=?`,
 		"digest", "image/png", 3, "2026-11-08T00:00:00Z", h.issuer.account, h.issuer.profile)
-	command := h.command(t, usPINSet, usPINIdentity(1), h.issuer.profile, h.issuer.profileLifetime, 1, 1)
-	got, err := h.dispatch(t, usPINSet, h.input(t, command))
-	if err != nil {
-		t.Fatal(err)
-	}
-	image := got.Result.Image.Profile
-	h.assertImageParity(t, image, h.issuer.profile)
+	image := h.profileImageDirect(t, usPINSet, h.issuer.profile, h.issuer.profileLifetime)
 	if image.Restrictions.RatingSystem != "mpaa" || image.Restrictions.MaximumAge != 13 ||
 		image.Restrictions.AllowUnrated || !reflect.DeepEqual(image.Restrictions.BlockedLabels, []string{"violence", "gore"}) ||
 		image.Restrictions.AllowDownloads || image.Restrictions.Revision != 4 ||

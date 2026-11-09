@@ -60,6 +60,12 @@ type usPINDispatchResult struct {
 	Digest  ResultDigest
 	Image   usPINPublicImage
 
+	// Saved is the closed image codec captured at birth. Replay decodes these
+	// exact bytes with zero statements; it never re-reads source or adapts one
+	// arm into the other. Durable receipt retention awaits the bounded 532/533
+	// result_body DDL (the canonical receipt CHECK still forces result_body NULL).
+	Saved []byte
+
 	// Exact accounting for this command, not a quota claim.
 	ChargedBytes int64
 	ImageBytes   int64
@@ -261,7 +267,11 @@ func lookupUSPIN(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization
 	if err != nil || expectedBytes != actualBytes {
 		return out, errors.Join(ErrResolveRequired, err)
 	}
-	out.digest, err = usPINResultDigest(q.reference.Identity, q.reference.RequestDigest, v)
+	variant, err := deriveUSPINResultVariant(q.kind, a.proof.witness.issuer.account, v.account)
+	if err != nil {
+		return out, err
+	}
+	out.digest, err = usPINResultDigest(q.reference.Identity, q.reference.RequestDigest, variant, v)
 	if err != nil || out.digest != ResultDigest(binding.resultDigest) {
 		return out, errors.Join(ErrResolveRequired, err)
 	}
@@ -310,7 +320,11 @@ func storeUSPINResult(ctx context.Context, turn *commandTurn, a *usOwnerAuthoriz
 	if err != nil || expectedBytes <= 0 {
 		return 0, errors.Join(ErrResolveRequired, err)
 	}
-	if actual, e := usPINResultDigest(q.reference.Identity, q.reference.RequestDigest, v); e != nil || actual != digest {
+	variant, err := deriveUSPINResultVariant(q.kind, a.proof.witness.issuer.account, v.account)
+	if err != nil {
+		return 0, err
+	}
+	if actual, e := usPINResultDigest(q.reference.Identity, q.reference.RequestDigest, variant, v); e != nil || actual != digest {
 		return 0, errors.Join(ErrResolveRequired, e)
 	}
 	// The SAME operation may not re-store its result at another retained
@@ -524,7 +538,11 @@ func executeUSPINInvocation(ctx context.Context, turn *commandTurn, a *usOwnerAu
 	if err = usPINDispatchFund(a, charge); err != nil {
 		return out, err
 	}
-	out.Result.Digest, err = usPINResultDigest(q.reference.Identity, q.reference.RequestDigest, v)
+	variant, err := deriveUSPINResultVariant(q.kind, issuer.account, target.account)
+	if err != nil {
+		return out, err
+	}
+	out.Result.Digest, err = usPINResultDigest(q.reference.Identity, q.reference.RequestDigest, variant, v)
 	if err != nil {
 		return out, err
 	}
@@ -558,11 +576,32 @@ func executeUSPINInvocation(ctx context.Context, turn *commandTurn, a *usOwnerAu
 	}
 	out.Result.Value, out.Result.ChargedBytes = v, charged
 	out.Result.OwnerCount, out.Result.OwnerBytes = lookup.custody.owner.count+1, lookup.custody.owner.bytes+charged
-	image, imageBytes, err := captureUSPINProfileImage(ctx, turn, a, scope, v)
-	if err != nil {
-		return out, err
+	// The arm is derived from the validated entry/authority/target above, never
+	// from request input. Both arms are captured in this SAME frame after the
+	// effect; neither is ever rebuilt from live source on replay.
+	var image usPINPublicImage
+	var imageBytes int64
+	switch variant {
+	case usPINVariantCallerSnapshot:
+		snapshot, bytes, e := captureUSPINSelfSnapshot(ctx, turn, a, scope, v, nowMS)
+		if e != nil {
+			return out, e
+		}
+		image, imageBytes = usPINPublicImage{Snapshot: snapshot}, bytes
+	case usPINVariantAdministrativeProfile:
+		profile, bytes, e := captureUSPINProfileImage(ctx, turn, a, variant, scope, v)
+		if e != nil {
+			return out, e
+		}
+		image, imageBytes = usPINPublicImage{Profile: profile}, bytes
+	default:
+		return out, ErrResolveRequired
 	}
-	out.Result.Image, out.Result.ImageBytes = usPINPublicImage{Profile: image}, imageBytes
+	saved, err := image.Encode()
+	if err != nil {
+		return out, errors.Join(ErrResolveRequired, err)
+	}
+	out.Result.Image, out.Result.ImageBytes, out.Result.Saved = image, imageBytes, saved
 	return out, turn.checkLifetimes(ctx)
 }
 

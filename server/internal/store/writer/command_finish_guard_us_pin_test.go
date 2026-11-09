@@ -11,7 +11,7 @@ func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "us_pin_dispatch",
 		resultTypes: []string{"usPINPublicImage"},
-		names:       []string{"runUSPINDispatch", "executeUSPINInvocation", "captureUSPINProfileImage", "readUSPINQuota", "applyUSPIN"},
+		names:       []string{"runUSPINDispatch", "executeUSPINInvocation", "captureUSPINProfileImage", "captureUSPINSelfSnapshot", "readUSPINQuota", "applyUSPIN"},
 		bypasses: []string{
 			// Release the command's own result in the body instead of through the
 			// required deferred final publication: the guard must still refuse it.
