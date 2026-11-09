@@ -20,6 +20,8 @@ const (
 	IAAcceptMembership       CommandID = 114
 	IAReconcileObject        CommandID = 120
 	IACoverageVerify         CommandID = 121
+	IAMarkMissing            CommandID = 122
+	IAFinishRescan           CommandID = 123
 )
 
 // ConfigureSource is NORMAL: a rename, interval or root change grants nothing.
@@ -39,4 +41,6 @@ var iaCommands = commandRegistration{owner: "IA", descriptors: []Descriptor{
 	{IAAcceptMembership, "ia_accept_membership", Normal},
 	{IAReconcileObject, "ia_reconcile_object", Normal},
 	{IACoverageVerify, "ia_coverage_verify", Normal},
+	{IAMarkMissing, "ia_mark_missing", Normal},
+	{IAFinishRescan, "ia_finish_rescan", Normal},
 }}

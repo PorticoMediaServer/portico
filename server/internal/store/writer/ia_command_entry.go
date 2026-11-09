@@ -215,6 +215,10 @@ func iaEntryCommandKind(purpose CommandID) (string, error) {
 		return "inventory_reconcile", nil
 	case IACoverageVerify:
 		return "inventory_verify", nil
+	case IAMarkMissing:
+		return "inventory_missing", nil
+	case IAFinishRescan:
+		return "inventory_finish", nil
 	default:
 		return "", ErrInvalid
 	}
