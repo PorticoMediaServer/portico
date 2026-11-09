@@ -53,21 +53,42 @@ func TestUSFamilyBirthEffectiveProfileRole(t *testing.T) {
 }
 
 func TestUSFamilyBirthPrimaryPointerMustMatch(t *testing.T) {
-	w, in := usFamilyBirthFixture(t)
-	wc008NativeExec(t, w, `UPDATE accounts SET profile_id='other-profile'`)
-	p, err := prepareUSOrdinaryFamilyBirth(in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	turn := usFamilyBirthTurn(t, w, false)
-	if _, err = applyUSFamilyBirth(t.Context(), turn, p, false, nil); !errors.Is(err, ErrConflict) {
-		t.Fatal("inconsistent primary admitted", err)
-	}
-	if _, err = turn.transaction.commit(); err == nil {
-		t.Fatal("ignored denial committed")
-	}
-	if n := usFamilyRoleCount(t, w); n != 0 {
-		t.Fatal("partial family", n)
+	for _, null := range []bool{false, true} {
+		t.Run(fmt.Sprint(null), func(t *testing.T) {
+			w, in := usFamilyBirthFixture(t)
+			if null {
+				// Canonical F forbids a NULL credential profile pointer before
+				// this helper can observe it; do not invent a schema overlay.
+				_, err := w.db.ExecContext(t.Context(), `UPDATE accounts SET profile_id=NULL`)
+				var native interface{ Code() int }
+				if !errors.As(err, &native) || native.Code() != 1299 {
+					t.Fatal("NULL primary pointer not refused by canonical schema", err)
+				}
+				return
+			}
+			wc008NativeExec(t, w, `UPDATE accounts SET profile_id=?`, "other-profile")
+			p, err := prepareUSOrdinaryFamilyBirth(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			turn := usFamilyBirthTurn(t, w, false)
+			if _, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE search_revision SET revision=2`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = applyUSFamilyBirth(t.Context(), turn, p, false, nil); !errors.Is(err, ErrDisclosureDenied) {
+				t.Fatal("inconsistent primary admitted", err)
+			}
+			if _, err = turn.transaction.commit(); err == nil {
+				t.Fatal("ignored denial committed")
+			}
+			if n := usFamilyRoleCount(t, w); n != 0 {
+				t.Fatal("partial family", n)
+			}
+			var revision int
+			if err = w.db.QueryRowContext(t.Context(), `SELECT revision FROM search_revision`).Scan(&revision); err != nil || revision != 1 {
+				t.Fatal("ignored-error prefix persisted", revision, err)
+			}
+		})
 	}
 }
 func usFamilyRoleCount(t *testing.T, w *executor) int {
