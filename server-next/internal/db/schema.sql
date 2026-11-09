@@ -418,8 +418,7 @@ CREATE INDEX images_profile ON images (profile_id) WHERE profile_id IS NOT NULL;
 CREATE TABLE users (
   id                  INTEGER NOT NULL PRIMARY KEY,
   public_id           TEXT    NOT NULL UNIQUE,
-  username            TEXT    NOT NULL,
-  username_key        TEXT    NOT NULL UNIQUE,
+  username            TEXT    NOT NULL UNIQUE,
   email               TEXT,
   password_hash       TEXT,
   password_changed_at INTEGER,

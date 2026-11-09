@@ -53,7 +53,7 @@ func (p *Passwords) hash(ctx context.Context, secret string, cost int) (string, 
 	return string(hash), err
 }
 
-// Hash returns the stored form of a password that ValidPassword accepts.
+// Hash returns the stored form of a password that PasswordProblem accepts.
 func (p *Passwords) Hash(ctx context.Context, password string) (string, error) {
 	return p.hash(ctx, password, p.passwordCost)
 }
@@ -78,10 +78,17 @@ func (p *Passwords) Check(ctx context.Context, hash, secret string) (bool, error
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(secret)) == nil, nil
 }
 
-// ValidPassword is the one password rule: at least 8 characters. Apps show a strength hint,
-// but a weak password is the person's choice. 72 bytes is the most bcrypt reads.
-func ValidPassword(v string) bool {
-	return utf8.ValidString(v) && utf8.RuneCountInString(v) >= 8 && len(v) <= 72
+// PasswordProblem says what is wrong with a new password, or "" if it will do. The one
+// rule is at least 8 characters: apps show a strength hint, but a weak password is the
+// person's choice. 72 bytes is the most bcrypt reads.
+func PasswordProblem(v string) string {
+	switch {
+	case len(v) > 72:
+		return "Use a shorter password."
+	case !utf8.ValidString(v) || utf8.RuneCountInString(v) < 8:
+		return "Choose a password of at least 8 characters."
+	}
+	return ""
 }
 
 // ValidPIN reports whether v is a profile PIN: four digits.
@@ -89,19 +96,20 @@ func ValidPIN(v string) bool {
 	return len(v) == 4 && strings.Trim(v, "0123456789") == ""
 }
 
-// UsernameKey returns the form of a username that identifies the account (trimmed, lower
-// case), and whether it is acceptable: 3 to 64 bytes with no spaces, controls or "@".
-func UsernameKey(v string) (string, bool) {
+// Username returns a username as it is stored and compared (trimmed, lower case), and
+// whether it is acceptable: 3 to 64 characters with no spaces, controls or "@".
+func Username(v string) (string, bool) {
 	key := strings.ToLower(strings.TrimSpace(v))
-	ok := utf8.ValidString(key) && len(key) >= 3 && len(key) <= 64 &&
+	n := utf8.RuneCountInString(key)
+	ok := utf8.ValidString(key) && n >= 3 && n <= 64 &&
 		strings.IndexFunc(key, func(r rune) bool { return r <= ' ' || r == 127 || r == '@' }) < 0
 	return key, ok
 }
 
-// ValidName reports whether v can name a profile or a device: not blank, at most 120 bytes,
-// no control characters.
+// ValidName reports whether v can name a profile or a device: not blank, at most 120
+// characters, no control characters.
 func ValidName(v string) bool {
-	return strings.TrimSpace(v) != "" && len(v) <= 120 && utf8.ValidString(v) &&
+	return strings.TrimSpace(v) != "" && utf8.RuneCountInString(v) <= 120 && utf8.ValidString(v) &&
 		strings.IndexFunc(v, func(r rune) bool { return r < ' ' || r == 127 }) < 0
 }
 

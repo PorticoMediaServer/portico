@@ -6,9 +6,11 @@ import (
 
 // System is what an app reads before sign-in to learn what this server is and can do.
 type System struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Version is told only to a signed-in caller: a stranger has no use for it but to look
+	// up what is wrong with that release.
+	Version string `json:"version,omitempty"`
 	// APIMajor is the API version in the path that this server speaks.
 	APIMajor int `json:"apiMajor"`
 	// Capabilities names optional features this server has. An app checks here before using one.
@@ -49,7 +51,11 @@ func (s *Server) systemRoutes() {
 		if err != nil {
 			return System{}, err
 		}
-		return System{ID: s.id, Name: name, Version: s.version, APIMajor: APIMajor, Capabilities: []string{},
-			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}, nil
+		out := System{ID: s.id, Name: name, APIMajor: APIMajor, Capabilities: []string{},
+			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}
+		if _, err := s.admit(r, SignedIn); err == nil {
+			out.Version = s.version
+		}
+		return out, nil
 	})
 }

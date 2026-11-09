@@ -40,9 +40,12 @@ type ProfileEdit struct {
 	Color *string `json:"color,omitempty"`
 }
 
-// ProfilePIN sets or changes a profile's PIN: four digits.
+// ProfilePIN sets or changes a profile's PIN: four digits. From the main profile that is
+// all it takes. A forgotten PIN is replaced from any profile, or from the profile chooser,
+// by sending the account's password as well; the device stays on the profile it is on.
 type ProfilePIN struct {
-	PIN string `json:"pin"`
+	PIN             string `json:"pin"`
+	CurrentPassword string `json:"currentPassword,omitempty"`
 }
 
 // ProfileSelect chooses the profile this session acts for.
@@ -76,9 +79,9 @@ func (s *Server) profileRoutes() {
 	Handle(s, "POST /v1/profiles/{id}/select", SignedIn, s.selectProfile)
 }
 
-// manager returns the caller if this session may change the account itself. A profile other
-// than the main one may not, and neither may a sign-in that has not passed the main
-// profile's PIN: knowing a profile's id is never enough.
+// manager returns the caller if this session may change the account itself: only a session
+// on the account's main profile may. A sign-in still at the profile chooser may not, whether
+// or not the main profile has a PIN.
 func manager(r *http.Request) (Caller, error) {
 	c := CallerFrom(r.Context())
 	if !c.Manage {
@@ -177,29 +180,38 @@ func (s *Server) setProfilePIN(r *http.Request, req ProfilePIN) (Profile, error)
 	if !auth.ValidPIN(req.PIN) {
 		return Profile{}, ErrField("pin", "A PIN is four digits.")
 	}
+	var proof *db.PasswordProof
+	if req.CurrentPassword != "" {
+		p, err := s.passwordProof(r, req.CurrentPassword)
+		if err != nil {
+			return Profile{}, err
+		}
+		proof = &p
+	}
 	hash, err := s.passwords.HashPIN(r.Context(), req.PIN)
 	if err != nil {
 		return Profile{}, err
 	}
-	return s.changeProfilePIN(r, hash)
+	return s.changeProfilePIN(r, hash, proof)
 }
 
 func (s *Server) removeProfilePIN(r *http.Request, _ None) (None, error) {
-	_, err := s.changeProfilePIN(r, "")
+	_, err := s.changeProfilePIN(r, "", nil)
 	return None{}, err
 }
 
-func (s *Server) changeProfilePIN(r *http.Request, hash string) (Profile, error) {
-	caller, err := manager(r)
-	if err != nil {
-		return Profile{}, err
+// changeProfilePIN is for the main profile, or for anyone on the account who proves its password.
+func (s *Server) changeProfilePIN(r *http.Request, hash string, proof *db.PasswordProof) (Profile, error) {
+	caller := CallerFrom(r.Context())
+	if proof == nil && !caller.Manage {
+		return Profile{}, ErrNotPermitted()
 	}
 	p, err := s.db.UpdateProfile(r.Context(), db.ProfileEdit{UserID: caller.UserID, PublicID: r.PathValue("id"), PINHash: &hash,
-		SessionID: caller.SessionID, Now: s.now()})
+		SessionID: caller.SessionID, Proof: proof, Now: s.now()})
 	if errors.Is(err, db.ErrNotFound) {
 		return Profile{}, ErrNotFound()
 	}
-	return profileOut(p), err
+	return profileOut(p), proofError(err)
 }
 
 func (s *Server) deleteProfile(r *http.Request, _ None) (None, error) {
@@ -238,9 +250,17 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		if req.PIN == "" {
 			return Session{}, errBadPIN()
 		}
-		// The count belongs to the profile, not to who is asking: a new device or sign-in
-		// does not get a fresh set of guesses at four digits.
-		sel.Limits = []db.Limit{{Bucket: "pin", Key: "profile:" + strconv.FormatInt(p.ID, 10), Delay: auth.PINDelay}}
+		// Wrong PINs are counted for this profile on this device, so nobody can make the
+		// profile wait on another device, and signing in again on this one starts no new count.
+		session, err := s.db.SessionState(ctx, caller.SessionID, now)
+		if errors.Is(err, db.ErrNotFound) {
+			return Session{}, errSignInEnded()
+		}
+		if err != nil {
+			return Session{}, err
+		}
+		sel.Limits = append([]db.Limit{{Bucket: "pin", Key: "profile:" + strconv.FormatInt(p.ID, 10) + "|" + session.DevicePublicID,
+			Delay: auth.StandardPINs.Delay, Lasting: true}}, sourceLimit(r)...)
 		if wait, err := s.db.LimitWait(ctx, now, sel.Limits...); err != nil {
 			return Session{}, err
 		} else if wait > 0 {

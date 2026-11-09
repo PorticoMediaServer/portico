@@ -19,11 +19,11 @@ type SessionInfo struct {
 	CreatedAt  time.Time `json:"createdAt"`
 	LastUsedAt time.Time `json:"lastUsedAt"`
 	ExpiresAt  time.Time `json:"expiresAt"`
-	// EndedAt and EndReason are present once the session is over. Ended sessions are listed for 30 days.
+	// EndedAt and EndReason are present once the session is over. Ended sessions are listed for 90 days.
 	EndedAt   *time.Time `json:"endedAt,omitempty"`
 	EndReason string     `json:"endReason,omitempty"`
-	// Address is the network address the session was last used from.
-	Address string `json:"address,omitempty"`
+	// Network is "home" or "away": where the session was last used from. The address itself is never shown.
+	Network string `json:"network,omitempty"`
 	// Current marks the session this request was made with.
 	Current bool `json:"current"`
 }
@@ -37,6 +37,8 @@ type Device struct {
 	AppVersion string    `json:"appVersion,omitempty"`
 	CreatedAt  time.Time `json:"createdAt"`
 	LastSeenAt time.Time `json:"lastSeenAt"`
+	// Network is "home" or "away": where the device was last used from.
+	Network string `json:"network,omitempty"`
 	// SignedIn is true while the person has a live session on the device.
 	SignedIn bool `json:"signedIn"`
 	// Current marks the device this request was made from.
@@ -57,6 +59,17 @@ func (s *Server) deviceRoutes() {
 	Handle(s, "DELETE /v1/devices/{id}", SignedIn, s.forgetDevice)
 }
 
+// network says whether an address is on the home network, for the lists a person sees.
+func network(addr string) string {
+	switch {
+	case addr == "":
+		return ""
+	case auth.AtHome(addr):
+		return "home"
+	}
+	return "away"
+}
+
 func (s *Server) listSessions(r *http.Request, _ None) (Page[SessionInfo], error) {
 	caller, err := manager(r)
 	if err != nil {
@@ -67,7 +80,7 @@ func (s *Server) listSessions(r *http.Request, _ None) (Page[SessionInfo], error
 	for _, v := range sessions {
 		info := SessionInfo{ID: v.PublicID, DeviceID: v.DevicePublicID, DeviceName: v.DeviceName, ProfileID: v.ProfilePublicID,
 			CreatedAt: v.CreatedAt.UTC(), LastUsedAt: v.LastUsedAt.UTC(), ExpiresAt: v.ExpiresAt.UTC(),
-			EndReason: v.EndReason, Address: v.RemoteAddr, Current: v.ID == caller.SessionID}
+			EndReason: v.EndReason, Network: network(v.RemoteAddr), Current: v.ID == caller.SessionID}
 		if !v.EndedAt.IsZero() {
 			ended := v.EndedAt.UTC()
 			info.EndedAt = &ended
@@ -101,7 +114,7 @@ func (s *Server) devices(r *http.Request, caller Caller) ([]Device, error) {
 	out := make([]Device, 0, len(devices))
 	for _, v := range devices {
 		out = append(out, Device{ID: v.PublicID, Name: v.Name, Platform: v.Platform, App: v.App, AppVersion: v.AppVersion,
-			CreatedAt: v.CreatedAt.UTC(), LastSeenAt: v.LastSeenAt.UTC(), SignedIn: v.SignedIn, Current: v.Current})
+			CreatedAt: v.CreatedAt.UTC(), LastSeenAt: v.LastSeenAt.UTC(), Network: network(v.RemoteAddr), SignedIn: v.SignedIn, Current: v.Current})
 	}
 	return out, err
 }

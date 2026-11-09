@@ -30,7 +30,7 @@ type Claims struct {
 	// Role is what the bearer may do on the server: owner, admin, member, or account for a
 	// sign-in that has not selected a profile yet.
 	Role string `json:"r"`
-	// Manage says the bearer may change the account itself: its profiles, devices and sessions.
+	// Manage says the bearer is on the account's main profile and may change the account itself.
 	Manage bool `json:"m,omitempty"`
 	// Boot and Seq place the token in the server's order of session changes, so a token read
 	// before a change to its session can be told from one read after. See db.TokenStamp.

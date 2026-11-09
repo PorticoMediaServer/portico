@@ -20,13 +20,17 @@ type Device struct {
 	SignedIn bool
 	// Current is true for the device the asking session is on.
 	Current bool
+	// RemoteAddr is where the user last used the device from. It is for telling home from
+	// away and is never shown.
+	RemoteAddr string
 }
 
 // Devices lists the devices a user has a session on, live or recently ended, last seen first.
 func (d *DB) Devices(ctx context.Context, userID, currentSessionID int64, now time.Time) ([]Device, error) {
 	rows, err := d.read.QueryContext(ctx, `
 		SELECT d.public_id, d.name, ifnull(d.platform, ''), ifnull(d.app, ''), ifnull(d.app_version, ''), d.created_at, d.last_seen_at,
-			max(s.revoked_at IS NULL AND s.expires_at > ?), max(s.id = ?)
+			max(s.revoked_at IS NULL AND s.expires_at > ?), max(s.id = ?),
+			ifnull((SELECT x.remote_addr FROM sessions x WHERE x.device_id = d.id AND x.user_id = s.user_id ORDER BY x.last_used_at DESC LIMIT 1), '')
 		FROM devices d JOIN sessions s ON s.device_id = d.id
 		WHERE s.user_id = ? AND ifnull(s.revoked_reason, '') <> 'device_forgotten' GROUP BY d.id ORDER BY d.last_seen_at DESC, d.id`, now.UnixMilli(), currentSessionID, userID)
 	if err != nil {
@@ -37,7 +41,7 @@ func (d *DB) Devices(ctx context.Context, userID, currentSessionID int64, now ti
 	for rows.Next() {
 		var v Device
 		var created, seen int64
-		if err := rows.Scan(&v.PublicID, &v.Name, &v.Platform, &v.App, &v.AppVersion, &created, &seen, &v.SignedIn, &v.Current); err != nil {
+		if err := rows.Scan(&v.PublicID, &v.Name, &v.Platform, &v.App, &v.AppVersion, &created, &seen, &v.SignedIn, &v.Current, &v.RemoteAddr); err != nil {
 			return nil, err
 		}
 		v.CreatedAt, v.LastSeenAt = time.UnixMilli(created), time.UnixMilli(seen)

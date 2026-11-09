@@ -51,7 +51,7 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	defer d.Close()
-	handler, err := api.New(ctx, d, version, log)
+	handler, err := api.New(ctx, d, *data, version, log)
 	if err != nil {
 		return err
 	}

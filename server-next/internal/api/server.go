@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -37,6 +39,9 @@ type Server struct {
 	id        string
 	routes    []Route
 	now       func() time.Time
+	// setupCode is what creating the owner needs. It is made at start while there is no
+	// account, and written to the log and to setupFile, never sent to an app.
+	setupCode, setupFile string
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -73,8 +78,9 @@ type Page[T any] struct {
 // None is the request type of a route with no body, and the response type of one that answers 204.
 type None struct{}
 
-// New builds the server and registers every area's routes.
-func New(ctx context.Context, d *db.DB, version string, log *slog.Logger) (*Server, error) {
+// New builds the server and registers every area's routes. dataDir is the folder the
+// server keeps its files in.
+func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logger) (*Server, error) {
 	key, err := d.SettingOrCreate(ctx, "auth.signing_key", auth.NewKey)
 	if err != nil {
 		return nil, err
@@ -89,6 +95,15 @@ func New(ctx context.Context, d *db.DB, version string, log *slog.Logger) (*Serv
 	}
 	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: id, now: time.Now,
 		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
+	if set, err := d.HasUsers(ctx); err != nil {
+		return nil, err
+	} else if !set {
+		s.setupCode, s.setupFile = auth.NewCode(2), filepath.Join(dataDir, "setup-code.txt")
+		if err := os.WriteFile(s.setupFile, []byte(s.setupCode+"\n"), 0o600); err != nil {
+			return nil, err
+		}
+		log.Info("this server has no owner yet: create one with this setup code", "setupCode", s.setupCode, "file", s.setupFile)
+	}
 	s.systemRoutes()
 	s.authRoutes()
 	s.profileRoutes()
@@ -246,7 +261,8 @@ type Caller struct {
 	// Role is owner, admin or member, or account before a profile is selected. A profile
 	// other than the account's main one is always a member, whoever owns the account.
 	Role string
-	// Manage says the caller may change the account itself: its profiles, devices and sessions.
+	// Manage says the caller is on the account's main profile, and so may change the account
+	// itself: its profiles, devices, sessions and password.
 	Manage bool
 }
 

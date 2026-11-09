@@ -60,7 +60,7 @@ Assistant) are a separate short document and are not counted here.
 
 | Route | Purpose |
 |---|---|
-| `GET /v1/system` | Public facts: name, version, API major, `capabilities`, sign-in methods, whether setup is needed |
+| `GET /v1/system` | Public facts: name, API major, `capabilities`, sign-in methods, whether setup is needed; the version only for a signed-in caller |
 | `POST /v1/system/identity-proof` | Prove this is the server the app pinned |
 | `GET /v1/health/live`, `GET /v1/health/ready` | For process managers and proxies |
 | `GET /v1/events` | The change feed |
@@ -91,7 +91,7 @@ Assistant) are a separate short document and are not counted here.
 | `POST /v1/profiles/{id}/select` | Choose a profile, with its PIN if it has one; answers tokens bound to it |
 | `PUT /v1/profiles/order` | Reorder |
 | `PUT /v1/profiles/{id}/avatar`, `DELETE /v1/profiles/{id}/avatar` | Avatar |
-| `PUT /v1/profiles/{id}/pin`, `DELETE /v1/profiles/{id}/pin` | Set, change or remove a PIN |
+| `PUT /v1/profiles/{id}/pin`, `DELETE /v1/profiles/{id}/pin` | Set, change or remove a PIN. With the account's password, `PUT` replaces a forgotten PIN from any profile. |
 | `GET /v1/profiles/{id}/restrictions`, `PUT /v1/profiles/{id}/restrictions` | Rating limit, blocked labels, library access |
 | `GET /v1/me/two-factor`, `POST /v1/me/two-factor`, `POST /v1/me/two-factor/confirm`, `DELETE /v1/me/two-factor`, `POST /v1/me/two-factor/recovery-codes` | Two-step sign-in |
 | `GET /v1/devices`, `PATCH /v1/devices/{id}`, `DELETE /v1/devices/{id}` | Your devices: list, rename, forget (ends its sign-ins) |
@@ -154,7 +154,7 @@ Listed route by route with each console panel's definition. Resources:
 | Area | Ops | Resources |
 |---|---:|---|
 | People and access | 22 | Members; invitations; members' devices; sign-in policy; security summary and unblock; moving between sign-in kinds |
-| Setup and remote access | 18 | First-run setup (`POST /v1/setup/owner` exists now); remote access; certificate; Portico Account link; network policy |
+| Setup and remote access | 18 | First-run setup (`POST /v1/setup/owner` exists now, and needs the setup code the server logs and writes to `setup-code.txt` in its data folder); remote access; certificate; Portico Account link; network policy |
 | Libraries, storage, files | 33 | Libraries, folders, scans and their issues; storage sources; folder browser; missing titles; delete; merge and split |
 | Metadata and matching | 18 | `GET`/`PATCH /v1/admin/items/{id}/metadata`; match; refresh; artwork; needs-attention; provider settings |
 | Playback and analysis | 17 | Active sessions; play history; hardware and transcode capacity; remembered playback failures; intro and credits review; analysis jobs |

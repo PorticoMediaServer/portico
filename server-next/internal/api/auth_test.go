@@ -29,9 +29,22 @@ func device(n int) DeviceInfo {
 func setup(t *testing.T, s *Server) SignInResponse {
 	t.Helper()
 	var out SignInResponse
-	if w := call(t, s, "POST", "/v1/setup/owner", "", SetupOwnerRequest{Username: "Justin", Password: testPassword, Device: device(0)}, &out); w.Code != 200 {
+	body := SetupOwnerRequest{SetupCode: s.setupCode, Username: "Justin", Password: testPassword, Device: device(0)}
+	if w := call(t, s, "POST", "/v1/setup/owner", "", body, &out); w.Code != 200 {
 		t.Fatalf("setup answered %d: %s", w.Code, w.Body)
 	}
+	return out
+}
+
+// onMain puts a new sign-in on the account's main profile, which has no PIN, and returns
+// its session: the one place the account can be managed from.
+func onMain(t *testing.T, s *Server, in SignInResponse) Session {
+	t.Helper()
+	var out Session
+	if w := call(t, s, "POST", "/v1/profiles/"+in.Profiles[0].ID+"/select", in.Session.AccessToken, ProfileSelect{}, &out); w.Code != 200 {
+		t.Fatalf("choosing the main profile answered %d: %s", w.Code, w.Body)
+	}
+	out.RefreshToken = in.Session.RefreshToken
 	return out
 }
 
@@ -66,11 +79,34 @@ func status(t *testing.T, s *Server, method, path, token string, body any) int {
 // use the session: read who they are, choose their profile and act as the owner.
 func TestSetupSignInAndChooseAProfile(t *testing.T) {
 	s := newTestServer(t)
+	// Reaching a new server is not enough to own it: setup needs the code from its log or
+	// its data folder, and the server tells nobody what that is.
+	file, _ := os.ReadFile(s.setupFile)
+	if strings.TrimSpace(string(file)) != s.setupCode || len(s.setupCode) < 9 {
+		t.Fatalf("the setup code file holds %q, the server expects %q", file, s.setupCode)
+	}
+	for _, code := range []string{"", "AAAA-AAAA"} {
+		body := SetupOwnerRequest{SetupCode: code, Username: "mallory", Password: testPassword, Device: device(9)}
+		if got := status(t, s, "POST", "/v1/setup/owner", "", body); got != 403 {
+			t.Fatalf("setup with the code %q answered %d, want 403", code, got)
+		}
+	}
+	if w := call(t, s, "GET", "/v1/system", "", nil, nil); strings.Contains(w.Body.String(), s.setupCode) || strings.Contains(w.Body.String(), "version") {
+		t.Fatalf("a stranger was told the setup code or the version: %s", w.Body)
+	}
+	long := SetupOwnerRequest{SetupCode: s.setupCode, Username: "justin", Password: strings.Repeat("long", 19), Device: device(0)}
+	if w := call(t, s, "POST", "/v1/setup/owner", "", long, nil); w.Code != 400 || !strings.Contains(w.Body.String(), "Use a shorter password.") {
+		t.Fatalf("a 76-character password answered %d %s", w.Code, w.Body)
+	}
 	first := setup(t, s)
+	if _, err := os.Stat(s.setupFile); err == nil {
+		t.Error("the setup code file is still there after setup")
+	}
 	if first.Account.Role != "owner" || len(first.Profiles) != 1 || !first.Profiles[0].IsPrimary || first.Session.Viewer.Role != "account" {
 		t.Fatalf("unexpected setup answer: %+v", first)
 	}
-	if code := status(t, s, "POST", "/v1/setup/owner", "", SetupOwnerRequest{Username: "mallory", Password: testPassword, Device: device(9)}); code != 409 {
+	again := SetupOwnerRequest{SetupCode: s.setupCode, Username: "mallory", Password: testPassword, Device: device(9)}
+	if code := status(t, s, "POST", "/v1/setup/owner", "", again); code != 409 {
 		t.Fatalf("a second setup answered %d, want 409", code)
 	}
 	var system System
@@ -89,9 +125,14 @@ func TestSetupSignInAndChooseAProfile(t *testing.T) {
 	if code := status(t, s, "GET", "/v1/me", first.Session.AccessToken, nil); code != 401 {
 		t.Errorf("the token from before the profile was chosen answered %d, want 401", code)
 	}
+	// The username is kept in lower case, however it was typed.
 	var me Me
-	if w := call(t, s, "GET", "/v1/me", chosen.AccessToken, nil, &me); w.Code != 200 || me.Profile == nil || me.Role != "owner" || me.Account.Username != "Justin" {
+	if w := call(t, s, "GET", "/v1/me", chosen.AccessToken, nil, &me); w.Code != 200 || me.Profile == nil || me.Role != "owner" || me.Account.Username != "justin" {
 		t.Fatalf("me answered %d %+v", w.Code, me)
+	}
+	call(t, s, "GET", "/v1/system", chosen.AccessToken, nil, &system)
+	if system.Version != "test" {
+		t.Errorf("a signed-in caller was told the version %q, want %q", system.Version, "test")
 	}
 }
 
@@ -103,7 +144,7 @@ func TestOnlyOneSetupWins(t *testing.T) {
 		var wg sync.WaitGroup
 		for i := range 8 {
 			wg.Go(func() {
-				body := SetupOwnerRequest{Username: fmt.Sprintf("person%d", i), Password: testPassword, Device: device(i)}
+				body := SetupOwnerRequest{SetupCode: s.setupCode, Username: fmt.Sprintf("person%d", i), Password: testPassword, Device: device(i)}
 				if status(t, s, "POST", "/v1/setup/owner", "", body) == 200 {
 					won.Add(1)
 				}
@@ -196,7 +237,7 @@ func TestTheSameRenewalSentTogetherGivesOneAnswer(t *testing.T) {
 // raced with renewals and requests that were under way.
 func TestNothingWorksAfterASessionIsEnded(t *testing.T) {
 	s := newTestServer(t)
-	owner := setup(t, s).Session
+	owner := onMain(t, s, setup(t, s))
 	for run := range raceRuns() {
 		session := signIn(t, s, run+1).Session
 		var mu sync.Mutex
@@ -259,27 +300,37 @@ func TestNothingWorksAfterASessionIsEnded(t *testing.T) {
 	}
 }
 
-// Changing the password signs the person out everywhere at once, and only the new password works.
-func TestPasswordChangeEndsEverySession(t *testing.T) {
+// Changing the password needs the main profile and the current password. It signs the
+// account's other devices out at once and keeps the one that made the change; only the new
+// password works afterwards.
+func TestPasswordChangeEndsEveryOtherSession(t *testing.T) {
 	s := newTestServer(t)
-	one := setup(t, s).Session
+	one := onMain(t, s, setup(t, s))
 	two := signIn(t, s, 1).Session
+	change := PasswordRequest{CurrentPassword: testPassword, NewPassword: "a new password"}
+	if code := status(t, s, "POST", "/v1/auth/password", two.AccessToken, change); code != 403 {
+		t.Fatalf("a sign-in that is not on the main profile changed the password (%d)", code)
+	}
 	if code := status(t, s, "POST", "/v1/auth/password", one.AccessToken, PasswordRequest{CurrentPassword: "not the password", NewPassword: "a new password"}); code != 403 {
 		t.Fatalf("a wrong current password answered %d, want 403", code)
 	}
 	if status(t, s, "GET", "/v1/me", two.AccessToken, nil) != 200 {
 		t.Fatal("a refused password change ended a session")
 	}
-	if code := status(t, s, "POST", "/v1/auth/password", one.AccessToken, PasswordRequest{CurrentPassword: testPassword, NewPassword: "a new password"}); code != 204 {
+	if code := status(t, s, "POST", "/v1/auth/password", one.AccessToken, change); code != 204 {
 		t.Fatalf("password change answered %d", code)
 	}
-	for n, session := range []Session{one, two} {
-		if code := status(t, s, "GET", "/v1/me", session.AccessToken, nil); code != 401 {
-			t.Errorf("session %d: the access token still works after the password changed (%d)", n, code)
-		}
-		if code, _ := renew(t, s, session.RefreshToken, n, "r"); code != 401 {
-			t.Errorf("session %d: a renewal still works after the password changed (%d)", n, code)
-		}
+	if code := status(t, s, "GET", "/v1/me", one.AccessToken, nil); code != 200 {
+		t.Errorf("the device that changed the password was signed out (%d)", code)
+	}
+	if code, _ := renew(t, s, one.RefreshToken, 0, "r"); code != 200 {
+		t.Errorf("the device that changed the password cannot renew (%d)", code)
+	}
+	if code := status(t, s, "GET", "/v1/me", two.AccessToken, nil); code != 401 {
+		t.Errorf("another device's access token still works after the password changed (%d)", code)
+	}
+	if code, _ := renew(t, s, two.RefreshToken, 1, "r"); code != 401 {
+		t.Errorf("another device still renews after the password changed (%d)", code)
 	}
 	old := SignInRequest{Username: "justin", Password: testPassword, Device: device(2)}
 	if code := status(t, s, "POST", "/v1/auth/sign-in", "", old); code != 401 {
@@ -291,9 +342,11 @@ func TestPasswordChangeEndsEverySession(t *testing.T) {
 	}
 }
 
-// A username nobody has is answered exactly like a wrong password for a real one, guess
-// after guess, including when the wait starts. The wait survives a restart, is refused even
-// with the right password, never locks the account for good, and ends by itself.
+// Wrong passwords slow down the network they come from. A username nobody has is answered
+// exactly like a wrong password for a real one, guess after guess, including when the wait
+// starts. Trying another username does not skip the wait, and the same account can still
+// be signed in to from another network. The wait survives a restart, is refused even with
+// the right password, never locks the account for good, and ends by itself.
 func TestGuessingIsSlowedTheSameForKnownAndUnknownNames(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "main.db")
 	s := openTestServer(t, path)
@@ -301,17 +354,20 @@ func TestGuessingIsSlowedTheSameForKnownAndUnknownNames(t *testing.T) {
 	now := time.Now()
 	s.now = func() time.Time { return now }
 
-	guess := func(s *Server, username, password string) (int, string) {
-		w := call(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: username, Password: password, Device: device(3)}, nil)
+	guess := func(s *Server, from, username, password string) (int, string) {
+		r := newRequest("POST", "/v1/auth/sign-in", "", SignInRequest{Username: username, Password: password, Device: device(3)})
+		r.RemoteAddr = from + ":4000"
+		w := serve(s, r)
 		var body errorBody
 		jsonInto(w, &body)
 		body.Error.RequestID = ""
 		return w.Code, fmt.Sprintf("%+v retry-after=%s", body.Error, w.Header().Get("Retry-After"))
 	}
+	const cafe, library, elsewhere = "198.51.100.7", "198.51.100.8", "198.51.100.9"
 	sawWait := false
 	for i := range 8 {
-		knownCode, known := guess(s, "justin", "wrong password")
-		unknownCode, unknown := guess(s, "nobody-here", "wrong password")
+		knownCode, known := guess(s, cafe, "justin", "wrong password")
+		unknownCode, unknown := guess(s, library, "nobody-here", "wrong password")
 		if knownCode != unknownCode || known != unknown {
 			t.Fatalf("guess %d: a real and an unknown username were answered differently:\n real    %d %s\n unknown %d %s", i, knownCode, known, unknownCode, unknown)
 		}
@@ -326,17 +382,23 @@ func TestGuessingIsSlowedTheSameForKnownAndUnknownNames(t *testing.T) {
 		t.Fatal("eight wrong guesses were never asked to wait")
 	}
 	// One more wrong guess starts a wait. Restart the server inside it.
-	if code, _ := guess(s, "justin", "wrong password"); code != 401 {
+	if code, _ := guess(s, cafe, "justin", "wrong password"); code != 401 {
 		t.Fatalf("the guess after waiting answered %d, want 401", code)
 	}
 	closeDB(s.db)
 	s = openTestServer(t, path)
 	s.now = func() time.Time { return now }
-	if code, _ := guess(s, "justin", testPassword); code != 429 {
+	if code, _ := guess(s, cafe, "justin", testPassword); code != 429 {
 		t.Fatalf("after a restart the right password answered %d inside the wait, want 429", code)
 	}
+	if code, _ := guess(s, cafe, "someone-else", "wrong password"); code != 429 {
+		t.Fatalf("trying another username from the waiting network answered %d, want 429", code)
+	}
+	if code, _ := guess(s, elsewhere, "justin", testPassword); code != 200 {
+		t.Fatalf("the right password from another network answered %d while one network waits, want 200", code)
+	}
 	now = now.Add(2 * time.Minute)
-	if code, _ := guess(s, "justin", testPassword); code != 200 {
+	if code, _ := guess(s, cafe, "justin", testPassword); code != 200 {
 		t.Fatalf("after the wait the right password answered %d, want 200", code)
 	}
 }
@@ -363,15 +425,20 @@ func TestGuessesSentTogetherGainNothing(t *testing.T) {
 	}
 }
 
-// Profiles: at most eight, only the account's manager may change them, a PIN guards
-// selection and slows guessing, and changing a PIN sends other devices back to the chooser.
+// Profiles: at most eight, only the main profile may change them, a PIN guards selection
+// and slows guessing on the device that guesses, changing a PIN sends other devices back to
+// the chooser, and a forgotten PIN is replaced with the account's password.
 func TestProfilesPINsAndWhoMayManage(t *testing.T) {
 	s := newTestServer(t)
 	now := time.Now()
 	s.now = func() time.Time { return now }
 	first := setup(t, s)
-	account := first.Session.AccessToken
 	mainID := first.Profiles[0].ID
+	// A sign-in that has not chosen the main profile manages nothing, PIN or no PIN.
+	if code := status(t, s, "POST", "/v1/profiles", first.Session.AccessToken, ProfileCreate{Name: "Too soon"}); code != 403 {
+		t.Fatalf("a sign-in still at the profile chooser created a profile (%d)", code)
+	}
+	account := onMain(t, s, first).AccessToken
 
 	var kid Profile
 	r := call(t, s, "POST", "/v1/profiles", account, ProfileCreate{Name: "Kid", Color: "mint"}, &kid)
@@ -389,6 +456,10 @@ func TestProfilesPINsAndWhoMayManage(t *testing.T) {
 	if code := status(t, s, "DELETE", "/v1/profiles/"+mainID, account, nil); code != 409 {
 		t.Errorf("deleting the main profile answered %d, want 409", code)
 	}
+	// A name is measured in characters: 120 of any script fit.
+	if code := status(t, s, "PATCH", "/v1/profiles/"+kid.ID, account, map[string]string{"name": strings.Repeat("é", 120)}); code != 200 {
+		t.Errorf("a profile name of 120 accented characters answered %d, want 200", code)
+	}
 
 	// A second device goes onto the kid's profile. From there the account cannot be managed.
 	tablet := signIn(t, s, 1).Session
@@ -399,33 +470,35 @@ func TestProfilesPINsAndWhoMayManage(t *testing.T) {
 	}
 	for _, c := range []struct{ method, path string }{
 		{"POST", "/v1/profiles"}, {"PATCH", "/v1/profiles/" + mainID}, {"DELETE", "/v1/profiles/" + kid.ID},
+		{"PUT", "/v1/profiles/" + mainID + "/pin"}, {"DELETE", "/v1/profiles/" + mainID + "/pin"},
 		{"GET", "/v1/me/sessions"}, {"GET", "/v1/devices"}, {"DELETE", "/v1/devices/" + tablet.DeviceID},
 	} {
 		var body any
-		if c.method == "POST" || c.method == "PATCH" {
-			body = map[string]string{"name": "Mine now"}
+		if c.method == "POST" || c.method == "PATCH" || c.method == "PUT" {
+			body = map[string]string{"name": "Mine now", "pin": "1111"}
 		}
 		if code := status(t, s, c.method, c.path, onKid.AccessToken, body); code != 403 {
 			t.Errorf("%s %s from a child profile answered %d, want 403", c.method, c.path, code)
 		}
 	}
 
-	// The parent puts a PIN on the main profile. A fresh sign-in cannot manage until it passes the PIN.
+	// The parent puts a PIN on the main profile.
 	pin := "4821"
 	if code := status(t, s, "PUT", "/v1/profiles/"+mainID+"/pin", account, ProfilePIN{PIN: pin}); code != 200 {
 		t.Fatalf("setting a PIN answered %d", code)
 	}
+	// Wrong PINs are refused and then slowed; inside the wait even the right PIN is refused
+	// on that device. Another device is not made to wait by it.
 	fresh := signIn(t, s, 2).Session
-	if code := status(t, s, "POST", "/v1/profiles", fresh.AccessToken, ProfileCreate{Name: "Sneaky"}); code != 403 {
-		t.Errorf("a sign-in that has not passed the main profile's PIN managed the account (%d)", code)
-	}
-	// Wrong PINs are refused and then slowed; inside the wait even the right PIN is refused.
 	sel := "/v1/profiles/" + mainID + "/select"
 	if code := status(t, s, "POST", sel, fresh.AccessToken, ProfileSelect{PIN: "0000"}); code != 403 {
 		t.Fatalf("a wrong PIN answered %d, want 403", code)
 	}
 	if code := status(t, s, "POST", sel, fresh.AccessToken, ProfileSelect{PIN: pin}); code != 429 {
 		t.Fatalf("the right PIN inside the wait answered %d, want 429", code)
+	}
+	if code := status(t, s, "POST", sel, signIn(t, s, 4).Session.AccessToken, ProfileSelect{PIN: pin}); code != 200 {
+		t.Fatalf("the right PIN on another device answered %d while one device waits, want 200", code)
 	}
 	now = now.Add(3 * time.Second)
 	var main Session
@@ -444,6 +517,25 @@ func TestProfilesPINsAndWhoMayManage(t *testing.T) {
 	if code != 200 || renewed.Viewer.ProfileID != "" || renewed.Viewer.Role != "account" {
 		t.Errorf("after its profile got a PIN the tablet renewed to %d %+v; want a session with no profile", code, renewed.Viewer)
 	}
+
+	// Forgot PIN: from the chooser, the account's password sets a new PIN on the main
+	// profile. The tablet stays where it was, and devices on the main profile are asked again.
+	forgot := "/v1/profiles/" + mainID + "/pin"
+	if code := status(t, s, "PUT", forgot, renewed.AccessToken, ProfilePIN{PIN: "7777", CurrentPassword: "not the password"}); code != 403 {
+		t.Errorf("replacing a forgotten PIN with a wrong password answered %d, want 403", code)
+	}
+	if code := status(t, s, "PUT", forgot, renewed.AccessToken, ProfilePIN{PIN: "7777", CurrentPassword: testPassword}); code != 200 {
+		t.Fatalf("replacing a forgotten PIN with the password answered %d, want 200", code)
+	}
+	if code := status(t, s, "GET", "/v1/me", renewed.AccessToken, nil); code != 200 {
+		t.Errorf("the device that replaced the PIN was moved (%d)", code)
+	}
+	if code := status(t, s, "GET", "/v1/me", main.AccessToken, nil); code != 401 {
+		t.Errorf("a device on the main profile was not asked for the new PIN (%d)", code)
+	}
+	if w := call(t, s, "POST", sel, renewed.AccessToken, ProfileSelect{PIN: "7777"}, &main); w.Code != 200 {
+		t.Errorf("the new PIN answered %d, want 200", w.Code)
+	}
 	// Another account's profile id is simply not there.
 	if code := status(t, s, "POST", "/v1/profiles/prf_someoneelses/select", main.AccessToken, ProfileSelect{}); code != 404 {
 		t.Errorf("selecting an unknown profile answered %d, want 404", code)
@@ -454,7 +546,7 @@ func TestProfilesPINsAndWhoMayManage(t *testing.T) {
 // different request is refused.
 func TestProfileCreateIsSafeToRepeat(t *testing.T) {
 	s := newTestServer(t)
-	token := setup(t, s).Session.AccessToken
+	token := onMain(t, s, setup(t, s)).AccessToken
 	create := func(name string) (int, Profile) {
 		r := newRequest("POST", "/v1/profiles", token, ProfileCreate{Name: name})
 		r.Header.Set("Idempotency-Key", "key-1")
@@ -482,15 +574,20 @@ func TestProfileCreateIsSafeToRepeat(t *testing.T) {
 // through the next sign-in.
 func TestDevicesAndSessions(t *testing.T) {
 	s := newTestServer(t)
-	owner := setup(t, s).Session
+	owner := onMain(t, s, setup(t, s))
 	tv := signIn(t, s, 1).Session
 	var renamed Device
 	if w := call(t, s, "PATCH", "/v1/devices/"+tv.DeviceID, owner.AccessToken, DeviceEdit{Name: "Living room TV"}, &renamed); w.Code != 200 || renamed.Name != "Living room TV" {
 		t.Fatalf("rename answered %d %+v", w.Code, renamed)
 	}
 	tvAgain := signIn(t, s, 1).Session
+	// The lists say home or away and never give an address.
 	var sessions Page[SessionInfo]
-	call(t, s, "GET", "/v1/me/sessions", owner.AccessToken, nil, &sessions)
+	listed := call(t, s, "GET", "/v1/me/sessions", owner.AccessToken, nil, &sessions).Body.String()
+	listed += call(t, s, "GET", "/v1/devices", owner.AccessToken, nil, nil).Body.String()
+	if strings.Contains(listed, "192.0.2.1") || strings.Count(listed, `"network":"away"`) != 5 {
+		t.Errorf("the session and device lists should say away five times and give no address: %s", listed)
+	}
 	names := ""
 	for _, v := range sessions.Items {
 		names += v.DeviceName + ";"

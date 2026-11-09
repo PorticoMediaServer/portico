@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"net/netip"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -32,8 +34,11 @@ type SignInRequest struct {
 
 // SetupOwnerRequest creates the owner account on a new server.
 type SetupOwnerRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	// SetupCode is the code the server wrote to its log and to setup-code.txt in its data
+	// folder when it first started. It shows the person can reach the server itself.
+	SetupCode string `json:"setupCode"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
 	// ProfileName names the owner's main profile. It defaults to the username.
 	ProfileName string     `json:"profileName,omitempty"`
 	Device      DeviceInfo `json:"device"`
@@ -104,7 +109,8 @@ type Me struct {
 	Profile *Profile `json:"profile,omitempty"`
 	// Role is what this session may do on the server; see Viewer.
 	Role string `json:"role"`
-	// CanManageAccount says this session may change the account's profiles, devices and sessions.
+	// CanManageAccount says this session is on the account's main profile, and so may change
+	// the account's profiles, devices, sessions and password.
 	CanManageAccount bool `json:"canManageAccount"`
 }
 
@@ -131,12 +137,12 @@ func (s *Server) authRoutes() {
 
 // session mints the tokens that say what st says. issued is when they count from.
 func (s *Server) session(st db.SessionState, issued time.Time, refreshToken string) Session {
-	// Before a profile is selected the session can only choose one and, unless the main
-	// profile has a PIN, manage the account. Only the main profile carries the account's
-	// role; any other profile is a member, whoever owns the account.
-	role, manage := "account", !st.PrimaryHasPIN
+	// Before a profile is selected the session can only choose one. Only the main profile
+	// carries the account's role and may manage the account; any other profile is a member,
+	// whoever owns the account.
+	role, manage := "account", false
 	if st.ProfileID != 0 {
-		role, manage = "member", false
+		role = "member"
 		if st.ProfilePrimary {
 			role, manage = st.UserRole, true
 		}
@@ -179,15 +185,59 @@ func remoteHost(r *http.Request) string {
 	return ap.Addr().Unmap().String()
 }
 
-// guessLimits are the counts a wrong guess at subject's secret adds to: this source's
-// guesses at this subject, all sources' guesses at it, and everything this source gets wrong.
-func guessLimits(r *http.Request, bucket, subject string, delay func(int) time.Duration) []db.Limit {
-	source, blockable := auth.Source(r.RemoteAddr)
-	limits := []db.Limit{{Bucket: bucket, Key: source + "|" + subject, FloorKey: "all|" + subject, Delay: delay}}
-	if blockable {
-		limits = append(limits, db.Limit{Bucket: "source", Key: source, Delay: auth.SourceDelay})
+// sourceLimit counts everything one network away from home gets wrong: passwords, PINs and
+// codes of every kind. At 30 the network is blocked for 15 minutes, then for twice as long
+// each time it happens again, up to a day. Every proof takes it, so a block refuses them
+// all. The home network is never blocked.
+func sourceLimit(r *http.Request) []db.Limit {
+	source, home := auth.Source(r.RemoteAddr)
+	if home {
+		return nil
 	}
-	return limits
+	return []db.Limit{{Bucket: "source", Key: source, Delay: auth.SourceDelay, Doubling: true}}
+}
+
+// passwordLimits are the counts a wrong password adds to. The wait belongs to the network
+// it came from, whichever username was tried, so the same account can still be signed in
+// to from elsewhere. Wrong guesses at one account from many networks are also counted
+// against the account, and each new network that guesses wrong starts from that count; a
+// right password from a new network still works at once.
+func passwordLimits(r *http.Request, account string) []db.Limit {
+	source, _ := auth.Source(r.RemoteAddr)
+	return append([]db.Limit{{Bucket: "password", Key: source, FloorKey: "account|" + account, Delay: auth.StandardPasswords.Delay}}, sourceLimit(r)...)
+}
+
+// passwordProof compares the caller's current password and returns the proof for the
+// transaction that will act on it. A wait already in force is refused here.
+func (s *Server) passwordProof(r *http.Request, password string) (db.PasswordProof, error) {
+	ctx, caller := r.Context(), CallerFrom(r.Context())
+	p := db.PasswordProof{UserID: caller.UserID, Limits: passwordLimits(r, "user:"+strconv.FormatInt(caller.UserID, 10))}
+	if wait, err := s.db.LimitWait(ctx, s.now(), p.Limits...); err != nil {
+		return p, err
+	} else if wait > 0 {
+		return p, errTooManyAttempts(wait)
+	}
+	creds, err := s.db.CredentialsByID(ctx, caller.UserID)
+	if err != nil {
+		return p, err
+	}
+	p.CheckedHash = creds.PasswordHash
+	p.OK, err = s.passwords.Check(ctx, creds.PasswordHash, password)
+	return p, err
+}
+
+// proofError turns the refusals of a password proof into their answers.
+func proofError(err error) error {
+	var limited *db.LimitedError
+	switch {
+	case errors.As(err, &limited):
+		return errTooManyAttempts(limited.Wait)
+	case errors.Is(err, db.ErrBadCredentials):
+		return refusal(http.StatusForbidden, "current_password_incorrect", "The current password is not correct.", false)
+	case errors.Is(err, db.ErrBadSecondStep):
+		return refusal(http.StatusForbidden, "two_factor_invalid", "That code is not correct.", false)
+	}
+	return err
 }
 
 // signedIn builds the sign-in answer for a session that has just started.
@@ -209,12 +259,12 @@ func accountOut(a db.Account) Account {
 
 func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInResponse, error) {
 	ctx, now := r.Context(), s.now()
-	key, ok := auth.UsernameKey(req.Username)
+	username, ok := auth.Username(req.Username)
 	if !ok {
 		return SignInResponse{}, ErrField("username", "Choose a username of 3 to 64 characters with no spaces or @.")
 	}
-	if !auth.ValidPassword(req.Password) {
-		return SignInResponse{}, ErrField("password", "Choose a password of at least 8 characters.")
+	if problem := auth.PasswordProblem(req.Password); problem != "" {
+		return SignInResponse{}, ErrField("password", problem)
 	}
 	if req.ProfileName == "" {
 		req.ProfileName = strings.TrimSpace(req.Username)
@@ -232,18 +282,23 @@ func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInRespo
 	} else if done {
 		return SignInResponse{}, errSetupDone()
 	}
+	// Anyone who can reach a new server could otherwise make themselves its owner.
+	if s.setupCode == "" || subtle.ConstantTimeCompare([]byte(auth.CodeKey(req.SetupCode)), []byte(auth.CodeKey(s.setupCode))) != 1 {
+		return SignInResponse{}, refusal(http.StatusForbidden, "setup_code_invalid",
+			"That setup code is not correct. It is in the server's log and in setup-code.txt in its data folder.", false)
+	}
 	hash, err := s.passwords.Hash(ctx, req.Password)
 	if err != nil {
 		return SignInResponse{}, err
 	}
-	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: strings.TrimSpace(req.Username), UsernameKey: key, PasswordHash: hash,
-		ProfileName: req.ProfileName, Session: session, Now: now})
+	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: username, PasswordHash: hash, ProfileName: req.ProfileName, Session: session, Now: now})
 	if errors.Is(err, db.ErrSetupDone) {
 		return SignInResponse{}, errSetupDone()
 	}
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	os.Remove(s.setupFile)
 	return s.signedIn(ctx, st, now, refresh)
 }
 
@@ -259,8 +314,8 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 	}
 	// From here on, a username nobody has is treated exactly like one with a wrong password:
 	// the same work, the same counting, the same answer.
-	key, _ := auth.UsernameKey(req.Username)
-	limits := guessLimits(r, "password", key, auth.PasswordDelay)
+	key, _ := auth.Username(req.Username)
+	limits := passwordLimits(r, key)
 	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
 		return SignInResponse{}, err
 	} else if wait > 0 {
@@ -333,41 +388,28 @@ func (s *Server) signOut(r *http.Request, _ None) (None, error) {
 	return None{}, s.db.RevokeSession(r.Context(), claims.SessionID, "signed_out", s.now())
 }
 
+// changePassword needs the main profile, the current password and, for an account with
+// two-step sign-in, its code. The account's other devices are signed out; this one stays.
 func (s *Server) changePassword(r *http.Request, req PasswordRequest) (None, error) {
-	ctx, now, caller := r.Context(), s.now(), CallerFrom(r.Context())
-	if !auth.ValidPassword(req.NewPassword) {
-		return None{}, ErrField("newPassword", "Choose a password of at least 8 characters.")
-	}
-	limits := guessLimits(r, "password", "user:"+strconv.FormatInt(caller.UserID, 10), auth.PasswordDelay)
-	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
-		return None{}, err
-	} else if wait > 0 {
-		return None{}, errTooManyAttempts(wait)
-	}
-	creds, err := s.db.CredentialsByID(ctx, caller.UserID)
+	ctx, now := r.Context(), s.now()
+	caller, err := manager(r)
 	if err != nil {
 		return None{}, err
 	}
-	ok, err := s.passwords.Check(ctx, creds.PasswordHash, req.CurrentPassword)
+	if problem := auth.PasswordProblem(req.NewPassword); problem != "" {
+		return None{}, ErrField("newPassword", problem)
+	}
+	proof, err := s.passwordProof(r, req.CurrentPassword)
 	if err != nil {
 		return None{}, err
 	}
 	var hash string
-	if ok {
+	if proof.OK {
 		if hash, err = s.passwords.Hash(ctx, req.NewPassword); err != nil {
 			return None{}, err
 		}
 	}
-	err = s.db.ChangePassword(ctx, db.PasswordChange{UserID: caller.UserID, CheckedHash: creds.PasswordHash, CurrentOK: ok,
-		NewHash: hash, Limits: limits, Now: now})
-	var limited *db.LimitedError
-	switch {
-	case errors.As(err, &limited):
-		return None{}, errTooManyAttempts(limited.Wait)
-	case errors.Is(err, db.ErrBadCredentials):
-		return None{}, refusal(http.StatusForbidden, "current_password_incorrect", "The current password is not correct.", false)
-	}
-	return None{}, err
+	return None{}, proofError(s.db.ChangePassword(ctx, proof, hash, caller.SessionID, now))
 }
 
 func (s *Server) me(r *http.Request, _ None) (Me, error) {
