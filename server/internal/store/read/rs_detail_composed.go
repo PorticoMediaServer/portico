@@ -172,7 +172,7 @@ func (r *RSDetailComposedReader) detail(ctx context.Context, request governor.Re
 				name, args = "rs.art.verify_empty", []any{selected[0], selected[1], selected[2], selected[5], selected[6], selected[19]}
 			} else if selected[20] != nil {
 				name = "rs.art.verify_local"
-				args = selected
+				args = selected[:34]
 			}
 			currentArt, err := q(name, args...)
 			if err != nil {
