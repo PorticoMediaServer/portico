@@ -9,7 +9,7 @@ import (
 // The changes table is pruned to these bounds. Its two readers are the search indexer, which
 // follows within seconds, and open apps. A reader that falls further behind than this rereads
 // everything, which is what an app does when it is opened after a week anyway.
-const (
+var (
 	changesKeepRows = 200_000
 	changesKeepAge  = 7 * 24 * time.Hour
 )

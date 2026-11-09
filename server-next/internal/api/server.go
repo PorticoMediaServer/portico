@@ -152,6 +152,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.memberRoutes()
 	s.invitationRoutes()
 	s.keyRoutes()
+	s.catalogueRoutes()
 	return s, nil
 }
 

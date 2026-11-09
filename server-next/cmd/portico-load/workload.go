@@ -222,6 +222,16 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 				_, err = w.d.Items(ctx, v, db.ItemQuery{Person: person})
 			}
 			w.record("person", started, err)
+		case n < 90: // Home: both rows
+			_, err := w.d.ContinueWatching(ctx, v)
+			if err == nil {
+				_, err = w.d.RecentlyAdded(ctx, v)
+			}
+			w.record("home", started, err)
+		case n < 93: // opening the genre filter of a library screen
+			leaf.Kinds = []db.ItemKind{seed.TitleKind(lib.Kind)}
+			_, err := w.d.Facets(ctx, v, leaf, db.FacetGenre)
+			w.record("facets", started, err)
 		default:
 			_, err := w.d.Item(ctx, v, pick(r, w.leaves))
 			w.record("detail", started, err)
