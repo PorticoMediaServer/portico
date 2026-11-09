@@ -1,6 +1,7 @@
 package read
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -158,6 +159,87 @@ func TestUOEventPageTitlePathIsAllOrGeneric(t *testing.T) {
 	}
 	if _, _, err := redactUOEventTitles(e, nil); !errors.Is(err, ErrDenied) {
 		t.Fatal("missing current rules were accepted", err)
+	}
+}
+
+// uoEventRedactionFixture carries titles that must be stripped and a kind that
+// the composing redaction rewrites, so a wire built from the stored event
+// instead of the redacted copy is detectable byte for byte.
+func uoEventRedactionFixture(t *testing.T) (*browseFixture, uoEventQuery) {
+	t.Helper()
+	f := newBrowseSource(t)
+	f.exec(t, `INSERT INTO api_events(id,audience,type,resource_kind,resource_id,revision,data,at_ms) VALUES
+(1,'p','original.changed','library','movies','2','{"titles":["secret-title"],"observation":"4"}',1),
+(2,'p','original.changed','item','visible','2','{"titles":["secret-title"],"observation":"4"}',2)`)
+	return f, uoEventNativeQuery(t, f, UOEventDefinitions())
+}
+
+func uoEventWireRedact(_ string, e uoStoredEvent) (uoStoredEvent, bool, error) {
+	out, keep, err := redactUOEventTitles(e, func(id string) bool { return id == "visible" })
+	if err != nil || !keep {
+		return out, keep, err
+	}
+	out.kind = "wire.changed"
+	return out, true, nil
+}
+
+func TestUOEventPageRedactionRewritesWire(t *testing.T) {
+	_, query := uoEventRedactionFixture(t)
+	codec, err := newUOEventCursorCodec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+	q := uoEventPageInput{audience: "p", upper: 2, oldest: 1, limit: 100, wireBytes: 64 << 10, binding: binding}
+	page, err := readUOEventPage(t.Context(), query, codec, q, func(e uoStoredEvent) (uoStoredEvent, bool, error) { return uoEventWireRedact("p", e) })
+	if err != nil || len(page.events) != 2 {
+		t.Fatal(page, err)
+	}
+	wire, err := json.Marshal(page.events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"type":"wire.changed"`, `"observation":"4"`} {
+		if !strings.Contains(string(wire), want) {
+			t.Fatalf("page wire lost the redacted value %q: %s", want, wire)
+		}
+	}
+	for _, banned := range []string{"secret-title", "titles", "original.changed"} {
+		if strings.Contains(string(wire), banned) {
+			t.Fatalf("page wire kept the stored value %q: %s", banned, wire)
+		}
+	}
+}
+
+func TestUOEventFeedRedactionRewritesWire(t *testing.T) {
+	_, query := uoEventRedactionFixture(t)
+	codec, err := newUOEventCursorCodec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+	cursor, err := codec.encode(binding, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := readUOEventFeed(t.Context(), query, codec, uoEventFeedInput{cursor: cursor, nowMS: 100, binding: binding}, func(a string) bool { return a == "p" }, uoEventWireRedact)
+	if err != nil || len(page.events) != 2 {
+		t.Fatal(page, err)
+	}
+	frames, err := uoEventStreamFrames(page, true, false, false, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire := bytes.Join(frames, nil)
+	for _, want := range []string{"event: wire.changed", "\"observation\":\"4\""} {
+		if !strings.Contains(string(wire), want) {
+			t.Fatalf("feed wire lost the redacted value %q: %s", want, wire)
+		}
+	}
+	for _, banned := range []string{"secret-title", "titles", "original.changed"} {
+		if strings.Contains(string(wire), banned) {
+			t.Fatalf("feed wire kept the stored value %q: %s", banned, wire)
+		}
 	}
 }
 

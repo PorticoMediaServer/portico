@@ -119,7 +119,20 @@ type uoEventTransportSink struct {
 	frames [][]byte
 }
 
-func (s *uoEventTransportSink) emit(frame []byte) error {
+// uoEventTransportBlockingSink models a physically stalled consumer: it never
+// returns until its per-write context is done.
+type uoEventTransportBlockingSink struct {
+	started chan struct{}
+	once    sync.Once
+}
+
+func (s *uoEventTransportBlockingSink) emit(ctx context.Context, _ []byte) error {
+	s.once.Do(func() { close(s.started) })
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s *uoEventTransportSink) emit(_ context.Context, frame []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.frames = append(s.frames, append([]byte(nil), frame...))
@@ -398,14 +411,16 @@ func TestUOEventTransportRevokeDropsQueuedHints(t *testing.T) {
 			t.Fatal(err)
 		}
 		frames := sink.snapshot()
-		if len(frames) != 1 {
+		if len(frames) != 2 {
 			t.Fatalf("revocation did not drop queued hints and sent %d frames", len(frames))
 		}
 		if !uoEventTransportFrameIs(frames[0], "first") || uoEventTransportFrameIs(frames[0], "second") {
 			t.Fatalf("stale-frame control %q", frames[0])
 		}
-		if uoEventTransportFrameHasType(frames, "stream.closed") {
-			t.Fatal("invented a closing frame for a stale principal")
+		// The merged product closes a stale principal with the
+		// authority-changed control only: no page frame follows it.
+		if !uoEventTransportFrameIs(frames[1], "stream.closed") || !bytes.Contains(frames[1], []byte(`"reason":"authority_changed"`)) || uoEventTransportFrameIs(frames[1], "second") {
+			t.Fatalf("authority close control %q", frames[1])
 		}
 		hub.mu.Lock()
 		left := len(hub.audiences)
@@ -551,6 +566,335 @@ func TestUOEventTransportForeignCursorResyncs(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestUOEventTransportAbandonsStalledWriteAtDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		newInput := func(sink *uoEventTransportBlockingSink) (uoEventTransportInput, *uoEventTransportRing, uoEventBinding, *uoEventCursorCodec) {
+			hub := &uoEventWakeHub{}
+			codec, err := newUOEventCursorCodec()
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+			ring := &uoEventTransportRing{}
+			ring.insert(uoEventTransportRow{id: 1, atMS: 1, audience: "p", kind: "hint", data: "{}"})
+			return uoEventTransportInput{
+				hub: hub, codec: codec, query: ring.query,
+				authority: func(context.Context) (uoEventBinding, bool, error) { return binding, true, nil },
+				addressed: func(a string) bool { return a == "p" },
+				redact:    func(_ string, e uoStoredEvent) (uoStoredEvent, bool, error) { return e, true, nil },
+				emit:      sink.emit, now: time.Now,
+				audience: "p", binding: binding,
+				config: uoEventTransportConfig{heartbeat: 10 * time.Second, life: time.Minute, turns: 16},
+			}, ring, binding, codec
+		}
+		assertReleased := func(t *testing.T, hub *uoEventWakeHub) {
+			t.Helper()
+			hub.mu.Lock()
+			defer hub.mu.Unlock()
+			if len(hub.audiences) != 0 || hub.active != 0 {
+				t.Fatalf("stalled write held hub state: audiences=%d active=%d", len(hub.audiences), hub.active)
+			}
+		}
+
+		// A sink that ignores everything but its own context is abandoned at
+		// the per-write deadline, so the release paths run without a caller
+		// cancel.
+		sink := &uoEventTransportBlockingSink{started: make(chan struct{})}
+		in, _, _, _ := newInput(sink)
+		done := make(chan error, 1)
+		go func() { done <- serveUOEventTransport(context.Background(), in) }()
+		<-sink.started
+		time.Sleep(uoEventTransportWrite)
+		synctest.Wait()
+		if err := <-done; !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal("write deadline did not end the stream", err)
+		}
+		assertReleased(t, in.hub)
+
+		// Cancellation reaches the same bounded write and releases physically.
+		sink = &uoEventTransportBlockingSink{started: make(chan struct{})}
+		in, _, _, _ = newInput(sink)
+		ctx, cancel := context.WithCancel(context.Background())
+		done = make(chan error, 1)
+		go func() { done <- serveUOEventTransport(ctx, in) }()
+		<-sink.started
+		cancel()
+		synctest.Wait()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Fatal("cancel did not end the stalled write", err)
+		}
+		assertReleased(t, in.hub)
+	})
+}
+
+func TestUOEventTransportWakesForEveryAddressedAudience(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		hub := &uoEventWakeHub{}
+		codec, err := newUOEventCursorCodec()
+		if err != nil {
+			t.Fatal(err)
+		}
+		binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+		ring := &uoEventTransportRing{}
+		ring.insert(uoEventTransportRow{id: 1, atMS: 1, audience: "p", kind: "first", data: "{}"})
+		ring.insert(uoEventTransportRow{id: 2, atMS: 2, audience: "server", kind: "second", data: "{}"})
+		sink := &uoEventTransportSink{}
+		in := uoEventTransportTestInput(hub, codec, ring, binding, "", sink)
+		in.addressed = func(a string) bool { return a == "p" || a == "server" }
+		in.wakeAudiences = []string{"p", "server"}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- serveUOEventTransport(ctx, in) }()
+		synctest.Wait()
+		before := sink.count()
+		hub.mu.Lock()
+		both := len(hub.audiences) == 2 && hub.audiences["p"] != nil && hub.audiences["server"] != nil
+		hub.mu.Unlock()
+		if !both {
+			t.Fatal("wake did not subscribe every addressed audience")
+		}
+
+		// A row in the other addressed audience wakes the stream directly: no
+		// heartbeat advance is needed and no SQL ran while parked.
+		ring.insert(uoEventTransportRow{id: 3, atMS: 3, audience: "server", kind: "third", data: "{}"})
+		hub.publish("server")
+		synctest.Wait()
+		frames := sink.snapshot()
+		if len(frames) == before || !uoEventTransportFrameHasType(frames[before:], "third") {
+			t.Fatalf("addressed audience wake was not delivered: %q", frames)
+		}
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestUOEventTransportAuthorityDenials(t *testing.T) {
+	hub := &uoEventWakeHub{}
+	codec, err := newUOEventCursorCodec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+	ring := &uoEventTransportRing{}
+	ring.insert(uoEventTransportRow{id: 1, atMS: 1, audience: "p", kind: "first", data: "{}"})
+
+	// An unchanged binding is not permission: allowed=false still ends the
+	// stream, and a different binding with allowed=true does too.
+	for name, authority := range map[string]uoEventCurrentAuthority{
+		"denied": func(context.Context) (uoEventBinding, bool, error) { return binding, false, nil },
+		"mismatch": func(context.Context) (uoEventBinding, bool, error) {
+			return uoEventBinding{database: [16]byte{9}, viewer: binding.viewer, audience: binding.audience}, true, nil
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sink := &uoEventTransportSink{}
+			in := uoEventTransportTestInput(hub, codec, ring, binding, "", sink)
+			in.authority = authority
+			if err := serveUOEventTransport(context.Background(), in); !errors.Is(err, errUOEventTransportRevoked) {
+				t.Fatal(err)
+			}
+			if sink.count() != 0 {
+				t.Fatalf("denied authority emitted %d frames", sink.count())
+			}
+		})
+	}
+
+	// A source error is returned as-is and never becomes a revocation.
+	sourceErr := errors.New("authority source unavailable")
+	in := uoEventTransportTestInput(hub, codec, ring, binding, "", &uoEventTransportSink{})
+	in.authority = func(context.Context) (uoEventBinding, bool, error) { return binding, true, sourceErr }
+	if err := serveUOEventTransport(context.Background(), in); !errors.Is(err, sourceErr) {
+		t.Fatal(err)
+	}
+	if len(hub.audiences) != 0 || hub.active != 0 {
+		t.Fatal("failed authority retained hub state")
+	}
+}
+
+func TestUOEventTransportReadErrorReplacedByRevocation(t *testing.T) {
+	hub := &uoEventWakeHub{}
+	codec, err := newUOEventCursorCodec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+	ring := &uoEventTransportRing{}
+	ring.insert(uoEventTransportRow{id: 1, atMS: 1, audience: "p", kind: "first", data: "{}"})
+	checks := 0
+	in := uoEventTransportTestInput(hub, codec, ring, binding, "", &uoEventTransportSink{})
+	in.authority = func(context.Context) (uoEventBinding, bool, error) {
+		checks++
+		return binding, checks == 1, nil
+	}
+	// The durable read reports a stale row while authority has in fact been
+	// revoked. The denial must replace the read error, never be joined to it.
+	in.query = func(id stmt.ID, args ...any) ([][]any, error) {
+		if id == uoEventRawWindow {
+			return nil, ErrStale
+		}
+		return ring.query(id, args...)
+	}
+	err = serveUOEventTransport(context.Background(), in)
+	if !errors.Is(err, errUOEventTransportRevoked) || errors.Is(err, ErrStale) {
+		t.Fatal("read error was not replaced by the deferred authority denial", err)
+	}
+}
+
+func TestUOEventTransportContinuesTruncatedPage(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		hub := &uoEventWakeHub{}
+		codec, err := newUOEventCursorCodec()
+		if err != nil {
+			t.Fatal(err)
+		}
+		binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+		ring := &uoEventTransportRing{}
+		payload := `{"p":"` + strings.Repeat("x", 4000) + `"}`
+		for n := int64(1); n <= 40; n++ {
+			ring.insert(uoEventTransportRow{id: n, atMS: n, audience: "p", kind: "hint", data: payload})
+		}
+		cursor, err := codec.encode(binding, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sink := &uoEventTransportSink{}
+		in := uoEventTransportTestInput(hub, codec, ring, binding, cursor, sink)
+		in.config = uoEventTransportConfig{heartbeat: 10 * time.Second, life: time.Minute, turns: 64}
+		rounds := 0
+		query := in.query
+		in.query = func(id stmt.ID, args ...any) ([][]any, error) {
+			if id == uoEventOldest {
+				rounds++
+			}
+			return query(id, args...)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- serveUOEventTransport(ctx, in) }()
+		// No clock advance: the byte-truncated page must re-read immediately.
+		synctest.Wait()
+		frames := sink.snapshot()
+		delivered := 0
+		for _, frame := range frames {
+			if uoEventTransportFrameIs(frame, "hint") {
+				delivered++
+			}
+		}
+		if delivered != 40 {
+			t.Fatalf("truncated page waited for the heartbeat: %d/40 events after %d rounds", delivered, rounds)
+		}
+		if rounds < 2 {
+			t.Fatalf("byte-truncated page did not re-read: %d rounds", rounds)
+		}
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestUOEventTransportMaxActiveAndBoundedHub(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		hub := &uoEventWakeHub{maxActive: 1}
+		codec, err := newUOEventCursorCodec()
+		if err != nil {
+			t.Fatal(err)
+		}
+		binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+		ring := &uoEventTransportRing{}
+		ring.insert(uoEventTransportRow{id: 1, atMS: 1, audience: "p", kind: "first", data: "{}"})
+		sink := &uoEventTransportSink{}
+		in := uoEventTransportTestInput(hub, codec, ring, binding, "", sink)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- serveUOEventTransport(ctx, in) }()
+		synctest.Wait()
+
+		// The configured cap refuses the second stream by name, before any
+		// subscription or SQL work, and leaves the first untouched.
+		second := uoEventTransportTestInput(hub, codec, ring, binding, "", &uoEventTransportSink{})
+		if err := serveUOEventTransport(context.Background(), second); !errors.Is(err, errUOEventTransportAtCapacity) {
+			t.Fatal("configured stream cap not enforced", err)
+		}
+		hub.mu.Lock()
+		active := hub.active
+		hub.mu.Unlock()
+		if active != 1 {
+			t.Fatalf("refused stream changed the active count: %d", active)
+		}
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		hub.mu.Lock()
+		active = hub.active
+		hub.mu.Unlock()
+		if active != 0 {
+			t.Fatal("released stream retained its capacity", active)
+		}
+		// Once released, the same hub admits a new stream.
+		third := uoEventTransportTestInput(hub, codec, ring, binding, "", &uoEventTransportSink{})
+		third.config.turns = 1
+		if err := serveUOEventTransport(context.Background(), third); err != nil {
+			t.Fatal(err)
+		}
+	})
+	// The hub map is bounded by named refusal, not growth.
+	hub := &uoEventWakeHub{maxAudiences: 1}
+	set, err := hub.subscribeAll([]string{"a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer set.release()
+	if _, err := hub.subscribeAll([]string{"b"}); !errors.Is(err, errUOEventWakeCapacity) {
+		t.Fatal("hub map grew past its bound", err)
+	}
+	if _, err := hub.subscribeAll([]string{"a", "b"}); !errors.Is(err, errUOEventWakeCapacity) {
+		t.Fatal("partial multi-subscription escaped the hub bound", err)
+	}
+}
+
+func TestUOEventTransportRedactionRewritesFrames(t *testing.T) {
+	_, query := uoEventRedactionFixture(t)
+	codec, err := newUOEventCursorCodec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+	cursor, err := codec.encode(binding, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := &uoEventTransportSink{}
+	in := uoEventTransportInput{
+		hub: &uoEventWakeHub{}, codec: codec, query: query,
+		authority: func(context.Context) (uoEventBinding, bool, error) { return binding, true, nil },
+		addressed: func(a string) bool { return a == "p" },
+		redact:    uoEventWireRedact,
+		emit:      sink.emit, now: time.Now,
+		audience: "p", cursor: cursor, binding: binding,
+		config: uoEventTransportConfig{heartbeat: time.Second, life: 2 * time.Second, turns: 1},
+	}
+	if err := serveUOEventTransport(t.Context(), in); err != nil {
+		t.Fatal(err)
+	}
+	wire := bytes.Join(sink.snapshot(), nil)
+	for _, want := range []string{"event: wire.changed", "\"observation\":\"4\""} {
+		if !strings.Contains(string(wire), want) {
+			t.Fatalf("transport wire lost the redacted value %q: %s", want, wire)
+		}
+	}
+	for _, banned := range []string{"secret-title", "titles", "original.changed"} {
+		if strings.Contains(string(wire), banned) {
+			t.Fatalf("transport wire kept the stored value %q: %s", banned, wire)
+		}
+	}
 }
 
 func TestUOEventTransportFixturePagesWithRealSQL(t *testing.T) {
