@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash"
 	"math"
@@ -27,10 +28,48 @@ const (
 	ipEditBulkTargetBytes = 40 // exact retained logical bytes per target
 	ipEditBulkFieldPad    = 32 // fixed per-field manifest overhead
 	ipEditBulkMaxFields   = 11 // loose nested cap; the closed field set is smaller
-	ipEditBulkMaxTargets  = 4096
-	ipEditBulkActorMax    = 4096
-	ipEditBulkBaseMax     = 128
+
+	// ipEditBulkMaxTargets is the LOGICAL immutable target-cohort bound of the
+	// FUTURE staged/paged capture design. It is not evidence that command 243 can
+	// birth that cohort in one turn, and it must never be lowered to the current
+	// atomic capacity.
+	ipEditBulkMaxTargets = 4096
+
+	// Command 243 is an explicitly limited atomic subset until the separate
+	// staged-capture storage/receipt/writer-core proposal lands. It remains
+	// complete-in-one-transaction: never flip descriptive_input_complete early,
+	// never invent partial E headers, never add IDs/DDL or a partial-header
+	// overlay, and never inflate governor allowances to fit a larger cohort.
+	// A cohort that cannot be captured inside the governed recipe is refused
+	// BEFORE any write with zero effects and no receipt.
+	//
+	// Governing IP owner-edit recipe: a 4 MiB WAL allowance with a 4096-byte WAL
+	// forecast per statement bounds one turn to 1024 statements; fixed authority
+	// and lookup overhead and the per-statement rows/VM/pages/Hold forecasts also
+	// bind. 1024 is therefore a CEILING, never a safe target cohort.
+	//
+	// Future staged design (not implemented here): bounded capture pages of at
+	// most 64 targets; each page declares the expected next ordinal, its exact
+	// (entity, incarnation, revision) tuples and a digest/byte chain; each page
+	// has its own command sequence and receipt; contiguous ordinal CAS admits
+	// one page at a time; no apply before the native complete count/bytes/
+	// manifest seal; the final seal is followed by the existing page/terminal
+	// commands 244/245.
+	ipEditBulkAtomicStatementWALBytes        = 4096
+	ipEditBulkAtomicRecipeWALBytes           = 4 << 20
+	ipEditBulkAtomicStatementCeiling         = ipEditBulkAtomicRecipeWALBytes / ipEditBulkAtomicStatementWALBytes // 1024
+	ipEditBulkBirthFixedStatements    uint64 = 9                                                                  // owner read twice, insert, two counts, receipt write, four saved reads
+	ipEditBulkBirthTargetStatements   uint64 = 3                                                                  // entity proof, target write, target proof
+	ipEditBulkBirthFieldStatements    uint64 = 2                                                                  // field write, field proof
+	ipEditBulkActorMax                       = 4096
+	ipEditBulkBaseMax                        = 128
 )
+
+// errIPEditBulkCohortExceedsAtomicBudget marks the PRE-MUTATION resource refusal
+// of an IP-26 birth whose complete cohort cannot be captured inside the governed
+// atomic statement/work budget. It never means the request exceeds the logical
+// 4096 bound; that bound belongs to the future staged/paged design.
+var errIPEditBulkCohortExceedsAtomicBudget = errors.New("ip_edit_bulk_begin: cohort exceeds the atomic birth budget")
 
 // ipEditBulkField is one normalized requested field. Only the finite bulk-safe
 // text fields below are admitted; item-specific title/description edits keep
@@ -153,6 +192,26 @@ func ipEditBulkCanonicalRevision(value string) (int64, error) {
 		return 0, ErrInvalid
 	}
 	return n, nil
+}
+
+// ipEditBulkBirthStatements is the complete statement count of one birth:
+// fixed owner/header/receipt work, three statements per target and two per
+// field. The second result is false on arithmetic overflow. It says nothing
+// about capacity; the apply-time preflight compares it with the governed
+// recipe before mutation.
+func ipEditBulkBirthStatements(targets, fields int) (uint64, bool) {
+	if targets < 0 || fields < 0 {
+		return 0, false
+	}
+	t, f := uint64(targets), uint64(fields)
+	if t > (math.MaxUint64-ipEditBulkBirthFixedStatements)/ipEditBulkBirthTargetStatements {
+		return 0, false
+	}
+	count := ipEditBulkBirthFixedStatements + t*ipEditBulkBirthTargetStatements
+	if f > (math.MaxUint64-count)/ipEditBulkBirthFieldStatements {
+		return 0, false
+	}
+	return count + f*ipEditBulkBirthFieldStatements, true
 }
 
 // newIPEditBulkCommand freezes the complete original request under W

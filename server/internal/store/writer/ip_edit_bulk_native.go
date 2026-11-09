@@ -5,6 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"math"
 	"time"
 
 	fieldmeta "github.com/PorticoMediaServer/portico/server/internal/store/metadata"
@@ -456,6 +458,128 @@ func ipEditBulkWriteFresh(ctx context.Context, turn *commandTurn, c *ipEditBulkC
 	return saved, nil
 }
 
+// ipEditBulkBirthCost is the real statement/work cost of one complete cohort
+// birth, measured from the SAME registered step forecasts the governed turn
+// charges. Statements is the complete birth count; Work covers the statements
+// still ahead of the preflight, because lookup work is already in the quantum.
+type ipEditBulkBirthCost struct {
+	Statements uint64
+	Work       Work
+}
+
+// ipEditBulkAddWork accumulates one registered statement forecast. Overflow is
+// a resource refusal, never a wrapped or silently clamped forecast.
+func ipEditBulkAddWork(dst *Work, step Work) error {
+	if step.Hold < 0 {
+		return ErrInvalid
+	}
+	if dst.Rows > math.MaxUint64-step.Rows || dst.VMOps > math.MaxUint64-step.VMOps ||
+		dst.Pages > math.MaxUint64-step.Pages || dst.WALBytes > math.MaxUint64-step.WALBytes ||
+		dst.Hold > time.Duration(math.MaxInt64)-step.Hold {
+		return ErrCap
+	}
+	dst.Rows += step.Rows
+	dst.VMOps += step.VMOps
+	dst.Pages += step.Pages
+	dst.WALBytes += step.WALBytes
+	dst.Hold += step.Hold
+	return nil
+}
+
+// ipEditBulkBirthCostOf computes the cohort's real cost from the actual targets
+// and fields and the turn's registered statement work. It covers the complete
+// birth: the lookup owner read, owner insert, field/target count proofs, the
+// receipt write, every per-field/target capture statement and the four
+// saved-result reads.
+func ipEditBulkBirthCostOf(turn *commandTurn, c *ipEditBulkCommand) (out ipEditBulkBirthCost, err error) {
+	if turn == nil || turn.transaction == nil || c == nil || !c.valid {
+		return out, ErrInvalid
+	}
+	count, ok := ipEditBulkBirthStatements(len(c.request.Targets), len(c.request.Root.Fields))
+	if !ok {
+		return out, ErrCap
+	}
+	out.Statements = count
+	add := func(id stmt.ID, times uint64) error {
+		step, ok := turn.steps[id]
+		if !ok {
+			return ErrInvalid
+		}
+		for i := uint64(0); i < times; i++ {
+			if err := ipEditBulkAddWork(&out.Work, step.work); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	// The lookup owner read, owner insert, field/target count proofs, receipt
+	// write, the second owner read and the remaining three saved-result reads.
+	for _, id := range []stmt.ID{ipBulkOwner, ipBulkInsert, ipBulkFieldCount, ipBulkTargetCount,
+		ipBulkReceiptWrite, ipBulkOwner, ipBulkReceipt, ipBulkFieldRead, ipBulkTargetRead} {
+		if err = add(id, 1); err != nil {
+			return out, err
+		}
+	}
+	targets, fields := uint64(len(c.request.Targets)), uint64(len(c.request.Root.Fields))
+	for _, group := range []struct {
+		id    stmt.ID
+		times uint64
+	}{
+		{ipBulkEntity, targets},
+		{ipBulkTargetWrite, targets},
+		{ipBulkTargetMatch, targets},
+		{ipBulkFieldWrite, fields},
+		{ipBulkFieldMatch, fields},
+	} {
+		if err = add(group.id, group.times); err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
+func ipEditBulkAtomicRefusal(c *ipEditBulkCommand, cost ipEditBulkBirthCost) error {
+	return &PolicyError{
+		Field: fmt.Sprintf("ip_edit_bulk_begin_cohort targets=%d fields=%d statements=%d budget_statements=%d rows=%d vmops=%d pages=%d wal_bytes=%d",
+			len(c.request.Targets), len(c.request.Root.Fields), cost.Statements,
+			ipEditBulkAtomicStatementCeiling, cost.Work.Rows, cost.Work.VMOps,
+			cost.Work.Pages, cost.Work.WALBytes),
+		Limit: int(ipEditBulkAtomicStatementCeiling),
+		Cause: errors.Join(ErrCap, errIPEditBulkCohortExceedsAtomicBudget),
+	}
+}
+
+// ipEditBulkBirthPreflight is the PRE-MUTATION resource gate for command 243.
+// It runs after saved-result lookup (so an existing receipt still replays) and
+// after the read-only authority recheck, but before the fresh owner insert,
+// entity checks and every cohort write. A refusal therefore leaves zero rows
+// and no receipt. It never lowers the logical 4096 bound; it only states that
+// this atomic subset cannot capture that cohort.
+func ipEditBulkBirthPreflight(turn *commandTurn, c *ipEditBulkCommand) error {
+	cost, err := ipEditBulkBirthCostOf(turn, c)
+	if err != nil {
+		return err
+	}
+	if cost.Statements > ipEditBulkAtomicStatementCeiling {
+		return ipEditBulkAtomicRefusal(c, cost)
+	}
+	q := turn.transaction.quantum
+	if q == nil || q.finished {
+		return ipEditBulkAtomicRefusal(c, cost)
+	}
+	// The complete cost includes the lookup owner read already charged before
+	// this gate; add that one forecast back so the comparison is exact.
+	available := q.Remaining()
+	lookup, ok := turn.steps[ipBulkOwner]
+	if !ok || ipEditBulkAddWork(&available, lookup.work) != nil {
+		return ipEditBulkAtomicRefusal(c, cost)
+	}
+	if !fits(cost.Work, available) || !fits(q.terminal, subtract(available, cost.Work)) {
+		return ipEditBulkAtomicRefusal(c, cost)
+	}
+	return nil
+}
+
 // applyIPEditBulkBegin is the closed command body. A fresh bundle births the
 // repair owner and captures the complete original cohort atomically; a saved
 // receipt returns its exact original result even after the catalogue moved.
@@ -492,6 +616,12 @@ func applyIPEditBulkBegin(ctx context.Context, turn *commandTurn, p *usOwnerAuth
 		return zero, ErrResolveRequired
 	}
 	if err = auth.recheck(ctx, turn); err != nil {
+		return zero, err
+	}
+	// The authority proof is re-read before this gate, so quantum.Remaining()
+	// is exact for the complete write/capture/readback set. The gate still runs
+	// before the first mutation and leaves zero effects and no receipt.
+	if err = ipEditBulkBirthPreflight(turn, c); err != nil {
 		return zero, err
 	}
 	applied, err := ipEditBulkWriteFresh(ctx, turn, c)
