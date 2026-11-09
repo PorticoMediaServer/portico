@@ -1,3 +1,4 @@
+import inspect
 import json
 import tempfile
 from pathlib import Path
@@ -92,6 +93,34 @@ class MergeShardBudget(unittest.TestCase):
                          [{'package': 'p', 'seconds': 505.0}])
         with self.assertRaisesRegex(ValueError, '780s limit'):
             plan.assert_merge_shard_budget(bins, tests, split, {'p.TestHuge': 781.0})
+
+
+class MergeShardCeiling(unittest.TestCase):
+    """The imported trains grow the full inventory; 64 shards no longer fit it."""
+
+    def wide_inventory(self, count):
+        names = [f'TestWide{i}' for i in range(count)]
+        tests = inventory('p', names)
+        durations = {f'p.{name}': 300.0 for name in names}
+        # Mark the package split so each parent is its own priced command.
+        split = {'p': set(names) | {'TestOther'}}
+        return tests, durations, split
+
+    def test_merge_ceiling_is_128(self):
+        self.assertEqual(
+            inspect.signature(plan.balance_merge).parameters['max_count'].default, 128)
+
+    def test_inventory_needing_65_to_128_shards_plans(self):
+        tests, durations, split = self.wide_inventory(120)
+        bins, _ = plan.balance_merge(tests, durations, split)
+        self.assertGreaterEqual(len(bins), 65)
+        self.assertLessEqual(len(bins), 128)
+        plan.assert_merge_shard_budget(bins, tests, split, durations)
+
+    def test_inventory_over_128_shards_fails_closed(self):
+        tests, durations, split = self.wide_inventory(129)
+        with self.assertRaisesRegex(ValueError, 'more than 128 shards'):
+            plan.balance_merge(tests, durations, split)
 
 
 class MergeDurationImport(unittest.TestCase):

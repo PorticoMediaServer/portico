@@ -202,12 +202,14 @@ def assert_merge_shard_budget(bins, tests, all_tests, durations):
     return go_batch_model(bins, all_tests, durations)
 
 
-def balance_merge(tests, durations, all_tests, target=GO_TEST_TARGET, max_count=64):
+def balance_merge(tests, durations, all_tests, target=GO_TEST_TARGET, max_count=128):
     """Deterministic weighted open-shop packing for full Go shards.
 
     Parents whose measured weight alone exceeds the per-command target get their
     own shard (two of them could never share a batch). Everything else longest-
     processing-time packs into the fewest shards whose modeled commands fit.
+    The ceiling is 128: GitHub matrices allow 256 jobs, and the imported trains
+    keep growing the full inventory past the old 64-shard limit.
     """
     units = [(sum(parent_seconds(t, durations) for t in unit), unit) for unit in merge_units(tests, durations)]
     heavy = sorted((unit for weight, unit in units if weight > target),
