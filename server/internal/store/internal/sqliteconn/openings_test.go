@@ -65,6 +65,14 @@ var permittedOpenings = map[openingSite]bool{
 	{"writer/transaction_test.go", openingStore + "writer.faultConnector.Connect", "database/sql/driver.Connector.Connect"}:                      true,
 	{"writer/transaction_test.go", openingStore + "writer.trackedNativeConnector.Connect", "database/sql/driver.Connector.Connect"}:              true,
 	{"writer/transaction_test.go", openingStore + "writer.installFaultPool", "database/sql.OpenDB"}:                                              true, // held-source overlay
+	// The frozen legacy-compiler membership oracle in read must keep the legacy
+	// pid/pid_blob scalars on a PRIVATE thirdparty driver: registering them on the
+	// shared "sqlite" driver would change environment.functionsSha256 for every
+	// plan golden. sqliteconn's opener cannot carry per-oracle functions, so this
+	// exact function owns an independent oracle handle; its sql.Register is the
+	// sole registration exception (see permittedRegistrations).
+	{"read/rb_filter_membership_legacy_oracle_test.go", openingStore + "read.rbMembershipOracleDB", "database/sql.Open"}:       true,
+	{"read/rb_filter_membership_legacy_oracle_test.go", openingStore + "read.rbMembershipOracleDB", openingNative + ".Driver"}: true,
 	// Linux crash CP wrapper delegates the shared Connector created in crashCheckpointChild.
 	{"writer/crash_replay_linux_test.go", openingStore + "writer.crashCheckpointConnector.Connect", "database/sql/driver.Connector.Connect"}: true,
 	// Raw is confined to exact discard-only controls and the frame's discard.
@@ -77,6 +85,14 @@ var permittedOpenings = map[openingSite]bool{
 	{"stmt/plan/plan_test.go", openingStore + "stmt/plan_test.TestPlanConnectionPolicyEvidenceAndReplacement", "database/sql.Conn.Raw"}:                            true,
 	{"stmt/lifetime_test.go", openingStore + "stmt_test.TestRegistryReaderCleanupReleasesWAL", "database/sql.Conn.Raw"}:                                            true,
 	{"writer/transaction.go", openingStore + "writer.transaction.finish", "database/sql.Conn.Raw"}:                                                                 true,
+}
+
+// permittedRegistrations is the exact-site exception to the otherwise
+// unconditional sql.Register ban. Registration is process-global, cannot be
+// undone and leaks every scalar into plan capture, so only the frozen legacy
+// membership oracle's private driver may register, under its own driver name.
+var permittedRegistrations = map[openingSite]bool{
+	{"read/rb_filter_membership_legacy_oracle_test.go", openingStore + "read.rbMembershipOracleDB", "database/sql.Register"}: true,
 }
 
 func openingObject(obj types.Object) string {
@@ -162,7 +178,11 @@ func resolvedOpeningSites(file string, syntax *ast.File, info *types.Info) []ope
 func forbiddenOpenings(file string, syntax *ast.File, info *types.Info) []string {
 	var bad []string
 	for _, site := range resolvedOpeningSites(file, syntax, info) {
-		if !permittedOpenings[site] || site.object == "database/sql.Register" {
+		permitted := permittedOpenings[site]
+		if site.object == "database/sql.Register" {
+			permitted = permittedRegistrations[site]
+		}
+		if !permitted {
 			bad = append(bad, fmt.Sprintf("%s#%s: %s bypasses shared opener", site.file, site.owner, site.object))
 		}
 	}
@@ -255,6 +275,9 @@ func TestStoreOpeningsUseSharedPolicy(t *testing.T) {
 	}
 	for _, site := range unusedOpeningPermits(permittedOpenings, used) {
 		t.Errorf("unused opening exception: %s#%s: %s", site.file, site.owner, site.object)
+	}
+	for _, site := range unusedOpeningPermits(permittedRegistrations, used) {
+		t.Errorf("unused registration exception: %s#%s: %s", site.file, site.owner, site.object)
 	}
 }
 
