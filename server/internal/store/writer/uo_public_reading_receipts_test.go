@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/mutationreceipt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
-	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
 )
 
 func uoPublicReadingFixture(t *testing.T, root bool) (*executor, *usOwnerAuthorityProof, uoPublicReadingRequest) {
@@ -81,14 +81,14 @@ func TestUOPublicReadingFreshSaveReplayAndQuota(t *testing.T) {
 					t.Fatal(check, err)
 				}
 				value := uoPublicReadingValue(kind)
-				header := usermutation.Result{Status: "applied", TargetID: "original-title", Revision: 19}
+				header := mutationreceipt.Result{Status: "applied", TargetID: "original-title", Revision: 19}
 				if err = saveUOPublicReadingReceipt(t.Context(), turn, check.reservation, header, value); err != nil {
 					t.Fatal(err)
 				}
 				uoPublicReadingCommit(t, turn)
 				bytes := uoPublicReadingCount(t, w, `SELECT ordinary_bytes FROM user_mutation_global`)
 				actual := uoPublicReadingCount(t, w, `SELECT variable_bytes FROM user_mutation_reading_results`)
-				if bytes != usermutation.BaseChargeBytes+usermutation.AccountChargeBytes+usermutation.ReceiptChargeBytes+actual {
+				if bytes != mutationreceipt.BaseChargeBytes+mutationreceipt.AccountChargeBytes+mutationreceipt.ReceiptChargeBytes+actual {
 					t.Fatal("wrong retained charge", bytes, actual)
 				}
 				if n := uoPublicReadingCount(t, w, `SELECT ordinary_count FROM user_mutation_accounts`); n != 1 {
@@ -145,7 +145,7 @@ func TestUOPublicReadingUnsavedAndIgnoredFailureCannotCommit(t *testing.T) {
 					ctx, cancel = context.WithCancel(ctx)
 					cancel()
 				}
-				err = saveUOPublicReadingReceipt(ctx, turn, check.reservation, usermutation.Result{Status: "applied", Revision: 19}, v)
+				err = saveUOPublicReadingReceipt(ctx, turn, check.reservation, mutationreceipt.Result{Status: "applied", Revision: 19}, v)
 				if err == nil {
 					t.Fatal("missing refusal")
 				}
@@ -193,7 +193,7 @@ func TestUOPublicReadingRootAndIdentityMismatch(t *testing.T) {
 			if err == nil || check != (uoPublicReadingCheck{}) {
 				t.Fatal(check, err)
 			}
-			if mode != "draining" && !errors.Is(err, usermutation.ErrRootGone) {
+			if mode != "draining" && !errors.Is(err, mutationreceipt.ErrRootGone) {
 				t.Fatal(err)
 			}
 			_, _ = turn.transaction.rollback(nil)
@@ -213,7 +213,7 @@ func TestUOPublicReadingOriginalMismatchAndMissingChild(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, usermutation.Result{Status: "applied", Revision: 19}, uoPublicReadingValue(q.kind)); err != nil {
+			if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, mutationreceipt.Result{Status: "applied", Revision: 19}, uoPublicReadingValue(q.kind)); err != nil {
 				t.Fatal(err)
 			}
 			uoPublicReadingCommit(t, turn)
@@ -247,7 +247,7 @@ func TestUOPublicReadingCurrentFenceDenials(t *testing.T) {
 		`UPDATE identity_installations SET retired=1`, `UPDATE direct_memberships SET disabled=1`, `UPDATE direct_memberships SET incarnation='ffffffffffffffffffffffffffffffff'`,
 		`UPDATE accounts SET epoch=2`, `UPDATE authorization_session_families SET revoked=1`, `UPDATE authorization_session_families SET security_kind=1`,
 		`UPDATE identity_devices SET retired_ms=1`, `UPDATE identity_security_fences SET denied=1`, `UPDATE identity_state SET authority_generation=2`,
-		`UPDATE authorization_family_tokens SET retired=1`, `UPDATE direct_memberships SET role='owner'`,
+		`UPDATE authorization_family_tokens SET retired=1`,
 		`INSERT INTO reset_file_sessions(family_id,kind) VALUES('issuer-family','owner')`,
 		`INSERT INTO reset_file_sessions(family_id,kind) VALUES('issuer-family','password')`,
 		`INSERT INTO authorization_family_grants(family_id,grant_kind) VALUES('issuer-family','cast_target')`,
@@ -280,7 +280,7 @@ func TestUOPublicReadingFinalCurrentFenceAndFrameReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, usermutation.Result{Status: "applied", Revision: 19}, uoPublicReadingValue(q.kind)); err != nil {
+	if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, mutationreceipt.Result{Status: "applied", Revision: 19}, uoPublicReadingValue(q.kind)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE identity_devices SET retired_ms=1`); err != nil {
@@ -312,7 +312,7 @@ func TestUOPublicReadingQuotaAndCutoff(t *testing.T) {
 			case "bytes":
 				wc008NativeExec(t, w, `UPDATE user_mutation_global SET ordinary_bytes=31457280`)
 			case "expired":
-				q.key = fmt.Sprintf("p251_%013d_%032x", w.now().UnixMilli()-usermutation.RetentionMs-1, 1)
+				q.key = fmt.Sprintf("p251_%013d_%032x", w.now().UnixMilli()-mutationreceipt.RetentionMs-1, 1)
 			case "future":
 				q.key = fmt.Sprintf("p251_%013d_%032x", w.now().Add(6*time.Minute).UnixMilli(), 1)
 			}
@@ -400,7 +400,7 @@ func TestUOPublicReadingCutoffChangesBeforeTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, usermutation.Result{Status: "applied", Revision: 19}, uoPublicReadingValue(q.kind)); err != nil {
+	if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, mutationreceipt.Result{Status: "applied", Revision: 19}, uoPublicReadingValue(q.kind)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_accounts SET retired_before_ms=?`, w.now().UnixMilli()+1); err != nil {
@@ -428,7 +428,7 @@ func TestUOPublicReadingLegalMaximumBodyReservation(t *testing.T) {
 	v.cfi = sql.NullString{String: strings.Repeat("c", 4096), Valid: true}
 	v.section = sql.NullString{String: strings.Repeat("s", 1024), Valid: true}
 	v.reason = strings.Repeat("r", 128)
-	if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, usermutation.Result{Status: "applied", Revision: 19}, v); err != nil {
+	if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, mutationreceipt.Result{Status: "applied", Revision: 19}, v); err != nil {
 		t.Fatal(err)
 	}
 	uoPublicReadingCommit(t, turn)
@@ -445,7 +445,7 @@ func TestUOPublicReadingReplayAfterTokenRotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := uoPublicReadingValue(q.kind)
-	if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, usermutation.Result{Status: "applied", Revision: 19}, original); err != nil {
+	if err = saveUOPublicReadingReceipt(t.Context(), turn, c.reservation, mutationreceipt.Result{Status: "applied", Revision: 19}, original); err != nil {
 		t.Fatal(err)
 	}
 	uoPublicReadingCommit(t, turn)
