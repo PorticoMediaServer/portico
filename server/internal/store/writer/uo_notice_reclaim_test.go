@@ -62,7 +62,7 @@ func TestUONoticeReclaimBoundedQuantaAndActualBytes(t *testing.T) {
 		wc008NativeExec(t, w, `INSERT INTO notification_acknowledgments(principal_key,notice_sequence,revision) VALUES(?,?,?)`, fmt.Sprintf("p%03d", i), a.sequence, a.revision+1)
 	}
 	_, _, _, revision, events := uoNoticeReclaimFacts(t, w)
-	operationBytes := uoNoticeReclaimScalar(t, w, `SELECT length(scope)+length(operation_id)+length(digest)+length(upper_account)+length(upper_profile)+length(last_account)+length(ids) FROM notice_broadcast_work`)
+	operationBytes := uoNoticeReclaimScalar(t, w, `SELECT length(scope)+length(operation_id)+length(digest)+length(upper_account)+length(upper_profile)+length(last_account)+length(last_profile)+length(ids) FROM notice_broadcast_work`)
 	wantAckBytes := func() int64 {
 		return uoNoticeReclaimScalar(t, w, `SELECT COALESCE(SUM(length(principal_key)),0) FROM (SELECT principal_key FROM notification_acknowledgments WHERE notice_sequence=? ORDER BY principal_key LIMIT 16)`, a.sequence)
 	}
@@ -124,6 +124,62 @@ func TestUONoticeReclaimLeavesLiveAndUnexpiredWork(t *testing.T) {
 	}
 	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM notification_records WHERE sequence=?`, live.sequence).Scan(&liveRecords); err != nil || liveRecords != 1 {
 		t.Fatal("live notice deleted", liveRecords, err)
+	}
+}
+
+func TestUONoticeReclaimKeepsLiveNoticeAcrossQuanta(t *testing.T) {
+	w := uoNoticeReclaimFixture(t)
+	// The live notice outlives the quantum clock and carries ACKs. It sorts last
+	// in the expiry index, so a query that loses `expires_ms<=?` reaches it once
+	// the two expired records are gone and would delete it in a later quantum.
+	live := uoNoticeDraft("live")
+	live.expiresMS = 101
+	liveRecord := uoNoticePublishOne(t, w, live)
+	for i := range 3 {
+		wc008NativeExec(t, w, `INSERT INTO notification_acknowledgments(principal_key,notice_sequence,revision) VALUES(?,?,?)`, fmt.Sprintf("live%02d", i), liveRecord.sequence, liveRecord.revision+1)
+	}
+	for _, id := range []string{"expired-one", "expired-two"} {
+		q := uoNoticeDraft(id)
+		q.expiresMS = 100
+		uoNoticePublishOne(t, w, q)
+	}
+	first := uoNoticeReclaimOne(t, w, 100)
+	if first.noticeRows != 1 || first.ackRows != 0 || !first.noticePending || first.operationRows != 0 || first.operationPending {
+		t.Fatal("first expired quantum", first)
+	}
+	second := uoNoticeReclaimOne(t, w, 100)
+	if second.noticeRows != 1 || second.ackRows != 0 || second.noticePending || second.operationRows != 0 || second.operationPending {
+		t.Fatal("second expired quantum", second)
+	}
+	// Nothing expires at this clock now. Any non-zero effect means the live
+	// notice or one of its acknowledgements was reclaimed.
+	third := uoNoticeReclaimOne(t, w, 100)
+	if third != (uoNoticeReclaimEffect{}) {
+		t.Fatal("live notice reclaimed", third)
+	}
+	var records, acks int
+	if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM notification_records WHERE sequence=?), (SELECT count(*) FROM notification_acknowledgments WHERE notice_sequence=?)`, liveRecord.sequence, liveRecord.sequence).Scan(&records, &acks); err != nil || records != 1 || acks != 3 {
+		t.Fatal("live notice or ACKs did not survive", records, acks, err)
+	}
+}
+
+func TestUONoticeReclaimRefundsLastProfile(t *testing.T) {
+	w := uoNoticeReclaimFixture(t)
+	q := uoNoticeDraft("operation")
+	q.expiresMS = 100
+	q.operation = uoNoticeOperation{id: "broadcast-last-profile", digest: [32]byte{3}, expiresMS: 100}
+	uoNoticePublishOne(t, w, q)
+	wc008NativeExec(t, w, `UPDATE notice_broadcast_work SET last_profile='profile-extra'`)
+	// Independent refund oracle: the sum of the actual deleted text columns,
+	// read one at a time. `last_profile` is non-empty, so leaving it out of the
+	// returned columns under-refunds and fails here.
+	var want int64
+	for _, column := range []string{"scope", "operation_id", "digest", "upper_account", "upper_profile", "last_account", "last_profile", "ids"} {
+		want += uoNoticeReclaimScalar(t, w, `SELECT length(`+column+`) FROM notice_broadcast_work`)
+	}
+	out := uoNoticeReclaimOne(t, w, 100)
+	if out.operationRows != 1 || out.operationBytes != want || out.noticeRows != 1 || out.noticeBytes <= 0 {
+		t.Fatal("operation refund omitted last_profile", out, want)
 	}
 }
 

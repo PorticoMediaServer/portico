@@ -1,6 +1,7 @@
 package read
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func newUOActivityFixture(t *testing.T, live bool) (*browseFixture, *ForegroundReader) {
@@ -226,6 +228,161 @@ func TestUOActivityHistoryCurrentLifetimeAndClearBoundary(t *testing.T) {
 	next, _, err := uoActivityRead(t, f, r, in)
 	if err != nil || len(next.Items) != 1 || next.Items[0].OccurrenceID != 2 || !next.Head.Exists || next.Head.HistoryCutoff != 2 {
 		t.Fatalf("clear boundary %+v %v", next, err)
+	}
+}
+
+func TestUOActivityHistoryCursorTraversesManyRawPages(t *testing.T) {
+	f, r := newUOActivityFixture(t, false)
+	uoHistoryHead(t, f, 2, 0)
+	public := func(subject int64) []byte {
+		out := make([]byte, 16)
+		binary.LittleEndian.PutUint64(out, uint64(subject))
+		return out
+	}
+	// Two timestamp groups: ties inside each group exercise the .same keyset,
+	// and the second group exercises .older. 140 rows need more than two raw
+	// windows at the 64-raw cap and more than three delivered pages.
+	const newest = "2026-11-05T12:00:00.000000000Z"
+	const older = "2026-11-05T11:00:00.000000000Z"
+	for id := int64(1); id <= 70; id++ {
+		uoHistoryRow(t, f, newest, "movies", 1, public(id), 2, 0)
+	}
+	for id := int64(71); id <= 140; id++ {
+		uoHistoryRow(t, f, older, "movies", 1, public(id), 2, id%2)
+	}
+	in := UOActivityInput{View: f.input, Family: UOActivityHistory}
+	in.View.Limit = 25
+	var got []int64
+	pages := 0
+	for {
+		if pages > 12 {
+			t.Fatal("history cursor did not terminate")
+		}
+		page, result, err := uoActivityRead(t, f, r, in)
+		if err != nil || result.Refusal != nil {
+			t.Fatalf("history page %d: %v %+v", pages, err, result)
+		}
+		if page.RawRows > MaxRaw+1 || page.RawPositions > MaxRaw || len(page.Items) > in.View.Limit {
+			t.Fatalf("history unbounded window %+v", page)
+		}
+		if page.Next != nil && (page.Next.id <= 0 || page.Next.public != [16]byte{}) {
+			t.Fatalf("history continuation did not carry its integer id: %+v", page.Next)
+		}
+		got = append(got, occurrenceIDs(page)...)
+		pages++
+		if page.Exhausted {
+			break
+		}
+		if page.Next == nil {
+			t.Fatalf("history lost continuation %+v", page)
+		}
+		in.After = page.Next
+	}
+	if pages < 3 {
+		t.Fatalf("history traversal finished in %d pages, want at least 3", pages)
+	}
+	rows, err := f.conn.QueryContext(t.Context(), `SELECT id FROM play_history WHERE profile_id='p' AND membership_incarnation=(SELECT incarnation FROM direct_memberships WHERE account_id='a') AND profile_lifetime=(SELECT lifetime FROM direct_profiles WHERE id='p') AND library_public_id='movies' AND item_kind=1 AND activity_generation=2 ORDER BY occurred_at DESC,id DESC`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var want []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("history traversal %v want %v", got, want)
+	}
+}
+
+func occurrenceIDs(page UOActivityPage) []int64 {
+	var ids []int64
+	for _, item := range page.Items {
+		ids = append(ids, item.OccurrenceID)
+	}
+	return ids
+}
+
+// Every UO activity statement receives exactly the argument shape its registry
+// parameter list declares. The continuation goes through the same helper the
+// reader uses, so the personal (time,public) and history (time,id) keysets can
+// never be swapped: binding a public id to the history statement is refused.
+func TestUOActivityStatementBindings(t *testing.T) {
+	registry, err := stmttest.New(t, UOActivityDefinitions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	personal := &UOActivityCursor{family: UOActivityProgress, at: "2026-11-05T12:00:00.000000000Z"}
+	personal.public[0] = 1
+	history := &UOActivityCursor{family: UOActivityHistory, at: "2026-11-05T12:00:00.000000000Z", id: 7}
+	for _, definition := range UOActivityDefinitions() {
+		name := string(definition.ID)
+		args := []any{"token"}
+		switch {
+		case strings.HasSuffix(name, ".same"), strings.HasSuffix(name, ".same.bytes"):
+			args = history.sameBindings(UOActivityHistory, "token", int64(MaxRaw+1))
+			if strings.Contains(name, ".history.") {
+				break
+			}
+			args = personal.sameBindings(UOActivityProgress, "token", int64(MaxRaw+1))
+		case strings.HasSuffix(name, ".older"), strings.HasSuffix(name, ".older.bytes"):
+			args = append(args, "2026-11-05T12:00:00.000000000Z", int64(MaxRaw+1))
+		}
+		if name != "read.uo.activity.head" && !strings.HasSuffix(name, ".same") && !strings.HasSuffix(name, ".same.bytes") &&
+			!strings.HasSuffix(name, ".older") && !strings.HasSuffix(name, ".older.bytes") {
+			args = append(args, int64(MaxRaw+1))
+		}
+		statement, err := registry.Lookup(definition.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := statement.Bind(args...); err != nil {
+			t.Fatalf("%s: %v", definition.ID, err)
+		}
+	}
+	statement, err := registry.Lookup("read.foreground.uo.activity.history.same")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := statement.Bind("token", "2026-11-05T12:00:00.000000000Z", []byte{1}, int64(MaxRaw+1)); err == nil {
+		t.Fatal("history continuation accepted a public-id blob")
+	}
+	if _, err := statement.Bind("token", "2026-11-05T12:00:00.000000000Z", int64(7), int64(MaxRaw+1)); err != nil {
+		t.Fatalf("history continuation refused its integer id: %v", err)
+	}
+}
+
+// An orphaned personal row (no catalogue entity) carries a NULL title and NULL
+// library/kind. It must consume a raw position and be skipped by the decoder,
+// not fail the whole stream as stale.
+func TestUOActivitySkipsOrphanedPersonalRow(t *testing.T) {
+	f, r := newUOActivityFixture(t, false)
+	public := make([]byte, 16)
+	binary.LittleEndian.PutUint64(public, 3000)
+	// catalog_subjects satisfies the personal_items foreign key while
+	// catalog_entities intentionally has no matching row.
+	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(3000,?,1,1)`, public)
+	f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,activity_at,activity_state) VALUES('p',?,3000,1,'2026-11-06T13:00:00.000000000Z','in_progress')`, public)
+	in := UOActivityInput{View: f.input, Family: UOActivityProgress}
+	in.View.Limit = 3
+	page, result, err := uoActivityRead(t, f, r, in)
+	if err != nil || result.Refusal != nil {
+		t.Fatalf("orphan blocked the stream: %v %+v", err, result)
+	}
+	if len(page.Items) != 3 || page.RawPositions != 4 || page.Exhausted {
+		t.Fatalf("orphan was not skipped as one raw position: %+v", page)
+	}
+	for _, item := range page.Items {
+		if bytes.Equal(item.PublicID[:], public) {
+			t.Fatal("orphaned personal row was delivered")
+		}
 	}
 }
 

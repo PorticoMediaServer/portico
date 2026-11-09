@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // One bounded maintenance quantum: at most 16 sparse acknowledgements, at most
@@ -72,23 +74,17 @@ func reclaimUONotices(ctx context.Context, turn *commandTurn, nowMS int64) (out 
 			victims = victims[:uoNoticeReclaimMaxAckRows]
 		}
 		for _, principal := range victims {
-			removed, e := wc008DraftInteger(ctx, turn, uoNoticeReclaimAckDelete, principal, sequence)
+			removed, e := uoNoticeDeletedBytes(ctx, turn, uoNoticeReclaimAckDelete, uoNoticeReclaimAckColumns, principal, sequence)
 			if e != nil {
 				return out, e
-			}
-			if removed < 0 {
-				return out, ErrResolveRequired
 			}
 			out.ackRows++
 			out.ackBytes += removed
 		}
 		if complete {
-			removed, e := wc008DraftInteger(ctx, turn, uoNoticeReclaimRecordDelete, sequence, revision, nowMS)
+			removed, e := uoNoticeDeletedBytes(ctx, turn, uoNoticeReclaimRecordDelete, uoNoticeReclaimRecordColumns, sequence, revision, nowMS)
 			if e != nil {
 				return out, e
-			}
-			if removed < 0 {
-				return out, ErrResolveRequired
 			}
 			out.noticeRows++
 			out.noticeBytes += removed
@@ -114,31 +110,58 @@ func reclaimUONotices(ctx context.Context, turn *commandTurn, nowMS int64) (out 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return out, err
 	}
-	if err == nil {
+	for ; err == nil && out.operationRows < uoNoticeReclaimMaxOperations; out.operationRows++ {
 		if !uoNoticeText(scope, uoNoticeMaxScopeBytes, true) || !uoNoticeIdentifier(operation, uoNoticeMaxIDBytes) {
 			return out, ErrResolveRequired
 		}
-		removed, e := wc008DraftInteger(ctx, turn, uoNoticeReclaimOperationDelete, scope, operation, nowMS)
+		removed, e := uoNoticeDeletedBytes(ctx, turn, uoNoticeReclaimOperationDelete, uoNoticeReclaimOperationColumns, scope, operation, nowMS)
 		if e != nil {
 			return out, e
 		}
-		if removed < 0 {
-			return out, ErrResolveRequired
-		}
-		out.operationRows++
 		out.operationBytes += removed
 		row, err = wc008DraftQuery(ctx, turn, uoNoticeReclaimOperationExpired, nowMS)
 		if err != nil {
 			return out, err
 		}
 		err = row.Scan(&scope, &operation)
-		if err == nil {
-			out.operationPending = true
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return out, err
-		}
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return out, err
+	}
+	if err == nil {
+		out.operationPending = true
 	}
 	return out, turn.checkLifetimes(ctx)
+}
+
+// uoNoticeDeletedBytes scans the physically deleted TEXT row and sums the exact
+// variable bytes it removed. RETURNING remains a closed plain-column list (the
+// DML parser rejects expressions), so the arithmetic lives here and includes
+// every column the row owns, last_profile included.
+func uoNoticeDeletedBytes(ctx context.Context, turn *commandTurn, id stmt.ID, columns int, args ...any) (int64, error) {
+	if columns < 1 || columns > 16 {
+		return 0, ErrInvalid
+	}
+	row, err := wc008DraftQuery(ctx, turn, id, args...)
+	if err != nil {
+		return 0, err
+	}
+	values := make([]string, columns)
+	dest := make([]any, columns)
+	for i := range values {
+		dest[i] = &values[i]
+	}
+	if err = row.Scan(dest...); errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrConflict
+	}
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, value := range values {
+		total += int64(len(value))
+	}
+	return total, turn.checkLifetimes(ctx)
 }
 
 // One exact ACK seek by notice sequence, bounded to the quantum probe. Another
