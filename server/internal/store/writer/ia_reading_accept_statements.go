@@ -316,6 +316,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaReadingAsset:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_catalog_assets_3"}
 			defs[n].Plan.Seeks = []string{"library_id=? AND path=?"}
+		case iaReadingIdentityInsert:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_identities"}
+		case iaReadingLinkInsert:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_asset_links"}
 		case iaReadingIdentity:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_identities"}
 			defs[n].Plan.Seeks = []string{"library_id=? AND source_key=?"}

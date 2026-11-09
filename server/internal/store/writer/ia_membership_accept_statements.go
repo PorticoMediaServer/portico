@@ -465,6 +465,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaMembershipBoundaryInsert, iaMembershipBoundaryUpdate, iaMembershipBoundaryDelete:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_episode_asset_boundaries_1"}
 			defs[n].Plan.Seeks = []string{"item_id=? AND asset_id=?"}
+		case iaMembershipLinkInsert:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_asset_links"}
 		case iaMembershipContributionDelete:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_asset_contributions"}
 			defs[n].Plan.Seeks = []string{"parent_id=? AND asset_id=?"}
