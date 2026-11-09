@@ -73,6 +73,12 @@ func iaConfigureSourceStatements() []stmt.Definition {
 			Cohorts: []stmt.Cohort{{Name: "one_source", Bindings: []any{make([]byte, 16), make([]byte, 16), int64(1), "configure_source", int64(0), "source", "Library", "incarnation", int64(2), "/media", "/media", "native", "local", "local", true, "ready", false, int64(0), true, "", "", "", int64(220)}}}},
 	}
 	for n := range defs {
+		switch defs[n].ID {
+		case iaSourceConfigureStatePoint, iaSourceConfigureUpdate:
+			defs[n].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "library_sources", Name: "sqlite_autoindex_library_sources_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}
+		case iaSourceConfigureRootPoint:
+			defs[n].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "library_sources", Name: "sqlite_autoindex_library_sources_2", Origin: "u", Columns: []stmt.IndexColumn{{Name: "library_id", Collation: "BINARY"}, {Name: "root", Collation: "BINARY"}}}}
+		}
 		defs[n].Owner = "store/writer IA configure source"
 		defs[n].CallSites = []string{"store/writer/ia_configure_source.go"}
 	}
