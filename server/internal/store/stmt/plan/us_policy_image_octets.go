@@ -26,7 +26,7 @@ WHERE f.id=? AND f.account_id=? AND p.id=?`
 FROM identity_sign_in_policy AS p
 CROSS JOIN identity_state AS s ON s.singleton=1
 WHERE p.singleton=1`
-	usPolicyImageHostedOctetsSQL    = `SELECT octet_length(hosted_account_id) FROM account_portico_links WHERE account_id=?`
+	usPolicyImageHostedOctetsSQL    = `SELECT octet_length(hosted_account_id) FROM account_portico_links INDEXED BY sqlite_autoindex_account_portico_links_1 WHERE account_id=?`
 	usPolicyImageCustodianOctetsSQL = `SELECT octet_length(custodian) FROM hosted_membership_sync WHERE singleton=1`
 	usPolicyImageProfilesOctetsSQL  = `SELECT octet_length(p.id),octet_length(p.name),octet_length(p.art),coalesce(octet_length(p.allowed_libraries),0),p.position
 FROM direct_profiles AS p INDEXED BY direct_profiles_account
@@ -70,21 +70,26 @@ func init() {
 		point:  usPolicyImagePoint("sqlite_autoindex_authorization_session_families_1", "sqlite_autoindex_direct_profiles_2"),
 	}
 	policy := usPolicyImageOctetShape{
-		primaryKeys: []string{"identity_sign_in_policy", "identity_state"},
+		primaryKeys: []string{"p", "s"},
 		seeks:       []string{"rowid=?"},
 		tables:      []string{"identity_sign_in_policy", "identity_state"},
 		point:       usPolicyImagePoint(),
 	}
 	hosted := usPolicyImageOctetShape{
-		params: []string{"account"},
-		seeks:  []string{"account_id=?"},
+		params:  []string{"account"},
+		indexes: []string{"sqlite_autoindex_account_portico_links_1"},
+		seeks:   []string{"account_id=?"},
+		pins: []stmt.AutoIndexBinding{
+			usPolicyImagePin("account_portico_links", "sqlite_autoindex_account_portico_links_1", "pk", "account_id"),
+		},
 		tables: []string{"account_portico_links"},
-		point:  usPolicyImagePoint(),
+		point:  usPolicyImagePoint("sqlite_autoindex_account_portico_links_1"),
 	}
 	custodian := usPolicyImageOctetShape{
-		seeks:  []string{"rowid=?"},
-		tables: []string{"hosted_membership_sync"},
-		point:  usPolicyImagePoint(),
+		primaryKeys: []string{"hosted_membership_sync"},
+		seeks:       []string{"rowid=?"},
+		tables:      []string{"hosted_membership_sync"},
+		point:       usPolicyImagePoint(),
 	}
 	profiles := usPolicyImageOctetShape{
 		params:   []string{"account", "row_limit"},
