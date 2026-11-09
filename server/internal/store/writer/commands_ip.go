@@ -54,6 +54,8 @@ const (
 	// incarnations and sequences coincide.
 	IPPersonEvidenceAppend CommandID = 232
 	IPPersonSeal           CommandID = 233
+	IPPersonAccept         CommandID = 234
+	IPPersonDelta          CommandID = 235
 )
 
 var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
@@ -89,6 +91,8 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPArtworkReencode, "ip_artwork_reencode", Normal},
 	{IPPersonEvidenceAppend, "ip_person_evidence_append", Normal},
 	{IPPersonSeal, "ip_person_seal", Normal},
+	{IPPersonAccept, "ip_person_accept", Normal},
+	{IPPersonDelta, "ip_person_delta", Normal},
 	{IPFieldEdit, "ip_field_edit", Normal},
 	{IPFieldLock, "ip_field_lock", Normal},
 	{IPFieldRestore, "ip_field_restore", Normal},

@@ -97,6 +97,10 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIPEntityJobResult(v)
 	case ipPersonResult:
 		return preflightIPPersonResult(v)
+	case ipPersonAcceptResult:
+		return preflightIPPersonAcceptResult(v)
+	case ipPersonDeltaResult:
+		return preflightIPPersonDeltaResult(v)
 	case ipEntityEvidenceResult:
 		return preflightIPEntityEvidenceResult(v)
 	case ipEntitySealResult:
@@ -226,6 +230,10 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIPEntityJobResult(e, identity, request, v)
 	case ipPersonResult:
 		return writeIPPersonResult(e, identity, request, v)
+	case ipPersonAcceptResult:
+		return writeIPPersonAcceptResult(e, identity, request, v)
+	case ipPersonDeltaResult:
+		return writeIPPersonDeltaResult(e, identity, request, v)
 	case ipEntityEvidenceResult:
 		return writeIPEntityEvidenceResult(e, identity, request, v)
 	case ipEntitySealResult:

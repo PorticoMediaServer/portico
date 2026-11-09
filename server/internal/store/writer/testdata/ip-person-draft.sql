@@ -264,3 +264,105 @@ CREATE INDEX metadata_person_build_proof ON metadata_person_builds(seal_owner,se
 
 -- D: staged/abandoned evidence remains charged until actual deletion.
 CREATE INDEX metadata_person_build_reclaim ON metadata_person_builds(reclaim_due_ms,id) WHERE reclaim_due_ms IS NOT NULL;
+
+-- D subset added by IP-16 only: the accepted person publication/source/origin
+-- owners and the person receipt reverse indexes the accept/delta path reads.
+-- The receipt command-kind CHECK above already carries the amended 'accept'
+-- and 'delta' spellings; no draft table is otherwise redefined here.
+CREATE TABLE metadata_person_publications(
+ id TEXT PRIMARY KEY NOT NULL,
+ person_id INTEGER NOT NULL,
+ provider TEXT NOT NULL,
+ subject_kind TEXT NOT NULL CHECK(subject_kind='person'),
+ provider_id TEXT NOT NULL,
+ evidence_id TEXT NOT NULL,
+ operation_id TEXT NOT NULL,
+ proof_owner TEXT NOT NULL,
+ proof_incarnation BLOB NOT NULL CHECK(length(proof_incarnation)=16),
+ proof_sequence INTEGER NOT NULL CHECK(proof_sequence>0),
+ proof_kind TEXT NOT NULL DEFAULT 'evidence_seal' CHECK(proof_kind='evidence_seal'),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>0),
+ observed_at TEXT NOT NULL,
+ UNIQUE(person_id,provider,provider_id,id,evidence_id),
+ FOREIGN KEY(operation_id,person_id,provider,provider_id) REFERENCES metadata_person_operations(id,person_id,provider,provider_id),
+ FOREIGN KEY(evidence_id,provider,subject_kind,provider_id) REFERENCES metadata_evidence(id,provider,subject_kind,provider_id),
+ FOREIGN KEY(proof_owner,proof_incarnation,proof_sequence,proof_kind,evidence_id) REFERENCES metadata_person_receipts(owner_id,command_incarnation,command_sequence,command_kind,evidence_id),
+ CHECK(typeof(id) IN('null','text')),
+ CHECK(typeof(person_id) IN('null','integer')),
+ CHECK(typeof(provider) IN('null','text')),
+ CHECK(typeof(subject_kind) IN('null','text')),
+ CHECK(typeof(provider_id) IN('null','text')),
+ CHECK(typeof(evidence_id) IN('null','text')),
+ CHECK(typeof(operation_id) IN('null','text')),
+ CHECK(typeof(proof_owner) IN('null','text')),
+ CHECK(typeof(proof_incarnation) IN('null','blob')),
+ CHECK(typeof(proof_sequence) IN('null','integer')),
+ CHECK(typeof(proof_kind) IN('null','text')),
+ CHECK(typeof(accepted_revision) IN('null','integer')),
+ CHECK(typeof(observed_at) IN('null','text'))
+);
+
+CREATE INDEX metadata_person_publication_operation ON metadata_person_publications(operation_id,person_id,provider,provider_id);
+
+CREATE INDEX metadata_person_publication_evidence ON metadata_person_publications(evidence_id,provider,subject_kind,provider_id);
+
+CREATE INDEX metadata_person_publication_proof ON metadata_person_publications(proof_owner,proof_incarnation,proof_sequence,proof_kind,evidence_id);
+
+CREATE TABLE metadata_person_sources(
+ person_id INTEGER NOT NULL REFERENCES catalog_people(id),
+ provider TEXT NOT NULL REFERENCES metadata_providers(code),
+ role TEXT NOT NULL,
+ provider_id TEXT NOT NULL,
+ incarnation BLOB NOT NULL CHECK(length(incarnation)=16),
+ revision INTEGER NOT NULL CHECK(revision>0),
+ accepted_publication_id TEXT,
+ accepted_evidence_id TEXT,
+ PRIMARY KEY(person_id,provider,role),
+ CHECK((accepted_publication_id IS NULL)=(accepted_evidence_id IS NULL)),
+ FOREIGN KEY(person_id,provider,provider_id,accepted_publication_id,accepted_evidence_id) REFERENCES metadata_person_publications(person_id,provider,provider_id,id,evidence_id),
+ CHECK(typeof(person_id) IN('null','integer')),
+ CHECK(typeof(provider) IN('null','text')),
+ CHECK(typeof(role) IN('null','text')),
+ CHECK(typeof(provider_id) IN('null','text')),
+ CHECK(typeof(incarnation) IN('null','blob')),
+ CHECK(typeof(revision) IN('null','integer')),
+ CHECK(typeof(accepted_publication_id) IN('null','text')),
+ CHECK(typeof(accepted_evidence_id) IN('null','text'))
+) WITHOUT ROWID;
+
+CREATE INDEX metadata_person_source_provider ON metadata_person_sources(provider,person_id);
+
+CREATE INDEX metadata_person_source_publication ON metadata_person_sources(person_id,provider,provider_id,accepted_publication_id,accepted_evidence_id);
+
+CREATE TABLE metadata_person_field_origins(
+ person_id INTEGER NOT NULL REFERENCES catalog_people(id),
+ field TEXT NOT NULL,
+ provider TEXT NOT NULL,
+ provider_id TEXT NOT NULL,
+ publication_id TEXT NOT NULL,
+ evidence_id TEXT NOT NULL,
+ source_url TEXT NOT NULL,
+ observed_at TEXT NOT NULL,
+ language TEXT NOT NULL,
+ region TEXT NOT NULL,
+ selection_revision INTEGER NOT NULL CHECK(selection_revision>0),
+ PRIMARY KEY(person_id,field),
+ FOREIGN KEY(person_id,provider,provider_id,publication_id,evidence_id) REFERENCES metadata_person_publications(person_id,provider,provider_id,id,evidence_id),
+ CHECK(typeof(person_id) IN('null','integer')),
+ CHECK(typeof(field) IN('null','text')),
+ CHECK(typeof(provider) IN('null','text')),
+ CHECK(typeof(provider_id) IN('null','text')),
+ CHECK(typeof(publication_id) IN('null','text')),
+ CHECK(typeof(evidence_id) IN('null','text')),
+ CHECK(typeof(source_url) IN('null','text')),
+ CHECK(typeof(observed_at) IN('null','text')),
+ CHECK(typeof(language) IN('null','text')),
+ CHECK(typeof(region) IN('null','text')),
+ CHECK(typeof(selection_revision) IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE INDEX metadata_person_field_publication ON metadata_person_field_origins(person_id,provider,provider_id,publication_id,evidence_id);
+
+CREATE INDEX metadata_person_receipt_build ON metadata_person_receipts(build_id,owner_id) WHERE build_id IS NOT NULL;
+
+CREATE INDEX metadata_person_receipt_publication ON metadata_person_receipts(publication_id,owner_id) WHERE publication_id IS NOT NULL;

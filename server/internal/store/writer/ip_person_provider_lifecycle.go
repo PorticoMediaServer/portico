@@ -98,6 +98,7 @@ type ipPersonOwner struct {
 
 type ipPersonReceipt struct {
 	kind             string
+	incarnation      [16]byte
 	sequence         int64
 	acceptedRevision int64
 	resultCount      int64
@@ -107,6 +108,7 @@ type ipPersonReceipt struct {
 	resultDigest     [32]byte
 	evidenceID       string
 	buildID          string
+	publicationID    string
 	sealAlgorithm    string
 	sealVersion      int64
 	sealRows         int64
@@ -263,8 +265,9 @@ func ipPersonTimeText(ms int64) string {
 // The mapping is derived from the stored pair, never from a caller field. The
 // persisted spellings are the pinned person DDL's closed CHECK list: 209's
 // evidence begin is stored as 'begin' with an evidence ID, 232's evidence
-// append as 'append', and 233's seal as 'evidence_seal'. Registry descriptor
-// names (ip_person_evidence_begin/-_append/ip_person_seal) are never stored.
+// append as 'append', 233's seal as 'evidence_seal', 234 accept as 'accept' and
+// 235 delta as 'delta'. Registry descriptor names (ip_person_evidence_begin,
+// ip_person_accept, ip_person_delta, ...) are never stored.
 func ipPersonReceiptKind(kind, evidenceID string) (CommandID, bool) {
 	switch kind {
 	case "begin":
@@ -286,8 +289,85 @@ func ipPersonReceiptKind(kind, evidenceID string) (CommandID, bool) {
 			return 0, false
 		}
 		return IPPersonSeal, true
+	case "accept":
+		if evidenceID == "" {
+			return 0, false
+		}
+		return IPPersonAccept, true
+	case "delta":
+		if evidenceID == "" {
+			return 0, false
+		}
+		return IPPersonDelta, true
 	}
 	return 0, false
+}
+
+// ipPersonReceiptRead reads and validates the ONE original receipt row for the
+// exact owner incarnation and command sequence. It never classifies a purpose
+// and never reads mutable owner state; the caller binds the stored kind to its
+// own purpose. Entity-purpose receipt families live in their own tables, so
+// equal numeric witnesses can never satisfy this read.
+func ipPersonReceiptRead(ctx context.Context, turn *commandTurn, ownerID string,
+	ref ReceiptReference) (out ipPersonReceipt, kind CommandID, found bool, err error) {
+	row, err := wc008DraftQuery(ctx, turn, ipPersonReceiptStmt, ownerID, ref.Identity.Incarnation[:], ref.Identity.Sequence)
+	if err != nil {
+		return out, 0, false, err
+	}
+	var receiptIncarnation, operation, requestDigest, resultDigest []byte
+	var evidenceID, buildID, publicationID, sealAlgorithm sql.NullString
+	var sealVersion, sealRows, sealBytes sql.NullInt64
+	var sealCommitment []byte
+	err = row.Scan(&receiptIncarnation, &out.sequence, &operation, &requestDigest,
+		&out.appliedMS, &resultDigest, &out.kind, &out.acceptedRevision,
+		&out.resultCount, &evidenceID, &buildID, &publicationID, &sealAlgorithm, &sealVersion,
+		&sealCommitment, &sealRows, &sealBytes)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, 0, false, nil
+	}
+	if err != nil {
+		return out, 0, false, err
+	}
+	out.evidenceID = evidenceID.String
+	out.buildID = buildID.String
+	out.publicationID = publicationID.String
+	out.sealAlgorithm = sealAlgorithm.String
+	out.sealVersion = sealVersion.Int64
+	out.sealRows = sealRows.Int64
+	out.sealBytes = sealBytes.Int64
+	kind, known := ipPersonReceiptKind(out.kind, out.evidenceID)
+	sealFields := sealAlgorithm.Valid || sealVersion.Valid || sealCommitment != nil ||
+		sealRows.Valid || sealBytes.Valid
+	if sealFields != (kind == IPPersonSeal) {
+		return out, 0, false, ErrResolveRequired
+	}
+	if kind == IPPersonSeal && (out.sealAlgorithm != ipPersonSealAlgorithm ||
+		out.sealVersion != ipPersonSealVersion || len(sealCommitment) != 32 ||
+		out.sealRows <= 0 || out.sealBytes <= 0) {
+		return out, 0, false, ErrResolveRequired
+	} else if kind == IPPersonSeal {
+		copy(out.sealCommitment[:], sealCommitment)
+	}
+	// A retained accept/delta result names its accepted publication; no other
+	// person kind may carry one. This is the closed receipt/result mapping, not
+	// a mutable current-head probe.
+	accepting := kind == IPPersonAccept || kind == IPPersonDelta
+	if accepting != (out.publicationID != "") {
+		return out, 0, false, ErrResolveRequired
+	}
+	if len(receiptIncarnation) != 16 || len(operation) != 16 || len(requestDigest) != 32 ||
+		len(resultDigest) != 32 || out.sequence <= 0 || out.appliedMS < 0 ||
+		out.acceptedRevision <= 0 || out.resultCount < 0 || !known ||
+		!ipPersonText(out.evidenceID, ipPersonPointerMax, false) ||
+		!ipPersonText(out.buildID, ipPersonPointerMax, false) ||
+		!ipPersonText(out.publicationID, ipPersonPointerMax, false) {
+		return out, 0, false, ErrResolveRequired
+	}
+	copy(out.incarnation[:], receiptIncarnation)
+	copy(out.operationID[:], operation)
+	copy(out.requestDigest[:], requestDigest)
+	copy(out.resultDigest[:], resultDigest)
+	return out, kind, true, nil
 }
 
 // ipPersonOwnerLookupReceipt resolves the ORIGINAL receipt before any fresh
@@ -331,59 +411,20 @@ func ipPersonOwnerLookupReceipt(ctx context.Context, turn *commandTurn, purpose 
 	}
 	out.owner.exists = true
 
-	row, err = wc008DraftQuery(ctx, turn, ipPersonReceiptStmt, ownerID, ref.Identity.Incarnation[:], ref.Identity.Sequence)
+	var kind CommandID
+	var hasReceipt bool
+	out.receipt, kind, hasReceipt, err = ipPersonReceiptRead(ctx, turn, ownerID, ref)
 	if err != nil {
 		return out, err
 	}
-	var receiptIncarnation, operation, requestDigest, resultDigest []byte
-	var evidenceID, buildID, sealAlgorithm sql.NullString
-	var sealVersion, sealRows, sealBytes sql.NullInt64
-	var sealCommitment []byte
-	err = row.Scan(&receiptIncarnation, &out.receipt.sequence, &operation, &requestDigest,
-		&out.receipt.appliedMS, &resultDigest, &out.receipt.kind, &out.receipt.acceptedRevision,
-		&out.receipt.resultCount, &evidenceID, &buildID, &sealAlgorithm, &sealVersion,
-		&sealCommitment, &sealRows, &sealBytes)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	} else if err != nil {
-		return out, err
-	} else {
-		out.receipt.evidenceID = evidenceID.String
-		out.receipt.buildID = buildID.String
-		out.receipt.sealAlgorithm = sealAlgorithm.String
-		out.receipt.sealVersion = sealVersion.Int64
-		out.receipt.sealRows = sealRows.Int64
-		out.receipt.sealBytes = sealBytes.Int64
-		kind, known := ipPersonReceiptKind(out.receipt.kind, out.receipt.evidenceID)
-		sealFields := sealAlgorithm.Valid || sealVersion.Valid || sealCommitment != nil ||
-			sealRows.Valid || sealBytes.Valid
-		if sealFields != (kind == IPPersonSeal) {
-			return out, ErrResolveRequired
-		}
-		if kind == IPPersonSeal && (out.receipt.sealAlgorithm != ipPersonSealAlgorithm ||
-			out.receipt.sealVersion != ipPersonSealVersion || len(sealCommitment) != 32 ||
-			out.receipt.sealRows <= 0 || out.receipt.sealBytes <= 0) {
-			return out, ErrResolveRequired
-		} else if kind == IPPersonSeal {
-			copy(out.receipt.sealCommitment[:], sealCommitment)
-		}
-		if len(receiptIncarnation) != 16 || len(operation) != 16 || len(requestDigest) != 32 ||
-			len(resultDigest) != 32 || out.receipt.sequence <= 0 || out.receipt.appliedMS < 0 ||
-			out.receipt.acceptedRevision <= 0 || out.receipt.resultCount < 0 || !known ||
-			!ipPersonText(out.receipt.evidenceID, ipPersonPointerMax, false) ||
-			!ipPersonText(out.receipt.buildID, ipPersonPointerMax, false) {
-			return out, ErrResolveRequired
-		}
-		copy(out.receipt.operationID[:], operation)
-		copy(out.receipt.requestDigest[:], requestDigest)
-		copy(out.receipt.resultDigest[:], resultDigest)
+	out.hasReceipt = hasReceipt
+	if out.hasReceipt {
 		actual := receiptIdentity{command: ref.Identity}
-		copy(actual.command.Incarnation[:], receiptIncarnation)
-		copy(actual.command.OperationID[:], operation)
-		copy(actual.digest[:], requestDigest)
+		actual.command.Incarnation = out.receipt.incarnation
+		copy(actual.command.OperationID[:], out.receipt.operationID[:])
+		actual.digest = out.receipt.requestDigest
 		found := receiptFacts{exists: true, identity: actual, kind: kind, resultCount: out.receipt.resultCount}
-		copy(found.resultDigest[:], resultDigest)
-		out.hasReceipt = true
+		copy(found.resultDigest[:], out.receipt.resultDigest[:])
 		out.decision, err = classifyReceipt(receiptIdentity{ref.Identity, ref.RequestDigest}, purpose,
 			receiptOwnerFacts{exists: true, incarnation: out.owner.incarnation,
 				lastSequence: out.owner.lastSequence, acknowledgedSequence: out.owner.ackSequence}, found)

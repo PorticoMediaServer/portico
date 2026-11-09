@@ -188,6 +188,8 @@ func TestIPPersonCrossKindReceiptMapping(t *testing.T) {
 		{"retry", "", IPPersonFinish},
 		{"append", "evidence-one", IPPersonEvidenceAppend},
 		{"evidence_seal", "evidence-one", IPPersonSeal},
+		{"accept", "evidence-person-1", IPPersonAccept},
+		{"delta", "evidence-person-1", IPPersonDelta},
 	} {
 		got, ok := ipPersonReceiptKind(cell.kind, cell.evidence)
 		if !ok || got != cell.want {
@@ -201,7 +203,7 @@ func TestIPPersonCrossKindReceiptMapping(t *testing.T) {
 			t.Fatal("entity receipt kind decoded as person", kind, got)
 		}
 	}
-	for _, kind := range []string{"append", "evidence_seal"} {
+	for _, kind := range []string{"append", "evidence_seal", "accept", "delta"} {
 		if got, ok := ipPersonReceiptKind(kind, ""); ok {
 			t.Fatal("person child receipt without evidence decoded", kind, got)
 		}
@@ -224,6 +226,8 @@ func TestIPPersonCrossKindClassificationRejectsEqualWitnesses(t *testing.T) {
 		{"begin", IPPersonEvidenceBegin, IPEntityEvidenceBegin},
 		{"append", IPPersonEvidenceAppend, IPEntityEvidenceAppend},
 		{"seal", IPPersonSeal, IPEntitySeal},
+		{"accept", IPPersonAccept, IPEntityAccept},
+		{"delta", IPPersonDelta, IPEntityDelta},
 	} {
 		t.Run(cell.name, func(t *testing.T) {
 			found := receiptFacts{exists: true, identity: receiptIdentity{command: identity, digest: digest},
@@ -295,6 +299,102 @@ func TestIPPersonCrossKindPersonReceiptDoesNotServeEntity(t *testing.T) {
 	}
 	if lookup.hasReceipt || lookup.decision != receiptFresh {
 		t.Fatal("entity lookup saw the person receipt", lookup.decision, lookup.hasReceipt)
+	}
+	ipPolicyRollbackTurn(t, turn, tx)
+}
+
+// Person accept/delta are separate purposes from the entity accept/delta even
+// when the numeric subject ID, owner incarnation and sequence coincide. Each
+// handler refuses the other family's purpose before any statement runs.
+func TestIPPersonCrossKindAcceptAndDeltaPurposes(t *testing.T) {
+	w, r, p, _ := seedIPPersonCrossFixture(t)
+	identity := ipEntityEvidenceIdentity(ipPersonIdentity(1, 0x31), 8)
+	observation := func() ipPersonObservation {
+		return ipPersonObservation{
+			operationID: strings.Repeat("a", 32), provider: "tmdb", providerID: "42",
+			lease: strings.Repeat("b", 32), personID: 42, personRevision: 1,
+			generation: 1, revision: 2, leaseGeneration: 1, leaseUntilMS: 300000,
+			evidenceID: "evidence-person-1", buildID: "build-person-1",
+			publicationID: "publication-person-1", buildGeneration: 1, contentRevision: 2,
+			searchJobID: 1, observedAt: "2026-01-01T00:00:00Z",
+			fields: []ipPersonAcceptField{
+				{Name: "name", Value: "Ada Lovelace", Present: true},
+				{Name: "biography", Value: "", Present: true},
+				{Name: "birthDate", Value: "", Present: true},
+				{Name: "deathDate", Value: "", Present: true},
+				{Name: "birthPlace", Value: "", Present: true},
+			},
+		}
+	}
+	accept, err := newIPPersonAcceptCommand(identity, ipPersonAcceptRequest{observation: observation()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	delta, err := newIPPersonDeltaCommand(identity, ipPersonDeltaRequest{
+		observation: observation(), previousPublicationID: "publication-old",
+		previousEvidenceID: "evidence-old", previousSourceIncarnation: [16]byte{1},
+		previousSourceRevision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cell := range []struct {
+		name    string
+		purpose CommandID
+		apply   func(*commandTurn, ipPolicyBudget) (bool, error)
+	}{
+		{"accept", IPEntityAccept, func(turn *commandTurn, b ipPolicyBudget) (bool, error) {
+			out, err := applyIPPersonAccept(t.Context(), turn, p, t.Context(), b, accept)
+			return out == (ipPersonAcceptCommandResult{}), err
+		}},
+		{"delta", IPEntityDelta, func(turn *commandTurn, b ipPolicyBudget) (bool, error) {
+			out, err := applyIPPersonDelta(t.Context(), turn, p, t.Context(), b, delta)
+			return out == (ipPersonDeltaCommandResult{}), err
+		}},
+	} {
+		t.Run(cell.name, func(t *testing.T) {
+			turn, tx, b := ipPolicyTurn(t, w, r, cell.purpose)
+			zero, err := cell.apply(turn, b)
+			if !zero || !errors.Is(err, ErrInvalid) {
+				t.Fatal("person accept/delta ran under an entity purpose", zero, err)
+			}
+			ipPolicyRollbackTurn(t, turn, tx)
+		})
+	}
+	// The reverse direction: entity accept/delta refuse a person purpose.
+	entityObservation := ipEntityAcceptRequest{
+		operationID: strings.Repeat("a", 32), provider: "tmdb", purpose: "metadata",
+		selectedID: "42", lease: strings.Repeat("b", 32), entityID: 42, generation: 1,
+		leaseUntilMS: 300000, evidenceID: "evidence-one", buildID: "build-one",
+		publicationID: "publication-one", buildGeneration: 1, contentRevision: 1,
+		subjectID: 42, subjectKind: "artist", providerID: "42",
+		parserVersion: "ip.tmdb.artist.v1", language: "en", region: "US",
+		requestShape: "ip.tmdb.artist.evidence.v1", observedAt: "2026-01-01T00:00:00Z",
+		selectionIncarnation: [16]byte{1}, selectionRevision: 1, searchJobID: 1,
+		fields: []ipEntityAcceptField{
+			{Name: "title", Value: "Artist One", Present: true},
+			{Name: "language", Value: "en", Present: true},
+		},
+	}
+	entityAccept, err := newIPEntityAcceptCommand(identity, entityObservation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entityDelta, err := newIPEntityDeltaCommand(identity, ipEntityDeltaRequest{
+		observation: entityObservation, previousPublicationID: "publication-old",
+		previousEvidenceID: "evidence-old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, tx, b := ipPolicyTurn(t, w, r, IPPersonAccept)
+	out, err := applyIPEntityAccept(t.Context(), turn, p, t.Context(), b, entityAccept)
+	if out != (ipEntityAcceptCommandResult{}) || !errors.Is(err, ErrInvalid) {
+		t.Fatal("entity accept ran under a person purpose", out, err)
+	}
+	ipPolicyRollbackTurn(t, turn, tx)
+	turn, tx, b = ipPolicyTurn(t, w, r, IPPersonDelta)
+	outDelta, err := applyIPEntityDelta(t.Context(), turn, p, t.Context(), b, entityDelta)
+	if outDelta != (ipEntityDeltaCommandResult{}) || !errors.Is(err, ErrInvalid) {
+		t.Fatal("entity delta ran under a person purpose", outDelta, err)
 	}
 	ipPolicyRollbackTurn(t, turn, tx)
 }

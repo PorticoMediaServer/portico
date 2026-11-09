@@ -78,7 +78,7 @@ func ipPersonDefinitions() []stmt.Definition {
 			},
 		},
 		{
-			ID: ipPersonReceiptStmt, SQL: `SELECT command_incarnation,command_sequence,operation_id,request_digest,applied_ms,result_digest,command_kind,accepted_revision,result_count,evidence_id,build_id,seal_algorithm,seal_version,seal_commitment,seal_rows,seal_bytes FROM metadata_person_receipts WHERE owner_id=? AND command_incarnation=? AND command_sequence=?`,
+			ID: ipPersonReceiptStmt, SQL: `SELECT command_incarnation,command_sequence,operation_id,request_digest,applied_ms,result_digest,command_kind,accepted_revision,result_count,evidence_id,build_id,publication_id,seal_algorithm,seal_version,seal_commitment,seal_rows,seal_bytes FROM metadata_person_receipts WHERE owner_id=? AND command_incarnation=? AND command_sequence=?`,
 			Params: []stmt.Param{t("owner"), b("incarnation"), i("sequence")},
 			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_person_receipts"}},
 			Cohorts: []stmt.Cohort{
