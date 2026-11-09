@@ -19,10 +19,10 @@ import (
 // change requires regenerating both pins and running the fresh-layout test.
 const (
 	NativeSQLiteVersion = "3.53.4"
-	NativeLayoutSHA256  = "1089e407c9c8f05dc3f4470992b017d160e2f492c98b39476d35c7ec4d403f9a"
-	NativeLayoutObjects = 2361
+	NativeLayoutSHA256  = "cfbf628272a2a0ae7f1e47e1a29d395dd106e771fb36481aa3790606ee5c4054"
+	NativeLayoutObjects = 2407
 
-	// Adopted012+013+014+015+016+017+018 bootstrap header values. These remain zero deliberately;
+	// Adopted012+013+014+015+016+017+018+019 bootstrap header values. These remain zero deliberately;
 	// native layout verification, not a version PRAGMA, proves the layout.
 	ApplicationID    = 0
 	UserVersion      = 0
