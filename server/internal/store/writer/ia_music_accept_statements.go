@@ -26,6 +26,7 @@ const (
 	iaMusicLinkInsert         stmt.ID = "ia.audio.music.link_insert"
 	iaMusicContributionInsert stmt.ID = "ia.audio.music.contribution_insert"
 	iaMusicSongArtistInsert   stmt.ID = "ia.audio.music.song_artist_insert"
+	iaMusicSongArtists        stmt.ID = "ia.audio.music.song_artists"
 	iaMusicReceiptInsert      stmt.ID = "ia.audio.music.receipt_insert"
 	iaMusicMemberInsert       stmt.ID = "ia.audio.music.member_insert"
 )
@@ -122,7 +123,7 @@ WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AN
 				{Name: "new_identity", Bindings: []any{int64(7), "music-new-key"}},
 			}},
 		{ID: iaMusicEntity, Kind: stmt.Read,
-			SQL:    `SELECT kind,parent_id,artist_id,album_id,retired,revision,metadata_incarnation FROM catalog_entities WHERE id=? AND library_id=?`,
+			SQL:    `SELECT kind,parent_id,artist_id,album_id,disc_number,track_number,retired,revision,metadata_incarnation FROM catalog_entities WHERE id=? AND library_id=?`,
 			Params: []stmt.Param{i("subject_id"), i("library_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "reused_entity", Bindings: []any{int64(31), int64(7)}},
@@ -204,6 +205,13 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(entity_id,asset_id) DO NOTHING`,
 			Params: []stmt.Param{i("library_id"), i("parent_id"), i("asset_id"), i("membership_refs"), i("authored_refs"), i("file_size"), i("file_size_revision")},
 			Cohorts: []stmt.Cohort{
 				{Name: "one_song_membership", Bindings: []any{int64(7), int64(33), int64(41), int64(1), int64(0), int64(42), int64(1)}},
+			}},
+		{ID: iaMusicSongArtists, Kind: stmt.Read,
+			SQL:    `SELECT artist_id FROM catalog_song_artists WHERE song_id=? ORDER BY artist_id LIMIT ?`,
+			Params: []stmt.Param{i("song_id"), i("row_limit")},
+			Cohorts: []stmt.Cohort{
+				{Name: "song_edges", Bindings: []any{int64(33), int64(iaMusicMaxArtists + 1)}},
+				{Name: "empty_edges", Bindings: []any{int64(999), int64(iaMusicMaxArtists + 1)}},
 			}},
 		{ID: iaMusicSongArtistInsert, Kind: stmt.Write,
 			SQL:    `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(?,?) ON CONFLICT(song_id,artist_id) DO NOTHING`,
@@ -289,6 +297,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaMusicRunCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND command_incarnation=?"}
+		case iaMusicSongArtists:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_song_artists"}
+			defs[n].Plan.Seeks = []string{"song_id=?"}
 		case iaEpisodeSearchHead:
 			defs[n].Plan.PrimaryKeys = []string{"search_revision"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}

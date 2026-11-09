@@ -34,8 +34,8 @@ func iaEpisodePreparationFixture() (iaEpisodeInventoryRequest, CommandIdentity) 
 		complete: true,
 		showKey:  "show-key",
 		episodes: []iaEpisodeLink{
-			{season: 2, episode: 3, part: 7, start: 0, end: &end, seasonKey: "season-2-key", episodeKey: "episode-3-key"},
-			{season: 2, episode: 4, part: 9, start: 60, seasonKey: "season-2-key", episodeKey: "episode-4-key"},
+			{season: 2, episode: 3, part: 7, start: 0, end: &end, hasSeason: true, seasonKey: "season-2-key", episodeKey: "episode-3-key"},
+			{season: 2, episode: 4, part: 9, start: 60, hasSeason: true, seasonKey: "season-2-key", episodeKey: "episode-4-key"},
 		},
 	}, id
 }
@@ -99,7 +99,11 @@ func TestIAEpisodePreparationRefusals(t *testing.T) {
 		{"emptyEpisodeKey", func(r *iaEpisodeInventoryRequest) { r.episodes[0].episodeKey = "" }},
 		{"sameEpisodeKey", func(r *iaEpisodeInventoryRequest) { r.episodes[1].episodeKey = r.episodes[0].episodeKey }},
 		{"splitSeasonKey", func(r *iaEpisodeInventoryRequest) { r.episodes[1].seasonKey = "other-season" }},
-		{"straySeasonKey", func(r *iaEpisodeInventoryRequest) { r.episodes[0].season = 0 }},
+		{"seasonKeyWithoutFlag", func(r *iaEpisodeInventoryRequest) { r.episodes[0].hasSeason = false }},
+		{"seasonWithoutKey", func(r *iaEpisodeInventoryRequest) { r.episodes[0].seasonKey = "" }},
+		{"seasonlessNumber", func(r *iaEpisodeInventoryRequest) {
+			r.episodes[0].hasSeason, r.episodes[0].season, r.episodes[0].seasonKey = false, 2, ""
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,6 +113,23 @@ func TestIAEpisodePreparationRefusals(t *testing.T) {
 				t.Fatal("accepted malformed original")
 			}
 		})
+	}
+}
+
+func TestIAEpisodePreparationSpecialsPresence(t *testing.T) {
+	r, id := iaEpisodePreparationFixture()
+	r.episodes = []iaEpisodeLink{{season: 0, episode: 1, part: 0, hasSeason: true, seasonKey: "specials-key", episodeKey: "specials-episode-key"}}
+	specials, err := newIAEpisodeInventoryCommand(id, r)
+	if err != nil {
+		t.Fatal("season 0 with an explicit season container", err)
+	}
+	r.episodes[0].hasSeason, r.episodes[0].seasonKey = false, ""
+	seasonless, err := newIAEpisodeInventoryCommand(id, r)
+	if err != nil {
+		t.Fatal("seasonless specials number", err)
+	}
+	if specials.digest == seasonless.digest {
+		t.Fatal("season presence is not bound in the original")
 	}
 }
 

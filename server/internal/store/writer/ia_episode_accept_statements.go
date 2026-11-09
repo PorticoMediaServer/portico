@@ -19,6 +19,8 @@ const (
 	iaEpisodeEntity             stmt.ID = "ia.episode.entity"
 	iaEpisodeDirectoryCAS       stmt.ID = "ia.episode.directory_cas"
 	iaEpisodeRunCAS             stmt.ID = "ia.episode.run_cas"
+	iaEpisodeContainer          stmt.ID = "ia.episode.container"
+	iaEpisodeContainerAdvance   stmt.ID = "ia.episode.container_advance"
 	iaEpisodeSubjectInsert      stmt.ID = "ia.episode.subject_insert"
 	iaEpisodeIdentityInsert     stmt.ID = "ia.episode.identity_insert"
 	iaEpisodeEntityInsert       stmt.ID = "ia.episode.entity_insert"
@@ -160,6 +162,22 @@ RETURNING job_revision,last_command_sequence`,
 				{Name: "stale_run_cas", Bindings: []any{int64(6), int64(2), "episode-run", inc, int64(7), "episode-library", "/media/episode", false,
 					"episode-source", int64(3), "episode-incarnation", "episode-root-identity", int64(4), "inventory", "first-import",
 					int64(11), int64(13), int64(4000000000000), int64(5), int64(1), int64(0)}},
+			}},
+		{ID: iaEpisodeContainer, Kind: stmt.Read,
+			SQL:    `SELECT last_content_added_at FROM catalog_entities WHERE id=? AND library_id=? AND kind=? AND retired=0`,
+			Params: []stmt.Param{i("subject_id"), i("library_id"), i("kind")},
+			Cohorts: []stmt.Cohort{
+				{Name: "show_container", Bindings: []any{int64(31), int64(7), int64(2)}},
+				{Name: "season_container", Bindings: []any{int64(32), int64(7), int64(3)}},
+			}},
+		{ID: iaEpisodeContainerAdvance, Kind: stmt.Write,
+			SQL: `UPDATE catalog_entities SET last_content_added_at=?
+WHERE id=? AND library_id=? AND kind=? AND retired=0 AND last_content_added_at IS ?
+RETURNING last_content_added_at`,
+			Params: []stmt.Param{t("last_content_added_at"), i("subject_id"), i("library_id"), i("kind"), nt("prior_content_added_at")},
+			Cohorts: []stmt.Cohort{
+				{Name: "null_to_accepted", Bindings: []any{"2026-11-08T00:00:00.000000000Z", int64(31), int64(7), int64(2), nil}},
+				{Name: "older_to_accepted", Bindings: []any{"2026-11-08T00:00:00.000000000Z", int64(31), int64(7), int64(2), "2026-11-01T00:00:00.000000000Z"}},
 			}},
 		{ID: iaEpisodeSubjectInsert, Kind: stmt.Write,
 			SQL:    `INSERT INTO catalog_subjects(public_id,library_id,kind) VALUES(?,?,?) RETURNING id`,
@@ -334,6 +352,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaEpisodeRunCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND command_incarnation=?"}
+		case iaEpisodeContainer, iaEpisodeContainerAdvance:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_entities"}
+			defs[n].Plan.Seeks = []string{"rowid=?"}
 		case iaEpisodeSearchHead:
 			defs[n].Plan.PrimaryKeys = []string{"search_revision"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}

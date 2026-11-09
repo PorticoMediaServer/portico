@@ -114,10 +114,11 @@ func iaMusicReceiptFacts(ctx context.Context, turn *commandTurn, runID string, r
 	}
 	var operation, request, digest []byte
 	var kind string
-	var version int64
-	err = row.Scan(&operation, &request, &kind, &header.facts.resultCount, &digest, &header.acceptedRevision, &header.appliedMS,
-		&header.sourceID, &header.sourceIncarnation, &version, &header.memberBytes, &header.objectID, &header.objectRevision,
-		&header.cursorKind, &header.directoryPath, &header.directoryIdentity, &header.directoryRevision,
+	var resultCount, acceptedRevision, appliedMS, version, memberBytes sql.NullInt64
+	var sourceID, sourceIncarnation, objectID, objectRevision, cursorKind sql.NullString
+	err = row.Scan(&operation, &request, &kind, &resultCount, &digest, &acceptedRevision, &appliedMS,
+		&sourceID, &sourceIncarnation, &version, &memberBytes, &objectID, &objectRevision,
+		&cursorKind, &header.directoryPath, &header.directoryIdentity, &header.directoryRevision,
 		&header.expectedPayload, &header.nextPayload)
 	if errors.Is(err, sql.ErrNoRows) {
 		return owner, header, nil
@@ -125,7 +126,7 @@ func iaMusicReceiptFacts(ctx context.Context, turn *commandTurn, runID string, r
 	if err != nil {
 		return owner, header, err
 	}
-	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 || version != 1 {
+	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 {
 		return owner, header, ErrResolveRequired
 	}
 	header.facts.exists = true
@@ -133,9 +134,24 @@ func iaMusicReceiptFacts(ctx context.Context, turn *commandTurn, runID string, r
 	copy(header.facts.identity.command.OperationID[:], operation)
 	copy(header.facts.identity.digest[:], request)
 	copy(header.facts.resultDigest[:], digest)
-	if kind == iaMusicReceiptKind {
-		header.facts.kind = IAAcceptAudioInventory
+	if kind != iaMusicReceiptKind {
+		// A receipt at this exact key belongs to another command purpose. Its IA
+		// media projection is intentionally NULL, so it is left undecoded and
+		// classifyReceipt answers the kind mismatch with ErrConflict rather than
+		// a raw NULL scan error.
+		return owner, header, nil
 	}
+	if !resultCount.Valid || !acceptedRevision.Valid || !appliedMS.Valid || !version.Valid || version.Int64 != 1 ||
+		!memberBytes.Valid || !sourceID.Valid || !sourceIncarnation.Valid || !objectID.Valid || !objectRevision.Valid || !cursorKind.Valid {
+		return owner, header, ErrResolveRequired
+	}
+	header.facts.resultCount = resultCount.Int64
+	header.acceptedRevision = acceptedRevision.Int64
+	header.appliedMS = appliedMS.Int64
+	header.memberBytes = memberBytes.Int64
+	header.sourceID, header.sourceIncarnation = sourceID.String, sourceIncarnation.String
+	header.objectID, header.objectRevision, header.cursorKind = objectID.String, objectRevision.String, cursorKind.String
+	header.facts.kind = IAAcceptAudioInventory
 	return owner, header, nil
 }
 
@@ -192,6 +208,14 @@ func applyIAMusicInventory(ctx context.Context, turn *commandTurn, authority *ia
 	if err != nil {
 		return out, err
 	}
+	// A reused song that already carries exactly the accepted song-artist edge
+	// cohort is an idempotent no-op; a different cohort is a conflict and no edge
+	// is ever rewritten. Every song's edge decision is read before the first
+	// write of this unit.
+	artistWrites, err := iaMusicPlanSongArtists(ctx, turn, r, allocated)
+	if err != nil {
+		return out, err
+	}
 	// Links/contributions bind the exact observed asset. A repeated song link is
 	// a conflict; no silent upsert, reparent or album rewrite exists.
 	file := r.files[0]
@@ -212,8 +236,8 @@ func applyIAMusicInventory(ctx context.Context, turn *commandTurn, authority *ia
 		if err = wc008DraftChanged(ctx, turn, iaMusicContributionInsert, r.scope.libraryID, node.subjectID, asset.id, int64(1), int64(0), file.size, asset.fileSizeRevision); err != nil {
 			return out, err
 		}
-		for _, key := range r.songArtistKeys {
-			if err = wc008DraftChanged(ctx, turn, iaMusicSongArtistInsert, node.subjectID, allocated.artistIDs[key]); err != nil {
+		for _, artistID := range artistWrites[i] {
+			if err = wc008DraftChanged(ctx, turn, iaMusicSongArtistInsert, node.subjectID, artistID); err != nil {
 				return out, err
 			}
 		}
@@ -308,6 +332,7 @@ type iaMusicNode struct {
 
 type iaMusicEntityFacts struct {
 	kind, parent, artist, album, revision int64
+	disc, track                           int64
 	retired                               bool
 	incarnation                           [16]byte
 }
@@ -318,16 +343,17 @@ func iaMusicReadEntity(ctx context.Context, turn *commandTurn, libraryID, subjec
 	if err != nil {
 		return value, err
 	}
-	var parent, artist, album sql.NullInt64
+	var parent, artist, album, disc, track sql.NullInt64
 	var retired int64
 	var incarnation []byte
-	if err = row.Scan(&value.kind, &parent, &artist, &album, &retired, &value.revision, &incarnation); err != nil {
+	if err = row.Scan(&value.kind, &parent, &artist, &album, &disc, &track, &retired, &value.revision, &incarnation); err != nil {
 		return value, errors.Join(ErrConflict, err)
 	}
 	if len(incarnation) != 16 || value.revision <= 0 {
 		return value, ErrResolveRequired
 	}
 	value.parent, value.artist, value.album = parent.Int64, artist.Int64, album.Int64
+	value.disc, value.track = disc.Int64, track.Int64
 	value.retired = retired != 0
 	copy(value.incarnation[:], incarnation)
 	return value, nil
@@ -366,7 +392,7 @@ func iaMusicResolveNode(ctx context.Context, turn *commandTurn, libraryID int64,
 			return value, ErrConflict
 		}
 	case 7:
-		if entity.parent != album || entity.album != album || entity.artist != artist {
+		if entity.parent != album || entity.album != album || entity.artist != artist || entity.disc != disc || entity.track != track {
 			return value, ErrConflict
 		}
 	}
@@ -417,6 +443,66 @@ func iaMusicArtistIndex(artists []iaMusicArtist, key string) int {
 		}
 	}
 	return -1
+}
+
+// Song-artist edges are the accepted complete cohort for every song in this
+// file. A new song writes them; a reused song with an identical existing cohort
+// is an exact no-op (this is the normal second-file reuse path), and any other
+// existing cohort is a conflict. The per-song decision is read before the first
+// catalogue write.
+func iaMusicPlanSongArtists(ctx context.Context, turn *commandTurn, r iaMusicInventoryRequest, allocated iaMusicAllocation) (out [][]int64, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	want := make([]int64, len(r.songArtistKeys))
+	for i, key := range r.songArtistKeys {
+		if want[i] = allocated.artistIDs[key]; want[i] <= 0 {
+			return nil, ErrConflict
+		}
+	}
+	out = make([][]int64, len(allocated.songs))
+	for i, song := range allocated.songs {
+		if song.created {
+			out[i] = append([]int64(nil), want...)
+			continue
+		}
+		rows, err := turn.query(ctx, turn.steps[iaMusicSongArtists].statementStep, song.subjectID, int64(iaMusicMaxArtists+1))
+		if err != nil {
+			return nil, err
+		}
+		existing := make([]int64, 0, len(want))
+		readErr := func() error {
+			for rows.Next() {
+				var id int64
+				if err := rows.Scan(&id); err != nil {
+					return err
+				}
+				if len(existing) >= iaMusicMaxArtists {
+					return ErrCap
+				}
+				existing = append(existing, id)
+			}
+			return rows.Err()
+		}()
+		if err := errors.Join(readErr, rows.Close()); err != nil {
+			return nil, err
+		}
+		if len(existing) == 0 {
+			out[i] = append([]int64(nil), want...)
+			continue
+		}
+		if len(existing) != len(want) {
+			return nil, ErrConflict
+		}
+		set := make(map[int64]bool, len(want))
+		for _, id := range want {
+			set[id] = true
+		}
+		for _, id := range existing {
+			if !set[id] {
+				return nil, ErrConflict
+			}
+		}
+	}
+	return out, nil
 }
 
 // Allocation runs only after every fresh gate. Parent IDs are assigned before

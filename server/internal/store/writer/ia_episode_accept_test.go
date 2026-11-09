@@ -2,6 +2,7 @@ package writer
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"testing"
@@ -90,7 +91,7 @@ func iaEpisodeAcceptRequest(w *executor) iaEpisodeInventoryRequest {
 		},
 		complete: true,
 		showKey:  "show-key",
-		episodes: []iaEpisodeLink{{season: 1, episode: 1, part: 0, start: 0, seasonKey: "season-1-key", episodeKey: "episode-1-key"}},
+		episodes: []iaEpisodeLink{{season: 1, episode: 1, part: 0, start: 0, hasSeason: true, seasonKey: "season-1-key", episodeKey: "episode-1-key"}},
 	}
 }
 
@@ -175,6 +176,8 @@ func TestIAEpisodeAcceptFreshReplayAndLiveCohort(t *testing.T) {
 		{`SELECT count(*) FROM catalog_asset_contributions WHERE asset_id=41 AND membership_refs=1 AND file_size=42`, nil, 1},
 		{`SELECT count(*) FROM scan_command_receipts WHERE command_kind='episode_inventory_accept' AND result_count=4 AND accepted_revision=6`, nil, 1},
 		{`SELECT count(*) FROM scan_media_result_members WHERE command_kind='episode_inventory_accept' AND ordinal BETWEEN 0 AND 3`, nil, 4},
+		{`SELECT count(*) FROM scan_media_result_members WHERE episode_boundary_status='whole_source'`, nil, 1},
+		{`SELECT count(*) FROM scan_media_result_members WHERE episode_boundary_status='unknown_multi_episode'`, nil, 0},
 		{`SELECT count(*) FROM search_publish_jobs`, nil, 3},
 		{`SELECT count(*) FROM search_generations WHERE pending_subjects=3`, nil, 1},
 		{`SELECT count(*) FROM search_revision WHERE input_sequence=1`, nil, 1},
@@ -227,7 +230,7 @@ func TestIAEpisodeAcceptReusedIdentity(t *testing.T) {
 		objectIdentity: "object:episode:2", revision: "object-revision:2", size: 43, modifiedNS: 8, title: "Show S01E02",
 		sortTitle: "", sortKey: "show s01e02", sortHead: "s", sortKeyKeepArticles: "show s01e02", sortHeadKeepArticles: "s",
 		metadataLanguage: "en-US", year: 2020}}
-	second.episodes = []iaEpisodeLink{{season: 1, episode: 2, part: 0, start: 0, seasonKey: "season-1-key", episodeKey: "episode-2-key"}}
+	second.episodes = []iaEpisodeLink{{season: 1, episode: 2, part: 0, start: 0, hasSeason: true, seasonKey: "season-1-key", episodeKey: "episode-2-key"}}
 	ref2 := iaEpisodeAcceptReference(t, second, 3, 3)
 	turn, out, err = iaEpisodeAcceptRun(t, w, reg, p, second, ref2)
 	if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 4 {
@@ -273,7 +276,7 @@ func TestIAEpisodeAcceptFanout(t *testing.T) {
 		q.episodes = make([]iaEpisodeLink, naming.MaxEpisodeLinks)
 		for i := range q.episodes {
 			q.episodes[i] = iaEpisodeLink{season: 1, episode: int64(i + 1), part: 0, start: float64(i * 60),
-				seasonKey: "season-1-key", episodeKey: "episode-" + string(rune('a'+i))}
+				hasSeason: true, seasonKey: "season-1-key", episodeKey: "episode-" + string(rune('a'+i))}
 		}
 		ref := iaEpisodeAcceptReference(t, q, 2, 2)
 		turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, q, ref)
@@ -291,6 +294,7 @@ func TestIAEpisodeAcceptFanout(t *testing.T) {
 			{`SELECT count(*) FROM catalog_asset_contributions`, 8},
 			{`SELECT count(*) FROM catalog_entities WHERE kind=4`, 8},
 			{`SELECT count(*) FROM scan_media_result_members`, 18},
+			{`SELECT count(*) FROM scan_media_result_members WHERE episode_boundary_status='unknown_multi_episode'`, 8},
 			{`SELECT count(*) FROM search_publish_jobs`, 10},
 		} {
 			if got := iaEpisodeCount(t, w, check.query); got != check.want {
@@ -305,7 +309,7 @@ func TestIAEpisodeAcceptFanout(t *testing.T) {
 		for i := range q.episodes {
 			season := int64(i + 1)
 			q.episodes[i] = iaEpisodeLink{season: season, episode: 1, part: 0, start: 0,
-				seasonKey: "season-key-" + string(rune('a'+i)), episodeKey: "episode-key-" + string(rune('a'+i))}
+				hasSeason: true, seasonKey: "season-key-" + string(rune('a'+i)), episodeKey: "episode-key-" + string(rune('a'+i))}
 		}
 		ref := iaEpisodeAcceptReference(t, q, 2, 2)
 		turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, q, ref)
@@ -336,7 +340,7 @@ func TestIAEpisodeAcceptFanout(t *testing.T) {
 		q.episodes = make([]iaEpisodeLink, 9)
 		for i := range q.episodes {
 			q.episodes[i] = iaEpisodeLink{season: 1, episode: int64(i + 1), part: 0, start: 0,
-				seasonKey: "season-1-key", episodeKey: "episode-" + string(rune('a'+i))}
+				hasSeason: true, seasonKey: "season-1-key", episodeKey: "episode-" + string(rune('a'+i))}
 		}
 		ref := ReceiptReference{Identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 2, OperationID: [16]byte{2}}, RequestDigest: RequestDigest{1}}
 		turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, q, ref)
@@ -345,6 +349,27 @@ func TestIAEpisodeAcceptFanout(t *testing.T) {
 		}
 		turn.transaction.rollback(nil)
 		iaEpisodeNoEffects(t, w)
+	})
+	t.Run("single_ranged", func(t *testing.T) {
+		// A source range on a single-episode file is still the whole-source
+		// interpretation; only the file's accepted number cohort decides the
+		// multi-episode status.
+		w, reg, p := iaEpisodeAcceptFixture(t)
+		q := iaEpisodeAcceptRequest(w)
+		end := 120.0
+		q.episodes = []iaEpisodeLink{{season: 1, episode: 1, part: 0, start: 60, end: &end, hasSeason: true,
+			seasonKey: "season-1-key", episodeKey: "episode-1-key"}}
+		ref := iaEpisodeAcceptReference(t, q, 2, 2)
+		turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh {
+			t.Fatal("single ranged episode", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM scan_media_result_members WHERE episode_boundary_status='whole_source' AND start_seconds=60 AND end_seconds=120`); got != 1 {
+			t.Fatal("single ranged boundary status", got)
+		}
 	})
 	t.Run("seasonless", func(t *testing.T) {
 		w, reg, p := iaEpisodeAcceptFixture(t)
@@ -673,4 +698,203 @@ func TestIAEpisodeAcceptRollbackLeavesNoEffect(t *testing.T) {
 	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM inventory_directories WHERE cursor='' AND pages=2`); got != 1 {
 		t.Fatal("rollback advanced the directory", got)
 	}
+}
+
+func iaEpisodeLastContent(t *testing.T, w *executor, subjectID int64) string {
+	t.Helper()
+	var value sql.NullString
+	if err := w.db.QueryRowContext(t.Context(), `SELECT last_content_added_at FROM catalog_entities WHERE id=?`, subjectID).Scan(&value); err != nil {
+		t.Fatal(err)
+	}
+	return value.String
+}
+
+func iaEpisodeSecondFile(t *testing.T, w *executor, reg *iaEntryRegistry, p *usOwnerAuthorityProof, first iaEpisodeInventoryRequest) (iaEpisodeInventoryRequest, int64, int64) {
+	t.Helper()
+	ref := iaEpisodeAcceptReference(t, first, 2, 2)
+	turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, first, ref)
+	if err != nil || out.decision != receiptFresh {
+		t.Fatal("first episode file", out, err)
+	}
+	if _, err = turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	showID := iaEpisodeCount(t, w, `SELECT subject_id FROM catalog_identities WHERE source_key='show-key'`)
+	seasonID := iaEpisodeCount(t, w, `SELECT subject_id FROM catalog_identities WHERE source_key='season-1-key'`)
+	wc008NativeExec(t, w, `UPDATE inventory_runs SET acknowledged_command_sequence=2 WHERE job_id='episode-run'`)
+	wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(42,'episode-token-2','/media/episode/Show S01E02.mkv',43,8,'','','',0,0,0,7)`)
+	second := first
+	second.run = inventoryRun{revision: 6, policyRevision: 4, leaseOwner: 11, leaseGeneration: 13,
+		leaseExpiresMS: w.now().Add(time.Hour).UnixMilli(), lastSequence: 2, acknowledgedSequence: 2, phase: "inventory", scanMode: "first-import"}
+	second.directory.expectedCursor, second.directory.nextCursor, second.directory.pages = "42", "43", 3
+	second.files = []inventoryFile{{sourceKey: "asset-source-key-2", relativePath: "Show S01E02.mkv", assetPath: iaEpisodeTestRoot + "/Show S01E02.mkv",
+		objectIdentity: "object:episode:2", revision: "object-revision:2", size: 43, modifiedNS: 8, title: "Show S01E02",
+		sortTitle: "", sortKey: "show s01e02", sortHead: "s", sortKeyKeepArticles: "show s01e02", sortHeadKeepArticles: "s",
+		metadataLanguage: "en-US", year: 2020}}
+	second.episodes = []iaEpisodeLink{{season: 1, episode: 2, part: 0, start: 0, hasSeason: true, seasonKey: "season-1-key", episodeKey: "episode-2-key"}}
+	return second, showID, seasonID
+}
+
+// Show and season chronology: a first accepted episode initializes both
+// containers, a later genuinely new episode advances an older value, a newer
+// stored value never moves backwards, and replay changes nothing.
+func TestIAEpisodeAcceptShowSeasonChronology(t *testing.T) {
+	w, reg, p := iaEpisodeAcceptFixture(t)
+	first := iaEpisodeAcceptRequest(w)
+	second, showID, seasonID := iaEpisodeSecondFile(t, w, reg, p, first)
+	accepted := iaEpisodeAddedAt(w.now().UnixMilli())
+	for _, id := range []int64{showID, seasonID} {
+		if got := iaEpisodeLastContent(t, w, id); got != accepted {
+			t.Fatal("container chronology not initialized", id, got, accepted)
+		}
+	}
+	older := "2026-01-01T00:00:00.000000000Z"
+	wc008NativeExec(t, w, `UPDATE catalog_entities SET last_content_added_at=? WHERE id IN (?,?)`, older, showID, seasonID)
+	ref := iaEpisodeAcceptReference(t, second, 3, 3)
+	turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, second, ref)
+	if err != nil || out.decision != receiptFresh {
+		t.Fatal("second episode accept", out, err)
+	}
+	if _, err = turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{showID, seasonID} {
+		if got := iaEpisodeLastContent(t, w, id); got != accepted {
+			t.Fatal("older container chronology not advanced", id, got, accepted)
+		}
+	}
+
+	wc008NativeExec(t, w, `UPDATE inventory_runs SET acknowledged_command_sequence=3 WHERE job_id='episode-run'`)
+	wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(43,'episode-token-3','/media/episode/Show S01E03.mkv',44,9,'','','',0,0,0,7)`)
+	future := "2030-01-01T00:00:00.000000000Z"
+	wc008NativeExec(t, w, `UPDATE catalog_entities SET last_content_added_at=? WHERE id IN (?,?)`, future, showID, seasonID)
+	third := second
+	third.run = inventoryRun{revision: 7, policyRevision: 4, leaseOwner: 11, leaseGeneration: 13,
+		leaseExpiresMS: w.now().Add(time.Hour).UnixMilli(), lastSequence: 3, acknowledgedSequence: 3, phase: "inventory", scanMode: "first-import"}
+	third.directory.expectedCursor, third.directory.nextCursor, third.directory.pages = "43", "44", 4
+	third.files = []inventoryFile{{sourceKey: "asset-source-key-3", relativePath: "Show S01E03.mkv", assetPath: iaEpisodeTestRoot + "/Show S01E03.mkv",
+		objectIdentity: "object:episode:3", revision: "object-revision:3", size: 44, modifiedNS: 9, title: "Show S01E03",
+		sortTitle: "", sortKey: "show s01e03", sortHead: "s", sortKeyKeepArticles: "show s01e03", sortHeadKeepArticles: "s",
+		metadataLanguage: "en-US", year: 2020}}
+	third.episodes = []iaEpisodeLink{{season: 1, episode: 3, part: 0, start: 0, hasSeason: true, seasonKey: "season-1-key", episodeKey: "episode-3-key"}}
+	thirdRef := iaEpisodeAcceptReference(t, third, 4, 4)
+	turn, out, err = iaEpisodeAcceptRun(t, w, reg, p, third, thirdRef)
+	if err != nil || out.decision != receiptFresh {
+		t.Fatal("third episode accept", out, err)
+	}
+	if _, err = turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{showID, seasonID} {
+		if got := iaEpisodeLastContent(t, w, id); got != future {
+			t.Fatal("chronology moved backwards", id, got, future)
+		}
+	}
+
+	replayBase := "2025-01-01T00:00:00.000000000Z"
+	wc008NativeExec(t, w, `UPDATE catalog_entities SET last_content_added_at=? WHERE id IN (?,?)`, replayBase, showID, seasonID)
+	turn, replay, err := iaEpisodeAcceptRun(t, w, reg, p, third, thirdRef)
+	if err != nil || replay.decision != receiptReplay {
+		t.Fatal("chronology replay", replay, err)
+	}
+	turn.transaction.rollback(nil)
+	for _, id := range []int64{showID, seasonID} {
+		if got := iaEpisodeLastContent(t, w, id); got != replayBase {
+			t.Fatal("replay changed container chronology", id, got, replayBase)
+		}
+	}
+}
+
+// Season 0 is the real Specials season when the caller marks the container
+// present, and stays "no season container" (absolute under the show) when it
+// does not. Both spellings coexist with a normal season in one accepted unit.
+func TestIAEpisodeAcceptSpecialsSeason(t *testing.T) {
+	t.Run("with_container", func(t *testing.T) {
+		w, reg, p := iaEpisodeAcceptFixture(t)
+		q := iaEpisodeAcceptRequest(w)
+		q.episodes = []iaEpisodeLink{{season: 0, episode: 1, part: 0, start: 0, hasSeason: true,
+			seasonKey: "specials-key", episodeKey: "specials-episode-1-key"}}
+		ref := iaEpisodeAcceptReference(t, q, 2, 2)
+		turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 4 {
+			t.Fatal("specials season accept", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		showID := iaEpisodeCount(t, w, `SELECT subject_id FROM catalog_identities WHERE source_key='show-key'`)
+		seasonID := iaEpisodeCount(t, w, `SELECT subject_id FROM catalog_identities WHERE source_key='specials-key'`)
+		episodeID := iaEpisodeCount(t, w, `SELECT subject_id FROM catalog_identities WHERE source_key='specials-episode-1-key'`)
+		for _, check := range []struct {
+			query string
+			args  []any
+			want  int64
+		}{
+			{`SELECT count(*) FROM catalog_entities WHERE id=? AND kind=3 AND season_number=0 AND show_id=? AND parent_id=? AND title='Specials'`,
+				[]any{seasonID, showID, showID}, 1},
+			{`SELECT count(*) FROM catalog_entities WHERE kind=4 AND episode_number=1 AND numbering='seasonal' AND season_id=? AND season_number=0 AND parent_id=? AND show_id=?`,
+				[]any{seasonID, seasonID, showID}, 1},
+			{`SELECT count(*) FROM scan_media_result_members WHERE member_kind='identity' AND subject_id=? AND subject_kind=4 AND parent_id=? AND parent_kind=3 AND ancestor_id=? AND ancestor_kind=2`,
+				[]any{episodeID, seasonID, showID}, 1},
+		} {
+			if got := iaEpisodeCount(t, w, check.query, check.args...); got != check.want {
+				t.Fatal(check.query, got, check.want)
+			}
+		}
+		turn, replay, err := iaEpisodeAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || replay.decision != receiptReplay || replay.digest != out.digest || replay.result.facts.resultCount != 4 {
+			t.Fatal("specials replay", replay, err)
+		}
+		turn.transaction.rollback(nil)
+	})
+	t.Run("without_container", func(t *testing.T) {
+		w, reg, p := iaEpisodeAcceptFixture(t)
+		q := iaEpisodeAcceptRequest(w)
+		q.episodes = []iaEpisodeLink{{season: 0, episode: 1, part: 0, start: 0, episodeKey: "absolute-episode-1-key"}}
+		ref := iaEpisodeAcceptReference(t, q, 2, 2)
+		turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 3 {
+			t.Fatal("seasonless S00E01", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		showID := iaEpisodeCount(t, w, `SELECT subject_id FROM catalog_identities WHERE source_key='show-key'`)
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE kind=3`); got != 0 {
+			t.Fatal("seasonless episode invented a season", got)
+		}
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE kind=4 AND numbering='absolute' AND season_id IS NULL AND parent_id=? AND show_id=?`, showID, showID); got != 1 {
+			t.Fatal("seasonless hierarchy", got)
+		}
+	})
+	t.Run("alongside_normal_season", func(t *testing.T) {
+		w, reg, p := iaEpisodeAcceptFixture(t)
+		q := iaEpisodeAcceptRequest(w)
+		q.episodes = []iaEpisodeLink{
+			{season: 1, episode: 1, part: 0, start: 0, hasSeason: true, seasonKey: "season-1-key", episodeKey: "episode-1-key"},
+			{season: 0, episode: 1, part: 0, start: 0, hasSeason: true, seasonKey: "specials-key", episodeKey: "specials-episode-1-key"},
+		}
+		ref := iaEpisodeAcceptReference(t, q, 2, 2)
+		turn, out, err := iaEpisodeAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 7 {
+			t.Fatal("specials alongside a season", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		for _, check := range []struct {
+			query string
+			want  int64
+		}{
+			{`SELECT count(*) FROM catalog_entities`, 5},
+			{`SELECT count(*) FROM catalog_entities WHERE kind=3 AND season_number IN (0,1)`, 2},
+			{`SELECT count(*) FROM catalog_entities WHERE kind=4 AND season_number IN (0,1)`, 2},
+			{`SELECT count(*) FROM scan_media_result_members`, 7},
+			{`SELECT count(*) FROM search_publish_jobs`, 5},
+		} {
+			if got := iaEpisodeCount(t, w, check.query); got != check.want {
+				t.Fatal(check.query, got, check.want)
+			}
+		}
+	})
 }

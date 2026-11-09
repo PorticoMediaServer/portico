@@ -13,6 +13,12 @@ import (
 )
 
 const iaMusicRequestVersion uint16 = 1
+
+// 16 is the per-ATOMIC-cohort song limit of command 111: one complete whole-file
+// or cue-sheet unit that the writer accepts in a single transaction. Albums with
+// more than 16 tracks are an open must-fix (paged/resumable cohort; see the issue
+// "CUE albums over 16 tracks"). Never raise this constant to admit a longer
+// album; a prefix is not a complete cohort.
 const iaMusicMaxSongs = 16
 const iaMusicMaxArtists = 64
 
@@ -71,9 +77,14 @@ type iaMusicInventoryCommand struct {
 func newIAMusicInventoryCommand(id CommandIdentity, r iaMusicInventoryRequest) (*iaMusicInventoryCommand, error) {
 	// Counts precede all text traversal, copying and hashing.
 	if len(r.files) != 1 || len(r.artists) == 0 || len(r.artists) > iaMusicMaxArtists ||
-		len(r.songArtistKeys) == 0 || len(r.songArtistKeys) > iaMusicMaxArtists ||
-		len(r.songs) == 0 || len(r.songs) > iaMusicMaxSongs {
+		len(r.songArtistKeys) == 0 || len(r.songArtistKeys) > iaMusicMaxArtists || len(r.songs) == 0 {
 		return nil, invalid("ia_music_count")
+	}
+	// An over-cap album is refused with a typed policy result before any text
+	// work or write: the 16-song cap is the complete atomic cohort, so no prefix
+	// may be truncated into a smaller accepted unit.
+	if len(r.songs) > iaMusicMaxSongs {
+		return nil, &PolicyError{Field: "ia_music_cue_songs", Limit: iaMusicMaxSongs, Cause: ErrCap}
 	}
 	size := uint64(len(canonicalRequestCodec) + 4 + 16 + 8 + 16)
 	iaEpisodeWireSize(reflect.ValueOf(r), &size)

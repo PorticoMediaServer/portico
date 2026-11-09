@@ -297,7 +297,11 @@ func TestIAMusicAcceptBounds(t *testing.T) {
 		}
 		ref := ReceiptReference{Identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 2, OperationID: [16]byte{2}}, RequestDigest: RequestDigest{1}}
 		turn, out, err := iaMusicAcceptRun(t, w, reg, p, q, ref)
-		if !errors.Is(err, ErrInvalid) || out.decision != 0 || len(out.result.facts.members) != 0 {
+		// A 17+ track album is refused with a distinguishable typed cap, never
+		// truncated into a 16-track prefix or a generic invalid input.
+		var policy *PolicyError
+		if !errors.Is(err, ErrCap) || !errors.As(err, &policy) || policy.Field != "ia_music_cue_songs" ||
+			policy.Limit != iaMusicMaxSongs || out.decision != 0 || len(out.result.facts.members) != 0 {
 			t.Fatal("seventeen songs", out, err)
 		}
 		turn.transaction.rollback(nil)
@@ -618,4 +622,123 @@ func TestIAMusicAcceptRollbackLeavesNoEffect(t *testing.T) {
 	if got := iaMusicCount(t, w, `SELECT count(*) FROM inventory_directories WHERE cursor='' AND pages=2`); got != 1 {
 		t.Fatal("rollback advanced the directory", got)
 	}
+}
+
+// iaMusicSecondFileRequest is the second accepted file of the same album after a
+// first accept committed: a new asset/directory page in the same run and the
+// exact same artist/album/song identities unless the caller changes them.
+func iaMusicSecondFileRequest(w *executor, first iaMusicInventoryRequest) iaMusicInventoryRequest {
+	second := first
+	second.run = inventoryRun{revision: 6, policyRevision: 4, leaseOwner: 11, leaseGeneration: 13,
+		leaseExpiresMS: w.now().Add(time.Hour).UnixMilli(), lastSequence: 2, acknowledgedSequence: 2, phase: "inventory", scanMode: "first-import"}
+	second.directory.expectedCursor, second.directory.nextCursor, second.directory.pages = "42", "43", 3
+	second.files = []inventoryFile{{sourceKey: "asset-source-key-2", relativePath: "Album/02 Song.flac", assetPath: iaMusicTestRoot + "/Album/02 Song.flac",
+		objectIdentity: "object:music:2", revision: "object-revision:2", size: 43, modifiedNS: 8, title: "02 Song",
+		sortTitle: "", sortKey: "song", sortHead: "s", sortKeyKeepArticles: "song", sortHeadKeepArticles: "s",
+		metadataLanguage: "en-US", year: 2020}}
+	second.songs = []iaMusicSong{{key: "song-key", title: "Song", part: 0, cueOrdinal: 0, start: 0}}
+	return second
+}
+
+func iaMusicAcceptSecondFile(t *testing.T, w *executor, reg *iaEntryRegistry, p *usOwnerAuthorityProof) iaMusicInventoryRequest {
+	t.Helper()
+	first := iaMusicAcceptRequest(w)
+	ref := iaMusicAcceptReference(t, first, 2, 2)
+	turn, out, err := iaMusicAcceptRun(t, w, reg, p, first, ref)
+	if err != nil || out.decision != receiptFresh {
+		t.Fatal("first music file", out, err)
+	}
+	if _, err = turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	wc008NativeExec(t, w, `UPDATE inventory_runs SET acknowledged_command_sequence=2 WHERE job_id='music-run'`)
+	wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(42,'music-token-2','/media/music/Album/02 Song.flac',43,8,'','','',0,0,0,7)`)
+	return iaMusicSecondFileRequest(w, first)
+}
+
+// A second accepted file for the same song key shares the one song subject: its
+// already-present artist edge is an idempotent no-op, the exact disc/track must
+// match, and a different artist cohort is refused without a rewrite.
+func TestIAMusicAcceptSongReuse(t *testing.T) {
+	t.Run("shared_song", func(t *testing.T) {
+		w, reg, p := iaMusicAcceptFixture(t)
+		second := iaMusicAcceptSecondFile(t, w, reg, p)
+		ref := iaMusicAcceptReference(t, second, 3, 3)
+		turn, out, err := iaMusicAcceptRun(t, w, reg, p, second, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 5 {
+			t.Fatal("second file for the same song", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		for _, check := range []struct {
+			query string
+			want  int64
+		}{
+			{`SELECT count(*) FROM catalog_identities WHERE source_key='song-key'`, 1},
+			{`SELECT count(*) FROM catalog_entities WHERE kind=7`, 1},
+			{`SELECT count(*) FROM catalog_asset_links WHERE entity_id=(SELECT subject_id FROM catalog_identities WHERE source_key='song-key')`, 2},
+			{`SELECT count(*) FROM catalog_song_artists`, 1},
+			{`SELECT count(*) FROM catalog_asset_contributions`, 2},
+		} {
+			if got := iaMusicCount(t, w, check.query); got != check.want {
+				t.Fatal(check.query, got, check.want)
+			}
+		}
+	})
+	t.Run("different_disc_track", func(t *testing.T) {
+		w, reg, p := iaMusicAcceptFixture(t)
+		second := iaMusicAcceptSecondFile(t, w, reg, p)
+		second.songs[0].disc, second.songs[0].track = 1, 1
+		ref := iaMusicAcceptReference(t, second, 3, 3)
+		turn, out, err := iaMusicAcceptRun(t, w, reg, p, second, ref)
+		if !errors.Is(err, ErrConflict) || out.decision != 0 || len(out.result.facts.members) != 0 {
+			t.Fatal("different disc/track", out, err)
+		}
+		turn.transaction.rollback(nil)
+		if got := iaMusicCount(t, w, `SELECT count(*) FROM catalog_entities WHERE kind=7`); got != 1 {
+			t.Fatal("refused reuse rewrote the song", got)
+		}
+		if got := iaMusicCount(t, w, `SELECT count(*) FROM catalog_asset_links`); got != 1 {
+			t.Fatal("refused reuse wrote a link", got)
+		}
+	})
+	t.Run("different_artist_cohort", func(t *testing.T) {
+		w, reg, p := iaMusicAcceptFixture(t)
+		second := iaMusicAcceptSecondFile(t, w, reg, p)
+		second.artists = []iaMusicArtist{{key: "artist-key", title: "Artist"}, {key: "featured-key", title: "Featured"}}
+		second.songArtistKeys = []string{"artist-key", "featured-key"}
+		ref := iaMusicAcceptReference(t, second, 3, 3)
+		turn, out, err := iaMusicAcceptRun(t, w, reg, p, second, ref)
+		if !errors.Is(err, ErrConflict) || out.decision != 0 || len(out.result.facts.members) != 0 {
+			t.Fatal("different artist cohort", out, err)
+		}
+		turn.transaction.rollback(nil)
+		if got := iaMusicCount(t, w, `SELECT count(*) FROM catalog_song_artists`); got != 1 {
+			t.Fatal("refused reuse rewrote the artist cohort", got)
+		}
+		if got := iaMusicCount(t, w, `SELECT count(*) FROM catalog_entities WHERE kind=7`); got != 1 {
+			t.Fatal("refused reuse wrote a song", got)
+		}
+	})
+	t.Run("album_artist_only_edge", func(t *testing.T) {
+		w, reg, p := iaMusicAcceptFixture(t)
+		second := iaMusicSecondFilePrepareArtists(t, w, reg, p, func(q *iaMusicInventoryRequest) {
+			q.songArtistKeys = []string{"featured-key"}
+		})
+		ref := iaMusicAcceptReference(t, second, 3, 3)
+		turn, out, err := iaMusicAcceptRun(t, w, reg, p, second, ref)
+		if !errors.Is(err, ErrConflict) || out.decision != 0 || len(out.result.facts.members) != 0 {
+			t.Fatal("album artist vs song artist cohort", out, err)
+		}
+		turn.transaction.rollback(nil)
+	})
+}
+
+func iaMusicSecondFilePrepareArtists(t *testing.T, w *executor, reg *iaEntryRegistry, p *usOwnerAuthorityProof, mutate func(*iaMusicInventoryRequest)) iaMusicInventoryRequest {
+	t.Helper()
+	second := iaMusicAcceptSecondFile(t, w, reg, p)
+	second.artists = []iaMusicArtist{{key: "artist-key", title: "Artist"}, {key: "featured-key", title: "Featured"}}
+	mutate(&second)
+	return second
 }

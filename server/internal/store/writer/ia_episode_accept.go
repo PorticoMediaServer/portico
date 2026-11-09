@@ -115,10 +115,11 @@ func iaEpisodeReceiptFacts(ctx context.Context, turn *commandTurn, runID string,
 	}
 	var operation, request, digest []byte
 	var kind string
-	var version int64
-	err = row.Scan(&operation, &request, &kind, &header.facts.resultCount, &digest, &header.acceptedRevision, &header.appliedMS,
-		&header.sourceID, &header.sourceIncarnation, &version, &header.memberBytes, &header.objectID, &header.objectRevision,
-		&header.cursorKind, &header.directoryPath, &header.directoryIdentity, &header.directoryRevision,
+	var resultCount, acceptedRevision, appliedMS, version, memberBytes sql.NullInt64
+	var sourceID, sourceIncarnation, objectID, objectRevision, cursorKind sql.NullString
+	err = row.Scan(&operation, &request, &kind, &resultCount, &digest, &acceptedRevision, &appliedMS,
+		&sourceID, &sourceIncarnation, &version, &memberBytes, &objectID, &objectRevision,
+		&cursorKind, &header.directoryPath, &header.directoryIdentity, &header.directoryRevision,
 		&header.expectedPayload, &header.nextPayload)
 	if errors.Is(err, sql.ErrNoRows) {
 		return owner, header, nil
@@ -126,7 +127,7 @@ func iaEpisodeReceiptFacts(ctx context.Context, turn *commandTurn, runID string,
 	if err != nil {
 		return owner, header, err
 	}
-	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 || version != 1 {
+	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 {
 		return owner, header, ErrResolveRequired
 	}
 	header.facts.exists = true
@@ -134,16 +135,32 @@ func iaEpisodeReceiptFacts(ctx context.Context, turn *commandTurn, runID string,
 	copy(header.facts.identity.command.OperationID[:], operation)
 	copy(header.facts.identity.digest[:], request)
 	copy(header.facts.resultDigest[:], digest)
-	if kind == iaEpisodeReceiptKind {
-		header.facts.kind = IAAcceptEpisodeInventory
+	if kind != iaEpisodeReceiptKind {
+		// A receipt at this exact key belongs to another command purpose. Its IA
+		// media projection is intentionally NULL, so it is left undecoded and
+		// classifyReceipt answers the kind mismatch with ErrConflict rather than
+		// a raw NULL scan error.
+		return owner, header, nil
 	}
+	if !resultCount.Valid || !acceptedRevision.Valid || !appliedMS.Valid || !version.Valid || version.Int64 != 1 ||
+		!memberBytes.Valid || !sourceID.Valid || !sourceIncarnation.Valid || !objectID.Valid || !objectRevision.Valid || !cursorKind.Valid {
+		return owner, header, ErrResolveRequired
+	}
+	header.facts.resultCount = resultCount.Int64
+	header.acceptedRevision = acceptedRevision.Int64
+	header.appliedMS = appliedMS.Int64
+	header.memberBytes = memberBytes.Int64
+	header.sourceID, header.sourceIncarnation = sourceID.String, sourceIncarnation.String
+	header.objectID, header.objectRevision, header.cursorKind = objectID.String, objectRevision.String, cursorKind.String
+	header.facts.kind = IAAcceptEpisodeInventory
 	return owner, header, nil
 }
 
 // Fresh effects are one complete unit: hierarchy/identity/asset links,
-// contributions, search intent, the directory/run advance and the typed
-// receipt/child cohort. Every gate is re-proven before the first write and the
-// caller's authority is rechecked before any fresh result is released.
+// contributions, show/season chronology, search intent, the directory/run
+// advance and the typed receipt/child cohort. Fresh witnesses are proven after
+// the receipt is Fresh and before the first catalogue write; the caller's
+// authority is rechecked again before any fresh result is released.
 func applyIAEpisodeInventory(ctx context.Context, turn *commandTurn, authority *iaEntryAuthorization, command *iaEpisodeInventoryCommand, reference ReceiptReference) (out iaEpisodeAcceptOutcome, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	r := command.request
@@ -209,6 +226,18 @@ func applyIAEpisodeInventory(ctx context.Context, turn *commandTurn, authority *
 			return out, err
 		}
 		links[i] = iaEpisodeLinkFacts{episode: episode, link: link, assetID: asset.id, infoEpoch: asset.infoEpoch, playback: playback}
+	}
+	// Every accepted link is a genuinely new child membership for its exact
+	// destination container. Each container advances at most once to the same
+	// accepted event instant and never backwards.
+	acceptedAt := iaEpisodeAddedAt(appliedMS)
+	if err = iaEpisodeAdvanceChronology(ctx, turn, r.scope.libraryID, allocated.show.subjectID, 2, acceptedAt); err != nil {
+		return out, err
+	}
+	for _, season := range allocated.seasons {
+		if err = iaEpisodeAdvanceChronology(ctx, turn, r.scope.libraryID, season.subjectID, 3, acceptedAt); err != nil {
+			return out, err
+		}
 	}
 	if err = applyIAEpisodeSearchInput(ctx, turn, allocated.newEntities, appliedMS); err != nil {
 		return out, err
@@ -293,10 +322,11 @@ type iaEpisodeNode struct {
 	revision    int64
 	incarnation [16]byte
 	created     bool
-	season      int64 // season number for kind 3/4, zero otherwise
+	season      int64 // season number for kind 3/4 (0 is the Specials season), zero otherwise
 	number      int64 // episode number for kind 4, zero otherwise
 	parent      int64 // show for season, season/show for episode
 	show        int64
+	hasSeason   bool // kind 4 only: an explicit season container (0 = Specials)
 }
 
 type iaEpisodeEntityFacts struct {
@@ -331,7 +361,7 @@ func iaEpisodeReadEntity(ctx context.Context, turn *commandTurn, libraryID, subj
 
 // A reused identity must be exactly the prepared container shape. A retired or
 // differently parented subject is a conflict, never a silent reparent.
-func iaEpisodeResolveNode(ctx context.Context, turn *commandTurn, libraryID int64, key string, kind, season, episode, parent, show int64) (value iaEpisodeNode, err error) {
+func iaEpisodeResolveNode(ctx context.Context, turn *commandTurn, libraryID int64, key string, kind, season, episode, parent, show int64, hasSeason bool) (value iaEpisodeNode, err error) {
 	defer func() { value, err = finishCommand(ctx, commandLifetime(turn), value, err) }()
 	row, err := wc008DraftQuery(ctx, turn, iaEpisodeIdentity, libraryID, key)
 	if err != nil {
@@ -340,7 +370,7 @@ func iaEpisodeResolveNode(ctx context.Context, turn *commandTurn, libraryID int6
 	var subjectID int64
 	err = row.Scan(&subjectID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return iaEpisodeNode{key: key, kind: kind, created: true, season: season, number: episode, parent: parent, show: show}, nil
+		return iaEpisodeNode{key: key, kind: kind, created: true, season: season, number: episode, parent: parent, show: show, hasSeason: hasSeason}, nil
 	}
 	if err != nil {
 		return value, err
@@ -365,7 +395,7 @@ func iaEpisodeResolveNode(ctx context.Context, turn *commandTurn, libraryID int6
 		if entity.show != show || !entity.episodeSet || entity.episodeNumber != episode {
 			return value, ErrConflict
 		}
-		if season > 0 {
+		if hasSeason {
 			if entity.season != parent || entity.parent != parent {
 				return value, ErrConflict
 			}
@@ -373,7 +403,8 @@ func iaEpisodeResolveNode(ctx context.Context, turn *commandTurn, libraryID int6
 			return value, ErrConflict
 		}
 	}
-	return iaEpisodeNode{key: key, kind: kind, subjectID: subjectID, revision: entity.revision, incarnation: entity.incarnation, season: season, number: episode, parent: parent, show: show}, nil
+	return iaEpisodeNode{key: key, kind: kind, subjectID: subjectID, revision: entity.revision, incarnation: entity.incarnation,
+		season: season, number: episode, parent: parent, show: show, hasSeason: hasSeason}, nil
 }
 
 type iaEpisodeAllocation struct {
@@ -387,37 +418,37 @@ type iaEpisodeAllocation struct {
 // complete link order. This is the hierarchy chronology every link relies on.
 func iaEpisodePlanNodes(ctx context.Context, turn *commandTurn, r iaEpisodeInventoryRequest) (out iaEpisodeAllocation, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	show, err := iaEpisodeResolveNode(ctx, turn, r.scope.libraryID, r.showKey, 2, 0, 0, 0, 0)
+	show, err := iaEpisodeResolveNode(ctx, turn, r.scope.libraryID, r.showKey, 2, 0, 0, 0, 0, false)
 	if err != nil {
 		return out, err
 	}
 	seasonIndex := make(map[int64]int, len(r.episodes))
 	for _, link := range r.episodes {
-		if link.season == 0 {
+		if !link.hasSeason {
 			continue
 		}
 		if _, ok := seasonIndex[link.season]; ok {
 			continue
 		}
 		seasonIndex[link.season] = len(out.seasons)
-		season, err := iaEpisodeResolveNode(ctx, turn, r.scope.libraryID, link.seasonKey, 3, link.season, 0, 0, show.subjectID)
+		season, err := iaEpisodeResolveNode(ctx, turn, r.scope.libraryID, link.seasonKey, 3, link.season, 0, 0, show.subjectID, false)
 		if err != nil {
 			return out, err
 		}
-		season.season, season.show = link.season, show.subjectID
+		season.season, season.show, season.hasSeason = link.season, show.subjectID, true
 		out.seasons = append(out.seasons, season)
 	}
 	out.episodes = make([]iaEpisodeNode, len(r.episodes))
 	for i, link := range r.episodes {
 		parent := show.subjectID
-		if link.season > 0 {
+		if link.hasSeason {
 			parent = out.seasons[seasonIndex[link.season]].subjectID
 		}
-		episode, err := iaEpisodeResolveNode(ctx, turn, r.scope.libraryID, link.episodeKey, 4, link.season, link.episode, parent, show.subjectID)
+		episode, err := iaEpisodeResolveNode(ctx, turn, r.scope.libraryID, link.episodeKey, 4, link.season, link.episode, parent, show.subjectID, link.hasSeason)
 		if err != nil {
 			return out, err
 		}
-		episode.parent, episode.show, episode.season = parent, show.subjectID, link.season
+		episode.parent, episode.show, episode.season, episode.hasSeason = parent, show.subjectID, link.season, link.hasSeason
 		out.episodes[i] = episode
 	}
 	out.show = show
@@ -441,7 +472,7 @@ func iaEpisodeAllocateNodes(ctx context.Context, turn *commandTurn, r iaEpisodeI
 		next += n
 		return b
 	}
-	addedAt := time.UnixMilli(appliedMS).UTC().Format("2006-01-02T15:04:05.000000000Z")
+	addedAt := iaEpisodeAddedAt(appliedMS)
 	libraryID := r.scope.libraryID
 	language := r.files[0].metadataLanguage
 	show := nodes.show
@@ -459,6 +490,12 @@ func iaEpisodeAllocateNodes(ctx context.Context, turn *commandTurn, r iaEpisodeI
 		seasonIndex[season.season] = i
 		if season.created {
 			title := "Season " + strconv.FormatInt(season.season, 10)
+			if season.season == 0 {
+				// Legacy names the zero-numbered container "Specials"; the
+				// schema allows season_number 0 and the show stream orders it
+				// first.
+				title = "Specials"
+			}
 			if season, err = iaEpisodeCreateNode(ctx, turn, libraryID, season, title, show.subjectID, show.subjectID, 0, season.season, 0, 0, language, addedAt, take); err != nil {
 				return out, err
 			}
@@ -469,7 +506,7 @@ func iaEpisodeAllocateNodes(ctx context.Context, turn *commandTurn, r iaEpisodeI
 	out.episodes = make([]iaEpisodeNode, len(nodes.episodes))
 	for i, episode := range nodes.episodes {
 		seasonID, seasonNumber := int64(0), int64(0)
-		if episode.season > 0 {
+		if episode.hasSeason {
 			season := out.seasons[seasonIndex[episode.season]]
 			seasonID, seasonNumber = season.subjectID, episode.season
 		}
@@ -492,6 +529,12 @@ func iaEpisodeAllocateNodes(ctx context.Context, turn *commandTurn, r iaEpisodeI
 
 func iaEpisodeSearchEntity(node iaEpisodeNode, libraryID int64) newOrdinaryEntitySource {
 	return newOrdinaryEntitySource{SubjectID: node.subjectID, LibraryID: libraryID, Kind: node.kind, MetadataIncarnation: node.incarnation, EntityRevision: node.revision}
+}
+
+// Fixed-width UTC with all nine fractional digits: the only accepted chronology
+// encoding, so lexical order is true instant order.
+func iaEpisodeAddedAt(appliedMS int64) string {
+	return time.UnixMilli(appliedMS).UTC().Format("2006-01-02T15:04:05.000000000Z")
 }
 
 // One subject, its exact source identity and one TV entity. The entity row
@@ -531,7 +574,9 @@ func iaEpisodeCreateNode(ctx context.Context, turn *commandTurn, libraryID int64
 	if seasonID > 0 {
 		nullableSeason = seasonID
 	}
-	if seasonNumber > 0 {
+	// Zero is a real number for the Specials season, so presence is keyed on
+	// the kind/container, never on a positive value.
+	if node.kind == 3 || node.kind == 4 && seasonID > 0 {
 		nullableSeasonNumber = seasonNumber
 	}
 	var numbering any
@@ -617,6 +662,53 @@ type iaEpisodeLinkFacts struct {
 	playback  [16]byte
 }
 
+// Show/season last_content_added_at advances monotonically to the accepted
+// content-arrival instant. A NULL container is initialized, an older value is
+// replaced by an exact nullable CAS, and an equal or newer value is left alone,
+// so replay, clock rollback and an older event never move it backwards. The
+// accepted instant is the same server-owned value every child of this unit
+// observes.
+func iaEpisodeAdvanceChronology(ctx context.Context, turn *commandTurn, libraryID, subjectID, kind int64, acceptedAt string) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
+	if subjectID <= 0 || libraryID <= 0 || kind != 2 && kind != 3 {
+		return ErrInvalid
+	}
+	row, err := wc008DraftQuery(ctx, turn, iaEpisodeContainer, subjectID, libraryID, kind)
+	if err != nil {
+		return err
+	}
+	var prior sql.NullString
+	if err = row.Scan(&prior); errors.Is(err, sql.ErrNoRows) {
+		return ErrConflict
+	}
+	if err != nil {
+		return err
+	}
+	if prior.Valid && prior.String >= acceptedAt {
+		return nil
+	}
+	row, err = wc008DraftQuery(ctx, turn, iaEpisodeContainerAdvance, acceptedAt, subjectID, libraryID, kind, iaEpisodeNullableText(iaEpisodeTextPointerOf(prior)))
+	if err != nil {
+		return err
+	}
+	var advanced string
+	if err = row.Scan(&advanced); err != nil {
+		return errors.Join(ErrConflict, err)
+	}
+	if advanced != acceptedAt {
+		return ErrResolveRequired
+	}
+	return nil
+}
+
+func iaEpisodeTextPointerOf(v sql.NullString) *string {
+	if !v.Valid {
+		return nil
+	}
+	s := v.String
+	return &s
+}
+
 // The complete typed cohort: show, each distinct season, each episode identity,
 // then each episode membership. Ordinals are contiguous from zero.
 func iaEpisodeFacts(r iaEpisodeInventoryRequest, nodes iaEpisodeAllocation, links []iaEpisodeLinkFacts, runRevision, appliedMS int64) (iaMediaResult, error) {
@@ -644,7 +736,7 @@ func iaEpisodeFacts(r iaEpisodeInventoryRequest, nodes iaEpisodeAllocation, link
 	for _, link := range links {
 		m := iaMediaMember{kind: "identity", libraryID: r.scope.libraryID, subjectID: link.episode.subjectID, subjectKind: 4,
 			subjectRevision: link.episode.revision, metadataIncarnation: link.episode.incarnation}
-		if link.episode.season > 0 {
+		if link.episode.hasSeason {
 			found := false
 			for _, candidate := range nodes.seasons {
 				if candidate.season == link.episode.season {
@@ -663,11 +755,14 @@ func iaEpisodeFacts(r iaEpisodeInventoryRequest, nodes iaEpisodeAllocation, link
 		// saved member carries no invented parent edge.
 		add(m)
 	}
+	// Legacy keys the boundary on the file's accepted number cohort, not on a
+	// source range: one observed file for several episodes is always the
+	// unknown multi-episode interpretation, whether or not its ranges are known.
+	status := "whole_source"
+	if len(r.episodes) > 1 {
+		status = "unknown_multi_episode"
+	}
 	for _, link := range links {
-		status := "whole_source"
-		if link.link.end != nil {
-			status = "unknown_multi_episode"
-		}
 		edition := ""
 		present := "present"
 		start := link.link.start

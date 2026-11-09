@@ -32,11 +32,14 @@ type iaEpisodeInventoryRequest struct {
 
 // Independent seasonal/episode/part and optional source range facts. Ranges are
 // observations only; they do not assert technical or playback availability.
-// seasonKey is empty only when the link has no season container.
+// hasSeason is the explicit season-container presence: season 0 is the real
+// Specials season, never a stand-in for "no season". seasonKey is present
+// exactly when hasSeason is set.
 type iaEpisodeLink struct {
 	season, episode, part int64
 	start                 float64
 	end                   *float64
+	hasSeason             bool
 	seasonKey, episodeKey string
 }
 type iaEpisodeInventoryCommand struct {
@@ -117,10 +120,11 @@ func validateIAEpisodeOriginal(id CommandIdentity, r iaEpisodeInventoryRequest) 
 			e.end != nil && (math.IsNaN(*e.end) || math.IsInf(*e.end, 0) || *e.end <= e.start) || !iaEpisodeKey(e.episodeKey) {
 			return invalid("ia_episode_link")
 		}
-		// A season container is identified by exactly one key and that key
-		// identifies exactly one season number; no episode is admitted twice.
-		if e.season == 0 {
-			if e.seasonKey != "" {
+		// A season container is identified by one explicit presence flag and
+		// exactly one key, and that key identifies exactly one season number
+		// (including the Specials season 0); no episode is admitted twice.
+		if !e.hasSeason {
+			if e.season != 0 || e.seasonKey != "" {
 				return invalid("ia_episode_season_key")
 			}
 		} else {
