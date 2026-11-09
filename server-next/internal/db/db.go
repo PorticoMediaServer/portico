@@ -28,6 +28,7 @@ type DB struct {
 	read      *sql.DB
 	queues    [2]chan writeRequest
 	closed    chan struct{}
+	undo      undoOffers
 }
 
 // Open opens the database at path, creating it with the current schema if it is new.
