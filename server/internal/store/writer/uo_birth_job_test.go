@@ -109,6 +109,24 @@ func TestUOBirthJob(t *testing.T) {
 			t.Fatal(retired, err)
 		}
 		uoPublicReadingCommit(t, turn)
+		// A retired owner is custody, never a Fresh original. A second lookup
+		// still restores no original, and finalization is refused before it can
+		// write a receipt or move the owner counters.
+		turn, a = uoBirthJobTurn(t, w, p)
+		retired, err = lookupUOBirthJob(t.Context(), turn, a, q)
+		if err != nil || retired.root.decision != receiptRetired || retired.original != (uoBirthJobResult{}) {
+			t.Fatal(retired, err)
+		}
+		if _, err = persistUOBirthJob(t.Context(), turn, retired, src, v); !errors.Is(err, ErrInvalid) {
+			t.Fatal("retired original persisted", err)
+		}
+		_, _ = turn.transaction.rollback(nil)
+		if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 1 {
+			t.Fatal("retired persist wrote a receipt", n)
+		}
+		if n := uoPublicReadingCount(t, w, `SELECT receipt_rows FROM user_mutation_command_owners`); n != 1 {
+			t.Fatal("retired persist moved owner counters", n)
+		}
 	})
 
 	t.Run("changed-source-recipe-and-duplicate-conflict", func(t *testing.T) {
@@ -158,7 +176,7 @@ func TestUOBirthJob(t *testing.T) {
 	})
 
 	t.Run("no-owner-synthesis-and-root-binding", func(t *testing.T) {
-		for _, mode := range []string{"owner-missing", "root-missing", "foreign-root", "draining", "changed-incarnation"} {
+		for _, mode := range []string{"owner-missing", "root-missing", "foreign-root", "account", "profile", "draining", "changed-incarnation"} {
 			t.Run(mode, func(t *testing.T) {
 				w, p, q, _, _ := uoBirthJobFixture(t)
 				switch mode {
@@ -169,6 +187,10 @@ func TestUOBirthJob(t *testing.T) {
 					wc008NativeExec(t, w, `DELETE FROM user_mutation_roots`)
 				case "foreign-root":
 					wc008NativeExec(t, w, `UPDATE user_mutation_roots SET account_id='foreign'`)
+				case "account":
+					wc008NativeExec(t, w, `UPDATE user_mutation_roots SET account_id='foreign'`)
+				case "profile":
+					wc008NativeExec(t, w, `UPDATE user_mutation_roots SET profile_id='foreign'`)
 				case "draining":
 					wc008NativeExec(t, w, `UPDATE user_mutation_roots SET state='draining'`)
 				case "changed-incarnation":
@@ -179,7 +201,7 @@ func TestUOBirthJob(t *testing.T) {
 				if err == nil || out != nil {
 					t.Fatal(out, err)
 				}
-				if mode == "root-missing" || mode == "foreign-root" || mode == "draining" {
+				if mode == "root-missing" || mode == "foreign-root" || mode == "account" || mode == "profile" || mode == "draining" {
 					if !errors.Is(err, ErrUORootGone) || errors.Is(err, sql.ErrNoRows) {
 						t.Fatal("root failure class", err)
 					}
@@ -195,8 +217,61 @@ func TestUOBirthJob(t *testing.T) {
 		}
 	})
 
+	t.Run("cross-kind-persist-refused", func(t *testing.T) {
+		t.Run("start-in-job-turn", func(t *testing.T) {
+			w, p, q, src, v := uoBirthJobFixture(t)
+			turn, a := uoBirthJobTurn(t, w, p)
+			lookup, err := lookupUOBirthJob(t.Context(), turn, a, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			uoBirthJobRow(t, turn, p, src, v)
+			now := w.now().UnixMilli()
+			start := &uoBirthStartLookup{turn: turn, root: lookup.root}
+			startValue := uoBirthStartResult{root: q.root, preparation: "cross-kind-preparation", device: p.witness.device, startKey: strings.Repeat("a", 64), startBody: strings.Repeat("b", 64), item: "cross-item", asset: "cross-asset", worker: [16]byte{9}, createdMS: now, deadlineMS: now + 60000, tokenExpiresMS: p.tokenExpiry.UnixMilli(), revision: 1, retryMS: 500, appliedMS: now}
+			// A complete 700 original presented to the 740 finalizer: the closed
+			// state holder is per purpose, so only a 740 result may be persisted.
+			if _, err = persistUOBirthStart(t.Context(), turn, start, startValue); !errors.Is(err, ErrInvalid) {
+				t.Fatal("700 result persisted in a 740 turn", err)
+			}
+			_, _ = turn.transaction.rollback(nil)
+			if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 0 {
+				t.Fatal(n)
+			}
+			if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM prepared_media_jobs`); n != 0 {
+				t.Fatal(n)
+			}
+		})
+
+		t.Run("job-in-start-turn", func(t *testing.T) {
+			w, p, q, src, v := uoBirthJobFixture(t)
+			q.kind = 700
+			turn, a := uoBirthStartTurn(t, w, p)
+			start, err := lookupUOBirthStart(t.Context(), turn, a, q)
+			if err != nil || start.root.decision != receiptFresh {
+				t.Fatal(start, err)
+			}
+			job := &uoBirthJobLookup{turn: turn, root: start.root}
+			// A complete 740 original presented to the 700 finalizer is refused
+			// for the same reason in the other direction.
+			if _, err = persistUOBirthJob(t.Context(), turn, job, src, v); !errors.Is(err, ErrInvalid) {
+				t.Fatal("740 result persisted in a 700 turn", err)
+			}
+			_, _ = turn.transaction.rollback(nil)
+			if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 0 {
+				t.Fatal(n)
+			}
+			if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM prepared_media_jobs`); n != 0 {
+				t.Fatal(n)
+			}
+		})
+	})
+
+	// A prepared job binds no device: neither uoBirthJobSource nor
+	// uoBirthJobResult carries one and the 740 statement has no device column,
+	// so there is no job analogue of UO-24's fence-device mismatch case.
 	t.Run("wrong-native-or-unsaved-rolls-back", func(t *testing.T) {
-		for _, mode := range []string{"worker", "borrowed-worker", "member", "lifetime", "item", "public", "library-key", "library-native", "kind", "source-revision", "source", "recipe", "target", "state", "phase", "generation", "bytes", "error", "revision", "created", "updated", "version", "native-root", "result-root", "unsaved", "header-prefix", "final-source", "final-authority", "final-header", "final-ledger"} {
+		for _, mode := range []string{"worker", "borrowed-worker", "member", "lifetime", "item", "public", "library-key", "library-native", "library-pair-foreign", "library-retired", "kind", "source-revision", "source", "recipe", "target", "state", "phase", "generation", "bytes", "error", "revision", "created", "updated", "version", "native-root", "result-root", "unsaved", "header-prefix", "final-source", "final-authority", "final-header", "final-ledger"} {
 			t.Run(mode, func(t *testing.T) {
 				w, p, q, src, v := uoBirthJobFixture(t)
 				turn, a := uoBirthJobTurn(t, w, p)
@@ -222,6 +297,32 @@ func TestUOBirthJob(t *testing.T) {
 					src.key = "foreign-library"
 				case "library-native":
 					src.library++
+				case "library-pair-foreign":
+					// The caller changes BOTH the native library and the key to a
+					// self-consistent pair, and the item really lives in that
+					// library. The key is live but belongs to library 9, so the
+					// pair still disagrees with catalog_libraries for the item's
+					// library 8. Both old predicates (e.library_id and
+					// j.library_id) pass; only the catalog_libraries bridge can
+					// refuse the birth.
+					moved := [16]byte{4, 128}
+					src.item, src.public, src.library, src.key = 2112, moved, 8, "library-two"
+					v.itemID = entityid.Encode(moved[:])
+					_, err = turn.transaction.conn.ExecContext(t.Context(), `INSERT INTO catalog_libraries(id,library_id,root) VALUES(8,'library-nine','/fixture-two'),(9,'library-two','/fixture-three')`)
+					if err == nil {
+						_, err = turn.transaction.conn.ExecContext(t.Context(), `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2112,?,8,1)`, moved[:])
+					}
+					if err == nil {
+						_, err = turn.transaction.conn.ExecContext(t.Context(), `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) VALUES(2112,?,8,1,'Title','title','t','title','t',0,?,?)`, moved[:], moved[:], moved[:])
+					}
+					if err == nil {
+						_, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE prepared_media_jobs SET item_id=2112,library_id=?`, src.key)
+					}
+				case "library-retired":
+					// The native id and key are the registered pair, but the
+					// library row is retired: the bridge's retired=0 arm must
+					// close the birth.
+					_, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE catalog_libraries SET retired=1 WHERE id=7`)
 				case "kind":
 					src.kind++
 				case "source-revision":
@@ -572,6 +673,40 @@ func TestUOBirthJob(t *testing.T) {
 		if proof, err := bindUSCurrentUORoot(t.Context(), turn, a); !errors.Is(err, ErrUORootCurrentFenceUnavailable) || proof != nil {
 			t.Fatal("public reading borrowed the prepared-job birth fence", proof, err)
 		}
+		_, _ = turn.transaction.rollback(nil)
+
+		// The 740 gate accepts only its own purpose. A 700, 710, 750 or 761
+		// reference in a turn of that kind is refused before the root bridge or
+		// any root lookup, and the shared birth switch gives none of them a
+		// state holder it could release.
+		for _, kind := range []CommandID{700, 710, 750, 761} {
+			t.Run("job-gate-"+fmt.Sprint(kind), func(t *testing.T) {
+				w, _, _ := uoPublicReadingFixture(t, false)
+				turn := wc008NativeTurn(t, w, kind, uoBirthJobDefinitions())
+				q := uoRootReference{root: "abcdefghijklmnopqrstuv", kind: kind, identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, request: RequestDigest{3}}
+				out, err := lookupUOBirthJob(t.Context(), turn, nil, q)
+				if !errors.Is(err, ErrInvalid) || out != nil {
+					t.Fatal("740 gate accepted another birth purpose", out, err)
+				}
+				root, err := lookupUORootCommand(t.Context(), turn, &uoRootBinding{}, q)
+				if !errors.Is(err, ErrInvalid) || errors.Is(err, ErrUORootCurrentFenceUnavailable) || root != (uoRootLookup{}) {
+					t.Fatal("birth purpose default", root, err)
+				}
+				_, _ = turn.transaction.rollback(nil)
+			})
+		}
+
+		// The 700 gate refuses a 740 reference in a 700 turn.
+		t.Run("start-gate-740", func(t *testing.T) {
+			w, p, _, _ := uoBirthStartFixture(t)
+			q := uoRootReference{root: "abcdefghijklmnopqrstuv", kind: 740, identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, request: RequestDigest{3}}
+			turn, a := uoBirthStartTurn(t, w, p)
+			out, err := lookupUOBirthStart(t.Context(), turn, a, q)
+			if !errors.Is(err, ErrInvalid) || out != nil {
+				t.Fatal("700 gate accepted a 740 reference", out, err)
+			}
+			_, _ = turn.transaction.rollback(nil)
+		})
 	})
 
 	t.Run("composed-capture-unrecorded", uoBirthJobComposedCapture)
