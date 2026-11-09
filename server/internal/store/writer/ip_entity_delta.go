@@ -459,11 +459,15 @@ func ipEntityDeltaProjectionValue(p ipEntityAcceptProjectionFacts, name string) 
 }
 
 // ipEntityDeltaFieldsSame proves the typed descriptive cohort is the SAME
-// accepted observation: the same field names and the same effective values.
-// Projection fields compare against the current automatic projection; other
-// fields compare against the durable automatic observation when one exists.
+// accepted observation: the same present field names and the same automatic
+// values. A durable owner row's automatic observation is the witness for a
+// descriptive field (a lock keeps the owner's effective value in the
+// projection); the projection is the witness only when no owner row exists.
+// A non-projection field with no owner row cannot be proven identical, so it is
+// never treated as the same observation.
 func ipEntityDeltaFieldsSame(ctx context.Context, turn *commandTurn,
-	q ipEntityDeltaRequest, before ipEntityAcceptProjectionFacts) (same bool, err error) {
+	q ipEntityDeltaRequest, before ipEntityAcceptProjectionFacts,
+	owners map[string]ipEntityAcceptOwnerFacts) (same bool, err error) {
 	defer func() { same, err = finishCommand(ctx, commandLifetime(turn), same, err) }()
 	row, err := wc008DraftQuery(ctx, turn, ipEntityDeltaOriginsStmt, q.observation.entityID,
 		q.previousPublicationID)
@@ -475,7 +479,13 @@ func ipEntityDeltaFieldsSame(ctx context.Context, turn *commandTurn,
 	if err = row.Scan(&count, &joined); err != nil {
 		return false, err
 	}
-	if count != int64(len(q.observation.fields)) {
+	present := 0
+	for _, field := range q.observation.fields {
+		if field.Present {
+			present++
+		}
+	}
+	if count != int64(present) {
 		return false, nil
 	}
 	known := make(map[string]bool, int(count))
@@ -484,52 +494,83 @@ func ipEntityDeltaFieldsSame(ctx context.Context, turn *commandTurn,
 			known[field] = true
 		}
 	}
-	if len(known) != len(q.observation.fields) {
+	if len(known) != present {
 		return false, nil
 	}
-	kind := ipEntityAcceptOwnerKind(q.observation.subjectKind)
 	for _, field := range q.observation.fields {
+		if !field.Present {
+			continue
+		}
 		if !known[field.Name] {
 			return false, nil
 		}
-		if value, ok := ipEntityDeltaProjectionValue(before, field.Name); ok {
-			if field.Present && field.Value != value {
+		if owner, ok := owners[field.Name]; ok {
+			if owner.automaticPresent != 1 || owner.automatic != field.Value {
 				return false, nil
 			}
 			continue
 		}
-		if !field.Present {
+		if value, ok := ipEntityDeltaProjectionValue(before, field.Name); ok {
+			if field.Value != value {
+				return false, nil
+			}
 			continue
 		}
-		row, e := wc008DraftQuery(ctx, turn, ipEntityDeltaOwnerAutomaticStmt, kind,
-			q.observation.entityID, field.Name)
-		if e != nil {
-			return false, e
-		}
-		var value string
-		var present int64
-		if e = row.Scan(&value, &present); errors.Is(e, sql.ErrNoRows) {
-			continue
-		} else if e != nil {
-			return false, e
-		}
-		if present != 1 || value != field.Value {
-			return false, nil
-		}
+		return false, nil
 	}
 	return true, nil
 }
 
+// ipEntityDeltaCohortSame proves the NEW and OLD sealed evidence cohorts are
+// byte-identical families. Each build's expected_shape_digest is the seal-time
+// shape over the closed family names, per-family row counts and per-family
+// content digests, so a change to ANY family (alias, external, term, rating,
+// episode, media, track, credit) changes it even when the accepted typed field/
+// ID/term/credit selection does not. A missing or non-sealed build cannot prove
+// equality.
+func ipEntityDeltaCohortSame(ctx context.Context, turn *commandTurn,
+	previousEvidenceID, evidenceID string) (same bool, err error) {
+	defer func() { same, err = finishCommand(ctx, commandLifetime(turn), same, err) }()
+	read := func(id string) (shape string, rows int64, ok bool, err error) {
+		row, e := wc008DraftQuery(ctx, turn, ipEntityDeltaCohortStmt, id)
+		if e != nil {
+			return "", 0, false, e
+		}
+		e = row.Scan(&shape, &rows)
+		if errors.Is(e, sql.ErrNoRows) {
+			return "", 0, false, nil
+		}
+		if e != nil {
+			return "", 0, false, e
+		}
+		if len(shape) != 64 || rows <= 0 {
+			return "", 0, false, ErrResolveRequired
+		}
+		return shape, rows, true, nil
+	}
+	oldShape, oldRows, ok, err := read(previousEvidenceID)
+	if err != nil || !ok {
+		return false, err
+	}
+	newShape, newRows, ok, err := read(evidenceID)
+	if err != nil || !ok {
+		return false, err
+	}
+	return oldShape == newShape && oldRows == newRows, nil
+}
+
 // ipEntityDeltaNoOp is the EXACT no-op decision: the new sealed observation
-// carries the same provider namespace and the same typed field/child cohort as
-// the old accepted head, and it keeps the same set (or no set). The stored
-// observation digest cannot be the witness: metadata_evidence keeps exactly one
-// row per provider/subject/shape/content digest, so a second sealed observation
-// with the old digest cannot exist. Anything else is a new observation and
-// publishes a replacement head.
+// carries the same provider namespace, the same byte-identical sealed evidence
+// cohort and the same typed field/child cohort as the old accepted head, and it
+// keeps the same set (or no set). The stored observation digest cannot be the
+// witness: metadata_evidence keeps exactly one row per
+// provider/subject/shape/content digest, so a second sealed observation with the
+// old digest cannot exist. Anything else is a new observation and publishes a
+// replacement head.
 func ipEntityDeltaNoOp(ctx context.Context, turn *commandTurn, q ipEntityDeltaRequest,
 	newest ipEntityAcceptEvidenceFacts, prior ipEntityDeltaPriorEvidence,
-	before ipEntityAcceptProjectionFacts) (noOp bool, err error) {
+	before ipEntityAcceptProjectionFacts,
+	owners map[string]ipEntityAcceptOwnerFacts) (noOp bool, err error) {
 	defer func() { noOp, err = finishCommand(ctx, commandLifetime(turn), noOp, err) }()
 	if q.observation.setID != q.previousSetID {
 		return false, nil
@@ -540,6 +581,12 @@ func ipEntityDeltaNoOp(ctx context.Context, turn *commandTurn, q ipEntityDeltaRe
 		newest.region != prior.region || newest.requestShape != prior.requestShape {
 		return false, nil
 	}
+	// The complete sealed child cohort must be identical, not merely the subset
+	// the accepted typed cohort happens to carry.
+	sameCohort, err := ipEntityDeltaCohortSame(ctx, turn, q.previousEvidenceID, q.observation.evidenceID)
+	if err != nil || !sameCohort {
+		return false, err
+	}
 	// The same typed cohort must be the COMPLETE old sealed cohort, not merely a
 	// subset of it.
 	priorObservation := q.observation
@@ -547,7 +594,7 @@ func ipEntityDeltaNoOp(ctx context.Context, turn *commandTurn, q ipEntityDeltaRe
 	if err = ipEntityAcceptChildren(ctx, turn, priorObservation); err != nil {
 		return false, nil
 	}
-	return ipEntityDeltaFieldsSame(ctx, turn, q, before)
+	return ipEntityDeltaFieldsSame(ctx, turn, q, before, owners)
 }
 
 func ipEntityDeltaSelectionAdvance(ctx context.Context, turn *commandTurn, q ipEntityDeltaRequest,
@@ -654,7 +701,11 @@ func ipEntityDeltaFresh(ctx context.Context, turn *commandTurn, identity Command
 	if err != nil {
 		return out, err
 	}
-	noOp, err := ipEntityDeltaNoOp(ctx, turn, q, evidence, priorEvidence, before)
+	owners, err := ipEntityAcceptOwnerFieldsRead(ctx, turn, observation)
+	if err != nil {
+		return out, err
+	}
+	noOp, err := ipEntityDeltaNoOp(ctx, turn, q, evidence, priorEvidence, before, owners)
 	if err != nil {
 		return out, err
 	}
@@ -684,7 +735,7 @@ func ipEntityDeltaFresh(ctx context.Context, turn *commandTurn, identity Command
 		}
 		return value, nil
 	}
-	after, err := ipEntityAcceptProjection(observation, before)
+	after, err := ipEntityAcceptProjection(observation, before, owners)
 	if err != nil {
 		return out, err
 	}
@@ -705,7 +756,7 @@ func ipEntityDeltaFresh(ctx context.Context, turn *commandTurn, identity Command
 		return out, err
 	}
 	for _, row := range observation.external {
-		if err = ipEntityDeltaExternal(ctx, turn, observation.entityID, row); err != nil {
+		if err = ipEntityExternalRegister(ctx, turn, observation.entityID, row); err != nil {
 			return out, err
 		}
 	}
@@ -765,11 +816,11 @@ func ipEntityDeltaFresh(ctx context.Context, turn *commandTurn, identity Command
 	return value, nil
 }
 
-// ipEntityDeltaExternal registers one entity external ID without demanding a new
-// row. A replacement head normally keeps the provider external ID the old head
-// already registered; the registry insert is idempotent by design, so a
-// zero-row outcome is the expected "already present" result, not a conflict.
-func ipEntityDeltaExternal(ctx context.Context, turn *commandTurn, entityID int64,
+// ipEntityExternalRegister registers one entity external ID without demanding a
+// new row. The registry insert is idempotent by design, so a zero-row outcome is
+// the expected "already present" result (a re-accept, a replacement head or a
+// second provider listing the same ID), not a conflict.
+func ipEntityExternalRegister(ctx context.Context, turn *commandTurn, entityID int64,
 	row ipEntityAcceptExternal) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	step, err := sealStep(turn, ipEntityAcceptExternalStmt)

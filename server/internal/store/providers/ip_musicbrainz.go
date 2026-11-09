@@ -432,9 +432,11 @@ func PrepareMusicBrainz(consent MBConsent, o MBObservation, body []byte) (MBEvid
 	if _, err := writer.CheckEvidenceStageControls(input, 0, 0); err != nil {
 		return zero, errors.Join(ErrMBEvidence, err)
 	}
-	// Freeze the recorded body before validation/hash/decode.
+	// Freeze the recorded body before validation/hash/decode. encoding/json
+	// accepts invalid UTF-8 and substitutes U+FFFD, so the raw bytes must be
+	// valid before a retained value can claim to be the digest-covered source.
 	frozen := bytes.Clone(body)
-	if !mbDuplicateFree(frozen) {
+	if !utf8.Valid(frozen) || !mbDuplicateFree(frozen) {
 		return zero, ErrMBEvidence
 	}
 	input.ObservationDigest = sha256.Sum256(frozen)

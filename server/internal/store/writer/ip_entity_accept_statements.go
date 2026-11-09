@@ -9,33 +9,34 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 // retention are group D and fixture-qualified until that group is embedded, so
 // these definitions make no Capture claim.
 const (
-	ipEntityAcceptEvidenceStmt      stmt.ID = "ip.entity.accept.evidence"
-	ipEntityAcceptEvidenceSealStmt  stmt.ID = "ip.entity.accept.evidence_seal"
-	ipEntityAcceptSetSealStmt       stmt.ID = "ip.entity.accept.set_seal"
-	ipEntityAcceptSetStmt           stmt.ID = "ip.entity.accept.set"
-	ipEntityAcceptBuildStmt         stmt.ID = "ip.entity.accept.build"
-	ipEntityAcceptSelectionStmt     stmt.ID = "ip.entity.accept.selection"
-	ipEntityAcceptPriorStmt         stmt.ID = "ip.entity.accept.prior_publication"
-	ipEntityAcceptPublicationStmt   stmt.ID = "ip.entity.accept.publication"
-	ipEntityAcceptSelectionCASStmt  stmt.ID = "ip.entity.accept.selection_cas"
-	ipEntityAcceptExternalCountStmt stmt.ID = "ip.entity.accept.external_count"
-	ipEntityAcceptExternalPointStmt stmt.ID = "ip.entity.accept.external_point"
-	ipEntityAcceptExternalStmt      stmt.ID = "ip.entity.accept.external"
-	ipEntityAcceptTermCountStmt     stmt.ID = "ip.entity.accept.term_count"
-	ipEntityAcceptTermPointStmt     stmt.ID = "ip.entity.accept.term_point"
-	ipEntityAcceptTermStmt          stmt.ID = "ip.entity.accept.term"
-	ipEntityAcceptEntityTermStmt    stmt.ID = "ip.entity.accept.entity_term"
-	ipEntityAcceptTermSourceStmt    stmt.ID = "ip.entity.accept.term_source"
-	ipEntityAcceptCreditCountStmt   stmt.ID = "ip.entity.accept.credit_count"
-	ipEntityAcceptCreditPointStmt   stmt.ID = "ip.entity.accept.credit_point"
-	ipEntityAcceptEntityStmt        stmt.ID = "ip.entity.accept.entity"
-	ipEntityAcceptEntityWriteStmt   stmt.ID = "ip.entity.accept.entity_write"
-	ipEntityAcceptOwnerFieldStmt    stmt.ID = "ip.entity.accept.owner_field"
-	ipEntityAcceptOriginStmt        stmt.ID = "ip.entity.accept.origin"
-	ipEntityAcceptSearchStmt        stmt.ID = "ip.entity.accept.search_intent"
-	ipEntityAcceptRetainProofStmt   stmt.ID = "ip.entity.accept.retain_proof"
-	ipEntityAcceptRecordStmt        stmt.ID = "ip.entity.accept.record"
-	ipEntityAcceptSavedStmt         stmt.ID = "ip.entity.accept.saved"
+	ipEntityAcceptEvidenceStmt       stmt.ID = "ip.entity.accept.evidence"
+	ipEntityAcceptEvidenceSealStmt   stmt.ID = "ip.entity.accept.evidence_seal"
+	ipEntityAcceptSetSealStmt        stmt.ID = "ip.entity.accept.set_seal"
+	ipEntityAcceptSetStmt            stmt.ID = "ip.entity.accept.set"
+	ipEntityAcceptBuildStmt          stmt.ID = "ip.entity.accept.build"
+	ipEntityAcceptSelectionStmt      stmt.ID = "ip.entity.accept.selection"
+	ipEntityAcceptPriorStmt          stmt.ID = "ip.entity.accept.prior_publication"
+	ipEntityAcceptPublicationStmt    stmt.ID = "ip.entity.accept.publication"
+	ipEntityAcceptSelectionCASStmt   stmt.ID = "ip.entity.accept.selection_cas"
+	ipEntityAcceptExternalCountStmt  stmt.ID = "ip.entity.accept.external_count"
+	ipEntityAcceptExternalPointStmt  stmt.ID = "ip.entity.accept.external_point"
+	ipEntityAcceptExternalStmt       stmt.ID = "ip.entity.accept.external"
+	ipEntityAcceptTermCountStmt      stmt.ID = "ip.entity.accept.term_count"
+	ipEntityAcceptTermPointStmt      stmt.ID = "ip.entity.accept.term_point"
+	ipEntityAcceptTermStmt           stmt.ID = "ip.entity.accept.term"
+	ipEntityAcceptEntityTermStmt     stmt.ID = "ip.entity.accept.entity_term"
+	ipEntityAcceptTermSourceStmt     stmt.ID = "ip.entity.accept.term_source"
+	ipEntityAcceptCreditCountStmt    stmt.ID = "ip.entity.accept.credit_count"
+	ipEntityAcceptCreditPointStmt    stmt.ID = "ip.entity.accept.credit_point"
+	ipEntityAcceptEntityStmt         stmt.ID = "ip.entity.accept.entity"
+	ipEntityAcceptEntityWriteStmt    stmt.ID = "ip.entity.accept.entity_write"
+	ipEntityAcceptOwnerFieldReadStmt stmt.ID = "ip.entity.accept.owner_field_read"
+	ipEntityAcceptOwnerFieldStmt     stmt.ID = "ip.entity.accept.owner_field"
+	ipEntityAcceptOriginStmt         stmt.ID = "ip.entity.accept.origin"
+	ipEntityAcceptSearchStmt         stmt.ID = "ip.entity.accept.search_intent"
+	ipEntityAcceptRetainProofStmt    stmt.ID = "ip.entity.accept.retain_proof"
+	ipEntityAcceptRecordStmt         stmt.ID = "ip.entity.accept.record"
+	ipEntityAcceptSavedStmt          stmt.ID = "ip.entity.accept.saved"
 )
 
 // The accept proves the ORIGINAL sealed observation, the current selected
@@ -181,8 +182,9 @@ func ipEntityAcceptDefinitions() []stmt.Definition {
 		},
 		{
 			// The accepted automatic values replace the current projection under
-			// exact old-value CAS. Locked owner values stay in metadata_owner_fields
-			// and keep overriding these automatic values at read time.
+			// exact old-value CAS. A locked owner field is not part of this
+			// update: its catalogue value stays the owner's effective value and
+			// the provider observation is retained in metadata_owner_fields.
 			ID: ipEntityAcceptEntityWriteStmt, SQL: `UPDATE catalog_entities SET title=?,sort_title=?,metadata_language=?,sort_key=?,sort_head=?,sort_key_keep_articles=?,sort_head_keep_articles=?,overview=?,original_title=?,tagline=?,release_date=?,content_rating=?,studio=?,network=?,country=?,year=?,revision=revision+1,metadata_revision=metadata_revision+1 WHERE id=? AND revision=? AND metadata_incarnation=? AND retired=0 AND title=? AND sort_title=? AND metadata_language=? AND overview=? AND original_title=? AND tagline=? AND release_date=? AND content_rating=? AND studio=? AND network=? AND country=? AND year=? AND revision<9223372036854775807 AND metadata_revision<9223372036854775807 RETURNING revision`,
 			Params: []stmt.Param{
 				t("title"), t("sort_title"), t("language"), t("sort_key"), t("sort_head"),
@@ -196,6 +198,14 @@ func ipEntityAcceptDefinitions() []stmt.Definition {
 				t("old_country"), i("old_year"),
 			},
 			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_entities"}},
+		},
+		{
+			// The durable owner row for one descriptive field. The catalogue
+			// projection carries the EFFECTIVE value; a locked row additionally
+			// carries the provider observation as automatic_value.
+			ID: ipEntityAcceptOwnerFieldReadStmt, SQL: `SELECT value,value_present,automatic_value,automatic_present,locked FROM metadata_owner_fields WHERE kind=? AND entity_id=? AND field=?`,
+			Params: []stmt.Param{t("kind"), i("entity"), t("field")},
+			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_owner_fields"}},
 		},
 		{
 			// The automatic observation is retained under a lock; only the

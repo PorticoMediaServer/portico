@@ -82,6 +82,15 @@ func ipEntityEvidencePairCurrent(provider, subjectKind, parser, request string) 
 	return parser == wantParser && request == wantRequest
 }
 
+// ipEntityEvidenceLocaleOptional reports whether one provider's evidence is
+// language/region independent. MusicBrainz lookups are not localized: its
+// adapter stages the empty pair, and the provider-subject/evidence UNIQUE keys
+// then hold exactly one row per observation. The screen providers (tmdb, tvdb)
+// always carry both values and keep requiring them.
+func ipEntityEvidenceLocaleOptional(parserVersion string) bool {
+	return strings.HasPrefix(parserVersion, "ip.musicbrainz.")
+}
+
 func ipEvidenceFamilyIndex(name string) int {
 	for i := range ipEvidenceFamilySpecs {
 		if ipEvidenceFamilySpecs[i].name == name {
@@ -89,6 +98,17 @@ func ipEvidenceFamilyIndex(name string) int {
 		}
 	}
 	return -1
+}
+
+// ipEvidenceFamilyBound is the IP-06 row bound of one closed evidence family.
+// Acceptance verifies the COMPLETE sealed cohort, so its typed counts are bound
+// by the evidence family, not by the smaller per-request selection caps.
+func ipEvidenceFamilyBound(name string) int64 {
+	family := ipEvidenceFamilyIndex(name)
+	if family < 0 {
+		return 0
+	}
+	return int64(ipEvidenceFamilySpecs[family].maxRows)
 }
 
 // Nonmovie entity evidence only. Movie FIRST evidence and person provider

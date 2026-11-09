@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -962,5 +963,23 @@ func TestIPMBEvidenceDigestBindsRecordingAndCreditIdentity(t *testing.T) {
 	}
 	if swapped.Digest() == base.Digest() {
 		t.Fatal("track credit identity is not in the preparation digest")
+	}
+}
+
+// A retained body must be valid UTF-8. encoding/json accepts invalid UTF-8 and
+// substitutes U+FFFD, which would let a corrupted body prepare and seal a
+// retained title that is not the bytes its own ObservationDigest covers. The
+// existing {0xff,0xfe} case is invalid JSON and refused for a different reason;
+// this is a latin-1 byte INSIDE a JSON string.
+func TestIPMBRetainedBodyRejectsInvalidUTF8(t *testing.T) {
+	body := mbFixture(t, "musicbrainz_release.json")
+	o := mbObservation(enrich.Release, mbReleaseID)
+	anchor := []byte("Safe from Harm")
+	if !bytes.Contains(body, anchor) {
+		t.Fatal("fixture lacks the UTF-8 mutation anchor")
+	}
+	bad := bytes.Replace(body, anchor, []byte("Caf\xe9"), 1)
+	if _, err := PrepareMusicBrainz(mbConsent(), o, bad); !errors.Is(err, ErrMBEvidence) {
+		t.Fatalf("invalid UTF-8 retained body admitted: %v", err)
 	}
 }

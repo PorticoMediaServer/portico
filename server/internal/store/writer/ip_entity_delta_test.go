@@ -819,6 +819,111 @@ func TestIPEntityDeltaRetainedAndNewSetProof(t *testing.T) {
 	}
 }
 
+// A replacement respects the owner lock exactly as the descriptive lock
+// commands define it, and the exact no-op compares the COMPLETE sealed evidence
+// cohort, so a change to any family — even one the accepted typed cohort does
+// not carry — publishes a replacement.
+func TestIPEntityDeltaOwnerLockAndExactCohort(t *testing.T) {
+	t.Run("locked_title_survives_delta", func(t *testing.T) {
+		w, r, p, setup := ipEntityDeltaFixture(t)
+		ipPolicyExec(t, w, `UPDATE catalog_entities SET title='Owner Title' WHERE id=1`)
+		ipPolicyExec(t, w, `INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,value_present,automatic_present,locked,actor,observed_at) VALUES('show',1,'title','Owner Title','Accepted Series',1,1,1,'owner','2025-12-01T00:00:00Z')`)
+		second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
+			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
+		out, turn, tx := ipEntityDeltaApply(t, w, r, p, ipEntityDeltaCommandFor(t, second,
+			ipEntityDeltaRequestFor(t, second, setup, "publication-two", ipEntityDeltaSecondFields())))
+		if out.Outcome.State != Applied || out.Value.NoOp || out.Value.PublicationID != "publication-two" {
+			t.Fatal(out)
+		}
+		ipPolicyCommitTurn(t, turn, tx)
+		for query, want := range map[string]int64{
+			// The locked title keeps the owner's effective value; the provider
+			// value lands only in the automatic observation.
+			`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Owner Title' AND overview='' AND revision=3`:                                                                                                                  1,
+			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='title' AND value='Owner Title' AND value_present=1 AND locked=1 AND automatic_value='Replacement Series' AND automatic_present=1`: 1,
+			// The locked-empty description stays empty and also records the
+			// provider observation.
+			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='' AND value_present=1 AND locked=1 AND automatic_value='Replacement overview' AND automatic_present=1`: 1,
+			`SELECT count(*) FROM metadata_publications WHERE id='publication-two' AND previous_id='publication-one'`:                                                                                                               1,
+		} {
+			if got := ipPolicyQueryInt(t, w, query); got != want {
+				t.Fatal(query, got)
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		change func(*ipEntityMBContent)
+	}{
+		{"only_track_title_changed_is_new", func(c *ipEntityMBContent) { c.trackTitle = "Safe from Harm (remaster)" }},
+		{"only_media_title_changed_is_new", func(c *ipEntityMBContent) { c.mediaTitle = "Disc One" }},
+		{"only_alias_changed_is_new", func(c *ipEntityMBContent) { c.alias = "Collected (deluxe)" }},
+		{"only_rating_changed_is_new", func(c *ipEntityMBContent) { c.rating = 3 }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			content := ipEntityMBDefaultContent()
+			w, r, p, staged := ipEntityMBFixture(t, ipEntityMBPages(content))
+			ipEntityMBSeedAcceptedHead(t, w)
+			accepted := ipEntityMBAccept(t, w, r, p, staged, "publication-one")
+			changed := content
+			tc.change(&changed)
+			second := ipEntityMBSecondEvidence(t, w, r, p, changed)
+			q := ipEntityMBDeltaRequest(second, accepted.Value)
+			c, err := newIPEntityDeltaCommand(
+				ipEntityEvidenceChainIdentity(second.claim, second.sequence+1, 0x6c), q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out, turn, tx := ipEntityDeltaApply(t, w, r, p, c)
+			if out.Outcome.State != Applied || out.Value.NoOp ||
+				out.Value.PublicationID != "publication-two" {
+				t.Fatal(out)
+			}
+			ipPolicyCommitTurn(t, turn, tx)
+			for query, want := range map[string]int64{
+				`SELECT count(*) FROM metadata_publications WHERE id='publication-two' AND previous_id='publication-one' AND evidence_id='evidence-two'`: 1,
+				`SELECT count(*) FROM metadata_publications WHERE id='publication-one'`:                                                                  1,
+				`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='delta' AND publication_id='publication-two'`:                              1,
+			} {
+				if got := ipPolicyQueryInt(t, w, query); got != want {
+					t.Fatal(query, got)
+				}
+			}
+		})
+	}
+
+	t.Run("identical_cohort_is_exact_noop", func(t *testing.T) {
+		content := ipEntityMBDefaultContent()
+		w, r, p, staged := ipEntityMBFixture(t, ipEntityMBPages(content))
+		ipEntityMBSeedAcceptedHead(t, w)
+		accepted := ipEntityMBAccept(t, w, r, p, staged, "publication-one")
+		second := ipEntityMBSecondEvidence(t, w, r, p, content)
+		q := ipEntityMBDeltaRequest(second, accepted.Value)
+		c, err := newIPEntityDeltaCommand(
+			ipEntityEvidenceChainIdentity(second.claim, second.sequence+1, 0x6c), q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, turn, tx := ipEntityDeltaApply(t, w, r, p, c)
+		if out.Outcome.State != Applied || !out.Value.NoOp ||
+			out.Value.PublicationID != "publication-one" {
+			t.Fatal(out)
+		}
+		ipPolicyCommitTurn(t, turn, tx)
+		for query, want := range map[string]int64{
+			`SELECT count(*) FROM metadata_publications`: 1,
+			`SELECT count(*) FROM metadata_subject_providers WHERE entity_id=1 AND accepted_publication_id='publication-one' AND accepted_evidence_id='evidence-one' AND revision=2`: 1,
+			`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='delta' AND publication_id='publication-one' AND evidence_id='evidence-two'`:                               1,
+			`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Collected' AND revision=2`:                                                                                  1,
+		} {
+			if got := ipPolicyQueryInt(t, w, query); got != want {
+				t.Fatal(query, got)
+			}
+		}
+	})
+}
+
 func TestIPEntityDeltaDescriptors(t *testing.T) {
 	expected := Descriptor{ID: IPEntityDelta, Name: "ip_entity_delta", Durability: Normal}
 	actual, err := Describe(expected.ID)

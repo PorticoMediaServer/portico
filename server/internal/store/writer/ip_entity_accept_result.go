@@ -47,9 +47,9 @@ func preflightIPEntityAcceptResult(v ipEntityAcceptResult) error {
 		v.EntityID <= 0 || v.OwnerGeneration <= 0 || v.ContentRevision <= 0 ||
 		v.AcceptedRevision <= 0 || v.SelectionRevision <= 0 ||
 		v.SearchJobID <= 0 || v.FieldCount <= 0 || v.FieldCount > ipEntityAcceptFieldsMax ||
-		v.ExternalCount < 0 || v.ExternalCount > ipEntityAcceptChildrenMax ||
-		v.TermCount < 0 || v.TermCount > ipEntityAcceptChildrenMax ||
-		v.CreditCount < 0 || v.CreditCount > ipEntityAcceptChildrenMax ||
+		v.ExternalCount < 0 || v.ExternalCount > ipEvidenceFamilyBound("external") ||
+		v.TermCount < 0 || v.TermCount > ipEvidenceFamilyBound("term") ||
+		v.CreditCount < 0 || v.CreditCount > ipEvidenceFamilyBound("credit") ||
 		v.LeaseUntilMS <= 0 || v.AppliedMS < 0 {
 		return ErrInvalid
 	}

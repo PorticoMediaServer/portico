@@ -40,8 +40,10 @@ func preflightIPEntitySealResult(v ipEntitySealResult) error {
 	if len(v.OperationID) != 32 || !ipEvidenceText(v.EvidenceID, ipEvidenceIDMax) ||
 		!ipEvidenceText(v.BuildID, ipEvidenceIDMax) || !ipPolicyProviderCode(v.Provider) ||
 		!ipEvidenceSubjectKind(v.SubjectKind) || !ipEvidenceText(v.ProviderID, ipEvidenceIDMax) ||
-		!ipEvidenceText(v.ParserVersion, ipEvidenceTextMax) || len(v.Language) == 0 ||
-		len(v.Region) == 0 || !ipEvidenceText(v.RequestShape, ipEvidenceTextMax) ||
+		!ipEvidenceText(v.ParserVersion, ipEvidenceTextMax) ||
+		(len(v.Language) == 0 && !ipEntityEvidenceLocaleOptional(v.ParserVersion)) ||
+		(len(v.Region) == 0 && !ipEntityEvidenceLocaleOptional(v.ParserVersion)) ||
+		!ipEvidenceText(v.RequestShape, ipEvidenceTextMax) ||
 		!ipEvidenceText(v.ObservedAt, 64) || len(v.Lease) != 32 ||
 		v.SubjectID <= 0 || v.BuildGeneration <= 0 || v.OwnerGeneration <= 0 ||
 		v.ContentRevision <= 0 || v.SealVersion != ipSealVersion || v.SealRows <= 0 ||

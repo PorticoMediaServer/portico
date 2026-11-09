@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	fieldmeta "github.com/PorticoMediaServer/portico/server/internal/store/metadata"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -27,11 +28,10 @@ import (
 // body verifies the complete selected cohort and records its count; it never
 // copies credits per child.
 const (
-	ipEntityAcceptIDMax       = 128
-	ipEntityAcceptFieldsMax   = 16
-	ipEntityAcceptFieldMax    = 4096
-	ipEntityAcceptChildrenMax = 64
-	ipEntityAcceptTermMax     = 4096
+	ipEntityAcceptIDMax     = 128
+	ipEntityAcceptFieldsMax = 16
+	ipEntityAcceptFieldMax  = 4096
+	ipEntityAcceptTermMax   = 4096
 )
 
 // ipEntityAcceptField is one typed accepted descriptive value. A field is
@@ -266,7 +266,7 @@ func ipEntityAcceptFieldsShape(fields []ipEntityAcceptField) error {
 }
 
 func ipEntityAcceptExternalShape(external []ipEntityAcceptExternal) error {
-	if len(external) > ipEntityAcceptChildrenMax {
+	if int64(len(external)) > ipEvidenceFamilyBound("external") {
 		return ErrInvalid
 	}
 	seen := make(map[[3]string]bool, len(external))
@@ -285,7 +285,7 @@ func ipEntityAcceptExternalShape(external []ipEntityAcceptExternal) error {
 }
 
 func ipEntityAcceptTermsShape(terms []ipEntityAcceptTerm) error {
-	if len(terms) > ipEntityAcceptChildrenMax {
+	if int64(len(terms)) > ipEvidenceFamilyBound("term") {
 		return ErrInvalid
 	}
 	seen := make(map[[2]string]bool, len(terms))
@@ -305,13 +305,29 @@ func ipEntityAcceptTermsShape(terms []ipEntityAcceptTerm) error {
 	return nil
 }
 
+// ipEntityAcceptCreditClass is the closed metadata_evidence_credits class set.
+// An IP evidence cohort carries every class the provider observation carries:
+// screen cast/crew and MusicBrainz artist credits. Contributions stay
+// evidence-pinned, so this is a count/shape check, never the retained 100cast/
+// 50crew selection image.
+func ipEntityAcceptCreditClass(value string) bool {
+	switch value {
+	case string(Cast), string(Crew), "artist":
+		return true
+	}
+	return false
+}
+
 func ipEntityAcceptCreditsShape(credits []ipEntityAcceptCredit) error {
-	if len(credits) > ipEntityAcceptChildrenMax {
+	// IP-06 bounds the complete evidence credit family to 1024 rows across
+	// pages; the retained selection image (100 cast + 50 crew) belongs to the
+	// merged screen-credit selector, not to this evidence-cohort check.
+	if int64(len(credits)) > ipEvidenceFamilyBound("credit") {
 		return ErrInvalid
 	}
-	candidates := make([]ScreenCreditCandidate, len(credits))
-	for i, credit := range credits {
-		if credit.Class != string(Cast) && credit.Class != string(Crew) ||
+	seen := make(map[[2]string]bool, len(credits))
+	for _, credit := range credits {
+		if !ipEntityAcceptCreditClass(credit.Class) ||
 			credit.Ordinal < 0 || credit.Billing < 0 || credit.SourceOrdinal < 0 ||
 			(credit.Class == string(Cast) && !credit.BillingPresent) ||
 			!credit.SourceOrdinalPresent ||
@@ -323,11 +339,16 @@ func ipEntityAcceptCreditsShape(credits []ipEntityAcceptCredit) error {
 			!ipEntityAcceptText(credit.Department, ipEntityAcceptTermMax) {
 			return ErrInvalid
 		}
-		candidates[i] = ScreenCreditCandidate{Class: CreditClass(credit.Class), Billing: credit.Billing,
-			SourceOrdinal: credit.SourceOrdinal, CreditID: credit.CreditID, Role: credit.Role,
-			Department: credit.Department}
+		// metadata_evidence_credits is keyed by (evidence, scope, ordinal): the
+		// request must name each row once or the count check cannot prove the
+		// complete cohort.
+		key := [2]string{credit.Scope, strconv.FormatInt(credit.Ordinal, 10)}
+		if seen[key] {
+			return ErrInvalid
+		}
+		seen[key] = true
 	}
-	return ValidateRetainedCreditShape(candidates)
+	return nil
 }
 
 func ipEntityAcceptShape(q ipEntityAcceptRequest) error {
@@ -344,8 +365,10 @@ func ipEntityAcceptShape(q ipEntityAcceptRequest) error {
 		q.subjectID <= 0 || !ipEntityAcceptSubjectKind(q.subjectKind) ||
 		!ipEvidenceText(q.providerID, ipEvidenceIDMax) || len(q.providerID) == 0 ||
 		!ipEvidenceText(q.parserVersion, ipEvidenceTextMax) || len(q.parserVersion) == 0 ||
-		!ipEvidenceText(q.language, 64) || len(q.language) == 0 ||
-		!ipEvidenceText(q.region, 64) || len(q.region) == 0 ||
+		!ipEvidenceText(q.language, 64) ||
+		(len(q.language) == 0 && !ipEntityEvidenceLocaleOptional(q.parserVersion)) ||
+		!ipEvidenceText(q.region, 64) ||
+		(len(q.region) == 0 && !ipEntityEvidenceLocaleOptional(q.parserVersion)) ||
 		!ipEvidenceText(q.requestShape, ipEvidenceTextMax) || len(q.requestShape) == 0 ||
 		!ipEvidenceText(q.observedAt, 64) || len(q.observedAt) == 0 ||
 		q.selectionIncarnation == [16]byte{} ||
@@ -823,13 +846,83 @@ func ipEntityAcceptProjectionRead(ctx context.Context, turn *commandTurn, q ipEn
 	return out, nil
 }
 
+// ipEntityAcceptOwnerField translates one accepted descriptive field name to
+// the descriptive editor field metadata_owner_fields stores (IP-24/IP-25). The
+// catalogue overview is the editor's 'description' and the accepted metadata
+// language is 'metadataLanguage'; the remaining names already agree. A
+// provenance-only field keeps its own name so its durable automatic observation
+// stays addressable by the delta no-op.
+func ipEntityAcceptOwnerField(name string) string {
+	switch name {
+	case "overview":
+		return string(fieldmeta.Description)
+	case "language":
+		return string(fieldmeta.MetadataLanguage)
+	}
+	return name
+}
+
+// ipEntityAcceptOwnerFacts is one durable owner row. The catalogue projection
+// carries the EFFECTIVE value; under a lock the provider observation is
+// retained only here as automatic_value.
+type ipEntityAcceptOwnerFacts struct {
+	value, automatic                       string
+	valuePresent, automaticPresent, locked int64
+}
+
+func ipEntityAcceptOwnerFlag(value int64) bool { return value == 0 || value == 1 }
+
+// ipEntityAcceptOwnerFieldsRead reads the durable owner rows for the requested
+// descriptive fields, keyed by the ACCEPT field name. A missing row is absence,
+// not an error: only the lock command creates one.
+func ipEntityAcceptOwnerFieldsRead(ctx context.Context, turn *commandTurn, q ipEntityAcceptRequest) (out map[string]ipEntityAcceptOwnerFacts, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	kind := ipEntityAcceptOwnerKind(q.subjectKind)
+	if kind == "" {
+		return nil, ErrInvalid
+	}
+	out = make(map[string]ipEntityAcceptOwnerFacts, len(q.fields))
+	for _, field := range q.fields {
+		if _, ok := out[field.Name]; ok {
+			continue
+		}
+		row, err := wc008DraftQuery(ctx, turn, ipEntityAcceptOwnerFieldReadStmt,
+			kind, q.entityID, ipEntityAcceptOwnerField(field.Name))
+		if err != nil {
+			return nil, err
+		}
+		var facts ipEntityAcceptOwnerFacts
+		err = row.Scan(&facts.value, &facts.valuePresent, &facts.automatic,
+			&facts.automaticPresent, &facts.locked)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !ipEntityAcceptOwnerFlag(facts.valuePresent) ||
+			!ipEntityAcceptOwnerFlag(facts.automaticPresent) ||
+			!ipEntityAcceptOwnerFlag(facts.locked) ||
+			facts.locked == 1 && facts.valuePresent != 1 {
+			return nil, ErrResolveRequired
+		}
+		out[field.Name] = facts
+	}
+	return out, nil
+}
+
 // ipEntityAcceptProjection applies the typed automatic values to the current
-// projection. Locked owner values are NOT read or overwritten here; the owner
-// field row keeps its locked value and continues to override these automatic
-// values at read time (including a locked explicit empty).
-func ipEntityAcceptProjection(q ipEntityAcceptRequest, before ipEntityAcceptProjectionFacts) (out ipEntityAcceptProjectionFacts, err error) {
+// projection. An absent observation writes nothing. A locked owner field keeps
+// its effective catalogue value exactly as the descriptive lock defines it
+// (including a locked explicit empty); the provider value is retained only as
+// the automatic observation by ipEntityAcceptOwnerFields.
+func ipEntityAcceptProjection(q ipEntityAcceptRequest, before ipEntityAcceptProjectionFacts,
+	owners map[string]ipEntityAcceptOwnerFacts) (out ipEntityAcceptProjectionFacts, err error) {
 	out = before
 	for _, field := range q.fields {
+		if !field.Present || owners[field.Name].locked == 1 {
+			continue
+		}
 		switch field.Name {
 		case "title":
 			out.title = field.Value
@@ -861,8 +954,12 @@ func ipEntityAcceptProjection(q ipEntityAcceptRequest, before ipEntityAcceptProj
 			out.year = year
 		}
 	}
-	if !ipEntityAcceptText(out.title, ipEntityAcceptFieldMax) || len(out.title) == 0 ||
-		!ipEntityAcceptText(out.language, 64) || len(out.language) == 0 {
+	if owners["title"].locked != 1 &&
+		(!ipEntityAcceptText(out.title, ipEntityAcceptFieldMax) || len(out.title) == 0) {
+		return out, ErrInvalid
+	}
+	if owners["language"].locked != 1 &&
+		(!ipEntityAcceptText(out.language, 64) || len(out.language) == 0) {
 		return out, ErrInvalid
 	}
 	return out, nil
@@ -979,7 +1076,11 @@ func ipEntityAcceptFresh(ctx context.Context, turn *commandTurn, identity Comman
 	if err != nil {
 		return out, err
 	}
-	after, err := ipEntityAcceptProjection(q, before)
+	owners, err := ipEntityAcceptOwnerFieldsRead(ctx, turn, q)
+	if err != nil {
+		return out, err
+	}
+	after, err := ipEntityAcceptProjection(q, before, owners)
 	if err != nil {
 		return out, err
 	}
@@ -1010,8 +1111,7 @@ func ipEntityAcceptFresh(ctx context.Context, turn *commandTurn, identity Comman
 		return out, err
 	}
 	for _, row := range q.external {
-		if err = execIPEntityAccept(ctx, turn, ipEntityAcceptExternalStmt,
-			q.entityID, row.Provider, row.SubjectKind, row.ProviderID); err != nil {
+		if err = ipEntityExternalRegister(ctx, turn, q.entityID, row); err != nil {
 			return out, err
 		}
 	}
@@ -1160,7 +1260,8 @@ func ipEntityAcceptOwnerFields(ctx context.Context, turn *commandTurn, q ipEntit
 		if err != nil {
 			return err
 		}
-		if _, err = turn.exec(ctx, step, field.Value, int64(1), kind, q.entityID, field.Name); err != nil {
+		if _, err = turn.exec(ctx, step, field.Value, int64(1), kind, q.entityID,
+			ipEntityAcceptOwnerField(field.Name)); err != nil {
 			return err
 		}
 	}
@@ -1170,6 +1271,9 @@ func ipEntityAcceptOwnerFields(ctx context.Context, turn *commandTurn, q ipEntit
 func ipEntityAcceptOrigins(ctx context.Context, turn *commandTurn, q ipEntityAcceptRequest, evidence ipEntityAcceptEvidenceFacts) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	for _, field := range q.fields {
+		if !field.Present {
+			continue
+		}
 		step, err := sealStep(turn, ipEntityAcceptOriginStmt)
 		if err != nil {
 			return err

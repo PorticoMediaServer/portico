@@ -17,10 +17,10 @@ const (
 	ipEntityDeltaPriorHeadStmt      stmt.ID = "ip.entity.delta.prior_head"
 	ipEntityDeltaPriorEvidenceStmt  stmt.ID = "ip.entity.delta.prior_evidence"
 	ipEntityDeltaPriorSealStmt      stmt.ID = "ip.entity.delta.prior_seal"
+	ipEntityDeltaCohortStmt         stmt.ID = "ip.entity.delta.cohort"
 	ipEntityDeltaPriorSetStmt       stmt.ID = "ip.entity.delta.prior_set"
 	ipEntityDeltaPriorSetSealStmt   stmt.ID = "ip.entity.delta.prior_set_seal"
 	ipEntityDeltaOriginsStmt        stmt.ID = "ip.entity.delta.origins"
-	ipEntityDeltaOwnerAutomaticStmt stmt.ID = "ip.entity.delta.owner_automatic"
 	ipEntityDeltaPublicationStmt    stmt.ID = "ip.entity.delta.publication"
 	ipEntityDeltaSelectionCASStmt   stmt.ID = "ip.entity.delta.selection_cas"
 	ipEntityDeltaRetainProofStmt    stmt.ID = "ip.entity.delta.retain_proof"
@@ -51,6 +51,15 @@ func ipEntityDeltaDefinitions() []stmt.Definition {
 			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_evidence"}},
 		},
 		{
+			// The content-bound shape of one SEALED evidence cohort: family
+			// names, per-family row counts and per-family content digests. The
+			// seal re-proves it against the manifest, so equality of two rows is
+			// exact cohort equality across every family.
+			ID: ipEntityDeltaCohortStmt, SQL: `SELECT expected_shape_digest,expected_rows FROM metadata_evidence_builds WHERE evidence_id=? AND state='ready' AND phase='sealed'`,
+			Params: []stmt.Param{t("evidence")},
+			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_evidence_builds_2"}},
+		},
+		{
 			// The old ORIGINAL seal receipt must still be terminal and charged.
 			ID: ipEntityDeltaPriorSealStmt, SQL: `SELECT command_incarnation,command_sequence,terminal,seal_rows,seal_bytes,proof_pin_count FROM metadata_ip_receipts WHERE owner_id=? AND evidence_id=? AND command_kind='evidence_seal'`,
 			Params: []stmt.Param{t("owner"), t("evidence")},
@@ -76,12 +85,6 @@ func ipEntityDeltaDefinitions() []stmt.Definition {
 			ID: ipEntityDeltaOriginsStmt, SQL: `SELECT count(*),coalesce(group_concat(field,char(31)),'') FROM metadata_field_origins WHERE entity_id=? AND publication_id=?`,
 			Params: []stmt.Param{i("entity"), t("publication")},
 			Plan:   stmt.Plan{Hot: true, Indexes: []string{"metadata_field_origin_publication"}},
-		},
-		{
-			// Durable automatic value for a non-projection descriptive field.
-			ID: ipEntityDeltaOwnerAutomaticStmt, SQL: `SELECT automatic_value,automatic_present FROM metadata_owner_fields WHERE kind=? AND entity_id=? AND field=?`,
-			Params: []stmt.Param{t("kind"), i("entity"), t("field")},
-			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_owner_fields"}},
 		},
 		{
 			// One new accepted publication head linked to the exact old head.

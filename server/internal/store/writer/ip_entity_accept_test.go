@@ -172,8 +172,8 @@ func ipEntityAcceptStage(t *testing.T, w *executor, r *ipPolicyRegistry, p *usOw
 }
 
 // ipEntityAcceptSeedHead seeds the IA accepted-subject seam, the existing search
-// intent and one locked explicit-empty owner overview. IP-09 consumes these; it
-// never creates or reinterprets them.
+// intent and one locked explicit-empty owner description (the catalogue
+// overview). IP-09 consumes these; it never creates or reinterprets them.
 func ipEntityAcceptSeedHead(t *testing.T, w *executor) {
 	t.Helper()
 	ipPolicyExec(t, w, `INSERT INTO metadata_subject_providers(entity_id,provider,role,incarnation,revision,subject_kind,provider_id,status,observed_at) VALUES(1,'tmdb','primary',X'0d000000000000000000000000000000',1,'series','tmdb-1','selected','2025-12-01T00:00:00Z')`)
@@ -181,7 +181,7 @@ func ipEntityAcceptSeedHead(t *testing.T, w *executor) {
 		searchpolicy.RecipeV1, searchpolicy.EngineVersion)
 	ipPolicyExec(t, w, `INSERT INTO search_publish_jobs(id,entity_id,search_generation_id,input_generation,source_incarnation,source_revision,recipe_version,phase,command_incarnation) VALUES(1,1,1,1,X'0e000000000000000000000000000000',1,?,'idle',X'0f000000000000000000000000000000')`,
 		searchpolicy.RecipeV1)
-	ipPolicyExec(t, w, `INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,value_present,automatic_present,locked,actor,observed_at) VALUES('show',1,'overview','','',1,1,1,'owner','2025-12-01T00:00:00Z')`)
+	ipPolicyExec(t, w, `INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,value_present,automatic_present,locked,actor,observed_at) VALUES('show',1,'description','','',1,1,1,'owner','2025-12-01T00:00:00Z')`)
 }
 
 func ipEntityAcceptRequestFor(staged ipEntityAcceptStaged) ipEntityAcceptRequest {
@@ -260,13 +260,13 @@ func TestIPEntityAcceptFreshReplayRetiredAndRetainedProof(t *testing.T) {
 	for query, want := range map[string]int64{
 		`SELECT count(*) FROM metadata_publications WHERE id='publication-one' AND entity_id=1 AND provider='tmdb' AND subject_kind='series' AND provider_id='tmdb-1' AND evidence_id='evidence-one' AND set_id IS NULL AND previous_id IS NULL AND selection_revision=1 AND generation=1 AND decision='accepted' AND observed_at='2026-01-01T00:00:00Z'`: 1,
 		`SELECT count(*) FROM metadata_subject_providers WHERE entity_id=1 AND provider='tmdb' AND role='primary' AND accepted_evidence_id='evidence-one' AND accepted_set_id IS NULL AND accepted_publication_id='publication-one' AND revision=2 AND observed_at='2026-01-01T00:00:00Z'`:                                                                1,
-		`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Accepted Series' AND overview='Provider overview' AND release_date='2020-01-01' AND year=2020 AND metadata_language='en' AND revision=2 AND metadata_revision=2`:                                                                                                                     1,
+		`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Accepted Series' AND overview='' AND release_date='2020-01-01' AND year=2020 AND metadata_language='en' AND revision=2 AND metadata_revision=2`:                                                                                                                                      1,
 		`SELECT count(*) FROM metadata_field_origins WHERE entity_id=1 AND publication_id='publication-one' AND evidence_id='evidence-one' AND observed_at='2026-01-01T00:00:00Z' AND language='en' AND region='US'`:                                                                                                                                      6,
 		`SELECT count(*) FROM metadata_entity_external_ids WHERE entity_id=1 AND provider='tmdb' AND subject_kind='series' AND provider_id='tmdb-1'`:                                                                                                                                                                                                      1,
 		`SELECT count(*) FROM catalog_terms WHERE vocab=1 AND key='drama' AND label='Drama'`:                                                                                                                                         1,
 		`SELECT count(*) FROM catalog_entity_terms AS e JOIN catalog_terms AS t ON t.id=e.term_id WHERE e.entity_id=1 AND t.key='drama'`:                                                                                             1,
 		`SELECT count(*) FROM catalog_term_sources WHERE entity_id=1 AND provider='tmdb' AND source_id='tmdb:genre:drama' AND ordinal=0`:                                                                                             1,
-		`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='overview' AND value='' AND value_present=1 AND locked=1 AND automatic_value='Provider overview' AND automatic_present=1`:            1,
+		`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='' AND value_present=1 AND locked=1 AND automatic_value='Provider overview' AND automatic_present=1`:         1,
 		`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='accept' AND terminal=1 AND result_phase='accepted' AND publication_id='publication-one' AND evidence_id='evidence-one' AND set_id IS NULL AND result_count=6`: 1,
 		`SELECT proof_pin_count FROM metadata_ip_receipts WHERE command_kind='evidence_seal'`:                                                                                                                                        2,
 		`SELECT last_command_sequence FROM metadata_provider_operations WHERE id='` + staged.owner.OperationID + `'`:                                                                                                                 staged.sequence + 1,
@@ -377,10 +377,8 @@ func TestIPEntityAcceptShapeRefusals(t *testing.T) {
 		{"reserved_term_vocabulary", func(q *ipEntityAcceptRequest) { q.terms[0].Vocabulary = "keyword" }},
 		{"duplicate_term", func(q *ipEntityAcceptRequest) { q.terms = append(q.terms, q.terms[0]) }},
 		{"cast_without_billing", func(q *ipEntityAcceptRequest) { q.credits[0].BillingPresent = false }},
-		{"cast_after_crew", func(q *ipEntityAcceptRequest) {
-			q.credits[0], q.credits[1] = q.credits[1], q.credits[0]
-		}},
-		{"unknown_credit_class", func(q *ipEntityAcceptRequest) { q.credits[0].Class = "artist" }},
+		{"duplicate_credit", func(q *ipEntityAcceptRequest) { q.credits[1].Ordinal = q.credits[0].Ordinal }},
+		{"missing_credit_source_ordinal", func(q *ipEntityAcceptRequest) { q.credits[0].SourceOrdinalPresent = false }},
 	}
 	for _, tc := range mutations {
 		t.Run(tc.name, func(t *testing.T) {
@@ -627,9 +625,9 @@ func TestIPEntityAcceptSetSource(t *testing.T) {
 	}
 }
 
-// IP-06 bounds one evidence credit cohort to 64 rows, so the 100cast/50crew
-// selector is shared with the merged screen-credit path rather than reachable
-// through an IP evidence page. This proves the retained-shape cap itself.
+// The retained selector image is still 100 cast + 50 crew, but an IP evidence
+// cohort is a different bound: IP-06 allows 1024 evidence credits of any class
+// across pages, and contributions stay evidence-pinned.
 func TestIPEntityAcceptCreditSelectionCaps(t *testing.T) {
 	cast := func(n int) []ScreenCreditCandidate {
 		out := make([]ScreenCreditCandidate, n)
@@ -656,16 +654,106 @@ func TestIPEntityAcceptCreditSelectionCaps(t *testing.T) {
 	if err := ValidateRetainedCreditShape(append(cast(MaxCastCredits), crew(MaxCrewCredits, MaxCastCredits)...)); err != nil {
 		t.Fatal("100 cast and 50 crew refused", err)
 	}
-	// The IP-06 evidence cohort bound is the tighter, separate accept guard.
-	credits := make([]ipEntityAcceptCredit, ipEntityAcceptChildrenMax+1)
-	for i := range credits {
-		credits[i] = ipEntityAcceptCredit{Class: "cast", Ordinal: int64(i), ProviderPersonID: "person",
-			CreditID: "credit", Name: "Actor", Role: "Actor", Department: "Acting",
-			Billing: int64(i), BillingPresent: true, SourceOrdinal: int64(i), SourceOrdinalPresent: true}
+	// The evidence cohort bound is the IP-06 credit family (1024 rows), not the
+	// retained selector image, and it carries every class the evidence does.
+	credit := func(i int, class string) ipEntityAcceptCredit {
+		return ipEntityAcceptCredit{Class: class, Ordinal: int64(i), ProviderPersonID: "person",
+			CreditID: "credit", Name: "Artist", Role: "Artist", Department: "",
+			SourceOrdinal: int64(i), SourceOrdinalPresent: true}
 	}
-	if err := ipEntityAcceptCreditsShape(credits); err == nil {
-		t.Fatal("over-evidence credit cohort admitted")
+	for _, tc := range []struct {
+		name   string
+		class  string
+		rows   int
+		refuse bool
+	}{
+		{"artist_credits", "artist", 3, false},
+		{"two_hundred_credits", "artist", 200, false},
+		{"evidence_bound", "cast", ipEvidenceFamilySpecs[ipEvidenceFamilyIndex("credit")].maxRows, false},
+		{"over_evidence_bound", "cast", ipEvidenceFamilySpecs[ipEvidenceFamilyIndex("credit")].maxRows + 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			credits := make([]ipEntityAcceptCredit, tc.rows)
+			for i := range credits {
+				credits[i] = credit(i, tc.class)
+				if tc.class == "cast" {
+					credits[i].Billing, credits[i].BillingPresent = int64(i), true
+				}
+			}
+			err := ipEntityAcceptCreditsShape(credits)
+			if tc.refuse && err == nil {
+				t.Fatal("over-evidence credit cohort admitted")
+			}
+			if !tc.refuse && err != nil {
+				t.Fatal("evidence credit cohort refused", err)
+			}
+		})
 	}
+	// A duplicate (scope, ordinal) would hide a missing evidence row.
+	duplicate := []ipEntityAcceptCredit{credit(0, "artist"), credit(0, "artist")}
+	if ipEntityAcceptCreditsShape(duplicate) == nil {
+		t.Fatal("duplicate evidence credit admitted")
+	}
+}
+
+// The accept applies provider values as AUTOMATIC observations: a locked owner
+// field keeps its effective catalogue value (including a locked explicit
+// empty) and receives the provider value only as automatic_value; unlocked
+// fields still update the projection.
+func TestIPEntityAcceptOwnerLockRespected(t *testing.T) {
+	t.Run("locked_title_survives_accept", func(t *testing.T) {
+		w, r, p, staged := ipEntityAcceptFixture(t)
+		ipPolicyExec(t, w, `UPDATE catalog_entities SET title='Owner Title' WHERE id=1`)
+		ipPolicyExec(t, w, `INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,value_present,automatic_present,locked,actor,observed_at) VALUES('show',1,'title','Owner Title','',1,0,1,'owner','2025-12-01T00:00:00Z')`)
+		out, turn, tx := ipEntityAcceptApply(t, w, r, p,
+			ipEntityAcceptCommandFor(t, staged, ipEntityAcceptRequestFor(staged)))
+		if out.Outcome.State != Applied {
+			t.Fatal(out)
+		}
+		ipPolicyCommitTurn(t, turn, tx)
+		for query, want := range map[string]int64{
+			`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Owner Title' AND metadata_language='en' AND overview=''`:                                                                                                   1,
+			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='title' AND value='Owner Title' AND value_present=1 AND locked=1 AND automatic_value='Accepted Series' AND automatic_present=1`: 1,
+			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='' AND locked=1 AND automatic_value='Provider overview'`:                                                1,
+		} {
+			if got := ipPolicyQueryInt(t, w, query); got != want {
+				t.Fatal(query, got)
+			}
+		}
+	})
+	t.Run("locked_empty_overview_stays_empty", func(t *testing.T) {
+		w, r, p, staged := ipEntityAcceptFixture(t)
+		out, turn, tx := ipEntityAcceptApply(t, w, r, p,
+			ipEntityAcceptCommandFor(t, staged, ipEntityAcceptRequestFor(staged)))
+		if out.Outcome.State != Applied {
+			t.Fatal(out)
+		}
+		ipPolicyCommitTurn(t, turn, tx)
+		if got := ipPolicyQueryInt(t, w, `SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Accepted Series' AND overview=''`); got != 1 {
+			t.Fatal("locked-empty overview was overwritten", got)
+		}
+		if got := ipPolicyQueryInt(t, w, `SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='' AND value_present=1 AND locked=1 AND automatic_value='Provider overview' AND automatic_present=1`); got != 1 {
+			t.Fatal("provider overview not retained as the automatic observation", got)
+		}
+	})
+	t.Run("unlocked_fields_update", func(t *testing.T) {
+		w, r, p, staged := ipEntityAcceptFixture(t)
+		ipPolicyExec(t, w, `UPDATE metadata_owner_fields SET locked=0 WHERE kind='show' AND entity_id=1 AND field='description'`)
+		out, turn, tx := ipEntityAcceptApply(t, w, r, p,
+			ipEntityAcceptCommandFor(t, staged, ipEntityAcceptRequestFor(staged)))
+		if out.Outcome.State != Applied {
+			t.Fatal(out)
+		}
+		ipPolicyCommitTurn(t, turn, tx)
+		for query, want := range map[string]int64{
+			`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Accepted Series' AND overview='Provider overview' AND release_date='2020-01-01' AND year=2020`:            1,
+			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND automatic_value='Provider overview' AND automatic_present=1`: 1,
+		} {
+			if got := ipPolicyQueryInt(t, w, query); got != want {
+				t.Fatal(query, got)
+			}
+		}
+	})
 }
 
 func TestIPEntityAcceptDescriptors(t *testing.T) {
