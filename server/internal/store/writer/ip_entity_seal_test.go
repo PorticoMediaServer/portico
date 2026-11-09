@@ -238,7 +238,7 @@ func TestIPEntitySealFreshReplayRetiredAndRetainedProof(t *testing.T) {
 			t.Fatal(query, got)
 		}
 	}
-	stored := ipPolicyString(t, w, `SELECT seal_commitment FROM metadata_ip_receipts WHERE command_kind='evidence_seal'`)
+	stored := ipPolicyString(t, w, `SELECT lower(hex(seal_commitment)) FROM metadata_ip_receipts WHERE command_kind='evidence_seal'`)
 	if stored != commitment || stored == "" {
 		t.Fatal("commitment not stored", stored, commitment)
 	}
@@ -413,8 +413,15 @@ func TestIPEntitySealRejectsIncompleteAndForeignBuild(t *testing.T) {
 		{"missing_child", nil, []string{`DELETE FROM metadata_evidence_aliases WHERE evidence_id='evidence-one' AND ordinal=1`}, ErrConflict},
 		{"extra_child", nil, []string{`INSERT INTO metadata_evidence_aliases(evidence_id,ordinal,requested_id,canonical_id,alias,observed_at) VALUES('evidence-one',2,'extra','tmdb-1','Extra','2026-01-01T00:00:00Z')`}, ErrConflict},
 		{"duplicate_page", func(q *ipEntitySealRequest) {
+			// Replay the alias page as a coherent second page at the next
+			// ordinals: the manifest then declares four alias rows while the
+			// build persisted two, which only the fresh count refuses.
 			duplicate := q.pages[0]
-			duplicate.AfterOrdinal = 2
+			duplicate.AfterOrdinal += duplicate.rows
+			duplicate.aliases = append([]ipEvidenceAlias(nil), duplicate.aliases...)
+			for i := range duplicate.aliases {
+				duplicate.aliases[i].Ordinal = duplicate.AfterOrdinal + int64(i)
+			}
 			q.pages = []ipEntitySealPage{q.pages[0], duplicate, q.pages[1]}
 			q.families = ipEntitySealDeclarations(q.pages)
 		}, nil, ErrConflict},
