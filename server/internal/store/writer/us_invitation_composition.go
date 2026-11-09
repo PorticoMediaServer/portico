@@ -20,6 +20,16 @@ const (
 	// re-read inside the receipt store plus its finish, and the final release.
 	// Each recheck re-runs the complete US-01 current-source recipe and needs
 	// the 64 KiB base workspace. Replay skips the store, so it costs fewer.
+	//
+	// WIRING SLICE MUST ADD SIBLINGS: this dispatcher is inert until a command
+	// family is wired to it. That slice must reserve
+	//
+	//	need := usInvitationDispatchRechecks*usInvitationRecheckBytes + bodyBytes*32
+	//
+	// for the concurrent recheck siblings plus a per-byte typed-body allowance,
+	// and add a memory-cliff test proving the cap is enforced.
+	// usInvitationRecheckBytes is unused until then: it documents the
+	// per-recheck workspace here, not a live allocation.
 	usInvitationDispatchRechecks int64 = 15
 	usInvitationRecheckBytes     int64 = 64 << 10
 )
@@ -40,7 +50,7 @@ type usInvitationFrozenDocument struct {
 // boolean. A fresh submission must carry the same 11 issuer fields the frozen
 // preparation retains and the manager's current issuer; replay/Resolve/ACK use
 // only the CURRENT manager plus the retained owner's stable columns (see
-// usInvitationReceiptRequest.issuer).
+// usInvitationReceiptRequest).
 type usInvitationInvocationScope struct {
 	issuer usPolicyIssuer
 }
@@ -146,7 +156,7 @@ func usInvitationReceiptForCommand(c *usInvitationCommand) (usInvitationReceiptR
 	if c == nil || c.prepared == nil || c.kind != usInvitationCreate && c.kind != usInvitationEdit && c.kind != usInvitationRevoke {
 		return usInvitationReceiptRequest{}, ErrInvalid
 	}
-	return usInvitationReceiptRequest{ownerID: c.ownerID, kind: c.kind, issuer: c.prepared.scope.issuer,
+	return usInvitationReceiptRequest{ownerID: c.ownerID, kind: c.kind,
 		reference: ReceiptReference{Identity: c.identity, RequestDigest: c.digest}}, nil
 }
 
@@ -366,6 +376,12 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 		// invitation) receives the disclosure-denied class with no Value, DTO
 		// or Code. This covers replay and every no-input Resolve that serves
 		// the saved body.
+		//
+		// LEGACY REVOKE REPLAY has no tier check at all (access/invitations.go
+		// RevokeInvitation replays its receipt unconditionally). This shared gate
+		// is deliberately STRICTER on revoke: a revoke replay is still refused to
+		// a manager demoted below the disclosed tier. That stricter behaviour is
+		// intentional for this slice, not legacy parity.
 		if !m.ManagesTier(lookup.result.role) {
 			return out, floor, false, ErrDisclosureDenied
 		}

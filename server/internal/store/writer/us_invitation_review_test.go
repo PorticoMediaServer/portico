@@ -178,6 +178,43 @@ func TestUSInvitationFreshIssuerBinding(t *testing.T) {
 			}
 		})
 	}
+
+	// The loop above mutates only the ENTRY scope, so the separate
+	// `m.Issuer() != inv.scope.issuer` clause would survive its deletion. These
+	// cases leave the entry scope and the frozen preparation untouched and move
+	// ONLY the manager's current issuer: a family-only change (family is not an
+	// owner predicate) and one stable-column change whose owner row is moved with
+	// it. Without the manager clause both submissions create and retain a receipt.
+	for _, test := range []struct {
+		name   string
+		change func(*usPolicyIssuer)
+		owner  func(*testing.T, *executor)
+	}{
+		{"manager_family", func(i *usPolicyIssuer) { i.family += "-other" }, nil},
+		{"manager_installation", func(i *usPolicyIssuer) { i.installation = strings.Repeat("f", 32) },
+			func(t *testing.T, w *executor) {
+				wc008NativeExec(t, w, `UPDATE security_command_owners SET issuer_installation_incarnation=? WHERE id='security-owner'`, strings.Repeat("f", 32))
+			}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w, m := usInvitationTestExecutor(t)
+			cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
+			inv := usInvitationTestInvocation(t, cmd)
+			test.change(&m.issuer)
+			if test.owner != nil {
+				test.owner(t, w)
+			}
+			turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+			out, floor, err := runUSInvitationDispatch(t.Context(), turn, m, inv)
+			if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+				t.Fatal("manager current issuer accepted a fresh submission", out, floor, err)
+			}
+			if usInvitationTestCount(t, w, `SELECT count(*) FROM access_invitations WHERE id='us-created'`) != 0 ||
+				usInvitationTestCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
+				t.Fatal("manager current issuer mismatch wrote")
+			}
+		})
+	}
 }
 
 // A retired (already acknowledged) original reports Retired with no body: the
@@ -378,27 +415,33 @@ func TestUSInvitationReplayRepreparedIssuerConflicts(t *testing.T) {
 	}
 }
 
-// The six stable owner columns still resolve when the CURRENT session rotates
-// token/epoch/generations (same family). The saved original is returned with no
-// new effect.
+// A replay after the CURRENT manager rotates its token digest, family,
+// generations and epoch (the six stable owner columns are unchanged) still
+// serves the retained original. Replay reads no issuer from the request, so
+// rotating a request-side issuer would prove nothing: the manager's current
+// issuer is the only current witness.
 func TestUSInvitationReplayTokenRotation(t *testing.T) {
 	w, m := usInvitationTestExecutor(t)
 	cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
 	inv := usInvitationTestInvocation(t, cmd)
 	turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
-	if _, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv); err != nil {
+	original, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv)
+	if err != nil || original.Digest == (ResultDigest{}) {
 		t.Fatal("original", err)
 	}
-	rotated := inv.request
-	rotated.issuer.tokenDigest = usCredentialFixtureHash("us-rotated-token")
-	rotated.issuer.epoch++
-	rotated.issuer.familyGeneration++
-	rotated.issuer.authorityGeneration++
+	// Renewed sign-in for the same member/installation/profile: new family id
+	// and generation, new token digest, epoch and authority generation. The owner
+	// row keeps the ORIGINAL family.
+	m.issuer.family = "issuer-family-renewed"
+	m.issuer.tokenDigest = usCredentialFixtureHash("us-rotated-token")
+	m.issuer.epoch++
+	m.issuer.familyGeneration++
+	m.issuer.authorityGeneration++
 	before := usInvitationTestCount(t, w, `SELECT total_changes()`)
 	replayTurn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
-	out, _, err := runUSInvitationDispatch(t.Context(), replayTurn, m, &usInvitationInvocation{request: rotated,
-		scope: usInvitationInvocationScope{issuer: rotated.issuer}})
-	if err != nil || out.Outcome.State != Applied || !out.Outcome.Replayed || out.DTO.ID != "us-created" {
+	out, _, err := runUSInvitationDispatch(t.Context(), replayTurn, m, &usInvitationInvocation{request: inv.request})
+	if err != nil || out.Outcome.State != Applied || !out.Outcome.Replayed ||
+		out.Digest != original.Digest || out.DTO.ID != "us-created" {
 		t.Fatal("rotation replay", out, err)
 	}
 	if usInvitationTestCount(t, w, `SELECT total_changes()`) != before ||
@@ -468,7 +511,7 @@ func TestUSInvitationServerIDProjection(t *testing.T) {
 		inv := usInvitationTestInvocation(t, cmd)
 		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
 		out, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv)
-		if err != nil || out.DTO.ServerID != inv.request.issuer.server {
+		if err != nil || out.DTO.ServerID != inv.scope.issuer.server {
 			t.Fatal("local create serverId", out.DTO.ServerID, err)
 		}
 		replayTurn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
@@ -540,41 +583,68 @@ func TestUSInvitationStatementCapture(t *testing.T) {
 }
 
 // B-2: the DISCLOSED tier of a retained original is checked before any replay
-// or Resolve body is released. A manager demoted below that tier receives the
-// disclosure-denied class with no Value, DTO, Code or write.
+// body is released. Replay and a no-input Resolve are the SAME dispatcher entry,
+// so this proves it once instead of running the identical call twice. A manager
+// that cannot manage the disclosed tier receives the disclosure-denied class
+// with no Value, DTO, Code or write. The ACK entry is deliberately absent: it
+// releases no body and has its own no-disclosure contract.
 func TestUSInvitationReplayTierDisclosure(t *testing.T) {
-	ownerOriginal := func(t *testing.T) (*executor, *testInvitationManager, usInvitationReceiptRequest) {
+	// Real authority tier maps: an owner manages admin and member invitations;
+	// an admin manages member invitations only. The seam map can express what
+	// the real authority cannot (an admin managing the admin tier); such a case
+	// says so.
+	ownerTiers := map[string]bool{"owner": true, "admin": true, "member": true}
+	seamAdminTiers := map[string]bool{"admin": true, "member": true} // NOT real authority
+	adminTiers := map[string]bool{"member": true}                    // real admin authority
+
+	original := func(t *testing.T, role string, tiers map[string]bool) (*executor, *testInvitationManager, usInvitationReceiptRequest) {
 		t.Helper()
 		w, m := usInvitationTestExecutor(t)
-		m.tiers = map[string]bool{"owner": true, "admin": true, "member": true}
-		cmd, _ := usInvitationTestCreateCommand(t, "us-created", "admin", []string{"movies"})
+		m.tiers = tiers
+		cmd, _ := usInvitationTestCreateCommand(t, "us-created", role, []string{"movies"})
 		inv := usInvitationTestInvocation(t, cmd)
 		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
 		out, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv)
-		if err != nil || out.Outcome.State != Applied || out.DTO.Role != "admin" {
-			t.Fatal("original admin invitation", out, err)
+		if err != nil || out.Outcome.State != Applied || out.DTO.Role != role {
+			t.Fatal("original invitation", role, out, err)
 		}
 		return w, m, inv.request
 	}
 
+	// Real owner authority: an owner manages the admin tier.
 	t.Run("owner_replays_admin_served", func(t *testing.T) {
-		w, m, request := ownerOriginal(t)
+		w, m, request := original(t, "admin", ownerTiers)
 		before := usInvitationTestCount(t, w, `SELECT total_changes()`)
-		for _, label := range []string{"replay", "resolve"} {
-			turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
-			out, _, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
-			if err != nil || out.Outcome.State != Applied || !out.Outcome.Replayed || out.DTO.Role != "admin" || out.DTO.ID != "us-created" {
-				t.Fatal(label, out, err)
-			}
+		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		out, _, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
+		if err != nil || out.Outcome.State != Applied || !out.Outcome.Replayed || out.DTO.Role != "admin" || out.DTO.ID != "us-created" {
+			t.Fatal("owner replay", out, err)
 		}
 		if usInvitationTestCount(t, w, `SELECT total_changes()`) != before {
 			t.Fatal("owner replay wrote")
 		}
 	})
 
+	// Real admin authority: an admin manages the member tier.
+	t.Run("admin_replays_member_served", func(t *testing.T) {
+		w, m, request := original(t, "member", adminTiers)
+		before := usInvitationTestCount(t, w, `SELECT total_changes()`)
+		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		out, _, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
+		if err != nil || out.Outcome.State != Applied || !out.Outcome.Replayed || out.DTO.Role != "member" || out.DTO.ID != "us-created" {
+			t.Fatal("admin replay", out, err)
+		}
+		if usInvitationTestCount(t, w, `SELECT total_changes()`) != before {
+			t.Fatal("admin replay wrote")
+		}
+	})
+
+	// SEAM MAP ONLY: the real authority cannot produce an admin manager that
+	// manages the admin tier, but the seam map can. This keeps the served branch
+	// covered for a manager that is not the owner.
 	t.Run("demoted_admin_replays_admin_served", func(t *testing.T) {
-		w, m, request := ownerOriginal(t)
-		m.tiers = map[string]bool{"admin": true, "member": true}
+		w, m, request := original(t, "admin", ownerTiers)
+		m.tiers = seamAdminTiers
 		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
 		out, _, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
 		if err != nil || out.Outcome.State != Applied || out.DTO.Role != "admin" {
@@ -582,19 +652,16 @@ func TestUSInvitationReplayTierDisclosure(t *testing.T) {
 		}
 	})
 
-	t.Run("below_disclosed_tier_refused", func(t *testing.T) {
-		w, m, request := ownerOriginal(t)
-		// The admitted invitation roles are member/admin, so the retained result
-		// can never carry owner. A manager that no longer manages the disclosed
-		// admin tier exercises the same disclosure class.
-		m.tiers = map[string]bool{"member": true}
+	// Real admin authority: an admin cannot manage the admin tier, so the
+	// retained admin invitation is refused with no body and no write.
+	t.Run("admin_refused_admin_tier", func(t *testing.T) {
+		w, m, request := original(t, "admin", ownerTiers)
+		m.tiers = adminTiers
 		before := usInvitationTestCount(t, w, `SELECT total_changes()`)
-		for _, label := range []string{"replay", "resolve"} {
-			turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
-			out, floor, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
-			if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
-				t.Fatal(label, out, floor, err)
-			}
+		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		out, floor, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
+		if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+			t.Fatal("admin replay of admin tier", out, floor, err)
 		}
 		if usInvitationTestCount(t, w, `SELECT total_changes()`) != before ||
 			usInvitationTestCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 1 {

@@ -15,15 +15,15 @@ const (
 )
 
 // usInvitationReceiptRequest addresses one retained original. It is a comparison
-// value, never proof or authority. issuer is the ORIGINAL retained issuer
-// context (from the frozen preparation) used for the request binding and the
-// FRESH entry-witness comparison only. The owner row is ALWAYS addressed by the
-// manager's CURRENT issuer, so replay/Resolve/ACK ignore the retained family,
-// token and generations and a renewed sign-in still resolves its original.
+// value, never proof or authority. It deliberately carries NO issuer: the owner
+// row is ALWAYS addressed by the manager's CURRENT issuer, so replay/Resolve/ACK
+// ignore the retained family, token and generations and a renewed sign-in still
+// resolves its original. The FRESH path compares the frozen preparation and the
+// manager's current issuer directly in us_invitation_composition.go; the
+// entry-supplied retained issuer never participates.
 type usInvitationReceiptRequest struct {
 	ownerID   string
 	kind      CommandID
-	issuer    usPolicyIssuer
 	reference ReceiptReference
 }
 
