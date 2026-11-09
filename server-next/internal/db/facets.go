@@ -50,23 +50,43 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 	if err != nil {
 		return nil, err
 	}
+	// A facet's own filter does not narrow it: with "Drama" chosen, the genre list still
+	// shows what choosing "Comedy" instead would give.
+	switch facet {
+	case FacetDecade:
+		q.YearFrom, q.YearTo = 0, 0
+	case FacetResolution:
+		q.Resolution = ""
+	case FacetGenre:
+		q.Genre = ""
+	}
+	if kind, ok := facetTagKinds[facet]; ok && q.Tag != "" {
+		var same bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM tags WHERE public_id = ? AND kind = ?)`, q.Tag, kind).Scan(&same); err != nil {
+			return nil, err
+		}
+		if same {
+			q.Tag = ""
+		}
+	}
 	w := newQuery(v)
 	if found, err := q.filters(ctx, tx, w, acc); err != nil || !found {
 		return nil, err
 	}
-	from, where := w.countFrom, w.countWhere()
+	from, where := w.countFrom, w.countWhere(true)
 	var query string
 	switch facet {
 	case FacetLetter:
 		return letters(ctx, tx, w)
 	case FacetGenre, FacetStudio, FacetNetwork, FacetLabel:
-		// A tag counts once for an item that carries it or whose title does. The item's own
-		// tags and its title's are read separately, each through the tag table's key.
-		pairs := `SELECT i.id AS item, it.tag_id AS tag FROM %[1]s JOIN item_tags it ON it.item_id = %[3]s WHERE %[2]s`
-		query = fmt.Sprintf(`SELECT t.public_id, t.name, count(*) FROM (`+pairs+` UNION `+pairs+`) pair
-			JOIN tags t ON t.id = pair.tag AND t.kind = '%[4]s' GROUP BY t.id ORDER BY 3 DESC, t.norm_name LIMIT 200`,
-			from, where, "{id}", facetTagKinds[facet])
-		query = strings.Replace(strings.Replace(query, "{id}", "i.id", 1), "{id}", "i.root_id", 1)
+		// A tag counts once for an item that carries it or whose title does. Each list row
+		// costs a look in the tag table's key, so this reads in proportion to the list; the
+		// tags are named only after counting, and at most 200 are returned.
+		own := fmt.Sprintf(`SELECT it.tag_id AS tag, count(*) AS n FROM %s JOIN item_tags it ON it.item_id = i.id WHERE %s GROUP BY 1`, from, where)
+		inherited := fmt.Sprintf(`SELECT it.tag_id, count(*) FROM %s JOIN item_tags it ON it.item_id = i.root_id WHERE %s
+			AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = i.id AND o.tag_id = it.tag_id) GROUP BY 1`, from, where)
+		query = fmt.Sprintf(`SELECT t.public_id, t.name, sum(c.n) FROM (%s UNION ALL %s) c JOIN tags t ON t.id = c.tag AND t.kind = '%s'
+			GROUP BY t.id ORDER BY 3 DESC, t.norm_name LIMIT 200`, own, inherited, facetTagKinds[facet])
 	case FacetDecade:
 		query = fmt.Sprintf(`SELECT i.year / 10 * 10, (i.year / 10 * 10) || 's', count(*) FROM %s
 			WHERE %s AND i.year IS NOT NULL GROUP BY 1 ORDER BY 1 DESC`, from, where)

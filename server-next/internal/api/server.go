@@ -55,6 +55,8 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
+	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
+	feeds feeds
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.

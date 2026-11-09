@@ -20,8 +20,8 @@ on:
         description: Files per import transaction in the first import and the rescan
         default: '40'
       busy_batch:
-        description: Files per import transaction while people use the server (a person's write waits for the transaction in flight)
-        default: '10'
+        description: How long one import transaction should take while people use the server (a person's write waits for the one in flight)
+        default: '10ms'
   # A change to the workflow or the load tools runs them.
   pull_request:
     paths:
@@ -38,7 +38,7 @@ env:
   ITEMS: ${{ inputs.items || '1000000' }}
   EXTRA: ${{ inputs.extra || '100000' }}
   BATCH: ${{ inputs.batch || '40' }}
-  BUSY_BATCH: ${{ inputs.busy_batch || '10' }}
+  BUSY_BATCH: ${{ inputs.busy_batch || '10ms' }}
   WORK: ${{ github.workspace }}/load
 defaults:
   run:
@@ -142,8 +142,8 @@ jobs:
         id: measure
         run: |
           source ci/server-next-load.sh
-          limited "$WORK/bin/portico-load" -mode mixed -db "$WORK/main.db" -items "$EXTRA" -batch "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
-          summarise "Reads and writes while importing $EXTRA more items, $BUSY_BATCH files a transaction, into the $ITEMS library" "$WORK/mixed.txt" "$WORK/mixed.json"
+          limited "$WORK/bin/portico-load" -mode mixed -db "$WORK/main.db" -items "$EXTRA" -batch 10 -batch-time "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
+          summarise "Reads and writes while importing $EXTRA more items, in transactions of about $BUSY_BATCH, into the $ITEMS library" "$WORK/mixed.txt" "$WORK/mixed.json"
 
   report:
     name: Report
@@ -162,7 +162,7 @@ jobs:
           jq -n --arg runner "ubuntu-24.04 GitHub-hosted, $(nproc) vCPU, 2 GB memory limit on every measured process" \
             --arg commit "$GITHUB_SHA" --arg items "$ITEMS" --arg batch "$BATCH" --arg busy "$BUSY_BATCH" \
             --argjson import "${IMPORT:-null}" --argjson rescan "${RESCAN:-null}" --argjson columns "${COLUMNS:-null}" --argjson mixed "${MIXED:-null}" \
-            '{runner: $runner, commit: $commit, items: ($items | tonumber), batchFiles: ($batch | tonumber), busyBatchFiles: ($busy | tonumber), import: $import, rescan: $rescan, addColumn: $columns, mixed: $mixed}' \
+            '{runner: $runner, commit: $commit, items: ($items | tonumber), batchFiles: ($batch | tonumber), busyBatchTime: $busy, import: $import, rescan: $rescan, addColumn: $columns, mixed: $mixed}' \
             > server-next-load.json
           jq -r '[.import, .rescan, .mixed] | map(select(. != null) | .bars[]) | map(select(.passed | not)) | "Bars missed: \(length)"' server-next-load.json >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
