@@ -393,7 +393,11 @@
       "tests": [
         "TestNativeSearchAcceptedSiblingOracle",
         "TestNativeSearchCurrentAllKindsAndMixedOwners",
+        "TestNativeSearchPeopleCursorIsBoundToItsScope",
         "TestNativeSearchPeopleEqualIDBirth",
+        "TestNativeSearchPeopleScopeExcludesUncreditedAndInvisiblePersons",
+        "TestNativeSearchPeopleScopeIsPersonOnly",
+        "TestNativeSearchPeopleScopeNeverWidensVisibility",
         "TestNativeSearchPerHitPolicyRecheckedBeforePublication",
         "TestNativeSearchPlans",
         "TestNativeSearchPreviewCursorIsBoundToItsQuery",
@@ -408,7 +412,51 @@
         "TestNativeSearchRefusesUnsupportedAndStaleProofs",
         "TestNativeSearchRetainedLibrariesShareOneOperation",
         "TestNativeSearchUsesCapturedDomainBytePairs",
+        "TestRSNativeReadingCaptureProfiles",
+        "TestRSNativeReadingCompiledRecipeAcceptedKinds",
+        "TestRSNativeReadingConverterOnlySkipped",
+        "TestRSNativeReadingHiddenAgeSkipped",
+        "TestRSNativeReadingNegativeControls",
+        "TestRSNativeReadingRetainedSourceRechecked",
+        "TestRSNativeReadingRetiredSkipped",
+        "TestRSPeopleSearchCloseRetiresTheOneLease",
+        "TestRSPeopleSearchCreditCountCountsCreditRows",
+        "TestRSPeopleSearchDuplicateCrossLibraryPersonHydratesOnce",
+        "TestRSPeopleSearchKnownForAddedDescTie",
+        "TestRSPeopleSearchMissingCreditScopeRefusesRankedHit",
+        "TestRSPeopleSearchNativeSummaryDelivery",
+        "TestRSPeopleSearchThreePagesInIndependentTitleOrder",
+        "TestRSPeopleSearchUbiquitousCreditsAndOrphan",
         "TestRSSearchPublishFreshFenceAndJoinedConsumer"
+      ]
+    },
+    {
+      "package": "server/internal/store/read",
+      "why": "The saved directory's owner-key drift guard parses the identity and persistence personal-key sources so read stays free of those packages",
+      "reads": [
+        "server/internal/identity/personal_key.go",
+        "server/internal/persistence/personal_key.go"
+      ],
+      "files": [
+        "server/internal/store/read/rs_saved_directory_test.go"
+      ],
+      "tests": [
+        "TestRSSavedDirectoryPersonalKeyDrift"
+      ]
+    },
+    {
+      "package": "server/internal/store/read",
+      "why": "The RS search phase-2 deferral pin reads the qualification class table and the writer kit extension that deliberately hold the class names",
+      "reads": [
+        "ci/qual_class.py",
+        "server/internal/store/writer/canonical_held_targets_test.go",
+        "server/internal/store/writer/rs_search_phase2_targets_kit_test.go"
+      ],
+      "files": [
+        "server/internal/store/read/rs_search_phase2_targets_test.go"
+      ],
+      "tests": [
+        "TestRSSearchPhase2ClassNamesStayDeliberatelyDeferred"
       ]
     },
     {
