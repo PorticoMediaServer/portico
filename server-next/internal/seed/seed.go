@@ -366,7 +366,7 @@ func (b *builder) music() error {
 		b.item(db.ImportItem{Kind: db.KindArtist, Keys: []db.ItemKey{artistKey}, Title: artist, AddedAt: addedAt(r), Tags: tags(r, musicGenres, false)})
 		for album, albums := 0, 1+r.IntN(12); album < albums && left > 0; album++ {
 			name, year := title(r), 1960+r.IntN(66)
-			albumDir := fmt.Sprintf("%s/%s (%d)", dir, name, year)
+			albumDir := fmt.Sprintf("%s/%s (%d) [%d]", dir, name, year, album)
 			b.dir(albumDir)
 			albumKey := db.ItemKey{Kind: db.KeyFolder, Key: albumDir}
 			added := addedAt(r)
@@ -423,7 +423,7 @@ func (b *builder) books() error {
 		credit := db.ImportCredit{Name: author, Person: db.ExternalID{Provider: "seed-author", ID: fmt.Sprint(n)}, Role: db.RoleAuthor}
 		for book, books := 0, 1+r.IntN(8); book < books && left > 0; book++ {
 			name := title(r)
-			fileName := fmt.Sprintf("%s - %s.epub", author, name)
+			fileName := fmt.Sprintf("%s - %s [%d].epub", author, name, book)
 			file := b.file(db.ImportFile{FileRef: db.FileRef{Dir: dir, Name: fileName}, Role: db.FileMedia, Size: 500e3 + r.Int64N(5e6), Container: "epub"})
 			rating := ratings[r.IntN(len(ratings))]
 			b.item(db.ImportItem{Kind: db.KindBook, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: dir + "/" + fileName}}, Title: name,
