@@ -892,7 +892,10 @@ func (p *RBHomePreparePreparation) sortedCandidates(library int64) []int64 {
 			}
 			return 1
 		}
-		return strings.Compare(entityid.Encode(ca.public[:]), entityid.Encode(cb.public[:]))
+		// Match the published shelf: sortHomeCards and homeFixedRecent break an
+		// equal-instant tie by descending public id, so the selection cut must
+		// keep that same end of the run.
+		return -strings.Compare(entityid.Encode(ca.public[:]), entityid.Encode(cb.public[:]))
 	})
 	return ids
 }
@@ -1698,7 +1701,11 @@ func rbHomePrepareScopeEqual(pinned, fresh rbHomePrepareScope) bool {
 		if a.ID != b.ID || a.NativeID != b.NativeID || a.Kind != b.Kind || a.CatalogueState != b.CatalogueState || a.Position != b.Position || a.OwnerPolicy != b.OwnerPolicy {
 			return false
 		}
-		if !rbPreparePinnedFenceEqual(a.Fence, b.Fence) {
+		// A page already reduced from an older content revision cannot be
+		// completed against a newer one; the fence comparison here is exact,
+		// while ScopeAuthEqual below decides whether the difference is a
+		// restartable content move or a denial.
+		if a.Fence != b.Fence {
 			return false
 		}
 	}
