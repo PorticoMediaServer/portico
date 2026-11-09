@@ -96,3 +96,15 @@ new layer. Nothing is deleted by this commit.
 
 The map is a retirement checklist, not a claim that the legacy code is gone or
 that the new route is wired.
+
+## Operations devices page: historical sync-watermark ledger (desk ruling, issue #1913)
+
+`uo_operations_statements.go` lists `personal_device_sequences` by profile with no
+`identity_devices` join on purpose. The table is the offline-replay watermark ledger
+(legacy `catalog/personal.go`: `Sequence <= watermark` gives `ErrOperationExpired`), and
+retention drops a row only after the device row is physically gone plus 30 days. A device
+logically retired by command 522 (`retired_ms>0`) therefore stays listed exactly like a
+legacy-removed device does today, and hiding it would hide a watermark that still guards
+replays. The page exposes only an opaque device id and a sequence number scoped to the
+fenced profile. Do NOT add a retired-device join here; if a product device LIST is wanted
+it must come from an `identity_devices` reader that excludes `retired_ms>0`.
