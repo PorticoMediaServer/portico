@@ -31,7 +31,7 @@ func TestRBFilterMembershipLegacyOracleVectorsMatchCompiler(t *testing.T) {
 	if err = json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if fixture.Source == "" || len(fixture.Vectors) != 14 {
+	if fixture.Source == "" || len(fixture.Vectors) != 21 {
 		t.Fatalf("incomplete legacy browse oracle: %q %d", fixture.Source, len(fixture.Vectors))
 	}
 	for _, vector := range fixture.Vectors {

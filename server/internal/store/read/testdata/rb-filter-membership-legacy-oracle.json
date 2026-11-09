@@ -102,6 +102,57 @@
     "album a",
     "artist a"
    ]
+  },
+  {
+   "Query": "{\"variant\":\"predicate\",\"field\":\"collection\",\"operator\":\"contains-all\",\"value\":[\"AAAAAAAAAAAAAAAAAAAAFA\",\"not-a-public-id\"]}",
+   "Where": "(EXISTS(SELECT 1 FROM catalog_browse_memberships bei JOIN catalog_collection_members cim ON cim.item_id=bei.item_id JOIN catalog_entities col ON col.id=cim.collection_id WHERE bei.entity_id=e.entity_id AND (1) AND (pid(col.public_id))=?) AND EXISTS(SELECT 1 FROM catalog_browse_memberships bei JOIN catalog_collection_members cim ON cim.item_id=bei.item_id JOIN catalog_entities col ON col.id=cim.collection_id WHERE bei.entity_id=e.entity_id AND (1) AND (pid(col.public_id))=?))",
+   "Args": [
+    "AAAAAAAAAAAAAAAAAAAAFA",
+    "not-a-public-id"
+   ]
+  },
+  {
+   "Query": "{\"variant\":\"predicate\",\"field\":\"collection\",\"operator\":\"contains-all\",\"value\":[\"not-a-public-id\"]}",
+   "Where": "(EXISTS(SELECT 1 FROM catalog_browse_memberships bei JOIN catalog_collection_members cim ON cim.item_id=bei.item_id JOIN catalog_entities col ON col.id=cim.collection_id WHERE bei.entity_id=e.entity_id AND (1) AND (pid(col.public_id))=?))",
+   "Args": [
+    "not-a-public-id"
+   ]
+  },
+  {
+   "Query": "{\"variant\":\"predicate\",\"field\":\"collection\",\"operator\":\"contains-any\",\"value\":[\"AAAAAAAAAAAAAAAAAAAAFA\",\"not-a-public-id\"]}",
+   "Where": "e.entity_id IN(SELECT member.entity_id FROM catalog_browse_memberships member WHERE member.item_id IN (SELECT parent.item_id FROM catalog_entities container CROSS JOIN catalog_collection_members parent ON parent.collection_id=container.id WHERE container.public_id IN (pid_blob(?),pid_blob(?))) AND (1))",
+   "Args": [
+    "AAAAAAAAAAAAAAAAAAAAFA",
+    "not-a-public-id"
+   ]
+  },
+  {
+   "Query": "{\"variant\":\"predicate\",\"field\":\"collection\",\"operator\":\"equals\",\"value\":\"not-a-public-id\"}",
+   "Where": "e.entity_id IN(SELECT member.entity_id FROM catalog_browse_memberships member WHERE member.item_id IN (SELECT parent.item_id FROM catalog_entities container CROSS JOIN catalog_collection_members parent ON parent.collection_id=container.id WHERE container.public_id IN (pid_blob(?))) AND (1))",
+   "Args": [
+    "not-a-public-id"
+   ]
+  },
+  {
+   "Query": "{\"variant\":\"predicate\",\"field\":\"memberOf\",\"operator\":\"equals\",\"value\":\"not-a-public-id\"}",
+   "Where": "e.entity_id IN(SELECT member.entity_id FROM catalog_browse_memberships member WHERE member.item_id IN (SELECT parent.item_id FROM catalog_entities container CROSS JOIN catalog_browse_memberships parent ON parent.entity_id=container.id WHERE container.public_id IN (pid_blob(?))) AND (1))",
+   "Args": [
+    "not-a-public-id"
+   ]
+  },
+  {
+   "Query": "{\"variant\":\"predicate\",\"field\":\"album\",\"operator\":\"starts-with\",\"value\":\"album\"}",
+   "Where": "EXISTS(SELECT 1 FROM catalog_browse_memberships bei JOIN catalog_songs sng ON sng.entity_id=bei.item_id JOIN catalog_entities alb ON alb.id=sng.album_id WHERE bei.entity_id=e.entity_id AND (1) AND portico_fold_text(alb.title) LIKE ? ESCAPE '\\')",
+   "Args": [
+    "album%"
+   ]
+  },
+  {
+   "Query": "{\"variant\":\"predicate\",\"field\":\"artist\",\"operator\":\"starts-with\",\"value\":\"artist a\"}",
+   "Where": "EXISTS(SELECT 1 FROM catalog_browse_memberships bei JOIN catalog_song_artists sar ON sar.song_id=bei.item_id JOIN catalog_entities art ON art.id=sar.artist_id WHERE bei.entity_id=e.entity_id AND (1) AND portico_fold_text(art.title) LIKE ? ESCAPE '\\')",
+   "Args": [
+    "artist a%"
+   ]
   }
  ]
 }
