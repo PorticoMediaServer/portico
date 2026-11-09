@@ -654,7 +654,7 @@ func (h *usPINHarness) profileImageDirect(t *testing.T, kind CommandID, profile,
 		profile: effect.profile, lifetime: effect.lifetime, revision: effect.revision, pinRevision: effect.pinRevision,
 		pinRequired: effect.pinRequired, appliedMS: h.w.now().UnixMilli()}
 	scope := usPINFenceScope{account: effect.account, member: h.member, profile: effect.profile, lifetime: effect.lifetime}
-	image, _, err := captureUSPINProfileImage(t.Context(), turn, a, usPINVariantCallerSnapshot, scope, v)
+	image, _, err := captureUSPINProfileImage(t.Context(), turn, a, usPINVariantAdministrativeProfile, scope, v)
 	if err != nil {
 		t.Fatal(err)
 	}

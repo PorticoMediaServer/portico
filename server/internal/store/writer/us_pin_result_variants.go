@@ -23,6 +23,14 @@ const (
 	usPINVariantAdministrativeProfile
 )
 
+// errUSPINResultArm is the named refusal for a loader handed the other variant.
+// The two loaders are not interchangeable: the caller-snapshot loader builds
+// only a DirectSnapshot and the administrative loader builds only a
+// MemberProfile. A direct call with the wrong arm is refused before any source
+// read or allocation instead of silently returning a shape that arm did not
+// select.
+var errUSPINResultArm = errors.New("us pin result image arm refused")
+
 // codec is the closed image-codec tag bound into the result digest. The two
 // arms can never share a digest: a saved original proves which response shape
 // was captured at birth even when every scalar result field is identical.
@@ -204,6 +212,14 @@ func (r *usPINImageReader) field(want uint64) {
 // usPINPublicImageDecode is the replay half of the codec. It reads ONLY the
 // saved original bytes: no live source, no authority reconstruction and no
 // statement. A saved MemberProfile is never adapted into a DirectSnapshot.
+//
+// DURABLE adoption is not yet wired. Before a saved image becomes durable, the
+// decoder must take the expected arm (from the validated entry/authority/target
+// as it is derived at capture time), replay must compare that expected arm with
+// the arm encoded here, the result digest must bind the image bytes (the
+// current digest covers only the variant tag and scalars, not the image), and
+// the byte quota must count the image itself. Until then an original image is
+// same-frame only.
 func usPINPublicImageDecode(saved []byte) (out usPINPublicImage, err error) {
 	if len(saved) == 0 || len(saved) > maxCanonicalResultBytes {
 		return out, &Refusal{Code: RefusalCapacity}
@@ -212,7 +228,18 @@ func usPINPublicImageDecode(saved []byte) (out usPINPublicImage, err error) {
 	if r.text() != usPINImageCodecMagic || r.number() != usPINImageCodecVersion {
 		return out, ErrResolveRequired
 	}
-	switch variant := usPINResultVariant(r.number()); variant {
+	// Validate the raw uint64 tag against the closed set BEFORE narrowing it to
+	// usPINResultVariant. A truncating conversion would map a non-canonical tag
+	// such as 257 back onto arm 1 and accept a saved body whose tag is not the
+	// one the encoder writes.
+	tag := r.number()
+	if r.err != nil {
+		return out, r.err
+	}
+	if tag == 0 || tag > uint64(usPINVariantAdministrativeProfile) {
+		return out, ErrResolveRequired
+	}
+	switch variant := usPINResultVariant(tag); variant {
 	case usPINVariantCallerSnapshot:
 		image := decodeUSDirectSnapshotImage(r)
 		if r.err == nil {
@@ -571,7 +598,7 @@ WHERE p.account_id=? AND p.deleted=0 ORDER BY p.position,p.id LIMIT ?`,
 // DTO allocation. The live profile read uses the direct_profiles_account index
 // (deleted=0, position,id) with cap+1 refusal, so retired rows never consume the
 // cap and a live row is never silently dropped.
-func captureUSPINSelfSnapshot(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, target usPINFenceScope, v usPINSavedResult, nowMS int64) (out *USDirectSnapshotImage, charged int64, err error) {
+func captureUSPINSelfSnapshot(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, variant usPINResultVariant, target usPINFenceScope, v usPINSavedResult, nowMS int64) (out *USDirectSnapshotImage, charged int64, err error) {
 	var done struct {
 		image   *USDirectSnapshotImage
 		charged int64
@@ -587,13 +614,18 @@ func captureUSPINSelfSnapshot(ctx context.Context, turn *commandTurn, a *usOwner
 	if !usIdentifier(issuer.account) || !usIdentifier(issuer.profile) || !usIdentifier(issuer.family) {
 		return nil, 0, ErrInvalid
 	}
+	// This loader builds only the caller-snapshot arm. Refuse the administrative
+	// arm by name rather than building a DirectSnapshot under the other arm.
+	if variant != usPINVariantCallerSnapshot {
+		return nil, 0, errUSPINResultArm
+	}
 	// The snapshot is the caller's own account. A cross-account image is the
 	// administrative MemberProfile arm, not this one.
 	if target.account != issuer.account || v.account != issuer.account || v.profile != target.profile || v.lifetime != target.lifetime {
 		return nil, 0, ErrDisclosureDenied
 	}
-	variant, err := deriveUSPINResultVariant(v.kind, issuer.account, target.account)
-	if err != nil || variant != usPINVariantCallerSnapshot {
+	want, err := deriveUSPINResultVariant(v.kind, issuer.account, target.account)
+	if err != nil || want != usPINVariantCallerSnapshot {
 		return nil, 0, ErrDisclosureDenied
 	}
 	if nowMS < 0 {
@@ -850,10 +882,16 @@ func captureUSPINSelfSnapshot(ctx context.Context, turn *commandTurn, a *usOwner
 			return nil, 0, errors.Join(ErrResolveRequired, scan)
 		}
 	}
-	// Under the US-01 stamp this family is always role='owner' and the issuer
-	// profile is PIN-free (usAuthorityFamily/usAuthorityPrincipal), so the PIN
-	// and account-scope branches below are unreachable through this loader;
-	// TestUSPINSnapshotManagement covers the helper directly.
+	// The US-01 stamp always mints familyRole='owner' (usAuthorityFamily
+	// requires f.role='owner'), so the account-scope and two-step branches
+	// below are unreachable through this loader. The PIN branch is NOT
+	// unreachable: this loader runs AFTER the effect, and an own-primary SET
+	// leaves pin_hash non-NULL even though the stamp required it NULL when the
+	// turn was admitted (us_authority.go usAuthorityPrincipal). TestUSPIN-
+	// PhysicalOriginalReplayAndACK checks the post-effect PIN facts against the
+	// independent productSnapshot oracle; TestUSPolicyDispatchSnapshotManagement
+	// exercises the pure helper's account-scope, two-step and manage-lock
+	// branches directly.
 	canManage, twoStep, managePINRequired := usPolicySnapshotManage(familyRole,
 		primaryInt.Int64 == 1, primaryPIN, required, factorConfirmed, rememberUntil, manageUntil,
 		time.UnixMilli(nowMS).UTC().Format(time.RFC3339))

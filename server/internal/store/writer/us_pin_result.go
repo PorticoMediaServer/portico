@@ -277,16 +277,21 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 		return nil, 0, ErrInvalid
 	}
 	issuer := a.proof.witness.issuer
+	if !usIdentifier(issuer.account) || !usIdentifier(issuer.profile) || !usIdentifier(issuer.family) {
+		return nil, 0, ErrInvalid
+	}
 	if !usIdentifier(target.account) || !usIdentifier(target.profile) || !usHex(target.lifetime, 32) {
 		return nil, 0, ErrInvalid
 	}
-	// The MemberProfile arm retains the administrative shape while still binding
-	// the arm to the validated issuer/target: a mismatch is refused here even if
-	// a future caller passes a variant directly. The dispatcher selects this
-	// loader only for the administrative arm.
-	want, err := deriveUSPINResultVariant(v.kind, issuer.account, target.account)
-	if err != nil || want != variant {
-		return nil, 0, ErrDisclosureDenied
+	// This loader builds only the administrative MemberProfile arm. It runs
+	// directly (never through dispatch) for the retained US-09 image, so the
+	// arm is required by name: passing the caller-snapshot arm is refused rather
+	// than silently returning a MemberProfile under the other arm.
+	if variant != usPINVariantAdministrativeProfile {
+		return nil, 0, errUSPINResultArm
+	}
+	if v.kind != usPINSet && v.kind != usPINClear {
+		return nil, 0, ErrInvalid
 	}
 	if target.account != v.account || v.profile != target.profile || v.lifetime != target.lifetime {
 		return nil, 0, ErrDisclosureDenied

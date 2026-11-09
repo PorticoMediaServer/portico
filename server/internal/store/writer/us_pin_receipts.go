@@ -583,7 +583,7 @@ func executeUSPINInvocation(ctx context.Context, turn *commandTurn, a *usOwnerAu
 	var imageBytes int64
 	switch variant {
 	case usPINVariantCallerSnapshot:
-		snapshot, bytes, e := captureUSPINSelfSnapshot(ctx, turn, a, scope, v, nowMS)
+		snapshot, bytes, e := captureUSPINSelfSnapshot(ctx, turn, a, variant, scope, v, nowMS)
 		if e != nil {
 			return out, e
 		}

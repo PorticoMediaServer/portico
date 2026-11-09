@@ -235,6 +235,71 @@ func TestUSPINImageCodecReplayRunsNoStatements(t *testing.T) {
 	}
 }
 
+// A saved tag is a canonical uint64 from the closed set. Narrowing it to
+// uint8 before validation would map 257 back onto arm 1 and accept a body whose
+// tag is not the one the encoder writes; every non-canonical tag is refused.
+func TestUSPINImageCodecRefusesNonCanonicalVariantTag(t *testing.T) {
+	image := usPINPublicImage{Snapshot: func() *USDirectSnapshotImage {
+		v := directImageFixture()
+		return &v
+	}()}
+	saved, err := image.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// magic(8-byte len + bytes) + version(8) then the 8-byte tag.
+	offset := 8 + len(usPINImageCodecMagic) + 8
+	for name, tag := range map[string]uint64{
+		"zero":       0,
+		"wrap_one":   257,
+		"wrap_two":   258,
+		"max_uint64": ^uint64(0),
+	} {
+		t.Run(name, func(t *testing.T) {
+			tampered := append([]byte(nil), saved...)
+			binary.BigEndian.PutUint64(tampered[offset:], tag)
+			if _, err := usPINPublicImageDecode(tampered); !errors.Is(err, ErrResolveRequired) {
+				t.Fatalf("non-canonical tag %d accepted", tag)
+			}
+		})
+	}
+	// An over-long tag encoding (an extra tag byte before the arm body) shifts
+	// the arm and is refused rather than read as a shorter canonical tag.
+	t.Run("overlong_tag_encoding", func(t *testing.T) {
+		tampered := append([]byte(nil), saved[:offset+8]...)
+		tampered = append(tampered, 0)
+		tampered = append(tampered, saved[offset+8:]...)
+		if _, err := usPINPublicImageDecode(tampered); !errors.Is(err, ErrResolveRequired) {
+			t.Fatal("over-long tag encoding accepted")
+		}
+	})
+}
+
+// The two image loaders are not interchangeable. Each refuses the other arm by
+// name before reading source, so a direct loader call can never return a shape
+// the arm did not select.
+func TestUSPINImageLoadersRefuseWrongArm(t *testing.T) {
+	h := usPINDispatchFixture(t)
+	v := usPINSavedResult{kind: usPINSet, owner: h.owner, account: h.issuer.account, member: h.member,
+		profile: h.issuer.profile, lifetime: h.issuer.profileLifetime, revision: 2, pinRevision: 2,
+		pinRequired: true, appliedMS: h.w.now().UnixMilli()}
+	scope := usPINFenceScope{account: h.issuer.account, member: h.member, profile: h.issuer.profile, lifetime: h.issuer.profileLifetime}
+	t.Run("profile_rejects_caller_snapshot", func(t *testing.T) {
+		turn, a, _ := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
+		if _, _, err := captureUSPINProfileImage(t.Context(), turn, a, usPINVariantCallerSnapshot, scope, v); !errors.Is(err, errUSPINResultArm) {
+			t.Fatal("MemberProfile loader accepted the caller-snapshot arm", err)
+		}
+		_, _ = turn.transaction.rollback(nil)
+	})
+	t.Run("snapshot_rejects_administrative_profile", func(t *testing.T) {
+		turn, a, _ := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
+		if _, _, err := captureUSPINSelfSnapshot(t.Context(), turn, a, usPINVariantAdministrativeProfile, scope, v, h.w.now().UnixMilli()); !errors.Is(err, errUSPINResultArm) {
+			t.Fatal("DirectSnapshot loader accepted the administrative arm", err)
+		}
+		_, _ = turn.transaction.rollback(nil)
+	})
+}
+
 // The snapshot primitive is post-effect and own-account only, and it binds the
 // edited profile in the image back to the saved result scalars.
 func TestUSPINSnapshotCaptureGuards(t *testing.T) {
@@ -246,7 +311,7 @@ func TestUSPINSnapshotCaptureGuards(t *testing.T) {
 		turn, a, _ := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
 		v := base
 		v.revision, v.pinRevision = 2, 2
-		if _, _, err := captureUSPINSelfSnapshot(t.Context(), turn, a, scope, v, h.w.now().UnixMilli()); !errors.Is(err, ErrResolveRequired) {
+		if _, _, err := captureUSPINSelfSnapshot(t.Context(), turn, a, usPINVariantCallerSnapshot, scope, v, h.w.now().UnixMilli()); !errors.Is(err, ErrResolveRequired) {
 			t.Fatal("pre-effect image accepted", err)
 		}
 	})
@@ -256,7 +321,7 @@ func TestUSPINSnapshotCaptureGuards(t *testing.T) {
 		v.account = "target"
 		target := scope
 		target.account = "target"
-		if _, _, err := captureUSPINSelfSnapshot(t.Context(), turn, a, target, v, h.w.now().UnixMilli()); !errors.Is(err, ErrDisclosureDenied) {
+		if _, _, err := captureUSPINSelfSnapshot(t.Context(), turn, a, usPINVariantCallerSnapshot, target, v, h.w.now().UnixMilli()); !errors.Is(err, ErrDisclosureDenied) {
 			t.Fatal("cross-account snapshot accepted", err)
 		}
 	})
@@ -264,7 +329,7 @@ func TestUSPINSnapshotCaptureGuards(t *testing.T) {
 		turn, a, _ := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
 		v := base
 		v.kind = USMemberLibraries
-		if _, _, err := captureUSPINSelfSnapshot(t.Context(), turn, a, scope, v, h.w.now().UnixMilli()); !errors.Is(err, ErrInvalid) {
+		if _, _, err := captureUSPINSelfSnapshot(t.Context(), turn, a, usPINVariantCallerSnapshot, scope, v, h.w.now().UnixMilli()); !errors.Is(err, ErrInvalid) {
 			t.Fatal("unregistered purpose accepted", err)
 		}
 	})
