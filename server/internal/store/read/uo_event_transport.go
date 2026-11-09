@@ -1,6 +1,7 @@
 package read
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"reflect"
@@ -233,11 +234,12 @@ func (t *uoEventTransport) serve(ctx context.Context, cfg uoEventTransportConfig
 		if err != nil {
 			return err
 		}
-		if err := t.deliver(ctx, frames, page.next); err != nil {
+		delivered, err := t.deliver(ctx, frames, next)
+		if err != nil {
 			return err
 		}
 		opened = true
-		next = page.next
+		next = delivered
 		if turn+1 >= cfg.turns {
 			return t.close(ctx, next)
 		}
@@ -260,19 +262,42 @@ func (t *uoEventTransport) serve(ctx context.Context, cfg uoEventTransportConfig
 // tested before EVERY frame, so a hint queued behind a revocation is dropped
 // instead of disclosed. The revocation close control is the merged product's
 // authority-changed frame; no page frame is invented for a stale principal.
-func (t *uoEventTransport) deliver(ctx context.Context, frames [][]byte, next string) error {
+//
+// delivered starts at the cursor from before this page (the request's After or
+// the last cursor this stream delivered) and advances only after a frame
+// reaches the sink. A mid-page revocation therefore closes at what the client
+// actually received, never at the end of a page whose remaining frames were
+// dropped; otherwise the client's reconnect would skip those dropped events.
+func (t *uoEventTransport) deliver(ctx context.Context, frames [][]byte, after string) (string, error) {
+	delivered := after
 	for _, frame := range frames {
 		if err := t.current(ctx); err != nil {
 			if errors.Is(err, errUOEventTransportRevoked) {
-				t.revokeClose(ctx, next)
+				t.revokeClose(ctx, delivered)
 			}
-			return err
+			return delivered, err
 		}
 		if err := t.writeFrame(ctx, frame); err != nil {
-			return err
+			return delivered, err
 		}
+		delivered = uoEventFrameCursor(frame, delivered)
 	}
-	return nil
+	return delivered, nil
+}
+
+// uoEventFrameCursor returns the SSE id encodeUOSSEFrame wrote, so deliver can
+// track the exact position it disclosed. A frame without an id line keeps the
+// previous cursor.
+func uoEventFrameCursor(frame []byte, fallback string) string {
+	const prefix = "id: "
+	if !bytes.HasPrefix(frame, []byte(prefix)) {
+		return fallback
+	}
+	rest := frame[len(prefix):]
+	if i := bytes.IndexByte(rest, '\n'); i >= 0 {
+		return string(rest[:i])
+	}
+	return fallback
 }
 
 // writeFrame bounds one physical sink call. The sink observes the deadline
@@ -306,7 +331,8 @@ func (t *uoEventTransport) close(ctx context.Context, next string) error {
 	if err != nil {
 		return err
 	}
-	return t.deliver(ctx, frames, next)
+	_, err = t.deliver(ctx, frames, next)
+	return err
 }
 
 func (t *uoEventTransport) current(ctx context.Context) error {

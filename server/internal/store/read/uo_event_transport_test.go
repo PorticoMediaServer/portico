@@ -422,6 +422,16 @@ func TestUOEventTransportRevokeDropsQueuedHints(t *testing.T) {
 		if !uoEventTransportFrameIs(frames[1], "stream.closed") || !bytes.Contains(frames[1], []byte(`"reason":"authority_changed"`)) || uoEventTransportFrameIs(frames[1], "second") {
 			t.Fatalf("authority close control %q", frames[1])
 		}
+		// The close carries the position of the last frame actually written
+		// (event 1), not the end of the page it revoked (event 2). A client
+		// that reconnects with this id must still receive event 2.
+		closeID := uoEventTransportFrameID(t, frames[1])
+		if closeID != uoEventTransportFrameID(t, frames[0]) {
+			t.Fatalf("close id %q is not the delivered frame id %q", closeID, uoEventTransportFrameID(t, frames[0]))
+		}
+		if position, err := codec.decode(closeID, binding); err != nil || position != 1 {
+			t.Fatalf("close id token %d %v, want the delivered event 1", position, err)
+		}
 		hub.mu.Lock()
 		left := len(hub.audiences)
 		hub.mu.Unlock()
@@ -451,6 +461,87 @@ func TestUOEventTransportRevokeDropsQueuedHints(t *testing.T) {
 		hub.mu.Unlock()
 		if left != 0 {
 			t.Fatal("canceled subscription retained", left)
+		}
+	})
+}
+
+func TestUOEventTransportRevokeCloseCursor(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		hub := &uoEventWakeHub{}
+		codec, err := newUOEventCursorCodec()
+		if err != nil {
+			t.Fatal(err)
+		}
+		binding := uoEventBinding{database: [16]byte{1}, viewer: [32]byte{2}, audience: [32]byte{3}}
+		ring := &uoEventTransportRing{}
+		ring.insert(uoEventTransportRow{id: 1, atMS: 1, audience: "p", kind: "first", data: "{}"})
+		ring.insert(uoEventTransportRow{id: 2, atMS: 2, audience: "p", kind: "second", data: "{}"})
+		before, err := codec.encode(binding, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Revoked before any frame of the page: the close advertises the
+		// cursor from BEFORE the page, never event 1's or event 2's position.
+		beforeSink := &uoEventTransportSink{}
+		beforeIn := uoEventTransportTestInput(hub, codec, ring, binding, before, beforeSink)
+		checks := 0
+		beforeIn.authority = func(context.Context) (uoEventBinding, bool, error) {
+			checks++
+			return binding, checks < 2, nil
+		}
+		beforeDone := make(chan error, 1)
+		go func() { beforeDone <- serveUOEventTransport(context.Background(), beforeIn) }()
+		if err := <-beforeDone; !errors.Is(err, errUOEventTransportRevoked) {
+			t.Fatal(err)
+		}
+		beforeFrames := beforeSink.snapshot()
+		if len(beforeFrames) != 1 || !uoEventTransportFrameIs(beforeFrames[0], "stream.closed") {
+			t.Fatalf("pre-frame revocation frames %q", beforeFrames)
+		}
+		if got := uoEventTransportFrameID(t, beforeFrames[0]); got != before {
+			t.Fatalf("close id %q, want the pre-page cursor %q", got, before)
+		}
+
+		// Revoked after event 1 but before event 2: the close advertises the
+		// delivered event 1, so a reconnect with that id must deliver event 2
+		// instead of skipping it.
+		revokedSink := &uoEventTransportSink{}
+		revokedIn := uoEventTransportTestInput(hub, codec, ring, binding, before, revokedSink)
+		checks = 0
+		revokedIn.authority = func(context.Context) (uoEventBinding, bool, error) {
+			checks++
+			return binding, checks < 3, nil
+		}
+		revokedDone := make(chan error, 1)
+		go func() { revokedDone <- serveUOEventTransport(context.Background(), revokedIn) }()
+		if err := <-revokedDone; !errors.Is(err, errUOEventTransportRevoked) {
+			t.Fatal(err)
+		}
+		revokedFrames := revokedSink.snapshot()
+		if len(revokedFrames) != 2 || !uoEventTransportFrameIs(revokedFrames[0], "first") {
+			t.Fatalf("revoked page frames %q", revokedFrames)
+		}
+		closeID := uoEventTransportFrameID(t, revokedFrames[1])
+		if closeID != uoEventTransportFrameID(t, revokedFrames[0]) {
+			t.Fatalf("close id %q is not the delivered frame id %q", closeID, uoEventTransportFrameID(t, revokedFrames[0]))
+		}
+
+		// Authority returns: reconnecting with the close id resumes at event 2.
+		reconnectSink := &uoEventTransportSink{}
+		reconnectIn := uoEventTransportTestInput(hub, codec, ring, binding, closeID, reconnectSink)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		reconnectDone := make(chan error, 1)
+		go func() { reconnectDone <- serveUOEventTransport(ctx, reconnectIn) }()
+		synctest.Wait()
+		recovered := reconnectSink.snapshot()
+		if !uoEventTransportFrameHasType(recovered, "second") || uoEventTransportFrameHasType(recovered, "first") {
+			t.Fatalf("reconnect with close id skipped or repeated an event: %q", recovered)
+		}
+		cancel()
+		if err := <-reconnectDone; !errors.Is(err, context.Canceled) {
+			t.Fatal("reconnect cancellation was not clean", err)
 		}
 	})
 }
