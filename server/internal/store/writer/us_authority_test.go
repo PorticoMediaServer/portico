@@ -240,7 +240,7 @@ func TestUSOwnerAuthorityResetSessionDeniedBeforeDisclosure(t *testing.T) {
 func TestUSOwnerAuthorityClosedPurposeScope(t *testing.T) {
 	w, r, p := usOwnerAuthorityFixture(t)
 	turn, b := usOwnerAuthorityTurn(t, w, r)
-	for _, id := range []CommandID{USMemberLibraries, USProfileLibraries, usLocalPasswordReplace, usPINSet, usPINClear, USProfileRestrictions} {
+	for _, id := range []CommandID{USMemberLibraries, USProfileLibraries, usLocalPasswordReplace, usAPICredentialIssue, usAPICredentialRevoke, usPINSet, usPINClear, USProfileRestrictions} {
 		turn.transaction.descriptor.ID = id
 		if a, err := authorizeUSOwnerPolicy(t.Context(), turn, p, t.Context(), b); err != nil || a == nil {
 			t.Fatal(id, a, err)
@@ -249,7 +249,7 @@ func TestUSOwnerAuthorityClosedPurposeScope(t *testing.T) {
 	// Keep every native step available: without the closed purpose gate an
 	// unsupported ID would mint a stamp, so the control must detect that mint.
 	for id := CommandID(500); id <= 599; id++ {
-		if id == USMemberLibraries || id == USProfileLibraries || id == usLocalPasswordReplace || id == usPINSet || id == usPINClear || id == USProfileRestrictions {
+		if id == USMemberLibraries || id == USProfileLibraries || id == usLocalPasswordReplace || id == usAPICredentialIssue || id == usAPICredentialRevoke || id == usPINSet || id == usPINClear || id == USProfileRestrictions {
 			continue
 		}
 		turn.transaction.descriptor.ID = id
