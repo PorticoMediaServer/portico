@@ -71,9 +71,19 @@ func authorBookFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture
 		source.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(?,randomblob(16),2,?)`, x.id, x.kind)
 		source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,author,series_position,book_id,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) SELECT id,public_id,library_id,kind,'Wrong library','École','1',?,'x','x','x','x',0,public_id,public_id FROM catalog_subjects WHERE id=?`, x.book, x.id)
 	}
-	// Real accepted artwork on the first visible book: an empty ArtworkFact
-	// would drop a delivered fact, not an optional decoration.
+	// Real accepted artwork on the first visible book, plus explicit locked-empty
+	// absence on the other page books: an empty ArtworkFact would drop a
+	// delivered fact, not an optional decoration. Seed both through the shared
+	// rs_art helpers so the E artwork statements are planned over a realistic
+	// population; a single-row table lets ANALYZE choose a scan instead of the
+	// declared primary-key witness for rs.art.verify_empty. 14024 carries the
+	// aggregate publication proof below and deliberately stays art-free, so the
+	// shared publication window's eight-call fence is never asked to fit a
+	// verify witness as well.
 	rsArtSelect(t, source, 14020, "poster", "matched", 1)
+	for _, id := range []int64{2002, 14003, 14010, 14022} {
+		rsArtSelectEmpty(t, source, id, "poster")
+	}
 
 	f := composeReadFixture(t, source, defs, cfg, true, fmt.Sprintf("%x", sha256.Sum256([]byte(rsAudioRelationsJournal+rsDetailJournal+rsAuthorBookReaderJournal))))
 	f.exec(t, "ANALYZE")
