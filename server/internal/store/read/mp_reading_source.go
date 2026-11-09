@@ -202,7 +202,9 @@ func mpReadingEvidence(v MPReadingSourceValues) error {
 		return ErrUnqualified
 	}
 	revision, err := evidence.Revision()
-	if err != nil || revision != v.InventoryRevision || evidence.Object != v.ObjectIdentity || evidence.Size != v.ObjectSize || evidence.ModifiedNS != v.ObjectModifiedNS {
+	// Scope is the writer's source-incarnation binding; a row whose evidence
+	// names some other source or incarnation is not this observation.
+	if err != nil || revision != v.InventoryRevision || evidence.Scope != v.SourceID+":"+v.SourceIncarnation || evidence.Object != v.ObjectIdentity || evidence.Size != v.ObjectSize || evidence.ModifiedNS != v.ObjectModifiedNS {
 		return ErrUnqualified
 	}
 	return nil

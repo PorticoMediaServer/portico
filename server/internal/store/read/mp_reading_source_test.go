@@ -40,9 +40,12 @@ type mpReadingSeedObject struct {
 	state, unsupported                  string
 }
 
-func mpReadingTestEvidence(t *testing.T, source, incarnation, object string, size, modified int64) (string, string) {
+func mpReadingEvidenceFor(source, incarnation, object string, size, modified int64) mediasource.InventoryEvidence {
+	return mediasource.InventoryEvidence{Kind: "local", Scope: source + ":" + incarnation, Object: object, Size: size, ModifiedNS: modified, ChangeToken: fmt.Sprintf("fp1:ino:%d:size:%d:mtime:%d", len(object), size, modified)}
+}
+
+func mpReadingEvidenceRaw(t *testing.T, evidence mediasource.InventoryEvidence) (string, string) {
 	t.Helper()
-	evidence := mediasource.InventoryEvidence{Kind: "local", Scope: source + ":" + incarnation, Object: object, Size: size, ModifiedNS: modified, ChangeToken: fmt.Sprintf("fp1:ino:%d:size:%d:mtime:%d", len(object), size, modified)}
 	revision, err := evidence.Revision()
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +55,11 @@ func mpReadingTestEvidence(t *testing.T, source, incarnation, object string, siz
 		t.Fatal(err)
 	}
 	return revision, string(raw)
+}
+
+func mpReadingTestEvidence(t *testing.T, source, incarnation, object string, size, modified int64) (string, string) {
+	t.Helper()
+	return mpReadingEvidenceRaw(t, mpReadingEvidenceFor(source, incarnation, object, size, modified))
 }
 
 func mpReadingSourceSeed(t *testing.T) *browseFixture {
@@ -581,6 +589,169 @@ func TestMPReadingSourceDecodeRefusesMalformedTuples(t *testing.T) {
 				t.Fatalf("%s: %+v %v", tc.name, got, err)
 			}
 		})
+	}
+}
+
+// TestMPReadingSourceEvidenceControls is the explicit empty and inconsistent
+// evidence control on the actual full-schema reader. Empty evidence was the
+// owner-audit gap; every refused row must return a typed refusal and the zero
+// source, never a partial observation. The column is NOT NULL, so the only NULL
+// control is that the schema itself refuses one.
+func TestMPReadingSourceEvidenceControls(t *testing.T) {
+	writeEvidence := func(t *testing.T, f *browseFixture, evidence mediasource.InventoryEvidence) {
+		t.Helper()
+		revision, raw := mpReadingEvidenceRaw(t, evidence)
+		f.exec(t, `UPDATE inventory_objects SET revision=?,evidence_json=? WHERE id='book-object-1'`, revision, raw)
+	}
+	for _, tc := range []struct {
+		name   string
+		want   error
+		mutate func(*testing.T, *browseFixture)
+	}{
+		{"positive", nil, func(*testing.T, *browseFixture) {}},
+		{"empty-string", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			f.exec(t, `UPDATE inventory_objects SET evidence_json='' WHERE id='book-object-1'`)
+		}},
+		{"empty-json-object", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			f.exec(t, `UPDATE inventory_objects SET evidence_json='{}' WHERE id='book-object-1'`)
+		}},
+		{"malformed-json", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			f.exec(t, `UPDATE inventory_objects SET evidence_json='{"kind":' WHERE id='book-object-1'`)
+		}},
+		{"wrong-typed-size", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			f.exec(t, `UPDATE inventory_objects SET evidence_json='{"kind":"local","scope":"source-book:inc-book","object":"ino:1","size":"1000","modifiedNs":1,"changeToken":"x"}' WHERE id='book-object-1'`)
+		}},
+		{"wrong-typed-object", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			f.exec(t, `UPDATE inventory_objects SET evidence_json='{"kind":"local","scope":"source-book:inc-book","object":7,"size":1000,"modifiedNs":1,"changeToken":"x"}' WHERE id='book-object-1'`)
+		}},
+		{"stat-size-mismatch", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			writeEvidence(t, f, mpReadingEvidenceFor("source-book", "inc-book", "ino:1", 999, 1))
+		}},
+		{"stat-modified-mismatch", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			writeEvidence(t, f, mpReadingEvidenceFor("source-book", "inc-book", "ino:1", 1000, 9))
+		}},
+		{"path-object-mismatch", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			writeEvidence(t, f, mpReadingEvidenceFor("source-book", "inc-book", "ino:other", 1000, 1))
+		}},
+		{"root-incarnation-mismatch", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			writeEvidence(t, f, mpReadingEvidenceFor("source-book", "inc-other", "ino:1", 1000, 1))
+		}},
+		{"revision-not-evidence", ErrUnqualified, func(t *testing.T, f *browseFixture) {
+			changed := mpReadingEvidenceFor("source-book", "inc-book", "ino:1", 1000, 1)
+			changed.ChangeToken = "fp1:ino:other:size:1000:mtime:1"
+			_, raw := mpReadingEvidenceRaw(t, changed)
+			f.exec(t, `UPDATE inventory_objects SET evidence_json=? WHERE id='book-object-1'`, raw)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, r := mpReadingSourceFixture(t)
+			tc.mutate(t, f)
+			got, err := mpReadingSelect(t, r, f, 1101, 201, 20, 1)
+			if tc.want == nil {
+				if err != nil {
+					t.Fatal(err)
+				}
+				var revision, evidence string
+				if err := f.conn.QueryRowContext(t.Context(), `SELECT revision,evidence_json FROM inventory_objects WHERE id='book-object-1'`).Scan(&revision, &evidence); err != nil {
+					t.Fatal(err)
+				}
+				// The literal seed inputs prove the reader returns the exact
+				// typed-14 observation, not a value re-derived from itself.
+				want := readingidentity.Revision(int64(1101), int64(201), "epub", "book-asset", int64(1000), int64(1), "source-book", int64(1), "inc-book", "dev:1:ino:9:fsid:a", "books/one.epub", "ino:1", revision, evidence)
+				if got.Evidence != evidence || got.InventoryRevision != revision || got.Revision() != want || len(got.Revision()) != 64 {
+					t.Fatalf("positive evidence not preserved: %+v", got)
+				}
+				return
+			}
+			if !errors.Is(err, tc.want) || got != (MPReadingSource{}) {
+				t.Fatalf("%s admitted: %+v %v", tc.name, got, err)
+			}
+		})
+	}
+	t.Run("null-not-representable", func(t *testing.T) {
+		f, r := mpReadingSourceFixture(t)
+		if _, err := f.conn.ExecContext(t.Context(), `UPDATE inventory_objects SET evidence_json=NULL WHERE id='book-object-1'`); err == nil {
+			t.Fatal("evidence_json admitted NULL; add the NULL evidence case")
+		}
+		if got, err := mpReadingSelect(t, r, f, 1101, 201, 20, 1); err != nil || got.Revision() == "" {
+			t.Fatalf("refused NULL update disturbed the row: %+v %v", got, err)
+		}
+	})
+}
+
+// TestMPReadingSourceRevisionInputs pins every one of the exact typed-14
+// revision inputs: changing any one moves the hash. Presentation format and
+// conversion are the converter's provenance and must not enter the native
+// original revision.
+func TestMPReadingSourceRevisionInputs(t *testing.T) {
+	f, r := mpReadingSourceFixture(t)
+	base, err := mpReadingSelect(t, r, f, 1101, 201, 20, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var revision, evidence string
+	if err := f.conn.QueryRowContext(t.Context(), `SELECT revision,evidence_json FROM inventory_objects WHERE id='book-object-1'`).Scan(&revision, &evidence); err != nil {
+		t.Fatal(err)
+	}
+	if base.InventoryRevision != revision || base.Evidence != evidence || base.SourceGeneration != 1 {
+		t.Fatalf("reader did not preserve the row inputs: %+v", base)
+	}
+	if want := readingidentity.Revision(int64(1101), int64(201), "epub", "book-asset", int64(1000), int64(1), "source-book", int64(1), "inc-book", "dev:1:ino:9:fsid:a", "books/one.epub", "ino:1", revision, evidence); base.Revision() != want {
+		t.Fatal("reader revision is not the exact typed-14 hash")
+	}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*MPReadingSource)
+		moves  bool
+	}{
+		{"item", func(s *MPReadingSource) { s.Item++ }, true},
+		{"asset", func(s *MPReadingSource) { s.Asset++ }, true},
+		{"original-format", func(s *MPReadingSource) { s.Format = "pdf" }, true},
+		{"public-source-id-token", func(s *MPReadingSource) { s.Token = "book-asset-2" }, true},
+		{"stat-size", func(s *MPReadingSource) { s.Size++ }, true},
+		{"stat-modified-ns", func(s *MPReadingSource) { s.ModifiedNS++ }, true},
+		{"physical-source-id", func(s *MPReadingSource) { s.SourceID = "source-other" }, true},
+		{"source-generation", func(s *MPReadingSource) { s.SourceGeneration++ }, true},
+		{"source-incarnation", func(s *MPReadingSource) { s.SourceIncarnation = "inc-other" }, true},
+		{"root-identity", func(s *MPReadingSource) { s.RootIdentity = "dev:1:ino:77:fsid:a" }, true},
+		{"relative-path", func(s *MPReadingSource) { s.RelativePath = "books/other.epub" }, true},
+		{"physical-object-identity", func(s *MPReadingSource) { s.ObjectIdentity = "ino:2" }, true},
+		{"inventory-revision", func(s *MPReadingSource) { s.InventoryRevision += "0" }, true},
+		{"opaque-evidence", func(s *MPReadingSource) { s.Evidence += " " }, true},
+		{"derived-presentation-format", func(s *MPReadingSource) { s.PresentationFormat = "pdf" }, false},
+		{"derived-converted", func(s *MPReadingSource) { s.Converted = true }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			changed := base
+			tc.mutate(&changed)
+			if changed.Revision() == "" {
+				t.Fatal("empty revision")
+			}
+			if moves := changed.Revision() != base.Revision(); moves != tc.moves {
+				t.Fatalf("%s moves=%t want %t", tc.name, moves, tc.moves)
+			}
+		})
+	}
+}
+
+// TestMPReadingSourcePublicSourceIDIsAssetToken keeps the public identity the
+// catalogue asset token; the library source and its opaque inventory row id
+// remain physical inputs only.
+func TestMPReadingSourcePublicSourceIDIsAssetToken(t *testing.T) {
+	f, r := mpReadingSourceFixture(t)
+	var token string
+	if err := f.conn.QueryRowContext(t.Context(), `SELECT token FROM catalog_assets WHERE id=201`).Scan(&token); err != nil {
+		t.Fatal(err)
+	}
+	got, err := mpReadingSelect(t, r, f, 1101, 201, 20, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Token != token || got.Token != "book-asset" || got.SourceID != "source-book" || got.Token == got.SourceID || got.InventoryObject == got.Token {
+		t.Fatalf("public source id is not the asset token: %+v", got)
+	}
+	if want := readingidentity.Revision(int64(1101), int64(201), "epub", token, int64(1000), int64(1), "source-book", int64(1), "inc-book", "dev:1:ino:9:fsid:a", "books/one.epub", "ino:1", got.InventoryRevision, got.Evidence); got.Revision() != want {
+		t.Fatal("public token is not the revision input")
 	}
 }
 
