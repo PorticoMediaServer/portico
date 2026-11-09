@@ -43,6 +43,7 @@ type iaConfigureSourceRequest struct {
 // snapshotted into the immutable cohort so a replay never consults live rows.
 type iaConfigureSourceState struct {
 	enabled           bool
+	health            string
 	identityConfirmed bool
 	nextScanAt        string
 	lastCompleteAt    string
@@ -160,18 +161,31 @@ func configureIASource(ctx context.Context, turn *commandTurn, p *usOwnerAuthori
 }
 
 // The result is the exact post-command row, never a fabricated availability.
-// A disable records the honest "disabled" health and keeps the prior identity
-// confirmation. A root move cannot confirm the new root from inside this
-// command, so it records "unknown" with identity_confirmed=0 and clears the old
-// root's completion facts; the queued rescan confirms them later.
+// Health and identity confirmation are the scanner's live evidence, so a
+// rename, interval change or other same-root configure carries them forward
+// unchanged: a source the scanner marked root_changed, removing, offline or
+// degraded, or one it never confirmed, does not become ready+confirmed just
+// because its configuration changed. A disable records the honest "disabled"
+// health and keeps the prior identity confirmation. Re-enabling keeps the
+// scanner state too; only the disabled marker itself, which this command wrote,
+// becomes ready when the root was confirmed or unknown when it never was. A
+// root move cannot confirm the new root from inside this command, so it records
+// "unknown" with identity_confirmed=0 and clears the old root's completion
+// facts; the queued rescan confirms them later.
 func iaConfigureSourceFacts(q iaConfigureSourceRequest, appliedMS int64, live iaConfigureSourceState) iaConfigurationResult {
 	rootMoved := q.resolvedRoot != q.expectRoot
-	health, confirmed := "ready", true
+	health, confirmed := live.health, live.identityConfirmed
 	switch {
 	case !q.enabled:
-		health, confirmed = "disabled", live.identityConfirmed
+		health = "disabled"
 	case rootMoved:
 		health, confirmed = "unknown", false
+	case !live.enabled && live.health == "disabled":
+		if confirmed {
+			health = "ready"
+		} else {
+			health = "unknown"
+		}
 	}
 	next, complete := live.nextScanAt, live.lastCompleteAt
 	if rootMoved {
@@ -226,10 +240,10 @@ func applyIAConfigureSource(ctx context.Context, turn *commandTurn, entry *iaCom
 	var live iaConfigureSourceState
 	var enabled, confirmed int64
 	var progress sql.NullString
-	if err = row.Scan(&enabled, &confirmed, &live.nextScanAt, &live.lastCompleteAt, &progress); err != nil {
+	if err = row.Scan(&enabled, &live.health, &confirmed, &live.nextScanAt, &live.lastCompleteAt, &progress); err != nil {
 		return out, errors.Join(ErrConflict, err)
 	}
-	if enabled < 0 || enabled > 1 || confirmed < 0 || confirmed > 1 {
+	if enabled < 0 || enabled > 1 || confirmed < 0 || confirmed > 1 || live.health == "" {
 		return out, ErrResolveRequired
 	}
 	live.enabled, live.identityConfirmed = enabled == 1, confirmed == 1
@@ -258,7 +272,8 @@ func applyIAConfigureSource(ctx context.Context, turn *commandTurn, entry *iaCom
 	if err = wc008DraftChanged(ctx, turn, iaSourceConfigureUpdate,
 		s.name, s.configuredRoot, s.resolvedRoot, s.classification, s.rootIdentity, s.followSymlinks, s.intervalSeconds,
 		s.incarnation, s.generation, s.health, s.enabled, s.identityConfirmed, s.nextScanAt, s.lastCompleteAt, s.kind,
-		q.sourceID, q.libraryKey, q.expectGeneration, q.expectIncarnation, q.expectRoot, q.expectRootIdentity); err != nil {
+		q.sourceID, q.libraryKey, q.expectGeneration, q.expectIncarnation, q.expectRoot, q.expectRootIdentity,
+		live.health, live.identityConfirmed); err != nil {
 		return out, err
 	}
 	// Re-enabling or moving a root queues exactly one whole-root rescan bound to

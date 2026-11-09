@@ -187,6 +187,52 @@ func TestIABookSeriesAcceptIdempotentSameCohort(t *testing.T) {
 	}
 }
 
+// P1-B: the head's info epoch is per asset, so another part of the same book may
+// arrive at a lower epoch without a conflict. Equal accepted pairs are a no-op;
+// a divergent cohort at the same policy is still a typed refusal and the prior
+// head is untouched.
+func TestIABookSeriesAcceptSecondAssetDoesNotCompareEpochs(t *testing.T) {
+	w, reg, p := iaBookAcceptFixture(t)
+	q := iaBookAcceptRequest(w)
+	iaBookAcceptCommitted(t, w, reg, p, q, 2, 2)
+	bookID := iaBookSeriesBookID(t, w, "book-key")
+	pairs := []bookseries.Pair{{Name: "Saga", Position: "1"}}
+	wc008NativeExec(t, w, `UPDATE catalog_assets SET info_epoch=2 WHERE id=?`, iaBookTestAssetID)
+	iaBookSeriesDirectPublish(t, w, reg, q, bookID, 2, 4, pairs)
+	wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(42,'book-token-2','/media/books/Author/Book/part2.m4b',43,8,'','','',0,0,0,7)`)
+	// Part 2 is already at info_epoch 1, older than the head's part 1 epoch 2.
+	turn, _ := iaBookAcceptTurn(t, w, reg, q)
+	if err := iaBookSeriesPublish(t.Context(), turn, iaBookTestLibraryID, bookID,
+		iaBookAssetFacts{id: 42, infoEpoch: 1, token: "book-token-2"}, 4, pairs); err != nil {
+		t.Fatal("later part at a lower asset epoch", err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	head := iaBookSeriesHeadRow(t, w, bookID)
+	if head.assetID != iaBookTestAssetID || head.infoEpoch != 2 || head.revision != 2 || head.count != 1 {
+		t.Fatal("later part rewrote the head", head)
+	}
+	// A divergent cohort at the same effective epoch from another asset is
+	// contradictory accepted folder evidence: a typed refusal, no partial write.
+	wc008NativeExec(t, w, `UPDATE catalog_assets SET info_epoch=2 WHERE id=42`)
+	turn, _ = iaBookAcceptTurn(t, w, reg, q)
+	err := iaBookSeriesPublish(t.Context(), turn, iaBookTestLibraryID, bookID,
+		iaBookAssetFacts{id: 42, infoEpoch: 2, token: "book-token-2"}, 4,
+		[]bookseries.Pair{{Name: "Other", Position: "2"}})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatal("cross-asset divergent same-policy cohort", err)
+	}
+	turn.transaction.rollback(nil)
+	head = iaBookSeriesHeadRow(t, w, bookID)
+	if head.assetID != iaBookTestAssetID || head.infoEpoch != 2 || head.revision != 2 || head.count != 1 {
+		t.Fatal("refused cross-asset cohort changed the head", head)
+	}
+	if got := iaBookCount(t, w, `SELECT count(*) FROM catalog_book_series_members WHERE book_id=?`, bookID); got != 1 {
+		t.Fatal("refused cross-asset cohort changed members", got)
+	}
+}
+
 // An empty position is exact: it is retained as an empty string, not NULL and
 // not a synthesized zero.
 func TestIABookSeriesAcceptEmptyPositionExact(t *testing.T) {

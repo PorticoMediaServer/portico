@@ -75,22 +75,33 @@ func iaBookSeriesPublish(ctx context.Context, turn *commandTurn, libraryID, book
 	if head.libraryID != libraryID {
 		return ErrConflict
 	}
-	// A stored projection from a newer accepted info epoch or local policy is
-	// never replaced by an older witness.
-	if head.infoEpoch > asset.infoEpoch || head.policyRevision > policyRevision {
+	// The local policy revision is a run-wide epoch, so it is comparable across
+	// every asset of the book. An info epoch is only comparable inside one
+	// asset: different parts of a multi-part book each carry their own accepted
+	// asset epoch, and a later part legitimately has a lower number than the
+	// part that published the head. Applying epoch ordering across assets (or a
+	// differing-cohort refusal at equal epoch) blocked the whole IA-13 accept of
+	// an unrelated part. Therefore epoch staleness is proven only when the head
+	// belongs to the exact same asset.
+	sameAsset := head.assetID == asset.id
+	if head.policyRevision > policyRevision || sameAsset && head.infoEpoch > asset.infoEpoch {
 		return ErrConflict
 	}
-	if head.infoEpoch == asset.infoEpoch && head.policyRevision == policyRevision {
-		// The exact complete cohort is already published. A different cohort in
-		// the same accepted epoch is contradictory evidence, not an update.
+	// Same asset at the same epoch, and any other asset at the same policy, can
+	// only no-op on the exact published cohort. A divergent cohort there is
+	// contradictory accepted folder evidence, not an update; it is refused as a
+	// typed conflict before any write, so the head keeps its prior source.
+	if head.policyRevision == policyRevision && (!sameAsset || head.infoEpoch == asset.infoEpoch) {
 		if head.count == count && head.memberBytes == retained && equalBytes(head.digest[:], digest[:]) {
 			return nil
 		}
 		return ErrConflict
 	}
-	// A newer accepted source epoch or local policy invalidates the old
-	// projection and publishes the complete new one, including the accepted
-	// empty cohort, in this transaction.
+	// A newer local policy, or a newer accepted epoch of the same asset,
+	// invalidates the old projection and publishes the complete new one,
+	// including the accepted empty cohort, in this transaction. A newer policy
+	// may arrive from another part of the book; the head then records that part
+	// as the exact accepted source.
 	return iaBookSeriesReplace(ctx, turn, libraryID, bookID, asset, policyRevision, pairs, count, retained, digest, head)
 }
 

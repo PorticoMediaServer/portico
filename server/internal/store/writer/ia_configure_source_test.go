@@ -430,6 +430,55 @@ func TestIAConfigureSourceReplaySurvivesDetachedLiveState(t *testing.T) {
 	turn.transaction.rollback(nil)
 }
 
+// P1-A: a same-root configure carries the scanner's live health and identity
+// confirmation forward; it never fabricates ready+confirmed. Only a root move
+// resets them to the not-confirmed state. Without carrying the live values every
+// case would publish ready/confirmed and relight playback or scan gating.
+func TestIAConfigureSourcePreservesLiveHealthAndIdentity(t *testing.T) {
+	root, moved := iaConfigureSourceRoot(t, "media"), iaConfigureSourceRoot(t, "media-moved")
+	for name, tc := range map[string]struct {
+		liveEnabled, liveConfirmed bool
+		health                     string
+		move                       bool
+		wantHealth                 string
+		wantConfirmed              bool
+	}{
+		"rename_root_changed":           {true, true, "root_changed", false, "root_changed", true},
+		"interval_degraded_unconfirmed": {true, false, "degraded", false, "degraded", false},
+		"reenable_never_confirmed":      {false, false, "disabled", false, "unknown", false},
+		"reenable_root_changed":         {false, true, "root_changed", false, "root_changed", true},
+		"moved_root_resets":             {true, true, "offline", true, "unknown", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, r, p := iaConfigureSourceFixture(t)
+			iaConfigureSourceLibrary(t, w, 790, "lib-live", root)
+			iaConfigureSourceLive(t, w, "lib-live", "source-live", 1, "incarnation-1", root, "identity-1",
+				tc.liveEnabled, tc.health, tc.liveConfirmed)
+			q := iaConfigureSourceRequestFixture(t, 790, "lib-live", "source-live")
+			q.name = "Renamed"
+			if tc.move {
+				q.resolvedRoot, q.configuredRoot = moved, moved
+				q.incarnation, q.rootIdentity = "incarnation-2", "identity-2"
+			}
+			turn, budget := iaConfigureSourceTurn(t, w, r, q)
+			out, err := configureIASource(t.Context(), turn, p, t.Context(), budget, q)
+			if err != nil || out.decision != receiptFresh || len(out.result.facts.sources) != 1 {
+				t.Fatal("fresh configure", out, err)
+			}
+			if s := out.result.facts.sources[0]; !s.enabled || s.health != tc.wantHealth || s.identityConfirmed != tc.wantConfirmed {
+				t.Fatal("live scanner state fabricated", s)
+			}
+			if _, err = turn.transaction.commit(); err != nil {
+				t.Fatal(err)
+			}
+			if got := iaConfigureSourceCount(t, w, `SELECT count(*) FROM library_sources WHERE id='source-live' AND enabled=1 AND name='Renamed' AND generation=2 AND health=? AND identity_confirmed=?`,
+				tc.wantHealth, map[bool]int{false: 0, true: 1}[tc.wantConfirmed]); got != 1 {
+				t.Fatal("live row lost scanner state", tc.wantHealth, tc.wantConfirmed)
+			}
+		})
+	}
+}
+
 func TestIAConfigureSourceRollbackLeavesNoEffect(t *testing.T) {
 	w, r, p := iaConfigureSourceFixture(t)
 	root := iaConfigureSourceRoot(t, "media")

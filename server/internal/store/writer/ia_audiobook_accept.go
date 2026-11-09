@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/bookseries"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -124,12 +125,18 @@ func validateIABookOriginal(id CommandIdentity, r iaBookInventoryRequest) error 
 		return invalid("ia_book_metadata")
 	}
 	// The title policy is the same one ProjectFilenameMetadata enforces, so an
-	// overlong author or title refuses before any gate or write rather than
-	// part-way through allocation.
-	for _, text := range []string{r.author, r.bookTitle, r.fileTitle} {
+	// overlong author, narrator or title refuses before any gate or write rather
+	// than part-way through allocation.
+	for _, text := range []string{r.author, r.narrator, r.bookTitle, r.fileTitle} {
 		if err := ValidateMetadataShape(text, "", 0, 0, 0); err != nil {
 			return err
 		}
+	}
+	// The accepted series cohort is bounded by the same canonical rule IA-14
+	// publishes with, so an overlong pair refuses up front instead of rolling
+	// back after the author/book writes.
+	if err := bookseries.Validate(iaBookSeriesAcceptedPairs(r)); err != nil {
+		return iaBookSeriesInputError(err)
 	}
 	return nil
 }

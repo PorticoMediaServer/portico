@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/bookseries"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
@@ -411,6 +412,12 @@ func TestIABookAcceptBounds(t *testing.T) {
 		},
 		"overlong_author": func(q *iaBookInventoryRequest) {
 			q.author = strings.Repeat("a", MaxTitleCharacters+1)
+		},
+		"overlong_narrator": func(q *iaBookInventoryRequest) {
+			q.narrator = strings.Repeat("n", MaxTitleCharacters+1)
+		},
+		"overlong_series": func(q *iaBookInventoryRequest) {
+			q.series = strings.Repeat("s", bookseries.MaxNameRunes+1)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
