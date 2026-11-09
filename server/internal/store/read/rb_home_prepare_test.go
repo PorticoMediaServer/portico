@@ -18,6 +18,10 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
+// rbHomePrepareStamp is the schema's only accepted timestamp width: the
+// added_at/last_content_added_at CHECKs require exactly 30 characters.
+const rbHomePrepareStamp = "2006-01-02T15:04:05.000000000Z"
+
 func rbHomePrepareFixtureDefinitions() []stmt.Definition {
 	return append(homeFixedAllDefinitions(), rbHomePrepareDefinitions()...)
 }
@@ -74,12 +78,27 @@ func rbHomePrepareMemberLibraries(t *testing.T, f *browseFixture, ids ...string)
 	f.exec(t, `UPDATE direct_memberships SET allowed_libraries=? WHERE account_id='a'`, "["+strings.Join(quoted, ",")+"]")
 }
 
+// rbHomePrepareEntitySeed inserts one schema-legal catalogue row. Every kind
+// carries the columns its own CHECK requires: seasons a season number, episodes
+// an episode number, and artists their own artist pointer.
 func rbHomePrepareEntitySeed(t *testing.T, f *browseFixture, id, library, kind int64, parent, show, season, album, book any, date string) {
 	t.Helper()
 	b := make([]byte, 16)
 	binary.BigEndian.PutUint64(b[8:], uint64(id))
+	var seasonNumber, episodeNumber, artistID any
+	if kind == 3 {
+		seasonNumber = int64(1)
+	}
+	if kind == 4 {
+		// The episode-position index is unique per (show, season, numbering,
+		// episode), so the fixture's distinct ids also give distinct numbers.
+		episodeNumber = id
+	}
+	if kind == 6 {
+		artistID = id
+	}
 	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,?,?)`, id, b, library, kind)
-	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,show_id,season_id,album_id,book_id,numbering,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,added_at,last_content_added_at,admission_own_age) VALUES(?,?,?,?,?,?,?,?,?,'seasonal','Prepared','prepared','prepared','prepared','prepared',0,?,?,?,1,?,?,10)`, id, b, library, kind, parent, show, season, album, book, b, b, b, date, date)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,show_id,season_id,season_number,episode_number,album_id,book_id,artist_id,numbering,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,added_at,last_content_added_at,admission_own_age) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'seasonal','Prepared','prepared','prepared','prepared','prepared',0,?,?,?,1,?,?,10)`, id, b, library, kind, parent, show, season, seasonNumber, episodeNumber, album, book, artistID, b, b, b, date, date)
 }
 
 func rbHomePrepareAssetSeed(t *testing.T, f *browseFixture, id, library int64, source, incarnation string) {
@@ -143,7 +162,8 @@ func rbHomePrepareRead(t *testing.T, f *browseFixture, job *RBHomePreparePrepara
 
 // rbHomePrepareOracle is a plain-SQL oracle over the fixture: it groups the raw
 // leaf rows by their actual work pointer and applies only the published
-// newest-first / public-id tie order. It never calls the reader.
+// newest-first / descending public-id tie order (see sortHomeCards and
+// homeFixedRecent). It never calls the reader.
 func rbHomePrepareOracle(t *testing.T, f *browseFixture, libraries []int64, maxAge int64, limit int) []int64 {
 	t.Helper()
 	allowed := map[int64]bool{}
@@ -201,7 +221,7 @@ func rbHomePrepareOracle(t *testing.T, f *browseFixture, libraries []int64, maxA
 		if x.date != y.date {
 			return x.date > y.date
 		}
-		return strings.Compare(entityid.Encode(publics[ids[a]]), entityid.Encode(publics[ids[b]])) < 0
+		return strings.Compare(entityid.Encode(publics[ids[a]]), entityid.Encode(publics[ids[b]])) > 0
 	})
 	if len(ids) > limit {
 		ids = ids[:limit]
@@ -269,7 +289,7 @@ func TestRBHomePrepareRecentLarge(t *testing.T) {
 		f, r := rbHomePrepareFixture(t, func(f *browseFixture) {
 			for n := int64(0); n < 40; n++ {
 				id := 2000 + n
-				date := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(n) * time.Minute).Format(time.RFC3339Nano)
+				date := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(n) * time.Minute).Format(rbHomePrepareStamp)
 				rbHomePrepareEntitySeed(t, f, id, 1, 1, nil, nil, nil, nil, nil, date)
 				rbHomePrepareAssetSeed(t, f, id, 1, "fixed-source", "fixed-inc")
 			}
@@ -305,7 +325,7 @@ func TestRBHomePrepareRecentLarge(t *testing.T) {
 			name := map[int64]string{1: "movies", 3: "lib3", 4: "lib4", 5: "lib5", 6: "lib6"}
 			for n := int64(0); n < 35; n++ {
 				library := which[int(n)%len(which)]
-				date := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(n) * time.Minute).Format(time.RFC3339Nano)
+				date := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(n) * time.Minute).Format(rbHomePrepareStamp)
 				rbHomePrepareEntitySeed(t, f, 3000+n, library, 1, nil, nil, nil, nil, nil, date)
 				source, incarnation := "fixed-source", "fixed-inc"
 				if library != 1 {
@@ -359,11 +379,13 @@ func TestRBHomePrepareRecentLarge(t *testing.T) {
 func TestRBHomePrepareHiddenNewestChild(t *testing.T) {
 	homeFixedCase(t, "restricted_leaf_completion", func(t *testing.T) {
 		f, r := rbHomePrepareFixture(t, func(f *browseFixture) {
-			rbHomePrepareEntitySeed(t, f, 2000, 1, 2, nil, nil, nil, nil, nil, "2026-11-04T00:00:00.000000000Z")
-			rbHomePrepareEntitySeed(t, f, 2100, 1, 3, int64(2000), int64(2000), nil, nil, nil, "2026-11-04T00:00:00.000000000Z")
+			rbHomePrepareLibrarySeed(t, f, "shows", 3, "tv")
+			rbHomePrepareMemberLibraries(t, f, "movies", "other", "shows")
+			rbHomePrepareEntitySeed(t, f, 2000, 3, 2, nil, nil, nil, nil, nil, "2026-11-04T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 2100, 3, 3, int64(2000), int64(2000), nil, nil, nil, "2026-11-04T00:00:00.000000000Z")
 			for n := int64(0); n < 3; n++ {
-				rbHomePrepareEntitySeed(t, f, 3000+n, 1, 4, int64(2100), int64(2000), int64(2100), nil, nil, fmt.Sprintf("2026-11-01T12:0%d:00.000000000Z", n))
-				rbHomePrepareAssetSeed(t, f, 3000+n, 1, "fixed-source", "fixed-inc")
+				rbHomePrepareEntitySeed(t, f, 3000+n, 3, 4, int64(2100), int64(2000), int64(2100), nil, nil, fmt.Sprintf("2026-11-01T12:0%d:00.000000000Z", n))
+				rbHomePrepareAssetSeed(t, f, 3000+n, 3, "source-shows", "inc-shows")
 			}
 			f.exec(t, `UPDATE catalog_entities SET admission_own_age=18,added_at='2026-11-06T00:00:00.000000000Z' WHERE id=3002`)
 		})
@@ -554,7 +576,7 @@ func TestRBHomePrepareLifecycle(t *testing.T) {
 		f, r := rbHomePrepareFixture(t, func(f *browseFixture) {
 			for n := int64(0); n < 12; n++ {
 				id := 2000 + n
-				date := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(n) * time.Minute).Format(time.RFC3339Nano)
+				date := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(n) * time.Minute).Format(rbHomePrepareStamp)
 				rbHomePrepareEntitySeed(t, f, id, 1, 1, nil, nil, nil, nil, nil, date)
 				rbHomePrepareAssetSeed(t, f, id, 1, "fixed-source", "fixed-inc")
 			}
