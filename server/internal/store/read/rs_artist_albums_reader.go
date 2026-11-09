@@ -351,21 +351,38 @@ func (r *RSArtistAlbumReader) enumerate(ctx context.Context, q governor.Request,
 		year, yearOK := row[1].(int64)
 		title, titleOK := row[2].(string)
 		if !yearOK || !titleOK || title == "" {
+			// catalog_entities.title is NOT NULL, so NULL is impossible, but ''
+			// is still allowed by the column. No accepted filename writer emits
+			// it: scan_filename.go substitutes path.Base and refuses a
+			// whitespace-only title, and store/scan/inventory.go repeats the
+			// basename fallback. The refusal is therefore unreachable from
+			// accepted current data; keep it as a closed-shape guard rather than
+			// listing a title legacy would have ordered first under NOCASE.
 			return ErrUnqualified
 		}
 		// Legacy listening visibility requires one current visible member even
-		// though subject42 admits count==0 containers. Apply the same accepted
-		// scalar item band this reader already uses for featured songs; a
-		// memberless or wholly hidden album is absent, not an empty container.
-		// COALESCE maps an unrated member to a visible or impossible sentinel
-		// without a grouped predicate the closed SQL grammar rejects.
-		unratedAge, ageCap := int64(0), int64(1<<62)
-		if f.maximumAge >= 0 {
+		// though subject42 admits count==0 containers. That escape is not
+		// hypothetical: an album whose admitted aggregate tuple is still
+		// zero/NULL reports count==0, so this probe is the only age guard here
+		// (see rsDetailSubjectEligibility). Apply the same accepted scalar item
+		// band this reader already uses for featured songs; a memberless or
+		// wholly hidden album is absent, not an empty container. COALESCE maps
+		// an unrated member to a visible or impossible sentinel without a
+		// grouped predicate the closed SQL grammar rejects.
+		//
+		// The fence maps "no profile maximum" to -1, so the sentinel must not
+		// depend on maximumAge>=0: a BlockUnrated profile (allowUnrated==0)
+		// makes every NULL member age fail whatever the maximum, while only an
+		// allow-unrated profile coalesces NULL inside the cap. Profile maxima
+		// come from rating ceilings, but the cap stays below MaxInt64 so the
+		// impossible sentinel is always representable.
+		ageCap := int64(1 << 62)
+		if f.maximumAge >= 0 && f.maximumAge < ageCap {
 			ageCap = f.maximumAge
-			unratedAge = f.maximumAge + 1
-			if f.allowUnrated != 0 || unratedAge < 0 {
-				unratedAge = f.maximumAge
-			}
+		}
+		unratedAge := ageCap
+		if f.allowUnrated == 0 {
+			unratedAge = ageCap + 1
 		}
 		members, e := query("rs.audio.album_member", id, p.input.View.Library, unratedAge, ageCap)
 		if e != nil {
