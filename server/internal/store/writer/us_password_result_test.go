@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -530,6 +531,60 @@ func TestUSPasswordUnknownCommitNeverApplied(t *testing.T) {
 	}
 }
 
+// A caller cancellation landing only AFTER the physical COMMIT must withdraw the
+// publication: a void response with zero output. The COMMIT is durable, so a
+// retry from a re-authenticated (post-epoch) session resolves the ORIGINAL
+// through the receipt without a second source effect or receipt. Deleting the
+// deferred final publication in runUSPasswordDispatch makes this test publish
+// the committed result.
+func TestUSPasswordCanceledAfterCommitPublishesNothing(t *testing.T) {
+	w, proof, command := usPasswordFixture(t)
+	r := usPasswordRegistry(t, w)
+	inv := usPasswordInput(t, command)
+	turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
+	caller, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	// Cancel from the first trusted clock sample AFTER COMMIT is attempted:
+	// physically the COMMIT has returned, and no pre-terminal context check
+	// remains. Only the deferred final publication can still clear the result.
+	originalNow := w.now
+	cancelled := false
+	w.now = func() time.Time {
+		if !cancelled && turn.transaction.commitAttempted && !turn.transaction.done {
+			cancelled = true
+			cancel()
+		}
+		return originalNow()
+	}
+	out, floor, err := runUSPasswordDispatch(caller, turn, a, inv)
+	w.now = originalNow
+	if !cancelled || !errors.Is(err, context.Canceled) || !reflect.DeepEqual(out, usPasswordDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("post-commit cancellation published a result", out, floor, err)
+	}
+	epoch, hash, _ := usPasswordAccount(t, w, usPasswordAccountID)
+	if epoch != 2 || string(hash) != usPasswordNextHash || usPasswordCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 1 {
+		t.Fatal("original source/receipt state", epoch, string(hash))
+	}
+	// Retry from the honest post-replacement session: the receipt returns the
+	// committed ORIGINAL, and the source is not replaced a second time.
+	current := usPasswordCurrentProof(t, w, proof)
+	before := usPasswordCount(t, w, `SELECT total_changes()`)
+	turn, a, _ = usPasswordTurn(t, w, r, current, 0)
+	retry, retryFloor, err := runUSPasswordDispatch(t.Context(), turn, a, &usPasswordInvocation{request: inv.request})
+	if err != nil || retry.Outcome.State != Applied || !retry.Outcome.Replayed || retryFloor.AcknowledgedThrough != 0 {
+		t.Fatal("retry did not resolve the original", retry, err)
+	}
+	if retry.Value.resultEpoch != 2 || retry.Value.previousEpoch != 1 || retry.Digest == (ResultDigest{}) {
+		t.Fatal("retry lost the original value", retry.Value)
+	}
+	epoch, hash, _ = usPasswordAccount(t, w, usPasswordAccountID)
+	if epoch != 2 || string(hash) != usPasswordNextHash ||
+		usPasswordCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 1 ||
+		usPasswordCount(t, w, `SELECT total_changes()`) != before {
+		t.Fatal("retry re-applied the source", epoch, string(hash))
+	}
+}
+
 // A canceled preparation denies before any read and writes nothing.
 func TestUSPasswordCanceledEntryDenies(t *testing.T) {
 	w, proof, command := usPasswordFixture(t)
@@ -638,6 +693,9 @@ func TestUSPasswordRecheckFunding(t *testing.T) {
 	}
 	if usPasswordCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
 		t.Fatal("unfunded dispatch wrote a receipt")
+	}
+	if usPasswordDispatchRechecks != 9 {
+		t.Fatal("declared recheck count changed without a funding review")
 	}
 }
 

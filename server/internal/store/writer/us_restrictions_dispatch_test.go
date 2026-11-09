@@ -524,6 +524,94 @@ func TestUSRestrictionsDispatchLateReleaseDeniesAndRollsBack(t *testing.T) {
 	}
 }
 
+// The dispatcher funds its own authority rechecks out of the parent's grant.
+func TestUSRestrictionsDispatchRecheckFunding(t *testing.T) {
+	w, _, r, proof, input := usRestrictionsFixture(t, true, nil)
+	// One byte short of the declared recheck funding: refused before any read.
+	turn, a, _ := usRestrictionsTurn(t, w, r, proof, input.kind, uint64(usRestrictionsDispatchRechecks*usRestrictionsRecheckBytes)-1)
+	out, floor, err := runUSRestrictionsDispatch(t.Context(), turn, a, usRestrictionsInput(t, input))
+	var refusal *Refusal
+	if !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || !reflect.DeepEqual(out, usRestrictionsDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("unqualified recheck budget", out, floor, err)
+	}
+	if revision, _, _, labels, _ := usRestrictionsSource(t, w, usRestrictionsProfileID); revision != 1 || labels != `["old"]` {
+		t.Fatal("unfunded dispatch wrote an effect", revision, labels)
+	}
+	// Exactly the declared recheck funding still needs the body, so a budget
+	// that covers ONLY the rechecks is refused by the same gate, never silently
+	// under-funded.
+	turn, a, _ = usRestrictionsTurn(t, w, r, proof, input.kind, uint64(usRestrictionsDispatchRechecks*usRestrictionsRecheckBytes))
+	if out, floor, err = runUSRestrictionsDispatch(t.Context(), turn, a, usRestrictionsInput(t, input)); !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || !reflect.DeepEqual(out, usRestrictionsDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("body funding", out, floor, err)
+	}
+	if revision, _, _, labels, _ := usRestrictionsSource(t, w, usRestrictionsProfileID); revision != 1 || labels != `["old"]` {
+		t.Fatal("unfunded body wrote an effect", revision, labels)
+	}
+	// A fully funded turn completes.
+	turn, a, _ = usRestrictionsTurn(t, w, r, proof, input.kind, 0)
+	if out, _, err = runUSRestrictionsDispatch(t.Context(), turn, a, usRestrictionsInput(t, input)); err != nil || out.Outcome.State != Applied {
+		t.Fatal("funded dispatch", out, err)
+	}
+	if usRestrictionsDispatchRechecks != 10 {
+		t.Fatal("declared recheck count changed without a funding review")
+	}
+}
+
+// A caller cancellation landing only AFTER the physical COMMIT must withdraw the
+// publication: zero output with no result. The COMMIT is durable, so a retry on
+// a fresh caller context resolves the ORIGINAL through the receipt without a
+// second source effect, event or revision bump. Deleting the deferred final
+// publication in runUSRestrictionsDispatch makes this test publish the committed
+// result.
+func TestUSRestrictionsDispatchCanceledAfterCommitPublishesNothing(t *testing.T) {
+	w, _, r, proof, input := usRestrictionsFixture(t, true, nil)
+	inv := usRestrictionsInput(t, input)
+	turn, a, _ := usRestrictionsTurn(t, w, r, proof, input.kind, 0)
+	caller, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	// Cancel from the first trusted clock sample AFTER COMMIT is attempted:
+	// physically the COMMIT has returned, and no pre-terminal context check
+	// remains. Only the deferred final publication can still clear the result.
+	originalNow := w.now
+	cancelled := false
+	w.now = func() time.Time {
+		if !cancelled && turn.transaction.commitAttempted && !turn.transaction.done {
+			cancelled = true
+			cancel()
+		}
+		return originalNow()
+	}
+	out, floor, err := runUSRestrictionsDispatch(caller, turn, a, inv)
+	w.now = originalNow
+	if !cancelled || !errors.Is(err, context.Canceled) || !reflect.DeepEqual(out, usRestrictionsDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("post-commit cancellation published a result", out, floor, err)
+	}
+	revision, system, code, labels, _ := usRestrictionsSource(t, w, usRestrictionsProfileID)
+	if revision != 2 || system != "mpaa" || code != "PG-13" || labels != `["language","violence"]` ||
+		usRestrictionsQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 1 ||
+		usRestrictionsQuery(t, w, `SELECT count(*) FROM api_events`) != 0 {
+		t.Fatal("original source/receipt state", revision, system, code, labels)
+	}
+	// Retry on a fresh caller context: the receipt returns the committed
+	// ORIGINAL, and the source is not applied a second time.
+	before := usRestrictionsQuery(t, w, `SELECT total_changes()`)
+	retryTurn, retryAuth, _ := usRestrictionsTurn(t, w, r, proof, input.kind, 0)
+	retry, retryFloor, err := runUSRestrictionsDispatch(t.Context(), retryTurn, retryAuth, &usRestrictionsInvocation{request: inv.request})
+	if err != nil || retry.Outcome.State != Applied || !retry.Outcome.Replayed || retryFloor.AcknowledgedThrough != 0 {
+		t.Fatal("retry did not resolve the original", retry, err)
+	}
+	if retry.Value.revision != 2 || !reflect.DeepEqual(retry.Value.labels, []string{"language", "violence"}) || retry.Digest == (ResultDigest{}) {
+		t.Fatal("retry lost the original value", retry.Value)
+	}
+	revision, system, code, labels, _ = usRestrictionsSource(t, w, usRestrictionsProfileID)
+	if revision != 2 || system != "mpaa" || code != "PG-13" || labels != `["language","violence"]` ||
+		usRestrictionsQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 1 ||
+		usRestrictionsQuery(t, w, `SELECT count(*) FROM api_events`) != 0 ||
+		usRestrictionsQuery(t, w, `SELECT total_changes()`) != before {
+		t.Fatal("retry re-applied the source", revision, system, code, labels)
+	}
+}
+
 // A profile id is not a global key: a request that claims the caller's OWN
 // account but names a profile owned by ANOTHER account is refused before any
 // receipt or source effect.
