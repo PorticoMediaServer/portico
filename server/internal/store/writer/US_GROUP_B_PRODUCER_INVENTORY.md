@@ -145,3 +145,5 @@ Each list is disjoint. A prep task updates only its own files; no product schema
 - The family `INSERT-SELECT` sites copy an existing family row, so they inherit the source kind. They still must stay listed because the copied row may be ordinary or credential.
 
 E/CHANGE-016 embed adds adopted prefix `49b3df34` to the exact known-schema guard inventory. The three B producer tables and their required security choices remain unchanged. The population fixture now requires exact E bytes and exports fresh images; earlier-schema manifests remain refused.
+
+D/CHANGE-017 recognizes only the adopted `7462ff76` schema prefix in the exact guard census. Security producers and their B-table contracts are unchanged; no accepting IP authority follows from the provider/person storage embed.
