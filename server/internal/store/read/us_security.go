@@ -29,11 +29,23 @@ import (
 
 const (
 	usSecurityProfileMax = 8
-	usSecurityDeviceMax  = 64
+	// The device page is a complete bounded page, not a continuation. A 65th
+	// live device is refused permanently for that account until a device is
+	// retired; a keyset continuation over identity_devices_people_activity is a
+	// follow-up, deliberately not part of this slice.
+	usSecurityDeviceMax = 64
 	// One retained page of authority-approved variable facts. A larger page is
 	// refused, never truncated. The bound is far below the caller's separate
 	// output grant and is charged before payload hydration.
 	usSecurityPageBytes = 64 << 10
+	// Product text limits are RUNE counts (access.safeText) while these bounds
+	// are exact octets: usSecurityString/usSecurityOptional compare len. Each
+	// rune cap is weighed at utf8.UTFMax, otherwise a legal 500-rune CJK note
+	// (1500 octets) would be refused and no cursor could step past it.
+	usSecurityNotesBytes       = 500 * utf8.UTFMax // access invitationNotes: safeText(v, 500)
+	usSecurityDisplayNameBytes = 120 * utf8.UTFMax // access acceptanceNames: safeText(name, 120)
+	usSecurityDeviceNameBytes  = 120 * utf8.UTFMax // identity devices.deviceText(name, 120)
+	usSecurityEmailBytes       = 320               // identity portico_accounts: len(email) <= 320
 )
 
 // Named refusals for read classes whose merged command producer is not landed.
@@ -100,33 +112,33 @@ type USSecurityCursor struct {
 // shape. AllowedLibraries is normalized to []string{} for a SQL NULL policy,
 // matching the current profile read.
 type USSecurityProfile struct {
-	ID               string
-	Name             string
-	Primary          bool
-	Position         int
-	Art              string
-	Revision         int64
-	PINRevision      int64
-	PINRequired      bool
-	AllowedLibraries []string
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	Primary          bool     `json:"primary"`
+	Position         int      `json:"position"`
+	Art              string   `json:"art"`
+	Revision         int64    `json:"revision"`
+	PINRevision      int64    `json:"pinRevision"`
+	PINRequired      bool     `json:"pinRequired"`
+	AllowedLibraries []string `json:"allowedLibraries"`
 }
 
 // USSecurityDevice is the existing people-facing MemberDevice shape plus the
 // self-session remembered-account fact. It deliberately has no installation id,
 // address, token/family identifier or session count.
 type USSecurityDevice struct {
-	ID              string
-	AccountID       string
-	Username        string
-	ProfileID       string
-	Name            string
-	Platform        string
-	App             string
-	AppVersion      string
-	FirstSeen       string
-	LastSeen        string
-	Revision        int64
-	RememberAccount bool
+	ID              string `json:"id"`
+	AccountID       string `json:"accountId"`
+	Username        string `json:"username"`
+	ProfileID       string `json:"profileId,omitempty"`
+	Name            string `json:"name"`
+	Platform        string `json:"platform"`
+	App             string `json:"app"`
+	AppVersion      string `json:"appVersion"`
+	FirstSeen       string `json:"firstSeenAt"`
+	LastSeen        string `json:"lastSeenAt"`
+	Revision        int64  `json:"revision"`
+	RememberAccount bool   `json:"rememberAccount"`
 }
 
 // USSecurityStatus is the caller's own current security status: the exact
@@ -134,12 +146,22 @@ type USSecurityDevice struct {
 // it. Revoked sessions, reset-file sessions, credential families, narrow grants
 // and waiting moves are refused instead of described.
 type USSecurityStatus struct {
-	ServerID, AccountID, FamilyID, ProfileID, Role string
-	Epoch, AuthorityGeneration, FamilyGeneration   int64
-	Horizon, RememberUntil, ManageUntil, ExpiresAt string
-	PINRequired, Remembered                        bool
-	Profile                                        USSecurityProfile
-	Device                                         USSecurityDevice
+	ServerID            string            `json:"serverId"`
+	AccountID           string            `json:"accountId"`
+	FamilyID            string            `json:"familyId"`
+	ProfileID           string            `json:"profileId"`
+	Role                string            `json:"role"`
+	Epoch               int64             `json:"epoch"`
+	AuthorityGeneration int64             `json:"authorityGeneration"`
+	FamilyGeneration    int64             `json:"familyGeneration"`
+	Horizon             string            `json:"horizon"`
+	RememberUntil       string            `json:"rememberUntil,omitempty"`
+	ManageUntil         string            `json:"manageUntil,omitempty"`
+	ExpiresAt           string            `json:"expiresAt"`
+	PINRequired         bool              `json:"pinRequired"`
+	Remembered          bool              `json:"remembered"`
+	Profile             USSecurityProfile `json:"profile"`
+	Device              USSecurityDevice  `json:"device"`
 }
 
 // USSecurityMember is the security-relevant subset of the existing owner/admin
@@ -147,20 +169,20 @@ type USSecurityStatus struct {
 // enablement, library policy and membership lifetime. Limits (US-22) and Hosted
 // account details (US-25) are intentionally absent and are named refusals.
 type USSecurityMember struct {
-	AccountID        string
-	Username         string
-	Email            string
-	DisplayName      string
-	ProfileID        string
-	Role             string
-	Disabled         bool
-	DisabledAt       string
-	DisabledReason   string
-	Revision         int64
-	AllowedLibraries []string
-	Notes            *string
-	JoinedVia        string
-	JoinedAt         string
+	AccountID        string   `json:"accountId"`
+	Username         string   `json:"username"`
+	Email            string   `json:"email,omitempty"`
+	DisplayName      string   `json:"displayName"`
+	ProfileID        string   `json:"profileId"`
+	Role             string   `json:"role"`
+	Disabled         bool     `json:"disabled"`
+	DisabledAt       string   `json:"disabledAt,omitempty"`
+	DisabledReason   string   `json:"disabledReason,omitempty"`
+	Revision         int64    `json:"revision"`
+	AllowedLibraries []string `json:"allowedLibraries"`
+	Notes            *string  `json:"notes,omitempty"`
+	JoinedVia        string   `json:"joinedVia,omitempty"`
+	JoinedAt         string   `json:"joinedAt,omitempty"`
 }
 
 type USSecurityMembersPage struct {
@@ -533,7 +555,9 @@ func validateUSSecurityPolicy(q browseQuery, in BrowseInput, f browseFence) (str
 	}
 	// The common fence and this witness are two statements over one snapshot.
 	// Refuse a torn mix rather than trusting either half alone.
-	if f.account != facts.account || f.profile != facts.profile || f.lifetime != facts.lifetime || f.role != facts.role ||
+	// The common fence's role is the membership role (browseStatements
+	// "principal" selects m.role), never the session's role.
+	if f.account != facts.account || f.profile != facts.profile || f.lifetime != facts.lifetime || f.role != facts.memberRole ||
 		f.epoch != facts.epoch || f.authority != facts.authorityGeneration || f.token != in.TokenHash ||
 		f.expiresAt != facts.expiresAt || f.horizon != facts.horizon {
 		return "", ErrDenied
@@ -659,11 +683,28 @@ func usSecurityAuthority(q browseQuery, token, installation string, owner bool, 
 	// binding instead of comparing a second claimed incarnation.
 	if facts.tokenGeneration <= 0 || facts.epoch <= 0 || facts.authorityGeneration <= 0 ||
 		facts.securityKind != 0 || facts.pinGate != 0 || mustChange != 0 ||
-		accountEpoch != facts.epoch || facts.memberRole != facts.role || !usSecurityRole(facts.role) ||
+		accountEpoch != facts.epoch || !usSecurityRole(facts.memberRole) || !usSecurityRole(facts.role) ||
 		facts.disabled != 0 || facts.deleted != 0 || retired != 0 ||
 		facts.deviceAccount != facts.account || facts.installationID != installation ||
 		!usSecurityHex(facts.memberIncarnation, 32) || !usSecurityHex(facts.lifetime, 32) ||
 		facts.deviceID == "" || facts.lineage != "" && !validUSSecurityIdentifier(facts.lineage) {
+		return usSecurityAuthorityFacts{}, ErrDenied
+	}
+	// The primary flag and the account's profile pointer are one invariant. A
+	// session whose profile still claims primary while the account points
+	// elsewhere is stale even when it claims only "member" (identity
+	// direct_policy.go checkDirectPrincipalTx refuses exactly this pair).
+	if facts.primary == 1 && facts.accountProfile != facts.profile {
+		return usSecurityAuthorityFacts{}, ErrDenied
+	}
+	// The session's role must be the role its profile actually carries. Only
+	// the account's primary profile carries the membership role; every other
+	// profile is always a member, whatever the account's role is (identity
+	// direct_profiles.go:579-592, family_revocation.go:96-100). A session may
+	// also be issued narrower than its profile on purpose, and the product
+	// accepts a "member" session anywhere (direct_policy.go:138-143).
+	profileRole := usSecurityEffectiveRole(facts.memberRole, facts.primary, facts.accountProfile, facts.profile)
+	if facts.role != profileRole && facts.role != "member" {
 		return usSecurityAuthorityFacts{}, ErrDenied
 	}
 	tokenExpiry, ok := usSecurityTime(facts.expiresAt)
@@ -721,8 +762,13 @@ func usSecurityAuthority(q browseQuery, token, installation string, owner bool, 
 	if owner {
 		// The merged US-01 first instance proves only a direct owner main-profile
 		// session with no profile PIN. Broader admin roles/capabilities refuse.
-		if facts.role != "owner" || facts.memberRole != "owner" || facts.primary != 1 ||
-			facts.accountProfile != facts.profile || protected {
+		// profileRole is the effective role above, so the primary flag and the
+		// account's profile pointer are part of this one term. Mutation by
+		// reading: TestUSSecurityOwnerGate's narrowed member case removes
+		// `facts.role != "owner"`, TestUSSecurityEffectiveRole's stale secondary
+		// owner removes the primary half of the effective role, and the
+		// PIN-protected case removes `protected`.
+		if facts.role != "owner" || profileRole != "owner" || protected {
 			return usSecurityAuthorityFacts{}, ErrDenied
 		}
 	}
@@ -813,6 +859,20 @@ func usSecurityWitness(facts usSecurityAuthorityFacts, owner bool) string {
 
 func usSecurityRole(value string) bool {
 	return value == "owner" || value == "admin" || value == "member"
+}
+
+// usSecurityEffectiveRole is the role a profile actually carries. Only the
+// account's primary profile (is_primary=1 AND the account points at it) carries
+// the membership role; any other profile is a member whatever the account is.
+// The product's writers mint sessions with exactly this rule
+// (identity direct_profiles.go:579-592, family_revocation.go:96-100) and its
+// principal check refuses a session that claims otherwise
+// (direct_policy.go:138-143).
+func usSecurityEffectiveRole(memberRole string, primary int64, accountProfile, profile string) string {
+	if primary == 1 && accountProfile == profile {
+		return memberRole
+	}
+	return "member"
 }
 
 func usSecurityHex(value string, length int) bool {
@@ -988,7 +1048,12 @@ func usSecurityDeviceValue(row []any) (USSecurityDevice, error) {
 	}
 	optional := make([]string, 7)
 	for i := range optional {
-		value, err := usSecurityOptional(row[i+3], 256)
+		limit := 256
+		if i == 1 {
+			// d.name carries the 120-rune device label.
+			limit = usSecurityDeviceNameBytes
+		}
+		value, err := usSecurityOptional(row[i+3], limit)
 		if err != nil {
 			return USSecurityDevice{}, err
 		}
@@ -1003,7 +1068,7 @@ func usSecurityDeviceValue(row []any) (USSecurityDevice, error) {
 }
 
 func usSecurityStatusValue(row []any, f browseFence) (USSecurityStatus, error) {
-	if len(row) != 31 {
+	if len(row) != 32 {
 		return USSecurityStatus{}, ErrUnqualified
 	}
 	str := func(i int) (string, error) { return usSecurityString(row[i], 256) }
@@ -1090,7 +1155,7 @@ func usSecurityStatusValue(row []any, f browseFence) (USSecurityStatus, error) {
 	if device.Username, err = str(21); err != nil {
 		return USSecurityStatus{}, err
 	}
-	if device.Name, err = usSecurityOptional(row[22], 256); err != nil {
+	if device.Name, err = usSecurityOptional(row[22], usSecurityDeviceNameBytes); err != nil {
 		return USSecurityStatus{}, err
 	}
 	if device.Platform, err = usSecurityOptional(row[23], 256); err != nil {
@@ -1120,9 +1185,31 @@ func usSecurityStatusValue(row []any, f browseFence) (USSecurityStatus, error) {
 	status.Profile, status.Device = profile, device
 	status.PINRequired = profile.PINRequired
 	status.Remembered = status.RememberUntil != ""
+	accountProfile, err := str(31)
+	if err != nil {
+		return USSecurityStatus{}, err
+	}
+	// The payload must describe the same effective principal the authority
+	// witness admitted: the account's profile pointer and the profile's primary
+	// flag decide the role, and a session may only be the role that profile
+	// carries or the narrower "member" the product accepts anywhere.
+	primary := int64(0)
+	if profile.Primary {
+		primary = 1
+	}
+	if primary == 1 && accountProfile != profile.ID {
+		return USSecurityStatus{}, ErrDenied
+	}
+	effective := usSecurityEffectiveRole(f.role, primary, accountProfile, profile.ID)
+	if status.Role != effective && status.Role != "member" {
+		return USSecurityStatus{}, ErrDenied
+	}
+	// Status reports the role in force for this session: the payload's session
+	// role, which is the effective profile role unless the session was
+	// deliberately issued narrower ("member").
 	// Bind the payload to the exact authorized principal; a payload row from a
 	// different family can never be returned under this fence.
-	if status.AccountID != f.account || status.ProfileID != f.profile || status.FamilyID == "" || status.Role != f.role || status.Epoch != f.epoch {
+	if status.AccountID != f.account || status.ProfileID != f.profile || status.FamilyID == "" || status.Epoch != f.epoch {
 		return USSecurityStatus{}, ErrDenied
 	}
 	return status, nil
@@ -1141,10 +1228,10 @@ func usSecurityMemberValue(row []any) (USSecurityMember, error) {
 	if member.Username, err = str(1, 256); err != nil {
 		return USSecurityMember{}, err
 	}
-	if member.Email, err = usSecurityOptional(row[2], 256); err != nil {
+	if member.Email, err = usSecurityOptional(row[2], usSecurityEmailBytes); err != nil {
 		return USSecurityMember{}, err
 	}
-	if member.DisplayName, err = usSecurityOptional(row[3], 256); err != nil {
+	if member.DisplayName, err = usSecurityOptional(row[3], usSecurityDisplayNameBytes); err != nil {
 		return USSecurityMember{}, err
 	}
 	if member.ProfileID, err = str(4, 128); err != nil {
@@ -1171,7 +1258,7 @@ func usSecurityMemberValue(row []any) (USSecurityMember, error) {
 		return USSecurityMember{}, err
 	}
 	if row[11] != nil {
-		note, err := usSecurityString(row[11], 500)
+		note, err := usSecurityString(row[11], usSecurityNotesBytes)
 		if err != nil {
 			return USSecurityMember{}, err
 		}
@@ -1193,7 +1280,9 @@ func usSecurityMemberValue(row []any) (USSecurityMember, error) {
 
 // usSecurityStatusVariable is the exact payload projection paired with the
 // status octet point. Order matches usSecurityStatusSQL and usSecurityStatusOctetsSQL.
-var usSecurityStatusVariable = []int{0, 1, 2, 3, 4, 7, 8, 9, 11, 12, 15, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}
+// Index 31 is the account's profile pointer, the other half of the effective
+// role rule (the primary flag is index 13, unlisted because it is fixed-size).
+var usSecurityStatusVariable = []int{0, 1, 2, 3, 4, 7, 8, 9, 11, 12, 15, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31}
 
 // usSecuritySnapshots adds exact-octet point pairs to the shared bounded
 // snapshot protocol. It mints no grant: every pair still runs through the

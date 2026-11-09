@@ -14,7 +14,7 @@ import (
 // the length point and its payload remain ordinary registered reads: Capture
 // still audits the exact SQL, native keys, statistics and EQP before a receipt.
 // No entry grants SQL, a function allowlist or caller-supplied text.
-const usSecurityStatusOctetsSQL = `SELECT octet_length(f.id),octet_length(f.server_id),octet_length(f.account_id),octet_length(f.profile_id),octet_length(f.role),octet_length(f.authorization_horizon),octet_length(f.remember_until),octet_length(f.manage_until),octet_length(t.expires_at),octet_length(p.name),octet_length(p.art),octet_length(p.allowed_libraries),octet_length(d.id),octet_length(a.username),octet_length(d.name),octet_length(d.platform),octet_length(d.app),octet_length(d.app_version),octet_length(d.first_seen),octet_length(d.last_seen),octet_length(d.last_profile_id)
+const usSecurityStatusOctetsSQL = `SELECT octet_length(f.id),octet_length(f.server_id),octet_length(f.account_id),octet_length(f.profile_id),octet_length(f.role),octet_length(f.authorization_horizon),octet_length(f.remember_until),octet_length(f.manage_until),octet_length(t.expires_at),octet_length(p.name),octet_length(p.art),octet_length(p.allowed_libraries),octet_length(d.id),octet_length(a.username),octet_length(d.name),octet_length(d.platform),octet_length(d.app),octet_length(d.app_version),octet_length(d.first_seen),octet_length(d.last_seen),octet_length(d.last_profile_id),octet_length(a.profile_id)
 FROM authorization_family_tokens AS t INDEXED BY sqlite_autoindex_authorization_family_tokens_1
 CROSS JOIN authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1 ON f.id=t.family_id
 CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=f.account_id

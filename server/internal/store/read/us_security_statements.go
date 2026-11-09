@@ -34,6 +34,9 @@ const usSecurityOwner = "store/read US security read surface"
 // payload is fetched separately after the authority and fence checks. The four
 // absence joins reject a narrow grant, an API-credential family, a reset-file
 // session and a waiting move without a second statement or a family scan.
+// Membership and session roles are both selected: the effective role is derived
+// in Go (primary profile carries m.role, every other profile is a member), not
+// by forcing m.role=f.role in the reviewed WHERE grammar.
 const usSecuritySessionSQL = `SELECT t.generation,t.expires_at,f.id,f.server_id,f.account_id,f.profile_id,f.role,f.epoch,f.authority_generation,f.authorization_horizon,f.remember_until,f.manage_until,f.pin_gate,f.pin_lineage_id,f.security_kind,a.epoch,a.must_change,a.profile_id,m.role,m.incarnation,m.disabled,p.lifetime,p.deleted,p.is_primary,length(p.pin_hash),d.id,d.account_id,d.installation_id,d.retired_ms
 FROM authorization_family_tokens AS t INDEXED BY sqlite_autoindex_authorization_family_tokens_1
 CROSS JOIN authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1 ON f.id=t.family_id
@@ -50,7 +53,7 @@ LEFT JOIN reset_file_sessions AS r INDEXED BY sqlite_autoindex_reset_file_sessio
 LEFT JOIN identity_move_waiting AS w INDEXED BY sqlite_autoindex_identity_move_waiting_1 ON w.account_id=f.account_id
 WHERE t.token_hash=? AND t.retired=0 AND t.generation=f.current_generation AND f.revoked=0
 AND f.authority='local' AND f.security_kind=0 AND d.authority='local' AND d.retired_ms=0
-AND d.account_id=f.account_id AND d.installation_id=? AND m.role=f.role
+AND d.account_id=f.account_id AND d.installation_id=?
 AND a.must_change=0 AND st.sign_in_kind='local' AND st.authority_generation=f.authority_generation AND st.transition_id IS NULL
 AND cfg.value=f.server_id AND i.installation_hash IS NOT NULL AND i.retired=0
 AND g.family_id IS NULL AND c.family_id IS NULL AND r.family_id IS NULL AND coalesce(w.state,'')<>'waiting'`
@@ -66,7 +69,7 @@ WHERE w.family_id=? AND w.scope_kind=? AND s.account_id=? AND s.member_incarnati
 // Status payload: the caller's own current family, member, profile and device.
 // No token digest, installation id, PIN hash, grant or credential column is
 // selected; PIN presence is one scalar length and is never the stored hash.
-const usSecurityStatusSQL = `SELECT f.id,f.server_id,f.account_id,f.profile_id,f.role,f.epoch,f.authority_generation,f.authorization_horizon,f.remember_until,f.manage_until,t.generation,t.expires_at,p.name,p.is_primary,p.position,p.art,p.revision,p.pin_revision,length(p.pin_hash),p.allowed_libraries,d.id,a.username,d.name,d.platform,d.app,d.app_version,d.first_seen,d.last_seen,d.last_profile_id,d.remember_account,d.revision
+const usSecurityStatusSQL = `SELECT f.id,f.server_id,f.account_id,f.profile_id,f.role,f.epoch,f.authority_generation,f.authorization_horizon,f.remember_until,f.manage_until,t.generation,t.expires_at,p.name,p.is_primary,p.position,p.art,p.revision,p.pin_revision,length(p.pin_hash),p.allowed_libraries,d.id,a.username,d.name,d.platform,d.app,d.app_version,d.first_seen,d.last_seen,d.last_profile_id,d.remember_account,d.revision,a.profile_id
 FROM authorization_family_tokens AS t INDEXED BY sqlite_autoindex_authorization_family_tokens_1
 CROSS JOIN authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1 ON f.id=t.family_id
 CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=f.account_id
@@ -76,7 +79,7 @@ WHERE t.token_hash=? AND t.retired=0 AND t.generation=f.current_generation AND f
 AND f.authority='local' AND f.security_kind=0 AND d.authority='local' AND d.account_id=a.id
 AND d.installation_id=? AND d.retired_ms=0 AND p.deleted=0`
 
-const usSecurityStatusOctetsSQL = `SELECT octet_length(f.id),octet_length(f.server_id),octet_length(f.account_id),octet_length(f.profile_id),octet_length(f.role),octet_length(f.authorization_horizon),octet_length(f.remember_until),octet_length(f.manage_until),octet_length(t.expires_at),octet_length(p.name),octet_length(p.art),octet_length(p.allowed_libraries),octet_length(d.id),octet_length(a.username),octet_length(d.name),octet_length(d.platform),octet_length(d.app),octet_length(d.app_version),octet_length(d.first_seen),octet_length(d.last_seen),octet_length(d.last_profile_id)
+const usSecurityStatusOctetsSQL = `SELECT octet_length(f.id),octet_length(f.server_id),octet_length(f.account_id),octet_length(f.profile_id),octet_length(f.role),octet_length(f.authorization_horizon),octet_length(f.remember_until),octet_length(f.manage_until),octet_length(t.expires_at),octet_length(p.name),octet_length(p.art),octet_length(p.allowed_libraries),octet_length(d.id),octet_length(a.username),octet_length(d.name),octet_length(d.platform),octet_length(d.app),octet_length(d.app_version),octet_length(d.first_seen),octet_length(d.last_seen),octet_length(d.last_profile_id),octet_length(a.profile_id)
 FROM authorization_family_tokens AS t INDEXED BY sqlite_autoindex_authorization_family_tokens_1
 CROSS JOIN authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1 ON f.id=t.family_id
 CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=f.account_id
