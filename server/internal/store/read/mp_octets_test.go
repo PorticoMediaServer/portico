@@ -366,7 +366,7 @@ func TestMPOctetCaptureRejectsChangedPoints(t *testing.T) {
 		"collation": func(d *stmt.Definition) {
 			d.Plan.AutoIndexes[0].Columns[0].Collation = "NOCASE"
 		},
-		"primary": func(d *stmt.Definition) { d.Plan.PrimaryKeys = nil },
+		"primary": func(d *stmt.Definition) { d.Plan.PrimaryKeys = []string{"not_a_registered_primary"} },
 		"waiver": func(d *stmt.Definition) {
 			d.Plan.Waivers = []stmt.Waiver{{StatementID: d.ID, Stage: "eqp", Form: "scan", Match: "SCAN q"}}
 		},
@@ -401,6 +401,10 @@ func TestMPOctetCaptureRejectsChangedPoints(t *testing.T) {
 				d.Plan.AutoIndexes[i].Columns = append([]stmt.IndexColumn(nil), point.Plan.AutoIndexes[i].Columns...)
 			}
 			mutations[name](&d)
+			changed, err := json.Marshal(d)
+			if err != nil || string(changed) == string(before) {
+				t.Fatalf("%s %s: mutation did not change the definition: %v", point.ID, name, err)
+			}
 			after, err := json.Marshal(point)
 			if err != nil || string(after) != string(before) {
 				t.Fatalf("%s %s: mutation changed the original definition: %v", point.ID, name, err)
