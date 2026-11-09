@@ -746,7 +746,7 @@ func TestDiagnosticSnapshotNativeAggregateDeadline(t *testing.T) {
 
 func snapshotNativeReservation(t *testing.T, fullAggregate bool) {
 	t.Helper()
-	for _, columns := range []int32{16, 128} {
+	for _, columns := range []int32{16, 128, 129} {
 		t.Run(fmt.Sprint(columns), func(t *testing.T) {
 			path, _ := snapshotFixture(t)
 			g, a := snapshotGovernor(t)
@@ -815,5 +815,44 @@ func snapshotNativeReservation(t *testing.T, fullAggregate bool) {
 				t.Fatal("native reservation leaked")
 			}
 		})
+	}
+}
+
+// A physical schema bound of 129 is needed to reparse canonical C019. It does
+// not admit a 129-value payload or waive the native reservation before opening.
+func TestSnapshotNativeSchemaWidthKeepsProjectionCap(t *testing.T) {
+	path, _ := snapshotFixture(t)
+	g, a := snapshotGovernor(t)
+	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 16384, Columns: 129}}
+	connector, err := sqliteconn.Connector(path, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counted := &snapshotConnector{Connector: connector}
+	registry, err := stmttest.New(t, []stmt.Definition{{ID: "wide", SQL: "SELECT " + strings.TrimSuffix(strings.Repeat("0,", 129), ","), Kind: stmt.Read, Owner: "test", CallSites: []string{"projection-cap"}, Cohorts: []stmt.Cohort{{Name: "all"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tooWide := cfg
+	tooWide.ReadLimits.Columns = 130
+	if _, err := NewSnapshots(counted, tooWide, g, a, registry); !errors.Is(err, sqliteconn.ErrPolicy) || counted.opened.Load() != 0 {
+		t.Fatal("unbounded native policy", err, counted.opened.Load())
+	}
+	s, err := NewSnapshots(counted, cfg, g, a, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	r := snapshotRequest()
+	r.Need[MemoryBytes] = s.NativeRowReservation() + (64 << 10)
+	out, err := s.Read(t.Context(), r, time.Second, func(scope *ReadScope) error {
+		values, err := scope.Query("wide")
+		if values != nil {
+			t.Fatal("overwide payload escaped", len(values))
+		}
+		return err
+	})
+	if !errors.Is(err, ErrSnapshotBudget) || out.NativeReservedBytes != 129*16384 || a.Usage() != [4]Amounts{} {
+		t.Fatal("projection cap or native accounting changed", out, err, a.Usage())
 	}
 }

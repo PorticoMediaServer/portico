@@ -49,8 +49,11 @@ type SnapshotResult struct {
 	GoReservedBytes       int64
 }
 
+// The native schema-reparse bound admits C019's 129-column table. Payload
+// projections remain capped at 128 below, and admission charges the configured
+// native bound rather than the projected width.
 func NewSnapshots(connector driver.Connector, c sqliteconn.Config, g Governor, a *Authority, registry *stmt.Registry) (*Snapshots, error) {
-	if connector == nil || g == nil || a == nil || g != a.ledger || c.Role != sqliteconn.Reader || c.Connections <= 0 || c.CacheKiB <= 0 || c.ReadLimits.LengthBytes <= 0 || c.ReadLimits.Columns <= 0 || c.ReadLimits.Columns > 128 || registry == nil {
+	if connector == nil || g == nil || a == nil || g != a.ledger || c.Role != sqliteconn.Reader || c.Connections <= 0 || c.CacheKiB <= 0 || c.ReadLimits.LengthBytes <= 0 || c.ReadLimits.Columns <= 0 || c.ReadLimits.Columns > 129 || registry == nil {
 		return nil, sqliteconn.ErrPolicy
 	}
 	// The compiled inventory bound covers the full cross-library ready recipe
