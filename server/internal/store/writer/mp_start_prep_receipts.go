@@ -492,9 +492,6 @@ func mpStartPrepAppliedBirth(ctx context.Context, t *commandTurn, d *mpStartPrep
 	if err != nil {
 		return out, false, err
 	}
-	if id != q.id || body != q.bodyDigest {
-		return out, false, ErrConflict
-	}
 	var owner mpStartPrepOwner
 	if err = readMPStartPrepOwner(ctx, t, id, q.actor.device, &owner); err != nil {
 		return out, false, err
@@ -502,14 +499,18 @@ func mpStartPrepAppliedBirth(ctx context.Context, t *commandTurn, d *mpStartPrep
 	// The durable session evidence must still be the current one. A rotated
 	// credential is fine; a foreign member incarnation or profile lifetime is a
 	// denial, never a replay.
-	if owner.incarnation != incarnation ||
+	if !owner.actor.sameSession(d.actor) || owner.incarnation != incarnation ||
 		owner.member != d.scope.memberBirth || owner.profileLifetime != d.scope.profileBirth {
+		return out, false, ErrDisclosureDenied
+	}
+	if owner.member != q.birth.birth.member || owner.profileLifetime != q.birth.birth.profileLifetime {
 		return out, false, ErrDisclosureDenied
 	}
 	// The immutable staged input must still be the exact original. State,
 	// lifecycle revision, execution and seal are deliberately absent: they belong
 	// to later commands.
-	if owner.source != q.source || owner.queue != q.queue || owner.item != q.item || owner.part != q.part ||
+	if id != q.id || body != q.bodyDigest || owner.actor != q.actor ||
+		owner.source != q.source || owner.queue != q.queue || owner.item != q.item || owner.part != q.part ||
 		owner.deadlineMS != q.deadlineMS || owner.tokenExpiresMS != q.tokenExpiresMS ||
 		owner.replaces != q.replaces || owner.replacesGeneration != q.replacesGeneration ||
 		owner.ids != q.results || owner.root != q.birth.birth.root {

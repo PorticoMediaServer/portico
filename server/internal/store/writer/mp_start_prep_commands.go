@@ -352,13 +352,8 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 		out.Outcome.State = ResultRetired
 		return out, true, nil
 	case receiptReplay:
-		// Rotation is the only allowed difference between the current disclosure
-		// and the immutable original. The durable owner's member incarnation and
-		// profile lifetime must still be the current ones; the stored actor and the
-		// lifecycle/source/expiry CAS are FRESH-only gates.
-		if owner.member != v.disclosure.scope.memberBirth || owner.profileLifetime != v.disclosure.scope.profileBirth {
-			return out, true, ErrDisclosureDenied
-		}
+		// Session and member/profile lifetime were bound before the receipt read,
+		// so both saved-original and ACKed-retired paths share the same authority.
 		if owner.rows < 1 || owner.bytes < saved.storedBytes {
 			return out, true, ErrResolveRequired
 		}

@@ -516,11 +516,10 @@ func applyMPStartPrepBegin(ctx context.Context, t *commandTurn, owner [16]byte, 
 // readMPStartPrepDisclosedOwner proves CURRENT actor authority and reads every
 // stored row again. It deliberately makes no revision/state/deadline decision: a
 // saved original must be classified and served before any fresh-state
-// comparison. It also deliberately does NOT compare the stored actor or any
-// lifecycle/source/expiry value: those are FRESH-only gates. Only the durable
-// session identity (same family/account/profile/device) binds the current
-// rotated token to the immutable request, and the member incarnation/profile
-// lifetime are bound separately by each replay path.
+// comparison. The stored owner must name the CURRENT durable session and
+// member/profile lifetime before any receipt is read, including an ACKed one.
+// Full credential equality and lifecycle/source/expiry values are FRESH-only
+// gates: a rotated token in that same session may still replay its original.
 func readMPStartPrepDisclosedOwner(ctx context.Context, t *commandTurn, d *mpStartPrepDisclosure, f mpStartPrepFence, now int64) (out mpStartPrepOwner, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	if d == nil || !f.valid() {
@@ -537,6 +536,9 @@ func readMPStartPrepDisclosedOwner(ctx context.Context, t *commandTurn, d *mpSta
 	}
 	if err = readMPStartPrepOwner(ctx, t, f.id, f.actor.device, &out); err != nil {
 		return out, err
+	}
+	if !out.actor.sameSession(d.actor) || out.member != d.scope.memberBirth || out.profileLifetime != d.scope.profileBirth {
+		return out, ErrDisclosureDenied
 	}
 	out.nowMS = now
 	return out, nil

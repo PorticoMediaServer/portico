@@ -73,6 +73,7 @@ type usGroupBProducer struct {
 }
 
 var usGroupBProducers = []usGroupBProducer{
+	{File: "server/internal/store/writer/mp_start_prep_owner_session_test.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 MP-07 valid foreign-session owner-binding security fixture", Prefix: `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,command_me`},
 	{File: "server/internal/store/writer/mp_worker_dispatch_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 MP-04 queue worker current-device fixture; Group B P05 cutover", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('mp-device',?,'mp-install','Fixture','test`},
 	{File: "server/internal/store/writer/mp_start_prep_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 MP-07 start preparation current-device fixture; Group B P05 cutover", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('mp-start-device',?,'mp-start-install','Fi`},
 
