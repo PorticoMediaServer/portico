@@ -8,8 +8,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
-// Group C is not embedded yet, so these native EXPLAIN receipts stand in for a
-// Capture golden: every hot read is one SEARCH, no temp B-tree, no full scan.
+// Per-statement native EXPLAIN controls complement the complete canonical C019
+// registry Captures in TestC019NativeWriterRegistries. Neither enables a caller.
 func TestIAMembershipAcceptStatementPlans(t *testing.T) {
 	w, _, _ := iaMembershipAcceptFixture(t)
 	defs := iaMembershipStatements()
@@ -54,5 +54,5 @@ func TestIAMembershipAcceptStatementPlans(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d hot membership statements on the group C draft; EXPLAIN-only, no Capture claim", len(defs))
+	t.Logf("%d hot membership statements on canonical C019; per-statement EXPLAIN controls", len(defs))
 }
