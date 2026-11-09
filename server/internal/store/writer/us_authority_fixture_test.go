@@ -21,6 +21,31 @@ func usOwnerAuthorityFixtureIssuer(t *testing.T, issuer func(*usPolicyIssuer)) (
 	// Frozen whole-second current clock, no real-clock assertions.
 	now := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 	w.now = func() time.Time { return now }
+	proof := usOwnerAuthorityPopulationIssuer(t, w, now, issuer)
+
+	// The current Capture correctly refuses an unadopted B layout against the
+	// locked native schema. Keep this unit registry explicitly unqualified;
+	// installed Capture/EXPLAIN receipts wait for B promotion, never bypass it.
+	r, err := stmttest.New(t, usAuthorityDefinitions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w, r, proof
+}
+
+// The exact ordinary US owner population, reusable on an executor that also
+// carries another domain's native fixture. now must be the executor's frozen
+// clock so the witness deadlines and the actor rechecks agree.
+func usOwnerAuthorityPopulation(t *testing.T, w *executor, now time.Time) *usOwnerAuthorityProof {
+	t.Helper()
+	return usOwnerAuthorityPopulationIssuer(t, w, now, nil)
+}
+
+// usOwnerAuthorityPopulationIssuer is the population split above and lets one
+// test pin Token()-sized server/account identifiers before both the proof and
+// its rows are created from the same issuer facts.
+func usOwnerAuthorityPopulationIssuer(t *testing.T, w *executor, now time.Time, issuer func(*usPolicyIssuer)) *usOwnerAuthorityProof {
+	t.Helper()
 	_, request := usPolicyFixture()
 	if issuer != nil {
 		issuer(&request.issuer)
@@ -52,15 +77,7 @@ func usOwnerAuthorityFixtureIssuer(t *testing.T, issuer func(*usPolicyIssuer)) (
 			t.Fatal(query.sql, err)
 		}
 	}
-
-	// The current Capture correctly refuses an unadopted B layout against the
-	// locked native schema. Keep this unit registry explicitly unqualified;
-	// installed Capture/EXPLAIN receipts wait for B promotion, never bypass it.
-	r, err := stmttest.New(t, usAuthorityDefinitions())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return w, r, proof
+	return proof
 }
 
 func usOwnerAuthorityTurn(t *testing.T, w *executor, r *stmt.Registry) (*commandTurn, usOwnerAuthorityBudget) {
