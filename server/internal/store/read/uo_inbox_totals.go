@@ -33,6 +33,13 @@ func readUOInboxTotals(ctx context.Context, query uoInboxQuery, q uoInboxInput) 
 	if err != nil {
 		return out, err
 	}
+	// notification_revision is the shared mutation ordinal every individual ACK
+	// (and notice) write advances. The record/head fence alone cannot see a
+	// sparse ACK change mid-traversal, which would publish a torn "exact" total.
+	ordinal, err := loadUOInboxOrdinal(query)
+	if err != nil {
+		return out, err
+	}
 	before := int64(0)
 	for {
 		if err := ctx.Err(); err != nil {
@@ -85,7 +92,11 @@ func readUOInboxTotals(ctx context.Context, query uoInboxQuery, q uoInboxInput) 
 			if err != nil {
 				return uoInboxTotals{}, err
 			}
-			if current != fence {
+			currentOrdinal, err := loadUOInboxOrdinal(query)
+			if err != nil {
+				return uoInboxTotals{}, err
+			}
+			if current != fence || currentOrdinal != ordinal {
 				return uoInboxTotals{}, ErrStale
 			}
 			if err := ctx.Err(); err != nil {
@@ -100,7 +111,28 @@ func readUOInboxTotals(ctx context.Context, query uoInboxQuery, q uoInboxInput) 
 const (
 	uoInboxCountFirst stmt.ID = "read.uo.inbox.count_first"
 	uoInboxCountTail  stmt.ID = "read.uo.inbox.count_tail"
+	uoInboxOrdinal    stmt.ID = "read.uo.inbox.ordinal"
 )
+
+// loadUOInboxOrdinal reads the shared notice/ACK mutation ordinal. A missing
+// singleton is zero: no ACK can exist before the first mutation allocated one.
+func loadUOInboxOrdinal(query uoInboxQuery) (int64, error) {
+	rows, err := query(uoInboxOrdinal)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	if len(rows) != 1 || len(rows[0]) != 1 {
+		return 0, ErrInput
+	}
+	ordinal, ok := rows[0][0].(int64)
+	if !ok || ordinal < 0 {
+		return 0, errUOInboxResync
+	}
+	return ordinal, nil
+}
 
 func uoInboxCountDefinitions() []stmt.Definition {
 	s := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
@@ -112,5 +144,11 @@ func uoInboxCountDefinitions() []stmt.Definition {
 	return []stmt.Definition{
 		d(uoInboxCountFirst, base+` ORDER BY n.sequence DESC LIMIT ?`, s("principal"), s("scope"), s("audience"), i("limit")),
 		d(uoInboxCountTail, base+` AND n.sequence<? ORDER BY n.sequence DESC LIMIT ?`, s("principal"), s("scope"), s("audience"), i("before"), i("limit")),
+		// The exact-total fence re-reads this singleton before publishing. It is
+		// one PRIMARY KEY point, never a scan or a notice payload.
+		{ID: uoInboxOrdinal, Kind: stmt.Read, Owner: "store/read UO inbox totals",
+			SQL:       `SELECT value FROM notification_revision WHERE singleton=1`,
+			CallSites: []string{"store/read/uo_inbox_totals.go"},
+			Plan:      stmt.Plan{Hot: true, PrimaryKeys: []string{"notification_revision"}, Seeks: []string{"rowid=?"}}},
 	}
 }
