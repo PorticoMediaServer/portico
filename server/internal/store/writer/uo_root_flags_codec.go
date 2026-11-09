@@ -1,0 +1,260 @@
+package writer
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/binary"
+	"errors"
+	"math"
+	"unicode/utf8"
+)
+
+// Complete scalar effect result for native purpose 600. It carries only native
+// facts captured in the SAME freshly authorized turn: the acting profile's
+// public subject identity, all three sparse flags, the nullable rating (a
+// present zero stays present), the actual personal revision, the viewer and
+// selection heads and the applied time. It is never current authority, an
+// Applied/COMMIT facade or a public input shape.
+type uoRootFlagsResult struct {
+	root      string
+	public    [16]byte
+	effect    uoPersonalFlagsEffect
+	appliedMS int64
+}
+
+func preflightUORootFlags(v uoRootFlagsResult) error {
+	s, e := v.effect.state, v.effect
+	if len(v.root) != 22 || !utf8.ValidString(v.root) || v.public == [16]byte{} || v.appliedMS <= 0 || s.revision < 0 || s.rating.Valid && (s.rating.Int64 < 0 || s.rating.Int64 > 10) || !s.rating.Valid && s.rating.Int64 != 0 || e.viewerRevision < 0 || e.selectionRevision < 0 || e.changed && (s.revision == 0 || e.viewerRevision == 0 || e.selectionRevision == 0) || !e.changed && (e.viewerRevision != 0 || e.selectionRevision != 0) {
+		return ErrInvalid
+	}
+	return nil
+}
+
+func writeUORootFlags(e *requestEncoder, i CommandIdentity, q RequestDigest, v uoRootFlagsResult) error {
+	e.bytes([]byte(canonicalResultCodec))
+	e.bytes([]byte{0, 1}) // semantic result version, independent of CommandID ordinals
+	e.text("uo_set_personal_flags")
+	e.text("root_flags")
+	e.text(v.root)
+	e.bytes(i.Incarnation[:])
+	e.number(uint64(i.Sequence))
+	e.bytes(i.OperationID[:])
+	e.bytes(q[:])
+	e.bytes(v.public[:])
+	e.number(uint64(v.effect.state.revision))
+	e.flag(v.effect.state.watchlisted)
+	e.flag(v.effect.state.favorite)
+	e.flag(v.effect.state.notInterested)
+	e.flag(v.effect.state.rating.Valid)
+	e.number(uint64(v.effect.state.rating.Int64))
+	e.flag(v.effect.changed)
+	e.number(uint64(v.effect.viewerRevision))
+	e.number(uint64(v.effect.selectionRevision))
+	e.number(uint64(v.appliedMS))
+	return e.err
+}
+
+// The retained original is decoded from the immutable receipt only. The exact
+// saved bytes must re-encode to the same canonical digest, so a foreign purpose,
+// root, identity, request or a noncanonical boolean can never be relabeled as
+// this result.
+func decodeUORootFlags(i CommandIdentity, q RequestDigest, root string, p []byte, want ResultDigest) (uoRootFlagsResult, error) {
+	var zero uoRootFlagsResult
+	if len(p) < 61 || len(p) > uoRootPayloadCap || ResultDigest(sha256.Sum256(p)) != want {
+		return zero, ErrResolveRequired
+	}
+	tail := p[len(p)-61:]
+	v := uoRootFlagsResult{root: root}
+	copy(v.public[:], tail[:16])
+	for _, bit := range []byte{tail[24], tail[25], tail[26], tail[27], tail[36]} {
+		if bit > 1 {
+			return zero, ErrResolveRequired
+		}
+	}
+	v.effect.state.watchlisted, v.effect.state.favorite, v.effect.state.notInterested, v.effect.state.rating.Valid, v.effect.changed = tail[24] == 1, tail[25] == 1, tail[26] == 1, tail[27] == 1, tail[36] == 1
+	for _, field := range []struct {
+		offset int
+		dst    *int64
+	}{{16, &v.effect.state.revision}, {28, &v.effect.state.rating.Int64}, {37, &v.effect.viewerRevision}, {45, &v.effect.selectionRevision}, {53, &v.appliedMS}} {
+		n := binary.BigEndian.Uint64(tail[field.offset : field.offset+8])
+		if n > uint64(^uint64(0)>>1) {
+			return zero, ErrResolveRequired
+		}
+		*field.dst = int64(n)
+	}
+	encoded, sum, err := encodeUORootCanonical(i, q, v)
+	if err != nil || sum != want || !bytes.Equal(p, encoded) {
+		return zero, ErrResolveRequired
+	}
+	return v, nil
+}
+
+// persistUORootFlags saves the complete 600 original on the root receipt PK and
+// advances the SAME owner debt/revision. The generic UO-01 persist path is not
+// usable here: its binding.check refuses every NORMAL frame until Sol's
+// current-session mint lands, so this purpose keeps the identical insert and
+// owner-advance skeleton locally and presents the private same-turn proof before
+// and after the effects instead. No caller bool, cached role or descriptor can
+// stand in for that proof.
+func persistUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup, public [16]byte, effect uoPersonalFlagsEffect, appliedMS int64) (out ResultDigest, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	q, o := lookup.reference, lookup.owner
+	if lookup.turn != turn || lookup.binding == nil || !q.validFor(turn) || lookup.decision != receiptFresh || o.revision == math.MaxInt64 || o.rows == math.MaxInt64 {
+		return out, ErrResolveRequired
+	}
+	binding, err := uoRootProofCurrent(proof, turn)
+	if err != nil {
+		return out, err
+	}
+	rootState, err := binding.root(ctx, turn, q.root)
+	if err != nil {
+		return out, err
+	}
+	// A draining root never admits a Fresh effect; persistence rechecks the
+	// root's state at the moment of the effect.
+	if rootState != "active" {
+		return out, ErrUORootGone
+	}
+	if decision, e := classifyReceipt(receiptIdentity{command: q.identity, digest: q.request}, q.kind, o.facts, receiptFacts{}); e != nil || decision != receiptFresh {
+		return out, ErrResolveRequired
+	}
+	v := uoRootFlagsResult{root: q.root, public: public, effect: effect, appliedMS: appliedMS}
+	if err = preflightUORootFlags(v); err != nil {
+		return out, err
+	}
+	payload, digest, err := encodeUORootCanonical(q.identity, q.request, v)
+	if err != nil {
+		return out, err
+	}
+	complete := int64(len(payload)) + uoRootFixedBytes
+	if complete > math.MaxInt64-o.variableBytes {
+		return out, ErrInvalid
+	}
+	actual, err := wc008DraftInteger(ctx, turn, uoRootReceiptInsert, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], int64(1), int64(0), digest[:], payload, appliedMS)
+	if err != nil {
+		return out, uoRootInsertError(err)
+	}
+	if actual != complete {
+		return out, ErrResolveRequired
+	}
+	advance, args := uoRootOwnerAdvanceNull, []any{q.identity.Sequence, o.rows + 1, o.variableBytes + actual, o.revision + 1, q.root, q.identity.Incarnation[:], o.facts.lastSequence, o.facts.acknowledgedSequence, o.revision, o.rows, o.variableBytes, o.afterSequence}
+	if o.due.Valid {
+		// Closed non-NULL/NULL variants, never IS ? or a sentinel.
+		advance = uoRootOwnerAdvance
+		args = append(args, o.due.Int64)
+	}
+	if _, err = wc008DraftInteger(ctx, turn, advance, args...); err != nil {
+		return out, err
+	}
+	// A revocation or root change during the effects cannot return a digest
+	// that looks Applied.
+	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, receiptFresh); err != nil {
+		return out, err
+	}
+	return digest, turn.checkLifetimes(ctx)
+}
+
+// restoreUORootFlags returns the retained ORIGINAL with zero source, revision,
+// event or outbox effects. It never re-runs the patch and never consults the
+// mutable catalog for a second answer.
+func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup) (out uoRootFlagsResult, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	q := lookup.reference
+	if lookup.turn != turn || q.kind != SetPersonalFlags || lookup.decision != receiptReplay {
+		return out, ErrInvalid
+	}
+	if _, err = uoRootProofCurrent(proof, turn); err != nil {
+		return out, err
+	}
+	payload, digest, err := readUORootFlagsPayload(ctx, turn, proof, lookup)
+	if err != nil {
+		return out, err
+	}
+	result, err := decodeUORootFlags(q.identity, q.request, q.root, payload, digest)
+	if err != nil {
+		return uoRootFlagsResult{}, err
+	}
+	if lookup.resultCount != 0 || result.appliedMS != lookup.appliedMS {
+		return uoRootFlagsResult{}, ErrResolveRequired
+	}
+	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, receiptReplay); err != nil {
+		return uoRootFlagsResult{}, err
+	}
+	return result, turn.checkLifetimes(ctx)
+}
+
+// acknowledgeUORootFlags moves only the root ACK floor. A replay first proves
+// the complete typed original; a retired sequence is answered by the shared
+// wrapper, whose generic restore is only needed for a replayable original.
+// ACK never refunds the retained bytes.
+func acknowledgeUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup, nowMS int64) (floor int64, err error) {
+	defer func() { floor, err = finishCommand(ctx, commandLifetime(turn), floor, err) }()
+	if lookup.reference.kind != SetPersonalFlags {
+		return 0, ErrInvalid
+	}
+	switch lookup.decision {
+	case receiptReplay:
+		// UO-01's acknowledgeUORootOperation validates a replay through its
+		// GENERIC uoRootOperationResult decoder, so it cannot accept purpose
+		// 600's typed original. Verify that original here and reuse the shared
+		// purpose-agnostic floor body.
+		if _, err := restoreUORootFlags(ctx, turn, proof, lookup); err != nil {
+			return 0, err
+		}
+		return acknowledgeUORootVerified(ctx, turn, proof, lookup, nowMS)
+	case receiptRetired:
+		// The first real caller of the shared wrapper: a repeat ACK needs no
+		// restore and must return the already durable floor with zero writes.
+		return acknowledgeUORootOperation(ctx, turn, proof, lookup, nowMS)
+	default:
+		return 0, ErrResolveRequired
+	}
+}
+
+// readUORootFlagsPayload copies only the exact receipt PK row after current
+// authority and the native root are re-proved. The header length predicate
+// precedes the row copy and the returned digest is the stored one.
+func readUORootFlagsPayload(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup) (payload []byte, digest ResultDigest, err error) {
+	defer func() {
+		v, e := finishCommand(ctx, commandLifetime(turn), struct {
+			p []byte
+			d ResultDigest
+		}{payload, digest}, err)
+		payload, digest, err = v.p, v.d, e
+	}()
+	if lookup.turn != turn || lookup.binding == nil || lookup.decision != receiptReplay || lookup.payloadBytes < 1 || lookup.payloadBytes > uoRootPayloadCap || !lookup.reference.validFor(turn) {
+		return nil, ResultDigest{}, ErrResolveRequired
+	}
+	binding, err := uoRootProofCurrent(proof, turn)
+	if err != nil {
+		return nil, ResultDigest{}, err
+	}
+	q := lookup.reference
+	if _, err = binding.root(ctx, turn, q.root); err != nil {
+		return nil, ResultDigest{}, err
+	}
+	row, err := wc008DraftQuery(ctx, turn, uoRootReceiptPayload, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], lookup.payloadBytes)
+	if err != nil {
+		return nil, ResultDigest{}, err
+	}
+	var stored []byte
+	if err = row.Scan(&payload, &stored); errors.Is(err, sql.ErrNoRows) {
+		return nil, ResultDigest{}, ErrResolveRequired
+	} else if err != nil {
+		return nil, ResultDigest{}, err
+	}
+	if int64(len(payload)) != lookup.payloadBytes || len(stored) != 32 {
+		return nil, ResultDigest{}, ErrResolveRequired
+	}
+	copy(digest[:], stored)
+	// The payload is not released while current authority or the root is stale.
+	if _, err = binding.root(ctx, turn, q.root); err != nil {
+		return nil, ResultDigest{}, err
+	}
+	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, receiptReplay); err != nil {
+		return nil, ResultDigest{}, err
+	}
+	return payload, digest, turn.checkLifetimes(ctx)
+}
