@@ -11,9 +11,15 @@ func init() {
 		resultTypes: []string{"usPolicyPublicImage"},
 		names:       []string{"executeUSPolicyInvocation", "captureUSPolicyCallerSnapshot", "readUSPolicyQuota", "readUSPolicyFreshTarget"},
 		bypasses: []string{
-			`func quotaBypass(ctx context.Context)(out usPolicyQuotaFacts,err error){return out,nil}`,
-			`func imageBypass(ctx context.Context)(out usPolicyPublicImage,err error){return out,nil}`,
-			`func captureBypass(ctx context.Context)(err error){return nil}`,
+			// Release the command's own result after the effect instead of through a
+			// pre-terminal deferred finish: the guard must still refuse it.
+			`func executeUSPolicyInvocation(ctx context.Context)(out usPolicyPublicImage,err error){out,err=finishCommand(ctx,ctx,out,err);return out,err}`,
+			// Defer the finish but discard both projections, so the named results
+			// never receive the physical outcome.
+			`func readUSPolicyQuota(ctx context.Context)(out usPolicyQuotaFacts,err error){defer func(){_,_=finishCommand(ctx,ctx,out,err)}();return out,nil}`,
+			// Error-only scope check that keeps a payload instead of discarding the
+			// empty struct the guard's error-only shape requires.
+			`func captureUSPolicyCallerSnapshot(ctx context.Context)(err error){defer func(){_,err=finishCommand(ctx,ctx,struct{Authority string}{},err)}();return nil}`,
 		},
 	})
 }
