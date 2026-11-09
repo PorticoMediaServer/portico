@@ -1,0 +1,61 @@
+{
+  "id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  "title": "Collected (Remastered)",
+  "date": "2006",
+  "country": "XW",
+  "barcode": "",
+  "disambiguation": "reissue",
+  "artist-credit": [
+    {
+      "name": "Massive Attack",
+      "joinphrase": "",
+      "artist": {
+        "id": "2c3d4e5f-6071-4c8d-8e9f-1a2b3c4d5e6f",
+        "name": "Massive Attack",
+        "sort-name": "Massive Attack",
+        "disambiguation": ""
+      }
+    }
+  ],
+  "release-group": {
+    "id": "1b2c3d4e-5f60-4b7c-9d8e-0f1a2b3c4d5e",
+    "title": "Collected",
+    "primary-type": "Album",
+    "secondary-types": []
+  },
+  "media": [
+    {
+      "position": 1,
+      "format": "CD",
+      "title": "Disc One",
+      "track-count": 1,
+      "tracks": [
+        {
+          "id": "3d4e5f60-7182-4d9e-8fa0-2b3c4d5e6f70",
+          "number": "1",
+          "title": "Safe from Harm",
+          "length": 341000,
+          "position": 1,
+          "artist-credit": [],
+          "recording": {
+            "id": "4e5f6071-8293-4ea0-90b1-3c4d5e6f7081",
+            "title": "Safe from Harm",
+            "length": 341000,
+            "artist-credit": [
+              {
+                "name": "Massive Attack",
+                "joinphrase": "",
+                "artist": {
+                  "id": "2c3d4e5f-6071-4c8d-8e9f-1a2b3c4d5e6f",
+                  "name": "Massive Attack",
+                  "sort-name": "Massive Attack",
+                  "disambiguation": ""
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
