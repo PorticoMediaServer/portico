@@ -24,10 +24,14 @@ func (d *DB) CreateCode(ctx context.Context, c Code, now time.Time) error {
 		if _, err := tx.Exec(`DELETE FROM auth_codes WHERE expires_at < ?`, now.Add(-24*time.Hour).UnixMilli()); err != nil {
 			return err
 		}
-		_, err := tx.Exec(`INSERT INTO auth_codes (code_hash, kind, user_id, payload, created_at, expires_at) VALUES (?, ?, nullif(?, 0), nullif(?, ''), ?, ?)`,
-			c.Hash, c.Kind, c.UserID, c.Payload, now.UnixMilli(), c.ExpiresAt.UnixMilli())
-		return err
+		return insertCode(tx, c, now)
 	})
+}
+
+func insertCode(tx *sql.Tx, c Code, now time.Time) error {
+	_, err := tx.Exec(`INSERT INTO auth_codes (code_hash, kind, user_id, payload, created_at, expires_at) VALUES (?, ?, nullif(?, 0), nullif(?, ''), ?, ?)`,
+		c.Hash, c.Kind, c.UserID, c.Payload, now.UnixMilli(), c.ExpiresAt.UnixMilli())
+	return err
 }
 
 // redeemCode uses a code up inside the transaction that acts on it. However many callers

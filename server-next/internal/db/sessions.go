@@ -172,6 +172,8 @@ type SessionState struct {
 	ProfileID       int64
 	ProfilePublicID string
 	ProfilePrimary  bool
+	// MemberOnly: the session never has more than a member's rights. See NewSession.
+	MemberOnly bool
 
 	DevicePublicID string
 	InstallationID string
@@ -188,14 +190,14 @@ func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error
 		SELECT s.id, s.public_id, s.token_generation, s.expires_at, ifnull(s.previous_at, s.created_at),
 			s.revoked_at IS NOT NULL, s.refresh_hash, ifnull(s.previous_refresh_hash, ''), ifnull(s.previous_request_id, ''),
 			u.id, u.public_id, u.role, u.disabled_at IS NOT NULL,
-			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0),
+			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member',
 			d.public_id, d.client_id
 		FROM sessions s JOIN users u ON u.id = s.user_id JOIN devices d ON d.id = s.device_id
 		LEFT JOIN profiles p ON p.id = s.profile_id
 		WHERE s.id = ?`, id).Scan(&s.ID, &s.PublicID, &s.Generation, &expires, &renewed,
 		&s.revoked, &s.refreshHash, &s.previousHash, &s.previousRequestID,
 		&s.UserID, &s.UserPublicID, &s.UserRole, &s.disabled,
-		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary,
+		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly,
 		&s.DevicePublicID, &s.InstallationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
@@ -221,6 +223,9 @@ type NewSession struct {
 	ExpiresAt   time.Time
 	Device      DeviceInfo
 	RemoteAddr  string
+	// MemberOnly starts a session that never has more than a member's rights, whichever
+	// profile it is on: a TV approved by someone who was not on the account's main profile.
+	MemberOnly bool
 }
 
 // startSession registers the device and inserts the session, for a user already proven.
@@ -241,8 +246,13 @@ func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (Sessio
 		userID, now.Add(-endedSessionsKept).UnixMilli()); err != nil {
 		return SessionState{}, err
 	}
-	if _, err := tx.Exec(`INSERT INTO sessions (id, public_id, user_id, device_id, refresh_hash, created_at, expires_at, last_used_at, remote_addr)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''))`, n.ID, NewID("ses"), userID, deviceID, n.RefreshHash, at, n.ExpiresAt.UnixMilli(), at, n.RemoteAddr); err != nil {
+	scope := "app"
+	if n.MemberOnly {
+		scope = "member"
+	}
+	if _, err := tx.Exec(`INSERT INTO sessions (id, public_id, user_id, device_id, scope, refresh_hash, created_at, expires_at, last_used_at, remote_addr)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''))`,
+		n.ID, NewID("ses"), userID, deviceID, scope, n.RefreshHash, at, n.ExpiresAt.UnixMilli(), at, n.RemoteAddr); err != nil {
 		return SessionState{}, err
 	}
 	return sessionState(context.Background(), tx, n.ID)
@@ -257,20 +267,35 @@ type SignInAttempt struct {
 	PasswordOK  bool
 	Limits      []Limit
 	Session     NewSession
-	Now         time.Time
+	// Challenge is stored, and no session started, when the account has two-step sign-in.
+	Challenge Code
+	Now       time.Time
 }
 
 // SignIn records the attempt and, if it is good, starts a session. A wrong guess is counted
 // in the same commit. The answer is ErrBadCredentials or a *LimitedError for every refusal,
-// whether or not the account exists.
-func (d *DB) SignIn(ctx context.Context, a SignInAttempt) (SessionState, error) {
-	var out SessionState
+// whether or not the account exists. For an account with two-step sign-in the password is
+// only the first step: challenged is true, the challenge is stored and there is no session yet.
+func (d *DB) SignIn(ctx context.Context, a SignInAttempt) (out SessionState, challenged bool, err error) {
 	var refused error
-	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, _ *changes) error {
-		refused = nil
+	var stamp TokenStamp
+	stamp, err = d.writeSessionsStamped(ctx, func(tx *sql.Tx, _ *changes) error {
+		refused, challenged = nil, false
 		ok, err := proofStands(tx, a.Now, a.Limits, a.PasswordOK, a.UserID, a.CheckedHash, &refused)
 		if err != nil || !ok {
 			return err
+		}
+		if err := tx.QueryRow(`SELECT two_factor_enabled_at IS NOT NULL FROM users WHERE id = ?`, a.UserID).Scan(&challenged); err != nil {
+			return err
+		}
+		if challenged {
+			// The password is half the proof: its count of wrong guesses stands until the
+			// code has been shown too. One sign-in at a time waits for its second step.
+			if _, err := tx.Exec(`DELETE FROM auth_codes WHERE user_id = ? AND kind = ?`, a.UserID, a.Challenge.Kind); err != nil {
+				return err
+			}
+			a.Challenge.UserID = a.UserID
+			return insertCode(tx, a.Challenge, a.Now)
 		}
 		if err := limitClear(tx, a.Limits); err != nil {
 			return err
@@ -282,7 +307,7 @@ func (d *DB) SignIn(ctx context.Context, a SignInAttempt) (SessionState, error) 
 		err = refused
 	}
 	out.Stamp = stamp
-	return out, err
+	return out, challenged, err
 }
 
 // proofStands settles a password proof inside the transaction that acts on it. It refuses
@@ -323,6 +348,9 @@ type PasswordProof struct {
 	CheckedHash string
 	OK          bool
 	Limits      []Limit
+	// Second is the authenticator or recovery code sent with the password. It is looked at
+	// only for an account with two-step sign-in.
+	Second SecondProof
 }
 
 // ErrBadSecondStep: the account uses two-step sign-in and its code was missing or wrong.
@@ -341,10 +369,12 @@ func proven(tx *sql.Tx, now time.Time, p PasswordProof, refused *error) (bool, e
 		return false, err
 	}
 	if twoStep {
-		// Two-step sign-in cannot be turned on yet, and no code can be checked here, so the
-		// password alone is never enough for an account that has it.
-		*refused = ErrBadSecondStep
-		return false, limitFail(tx, now, p.Limits)
+		if ok, err := secondProof(tx, p.UserID, p.Second, now); err != nil {
+			return false, err
+		} else if !ok {
+			*refused = ErrBadSecondStep
+			return false, limitFail(tx, now, p.Limits)
+		}
 	}
 	return true, limitClear(tx, p.Limits)
 }

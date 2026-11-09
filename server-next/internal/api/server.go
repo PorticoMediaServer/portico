@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ type Server struct {
 	mux       *http.ServeMux
 	version   string
 	id        string
-	routes    []Route
+	routes    []*Route
 	now       func() time.Time
 	// setupCode is what creating the owner needs. It is made at start while there is no
 	// account, and written to the log and to setupFile, never sent to an app.
@@ -46,10 +47,50 @@ type Server struct {
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
 type Route struct {
-	Pattern  string
-	Access   Access
+	Pattern string
+	Access  Access
+	// Scope is what an API key or personal token needs to call the route. Handle sets it
+	// from the access and the method; a route that needs something else says so.
+	Scope    Scope
 	Request  reflect.Type
 	Response reflect.Type
+}
+
+// Scope is what a key made for a tool must have been given to use a route. A signed-in
+// person is not limited by scopes, and no scope lets a key do more than its account may.
+type Scope string
+
+const (
+	// ScopeOpen routes need no sign-in at all.
+	ScopeOpen Scope = "open"
+	// ScopeRead: look at libraries, titles and the account's own state.
+	ScopeRead Scope = "read"
+	// ScopePlayback: play, and change the account's own watch state and lists.
+	ScopePlayback Scope = "playback"
+	// ScopeLibrary: scan, match, edit and delete what is in the libraries.
+	ScopeLibrary Scope = "library"
+	// ScopeAdmin: everything else the account behind the key may administer.
+	ScopeAdmin Scope = "admin"
+	// ScopeSession routes take only a signed-in person: signing in and out, passwords and
+	// two-step sign-in, profiles, devices, and making keys. A key never mints or widens another.
+	ScopeSession Scope = "session"
+)
+
+// GrantableScopes are the scopes a key can be given.
+var GrantableScopes = []Scope{ScopeRead, ScopePlayback, ScopeLibrary, ScopeAdmin}
+
+func defaultScope(pattern string, access Access) Scope {
+	switch {
+	case access == Public:
+		return ScopeOpen
+	case access == Admin || access == Owner:
+		return ScopeAdmin
+	case access == WithProfile && strings.HasPrefix(pattern, "GET "):
+		return ScopeRead
+	case access == WithProfile:
+		return ScopePlayback
+	}
+	return ScopeSession
 }
 
 // Access is who may call a route. It is checked before the body is read.
@@ -108,11 +149,14 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.authRoutes()
 	s.profileRoutes()
 	s.deviceRoutes()
+	s.memberRoutes()
+	s.invitationRoutes()
+	s.keyRoutes()
 	return s, nil
 }
 
 // Routes lists every registered operation.
-func (s *Server) Routes() []Route { return s.routes }
+func (s *Server) Routes() []*Route { return s.routes }
 
 type contextKey int
 
@@ -174,13 +218,15 @@ func (p *statusOnly) WriteHeader(status int)      { p.status = status }
 // "POST /v1/profiles/{id}/select". The caller is checked against access, the body is read
 // into Req (or must be absent when Req is None), and the reply is Resp as JSON, or 204
 // when Resp is None. Returning an *Error refuses the request; any other error is a 500
-// that is logged with the request id and tells the client nothing.
-func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *http.Request, req Req) (Resp, error)) {
+// that is logged with the request id and tells the client nothing. The returned route can
+// be given a Scope other than the default while routes are being registered.
+func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *http.Request, req Req) (Resp, error)) *Route {
 	noBody := reflect.TypeFor[Req]() == reflect.TypeFor[None]()
 	noReply := reflect.TypeFor[Resp]() == reflect.TypeFor[None]()
-	s.routes = append(s.routes, Route{pattern, access, reflect.TypeFor[Req](), reflect.TypeFor[Resp]()})
+	route := &Route{pattern, access, defaultScope(pattern, access), reflect.TypeFor[Req](), reflect.TypeFor[Resp]()}
+	s.routes = append(s.routes, route)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		r, err := s.admit(r, access)
+		r, err := s.admit(r, route)
 		if err != nil {
 			s.writeError(w, r, err)
 			return
@@ -203,6 +249,7 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	})
+	return route
 }
 
 // readBody reads a bounded JSON body into out. Fields this server does not know are ignored,
@@ -213,6 +260,10 @@ func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) erro
 		if n, _ := io.Copy(io.Discard, body); n > 0 {
 			return ErrInvalid("This request takes no body.")
 		}
+		return nil
+	}
+	// A route whose body is all optional may be sent with none.
+	if r.ContentLength == 0 {
 		return nil
 	}
 	if kind, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); kind != "application/json" {
@@ -252,8 +303,9 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	json.NewEncoder(w).Encode(errorBody{out})
 }
 
-// Caller is who a request acts for, taken from its access token.
+// Caller is who a request acts for, taken from its access token or its key.
 type Caller struct {
+	// SessionID is 0 for a request made with a key.
 	SessionID int64
 	UserID    int64
 	// ProfileID is 0 until a profile has been selected.
@@ -272,26 +324,45 @@ func CallerFrom(ctx context.Context) Caller {
 	return c
 }
 
-// admit checks the bearer token against what the route needs.
-func (s *Server) admit(r *http.Request, access Access) (*http.Request, error) {
-	if access == Public {
+// keyPrefix starts every API key and personal token, so one is told from a session's token at a glance.
+const keyPrefix = "pk_"
+
+// admit checks the bearer token or key against what the route needs.
+func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
+	if route.Access == Public {
 		return r, nil
 	}
 	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !ok {
 		return r, ErrUnauthorized()
 	}
-	claims, err := s.tokens.CheckAccess(token, s.now())
-	// A token of a session that has since been ended, or whose profile or role has changed,
-	// is refused although it has not expired. The app renews and carries on, or signs in.
-	if err != nil || s.db.TokenRefused(claims.SessionID, db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}) {
-		return r, ErrUnauthorized()
+	var c Caller
+	if strings.HasPrefix(token, keyPrefix) {
+		key, err := s.db.KeyCaller(r.Context(), auth.Hash(token), s.now())
+		switch {
+		case errors.Is(err, db.ErrNotFound):
+			return r, ErrUnauthorized()
+		case err != nil:
+			return r, err
+		case route.Scope == ScopeSession:
+			return r, refusal(http.StatusForbidden, "session_required", "This needs a signed-in person, not a key.", false)
+		case !slices.Contains(key.Scopes, string(route.Scope)) && !slices.Contains(key.Scopes, string(ScopeAdmin)):
+			return r, refusal(http.StatusForbidden, "insufficient_scope", "This key was not given the scope this needs.", false)
+		}
+		c = Caller{UserID: key.UserID, ProfileID: key.ProfileID, Role: key.Role}
+	} else {
+		claims, err := s.tokens.CheckAccess(token, s.now())
+		// A token of a session that has since been ended, or whose profile or role has changed,
+		// is refused although it has not expired. The app renews and carries on, or signs in.
+		if err != nil || s.db.TokenRefused(claims.SessionID, db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}) {
+			return r, ErrUnauthorized()
+		}
+		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage}
 	}
-	c := Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage}
 	switch {
-	case access == WithProfile && c.ProfileID == 0:
+	case route.Access == WithProfile && c.ProfileID == 0:
 		return r, ErrConflict("profile_selection_required", "Choose a profile to continue.")
-	case access == Admin && c.Role != "owner" && c.Role != "admin", access == Owner && c.Role != "owner":
+	case route.Access == Admin && c.Role != "owner" && c.Role != "admin", route.Access == Owner && c.Role != "owner":
 		return r, ErrNotPermitted()
 	}
 	return r.WithContext(context.WithValue(r.Context(), callerKey, c)), nil

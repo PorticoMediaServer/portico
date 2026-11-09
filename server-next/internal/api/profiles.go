@@ -46,6 +46,9 @@ type ProfileEdit struct {
 type ProfilePIN struct {
 	PIN             string `json:"pin"`
 	CurrentPassword string `json:"currentPassword,omitempty"`
+	// Code is the authenticator or recovery code, needed with the password when the
+	// account has two-step sign-in.
+	Code string `json:"code,omitempty"`
 }
 
 // ProfileSelect chooses the profile this session acts for.
@@ -90,8 +93,32 @@ func manager(r *http.Request) (Caller, error) {
 	return c, nil
 }
 
+// profileOwner says whose profiles a profile route acts on: the caller's own, or, with
+// ?member=<account id>, those of an account the caller manages as owner or admin. It
+// returns that account's id and the session to leave alone when a PIN change sends other
+// devices back to the chooser.
+func (s *Server) profileOwner(r *http.Request) (userID, sessionID int64, err error) {
+	caller := CallerFrom(r.Context())
+	member := r.URL.Query().Get("member")
+	if member == "" {
+		if !caller.Manage {
+			return 0, 0, ErrNotPermitted()
+		}
+		return caller.UserID, caller.SessionID, nil
+	}
+	m, err := s.db.ManagedMember(r.Context(), caller.UserID, caller.Role, member)
+	return m.ID, 0, memberError(err)
+}
+
 func (s *Server) listProfiles(r *http.Request, _ None) (Page[Profile], error) {
-	profiles, err := s.db.Profiles(r.Context(), CallerFrom(r.Context()).UserID)
+	userID := CallerFrom(r.Context()).UserID
+	if r.URL.Query().Has("member") {
+		var err error
+		if userID, _, err = s.profileOwner(r); err != nil {
+			return Page[Profile]{}, err
+		}
+	}
+	profiles, err := s.db.Profiles(r.Context(), userID)
 	return Page[Profile]{Items: profilesOut(profiles)}, err
 }
 
@@ -109,7 +136,7 @@ func checkProfileFields(name, color, pin *string) error {
 
 func (s *Server) createProfile(r *http.Request, req ProfileCreate) (Profile, error) {
 	ctx := r.Context()
-	caller, err := manager(r)
+	userID, _, err := s.profileOwner(r)
 	if err != nil {
 		return Profile{}, err
 	}
@@ -123,7 +150,7 @@ func (s *Server) createProfile(r *http.Request, req ProfileCreate) (Profile, err
 	if len(key) > 128 {
 		return Profile{}, ErrInvalid("The Idempotency-Key is at most 128 characters.")
 	}
-	n := db.NewProfile{UserID: caller.UserID, Name: req.Name, Color: req.Color, IdempotencyKey: key, RequestHash: requestHash(req), Now: s.now()}
+	n := db.NewProfile{UserID: userID, Name: req.Name, Color: req.Color, IdempotencyKey: key, RequestHash: requestHash(req), Now: s.now()}
 	if req.PIN != "" {
 		if n.PINHash, err = s.passwords.HashPIN(ctx, req.PIN); err != nil {
 			return Profile{}, err
@@ -152,14 +179,14 @@ func errKeyReused() *Error {
 
 func (s *Server) editProfile(r *http.Request, req ProfileEdit) (Profile, error) {
 	ctx := r.Context()
-	caller, err := manager(r)
+	userID, sessionID, err := s.profileOwner(r)
 	if err != nil {
 		return Profile{}, err
 	}
 	if err := checkProfileFields(req.Name, req.Color, nil); err != nil {
 		return Profile{}, err
 	}
-	e := db.ProfileEdit{UserID: caller.UserID, PublicID: r.PathValue("id"), Name: req.Name, Color: req.Color, SessionID: caller.SessionID, Now: s.now()}
+	e := db.ProfileEdit{UserID: userID, PublicID: r.PathValue("id"), Name: req.Name, Color: req.Color, SessionID: sessionID, Now: s.now()}
 	p, err := s.db.UpdateProfile(ctx, e)
 	if errors.Is(err, db.ErrNotFound) {
 		return Profile{}, ErrNotFound()
@@ -168,7 +195,14 @@ func (s *Server) editProfile(r *http.Request, req ProfileEdit) (Profile, error) 
 }
 
 func (s *Server) getProfile(r *http.Request, _ None) (Profile, error) {
-	p, err := s.db.Profile(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("id"))
+	userID := CallerFrom(r.Context()).UserID
+	if r.URL.Query().Has("member") {
+		var err error
+		if userID, _, err = s.profileOwner(r); err != nil {
+			return Profile{}, err
+		}
+	}
+	p, err := s.db.Profile(r.Context(), userID, r.PathValue("id"))
 	if errors.Is(err, db.ErrNotFound) {
 		return Profile{}, ErrNotFound()
 	}
@@ -182,7 +216,7 @@ func (s *Server) setProfilePIN(r *http.Request, req ProfilePIN) (Profile, error)
 	}
 	var proof *db.PasswordProof
 	if req.CurrentPassword != "" {
-		p, err := s.passwordProof(r, req.CurrentPassword)
+		p, err := s.passwordProof(r, req.CurrentPassword, req.Code)
 		if err != nil {
 			return Profile{}, err
 		}
@@ -200,14 +234,19 @@ func (s *Server) removeProfilePIN(r *http.Request, _ None) (None, error) {
 	return None{}, err
 }
 
-// changeProfilePIN is for the main profile, or for anyone on the account who proves its password.
+// changeProfilePIN is for the main profile, for an owner or admin acting on a member, or
+// for anyone on the account who proves its password (and two-step code).
 func (s *Server) changeProfilePIN(r *http.Request, hash string, proof *db.PasswordProof) (Profile, error) {
 	caller := CallerFrom(r.Context())
-	if proof == nil && !caller.Manage {
-		return Profile{}, ErrNotPermitted()
+	userID, sessionID := caller.UserID, caller.SessionID
+	if proof == nil {
+		var err error
+		if userID, sessionID, err = s.profileOwner(r); err != nil {
+			return Profile{}, err
+		}
 	}
-	p, err := s.db.UpdateProfile(r.Context(), db.ProfileEdit{UserID: caller.UserID, PublicID: r.PathValue("id"), PINHash: &hash,
-		SessionID: caller.SessionID, Proof: proof, Now: s.now()})
+	p, err := s.db.UpdateProfile(r.Context(), db.ProfileEdit{UserID: userID, PublicID: r.PathValue("id"), PINHash: &hash,
+		SessionID: sessionID, Proof: proof, Now: s.now()})
 	if errors.Is(err, db.ErrNotFound) {
 		return Profile{}, ErrNotFound()
 	}
@@ -215,11 +254,11 @@ func (s *Server) changeProfilePIN(r *http.Request, hash string, proof *db.Passwo
 }
 
 func (s *Server) deleteProfile(r *http.Request, _ None) (None, error) {
-	caller, err := manager(r)
+	userID, _, err := s.profileOwner(r)
 	if err != nil {
 		return None{}, err
 	}
-	err = s.db.DeleteProfile(r.Context(), caller.UserID, r.PathValue("id"), s.now())
+	err = s.db.DeleteProfile(r.Context(), userID, r.PathValue("id"), s.now())
 	if errors.Is(err, db.ErrPrimaryProfile) {
 		return None{}, ErrConflict("primary_profile", "The main profile cannot be deleted.")
 	}
