@@ -226,8 +226,9 @@ func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Requ
 		if page.Next == nil || page.Stamp == nil {
 			return false, cost, ErrUnqualified
 		}
-		// Keep the continuation so the next poll resumes this walk instead of
-		// restarting it; the retained set is not re-read either way.
+		// Keep the continuation only as a pending witness. This fence read does
+		// not pass After, so it neither resumes the walk nor re-reads its rows;
+		// the next poll is a fresh bounded discovery read.
 		s.after = cloneFullCursor(page.Next)
 		return false, cost, nil
 	default:
