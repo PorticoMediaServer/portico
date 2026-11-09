@@ -35,6 +35,15 @@ exact admitted membership of the finished preparation, not a capped count.
 - `catalog/browse_counts.go`: the duration aggregate sums each included title
   once and is an explicit lower bound while any included title has no usable
   duration. A missing metric is never silently counted as zero milliseconds.
+  Two limits apply until the task 09 wiring lands. First, this producer sums the
+  retained row's own `duration_key`; for the container kinds (2 show, 3 season,
+  6 album, 8 book) that is the container's own metric, not `browse_counts`'
+  distinct visible-member sum, so the duration parity claim here covers
+  non-container kinds only. Range, rank and selection membership are unaffected
+  for every kind. Second, this producer rounds each row
+  (`round(seconds*1000)`) before summing, while `browse_counts` sums seconds and
+  rounds the total once, so a container-free aggregate can differ by less than
+  one millisecond.
 
 ## Custody
 

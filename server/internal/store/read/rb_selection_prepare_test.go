@@ -314,6 +314,144 @@ func TestRBSelectionPrepareFarRangeBeyondCountThreshold(t *testing.T) {
 	})
 }
 
+// TestRBSelectionPrepareStartPastEnd pins the legacy OFFSET shape: a range
+// whose start is beyond the finished order is an exact empty page with the
+// unchanged total, not ErrInput.
+func TestRBSelectionPrepareStartPastEnd(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBSelectionFixture(t)
+		ascending := rbSelectionSorted(rbSelectionBrowseIDs(t, f, false, false))
+		job, err := r.BeginRBSelectionPrepare(t.Context(), 1, 1<<20, RBSelectionInput{View: f.input, Key: RBOrderByID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer job.Close()
+		rbSelectionAdvanceAll(t, job)
+		n := len(ascending)
+		for _, start := range []int{n + 1, n + 40, n + 1000} {
+			result, _, err := rbSelectionLookup(t, f, job, f.input, RBSelectionQuery{Start: start, Limit: 40})
+			if err != nil {
+				t.Fatalf("start %d beyond end was not an empty page: %v", start, err)
+			}
+			if result.Start != start || result.Total != int64(n) || len(result.Entries) != 0 || !result.Exhausted || result.DurationMs != 0 || result.AnchorFound {
+				t.Fatalf("start %d beyond end: %+v", start, result)
+			}
+		}
+		// The last real position still publishes exactly one row.
+		last, _, err := rbSelectionLookup(t, f, job, f.input, RBSelectionQuery{Start: n - 1, Limit: 40})
+		if err != nil || len(last.Entries) != 1 || last.Entries[0].ID != ascending[n-1] || !last.Exhausted {
+			t.Fatalf("last position: %+v %v", last, err)
+		}
+	})
+}
+
+// TestRBSelectionPrepareAgeRestrictedAdmission checks the completed walk and
+// the independent browse oracle agree when a restricted profile hides
+// over-age and unrated rows from the raw source.
+func TestRBSelectionPrepareAgeRestrictedAdmission(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBSelectionFixture(t)
+		f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',12,0)`)
+		f.exec(t, `UPDATE catalog_entities SET admission_own_age=18 WHERE library_id=1 AND id BETWEEN 2001 AND 2030`)
+		f.exec(t, `UPDATE catalog_entities SET admission_own_age=10 WHERE library_id=1 AND id BETWEEN 2031 AND 2060`)
+		// 2061..2200 keep their literal NULL age, which allow_unrated=0 rejects.
+		admitted := rbSelectionBrowseIDs(t, f, false, false)
+		rbSelectionOracle(t, f, rbSelectionSorted(admitted))
+		if slices.Contains(admitted, int64(2001)) || !slices.Contains(admitted, int64(2031)) || slices.Contains(admitted, int64(2061)) {
+			t.Fatalf("fixture did not realize age/null admission: over=%v rated=%v null=%v",
+				slices.Contains(admitted, int64(2001)), slices.Contains(admitted, int64(2031)), slices.Contains(admitted, int64(2061)))
+		}
+		job, err := r.BeginRBSelectionPrepare(t.Context(), 1, 1<<20, RBSelectionInput{View: f.input, Key: RBOrderByID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer job.Close()
+		rbSelectionAdvanceAll(t, job)
+		var got []int64
+		for start := 0; start < len(admitted); start += 200 {
+			result, _, err := rbSelectionLookup(t, f, job, f.input, RBSelectionQuery{Start: start, Limit: min(200, len(admitted)-start)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Total != int64(len(admitted)) {
+				t.Fatalf("restricted total at %d: %d want %d", start, result.Total, len(admitted))
+			}
+			for i, entry := range result.Entries {
+				got = append(got, entry.ID)
+				if entry.Rank != int64(start+i) {
+					t.Fatalf("restricted rank %d: %+v", start, entry)
+				}
+			}
+		}
+		if !slices.Equal(got, rbSelectionSorted(admitted)) {
+			t.Fatalf("restricted order differs from oracle: got %d want %d", len(got), len(admitted))
+		}
+	})
+}
+
+// TestRBSelectionPrepareDescendingSelectionRanks checks selection ranks, a
+// range and an entity anchor in the descending direction against the oracle's
+// ascending ranks.
+func TestRBSelectionPrepareDescendingSelectionRanks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBSelectionFixture(t)
+		for _, key := range []RBOrderKey{RBOrderByID, RBOrderByTitle} {
+			// The browse oracle returns title order; the ID recipe's ascending
+			// order is the same membership sorted by ID.
+			ascending := rbSelectionBrowseIDs(t, f, false, false)
+			if key == RBOrderByID {
+				ascending = rbSelectionSorted(ascending)
+			}
+			total := len(ascending)
+			rbSelectionOracle(t, f, ascending)
+			in := RBSelectionInput{View: f.input, Key: key}
+			in.View.Descending = true
+			job, err := r.BeginRBSelectionPrepare(t.Context(), 1, 1<<20, in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rbSelectionAdvanceAll(t, job)
+			at := []int{0, total / 3, total - 1}
+			selected := []int64{ascending[at[0]], ascending[at[1]], ascending[at[2]], ascending[at[1]]}
+			result, _, err := rbSelectionLookup(t, f, job, in.View, RBSelectionQuery{Start: 0, Limit: 1, SelectedIDs: selected})
+			if err != nil {
+				t.Fatalf("descending selection key=%d: %v", key, err)
+			}
+			if len(result.Selection) != 3 {
+				t.Fatalf("descending selection dedup key=%d: %+v", key, result.Selection)
+			}
+			for i, a := range at {
+				if result.Selection[i].ID != ascending[a] || result.Selection[i].Rank != int64(total-1-a) {
+					t.Fatalf("descending selection key=%d row %d: %+v want id=%d rank=%d", key, i, result.Selection[i], ascending[a], total-1-a)
+				}
+			}
+			ms, missing := rbSelectionSQLDuration(t, f, `o.id IN (?,?,?)`, ascending[at[0]], ascending[at[1]], ascending[at[2]])
+			if result.SelectionDurationMs != ms || result.SelectionDurationIsLowerBound != (missing > 0) {
+				t.Fatalf("descending selection duration key=%d: %+v want ms=%d missing=%d", key, result, ms, missing)
+			}
+			// A descending range and entity anchor mirror the ascending ranks.
+			start := total / 2
+			page, _, err := rbSelectionLookup(t, f, job, in.View, RBSelectionQuery{Start: start, Limit: 3})
+			if err != nil || len(page.Entries) != 3 {
+				t.Fatalf("descending range key=%d: %+v %v", key, page, err)
+			}
+			for i, entry := range page.Entries {
+				if entry.ID != ascending[total-1-(start+i)] || entry.Rank != int64(start+i) {
+					t.Fatalf("descending range key=%d row %d: %+v", key, i, entry)
+				}
+			}
+			anchorAt := total / 4
+			anchor, _, err := rbSelectionLookup(t, f, job, in.View, RBSelectionQuery{Start: 0, Limit: 1, AnchorID: ascending[anchorAt]})
+			if err != nil || !anchor.AnchorFound || anchor.AnchorRank != int64(total-1-anchorAt) {
+				t.Fatalf("descending anchor key=%d: %+v %v want %d", key, anchor, err, total-1-anchorAt)
+			}
+			if err := job.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
+
 func TestRBSelectionPrepareAnchorsBothDirectionsAndEqualKeys(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f, r := newRBSelectionFixture(t)
