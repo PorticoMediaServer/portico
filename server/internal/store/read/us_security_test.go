@@ -363,6 +363,90 @@ SELECT 'f',?,s.id,s.generation FROM identity_security_fences AS s WHERE s.accoun
 	})
 }
 
+// TestUSSecurityDevicesExcludeRetired proves the owner device page reads only
+// live devices exactly as the session witness does. A retired device in the
+// middle of the people-activity order is absent without leaving a hole, retired
+// rows never consume the device cap, and a plain SQL oracle with the same live
+// predicate matches the complete page. The oracle is local SQL rather than an
+// identity/access import: those packages register legacy SQL functions in
+// init(), which would change every plan golden's functionsSha256.
+func TestUSSecurityDevicesExcludeRetired(t *testing.T) {
+	f, r, in := usTestOwner(t)
+	devices := func() (USSecurityDevicesPage, error) {
+		page, _, err := r.devices(t.Context(), foregroundRequest(), time.Second, f.output, USSecurityInput{View: in.View, Installation: in.Installation, Account: "a"})
+		return page, err
+	}
+	insert := func(id, platform, lastSeen string, retired int64) {
+		t.Helper()
+		f.exec(t, `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen,retired_ms) VALUES(?, 'a', ?, 'fixture', ?, 'test', '1', '2026-11-05T00:00:00Z', ?, ?)`, id, "install-"+id, platform, lastSeen, retired)
+	}
+	ids := func(page USSecurityDevicesPage) []string {
+		out := make([]string, 0, len(page.Items))
+		for _, item := range page.Items {
+			out = append(out, item.ID)
+		}
+		return out
+	}
+	oracle := func() []string {
+		t.Helper()
+		rows, err := f.conn.QueryContext(t.Context(), `SELECT d.id FROM identity_devices AS d WHERE d.account_id=? AND d.authority='local' AND d.retired_ms=0 ORDER BY d.platform,d.last_seen DESC LIMIT ?`, "a", int64(usSecurityDeviceMax+1))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, id)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	for n := 1; n <= 5; n++ {
+		insert(fmt.Sprintf("l%02d", n), "test", fmt.Sprintf("2026-11-05T00:00:%02dZ", n), 0)
+	}
+	// One retired device between the second and third live row, plus retired
+	// rows at both ends of the platform order.
+	insert("r-mid", "test", "2026-11-05T00:00:03.5Z", 7)
+	insert("r-first", "aaa", "2026-11-07T00:00:00Z", 7)
+	insert("r-last", "zzz", "2026-11-01T00:00:00Z", 7)
+
+	page, err := devices()
+	want := []string{"l05", "l04", "l03", "l02", "l01", "d"}
+	if err != nil || page.AccountID != "a" || !page.Exhausted {
+		t.Fatalf("device page: %+v %v", page, err)
+	}
+	if got := ids(page); !reflect.DeepEqual(got, want) {
+		t.Fatalf("retired device changed the page: %v want %v", got, want)
+	}
+	if got := oracle(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("oracle differs over the full traversal: %v want %v", got, want)
+	}
+
+	// The cap counts live devices only: 64 live plus three retired rows still
+	// make one exact, exhausted page.
+	for n := 0; n < 58; n++ {
+		insert(fmt.Sprintf("u%02d", n), "test", fmt.Sprintf("2026-11-06T00:00:%02dZ", n), 0)
+	}
+	page, err = devices()
+	if err != nil || !page.Exhausted || len(page.Items) != usSecurityDeviceMax {
+		t.Fatalf("64 live devices: %+v %v", page, err)
+	}
+	if got, want := ids(page), oracle(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("oracle differs at the cap: %d vs %d", len(got), len(want))
+	}
+	insert("u58", "test", "2026-11-06T00:01:00Z", 0)
+	if page, err := devices(); !errors.Is(err, ErrUnqualified) || !reflect.DeepEqual(page, USSecurityDevicesPage{}) {
+		t.Fatalf("live overflow: %+v %v", page, err)
+	}
+}
+
 // TestUSSecurityDTOParity holds the local read values to the current public
 // response types. It is a name/type check only: the read code never imports
 // those adapters, and their SQL is not reused. The shapes are mirrored here
