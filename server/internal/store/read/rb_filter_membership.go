@@ -36,6 +36,19 @@ var ErrMembershipSearchSource = errors.New("rb filter membership needs exact RS 
 // source); this recipe reads only the hierarchy's stable group facts.
 var ErrMembershipEpisodeRange = errors.New("rb filter membership needs the authoritative show rank source")
 
+// ErrMembershipCollectionStartsWith names the collection starts-with refusal.
+// A collection operand is an opaque public identity, so a prefix has no exact
+// historical meaning; the legacy compiler could only fold the encoded identity
+// text. This recipe refuses the operator instead of inventing a prefix match.
+var ErrMembershipCollectionStartsWith = errors.New("rb filter membership cannot prefix-match a collection identity")
+
+// ErrMembershipAuthorSource names the author-membership refusal. The legacy
+// vocabulary lists author (kind 13) in collectedKinds and commonKinds, so it
+// accepts collection and memberOf filters over an author. This recipe has no
+// author membership source and refuses that kind rather than reporting a
+// generic vocabulary failure.
+var ErrMembershipAuthorSource = errors.New("rb filter membership has no author membership source")
+
 // MembershipFilterInput is a bounded raw-title source window for the closed
 // membership and contextual-source vocabulary: collection, memberOf,
 // savedCollection, list, album, artist and episodeGroup. It is a single-source
@@ -131,6 +144,10 @@ func compileRBFilterMembership(raw json.RawMessage, kind int64) (rbMembershipFil
 				return ErrMembershipHomeRowSource
 			case "search":
 				return ErrMembershipSearchSource
+			case "collection":
+				if n.Operator == "starts-with" {
+					return ErrMembershipCollectionStartsWith
+				}
 			case "episodeGroup":
 				show, group, valid := splitRBMembershipEpisodeGroup(n.Value)
 				if !valid || show == "" {
@@ -165,7 +182,8 @@ func rbMembershipFieldOperators(field string) []string {
 	case "collection":
 		// An identity set: contains/contains-any are the legacy aliases for
 		// equals/in. Presence is proved by the collection-presence source.
-		return []string{"contains", "contains-any", "contains-all", "equals", "in", "not-equals", "not-in", "is-present", "is-missing"}
+		// starts-with parses so the compiler can return its named refusal.
+		return []string{"contains", "contains-any", "contains-all", "equals", "starts-with", "in", "not-equals", "not-in", "is-present", "is-missing"}
 	case "memberOf", "savedCollection", "list":
 		return []string{"equals", "in", "not-in"}
 	case "album", "artist":
@@ -339,11 +357,18 @@ func rbMembershipIdentityEval(n *rbFilterNode, f *rbMembershipFacts) bool {
 	case "is-missing":
 		return !f.has[n.Field]
 	}
-	targets := rbMembershipIdentityTargets(n)
+	targets, matchable := rbMembershipIdentityTargets(n)
 	switch n.Operator {
 	case "not-equals", "not-in":
 		return !rbMembershipAnyValue(values, targets)
 	case "contains-all":
+		// Legacy expands contains-all into one equality atom per operand. A
+		// malformed identity compiles to pid_blob(?) = NULL, which never
+		// matches, so any unmatchable operand makes the whole conjunction
+		// false rather than disappearing from it.
+		if !matchable {
+			return false
+		}
 		for _, target := range targets {
 			if !rbMembershipAnyValue(values, []string{target}) {
 				return false
@@ -354,12 +379,18 @@ func rbMembershipIdentityEval(n *rbFilterNode, f *rbMembershipFacts) bool {
 	return rbMembershipAnyValue(values, targets)
 }
 
-func rbMembershipIdentityTargets(n *rbFilterNode) []string {
+// rbMembershipIdentityTargets decodes the operands that legacy compares as
+// public identities. A malformed collection or memberOf id never matches a
+// positive atom, so it is dropped from the target set; matchable reports
+// whether every operand could be compared (contains-all needs that).
+func rbMembershipIdentityTargets(n *rbFilterNode) ([]string, bool) {
 	raw := rbMembershipNodeValues(n.Value)
 	out := make([]string, 0, len(raw))
+	matchable := true
 	for _, value := range raw {
 		text, ok := value.(string)
 		if !ok {
+			matchable = false
 			continue
 		}
 		if n.Field == "collection" || n.Field == "memberOf" {
@@ -367,12 +398,14 @@ func rbMembershipIdentityTargets(n *rbFilterNode) []string {
 			// never match a positive fact and never exclude a title.
 			if decoded, valid := entityid.Decode(text); valid {
 				out = append(out, string(decoded))
+			} else {
+				matchable = false
 			}
 			continue
 		}
 		out = append(out, text)
 	}
-	return out
+	return out, matchable
 }
 
 func rbMembershipNodeValues(value any) []any {
@@ -488,6 +521,9 @@ func (r *BrowseReader) membershipFilterWindow(ctx context.Context, request gover
 		return MembershipFilterPage{}, BrowseReadResult{}, ErrInput
 	}
 	if in.View.Kind < 1 || in.View.Kind > 10 {
+		if in.View.Kind == 13 {
+			return MembershipFilterPage{}, BrowseReadResult{}, ErrMembershipAuthorSource
+		}
 		return MembershipFilterPage{}, BrowseReadResult{}, ErrUnqualified
 	}
 	s, err := newSavedViewSession(&SavedViewReader{snapshots: r.snapshots, pool: r.pool}, ctx, request, budget, out, in.View)
@@ -780,8 +816,10 @@ func readRBMembershipFacts(s *savedViewSession, q browseQuery, in MembershipFilt
 			return nil, ErrUnqualified
 		}
 		if len(values) > 0 {
-			if err := addRows("playlist", rbMembershipPlaylistArgs(values, titles, admission, f), "list"); err != nil {
-				return nil, err
+			for _, name := range []string{"playlist.owner", "playlist.shared"} {
+				if err := addRows(name, rbMembershipPlaylistArgs(values, titles, admission, f), "list"); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -796,6 +834,12 @@ func readRBMembershipFacts(s *savedViewSession, q browseQuery, in MembershipFilt
 		}
 	}
 	if fields["episodeGroup"] {
+		// schema-v1 keeps the authoritative hierarchy on catalog_entities
+		// (show_id, season_id, season_number, numbering). The legacy compiler
+		// reads the writer-derived catalog_episodes/catalog_seasons mirrors;
+		// those tables are not part of the read schema, and the oracle fixture
+		// derives them from these same entity columns. They therefore agree by
+		// construction wherever the read contract applies.
 		values := rbMembershipStringValues(filter.node, "episodeGroup")
 		for _, value := range values {
 			show, group, valid := splitRBMembershipEpisodeGroup(value)
@@ -1118,10 +1162,9 @@ func rbMembershipSavedArgs(name string, values []string, titles []int64, admissi
 }
 
 func rbMembershipPlaylistArgs(values []string, titles []int64, admission []any, f browseFence) []any {
-	args := make([]any, 0, 4+rbMembershipValueSlot+rbMembershipSlot+len(admission)+1)
+	args := make([]any, 0, 3+rbMembershipValueSlot+rbMembershipSlot+len(admission)+1)
 	args = append(args, "local", f.account, f.profile)
 	args = append(args, rbMembershipTextArgs(values)...)
-	args = append(args, rbMembershipOwnerTag("local", f.account, f.profile))
 	args = append(args, rbMembershipTitleArgs(titles)...)
 	args = append(args, admission...)
 	return append(args, int64(rbMembershipFactLimit+1))

@@ -1,10 +1,8 @@
 package read
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -57,20 +55,6 @@ func rbMembershipTextParams() []stmt.Param {
 func rbMembershipMarks(n int) string { return strings.TrimSuffix(strings.Repeat("?,", n), ",") }
 func rbMembershipIDs() string        { return rbMembershipMarks(rbMembershipSlot) }
 func rbMembershipValues() string     { return rbMembershipMarks(rbMembershipValueSlot) }
-
-// rbMembershipOwnerTagSQL is the closed-grammar, length-prefixed encoding of a
-// playlist owner triple. The prefix makes the encoding injective, so comparing
-// it with the bound tag is exactly owner_authority/account/profile equality; a
-// plain separator could be ambiguous if a component contained it.
-func rbMembershipOwnerTagSQL(alias string) string {
-	return "printf('%d:%s%d:%s%d:%s',length(" + alias + ".owner_authority)," + alias + ".owner_authority,length(" + alias + ".owner_account)," + alias + ".owner_account,length(" + alias + ".owner_profile)," + alias + ".owner_profile)"
-}
-
-// rbMembershipOwnerTag encodes the live principal the same way. SQLite length()
-// counts characters, so the Go side counts runes.
-func rbMembershipOwnerTag(authority, account, profile string) string {
-	return fmt.Sprintf("%d:%s%d:%s%d:%s", utf8.RuneCountInString(authority), authority, utf8.RuneCountInString(account), account, utf8.RuneCountInString(profile), profile)
-}
 
 func rbMembershipAdmissionParams() []stmt.Param {
 	return []stmt.Param{
@@ -192,7 +176,7 @@ func RBFilterMembershipDefinitions() []stmt.Definition {
 	collectionPlan := stmt.Plan{Hot: true, Indexes: []string{"catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"item_id=?"}}
 	defs = append(defs, rbMembershipFactShape("collection",
 		"m.entity_id,c.public_id", "m.entity_id,octet_length(c.public_id)", collectionFrom, collectionWhere,
-		collectionParams, collectionPresent, collectionEmpty, collectionPlan, "BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)")...)
+		collectionParams, collectionPresent, collectionEmpty, collectionPlan, "BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)", "BLOOM FILTER ON m (item_id=? AND entity_id=?)")...)
 
 	// Presence: any collection holds this title (or one of its members). The
 	// public collection field allows is-present/is-missing; no selected value
@@ -223,17 +207,19 @@ func RBFilterMembershipDefinitions() []stmt.Definition {
 
 	// Saved personal collections: the entry itself (direct), the title that
 	// holds an entry (held), and the parts of a saved container (parts). The
-	// selected resource identities drive the entry order; share and owner facts
-	// are the viewer's own live principal.
+	// selected resource identities drive the entry index; each entry then
+	// reaches its resource by the resource primary key. Share and owner facts
+	// are the viewer's own live principal, and the explicit viewer-first share
+	// index keys the viewer tuple before the resource id.
 	//
 	// The closed grammar has no grouped boolean expression. Accessibility
 	// (owner OR server-visible OR shared) is therefore one NULL test over a
 	// coalesce of positive markers: nullif(length(x),length(nullif(x,?))) is
 	// non-NULL exactly when x compares equal to the bound value, and
 	// length(sh.resource_id) is non-NULL exactly when a share row exists.
-	savedFrom := "saved_resources AS r INDEXED BY saved_resource_visibility CROSS JOIN saved_resource_entries AS sre INDEXED BY saved_resource_entries_order ON sre.resource_id=r.id"
-	savedShare := "LEFT JOIN saved_resource_shares AS sh ON sh.resource_id=r.id AND sh.authority=? AND sh.account_id=? AND sh.profile_id=?"
-	savedWhere := "r.id IN(" + rbMembershipValues() + ") AND r.kind='collection' AND r.deleted=0 AND coalesce(nullif(length(r.owner_key),length(nullif(r.owner_key,?))),nullif(length(r.visibility),length(nullif(r.visibility,'server'))),length(sh.resource_id)) IS NOT NULL"
+	savedFrom := "saved_resource_entries AS sre INDEXED BY saved_resource_entries_order CROSS JOIN saved_resources AS r ON r.id=sre.resource_id"
+	savedShare := "LEFT JOIN saved_resource_shares AS sh INDEXED BY saved_resource_shared ON sh.resource_id=r.id AND sh.authority=? AND sh.account_id=? AND sh.profile_id=?"
+	savedWhere := "sre.resource_id IN(" + rbMembershipValues() + ") AND r.kind='collection' AND r.deleted=0 AND coalesce(nullif(length(r.owner_key),length(nullif(r.owner_key,?))),nullif(length(r.visibility),length(nullif(r.visibility,'server'))),length(sh.resource_id)) IS NOT NULL"
 	shareParams := []stmt.Param{s("authority"), s("account"), s("profile")}
 	sharePresent := []any{"local", "a", "p"}
 	shareEmpty := []any{"absent", "absent", "absent"}
@@ -269,8 +255,7 @@ func RBFilterMembershipDefinitions() []stmt.Definition {
 	defs = append(defs, rbMembershipFactShape("saved.direct",
 		"sre.item_id,r.id", "sre.item_id,octet_length(r.id)", savedFrom+" "+savedShare, savedWhere+" AND sre.item_id IN("+rbMembershipIDs()+")",
 		directParams, savedBindings(rbMembershipTitleBindings(1)), savedEmptyBindings(rbMembershipEmptyTitles()),
-		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_visibility", "saved_resource_entries_order"}, Seeks: []string{"kind=?", "resource_id=?"},
-			Waivers: []stmt.Waiver{{Stage: "eqp", Form: "SCAN", Match: "SCAN sh LEFT-JOIN", Reason: "Analyzed estimate scans a small catalog dimension; the entry and membership seeks remain pinned"}}})...)
+		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_entries_order", "sqlite_autoindex_saved_resources_1", "saved_resource_shared"}, Seeks: []string{"resource_id=?", "id=?", "authority=? AND account_id=? AND profile_id=? AND resource_id=?"}}, "BLOOM FILTER ON sh (authority=? AND account_id=? AND profile_id=? AND resource_id=?)")...)
 
 	// Held: the title holds a saved entry, restricted on the entry's own item.
 	heldFrom := savedFrom + " CROSS JOIN catalog_browse_memberships AS m INDEXED BY catalog_browse_membership_item ON m.item_id=sre.item_id CROSS JOIN catalog_entities AS me ON me.id=m.item_id CROSS JOIN catalog_libraries AS ml ON ml.id=me.library_id " + savedShare
@@ -290,8 +275,7 @@ func RBFilterMembershipDefinitions() []stmt.Definition {
 	defs = append(defs, rbMembershipFactShape("saved.held",
 		"m.entity_id,r.id", "m.entity_id,octet_length(r.id)", heldFrom, heldWhere,
 		heldParams, heldPresent, heldEmpty,
-		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_visibility", "saved_resource_entries_order", "catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"kind=?", "resource_id=?", "item_id=?"},
-			Waivers: []stmt.Waiver{{Stage: "eqp", Form: "SCAN", Match: "SCAN sh LEFT-JOIN", Reason: "Analyzed estimate scans a small catalog dimension; the entry and membership seeks remain pinned"}}}, "BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)")...)
+		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_entries_order", "sqlite_autoindex_saved_resources_1", "catalog_browse_membership_item", "saved_resource_shared"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"resource_id=?", "id=?", "item_id=?", "authority=? AND account_id=? AND profile_id=? AND resource_id=?"}}, "BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)", "BLOOM FILTER ON sh (authority=? AND account_id=? AND profile_id=? AND resource_id=?)")...)
 
 	// Parts: the title is a member of a saved container entry.
 	partsFrom := savedFrom + " CROSS JOIN catalog_browse_memberships AS m INDEXED BY catalog_browse_membership_item ON m.entity_id=sre.item_id " + savedShare
@@ -308,34 +292,47 @@ func RBFilterMembershipDefinitions() []stmt.Definition {
 	defs = append(defs, rbMembershipFactShape("saved.parts",
 		"m.item_id,r.id", "m.item_id,octet_length(r.id)", partsFrom, partsWhere,
 		partsParams, partsPresent, partsEmpty,
-		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_visibility", "saved_resource_entries_order", "catalog_browse_membership_item"}, Seeks: []string{"kind=?", "resource_id=?", "entity_id=?"},
-			Waivers: []stmt.Waiver{{Stage: "eqp", Form: "SCAN", Match: "SCAN sh LEFT-JOIN", Reason: "Analyzed estimate scans a small catalog dimension; the entry and membership seeks remain pinned"}}})...)
+		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_entries_order", "sqlite_autoindex_saved_resources_1", "catalog_browse_membership_item", "saved_resource_shared"}, Seeks: []string{"resource_id=?", "id=?", "entity_id=?", "authority=? AND account_id=? AND profile_id=? AND resource_id=?"}}, "BLOOM FILTER ON sh (authority=? AND account_id=? AND profile_id=? AND resource_id=?)")...)
 
-	// Playlists: the viewer's own or shared playlists' entries, lifted through
-	// the membership item index to this page's titles.
-	listFrom := "catalog_playlists AS l CROSS JOIN catalog_playlist_entries AS e INDEXED BY catalog_playlist_entries_page ON e.playlist_id=l.id CROSS JOIN catalog_browse_memberships AS m INDEXED BY catalog_browse_membership_item ON m.item_id=e.item_id CROSS JOIN catalog_entities AS me ON me.id=e.item_id CROSS JOIN catalog_libraries AS ml ON ml.id=me.library_id LEFT JOIN playlist_shares AS sh ON sh.playlist_id=l.token AND sh.authority=? AND sh.account_id=? AND sh.profile_id=?"
-	listWhere := "l.token IN(" + rbMembershipValues() + ") AND l.deleted=0 AND e.item_id IS NOT NULL AND coalesce(nullif(length(" + rbMembershipOwnerTagSQL("l") + "),length(nullif(" + rbMembershipOwnerTagSQL("l") + ",?))),length(sh.playlist_id)) IS NOT NULL AND m.entity_id IN(" + rbMembershipIDs() + ") AND" + rbMembershipAdmissionSQL
-	listParams := append(append(append([]stmt.Param(nil), shareParams...), rbMembershipTextParams()...), s("owner_tag"))
-	listParams = append(listParams, idParams...)
-	listParams = append(listParams, admission...)
-	listParams = append(listParams, limitParam)
-	listPresent := append(append(append([]any(nil), sharePresent...), rbMembershipTextBindings(23)...), rbMembershipOwnerTag("local", "a", "p"))
-	listPresent = append(listPresent, rbMembershipTitleBindings(1)...)
-	listPresent = append(listPresent, admissionPresent...)
-	listPresent = append(listPresent, int64(rbMembershipFactLimit+1))
-	listEmpty := append(append(append([]any(nil), shareEmpty...), rbMembershipTextBindings(23)...), rbMembershipOwnerTag("absent", "absent", "absent"))
-	listEmpty = append(listEmpty, rbMembershipEmptyTitles()...)
-	listEmpty = append(listEmpty, admissionEmpty...)
-	listEmpty = append(listEmpty, int64(rbMembershipFactLimit+1))
-	defs = append(defs, rbMembershipFactShape("playlist",
-		"m.entity_id,l.token", "m.entity_id,octet_length(l.token)", listFrom, listWhere,
-		listParams, listPresent, listEmpty,
-		stmt.Plan{Hot: true, Indexes: []string{"catalog_playlist_entries_page", "catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"playlist_id=?", "item_id=?"},
-			Waivers: []stmt.Waiver{
-				{Stage: "eqp", Form: "SCAN", Match: "SCAN l", Reason: "Analyzed estimate scans a small catalog dimension; the entry and membership seeks remain pinned"},
-				{Stage: "eqp", Form: "SCAN", Match: "SCAN sh LEFT-JOIN", Reason: "Analyzed estimate scans a small catalog dimension; the entry and membership seeks remain pinned"},
-			}},
+	// Playlists are split into the viewer's own and shared recipes so neither
+	// side reads every principal's playlists. The owner recipe seeks the
+	// viewer-first owner index; the shared recipe seeks the viewer-first share
+	// index and then reaches each playlist by its token unique index. Both then
+	// use the entry page and membership item indexes.
+	listTail := " CROSS JOIN catalog_playlist_entries AS e INDEXED BY catalog_playlist_entries_page ON e.playlist_id=l.id CROSS JOIN catalog_browse_memberships AS m INDEXED BY catalog_browse_membership_item ON m.item_id=e.item_id CROSS JOIN catalog_entities AS me ON me.id=e.item_id CROSS JOIN catalog_libraries AS ml ON ml.id=me.library_id"
+	listOwnerFrom := "catalog_playlists AS l INDEXED BY catalog_playlists_owner" + listTail
+	listOwnerWhere := "l.owner_authority=? AND l.owner_account=? AND l.owner_profile=? AND l.deleted=0 AND l.token IN(" + rbMembershipValues() + ") AND e.item_id IS NOT NULL AND m.entity_id IN(" + rbMembershipIDs() + ") AND" + rbMembershipAdmissionSQL
+	listOwnerParams := append(append(append([]stmt.Param(nil), shareParams...), rbMembershipTextParams()...), idParams...)
+	listOwnerParams = append(listOwnerParams, admission...)
+	listOwnerParams = append(listOwnerParams, limitParam)
+	listOwnerPresent := append(append(append([]any(nil), sharePresent...), rbMembershipTextBindings(23)...), rbMembershipTitleBindings(1)...)
+	listOwnerPresent = append(listOwnerPresent, admissionPresent...)
+	listOwnerPresent = append(listOwnerPresent, int64(rbMembershipFactLimit+1))
+	listOwnerEmpty := append(append(append([]any(nil), shareEmpty...), rbMembershipTextBindings(23)...), rbMembershipEmptyTitles()...)
+	listOwnerEmpty = append(listOwnerEmpty, admissionEmpty...)
+	listOwnerEmpty = append(listOwnerEmpty, int64(rbMembershipFactLimit+1))
+	defs = append(defs, rbMembershipFactShape("playlist.owner",
+		"m.entity_id,l.token", "m.entity_id,octet_length(l.token)", listOwnerFrom, listOwnerWhere,
+		listOwnerParams, listOwnerPresent, listOwnerEmpty,
+		stmt.Plan{Hot: true, Indexes: []string{"catalog_playlists_owner", "catalog_playlist_entries_page", "catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"owner_authority=? AND owner_account=? AND owner_profile=? AND deleted=?", "playlist_id=?", "item_id=?"}},
 		"BLOOM FILTER ON e (playlist_id=?)", "BLOOM FILTER ON m (item_id=? AND entity_id=?)", "BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)")...)
+
+	listSharedFrom := "playlist_shares AS sh INDEXED BY playlist_shares_listen_actor CROSS JOIN catalog_playlists AS l ON l.token=sh.playlist_id" + listTail
+	listSharedWhere := "sh.authority=? AND sh.account_id=? AND sh.profile_id=? AND sh.playlist_id IN(" + rbMembershipValues() + ") AND l.deleted=0 AND e.item_id IS NOT NULL AND m.entity_id IN(" + rbMembershipIDs() + ") AND" + rbMembershipAdmissionSQL
+	listSharedParams := append(append(append([]stmt.Param(nil), shareParams...), rbMembershipTextParams()...), idParams...)
+	listSharedParams = append(listSharedParams, admission...)
+	listSharedParams = append(listSharedParams, limitParam)
+	listSharedPresent := append(append(append([]any(nil), sharePresent...), rbMembershipTextBindings(24)...), rbMembershipTitleBindings(1)...)
+	listSharedPresent = append(listSharedPresent, admissionPresent...)
+	listSharedPresent = append(listSharedPresent, int64(rbMembershipFactLimit+1))
+	listSharedEmpty := append(append(append([]any(nil), shareEmpty...), rbMembershipTextBindings(24)...), rbMembershipEmptyTitles()...)
+	listSharedEmpty = append(listSharedEmpty, admissionEmpty...)
+	listSharedEmpty = append(listSharedEmpty, int64(rbMembershipFactLimit+1))
+	defs = append(defs, rbMembershipFactShape("playlist.shared",
+		"m.entity_id,l.token", "m.entity_id,octet_length(l.token)", listSharedFrom, listSharedWhere,
+		listSharedParams, listSharedPresent, listSharedEmpty,
+		stmt.Plan{Hot: true, Indexes: []string{"playlist_shares_listen_actor", "sqlite_autoindex_catalog_playlists_1", "catalog_playlist_entries_page", "catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"authority=? AND account_id=? AND profile_id=? AND playlist_id=?", "token=?", "playlist_id=?", "item_id=?"}},
+		"BLOOM FILTER ON l (token=?)", "BLOOM FILTER ON sh (authority=? AND account_id=? AND profile_id=? AND playlist_id=?)", "BLOOM FILTER ON e (playlist_id=?)", "BLOOM FILTER ON m (item_id=? AND entity_id=?)", "BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)")...)
 
 	// A song's album title and its credited artist titles through the real
 	// membership shape (a container's members are its songs).

@@ -44,12 +44,6 @@ func rbMembershipOctetMarks(n int) string { return strings.TrimSuffix(strings.Re
 func rbMembershipOctetIDs() string        { return rbMembershipOctetMarks(rbMembershipOctetSlot) }
 func rbMembershipOctetValues() string     { return rbMembershipOctetMarks(rbMembershipOctetValueSlot) }
 
-// rbMembershipOctetOwnerTagSQL must stay byte-identical to the payload owner
-// tag expression: length-prefixed fields make the encoding injective.
-func rbMembershipOctetOwnerTagSQL(alias string) string {
-	return "printf('%d:%s%d:%s%d:%s',length(" + alias + ".owner_authority)," + alias + ".owner_authority,length(" + alias + ".owner_account)," + alias + ".owner_account,length(" + alias + ".owner_profile)," + alias + ".owner_profile)"
-}
-
 func rbMembershipOctetAdmissionParams() []stmt.Param {
 	return []stmt.Param{
 		{Name: "null_age", Type: stmt.Integer, Nullable: true},
@@ -137,7 +131,7 @@ func init() {
 			return auditRBMembershipIndex(ctx, c, "catalog_browse_memberships", "catalog_browse_membership_item", "c", []string{"item_id", "entity_id"})
 		},
 		[]string{"SEARCH m USING INDEX catalog_browse_membership_item (", "SEARCH cm USING INDEX catalog_collection_members_page (", "SEARCH me USING INTEGER PRIMARY KEY ("},
-		"BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)")
+		"BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)", "BLOOM FILTER ON m (item_id=? AND entity_id=?)")
 
 	presenceFrom := "catalog_browse_memberships AS m CROSS JOIN catalog_collection_members AS cm INDEXED BY catalog_collection_members_item ON cm.item_id=m.item_id CROSS JOIN catalog_entities AS c ON c.id=cm.collection_id CROSS JOIN catalog_entities AS me ON me.id=m.item_id CROSS JOIN catalog_libraries AS ml ON ml.id=me.library_id"
 	presenceWhere := "m.entity_id IN(" + rbMembershipOctetIDs() + ") AND ml.id=? AND" + rbMembershipOctetAdmissionSQL
@@ -164,17 +158,18 @@ func init() {
 		[]string{"SEARCH p USING PRIMARY KEY (", "SEARCH m USING INDEX catalog_browse_membership_item ("},
 		"BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)", "BLOOM FILTER ON m (item_id=? AND entity_id=?)")
 
-	savedFrom := "saved_resources AS r INDEXED BY saved_resource_visibility CROSS JOIN saved_resource_entries AS sre INDEXED BY saved_resource_entries_order ON sre.resource_id=r.id"
-	savedShare := "LEFT JOIN saved_resource_shares AS sh ON sh.resource_id=r.id AND sh.authority=? AND sh.account_id=? AND sh.profile_id=?"
-	savedWhere := "r.id IN(" + rbMembershipOctetValues() + ") AND r.kind='collection' AND r.deleted=0 AND coalesce(nullif(length(r.owner_key),length(nullif(r.owner_key,?))),nullif(length(r.visibility),length(nullif(r.visibility,'server'))),length(sh.resource_id)) IS NOT NULL"
+	savedFrom := "saved_resource_entries AS sre INDEXED BY saved_resource_entries_order CROSS JOIN saved_resources AS r ON r.id=sre.resource_id"
+	savedShare := "LEFT JOIN saved_resource_shares AS sh INDEXED BY saved_resource_shared ON sh.resource_id=r.id AND sh.authority=? AND sh.account_id=? AND sh.profile_id=?"
+	savedWhere := "sre.resource_id IN(" + rbMembershipOctetValues() + ") AND r.kind='collection' AND r.deleted=0 AND coalesce(nullif(length(r.owner_key),length(nullif(r.owner_key,?))),nullif(length(r.visibility),length(nullif(r.visibility,'server'))),length(sh.resource_id)) IS NOT NULL"
 	rbMembershipOctetFact("saved.direct",
 		"SELECT sre.item_id,octet_length(r.id) FROM "+savedFrom+" "+savedShare+" WHERE "+savedWhere+" AND sre.item_id IN("+rbMembershipOctetIDs()+") LIMIT ?",
 		append(append(append(append(append([]stmt.Param(nil), shareParams...), textParams...), ownerParam), itemParams...), limit),
-		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_visibility", "saved_resource_entries_order"}, Seeks: []string{"kind=?", "resource_id=?"}},
+		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_entries_order", "sqlite_autoindex_saved_resources_1", "saved_resource_shared"}, Seeks: []string{"resource_id=?", "id=?", "authority=? AND account_id=? AND profile_id=? AND resource_id=?"}},
 		func(ctx context.Context, c *sql.Conn) error {
 			return auditRBMembershipIndex(ctx, c, "saved_resource_entries", "saved_resource_entries_order", "c", []string{"resource_id", "order_key", "id"})
 		},
-		[]string{"SEARCH sre USING INDEX saved_resource_entries_order ("})
+		[]string{"SEARCH sre USING INDEX saved_resource_entries_order ("},
+		"BLOOM FILTER ON sh (authority=? AND account_id=? AND profile_id=? AND resource_id=?)")
 
 	heldFrom := savedFrom + " CROSS JOIN catalog_browse_memberships AS m INDEXED BY catalog_browse_membership_item ON m.item_id=sre.item_id CROSS JOIN catalog_entities AS me ON me.id=m.item_id CROSS JOIN catalog_libraries AS ml ON ml.id=me.library_id " + savedShare
 	heldWhere := savedWhere + " AND m.entity_id IN(" + rbMembershipOctetIDs() + ") AND" + rbMembershipOctetAdmissionSQL
@@ -185,7 +180,7 @@ func init() {
 	rbMembershipOctetFact("saved.held",
 		"SELECT m.entity_id,octet_length(r.id) FROM "+heldFrom+" WHERE "+heldWhere+" LIMIT ?",
 		heldParams,
-		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_visibility", "saved_resource_entries_order", "catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"kind=?", "resource_id=?", "item_id=?"}},
+		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_entries_order", "sqlite_autoindex_saved_resources_1", "catalog_browse_membership_item", "saved_resource_shared"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"resource_id=?", "id=?", "item_id=?", "authority=? AND account_id=? AND profile_id=? AND resource_id=?"}},
 		func(ctx context.Context, c *sql.Conn) error {
 			if err := auditRBMembershipIndex(ctx, c, "saved_resource_entries", "saved_resource_entries_order", "c", []string{"resource_id", "order_key", "id"}); err != nil {
 				return err
@@ -193,7 +188,7 @@ func init() {
 			return auditRBMembershipIndex(ctx, c, "catalog_browse_memberships", "catalog_browse_membership_item", "c", []string{"item_id", "entity_id"})
 		},
 		[]string{"SEARCH sre USING INDEX saved_resource_entries_order (", "SEARCH m USING INDEX catalog_browse_membership_item ("},
-		"BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)")
+		"BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)", "BLOOM FILTER ON sh (authority=? AND account_id=? AND profile_id=? AND resource_id=?)")
 
 	partsFrom := savedFrom + " CROSS JOIN catalog_browse_memberships AS m INDEXED BY catalog_browse_membership_item ON m.entity_id=sre.item_id " + savedShare
 	partsWhere := savedWhere + " AND m.item_id IN(" + rbMembershipOctetIDs() + ")"
@@ -203,31 +198,58 @@ func init() {
 	rbMembershipOctetFact("saved.parts",
 		"SELECT m.item_id,octet_length(r.id) FROM "+partsFrom+" WHERE "+partsWhere+" LIMIT ?",
 		partsParams,
-		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_visibility", "saved_resource_entries_order", "catalog_browse_membership_item"}, Seeks: []string{"kind=?", "resource_id=?", "entity_id=?"}},
+		stmt.Plan{Hot: true, Indexes: []string{"saved_resource_entries_order", "sqlite_autoindex_saved_resources_1", "catalog_browse_membership_item", "saved_resource_shared"}, Seeks: []string{"resource_id=?", "id=?", "entity_id=?", "authority=? AND account_id=? AND profile_id=? AND resource_id=?"}},
 		func(ctx context.Context, c *sql.Conn) error {
 			return auditRBMembershipIndex(ctx, c, "saved_resource_entries", "saved_resource_entries_order", "c", []string{"resource_id", "order_key", "id"})
 		},
-		[]string{"SEARCH sre USING INDEX saved_resource_entries_order (", "SEARCH m USING INDEX catalog_browse_membership_item ("})
+		[]string{"SEARCH sre USING INDEX saved_resource_entries_order (", "SEARCH m USING INDEX catalog_browse_membership_item ("},
+		"BLOOM FILTER ON sh (authority=? AND account_id=? AND profile_id=? AND resource_id=?)")
 
-	listFrom := "catalog_playlists AS l CROSS JOIN catalog_playlist_entries AS e INDEXED BY catalog_playlist_entries_page ON e.playlist_id=l.id CROSS JOIN catalog_browse_memberships AS m INDEXED BY catalog_browse_membership_item ON m.item_id=e.item_id CROSS JOIN catalog_entities AS me ON me.id=e.item_id CROSS JOIN catalog_libraries AS ml ON ml.id=me.library_id LEFT JOIN playlist_shares AS sh ON sh.playlist_id=l.token AND sh.authority=? AND sh.account_id=? AND sh.profile_id=?"
-	listWhere := "l.token IN(" + rbMembershipOctetValues() + ") AND l.deleted=0 AND e.item_id IS NOT NULL AND coalesce(nullif(length(" + rbMembershipOctetOwnerTagSQL("l") + "),length(nullif(" + rbMembershipOctetOwnerTagSQL("l") + ",?))),length(sh.playlist_id)) IS NOT NULL AND m.entity_id IN(" + rbMembershipOctetIDs() + ") AND" + rbMembershipOctetAdmissionSQL
-	listParams := append(append([]stmt.Param(nil), shareParams...), textParams...)
-	listParams = append(listParams, s("owner_tag"))
-	listParams = append(listParams, itemParams...)
-	listParams = append(listParams, admission...)
-	listParams = append(listParams, limit)
-	rbMembershipOctetFact("playlist",
-		"SELECT m.entity_id,octet_length(l.token) FROM "+listFrom+" WHERE "+listWhere+" LIMIT ?",
-		listParams,
-		stmt.Plan{Hot: true, Indexes: []string{"catalog_playlist_entries_page", "catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"playlist_id=?", "item_id=?"}},
+	listTail := " CROSS JOIN catalog_playlist_entries AS e INDEXED BY catalog_playlist_entries_page ON e.playlist_id=l.id CROSS JOIN catalog_browse_memberships AS m INDEXED BY catalog_browse_membership_item ON m.item_id=e.item_id CROSS JOIN catalog_entities AS me ON me.id=e.item_id CROSS JOIN catalog_libraries AS ml ON ml.id=me.library_id"
+	listOwnerFrom := "catalog_playlists AS l INDEXED BY catalog_playlists_owner" + listTail
+	listOwnerWhere := "l.owner_authority=? AND l.owner_account=? AND l.owner_profile=? AND l.deleted=0 AND l.token IN(" + rbMembershipOctetValues() + ") AND e.item_id IS NOT NULL AND m.entity_id IN(" + rbMembershipOctetIDs() + ") AND" + rbMembershipOctetAdmissionSQL
+	listOwnerParams := append(append(append([]stmt.Param(nil), shareParams...), textParams...), itemParams...)
+	listOwnerParams = append(listOwnerParams, admission...)
+	listOwnerParams = append(listOwnerParams, limit)
+	rbMembershipOctetFact("playlist.owner",
+		"SELECT m.entity_id,octet_length(l.token) FROM "+listOwnerFrom+" WHERE "+listOwnerWhere+" LIMIT ?",
+		listOwnerParams,
+		stmt.Plan{Hot: true, Indexes: []string{"catalog_playlists_owner", "catalog_playlist_entries_page", "catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"owner_authority=? AND owner_account=? AND owner_profile=? AND deleted=?", "playlist_id=?", "item_id=?"}},
 		func(ctx context.Context, c *sql.Conn) error {
+			if err := auditRBMembershipTable(ctx, c, "catalog_playlists", []string{"id", "token", "owner_authority", "owner_account", "owner_profile", "deleted"}); err != nil {
+				return err
+			}
 			if err := auditRBMembershipIndex(ctx, c, "catalog_playlist_entries", "catalog_playlist_entries_page", "c", []string{"playlist_id", "order_key", "id"}); err != nil {
 				return err
 			}
 			return auditRBMembershipIndex(ctx, c, "catalog_browse_memberships", "catalog_browse_membership_item", "c", []string{"item_id", "entity_id"})
 		},
-		[]string{"SEARCH e USING INDEX catalog_playlist_entries_page (", "SEARCH m USING INDEX catalog_browse_membership_item ("},
+		[]string{"SEARCH l USING INDEX catalog_playlists_owner (", "SEARCH e USING INDEX catalog_playlist_entries_page (", "SEARCH m USING INDEX catalog_browse_membership_item ("},
 		"BLOOM FILTER ON e (playlist_id=?)", "BLOOM FILTER ON m (item_id=? AND entity_id=?)", "BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)")
+
+	listSharedFrom := "playlist_shares AS sh INDEXED BY playlist_shares_listen_actor CROSS JOIN catalog_playlists AS l ON l.token=sh.playlist_id" + listTail
+	listSharedWhere := "sh.authority=? AND sh.account_id=? AND sh.profile_id=? AND sh.playlist_id IN(" + rbMembershipOctetValues() + ") AND l.deleted=0 AND e.item_id IS NOT NULL AND m.entity_id IN(" + rbMembershipOctetIDs() + ") AND" + rbMembershipOctetAdmissionSQL
+	listSharedParams := append(append(append([]stmt.Param(nil), shareParams...), textParams...), itemParams...)
+	listSharedParams = append(listSharedParams, admission...)
+	listSharedParams = append(listSharedParams, limit)
+	rbMembershipOctetFact("playlist.shared",
+		"SELECT m.entity_id,octet_length(l.token) FROM "+listSharedFrom+" WHERE "+listSharedWhere+" LIMIT ?",
+		listSharedParams,
+		stmt.Plan{Hot: true, Indexes: []string{"playlist_shares_listen_actor", "sqlite_autoindex_catalog_playlists_1", "catalog_playlist_entries_page", "catalog_browse_membership_item"}, PrimaryKeys: []string{"me", "ml"}, Seeks: []string{"authority=? AND account_id=? AND profile_id=? AND playlist_id=?", "token=?", "playlist_id=?", "item_id=?"}},
+		func(ctx context.Context, c *sql.Conn) error {
+			if err := auditRBMembershipIndex(ctx, c, "playlist_shares", "playlist_shares_listen_actor", "c", []string{"authority", "account_id", "profile_id", "playlist_id"}); err != nil {
+				return err
+			}
+			if err := auditRBMembershipTable(ctx, c, "catalog_playlists", []string{"id", "token", "deleted"}); err != nil {
+				return err
+			}
+			if err := auditRBMembershipIndex(ctx, c, "catalog_playlist_entries", "catalog_playlist_entries_page", "c", []string{"playlist_id", "order_key", "id"}); err != nil {
+				return err
+			}
+			return auditRBMembershipIndex(ctx, c, "catalog_browse_memberships", "catalog_browse_membership_item", "c", []string{"item_id", "entity_id"})
+		},
+		[]string{"SEARCH sh USING INDEX playlist_shares_listen_actor (", "SEARCH l USING INDEX sqlite_autoindex_catalog_playlists_1 (", "SEARCH e USING INDEX catalog_playlist_entries_page (", "SEARCH m USING INDEX catalog_browse_membership_item ("},
+		"BLOOM FILTER ON l (token=?)", "BLOOM FILTER ON sh (authority=? AND account_id=? AND profile_id=? AND playlist_id=?)", "BLOOM FILTER ON e (playlist_id=?)", "BLOOM FILTER ON m (item_id=? AND entity_id=?)", "BLOOM FILTER ON me (id=?)", "BLOOM FILTER ON ml (id=?)")
 
 	albumFrom := "catalog_browse_memberships AS m CROSS JOIN catalog_songs AS sng ON sng.entity_id=m.item_id CROSS JOIN catalog_entities AS alb ON alb.id=sng.album_id CROSS JOIN catalog_entities AS me ON me.id=m.item_id CROSS JOIN catalog_libraries AS ml ON ml.id=me.library_id"
 	albumWhere := "m.entity_id IN(" + rbMembershipOctetIDs() + ") AND" + rbMembershipOctetAdmissionSQL
@@ -254,15 +276,11 @@ func init() {
 		"BLOOM FILTER ON ml (id=?)")
 }
 
-// rbMembershipOctetScans are the exact analyzed-plan table scans waived for a
-// fact statement's bytes preflight; the payload declaration carries the same
-// waivers. Any other scan remains refused.
-var rbMembershipOctetScans = map[string][]string{
-	"playlist":     {"SCAN l", "SCAN sh LEFT-JOIN"},
-	"saved.direct": {"SCAN sh LEFT-JOIN"},
-	"saved.held":   {"SCAN sh LEFT-JOIN"},
-	"saved.parts":  {"SCAN sh LEFT-JOIN"},
-}
+// rbMembershipOctetScans are exact analyzed-plan table scans waived for a fact
+// statement's bytes preflight. The saved and playlist statements force their
+// resource/view identity and share primary keys, so every access is a keyed
+// SEARCH in both analyzed profiles and no SCAN waiver is granted here.
+var rbMembershipOctetScans = map[string][]string{}
 
 func rbMembershipOctetFact(name, sqlText string, params []stmt.Param, proof stmt.Plan, audit func(context.Context, *sql.Conn) error, searches []string, bloom ...string) {
 	id := stmt.ID("read.browse.rb.filter_membership." + name + ".bytes")
