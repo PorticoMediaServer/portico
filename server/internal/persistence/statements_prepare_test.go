@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 )
 
 // A statement that names a column or table the schema does not have fails only
@@ -43,6 +45,31 @@ func baselineStatementSource(relative string) bool {
 	// and HN's statement/plan registry. Exclude only that prefix from this old
 	// baseline check; other source censuses still use the unfiltered collector.
 	return !strings.HasPrefix(filepath.ToSlash(relative), "internal/store/")
+}
+
+// Backup selects one of two fixed artwork closures from the actual database
+// shape. Keep checking its legacy statements against the baseline, and prepare
+// the normalized v1 history closure against the embedded schema it consumes.
+func backupArtworkV1Statement(s productionStatement) bool {
+	return strings.HasPrefix(filepath.ToSlash(s.where), "internal/backup/files.go:") &&
+		strings.Contains(s.text, "FROM metadata_owner_history_artwork")
+}
+
+func artworkV1PrepareDatabase(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "artwork-v1.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	db.SetMaxOpenConns(1)
+	if _, err = db.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(schema.SQL()); err != nil {
+		t.Fatal(err)
+	}
+	return db
 }
 
 func productionStatementsMatching(t *testing.T, root string, include func(string) bool) ([]productionStatement, map[string]bool) {
@@ -175,6 +202,7 @@ func TestProductionStatementsPrepareAgainstTheBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	statements, transient := productionStatementsMatching(t, root, baselineStatementSource)
+	artworkV1 := artworkV1PrepareDatabase(t)
 	// The title dataset client (internal/enrichment) also reads the dataset
 	// file, whose schema is its published contract (testdata/schema.sql):
 	// its statements prepare against one schema or the other.
@@ -273,6 +301,9 @@ func TestProductionStatementsPrepareAgainstTheBaseline(t *testing.T) {
 		if strings.HasPrefix(filepath.ToSlash(s.where), "internal/persistence/salvage") {
 			target = salvageMain
 		}
+		if backupArtworkV1Statement(s) {
+			target = artworkV1
+		}
 		prepared, err := prepareProductionStatement(target, dataset, s, transient)
 		if prepared {
 			checked++
@@ -285,6 +316,69 @@ func TestProductionStatementsPrepareAgainstTheBaseline(t *testing.T) {
 		t.Fatalf("only %d statements prepared; the scan is broken", checked)
 	}
 	t.Logf("%d statements prepared", checked)
+}
+
+func TestBackupArtworkStatementsKeepBothSchemaChecks(t *testing.T) {
+	legacy, err := Open(filepath.Join(t.TempDir(), "legacy-artwork.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer legacy.Close()
+	v1 := artworkV1PrepareDatabase(t)
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	statements, _ := productionStatementsMatching(t, root, func(path string) bool {
+		return filepath.ToSlash(path) == "internal/backup/files.go"
+	})
+	var v1Closures int
+	for _, s := range statements {
+		if backupArtworkV1Statement(s) {
+			v1Closures++
+			prepared, err := v1.Prepare(s.text)
+			if err != nil {
+				t.Fatal(err)
+			}
+			prepared.Close()
+			if wrong, err := legacy.Prepare(s.text); err == nil {
+				wrong.Close()
+				t.Fatal("v1 history closure unexpectedly accepted by legacy schema")
+			}
+			bad := strings.Replace(s.text, "SELECT digest FROM metadata_owner_history_artwork",
+				"SELECT missing_digest FROM metadata_owner_history_artwork", 1)
+			if bad == s.text {
+				t.Fatal("v1 history witness disappeared")
+			}
+			if wrong, err := v1.Prepare(bad); err == nil {
+				wrong.Close()
+				t.Fatal("v1 missing-column error was hidden")
+			}
+			other := s
+			other.where = "internal/unrelated/query.go:1"
+			if backupArtworkV1Statement(other) {
+				t.Fatal("v1 routing escaped the backup source")
+			}
+		}
+	}
+	if v1Closures != 1 {
+		t.Fatalf("v1 closure checks=%d, want one", v1Closures)
+	}
+	// The legacy selection columns must still use the baseline; routing the
+	// whole backup source to v1 would hide this contract.
+	legacySelection := productionStatement{"internal/backup/files.go:1", "SELECT digest FROM artwork_selections WHERE locked=1 OR actor<>''"}
+	if backupArtworkV1Statement(legacySelection) {
+		t.Fatal("legacy backup statement routed to v1")
+	}
+	prepared, err := legacy.Prepare(legacySelection.text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared.Close()
+	if wrong, err := v1.Prepare(legacySelection.text); err == nil {
+		wrong.Close()
+		t.Fatal("legacy selection columns unexpectedly accepted by v1")
+	}
 }
 
 var missingSQLReference = regexp.MustCompile(`no such (table|column|function)`)
