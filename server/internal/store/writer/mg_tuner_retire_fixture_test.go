@@ -3,7 +3,6 @@ package writer
 import (
 	"context"
 	"encoding/hex"
-	"strings"
 	"testing"
 	"time"
 
@@ -38,25 +37,11 @@ func mgTunerRetireExecutor(t *testing.T, kind mgActorKind) (*executor, string, *
 	return e, path, &mgActorProof{native: *proof, kind: kind}
 }
 
-// The exact F media draft subset already used by MP-05, plus the FK-valid
+// The adopted full F media schema plus the FK-valid
 // catalogue/playback fixture one native exit proof needs. The MP bridge is real:
 // a child process starts, joins and is only then a physical observation.
 func mgTunerRetirePhysical(t *testing.T, e *executor, media, execution string) (*mpPhysicalSupervisor, *mpPhysicalObservation, mpPhysicalKey) {
 	t.Helper()
-	var existing int
-	if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM pragma_table_xinfo('playback_sessions') WHERE name='mp_execution_id'`).Scan(&existing); err != nil {
-		t.Fatal(err)
-	}
-	if existing == 0 {
-		for _, sql := range strings.Split(mpWorkerDraftDDL, ";") {
-			if strings.TrimSpace(sql) == "" {
-				continue
-			}
-			if _, err := e.db.ExecContext(t.Context(), sql); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
 	exec := func(q string, args ...any) {
 		t.Helper()
 		if _, err := e.db.ExecContext(t.Context(), q, args...); err != nil {
