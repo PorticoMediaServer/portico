@@ -36,7 +36,7 @@ func ipArtworkDiscoveryFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usO
 		ipPolicyExec(t, w, query)
 	}
 	public := make([]byte, 16)
-	public[8], public[9] = byte(778>>8), byte(778)
+	public[8], public[9] = byte(778>>8), byte(778&0xff)
 	ipPolicyExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(778,?,777,1)`, public)
 	ipPolicyExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,source_revision,identity_revision,metadata_revision,artwork_revision) VALUES(778,?,777,1,'Title','title','t','title','t',0,X'03000000000000000000000000000000',X'04000000000000000000000000000000',1,1,1,1)`, public)
 	ipPolicyExec(t, w, `INSERT INTO catalog_people(id,token,identity_key,name,sort_name,artwork_incarnation,artwork_revision) VALUES(778,'person-token','person:key','Person','person',X'05000000000000000000000000000000',2)`)
