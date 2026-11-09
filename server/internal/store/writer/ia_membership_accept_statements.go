@@ -168,7 +168,7 @@ WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AN
 				{Name: "season_without_episode", Bindings: []any{int64(72), int64(7)}},
 			}},
 		{ID: iaMembershipAlbumSongs, Kind: stmt.Read,
-			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_album WHERE album_id=? AND library_id=? AND kind=7 LIMIT 1`,
+			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_album WHERE album_id=? AND album_id IS NOT NULL AND library_id=? AND kind=7 LIMIT 1`,
 			Params: []stmt.Param{i("album_id"), i("library_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "album_with_song", Bindings: []any{int64(81), int64(7)}},
@@ -237,7 +237,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(entity_id,asset_id) DO NOTHING`,
 				{Name: "stale_boundary", Bindings: []any{int64(31), "membership-token", "unknown_multi_episode"}},
 			}},
 		{ID: iaMembershipDirectoryCAS, Kind: stmt.Write,
-			SQL: `UPDATE inventory_directories SET cursor=?,pages=?
+			SQL: `UPDATE inventory_directories INDEXED BY sqlite_autoindex_inventory_directories_1 SET cursor=?,pages=?
 WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AND pages=? AND skipped=? AND state='pending'
 RETURNING cursor,pages,skipped`,
 			Params: []stmt.Param{t("next_cursor"), i("next_pages"), t("run_id"), t("relative_path"), t("identity"), t("revision"), t("cursor"), i("pages"), i("skipped")},
@@ -401,7 +401,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_library_sources_2"}
 			defs[n].Plan.Seeks = []string{"library_id=? AND root=?"}
 		case iaMembershipDirectory:
-			defs[n].Plan.PrimaryKeys = []string{"inventory_directories"}
+			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_directories_1"}
+			defs[n].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "inventory_directories", Name: "sqlite_autoindex_inventory_directories_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "job_id", Collation: "BINARY"}, {Name: "relative_path", Collation: "BINARY"}}}}
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path=?"}
 		case iaMembershipAsset:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_catalog_assets_3"}
@@ -444,7 +445,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_episode_asset_boundaries_1"}
 			defs[n].Plan.Seeks = []string{"item_id=? AND asset_id=?"}
 		case iaMembershipDirectoryCAS:
-			defs[n].Plan.PrimaryKeys = []string{"inventory_directories"}
+			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_directories_1"}
+			defs[n].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "inventory_directories", Name: "sqlite_autoindex_inventory_directories_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "job_id", Collation: "BINARY"}, {Name: "relative_path", Collation: "BINARY"}}}}
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path=?"}
 		case iaMembershipRunCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}
