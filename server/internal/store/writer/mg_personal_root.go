@@ -271,6 +271,8 @@ func mgPersonalResultKindBound(kind CommandID, result any) bool {
 		return kind == MGScheduleRecording || kind == MGUpdateRecording || kind == MGCancelRecording || kind == MGKeepRecording
 	case mgRuleResult:
 		return kind == MGSaveRule || kind == MGDeleteRule
+	case mgCaptureResult:
+		return kind == MGCaptureClaim || kind == MGRenewCapture || kind == MGCheckpointCapture
 	}
 	return false
 }
@@ -292,6 +294,8 @@ func mgPersonalResultPayload(id CommandIdentity, q RequestDigest, kind CommandID
 		return mgRecordingIntentPayload(id, q, v)
 	case mgRuleResult:
 		return mgRulePayload(id, q, v)
+	case mgCaptureResult:
+		return mgCaptureResultPayload(id, q, v)
 	}
 	return nil, ResultDigest{}, ErrInvalid
 }
