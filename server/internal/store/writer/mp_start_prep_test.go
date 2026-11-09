@@ -108,6 +108,10 @@ func mpStartPrepFixtureFor(t *testing.T) mpStartPrepFixture {
 	actor := mpPrepActor{server: s.serverID, authority: "local", account: s.accountID, profile: s.profileID,
 		device: "mp-start-device", family: s.familyID, grant: "mp-grant", sessionHash: hash,
 		epoch: s.epoch, tokenGeneration: 1, horizonMS: horizon.UnixMilli()}
+	scope := mpPrepScope{memberBirth: s.memberBirth, profileBirth: s.profileBirth, memberLibraries: s.memberLibraries,
+		memberRevision: s.memberRevision, profileRevision: s.profileRevision, membershipRole: s.membershipRole,
+		role: s.role, primary: s.primary, primaryProfile: s.primaryProfile, profileLibraries: s.profileLibraries,
+		horizon: s.horizon, expires: s.expires}
 	source := mpPrepSource{library: "library-one", source: "mp-source", asset: "mp-asset", object: "mp-object",
 		revision: "r1", root: "mp-root", incarnation: "mp-inc", remote: "", configuration: "mp-config",
 		policy: "mp-policy", authority: "mp-read-authority", libraryGeneration: 1, configurationGeneration: 1,
@@ -120,7 +124,7 @@ func mpStartPrepFixtureFor(t *testing.T) mpStartPrepFixture {
 	if f.expires > actor.horizonMS {
 		f.expires = actor.horizonMS
 	}
-	c := &mpStartPrepDisclosure{writer: w, lifetime: t.Context(), actor: actor, library: "library-one", incarnation: inc}
+	c := &mpStartPrepDisclosure{writer: w, lifetime: t.Context(), actor: actor, library: "library-one", scope: scope, incarnation: inc}
 	c.self = c
 	f.cap = c
 	return f
@@ -143,12 +147,12 @@ func (f mpStartPrepFixture) beginIdentity() CommandIdentity {
 
 func (f mpStartPrepFixture) claimInput(revision int64, execution string) mpStartPrepClaimInput {
 	return mpStartPrepClaimInput{fence: mpStartPrepFence{id: "mp-prep", revision: revision, actor: f.actor,
-		source: f.source, queue: f.queue, sourceWitnessed: true}, execution: execution}
+		source: f.source, queue: f.queue}, execution: execution}
 }
 
 func (f mpStartPrepFixture) sealInput(revision int64, c mpStartPrepCompletion) mpStartPrepSealInput {
 	return mpStartPrepSealInput{fence: mpStartPrepFence{id: "mp-prep", execution: c.execution, revision: revision,
-		actor: f.actor, source: f.source, queue: f.queue, sourceWitnessed: true}, completion: c}
+		actor: f.actor, source: f.source, queue: f.queue}, completion: c}
 }
 
 func (f mpStartPrepFixture) prepCommand(t *testing.T, kind CommandID, id CommandIdentity, payload any) (*mpStartPrepCommand, error) {
@@ -490,6 +494,279 @@ func TestMPStartPrepReplayAfterAckRetired(t *testing.T) {
 	}
 	f.cap.lifetime = t.Context()
 	mpStartPrepAssertReturned(t, f)
+}
+
+// mpStartPrepFreezeClock pins the executor's protocol clock so a test can move
+// time past the stored deadline without editing any row. The returned advance
+// moves the frozen instant forward; every call stays monotonic.
+func mpStartPrepFreezeClock(f mpStartPrepFixture) func(time.Duration) {
+	now := f.e.now()
+	f.e.now = func() time.Time { return now }
+	return func(d time.Duration) { now = now.Add(d) }
+}
+
+// tightDeadline puts the stored deadline one millisecond after the frozen
+// clock, so a two-millisecond advance models "the deadline passed" without a
+// wall jump that the WAL would treat as a restart.
+func (f *mpStartPrepFixture) tightDeadline() {
+	f.deadline = f.e.now().UnixMilli() + 1
+}
+
+// mpStartPrepDrift moves one current dependency after a command committed and
+// its response was lost. It never edits the preparation's saved receipt.
+func mpStartPrepDrift(t *testing.T, f mpStartPrepFixture, drift string, advance func(time.Duration)) {
+	t.Helper()
+	switch drift {
+	case "queue":
+		if _, err := f.e.db.ExecContext(t.Context(), `UPDATE queues_v1 SET revision=revision+1,custody_generation=custody_generation+1 WHERE id='mp-queue'`); err != nil {
+			t.Fatal(err)
+		}
+	case "source":
+		if _, err := f.e.db.ExecContext(t.Context(), `UPDATE inventory_objects SET revision='r2' WHERE id='mp-object'`); err != nil {
+			t.Fatal(err)
+		}
+	case "deadline":
+		// The frozen clock moves just past the tight stored deadline. A large
+		// wall jump would look like a WAL restart, not an ordinary deadline.
+		advance(2 * time.Millisecond)
+	default:
+		t.Fatal("unknown drift", drift)
+	}
+}
+
+func (f mpStartPrepFixture) sealCompletion() mpStartPrepCompletion {
+	return mpStartPrepCompletion{execution: "mp-execution", resultDigest: strings.Repeat("f", 64), stagedRows: 4, stagedBytes: 128}
+}
+
+// TestMPStartPrepReplaySurvivesFreshDrift pins the contract order: current
+// disclosure/actor authority, THEN the saved original, THEN the fresh
+// deadline/item/source/queue gates. An applied-but-unacknowledged begin, claim
+// or seal is served with zero new effects after the queue moved, the source
+// revision changed or the deadline passed.
+func TestMPStartPrepReplaySurvivesFreshDrift(t *testing.T) {
+	for _, command := range []string{"begin", "claim", "seal"} {
+		for _, drift := range []string{"queue", "source", "deadline"} {
+			t.Run(command+"-"+drift, func(t *testing.T) {
+				f := mpStartPrepFixtureFor(t)
+				mpStartPrepComposeFixture(t, f)
+				advance := mpStartPrepFreezeClock(f)
+				if drift == "deadline" {
+					f.tightDeadline()
+				}
+				begin, err := f.begin(t)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var original mpStartPrepResult
+				var replay func() (mpStartPrepResult, error)
+				switch command {
+				case "begin":
+					original = begin
+					replay = func() (mpStartPrepResult, error) { return f.begin(t) }
+				case "claim":
+					if original, err = f.claim(t, 1, "mp-execution", 1, 0x62); err != nil {
+						t.Fatal(err)
+					}
+					replay = func() (mpStartPrepResult, error) { return f.claim(t, 1, "mp-execution", 1, 0x62) }
+				case "seal":
+					if _, err = f.claim(t, 1, "mp-execution", 1, 0x62); err != nil {
+						t.Fatal(err)
+					}
+					f.ack(t, 1)
+					if original, err = f.seal(t, 2, f.sealCompletion(), 2, 0x65); err != nil {
+						t.Fatal(err)
+					}
+					replay = func() (mpStartPrepResult, error) { return f.seal(t, 2, f.sealCompletion(), 2, 0x65) }
+				}
+				before := mpStartPrepReadFacts(t, f)
+				mpStartPrepDrift(t, f, drift, advance)
+				saved, err := replay()
+				if err != nil || saved.Outcome.State != Applied || !saved.Outcome.Replayed ||
+					saved.Value != original.Value || saved.Digest != original.Digest {
+					t.Fatal("replay lost the saved original", saved, original, err)
+				}
+				if after := mpStartPrepReadFacts(t, f); after != before {
+					t.Fatalf("replay wrote effects: before %+v after %+v", before, after)
+				}
+				mpStartPrepAssertReturned(t, f)
+			})
+		}
+	}
+	// An acknowledged cohort stays Retired even when the queue moved afterwards.
+	t.Run("acked-claim-retired-after-queue-drift", func(t *testing.T) {
+		f := mpStartPrepFixtureFor(t)
+		mpStartPrepComposeFixture(t, f)
+		if _, err := f.begin(t); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.claim(t, 1, "mp-execution", 1, 0x62); err != nil {
+			t.Fatal(err)
+		}
+		f.ack(t, 1)
+		if _, err := f.e.db.ExecContext(t.Context(), `UPDATE queues_v1 SET revision=revision+1 WHERE id='mp-queue'`); err != nil {
+			t.Fatal(err)
+		}
+		retired, err := f.claim(t, 1, "mp-execution", 1, 0x62)
+		if err != nil || retired.Outcome.State != ResultRetired || retired.Value != (mpStartPrepValue{}) {
+			t.Fatal("ACKed replay after drift", retired, err)
+		}
+		mpStartPrepAssertReturned(t, f)
+	})
+}
+
+// TestMPStartPrepFreshStillRefusesDrift proves the moved gates still run for a
+// FRESH command in the same states: the fix is ordering, not a new bypass.
+func TestMPStartPrepFreshStillRefusesDrift(t *testing.T) {
+	for _, drift := range []string{"queue", "source", "deadline"} {
+		for _, command := range []string{"begin", "claim", "seal"} {
+			t.Run(command+"-"+drift, func(t *testing.T) {
+				f := mpStartPrepFixtureFor(t)
+				mpStartPrepComposeFixture(t, f)
+				advance := mpStartPrepFreezeClock(f)
+				if drift == "deadline" {
+					f.tightDeadline()
+				}
+				if _, err := f.begin(t); err != nil {
+					t.Fatal(err)
+				}
+				if command == "seal" {
+					if _, err := f.claim(t, 1, "mp-execution", 1, 0x62); err != nil {
+						t.Fatal(err)
+					}
+					f.ack(t, 1)
+				}
+				mpStartPrepDrift(t, f, drift, advance)
+				var out mpStartPrepResult
+				var err error
+				switch command {
+				case "begin":
+					// A fresh birth has its own owner incarnation and start key.
+					inc := [16]byte{0x52}
+					q := f.beginInput()
+					q.id, q.birth.incarnation, q.keyDigest = "mp-prep-2", inc, strings.Repeat("7", 64)
+					q.results = mpStartPrepStableIDs{session: "mp-session-2", legacySession: "mp-legacy-2", legacyGeneration: 9, snapshot: "mp-snapshot-2"}
+					c := &mpStartPrepDisclosure{writer: f.cap.writer, lifetime: f.cap.lifetime, actor: f.cap.actor,
+						library: f.cap.library, scope: f.cap.scope, incarnation: inc}
+					c.self = c
+					cmd, e := newMPStartPrepCommand(MPStartPrepBegin, CommandIdentity{Incarnation: inc, Sequence: 1, OperationID: [16]byte{0x68}}, q)
+					if e != nil {
+						t.Fatal(e)
+					}
+					out, err = f.w.runMPStartPrep(t.Context(), c, MPStartPrepBegin, cmd.reference, q)
+				case "claim":
+					out, err = f.claim(t, 1, "mp-execution", 1, 0x62)
+				case "seal":
+					out, err = f.seal(t, 2, f.sealCompletion(), 2, 0x65)
+				}
+				if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, mpStartPrepResult{}) {
+					t.Fatal("fresh command bypassed the currency gate", out, err)
+				}
+				var preps, receipts int64
+				if e := f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM playback_start_preparations`).Scan(&preps); e != nil || preps != 1 {
+					t.Fatal("fresh refusal staged a preparation", preps, e)
+				}
+				if e := f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_start_command_receipts`).Scan(&receipts); e != nil || receipts > 1 {
+					t.Fatal("fresh refusal wrote a receipt", receipts, e)
+				}
+				mpStartPrepAssertReturned(t, f)
+			})
+		}
+	}
+}
+
+// TestMPStartPrepScopeAuthority pins the SAME-TURN member/profile authority the
+// frame was missing: removing the library, tightening the profile restriction,
+// or presenting a capability for another library refuses both fresh commands and
+// replays. An unchanged scope still passes.
+func TestMPStartPrepScopeAuthority(t *testing.T) {
+	denied := func(t *testing.T, out mpStartPrepResult, err error) {
+		t.Helper()
+		if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, mpStartPrepResult{}) {
+			t.Fatal("scope authority was not enforced", out, err)
+		}
+	}
+	t.Run("library-removed-fresh", func(t *testing.T) {
+		f := mpStartPrepFixtureFor(t)
+		mpStartPrepComposeFixture(t, f)
+		// A current disclosure carries the new list; the library itself is gone.
+		f.cap.scope.memberLibraries = `["other-library"]`
+		if _, err := f.e.db.ExecContext(t.Context(), `UPDATE direct_memberships SET allowed_libraries=? WHERE account_id=?`, f.cap.scope.memberLibraries, f.cap.actor.account); err != nil {
+			t.Fatal(err)
+		}
+		out, err := f.begin(t)
+		denied(t, out, err)
+		var preps int64
+		if e := f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM playback_start_preparations`).Scan(&preps); e != nil || preps != 0 {
+			t.Fatal("denied birth staged a preparation", preps, e)
+		}
+		mpStartPrepAssertReturned(t, f)
+	})
+	t.Run("library-removed-replay", func(t *testing.T) {
+		f := mpStartPrepFixtureFor(t)
+		mpStartPrepComposeFixture(t, f)
+		if _, err := f.begin(t); err != nil {
+			t.Fatal(err)
+		}
+		claim, err := f.claim(t, 1, "mp-execution", 1, 0x62)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.cap.scope.memberLibraries = `["other-library"]`
+		if _, err := f.e.db.ExecContext(t.Context(), `UPDATE direct_memberships SET allowed_libraries=? WHERE account_id=?`, f.cap.scope.memberLibraries, f.cap.actor.account); err != nil {
+			t.Fatal(err)
+		}
+		out, err := f.claim(t, 1, "mp-execution", 1, 0x62)
+		denied(t, out, err)
+		out, err = f.begin(t)
+		denied(t, out, err)
+		var receipts int64
+		if e := f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_start_command_receipts`).Scan(&receipts); e != nil || receipts != 1 {
+			t.Fatal("denied replay wrote a receipt", receipts, e)
+		}
+		if claim.Value.State != "preparing" {
+			t.Fatal("denied replay changed the original", claim.Value)
+		}
+		mpStartPrepAssertReturned(t, f)
+	})
+	t.Run("profile-restriction-tightened", func(t *testing.T) {
+		f := mpStartPrepFixtureFor(t)
+		mpStartPrepComposeFixture(t, f)
+		f.cap.scope.profileLibraries = sql.NullString{String: `["other-library"]`, Valid: true}
+		if _, err := f.e.db.ExecContext(t.Context(), `UPDATE direct_profiles SET allowed_libraries=? WHERE id=?`, f.cap.scope.profileLibraries.String, f.cap.actor.profile); err != nil {
+			t.Fatal(err)
+		}
+		out, err := f.begin(t)
+		denied(t, out, err)
+		mpStartPrepAssertReturned(t, f)
+	})
+	t.Run("capability-library-mismatch", func(t *testing.T) {
+		f := mpStartPrepFixtureFor(t)
+		mpStartPrepComposeFixture(t, f)
+		f.cap.library = "library-two"
+		out, err := f.begin(t)
+		denied(t, out, err)
+		mpStartPrepAssertReturned(t, f)
+	})
+	t.Run("source-library-mismatch", func(t *testing.T) {
+		f := mpStartPrepFixtureFor(t)
+		mpStartPrepComposeFixture(t, f)
+		q := f.beginInput()
+		q.source.library = "library-two"
+		out, err := f.run(t, MPStartPrepBegin, f.beginReference(t, q), q)
+		denied(t, out, err)
+		mpStartPrepAssertReturned(t, f)
+	})
+	t.Run("unchanged-scope-passes", func(t *testing.T) {
+		f := mpStartPrepFixtureFor(t)
+		mpStartPrepComposeFixture(t, f)
+		if _, err := f.begin(t); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.claim(t, 1, "mp-execution", 1, 0x62); err != nil {
+			t.Fatal(err)
+		}
+		mpStartPrepAssertReturned(t, f)
+	})
 }
 
 // mpStartPrepPrefixFault fails one exact statement so the turn is observed after

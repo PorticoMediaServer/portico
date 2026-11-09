@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"strconv"
+	"time"
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/entityid"
@@ -51,6 +52,40 @@ func (a mpPrepActor) valid(now int64) bool {
 
 func (a mpPrepActor) args() []any {
 	return []any{a.server, a.authority, a.account, a.profile, a.device, a.family, a.grant, a.sessionHash, a.epoch, a.tokenGeneration, a.horizonMS}
+}
+
+// mpPrepScope is the fresh-turn native member/profile witness: current allowed
+// libraries, member/profile revisions, membership role and the ordinary token
+// horizon/expiry. It is never stored on the preparation and never replayed; the
+// SAME turn proves it again before any receipt is disclosed. The SQL is MP-04's
+// reviewed native scope/token proof (wc.progress.current_scope/_profile_scope/
+// _token); this frame reuses those definitions rather than cloning their text.
+type mpPrepScope struct {
+	memberBirth, profileBirth, memberLibraries string
+	memberRevision, profileRevision            int64
+	membershipRole, role                       string
+	primary                                    int64
+	primaryProfile                             string
+	profileLibraries                           sql.NullString
+	horizon, expires                           string
+}
+
+func (s mpPrepScope) valid() bool {
+	return lowerHex(s.memberBirth, 32) && lowerHex(s.profileBirth, 32) && mpPrepText(s.memberLibraries, false) &&
+		s.memberRevision > 0 && s.profileRevision > 0 && mpPrepTexts(s.membershipRole, s.role) &&
+		(s.primary == 0 || s.primary == 1) && mpPrepTexts(s.primaryProfile, s.horizon, s.expires) &&
+		(!s.profileLibraries.Valid || mpPrepText(s.profileLibraries.String, false))
+}
+
+// nativeScope projects the actor plus the fresh member/profile witness onto the
+// existing WC native disclosure statement shape.
+func (a mpPrepActor) nativeScope(s mpPrepScope, library string) wcProgressScope {
+	return wcProgressScope{primary: s.primary, primaryProfile: s.primaryProfile, membershipRole: s.membershipRole,
+		horizon: s.horizon, expires: s.expires, accountID: a.account, profileID: a.profile,
+		memberBirth: s.memberBirth, profileBirth: s.profileBirth, familyID: a.family, serverID: a.server,
+		tokenHash: a.sessionHash, epoch: a.epoch, tokenGeneration: a.tokenGeneration,
+		memberRevision: s.memberRevision, profileRevision: s.profileRevision, role: s.role,
+		memberLibraries: s.memberLibraries, profileLibraries: s.profileLibraries, libraryKey: library}
 }
 
 // Complete selected inventory/configuration witness. Fresh turns supply the
@@ -100,19 +135,18 @@ func (v mpStartPrepStableIDs) valid() bool {
 
 // mpStartPrepFence is the exact fresh CAS witness for claim/seal. It carries no
 // saved result, authority or exit proof: the current disclosure reads every
-// stored row again and the native actor/source/item/queue proofs run in the
-// SAME turn.
+// stored row again and the native actor/scope/source/item/queue proofs run in
+// the SAME turn.
 type mpStartPrepFence struct {
-	id, execution   string
-	revision        int64
-	actor           mpPrepActor
-	source          mpPrepSource
-	queue           mpPrepQueue
-	sourceWitnessed bool
+	id, execution string
+	revision      int64
+	actor         mpPrepActor
+	source        mpPrepSource
+	queue         mpPrepQueue
 }
 
 func (f mpStartPrepFence) valid() bool {
-	return mpPrepTexts(f.id) && mpPrepRevision(f.revision) && f.actor.valid(0) && f.source.valid() && f.queue.valid() && f.sourceWitnessed
+	return mpPrepTexts(f.id) && mpPrepRevision(f.revision) && f.actor.valid(0) && f.source.valid() && f.queue.valid()
 }
 
 type mpStartPrepCompletion struct {
@@ -279,6 +313,73 @@ func checkMPPrepQueue(ctx context.Context, t *commandTurn, q mpPrepQueue, a mpPr
 	return mpPrepOne(ctx, t, "mp.start.queue_current", q.id, q.ownerKind, q.ownerID, q.revision, q.custody, q.entry, a.authority, a.account, a.profile)
 }
 
+// checkMPStartPrepScope is the SAME-TURN member/profile authority proof for
+// 700-702 that the frame was missing. It runs before any receipt
+// classification, so a saved original is disclosed only while the current
+// member/profile still allows this library and the ordinary token horizon/expiry
+// still covers the turn. It also binds the capability's library to the exact
+// source library: a capability for library A never authorizes a source in
+// library B. The SQL and library predicate are MP-04's reviewed native
+// disclosure definitions, not a second copy of their text.
+func checkMPStartPrepScope(ctx context.Context, t *commandTurn, d *mpStartPrepDisclosure, c *mpStartPrepCommand, now int64) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
+	if d == nil || c == nil || !mpPrepTexts(d.library) || d.actor != c.fenceActor() || !d.actor.valid(now) {
+		return ErrDisclosureDenied
+	}
+	if source := c.fenceSource(); !mpPrepTexts(source.library) || source.library != d.library {
+		return ErrDisclosureDenied
+	}
+	s := d.scope
+	if !s.valid() {
+		return ErrDisclosureDenied
+	}
+	scope := d.actor.nativeScope(s, d.library)
+	if !wcProgressLibraryAllowed(scope) {
+		return ErrDisclosureDenied
+	}
+	id := wcProgressNativeScope
+	args := []any{scope.accountID, scope.profileID, scope.memberBirth, scope.profileBirth, scope.memberLibraries,
+		scope.memberRevision, scope.profileRevision, scope.membershipRole, scope.primary, scope.primaryProfile}
+	if scope.profileLibraries.Valid {
+		id = wcProgressNativeProfileScope
+		args = append(args, scope.profileLibraries.String)
+	}
+	row, err := wc008DraftQuery(ctx, t, id, args...)
+	if err != nil {
+		return err
+	}
+	var epoch, primary int64
+	if err = row.Scan(&epoch, &primary); err != nil {
+		return errors.Join(ErrDisclosureDenied, err)
+	}
+	if epoch != scope.epoch || scope.role != "member" && (primary == 0 || scope.membershipRole != scope.role) {
+		return ErrDisclosureDenied
+	}
+	row, err = wc008DraftQuery(ctx, t, wcProgressNativeToken, scope.tokenHash, scope.familyID, scope.serverID,
+		scope.accountID, scope.profileID, scope.role, scope.epoch, scope.tokenGeneration,
+		scope.memberBirth, scope.profileBirth, scope.horizon, scope.expires)
+	if err != nil {
+		return err
+	}
+	var generation int64
+	if err = row.Scan(&generation); err != nil {
+		return errors.Join(ErrDisclosureDenied, err)
+	}
+	horizon, e := time.Parse(time.RFC3339Nano, scope.horizon)
+	if e != nil {
+		return ErrDisclosureDenied
+	}
+	expires, e := time.Parse(time.RFC3339Nano, scope.expires)
+	if e != nil {
+		return ErrDisclosureDenied
+	}
+	deadline, ok := t.transaction.ctx.Deadline()
+	if !ok || generation != scope.tokenGeneration || deadline.After(horizon) || deadline.After(expires) {
+		return ErrDisclosureDenied
+	}
+	return t.checkLifetimes(ctx)
+}
+
 // Closed SQL catalog helper. Callers supply compiled SQL and native parameter
 // types, never runtime identifiers or generic transition strings.
 func mpPrepDefinition(id, sqlText, types string, kind stmt.Kind) stmt.Definition {
@@ -319,15 +420,13 @@ func mpPrepCommonDefinitions() []stmt.Definition {
 	return out
 }
 
-// mpStartPrepBeginFresh proves the current disclosure for a birth. The UO birth
-// witness is admitted only for the MP owner incarnation minted in this turn.
-func mpStartPrepBeginFresh(ctx context.Context, t *commandTurn, owner [16]byte, q mpStartPrepBeginInput, now int64) (err error) {
+// mpStartPrepBeginDisclosure proves current actor authority and the same-turn UO
+// birth witness. It runs BEFORE the duplicate lookup so an already-applied birth
+// can still be served after the queue/source/deadline moved.
+func mpStartPrepBeginDisclosure(ctx context.Context, t *commandTurn, owner [16]byte, q mpStartPrepBeginInput, now int64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
 	if !q.valid() || owner == ([16]byte{}) || now <= 0 {
 		return ErrInvalid
-	}
-	if q.deadlineMS <= now || q.tokenExpiresMS < q.deadlineMS {
-		return ErrConflict
 	}
 	if !q.actor.valid(now) {
 		return ErrDisclosureDenied
@@ -335,8 +434,16 @@ func mpStartPrepBeginFresh(ctx context.Context, t *commandTurn, owner [16]byte, 
 	if err = requireMPStartPrepUOBirth(q.birth, owner, now); err != nil {
 		return err
 	}
-	if err = checkMPPrepActor(ctx, t, q.actor, now); err != nil {
-		return err
+	return checkMPPrepActor(ctx, t, q.actor, now)
+}
+
+// mpStartPrepBeginCurrency is the FRESH-ONLY deadline/item/source/queue gate. A
+// saved birth never re-runs it: the original is classified first, exactly like a
+// receipt replay.
+func mpStartPrepBeginCurrency(ctx context.Context, t *commandTurn, q mpStartPrepBeginInput, now int64) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
+	if q.deadlineMS <= now || q.tokenExpiresMS < q.deadlineMS {
+		return ErrConflict
 	}
 	if err = checkMPPrepSource(ctx, t, q.source); err != nil {
 		return err
@@ -348,9 +455,7 @@ func mpStartPrepBeginFresh(ctx context.Context, t *commandTurn, owner [16]byte, 
 		return err
 	}
 	if q.replaces != "" {
-		if err = mpPrepOne(ctx, t, "mp.start.replacement", q.replaces, q.actor.authority, q.actor.account, q.actor.profile, q.actor.device, q.replacesGeneration); err != nil {
-			return err
-		}
+		return mpPrepOne(ctx, t, "mp.start.replacement", q.replaces, q.actor.authority, q.actor.account, q.actor.profile, q.actor.device, q.replacesGeneration)
 	}
 	return nil
 }
@@ -389,17 +494,15 @@ func applyMPStartPrepBegin(ctx context.Context, t *commandTurn, owner [16]byte, 
 	return mpStartPrepValue{Preparation: q.id, State: "pending", Revision: 1, DeadlineMS: q.deadlineMS, Session: q.results.session, LegacySession: q.results.legacySession, LegacyGeneration: q.results.legacyGeneration, Snapshot: q.results.snapshot, AppliedMS: now}, nil
 }
 
-// readMPStartPrepFresh reads every stored row again and proves CURRENT
-// disclosure. It deliberately makes no revision/state CAS decision: a saved
-// original must be classified and served before any fresh-state comparison.
-func readMPStartPrepFresh(ctx context.Context, t *commandTurn, kind CommandID, f mpStartPrepFence) (out mpStartPrepOwner, err error) {
+// readMPStartPrepDisclosedOwner proves CURRENT actor authority and reads every
+// stored row again. It deliberately makes no revision/state/deadline decision: a
+// saved original must be classified and served before any fresh-state
+// comparison. Only the receipt classification decides whether the fresh
+// deadline/item/source/queue currency gates run.
+func readMPStartPrepDisclosedOwner(ctx context.Context, t *commandTurn, f mpStartPrepFence, now int64) (out mpStartPrepOwner, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	if !f.valid() {
 		return out, ErrInvalid
-	}
-	now, err := t.commandTimeMS(ctx, kind, 0)
-	if err != nil {
-		return out, err
 	}
 	if !f.actor.valid(now) {
 		return out, ErrDisclosureDenied
@@ -413,30 +516,37 @@ func readMPStartPrepFresh(ctx context.Context, t *commandTurn, kind CommandID, f
 	if out.actor != f.actor {
 		return out, ErrDisclosureDenied
 	}
-	if out.deadlineMS <= now {
-		return out, ErrConflict
+	out.nowMS = now
+	return out, nil
+}
+
+// checkMPStartPrepCurrency is the FRESH-ONLY deadline/item/source/queue gate for
+// claim and seal. It never runs for a saved original.
+func checkMPStartPrepCurrency(ctx context.Context, t *commandTurn, out mpStartPrepOwner, f mpStartPrepFence) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
+	if out.deadlineMS <= out.nowMS {
+		return ErrConflict
 	}
 	if out.source != f.source || out.queue != f.queue {
-		return out, ErrConflict
+		return ErrConflict
 	}
-	out.nowMS = now
 	if err = checkMPPrepPublicItem(ctx, t, out.item, out.part, out.source); err != nil {
-		return out, err
+		return err
 	}
 	if err = checkMPPrepSource(ctx, t, out.source); err != nil {
-		return out, err
+		return err
 	}
-	if err = checkMPPrepQueue(ctx, t, out.queue, out.actor); err != nil {
-		return out, err
-	}
-	return out, nil
+	return checkMPPrepQueue(ctx, t, out.queue, out.actor)
 }
 
 // captureMPStartPrepOwner adds the exact lifecycle revision/state CAS required
 // only after the receipt lookup reports a fresh command.
-func captureMPStartPrepOwner(ctx context.Context, t *commandTurn, kind CommandID, f mpStartPrepFence) (out mpStartPrepOwner, err error) {
+func captureMPStartPrepOwner(ctx context.Context, t *commandTurn, kind CommandID, f mpStartPrepFence, now int64) (out mpStartPrepOwner, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
-	if out, err = readMPStartPrepFresh(ctx, t, kind, f); err != nil {
+	if out, err = readMPStartPrepDisclosedOwner(ctx, t, f, now); err != nil {
+		return out, err
+	}
+	if err = checkMPStartPrepCurrency(ctx, t, out, f); err != nil {
 		return out, err
 	}
 	if out.state != "pending" && out.state != "preparing" {
@@ -452,17 +562,13 @@ func captureMPStartPrepOwner(ctx context.Context, t *commandTurn, kind CommandID
 
 // Claim assigns one immutable execution and seals the staged input marker. It
 // starts no helper and proves no physical exit.
-func applyMPStartPrepClaim(ctx context.Context, t *commandTurn, f mpStartPrepFence, execution string) (out mpStartPrepValue, err error) {
+func applyMPStartPrepClaim(ctx context.Context, t *commandTurn, owner mpStartPrepOwner, f mpStartPrepFence, execution string) (out mpStartPrepValue, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	if err = mpPrepTurn(t, MPStartPrepClaim); err != nil {
 		return
 	}
 	if !mpPrepTexts(execution) || f.execution != "" {
 		return out, ErrInvalid
-	}
-	owner, err := captureMPStartPrepOwner(ctx, t, MPStartPrepClaim, f)
-	if err != nil {
-		return out, err
 	}
 	if owner.state != "pending" || owner.execution != "" || owner.sealed {
 		return out, ErrConflict
@@ -481,17 +587,13 @@ func applyMPStartPrepClaim(ctx context.Context, t *commandTurn, f mpStartPrepFen
 // Sealing publishes only the verified bounded commitment selected by the
 // external preparer. No external work or manifest traversal occurs here, and
 // zero staged totals mean the stage was interrupted, not complete.
-func applyMPStartPrepSeal(ctx context.Context, t *commandTurn, f mpStartPrepFence, c mpStartPrepCompletion) (out mpStartPrepValue, err error) {
+func applyMPStartPrepSeal(ctx context.Context, t *commandTurn, owner mpStartPrepOwner, f mpStartPrepFence, c mpStartPrepCompletion) (out mpStartPrepValue, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	if err = mpPrepTurn(t, MPStartPrepSeal); err != nil {
 		return
 	}
 	if !c.valid() || c.execution != f.execution || f.execution == "" {
 		return out, ErrInvalid
-	}
-	owner, err := captureMPStartPrepOwner(ctx, t, MPStartPrepSeal, f)
-	if err != nil {
-		return out, err
 	}
 	if owner.state != "preparing" || owner.execution != c.execution || !owner.sealed {
 		return out, ErrConflict
@@ -510,9 +612,17 @@ func applyMPStartPrepSeal(ctx context.Context, t *commandTurn, f mpStartPrepFenc
 func mpStartPrepDefinitions() []stmt.Definition {
 	defs := mpPrepCommonDefinitions()
 	defs = append(defs, mpStartPrepReceiptDefinitions()...)
+	// The SAME-TURN member/profile authority proof is MP-04's reviewed native
+	// disclosure. Reuse its exact definitions; never clone their SQL here.
+	for _, d := range wcProgressProtocolDefinitions() {
+		switch d.ID {
+		case wcProgressNativeScope, wcProgressNativeProfileScope, wcProgressNativeToken:
+			defs = append(defs, d)
+		}
+	}
 	defs = append(defs,
 		mpPrepDefinition("mp.start.begin_key", `SELECT id,start_body_digest FROM playback_start_preparations WHERE device_id=? AND start_key_digest=?`, "ss", stmt.Read),
-		mpPrepDefinition("mp.start.owner", `SELECT mp_command_incarnation,mp_command_last_sequence,mp_command_acknowledged_sequence,mp_owner_revision,mp_receipt_rows,mp_receipt_variable_bytes,mp_control_variable_bytes,mp_retirement_state,device_id,item_id,part_index,deadline_ms,token_expires_ms,replaces_session_id,replaces_generation,created_ms,coalesce(mp_user_root_id,'') FROM playback_start_preparations WHERE id=? AND device_id=?`, "ss", stmt.Read),
+		mpPrepDefinition("mp.start.owner", `SELECT mp_command_incarnation,mp_command_last_sequence,mp_command_acknowledged_sequence,mp_owner_revision,mp_receipt_rows,mp_receipt_variable_bytes,mp_control_variable_bytes,mp_retirement_state,device_id,item_id,part_index,deadline_ms,token_expires_ms,replaces_session_id,replaces_generation,created_ms,coalesce(mp_user_root_id,''),mp_owner_member_incarnation,mp_owner_profile_lifetime FROM playback_start_preparations WHERE id=? AND device_id=?`, "ss", stmt.Read),
 		mpPrepDefinition("mp.start.lifecycle_row", `SELECT state,revision,execution_id,sealed FROM playback_start_preparation_lifecycle WHERE operation_id=?`, "s", stmt.Read),
 		mpPrepDefinition("mp.start.actor_row", `SELECT server_id,authority,account_id,profile_id,device_id,family_id,grant_id,session_hash,epoch,token_generation,original_horizon_ms FROM playback_start_preparation_actor WHERE operation_id=?`, "s", stmt.Read),
 		mpPrepDefinition("mp.start.source_row", `SELECT library_id,library_source_id,asset_id,inventory_object_id,inventory_revision,root_identity,incarnation,remote_source_id,effective_configuration,read_policy_witness,read_authority_witness,library_generation,raw_configuration_generation,profile_revision,size,modified_ns FROM playback_start_preparation_source WHERE operation_id=?`, "s", stmt.Read),

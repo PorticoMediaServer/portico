@@ -19,6 +19,7 @@ type mpStartPrepDisclosure struct {
 	revoked     atomic.Bool
 	actor       mpPrepActor
 	library     string
+	scope       mpPrepScope
 	incarnation [16]byte
 }
 
@@ -85,13 +86,11 @@ func newMPStartPrepCommand(kind CommandID, id CommandIdentity, payload any) (*mp
 		}
 		c.begin = &q
 	case mpStartPrepClaimInput:
-		q.fence.sourceWitnessed = true
 		if kind != MPStartPrepClaim || !q.valid() {
 			return nil, ErrInvalid
 		}
 		c.claim = &q
 	case mpStartPrepSealInput:
-		q.fence.sourceWitnessed = true
 		if kind != MPStartPrepSeal || !q.valid() {
 			return nil, ErrInvalid
 		}
@@ -165,7 +164,10 @@ func mpStartPrepWorkingBytes(v *mpStartPrepInvocation) uint64 {
 		return n
 	}
 	s := v.disclosure.actor
-	for _, x := range []string{s.server, s.authority, s.account, s.profile, s.device, s.family, s.grant, s.sessionHash, v.disclosure.library} {
+	for _, x := range []string{s.server, s.authority, s.account, s.profile, s.device, s.family, s.grant, s.sessionHash, v.disclosure.library,
+		v.disclosure.scope.memberBirth, v.disclosure.scope.profileBirth, v.disclosure.scope.memberLibraries,
+		v.disclosure.scope.membershipRole, v.disclosure.scope.role, v.disclosure.scope.primaryProfile,
+		v.disclosure.scope.profileLibraries.String, v.disclosure.scope.horizon, v.disclosure.scope.expires} {
 		n += uint64(len(x)) * 32
 	}
 	if c := v.command; c != nil {
@@ -225,6 +227,21 @@ func (c *mpStartPrepCommand) fenceActor() mpPrepActor {
 	return mpPrepActor{}
 }
 
+// fenceSource is the exact library/source witness this command is bound to. The
+// current disclosure must allow and equal this library before any receipt is
+// classified.
+func (c *mpStartPrepCommand) fenceSource() mpPrepSource {
+	switch {
+	case c.begin != nil:
+		return c.begin.source
+	case c.claim != nil:
+		return c.claim.fence.source
+	case c.seal != nil:
+		return c.seal.fence.source
+	}
+	return mpPrepSource{}
+}
+
 func (w *Writer) runMPStartPrep(ctx context.Context, d *mpStartPrepDisclosure, kind CommandID, reference ReceiptReference, payload any) (out mpStartPrepResult, err error) {
 	defer func() { out, err = finishCommand(ctx, ctx, out, err) }()
 	if w == nil || w.effective == nil {
@@ -245,9 +262,12 @@ func (w *Writer) runMPStartPrep(ctx context.Context, d *mpStartPrepDisclosure, k
 	return result.mpStartPrep, err
 }
 
-// executeMPStartPrep is the sole MP start-preparation body: current disclosure,
-// original receipt classification, saved original OR fresh exact effects, then
-// the MP result/debt rows in the SAME W turn.
+// executeMPStartPrep is the sole MP start-preparation body. Contract order is
+// fixed: current disclosure/actor authority (including the same-turn member/
+// profile scope and library binding), THEN the original receipt/duplicate
+// classification, THEN the fresh deadline/item/source/queue gates. A saved
+// original is therefore served even after the queue moved, the source revision
+// changed or the deadline passed; a FRESH command in those states is refused.
 func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvocation, plan effectivePlan) (out mpStartPrepResult, historical bool, err error) {
 	defer func() {
 		x, e := finishCommand(ctx, commandLifetime(t), struct {
@@ -264,13 +284,16 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 	}
 	kind, reference := v.command.kind, v.command.reference
 	out.Outcome.Reference = reference
+	now, e := t.commandTimeMS(ctx, kind, 0)
+	if e != nil {
+		return out, false, e
+	}
+	if e = checkMPStartPrepScope(ctx, t, v.disclosure, v.command, now); e != nil {
+		return out, false, e
+	}
 	if kind == MPStartPrepBegin {
 		q := *v.command.begin
-		now, e := t.commandTimeMS(ctx, MPStartPrepBegin, 0)
-		if e != nil {
-			return out, false, e
-		}
-		if e = mpStartPrepBeginFresh(ctx, t, reference.Identity.Incarnation, q, now); e != nil {
+		if e = mpStartPrepBeginDisclosure(ctx, t, reference.Identity.Incarnation, q, now); e != nil {
 			return out, false, e
 		}
 		replay, replayed, e := mpStartPrepBeginDuplicate(ctx, t, q, reference.Identity.Incarnation)
@@ -286,6 +309,9 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 			out.Outcome.State, out.Outcome.Replayed = Applied, true
 			return out, true, nil
 		}
+		if e = mpStartPrepBeginCurrency(ctx, t, q, now); e != nil {
+			return out, false, e
+		}
 		out.Value, err = applyMPStartPrepBegin(ctx, t, reference.Identity.Incarnation, q, now)
 		if err != nil {
 			return out, false, err
@@ -298,22 +324,15 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 		return out, false, err
 	}
 	var fence mpStartPrepFence
-	var apply func() (mpStartPrepValue, error)
 	switch kind {
 	case MPStartPrepClaim:
 		fence = v.command.claim.fence
-		apply = func() (mpStartPrepValue, error) {
-			return applyMPStartPrepClaim(ctx, t, fence, v.command.claim.execution)
-		}
 	case MPStartPrepSeal:
 		fence = v.command.seal.fence
-		apply = func() (mpStartPrepValue, error) {
-			return applyMPStartPrepSeal(ctx, t, fence, v.command.seal.completion)
-		}
 	default:
 		return out, false, ErrInvalid
 	}
-	owner, err := readMPStartPrepFresh(ctx, t, kind, fence)
+	owner, err := readMPStartPrepDisclosedOwner(ctx, t, fence, now)
 	if err != nil {
 		return out, false, err
 	}
@@ -347,10 +366,18 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 	default:
 		return out, false, ErrResolveRequired
 	}
-	if v.command.claim == nil && v.command.seal == nil {
+	owner, err = captureMPStartPrepOwner(ctx, t, kind, fence, now)
+	if err != nil {
+		return out, false, err
+	}
+	switch kind {
+	case MPStartPrepClaim:
+		out.Value, err = applyMPStartPrepClaim(ctx, t, owner, fence, v.command.claim.execution)
+	case MPStartPrepSeal:
+		out.Value, err = applyMPStartPrepSeal(ctx, t, owner, fence, v.command.seal.completion)
+	default:
 		return out, false, ErrInvalid
 	}
-	out.Value, err = apply()
 	if err != nil {
 		return out, false, err
 	}

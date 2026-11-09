@@ -26,6 +26,7 @@ type mpStartPrepOwner struct {
 	control                    int64
 	retirement                 string
 	device, item, root         string
+	member, profileLifetime    string
 	part                       int64
 	deadlineMS, tokenExpiresMS int64
 	createdMS, nowMS           int64
@@ -53,6 +54,7 @@ func (o mpStartPrepOwner) valid() bool {
 	return o.last >= 0 && o.ack >= 0 && o.ack <= o.last && o.last-o.ack <= 1 &&
 		o.revision > 0 && o.rows >= 0 && o.bytes >= 0 && o.control > 0 &&
 		(o.rows == 0) == (o.bytes == 0) && mpPrepTexts(o.device, o.item, o.root) &&
+		lowerHex(o.member, 32) && lowerHex(o.profileLifetime, 32) &&
 		mpPrepText(o.replaces, true) && o.part >= 0 && o.deadlineMS > 0 && o.tokenExpiresMS >= o.deadlineMS &&
 		o.createdMS > 0 && mpPrepRevision(o.lifecycleRevision) &&
 		(o.retirement == "live" || o.retirement == "draining" || o.retirement == "retired") &&
@@ -72,7 +74,7 @@ func readMPStartPrepOwner(ctx context.Context, t *commandTurn, id, device string
 	}
 	err = row.Scan(&incarnation, &out.last, &out.ack, &out.revision, &out.rows, &out.bytes, &out.control,
 		&out.retirement, &out.device, &out.item, &out.part, &out.deadlineMS, &out.tokenExpiresMS,
-		&out.replaces, &out.replacesGeneration, &out.createdMS, &out.root)
+		&out.replaces, &out.replacesGeneration, &out.createdMS, &out.root, &out.member, &out.profileLifetime)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrDisclosureDenied
 	}
@@ -294,7 +296,11 @@ func mpStartPrepWriteReceipt(ctx context.Context, t *commandTurn, id string, own
 		return out, err
 	}
 	var last, revision, rows, bytes, control int64
-	if err = row.Scan(&last, &revision, &rows, &bytes, &control); err != nil {
+	if err = row.Scan(&last, &revision, &rows, &bytes, &control); errors.Is(err, sql.ErrNoRows) {
+		// A draining/retired owner no longer satisfies the debt CAS. Report the
+		// same typed conflict as every other failed owner CAS.
+		return out, ErrConflict
+	} else if err != nil {
 		return out, err
 	}
 	if last != reference.Identity.Sequence || revision != owner.revision+1 || rows != owner.rows+1 ||
@@ -449,8 +455,8 @@ func completeMPStartPrepResult(ctx context.Context, t *commandTurn, kind Command
 		return out, ErrConflict
 	}
 	if out.State != in.State || out.Revision != in.Revision || out.Execution != in.Execution || out.Sealed != in.Sealed ||
-		out.DeadlineMS != in.DeadlineMS || out.Session != in.Session || out.LegacyGeneration != in.LegacyGeneration ||
-		out.Snapshot != in.Snapshot {
+		out.DeadlineMS != in.DeadlineMS || out.Session != in.Session || out.LegacySession != in.LegacySession ||
+		out.LegacyGeneration != in.LegacyGeneration || out.Snapshot != in.Snapshot {
 		return out, ErrConflict
 	}
 	return out, nil
@@ -491,7 +497,8 @@ func mpStartPrepBeginDuplicate(ctx context.Context, t *commandTurn, q mpStartPre
 		owner.queue != q.queue || owner.item != q.item || owner.part != q.part ||
 		owner.deadlineMS != q.deadlineMS || owner.tokenExpiresMS != q.tokenExpiresMS ||
 		owner.replaces != q.replaces || owner.replacesGeneration != q.replacesGeneration ||
-		owner.ids != q.results || owner.root != q.birth.birth.root {
+		owner.ids != q.results || owner.root != q.birth.birth.root ||
+		owner.member != q.birth.birth.member || owner.profileLifetime != q.birth.birth.profileLifetime {
 		return out, false, ErrConflict
 	}
 	return mpStartPrepValue{Preparation: id, State: "pending", Revision: 1, DeadlineMS: owner.deadlineMS,
