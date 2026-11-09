@@ -91,6 +91,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIPEntityEvidenceResult(v)
 	case ipEntitySealResult:
 		return preflightIPEntitySealResult(v)
+	case ipTVSetResult:
+		return preflightIPTVSetResult(v)
 	case ipTextLockSavedResult:
 		return preflightIPTextLockResult(v)
 	case ipEditBulkSavedResult:
@@ -204,6 +206,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIPEntityEvidenceResult(e, identity, request, v)
 	case ipEntitySealResult:
 		return writeIPEntitySealResult(e, identity, request, v)
+	case ipTVSetResult:
+		return writeIPTVSetResult(e, identity, request, v)
 	case ipTextLockSavedResult:
 		return writeIPTextLockResult(e, identity, request, v)
 	case ipEditBulkSavedResult:

@@ -15,6 +15,10 @@ const (
 	IPEntityEvidenceAppend CommandID = 211
 	IPEntitySeal           CommandID = 212
 
+	IPTVSetBegin CommandID = 213
+	IPTVSetPage  CommandID = 214
+	IPTVSetSeal  CommandID = 215
+
 	IPArtworkDiscoveryClaim  CommandID = 220
 	IPArtworkDiscoveryPage   CommandID = 221
 	IPArtworkDiscoveryFinish CommandID = 222
@@ -41,6 +45,9 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPEntityEvidenceBegin, "ip_entity_evidence_begin", Normal},
 	{IPEntityEvidenceAppend, "ip_entity_evidence_append", Normal},
 	{IPEntitySeal, "ip_entity_seal", Normal},
+	{IPTVSetBegin, "ip_tv_set_begin", Normal},
+	{IPTVSetPage, "ip_tv_set_page", Normal},
+	{IPTVSetSeal, "ip_tv_set_seal", Normal},
 	{IPArtworkDiscoveryClaim, "ip_artwork_discovery_claim", Normal},
 	{IPArtworkDiscoveryPage, "ip_artwork_discovery_page", Normal},
 	{IPArtworkDiscoveryFinish, "ip_artwork_discovery_finish", Normal},

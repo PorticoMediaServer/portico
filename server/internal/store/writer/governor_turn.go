@@ -18,7 +18,7 @@ func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
 	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
 		IPEntityEvidenceBegin, IPEntityEvidenceAppend,
-		IPEntitySeal,
+		IPEntitySeal, IPTVSetBegin, IPTVSetPage, IPTVSetSeal,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
 		IPFieldEdit, IPFieldLock, IPFieldRestore, IPEditBulkBegin, IPEditBulkPage, IPEditBulkFinish:
 		return governor.Background, nil
