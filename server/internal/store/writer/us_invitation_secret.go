@@ -26,6 +26,12 @@ func (usInvitationProtectedCode) Format(s fmt.State, _ rune) {
 	formatUSPreparation(s, "usInvitationProtectedCode")
 }
 
+// present distinguishes the sealed create artifact from the zero value carried
+// by edit/revoke invitations.
+func (c usInvitationProtectedCode) present() bool {
+	return c.keyID != "" || c.nonce != nil || c.body != nil
+}
+
 // AAD is independent of ciphertext and the final request digest, avoiding a
 // circular wire/digest dependency. The final full request and result digest bind
 // the complete wire separately. Every field below is retained in the original

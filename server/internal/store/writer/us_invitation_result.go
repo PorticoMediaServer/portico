@@ -296,7 +296,7 @@ func usInvitationResultVariableBytes(v usInvitationSavedResult) (int64, error) {
 // fresh create supplies the sealed artifact separately, never this value.
 func (v usInvitationSavedResult) usInvitationPublic(code string) usInvitationPublicResult {
 	out := usInvitationPublicResult{
-		ServerID: v.serverID, ID: v.id, Role: v.role, State: v.state,
+		ID: v.id, Role: v.role, State: v.state,
 		CreatedAt: time.UnixMilli(v.createdMS).UTC().Format(time.RFC3339),
 		ExpiresAt: time.UnixMilli(v.expiresMS).UTC().Format(time.RFC3339),
 		Revision:  v.revision, PorticoUsername: v.boundUsername,

@@ -23,15 +23,34 @@ type usInvitationFrozenDocument struct {
 	CodeBody       []byte
 }
 
+// usInvitationInvocationScope is the CURRENT entry witness of the trusted
+// caller. It is deliberately the only second issuer shape: the invitation
+// package reuses Sol's usPolicyIssuer rather than minting a role or authority
+// boolean. A fresh submission must carry the same 11 issuer fields the frozen
+// preparation retains; replay/Resolve/ACK use only the CURRENT manager plus the
+// retained owner's stable columns (see usInvitationReceiptRequest.issuer).
+type usInvitationInvocationScope struct {
+	issuer usPolicyIssuer
+}
+
 type usInvitationCommand struct {
-	kind     CommandID
-	ownerID  string
-	actor    string
-	identity CommandIdentity
-	digest   RequestDigest
-	prepared *usInvitationPrepared
-	signIn   usInvitationSignInKind
-	code     usInvitationResultCode // create only
+	kind      CommandID
+	ownerID   string
+	actor     string
+	identity  CommandIdentity
+	digest    RequestDigest
+	prepared  *usInvitationPrepared
+	signIn    usInvitationSignInKind
+	protected usInvitationProtectedCode // create only; structurally proved before the effect
+}
+
+func (c usInvitationCommand) resultCode() usInvitationResultCode {
+	if c.kind != usInvitationCreate || !c.protected.present() {
+		return usInvitationResultCode{}
+	}
+	key := c.protected.keyID
+	return usInvitationResultCode{keyID: &key, nonce: append([]byte(nil), c.protected.nonce...),
+		body: append([]byte(nil), c.protected.body...)}
 }
 
 func (usInvitationCommand) String() string   { return "usInvitationCommand{redacted}" }
@@ -55,13 +74,13 @@ func usInvitationCommandDigest(c *usInvitationCommand) (RequestDigest, error) {
 	}
 	doc := usInvitationFrozenDocument{Actor: c.actor, SignInKind: c.signIn.kind, SignInRevision: c.signIn.revision, Prepared: *c.prepared}
 	if c.kind == usInvitationCreate {
-		if c.code.keyID == nil {
+		if !c.protected.present() || !usIdentifier(c.protected.keyID) {
 			return RequestDigest{}, ErrInvalid
 		}
-		key := *c.code.keyID
+		key := c.protected.keyID
 		doc.CodeKeyID = &key
-		doc.CodeNonce = append([]byte(nil), c.code.nonce...)
-		doc.CodeBody = append([]byte(nil), c.code.body...)
+		doc.CodeNonce = append([]byte(nil), c.protected.nonce...)
+		doc.CodeBody = append([]byte(nil), c.protected.body...)
 	}
 	return canonicalRequestDigest(c.kind, 1, c.identity, doc)
 }
@@ -69,7 +88,11 @@ func usInvitationCommandDigest(c *usInvitationCommand) (RequestDigest, error) {
 type usInvitationInvocation struct {
 	request usInvitationReceiptRequest
 	input   *usInvitationCommand
-	ack     bool
+	// scope is the CURRENT trusted entry witness. It is compared with the
+	// frozen preparation only after replay classification, so a renewed family
+	// can still resolve its retained original.
+	scope usInvitationInvocationScope
+	ack   bool
 }
 
 // usInvitationDispatchResult is the closed result of one dispatch call. Code is
@@ -107,10 +130,10 @@ func (usInvitationCompletion) Format(state fmt.State, _ rune) {
 }
 
 func usInvitationReceiptForCommand(c *usInvitationCommand) (usInvitationReceiptRequest, error) {
-	if c == nil || c.kind != usInvitationCreate && c.kind != usInvitationEdit && c.kind != usInvitationRevoke {
+	if c == nil || c.prepared == nil || c.kind != usInvitationCreate && c.kind != usInvitationEdit && c.kind != usInvitationRevoke {
 		return usInvitationReceiptRequest{}, ErrInvalid
 	}
-	return usInvitationReceiptRequest{ownerID: c.ownerID, kind: c.kind,
+	return usInvitationReceiptRequest{ownerID: c.ownerID, kind: c.kind, issuer: c.prepared.scope.issuer,
 		reference: ReceiptReference{Identity: c.identity, RequestDigest: c.digest}}, nil
 }
 
@@ -280,7 +303,7 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 		q.reference.Identity.OperationID == ([16]byte{}) || q.reference.Identity.Sequence <= 0 || q.reference.RequestDigest == (RequestDigest{}) {
 		return out, floor, false, ErrInvalid
 	}
-	if err = m.Recheck(ctx, turn); err != nil {
+	if err = m.Recheck(usInvitationRecheckAt(ctx, usInvitationRecheckEntry), turn); err != nil {
 		return out, floor, false, err
 	}
 	// The verified issuer must be the frozen actor before ANY owner, payload or
@@ -300,7 +323,7 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 		return out, floor, true, err
 	}
 	if inv.input != nil {
-		quota, e := readUSInvitationOwner(ctx, turn, m, q.ownerID)
+		quota, e := readUSInvitationOwner(ctx, turn, m, q)
 		if e != nil {
 			return out, floor, false, e
 		}
@@ -317,7 +340,6 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 	switch lookup.decision {
 	case receiptRetired:
 		out.Outcome.State = ResultRetired
-		out.DTO = lookup.result.usInvitationPublic("")
 		return out, floor, true, nil
 	case receiptReplay:
 		out.Outcome.State = Applied
@@ -345,6 +367,21 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 	if p == nil || p.kind != q.kind || !usIdentifier(input.actor) || input.actor != p.scope.issuer.account || m.Issuer() != input.actor {
 		return out, floor, false, ErrDisclosureDenied
 	}
+	// FULL-ISSUER FRESH BINDING: the CURRENT trusted entry witness must equal the
+	// frozen preparation in all 11 issuer fields. This runs after replay
+	// classification, so a renewed family still resolves its retained original.
+	// The frozen document (including prepared.scope.issuer) is already covered
+	// by the canonical request digest, so this is a current-frame comparison,
+	// not a second digest.
+	if inv.scope.issuer != p.scope.issuer {
+		return out, floor, false, ErrConflict
+	}
+	// The sealed Code is carried as the protected type. Prove its exact manifest
+	// BEFORE any effect; a same-length body sealed for another invitation has a
+	// different manifest and is refused here.
+	if q.kind == usInvitationCreate && !input.protected.valid(p) {
+		return out, floor, false, ErrConflict
+	}
 	// G3: the frozen sign-in-kind/revision witness is current-frame evidence. A
 	// drifted kind or revision is a denial, never a stale-witness success.
 	if err = checkUSInvitationFreshKind(ctx, turn, input.signIn); err != nil {
@@ -368,20 +405,32 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 		if err != nil {
 			return out, floor, false, err
 		}
+		if !pre.exists {
+			return out, floor, false, ErrInvitationNotFound
+		}
+		// Legacy order: not-found, tier, state/expiry, then revision (edit).
+		// Tier must therefore precede classify so a lower-tier manager sees a
+		// denial rather than a revision/expired conflict from the row.
+		if !m.ManagesTier(pre.role) {
+			return out, floor, false, ErrDisclosureDenied
+		}
+		if q.kind == usInvitationEdit && !m.ManagesTier(p.role) {
+			return out, floor, false, ErrDisclosureDenied
+		}
 		if err = classifyUSInvitationSource(p, pre, nowMS); err != nil {
 			return out, floor, false, err
 		}
 		if q.kind == usInvitationEdit {
-			if !m.ManagesTier(pre.role) || !m.ManagesTier(p.role) {
-				return out, floor, false, ErrDisclosureDenied
+			// B2: requested libraries must exist on edit exactly as on create.
+			// An empty cohort means all libraries and needs no row.
+			if err = checkUSInvitationLibraries(ctx, turn, p.libraries); err != nil {
+				return out, floor, false, err
 			}
-		} else if !m.ManagesTier(pre.role) {
-			return out, floor, false, ErrDisclosureDenied
 		}
 	}
 	code := usInvitationResultCode{}
 	if q.kind == usInvitationCreate {
-		code = cloneUSInvitationCode(input.code)
+		code = cloneUSInvitationCode(input.resultCode())
 	}
 	prospective, err := usInvitationProspectiveResult(q, p, pre, code, nowMS)
 	if err != nil {
@@ -429,9 +478,15 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 	out.Value, out.ChargedBytes = final, charged
 	out.OwnerCount, out.OwnerBytes = lookup.owner.count+1, lookup.owner.bytes+charged
 	if q.kind == usInvitationCreate {
-		out.Code = cloneUSInvitationCode(input.code)
+		out.Code = cloneUSInvitationCode(input.resultCode())
 	}
 	out.DTO = final.usInvitationPublic("")
+	// Legacy projects serverId only on a FRESH create from a LOCAL sign-in
+	// (LocalLinkServerIDTx is empty otherwise). Edit, revoke and every replay
+	// therefore carry none.
+	if q.kind == usInvitationCreate && input.signIn.kind == "local" {
+		out.DTO.ServerID = p.scope.issuer.server
+	}
 	return out, floor, false, turn.checkLifetimes(ctx)
 }
 
@@ -450,7 +505,7 @@ func runUSInvitationDispatch(ctx context.Context, turn *commandTurn, m usInvitat
 	}
 	// Final current disclosure before the terminal: a release-time denial
 	// REPLACES the body outcome and rolls the whole prefix back.
-	if denial := usInvitationRecheck(ctx, turn, m); denial != nil {
+	if denial := usInvitationRecheck(usInvitationRecheckAt(ctx, usInvitationRecheckRelease), turn, m); denial != nil {
 		return withdrawUSInvitation(turn, denial)
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {

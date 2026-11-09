@@ -15,10 +15,14 @@ const (
 )
 
 // usInvitationReceiptRequest addresses one retained original. It is a comparison
-// value, never proof or authority.
+// value, never proof or authority. issuer is the ORIGINAL retained issuer
+// context (from the frozen preparation): replay/Resolve/ACK address the owner by
+// its stable columns and deliberately do not compare it with the current entry
+// witness, because family/token/generations renew.
 type usInvitationReceiptRequest struct {
 	ownerID   string
 	kind      CommandID
+	issuer    usPolicyIssuer
 	reference ReceiptReference
 }
 
@@ -40,23 +44,27 @@ func usInvitationReceiptKind(kind CommandID) error {
 	return err
 }
 
-// The owner is addressed by its PK and the exact verified issuer account. The
-// seam exposes only the issuer account, so server/member/profile/installation
-// scope binding remains a production-manager duty.
-func readUSInvitationOwner(ctx context.Context, turn *commandTurn, m usInvitationManager, ownerID string) (out usInvitationOwnerFacts, err error) {
+// The owner is addressed by its PK AND the exact ORIGINAL issuer scope it was
+// born with: ingress, server, account, member incarnation, profile, profile
+// lifetime, installation, original family and command incarnation. A different
+// current session cannot read or advance someone else's retained cohort merely
+// because it can name the owner ID. The CURRENT manager still proves who is
+// asking; token/epoch/generation are not owner columns and are never compared.
+func readUSInvitationOwner(ctx context.Context, turn *commandTurn, m usInvitationManager, q usInvitationReceiptRequest) (out usInvitationOwnerFacts, err error) {
 	defer func() {
 		out, err = finishCommand(ctx, commandLifetime(turn), out, err)
 		if denial := usInvitationRecheck(ctx, turn, m); denial != nil {
 			out, err = usInvitationOwnerFacts{}, denial
 		}
 	}()
-	if turn == nil || m == nil || !usIdentifier(ownerID) || !usIdentifier(m.Issuer()) {
+	if turn == nil || m == nil || !usIdentifier(q.ownerID) || !usIdentifier(q.issuer.account) ||
+		m.Issuer() != q.issuer.account || q.reference.Identity.Incarnation == ([16]byte{}) {
 		return out, ErrInvalid
 	}
 	if err = m.Recheck(ctx, turn); err != nil {
 		return out, err
 	}
-	row, err := usInvitationRow(ctx, turn, usInvitationOwner, ownerID, m.Issuer())
+	row, err := usInvitationRow(ctx, turn, usInvitationOwner, usInvitationOwnerArgs(q)...)
 	if err != nil {
 		return out, err
 	}
@@ -75,6 +83,29 @@ func readUSInvitationOwner(ctx context.Context, turn *commandTurn, m usInvitatio
 	out.exists = true
 	copy(out.incarnation[:], inc)
 	return out, nil
+}
+
+// usInvitationOwnerColumns is the shared stable owner predicate suffix:
+// command incarnation, then the eight authenticated issuer columns (including
+// the retained original family).
+func usInvitationOwnerColumns(q usInvitationReceiptRequest) []any {
+	i := q.issuer
+	return []any{q.reference.Identity.Incarnation[:], i.server, i.account, i.memberIncarnation, i.profile,
+		i.profileLifetime, i.installation, i.family}
+}
+
+func usInvitationOwnerArgs(q usInvitationReceiptRequest) []any {
+	return append([]any{q.ownerID}, usInvitationOwnerColumns(q)...)
+}
+
+func usInvitationOwnerAdvanceArgs(q usInvitationReceiptRequest, owner usInvitationOwnerFacts, charged int64) []any {
+	args := append([]any{q.reference.Identity.Sequence, charged}, usInvitationOwnerArgs(q)...)
+	return append(args, owner.lastSequence, owner.acknowledgedSequence, owner.count, owner.bytes)
+}
+
+func usInvitationOwnerAckArgs(q usInvitationReceiptRequest, owner usInvitationOwnerFacts) []any {
+	args := append([]any{q.reference.Identity.Sequence}, usInvitationOwnerArgs(q)...)
+	return append(args, owner.lastSequence, owner.acknowledgedSequence)
 }
 
 type usInvitationCustody struct {
@@ -101,7 +132,7 @@ func lookupUSInvitationCustody(ctx context.Context, turn *commandTurn, m usInvit
 		q.reference.Identity.OperationID == ([16]byte{}) || q.reference.RequestDigest == (RequestDigest{}) {
 		return out, ErrInvalid
 	}
-	out.owner, err = readUSInvitationOwner(ctx, turn, m, q.ownerID)
+	out.owner, err = readUSInvitationOwner(ctx, turn, m, q)
 	if err != nil {
 		return out, err
 	}
@@ -172,7 +203,7 @@ func lookupUSInvitation(ctx context.Context, turn *commandTurn, m usInvitationMa
 	if out.decision != receiptReplay {
 		return out, nil
 	}
-	if err = m.Recheck(ctx, turn); err != nil {
+	if err = m.Recheck(usInvitationRecheckAt(ctx, usInvitationRecheckBeforePayload), turn); err != nil {
 		return out, err
 	}
 	expected := receiptIdentity{q.reference.Identity, q.reference.RequestDigest}
@@ -472,7 +503,7 @@ func storeUSInvitationResult(ctx context.Context, turn *commandTurn, m usInvitat
 	if err = row.Scan(&typedBytes); err != nil {
 		return 0, err
 	}
-	if headerBytes <= 0 || typedBytes <= 0 || headerBytes+typedBytes >= expectedBytes {
+	if headerBytes <= 0 || typedBytes <= 0 || headerBytes+typedBytes > expectedBytes {
 		return 0, ErrResolveRequired
 	}
 	charged = headerBytes + typedBytes
@@ -494,8 +525,7 @@ func storeUSInvitationResult(ctx context.Context, turn *commandTurn, m usInvitat
 	if charged != expectedBytes {
 		return 0, ErrResolveRequired
 	}
-	row, err = usInvitationRow(ctx, turn, usInvitationOwnerAdvance, q.reference.Identity.Sequence, charged, q.ownerID,
-		q.reference.Identity.Incarnation[:], owner.lastSequence, owner.acknowledgedSequence, owner.count, owner.bytes)
+	row, err = usInvitationRow(ctx, turn, usInvitationOwnerAdvance, usInvitationOwnerAdvanceArgs(q, owner, charged)...)
 	if err != nil {
 		return 0, err
 	}
@@ -530,8 +560,7 @@ func acknowledgeUSInvitationAfterAuthority(ctx context.Context, turn *commandTur
 	if lookup.decision != receiptReplay || q.reference.Identity.Sequence != lookup.owner.lastSequence {
 		return 0, ErrConflict
 	}
-	row, err := usInvitationRow(ctx, turn, usInvitationOwnerAck, q.reference.Identity.Sequence, q.ownerID,
-		q.reference.Identity.Incarnation[:], lookup.owner.lastSequence, lookup.owner.acknowledgedSequence)
+	row, err := usInvitationRow(ctx, turn, usInvitationOwnerAck, usInvitationOwnerAckArgs(q, lookup.owner)...)
 	if err != nil {
 		return 0, err
 	}
@@ -565,6 +594,32 @@ func usInvitationRecheck(ctx context.Context, turn *commandTurn, m usInvitationM
 		return ErrInvalid
 	}
 	return m.Recheck(ctx, turn)
+}
+
+// usInvitationRecheckSite names the exact dispatcher point that re-proves
+// current authority. It travels on the context only so tests can pin each call
+// site without counting calls; the production manager ignores it and reads the
+// same frame authority as before.
+type usInvitationRecheckSite uint8
+
+const (
+	usInvitationRecheckEntry usInvitationRecheckSite = iota + 1
+	usInvitationRecheckBeforePayload
+	usInvitationRecheckRelease
+)
+
+type usInvitationRecheckSiteKey struct{}
+
+func usInvitationRecheckAt(ctx context.Context, site usInvitationRecheckSite) context.Context {
+	return context.WithValue(ctx, usInvitationRecheckSiteKey{}, site)
+}
+
+func usInvitationRecheckSiteOf(ctx context.Context) (usInvitationRecheckSite, bool) {
+	if ctx == nil {
+		return 0, false
+	}
+	site, ok := ctx.Value(usInvitationRecheckSiteKey{}).(usInvitationRecheckSite)
+	return site, ok
 }
 
 func usInvitationBool(v bool) int64 {

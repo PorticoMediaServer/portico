@@ -68,10 +68,8 @@ func usInvitationTestCreateCommand(t *testing.T, id string, role string, librari
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyID := protected.keyID
 	cmd := &usInvitationCommand{kind: usInvitationCreate, ownerID: scope.ownerID, actor: scope.issuer.account,
-		identity: i, prepared: p, signIn: signIn,
-		code: usInvitationResultCode{keyID: &keyID, nonce: append([]byte(nil), protected.nonce...), body: append([]byte(nil), protected.body...)}}
+		identity: i, prepared: p, signIn: signIn, protected: protected}
 	cmd.digest, err = usInvitationCommandDigest(cmd)
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +123,8 @@ func usInvitationTestInvocation(t *testing.T, c *usInvitationCommand) *usInvitat
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &usInvitationInvocation{request: q, input: c}
+	return &usInvitationInvocation{request: q, input: c,
+		scope: usInvitationInvocationScope{issuer: c.prepared.scope.issuer}}
 }
 
 func usInvitationTestCount(t *testing.T, w *executor, q string, args ...any) int64 {

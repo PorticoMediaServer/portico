@@ -80,14 +80,14 @@ FROM access_invitations INDEXED BY sqlite_autoindex_access_invitations_1 WHERE i
 		{ID: usInvitationExistsCode, SQL: `SELECT 1 FROM access_invitations INDEXED BY sqlite_autoindex_access_invitations_2 WHERE code_hash=? LIMIT 2`,
 			Params:  []stmt.Param{text("code_hash")},
 			Cohorts: []stmt.Cohort{{Name: "nonsecret", Bindings: []any{usInvitationFixtureHash}}}, Plan: codePlan},
-		{ID: usInvitationLiveCount, SQL: `SELECT count(*) FROM access_invitations INDEXED BY access_invitation_expiry WHERE state='pending' AND expires_ms>?`,
-			Params:  []stmt.Param{integer("now")},
-			Cohorts: []stmt.Cohort{{Name: "now", Bindings: []any{int64(1000)}}},
+		{ID: usInvitationLiveCount, SQL: `SELECT id FROM access_invitations INDEXED BY access_invitation_expiry WHERE state='pending' AND expires_ms>? LIMIT ?`,
+			Params:  []stmt.Param{integer("now"), integer("limit")},
+			Cohorts: []stmt.Cohort{{Name: "now", Bindings: []any{int64(1000), int64(201)}}},
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"access_invitation_expiry"}, Seeks: []string{"state=? AND expires_ms>?"}}},
-		{ID: usInvitationLibraryRead, SQL: `SELECT EXISTS(SELECT 1 FROM libraries WHERE id=?)`,
+		{ID: usInvitationLibraryRead, SQL: `SELECT 1 FROM libraries WHERE id=? LIMIT 2`,
 			Params:  []stmt.Param{text("library")},
 			Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{"movies"}}},
-			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"libraries"}, Seeks: []string{"id=?"}}},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_libraries_1"}, Seeks: []string{"id=?"}}},
 	}
 	for n := range defs {
 		defs[n].Kind = stmt.Read
@@ -161,8 +161,9 @@ func readUSInvitationSource(ctx context.Context, turn *commandTurn, id string) (
 }
 
 // classifyUSInvitationSource maps a missing/stale source row to one named
-// outcome. Revision is checked before state/expiry so a caller that named the
-// wrong revision always learns that conflict, not a side effect of drift.
+// outcome in the legacy order: not-found, then state/expiry, then revision for
+// edit. Callers check the manager tier between not-found and this function so a
+// lower-tier manager never learns a revision/expiry detail.
 func classifyUSInvitationSource(p *usInvitationPrepared, row usInvitationSourceRow, nowMS int64) error {
 	if p == nil || (p.kind != usInvitationEdit && p.kind != usInvitationRevoke) || nowMS <= 0 {
 		return ErrInvalid
@@ -170,21 +171,27 @@ func classifyUSInvitationSource(p *usInvitationPrepared, row usInvitationSourceR
 	if !row.exists {
 		return ErrInvitationNotFound
 	}
-	if row.revision != p.expectedRevision {
-		return ErrInvitationRevision
-	}
-	if row.state == "accepted" {
-		return ErrInvitationAccepted
-	}
 	switch p.kind {
 	case usInvitationEdit:
+		if row.state == "accepted" {
+			return ErrInvitationAccepted
+		}
 		if row.expiresMS <= nowMS {
 			return ErrInvitationExpired
 		}
 		if row.state != "pending" {
 			return ErrInvitationRevoked
 		}
+		if row.revision != p.expectedRevision {
+			return ErrInvitationRevision
+		}
 	case usInvitationRevoke:
+		if row.revision != p.expectedRevision {
+			return ErrInvitationRevision
+		}
+		if row.state == "accepted" {
+			return ErrInvitationAccepted
+		}
 		if row.state != "pending" && row.state != "revoked" {
 			return ErrInvitationRevoked
 		}

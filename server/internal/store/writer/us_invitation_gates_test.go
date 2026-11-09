@@ -2,7 +2,9 @@ package writer
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -104,12 +106,18 @@ func TestUSInvitationSignInDrift(t *testing.T) {
 // named PK/code_hash collisions, the 200-live cap and library existence.
 func TestUSInvitationCreateAdmission(t *testing.T) {
 	key := bytes.Repeat([]byte{7}, 32)
+	// Independent legacy oracle: recompute the exact HMAC and its digest in the
+	// test, never through the production helper under test.
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte("portico-invitation-v1\x00us-created"))
+	wantCode := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	code, hash, err := usInvitationLegacyLink(key, "us-created")
-	if err != nil || len(code) != 43 {
-		t.Fatal("legacy code shape", len(code), err)
+	if err != nil || len(code) != 43 || code != wantCode {
+		t.Fatal("legacy code shape", len(code), code == wantCode, err)
 	}
-	sum := sha256.Sum256([]byte(code))
-	if hash != hex.EncodeToString(sum[:]) {
+	sum := sha256.Sum256([]byte(wantCode))
+	wantHash := hex.EncodeToString(sum[:])
+	if hash != wantHash {
 		t.Fatal("legacy hash is not digest(code)")
 	}
 	other, _, err := usInvitationLegacyLink(key, "us-other")
@@ -264,51 +272,36 @@ func TestUSInvitationManagerSeam(t *testing.T) {
 		}
 	})
 
-	for _, failAt := range []int{1, 2} {
-		t.Run(fmt.Sprintf("recheck_entry_%d", failAt), func(t *testing.T) {
+	for _, site := range []struct {
+		name string
+		site usInvitationRecheckSite
+	}{
+		{"entry", usInvitationRecheckEntry},
+		{"release", usInvitationRecheckRelease},
+	} {
+		t.Run("recheck_"+site.name, func(t *testing.T) {
 			w, _ := usInvitationTestExecutor(t)
-			m := usTestInvitationManagerFailing("us-owner", failAt, "admin", "member")
+			m := usTestInvitationManagerDenying("us-owner", site.site, "admin", "member")
 			cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
 			turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
 			out, floor, err := runUSInvitationDispatch(t.Context(), turn, m, usInvitationTestInvocation(t, cmd))
 			if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
 				t.Fatal("recheck denial", out, floor, err)
 			}
+			if !m.saw(site.site) {
+				t.Fatal("dispatcher did not reach the named recheck site", site.name)
+			}
 			if usInvitationTestCount(t, w, `SELECT count(*) FROM access_invitations WHERE id='us-created'`) != 0 ||
-				usInvitationTestCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
-				t.Fatal("recheck denial wrote")
+				usInvitationTestCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 ||
+				usInvitationTestCount(t, w, `SELECT retained_count FROM security_command_owners WHERE id='security-owner'`) != 0 {
+				t.Fatal("recheck denial left a prefix")
 			}
 		})
 	}
-
-	t.Run("recheck_release", func(t *testing.T) {
-		// Probe the exact number of Recheck calls on the happy path, then fail
-		// the last one so the composed prefix must be rolled back.
-		w, probe := usInvitationTestExecutor(t)
-		probeCmd, _ := usInvitationTestCreateCommand(t, "us-probe", "member", []string{"movies"})
-		probeTurn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
-		if _, _, err := runUSInvitationDispatch(t.Context(), probeTurn, probe, usInvitationTestInvocation(t, probeCmd)); err != nil {
-			t.Fatal("probe run", err)
-		}
-		if probe.calls < 3 {
-			t.Fatal("probe rechecks", probe.calls)
-		}
-		w, _ = usInvitationTestExecutor(t)
-		m := usTestInvitationManagerFailing("us-owner", probe.calls, "admin", "member")
-		cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
-		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
-		out, floor, err := runUSInvitationDispatch(t.Context(), turn, m, usInvitationTestInvocation(t, cmd))
-		if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
-			t.Fatal("release denial", out, floor, err)
-		}
-		if usInvitationTestCount(t, w, `SELECT count(*) FROM access_invitations WHERE id='us-created'`) != 0 ||
-			usInvitationTestCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 ||
-			usInvitationTestCount(t, w, `SELECT retained_count FROM security_command_owners WHERE id='security-owner'`) != 0 {
-			t.Fatal("release denial left a prefix")
-		}
-	})
 	// A replay denial lands before any retained payload is decoded: a corrupted
-	// child would otherwise be an ErrResolveRequired, but Recheck refuses first.
+	// child would otherwise be an ErrResolveRequired, but the named pre-payload
+	// Recheck refuses first. Deleting that call makes this test see the decode
+	// error instead.
 	t.Run("recheck_before_payload_replay", func(t *testing.T) {
 		w, m := usInvitationTestExecutor(t)
 		cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
@@ -317,11 +310,14 @@ func TestUSInvitationManagerSeam(t *testing.T) {
 		if _, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv); err != nil {
 			t.Fatal("original", err)
 		}
+		if !m.saw(usInvitationRecheckEntry) || !m.saw(usInvitationRecheckRelease) {
+			t.Fatal("happy path missed a named recheck site")
+		}
 		wc008NativeExec(t, w, `UPDATE security_result_libraries SET library_id='drifted' WHERE cohort='invitation' AND ordinal=1`)
-		denied := usTestInvitationManagerFailing("us-owner", 2, "admin", "member")
+		denied := usTestInvitationManagerDenying("us-owner", usInvitationRecheckBeforePayload, "admin", "member")
 		replayTurn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
 		out, floor, err := runUSInvitationDispatch(t.Context(), replayTurn, denied, &usInvitationInvocation{request: inv.request})
-		if !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		if !denied.saw(usInvitationRecheckBeforePayload) || !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
 			t.Fatal("replay denial read the payload", out, floor, err)
 		}
 	})

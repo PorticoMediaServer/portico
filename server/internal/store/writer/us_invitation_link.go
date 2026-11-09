@@ -104,27 +104,48 @@ func checkUSInvitationCreateAdmission(ctx context.Context, turn *commandTurn, p 
 	default:
 		return scan
 	}
-	row, err = usInvitationRow(ctx, turn, usInvitationLiveCount, nowMS)
+	rows, err := usInvitationRows(ctx, turn, usInvitationLiveCount, nowMS, usInvitationLiveLimit+1)
 	if err != nil {
 		return err
 	}
+	defer func() { err = errors.Join(err, rows.Close()) }()
 	var live int64
-	if err = row.Scan(&live); err != nil {
-		return err
+	for rows.Next() {
+		live++
+		if live >= usInvitationLiveLimit {
+			return ErrInvitationCapacity
+		}
 	}
-	if live < 0 || live >= usInvitationLiveLimit {
-		return ErrInvitationCapacity
+	if err = rows.Err(); err != nil {
+		return err
 	}
 	if len(p.libraries) > usInvitationMaxLibraries {
 		return ErrInvitationLibrary
 	}
-	for _, id := range p.libraries {
-		row, err = usInvitationRow(ctx, turn, usInvitationLibraryRead, id)
+	if err = checkUSInvitationLibraries(ctx, turn, p.libraries); err != nil {
+		return err
+	}
+	return nil
+}
+
+// checkUSInvitationLibraries proves every requested library exists. An empty
+// cohort is the product's "all libraries" default and needs no row. It is shared
+// by create admission and edit so both refuse a missing library with the same
+// named outcome. It carries no finishCommand of its own: its callers are already
+// guarded finish points.
+func checkUSInvitationLibraries(ctx context.Context, turn *commandTurn, libraries []string) error {
+	if turn == nil || len(libraries) > usInvitationMaxLibraries {
+		return ErrInvitationLibrary
+	}
+	for _, id := range libraries {
+		row, err := usInvitationRow(ctx, turn, usInvitationLibraryRead, id)
 		if err != nil {
 			return err
 		}
 		var present int64
-		if err = row.Scan(&present); err != nil {
+		if err = row.Scan(&present); errors.Is(err, sql.ErrNoRows) {
+			return ErrInvitationLibrary
+		} else if err != nil {
 			return err
 		}
 		if present != 1 {

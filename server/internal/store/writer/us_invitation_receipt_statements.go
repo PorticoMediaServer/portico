@@ -1,6 +1,10 @@
 package writer
 
-import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+import (
+	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+)
 
 const (
 	usInvitationOwner              stmt.ID = "us.invitation.owner"
@@ -31,6 +35,9 @@ func usInvitationReceiptDefinitions() []stmt.Definition {
 	inc, op, digest := make([]byte, 16), make([]byte, 16), make([]byte, 32)
 	key := []stmt.Param{t("owner"), b("incarnation"), i("sequence")}
 	bind := []any{"security-owner", inc, int64(1)}
+	member, lifetime, installation := strings.Repeat("a", 32), strings.Repeat("b", 32), strings.Repeat("c", 32)
+	ownerScope := []any{inc, "server", "us-owner", member, "issuer-profile", lifetime, installation, "issuer-family"}
+	ownerScopeParams := []stmt.Param{b("incarnation"), t("server"), t("account"), t("member"), t("profile"), t("lifetime"), t("installation"), t("family")}
 	ownerPlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_security_command_owners_1"}, Seeks: []string{"id=?"},
 		AutoIndexes: []stmt.AutoIndexBinding{{Table: "security_command_owners", Name: "sqlite_autoindex_security_command_owners_1", Origin: "pk",
 			Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}
@@ -43,9 +50,9 @@ func usInvitationReceiptDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: usInvitationOwner, SQL: `SELECT command_incarnation,original_family_id,last_sequence,acknowledged_sequence,reclaimed_sequence,retained_count,retained_variable_bytes,retired_ms
 FROM security_command_owners INDEXED BY sqlite_autoindex_security_command_owners_1
-WHERE id=? AND ingress='authenticated' AND issuer_account_id=?`,
-			Params:  []stmt.Param{t("owner"), t("issuer")},
-			Cohorts: []stmt.Cohort{{Name: "original_issuer", Bindings: []any{"security-owner", "us-owner"}}}, Plan: ownerPlan},
+WHERE id=? AND command_incarnation=? AND ingress='authenticated' AND server_id=? AND issuer_account_id=? AND issuer_member_incarnation=? AND issuer_profile_id=? AND issuer_profile_lifetime=? AND issuer_installation_incarnation=? AND original_family_id=?`,
+			Params:  append([]stmt.Param{t("owner")}, ownerScopeParams...),
+			Cohorts: []stmt.Cohort{{Name: "original_issuer", Bindings: append([]any{"security-owner"}, ownerScope...)}}, Plan: ownerPlan},
 		{ID: usInvitationReceiptOperation, SQL: `SELECT command_sequence FROM security_command_receipts INDEXED BY sqlite_autoindex_security_command_receipts_2 WHERE owner_id=? AND command_incarnation=? AND operation_id=? LIMIT 2`,
 			Params:  []stmt.Param{t("owner"), b("incarnation"), b("operation")},
 			Cohorts: []stmt.Cohort{{Name: "original_operation", Bindings: []any{"security-owner", inc, op}}}, Plan: operationPlan},
@@ -82,13 +89,13 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING variable_bytes`,
 			Params:  append(append([]stmt.Param(nil), key...), t("cohort"), i("ordinal"), t("library")),
 			Cohorts: []stmt.Cohort{{Name: "one_saved_library", Bindings: append(append([]any(nil), bind...), "invitation", int64(0), "movies")}}, Plan: stmt.Plan{Hot: true}},
 		{ID: usInvitationOwnerAdvance, Kind: stmt.Write, SQL: `UPDATE security_command_owners INDEXED BY sqlite_autoindex_security_command_owners_1 SET last_sequence=?,retained_count=retained_count+1,retained_variable_bytes=retained_variable_bytes+?
-WHERE id=? AND command_incarnation=? AND last_sequence=? AND acknowledged_sequence=? AND retained_count=? AND retained_variable_bytes=? AND retired_ms=0
+WHERE id=? AND command_incarnation=? AND ingress='authenticated' AND server_id=? AND issuer_account_id=? AND issuer_member_incarnation=? AND issuer_profile_id=? AND issuer_profile_lifetime=? AND issuer_installation_incarnation=? AND original_family_id=? AND last_sequence=? AND acknowledged_sequence=? AND retained_count=? AND retained_variable_bytes=? AND retired_ms=0
 RETURNING last_sequence,retained_count,retained_variable_bytes`,
-			Params:  []stmt.Param{i("next"), i("charged_bytes"), t("owner"), b("incarnation"), i("last"), i("ack"), i("count"), i("bytes")},
-			Cohorts: []stmt.Cohort{{Name: "advance", Bindings: []any{int64(1), int64(320), "security-owner", inc, int64(0), int64(0), int64(0), int64(0)}}}, Plan: ownerPlan},
-		{ID: usInvitationOwnerAck, Kind: stmt.Write, SQL: `UPDATE security_command_owners INDEXED BY sqlite_autoindex_security_command_owners_1 SET acknowledged_sequence=? WHERE id=? AND command_incarnation=? AND last_sequence=? AND acknowledged_sequence=? RETURNING acknowledged_sequence`,
-			Params:  []stmt.Param{i("next"), t("owner"), b("incarnation"), i("last"), i("ack")},
-			Cohorts: []stmt.Cohort{{Name: "ack", Bindings: []any{int64(1), "security-owner", inc, int64(1), int64(0)}}}, Plan: ownerPlan},
+			Params:  []stmt.Param{i("next"), i("charged_bytes"), t("owner"), b("incarnation"), t("server"), t("account"), t("member"), t("profile"), t("lifetime"), t("installation"), t("family"), i("last"), i("ack"), i("count"), i("bytes")},
+			Cohorts: []stmt.Cohort{{Name: "advance", Bindings: append([]any{int64(1), int64(320), "security-owner"}, append(ownerScope, int64(0), int64(0), int64(0), int64(0))...)}}, Plan: ownerPlan},
+		{ID: usInvitationOwnerAck, Kind: stmt.Write, SQL: `UPDATE security_command_owners INDEXED BY sqlite_autoindex_security_command_owners_1 SET acknowledged_sequence=? WHERE id=? AND command_incarnation=? AND ingress='authenticated' AND server_id=? AND issuer_account_id=? AND issuer_member_incarnation=? AND issuer_profile_id=? AND issuer_profile_lifetime=? AND issuer_installation_incarnation=? AND original_family_id=? AND last_sequence=? AND acknowledged_sequence=? RETURNING acknowledged_sequence`,
+			Params:  []stmt.Param{i("next"), t("owner"), b("incarnation"), t("server"), t("account"), t("member"), t("profile"), t("lifetime"), t("installation"), t("family"), i("last"), i("ack")},
+			Cohorts: []stmt.Cohort{{Name: "ack", Bindings: append([]any{int64(1), "security-owner"}, append(ownerScope, int64(1), int64(0))...)}}, Plan: ownerPlan},
 	}
 	for n := range defs {
 		if defs[n].Kind == "" {
