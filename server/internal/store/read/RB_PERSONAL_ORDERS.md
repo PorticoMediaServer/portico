@@ -22,6 +22,20 @@ no SQL aggregate, offset, sort, per-profile catalogue or durable result table.
 Admission needs at least 262 raw-row slots for five common fence rows plus the
 257-row source bound, and the ordinary prospective native/Go/output byte and VM
 budgets. Actual strings are charged by the common reader before retention.
+
+The large-set personal preparation uses the cache's opt-in
+`rbPreparedPersonalOrder` fixed split, decided once at first capture:
+`P = lease.PayloadBytes()`, staged workspace `W = ceil(P/2)`, and
+`cap_ids = (P - W - 2*fenceBytes)/8`. The ID vector and the staged valued
+workspace are each allocated once; the remainder appends into `cap_ids`, the
+valued run appends into `W`, and a content restart resets both lengths inside
+the same allocations. The physical peak is `ids(cap_ids*8) + staged(W) + fences
+<= P`, with no shrink copy, capacity restore or retain-time growth copy. IDs
+above `cap_ids` refuse with the existing retained-byte capacity error; a valued
+run above `W` refuses with the named workspace error. Neither publishes a
+truncated exact order. For the default 16 MiB grant `cap_ids` is about 1.0
+million IDs minus fences. Other prepared-order producers keep the shared
+`rbPreparedOrder` grow-to-need behaviour.
 Initial/source/publication use 11 statements, carrying the existing statement
 budget debt tracked in #1357. Default container and unsupported-label refusals
 remain in force. Larger exact producers/cache, aggregate-container personal

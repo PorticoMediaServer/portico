@@ -28,6 +28,12 @@ type rbPreparedPurpose uint8
 const (
 	rbPreparedOrder rbPreparedPurpose = iota + 1
 	rbPreparedNumericFacets
+	// rbPreparedPersonalOrder is the opt-in FIXED-SPLIT kind used by the large
+	// personal preparation. Its retained IDs and its staged-value workspace are
+	// both sized once from the admitted payload, so no producer ever copies a
+	// full vector while another full vector is live. The shared rbPreparedOrder
+	// default keeps its previous grow-to-need behaviour for every other producer.
+	rbPreparedPersonalOrder
 )
 
 type rbPreparedKey struct {
@@ -47,6 +53,9 @@ type rbPreparedEntry struct {
 	ids                                   []int64
 	facets                                []rbNumericFacet
 	total                                 int64
+	// workspace is the fixed staged-value byte budget W for a
+	// rbPreparedPersonalOrder entry. Zero for every other purpose.
+	workspace int64
 }
 type rbPreparedPage struct {
 	ids       []int64
@@ -69,7 +78,7 @@ func newRBPreparedCache(a *governor.Authority, now func() time.Time) (*rbPrepare
 // Repeated identical work attaches to the existing entry WITHOUT renewing its
 // context, original deadline, retained-byte ceiling or governor lease.
 func (c *rbPreparedCache) begin(ctx context.Context, key rbPreparedKey, purpose rbPreparedPurpose, deadline time.Time, bytes int64, dependencies governor.PublicationFootprint) (*rbPreparedEntry, error) {
-	if c == nil || ctx == nil || key.owner == 0 || key.query == ([32]byte{}) || (purpose != rbPreparedOrder && purpose != rbPreparedNumericFacets) || bytes < 8192 || bytes%4096 != 0 || !governor.PublicationCovered(dependencies, dependencies) {
+	if c == nil || ctx == nil || key.owner == 0 || key.query == ([32]byte{}) || (purpose != rbPreparedOrder && purpose != rbPreparedNumericFacets && purpose != rbPreparedPersonalOrder) || bytes < 8192 || bytes%4096 != 0 || !governor.PublicationCovered(dependencies, dependencies) {
 		return nil, ErrInput
 	}
 	if !c.mu.TryLock() {
@@ -171,20 +180,49 @@ func (p *rbPreparedEntry) capture(f browseFence) error {
 		// never columns times maximum field lengths. The separate read-window
 		// reservation owns source copies while these cache copies are made.
 		stringsBytes := rbPreparedFenceBytes(f)
-		payload := p.lease.PayloadBytes() - 2*stringsBytes
-		payload = payload / 4096 * 4096
-		if payload <= 0 {
-			_ = p.closeLocked()
-			return errRBPreparationCapacity
-		}
 		// Current common-fence strings get independent exact-length backing.
 		for _, field := range []*string{&f.database, &f.token, &f.account, &f.profile, &f.membership, &f.lifetime, &f.library, &f.role, &f.memberLibraries, &f.profileLibraries, &f.profileLabels, &f.expiresAt, &f.horizon, &f.root, &f.bridgeRoot, &f.policyWitness} {
 			*field = strings.Clone(*field)
 		}
 		// Fixed vectors avoid old+new growth copies and uncharged hash maps.
-		if p.purpose == rbPreparedOrder {
+		switch p.purpose {
+		case rbPreparedPersonalOrder:
+			// FIXED SPLIT, decided once here and never resized again:
+			//
+			//	payload P = lease.PayloadBytes()
+			//	workspace W = ceil(P/2)   (valued-key headers, text and batch)
+			//	ids cap     = (P - W - 2*fenceStrings) / 8
+			//
+			// The physical peak is therefore ids(cap*8) + staged(W) +
+			// fence clones(2*fenceStrings) <= P by construction. No shrink, no
+			// restore and no copy-growth ever stacks a second vector under a
+			// live one. For the default 16 MiB grant this admits roughly 1.0
+			// million retained IDs (minus fences); the staged valued run has W
+			// bytes, shared between 48-byte key headers and their text.
+			payload := p.lease.PayloadBytes()
+			workspace := (payload + 1) / 2
+			idBytes := payload - workspace - 2*stringsBytes
+			if workspace <= 0 || idBytes < 0 {
+				_ = p.closeLocked()
+				return errRBPreparationCapacity
+			}
+			p.workspace = workspace
+			p.ids = make([]int64, 0, int(idBytes/8))
+		case rbPreparedOrder:
+			payload := p.lease.PayloadBytes() - 2*stringsBytes
+			payload = payload / 4096 * 4096
+			if payload <= 0 {
+				_ = p.closeLocked()
+				return errRBPreparationCapacity
+			}
 			p.ids = make([]int64, 0, int(payload/8))
-		} else {
+		default:
+			payload := p.lease.PayloadBytes() - 2*stringsBytes
+			payload = payload / 4096 * 4096
+			if payload <= 0 {
+				_ = p.closeLocked()
+				return errRBPreparationCapacity
+			}
 			p.facets = make([]rbNumericFacet, 0, int(payload/16))
 		}
 	}
@@ -201,7 +239,7 @@ func (p *rbPreparedEntry) retainIDs(ids []int64) error {
 	if err := p.checkLocked(); err != nil {
 		return err
 	}
-	if p.purpose != rbPreparedOrder || !p.captured || p.complete {
+	if !p.retainsIDsLocked() || !p.captured || p.complete {
 		return ErrInput
 	}
 	need := len(p.ids) + len(ids)
@@ -216,10 +254,13 @@ func (p *rbPreparedEntry) retainIDs(ids []int64) error {
 		}
 	}
 	if need > cap(p.ids) {
-		// Grow to the exact need. No whole-payload vector is stacked under a
-		// second workspace: the staged producer sizes its keys from the payload
-		// left after this vector and restores the full capacity only once the
-		// staged keys are released.
+		// A fixed-split entry already sized its vector to cap_ids, so this is
+		// unreachable there and refuses rather than allocating a second vector.
+		// The shared rbPreparedOrder default keeps exact-need growth.
+		if p.purpose == rbPreparedPersonalOrder {
+			_ = p.closeLocked()
+			return errRBPreparationCapacity
+		}
 		grown := make([]int64, len(p.ids), need)
 		copy(grown, p.ids)
 		p.ids = grown
@@ -229,9 +270,19 @@ func (p *rbPreparedEntry) retainIDs(ids []int64) error {
 	return nil
 }
 
+func (p *rbPreparedEntry) retainsIDsLocked() bool {
+	return p.purpose == rbPreparedOrder || p.purpose == rbPreparedPersonalOrder
+}
+
 // payloadIDCapacityLocked is the inspected retained-ID ceiling for the current
-// captured fence. It is the same payload capture used for the initial vector.
+// captured fence. A fixed-split entry can never grow past the cap_ids allocated
+// at capture, because its staged workspace already owns the other half of the
+// payload. The shared default keeps the whole-payload ceiling used when it
+// allocated the vector.
 func (p *rbPreparedEntry) payloadIDCapacityLocked() int {
+	if p.purpose == rbPreparedPersonalOrder {
+		return cap(p.ids)
+	}
 	payload := p.lease.PayloadBytes() - 2*rbPreparedFenceBytes(p.fence)
 	payload = payload / 4096 * 4096
 	if payload <= 0 {
@@ -240,25 +291,12 @@ func (p *rbPreparedEntry) payloadIDCapacityLocked() int {
 	return int(payload / 8)
 }
 
-// restoreIDCapacity expands the retained-ID vector back to the whole payload
-// AFTER a provisional staged workspace has been released. It never runs while
-// the staged keys are live, so the two allocations do not overlap.
-func (p *rbPreparedEntry) restoreIDCapacity() {
-	if p == nil || p.cache == nil {
-		return
-	}
-	p.cache.mu.Lock()
-	defer p.cache.mu.Unlock()
-	if p.closed || !p.captured {
-		return
-	}
-	limit := p.payloadIDCapacityLocked()
-	if cap(p.ids) >= limit {
-		return
-	}
-	grown := make([]int64, len(p.ids), limit)
-	copy(grown, p.ids)
-	p.ids = grown
+// resetRetainedIDsLocked empties the fixed-split ID vector in place after a
+// content restart. The backing allocation, its cap_ids and the staged workspace
+// all stay exactly where they were.
+func (p *rbPreparedEntry) resetRetainedIDsLocked() {
+	p.ids = p.ids[:0]
+	p.total = 0
 }
 
 // Ordered numeric source streams make each value's count a contiguous run.
@@ -350,7 +388,7 @@ func (p *rbPreparedEntry) handoff(f browseFence, offset, limit int) (rbPreparedP
 	}
 	end := offset + min(limit, n-offset)
 	out := rbPreparedPage{total: p.total, next: end, exhausted: end == n}
-	if p.purpose == rbPreparedOrder {
+	if p.retainsIDsLocked() {
 		out.ids = append([]int64(nil), p.ids[offset:end]...)
 	} else {
 		out.facets = append([]rbNumericFacet(nil), p.facets[offset:end]...)
