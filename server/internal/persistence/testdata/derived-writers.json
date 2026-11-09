@@ -1838,7 +1838,7 @@
       ]
     },
     "internal/backup/files.go": {
-      "sha256": "db29dad1f0fc920063245a25a547f289e55ea2f7dfba262f3211e05076b28269",
+      "sha256": "00bf45cebbee81845cdf50a1cbbca5c5f86178edaa08f7587ffbb6fea4114f9c",
       "effects": [
         {
           "table": "*",
@@ -1937,7 +1937,7 @@
       ]
     },
     "internal/backup/stream_apply.go": {
-      "sha256": "2d76944b1993db808bd95bcc1c7c45f138a430e5864ab965bb56c6777da96937",
+      "sha256": "cacff41c1708428e58d671703c42b1152be1f34ee259cf6a1613e6fc7eba2abf",
       "effects": [
         {
           "table": "*",

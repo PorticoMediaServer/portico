@@ -8,7 +8,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -113,13 +112,6 @@ func ipEntryTurn(t *testing.T, w *executor, r *ipEntryRegistry, q ipEntryRequest
 func ipEntryFixture(t *testing.T, person bool) (*executor, *ipEntryRegistry, *usOwnerAuthorityProof, ipEntryRequest) {
 	t.Helper()
 	w, keeper, p := ipEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ip-entry-draft.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
-	}
 	for _, sql := range []string{
 		`INSERT INTO catalog_libraries(id,library_id,root) VALUES(777,'ip-library','/media')`,
 		`INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0)`,
