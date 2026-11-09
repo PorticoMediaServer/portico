@@ -355,6 +355,9 @@ func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error
 }
 
 func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
+	if err := checkIAEntryDefinition(d); err != nil {
+		return err
+	}
 	if (d.ID == readEngineID || d.SQL == readEngineSQL) && !readEngineDefinition(d) {
 		return fmt.Errorf("plan %s: engine metadata requires its exact closed definition", d.ID)
 	}

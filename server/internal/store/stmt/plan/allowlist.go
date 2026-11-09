@@ -59,6 +59,7 @@ func lintSQL(sql string, issuerOctets bool) []LintIssue {
 	return issues
 }
 func lintTokens(sql string) ([]sqlToken, error) {
+	sql = iaEntryParserSQL(sql)
 	if strings.IndexByte(sql, 0) >= 0 {
 		return nil, fmt.Errorf("NUL is outside the SQL grammar")
 	}
