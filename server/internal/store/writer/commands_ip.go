@@ -21,10 +21,12 @@ const (
 	IPArtworkMaterialIntent    CommandID = 223
 	IPArtworkMaterialInstalled CommandID = 224
 
-	IPFieldEdit     CommandID = 240
-	IPFieldLock     CommandID = 241
-	IPFieldRestore  CommandID = 242
-	IPEditBulkBegin CommandID = 243
+	IPFieldEdit      CommandID = 240
+	IPFieldLock      CommandID = 241
+	IPFieldRestore   CommandID = 242
+	IPEditBulkBegin  CommandID = 243
+	IPEditBulkPage   CommandID = 244
+	IPEditBulkFinish CommandID = 245
 )
 
 var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
@@ -45,4 +47,6 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPFieldLock, "ip_field_lock", Normal},
 	{IPFieldRestore, "ip_field_restore", Normal},
 	{IPEditBulkBegin, "ip_edit_bulk_begin", Normal},
+	{IPEditBulkPage, "ip_edit_bulk_page", Normal},
+	{IPEditBulkFinish, "ip_edit_bulk_finish", Normal},
 }}

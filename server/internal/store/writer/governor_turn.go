@@ -19,7 +19,7 @@ func commandClass(id CommandID) (governor.Class, error) {
 	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
 		IPEntityEvidenceBegin, IPEntityEvidenceAppend,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
-		IPFieldEdit, IPFieldLock, IPFieldRestore, IPEditBulkBegin:
+		IPFieldEdit, IPFieldLock, IPFieldRestore, IPEditBulkBegin, IPEditBulkPage, IPEditBulkFinish:
 		return governor.Background, nil
 	case IPArtworkMaterialIntent, IPArtworkMaterialInstalled:
 		return governor.Background, nil

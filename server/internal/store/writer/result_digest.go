@@ -91,6 +91,10 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIPTextLockResult(v)
 	case ipEditBulkSavedResult:
 		return preflightIPEditBulkResult(v)
+	case ipEditBulkPageSavedResult:
+		return preflightIPEditBulkPageResult(v)
+	case ipEditBulkFinishSavedResult:
+		return preflightIPEditBulkFinishResult(v)
 	case enrichAcceptResult:
 		return preflightEnrichAcceptResult(v)
 	case inventoryAcceptResult:
@@ -196,6 +200,10 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIPTextLockResult(e, identity, request, v)
 	case ipEditBulkSavedResult:
 		return writeIPEditBulkResult(e, identity, request, v)
+	case ipEditBulkPageSavedResult:
+		return writeIPEditBulkPageResult(e, identity, request, v)
+	case ipEditBulkFinishSavedResult:
+		return writeIPEditBulkFinishResult(e, identity, request, v)
 	case enrichAcceptResult:
 		return writeEnrichAcceptResult(e, identity, request, v)
 	case inventoryAcceptResult:

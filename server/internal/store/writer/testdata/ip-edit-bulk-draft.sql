@@ -121,3 +121,8 @@ CREATE TABLE metadata_edit_batch_receipts(
  CHECK(typeof(manifest_digest) IN('null','blob')),
  CHECK(typeof(descriptive_intent) IN('null','text'))
 ) WITHOUT ROWID;
+
+-- E: a live bulk target pins its exact atomic edit result until bounded target
+-- retirement; the FK lookup never scans every bulk operation (IP-27). The
+-- reviewed edit owner/receipt pair comes from testdata/ip-text-edit-draft.sql.
+CREATE INDEX metadata_edit_batch_edit_receipt ON metadata_edit_batch_targets(edit_owner_id,edit_command_incarnation,edit_command_sequence,operation_id) WHERE edit_owner_id IS NOT NULL;
