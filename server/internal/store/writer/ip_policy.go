@@ -173,7 +173,7 @@ func (b ipPolicyBudget) check(ctx context.Context, turn *commandTurn, bytes int6
 	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
 		IPEntityEvidenceBegin, IPEntityEvidenceAppend, IPEntitySeal,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
-		IPArtworkMaterialIntent, IPArtworkMaterialInstalled:
+		IPArtworkMaterialIntent, IPArtworkMaterialInstalled, IPArtworkMaterialPublish:
 	default:
 		return ErrInvalid
 	}
