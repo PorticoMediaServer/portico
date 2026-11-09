@@ -183,8 +183,11 @@ func TestIAMembershipAcceptReparentAndPresent(t *testing.T) {
 	if err != nil || replay.decision != receiptReplay || replay.digest != out.digest || replay.result.facts.resultCount != 3 {
 		t.Fatal("saved membership replay", replay, err)
 	}
-	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM scan_command_receipts`); got != 1 {
-		t.Fatal("replay minted a receipt", got)
+	// The replay frame still holds the single writer connection, so the
+	// no-new-receipt check reads the open transaction itself.
+	var receipts int64
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM scan_command_receipts`).Scan(&receipts); err != nil || receipts != 1 {
+		t.Fatal("replay minted a receipt", receipts, err)
 	}
 	turn.transaction.rollback(nil)
 }

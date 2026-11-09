@@ -156,10 +156,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path=?"}
 		case iaCoveragePending, iaCoverageBlocked:
 			defs[n].Plan.Indexes = []string{"inventory_directories_pending"}
-			defs[n].Plan.Seeks = []string{"job_id=? AND state=? AND relative_path>=? AND relative_path<?"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND state=? AND relative_path>? AND relative_path<?"}
 		case iaCoverageProtected:
 			defs[n].Plan.Indexes = []string{"inventory_scan_issues_protected"}
-			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>=? AND relative_path<?"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>? AND relative_path<?"}
 		case iaCoverageRunCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND command_incarnation=?"}

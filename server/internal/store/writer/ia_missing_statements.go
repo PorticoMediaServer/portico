@@ -218,10 +218,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path=?"}
 		case iaMissingPending, iaMissingBlocked:
 			defs[n].Plan.Indexes = []string{"inventory_directories_pending"}
-			defs[n].Plan.Seeks = []string{"job_id=? AND state=? AND relative_path>=? AND relative_path<?"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND state=? AND relative_path>? AND relative_path<?"}
 		case iaMissingProtected:
 			defs[n].Plan.Indexes = []string{"inventory_scan_issues_protected"}
-			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>=? AND relative_path<?"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>? AND relative_path<?"}
 		case iaMissingWindowStmt:
 			defs[n].Plan.Indexes = []string{"inventory_objects_directory"}
 			defs[n].Plan.Seeks = []string{"source_id=? AND root_incarnation=? AND directory_path=? AND retired=? AND id>?"}
