@@ -54,6 +54,18 @@ func (a mpPrepActor) args() []any {
 	return []any{a.server, a.authority, a.account, a.profile, a.device, a.family, a.grant, a.sessionHash, a.epoch, a.tokenGeneration, a.horizonMS}
 }
 
+// sameSession reports whether two actors name the same durable member session
+// without depending on the rotating credential. Refreshing a family mints a new
+// token hash and generation (and moves the horizon); server, authority, account,
+// profile, device and family never move with it. This is the one binding allowed
+// between the CURRENT disclosure actor and the IMMUTABLE command/fence actor, so
+// rotation alone never turns a saved original into Denied/Conflict. The grant is
+// deliberately excluded: a rotated turn may carry a different grant record.
+func (a mpPrepActor) sameSession(b mpPrepActor) bool {
+	return a.server == b.server && a.authority == b.authority && a.account == b.account &&
+		a.profile == b.profile && a.device == b.device && a.family == b.family
+}
+
 // mpPrepScope is the fresh-turn native member/profile witness: current allowed
 // libraries, member/profile revisions, membership role and the ordinary token
 // horizon/expiry. It is never stored on the preparation and never replayed; the
@@ -321,9 +333,14 @@ func checkMPPrepQueue(ctx context.Context, t *commandTurn, q mpPrepQueue, a mpPr
 // source library: a capability for library A never authorizes a source in
 // library B. The SQL and library predicate are MP-04's reviewed native
 // disclosure definitions, not a second copy of their text.
+//
+// The proof always uses the CURRENT disclosure actor, never the immutable
+// command/fence actor: after an ordinary refresh the saved request still carries
+// the retired credential in its digest, while the live turn is authorized by the
+// freshly validated rotated token in the SAME family.
 func checkMPStartPrepScope(ctx context.Context, t *commandTurn, d *mpStartPrepDisclosure, c *mpStartPrepCommand, now int64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
-	if d == nil || c == nil || !mpPrepTexts(d.library) || d.actor != c.fenceActor() || !d.actor.valid(now) {
+	if d == nil || c == nil || !mpPrepTexts(d.library) || !d.actor.sameSession(c.fenceActor()) || !d.actor.valid(now) {
 		return ErrDisclosureDenied
 	}
 	if source := c.fenceSource(); !mpPrepTexts(source.library) || source.library != d.library {
@@ -421,20 +438,22 @@ func mpPrepCommonDefinitions() []stmt.Definition {
 }
 
 // mpStartPrepBeginDisclosure proves current actor authority and the same-turn UO
-// birth witness. It runs BEFORE the duplicate lookup so an already-applied birth
-// can still be served after the queue/source/deadline moved.
-func mpStartPrepBeginDisclosure(ctx context.Context, t *commandTurn, owner [16]byte, q mpStartPrepBeginInput, now int64) (err error) {
+// birth witness. It runs BEFORE the birth replay so an already-applied birth can
+// still be served after the queue/source/deadline moved and after the credential
+// rotated. The authority proof uses the CURRENT disclosure actor; the immutable
+// request actor only has to name the same durable session.
+func mpStartPrepBeginDisclosure(ctx context.Context, t *commandTurn, owner [16]byte, q mpStartPrepBeginInput, current mpPrepActor, now int64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
 	if !q.valid() || owner == ([16]byte{}) || now <= 0 {
 		return ErrInvalid
 	}
-	if !q.actor.valid(now) {
+	if !current.valid(now) || !current.sameSession(q.actor) {
 		return ErrDisclosureDenied
 	}
 	if err = requireMPStartPrepUOBirth(q.birth, owner, now); err != nil {
 		return err
 	}
-	return checkMPPrepActor(ctx, t, q.actor, now)
+	return checkMPPrepActor(ctx, t, current, now)
 }
 
 // mpStartPrepBeginCurrency is the FRESH-ONLY deadline/item/source/queue gate. A
@@ -497,24 +516,27 @@ func applyMPStartPrepBegin(ctx context.Context, t *commandTurn, owner [16]byte, 
 // readMPStartPrepDisclosedOwner proves CURRENT actor authority and reads every
 // stored row again. It deliberately makes no revision/state/deadline decision: a
 // saved original must be classified and served before any fresh-state
-// comparison. Only the receipt classification decides whether the fresh
-// deadline/item/source/queue currency gates run.
-func readMPStartPrepDisclosedOwner(ctx context.Context, t *commandTurn, f mpStartPrepFence, now int64) (out mpStartPrepOwner, err error) {
+// comparison. It also deliberately does NOT compare the stored actor or any
+// lifecycle/source/expiry value: those are FRESH-only gates. Only the durable
+// session identity (same family/account/profile/device) binds the current
+// rotated token to the immutable request, and the member incarnation/profile
+// lifetime are bound separately by each replay path.
+func readMPStartPrepDisclosedOwner(ctx context.Context, t *commandTurn, d *mpStartPrepDisclosure, f mpStartPrepFence, now int64) (out mpStartPrepOwner, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
-	if !f.valid() {
+	if d == nil || !f.valid() {
 		return out, ErrInvalid
 	}
-	if !f.actor.valid(now) {
+	if !f.actor.valid(0) || !d.actor.sameSession(f.actor) {
 		return out, ErrDisclosureDenied
 	}
-	if err = checkMPPrepActor(ctx, t, f.actor, now); err != nil {
+	if !d.actor.valid(now) {
+		return out, ErrDisclosureDenied
+	}
+	if err = checkMPPrepActor(ctx, t, d.actor, now); err != nil {
 		return out, err
 	}
 	if err = readMPStartPrepOwner(ctx, t, f.id, f.actor.device, &out); err != nil {
 		return out, err
-	}
-	if out.actor != f.actor {
-		return out, ErrDisclosureDenied
 	}
 	out.nowMS = now
 	return out, nil
@@ -540,11 +562,17 @@ func checkMPStartPrepCurrency(ctx context.Context, t *commandTurn, out mpStartPr
 }
 
 // captureMPStartPrepOwner adds the exact lifecycle revision/state CAS required
-// only after the receipt lookup reports a fresh command.
-func captureMPStartPrepOwner(ctx context.Context, t *commandTurn, kind CommandID, f mpStartPrepFence, now int64) (out mpStartPrepOwner, err error) {
+// only after the receipt lookup reports a fresh command. It is also the only
+// place that requires the stored immutable actor to equal the request actor: a
+// saved original is replayed WITHOUT that comparison, because rotation alone may
+// never turn an applied command into a conflict.
+func captureMPStartPrepOwner(ctx context.Context, t *commandTurn, d *mpStartPrepDisclosure, kind CommandID, f mpStartPrepFence, now int64) (out mpStartPrepOwner, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
-	if out, err = readMPStartPrepDisclosedOwner(ctx, t, f, now); err != nil {
+	if out, err = readMPStartPrepDisclosedOwner(ctx, t, d, f, now); err != nil {
 		return out, err
+	}
+	if out.actor != f.actor {
+		return out, ErrDisclosureDenied
 	}
 	if err = checkMPStartPrepCurrency(ctx, t, out, f); err != nil {
 		return out, err
@@ -622,7 +650,7 @@ func mpStartPrepDefinitions() []stmt.Definition {
 	}
 	defs = append(defs,
 		mpPrepDefinition("mp.start.begin_key", `SELECT id,start_body_digest FROM playback_start_preparations WHERE device_id=? AND start_key_digest=?`, "ss", stmt.Read),
-		mpPrepDefinition("mp.start.owner", `SELECT mp_command_incarnation,mp_command_last_sequence,mp_command_acknowledged_sequence,mp_owner_revision,mp_receipt_rows,mp_receipt_variable_bytes,mp_control_variable_bytes,mp_retirement_state,device_id,item_id,part_index,deadline_ms,token_expires_ms,replaces_session_id,replaces_generation,created_ms,coalesce(mp_user_root_id,''),mp_owner_member_incarnation,mp_owner_profile_lifetime FROM playback_start_preparations WHERE id=? AND device_id=?`, "ss", stmt.Read),
+		mpPrepDefinition("mp.start.owner", `SELECT mp_command_incarnation,mp_command_last_sequence,mp_command_acknowledged_sequence,mp_owner_revision,mp_receipt_rows,mp_receipt_variable_bytes,mp_control_variable_bytes,mp_retirement_state,device_id,item_id,part_index,deadline_ms,token_expires_ms,replaces_session_id,replaces_generation,created_ms,coalesce(mp_user_root_id,''),coalesce(mp_owner_member_incarnation,''),coalesce(mp_owner_profile_lifetime,'') FROM playback_start_preparations WHERE id=? AND device_id=?`, "ss", stmt.Read),
 		mpPrepDefinition("mp.start.lifecycle_row", `SELECT state,revision,execution_id,sealed FROM playback_start_preparation_lifecycle WHERE operation_id=?`, "s", stmt.Read),
 		mpPrepDefinition("mp.start.actor_row", `SELECT server_id,authority,account_id,profile_id,device_id,family_id,grant_id,session_hash,epoch,token_generation,original_horizon_ms FROM playback_start_preparation_actor WHERE operation_id=?`, "s", stmt.Read),
 		mpPrepDefinition("mp.start.source_row", `SELECT library_id,library_source_id,asset_id,inventory_object_id,inventory_revision,root_identity,incarnation,remote_source_id,effective_configuration,read_policy_witness,read_authority_witness,library_generation,raw_configuration_generation,profile_revision,size,modified_ns FROM playback_start_preparation_source WHERE operation_id=?`, "s", stmt.Read),

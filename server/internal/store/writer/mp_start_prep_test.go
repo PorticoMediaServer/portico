@@ -132,7 +132,10 @@ func mpStartPrepFixtureFor(t *testing.T) mpStartPrepFixture {
 
 func (f mpStartPrepFixture) beginInput() mpStartPrepBeginInput {
 	return mpStartPrepBeginInput{
-		birth:     mpStartPrepUOBirth{birth: mpStartJobUserBirth{root: strings.Repeat("r", 22), member: strings.Repeat("b", 32), profileLifetime: strings.Repeat("c", 32)}, incarnation: f.inc},
+		// The UO-retained birth carries the same durable member incarnation and
+		// profile lifetime the current ordinary token proves; a replay keeps
+		// requiring that equality.
+		birth:     mpStartPrepUOBirth{birth: mpStartJobUserBirth{root: strings.Repeat("r", 22), member: f.cap.scope.memberBirth, profileLifetime: f.cap.scope.profileBirth}, incarnation: f.inc},
 		id:        "mp-prep",
 		item:      entityid.Encode(f.public[:]),
 		keyDigest: strings.Repeat("d", 64), bodyDigest: strings.Repeat("e", 64),

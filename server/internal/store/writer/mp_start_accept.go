@@ -352,7 +352,7 @@ func readMPStartAcceptOwner(ctx context.Context, t *commandTurn, id, device stri
 		&out.source.library, &out.source.source, &out.source.asset, &out.source.object, &out.source.revision, &out.source.root, &out.source.incarnation, &out.source.remote, &out.source.configuration, &out.source.policy, &out.source.authority, &out.source.libraryGeneration, &out.source.configurationGeneration, &out.source.profileRevision, &out.source.size, &out.source.modifiedNS,
 		&out.queue.id, &out.queue.entry, &out.queue.ownerKind, &out.queue.ownerID, &out.queue.revision, &out.queue.custody,
 		&out.ids.session, &out.ids.legacySession, &out.ids.legacyGeneration, &out.ids.snapshot,
-		&out.custody, &out.physicalExited, &out.cleaned)
+		&out.custody, &out.physicalExited, &out.cleaned, &out.member, &out.profileLifetime)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrDisclosureDenied
 	}

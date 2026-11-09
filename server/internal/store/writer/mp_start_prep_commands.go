@@ -209,7 +209,10 @@ func checkMPStartPrepDisclosure(w *Writer, v *mpStartPrepInvocation) error {
 	if d.self != d || d.writer != w || w == nil || w.effective == nil || d.lifetime == nil || d.lifetime.Err() != nil || d.revoked.Load() || d.incarnation != v.command.reference.Identity.Incarnation {
 		return ErrDisclosureDenied
 	}
-	if !mpPrepTexts(d.library) || d.actor != v.command.fenceActor() || d.actor.device != v.command.device() {
+	// The disclosure actor is the CURRENT rotated credential; the command/fence
+	// actor is the immutable original that produced the request digest. They must
+	// name the same durable session, never carry identical credential bytes.
+	if !mpPrepTexts(d.library) || !d.actor.sameSession(v.command.fenceActor()) || d.actor.device != v.command.device() {
 		return ErrDisclosureDenied
 	}
 	return nil
@@ -293,10 +296,10 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 	}
 	if kind == MPStartPrepBegin {
 		q := *v.command.begin
-		if e = mpStartPrepBeginDisclosure(ctx, t, reference.Identity.Incarnation, q, now); e != nil {
+		if e = mpStartPrepBeginDisclosure(ctx, t, reference.Identity.Incarnation, q, v.disclosure.actor, now); e != nil {
 			return out, false, e
 		}
-		replay, replayed, e := mpStartPrepBeginDuplicate(ctx, t, q, reference.Identity.Incarnation)
+		replay, replayed, e := mpStartPrepAppliedBirth(ctx, t, v.disclosure, q, reference.Identity.Incarnation)
 		if e != nil {
 			return out, false, e
 		}
@@ -332,7 +335,7 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 	default:
 		return out, false, ErrInvalid
 	}
-	owner, err := readMPStartPrepDisclosedOwner(ctx, t, fence, now)
+	owner, err := readMPStartPrepDisclosedOwner(ctx, t, v.disclosure, fence, now)
 	if err != nil {
 		return out, false, err
 	}
@@ -349,6 +352,13 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 		out.Outcome.State = ResultRetired
 		return out, true, nil
 	case receiptReplay:
+		// Rotation is the only allowed difference between the current disclosure
+		// and the immutable original. The durable owner's member incarnation and
+		// profile lifetime must still be the current ones; the stored actor and the
+		// lifecycle/source/expiry CAS are FRESH-only gates.
+		if owner.member != v.disclosure.scope.memberBirth || owner.profileLifetime != v.disclosure.scope.profileBirth {
+			return out, true, ErrDisclosureDenied
+		}
 		if owner.rows < 1 || owner.bytes < saved.storedBytes {
 			return out, true, ErrResolveRequired
 		}
@@ -366,7 +376,7 @@ func executeMPStartPrep(ctx context.Context, t *commandTurn, v *mpStartPrepInvoc
 	default:
 		return out, false, ErrResolveRequired
 	}
-	owner, err = captureMPStartPrepOwner(ctx, t, kind, fence, now)
+	owner, err = captureMPStartPrepOwner(ctx, t, v.disclosure, kind, fence, now)
 	if err != nil {
 		return out, false, err
 	}

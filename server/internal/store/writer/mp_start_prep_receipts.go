@@ -462,10 +462,14 @@ func completeMPStartPrepResult(ctx context.Context, t *commandTurn, kind Command
 	return out, nil
 }
 
-// mpStartPrepBeginDuplicate replays the one live birth for this device/start
-// key only when the complete stored input still matches. Head drift or a
-// changed duplicate is a conflict, never a second preparation or stale result.
-func mpStartPrepBeginDuplicate(ctx context.Context, t *commandTurn, q mpStartPrepBeginInput, incarnation [16]byte) (out mpStartPrepValue, replayed bool, err error) {
+// mpStartPrepAppliedBirth replays the one applied birth for this device/start
+// key. An applied 700 is immutable: the original staged input rows and the
+// UO-retained birth tuple are compared, never the mutable lifecycle row, so a
+// birth that was claimed or sealed still returns its saved pending original.
+// Credential rotation is admitted by comparing only the durable session; the
+// current token proved the scope before this read. An altered duplicate is a
+// conflict, never a second preparation or a stale result.
+func mpStartPrepAppliedBirth(ctx context.Context, t *commandTurn, d *mpStartPrepDisclosure, q mpStartPrepBeginInput, incarnation [16]byte) (out mpStartPrepValue, replayed bool, err error) {
 	defer func() {
 		x, e := finishCommand(ctx, commandLifetime(t), struct {
 			V mpStartPrepValue
@@ -473,6 +477,9 @@ func mpStartPrepBeginDuplicate(ctx context.Context, t *commandTurn, q mpStartPre
 		}{out, replayed}, err)
 		out, replayed, err = x.V, x.R, e
 	}()
+	if d == nil || !q.valid() {
+		return out, false, ErrInvalid
+	}
 	row, err := mpPrepRow(ctx, t, "mp.start.begin_key", q.actor.device, q.keyDigest)
 	if err != nil {
 		return out, false, err
@@ -492,13 +499,20 @@ func mpStartPrepBeginDuplicate(ctx context.Context, t *commandTurn, q mpStartPre
 	if err = readMPStartPrepOwner(ctx, t, id, q.actor.device, &owner); err != nil {
 		return out, false, err
 	}
-	if owner.incarnation != incarnation || owner.state != "pending" || owner.lifecycleRevision != 1 ||
-		owner.execution != "" || owner.sealed || owner.actor != q.actor || owner.source != q.source ||
-		owner.queue != q.queue || owner.item != q.item || owner.part != q.part ||
+	// The durable session evidence must still be the current one. A rotated
+	// credential is fine; a foreign member incarnation or profile lifetime is a
+	// denial, never a replay.
+	if owner.incarnation != incarnation ||
+		owner.member != d.scope.memberBirth || owner.profileLifetime != d.scope.profileBirth {
+		return out, false, ErrDisclosureDenied
+	}
+	// The immutable staged input must still be the exact original. State,
+	// lifecycle revision, execution and seal are deliberately absent: they belong
+	// to later commands.
+	if owner.source != q.source || owner.queue != q.queue || owner.item != q.item || owner.part != q.part ||
 		owner.deadlineMS != q.deadlineMS || owner.tokenExpiresMS != q.tokenExpiresMS ||
 		owner.replaces != q.replaces || owner.replacesGeneration != q.replacesGeneration ||
-		owner.ids != q.results || owner.root != q.birth.birth.root ||
-		owner.member != q.birth.birth.member || owner.profileLifetime != q.birth.birth.profileLifetime {
+		owner.ids != q.results || owner.root != q.birth.birth.root {
 		return out, false, ErrConflict
 	}
 	return mpStartPrepValue{Preparation: id, State: "pending", Revision: 1, DeadlineMS: owner.deadlineMS,
