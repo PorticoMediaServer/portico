@@ -1,9 +1,11 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -20,35 +22,107 @@ type Viewer struct {
 	ProfileID int64
 }
 
-// args are the two named values every statement that uses visibleTo must be given.
-func (v Viewer) args() []any {
-	return []any{sql.Named("viewer_user", v.UserID), sql.Named("viewer_profile", v.ProfileID)}
+// args is the named value every statement that reads the viewer's own state must be given.
+func (v Viewer) args() []any { return []any{sql.Named("viewer_profile", v.ProfileID)} }
+
+// access is what one viewer may see, read once at the start of a request in the same
+// transaction as the request's own statements.
+type access struct {
+	known        bool    // the profile exists and belongs to the account
+	allLibraries bool    // no library limit on the account or the profile
+	libraries    []int64 // otherwise, the libraries both allow
+	maxAge       *int    // the profile's rating limit
+	blockedTags  []int64 // labels the profile must never be shown
 }
 
-// libraryVisibleTo is the condition that the viewer may see the library whose id is the SQL
-// expression library: the account must be allowed it, and so must the profile.
-func libraryVisibleTo(library string) string {
-	return strings.ReplaceAll(`(EXISTS (SELECT 1 FROM profiles WHERE id = @viewer_profile AND user_id = @viewer_user)
-  AND ((SELECT all_libraries FROM users WHERE id = @viewer_user) = 1
-    OR {lib} IN (SELECT library_id FROM library_access WHERE user_id = @viewer_user))
-  AND ((SELECT all_libraries FROM profiles WHERE id = @viewer_profile) = 1
-    OR {lib} IN (SELECT library_id FROM library_access WHERE profile_id = @viewer_profile)))`, "{lib}", library)
+// queryer is a transaction, read or write.
+type queryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// visibleTo is the one condition that says the viewer may see the items row with this alias.
-// Every read of items uses it inside its own statement (lists, detail, people, counts and the
-// state writes), so a restricted title is never fetched and then filtered.
+func ids(ctx context.Context, tx queryer, query string, args ...any) ([]int64, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+func loadAccess(ctx context.Context, tx queryer, v Viewer) (access, error) {
+	var a access
+	var userAll, profileAll bool
+	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age FROM profiles p
+		JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).Scan(&userAll, &profileAll, &a.maxAge)
+	if errors.Is(err, sql.ErrNoRows) {
+		return a, nil
+	}
+	if err != nil {
+		return a, err
+	}
+	a.known, a.allLibraries = true, userAll && profileAll
+	if !a.allLibraries {
+		// The account must be allowed the library, and so must the profile.
+		if a.libraries, err = ids(ctx, tx, `SELECT id FROM libraries WHERE
+			(? OR id IN (SELECT library_id FROM library_access WHERE user_id = ?))
+			AND (? OR id IN (SELECT library_id FROM library_access WHERE profile_id = ?))`,
+			userAll, v.UserID, profileAll, v.ProfileID); err != nil {
+			return a, err
+		}
+	}
+	a.blockedTags, err = ids(ctx, tx, `SELECT tag_id FROM profile_restrictions WHERE profile_id = ?`, v.ProfileID)
+	return a, err
+}
+
+func intList(values []int64) string {
+	parts := make([]string, len(values))
+	for n, value := range values {
+		parts[n] = strconv.FormatInt(value, 10)
+	}
+	return "(" + strings.Join(parts, ", ") + ")"
+}
+
+// libraryVisible is the condition that the viewer may see the library whose id is the SQL
+// expression library.
+func (a access) libraryVisible(library string) string {
+	switch {
+	case !a.known:
+		return "0"
+	case a.allLibraries:
+		return "1"
+	}
+	return library + " IN " + intList(a.libraries)
+}
+
+// visible is the one condition that says the viewer may see the items row with this alias.
+// Every read of items puts it inside its own statement (lists, totals, detail, people, their
+// counts, and the state writes), so a restricted title is never fetched and then filtered.
 //
 // A row is visible when its library is, its rating is within the profile's limit, and neither
 // it nor the title it belongs to carries a label the profile has blocked. Children are stored
 // with the rating they inherit, so an episode needs no join to its show. When a limit is set,
 // a title with no rating is hidden: unknown is not the same as suitable.
-func visibleTo(alias string) string {
-	return "(" + libraryVisibleTo(alias+".library_id") + strings.ReplaceAll(`
-  AND ((SELECT max_rating_age FROM profiles WHERE id = @viewer_profile) IS NULL
-    OR {i}.rating_age <= (SELECT max_rating_age FROM profiles WHERE id = @viewer_profile))
-  AND NOT EXISTS (SELECT 1 FROM profile_restrictions vr JOIN item_tags vt ON vt.tag_id = vr.tag_id
-    WHERE vr.profile_id = @viewer_profile AND vt.item_id IN ({i}.id, {i}.root_id)))`, "{i}", alias)
+//
+// A profile with no restriction gets the condition "1", so its reads cost nothing extra.
+func (a access) visible(alias string) string {
+	cond := a.libraryVisible(alias + ".library_id")
+	if a.maxAge != nil {
+		cond += " AND " + alias + ".rating_age <= " + strconv.Itoa(*a.maxAge)
+	}
+	if len(a.blockedTags) > 0 {
+		blocked := "(SELECT item_id FROM item_tags WHERE tag_id IN " + intList(a.blockedTags) + ")"
+		cond += " AND " + alias + ".id NOT IN " + blocked + " AND ifnull(" + alias + ".root_id, 0) NOT IN " + blocked
+	}
+	return "(" + cond + ")"
 }
 
 // query builds one statement with named values, so the visibility condition can appear in it
@@ -56,9 +130,17 @@ func visibleTo(alias string) string {
 type query struct {
 	sql  strings.Builder
 	args []any
+	// An item list filtered by a tag can read differently for its page and its total: from
+	// says whether items is read through an index or by the ids the tag gathered, and tagPage
+	// and tagCount stand in for the "{tag}" mark in the condition. See ItemQuery.filters.
+	from, countFrom   string
+	tagPage, tagCount string
 }
 
-func newQuery(v Viewer) *query { return &query{args: v.args()} }
+func (q *query) pageWhere() string  { return strings.Replace(q.sql.String(), "{tag}", q.tagPage, 1) }
+func (q *query) countWhere() string { return strings.Replace(q.sql.String(), "{tag}", q.tagCount, 1) }
+
+func newQuery(v Viewer) *query { return &query{args: v.args(), from: "items i", countFrom: "items i"} }
 
 // arg adds a value and returns the name to write in the statement.
 func (q *query) arg(value any) string {

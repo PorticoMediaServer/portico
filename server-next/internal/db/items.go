@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -154,7 +155,9 @@ const itemColumns = `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.
 	ifnull(i.duration_ms, 0), i.index_number, i.parent_index, i.child_count, ifnull(i.content_rating, ''),
 	ifnull(i.community_rating, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0), ` + stateColumns
 
-const itemFrom = ` FROM items i LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id WHERE `
+const stateJoin = ` LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id WHERE `
+
+const itemFrom = ` FROM items i` + stateJoin
 
 func scanItem(row interface{ Scan(...any) error }, it *Item, extra ...any) error {
 	dest := append([]any{&it.ID, &it.PublicID, &it.Kind, &it.Title, &it.sortTitle, &it.Year, &it.ReleaseDate, &it.AddedAt,
@@ -186,15 +189,19 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if err != nil {
 		return page, err
 	}
-	where := newQuery(v)
-	if err := q.filters(where); err != nil {
-		return page, err
-	}
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return page, err
 	}
 	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return page, err
+	}
+	where := newQuery(v)
+	if found, err := q.filters(ctx, tx, where, acc); err != nil || !found {
+		return page, err
+	}
 
 	// Rows with a sort value first, then the rows without one.
 	nulls := cursor != nil && cursor.Nulls
@@ -221,7 +228,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		page.NextCursor = next.encode()
 	}
 	if q.WithTotal {
-		count := `SELECT count(*) FROM items i WHERE ` + where.sql.String()
+		count := `SELECT count(*) FROM ` + where.countFrom + ` WHERE ` + where.countWhere()
 		if err := tx.QueryRowContext(ctx, count, where.args...).Scan(&page.Total); err != nil {
 			return page, err
 		}
@@ -229,13 +236,13 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if err := loadImages(ctx, tx, page.Items); err != nil {
 		return page, err
 	}
-	return page, loadLeafCounts(ctx, tx, v, page.Items)
+	return page, loadLeafCounts(ctx, tx, v, acc, page.Items)
 }
 
 // listRun reads one run of a page: the rows that have a sort value, or the rows that do not.
 func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q ItemQuery, after *listCursor, nulls bool, page *ItemPage) error {
 	run := &query{args: append([]any(nil), where.args...)}
-	run.add(`SELECT `, itemColumns, itemFrom, where.sql.String())
+	run.add(`SELECT `, itemColumns, ` FROM `, where.from, stateJoin, where.pageWhere())
 	columns := append(append([]string(nil), spec.columns...), "i.id")
 	if nulls {
 		run.add(` AND `, spec.columns[0], ` IS NULL`)
@@ -299,10 +306,15 @@ func (it *Item) sortValues(sort string) []any {
 	return []any{it.sortTitle}
 }
 
+// rareTag is how many uses make a tag common. A list filtered by a rarer tag starts from the
+// tag's items and sorts them; a list filtered by a common tag reads the library in order and
+// skips what does not match. Each is fast where the other is slow.
+var rareTag = 2000
+
 // filters writes the condition for everything but the page position: what the viewer may see,
-// and what was asked for.
-func (q ItemQuery) filters(w *query) error {
-	w.add(visibleTo("i"))
+// and what was asked for. It reports false when a named tag does not exist, so nothing matches.
+func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access) (bool, error) {
+	w.add(acc.visible("i"))
 	scoped := false
 	if q.Library != "" {
 		w.add(` AND i.library_id = (SELECT id FROM libraries WHERE public_id = `, w.arg(q.Library), `)`)
@@ -316,7 +328,7 @@ func (q ItemQuery) filters(w *query) error {
 		kinds := make([]string, len(q.Kinds))
 		for n, kind := range q.Kinds {
 			if err := checkCode("kind", itemKindNames, kind); err != nil {
-				return invalid("unknown kind")
+				return false, invalid("unknown kind")
 			}
 			kinds[n] = fmt.Sprint(int(kind))
 		}
@@ -330,19 +342,30 @@ func (q ItemQuery) filters(w *query) error {
 		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = (SELECT id FROM people WHERE public_id = `, w.arg(q.Person), `))`)
 		scoped = true
 	}
-	for _, tag := range []struct{ value, find string }{
-		{q.Tag, `SELECT id FROM tags WHERE public_id = `},
-		{normTag(q.Genre), `SELECT id FROM tags WHERE kind = 'genre' AND norm_name = `},
-	} {
-		if tag.value == "" {
-			continue
+	if q.Tag != "" || q.Genre != "" {
+		var tag int64
+		var uses int
+		err := tx.QueryRowContext(ctx, `SELECT id, (SELECT count(*) FROM (SELECT 1 FROM item_tags WHERE tag_id = tags.id LIMIT ?))
+			FROM tags WHERE public_id = ? OR (? = '' AND kind = 'genre' AND norm_name = ?)`, rareTag, q.Tag, q.Tag, normTag(q.Genre)).Scan(&tag, &uses)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
 		}
-		if q.Library != "" || q.Parent != "" {
-			// Inside a library the list is read in order, and an episode or a track matches
-			// through the title it belongs to.
-			w.add(` AND EXISTS (SELECT 1 FROM item_tags t WHERE t.tag_id = (`, tag.find, w.arg(tag.value), `) AND t.item_id IN (i.id, i.root_id))`)
+		if err != nil {
+			return false, err
+		}
+		// An item matches a tag it carries, or one the title it belongs to carries: an episode
+		// is a drama because its show is. A common tag in a library is read in the list's
+		// own order, skipping what does not match. Otherwise the tag's items are gathered
+		// first, and the total always is: it costs what matches, not the whole library.
+		walk := fmt.Sprintf(` AND EXISTS (SELECT 1 FROM item_tags t WHERE t.tag_id = %d AND t.item_id IN (i.id, i.root_id))`, tag)
+		gathered := fmt.Sprintf(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id = %[1]d UNION
+			SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id = %[1]d AND d.root_id = h.item_id)`, tag)
+		w.add("{tag}")
+		w.countFrom, w.tagCount = "items i NOT INDEXED", gathered
+		if scoped && uses >= rareTag {
+			w.tagPage = walk
 		} else {
-			w.add(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id = (`, tag.find, w.arg(tag.value), `))`)
+			w.from, w.tagPage = "items i NOT INDEXED", gathered
 		}
 		scoped = true
 	}
@@ -374,20 +397,20 @@ func (q ItemQuery) filters(w *query) error {
 			SELECT 1 FROM user_item_state w WHERE w.profile_id = @viewer_profile AND w.item_id = i.id AND w.played = 1)
 			ELSE `, boolSQL(*q.Watched), ` = (i.leaf_count > 0 AND NOT EXISTS (
 			SELECT 1 FROM items c WHERE (c.root_id = i.id OR c.parent_id = i.id) AND c.kind IN `, playableKindsSQL, `
-			AND `, visibleTo("c"), ` AND NOT EXISTS (
+			AND `, acc.visible("c"), ` AND NOT EXISTS (
 			SELECT 1 FROM user_item_state w WHERE w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1))) END`)
 	}
 	if q.Resolution != "" {
 		class, ok := resolutionClasses[q.Resolution]
 		if !ok {
-			return invalid("unknown resolution %q", q.Resolution)
+			return false, invalid("unknown resolution %q", q.Resolution)
 		}
-		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
+		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
 	}
 	if !scoped {
-		return invalid("a list needs a library, a parent, a person, a tag, favourites or My List")
+		return false, invalid("a list needs a library, a parent, a person, a tag, favourites or My List")
 	}
-	return nil
+	return true, nil
 }
 
 func boolSQL(b bool) string {
@@ -440,7 +463,7 @@ func loadImages(ctx context.Context, tx *sql.Tx, items []Item) error {
 
 // loadLeafCounts fills Leaves and WatchedLeaves for the items that hold others, and from them
 // whether the viewer has watched the whole of each.
-func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, items []Item) error {
+func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, acc access, items []Item) error {
 	var holders []Item
 	byID := map[int64]*Item{}
 	for n := range items {
@@ -456,7 +479,7 @@ func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, items []Item) err
 	for _, column := range []string{"c.root_id", "c.parent_id"} {
 		rows, err := tx.QueryContext(ctx, `SELECT `+column+`, count(*), count(w.item_id) FROM items c
 			LEFT JOIN user_item_state w ON w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1
-			WHERE `+column+` IN `+idList(holders)+` AND c.kind IN `+playableKindsSQL+` AND `+visibleTo("c")+` GROUP BY 1`, v.args()...)
+			WHERE `+column+` IN `+idList(holders)+` AND c.kind IN `+playableKindsSQL+` AND `+acc.visible("c")+` GROUP BY 1`, v.args()...)
 		if err != nil {
 			return err
 		}

@@ -439,3 +439,11 @@ func (b *builder) books() error {
 	}
 	return nil
 }
+
+// Genres are the genre names a library of this kind was seeded with.
+func Genres(libraryKind string) []string {
+	if libraryKind == db.LibraryMusic {
+		return musicGenres
+	}
+	return genres
+}

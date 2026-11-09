@@ -47,3 +47,23 @@ func (d *DB) CreateSeedProfile(ctx context.Context, p SeedProfile) (Viewer, erro
 	})
 	return v, err
 }
+
+// SeedViewers returns the profiles CreateSeedProfile made, oldest first, so a load run can
+// read and write as them.
+func (d *DB) SeedViewers(ctx context.Context) ([]Viewer, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT p.user_id, p.id FROM profiles p JOIN users u ON u.id = p.user_id
+		WHERE u.password_hash IS NULL AND u.role = 'member' ORDER BY p.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Viewer
+	for rows.Next() {
+		var v Viewer
+		if err := rows.Scan(&v.UserID, &v.ProfileID); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
