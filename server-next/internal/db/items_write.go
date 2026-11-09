@@ -190,6 +190,7 @@ type ImportStats struct {
 	Items        int
 	ItemsNew     int
 	RowsWritten  int64
+	Took         time.Duration // how long the transaction held the writer, before its commit
 }
 
 // Import writes one batch in one background transaction.
@@ -200,6 +201,8 @@ func (d *DB) Import(ctx context.Context, batch ImportBatch) (ImportStats, error)
 			dirs: map[string]int64{}, files: map[FileRef]*importedFile{}, items: map[ItemKey]*importedItem{},
 			tags: map[TagName]int64{}, people: map[string]int64{}, counts: map[int64]*countChange{}}
 		defer im.close()
+		started := time.Now()
+		defer func() { stats.Took = time.Since(started) }()
 		stats = ImportStats{Files: len(batch.Files), Items: len(batch.Items)}
 		var before int64
 		if err := tx.QueryRow(`SELECT total_changes()`).Scan(&before); err != nil {
@@ -384,6 +387,12 @@ func (im *importer) importFile(f *ImportFile, stats *ImportStats) error {
 			return err
 		}
 		if err := im.insertStreams(id, f.Streams); err != nil {
+			return err
+		}
+		// Whatever plays this file has changed: open screens and the search index hear of it.
+		if _, err := im.exec(`INSERT INTO changes (at, topic, op, ref_id, library_id)
+			SELECT DISTINCT ?, ?, ?, m.item_id, ? FROM media_parts p JOIN media m ON m.id = p.media_id WHERE p.file_id = ?`,
+			im.now, TopicItem, OpUpdated, im.batch.LibraryID, id); err != nil {
 			return err
 		}
 		im.changedFiles = append(im.changedFiles, id)
@@ -782,7 +791,10 @@ func (im *importer) ensureVersion(itemID int64, v *ImportVersion) error {
 			return err
 		}
 		im.unsettled = append(im.unsettled, itemID)
-		return im.createVersion(itemID, position, v, facts, im.now)
+		if err := im.createVersion(itemID, position, v, facts, im.now); err != nil {
+			return err
+		}
+		return appendChange(im.tx, Change{At: im.now, Topic: TopicItem, Op: OpUpdated, RefID: itemID, LibraryID: im.batch.LibraryID})
 	}
 	if err != nil {
 		return err
