@@ -216,10 +216,12 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	// uses the full Go grant (the native row reservation already leaves exactly
 	// that much) instead of the catalogue half-grant. The zero value is
 	// unchanged: every other query keeps the original 2 MiB window.
-	copyLimit := int64(2 << 20)
-	if in.PeopleOnly {
-		copyLimit = 4 << 20
-	}
+	//
+	// Review headroom note: 4 MiB equals that minimum Go grant, so unlike the
+	// catalogue window (whose other half was reserved for reducer, matcher and
+	// owner workspace) a People window has no equivalent headroom beyond the
+	// native row reservation.
+	copyLimit := nativeCopyLimit(in.PeopleOnly)
 	deadline := earliest(request.Deadline, output.Request.Deadline, started.Add(min(budget, time.Second)))
 	request.Deadline = deadline
 	var initial nativeSearchFence
@@ -354,9 +356,12 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		return FullSearchPage{}, cost, errors.Join(lookupErr, ctx.Err(), context.DeadlineExceeded)
 	}
 	// A People page accumulates up to forty person policies, and each of the two
-	// snapshots must re-prove them. Charge each window against its own documented
-	// half-grant instead of one Go-copy counter shared across both; the lookup
-	// window's rows are already released before the final window opens.
+	// snapshots must re-prove them. Charge each window against its own Go-copy
+	// account instead of one counter shared across both. Resetting is safe:
+	// ReadForecasted has returned, so the lookup scope's copied rows are
+	// released before the final window opens, and the retained witnesses,
+	// library fences and draft hits that survive it are re-counted by
+	// MetadataBytes in the final stamp charge below.
 	if in.PeopleOnly {
 		copies = 0
 	}
@@ -486,11 +491,34 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	draft.Stamp = &FullSearchReadStamp{hits: issued, policies: policies, checked: checked, pool: r.pool, output: output.Grant, fence: initial, libraries: nativeCloneExact(libraryFences), query: query.Fold(), started: started, clock: in.View.Now, deadline: deadline}
 	draft.Stamp.ownWitnesses()
 	metadataBytes := draft.Stamp.MetadataBytes()
-	copies += metadataBytes
-	if metadataBytes > MaxNativeStampBytes || copies > copyLimit {
-		return FullSearchPage{}, cost, governor.ErrSnapshotBudget
+	copies, err = nativeStampCharge(copies, metadataBytes, copyLimit)
+	if err != nil {
+		return FullSearchPage{}, cost, err
 	}
 	return draft, cost, nil
+}
+
+// nativeCopyLimit is the per-window Go-copy cap. The catalogue walk keeps the
+// original 2 MiB window (half the minimum Go grant, leaving the rest for the
+// reducer, matcher and owner workspace). A People walk may use the full 4 MiB
+// minimum grant, which is exactly what the native row reservation leaves and
+// what a dense person-policy stamp needs to be proved in both snapshots.
+func nativeCopyLimit(peopleOnly bool) int64 {
+	if peopleOnly {
+		return 4 << 20
+	}
+	return 2 << 20
+}
+
+// nativeStampCharge adds the issued stamp's owned metadata to a window's copy
+// account. Keeping the last charge in one place means a dropped charge fails a
+// unit test instead of only a dense People cohort read.
+func nativeStampCharge(copies, metadata, limit int64) (int64, error) {
+	copies += metadata
+	if metadata > MaxNativeStampBytes || copies > limit {
+		return copies, governor.ErrSnapshotBudget
+	}
+	return copies, nil
 }
 
 func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f nativeSearchFence, in FullSearchInput, calls *int) (FullSearchPage, error) {
