@@ -1,0 +1,12 @@
+package writer
+
+import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+
+const iaRetireUnitSessionBytes stmt.ID = "ia.retire.unit.session_bytes"
+const iaRetireUnitSessionByteSQL = `SELECT octet_length(id),octet_length(session_hash),octet_length(account_id),octet_length(profile_id),octet_length(asset_id),octet_length(state),octet_length(grant_hash),octet_length(grant_token),octet_length(expires_at),octet_length(request_id),octet_length(mode),octet_length(mp_retire_request_id),octet_length(mp_exit_supervisor_incarnation),octet_length(mp_exit_request_id),octet_length(mp_execution_id),octet_length(mp_exit_digest),octet_length(mp_command_incarnation),octet_length(mp_user_root_id),octet_length(mp_owner_member_incarnation),octet_length(mp_owner_profile_lifetime),octet_length(mp_reclaim_operation_id),octet_length(mp_reclaim_request_digest),octet_length(mp_reclaim_result_digest),octet_length(mp_reclaim_result_payload),octet_length(mp_retirement_state) FROM playback_sessions INDEXED BY sqlite_autoindex_playback_sessions_1 WHERE id=? AND generation=? AND mp_revision=? AND mp_execution_id=?`
+
+var iaRetirementSessionByteColumns = []string{"id", "session_hash", "account_id", "profile_id", "asset_id", "state", "grant_hash", "grant_token", "expires_at", "request_id", "mode", "mp_retire_request_id", "mp_exit_supervisor_incarnation", "mp_exit_request_id", "mp_execution_id", "mp_exit_digest", "mp_command_incarnation", "mp_user_root_id", "mp_owner_member_incarnation", "mp_owner_profile_lifetime", "mp_reclaim_operation_id", "mp_reclaim_request_digest", "mp_reclaim_result_digest", "mp_reclaim_result_payload", "mp_retirement_state"}
+
+func iaRetirementByteDefinition() stmt.Definition {
+	return stmt.Definition{ID: iaRetireUnitSessionBytes, Owner: "store/writer IA session retirement bytes", CallSites: []string{"store/writer/ia_retirement_step.go"}, Kind: stmt.Read, SQL: iaRetireUnitSessionByteSQL, Params: []stmt.Param{{Name: "session", Type: stmt.Text}, {Name: "generation", Type: stmt.Integer}, {Name: "revision", Type: stmt.Integer}, {Name: "execution", Type: stmt.Text}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_playback_sessions_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "playback_sessions", Name: "sqlite_autoindex_playback_sessions_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}, Cohorts: []stmt.Cohort{{Name: "absent", Bindings: []any{"absent", int64(1), int64(1), "absent"}}}}
+}
