@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
@@ -695,5 +697,328 @@ func TestIARetirementStepRejectsIncompleteSavedProof(t *testing.T) {
 				t.Fatal("incomplete saved proof escaped", out, err)
 			}
 		})
+	}
+}
+
+func iaRetirementStepKinds(t *testing.T, w *executor) {
+	t.Helper()
+	wc008NativeExec(t, w, `INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES
+(2,'show',0,1,1,1,0),(3,'season',0,1,1,1,0),(4,'episode',1,0,1,1,0),(5,'artist',0,0,1,1,0),
+(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1),(8,'book',0,1,1,1,0),(9,'audiobook_file',1,0,1,1,1),(13,'author',0,1,1,1,0),(20,'movie',1,0,1,1,0)`)
+}
+
+// iaRetirementStepNodeSeed inserts one hierarchy node with the same subject
+// mirror the canonical accept path writes, plus the exact parentage columns the
+// kind CHECK constraints require (col,value pairs).
+func iaRetirementStepNodeSeed(t *testing.T, w *executor, id, kind, libraryID int64, title string, extra ...any) {
+	t.Helper()
+	publicID := []byte(fmt.Sprintf("%016d", id))
+	wc008NativeExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,?,?)`, id, publicID, libraryID, kind)
+	columns, marks := "", ""
+	args := []any{id, publicID, libraryID, kind, title, title, title, title, title}
+	for at := 0; at < len(extra); at += 2 {
+		columns += ","
+		columns += extra[at].(string)
+		marks += ",?"
+		args = append(args, extra[at+1])
+	}
+	wc008NativeExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation`+columns+`)
+VALUES(?,?,?,?,?,?,?,?,?,1,zeroblob(16),zeroblob(16)`+marks+`)`, args...)
+}
+
+// iaRetirementStepDrain commits bounded phase-2 steps until the driver either
+// reaches terminal exit or refuses, and returns the removal order by entity id.
+func iaRetirementStepDrain(t *testing.T, w *executor, r *iaEntryRegistry, p *usOwnerAuthorityProof, scope iaRetirementStepScope, incarnation [16]byte, limit int) (order []int64, steps int, final iaRetirementStepOutcome, err error) {
+	t.Helper()
+	if scope.phase != iaRetirementStepEntities {
+		scope.phase, scope.entityKind, scope.entityCursor, scope.objectCursor = iaRetirementStepEntities, 0, 0, ""
+	}
+	wc008NativeExec(t, w, `UPDATE catalog_removal_progress SET phase=?,entity_kind=?,entity_cursor=?,object_cursor=?`,
+		scope.phase, scope.entityKind, scope.entityCursor, scope.objectCursor)
+	last := iaRetirementStepCount(t, w, `SELECT last_command_sequence FROM catalog_removal_progress WHERE target='lib-step'`)
+	for step := 0; step < limit; step++ {
+		sequence := last + 1 + int64(step)
+		out, runErr := iaRetirementStepRun(t, w, r, p, iaRetirementStepID(incarnation, sequence, byte(sequence)),
+			iaRetirementStepRequest{scope: scope}, true)
+		if runErr != nil {
+			return order, step, out, runErr
+		}
+		if out.result.state == "complete" {
+			return order, step + 1, out, nil
+		}
+		if out.result.walkRemoved {
+			order = append(order, out.result.entityCursor)
+		}
+		iaRetirementStepAck(t, w)
+		scope = iaRetirementStepAdvance(scope, out, out.result.acceptedRevision)
+	}
+	return order, limit, final, nil
+}
+
+// A normal TV, music and book hierarchy retires child-first: no parent is ever
+// handed to SQLite while an in-library child still names it, so no raw
+// FOREIGN KEY 787 escapes, every step is one entity, and the driver reaches
+// terminal exit in bounded steps.
+func TestIARetirementStepHierarchyChildFirst(t *testing.T) {
+	for name, tc := range map[string]struct {
+		seed  func(*testing.T, *executor)
+		want  []int64
+		limit int
+	}{
+		"show_season_episode": {
+			seed: func(t *testing.T, w *executor) {
+				iaRetirementStepNodeSeed(t, w, 10, 2, 900, "Show")
+				iaRetirementStepNodeSeed(t, w, 11, 3, 900, "Season", "parent_id", int64(10), "show_id", int64(10), "season_number", int64(1))
+				iaRetirementStepNodeSeed(t, w, 12, 4, 900, "Episode", "parent_id", int64(11), "show_id", int64(10),
+					"season_id", int64(11), "numbering", "seasonal", "episode_number", int64(1))
+			},
+			want: []int64{12, 11, 10}, limit: 12,
+		},
+		"artist_album_song": {
+			seed: func(t *testing.T, w *executor) {
+				iaRetirementStepNodeSeed(t, w, 20, 5, 900, "Artist")
+				iaRetirementStepNodeSeed(t, w, 21, 6, 900, "Album", "artist_id", int64(20))
+				iaRetirementStepNodeSeed(t, w, 22, 7, 900, "Song", "album_id", int64(21))
+				wc008NativeExec(t, w, `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(22,20)`)
+			},
+			want: []int64{22, 21, 20}, limit: 12,
+		},
+		"book_files_chapters": {
+			seed: func(t *testing.T, w *executor) {
+				iaRetirementStepNodeSeed(t, w, 30, 8, 900, "Book")
+				iaRetirementStepNodeSeed(t, w, 31, 9, 900, "Part One", "book_id", int64(30))
+				iaRetirementStepNodeSeed(t, w, 32, 9, 900, "Part Two", "book_id", int64(30))
+				wc008NativeExec(t, w, `INSERT INTO catalog_book_chapters(id,file_id,chapter_index,title,start_seconds,end_seconds)
+VALUES(1,31,0,'Chapter',0,60)`)
+			},
+			want: []int64{31, 32, 30}, limit: 12,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, r, p, scope, incarnation := iaRetirementStepFixture(t)
+			iaRetirementStepKinds(t, w)
+			tc.seed(t, w)
+			order, steps, final, err := iaRetirementStepDrain(t, w, r, p, scope, incarnation, tc.limit)
+			if err != nil {
+				t.Fatalf("hierarchy did not retire without a raw failure: %v (order %v)", err, order)
+			}
+			if final.result.state != "complete" || final.result.phase != iaRetirementStepComplete {
+				t.Fatalf("hierarchy did not reach terminal exit: %v after %v", final.result, order)
+			}
+			if steps > tc.limit {
+				t.Fatalf("unbounded hierarchy walk: %d steps", steps)
+			}
+			if !slices.Equal(order, tc.want) {
+				t.Fatalf("not child-first: removed %v, want %v", order, tc.want)
+			}
+			if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_entities WHERE library_id=900`); got != 0 {
+				t.Fatal("hierarchy entity left behind", got)
+			}
+			if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_removal_progress WHERE target='lib-step' AND retirement_state='complete' AND phase=5`); got != 1 {
+				t.Fatal("driver not terminal", got)
+			}
+		})
+	}
+}
+
+// A parent held only by a hierarchy child is deferred, and the child that names
+// it is removed in the same bounded walk. Removing the child probe makes the
+// first parent delete a raw 787 and this walk never reaches terminal exit.
+func TestIARetirementStepParentDeferredForChild(t *testing.T) {
+	w, r, p, scope, incarnation := iaRetirementStepFixture(t)
+	iaRetirementStepKinds(t, w)
+	iaRetirementStepNodeSeed(t, w, 40, 2, 900, "Show")
+	iaRetirementStepNodeSeed(t, w, 41, 3, 900, "Season", "parent_id", int64(40), "show_id", int64(40), "season_number", int64(1))
+	wc008NativeExec(t, w, `UPDATE catalog_removal_progress SET phase=2,entity_kind=0,entity_cursor=0,object_cursor=''`)
+	scope.phase, scope.entityKind, scope.entityCursor, scope.objectCursor = iaRetirementStepEntities, 0, 0, ""
+	out, err := iaRetirementStepRun(t, w, r, p, iaRetirementStepID(incarnation, 2, 2), iaRetirementStepRequest{scope: scope}, true)
+	if err != nil || !out.result.walkRemoved || !out.result.walkKept || out.result.entityCursor != 41 ||
+		out.result.entityKind != iaRetirementStepPassRemoved {
+		t.Fatal("parent was not deferred behind its child", out, err)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=40`); got != 1 {
+		t.Fatal("referenced parent was cascaded", got)
+	}
+}
+
+// A NO ACTION referencer that the probe family covers keeps the entity, lets a
+// sibling retire in the same turn, and ends the walk with the named hold rather
+// than a fabricated terminal exit.
+func TestIARetirementStepReferencedEntityHolds(t *testing.T) {
+	w, r, p, scope, incarnation := iaRetirementStepFixture(t)
+	iaRetirementStepKind(t, w)
+	iaRetirementStepEntitySeed(t, w, 5, 20, 900, "Reference")
+	iaRetirementStepEntitySeed(t, w, 6, 20, 900, "Free")
+	wc008NativeExec(t, w, `INSERT INTO metadata_credit_cleanup(entity_id,provider,provider_id) VALUES(5,'tmdb','1')`)
+	wc008NativeExec(t, w, `UPDATE catalog_removal_progress SET phase=2,entity_kind=0,entity_cursor=0,object_cursor=''`)
+	scope.phase, scope.entityKind, scope.entityCursor, scope.objectCursor = iaRetirementStepEntities, 0, 0, ""
+	request := iaRetirementStepRequest{scope: scope}
+	out, err := iaRetirementStepRun(t, w, r, p, iaRetirementStepID(incarnation, 2, 2), request, true)
+	if err != nil || !out.result.walkRemoved || !out.result.walkKept || out.result.entityCursor != 6 {
+		t.Fatal("referenced entity blocked its sibling", out, err)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=5`); got != 1 {
+		t.Fatal("referenced entity was deleted", got)
+	}
+	iaRetirementStepAck(t, w)
+	scope = iaRetirementStepAdvance(scope, out, out.result.acceptedRevision)
+	order, steps, _, err := iaRetirementStepDrain(t, w, r, p, scope, incarnation, 8)
+	if steps == 0 || order != nil {
+		t.Fatal("held entity retired", order, steps)
+	}
+	if !errors.Is(err, ErrResolveRequired) || !errors.Is(err, iaRetirementEntityReferenced) {
+		t.Fatalf("blocked entity did not name its hold: %v", err)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=5`); got != 1 {
+		t.Fatal("hold removed the referenced entity", got)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_removal_progress WHERE target='lib-step' AND retirement_state='complete'`); got != 0 {
+		t.Fatal("hold fabricated terminal exit", got)
+	}
+}
+
+// The one NO ACTION referencer without an entity-leading native key is the
+// DELETE's own 787. The fixture narrows the probe family to the child keys so
+// the native refusal is the detector: it must keep the entity, leave the turn
+// usable for the next candidate in the same step, and end in the named hold.
+func TestIARetirementStepNativeRefusalKeepsEntity(t *testing.T) {
+	saved := iaRetirementStepProbes
+	iaRetirementStepProbes = saved[:6]
+	defer func() { iaRetirementStepProbes = saved }()
+	w, r, p, scope, incarnation := iaRetirementStepFixture(t)
+	iaRetirementStepKind(t, w)
+	iaRetirementStepEntitySeed(t, w, 5, 20, 900, "Refused")
+	iaRetirementStepEntitySeed(t, w, 6, 20, 900, "Free")
+	wc008NativeExec(t, w, `INSERT INTO metadata_credit_cleanup(entity_id,provider,provider_id) VALUES(5,'tmdb','1')`)
+	wc008NativeExec(t, w, `UPDATE catalog_removal_progress SET phase=2,entity_kind=0,entity_cursor=0,object_cursor=''`)
+	scope.phase, scope.entityKind, scope.entityCursor, scope.objectCursor = iaRetirementStepEntities, 0, 0, ""
+	out, err := iaRetirementStepRun(t, w, r, p, iaRetirementStepID(incarnation, 2, 2), iaRetirementStepRequest{scope: scope}, true)
+	if err != nil {
+		t.Fatalf("native refusal escaped as a raw error: %v", err)
+	}
+	if !out.result.walkRemoved || !out.result.walkKept || out.result.entityCursor != 6 {
+		t.Fatal("refused entity poisoned the turn", out, err)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=5`); got != 1 {
+		t.Fatal("refused entity was removed", got)
+	}
+	iaRetirementStepAck(t, w)
+	scope = iaRetirementStepAdvance(scope, out, out.result.acceptedRevision)
+	preLast := iaRetirementStepCount(t, w, `SELECT last_command_sequence FROM catalog_removal_progress WHERE target='lib-step'`)
+	preReceipts := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_removal_receipts`)
+	_, steps, driver, err := iaRetirementStepDrain(t, w, r, p, scope, incarnation, 8)
+	if !errors.Is(err, ErrResolveRequired) || !errors.Is(err, iaRetirementEntityReferenced) {
+		t.Fatalf("native refusal did not name its hold: %v", err)
+	}
+	if driver != (iaRetirementStepOutcome{}) {
+		t.Fatal("hold released a result", driver)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT last_command_sequence FROM catalog_removal_progress WHERE target='lib-step'`); got != preLast+int64(steps) {
+		t.Fatal("hold advanced the driver", got, steps)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_removal_receipts`); got != preReceipts+int64(steps) {
+		t.Fatal("hold wrote a receipt", got, steps)
+	}
+}
+
+// Phase 1 drains the link family for every entity, including one a live
+// collection holds: the packet's "kept" wording keeps the entity row, not its
+// already-drained asset links.
+func TestIARetirementStepCollectionHeldLinkRemoved(t *testing.T) {
+	w, r, p, scope, incarnation := iaRetirementStepFixture(t)
+	iaRetirementStepKind(t, w)
+	iaRetirementBeginLibrarySeed(t, w, 901, "lib-hold", "/media/hold", "Hold", 5)
+	iaRetirementStepAssetSeed(t, w, 41, 900, "step-asset")
+	iaRetirementStepEntitySeed(t, w, 10, 20, 900, "Held")
+	iaRetirementStepLinkSeed(t, w, 10, 41, 900)
+	iaRetirementStepEntitySeed(t, w, 1000, 20, 901, "Collection")
+	wc008NativeExec(t, w, `INSERT INTO catalog_collection_members(collection_id,item_id,order_key) VALUES(1000,10,'k')`)
+	out, err := iaRetirementStepRun(t, w, r, p, iaRetirementStepID(incarnation, 2, 2), iaRetirementStepRequest{scope: scope}, true)
+	if err != nil || !out.result.walkRemoved || out.result.phase != iaRetirementStepMembers || out.result.entityCursor != 10 {
+		t.Fatal("held entity link not drained", out, err)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_asset_links WHERE entity_id=10`); got != 0 {
+		t.Fatal("held link survived phase 1", got)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_collection_members WHERE item_id=10`); got != 1 {
+		t.Fatal("collection membership was cascaded", got)
+	}
+}
+
+// A link that appears after phase 1 is provably empty refuses every later step
+// with ErrConflict: the child family is proven, never assumed from the cursor.
+// This is reachable only behind IA-08's retirement deny fence, so a fenced
+// writer cannot create the state; an unfenced one is refused permanently here.
+func TestIARetirementStepLateMemberRefused(t *testing.T) {
+	w, r, p, scope, incarnation := iaRetirementStepFixture(t)
+	iaRetirementStepKind(t, w)
+	iaRetirementStepAssetSeed(t, w, 41, 900, "step-asset")
+	iaRetirementStepEntitySeed(t, w, 3, 20, 900, "Behind")
+	iaRetirementStepEntitySeed(t, w, 7, 20, 900, "Ahead")
+	wc008NativeExec(t, w, `UPDATE catalog_removal_progress SET phase=2,entity_kind=0,entity_cursor=5,object_cursor=''`)
+	iaRetirementStepLinkSeed(t, w, 3, 41, 900)
+	scope.phase, scope.entityKind, scope.entityCursor, scope.objectCursor = iaRetirementStepEntities, 0, 5, ""
+	out, err := iaRetirementStepRun(t, w, r, p, iaRetirementStepID(incarnation, 2, 2), iaRetirementStepRequest{scope: scope}, false)
+	if !errors.Is(err, ErrConflict) || out != (iaRetirementStepOutcome{}) {
+		t.Fatal("late child link admitted", out, err)
+	}
+	if got := iaRetirementStepCount(t, w, `SELECT count(*) FROM catalog_entities WHERE library_id=900`); got != 2 {
+		t.Fatal("refused turn removed an entity", got)
+	}
+}
+
+// Every child reverse key defers the entity it names, and every hold reverse key
+// keeps it: a removed probe deletes a referenced entity or escapes a native 787.
+func TestIARetirementStepReferencedProbes(t *testing.T) {
+	w, r, _, _, _ := iaRetirementStepFixture(t)
+	iaRetirementStepKinds(t, w)
+	nodes := map[string]int64{}
+	for at, column := range []string{"parent_id", "show_id", "season_id", "artist_id", "album_id", "book_id"} {
+		parent := int64(110 + at)
+		iaRetirementStepNodeSeed(t, w, parent, 20, 900, "Parent")
+		iaRetirementStepNodeSeed(t, w, 200+int64(at), 20, 900, "Child", column, parent)
+		nodes[column] = parent
+	}
+	iaRetirementStepNodeSeed(t, w, 120, 5, 900, "Artist")
+	iaRetirementStepNodeSeed(t, w, 121, 7, 900, "Song", "album_id", int64(120))
+	wc008NativeExec(t, w, `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(121,120)`)
+	iaRetirementStepNodeSeed(t, w, 122, 20, 900, "Held")
+	wc008NativeExec(t, w, `INSERT INTO metadata_credit_cleanup(entity_id,provider,provider_id) VALUES(122,'tmdb','1')`)
+	turn, _ := iaRetirementStepTurn(t, w, r)
+	defer turn.transaction.rollback(nil)
+	for name, id := range map[string]int64{
+		"parent_id": nodes["parent_id"], "show_id": nodes["show_id"], "season_id": nodes["season_id"],
+		"artist_id": nodes["artist_id"], "album_id": nodes["album_id"], "book_id": nodes["book_id"],
+		"song_artist": 120, "credit_cleanup": 122,
+	} {
+		blocked, err := iaRetirementStepReferenced(t.Context(), turn, id)
+		if err != nil || !blocked {
+			t.Fatal(name, "referenced entity admitted", blocked, err)
+		}
+	}
+	if blocked, err := iaRetirementStepReferenced(t.Context(), turn, 999); err != nil || blocked {
+		t.Fatal("free entity deferred", blocked, err)
+	}
+}
+
+// The probe family is closed: every child key and every probed NO ACTION
+// referencer into catalog_entities is present exactly once, in child-first order.
+func TestIARetirementStepProbeInventory(t *testing.T) {
+	want := []stmt.ID{
+		iaRetireStepChildParent, iaRetireStepChildShow, iaRetireStepChildSeason,
+		iaRetireStepChildArtist, iaRetireStepChildAlbum, iaRetireStepChildBook,
+		iaRetireStepHeldMutation, iaRetireStepHeldSongArtist, iaRetireStepHeldAggregate,
+		iaRetireStepHeldScalar, iaRetireStepHeldContributor, iaRetireStepHeldAsset,
+		iaRetireStepHeldSubject, iaRetireStepHeldProjection, iaRetireStepHeldPublication,
+		iaRetireStepHeldAcquisition, iaRetireStepHeldHint, iaRetireStepHeldReconcile,
+		iaRetireStepHeldExternal, iaRetireStepHeldField, iaRetireStepHeldCredit,
+	}
+	if len(iaRetirementStepProbes) != len(want) {
+		t.Fatal("probe family changed", len(iaRetirementStepProbes))
+	}
+	for at, probe := range iaRetirementStepProbes {
+		if probe.id != want[at] || probe.args < 1 {
+			t.Fatalf("probe %d is %q/%d, want %q", at, probe.id, probe.args, want[at])
+		}
 	}
 }

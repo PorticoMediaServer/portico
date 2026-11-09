@@ -12,7 +12,8 @@ func init() {
 			"stepIARetirement", "applyIARetirementStep", "lookupIARetirementStep",
 			"loadIARetirementStep", "iaRetirementStepHeader", "iaRetirementStepTime",
 			"iaRetirementStepVictim", "iaRetirementStepEntityUnit", "iaRetirementStepOne",
-			"iaRetirementStepExists",
+			"iaRetirementStepExists", "iaRetirementStepMemberUnit", "iaRetirementStepNextEntity",
+			"iaRetirementStepEntityPage", "iaRetirementStepReferenced",
 		},
 		bypasses: []string{
 			`func stepIARetirement(ctx context.Context)(out iaRetirementStepOutcome,err error){return out,nil}`,

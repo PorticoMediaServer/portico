@@ -22,6 +22,38 @@ const (
 	iaRetireStepEntityDelete  stmt.ID = "ia.retire.step.entity_delete"
 	iaRetireStepAdvance       stmt.ID = "ia.retire.step.advance"
 	iaRetireStepReceiptInsert stmt.ID = "ia.retire.step.receipt_insert"
+
+	// Child-family reverse keys: the six self-FKs catalog_entities declares
+	// without ON DELETE. Every one is an in-library child by construction, so a
+	// candidate that any of these still names must be retired by a later turn
+	// rather than handed to SQLite as a raw FOREIGN KEY refusal.
+	iaRetireStepChildParent stmt.ID = "ia.retire.step.child_parent"
+	iaRetireStepChildShow   stmt.ID = "ia.retire.step.child_show"
+	iaRetireStepChildSeason stmt.ID = "ia.retire.step.child_season"
+	iaRetireStepChildArtist stmt.ID = "ia.retire.step.child_artist"
+	iaRetireStepChildAlbum  stmt.ID = "ia.retire.step.child_album"
+	iaRetireStepChildBook   stmt.ID = "ia.retire.step.child_book"
+
+	// Hold-family reverse keys: every remaining NO ACTION/RESTRICT referencer
+	// into catalog_entities that has an entity-leading native key. These rows
+	// are owned by other families, so a candidate they name is a kept entity and
+	// never a cascade. catalog_aggregate_publications.parent_id has no such key;
+	// that one referencer is the delete's own native refusal.
+	iaRetireStepHeldMutation    stmt.ID = "ia.retire.step.held_mutation"
+	iaRetireStepHeldSongArtist  stmt.ID = "ia.retire.step.held_song_artist"
+	iaRetireStepHeldAggregate   stmt.ID = "ia.retire.step.held_aggregate"
+	iaRetireStepHeldScalar      stmt.ID = "ia.retire.step.held_scalar"
+	iaRetireStepHeldContributor stmt.ID = "ia.retire.step.held_contributor"
+	iaRetireStepHeldAsset       stmt.ID = "ia.retire.step.held_asset"
+	iaRetireStepHeldSubject     stmt.ID = "ia.retire.step.held_subject"
+	iaRetireStepHeldProjection  stmt.ID = "ia.retire.step.held_projection"
+	iaRetireStepHeldPublication stmt.ID = "ia.retire.step.held_publication"
+	iaRetireStepHeldAcquisition stmt.ID = "ia.retire.step.held_acquisition"
+	iaRetireStepHeldHint        stmt.ID = "ia.retire.step.held_hint"
+	iaRetireStepHeldReconcile   stmt.ID = "ia.retire.step.held_reconcile"
+	iaRetireStepHeldExternal    stmt.ID = "ia.retire.step.held_external"
+	iaRetireStepHeldField       stmt.ID = "ia.retire.step.held_field"
+	iaRetireStepHeldCredit      stmt.ID = "ia.retire.step.held_credit"
 )
 
 func iaRetirementStepStatements() []stmt.Definition {
@@ -103,6 +135,118 @@ WHERE s.library_id=? LIMIT 1`,
 			Params:  []stmt.Param{i("library_id"), i("id")},
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_library_id"}, Seeks: []string{"library_id=? AND id=?"}},
 			Cohorts: []stmt.Cohort{{Name: "exact", Bindings: []any{int64(7), int64(10)}}}},
+		// Child-first order. Each probe is one native reverse-key lookahead for
+		// an in-library child of the candidate: a hit defers the candidate to a
+		// later turn instead of surfacing SQLITE_CONSTRAINT_FOREIGNKEY 787. The
+		// partial reverse indexes require the explicit IS NOT NULL predicate;
+		// the composite FK already confines the child to the same library.
+		{ID: iaRetireStepChildParent, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_entities INDEXED BY catalog_entities_parent
+WHERE parent_id=? AND parent_id IS NOT NULL LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_parent"}, Seeks: []string{"parent_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "child", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepChildShow, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_entities INDEXED BY catalog_entities_show_fk
+WHERE show_id=? AND show_id IS NOT NULL LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_show_fk"}, Seeks: []string{"show_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "child", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepChildSeason, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_entities INDEXED BY catalog_entities_season
+WHERE season_id=? AND season_id IS NOT NULL LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_season"}, Seeks: []string{"season_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "child", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepChildArtist, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_entities INDEXED BY catalog_entities_artist
+WHERE artist_id=? AND artist_id IS NOT NULL LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_artist"}, Seeks: []string{"artist_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "child", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepChildAlbum, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_entities INDEXED BY catalog_entities_album
+WHERE album_id=? AND album_id IS NOT NULL LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_album"}, Seeks: []string{"album_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "child", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepChildBook, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_entities INDEXED BY catalog_entities_book
+WHERE book_id=? AND book_id IS NOT NULL LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_book"}, Seeks: []string{"book_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "child", Bindings: []any{int64(10)}}}},
+		// Hold-family lookaheads. A hit is a kept entity for this pass; these
+		// rows are not this command's to remove and never cascade.
+		{ID: iaRetireStepHeldMutation, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_entity_mutations
+WHERE entity_id=? OR target_id=? OR subject_ancestor_1=? OR subject_ancestor_2=? OR subject_ancestor_3=? OR subject_ancestor_4=?
+OR target_ancestor_1=? OR target_ancestor_2=? OR target_ancestor_3=? OR target_ancestor_4=? LIMIT 1`,
+			Params: []stmt.Param{i("entity"), i("target"), i("subject_ancestor_1"), i("subject_ancestor_2"), i("subject_ancestor_3"),
+				i("subject_ancestor_4"), i("target_ancestor_1"), i("target_ancestor_2"), i("target_ancestor_3"), i("target_ancestor_4")},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_entity_mutations_entity_fk", "catalog_entity_mutations_target_fk",
+				"catalog_entity_mutations_subject_ancestor_1_fk", "catalog_entity_mutations_subject_ancestor_2_fk",
+				"catalog_entity_mutations_subject_ancestor_3_fk", "catalog_entity_mutations_subject_ancestor_4_fk",
+				"catalog_entity_mutations_target_ancestor_1_fk", "catalog_entity_mutations_target_ancestor_2_fk",
+				"catalog_entity_mutations_target_ancestor_3_fk", "catalog_entity_mutations_target_ancestor_4_fk"},
+				Seeks: []string{"entity_id=?", "target_id=?", "subject_ancestor_1=?", "subject_ancestor_2=?", "subject_ancestor_3=?",
+					"subject_ancestor_4=?", "target_ancestor_1=?", "target_ancestor_2=?", "target_ancestor_3=?", "target_ancestor_4=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10), int64(10), int64(10), int64(10), int64(10),
+				int64(10), int64(10), int64(10), int64(10), int64(10)}}}},
+		{ID: iaRetireStepHeldSongArtist, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_song_artists INDEXED BY catalog_song_artists_artist
+WHERE artist_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_song_artists_artist"}, Seeks: []string{"artist_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldAggregate, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_aggregate_targets INDEXED BY catalog_aggregate_target_parent
+WHERE parent_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_aggregate_target_parent"}, Seeks: []string{"parent_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldScalar, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_scalar_contributions WHERE parent_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("parent")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_scalar_contributions"}, Seeks: []string{"parent_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldContributor, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_scalar_contributions INDEXED BY catalog_scalar_contributor
+WHERE contributor_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("contributor")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"catalog_scalar_contributor"}, Seeks: []string{"contributor_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldAsset, Kind: stmt.Read, SQL: `SELECT 1 FROM catalog_asset_contributions WHERE parent_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_asset_contributions"}, Seeks: []string{"parent_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldSubject, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_subject_providers WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_subject_providers"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldProjection, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_projection_targets INDEXED BY metadata_projection_targets_entity
+WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"metadata_projection_targets_entity"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldPublication, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_publications INDEXED BY metadata_publication_subject
+WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, Indexes: []string{"metadata_publication_subject"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldAcquisition, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_acquisition_jobs WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_acquisition_jobs"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldHint, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_hint_scans WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_hint_scans"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldReconcile, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_reconciliations WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_reconciliations"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldExternal, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_entity_external_ids WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_entity_external_ids"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldField, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_field_origins WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_field_origins"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
+		{ID: iaRetireStepHeldCredit, Kind: stmt.Read, SQL: `SELECT 1 FROM metadata_credit_cleanup WHERE entity_id=? LIMIT 1`,
+			Params:  []stmt.Param{i("entity")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_credit_cleanup"}, Seeks: []string{"entity_id=?"}},
+			Cohorts: []stmt.Cohort{{Name: "held", Bindings: []any{int64(10)}}}},
 		{ID: iaRetireStepAdvance, Kind: stmt.Write, SQL: `UPDATE catalog_removal_progress SET last_command_sequence=?,retirement_state=?,phase=?,entity_kind=?,entity_cursor=?,object_cursor=?,
 walk_removed=?,walk_kept=?,job_revision=?,receipt_retained_count=?,receipt_retained_bytes=?
 WHERE kind=? AND target=? AND original_operation_id=? AND command_incarnation=? AND original_request_digest=?

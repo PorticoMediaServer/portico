@@ -14,7 +14,7 @@ import (
 func TestIARetirementStepStatementPlans(t *testing.T) {
 	w, _, _, _, _ := iaRetirementStepFixture(t)
 	defs := iaRetirementStepStatements()
-	if len(defs) != 15 {
+	if len(defs) != 36 {
 		t.Fatal("closed retirement STEP inventory changed", len(defs))
 	}
 	if _, err := stmt.Describe(defs); err != nil {

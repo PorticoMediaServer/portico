@@ -32,11 +32,26 @@ const (
 	iaRetirementStepMaxBytes int64 = 64 << 10
 )
 
+// Phase-2 entity_kind is the id-pass marker, not a row view. A pass walks the
+// exact (library,id) keyset child-first: parents are deferred while any
+// in-library child still names them. A pass that removed something restarts
+// once at id 0 so the parents it unblocked are revisited; a pass that removed
+// nothing is the truthful blocked-entity hold.
+const (
+	iaRetirementStepPassOpen    int64 = 0 // the current id pass has removed nothing yet
+	iaRetirementStepPassRemoved int64 = 1 // the current id pass already removed an entity
+)
+
 // IA-09 cannot claim physical custody exit. The MP-15 release proof and the F
 // media custody schema are not merged, so a remaining asset, object or pin is a
 // named fail-closed hold, never a silently complete retirement. The pin seam
 // name is shared with IA-08's MP-10 contract.
 var iaRetirementVictimCustodyUnresolved = errors.New("ia retirement: MP-15 victim custody unresolved")
+
+// A catalogue entity that a NO ACTION/RESTRICT referencer still holds after a
+// complete id pass removed nothing is a named hold, never a raw
+// SQLITE_CONSTRAINT_FOREIGNKEY and never a fabricated terminal exit.
+var iaRetirementEntityReferenced = errors.New("ia retirement: catalogue entity still referenced")
 
 // The caller freezes the live driver it observed: the exact retired target, the
 // job revision and lease, and the durable cursor. A fresh step may only move the
@@ -114,14 +129,18 @@ func iaRetirementStepText(s string, limit int) bool {
 }
 
 // The cursor is canonical: phase 1 carries the last (entity,asset) link in
-// entity_cursor/object_cursor; phase 2 carries the last entity id in
-// entity_cursor and no object cursor. entity_kind is unused and must be zero.
+// entity_cursor/object_cursor and no pass marker; phase 2 carries the last
+// examined entity id in entity_cursor, no object cursor, and the id-pass marker
+// in entity_kind.
 func iaRetirementStepCursorOK(phase, kind, entity int64, object string) bool {
-	if kind != 0 || entity < 0 {
+	if entity < 0 {
 		return false
 	}
 	switch phase {
 	case iaRetirementStepMembers:
+		if kind != iaRetirementStepPassOpen {
+			return false
+		}
 		if len(object) == 0 || len(object) > 20 || object[0] == '-' {
 			return false
 		}
@@ -133,7 +152,7 @@ func iaRetirementStepCursorOK(phase, kind, entity int64, object string) bool {
 		n, err := strconv.ParseInt(object, 10, 64)
 		return err == nil && n >= 0 && strconv.FormatInt(n, 10) == object
 	case iaRetirementStepEntities:
-		return object == ""
+		return (kind == iaRetirementStepPassOpen || kind == iaRetirementStepPassRemoved) && object == ""
 	default:
 		return false
 	}
@@ -537,7 +556,7 @@ type iaRetirementStepUnit struct {
 
 func iaRetirementStepVictim(ctx context.Context, turn *commandTurn, q iaRetirementStepScope) (out iaRetirementStepUnit, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	out = iaRetirementStepUnit{phase: q.phase, entityCursor: q.entityCursor,
+	out = iaRetirementStepUnit{phase: q.phase, entityKind: q.entityKind, entityCursor: q.entityCursor,
 		objectCursor: q.objectCursor, state: "retiring"}
 	switch q.phase {
 	case iaRetirementStepMembers:
@@ -631,12 +650,16 @@ func iaRetirementStepEntityPage(ctx context.Context, turn *commandTurn, libraryI
 }
 
 // Entity window: at most iaRetirementStepWindow candidates from the exact
-// (library,id) keyset. A referenced entity is kept (never cascaded); a full page
-// of kept rows records a truthful empty window and advances the cursor, while an
-// exhausted window with kept rows holds rather than inventing terminal exit.
+// (library,id) keyset, taken child-first. A candidate that any in-library child
+// or any other NO ACTION/RESTRICT referencer still names is kept for this
+// window, never cascaded and never handed to SQLite as a raw 787. A full page
+// of kept rows records a truthful empty unit and advances the keyset; an
+// exhausted page either restarts the pass once (the deletions above unblocked
+// parents below the cursor) or names the blocked-entity hold.
 func iaRetirementStepEntityUnit(ctx context.Context, turn *commandTurn, q iaRetirementStepScope) (out iaRetirementStepUnit, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	out = iaRetirementStepUnit{phase: iaRetirementStepEntities, entityCursor: q.entityCursor, state: "retiring"}
+	out = iaRetirementStepUnit{phase: iaRetirementStepEntities, entityKind: q.entityKind,
+		entityCursor: q.entityCursor, state: "retiring"}
 	if q.phase == iaRetirementStepEntities {
 		has, err := iaRetirementStepExists(ctx, turn, iaRetireStepMemberExists, q.libraryID)
 		if err != nil {
@@ -653,27 +676,43 @@ func iaRetirementStepEntityUnit(ctx context.Context, turn *commandTurn, q iaReti
 	after := q.entityCursor
 	kept := false
 	for _, c := range window {
+		after = c.id
 		held, err := iaRetirementStepExists(ctx, turn, iaRetireStepEntityHold, c.id)
 		if err != nil {
 			return out, err
 		}
-		after = c.id
 		if held {
+			kept = true
+			continue
+		}
+		blocked, err := iaRetirementStepReferenced(ctx, turn, c.id)
+		if err != nil {
+			return out, err
+		}
+		if blocked {
 			kept = true
 			continue
 		}
 		if c.bytes > iaRetirementStepMaxBytes {
 			return out, ErrCap
 		}
-		if err = iaRetirementStepOne(ctx, turn, iaRetireStepEntityDelete, q.libraryID, c.id); err != nil {
+		err = iaRetirementStepOne(ctx, turn, iaRetireStepEntityDelete, q.libraryID, c.id)
+		if iaRetirementStepForeignRefused(err) {
+			// The one NO ACTION referencer without an entity-leading key
+			// (catalog_aggregate_publications) is authoritative here: the row is
+			// kept, the statement changed nothing and the pass continues.
+			kept = true
+			continue
+		}
+		if err != nil {
 			return out, err
 		}
-		return iaRetirementStepUnit{phase: iaRetirementStepEntities, entityCursor: c.id,
-			removed: true, kept: kept, state: "retiring", bytes: c.bytes}, nil
+		return iaRetirementStepUnit{phase: iaRetirementStepEntities, entityKind: iaRetirementStepPassRemoved,
+			entityCursor: c.id, removed: true, kept: kept, state: "retiring", bytes: c.bytes}, nil
 	}
 	if len(window) == iaRetirementStepWindow {
-		return iaRetirementStepUnit{phase: iaRetirementStepEntities, entityCursor: after,
-			kept: true, state: "retiring"}, nil
+		return iaRetirementStepUnit{phase: iaRetirementStepEntities, entityKind: q.entityKind,
+			entityCursor: after, kept: true, state: "retiring"}, nil
 	}
 	// Exhausted. Terminal needs actual physical exit: no held entity, no asset
 	// and no object custody may remain before the driver may claim complete.
@@ -681,24 +720,85 @@ func iaRetirementStepEntityUnit(ctx context.Context, turn *commandTurn, q iaReti
 	if err != nil {
 		return out, err
 	}
-	if has {
-		return out, ErrResolveRequired
+	if !has {
+		asset, err := iaRetirementStepExists(ctx, turn, iaRetireStepAssetExists, q.libraryID)
+		if err != nil {
+			return out, err
+		}
+		if asset {
+			return out, errors.Join(ErrResolveRequired, iaRetirementVictimCustodyUnresolved)
+		}
+		object, err := iaRetirementStepExists(ctx, turn, iaRetireStepObjectExists, q.libraryKey)
+		if err != nil {
+			return out, err
+		}
+		if object {
+			return out, errors.Join(ErrResolveRequired, iaRetirementVictimCustodyUnresolved)
+		}
+		return iaRetirementStepUnit{phase: iaRetirementStepComplete, state: "complete"}, nil
 	}
-	asset, err := iaRetirementStepExists(ctx, turn, iaRetireStepAssetExists, q.libraryID)
-	if err != nil {
-		return out, err
+	if q.entityKind == iaRetirementStepPassRemoved {
+		// This pass removed entities, so the pass restart is the bounded
+		// child-first guarantee: the parents those removals unblocked are below
+		// the cursor and get their exact keyset turn from id 0.
+		return iaRetirementStepUnit{phase: iaRetirementStepEntities, entityKind: iaRetirementStepPassOpen,
+			entityCursor: 0, kept: true, state: "retiring"}, nil
 	}
-	if asset {
-		return out, errors.Join(ErrResolveRequired, iaRetirementVictimCustodyUnresolved)
+	return out, errors.Join(ErrResolveRequired, iaRetirementEntityReferenced)
+}
+
+// One closed probe per child/hold reverse key. Child probes come first: a
+// deferred parent never pays for the hold family, and the in-library child is
+// the common case in a TV, music or book hierarchy.
+var iaRetirementStepProbes = []struct {
+	id   stmt.ID
+	args int
+}{
+	{iaRetireStepChildParent, 1},
+	{iaRetireStepChildShow, 1},
+	{iaRetireStepChildSeason, 1},
+	{iaRetireStepChildArtist, 1},
+	{iaRetireStepChildAlbum, 1},
+	{iaRetireStepChildBook, 1},
+	{iaRetireStepHeldMutation, 10},
+	{iaRetireStepHeldSongArtist, 1},
+	{iaRetireStepHeldAggregate, 1},
+	{iaRetireStepHeldScalar, 1},
+	{iaRetireStepHeldContributor, 1},
+	{iaRetireStepHeldAsset, 1},
+	{iaRetireStepHeldSubject, 1},
+	{iaRetireStepHeldProjection, 1},
+	{iaRetireStepHeldPublication, 1},
+	{iaRetireStepHeldAcquisition, 1},
+	{iaRetireStepHeldHint, 1},
+	{iaRetireStepHeldReconcile, 1},
+	{iaRetireStepHeldExternal, 1},
+	{iaRetireStepHeldField, 1},
+	{iaRetireStepHeldCredit, 1},
+}
+
+func iaRetirementStepReferenced(ctx context.Context, turn *commandTurn, entity int64) (blocked bool, err error) {
+	defer func() { blocked, err = finishCommand(ctx, commandLifetime(turn), blocked, err) }()
+	for _, probe := range iaRetirementStepProbes {
+		args := make([]any, probe.args)
+		for at := range args {
+			args[at] = entity
+		}
+		found, err := iaRetirementStepExists(ctx, turn, probe.id, args...)
+		if err != nil || found {
+			return found, err
+		}
 	}
-	object, err := iaRetirementStepExists(ctx, turn, iaRetireStepObjectExists, q.libraryKey)
-	if err != nil {
-		return out, err
-	}
-	if object {
-		return out, errors.Join(ErrResolveRequired, iaRetirementVictimCustodyUnresolved)
-	}
-	return iaRetirementStepUnit{phase: iaRetirementStepComplete, state: "complete"}, nil
+	return false, nil
+}
+
+// SQLITE_CONSTRAINT_FOREIGNKEY from the exact entity DELETE. Exactly one
+// NO ACTION referencer into catalog_entities (catalog_aggregate_publications
+// .parent_id) has no entity-leading native key, so an unbounded probe scan is
+// the only alternative; the native refusal is the closed answer.
+func iaRetirementStepForeignRefused(err error) bool {
+	var coded interface{ Code() int }
+	return errors.As(err, &coded) && coded.Code() == 787
 }
 
 func iaRetirementStepExists(ctx context.Context, turn *commandTurn, id stmt.ID, args ...any) (found bool, err error) {
