@@ -38,6 +38,7 @@ type Server struct {
 	mux       *http.ServeMux
 	version   string
 	id        string
+	identity  identity
 	routes    []*Route
 	now       func() time.Time
 	// setupCode is what creating the owner needs. It is made at start while there is no
@@ -130,11 +131,15 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	id, err := d.SettingOrCreate(ctx, "server.id", func() string { return db.NewID("srv") })
+	seed, err := d.SettingOrCreate(ctx, "server.identity_key", auth.NewKey)
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: id, now: time.Now,
+	identity, err := newIdentity(seed)
+	if err != nil {
+		return nil, err
+	}
+	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity, now: time.Now,
 		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
 	if set, err := d.HasUsers(ctx); err != nil {
 		return nil, err
@@ -146,6 +151,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		log.Info("this server has no owner yet: create one with this setup code", "setupCode", s.setupCode, "file", s.setupFile)
 	}
 	s.systemRoutes()
+	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
 	s.deviceRoutes()
