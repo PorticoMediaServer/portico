@@ -57,6 +57,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 	switch v := result.(type) {
 	case mgSourceOriginalDenial:
 		return preflightMGSourceDenial(v)
+	case mgSourceCommandResult:
+		return preflightMGSourceCommandResult(v)
 	case mgPersonalPreferenceResult:
 		return preflightMGPersonalPreference(v)
 	case mgPersonalReminderResult:
@@ -158,6 +160,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 	switch v := result.(type) {
 	case mgSourceOriginalDenial:
 		return writeMGSourceDenial(e, identity, request, v)
+	case mgSourceCommandResult:
+		return writeMGSourceCommandResult(e, identity, request, v)
 	case mgPersonalPreferenceResult:
 		return writeMGPersonalPreference(e, identity, request, v)
 	case mgPersonalReminderResult:
