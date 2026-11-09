@@ -52,13 +52,19 @@ func enterIARefresh(ctx context.Context, turn *commandTurn, q iaRefreshRequest, 
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
 	s := q.scope
 	id := q.reference.Identity
-	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != q.purpose || (q.purpose != IARefreshBegin && q.purpose != IARefreshStep && q.purpose != IARefreshRollback) ||
+	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != q.purpose || (q.purpose != IARefreshBegin && q.purpose != IARefreshStep && q.purpose != IARefreshRollback && q.purpose != IARefreshFinalize) ||
 		(q.action != iaEntryApply && q.action != iaEntryResolve) || s.changeID <= 0 || s.assetID <= 0 || s.libraryID <= 0 || s.epoch <= 0 || s.inputRevision <= 0 || s.size < 0 || s.fingerprint == [32]byte{} ||
 		!iaEntryText(s.token) || !iaEntryText(s.runID) || !iaEntryText(s.libraryKey) || q.refreshID < 0 || id.Incarnation == [16]byte{} || id.OperationID == [16]byte{} || id.Sequence <= 0 || id.Sequence == math.MaxInt64 {
 		return nil, ErrInvalid
 	}
 	if q.purpose == IARefreshBegin {
 		if q.refreshID != 0 || q.key != (iaRefreshKey{}) || q.row != nil || id.Sequence != 1 || q.expectedRevision != 0 {
+			return nil, ErrInvalid
+		}
+	} else if q.purpose == IARefreshFinalize {
+		// IA23's finish turn names the journal, never a row: the journal cursor
+		// and every before-image are read from the same snapshot, not the caller.
+		if q.refreshID <= 0 || q.key != (iaRefreshKey{}) || q.row != nil || q.expectedRevision <= 0 || q.expectedRevision == math.MaxInt64 {
 			return nil, ErrInvalid
 		}
 	} else if q.refreshID <= 0 || !q.key.valid() || q.expectedRevision <= 0 || q.expectedRevision == math.MaxInt64 || q.purpose == IARefreshRollback && q.row != nil {
@@ -169,6 +175,15 @@ func enterIARefresh(ctx context.Context, turn *commandTurn, q iaRefreshRequest, 
 			out.saved = v
 			copy(out.digest[:], result)
 		}
+		if q.purpose == IARefreshFinalize && !found.exists {
+			// A 127 cleanup turn appends no receipt: its saved result lives in the
+			// permanent owner's fixed slot, so the same original request replays
+			// from that exact slot until ACK retires it.
+			found, out.saved, out.digest, e = readIARefreshSlot(ctx, turn, out.refreshID, id)
+			if e != nil {
+				return nil, e
+			}
+		}
 	}
 	out.beforeState, out.beforeRows, out.beforeBytes = out.state, out.rows, out.bytes
 	out.decision, err = classifyReceipt(receiptIdentity{id, q.reference.RequestDigest}, q.purpose, out.owner, found)
@@ -178,7 +193,15 @@ func enterIARefresh(ctx context.Context, turn *commandTurn, q iaRefreshRequest, 
 	if out.decision == receiptReplay {
 		wantKey := ""
 		wantFamily := int64(0)
-		if q.purpose != IARefreshBegin {
+		if q.purpose == IARefreshFinalize {
+			// A finish result names the journal's own cursor (accept/restore) or the
+			// retirement position (cleanup); the caller never supplies either.
+			wantKey = out.saved.key
+			wantFamily = out.saved.family
+			if wantFamily < 0 || wantFamily > 7 || len(wantKey) > 273 {
+				return nil, ErrResolveRequired
+			}
+		} else if q.purpose != IARefreshBegin {
 			wantKey = q.key.cursor()
 			wantFamily = int64(q.key.family)
 		}
@@ -273,7 +296,7 @@ func (e *iaRefreshEntry) checkIARefreshCurrent(ctx context.Context, turn *comman
 	if pending != want {
 		return 0, ErrConflict
 	}
-	if e.request.purpose != IARefreshRollback {
+	if e.request.purpose != IARefreshRollback && !(e.request.purpose == IARefreshFinalize && e.state == "restoring") {
 		row, x = basicStageRead(ctx, turn, iaRefreshInputCurrent, s.assetID, s.changeID, s.size, s.modifiedNS)
 		if x != nil {
 			return 0, x

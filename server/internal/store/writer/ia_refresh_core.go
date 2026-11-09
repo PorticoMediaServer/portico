@@ -16,6 +16,12 @@ import (
 // another input. A source retry must allocate a new input after full restore.
 func runIARefresh(ctx context.Context, turn *commandTurn, q iaRefreshRequest, p *usOwnerAuthorityProof, lifetime context.Context, b iaEntryBudget) (out iaRefreshOutcome, err error) {
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
+	// IA23 owns the finish/recovery half of the same command family; its own
+	// entry, recovery walk and bounded retirement live in ia_refresh_finish.go
+	// and ia_refresh_reclaim.go.
+	if q.purpose == IARefreshFinalize {
+		return runIARefreshFinish(ctx, turn, q, p, lifetime, b)
+	}
 	entry, e := enterIARefresh(ctx, turn, q, p, lifetime, b)
 	if e != nil {
 		return out, e

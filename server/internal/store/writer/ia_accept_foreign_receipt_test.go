@@ -78,4 +78,17 @@ func TestIAAcceptForeignReceiptIsTypedConflict(t *testing.T) {
 		turn.transaction.rollback(nil)
 		noEffects(t, w, q.scope.runID, iaEpisodeCount)
 	})
+	t.Run("finish", func(t *testing.T) {
+		w, keeper, p := iaMissingFinishFixture(t)
+		reg := iaFinishRegistry(t, keeper)
+		q := iaFinishAcceptRequest(w)
+		ref := iaFinishAcceptReference(t, q, 2, 3)
+		plant(t, w, q.scope.runID, ref)
+		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+		if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) {
+			t.Fatal("foreign receipt", out, err)
+		}
+		turn.transaction.rollback(nil)
+		iaFinishNoEffects(t, w)
+	})
 }

@@ -385,6 +385,65 @@ func TestIAMembershipAcceptDestinationOnlyChronology(t *testing.T) {
 	}
 }
 
+// A reparent into another season is a genuinely new child membership at the
+// destination: the destination season and its show advance to the moved
+// episode's own retained added time (not this command's clock), each exactly
+// once, while the source season keeps its chronology untouched.
+func TestIAMembershipAcceptReparentAdvancesDestinationChronology(t *testing.T) {
+	w, reg, p := iaMembershipAcceptFixture(t)
+	q := newIAMembershipAcceptRequest(w)
+	ref := iaMembershipAcceptReference(t, q, 2, 2)
+	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+	if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 1 {
+		t.Fatal("chronology reparent", out, err)
+	}
+	if _, err = turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	for _, check := range []struct {
+		query string
+		want  int64
+	}{
+		{`SELECT count(*) FROM catalog_entities WHERE id=72 AND last_content_added_at='2026-11-01T00:00:00.000000000Z'`, 1},
+		{`SELECT count(*) FROM catalog_entities WHERE id=70 AND last_content_added_at='2026-11-01T00:00:00.000000000Z'`, 1},
+		{`SELECT count(*) FROM catalog_entities WHERE id=71 AND last_content_added_at IS NULL`, 1},
+	} {
+		if got := iaEpisodeCount(t, w, check.query); got != check.want {
+			t.Fatal(check.query, got, check.want)
+		}
+	}
+	// Replay decodes the saved cohort and writes nothing: a newer destination
+	// value installed after the accept survives an exact replay.
+	wc008NativeExec(t, w, `UPDATE catalog_entities SET last_content_added_at='2030-01-01T00:00:00.000000000Z' WHERE id IN(70,72)`)
+	turn, replay, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+	if err != nil || replay.decision != receiptReplay || replay.digest != out.digest {
+		t.Fatal("saved chronology replay", replay, err)
+	}
+	turn.transaction.rollback(nil)
+	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id IN(70,72) AND last_content_added_at='2030-01-01T00:00:00.000000000Z'`); got != 2 {
+		t.Fatal("replay rewrote destination chronology", got)
+	}
+}
+
+// An older moved episode never pulls the destination season or show backwards:
+// the monotonic advance leaves an equal or newer destination value alone.
+func TestIAMembershipAcceptReparentOlderEpisodeKeepsDestinationChronology(t *testing.T) {
+	w, reg, p := iaMembershipAcceptFixture(t)
+	wc008NativeExec(t, w, `UPDATE catalog_entities SET last_content_added_at='2026-11-05T00:00:00.000000000Z' WHERE id IN(70,72)`)
+	q := newIAMembershipAcceptRequest(w)
+	ref := iaMembershipAcceptReference(t, q, 2, 2)
+	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+	if err != nil || out.decision != receiptFresh {
+		t.Fatal("older reparent", out, err)
+	}
+	if _, err = turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id IN(70,72) AND last_content_added_at='2026-11-05T00:00:00.000000000Z'`); got != 2 {
+		t.Fatal("older episode moved destination chronology backwards", got)
+	}
+}
+
 // The denormalized hierarchy columns are pinned to one accepted parent. A season
 // reparent rewrites only the season's show_id, so it refuses while any episode
 // child exists; an album reparent rewrites only the album's artist_id, so it

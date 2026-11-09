@@ -18,6 +18,7 @@ const (
 	iaMembershipAsset              stmt.ID = "ia.membership.asset"
 	iaMembershipIdentity           stmt.ID = "ia.membership.identity"
 	iaMembershipEntity             stmt.ID = "ia.membership.entity"
+	iaMembershipEpisodeAdded       stmt.ID = "ia.membership.episode_added"
 	iaMembershipExtraItem          stmt.ID = "ia.membership.extra_item"
 	iaMembershipSeasonChild        stmt.ID = "ia.membership.season_child"
 	iaMembershipSeasonEpisode      stmt.ID = "ia.membership.season_episode"
@@ -145,6 +146,16 @@ WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AN
 				{Name: "retained_entity", Bindings: []any{int64(31), int64(7)}},
 				{Name: "parent_entity", Bindings: []any{int64(32), int64(7)}},
 				{Name: "missing_entity", Bindings: []any{int64(34), int64(7)}},
+			}},
+		// A reparent advances the destination chronology to the moved episode's
+		// own content-arrival instant, so the plan reads that retained value
+		// before the first write.
+		{ID: iaMembershipEpisodeAdded, Kind: stmt.Read,
+			SQL:    `SELECT added_at FROM catalog_entities WHERE id=? AND library_id=? AND kind=4 AND retired=0`,
+			Params: []stmt.Param{i("subject_id"), i("library_id")},
+			Cohorts: []stmt.Cohort{
+				{Name: "retained_episode", Bindings: []any{int64(31), int64(7)}},
+				{Name: "missing_episode", Bindings: []any{int64(34), int64(7)}},
 			}},
 		{ID: iaMembershipExtraItem, Kind: stmt.Read,
 			SQL:    `SELECT library_id,owner_id,kind FROM item_extras WHERE item_id=?`,
@@ -380,6 +391,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 					nil, nil, nil, nil, int64(41), int64(1), int64(0), int64(1), inc, "", "removed", nil, float64(0), nil, "whole_source", nil, nil, nil, nil}},
 			}},
 	)
+	// A destination reparent advances the same show/season chronology as the
+	// episode accepting class, so this family reuses those exact definitions
+	// instead of restating the SQL or its closed nullable-CAS variants.
+	defs = append(defs, iaMembershipChronologyStatements()...)
 	for n := range defs {
 		defs[n].Owner = "store/writer IA membership accept"
 		defs[n].CallSites = []string{"store/writer/ia_membership_accept.go", "store/writer/ia_membership_accept_statements.go"}
@@ -410,6 +425,12 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.PrimaryKeys = []string{"catalog_identities"}
 			defs[n].Plan.Seeks = []string{"library_id=? AND source_key=?"}
 		case iaMembershipEntity:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_entities"}
+			defs[n].Plan.Seeks = []string{"rowid=?"}
+		case iaMembershipEpisodeAdded:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_entities"}
+			defs[n].Plan.Seeks = []string{"rowid=?"}
+		case iaEpisodeContainer, iaEpisodeContainerAdvance, iaEpisodeContainerAdvanceNull:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_entities"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
 		case iaMembershipExtraItem:
@@ -454,9 +475,25 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 	return defs
 }
 
-// Complete private family: current US owner authority and the finite
-// membership points/CAS writes. No search-intent append: a membership change
-// creates no entity and no descendant art/name fanout.
+// iaMembershipChronologyStatements is the exact IA-11 show/season container
+// family under the shared IDs iaEpisodeAdvanceChronology names. It reuses
+// IA-11's single definition of the chronology point read and the two closed
+// nullable-CAS writes instead of keeping a second copy of the SQL and cohorts.
+func iaMembershipChronologyStatements() []stmt.Definition {
+	var defs []stmt.Definition
+	for _, def := range iaEpisodeStatements() {
+		switch def.ID {
+		case iaEpisodeContainer, iaEpisodeContainerAdvance, iaEpisodeContainerAdvanceNull:
+			defs = append(defs, def)
+		}
+	}
+	return defs
+}
+
+// Complete private family: current US owner authority, the finite membership
+// points/CAS writes and the shared IA-11 destination chronology statements. No
+// search-intent append: a membership change creates no entity and no descendant
+// art/name fanout.
 func iaMembershipDefinitions() []stmt.Definition {
 	return append(usAuthorityDefinitions(), iaMembershipStatements()...)
 }
