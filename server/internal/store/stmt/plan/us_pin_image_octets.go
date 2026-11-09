@@ -14,7 +14,7 @@ import (
 // parameters and plan declarations are pinned here so a changed writer
 // definition is a mismatch, never a silent reuse.
 const (
-	usPINImageProfileOctetsSQL = `SELECT octet_length(id),octet_length(name),octet_length(art),coalesce(octet_length(allowed_libraries),0),revision,pin_revision,length(pin_hash),is_primary
+	usPINImageProfileOctetsSQL = `SELECT octet_length(id),octet_length(name),octet_length(art),coalesce(octet_length(allowed_libraries),0),revision,pin_revision,length(pin_hash),is_primary,position
 FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2
 WHERE account_id=? AND id=? AND deleted=0`
 	usPINImageRestrictionOctetsSQL = `SELECT octet_length(rating_system),octet_length(maximum_age_rating),octet_length(blocked_labels),maximum_age,allow_unrated,allow_downloads,allow_live_tv,allow_dvr,allow_watch_together,revision
