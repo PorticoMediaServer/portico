@@ -41,15 +41,45 @@ type ipEvidenceFamilySpec struct {
 // begin manifest digest and the family index carried by append, so a later seal
 // can account for exactly these normalized child families and no aliases of
 // EN's FIRST movie purpose.
+//
+// The order is also the materialization order: alias, external, term, rating,
+// episode, media, track, credit. A track row references its medium and its
+// pre-staged recording header, and a release track credit references its track,
+// so media must precede track and track must precede credit while every
+// immediate child foreign key stays ON. No foreign key is deferred and no
+// credit is dropped to make a seal pass.
 var ipEvidenceFamilySpecs = [...]ipEvidenceFamilySpec{
 	{"alias", 64, 1024, ipEntityEvidenceAliasStmt},
 	{"external", 64, 2048, ipEntityEvidenceExternalStmt},
 	{"term", 64, 4096, ipEntityEvidenceTermStmt},
 	{"rating", 16, 256, ipEntityEvidenceRatingStmt},
-	{"credit", 64, 1024, ipEntityEvidenceCreditStmt},
 	{"episode", 32, 1024, ipEntityEvidenceEpisodeStmt},
 	{"media", 16, 256, ipEntityEvidenceMediaStmt},
 	{"track", 32, 1024, ipEntityEvidenceTrackStmt},
+	{"credit", 64, 1024, ipEntityEvidenceCreditStmt},
+}
+
+// ipEntityEvidencePair is the ONLY admissible parser/request identity for one
+// provider subject kind under the corrected evidence shape. The corrected shape
+// materializes the closed family order above and pre-stages each recording
+// header before the track that references it. The superseded v1 spellings (for
+// example ip.musicbrainz.release.header-complete-children.v1 and
+// ip.musicbrainz.release.detail+artist-credits+recordings+release-groups.v1)
+// encode the old credit-before-media/track order; they are refused so an
+// old-order build is never reinterpreted, resumed or sealed. A fresh build uses
+// these names, so the corrected order is committed into the build, request and
+// seal identity rather than silently changing the old identities.
+func ipEntityEvidencePair(provider, subjectKind string) (parser, request string) {
+	prefix := "ip." + provider + "." + subjectKind + ".evidence."
+	return prefix + "complete-ordered-families.v2", prefix + "detail+recordings+media+tracks+credits.v2"
+}
+
+// ipEntityEvidencePairCurrent reports whether one recorded parser/request pair
+// is the current corrected-shape identity. An old-order build must be refused
+// for continuation, never resumed under the new family indexes.
+func ipEntityEvidencePairCurrent(provider, subjectKind, parser, request string) bool {
+	wantParser, wantRequest := ipEntityEvidencePair(provider, subjectKind)
+	return parser == wantParser && request == wantRequest
 }
 
 func ipEvidenceFamilyIndex(name string) int {
@@ -102,9 +132,15 @@ type ipEvidenceRating struct {
 	SourceURL    string
 }
 
+// ipEvidenceCredit is one complete artist/cast/crew credit. Ordinal is the
+// family append cursor position and is contiguous from the page's after-ordinal;
+// SourceOrdinal is the provider's own credit position and stays independent of
+// it. Scope is the release-track ID a track-scoped credit belongs to; the
+// persisted metadata_evidence_credits.track_id is generated from Scope by the
+// schema, never supplied by the caller.
 type ipEvidenceCredit struct {
 	Ordinal                                          int64
-	Class, Scope, TrackID, ProviderPersonID, Name    string
+	Class, Scope, ProviderPersonID, Name             string
 	ArtistName, SortName, Disambiguation, JoinPhrase string
 	Role, Department, CreditID                       string
 	SourceOrdinal                                    int64
@@ -124,12 +160,47 @@ type ipEvidenceMedia struct {
 	Format, Title string
 }
 
+// ipEvidenceTrack is one complete release track. Recording is the exact
+// recording evidence header IP-06 pre-stages immediately before the track row:
+// metadata_evidence_tracks.recording_evidence_id is an immediate foreign key to
+// metadata_evidence(provider, subject_kind='recording', id). Artist is the
+// provider's joined display and stays alongside the track-scoped credit family
+// rows, which keep every artist identity and join phrase.
 type ipEvidenceTrack struct {
 	TrackID                  string
 	MediumPosition, Position int64
 	Number, Title, Artist    string
 	LengthMillis             *int64
 	RecordingEvidenceID      string
+	Recording                EvidenceHeaderInput
+}
+
+// ipEvidenceRecordings returns each distinct recording header of one track page
+// in first-seen order. Two different headers for one evidence ID are refused, so
+// a page can never claim two recordings for one track reference.
+func ipEvidenceRecordings(q ipEntityEvidenceAppendRequest) ([]EvidenceHeader, error) {
+	var out []EvidenceHeader
+	seen := make(map[string]EvidenceHeader, len(q.tracks))
+	for _, track := range q.tracks {
+		if track.Recording.ID != track.RecordingEvidenceID || track.Recording.SubjectKind != "recording" ||
+			track.Recording.Provider != q.provider ||
+			!ipEntityEvidenceHeaderAllowed(track.Recording) {
+			return nil, ErrInvalid
+		}
+		header, err := NewEvidenceHeader(track.Recording)
+		if err != nil {
+			return nil, ErrInvalid
+		}
+		if previous, ok := seen[header.ID()]; ok {
+			if previous.input != track.Recording {
+				return nil, ErrInvalid
+			}
+			continue
+		}
+		seen[header.ID()] = header
+		out = append(out, header)
+	}
+	return out, nil
 }
 
 type ipEntityEvidenceBeginRequest struct {
@@ -177,9 +248,11 @@ type ipEntityEvidenceAppendRequest struct {
 	tracks                                            []ipEvidenceTrack
 }
 
+// counts follows ipEvidenceFamilySpecs exactly: alias, external, term, rating,
+// episode, media, track, credit.
 func (q ipEntityEvidenceAppendRequest) counts() [8]int {
 	return [8]int{len(q.aliases), len(q.external), len(q.terms), len(q.ratings),
-		len(q.credits), len(q.episodes), len(q.media), len(q.tracks)}
+		len(q.episodes), len(q.media), len(q.tracks), len(q.credits)}
 }
 
 // page returns the one selected family page and its row count. Any row in a
@@ -204,13 +277,13 @@ func (q ipEntityEvidenceAppendRequest) page(family int) (any, int) {
 	case 3:
 		return q.ratings, len(q.ratings)
 	case 4:
-		return q.credits, len(q.credits)
-	case 5:
 		return q.episodes, len(q.episodes)
-	case 6:
+	case 5:
 		return q.media, len(q.media)
-	default:
+	case 6:
 		return q.tracks, len(q.tracks)
+	default:
+		return q.credits, len(q.credits)
 	}
 }
 
@@ -233,6 +306,7 @@ type ipEntityEvidenceCommandResult struct {
 type ipEntityEvidenceBuild struct {
 	evidenceID, owner, state, phase, digest, expiresAt    string
 	provider, subjectKind, providerID, parser, observedAt string
+	requestShape                                          string
 	generation, ownerGeneration, cursor, expectedRows     int64
 	materializedRows, charge, revision, subjectID         int64
 	ownerIncarnation                                      [16]byte
@@ -267,16 +341,17 @@ func ipEntityEvidenceShapeOwner(operationID, provider, purpose, selectedID, leas
 	return nil
 }
 
-// Both the parser version and the request shape use a provider-specific IP
-// namespace. EN's FIRST movie purpose is explicitly outside it, so a nonmovie
-// begin cannot reuse or alias the merged EN parser/proof family.
+// Both the parser version and the request shape use the provider-specific IP
+// namespace and the exact current corrected-shape pair. EN's FIRST movie purpose
+// is explicitly outside it, and the superseded v1 order spellings are refused,
+// so a nonmovie begin cannot reuse or alias the merged EN parser/proof family or
+// resume an old-order build.
 func ipEntityEvidenceHeaderAllowed(h EvidenceHeaderInput) bool {
 	if !ipEvidenceSubjectKind(h.SubjectKind) || !ipPolicyProviderCode(h.Provider) {
 		return false
 	}
-	prefix := "ip." + h.Provider + "."
-	if !strings.HasPrefix(h.ParserVersion, prefix) || !strings.HasPrefix(h.RequestShape, prefix) ||
-		h.ParserVersion == h.RequestShape || !ipEvidenceText(h.ParserVersion, ipEvidenceTextMax) ||
+	if !ipEntityEvidencePairCurrent(h.Provider, h.SubjectKind, h.ParserVersion, h.RequestShape) ||
+		!ipEvidenceText(h.ParserVersion, ipEvidenceTextMax) ||
 		!ipEvidenceText(h.RequestShape, ipEvidenceTextMax) || !ipEvidenceText(h.ID, ipEvidenceIDMax) ||
 		!ipEvidenceText(h.ProviderID, ipEvidenceIDMax) || h.SubjectID <= 0 {
 		return false
@@ -588,22 +663,6 @@ func ipEntityEvidencePageCharge(family int, q ipEntityEvidenceAppendRequest, row
 			}
 		}
 	case 4:
-		for i, value := range q.credits {
-			if value.Ordinal != q.afterOrdinal+int64(i) ||
-				(value.Class != "cast" && value.Class != "crew" && value.Class != "artist") ||
-				len(value.ProviderPersonID) == 0 || len(value.Name) == 0 ||
-				(value.Scope != "" && q.subjectKind != "release") ||
-				(value.Class == "cast" && (!value.BillingPresent || value.Billing < 0)) ||
-				(value.Class != "cast" && (value.BillingPresent || value.Billing != 0)) {
-				return 0, 0, ErrInvalid
-			}
-			if err := row(value.Class, value.Scope, value.TrackID, value.ProviderPersonID, value.Name,
-				value.ArtistName, value.SortName, value.Disambiguation, value.JoinPhrase, value.Role,
-				value.Department, value.CreditID); err != nil {
-				return 0, 0, err
-			}
-		}
-	case 5:
 		for i, value := range q.episodes {
 			if value.Ordinal != q.afterOrdinal+int64(i) || len(value.EpisodeEvidenceID) == 0 ||
 				len(value.EpisodeOrder) == 0 || !ipEvidenceOptionalNumber(value.SeasonNumber) ||
@@ -614,16 +673,25 @@ func ipEntityEvidencePageCharge(family int, q ipEntityEvidenceAppendRequest, row
 				return 0, 0, err
 			}
 		}
-	case 6:
+	case 5:
+		// A medium's format and title are provider strings and may be empty;
+		// presentation fallback belongs outside evidence. Only the positive,
+		// contiguous position and the byte/text bounds are evidence rules.
+		if q.subjectKind != "release" {
+			return 0, 0, ErrInvalid
+		}
 		for i, value := range q.media {
-			if value.Position != q.afterOrdinal+int64(i)+1 || len(value.Format) == 0 || len(value.Title) == 0 {
+			if value.Position != q.afterOrdinal+int64(i)+1 {
 				return 0, 0, ErrInvalid
 			}
 			if err := row(value.Format, value.Title); err != nil {
 				return 0, 0, err
 			}
 		}
-	case 7:
+	case 6:
+		if q.subjectKind != "release" {
+			return 0, 0, ErrInvalid
+		}
 		for _, value := range q.tracks {
 			if len(value.TrackID) == 0 || value.MediumPosition <= 0 || value.Position <= 0 ||
 				len(value.Number) == 0 || len(value.Title) == 0 || len(value.RecordingEvidenceID) == 0 ||
@@ -631,6 +699,36 @@ func ipEntityEvidencePageCharge(family int, q ipEntityEvidenceAppendRequest, row
 				return 0, 0, ErrInvalid
 			}
 			if err := row(value.TrackID, value.Number, value.Title, value.Artist, value.RecordingEvidenceID); err != nil {
+				return 0, 0, err
+			}
+		}
+		// Each distinct recording header is persisted once immediately before
+		// the tracks that reference it, so the immediate recording FK holds and
+		// its header bytes are charged in the same page.
+		recordings, err := ipEvidenceRecordings(q)
+		if err != nil {
+			return 0, 0, err
+		}
+		for _, recording := range recordings {
+			charge := ipEntityEvidenceHeaderCharge(recording)
+			if total > math.MaxInt64-charge {
+				return 0, 0, ErrCap
+			}
+			total += charge
+		}
+	case 7:
+		for i, value := range q.credits {
+			if value.Ordinal != q.afterOrdinal+int64(i) ||
+				(value.Class != "cast" && value.Class != "crew" && value.Class != "artist") ||
+				len(value.ProviderPersonID) == 0 || len(value.Name) == 0 ||
+				(value.Scope != "" && q.subjectKind != "release") ||
+				(value.Class == "cast" && (!value.BillingPresent || value.Billing < 0)) ||
+				(value.Class != "cast" && (value.BillingPresent || value.Billing != 0)) {
+				return 0, 0, ErrInvalid
+			}
+			if err := row(value.Class, value.Scope, value.ProviderPersonID, value.Name,
+				value.ArtistName, value.SortName, value.Disambiguation, value.JoinPhrase, value.Role,
+				value.Department, value.CreditID); err != nil {
 				return 0, 0, err
 			}
 		}
@@ -657,7 +755,7 @@ func ipEntityEvidenceBuildRead(ctx context.Context, turn *commandTurn, buildID s
 	err = row.Scan(&out.evidenceID, &out.generation, &out.owner, &incarnation, &out.ownerGeneration,
 		&out.state, &out.phase, &out.cursor, &out.expectedRows, &out.materializedRows, &out.charge,
 		&out.digest, &out.expiresAt, &out.revision, &out.subjectID, &out.provider, &out.subjectKind,
-		&out.providerID, &out.parser, &out.sealed, &out.observedAt)
+		&out.providerID, &out.parser, &out.sealed, &out.observedAt, &out.requestShape)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, sql.ErrNoRows
 	}
@@ -671,7 +769,8 @@ func ipEntityEvidenceBuildRead(ctx context.Context, turn *commandTurn, buildID s
 		out.sealed != 0 || (out.state != "building" && out.state != "ready" && out.state != "aborting" &&
 		out.state != "retiring" && out.state != "done") || len(out.phase) == 0 ||
 		!ipPolicyProviderCode(out.provider) || !ipEvidenceSubjectKind(out.subjectKind) ||
-		len(out.evidenceID) == 0 || len(out.owner) == 0 || len(out.providerID) == 0 || len(out.parser) == 0 {
+		len(out.evidenceID) == 0 || len(out.owner) == 0 || len(out.providerID) == 0 || len(out.parser) == 0 ||
+		len(out.requestShape) == 0 {
 		return out, ErrResolveRequired
 	}
 	copy(out.ownerIncarnation[:], incarnation)
@@ -692,9 +791,13 @@ func ipEvidenceDigestBytes(value string) ([32]byte, bool) {
 	return out, true
 }
 
+// The v2 domain separators commit the corrected family order and the
+// pre-staged recording headers into the build, page-chain and manifest identity.
+// An old-order build therefore can never share a digest or chain head with a
+// fresh one.
 func ipEntityEvidenceShapeDigest(families []ipEvidenceFamilyDeclaration) ([32]byte, error) {
 	e := requestEncoder{h: sha256.New(), path: make(map[uintptr]bool)}
-	e.bytes([]byte("portico.ip_evidence_shape.v1\x00"))
+	e.bytes([]byte("portico.ip_evidence_shape.v2\x00"))
 	e.number(uint64(len(families)))
 	for _, family := range families {
 		e.text(family.Name)
@@ -711,7 +814,7 @@ func ipEntityEvidenceShapeDigest(families []ipEvidenceFamilyDeclaration) ([32]by
 
 func ipEntityEvidenceBuildDigest(evidenceID, buildID string, generation, expectedRows int64, shape [32]byte) [32]byte {
 	e := requestEncoder{h: sha256.New(), path: make(map[uintptr]bool)}
-	e.bytes([]byte("portico.ip_evidence_build.v1\x00"))
+	e.bytes([]byte("portico.ip_evidence_build.v2\x00"))
 	e.text(evidenceID)
 	e.text(buildID)
 	e.number(uint64(generation))
@@ -729,7 +832,7 @@ func ipEntityEvidenceChainDigest(previous [32]byte, family int, after int64, pag
 		return [32]byte{}, ErrInvalid
 	}
 	e := requestEncoder{h: sha256.New(), path: make(map[uintptr]bool)}
-	e.bytes([]byte("portico.ip_evidence_chain.v1\x00"))
+	e.bytes([]byte("portico.ip_evidence_chain.v2\x00"))
 	e.bytes(previous[:])
 	e.number(uint64(family))
 	e.number(uint64(after))
@@ -799,6 +902,53 @@ func ipEntityEvidenceInsertPage(ctx context.Context, turn *commandTurn, family i
 			}
 		}
 	case 4:
+		for _, value := range q.episodes {
+			if err := execIPEntityEvidence(ctx, turn, ipEntityEvidenceEpisodeStmt, q.provider, q.subjectKind,
+				q.evidenceID, value.Ordinal, value.EpisodeEvidenceID, value.EpisodeOrder,
+				ipEvidenceOptionalValue(value.SeasonNumber), ipEvidenceOptionalValue(value.EpisodeNumber),
+				ipEvidenceOptionalValue(value.AbsoluteNumber)); err != nil {
+				return err
+			}
+		}
+	case 5:
+		for _, value := range q.media {
+			if err := execIPEntityEvidence(ctx, turn, ipEntityEvidenceMediaStmt, q.provider, q.subjectKind,
+				q.evidenceID, value.Position, value.Format, value.Title); err != nil {
+				return err
+			}
+		}
+	case 6:
+		// Stage each distinct recording header before the track that references
+		// it. A recording already staged with the exact same header (for example
+		// by another build of the same immutable observation) is reused rather
+		// than duplicated; a different header for the same evidence ID is
+		// refused by the insert.
+		recordings, err := ipEvidenceRecordings(q)
+		if err != nil {
+			return err
+		}
+		for _, recording := range recordings {
+			existing, err := ipEntityEvidenceRecordingStaged(ctx, turn, recording)
+			if err != nil {
+				return err
+			}
+			if existing {
+				continue
+			}
+			if err := execIPEntityEvidence(ctx, turn, ipEntityEvidenceInsertEvidenceStmt,
+				append(evidenceHeaderValues(recording.input), int64(0))...); err != nil {
+				return errors.Join(ErrConflict, err)
+			}
+		}
+		for _, value := range q.tracks {
+			if err := execIPEntityEvidence(ctx, turn, ipEntityEvidenceTrackStmt, q.provider, q.subjectKind,
+				q.evidenceID, value.TrackID, value.MediumPosition, value.Position, value.Number,
+				value.Title, value.Artist, ipEvidenceOptionalValue(value.LengthMillis),
+				value.RecordingEvidenceID); err != nil {
+				return err
+			}
+		}
+	case 7:
 		for _, value := range q.credits {
 			source, billing := any(nil), any(nil)
 			if value.SourceOrdinalPresent {
@@ -814,35 +964,37 @@ func ipEntityEvidenceInsertPage(ctx context.Context, turn *commandTurn, family i
 				return err
 			}
 		}
-	case 5:
-		for _, value := range q.episodes {
-			if err := execIPEntityEvidence(ctx, turn, ipEntityEvidenceEpisodeStmt, q.provider, q.subjectKind,
-				q.evidenceID, value.Ordinal, value.EpisodeEvidenceID, value.EpisodeOrder,
-				ipEvidenceOptionalValue(value.SeasonNumber), ipEvidenceOptionalValue(value.EpisodeNumber),
-				ipEvidenceOptionalValue(value.AbsoluteNumber)); err != nil {
-				return err
-			}
-		}
-	case 6:
-		for _, value := range q.media {
-			if err := execIPEntityEvidence(ctx, turn, ipEntityEvidenceMediaStmt, q.provider, q.subjectKind,
-				q.evidenceID, value.Position, value.Format, value.Title); err != nil {
-				return err
-			}
-		}
-	case 7:
-		for _, value := range q.tracks {
-			if err := execIPEntityEvidence(ctx, turn, ipEntityEvidenceTrackStmt, q.provider, q.subjectKind,
-				q.evidenceID, value.TrackID, value.MediumPosition, value.Position, value.Number,
-				value.Title, value.Artist, ipEvidenceOptionalValue(value.LengthMillis),
-				value.RecordingEvidenceID); err != nil {
-				return err
-			}
-		}
 	default:
 		return ErrInvalid
 	}
 	return nil
+}
+
+// ipEntityEvidenceRecordingStaged reports whether the exact recording header is
+// already persisted unsealed. It compares every inserted column, so a different
+// observation can never masquerade as the pre-staged recording.
+func ipEntityEvidenceRecordingStaged(ctx context.Context, turn *commandTurn, recording EvidenceHeader) (bool, error) {
+	input := recording.input
+	count, err := wc008DraftInteger(ctx, turn, ipEntityEvidenceRecordingStmt, input.ID, input.SubjectID,
+		input.ParserVersion, input.Provider, input.SubjectKind, input.ProviderID, input.Language,
+		input.Region, input.RequestShape, hex.EncodeToString(input.ObservationDigest[:]), input.ObservedAt,
+		input.SourceURL, input.ETag, input.LastModified, input.Title, input.OriginalTitle, input.Overview,
+		input.Tagline, input.ContentRating, input.Studio, input.Network, input.Country, input.ReleaseDate,
+		input.Year, input.Artist, evidenceIntegerValue(input.LengthMillis), evidenceTextValue(input.ArtistType),
+		evidenceIntegerValue(input.BeginYear), evidenceIntegerValue(input.EndYear), input.WikidataID,
+		input.Biography, input.BiographySource, input.BiographySourceURL, input.Disambiguation,
+		input.ReleaseGroupID, input.GroupTitle, input.PrimaryType, input.Barcode, int64(0))
+	if err != nil {
+		return false, err
+	}
+	switch count {
+	case 0:
+		return false, nil
+	case 1:
+		return true, nil
+	default:
+		return false, ErrConflict
+	}
 }
 
 func ipEvidenceOptionalValue(value *int64) any {
@@ -944,6 +1096,7 @@ func ipEntityEvidenceAppendFresh(ctx context.Context, turn *commandTurn, identit
 		build.generation != q.buildGeneration || build.subjectID != q.subjectID ||
 		build.provider != q.provider || build.subjectKind != q.subjectKind ||
 		build.providerID != q.providerID || build.parser != q.parserVersion ||
+		!ipEntityEvidencePairCurrent(q.provider, q.subjectKind, build.parser, build.requestShape) ||
 		build.observedAt != q.observedAt || build.state != "building" || build.phase != "children" ||
 		build.sealed != 0 || build.cursor != q.materializedBefore || build.revision != q.buildRevision {
 		return out, ErrConflict

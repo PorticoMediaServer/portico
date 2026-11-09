@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -21,9 +20,12 @@ import (
 // the complete manifest, proves the exact child counts and writes the one typed
 // saved seal proof that later acceptance reads. It never accepts a source,
 // publishes anything or writes an EN FIRST seal tuple.
+// The seal manifest version is part of the saved proof identity. It advances
+// with the corrected family order and pre-staged recording headers, so an
+// old-order seal is never replayed or reinterpreted as a current manifest.
 const (
-	ipSealAlgorithm = "portico.ip-evidence-manifest.sha256.v1"
-	ipSealVersion   = int64(1)
+	ipSealAlgorithm = "portico.ip-evidence-manifest.sha256.v2"
+	ipSealVersion   = int64(2)
 )
 
 // ipEntitySealPage is one exact append page as the parser staged it. The page
@@ -43,9 +45,11 @@ type ipEntitySealPage struct {
 	tracks       []ipEvidenceTrack
 }
 
+// counts follows ipEvidenceFamilySpecs exactly: alias, external, term, rating,
+// episode, media, track, credit.
 func (p ipEntitySealPage) counts() [8]int {
 	return [8]int{len(p.aliases), len(p.external), len(p.terms), len(p.ratings),
-		len(p.credits), len(p.episodes), len(p.media), len(p.tracks)}
+		len(p.episodes), len(p.media), len(p.tracks), len(p.credits)}
 }
 
 // page returns the one selected family page. Any row in a different family is
@@ -70,13 +74,13 @@ func (p ipEntitySealPage) page(family int) (any, int) {
 	case 3:
 		return p.ratings, len(p.ratings)
 	case 4:
-		return p.credits, len(p.credits)
-	case 5:
 		return p.episodes, len(p.episodes)
-	case 6:
+	case 5:
 		return p.media, len(p.media)
-	default:
+	case 6:
 		return p.tracks, len(p.tracks)
+	default:
+		return p.credits, len(p.credits)
 	}
 }
 
@@ -178,9 +182,7 @@ func ipEntitySealShape(q ipEntitySealRequest) (ipEntitySealManifest, error) {
 		!ipSealDigestSet(q.observationDigest) {
 		return zero, ErrInvalid
 	}
-	prefix := "ip." + q.provider + "."
-	if !strings.HasPrefix(q.parserVersion, prefix) || !strings.HasPrefix(q.requestShape, prefix) ||
-		q.parserVersion == q.requestShape {
+	if !ipEntityEvidencePairCurrent(q.provider, q.subjectKind, q.parserVersion, q.requestShape) {
 		return zero, ErrInvalid
 	}
 	if _, ok := ipEntityJobTextTime(q.observedAt); !ok {
@@ -208,17 +210,23 @@ func ipEntitySealShape(q ipEntitySealRequest) (ipEntitySealManifest, error) {
 	}
 	var running [8]int64
 	var familyPages [8][]any
+	// The manifest pages are in the closed materialization order: a family may
+	// not reappear after a later family started, so media precedes track and
+	// track precedes credit exactly as the immediate child FKs require.
+	lastFamily := -1
 	for _, page := range q.pages {
 		family := ipEvidenceFamilyIndex(page.Family)
-		if family < 0 || page.AfterOrdinal < 0 {
+		if family < 0 || page.AfterOrdinal < 0 || family < lastFamily {
 			return zero, ErrInvalid
 		}
+		lastFamily = family
 		payload, count := page.page(family)
 		if payload == nil || count <= 0 || count > ipEvidenceFamilySpecs[family].maxPage ||
 			page.rows != int64(count) || page.AfterOrdinal != running[family] {
 			return zero, ErrInvalid
 		}
-		chargeReq := ipEntityEvidenceAppendRequest{afterOrdinal: page.AfterOrdinal, subjectKind: q.subjectKind}
+		chargeReq := ipEntityEvidenceAppendRequest{afterOrdinal: page.AfterOrdinal,
+			provider: q.provider, subjectKind: q.subjectKind}
 		switch family {
 		case 0:
 			chargeReq.aliases = page.aliases
@@ -229,13 +237,13 @@ func ipEntitySealShape(q ipEntitySealRequest) (ipEntitySealManifest, error) {
 		case 3:
 			chargeReq.ratings = page.ratings
 		case 4:
-			chargeReq.credits = page.credits
-		case 5:
 			chargeReq.episodes = page.episodes
-		case 6:
+		case 5:
 			chargeReq.media = page.media
-		default:
+		case 6:
 			chargeReq.tracks = page.tracks
+		default:
+			chargeReq.credits = page.credits
 		}
 		if _, _, err := ipEntityEvidencePageCharge(family, chargeReq, int64(count)); err != nil {
 			return zero, ErrInvalid
@@ -290,7 +298,7 @@ func ipEntitySealFamilyDigest(family int, pages []any) ([32]byte, error) {
 		return [32]byte{}, ErrInvalid
 	}
 	e := requestEncoder{h: sha256.New(), path: make(map[uintptr]bool)}
-	e.bytes([]byte("portico.ip_evidence_family.v1\x00"))
+	e.bytes([]byte("portico.ip_evidence_family.v2\x00"))
 	e.text(ipEvidenceFamilySpecs[family].name)
 	e.number(uint64(len(pages)))
 	for _, page := range pages {
@@ -327,7 +335,7 @@ func ipEntitySealChainDigest(q ipEntitySealRequest, shape [32]byte, rows int64) 
 }
 
 func writeIPEntitySealManifest(e *requestEncoder, q ipEntitySealRequest, shape, chain [32]byte, rows int64) {
-	e.bytes([]byte("portico.ip_evidence_seal.v1\x00"))
+	e.bytes([]byte("portico.ip_evidence_seal.v2\x00"))
 	e.text(q.evidenceID)
 	e.text(q.buildID)
 	e.number(uint64(q.buildGeneration))
@@ -544,9 +552,11 @@ func ipEntitySealBuildRead(ctx context.Context, turn *commandTurn, buildID strin
 // count.
 func ipEntitySealCounts(ctx context.Context, turn *commandTurn, evidenceID string) (out [8]int64, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	// The order is ipEvidenceFamilySpecs exactly: alias, external, term, rating,
+	// episode, media, track, credit.
 	ids := [...]stmt.ID{ipEntitySealAliasCountStmt, ipEntitySealExternalCountStmt,
-		ipEntitySealTermCountStmt, ipEntitySealRatingCountStmt, ipEntitySealCreditCountStmt,
-		ipEntitySealEpisodeCountStmt, ipEntitySealMediaCountStmt, ipEntitySealTrackCountStmt}
+		ipEntitySealTermCountStmt, ipEntitySealRatingCountStmt, ipEntitySealEpisodeCountStmt,
+		ipEntitySealMediaCountStmt, ipEntitySealTrackCountStmt, ipEntitySealCreditCountStmt}
 	for i, id := range ids {
 		count, err := wc008DraftInteger(ctx, turn, id, evidenceID)
 		if err != nil {

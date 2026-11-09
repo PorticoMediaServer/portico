@@ -44,7 +44,7 @@ func ipEntityAcceptFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usOwner
 		`INSERT INTO metadata_provider_policy(library_id,provider,incarnation,revision,enabled,priority,region,algorithm,refresh_mode,credit_enabled,credit_after_item,credit_after_provider,command_incarnation) VALUES(777,'tmdb',X'09000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000'),(777,'tvdb',X'09000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000'),(777,'musicbrainz',X'0a000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000')`,
 		`INSERT INTO screen_metadata_consent(singleton,revision,confirmed) VALUES(1,1,1) ON CONFLICT(singleton) DO UPDATE SET revision=1,confirmed=1`,
 		`INSERT INTO metadata_runtime_settings(singleton,online_lookups,lookup_epoch) VALUES(1,1,3) ON CONFLICT(singleton) DO UPDATE SET online_lookups=1,lookup_epoch=3`,
-		`INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(1,'tmdb','series','tmdb-1','en','US','ip.tmdb.series.detail.v1',X'0c000000000000000000000000000000',1)`,
+		`INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(1,'tmdb','series','tmdb-1','en','US','ip.tmdb.series.evidence.detail+recordings+media+tracks+credits.v2',X'0c000000000000000000000000000000',1)`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), query); err != nil {
 			t.Fatal(query, err)
@@ -140,9 +140,13 @@ func ipEntityAcceptStage(t *testing.T, w *executor, r *ipPolicyRegistry, p *usOw
 	ipPolicyCommitTurn(t, turn, tx)
 	ipEntityEvidenceAck(t, w, first.Value, 2)
 
-	current, familyStart, before := first.Value, int64(1), int64(1)
+	current, before := first.Value, int64(1)
 	sequence := int64(3)
 	for _, page := range pages {
+		// The closed order is alias, external, term, rating, episode, media,
+		// track, credit; familyStart is the global cursor start and stays
+		// distinct from the family after-ordinal for a multi-page family.
+		familyStart := before - page.AfterOrdinal
 		request := ipEntitySealPageRequest(owner, current, page, counts[page.Family], familyStart, before)
 		out, turn, tx := ipEntityEvidenceApplyAppend(t, w, r, p,
 			mustEvidenceAppend(t, ipEntityEvidenceIdentity(claim, sequence), request))
@@ -150,7 +154,6 @@ func ipEntityAcceptStage(t *testing.T, w *executor, r *ipPolicyRegistry, p *usOw
 		ipEntityEvidenceAck(t, w, out.Value, sequence)
 		current = out.Value
 		before += page.rows
-		familyStart = before
 		sequence++
 	}
 	staged := ipEntityAcceptStaged{owner: owner, claim: claim, pages: pages,
@@ -189,8 +192,8 @@ func ipEntityAcceptRequestFor(staged ipEntityAcceptStaged) ipEntityAcceptRequest
 		evidenceID: "evidence-one", buildID: "build-one", publicationID: "publication-one",
 		buildGeneration: 1, contentRevision: staged.begin.Revision + 1,
 		subjectID: 1, subjectKind: "series", providerID: "tmdb-1",
-		parserVersion: "ip.tmdb.series.v1", language: "en", region: "US",
-		requestShape: "ip.tmdb.series.detail.v1", observedAt: "2026-01-01T00:00:00Z",
+		parserVersion: ipEntityEvidenceParser("tmdb", "series"), language: "en", region: "US",
+		requestShape: ipEntityEvidenceRequest("tmdb", "series"), observedAt: "2026-01-01T00:00:00Z",
 		selectionIncarnation: [16]byte{0x0d}, selectionRevision: 1, searchJobID: 1,
 		fields: []ipEntityAcceptField{
 			{Name: "title", Value: "Accepted Series", Present: true},
@@ -244,7 +247,7 @@ func TestIPEntityAcceptFreshReplayRetiredAndRetainedProof(t *testing.T) {
 		out.Value.OperationID != staged.owner.OperationID || out.Value.PublicationID != "publication-one" ||
 		out.Value.EvidenceID != "evidence-one" || out.Value.SetID != "" ||
 		out.Value.Provider != "tmdb" || out.Value.SubjectKind != "series" ||
-		out.Value.ProviderID != "tmdb-1" || out.Value.ParserVersion != "ip.tmdb.series.v1" ||
+		out.Value.ProviderID != "tmdb-1" || out.Value.ParserVersion != ipEntityEvidenceParser("tmdb", "series") ||
 		out.Value.ObservedAt != "2026-01-01T00:00:00Z" || out.Value.EntityID != 1 ||
 		out.Value.OwnerGeneration != 1 || out.Value.ContentRevision != staged.begin.Revision+1 ||
 		out.Value.AcceptedRevision != 2 || out.Value.SelectionRevision != 1 || out.Value.SearchJobID != 1 ||
@@ -582,7 +585,7 @@ func TestIPEntityAcceptSetSource(t *testing.T) {
 		incarnation[:], staged.owner.OperationID, incarnation[:], staged.sequence+1)
 	commitment := make([]byte, 32)
 	commitment[0] = 0x5a
-	ipPolicyExec(t, w, `INSERT INTO metadata_ip_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,result_digest,result_phase,after_family,after_ordinal,after_key,result_count,result_bytes,terminal,evidence_id,evidence_subject_id,parser_version,build_id,set_id,seal_algorithm,seal_version,seal_commitment,seal_rows,seal_bytes,proof_pin_count) VALUES(?,?,?,?,?,'set_seal',2,0,?,'sealed',1,0,'set-digest',2,64,1,'evidence-one',1,'ip.tmdb.series.v1','build-one','set-one','ip.tv-set',1,?,2,64,1)`,
+	ipPolicyExec(t, w, `INSERT INTO metadata_ip_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,result_digest,result_phase,after_family,after_ordinal,after_key,result_count,result_bytes,terminal,evidence_id,evidence_subject_id,parser_version,build_id,set_id,seal_algorithm,seal_version,seal_commitment,seal_rows,seal_bytes,proof_pin_count) VALUES(?,?,?,?,?,'set_seal',2,0,?,'sealed',1,0,'set-digest',2,64,1,'evidence-one',1,'`+ipEntityEvidenceParser("tmdb", "series")+`','build-one','set-one','ip.tv-set',1,?,2,64,1)`,
 		staged.owner.OperationID, incarnation[:], staged.sequence+1, make([]byte, 16), make([]byte, 32),
 		make([]byte, 32), commitment)
 	ipPolicyExec(t, w, `UPDATE metadata_provider_operations SET last_command_sequence=?,acknowledged_command_sequence=? WHERE id=?`,

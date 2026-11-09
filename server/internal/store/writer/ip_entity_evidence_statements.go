@@ -24,6 +24,7 @@ const (
 	ipEntityEvidenceEpisodeStmt        stmt.ID = "ip.entity.evidence.episode"
 	ipEntityEvidenceMediaStmt          stmt.ID = "ip.entity.evidence.media"
 	ipEntityEvidenceTrackStmt          stmt.ID = "ip.entity.evidence.track"
+	ipEntityEvidenceRecordingStmt      stmt.ID = "ip.entity.evidence.recording"
 )
 
 // The child inserts are one closed set of normalized nonmovie evidence rows.
@@ -41,7 +42,7 @@ func ipEntityEvidenceDefinitions() []stmt.Definition {
 			// The build row is the exact evidence construction owner: one build
 			// per evidence, the admitted owner/incarnation/generation and the
 			// raw cursor/digest/charge chain.
-			ID: ipEntityEvidenceBuildStmt, SQL: `SELECT b.evidence_id,b.generation,b.owner_operation,b.owner_incarnation,b.owner_generation,b.state,b.phase,b.cursor,b.expected_rows,b.materialized_rows,b.materialized_charge,b.materialized_digest,b.expires_at,b.content_revision,e.subject_id,e.provider,e.subject_kind,e.provider_id,e.parser_version,e.sealed,e.observed_at FROM metadata_evidence_builds AS b JOIN metadata_evidence AS e ON e.id=b.evidence_id WHERE b.id=?`,
+			ID: ipEntityEvidenceBuildStmt, SQL: `SELECT b.evidence_id,b.generation,b.owner_operation,b.owner_incarnation,b.owner_generation,b.state,b.phase,b.cursor,b.expected_rows,b.materialized_rows,b.materialized_charge,b.materialized_digest,b.expires_at,b.content_revision,e.subject_id,e.provider,e.subject_kind,e.provider_id,e.parser_version,e.sealed,e.observed_at,e.request_shape FROM metadata_evidence_builds AS b JOIN metadata_evidence AS e ON e.id=b.evidence_id WHERE b.id=?`,
 			Params: []stmt.Param{t("build")},
 			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_evidence_builds", "metadata_evidence"}},
 		},
@@ -160,6 +161,25 @@ func ipEntityEvidenceDefinitions() []stmt.Definition {
 				i("position"), t("number"), t("title"), t("artist"), n("length_millis"), t("recording_evidence"),
 			},
 			Plan: stmt.Plan{Hot: true},
+		},
+		{
+			// A track's recording header is pre-staged immediately before the
+			// track. This exact-match read lets a second build reuse the same
+			// immutable recording observation instead of duplicating it; it is
+			// a primary-key search, never a scan.
+			ID: ipEntityEvidenceRecordingStmt, SQL: `SELECT count(*) FROM metadata_evidence WHERE id=? AND subject_id=? AND parser_version=? AND provider=? AND subject_kind=? AND provider_id=? AND language=? AND region=? AND request_shape=? AND digest=? AND observed_at=? AND source_url=? AND etag=? AND last_modified=? AND title=? AND original_title=? AND overview=? AND tagline=? AND content_rating=? AND studio=? AND network=? AND country=? AND release_date=? AND year=? AND artist=? AND length_millis IS ? AND artist_type IS ? AND begin_year IS ? AND end_year IS ? AND wikidata_id=? AND biography=? AND biography_source=? AND biography_source_url=? AND disambiguation=? AND release_group_id=? AND group_title=? AND primary_type=? AND barcode=? AND sealed=?`,
+			Params: []stmt.Param{
+				t("id"), i("subject_id"), t("parser_version"), t("provider"), t("subject_kind"),
+				t("provider_id"), t("language"), t("region"), t("request_shape"), t("digest"),
+				t("observed_at"), t("source_url"), t("etag"), t("last_modified"), t("title"),
+				t("original_title"), t("overview"), t("tagline"), t("content_rating"), t("studio"),
+				t("network"), t("country"), t("release_date"), i("year"), t("artist"),
+				n("length_millis"), {Name: "artist_type", Type: stmt.Text, Nullable: true},
+				n("begin_year"), n("end_year"), t("wikidata_id"), t("biography"),
+				t("biography_source"), t("biography_source_url"), t("disambiguation"),
+				t("release_group_id"), t("group_title"), t("primary_type"), t("barcode"), i("sealed"),
+			},
+			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_evidence"}},
 		},
 	}
 	for x := range defs {

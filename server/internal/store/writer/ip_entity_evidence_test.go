@@ -38,7 +38,8 @@ func ipEntityEvidenceFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usOwn
 		`INSERT INTO metadata_provider_policy(library_id,provider,incarnation,revision,enabled,priority,region,algorithm,refresh_mode,credit_enabled,credit_after_item,credit_after_provider,command_incarnation) VALUES(777,'tmdb',X'09000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000'),(777,'tvdb',X'09000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000'),(777,'musicbrainz',X'0a000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000')`,
 		`INSERT INTO screen_metadata_consent(singleton,revision,confirmed) VALUES(1,1,1) ON CONFLICT(singleton) DO UPDATE SET revision=1,confirmed=1`,
 		`INSERT INTO metadata_runtime_settings(singleton,online_lookups,lookup_epoch) VALUES(1,1,3) ON CONFLICT(singleton) DO UPDATE SET online_lookups=1,lookup_epoch=3`,
-		`INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(1,'tmdb','series','tmdb-1','en','US','ip.tmdb.series.detail.v1',X'0c000000000000000000000000000000',1)`,
+		`INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(1,'tmdb','series','tmdb-1','en','US','ip.tmdb.series.evidence.detail+recordings+media+tracks+credits.v2',X'0c000000000000000000000000000000',1)`,
+		`INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(2,'tmdb','release','tmdb-1','en','US','ip.tmdb.release.evidence.detail+recordings+media+tracks+credits.v2',X'0d000000000000000000000000000000',1)`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), query); err != nil {
 			t.Fatal(query, err)
@@ -63,11 +64,34 @@ func ipEntityEvidenceDigest(value string) [32]byte {
 }
 
 func ipEntityEvidenceHeader(evidenceID string) EvidenceHeaderInput {
-	return EvidenceHeaderInput{ID: evidenceID, SubjectID: 1, ParserVersion: "ip.tmdb.series.v1",
+	parser, shape := ipEntityEvidencePair("tmdb", "series")
+	return EvidenceHeaderInput{ID: evidenceID, SubjectID: 1, ParserVersion: parser,
 		Provider: "tmdb", SubjectKind: "series", ProviderID: "tmdb-1", Language: "en", Region: "US",
-		RequestShape: "ip.tmdb.series.detail.v1", ObservationDigest: ipEntityEvidenceDigest(evidenceID),
+		RequestShape: shape, ObservationDigest: ipEntityEvidenceDigest(evidenceID),
 		ObservedAt: "2026-01-01T00:00:00Z", SourceURL: "https://api.themoviedb.org/3/tv/1",
 		Title: "Series One", Year: 2020}
+}
+
+// ipEntityEvidenceReleaseHeader is one complete release observation header under
+// the corrected ordered-family shape.
+func ipEntityEvidenceReleaseHeader(evidenceID, provider, providerID string, subjectID int64) EvidenceHeaderInput {
+	parser, shape := ipEntityEvidencePair(provider, "release")
+	return EvidenceHeaderInput{ID: evidenceID, SubjectID: subjectID, ParserVersion: parser,
+		Provider: provider, SubjectKind: "release", ProviderID: providerID, Language: "en", Region: "US",
+		RequestShape: shape, ObservationDigest: ipEntityEvidenceDigest(evidenceID),
+		ObservedAt: "2026-01-01T00:00:00Z", SourceURL: "https://musicbrainz.org/ws/2/release/1",
+		Title: "Release One", Artist: "Artist One", Year: 2020}
+}
+
+// ipEntityEvidenceRecordingHeader is one pre-staged recording header for the
+// provider subject identified by subjectID.
+func ipEntityEvidenceRecordingHeader(evidenceID, provider, providerID string, subjectID int64) EvidenceHeaderInput {
+	parser, shape := ipEntityEvidencePair(provider, "recording")
+	return EvidenceHeaderInput{ID: evidenceID, SubjectID: subjectID, ParserVersion: parser,
+		Provider: provider, SubjectKind: "recording", ProviderID: providerID, Language: "en", Region: "US",
+		RequestShape: shape, ObservationDigest: ipEntityEvidenceDigest(evidenceID),
+		ObservedAt: "2026-01-01T00:00:00Z", SourceURL: "https://musicbrainz.org/ws/2/recording/1",
+		Title: "Recording One", Artist: "Artist One", LengthMillis: EvidenceInteger{Present: true, Value: 180000}}
 }
 
 func ipEntityEvidenceDeclarations(counts map[string]int64) []ipEvidenceFamilyDeclaration {
@@ -232,6 +256,9 @@ func TestIPEntityEvidenceBeginNamespacesAndIdentity(t *testing.T) {
 		{"parser_equals_request", func(q *ipEntityEvidenceBeginRequest) {
 			q.header.ParserVersion, q.header.RequestShape = "ip.tmdb.series.v1", "ip.tmdb.series.v1"
 		}},
+		{"pair_of_another_kind", func(q *ipEntityEvidenceBeginRequest) {
+			q.header.ParserVersion, q.header.RequestShape = ipEntityEvidencePair("tmdb", "recording")
+		}},
 		{"movie", func(q *ipEntityEvidenceBeginRequest) { q.header.SubjectKind = "movie" }},
 		{"person", func(q *ipEntityEvidenceBeginRequest) { q.header.SubjectKind = "person" }},
 		{"unknown_provider", func(q *ipEntityEvidenceBeginRequest) { q.header.Provider, q.provider = "plex", "plex" }},
@@ -294,6 +321,32 @@ func TestIPEntityEvidenceBeginNamespacesAndIdentity(t *testing.T) {
 			t.Fatal("refused begins wrote receipts", got)
 		}
 	})
+}
+
+// The superseded v1 spellings encode the old credit-before-media/track order.
+// They are refused outright, so no old-order build can begin, resume or be
+// reinterpreted under the corrected family indexes.
+func TestIPEntityEvidenceHeaderPairRefusals(t *testing.T) {
+	current := ipEntityEvidenceReleaseHeader("evidence-one", "musicbrainz", "mb-release-1", 2)
+	if !ipEntityEvidenceHeaderAllowed(current) {
+		t.Fatal("current ordered-family pair refused")
+	}
+	old := current
+	old.ParserVersion = "ip.musicbrainz.release.header-complete-children.v1"
+	old.RequestShape = "ip.musicbrainz.release.detail+artist-credits+recordings+release-groups.v1"
+	if ipEntityEvidenceHeaderAllowed(old) {
+		t.Fatal("superseded v1 release pair admitted")
+	}
+	mixed := current
+	mixed.ParserVersion = "ip.musicbrainz.release.header-complete-children.v1"
+	if ipEntityEvidenceHeaderAllowed(mixed) {
+		t.Fatal("superseded v1 parser admitted")
+	}
+	otherKind := current
+	otherKind.ParserVersion, otherKind.RequestShape = ipEntityEvidencePair("musicbrainz", "recording")
+	if ipEntityEvidenceHeaderAllowed(otherKind) {
+		t.Fatal("another kind's pair admitted for a release")
+	}
 }
 
 func ipEntityEvidenceAliasRows(first int64, count int) []ipEvidenceAlias {
@@ -409,11 +462,15 @@ func TestIPEntityEvidenceAppendMaximumAndEmptyPages(t *testing.T) {
 	w, r, p, _ := ipEntityEvidenceFixture(t)
 	owner, claim := ipEntityEvidenceOwner(t, w, r, p)
 	begin := ipEntityEvidenceBeginFor(owner, "evidence-one", "build-one", nil)
+	// A release subject carries media, tracks and credits; the corrected family
+	// order materializes media, then track, then credit.
+	begin.header = ipEntityEvidenceReleaseHeader("evidence-one", "tmdb", "tmdb-1", 2)
 	first, turn, tx := ipEntityEvidenceApplyBegin(t, w, r, p, mustEvidenceBegin(t, ipEntityEvidenceIdentity(claim, 2), begin))
 	ipPolicyCommitTurn(t, turn, tx)
 	_ = w
 	_ = r
 	_ = p
+	recording := ipEntityEvidenceRecordingHeader("recording-evidence", "tmdb", "recording-1", 3)
 	sentinels := map[string]func(int) any{
 		"alias": func(n int) any {
 			return ipEvidenceAlias{Ordinal: int64(n), RequestedID: "r", CanonicalID: "tmdb-1", Name: "n"}
@@ -434,7 +491,7 @@ func TestIPEntityEvidenceAppendMaximumAndEmptyPages(t *testing.T) {
 		"media": func(n int) any { return ipEvidenceMedia{Position: int64(n) + 1, Format: "CD", Title: "Disc"} },
 		"track": func(n int) any {
 			return ipEvidenceTrack{TrackID: fmt.Sprintf("track-%d", n), MediumPosition: 1, Position: int64(n) + 1,
-				Number: "1", Title: "Track", RecordingEvidenceID: "recording-evidence"}
+				Number: "1", Title: "Track", RecordingEvidenceID: "recording-evidence", Recording: recording}
 		},
 	}
 	for family := range ipEvidenceFamilySpecs {
@@ -825,6 +882,56 @@ func TestIPEntityEvidenceBounds(t *testing.T) {
 	_ = w
 	_ = r
 	_ = p
+}
+
+// A medium's title and format are the provider's exact strings and may each be
+// empty; presentation fallback belongs outside evidence. Malformed, NUL,
+// oversize and non-contiguous positions are still refused.
+func TestIPEntityEvidenceMediaEmptyAndMalformed(t *testing.T) {
+	w, r, p, _ := ipEntityEvidenceFixture(t)
+	owner, claim := ipEntityEvidenceOwner(t, w, r, p)
+	begin := ipEntityEvidenceBeginFor(owner, "evidence-one", "build-one", map[string]int64{"media": 2})
+	begin.header = ipEntityEvidenceReleaseHeader("evidence-one", "tmdb", "tmdb-1", 2)
+	first, turn, tx := ipEntityEvidenceApplyBegin(t, w, r, p, mustEvidenceBegin(t, ipEntityEvidenceIdentity(claim, 2), begin))
+	ipPolicyCommitTurn(t, turn, tx)
+	page := func(row ipEvidenceMedia) ipEntityEvidenceAppendRequest {
+		q := ipEntityEvidenceAppendFor(first.Value, "media", 0, 1, 1)
+		q.media = []ipEvidenceMedia{row}
+		return q
+	}
+	for _, tc := range []struct{ name, format, title string }{
+		{"title_only_empty", "CD", ""},
+		{"format_only_empty", "", "Disc One"},
+		{"both_empty", "", ""},
+	} {
+		t.Run("admit_"+tc.name, func(t *testing.T) {
+			c, err := newIPEntityEvidenceAppendCommand(ipEntityEvidenceIdentity(claim, 3),
+				page(ipEvidenceMedia{Position: 1, Format: tc.format, Title: tc.title}))
+			if err != nil || c == nil {
+				t.Fatalf("empty medium field refused: %v", err)
+			}
+		})
+	}
+	malformed := []struct {
+		name string
+		row  ipEvidenceMedia
+	}{
+		{"invalid_utf8_format", ipEvidenceMedia{Position: 1, Format: "\xff", Title: "Disc"}},
+		{"invalid_utf8_title", ipEvidenceMedia{Position: 1, Format: "CD", Title: "\xff"}},
+		{"nul_title", ipEvidenceMedia{Position: 1, Format: "CD", Title: "a\x00b"}},
+		{"oversize_format", ipEvidenceMedia{Position: 1, Format: strings.Repeat("f", ipEvidenceTextMax+1), Title: "Disc"}},
+		{"oversize_title", ipEvidenceMedia{Position: 1, Format: "CD", Title: strings.Repeat("t", ipEvidenceTextMax+1)}},
+		{"zero_position", ipEvidenceMedia{Position: 0, Format: "CD", Title: "Disc"}},
+		{"noncontiguous_position", ipEvidenceMedia{Position: 2, Format: "CD", Title: "Disc"}},
+	}
+	for _, tc := range malformed {
+		t.Run("refuse_"+tc.name, func(t *testing.T) {
+			c, err := newIPEntityEvidenceAppendCommand(ipEntityEvidenceIdentity(claim, 3), page(tc.row))
+			if c != nil || !errors.Is(err, ErrInvalid) {
+				t.Fatal("malformed medium admitted", c, err)
+			}
+		})
+	}
 }
 
 func TestIPEntityEvidenceDescriptors(t *testing.T) {
