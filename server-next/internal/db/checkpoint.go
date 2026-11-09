@@ -9,23 +9,29 @@ import (
 
 // WAL policy. SQLite's own automatic checkpoint runs inside a commit, so the person or import
 // whose commit crosses the threshold pays for copying pages and a second disk sync. And while
-// reads overlap, as they do on a busy server, that checkpoint can never start the WAL file
-// again from the beginning, so the file grows for as long as the server stays busy.
+// the server is busy that checkpoint can never start the WAL file again from the beginning,
+// so the file grows for as long as the work lasts.
 //
 // So the automatic checkpoint is off, and two things replace it:
 //
 //   - A helper on its own connection copies committed pages into the database every half
-//     second. It never blocks a writer or a reader.
-//   - When the file passes walRestartBytes, the writer, between two transactions, waits a
-//     moment for the reads in flight to finish and starts the file again. The helper has
-//     already copied nearly everything, so this is short. The file then stays near that
-//     size however long an import runs.
-//   - When writing stops, the helper empties the file.
+//     second. This blocks nobody. When nothing has been written for a whole interval it
+//     empties the file.
+//   - Starting the file again needs a moment with no transaction open, and an import leaves
+//     no gap for anyone but the writer to find one. So when the helper sees the file is due,
+//     it says so right after a copy, and the writer starts the file again after its current
+//     transaction. The copy has left almost nothing to do, so the pause is short. The writer
+//     waits up to walRestartWait for reads in flight; if a slow read is in the way, the
+//     helper asks again next time. The file is then cut back to walKeepBytes.
+//
+// The file is due at walRestartBytes while work is heavy, which keeps restarts rare, and
+// at twice walKeepBytes once writing has slowed, so it is small again soon after an import.
 const (
-	walRestartBytes    = 32 << 20
-	walHelperInterval  = 500 * time.Millisecond
-	walRestartInterval = time.Second           // at most one attempt a second
-	walRestartWait     = 50 * time.Millisecond // how long a restart may wait for reads to finish
+	walRestartBytes   = 256 << 20
+	walKeepBytes      = 16 << 20
+	walQuietGrowth    = 1 << 20 // less growth than this between two looks means writing has slowed
+	walHelperInterval = 500 * time.Millisecond
+	walRestartWait    = 50 * time.Millisecond
 )
 
 func (d *DB) walSize() (int64, time.Time) {
@@ -36,7 +42,7 @@ func (d *DB) walSize() (int64, time.Time) {
 	return info.Size(), info.ModTime()
 }
 
-// checkpointHelper copies committed pages into the database whenever the WAL has changed.
+// checkpointHelper runs the WAL policy until the database closes.
 func (d *DB) checkpointHelper() {
 	defer close(d.helperDone)
 	tick := time.NewTicker(walHelperInterval)
@@ -51,29 +57,26 @@ func (d *DB) checkpointHelper() {
 			size, modified := d.walSize()
 			switch {
 			case size != lastSize || !modified.Equal(lastModified):
+				quiet := size-lastSize < walQuietGrowth
 				lastSize, lastModified = size, modified
 				d.helper.Exec(`PRAGMA wal_checkpoint(PASSIVE)`)
+				if size >= walRestartBytes || quiet && size >= 2*walKeepBytes {
+					d.restartDue.Store(true)
+				}
 			case size > 0:
-				// Nothing was written for a whole interval. If no read is in the way this
-				// empties the file; otherwise it tries again next time.
 				d.helper.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`)
 			}
 		}
 	}
 }
 
-// restartWAL runs on the writer between transactions. It is cheap unless the file is large.
+// restartWAL runs on the writer after every transaction, and does nothing unless the helper
+// has just said the file is due.
 func (d *DB) restartWAL() {
-	if time.Since(d.lastRestart) < walRestartInterval {
+	if !d.restartDue.CompareAndSwap(true, false) {
 		return
 	}
-	if size, _ := d.walSize(); size < walRestartBytes {
-		return
-	}
-	d.lastRestart = time.Now()
 	ctx := context.Background()
-	// A restart waits for reads in flight. Bound that wait: if a slow read is running, the
-	// next attempt will do.
 	d.writeConn.ExecContext(ctx, `PRAGMA busy_timeout = `+strconv.FormatInt(walRestartWait.Milliseconds(), 10))
 	d.writeConn.ExecContext(ctx, `PRAGMA wal_checkpoint(RESTART)`)
 	d.writeConn.ExecContext(ctx, `PRAGMA busy_timeout = 5000`)
