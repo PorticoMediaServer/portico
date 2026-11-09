@@ -61,12 +61,14 @@ func TestSealControlProjectionEnumeratesNativeTextColumns(t *testing.T) {
 	// Every absent mutable TEXT has a NAMED separately charged descriptor.
 	// Future native TEXT is never silently ignored by reflecting over a DTO.
 	excluded := map[string]string{
-		"metadata_evidence":         "observed_at source_url etag last_modified title original_title overview tagline content_rating studio network country release_date artist artist_type wikidata_id biography biography_source biography_source_url disambiguation release_group_id group_title primary_type barcode",
+		// D person fields and IP proof ownership have no EN input path. Their
+		// IP-domain byte registrations remain separate accepting-writer gates.
+		"metadata_evidence":         "birth_date death_date birth_place ip_seal_owner observed_at source_url etag last_modified title original_title overview tagline content_rating studio network country release_date artist artist_type wikidata_id biography biography_source biography_source_url disambiguation release_group_id group_title primary_type barcode",
 		"metadata_evidence_credits": "provider_person_id name artist_name sort_name disambiguation join_phrase role department credit_id",
 		"credit_source_rows":        "original_record_reference original_credit_id original_provider_person_id original_person_identity_key original_person_token original_target_kind original_target_id original_credited_name original_role original_department",
 		"catalog_credit_images":     "metadata_language manifest_algorithm reclaim_state",
 	}
-	generated := map[string]string{"metadata_provider_operations": "source_evidence_kind", "metadata_evidence": "seal_proof_kind", "metadata_evidence_credits": "track_id", "credit_source_publications": "seal_proof_kind", "enrichment_command_receipts": "upstream_evidence_kind source_dependency_kind", "catalog_credit_images": "source_proof_kind"}
+	generated := map[string]string{"metadata_provider_operations": "source_evidence_kind", "metadata_evidence": "seal_proof_kind ip_seal_kind", "metadata_evidence_credits": "track_id", "credit_source_publications": "seal_proof_kind", "enrichment_command_receipts": "upstream_evidence_kind source_dependency_kind", "catalog_credit_images": "source_proof_kind"}
 	for _, table := range []string{"metadata_provider_operations", "metadata_operation_subjects", "metadata_provider_operation_sources", "metadata_candidates", "metadata_provider_subjects", "metadata_evidence", "metadata_evidence_credits", "metadata_evidence_builds", "metadata_evidence_accounting", "credit_source_publications", "credit_source_publication_members", "credit_source_rows", "enrichment_command_receipts", "catalog_assets", "catalog_subjects", "catalog_credit_images"} {
 		bound, layout := enrichmentControlLayout(table)
 		projectionSlots += bound * len(strings.Fields(layout))

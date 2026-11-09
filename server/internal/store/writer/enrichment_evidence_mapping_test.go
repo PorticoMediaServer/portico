@@ -130,7 +130,8 @@ const evidenceReadbackColumns = `id,subject_id,parser_version,provider,subject_k
  title,original_title,overview,tagline,content_rating,studio,network,country,
  release_date,year,artist,length_millis,artist_type,begin_year,end_year,wikidata_id,
  biography,biography_source,biography_source_url,disambiguation,release_group_id,
- group_title,primary_type,barcode,sealed,seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind`
+ group_title,primary_type,barcode,sealed,seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind,
+ birth_date,death_date,birth_place,ip_seal_owner,ip_seal_incarnation,ip_seal_sequence,ip_seal_kind`
 
 func evidenceSQLReadback(t *testing.T, conn *sql.Conn, registry *stmt.Registry) {
 	t.Helper()
@@ -206,6 +207,10 @@ func evidenceSQLReadback(t *testing.T, conn *sql.Conn, registry *stmt.Registry) 
 			var sealProofOwner, sealProofKind sql.NullString
 			var sealProofIncarnation []byte
 			var sealProofSequence sql.NullInt64
+			var birthDate, deathDate, birthPlace string
+			var ipSealOwner, ipSealKind sql.NullString
+			var ipSealIncarnation []byte
+			var ipSealSequence sql.NullInt64
 			err = tx.QueryRowContext(t.Context(), "SELECT "+evidenceReadbackColumns+" FROM metadata_evidence WHERE id=?", want.ID).Scan(
 				&got.ID, &got.SubjectID, &got.ParserVersion, &got.Provider, &got.SubjectKind, &got.ProviderID,
 				&got.Language, &got.Region, &got.RequestShape, &digest, &got.ObservedAt, &got.SourceURL, &got.ETag, &got.LastModified,
@@ -214,6 +219,7 @@ func evidenceSQLReadback(t *testing.T, conn *sql.Conn, registry *stmt.Registry) 
 				&got.Biography, &got.BiographySource, &got.BiographySourceURL, &got.Disambiguation, &got.ReleaseGroupID,
 				&got.GroupTitle, &got.PrimaryType, &got.Barcode, &sealed,
 				&sealProofOwner, &sealProofIncarnation, &sealProofSequence, &sealProofKind,
+				&birthDate, &deathDate, &birthPlace, &ipSealOwner, &ipSealIncarnation, &ipSealSequence, &ipSealKind,
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -233,6 +239,12 @@ func evidenceSQLReadback(t *testing.T, conn *sql.Conn, registry *stmt.Registry) 
 			if sealProofOwner.Valid || sealProofIncarnation != nil || sealProofSequence.Valid || sealProofKind.Valid {
 				t.Fatalf("unsealed header proof fields must be NULL: owner=%+v incarnation=%v sequence=%+v kind=%+v",
 					sealProofOwner, sealProofIncarnation, sealProofSequence, sealProofKind)
+			}
+			// EN's explicit header INSERT neither supplies person data nor acquires
+			// an IP seal. Independently observe all seven adopted D defaults.
+			if birthDate != "" || deathDate != "" || birthPlace != "" || ipSealOwner.Valid || ipSealIncarnation != nil || ipSealSequence.Valid || ipSealKind.Valid {
+				t.Fatalf("EN header acquired person fields or IP proof: birth=%q death=%q place=%q owner=%+v incarnation=%v sequence=%+v kind=%+v",
+					birthDate, deathDate, birthPlace, ipSealOwner, ipSealIncarnation, ipSealSequence, ipSealKind)
 			}
 			violations, err := tx.QueryContext(t.Context(), "PRAGMA foreign_key_check")
 			if err != nil {
