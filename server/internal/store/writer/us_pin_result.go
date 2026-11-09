@@ -101,8 +101,11 @@ func usPINResultVariableBytes(v usPINSavedResult) (int64, error) {
 }
 
 // usPINPublicImage is the frozen public shape of a fresh PIN original: the
-// complete US-04 MemberProfile of the edited profile, exactly memberProfileTx's
-// response after the edit. 532/533 have no other public body. It is a response
+// complete MemberProfile of the edited profile, exactly memberProfileTx's
+// response after the edit, as the packet (US-04) specifies for this command.
+// The own-account 532/533 result is being changed to a retained DirectSnapshot
+// by the follow-up US-09b per SOL-USERS; only the admin clear of another
+// account's profile keeps this MemberProfile closed result. It is a response
 // image captured in the SAME frame, never a receipt field, and a replay never
 // reconstructs it from live source.
 type usPINPublicImage struct {
@@ -154,11 +157,11 @@ func usPINImageDefinitions() []stmt.Definition {
 				Columns: []stmt.IndexColumn{{Name: "account_id", Collation: "BINARY"}}},
 		}}
 	defs := []stmt.Definition{
-		{ID: usPINImageProfileOctets, SQL: `SELECT octet_length(id),octet_length(name),octet_length(art),coalesce(octet_length(allowed_libraries),0),revision,pin_revision,length(pin_hash),is_primary
+		{ID: usPINImageProfileOctets, SQL: `SELECT octet_length(id),octet_length(name),octet_length(art),coalesce(octet_length(allowed_libraries),0),revision,pin_revision,length(pin_hash),is_primary,position
 FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2
 WHERE account_id=? AND id=? AND deleted=0`,
 			Params: []stmt.Param{text("account"), text("profile")}, Cohorts: []stmt.Cohort{{Name: "exact_profile", Bindings: []any{"us-pin-account", "us-pin-profile"}}}, Plan: profilePoint},
-		{ID: usPINImageProfile, SQL: `SELECT id,name,art,allowed_libraries,revision,pin_revision,length(pin_hash),is_primary
+		{ID: usPINImageProfile, SQL: `SELECT id,name,art,allowed_libraries,revision,pin_revision,length(pin_hash),is_primary,position
 FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2
 WHERE account_id=? AND id=? AND deleted=0`,
 			Params: []stmt.Param{text("account"), text("profile")}, Cohorts: []stmt.Cohort{{Name: "exact_profile", Bindings: []any{"us-pin-account", "us-pin-profile"}}}, Plan: profilePoint},
@@ -288,8 +291,8 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 		return nil, 0, err
 	}
 	var idN, nameN, artN, librariesN, pinLength, primary sql.NullInt64
-	var revision, pinRevision int64
-	if err = row.Scan(&idN, &nameN, &artN, &librariesN, &revision, &pinRevision, &pinLength, &primary); err != nil {
+	var revision, pinRevision, position int64
+	if err = row.Scan(&idN, &nameN, &artN, &librariesN, &revision, &pinRevision, &pinLength, &primary, &position); err != nil {
 		return nil, 0, errors.Join(ErrResolveRequired, err)
 	}
 	var profileN [4]int64
@@ -299,7 +302,7 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 		}
 	}
 	if revision != v.revision || pinRevision != v.pinRevision || !primary.Valid || (primary.Int64 != 0 && primary.Int64 != 1) ||
-		pinLength.Valid != v.pinRequired {
+		pinLength.Valid != v.pinRequired || position < 0 {
 		return nil, 0, ErrResolveRequired
 	}
 
@@ -428,15 +431,16 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 	var id, name, art string
 	var libraries sql.NullString
 	var pinPresent sql.NullInt64
-	if err = row.Scan(&id, &name, &art, &libraries, &revision, &pinRevision, &pinPresent, &primary); err != nil {
+	var profilePosition int64
+	if err = row.Scan(&id, &name, &art, &libraries, &revision, &pinRevision, &pinPresent, &primary, &profilePosition); err != nil {
 		return nil, 0, errors.Join(ErrResolveRequired, err)
 	}
 	if id != target.profile || revision != v.revision || pinRevision != v.pinRevision || pinPresent.Valid != v.pinRequired ||
-		int64(len(id)) != profileN[0] || int64(len(name)) != profileN[1] || int64(len(art)) != profileN[2] {
+		profilePosition != position || int64(len(id)) != profileN[0] || int64(len(name)) != profileN[1] || int64(len(art)) != profileN[2] {
 		return nil, 0, ErrResolveRequired
 	}
 	image := USMemberProfileImage{
-		ID: id, Name: name, Primary: primary.Int64 == 1, Art: art,
+		ID: id, Name: name, Primary: primary.Int64 == 1, Position: int(position), Art: art,
 		Revision: revision, PINRevision: pinRevision, PINRequired: pinPresent.Valid,
 		AllowedLibraries: []string{},
 	}

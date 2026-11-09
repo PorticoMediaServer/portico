@@ -1,13 +1,17 @@
 package writer
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
@@ -58,7 +62,7 @@ func usPINDispatchFixture(t *testing.T) *usPINHarness {
 		t.Fatal(err)
 	}
 	return &usPINHarness{w: w, path: path, r: r, proof: proof, issuer: i, owner: policy.ownerID,
-		member: policy.memberIncarnation, hash: []byte(usPINFixtureHash)}
+		member: i.memberIncarnation, hash: []byte(usPINFixtureHash)}
 }
 
 // usPINCommand freezes one PIN preparation at the exact target revisions the
@@ -120,70 +124,126 @@ func (h *usPINHarness) source(t *testing.T, profile string) (revision, pinRevisi
 	return revision, pinRevision, present
 }
 
-// original image facts read with plain SQL, independent of the loader logic.
-func (h *usPINHarness) profileOracle(t *testing.T, profile string) USMemberProfileImage {
-	t.Helper()
-	var out USMemberProfileImage
-	var libraries sql.NullString
-	if err := h.w.db.QueryRowContext(t.Context(), `SELECT name,art,is_primary,position,revision,pin_revision,pin_hash IS NOT NULL,allowed_libraries FROM direct_profiles WHERE account_id=? AND id=?`,
-		h.issuer.account, profile).Scan(&out.Name, &out.Art, &out.Primary, &out.Position, &out.Revision, &out.PINRevision, &out.PINRequired, &libraries); err != nil {
-		t.Fatal(err)
+// usPINImageFromProduct converts the product's independent memberProfileTx
+// result into the image DTO so every public field is compared, not a chosen
+// subset.
+func usPINImageFromProduct(p identity.MemberProfile) USMemberProfileImage {
+	out := USMemberProfileImage{
+		ID: p.ID, Name: p.Name, Primary: p.Primary, Position: p.Position, Art: p.Art,
+		Revision: p.Revision, PINRevision: p.PINRevision, PINRequired: p.PINRequired,
+		AllowedLibraries: append([]string{}, p.AllowedLibraries...),
+		Restrictions: USMemberProfileRestrictionsImage{
+			ProfileID: p.Restrictions.ProfileID, RatingSystem: p.Restrictions.RatingSystem,
+			MaximumAgeRating: p.Restrictions.MaximumAgeRating, MaximumAge: p.Restrictions.MaximumAge,
+			AllowUnrated: p.Restrictions.AllowUnrated, BlockedLabels: append([]string{}, p.Restrictions.BlockedLabels...),
+			AllowDownloads: p.Restrictions.AllowDownloads, AllowLiveTV: p.Restrictions.AllowLiveTV,
+			AllowDVR: p.Restrictions.AllowDVR, AllowWatchTogether: p.Restrictions.AllowWatchTogether,
+			Revision: p.Restrictions.Revision,
+		},
 	}
-	out.ID = profile
-	out.AllowedLibraries = []string{}
-	if libraries.Valid {
-		ids, err := decodeUSLibraryIDs(libraries.String)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ids != nil {
-			out.AllowedLibraries = ids
-		}
-	}
-	var version int64
-	var updatedAt, sourceMIME string
-	switch scan := h.w.db.QueryRowContext(t.Context(), `SELECT version,updated_at,source_mime FROM profile_avatars WHERE profile_id=?`, profile).Scan(&version, &updatedAt, &sourceMIME); {
-	case errors.Is(scan, sql.ErrNoRows):
-		out.Restrictions = USMemberProfileRestrictionsImage{ProfileID: profile, MaximumAge: -1, AllowUnrated: true,
-			BlockedLabels: []string{}, AllowDownloads: true, AllowLiveTV: true,
-			AllowDVR: h.primaryOwner(t, profile), AllowWatchTogether: true, Revision: 1}
-	case scan != nil:
-		t.Fatal(scan)
-	default:
-		out.Avatar = &USMemberProfileAvatarImage{ProfileID: profile, Version: version, UpdatedAt: updatedAt,
-			SourceMIME: sourceMIME, URL: usPINProfileURL(h.issuer.account, profile, version)}
-	}
-	var ratingSystem, maximumAgeRating, labels string
-	var maximumAge, allowUnrated, allowDownloads, allowLiveTV, allowDVR, allowWatchTogether, restrictionRevision int64
-	switch scan := h.w.db.QueryRowContext(t.Context(), `SELECT rating_system,maximum_age_rating,blocked_labels,maximum_age,allow_unrated,allow_downloads,allow_live_tv,allow_dvr,allow_watch_together,revision FROM profile_restrictions WHERE profile_id=?`, profile).
-		Scan(&ratingSystem, &maximumAgeRating, &labels, &maximumAge, &allowUnrated, &allowDownloads, &allowLiveTV, &allowDVR, &allowWatchTogether, &restrictionRevision); {
-	case errors.Is(scan, sql.ErrNoRows):
-	case scan != nil:
-		t.Fatal(scan)
-	default:
-		blocked, err := decodeUSPINLabels(labels)
-		if err != nil {
-			t.Fatal(err)
-		}
-		out.Restrictions = USMemberProfileRestrictionsImage{ProfileID: profile, RatingSystem: ratingSystem,
-			MaximumAgeRating: maximumAgeRating, MaximumAge: int(maximumAge), AllowUnrated: allowUnrated == 1,
-			BlockedLabels: blocked, AllowDownloads: allowDownloads == 1, AllowLiveTV: allowLiveTV == 1,
-			AllowDVR: allowDVR == 1, AllowWatchTogether: allowWatchTogether == 1, Revision: restrictionRevision}
+	if p.Avatar != nil {
+		out.Avatar = &USMemberProfileAvatarImage{ProfileID: p.Avatar.ProfileID, Version: p.Avatar.Version,
+			UpdatedAt: p.Avatar.UpdatedAt, SourceMIME: p.Avatar.SourceMIME, URL: p.Avatar.URL}
 	}
 	return out
 }
 
-func (h *usPINHarness) primaryOwner(t *testing.T, profile string) bool {
+// productImage is the independent product read: the merged memberProfileTx
+// response for this profile, never the loader's own SQL.
+func (h *usPINHarness) productImage(t *testing.T, profile string) USMemberProfileImage {
 	t.Helper()
-	var n int64
-	err := h.w.db.QueryRowContext(t.Context(), `SELECT 1 FROM direct_profiles AS p CROSS JOIN direct_memberships AS m ON m.account_id=p.account_id WHERE p.id=? AND p.is_primary=1 AND p.deleted=0 AND m.role='owner' AND m.disabled=0`, profile).Scan(&n)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false
-	}
+	tx, err := h.w.db.BeginTx(t.Context(), &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return n == 1
+	defer func() { _ = tx.Rollback() }()
+	profiles, err := identity.MemberProfilesTx(t.Context(), tx, h.issuer.account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range profiles.Items {
+		if p.ID == profile {
+			return usPINImageFromProduct(p)
+		}
+	}
+	t.Fatalf("product read has no profile %q", profile)
+	return USMemberProfileImage{}
+}
+
+// usPINImageMismatches compares the ENTIRE MemberProfile field by field. Any
+// field the loader fails to populate appears here by name.
+func usPINImageMismatches(got, want USMemberProfileImage) []string {
+	var out []string
+	add := func(name string, g, w any) {
+		if !reflect.DeepEqual(g, w) {
+			out = append(out, fmt.Sprintf("%s: got %v want %v", name, g, w))
+		}
+	}
+	add("ID", got.ID, want.ID)
+	add("Name", got.Name, want.Name)
+	add("Primary", got.Primary, want.Primary)
+	add("Position", got.Position, want.Position)
+	add("Art", got.Art, want.Art)
+	add("Revision", got.Revision, want.Revision)
+	add("PINRevision", got.PINRevision, want.PINRevision)
+	add("PINRequired", got.PINRequired, want.PINRequired)
+	add("AllowedLibraries", got.AllowedLibraries, want.AllowedLibraries)
+	add("Restrictions.ProfileID", got.Restrictions.ProfileID, want.Restrictions.ProfileID)
+	add("Restrictions.RatingSystem", got.Restrictions.RatingSystem, want.Restrictions.RatingSystem)
+	add("Restrictions.MaximumAgeRating", got.Restrictions.MaximumAgeRating, want.Restrictions.MaximumAgeRating)
+	add("Restrictions.MaximumAge", got.Restrictions.MaximumAge, want.Restrictions.MaximumAge)
+	add("Restrictions.AllowUnrated", got.Restrictions.AllowUnrated, want.Restrictions.AllowUnrated)
+	add("Restrictions.BlockedLabels", got.Restrictions.BlockedLabels, want.Restrictions.BlockedLabels)
+	add("Restrictions.AllowDownloads", got.Restrictions.AllowDownloads, want.Restrictions.AllowDownloads)
+	add("Restrictions.AllowLiveTV", got.Restrictions.AllowLiveTV, want.Restrictions.AllowLiveTV)
+	add("Restrictions.AllowDVR", got.Restrictions.AllowDVR, want.Restrictions.AllowDVR)
+	add("Restrictions.AllowWatchTogether", got.Restrictions.AllowWatchTogether, want.Restrictions.AllowWatchTogether)
+	add("Restrictions.Revision", got.Restrictions.Revision, want.Restrictions.Revision)
+	if (got.Avatar == nil) != (want.Avatar == nil) {
+		out = append(out, fmt.Sprintf("Avatar presence: got %v want %v", got.Avatar != nil, want.Avatar != nil))
+	} else if got.Avatar != nil {
+		add("Avatar.ProfileID", got.Avatar.ProfileID, want.Avatar.ProfileID)
+		add("Avatar.Version", got.Avatar.Version, want.Avatar.Version)
+		add("Avatar.UpdatedAt", got.Avatar.UpdatedAt, want.Avatar.UpdatedAt)
+		add("Avatar.SourceMIME", got.Avatar.SourceMIME, want.Avatar.SourceMIME)
+		add("Avatar.URL", got.Avatar.URL, want.Avatar.URL)
+	}
+	return out
+}
+
+func (h *usPINHarness) assertImageParity(t *testing.T, image *USMemberProfileImage, profile string) {
+	t.Helper()
+	if image == nil {
+		t.Fatalf("no image for %q", profile)
+	}
+	if mismatches := usPINImageMismatches(*image, h.productImage(t, profile)); len(mismatches) > 0 {
+		t.Fatalf("image parity for %q:\n%s", profile, strings.Join(mismatches, "\n"))
+	}
+}
+
+// usPINDefinitionSQL returns the exact captured SQL for one statement ID.
+func usPINDefinitionSQL(t *testing.T, defs []stmt.Definition, id stmt.ID) string {
+	t.Helper()
+	for _, d := range defs {
+		if d.ID == id {
+			return d.SQL
+		}
+	}
+	t.Fatalf("missing statement %q", id)
+	return ""
+}
+
+// usPINOrderConn observes the exact query order without changing results.
+type usPINOrderConn struct {
+	writerDriverConn
+	onQuery func(string)
+}
+
+func (c *usPINOrderConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if c.onQuery != nil {
+		c.onQuery(query)
+	}
+	return c.writerDriverConn.QueryContext(ctx, query, args)
 }
 
 // Original, then replay/Resolve of the same identity, then the floor-only ACK.
@@ -206,10 +266,9 @@ func TestUSPINPhysicalOriginalReplayAndACK(t *testing.T) {
 		got.Result.OwnerCount != 1 || got.Result.OwnerBytes != got.Result.ChargedBytes {
 		t.Fatal("original accounting", got.Result)
 	}
-	// The complete US-04 image is the post-effect source, independently read.
-	if image := got.Result.Image.Profile; !reflect.DeepEqual(*image, h.profileOracle(t, h.issuer.profile)) {
-		t.Fatalf("image parity:\n got %+v\nwant %+v", *image, h.profileOracle(t, h.issuer.profile))
-	}
+	// The complete US-04 image is the post-effect source, independently read
+	// through the product's own memberProfileTx.
+	h.assertImageParity(t, got.Result.Image.Profile, h.issuer.profile)
 	if image := got.Result.Image.Profile; image.PINRequired != true || image.Revision != 2 || image.PINRevision != 2 ||
 		image.Name != "Issuer" || image.Art != "blue" || image.Primary != true || !image.Restrictions.AllowDVR ||
 		image.Restrictions.MaximumAge != -1 || image.Restrictions.Revision != 1 || image.Avatar != nil {
@@ -349,6 +408,36 @@ func TestUSPINSetThenClearBothRevisionBumps(t *testing.T) {
 	}
 }
 
+// The image of a secondary profile at stored position 2 is the complete product
+// MemberProfile for both a SET and a CLEAR. The old parity fixture only ever
+// compared the primary profile at the default position, which hid an unloaded
+// position field.
+func TestUSPINSecondaryProfileImageParity(t *testing.T) {
+	h := usPINDispatchFixture(t)
+	lifetime := strings.Repeat("d", 32)
+	set := h.command(t, usPINSet, usPINIdentity(1), usPINIssuerSecondary, lifetime, 1, 1)
+	got, err := h.dispatch(t, usPINSet, h.input(t, set))
+	if err != nil || got.Result.Outcome.State != Applied || got.Result.Image.Profile == nil {
+		t.Fatal("secondary set", got, err)
+	}
+	if image := got.Result.Image.Profile; image.Position != 2 || image.Primary || !image.PINRequired {
+		t.Fatalf("secondary set image facts: position=%d primary=%v pin=%v", image.Position, image.Primary, image.PINRequired)
+	}
+	h.assertImageParity(t, got.Result.Image.Profile, usPINIssuerSecondary)
+	if _, err := h.dispatch(t, usPINSet, &usPINInvocation{request: h.input(t, set).request, ack: true}); err != nil {
+		t.Fatal(err)
+	}
+	clear := h.command(t, usPINClear, usPINIdentity(2), usPINIssuerSecondary, lifetime, 2, 2)
+	got, err = h.dispatch(t, usPINClear, h.input(t, clear))
+	if err != nil || got.Result.Outcome.State != Applied || got.Result.Image.Profile == nil {
+		t.Fatal("secondary clear", got, err)
+	}
+	if image := got.Result.Image.Profile; image.Position != 2 || image.Primary || image.PINRequired {
+		t.Fatalf("secondary clear image facts: position=%d primary=%v pin=%v", image.Position, image.Primary, image.PINRequired)
+	}
+	h.assertImageParity(t, got.Result.Image.Profile, usPINIssuerSecondary)
+}
+
 // One scalar fence generation gates every other family of the profile without
 // scanning, rewriting or counting them. Only the proof-checked acting family
 // receives a witness.
@@ -388,7 +477,7 @@ func TestUSPINStaleRevisionConflicts(t *testing.T) {
 		t.Fatal("stale revision", out, err)
 	}
 	if revision, _, present := h.source(t, h.issuer.profile); revision != 2 || present != 0 ||
-		usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences`) != 0 ||
+		usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences WHERE scope_kind='profile_pin'`) != 0 ||
 		usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 0 {
 		t.Fatal("conflicting original wrote a prefix", revision)
 	}
@@ -416,7 +505,7 @@ func TestUSPINReceiptFailureRollsBackSourceAndFence(t *testing.T) {
 			if revision, pinRevision, present := h.source(t, h.issuer.profile); revision != 1 || pinRevision != 1 || present != 0 {
 				t.Fatal("source effect survived rollback", revision, pinRevision, present)
 			}
-			if usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences`) != 0 ||
+			if usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences WHERE scope_kind='profile_pin'`) != 0 ||
 				usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 0 ||
 				usPINQuery(t, h.w, `SELECT last_sequence FROM security_command_owners`) != 0 ||
 				usPINQuery(t, h.w, `SELECT retained_variable_bytes FROM security_command_owners`) != 0 {
@@ -451,7 +540,7 @@ func TestUSPINReceiptQuotaRefusesBeforeEffects(t *testing.T) {
 			}
 			if revision, _, present := h.source(t, h.issuer.profile); revision != 1 || present != 0 ||
 				usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 0 ||
-				usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences`) != 0 {
+				usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences WHERE scope_kind='profile_pin'`) != 0 {
 				t.Fatal("capacity refusal wrote an effect", revision)
 			}
 		})
@@ -473,20 +562,64 @@ func TestUSPINDispatchRecheckFunding(t *testing.T) {
 }
 
 // A denial at the entry or final release REPLACES the body outcome and rolls
-// everything back.
+// everything back. The second case cancels AFTER the source effect, fence and
+// receipt are applied, so only the final release recheck can deny it.
 func TestUSPINCanceledReleaseDeniesAndRollsBack(t *testing.T) {
-	h := usPINDispatchFixture(t)
-	command := h.command(t, usPINSet, usPINIdentity(1), h.issuer.profile, h.issuer.profileLifetime, 1, 1)
-	turn, a, cancel := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
-	cancel()
-	out, err := runUSPINDispatch(t.Context(), turn, a, h.input(t, command))
-	if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usPINOutcome{}) {
-		t.Fatal("canceled preparation was accepted", out, err)
-	}
-	if revision, _, present := h.source(t, h.issuer.profile); revision != 1 || present != 0 ||
-		usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 0 {
-		t.Fatal("canceled preparation wrote source", revision)
-	}
+	t.Run("entry", func(t *testing.T) {
+		h := usPINDispatchFixture(t)
+		command := h.command(t, usPINSet, usPINIdentity(1), h.issuer.profile, h.issuer.profileLifetime, 1, 1)
+		turn, a, cancel := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
+		cancel()
+		out, err := runUSPINDispatch(t.Context(), turn, a, h.input(t, command))
+		if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usPINOutcome{}) {
+			t.Fatal("canceled preparation was accepted", out, err)
+		}
+		if revision, _, present := h.source(t, h.issuer.profile); revision != 1 || present != 0 ||
+			usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 0 {
+			t.Fatal("canceled preparation wrote source", revision)
+		}
+	})
+	t.Run("after_effect", func(t *testing.T) {
+		h := usPINDispatchFixture(t)
+		command := h.command(t, usPINSet, usPINIdentity(1), h.issuer.profile, h.issuer.profileLifetime, 1, 1)
+		if err := h.w.db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		connector, err := sqliteconn.Connector(h.path, h.w.config, sqliteconn.ExistingFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		profileSQL := usPINDefinitionSQL(t, usPINImageDefinitions(), usPINImageProfile)
+		receiptSQL := usPINDefinitionSQL(t, usPINReceiptDefinitions(), usPINReceiptInsert)
+		var effectApplied, canceled bool
+		var cancel context.CancelFunc
+		h.w.openPool(connector, func(conn driver.Conn) driver.Conn {
+			return &usPINOrderConn{writerDriverConn: conn.(writerDriverConn), onQuery: func(query string) {
+				if query == receiptSQL {
+					effectApplied = true
+				}
+				if query == profileSQL && effectApplied && !canceled {
+					canceled = true
+					cancel()
+				}
+			}}
+		})
+		turn, a, stop := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
+		cancel = stop
+		out, err := runUSPINDispatch(t.Context(), turn, a, h.input(t, command))
+		if !effectApplied || !canceled {
+			t.Fatalf("test did not cancel after the effect: applied=%v canceled=%v", effectApplied, canceled)
+		}
+		if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usPINOutcome{}) {
+			t.Fatal("release-time cancellation was accepted", out, err)
+		}
+		if revision, pinRevision, present := h.source(t, h.issuer.profile); revision != 1 || pinRevision != 1 || present != 0 ||
+			usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 0 ||
+			usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences WHERE scope_kind='profile_pin'`) != 0 ||
+			usPINQuery(t, h.w, `SELECT last_sequence FROM security_command_owners`) != 0 {
+			t.Fatal("release-time denial left the applied prefix", revision, pinRevision, present)
+		}
+	})
 }
 
 // This bounded composition admits only the caller's own account. A target
@@ -547,6 +680,50 @@ func TestUSPINUnknownCommitNeverApplied(t *testing.T) {
 	}
 }
 
+// A committed command that then returns an error (a safety overrun observed
+// after the native COMMIT) must carry ZERO output. The physical prefix is
+// committed; the caller still only learns to resolve the ORIGINAL.
+func TestUSPINCommittedOverrunZeroesOutput(t *testing.T) {
+	h := usPINDispatchFixture(t)
+	connector, err := sqliteconn.Connector(h.path, h.w.config, sqliteconn.ExistingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := h.w.now()
+	fault := &faultConnector{Connector: connector}
+	fault.afterNativeCommit = func() { now = now.Add(MaxCommandSafetyHold + time.Millisecond) }
+	installFaultPool(h.w, fault)
+	h.w.now = func() time.Time { return now }
+	command := h.command(t, usPINSet, usPINIdentity(1), h.issuer.profile, h.issuer.profileLifetime, 1, 1)
+	out, err := h.dispatch(t, usPINSet, h.input(t, command))
+	if !errors.Is(err, ErrOverrun) || !reflect.DeepEqual(out, usPINOutcome{}) {
+		t.Fatal("committed overrun carried output", out, err)
+	}
+	// The overrun fence closed the private pool; read the committed file through
+	// a fresh independent reader.
+	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
+	db, _, err := sqliteconn.Open(t.Context(), h.path, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	read := func(query string) int64 {
+		var n int64
+		if scanErr := db.QueryRowContext(t.Context(), query).Scan(&n); scanErr != nil {
+			t.Fatal(query, scanErr)
+		}
+		return n
+	}
+	if read(`SELECT revision FROM direct_profiles WHERE id='`+h.issuer.profile+`'`) != 2 ||
+		read(`SELECT pin_revision FROM direct_profiles WHERE id='`+h.issuer.profile+`'`) != 2 ||
+		read(`SELECT count(*) FROM direct_profiles WHERE id='`+h.issuer.profile+`' AND pin_hash IS NOT NULL`) != 1 ||
+		read(`SELECT count(*) FROM security_command_receipts`) != 1 ||
+		read(`SELECT count(*) FROM identity_security_fences WHERE scope_kind='profile_pin'`) != 1 ||
+		read(`SELECT retained_variable_bytes FROM security_command_owners`) <= 0 {
+		t.Fatal("committed overrun did not commit the physical prefix")
+	}
+}
+
 // A retired owner is not resurrected: replay stays a read-only original while
 // writes and ACK refuse.
 func TestUSPINRetiredOwner(t *testing.T) {
@@ -594,19 +771,32 @@ func TestUSPINHashNeverEscapesAndReplayAfterDrift(t *testing.T) {
 		}
 	}
 	// Drift every live source fact the original image named, then replay: the
-	// saved result and digest are unchanged and no image is rebuilt.
-	wc008NativeExec(t, h.w, `UPDATE direct_profiles SET name='Renamed',revision=revision+1,pin_hash=NULL WHERE id=?`, h.issuer.profile)
-	wc008NativeExec(t, h.w, `UPDATE direct_memberships SET role='member' WHERE account_id=?`, h.issuer.account)
-	wc008NativeExec(t, h.w, `UPDATE authorization_session_families SET revoked=1`)
-	replay, err := h.dispatch(t, usPINSet, &usPINInvocation{request: inv.request})
+	// saved result and digest are unchanged and no image is rebuilt. The turn is
+	// admitted BEFORE the drift and the drift runs on its own connection, so the
+	// dispatch recheck (not turn setup) observes it.
+	turn, a, _ := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
+	for _, drift := range []struct {
+		sql  string
+		args []any
+	}{
+		{`UPDATE direct_profiles SET name='Renamed',revision=revision+1,pin_hash=NULL WHERE id=?`, []any{h.issuer.profile}},
+		{`UPDATE direct_memberships SET role='member' WHERE account_id=?`, []any{h.issuer.account}},
+		{`UPDATE authorization_session_families SET revoked=1`, nil},
+	} {
+		if _, err := turn.transaction.conn.ExecContext(turn.transaction.ctx, drift.sql, drift.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	replay, err := runUSPINDispatch(t.Context(), turn, a, &usPINInvocation{request: inv.request})
 	if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(replay, usPINOutcome{}) {
 		// Revoking the current family is a current-source denial, not a replay.
 		t.Fatal("drifted current authority was not denied", replay, err)
 	}
-	// Restore current authority but keep the original's source facts drifted.
+	// The denied turn rolled its drift back; restore current authority but
+	// re-apply the original's source facts as drift for the replay.
 	wc008NativeExec(t, h.w, `UPDATE direct_memberships SET role='owner' WHERE account_id=?`, h.issuer.account)
 	wc008NativeExec(t, h.w, `UPDATE authorization_session_families SET revoked=0, pin_gate=0`)
-	wc008NativeExec(t, h.w, `UPDATE direct_profiles SET pin_hash=? WHERE id=?`, h.hash, h.issuer.profile)
+	wc008NativeExec(t, h.w, `UPDATE direct_profiles SET name='Renamed',revision=revision+1,pin_hash=? WHERE id=?`, h.hash, h.issuer.profile)
 	replay, err = h.dispatch(t, usPINSet, &usPINInvocation{request: inv.request})
 	if err != nil || replay.Result.Outcome.State != Applied || !replay.Result.Outcome.Replayed ||
 		replay.Result.Image.Profile != nil || !reflect.DeepEqual(replay.Result.Value, got.Result.Value) {
@@ -616,22 +806,41 @@ func TestUSPINHashNeverEscapesAndReplayAfterDrift(t *testing.T) {
 
 // A large but legal stored source is refused by the image preflight BEFORE any
 // materialization, and the already-composed source+fence+receipt prefix rolls
-// back.
+// back. The exact capacity refusal and the statement order prove the grant
+// charge ran before the first TEXT scan: removing it would execute the profile
+// read instead of refusing here.
 func TestUSPINImagePreflightRefusesBeforeMaterialization(t *testing.T) {
 	h := usPINDispatchFixture(t)
 	big := strings.Repeat("x", 2<<20)
 	wc008NativeExec(t, h.w, `UPDATE direct_profiles SET name=? WHERE id=?`, big, h.issuer.profile)
+	if err := h.w.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(h.path, h.w.config, sqliteconn.ExistingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileSQL := usPINDefinitionSQL(t, usPINImageDefinitions(), usPINImageProfile)
+	var materialized bool
+	h.w.openPool(connector, func(conn driver.Conn) driver.Conn {
+		return &usPINOrderConn{writerDriverConn: conn.(writerDriverConn), onQuery: func(query string) {
+			if query == profileSQL {
+				materialized = true
+			}
+		}}
+	})
 	command := h.command(t, usPINSet, usPINIdentity(1), h.issuer.profile, h.issuer.profileLifetime, 1, 1)
 	turn, a, _ := usPolicyDispatchTurn(t, h.w, h.r, h.proof, usPINSet, 0)
-	for _, id := range []stmt.ID{usPINImageProfile, usPINImageRestriction, usPINImageAvatar} {
-		delete(turn.steps, id)
-	}
 	out, err := runUSPINDispatch(t.Context(), turn, a, h.input(t, command))
-	if err == nil || !reflect.DeepEqual(out, usPINOutcome{}) {
-		t.Fatal("over-large image escaped", out, err)
+	var refusal *Refusal
+	if !errors.As(err, &refusal) || refusal.Code != RefusalCapacity || !reflect.DeepEqual(out, usPINOutcome{}) {
+		t.Fatal("over-large image was not refused by capacity", out, err)
+	}
+	if materialized {
+		t.Fatal("profile TEXT was materialized before the preflight charge refused")
 	}
 	if revision, _, present := h.source(t, h.issuer.profile); revision != 1 || present != 0 ||
-		usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences`) != 0 ||
+		usPINQuery(t, h.w, `SELECT count(*) FROM identity_security_fences WHERE scope_kind='profile_pin'`) != 0 ||
 		usPINQuery(t, h.w, `SELECT count(*) FROM security_command_receipts`) != 0 {
 		t.Fatal("refused image left a prefix", revision)
 	}
@@ -651,9 +860,7 @@ func TestUSPINImageStoredRestrictionsAndAvatar(t *testing.T) {
 		t.Fatal(err)
 	}
 	image := got.Result.Image.Profile
-	if image == nil || !reflect.DeepEqual(*image, h.profileOracle(t, h.issuer.profile)) {
-		t.Fatalf("stored image parity:\n got %+v", image)
-	}
+	h.assertImageParity(t, image, h.issuer.profile)
 	if image.Restrictions.RatingSystem != "mpaa" || image.Restrictions.MaximumAge != 13 ||
 		image.Restrictions.AllowUnrated || !reflect.DeepEqual(image.Restrictions.BlockedLabels, []string{"violence", "gore"}) ||
 		image.Restrictions.AllowDownloads || image.Restrictions.Revision != 4 ||
