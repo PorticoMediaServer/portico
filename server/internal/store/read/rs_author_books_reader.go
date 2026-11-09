@@ -9,7 +9,6 @@ import (
 	"cmp"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,10 +37,15 @@ type RSAuthorBookInput struct {
 	Limit  int
 	After  *RSAuthorBookCursor
 }
+
+// RSAuthorBookCursor continues on the ordered key: the last delivered
+// NOCASE-folded title and its entity ID. The identity binds it to the fence,
+// author key, source, order and limit that produced it.
 type RSAuthorBookCursor struct {
-	identity                     [32]byte
-	author, library, kind, after int64
-	limit                        int
+	identity                  [32]byte
+	author, library, kind, id int64
+	limit                     int
+	titleKey                  string
 }
 
 // MissingCanonicalFacts identifies facts unavailable in the accepted scalar
@@ -77,6 +81,7 @@ type RSAuthorBookPreparation struct {
 	scan, fileAfter  int64
 	files            map[int64]uint8
 	authorContext    bool
+	start            int
 
 	phase       int
 	selected    []int64
@@ -116,7 +121,7 @@ func (p *RSAuthorBookPreparation) Close() error {
 }
 func (r *RSAuthorBookReader) Begin(ctx context.Context, owner governor.OwnerID, deadline time.Time, reservedBytes int64, in RSAuthorBookInput) (*RSAuthorBookPreparation, *governor.Refusal, error) {
 	v := in.View
-	if r == nil || ctx == nil || owner == 0 || in.Author <= 0 || in.Limit < 1 || in.Limit > MaxPage || v.Library <= 0 || v.Kind != 13 || v.Database == "" || len(v.Database) > 256 || v.TokenHash == "" || len(v.TokenHash) > 256 || v.Now.IsZero() || v.After != nil || v.Descending || v.KeepArticles || v.policy.recipe != 0 {
+	if r == nil || ctx == nil || owner == 0 || in.Author <= 0 || in.Limit < 1 || in.Limit > MaxPage || v.Library <= 0 || v.Kind != 13 || v.Database == "" || len(v.Database) > 256 || v.TokenHash == "" || len(v.TokenHash) > 256 || v.Now.IsZero() || v.After != nil || v.KeepArticles || v.policy.recipe != 0 {
 		return nil, nil, ErrInput
 	}
 	key := sha256.Sum256([]byte(fmt.Sprintf("%d/%#v", owner, in)))
@@ -204,36 +209,38 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 	if p.phase < 2 {
 		err = r.enumerate(ctx, q, out, p, at, &cost)
 	} else if p.phase == 2 {
+		// The legacy author surface orders its books section by title
+		// COLLATE NOCASE <dir>, entity_id <dir>; the series display is task 13's
+		// EffectiveSeriesPending gap, not this page's order. NOCASE is the
+		// SQLite ASCII-only fold, so titles that differ only in case tie on the
+		// entity ID in the requested direction.
+		in := p.input
+		desc := in.View.Descending
 		slices.SortFunc(p.entries, func(a, b rsAuthorBookEntry) int {
-			if n := cmp.Compare(a.position, b.position); n != 0 {
-				return n
-			}
-			if n := cmp.Compare(a.title, b.title); n != 0 {
-				return n
-			}
-			return cmp.Compare(a.id, b.id)
+			return rsAuthorBookOrder(a, b, desc)
 		})
 		id := p.identity()
-		in := p.input
-		after := int64(0)
+		start := 0
 		if a := in.After; a != nil {
 			if a.identity != id || a.author != in.Author || a.library != in.View.Library || a.kind != 8 || a.limit != in.Limit {
 				return page, cost, ErrStale
 			}
-			after = a.after
+			start = len(p.entries)
+			for i, entry := range p.entries {
+				if rsAuthorBookAfter(entry, a, desc) {
+					start = i
+					break
+				}
+			}
 		}
-
-		offset := int(after)
-		if offset < 0 || offset > len(p.entries) {
-			return page, cost, ErrStale
-		}
-		end := min(offset+in.Limit, len(p.entries))
-		if err = p.charge(int64(end-offset) * 4096); err != nil {
+		end := min(start+in.Limit, len(p.entries))
+		if err = p.charge(int64(end-start) * 4096); err != nil {
 			return
 		}
-		for _, entry := range p.entries[offset:end] {
+		for _, entry := range p.entries[start:end] {
 			p.selected = append(p.selected, entry.id)
 		}
+		p.start = start
 		p.cards = make([]RSAuthorBookCard, len(p.selected))
 		p.phase = 3
 	} else if p.hydrate < len(p.selected) {
@@ -273,12 +280,9 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 		return
 	}
 	page = RSAuthorBookPage{Cards: p.cards, Total: len(p.entries), Complete: true}
-	offset := 0
-	if p.input.After != nil {
-		offset = int(p.input.After.after)
-	}
-	if offset+len(p.selected) < len(p.entries) {
-		page.Next = &RSAuthorBookCursor{identity: p.identity(), author: p.input.Author, library: p.input.View.Library, kind: 8, limit: p.input.Limit, after: int64(offset + len(p.selected))}
+	if len(p.selected) > 0 && p.start+len(p.selected) < len(p.entries) {
+		last := p.entries[p.start+len(p.selected)-1]
+		page.Next = &RSAuthorBookCursor{identity: p.identity(), author: p.input.Author, library: p.input.View.Library, kind: 8, limit: p.input.Limit, titleKey: last.titleKey, id: last.id}
 	}
 	// Output now owns the charged values; retiring the preparation drops all
 	// references without mutating the consumer's copied page.
@@ -289,10 +293,42 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 	return
 }
 
+// rsAuthorBookEntry is one complete, deduplicated membership row. Its key is
+// the same ASCII-only NOCASE fold SQLite applies to the legacy title order; the
+// raw title stays available for facts and the oracle.
 type rsAuthorBookEntry struct {
 	id       int64
 	title    string
-	position float64
+	titleKey string
+}
+
+// rsAuthorBookOrder sorts exactly like the legacy author books section:
+// title COLLATE NOCASE <dir>, entity_id <dir>.
+func rsAuthorBookOrder(a, b rsAuthorBookEntry, descending bool) int {
+	c := rsListeningKeyCompare(a.titleKey, b.titleKey)
+	if c != 0 {
+		if descending {
+			return -c
+		}
+		return c
+	}
+	if descending {
+		return cmp.Compare(b.id, a.id)
+	}
+	return cmp.Compare(a.id, b.id)
+}
+
+// rsAuthorBookAfter reports whether e lies strictly after the cursor key in the
+// requested direction.
+func rsAuthorBookAfter(e rsAuthorBookEntry, a *RSAuthorBookCursor, descending bool) bool {
+	c := rsListeningKeyCompare(e.titleKey, a.titleKey)
+	if c == 0 {
+		c = cmp.Compare(e.id, a.id)
+	}
+	if descending {
+		return c < 0
+	}
+	return c > 0
 }
 
 // First enumerate the complete current file stream once. A fixed-size map
@@ -407,10 +443,16 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 				return nil
 			}
 			row := rows[0]
-			if rsListeningAuthorKey(row[0].(string)) != p.key || p.files[p.scan]&1 == 0 {
+			if rsListeningAuthorKey(row[0].(string)) != p.key {
 				return nil
 			}
+			// Any current book by this author proves the author context exists,
+			// exactly as the legacy author group survives while its books section
+			// can still be empty. File presence only decides membership.
 			p.authorContext = true
+			if p.files[p.scan]&1 == 0 {
+				return nil
+			}
 			if p.files[p.scan]&2 == 0 {
 				return nil
 			}
@@ -419,19 +461,13 @@ func (r *RSAuthorBookReader) enumerate(ctx context.Context, q governor.Request, 
 			} else if e != nil {
 				return e
 			}
-			pos := float64(0)
-			if row[2] != nil {
-				pos = rsAuthorSQLiteReal(row[2].(string))
-			}
-			if pos <= 0 {
-				pos = 999999
-			}
-			if e = p.charge(256 + 4*int64(len(row[1].(string))) + int64(len(p.entries)+1)*64); e != nil {
+			title := row[1].(string)
+			if e = p.charge(256 + 4*int64(len(title)) + int64(len(p.entries)+1)*64); e != nil {
 				return e
 			}
 			entries := make([]rsAuthorBookEntry, len(p.entries), len(p.entries)+1)
 			copy(entries, p.entries)
-			p.entries = append(entries, rsAuthorBookEntry{p.scan, row[1].(string), pos})
+			p.entries = append(entries, rsAuthorBookEntry{p.scan, title, rbPersonalASCIIFold(title)})
 			return nil
 		}})
 	addSearchReadCost(cost, &c)
@@ -445,34 +481,40 @@ func (r *RSAuthorBookReader) hydrate(ctx context.Context, q governor.Request, ou
 	id := p.selected[p.hydrate]
 	f := &ForegroundReader{snapshots: r.snapshots, pool: r.pool}
 	card := &p.cards[p.hydrate]
+	// The page direction only orders membership; the shared facts, art and
+	// personal recipes refuse a descending request and keep their canonical
+	// detail semantics.
+	v := p.view(at, 8, id)
+	v.Descending = false
 	// Private recipes stay inside the caller's single LIVE operation. Each poll
 	// performs one hydration recipe, under the original preparation deadline.
 	var c BrowseReadResult
 	var e error
 	if card.Facts.Book == nil {
-		var v TitleFacts
-		v, c, e = f.facts(ctx, q, time.Until(p.lease.Deadline()), out, TitleFactsInput{View: p.view(at, 8, id), Item: id})
+		var facts TitleFacts
+		facts, c, e = f.facts(ctx, q, time.Until(p.lease.Deadline()), out, TitleFactsInput{View: v, Item: id})
 		if e == nil {
-			e = p.charge(authorBookCardBytes(RSAuthorBookCard{Facts: v}))
+			e = p.charge(authorBookCardBytes(RSAuthorBookCard{Facts: facts}))
 			if e == nil {
-				card.Facts = v
+				card.Facts = facts
 			}
 		}
 	} else if !p.hydratedArt {
-		card.Artwork, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: p.view(at, 8, id), Item: id, Role: "poster", PageSlot: true})
+		card.Artwork, c, e = f.artwork(ctx, q, time.Until(p.lease.Deadline()), out, ArtworkInput{View: v, Item: id, Role: "poster", PageSlot: true})
 		if e == nil {
 			e = p.charge(authorBookCardBytes(*card))
 			if e == nil {
 				// Effective series and typed resume are explicit owner-ABI gaps
-				// (task 13), not empty successful observations.
-				card.MissingCanonicalFacts = []string{"book_resume.item_id/position", "catalog_book_context.series_index"}
+				// (task 13), not empty successful observations. The names are the
+				// accepted scalar/view columns those owners will supply.
+				card.MissingCanonicalFacts = []string{"personal_items.resume_item_public_id/resume_asset_id", "listening_book_context.series_index"}
 				card.ResumePending = true
 				p.hydratedArt = true
 			}
 		}
 	} else {
 		var state PersonalState
-		state, c, e = f.uoPersonalState(ctx, q, time.Until(p.lease.Deadline()), out, PersonalStateInput{View: p.view(at, 8, id), Item: id})
+		state, c, e = f.uoPersonalState(ctx, q, time.Until(p.lease.Deadline()), out, PersonalStateInput{View: v, Item: id})
 		if e == nil {
 			e = p.charge(512)
 			if e == nil {
@@ -485,49 +527,4 @@ func (r *RSAuthorBookReader) hydrate(ctx context.Context, q governor.Request, ou
 
 	addSearchReadCost(cost, &c)
 	return e
-}
-
-// rsAuthorSQLiteReal implements SQLite REAL coercion's ASCII numeric prefix:
-// trailing text is ignored and an incomplete exponent is excluded. NULL is
-// handled by the caller; the original text remains unchanged in typed Facts.
-func rsAuthorSQLiteReal(s string) float64 {
-	start := 0
-	for start < len(s) && strings.ContainsRune(" \t\n\r\v\f", rune(s[start])) {
-		start++
-	}
-	i := start
-	if i < len(s) && (s[i] == '+' || s[i] == '-') {
-		i++
-	}
-	digits := 0
-	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
-		i++
-		digits++
-	}
-	if i < len(s) && s[i] == '.' {
-		i++
-		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
-			i++
-			digits++
-		}
-	}
-	if digits == 0 {
-		return 0
-	}
-	end := i
-	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
-		i++
-		if i < len(s) && (s[i] == '+' || s[i] == '-') {
-			i++
-		}
-		exp := i
-		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
-			i++
-		}
-		if i > exp {
-			end = i
-		}
-	}
-	n, _ := strconv.ParseFloat(s[start:end], 64)
-	return n
 }
