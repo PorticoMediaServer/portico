@@ -317,7 +317,17 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	w.add(acc.visible("i"))
 	scoped := false
 	if q.Library != "" {
-		w.add(` AND i.library_id = (SELECT id FROM libraries WHERE public_id = `, w.arg(q.Library), `)`)
+		// The library is looked up first, so a library the viewer may not see is an empty
+		// list at once instead of a walk through every row of it.
+		var library int64
+		err := tx.QueryRowContext(ctx, `SELECT l.id FROM libraries l WHERE l.public_id = ? AND `+acc.libraryVisible("l.id"), q.Library).Scan(&library)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		w.add(` AND i.library_id = `, fmt.Sprint(library))
 		scoped = true
 	}
 	if q.Parent != "" {
@@ -369,11 +379,17 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		scoped = true
 	}
+	// A year filter narrows the total through the year index. The page is read in the list's
+	// own order and skips other years, which finds a page's worth sooner than gathering
+	// every title of those years and sorting them. "{+}" marks the difference.
 	if q.YearFrom != 0 {
-		w.add(` AND i.year >= `, w.arg(q.YearFrom))
+		w.add(` AND {+}i.year >= `, w.arg(q.YearFrom))
 	}
 	if q.YearTo != 0 {
-		w.add(` AND i.year <= `, w.arg(q.YearTo))
+		w.add(` AND {+}i.year <= `, w.arg(q.YearTo))
+	}
+	if q.Sort != SortYear {
+		w.pagePlus = "+"
 	}
 	for _, flag := range []struct {
 		want   *bool
