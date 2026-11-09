@@ -16,9 +16,10 @@ const (
 
 // usInvitationReceiptRequest addresses one retained original. It is a comparison
 // value, never proof or authority. issuer is the ORIGINAL retained issuer
-// context (from the frozen preparation): replay/Resolve/ACK address the owner by
-// its stable columns and deliberately do not compare it with the current entry
-// witness, because family/token/generations renew.
+// context (from the frozen preparation) used for the request binding and the
+// FRESH entry-witness comparison only. The owner row is ALWAYS addressed by the
+// manager's CURRENT issuer, so replay/Resolve/ACK ignore the retained family,
+// token and generations and a renewed sign-in still resolves its original.
 type usInvitationReceiptRequest struct {
 	ownerID   string
 	kind      CommandID
@@ -44,12 +45,13 @@ func usInvitationReceiptKind(kind CommandID) error {
 	return err
 }
 
-// The owner is addressed by its PK AND the exact ORIGINAL issuer scope it was
-// born with: ingress, server, account, member incarnation, profile, profile
-// lifetime, installation, original family and command incarnation. A different
-// current session cannot read or advance someone else's retained cohort merely
-// because it can name the owner ID. The CURRENT manager still proves who is
-// asking; token/epoch/generation are not owner columns and are never compared.
+// The owner is addressed by its PK AND the CURRENT manager issuer's six stable
+// columns: ingress, server, account, member incarnation, profile, profile
+// lifetime and installation. This mirrors readUSPolicyOwner exactly. Family is
+// provenance, never an equality predicate, so a renewed/new family of the same
+// installation and member incarnation still resolves; another installation or
+// member incarnation of the same account does not. The entry-supplied retained
+// issuer never participates in the owner predicate.
 func readUSInvitationOwner(ctx context.Context, turn *commandTurn, m usInvitationManager, q usInvitationReceiptRequest) (out usInvitationOwnerFacts, err error) {
 	defer func() {
 		out, err = finishCommand(ctx, commandLifetime(turn), out, err)
@@ -57,14 +59,18 @@ func readUSInvitationOwner(ctx context.Context, turn *commandTurn, m usInvitatio
 			out, err = usInvitationOwnerFacts{}, denial
 		}
 	}()
-	if turn == nil || m == nil || !usIdentifier(q.ownerID) || !usIdentifier(q.issuer.account) ||
-		m.Issuer() != q.issuer.account || q.reference.Identity.Incarnation == ([16]byte{}) {
+	if turn == nil || m == nil || !usIdentifier(q.ownerID) || q.reference.Identity.Incarnation == ([16]byte{}) {
+		return out, ErrInvalid
+	}
+	current := m.Issuer()
+	if !usIdentifier(current.server) || !usIdentifier(current.account) || !usIdentifier(current.profile) ||
+		!usIdentifier(current.memberIncarnation) || !usIdentifier(current.profileLifetime) || !usIdentifier(current.installation) {
 		return out, ErrInvalid
 	}
 	if err = m.Recheck(ctx, turn); err != nil {
 		return out, err
 	}
-	row, err := usInvitationRow(ctx, turn, usInvitationOwner, usInvitationOwnerArgs(q)...)
+	row, err := usInvitationRow(ctx, turn, usInvitationOwner, usInvitationOwnerArgs(q, current)...)
 	if err != nil {
 		return out, err
 	}
@@ -85,27 +91,23 @@ func readUSInvitationOwner(ctx context.Context, turn *commandTurn, m usInvitatio
 	return out, nil
 }
 
-// usInvitationOwnerColumns is the shared stable owner predicate suffix:
-// command incarnation, then the eight authenticated issuer columns (including
-// the retained original family).
-func usInvitationOwnerColumns(q usInvitationReceiptRequest) []any {
-	i := q.issuer
-	return []any{q.reference.Identity.Incarnation[:], i.server, i.account, i.memberIncarnation, i.profile,
-		i.profileLifetime, i.installation, i.family}
+// usInvitationOwnerArgs binds the owner PK and the CURRENT manager's six stable
+// columns (never family, never the entry-supplied retained issuer).
+func usInvitationOwnerArgs(q usInvitationReceiptRequest, current usPolicyIssuer) []any {
+	return []any{q.ownerID, current.server, current.account, current.memberIncarnation, current.profile,
+		current.profileLifetime, current.installation}
 }
 
-func usInvitationOwnerArgs(q usInvitationReceiptRequest) []any {
-	return append([]any{q.ownerID}, usInvitationOwnerColumns(q)...)
-}
-
+// The write CAS mirrors US policy: the same-frame owner read already proved the
+// six current stable columns, so the write addresses the PK and incarnation.
 func usInvitationOwnerAdvanceArgs(q usInvitationReceiptRequest, owner usInvitationOwnerFacts, charged int64) []any {
-	args := append([]any{q.reference.Identity.Sequence, charged}, usInvitationOwnerArgs(q)...)
-	return append(args, owner.lastSequence, owner.acknowledgedSequence, owner.count, owner.bytes)
+	return []any{q.reference.Identity.Sequence, charged, q.ownerID, q.reference.Identity.Incarnation[:],
+		owner.lastSequence, owner.acknowledgedSequence, owner.count, owner.bytes}
 }
 
 func usInvitationOwnerAckArgs(q usInvitationReceiptRequest, owner usInvitationOwnerFacts) []any {
-	args := append([]any{q.reference.Identity.Sequence}, usInvitationOwnerArgs(q)...)
-	return append(args, owner.lastSequence, owner.acknowledgedSequence)
+	return []any{q.reference.Identity.Sequence, q.ownerID, q.reference.Identity.Incarnation[:],
+		owner.lastSequence, owner.acknowledgedSequence}
 }
 
 type usInvitationCustody struct {

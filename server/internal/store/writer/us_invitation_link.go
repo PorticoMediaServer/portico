@@ -73,9 +73,10 @@ func usInvitationLegacyLink(key []byte, id string) (code, hash string, err error
 }
 
 // checkUSInvitationCreateAdmission is the G4 create gate: PK and code_hash
-// collisions are named, the 200-live-offer cap is enforced against trusted
-// same-frame time, and every requested library must exist. All checks run
-// BEFORE the INSERT, so a refusal writes no source row.
+// collisions are named, every requested library must exist, and the
+// 200-live-offer cap is enforced against trusted same-frame time, in the legacy
+// order (libraries before capacity). All checks run BEFORE the INSERT, so a
+// refusal writes no source row.
 func checkUSInvitationCreateAdmission(ctx context.Context, turn *commandTurn, p *usInvitationPrepared, nowMS int64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	if turn == nil || p == nil || p.kind != usInvitationCreate || nowMS <= 0 || !usIdentifier(p.id) || !usHex(p.codeHash, 64) {
@@ -104,6 +105,15 @@ func checkUSInvitationCreateAdmission(ctx context.Context, turn *commandTurn, p 
 	default:
 		return scan
 	}
+	// Legacy order (access/invitations.go Invite): manage the requested tier,
+	// prove every requested library exists, then count live capacity. A missing
+	// library is therefore a library refusal even when the server is full.
+	if len(p.libraries) > usInvitationMaxLibraries {
+		return ErrInvitationLibrary
+	}
+	if err = checkUSInvitationLibraries(ctx, turn, p.libraries); err != nil {
+		return err
+	}
 	rows, err := usInvitationRows(ctx, turn, usInvitationLiveCount, nowMS, usInvitationLiveLimit+1)
 	if err != nil {
 		return err
@@ -117,12 +127,6 @@ func checkUSInvitationCreateAdmission(ctx context.Context, turn *commandTurn, p 
 		}
 	}
 	if err = rows.Err(); err != nil {
-		return err
-	}
-	if len(p.libraries) > usInvitationMaxLibraries {
-		return ErrInvitationLibrary
-	}
-	if err = checkUSInvitationLibraries(ctx, turn, p.libraries); err != nil {
 		return err
 	}
 	return nil

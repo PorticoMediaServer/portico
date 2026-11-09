@@ -13,7 +13,7 @@ import (
 // Compile the exact US-13 narrow seam without defining or depending on its
 // separately-owned interface/test constructor in this prerequisite commit.
 var _ interface {
-	Issuer() string
+	Issuer() usPolicyIssuer
 	ManagesTier(string) bool
 	Recheck(context.Context, *commandTurn) error
 } = (*usInvitationAuthorization)(nil)
@@ -54,7 +54,7 @@ func TestUSInvitationAuthorityRolesPurposesAndIssuer(t *testing.T) {
 			t.Run(fmt.Sprint(role, "/", kind), func(t *testing.T) {
 				w, p := usInvitationAuthorityFixture(t, role)
 				turn, a := usInvitationAuthorityMint(t, w, p, kind)
-				if a.Issuer() != p.witness.issuer.account {
+				if a.Issuer() != p.witness.issuer {
 					t.Fatal("issuer binding")
 				}
 				for _, target := range []string{"member", "admin", "owner", "account", "", "bogus"} {
@@ -164,7 +164,7 @@ func TestUSInvitationAuthorityCurrentSourceDenials(t *testing.T) {
 					if !errors.Is(err, ErrDisclosureDenied) || !afterMint && a != nil {
 						t.Fatal("current source admitted", a, err)
 					}
-					if afterMint && (a.Issuer() != "" || a.ManagesTier("member")) {
+					if afterMint && (a.Issuer() != (usPolicyIssuer{}) || a.ManagesTier("member")) {
 						t.Fatal("refused proof still usable")
 					}
 					if _, err = turn.transaction.commit(); err == nil {
@@ -280,19 +280,19 @@ func TestUSInvitationAuthorityRoleDriftAndScope(t *testing.T) {
 			if err := a.Recheck(t.Context(), turn); !errors.Is(err, ErrDisclosureDenied) {
 				t.Fatal("cached tier refreshed", err)
 			}
-			if a.ManagesTier("member") || a.Issuer() != "" {
+			if a.ManagesTier("member") || a.Issuer() != (usPolicyIssuer{}) {
 				t.Fatal("refused proof remains live")
 			}
 		})
 	}
 	var zero *usInvitationAuthorization
-	if zero.Issuer() != "" || zero.ManagesTier("member") || (&usInvitationAuthorization{}).ManagesTier("member") {
+	if zero.Issuer() != (usPolicyIssuer{}) || zero.ManagesTier("member") || (&usInvitationAuthorization{}).ManagesTier("member") {
 		t.Fatal("zero proof")
 	}
 	w, p := usInvitationAuthorityFixture(t, "owner")
 	turn, a := usInvitationAuthorityMint(t, w, p, 550)
 	copied := *a
-	if copied.ManagesTier("member") || copied.Issuer() != "" {
+	if copied.ManagesTier("member") || copied.Issuer() != (usPolicyIssuer{}) {
 		t.Fatal("copied stamp")
 	}
 	if err := a.Recheck(t.Context(), &commandTurn{transaction: turn.transaction}); !errors.Is(err, ErrDisclosureDenied) {
@@ -460,7 +460,7 @@ func TestUSInvitationAuthorityCanceledReleaseAndCompletedProof(t *testing.T) {
 				cancel()
 			}
 			err = a.Recheck(ctx, turn)
-			if err == nil || a.Issuer() != "" || a.ManagesTier("member") {
+			if err == nil || a.Issuer() != (usPolicyIssuer{}) || a.ManagesTier("member") {
 				t.Fatal("invalid lifetime retained authority", err)
 			}
 		})
@@ -616,7 +616,7 @@ func TestUSInvitationAuthorityMemberFamilyRefused(t *testing.T) {
 				if !errors.Is(err, ErrDisclosureDenied) || !afterMint && a != nil {
 					t.Fatal("member/member authorized", a, err)
 				}
-				if afterMint && (a.Issuer() != "" || a.ManagesTier("member")) {
+				if afterMint && (a.Issuer() != (usPolicyIssuer{}) || a.ManagesTier("member")) {
 					t.Fatal("downgraded proof usable")
 				}
 			})
@@ -632,7 +632,7 @@ func TestUSInvitationAuthorityDenialPrecedesCancellation(t *testing.T) {
 	if !errors.Is(err, ErrDisclosureDenied) || !errors.Is(err, context.Canceled) {
 		t.Fatal("joined denial classification changed", err)
 	}
-	if a.Issuer() != "" || a.ManagesTier("member") {
+	if a.Issuer() != (usPolicyIssuer{}) || a.ManagesTier("member") {
 		t.Fatal("canceled denial retained permissions")
 	}
 }

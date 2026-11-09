@@ -229,11 +229,11 @@ func (a *usInvitationAuthorization) usable(turn *commandTurn) bool {
 
 // Issuer and ManagesTier are comparisons AFTER a successful current Recheck.
 // They never replace that native re-proof at entry/disclosure/final release.
-func (a *usInvitationAuthorization) Issuer() string {
+func (a *usInvitationAuthorization) Issuer() usPolicyIssuer {
 	if a == nil || !a.usable(a.turn) {
-		return ""
+		return usPolicyIssuer{}
 	}
-	return a.issuer.account
+	return a.issuer
 }
 func (a *usInvitationAuthorization) ManagesTier(role string) bool {
 	if a == nil || !a.usable(a.turn) || (role != "member" && role != "admin") {

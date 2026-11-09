@@ -13,21 +13,36 @@ import (
 // count. A removed call therefore removes a site from the recording instead of
 // silently shifting a dynamic "last call" selector.
 type testInvitationManager struct {
-	issuer string
+	issuer usPolicyIssuer
 	tiers  map[string]bool
 	deny   map[usInvitationRecheckSite]bool
 	sites  []usInvitationRecheckSite
+	checks int
+}
+
+// usInvitationTestIssuer is the full CURRENT fixture issuer for account. The
+// owner row in every invitation fixture is born with these six stable columns,
+// so a different account or a mutated column exercises a foreign owner.
+func usInvitationTestIssuer(account string) usPolicyIssuer {
+	_, scope := usInvitationPreparationFixture()
+	scope.issuer.account = account
+	return scope.issuer
 }
 
 func usTestInvitationManager(issuer string, tiers ...string) *testInvitationManager {
-	m := &testInvitationManager{issuer: issuer, tiers: make(map[string]bool, len(tiers))}
+	m := &testInvitationManager{issuer: usInvitationTestIssuer(issuer), tiers: make(map[string]bool, len(tiers))}
 	for _, tier := range tiers {
 		m.tiers[tier] = true
 	}
 	return m
 }
 
-func (m *testInvitationManager) Issuer() string { return m.issuer }
+func (m *testInvitationManager) Issuer() usPolicyIssuer {
+	if m == nil {
+		return usPolicyIssuer{}
+	}
+	return m.issuer
+}
 
 func (m *testInvitationManager) ManagesTier(role string) bool {
 	return m != nil && m.tiers[role]
@@ -37,6 +52,7 @@ func (m *testInvitationManager) Recheck(ctx context.Context, turn *commandTurn) 
 	if m == nil {
 		return ErrDisclosureDenied
 	}
+	m.checks++
 	site, ok := usInvitationRecheckSiteOf(ctx)
 	if ok {
 		m.sites = append(m.sites, site)

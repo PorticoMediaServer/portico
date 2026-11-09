@@ -13,6 +13,17 @@ import (
 // the only authority input; Sol's production recipe replaces the test-only
 // implementation without changing this algorithm.
 
+const (
+	// A FRESH create dispatch re-proves current authority fifteen times: the
+	// entry recheck, the quota owner read (initial + finish), custody through
+	// lookup (custody entry/finish plus owner initial/finish), the custody
+	// re-read inside the receipt store plus its finish, and the final release.
+	// Each recheck re-runs the complete US-01 current-source recipe and needs
+	// the 64 KiB base workspace. Replay skips the store, so it costs fewer.
+	usInvitationDispatchRechecks int64 = 15
+	usInvitationRecheckBytes     int64 = 64 << 10
+)
+
 type usInvitationFrozenDocument struct {
 	Actor          string
 	SignInKind     string
@@ -27,8 +38,9 @@ type usInvitationFrozenDocument struct {
 // caller. It is deliberately the only second issuer shape: the invitation
 // package reuses Sol's usPolicyIssuer rather than minting a role or authority
 // boolean. A fresh submission must carry the same 11 issuer fields the frozen
-// preparation retains; replay/Resolve/ACK use only the CURRENT manager plus the
-// retained owner's stable columns (see usInvitationReceiptRequest.issuer).
+// preparation retains and the manager's current issuer; replay/Resolve/ACK use
+// only the CURRENT manager plus the retained owner's stable columns (see
+// usInvitationReceiptRequest.issuer).
 type usInvitationInvocationScope struct {
 	issuer usPolicyIssuer
 }
@@ -88,9 +100,10 @@ func usInvitationCommandDigest(c *usInvitationCommand) (RequestDigest, error) {
 type usInvitationInvocation struct {
 	request usInvitationReceiptRequest
 	input   *usInvitationCommand
-	// scope is the CURRENT trusted entry witness. It is compared with the
-	// frozen preparation only after replay classification, so a renewed family
-	// can still resolve its retained original.
+	// scope is the CURRENT trusted entry witness. It is compared with the frozen
+	// preparation and the manager's current issuer only on FRESH paths, after
+	// replay classification, so a renewed family can still resolve its retained
+	// original.
 	scope usInvitationInvocationScope
 	ack   bool
 }
@@ -304,6 +317,10 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 		return out, floor, false, ErrInvalid
 	}
 	if err = m.Recheck(usInvitationRecheckAt(ctx, usInvitationRecheckEntry), turn); err != nil {
+		// DENIAL-FIRST CLASSIFICATION: a denial may itself be a canceled frame,
+		// so the returned error also matches context.Canceled. Return the
+		// authority error unchanged here; never reclassify it as a caller
+		// cancellation and never fall through to an owner or payload read.
 		return out, floor, false, err
 	}
 	// The verified issuer must be the frozen actor before ANY owner, payload or
@@ -311,7 +328,7 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 	// as an absent owner.
 	if inv.input != nil {
 		if inv.input.prepared == nil || !usIdentifier(inv.input.actor) ||
-			inv.input.actor != inv.input.prepared.scope.issuer.account || m.Issuer() != inv.input.actor {
+			inv.input.actor != inv.input.prepared.scope.issuer.account || m.Issuer().account != inv.input.actor {
 			return out, floor, false, ErrDisclosureDenied
 		}
 	}
@@ -342,6 +359,16 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 		out.Outcome.State = ResultRetired
 		return out, floor, true, nil
 	case receiptReplay:
+		// DISCLOSED-TIER GATE: legacy create/edit check the target tier before
+		// returning the receipt (access/invitations.go). The retained result's
+		// role is the DISCLOSED tier, so a manager demoted below it (for
+		// example an owner demoted to admin replaying an admin/owner-tier
+		// invitation) receives the disclosure-denied class with no Value, DTO
+		// or Code. This covers replay and every no-input Resolve that serves
+		// the saved body.
+		if !m.ManagesTier(lookup.result.role) {
+			return out, floor, false, ErrDisclosureDenied
+		}
 		out.Outcome.State = Applied
 		out.Outcome.Replayed = true
 		out.Value, out.Digest = lookup.result, lookup.digest
@@ -356,24 +383,30 @@ func executeUSInvitationInvocation(ctx context.Context, turn *commandTurn, m usI
 		return out, floor, false, nil
 	}
 	input := inv.input
-	if input.kind != q.kind || input.ownerID != q.ownerID || input.identity != q.reference.Identity || input.digest != q.reference.RequestDigest {
+	p := input.prepared
+	// The entry-supplied request and the frozen preparation must agree on the
+	// owner and command identity. The request digest binds the identity, so a
+	// post-preparation mutation would otherwise be self-consistent.
+	if p == nil || input.kind != q.kind || input.ownerID != q.ownerID ||
+		input.identity != q.reference.Identity || input.digest != q.reference.RequestDigest ||
+		input.ownerID != p.scope.ownerID || input.identity != p.identity {
 		return out, floor, false, ErrConflict
 	}
 	digest, err := usInvitationCommandDigest(input)
 	if err != nil || digest != input.digest {
 		return out, floor, false, errors.Join(ErrConflict, err)
 	}
-	p := input.prepared
-	if p == nil || p.kind != q.kind || !usIdentifier(input.actor) || input.actor != p.scope.issuer.account || m.Issuer() != input.actor {
+	if p.kind != q.kind || !usIdentifier(input.actor) || input.actor != p.scope.issuer.account || m.Issuer().account != input.actor {
 		return out, floor, false, ErrDisclosureDenied
 	}
-	// FULL-ISSUER FRESH BINDING: the CURRENT trusted entry witness must equal the
-	// frozen preparation in all 11 issuer fields. This runs after replay
-	// classification, so a renewed family still resolves its retained original.
+	// FULL-ISSUER FRESH BINDING: the CURRENT trusted entry witness AND the
+	// manager's current issuer must equal the frozen preparation in all 11
+	// issuer fields. This runs after replay classification, so a renewed family
+	// still resolves its retained original.
 	// The frozen document (including prepared.scope.issuer) is already covered
 	// by the canonical request digest, so this is a current-frame comparison,
 	// not a second digest.
-	if inv.scope.issuer != p.scope.issuer {
+	if inv.scope.issuer != p.scope.issuer || m.Issuer() != inv.scope.issuer {
 		return out, floor, false, ErrConflict
 	}
 	// The sealed Code is carried as the protected type. Prove its exact manifest

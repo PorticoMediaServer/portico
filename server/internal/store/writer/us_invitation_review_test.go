@@ -3,6 +3,7 @@ package writer
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -201,8 +202,10 @@ func TestUSInvitationRetiredNoBody(t *testing.T) {
 	}
 }
 
-// B3: the retained owner is addressed by every stable stored column. One
-// mutation per column must refuse replay and ACK.
+// B3: the retained owner is addressed by the CURRENT manager's six stable
+// columns. A different stored installation/incarnation/member refuses replay
+// and ACK, while the retained family is provenance only: a renewed family of
+// the same installation and member incarnation still serves its original.
 func TestUSInvitationOwnerScopeBinding(t *testing.T) {
 	controls := []struct {
 		name   string
@@ -213,7 +216,6 @@ func TestUSInvitationOwnerScopeBinding(t *testing.T) {
 		{"profile", `UPDATE security_command_owners SET issuer_profile_id='other-profile'`},
 		{"profile_lifetime", `UPDATE security_command_owners SET issuer_profile_lifetime=? WHERE id='security-owner'`},
 		{"installation", `UPDATE security_command_owners SET issuer_installation_incarnation=? WHERE id='security-owner'`},
-		{"family", `UPDATE security_command_owners SET original_family_id='other-family'`},
 		{"ingress", `UPDATE security_command_owners SET ingress='system',issuer_account_id=NULL,issuer_member_incarnation=NULL,issuer_profile_id=NULL,issuer_profile_lifetime=NULL,issuer_installation_incarnation=NULL,original_family_id=NULL`},
 	}
 	for _, control := range controls {
@@ -249,6 +251,130 @@ func TestUSInvitationOwnerScopeBinding(t *testing.T) {
 				t.Fatal("foreign owner column refusal wrote")
 			}
 		})
+	}
+
+	// The retained family column is provenance, not a predicate: changing it
+	// (or signing in under a NEW family id at the same installation/member
+	// incarnation) still serves the retained digest.
+	t.Run("new_family_serves", func(t *testing.T) {
+		w, m := usInvitationTestExecutor(t)
+		cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
+		inv := usInvitationTestInvocation(t, cmd)
+		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		original, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv)
+		if err != nil || original.Digest == (ResultDigest{}) {
+			t.Fatal("original", err)
+		}
+		// New sign-in: a fresh family id and generation, same installation and
+		// member incarnation. The owner row keeps the ORIGINAL family.
+		m.issuer.family = "issuer-family-renewed"
+		m.issuer.familyGeneration++
+		m.issuer.tokenDigest = usCredentialFixtureHash("us-renewed-token")
+		before := usInvitationTestCount(t, w, `SELECT total_changes()`)
+		replayTurn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		replay, _, err := runUSInvitationDispatch(t.Context(), replayTurn, m, &usInvitationInvocation{request: inv.request})
+		if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed ||
+			replay.Digest != original.Digest || replay.DTO.ID != "us-created" {
+			t.Fatal("new family replay", replay, err)
+		}
+		if usInvitationTestCount(t, w, `SELECT total_changes()`) != before {
+			t.Fatal("new family replay wrote")
+		}
+		// The retained row's own family string is equally irrelevant.
+		wc008NativeExec(t, w, `UPDATE security_command_owners SET original_family_id='other-family' WHERE id='security-owner'`)
+		replayTurn = wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		again, _, err := runUSInvitationDispatch(t.Context(), replayTurn, m, &usInvitationInvocation{request: inv.request})
+		if err != nil || again.Digest != original.Digest {
+			t.Fatal("provenance family replay", again, err)
+		}
+	})
+
+	// The bug: with the retained issuer as the predicate, another installation
+	// or member incarnation of the same account could read the cohort. The
+	// CURRENT manager issuer now owns the predicate.
+	t.Run("foreign_manager_scope_refuses", func(t *testing.T) {
+		for name, mutate := range map[string]func(*usPolicyIssuer){
+			"server":             func(i *usPolicyIssuer) { i.server = "other-server" },
+			"account":            func(i *usPolicyIssuer) { i.account = "us-other" },
+			"member_incarnation": func(i *usPolicyIssuer) { i.memberIncarnation = strings.Repeat("d", 32) },
+			"profile":            func(i *usPolicyIssuer) { i.profile = "other-profile" },
+			"profile_lifetime":   func(i *usPolicyIssuer) { i.profileLifetime = strings.Repeat("e", 32) },
+			"installation":       func(i *usPolicyIssuer) { i.installation = strings.Repeat("f", 32) },
+		} {
+			t.Run(name, func(t *testing.T) {
+				w, m := usInvitationTestExecutor(t)
+				cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
+				inv := usInvitationTestInvocation(t, cmd)
+				turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+				if _, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv); err != nil {
+					t.Fatal("original", err)
+				}
+				mutate(&m.issuer)
+				before := usInvitationTestCount(t, w, `SELECT total_changes()`)
+				replayTurn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+				out, floor, err := runUSInvitationDispatch(t.Context(), replayTurn, m, &usInvitationInvocation{request: inv.request})
+				if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+					t.Fatal("foreign current issuer read the retained cohort", out, floor, err)
+				}
+				if usInvitationTestCount(t, w, `SELECT total_changes()`) != before {
+					t.Fatal("foreign current issuer refusal wrote")
+				}
+			})
+		}
+	})
+}
+
+// A replay carrying a RE-PREPARED different issuer (same command identity, new
+// installation) must classify as a conflicting request digest, not as an
+// absent owner. This fails on the old code, which addressed the owner with the
+// entry-supplied retained issuer and returned resolve-required instead.
+func TestUSInvitationReplayRepreparedIssuerConflicts(t *testing.T) {
+	w, m := usInvitationTestExecutor(t)
+	cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
+	inv := usInvitationTestInvocation(t, cmd)
+	turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+	if _, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv); err != nil {
+		t.Fatal("original", err)
+	}
+
+	key := bytes.Repeat([]byte{7}, 32)
+	code, hash, err := usInvitationLegacyLink(key, "us-created")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i, scope := usInvitationPreparationFixture()
+	scope.issuer.installation = strings.Repeat("f", 32)
+	otherPrepared, err := prepareUSInvitationCreate(i, scope, "us-created", hash, usInvitationCreateInput{role: "member", libraries: []string{"movies"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	protected, err := prepareUSInvitationCode(otherPrepared, "invitation-key-id", key, bytes.Repeat([]byte{9}, 12), code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signIn, err := prepareUSInvitationSignInKind("local", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := &usInvitationCommand{kind: usInvitationCreate, ownerID: scope.ownerID, actor: scope.issuer.account,
+		identity: i, prepared: otherPrepared, signIn: signIn, protected: protected}
+	other.digest, err = usInvitationCommandDigest(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherRequest, err := usInvitationReceiptForCommand(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := usInvitationTestCount(t, w, `SELECT total_changes()`)
+	replayTurn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+	out, floor, err := runUSInvitationDispatch(t.Context(), replayTurn, m, &usInvitationInvocation{request: otherRequest})
+	if !errors.Is(err, ErrConflict) || errors.Is(err, ErrResolveRequired) ||
+		!reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("re-prepared issuer was not a request-digest conflict", out, floor, err)
+	}
+	if usInvitationTestCount(t, w, `SELECT total_changes()`) != before {
+		t.Fatal("re-prepared issuer conflict wrote")
 	}
 }
 
@@ -410,5 +536,153 @@ func TestUSInvitationStatementCapture(t *testing.T) {
 	registry := nativeInventoryFixtureRegistry(t, w, defs, "us_invitation_snapshot.go", "us_invitation_receipt_statements.go")
 	if len(registry.Manifest()) != len(defs) {
 		t.Fatal("registry did not bind the complete invitation inventory")
+	}
+}
+
+// B-2: the DISCLOSED tier of a retained original is checked before any replay
+// or Resolve body is released. A manager demoted below that tier receives the
+// disclosure-denied class with no Value, DTO, Code or write.
+func TestUSInvitationReplayTierDisclosure(t *testing.T) {
+	ownerOriginal := func(t *testing.T) (*executor, *testInvitationManager, usInvitationReceiptRequest) {
+		t.Helper()
+		w, m := usInvitationTestExecutor(t)
+		m.tiers = map[string]bool{"owner": true, "admin": true, "member": true}
+		cmd, _ := usInvitationTestCreateCommand(t, "us-created", "admin", []string{"movies"})
+		inv := usInvitationTestInvocation(t, cmd)
+		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		out, _, err := runUSInvitationDispatch(t.Context(), turn, m, inv)
+		if err != nil || out.Outcome.State != Applied || out.DTO.Role != "admin" {
+			t.Fatal("original admin invitation", out, err)
+		}
+		return w, m, inv.request
+	}
+
+	t.Run("owner_replays_admin_served", func(t *testing.T) {
+		w, m, request := ownerOriginal(t)
+		before := usInvitationTestCount(t, w, `SELECT total_changes()`)
+		for _, label := range []string{"replay", "resolve"} {
+			turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+			out, _, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
+			if err != nil || out.Outcome.State != Applied || !out.Outcome.Replayed || out.DTO.Role != "admin" || out.DTO.ID != "us-created" {
+				t.Fatal(label, out, err)
+			}
+		}
+		if usInvitationTestCount(t, w, `SELECT total_changes()`) != before {
+			t.Fatal("owner replay wrote")
+		}
+	})
+
+	t.Run("demoted_admin_replays_admin_served", func(t *testing.T) {
+		w, m, request := ownerOriginal(t)
+		m.tiers = map[string]bool{"admin": true, "member": true}
+		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		out, _, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
+		if err != nil || out.Outcome.State != Applied || out.DTO.Role != "admin" {
+			t.Fatal("demoted manager replay", out, err)
+		}
+	})
+
+	t.Run("below_disclosed_tier_refused", func(t *testing.T) {
+		w, m, request := ownerOriginal(t)
+		// The admitted invitation roles are member/admin, so the retained result
+		// can never carry owner. A manager that no longer manages the disclosed
+		// admin tier exercises the same disclosure class.
+		m.tiers = map[string]bool{"member": true}
+		before := usInvitationTestCount(t, w, `SELECT total_changes()`)
+		for _, label := range []string{"replay", "resolve"} {
+			turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+			out, floor, err := runUSInvitationDispatch(t.Context(), turn, m, &usInvitationInvocation{request: request})
+			if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+				t.Fatal(label, out, floor, err)
+			}
+		}
+		if usInvitationTestCount(t, w, `SELECT total_changes()`) != before ||
+			usInvitationTestCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 1 {
+			t.Fatal("disclosure refusal wrote or dropped the receipt")
+		}
+	})
+}
+
+// The dispatcher cross-checks the entry request owner and identity against the
+// frozen preparation, not only against each other and the digest.
+func TestUSInvitationPreparedCrossCheck(t *testing.T) {
+	t.Run("owner_id", func(t *testing.T) {
+		w, m := usInvitationTestExecutor(t)
+		cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
+		inv := usInvitationTestInvocation(t, cmd)
+		cmd.prepared.scope.ownerID = "other-owner"
+		var err error
+		cmd.digest, err = usInvitationCommandDigest(cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inv.request.reference.RequestDigest = cmd.digest
+		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		out, floor, err := runUSInvitationDispatch(t.Context(), turn, m, inv)
+		if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+			t.Fatal("owner cross-check", out, floor, err)
+		}
+		if usInvitationTestCount(t, w, `SELECT count(*) FROM access_invitations`) != 0 ||
+			usInvitationTestCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
+			t.Fatal("owner cross-check wrote")
+		}
+	})
+
+	t.Run("identity", func(t *testing.T) {
+		w, m := usInvitationTestExecutor(t)
+		cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
+		inv := usInvitationTestInvocation(t, cmd)
+		cmd.identity.OperationID = [16]byte{3}
+		var err error
+		cmd.digest, err = usInvitationCommandDigest(cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inv.request.reference.Identity = cmd.identity
+		inv.request.reference.RequestDigest = cmd.digest
+		turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+		out, floor, err := runUSInvitationDispatch(t.Context(), turn, m, inv)
+		if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+			t.Fatal("identity cross-check", out, floor, err)
+		}
+		if usInvitationTestCount(t, w, `SELECT count(*) FROM access_invitations`) != 0 ||
+			usInvitationTestCount(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
+			t.Fatal("identity cross-check wrote")
+		}
+	})
+}
+
+// Legacy order: libraries are proved before live capacity, so a missing library
+// is a library refusal even when the server already holds 200 live offers.
+func TestUSInvitationAdmissionLibraryBeforeCapacity(t *testing.T) {
+	w, m := usInvitationTestExecutor(t)
+	for n := 0; n < 200; n++ {
+		wc008NativeExec(t, w, `INSERT INTO access_invitations(id,code_hash,role,allowed_libraries,state,created_ms,expires_ms,created_by,revision,bound_username,max_streams_mode,max_streams,allow_remote,access_tokens,max_content_rating)
+VALUES(?,?,'member','[]','pending',?,?,'us-owner',1,'','inherit',0,1,1,'')`, fmt.Sprintf("us-live-%03d", n), fmt.Sprintf("%064d", n), usInvitationTestMS()-500, usInvitationTestMS()+1000)
+	}
+	cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"missing"})
+	turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+	out, _, err := runUSInvitationDispatch(t.Context(), turn, m, usInvitationTestInvocation(t, cmd))
+	if !errors.Is(err, ErrInvitationLibrary) || errors.Is(err, ErrInvitationCapacity) || !reflect.DeepEqual(out, usInvitationDispatchResult{}) {
+		t.Fatal("admission order", out, err)
+	}
+	if usInvitationTestCount(t, w, `SELECT count(*) FROM access_invitations WHERE id='us-created'`) != 0 {
+		t.Fatal("library refusal wrote")
+	}
+}
+
+// The declared Recheck budget matches the observed fresh-dispatch call count.
+func TestUSInvitationRecheckBudget(t *testing.T) {
+	if usInvitationDispatchRechecks != 15 {
+		t.Fatal("declared recheck count changed without a funding review", usInvitationDispatchRechecks)
+	}
+	w, m := usInvitationTestExecutor(t)
+	cmd, _ := usInvitationTestCreateCommand(t, "us-created", "member", []string{"movies"})
+	turn := wc008NativeTurn(t, w, usInvitationCreate, usInvitationTestDefinitions())
+	if _, _, err := runUSInvitationDispatch(t.Context(), turn, m, usInvitationTestInvocation(t, cmd)); err != nil {
+		t.Fatal("fresh dispatch", err)
+	}
+	if int64(m.checks) != usInvitationDispatchRechecks {
+		t.Fatal("fresh dispatch recheck count", m.checks, usInvitationDispatchRechecks)
 	}
 }
