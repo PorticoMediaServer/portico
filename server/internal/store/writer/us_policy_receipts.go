@@ -108,7 +108,13 @@ type usPolicyCustody struct {
 // result codec/decoder. Namespace reservation grants no result-schema authority.
 func lookupUSPolicyCustody(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, q usPolicyReceiptRequest) (out usPolicyCustody, err error) {
 	defer func() {
-		out, err = finishCommand(ctx, commandLifetime(turn), out, errors.Join(err, a.recheck(ctx, turn)))
+		out, err = finishCommand(ctx, commandLifetime(turn), out, err)
+		// A final current-source denial REPLACES the body outcome. Joining it
+		// would let a benign conflict also match the denial class (or the
+		// reverse); the output stays zeroed on denial.
+		if denial := a.recheck(ctx, turn); denial != nil {
+			out, err = usPolicyCustody{}, denial
+		}
 	}()
 	// An earlier prefix in the same frame may have advanced a source row.
 	// Recheck native current authority before any original owner or payload read.
@@ -150,7 +156,10 @@ func lookupUSPolicyCustody(ctx context.Context, turn *commandTurn, a *usOwnerAut
 // so replay never touches current policy source.
 func lookupUSPolicy(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, q usPolicyReceiptRequest) (out usPolicyReceiptLookup, err error) {
 	defer func() {
-		out, err = finishCommand(ctx, commandLifetime(turn), out, errors.Join(err, a.recheck(ctx, turn)))
+		out, err = finishCommand(ctx, commandLifetime(turn), out, err)
+		if denial := a.recheck(ctx, turn); denial != nil {
+			out, err = usPolicyReceiptLookup{}, denial
+		}
 	}()
 	if err = usPolicyReceiptKind(q.kind); err != nil {
 		return out, err
@@ -300,7 +309,10 @@ func readUSPolicyLibraries(ctx context.Context, turn *commandTurn, q usPolicyRec
 // those effects and the final FULL release.
 func storeUSPolicyResult(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, q usPolicyReceiptRequest, v usPolicySavedResult, digest ResultDigest) (charged int64, err error) {
 	defer func() {
-		charged, err = finishCommand(ctx, commandLifetime(turn), charged, errors.Join(err, a.recheck(ctx, turn)))
+		charged, err = finishCommand(ctx, commandLifetime(turn), charged, err)
+		if denial := a.recheck(ctx, turn); denial != nil {
+			charged, err = 0, denial
+		}
 	}()
 	if turn == nil || turn.transaction == nil || q.kind != v.kind || turn.transaction.descriptor.ID != q.kind || v.ownerID != q.ownerID || q.reference.Identity.Sequence <= 0 || q.reference.Identity.Incarnation == ([16]byte{}) || q.reference.Identity.OperationID == ([16]byte{}) || q.reference.RequestDigest == (RequestDigest{}) || digest == (ResultDigest{}) {
 		return 0, ErrInvalid
@@ -403,7 +415,10 @@ func storeUSPolicyResult(ctx context.Context, turn *commandTurn, a *usOwnerAutho
 // replay classification before and after the floor.
 func acknowledgeUSPolicyAfterAuthority(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, q usPolicyReceiptRequest) (ack int64, err error) {
 	defer func() {
-		ack, err = finishCommand(ctx, commandLifetime(turn), ack, errors.Join(err, a.recheck(ctx, turn)))
+		ack, err = finishCommand(ctx, commandLifetime(turn), ack, err)
+		if denial := a.recheck(ctx, turn); denial != nil {
+			ack, err = 0, denial
+		}
 	}()
 	lookup, err := lookupUSPolicy(ctx, turn, a, q)
 	if err != nil {

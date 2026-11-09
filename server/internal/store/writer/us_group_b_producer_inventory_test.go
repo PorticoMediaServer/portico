@@ -145,7 +145,8 @@ var usGroupBProducers = []usGroupBProducer{
 	{File: "server/internal/store/writer/us_family_birth_statements.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "P05", Note: "V1 US family birth API credential device birth", Prefix: `INSERT INTO identity_devices(id,authority,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen,remember_account,retired_ms) VALUES(?,'l`},                                       // line 51
 
 	// US-06 receipt adapter: a second current local-owner installation, used to
-	// prove issuer scoping. Both rows choose security_kind explicitly.
+	// prove issuer scoping. The family row chooses security_kind=0 explicitly;
+	// the identity_devices row has no such column.
 	{File: "server/internal/store/writer/us_policy_receipts_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 US policy receipt second-session fixture device", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('issuer-device-2','issuer',?,'Issuer two',`},
 	{File: "server/internal/store/writer/us_policy_receipts_test.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 US policy receipt second-session owner family (security_kind=0)", Prefix: `INSERT INTO authorization_session_families(security_kind,id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device`},
 }
