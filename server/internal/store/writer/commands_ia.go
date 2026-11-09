@@ -10,6 +10,11 @@ const (
 	IARetireLibrary    CommandID = 102
 	IARetireSource     CommandID = 103
 	IARetireStep       CommandID = 104
+	// IA-10 acknowledges and reclaims one measured receipt unit of a permanent
+	// configuration or removal owner. Both are NORMAL: neither grants access to
+	// any target and neither can refund a row it did not delete.
+	IAConfigureReclaim CommandID = 105
+	IARetireReclaim    CommandID = 106
 	// A disable revokes current access, so it has its own explicit FULL
 	// descriptor. Both descriptors persist the one configure_source result
 	// purpose; only durability differs.
@@ -43,6 +48,8 @@ var iaCommands = commandRegistration{owner: "IA", descriptors: []Descriptor{
 	{IARetireLibrary, "ia_retire_library", Full},
 	{IARetireSource, "ia_retire_source", Full},
 	{IARetireStep, "ia_retire_step", Normal},
+	{IAConfigureReclaim, "ia_configuration_receipt_reclaim", Normal},
+	{IARetireReclaim, "ia_retirement_receipt_reclaim", Normal},
 	{IAAcceptEpisodeInventory, "ia_accept_episode_inventory", Normal},
 	{IAAcceptAudioInventory, "ia_accept_audio_inventory", Normal},
 	{IAAcceptReadingInventory, "ia_accept_reading_inventory", Normal},

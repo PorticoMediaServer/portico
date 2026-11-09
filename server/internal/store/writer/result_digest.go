@@ -121,6 +121,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIARetirementResult(IARetireSource, identity, request, v.facts)
 	case iaRetireStepResult:
 		return preflightIARetirementResult(IARetireStep, identity, request, v.facts)
+	case iaReclaimResult:
+		return preflightIAReclaimResult(v)
 	default:
 		return invalid("canonical_result_schema")
 	}
@@ -218,6 +220,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIARetirementResult(e, IARetireSource, identity, request, v.facts)
 	case iaRetireStepResult:
 		return writeIARetirementResult(e, IARetireStep, identity, request, v.facts)
+	case iaReclaimResult:
+		return writeIAReclaimResult(e, identity, request, v)
 	default:
 		return invalid("canonical_result_schema")
 	}

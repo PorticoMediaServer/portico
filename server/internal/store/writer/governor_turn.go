@@ -19,6 +19,7 @@ func commandClass(id CommandID) (governor.Class, error) {
 	case IPFieldEdit, IPFieldLock, IPFieldRestore:
 		return governor.Background, nil
 	case IAConfigureLibrary, IAConfigureSource, IAConfigureSourceDisable, IARetireLibrary, IARetireSource, IARetireStep,
+		IAConfigureReclaim, IARetireReclaim,
 		IAAcceptEpisodeInventory, IAAcceptAudioInventory,
 		IAAcceptReadingInventory, IAAcceptExtraInventory, IAAcceptMembership, IAReconcileObject, IACoverageVerify, IAMarkMissing, IAFinishRescan,
 		IARefreshBegin, IARefreshStep, IARefreshRollback, IARefreshFinalize:
