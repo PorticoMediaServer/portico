@@ -242,7 +242,7 @@ func TestIPPersonAndEntitySameNumericIDStayIsolated(t *testing.T) {
 		t.Fatal(err)
 	}
 	tvObs := tvObservation(enrich.Series)
-	tvObs.ProviderID, tvObs.SubjectID, tvObs.EvidenceID = "42", 13, "series-evidence"
+	tvObs.Route.ProviderID, tvObs.SubjectID, tvObs.EvidenceID = "42", 13, "series-evidence"
 	series, err := PrepareTMDBTVHeader(tvPolicy(t), tvObs, []byte(`{"id":42,"name":"Series","overview":"","first_air_date":"2024-02-29"}`))
 	if err != nil {
 		t.Fatal(err)

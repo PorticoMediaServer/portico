@@ -70,6 +70,21 @@ type ipTVSetEpisodeSeed struct {
 	SeasonNumber, EpisodeNumber, AbsoluteNumber int64
 }
 
+// ipTVSetSeedEpisodeOwner clones the staged claim's operation into a distinct
+// episode-seal operation. The embedded schema allows only one root build per
+// owner operation/incarnation (metadata_build_root_active), and each episode
+// seal is its own operation; reusing the series claim would make every seeded
+// build collide with the already sealed build-one.
+func ipTVSetSeedEpisodeOwner(t *testing.T, w *executor, staged ipEntitySealStaged, i int) (string, [16]byte) {
+	t.Helper()
+	id := fmt.Sprintf("episode-operation-%d", i+1)
+	incarnation := staged.claim.Incarnation
+	incarnation[len(incarnation)-1] = 0xd1 + byte(i)
+	ipPolicyExec(t, w, `INSERT INTO metadata_provider_operations(id,entity_id,provider,phase,status,generation,lease,lease_until,entity_incarnation,source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,descriptive_revision,policy_incarnation,policy_revision,consent_revision,algorithm,refresh_mode,query_title,query_artist,query_year,query_digest,input_digest,selected_id,manual,review_search,qualification,created_at,command_incarnation,source_content_revision) SELECT ?,entity_id,provider,'episode-seed','applied',generation,lease,lease_until,entity_incarnation,source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,descriptive_revision,policy_incarnation,policy_revision,consent_revision,algorithm,refresh_mode,query_title,query_artist,query_year,query_digest,input_digest,selected_id,manual,review_search,qualification,created_at,?,source_content_revision FROM metadata_provider_operations WHERE id=? AND command_incarnation=?`,
+		id, incarnation[:], staged.owner.OperationID, staged.claim.Incarnation[:])
+	return id, incarnation
+}
+
 // ipTVSetSeedEpisodes materializes the already-sealed IP-07 episode evidence
 // rows the set publishes. The set writer never acquires or normalizes them; it
 // only proves the exact sealed provider/episode tuple is the declared member.
@@ -83,14 +98,15 @@ func ipTVSetSeedEpisodes(t *testing.T, w *executor, staged ipEntitySealStaged, e
 		buildID := fmt.Sprintf("episode-build-%d", i+1)
 		sequence := int64(1000 + i)
 		incarnation := ipEntityJobIncarnation(subjectID)
+		owner, sealIncarnation := ipTVSetSeedEpisodeOwner(t, w, staged, i)
 		ipPolicyExec(t, w, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(?, 'tmdb','episode',?,'en','US','ip.tmdb.episode.detail.v1',?,1)`,
 			subjectID, providerID, incarnation[:])
 		ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed,ip_seal_owner,ip_seal_incarnation,ip_seal_sequence) VALUES(?,?,'ip.tmdb.episode.v1','tmdb','episode',?,'en','US','ip.tmdb.episode.detail.v1',?,'2026-01-01T00:00:00Z',?,1,?,?,?)`,
 			episode.EvidenceID, subjectID, providerID, hex.EncodeToString(digest[:]),
 			fmt.Sprintf("https://api.themoviedb.org/3/tv/1/season/%d/episode/%d", episode.SeasonNumber, episode.EpisodeNumber),
-			staged.owner.OperationID, staged.claim.Incarnation[:], sequence)
+			owner, sealIncarnation[:], sequence)
 		ipPolicyExec(t, w, `INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,owner_incarnation,owner_generation,state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at,content_revision) VALUES(?,?,1,?,?,1,'ready','sealed',1,1,1,?,?,1,'2030-01-01T00:00:00Z',1)`,
-			buildID, episode.EvidenceID, staged.owner.OperationID, staged.claim.Incarnation[:],
+			buildID, episode.EvidenceID, owner, sealIncarnation[:],
 			hex.EncodeToString(digest[:]), hex.EncodeToString(digest[:]))
 		operationID := make([]byte, 16)
 		operationID[0], operationID[1] = 0x7e, byte(i+1)
@@ -101,7 +117,7 @@ func ipTVSetSeedEpisodes(t *testing.T, w *executor, staged ipEntitySealStaged, e
 		commitment := make([]byte, 32)
 		commitment[0], commitment[1] = 0x7b, byte(i+1)
 		ipPolicyExec(t, w, `INSERT INTO metadata_ip_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,result_digest,result_phase,after_family,after_ordinal,after_key,result_count,result_bytes,terminal,evidence_id,evidence_subject_id,parser_version,build_id,seal_algorithm,seal_version,seal_commitment,seal_rows,seal_bytes,proof_pin_count) VALUES(?,?,?,?,?,'evidence_seal',1,0,?,'sealed',0,0,'',0,1,1,?,?,?,?,'ip-evidence',1,?,1,1,1)`,
-			staged.owner.OperationID, staged.claim.Incarnation[:], sequence, operationID, request,
+			owner, sealIncarnation[:], sequence, operationID, request,
 			result, episode.EvidenceID, subjectID, "ip.tmdb.episode.v1", buildID, commitment)
 		ids = append(ids, episode.EvidenceID)
 	}

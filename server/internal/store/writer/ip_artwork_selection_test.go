@@ -560,6 +560,9 @@ func TestIPArtworkSelectionFences(t *testing.T) {
 					ipPolicyExec(t, w, query)
 				}
 			}
+			// The fence seeds may have moved the entity artwork revision; the
+			// refused command must leave that exact counter untouched.
+			revision := ipPolicyQueryInt(t, w, `SELECT artwork_revision FROM catalog_entities WHERE id=778`)
 			cmd := ipArtworkSelectionCommandFor(t, IPArtworkSelect, 1, 2, owner, "poster",
 				ipArtworkSelectionBefore{}, ipArtworkSelectionFactsFor(next))
 			if tc.seed {
@@ -588,7 +591,7 @@ func TestIPArtworkSelectionFences(t *testing.T) {
 			ipArtworkSelectionExpect(t, w, 0, `SELECT count(*) FROM metadata_owner_history`)
 			ipArtworkSelectionExpect(t, w, 0, `SELECT count(*) FROM metadata_owner_history_artwork`)
 			ipArtworkSelectionExpect(t, w, 0, `SELECT count(*) FROM artwork_command_receipts`)
-			ipArtworkSelectionExpect(t, w, 1, `SELECT artwork_revision FROM catalog_entities WHERE id=778`)
+			ipArtworkSelectionExpect(t, w, revision, `SELECT artwork_revision FROM catalog_entities WHERE id=778`)
 		})
 	}
 }

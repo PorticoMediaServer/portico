@@ -206,7 +206,7 @@ func TestIPCollectionDistinctSubjectKindAndNamespace(t *testing.T) {
 	if string(CollectionKind) != "collection" || CollectionKind == enrich.Movie ||
 		CollectionKind == enrich.Person || CollectionKind == enrich.Series ||
 		collection.Header().SubjectKind != "collection" || person.Header().ID() == collection.Header().EvidenceID ||
-		person.Header().SubjectID() != collection.Header().SubjectID() ||
+		person.Header().SubjectID() != collection.Header().SubjectID ||
 		person.Ref().Kind == CollectionKind {
 		t.Fatal("collection subject kind is not distinct")
 	}

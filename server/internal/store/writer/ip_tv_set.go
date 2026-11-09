@@ -821,9 +821,17 @@ func ipTVSetRecordReceipt(ctx context.Context, turn *commandTurn, identity Comma
 	if err != nil {
 		return out, err
 	}
+	// The result kind ("begin"/"page"/"seal") types the result; the receipt
+	// stores the command kind ("set_begin"/"set_page"/"set_seal") that the set
+	// readers filter on. Writing the result kind here would make every saved
+	// receipt unreadable, including the fresh begin acknowledgement.
+	kind := "set_" + value.Kind
+	if _, ok := ipTVSetReceiptKind(kind); !ok {
+		return out, ErrInvalid
+	}
 	if err = execIPEntityEvidence(ctx, turn, ipTVSetRecordStmt, value.OperationID,
 		identity.Incarnation[:], identity.Sequence, identity.OperationID[:], request[:],
-		value.Kind, value.Revision, value.AppliedMS, digest[:], resultPhaseForKind(value.Kind),
+		kind, value.Revision, value.AppliedMS, digest[:], resultPhaseForKind(value.Kind),
 		f.afterFamily, f.afterOrdinal, f.afterKey, value.ResultCount(), value.ResultBytes(),
 		f.terminal, f.evidenceID, f.evidenceSubjectID, f.parserVersion, f.buildID,
 		value.SetID, f.sealAlgorithm, f.sealVersion, f.sealCommitment, f.sealRows, f.sealBytes,
