@@ -13,7 +13,8 @@ func TestMPPurposeMetadataDoesNotAdmitExecution(t *testing.T) {
 		}
 		// The MP family bodies/authority/receipts and measured resource recipes are
 		// separate publication gates. Merely naming a purpose cannot acquire class.
-		if d.ID == MPQueueRepeat {
+		switch d.ID {
+		case MPQueueRepeat, MPStartPrepBegin, MPStartPrepClaim, MPStartPrepSeal, MPStartPrepAccept, MPStartPrepRetire, MPStartPrepTimeout:
 			if !commandPlanPurpose(d.ID) {
 				t.Fatal("missing closed first instance")
 			}

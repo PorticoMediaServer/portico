@@ -98,6 +98,8 @@ type effectiveRuntime struct {
 	wcSecurityPlan      *effectivePlan
 	wcReclaimPlan       *effectivePlan
 	mpRepeatPlan        *effectivePlan
+	mpStartPrepPlan     *effectivePlan
+	mpStartAcceptPlan   *effectivePlan
 }
 
 func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *governor.Authority, wal *governor.WALGate, owner governor.OwnerID, plan effectivePlan, inventoryPlans ...effectivePlan) (*effectiveRuntime, error) {
@@ -222,6 +224,8 @@ type commandOutput struct {
 	basic             BasicResult
 	search            searchPublisherCommandResult
 	mpRepeat          mpWorkerResult
+	mpStartPrep       mpStartPrepResult
+	mpStartAccept     mpStartAcceptResult
 }
 
 // Keep W's original call contract while all typed domains use one dispatcher.
@@ -254,6 +258,8 @@ func dispatchDeadline(ctx context.Context, now time.Time, scan *inventoryInvocat
 
 func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, invocation wcCommandInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
 	var mp *mpRepeatInvocation
+	var startPrep *mpStartPrepInvocation
+	var startAccept *mpStartAcceptInvocation
 	var wc *wcProgressInvocation
 	var security *wcSecurityInvocation
 	var reclaim *wcReclaimInvocation
@@ -263,6 +269,10 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	case nil:
 	case *mpRepeatInvocation:
 		mp = v
+	case *mpStartPrepInvocation:
+		startPrep = v
+	case *mpStartAcceptInvocation:
+		startAccept = v
 	case *wcProgressInvocation:
 		wc = v
 	case *wcSecurityInvocation:
@@ -409,11 +419,25 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 		}
 	}
 	if mp != nil {
-		if ack || scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
+		if ack || scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil || startPrep != nil {
 			return out, acknowledged, ErrInvalid
 		}
 		purpose, plan, reference, key, libraryID = MPQueueRepeat, nil, mp.reference, mp.queue, 0
 		outcome = &out.mpRepeat.Outcome
+	}
+	if startPrep != nil {
+		if ack || scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil || startAccept != nil {
+			return out, acknowledged, ErrInvalid
+		}
+		purpose, plan, reference, key, libraryID = startPrep.command.kind, nil, startPrep.command.reference, startPrep.command.owner(), 0
+		outcome = &out.mpStartPrep.Outcome
+	}
+	if startAccept != nil {
+		if ack || scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
+			return out, acknowledged, ErrInvalid
+		}
+		purpose, plan, reference, key, libraryID = startAccept.command.kind, nil, startAccept.command.reference, startAccept.command.owner(), 0
+		outcome = &out.mpStartAccept.Outcome
 	}
 	if wc != nil {
 		if scan != nil || cap != nil || input != nil || request != (EnrichmentReceiptRequest{}) || publisher != nil {
@@ -471,6 +495,18 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	if mp != nil {
 		plan = r.mpRepeatPlan
+		if plan == nil {
+			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
+		}
+	}
+	if startPrep != nil {
+		plan = r.mpStartPrepPlan
+		if plan == nil {
+			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
+		}
+	}
+	if startAccept != nil {
+		plan = r.mpStartAcceptPlan
 		if plan == nil {
 			return out, acknowledged, &Refusal{Code: RefusalUnqualified}
 		}
@@ -774,6 +810,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 					err = checkInventoryNativeScope(ctx, turn, scan.request)
 				}
 			}
+		} else if startPrep != nil || startAccept != nil {
+			// The MP start frames prove their own current actor/source/item/queue
+			// disclosure inside the body; they carry no enrichment scope.
 		} else {
 			err = r.disclose(ctx, turn, cap, request)
 		}
@@ -809,6 +848,12 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 
 	if err == nil && mp != nil {
 		out.mpRepeat, historical, err = executeMPRepeat(ctx, turn, mp, plan.mpWorkerLimits)
+	}
+	if err == nil && startPrep != nil {
+		out.mpStartPrep, historical, err = executeMPStartPrep(ctx, turn, startPrep, *plan)
+	}
+	if err == nil && startAccept != nil {
+		out.mpStartAccept, historical, err = executeMPStartAccept(ctx, turn, startAccept, *plan)
 	}
 	if err == nil && reclaim != nil {
 		out.reclaim, acknowledged, historical, err = executeWCReclaimInvocation(ctx, turn, reclaim, ack)
@@ -1040,6 +1085,12 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 	}
 	if mp != nil && !historical && mp.input != nil && physical.state == committed {
 		out.mpRepeat.Outcome.State = Applied
+	}
+	if startPrep != nil && !historical && startPrep.command != nil && physical.state == committed {
+		out.mpStartPrep.Outcome.State = Applied
+	}
+	if startAccept != nil && !historical && startAccept.command != nil && physical.state == committed {
+		out.mpStartAccept.Outcome.State = Applied
 	}
 	if wc != nil && !ack && !historical && wc.input != nil && physical.state == committed {
 		out.progress.Outcome.State = Applied
