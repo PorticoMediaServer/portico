@@ -116,7 +116,7 @@ func TestForegroundLiveOutlastsWindowsCancelExpiryAndOutputOnly(t *testing.T) {
 	// read leaves output/live custody; returning output still cannot attest that
 	// the external consumer has relinquished its page.
 	r := request(clock, Foreground)
-	r.Need = Amounts{Reader: 1, MemoryBytes: 12 << 20}
+	r.Need = Amounts{Reader: 1, MemoryBytes: ForegroundReadBytes}
 	read := grant(t, g, r)
 	r.Need = Amounts{MemoryBytes: 8 << 20}
 	output := grant(t, g, r)

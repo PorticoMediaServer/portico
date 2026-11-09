@@ -177,8 +177,10 @@ func TestSnapshotForecastAdmitsOnlyExplicitBytes(t *testing.T) {
 		if s.NativeRowReservation() != 8<<20 {
 			t.Fatal("control lost actual-reader hard ceiling")
 		}
-		// The request is a ceiling larger than the whole partition, not a hold.
-		// Even the old native floor alone could not fit this 4 MiB partition.
+		// This noncanonical C128 synthetic control deliberately keeps its
+		// 12 MiB ceiling; it does not select the C129 foreground recipe. The
+		// ceiling exceeds the whole partition and is not an actual hold. Even
+		// the 8 MiB native floor alone cannot fit this 4 MiB partition.
 		r.Need[MemoryBytes] = 12 << 20
 		const goBytes = 64 << 10
 		const overhead = 64 + 64*128

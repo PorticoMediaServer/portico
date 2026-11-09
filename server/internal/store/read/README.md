@@ -17,8 +17,10 @@ through admission and preparation. No default profile or runtime route is chosen
 
 Use `ConsumeForeground` around exactly one public reader call and all of its
 output consumers. It calls #1119's `AdmitForeground` before the separate8MiB
-output grant and before invoking the consumer callback. Read grants remain12MiB
-per physical window; LIVE charges bookkeeping only, never another20MiB payload.
+output grant and before invoking the consumer callback. Read grants use
+`governor.ForegroundReadBytes`: 12,648,448 bytes (12 MiB + 64 KiB) per physical
+window, funding C129/L65536 plus the unchanged 4 MiB Go-copy margin. LIVE charges
+bookkeeping only; it does not duplicate the 20 MiB + 64 KiB read/output holdings.
 Its opaque scope is required by `Window`, `Detail`, `Playback` and
 `ContinueWatching`; hand-built, foreign, altered or retired output cannot bypass
 admission. The scope binds exact issuer/key/owner and both original deadlines.
@@ -35,7 +37,7 @@ consumption, err := read.ConsumeForeground(ctx, g, authority, snapshots, liveReq
 
 The output purpose is a memory-only8MiB reservation; its owner matches the LIVE
 request, and its deadline cannot exceed the original protected deadline. Reader
-purposes bind that LIVE key/owner, Foreground class and the unchanged12MiB recipe.
+purposes bind that LIVE key/owner, Foreground class and that same named read recipe.
 Admission waiting, output preparation and retries cannot renew the ready budget.
 Read cancellation also follows the ORIGINAL context even if a caller supplies a
 new context. Fresh bounded security validation still preserves denial precedence.
@@ -146,10 +148,11 @@ stale or refused operations must not be counted as fast successes.
 
 These counts and ready/VM/memory targets are **UNQUALIFIED budget debt**. QL owns
 paired qualification against B-READS: B-R09 detail, B-R13/B-R14 playback, and
-B-R02 for continue watching. The12MiB read/8MiB retained-output recipe and funded test profile are prospective
-custody, not a2GB fit or maximum-body proof. The test
-Reader's64KiB native value/row limit can refuse larger legal descriptions rather
-than truncate them; that legal-maximum/decoder composition needs qualification.
+B-R02 for continue watching. The 12 MiB + 64 KiB read / 8 MiB retained-output recipe and funded test profile
+are prospective custody, not a 2 GB fit or maximum-body proof. The test Reader
+retains its 64 KiB per-value limit, with a 129-column native schema bound and a
+128-column payload cap. It can refuse larger legal descriptions rather than
+truncate them; that legal-maximum/decoder composition needs qualification.
 No production, hosted or reference-host run is implied by local tests.
 
 `SearchDispatcher` is an unwired lifecycle harness using `search.PlanQuery` and

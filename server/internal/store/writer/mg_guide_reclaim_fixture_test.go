@@ -181,6 +181,11 @@ func mgReclaimSlice(t *testing.T, w *executor, op mgGuideNative, witness mgGuide
 
 // A fresh read-only connection to the committed file. Never the writer pool and
 // never the quarantined connection: lost/unknown COMMIT is read back here.
+// C64 is retained for these narrow committed MG durability probes. The shared
+// opener applies the limit after underlying Connect/DSN setup; these controls
+// do not run ANALYZE or change this Reader's schema cookie. Passing them does
+// not establish C64 canonical-schema reparse coverage. The C129 snapshot
+// lifecycle control separately covers ANALYZE and physical replacement.
 func mgReclaimReader(t *testing.T, path string) *sql.DB {
 	t.Helper()
 	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 64}}

@@ -64,7 +64,7 @@ func TestDiagnosticConcurrentKeeper(t *testing.T) {
 			// Reader is bounded, returns owned scalar and closes before recovery.
 			readStarted := time.Now()
 			var revision int
-			readRequest := governor.Request{Key: governor.JobKey{Domain: 1, ID: "checkpoint-reader"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20, governor.CPUMilli: 1000, governor.IOBytes: 64 << 10}, Budget: governor.UnitBudget{RawRows: 1, VMOps: 10000, Pages: 16}, Deadline: f.now().Add(time.Second)}
+			readRequest := governor.Request{Key: governor.JobKey{Domain: 1, ID: "checkpoint-reader"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes, governor.CPUMilli: 1000, governor.IOBytes: 64 << 10}, Budget: governor.UnitBudget{RawRows: 1, VMOps: 10000, Pages: 16}, Deadline: f.now().Add(time.Second)}
 			readRequest.IO = []governor.DeviceIO{{DeviceID: fmt.Sprintf("filesystem-device:%d", f.opening.binding.device), Class: governor.Seeking, Outstanding: 1, Bytes: 64 << 10}}
 			readerResult, readerErr := f.reader.Read(t.Context(), readRequest, time.Second, func(scope *governor.ReadScope) error {
 				rows, e := scope.Query("cp-revision")
