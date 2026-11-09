@@ -34,7 +34,7 @@ func commandClass(id CommandID) (governor.Class, error) {
 		return governor.Background, nil
 	case InventoryAccept, BasicAccept, BasicStage, BasicSeal, InventoryCreate, InventoryClaim, InventoryDirectoryDiscover, InventoryDirectoryEOF, InventoryDirectoryRefuse, InventoryTraversalComplete:
 		return governor.ScanMinimum, nil
-	case MPQueueRepeat:
+	case MPQueueRepeat, MPStartPrepBegin, MPStartPrepClaim, MPStartPrepSeal, MPStartPrepAccept, MPStartPrepRetire, MPStartPrepTimeout:
 		return governor.Foreground, nil
 	case ProgressAccept:
 		return governor.Foreground, nil

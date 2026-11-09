@@ -73,9 +73,11 @@ type usGroupBProducer struct {
 }
 
 var usGroupBProducers = []usGroupBProducer{
+	{File: "server/internal/store/writer/mp_start_prep_owner_session_test.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 MP-07 valid foreign-session owner-binding security fixture", Prefix: `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,command_me`},
 	{File: "server/internal/store/writer/uo_public_reading_authority_test.go", Op: "insert", Table: "api_credentials", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "P05", Note: "Canonical reading current-session credential exclusion fixture", Prefix: `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms) VALUES('c','key','issuer','issuer-profile`},
 
 	{File: "server/internal/store/writer/mp_worker_dispatch_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 MP-04 queue worker current-device fixture; Group B P05 cutover", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('mp-device',?,'mp-install','Fixture','test`},
+	{File: "server/internal/store/writer/mp_start_prep_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 MP-07 start preparation current-device fixture; Group B P05 cutover", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('mp-start-device',?,'mp-start-install','Fi`},
 
 	{File: "server/internal/store/writer/mg_tuner_readback_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P06", Note: "V1 MG-08 tuner authority fixture device, ordinary family", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('issuer-device','issuer',?,'Issuer','test'`},
 	{File: "server/internal/store/writer/mg_tuner_readback_test.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P06", Note: "V1 MG-08 tuner authority fixture ordinary family", Prefix: `INSERT INTO authorization_session_families(security_kind,id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device`},
@@ -566,6 +568,8 @@ var usGroupBSchemaGuards = []usGroupBSchemaGuard{
 	{File: "server/internal/store/writer/mp_reading_plans_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
 	{File: "server/internal/store/writer/mp_session_stop_guard_plans_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
 	{File: "server/internal/store/writer/mp_worker_dispatch_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
+	{File: "server/internal/store/writer/mp_start_prep_test.go", Literals: 2, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
+	{File: "server/internal/store/writer/mp_start_accept_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
 	{File: "server/internal/store/schema/schema.go", Literals: 1, Guards: "embedded schema.sql SHA256 constant", HashOnly: true},
 	{File: "server/internal/store/schema/SHA256SUMS", Literals: 1, Guards: "schema.sql checksum line", HashOnly: true},
 	{File: "server/internal/store/schema/INT-LARGE-INDEXES.json", Literals: 1, Guards: "ddl_sha256 in the large-index contract; the index set also moves with group B foreign keys", HashOnly: false},

@@ -107,6 +107,8 @@ At this census head the public embedded schema pins `9d9aa39d...` (retained sche
 | `server/internal/store/stmt/plan/testdata/n1-record-octets.json:23` | `"sha256": 9d9aa39d...` | N1 record octet evidence | no (evidence refresh) |
 | `server/internal/store/stmt/plan/testdata/ia-audio-octets.json:33` | `9d9aa39d...` in the implementations note | IA audio octet evidence | no (evidence refresh) |
 | `server/internal/store/writer/testdata/uo-notice-reclaim-plans.json:5` | `44411dfe...` (`"sqlSha256"`) | UO-14 reclaim plan golden; schema literal pinned by the plan recorder; re-record after any schema adoption; owner UO; no producer edits | no (golden re-record) |
+| `server/internal/store/writer/mp_start_prep_test.go:24,240` | `484242fb...` (fixture comment and plan evidence) | MP-07 start-preparation fixture/plan guard on the adopted F schema | yes |
+| `server/internal/store/writer/mp_start_accept_test.go:50` | `484242fb...` (plan evidence) | MP-08 start accept/retire/timeout plan guard on the adopted F schema | yes |
 
 The compressed siblings `server/internal/store/writer/testdata/uo-notice-reclaim-plans-fk.json.gz` and `server/internal/store/read/testdata/uo-event-plans.json.gz` carry the same schema literal inside their gzip bytes. The census scans text files only, so they are not guard sites; they move only when their plan recorders re-record them.
 
