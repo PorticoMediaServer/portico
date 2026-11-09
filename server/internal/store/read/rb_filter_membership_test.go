@@ -35,7 +35,7 @@ func newRBFilterMembershipSource(t *testing.T) *browseFixture {
 			t.Fatalf("%v\n%s", err, q)
 		}
 	}
-	run(`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(3,'season',0,1,1,1,0),(4,'episode',1,0,1,1,0),(5,'artist',0,1,1,1,1),(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1),(10,'collection',0,1,1,1,0)`)
+	run(`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(3,'season',0,1,1,1,0),(4,'episode',1,0,1,1,0),(5,'artist',0,1,1,1,1),(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1),(8,'book',0,1,1,1,0),(9,'audiobook_file',1,0,1,1,1),(10,'collection',0,1,1,1,0)`)
 	// The compact membership, episode and song families are writer-side
 	// derived tables; the read contract source owns only the canonical
 	// catalogue. The real-shape fixture installs the exact baseline shapes
@@ -68,13 +68,15 @@ func newRBFilterMembershipSource(t *testing.T) *browseFixture {
 		{id: 8, kind: 3, title: "season one", show: int64(7), seasonNumber: int64(1)},
 		{id: 9, kind: 4, title: "episode one", show: int64(7), season: int64(8), numbering: "seasonal", episodeNumber: int64(1)},
 		{id: 10, kind: 4, title: "episode two", show: int64(7), season: int64(8), numbering: "seasonal", episodeNumber: int64(2)},
+		// The composite show/season/album/artist references are immediate, so
+		// every parent row is inserted before the row that names it.
+		{id: 13, kind: 3, title: "specials", show: int64(7), seasonNumber: int64(0)},
 		{id: 11, kind: 4, title: "special one", show: int64(7), season: int64(13), numbering: "seasonal", episodeNumber: int64(1)},
 		{id: 12, kind: 4, title: "absolute one", show: int64(7), numbering: "absolute", episodeNumber: int64(1)},
-		{id: 13, kind: 3, title: "specials", show: int64(7), seasonNumber: int64(0)},
+		{id: 17, kind: 5, title: "artist a"},
 		{id: 14, kind: 6, title: "album a", artist: int64(17)},
 		{id: 15, kind: 7, title: "song a", album: int64(14)},
 		{id: 16, kind: 7, title: "song b", album: int64(14)},
-		{id: 17, kind: 5, title: "artist a"},
 		{id: 18, kind: 5, title: "artist b"},
 		{id: 20, kind: 10, title: "collection one"},
 		{id: 21, kind: 10, title: "collection two"},
@@ -91,6 +93,8 @@ func newRBFilterMembershipSource(t *testing.T) *browseFixture {
 	run(`INSERT INTO catalog_albums(entity_id,artist_id,local_key) VALUES(14,17,'album-a')`)
 	run(`INSERT INTO catalog_songs(entity_id,album_id,disc_number,track_number) VALUES(15,14,1,1),(16,14,1,2)`)
 	run(`INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(15,17),(16,18)`)
+	// These writer-derived shapes are not part of the read schema binding.
+	f.derivedSchema = []string{"catalog_albums", "catalog_browse_memberships", "catalog_episodes", "catalog_seasons", "catalog_songs"}
 
 	// The real writer shape: playable items are their own member (source 0);
 	// containers hold their members (sources 1-5, 8). A show and a season have
@@ -156,10 +160,15 @@ func rbMembershipFixture(t *testing.T) *browseFixture {
 
 func rbMembershipRead(t *testing.T, f *browseFixture, in MembershipFilterInput) (MembershipFilterPage, BrowseReadResult, error) {
 	t.Helper()
+	return rbMembershipReadWithRows(t, f, in, 2*MaxRaw+10)
+}
+
+func rbMembershipReadWithRows(t *testing.T, f *browseFixture, in MembershipFilterInput, rawRows uint32) (MembershipFilterPage, BrowseReadResult, error) {
+	t.Helper()
 	var page MembershipFilterPage
 	var cost BrowseReadResult
 	live, request, output := liveRequests("rb-filter-membership")
-	request.Budget.RawRows = 2*MaxRaw + 10
+	request.Budget.RawRows = rawRows
 	_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
 		var e error
 		page, cost, e = f.reader.MembershipFilterWindow(ctx, request, time.Second, out, in)
@@ -228,7 +237,7 @@ func rbMembershipOracle(t *testing.T, f *browseFixture, in BrowseInput, where st
 	if in.Descending {
 		direction = "DESC"
 	}
-	query := "SELECT e.id FROM catalog_entities AS e WHERE e.library_id=? AND e.kind=? AND e.retired=0 AND (" + where + ") ORDER BY e." + key + " COLLATE NOCASE " + direction + ",e.id " + direction
+	query := "SELECT e.id FROM (SELECT id,id AS entity_id,library_id,kind,retired,sort_key,sort_key_keep_articles FROM catalog_entities) AS e WHERE e.library_id=? AND e.kind=? AND e.retired=0 AND (" + where + ") ORDER BY e." + key + " COLLATE NOCASE " + direction + ",e.id " + direction
 	rows, err := f.conn.QueryContext(t.Context(), query, append([]any{in.Library, in.Kind}, args...)...)
 	if err != nil {
 		t.Fatal(err)
@@ -349,7 +358,7 @@ func TestRBFilterMembershipFencesAndBounds(t *testing.T) {
 INSERT INTO catalog_playlist_entries(id,token,playlist_id,item_id,order_key) SELECT 1000+i,'cap-'||i,1,1,'cap'||i FROM n`)
 		in = MembershipFilterInput{View: f2.input, Query: json.RawMessage(`{"variant":"predicate","field":"list","operator":"equals","value":"list-mine"}`)}
 		in.View.Limit = 10
-		if _, _, err = rbMembershipRead(t, f2, in); !errors.Is(err, ErrNotReady) {
+		if _, _, err = rbMembershipReadWithRows(t, f2, in, 4096); !errors.Is(err, ErrNotReady) {
 			t.Fatal("full fact window was not refused", err)
 		}
 	})

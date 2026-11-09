@@ -32,6 +32,12 @@ type Fixture struct {
 	SHA256           string            `json:"sha256"`
 	Statistics       Statistics        `json:"statistics"`
 	Implementations  string            `json:"implementations"`
+	// DerivedSchema names fixture-owned tables that are not part of the read
+	// schema (writer-derived shapes such as catalog_browse_memberships). They
+	// are excluded from the recorded schema binding, whose canonical objects
+	// must still match the embedded native layout exactly. Empty for the
+	// canonical reader fixtures.
+	DerivedSchema []string `json:"derivedSchema,omitempty"`
 }
 type Rows struct {
 	Columns []string `json:"columns"`
@@ -413,6 +419,42 @@ func (g Golden) Compare(expected []byte) error {
 	return CompareJSON(expected, actual)
 }
 
+// schemaWithoutDerived removes a fixture's declared writer-derived tables and
+// the indexes that belong to them from the schema catalogue. The remaining rows
+// must still prove the embedded native layout exactly; a declared name that is
+// absent is an error rather than a silently ignored typo.
+func schemaWithoutDerived(rows Rows, derived []string) (Rows, error) {
+	declared := make(map[string]bool, len(derived))
+	for _, name := range derived {
+		if name == "" {
+			return Rows{}, fmt.Errorf("plan: empty derived schema name")
+		}
+		declared[name] = true
+	}
+	seen := make(map[string]bool, len(declared))
+	out := Rows{Columns: rows.Columns, Values: make([][]any, 0, len(rows.Values))}
+	for _, row := range rows.Values {
+		if len(row) != 5 {
+			return Rows{}, fmt.Errorf("plan: malformed schema catalogue")
+		}
+		name, _ := row[1].(string)
+		table, _ := row[2].(string)
+		if row[0] == "table" && declared[name] {
+			seen[name] = true
+		}
+		if declared[name] || declared[table] {
+			continue
+		}
+		out.Values = append(out.Values, row)
+	}
+	for name := range declared {
+		if !seen[name] {
+			return Rows{}, fmt.Errorf("plan: fixture-derived table %s absent from schema", name)
+		}
+	}
+	return out, nil
+}
+
 func environment(ctx context.Context, conn *sql.Conn, f Fixture) (Environment, error) {
 	env := Environment{Fixture: f, Statistics: map[string]Rows{}, Pragmas: map[string]Rows{}}
 	settings, err := sqliteconn.Assert(ctx, conn, f.ConnectionPolicy)
@@ -441,6 +483,12 @@ func environment(ctx context.Context, conn *sql.Conn, f Fixture) (Environment, e
 	if err != nil {
 		return env, err
 	}
+	if len(f.DerivedSchema) != 0 {
+		env.Schema, err = schemaWithoutDerived(env.Schema, f.DerivedSchema)
+		if err != nil {
+			return env, err
+		}
+	}
 	env.SchemaSHA256 = digest(env.Schema)
 	tables, err := query(ctx, conn, "SELECT name FROM sqlite_schema WHERE name IN ('sqlite_stat1','sqlite_stat4') ORDER BY name")
 	if err != nil {
@@ -464,6 +512,22 @@ func environment(ctx context.Context, conn *sql.Conn, f Fixture) (Environment, e
 	}
 	if f.Statistics == Analyzed && len(env.Statistics) == 0 {
 		return env, fmt.Errorf("plan: analyzed fixture has no statistics")
+	}
+	if len(f.DerivedSchema) != 0 {
+		derived := make(map[string]bool, len(f.DerivedSchema))
+		for _, name := range f.DerivedSchema {
+			derived[name] = true
+		}
+		for name, rows := range env.Statistics {
+			kept := rows.Values[:0]
+			for _, row := range rows.Values {
+				table, _ := row[0].(string)
+				if !derived[table] {
+					kept = append(kept, row)
+				}
+			}
+			env.Statistics[name] = Rows{Columns: rows.Columns, Values: kept}
+		}
 	}
 	env.StatisticsSHA256 = digest(env.Statistics)
 	for _, name := range []string{"automatic_index", "foreign_keys", "analysis_limit", "encoding", "page_size", "cache_size", "temp_store", "journal_mode", "synchronous", "reverse_unordered_selects", "trusted_schema", "query_only"} {

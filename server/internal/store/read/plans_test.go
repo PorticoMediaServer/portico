@@ -180,8 +180,8 @@ func TestBrowseCaptureRejectsPlanRegressions(t *testing.T) {
 
 func browseReaderConfig() sqliteconn.Config { return readfixture.ReaderConfig() }
 
-func browsePlanFixture(cfg sqliteconn.Config, hash string, statistics plan.Statistics) plan.Fixture {
-	return plan.Fixture{ConnectionPolicy: cfg, SHA256: hash, Statistics: statistics, Implementations: "canonical " + schema.SHA256 + "; bundled 3.53.4 builtin functions/collations; seedBrowse source journal"}
+func browsePlanFixture(cfg sqliteconn.Config, hash string, statistics plan.Statistics, derived ...string) plan.Fixture {
+	return plan.Fixture{ConnectionPolicy: cfg, SHA256: hash, Statistics: statistics, Implementations: "canonical " + schema.SHA256 + "; bundled 3.53.4 builtin functions/collations; seedBrowse source journal", DerivedSchema: derived}
 }
 
 // Mint a fresh receipt on the actual fixture's Reader before GV composition.
@@ -224,7 +224,7 @@ func captureBrowse(t *testing.T, f *browseFixture, definitions []stmt.Definition
 	if len(fixtureHashes) == 1 {
 		hash = fixtureHashes[0]
 	}
-	golden, err := plan.Capture(t.Context(), conn, catalogue, browsePlanFixture(cfg, hash, statistics), policy)
+	golden, err := plan.Capture(t.Context(), conn, catalogue, browsePlanFixture(cfg, hash, statistics, f.derivedSchema...), policy)
 	if err != nil {
 		t.Fatal(err)
 	}
