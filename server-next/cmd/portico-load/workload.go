@@ -159,8 +159,17 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 		if n >= len(w.viewers)-3 && len(w.viewers) > 3 {
 			firstPage = "first-page-restricted"
 		}
+		// What a library's own screens list: mostly its titles, sometimes everything under them.
 		lib := pick(r, w.libs)
-		leaf := db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{seed.LeafKind(lib.Kind)},
+		kind := seed.LeafKind(lib.Kind)
+		switch {
+		case lib.Kind == db.LibraryShows && r.IntN(2) == 0:
+			kind = db.KindShow
+		case lib.Kind == db.LibraryMusic && r.IntN(5) < 3:
+			kind = pick(r, []db.ItemKind{db.KindAlbum, db.KindAlbum, db.KindArtist})
+		}
+		video := lib.Kind == db.LibraryMovies || lib.Kind == db.LibraryShows && kind == db.KindEpisode
+		leaf := db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{kind},
 			Sort: pick(r, []string{db.SortTitle, db.SortTitle, db.SortAdded, db.SortYear, db.SortRelease}), Desc: r.IntN(3) == 0}
 		started := time.Now()
 		switch n := r.IntN(100); {
@@ -190,6 +199,9 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 			_, err := w.d.Items(ctx, v, leaf)
 			w.record("decade", started, err)
 		case n < 65:
+			if !video { // only video libraries offer the resolution filter
+				continue
+			}
 			leaf.Resolution = pick(r, []string{"sd", "720p", "1080p", "4k"})
 			_, err := w.d.Items(ctx, v, leaf)
 			w.record("resolution", started, err)

@@ -135,10 +135,18 @@ type query struct {
 	// and tagCount stand in for the "{tag}" mark in the condition. See ItemQuery.filters.
 	from, countFrom   string
 	tagPage, tagCount string
+	// pagePlus is "+" when the page should not be found through a filter's own index; it
+	// stands in for "{+}" in the page's condition, and nothing does in the total's.
+	pagePlus string
 }
 
-func (q *query) pageWhere() string  { return strings.Replace(q.sql.String(), "{tag}", q.tagPage, 1) }
-func (q *query) countWhere() string { return strings.Replace(q.sql.String(), "{tag}", q.tagCount, 1) }
+func (q *query) pageWhere() string {
+	return strings.NewReplacer("{tag}", q.tagPage, "{+}", q.pagePlus).Replace(q.sql.String())
+}
+
+func (q *query) countWhere() string {
+	return strings.NewReplacer("{tag}", q.tagCount, "{+}", "").Replace(q.sql.String())
+}
 
 func newQuery(v Viewer) *query { return &query{args: v.args(), from: "items i", countFrom: "items i"} }
 
