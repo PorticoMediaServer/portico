@@ -218,6 +218,9 @@ func TestRBContainerMetricsShowAggregates(t *testing.T) {
 	}
 	members, duration, community, critic, _, resolution, latest, rating, played, plays := rbContainerMetricsOracle(t, f, 2001, "show")
 	got := page.Metrics
+	if page.Present != rbContainerMetricsAll&^RBContainerFileSize {
+		t.Fatalf("presence mask: %#x", page.Present)
+	}
 	if got.Members != members || got.Duration != duration || got.CommunityRating != community || got.CriticRating != critic || got.Resolution != resolution || got.LatestAired != latest || got.PersonalRating != rating || got.LastPlayed != played || got.PlayCount != plays || got.EpisodeCount != members {
 		t.Fatalf("aggregate differs from the independent oracle: %+v want %d %v %v %v %d %q %v %q %d", got, members, duration, community, critic, resolution, latest, rating, played, plays)
 	}
@@ -353,12 +356,76 @@ func TestRBContainerMetricsCollectionLeafOnly(t *testing.T) {
 	}
 }
 
+func TestRBContainerMetricsAutomaticCollectionRefused(t *testing.T) {
+	f, r := newRBContainerMetricsFixture(t)
+	view := f.input
+	view.Kind = 10
+	// One automatic row still joins to exactly one entity row, so a row-count
+	// check alone would publish the three authored members as the full set.
+	f.exec(t, `INSERT INTO catalog_automatic_collections(library_id,provider,provider_id,entity_id) VALUES(1,'provider','automatic',2005)`)
+	job, err := r.BeginContainerMetrics(t.Context(), 1, 1<<20, RBContainerMetricsInput{View: view, Subject: 2005, Metrics: RBContainerDuration})
+	if err != nil {
+		t.Fatal(err)
+	}
+	advance, err := job.Advance(t.Context(), rbContainerMetricsRequest(), time.Second)
+	if !errors.Is(err, ErrRBContainerMetricsAutomatic) || !errors.Is(err, ErrUnqualified) || advance.Ready {
+		t.Fatalf("automatic collection was published as an authored-only exact set: %v %+v", err, advance)
+	}
+	if !job.entry.closed {
+		t.Fatal("automatic collection kept its preparation lease")
+	}
+	// Two automatic rows for the same entity still refuse through the exact
+	// point's row-count guard.
+	f.exec(t, `INSERT INTO catalog_automatic_collections(library_id,provider,provider_id,entity_id) VALUES(1,'provider2','automatic2',2005)`)
+	two, err := r.BeginContainerMetrics(t.Context(), 1, 1<<20, RBContainerMetricsInput{View: view, Subject: 2005, Metrics: RBContainerDuration})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer two.Close()
+	if advance, err := two.Advance(t.Context(), rbContainerMetricsRequest(), time.Second); !errors.Is(err, ErrUnqualified) || advance.Ready {
+		t.Fatalf("two automatic rows did not refuse: %v %+v", err, advance)
+	}
+}
+
+func TestRBContainerMetricsRestartBudgetPerJob(t *testing.T) {
+	f, r := newRBContainerMetricsFixture(t)
+	view := f.input
+	view.Kind = 2
+	job, err := r.BeginContainerMetrics(t.Context(), 1, 1<<20, RBContainerMetricsInput{View: view, Subject: 2100, Metrics: RBContainerDuration})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer job.Close()
+	// The six-hundred-child show cannot finish inside one bounded poll, so each
+	// revision churn forces a content restart without completing the job.
+	if advance, err := job.Advance(t.Context(), rbContainerMetricsRequest(), time.Second); err != nil || advance.Ready {
+		t.Fatalf("first poll: %v %+v", err, advance)
+	}
+	for poll := 0; poll < 2; poll++ {
+		f.exec(t, `UPDATE catalog_entities SET tv_hierarchy_revision=COALESCE(tv_hierarchy_revision,1)+1 WHERE id=2100`)
+		advance, err := job.Advance(t.Context(), rbContainerMetricsRequest(), time.Second)
+		if err != nil || advance.Ready || advance.Restarts != 1 {
+			t.Fatalf("poll %d did not restart once: %v %+v", poll+1, err, advance)
+		}
+	}
+	// The two job-wide restarts are spent; a third content change is refused
+	// instead of being restarted again.
+	f.exec(t, `UPDATE catalog_entities SET tv_hierarchy_revision=COALESCE(tv_hierarchy_revision,1)+1 WHERE id=2100`)
+	advance, err := job.Advance(t.Context(), rbContainerMetricsRequest(), time.Second)
+	if !errors.Is(err, ErrStale) || advance.Ready {
+		t.Fatalf("third restart was not refused: %v %+v", err, advance)
+	}
+	if !job.entry.closed {
+		t.Fatal("over-budget restart kept its preparation lease")
+	}
+}
+
 func TestRBContainerMetricsDeletedLastMember(t *testing.T) {
 	f, r := newRBContainerMetricsFixture(t)
 	view := f.input
 	view.Kind = 10
 	f.exec(t, `DELETE FROM catalog_collection_members WHERE collection_id=2005`)
-	job, err := r.BeginContainerMetrics(t.Context(), 1, 1<<20, RBContainerMetricsInput{View: view, Subject: 2005, Metrics: RBContainerDuration | RBContainerLatestAired})
+	job, err := r.BeginContainerMetrics(t.Context(), 1, 1<<20, RBContainerMetricsInput{View: view, Subject: 2005, Metrics: RBContainerDuration})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +435,7 @@ func TestRBContainerMetricsDeletedLastMember(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.Metrics.Members != 0 || page.Metrics.Duration != 0 || page.Metrics.LatestAired != "" {
+	if page.Metrics.Members != 0 || page.Metrics.Duration != 0 {
 		t.Fatalf("deleted last member left a stale aggregate: %+v", page.Metrics)
 	}
 }

@@ -148,7 +148,7 @@ func rbContainerMetricsSelect(spec rbContainerMetricsChildSpec, projection strin
 	}
 	return "SELECT " + projection + "," + rbContainerMetricsKeyColumns(spec) +
 		" FROM " + spec.from +
-		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id" +
+		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id AND p.item_public_id=e.public_id" +
 		" WHERE " + where + " ORDER BY " + order + " LIMIT ?"
 }
 
@@ -183,7 +183,7 @@ func rbContainerMetricsDefinitions() []stmt.Definition {
 	// the collection variant also proves no automatic/inferred membership exists,
 	// because an authored walk cannot see those members.
 	add("point", `SELECT id,library_id,kind,retired,public_id,metadata_incarnation,revision,source_revision,identity_revision,metadata_revision,tv_hierarchy_revision,music_membership_revision,collection_revision,aggregate_revision FROM catalog_entities WHERE id=? AND library_id=? AND kind=?`, []stmt.Param{i("subject"), i("library"), i("kind")}, []any{int64(2001), int64(1), int64(2)}, []any{int64(999999), int64(1), int64(2)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_entities"}})
-	add("point.collection", `SELECT e.id,e.library_id,e.kind,e.retired,e.public_id,e.metadata_incarnation,e.revision,e.source_revision,e.identity_revision,e.metadata_revision,e.tv_hierarchy_revision,e.music_membership_revision,e.collection_revision,e.aggregate_revision FROM catalog_entities AS e LEFT JOIN catalog_automatic_collections AS a INDEXED BY catalog_automatic_collection_entity ON a.entity_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? LIMIT 2`, []stmt.Param{i("subject"), i("library"), i("kind")}, []any{int64(2001), int64(1), int64(10)}, []any{int64(999999), int64(1), int64(10)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}, Indexes: []string{"catalog_automatic_collection_entity"}, Seeks: []string{"entity_id=?"}})
+	add("point.collection", `SELECT e.id,e.library_id,e.kind,e.retired,e.public_id,e.metadata_incarnation,e.revision,e.source_revision,e.identity_revision,e.metadata_revision,e.tv_hierarchy_revision,e.music_membership_revision,e.collection_revision,e.aggregate_revision,a.entity_id FROM catalog_entities AS e LEFT JOIN catalog_automatic_collections AS a INDEXED BY catalog_automatic_collection_entity ON a.entity_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? LIMIT 2`, []stmt.Param{i("subject"), i("library"), i("kind")}, []any{int64(2001), int64(1), int64(10)}, []any{int64(999999), int64(1), int64(10)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}, Indexes: []string{"catalog_automatic_collection_entity"}, Seeks: []string{"entity_id=?"}})
 
 	for _, spec := range rbContainerMetricsChildSpecs() {
 		plan := stmt.Plan{Hot: true, Indexes: []string{spec.index, "personal_current_live"}, Seeks: []string{spec.seek, "profile_id=? AND item_id=?"}}

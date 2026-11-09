@@ -98,7 +98,7 @@ func rbContainerMetricsOctetSelect(spec rbContainerMetricsOctetSource, preds []s
 	}
 	return "SELECT e.id,octet_length(e.latest_aired_key),COALESCE(octet_length(p.last_played_at),0)," + rbContainerMetricsOctetKeyColumns(spec) +
 		" FROM " + spec.from +
-		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id" +
+		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id AND p.item_public_id=e.public_id" +
 		" WHERE " + where + " ORDER BY " + order + " LIMIT ?"
 }
 

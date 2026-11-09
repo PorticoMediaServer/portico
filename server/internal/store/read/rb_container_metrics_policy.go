@@ -16,6 +16,13 @@ const rbContainerMetricsPolicy readPolicyID = 32560
 // own age or the container's own admission scalar.
 var errRBContainerMetricsUSPolicy = fmt.Errorf("%w: US accepted account-limit/blocked-label policy facts are not landed", ErrUnqualified)
 
+// ErrRBContainerMetricsAutomatic refuses an automatic/inferred collection
+// subject. This recipe walks authored catalog_collection_members only, so an
+// automatic collection's exact member set is not supplied here until RS-05
+// lands its separately closed complete-set recipe. An authored-only prefix is
+// never published as the full set.
+var ErrRBContainerMetricsAutomatic = fmt.Errorf("%w: automatic collection members are not supplied by this recipe until RS-05", ErrUnqualified)
+
 func init() {
 	registerReadPolicy(readPolicyRecipe{id: rbContainerMetricsPolicy, domain: "rb-container-metrics", kinds: []int64{2, 3, 6, 8, 10}, validate: rbContainerMetricsEligibility})
 }
@@ -49,6 +56,12 @@ func rbContainerMetricsEligibility(q browseQuery, in BrowseInput, f browseFence)
 		return "", ErrUnqualified
 	}
 	r := rows[0]
+	if in.Kind == 10 && r[14] != nil {
+		// Exactly one automatic row still joins to one catalog_entities row, so
+		// the row-count refusal above cannot see it. The authored membership
+		// tuple does not prove inferred membership; refuse by name.
+		return "", ErrRBContainerMetricsAutomatic
+	}
 	if r[3].(int64) != 0 {
 		return "", ErrDenied
 	}
