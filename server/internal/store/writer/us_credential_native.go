@@ -170,11 +170,15 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING ` + credentialColumns,
 			Cohorts: []stmt.Cohort{{Name: "current", Bindings: append([]any{int64(2000)}, credentialBindings...)}},
 			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_api_credentials_1"}, Seeks: []string{"id=?"},
 				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("api_credentials", "sqlite_autoindex_api_credentials_1", "pk", "id")}}},
-		// The captured family incarnation/generation, revocation shape and the
-		// complete owner binding are current source evidence for the immutable
-		// result AND the approval prefix. The credential family MUST stay
-		// security_kind=1.
-		{ID: usCredentialFamilyRead, Kind: stmt.Read, SQL: `SELECT command_incarnation,current_generation,revoked,revoked_reason,teardown_due_ms,server_id,command_member_incarnation,command_profile_lifetime FROM authorization_session_families INDEXED BY sqlite_autoindex_authorization_session_families_1 WHERE id=? AND account_id=? AND profile_id=? AND authority='local' AND security_kind=1`,
+		// The captured family incarnation/generation, revocation shape, bound
+		// device and the complete owner binding are current source evidence for
+		// the immutable result AND the approval prefix. The credential family
+		// MUST stay security_kind=1, and the SOL-USERS credential->family->device
+		// chain is checked here: the family's own device_id must equal the
+		// credential row's device_id (and must not be the nullable NULL), so a
+		// drifted/imported family can never be denied on behalf of this
+		// credential while a different device stays live.
+		{ID: usCredentialFamilyRead, Kind: stmt.Read, SQL: `SELECT command_incarnation,current_generation,revoked,revoked_reason,teardown_due_ms,server_id,command_member_incarnation,command_profile_lifetime,device_id FROM authorization_session_families INDEXED BY sqlite_autoindex_authorization_session_families_1 WHERE id=? AND account_id=? AND profile_id=? AND authority='local' AND security_kind=1`,
 			Params:  []stmt.Param{text("family"), text("account"), text("profile")},
 			Cohorts: []stmt.Cohort{{Name: "credential_family", Bindings: []any{"us-credential-family", "us-credential-account", "us-credential-profile"}}},
 			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_authorization_session_families_1"}, Seeks: []string{"id=?"},
@@ -183,36 +187,40 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING ` + credentialColumns,
 		// #1265's scalar admin_revoke: revoked/reason/at plus the durable
 		// teardown_due_ms obligation. It sets no revoke_operation_id and writes
 		// no second family command/receipt: the family CAS is conditional on
-		// command_last_sequence=0 and an unclaimed revoke slot.
+		// command_last_sequence=0, an unclaimed revoke slot and the SAME bound
+		// device_id the family read just proved, so the read/CAS pair cannot
+		// diverge on a drifted source.
 		{ID: usCredentialFamilyRevoke, Kind: stmt.Write, SQL: `UPDATE authorization_session_families INDEXED BY sqlite_autoindex_authorization_session_families_1
 SET revoked=1,revoked_reason='admin_revoke',revoked_at=?,teardown_due_ms=?
 WHERE id=? AND server_id=? AND account_id=? AND profile_id=? AND authority='local' AND security_kind=1
-AND command_member_incarnation=? AND command_profile_lifetime=?
+AND device_id=? AND command_member_incarnation=? AND command_profile_lifetime=?
 AND command_incarnation=? AND current_generation=?
 AND revoked=0 AND command_last_sequence=0 AND revoke_operation_id IS NULL
 RETURNING command_incarnation,current_generation,revoked,revoked_reason,revoked_at,teardown_due_ms`,
-			Params: []stmt.Param{text("revoked_at"), integer("due_ms"), text("family"), text("server"), text("account"), text("profile"),
+			Params: []stmt.Param{text("revoked_at"), integer("due_ms"), text("family"), text("server"), text("account"), text("profile"), text("device"),
 				text("member"), text("lifetime"), {Name: "incarnation", Type: stmt.Blob}, integer("generation")},
-			Cohorts: []stmt.Cohort{{Name: "own_deny", Bindings: []any{"1970-01-01T00:00:01Z", int64(1000), "us-credential-family", "us-credential-server", "us-credential-account", "us-credential-profile",
+			Cohorts: []stmt.Cohort{{Name: "own_deny", Bindings: []any{"1970-01-01T00:00:01Z", int64(1000), "us-credential-family", "us-credential-server", "us-credential-account", "us-credential-profile", "us-credential-device",
 				"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, int64(1)}}},
 			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_authorization_session_families_1"}, Seeks: []string{"id=?"},
 				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("authorization_session_families", "sqlite_autoindex_authorization_session_families_1", "pk", "id")}}},
 		// The credential's OWN bound API device. Birth hardcodes platform 'api'
-		// (usFamilyBirthAPIDevice), so that value is the prepared shape, not a
-		// new caller input. Retirement is LOGICAL only: authorization_session_
-		// families.device_id is ON DELETE SET NULL and US-26 owns physical
-		// child-first reclamation after reverse-reference drains.
-		{ID: usCredentialDeviceRead, Kind: stmt.Read, SQL: `SELECT account_id,platform,revision,retired_ms FROM identity_devices INDEXED BY sqlite_autoindex_identity_devices_1 WHERE id=? AND authority='local'`,
+		// and installation 'api-credential-'||credential id (usFamilyBirthAPIDevice,
+		// applyUSCredentialFamilyBirth), so both values are prepared shape, not new
+		// caller input: an ordinary device or another credential's API device can
+		// never be retired on this row's behalf. Retirement is LOGICAL only:
+		// authorization_session_families.device_id is ON DELETE SET NULL and US-26
+		// owns physical child-first reclamation after reverse-reference drains.
+		{ID: usCredentialDeviceRead, Kind: stmt.Read, SQL: `SELECT account_id,platform,revision,retired_ms,installation_id FROM identity_devices INDEXED BY sqlite_autoindex_identity_devices_1 WHERE id=? AND authority='local'`,
 			Params:  []stmt.Param{text("device")},
 			Cohorts: []stmt.Cohort{{Name: "own_device", Bindings: []any{"us-credential-device"}}},
 			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_identity_devices_1"}, Seeks: []string{"id=?"},
 				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("identity_devices", "sqlite_autoindex_identity_devices_1", "pk", "id")}}},
 		{ID: usCredentialDeviceRetire, Kind: stmt.Write, SQL: `UPDATE identity_devices INDEXED BY sqlite_autoindex_identity_devices_1
 SET retired_ms=?,revision=revision+1
-WHERE id=? AND authority='local' AND account_id=? AND platform='api' AND revision=? AND retired_ms=0
+WHERE id=? AND authority='local' AND account_id=? AND platform='api' AND installation_id=? AND revision=? AND retired_ms=0
 RETURNING retired_ms,revision`,
-			Params:  []stmt.Param{integer("retired_ms"), text("device"), text("account"), integer("revision")},
-			Cohorts: []stmt.Cohort{{Name: "own_device", Bindings: []any{int64(1000), "us-credential-device", "us-credential-account", int64(1)}}},
+			Params:  []stmt.Param{integer("retired_ms"), text("device"), text("account"), text("installation"), integer("revision")},
+			Cohorts: []stmt.Cohort{{Name: "own_device", Bindings: []any{int64(1000), "us-credential-device", "us-credential-account", "api-credential-us-credential", int64(1)}}},
 			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_identity_devices_1"}, Seeks: []string{"id=?"},
 				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("identity_devices", "sqlite_autoindex_identity_devices_1", "pk", "id")}}},
 		// Current owner-recovery custody for key/app-password. A token has no
@@ -525,11 +533,13 @@ func applyUSCredentialIssue(ctx context.Context, turn *commandTurn, job *usCrede
 //
 // Order is the binding one: (1) the source marker (revoked_ms), (2) the
 // credential's own family denial (revoked/reason/at + WC #1265's scalar
-// teardown_due_ms obligation), (3) logical retirement of the credential's own
-// identity_devices row, then (4) ONE devices list.changed hint. Every step is
-// CAS-bound to the same prepared witness and the same trusted clock. Any
-// failure cancels the whole frame, even if a parent ignores the error, so a
-// marker-only or family-only prefix can never commit.
+// teardown_due_ms obligation) after proving the family's own device_id is the
+// credential row's device, (3) logical retirement of the credential's own
+// identity_devices row after proving birth's installation pin, then (4) ONE
+// devices list.changed hint. Every step is CAS-bound to the same prepared
+// witness and the same trusted clock. Any failure cancels the whole frame,
+// even if a parent ignores the error, so a marker-only or family-only prefix
+// can never commit.
 //
 // Physical device/family/secret deletion is deliberately NOT here:
 // authorization_session_families.device_id is ON DELETE SET NULL and other
@@ -588,8 +598,13 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		return out, ErrResolveRequired
 	}
 	// (2) The credential's OWN security_kind=1 family. The credential row
-	// supplied family_id; this read/cas binds it to the CURRENT target
-	// member/profile lifetime, server, incarnation and generation.
+	// supplied family_id; this read/CAS binds it to the CURRENT target
+	// member/profile lifetime, server, incarnation, generation and the SAME
+	// device_id. SOL-USERS' chain is credential row -> family -> device: a family
+	// whose device_id is NULL or a different device is not this credential's
+	// exact current target, in BOTH the live and the already-revoked branch.
+	// Denying such a family while retiring the credential row's device would
+	// leave a different device live and still record Applied.
 	row, e = usCredentialQuery(ctx, turn, usCredentialFamilyRead, in.family, in.target.account, in.target.profile)
 	if e != nil {
 		return out, e
@@ -598,9 +613,10 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		incarnation                  []byte
 		generation, revoked          int64
 		due                          sql.NullInt64
+		device                       sql.NullString
 		reason, server, member, life string
 	}
-	if e = row.Scan(&family.incarnation, &family.generation, &family.revoked, &family.reason, &family.due, &family.server, &family.member, &family.life); e != nil {
+	if e = row.Scan(&family.incarnation, &family.generation, &family.revoked, &family.reason, &family.due, &family.server, &family.member, &family.life, &family.device); e != nil {
 		return out, errors.Join(ErrConflict, e)
 	}
 	if len(family.incarnation) != 16 || family.generation <= 0 {
@@ -609,12 +625,15 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 	if family.server != job.issuer.server || family.member != in.target.memberIncarnation || family.life != in.target.profileLifetime {
 		return out, ErrConflict
 	}
+	if !family.device.Valid || family.device.String != in.device {
+		return out, ErrConflict
+	}
 	familyChanged := false
 	switch family.revoked {
 	case 0:
 		revokedAt := time.UnixMilli(nowMS).UTC().Format(time.RFC3339)
 		row, e = usCredentialQuery(ctx, turn, usCredentialFamilyRevoke, revokedAt, nowMS, in.family, job.issuer.server, in.target.account, in.target.profile,
-			in.target.memberIncarnation, in.target.profileLifetime, family.incarnation, family.generation)
+			in.device, in.target.memberIncarnation, in.target.profileLifetime, family.incarnation, family.generation)
 		if e != nil {
 			return out, e
 		}
@@ -635,7 +654,10 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		// A fully completed earlier 522 (or a marker-only row completed below)
 		// is not re-revoked and gets no second family command/receipt. A family
 		// revoked for any other reason, or without the durable teardown
-		// obligation, is not this operation's exact current target.
+		// obligation, is not this operation's exact current target. This fails
+		// closed on purpose: SOL-USERS should rule which already-revoked
+		// reasons (and whether a cleared teardown_due_ms) an idempotent 522 may
+		// accept before legacy sweeps or a teardown consumer land.
 		if family.reason != "admin_revoke" || !family.due.Valid || family.due.Int64 < 0 {
 			return out, ErrConflict
 		}
@@ -643,16 +665,19 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		return out, ErrResolveRequired
 	}
 	copy(out.familyIncarnation[:], family.incarnation)
-	// (3) The credential's OWN bound API device: LOGICAL retirement only.
+	// (3) The credential's OWN bound API device: LOGICAL retirement only. The
+	// read/cas also pins birth's exact installation 'api-credential-'||id, so an
+	// ordinary device or another credential's API device cannot be retired even
+	// if it carried platform 'api' and this account.
 	row, e = usCredentialQuery(ctx, turn, usCredentialDeviceRead, in.device)
 	if e != nil {
 		return out, e
 	}
 	var device struct {
-		account, platform string
-		revision, retired int64
+		account, platform, installation string
+		revision, retired               int64
 	}
-	if e = row.Scan(&device.account, &device.platform, &device.revision, &device.retired); e != nil {
+	if e = row.Scan(&device.account, &device.platform, &device.revision, &device.retired, &device.installation); e != nil {
 		return out, errors.Join(ErrConflict, e)
 	}
 	if device.account != in.target.account {
@@ -661,10 +686,13 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 	if device.platform != "api" || device.revision <= 0 {
 		return out, ErrConflict
 	}
+	if device.installation != "api-credential-"+in.id {
+		return out, ErrConflict
+	}
 	deviceChanged := false
 	switch device.retired {
 	case 0:
-		row, e = usCredentialQuery(ctx, turn, usCredentialDeviceRetire, nowMS, in.device, in.target.account, device.revision)
+		row, e = usCredentialQuery(ctx, turn, usCredentialDeviceRetire, nowMS, in.device, in.target.account, device.installation, device.revision)
 		if e != nil {
 			return out, e
 		}
