@@ -137,11 +137,10 @@ func usPolicyOtherIssuer(t *testing.T, w *executor) *usOwnerAuthorityProof {
 	return proof
 }
 
-func usPolicyForeignOwner(t *testing.T, w *executor, ownerID string, proof *usOwnerAuthorityProof) {
+func usPolicyForeignOwner(t *testing.T, w *executor, ownerID string, scope usPolicyIssuer, incarnation []byte) {
 	t.Helper()
-	i := proof.witness.issuer
 	wc008NativeExec(t, w, `INSERT INTO security_command_owners(id,command_incarnation,ingress,server_id,issuer_account_id,issuer_member_incarnation,issuer_profile_id,issuer_profile_lifetime,issuer_installation_incarnation,original_family_id,created_ms) VALUES(?,?,'authenticated',?,?,?,?,?,?,?,0)`,
-		ownerID, make([]byte, 16), i.server, i.account, i.memberIncarnation, i.profile, i.profileLifetime, i.installation, i.family)
+		ownerID, incarnation, scope.server, scope.account, scope.memberIncarnation, scope.profile, scope.profileLifetime, scope.installation, scope.family)
 }
 
 func usPolicyReceiptCommit(t *testing.T, turn *commandTurn) {
@@ -419,34 +418,51 @@ func TestUSPolicyReceiptForeignIssuerMatchesMissingOwner(t *testing.T) {
 // F1: store must never trust caller-supplied owner facts. It re-reads the
 // scoped owner under the current issuer and rejects mismatched bindings.
 func TestUSPolicyReceiptStoreRefusesForeignOwnerScope(t *testing.T) {
-	t.Run("foreign_owner_row", func(t *testing.T) {
-		w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
-		other := usPolicyOtherIssuer(t, w)
-		usPolicyForeignOwner(t, w, "foreign-owner", other)
-		q := usPolicyReceiptFor(input)
-		q.ownerID = "foreign-owner"
-		v, digest := usPolicySavedFixture(t, input)
-		v.ownerID = "foreign-owner"
-		digest, err := usPolicyResultDigest(input.identity, input.digest, v)
-		if err != nil {
-			t.Fatal(err)
-		}
-		turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
-		if _, err = storeUSPolicyResult(t.Context(), turn, a, q, v, digest); !errors.Is(err, ErrOwnerUnavailable) {
-			t.Fatal("foreign issuer owner row was writable", err)
-		}
-		_, _ = turn.transaction.rollback(err)
-		var receipts, last, count int64
-		if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM security_command_receipts`).Scan(&receipts); err != nil {
-			t.Fatal(err)
-		}
-		if err := w.db.QueryRowContext(t.Context(), `SELECT last_sequence,retained_count FROM security_command_owners WHERE id='foreign-owner'`).Scan(&last, &count); err != nil {
-			t.Fatal(err)
-		}
-		if receipts != 0 || last != 0 || count != 0 {
-			t.Fatal("foreign owner was mutated or a receipt escaped", receipts, last, count)
-		}
-	})
+	// Each case differs from the current issuer scope in exactly ONE owner-read
+	// predicate. Dropping that predicate would let the store write into this
+	// foreign owner, so every case must be refused with the owner unavailable.
+	for _, tc := range []struct {
+		name string
+		drop func(*usPolicyIssuer)
+	}{
+		{"server", func(i *usPolicyIssuer) { i.server = "other-server" }},
+		{"account", func(i *usPolicyIssuer) { i.account = "other-account" }},
+		{"member", func(i *usPolicyIssuer) { i.memberIncarnation = strings.Repeat("7", 32) }},
+		{"profile", func(i *usPolicyIssuer) { i.profile = "other-profile" }},
+		{"lifetime", func(i *usPolicyIssuer) { i.profileLifetime = strings.Repeat("8", 32) }},
+	} {
+		t.Run("foreign_owner_row_"+tc.name, func(t *testing.T) {
+			w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+			scope := proof.witness.issuer
+			tc.drop(&scope)
+			// A REAL incarnation: a zero one would hide a dropped predicate
+			// behind the identity mismatch instead of the scope mismatch.
+			usPolicyForeignOwner(t, w, "foreign-owner", scope, input.identity.Incarnation[:])
+			q := usPolicyReceiptFor(input)
+			q.ownerID = "foreign-owner"
+			v, digest := usPolicySavedFixture(t, input)
+			v.ownerID = "foreign-owner"
+			digest, err := usPolicyResultDigest(input.identity, input.digest, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+			if _, err = storeUSPolicyResult(t.Context(), turn, a, q, v, digest); !errors.Is(err, ErrOwnerUnavailable) {
+				t.Fatal("foreign issuer owner row was writable", err)
+			}
+			_, _ = turn.transaction.rollback(err)
+			var receipts, last, count int64
+			if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM security_command_receipts`).Scan(&receipts); err != nil {
+				t.Fatal(err)
+			}
+			if err := w.db.QueryRowContext(t.Context(), `SELECT last_sequence,retained_count FROM security_command_owners WHERE id='foreign-owner'`).Scan(&last, &count); err != nil {
+				t.Fatal(err)
+			}
+			if receipts != 0 || last != 0 || count != 0 {
+				t.Fatal("foreign owner was mutated or a receipt escaped", receipts, last, count)
+			}
+		})
+	}
 	t.Run("owner_binding_mismatch", func(t *testing.T) {
 		w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
 		q := usPolicyReceiptFor(input)
@@ -507,6 +523,145 @@ func TestUSPolicyReceiptACKDenialIsNotConflict(t *testing.T) {
 	cancel()
 	if _, err := acknowledgeUSPolicyAfterAuthority(t.Context(), turn, a, usPolicyReceiptFor(input)); !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrConflict) {
 		t.Fatal("ACK denial was reported as a conflict", err)
+	}
+}
+
+// A virtual clock that expires the authority at a pinned call. Installing it
+// only after the turn is minted keeps the entry checks on the original time.
+type usPolicyFlipClock struct {
+	base   time.Time
+	flipAt int
+	calls  int
+}
+
+func (c *usPolicyFlipClock) now() time.Time {
+	c.calls++
+	if c.flipAt > 0 && c.calls >= c.flipAt {
+		return c.base.Add(2 * time.Hour)
+	}
+	return c.base
+}
+
+func usPolicyFlipClockOn(w *executor, flipAt int) *usPolicyFlipClock {
+	c := &usPolicyFlipClock{base: w.now(), flipAt: flipAt}
+	w.now = c.now
+	return c
+}
+
+func usPolicyLateDenialLookup(t *testing.T) (*executor, func() error) {
+	t.Helper()
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	v, digest := usPolicySavedFixture(t, input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	if _, err := storeUSPolicyResult(t.Context(), turn, a, q, v, digest); err != nil {
+		t.Fatal(err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	q.reference.RequestDigest = RequestDigest{9}
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	return w, func() error {
+		_, err := lookupUSPolicy(t.Context(), turn, a, q)
+		return err
+	}
+}
+
+func usPolicyLateDenialACK(t *testing.T) (*executor, func() error) {
+	t.Helper()
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	return w, func() error {
+		_, err := acknowledgeUSPolicyAfterAuthority(t.Context(), turn, a, q)
+		return err
+	}
+}
+
+func usPolicyLateDenialStore(t *testing.T) (*executor, func() error) {
+	t.Helper()
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	v, digest := usPolicySavedFixture(t, input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	if _, err := storeUSPolicyResult(t.Context(), turn, a, q, v, digest); err != nil {
+		t.Fatal(err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	return w, func() error {
+		_, err := storeUSPolicyResult(t.Context(), turn, a, q, v, digest)
+		return err
+	}
+}
+
+// F3: a denial that arrives on the deferred recheck REPLACES a body conflict.
+// It must never be joined into the conflict class, and the pinned call count
+// fails the test if the deferred authority checks are removed.
+func TestUSPolicyReceiptLateDenialWins(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		calls int
+		setup func(*testing.T) (*executor, func() error)
+	}{
+		{"lookup", 44, usPolicyLateDenialLookup},
+		{"ack", 58, usPolicyLateDenialACK},
+		{"store", 58, usPolicyLateDenialStore},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, call := tc.setup(t)
+			clock := usPolicyFlipClockOn(w, 0)
+			if err := call(); !errors.Is(err, ErrConflict) {
+				t.Fatalf("setup does not reach a body conflict: %v", err)
+			}
+			if clock.calls != tc.calls {
+				t.Fatalf("authority-check clock pin drifted: got %d want %d", clock.calls, tc.calls)
+			}
+			w2, call2 := tc.setup(t)
+			usPolicyFlipClockOn(w2, tc.calls)
+			if err := call2(); !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrConflict) {
+				t.Fatalf("late denial joined or missed: %v", err)
+			}
+		})
+	}
+}
+
+// (b) A reclaimed sequence is never writable again: the floor is durable and
+// physical reclaim (US-26) may have removed the original cohort.
+func TestUSPolicyReceiptReclaimedSequenceRefused(t *testing.T) {
+	w, r, proof, input := usPolicyReceiptFixture(t, USMemberLibraries, []string{"movies", "music"})
+	q := usPolicyReceiptFor(input)
+	v, digest := usPolicySavedFixture(t, input)
+	turn, a, _ := usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	if _, err := storeUSPolicyResult(t.Context(), turn, a, q, v, digest); err != nil {
+		t.Fatal(err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	if ack, err := acknowledgeUSPolicyAfterAuthority(t.Context(), turn, a, q); err != nil || ack != 1 {
+		t.Fatal(ack, err)
+	}
+	usPolicyReceiptCommit(t, turn)
+	// Simulate US-26's physical reclaim after the durable floor.
+	wc008NativeExec(t, w, `DELETE FROM security_result_libraries`)
+	wc008NativeExec(t, w, `DELETE FROM security_command_receipts`)
+	wc008NativeExec(t, w, `UPDATE security_command_owners SET reclaimed_sequence=1`)
+	turn, a, _ = usPolicyReceiptTurn(t, w, r, proof, input.kind)
+	if charged, err := storeUSPolicyResult(t.Context(), turn, a, q, v, digest); !errors.Is(err, ErrConflict) || charged != 0 {
+		t.Fatal("reclaimed sequence was writable", charged, err)
+	}
+	_, _ = turn.transaction.rollback(nil)
+	var receipts, libraries, last, count int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM security_command_receipts`).Scan(&receipts); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM security_result_libraries`).Scan(&libraries); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.db.QueryRowContext(t.Context(), `SELECT last_sequence,retained_count FROM security_command_owners`).Scan(&last, &count); err != nil {
+		t.Fatal(err)
+	}
+	if receipts != 0 || libraries != 0 || last != 1 || count != 1 {
+		t.Fatal("refused re-store disturbed the reclaimed owner", receipts, libraries, last, count)
 	}
 }
 
