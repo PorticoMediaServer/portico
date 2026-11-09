@@ -140,7 +140,7 @@ func usPINImageDefinitions() []stmt.Definition {
 		AutoIndexes: []stmt.AutoIndexBinding{{Table: "direct_profiles", Name: "sqlite_autoindex_direct_profiles_2", Origin: "u",
 			Columns: []stmt.IndexColumn{{Name: "account_id", Collation: "BINARY"}, {Name: "id", Collation: "BINARY"}}}}}
 	restrictionPoint := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_profile_restrictions_1"}, Seeks: []string{"profile_id=?"},
-		AutoIndexes: []stmt.AutoIndexBinding{{Table: "profile_restrictions", Name: "sqlite_autoindex_profile_restrictions_1", Origin: "u",
+		AutoIndexes: []stmt.AutoIndexBinding{{Table: "profile_restrictions", Name: "sqlite_autoindex_profile_restrictions_1", Origin: "pk",
 			Columns: []stmt.IndexColumn{{Name: "profile_id", Collation: "BINARY"}}}}}
 	defaultDVRPoint := stmt.Plan{Hot: true,
 		Indexes: []string{"sqlite_autoindex_direct_profiles_2", "sqlite_autoindex_direct_memberships_1"},
