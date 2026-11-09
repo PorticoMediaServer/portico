@@ -120,6 +120,9 @@ func TestIPPersonSealFreshReplayRetiredAndRetainedProof(t *testing.T) {
 		t.Fatal("seal replay wrote a receipt", got)
 	}
 	// At or below ACK the seal is Retired while the proof pins stay physical.
+	// Restore the build state torn for the replay above: retirement must leave
+	// the committed sealed proof exactly as the seal wrote it.
+	ipPolicyExec(t, w, `UPDATE metadata_person_builds SET state='ready' WHERE id='`+chain.staged.begin.BuildID+`'`)
 	ipPersonAck(t, w, chain.staged.begin.OperationID, 7)
 	turn, tx, b = ipPolicyTurn(t, w, r, IPPersonSeal)
 	retired, err := applyIPPersonSeal(t.Context(), turn, p, t.Context(), b, chain.sealCommand)
@@ -294,6 +297,9 @@ func TestIPPersonSealRejectsIncompleteForeignAndTampered(t *testing.T) {
 			for _, query := range tc.sql {
 				ipPolicyExec(t, w, query)
 			}
+			// A case may pre-seal the evidence row to force the already-sealed
+			// refusal; the refused seal must leave that baseline untouched.
+			sealedBefore := ipPolicyQueryInt(t, w, `SELECT count(*) FROM metadata_evidence WHERE sealed=1`)
 			command := mustIPPersonSeal(t, ipPersonIdentity(chain.sequence, 0x7a),
 				ipPersonSealFor(chain.staged.begin, chain.staged.beginReq, chain.content))
 			turn, tx, b := ipPolicyTurn(t, w, r, IPPersonSeal)
@@ -305,7 +311,7 @@ func TestIPPersonSealRejectsIncompleteForeignAndTampered(t *testing.T) {
 			for query, want := range map[string]int64{
 				`SELECT count(*) FROM metadata_person_receipts WHERE command_kind='evidence_seal'`: 0,
 				`SELECT count(*) FROM metadata_person_builds WHERE state='ready'`:                  0,
-				`SELECT count(*) FROM metadata_evidence WHERE sealed=1`:                            0,
+				`SELECT count(*) FROM metadata_evidence WHERE sealed=1`:                            sealedBefore,
 				`SELECT last_command_sequence FROM metadata_person_operations`:                     6,
 			} {
 				if got := ipPolicyQueryInt(t, w, query); got != want {

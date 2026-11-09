@@ -204,7 +204,16 @@ func TestIPPersonEvidenceAppendFreshReplayAndRetired(t *testing.T) {
 	ipPersonAdvance(t, w, base, time.Second)
 	headerBytes := chain.staged.begin.ResultBytes
 	firstPage := chain.aliases[:2]
-	step := chain.aliasPage(t, w, r, p, firstPage)
+	// Apply the page without acknowledging it: the replay below exercises the
+	// unacknowledged frame, so the chain helper's automatic ACK would retire it
+	// before the original page could be served again.
+	q := ipPersonAppendFor(chain.staged.begin, ipPersonFamilyAlias, chain.aliasNext, chain.before,
+		int64(len(chain.aliases)), chain.content)
+	q.aliases = firstPage
+	identity := ipPersonIdentity(chain.sequence, 0x73)
+	command := mustIPPersonAppend(t, identity, q)
+	out, turn, tx := ipPersonEvidenceApplyAppend(t, w, r, p, command)
+	step := ipPersonAppendStep{command: command, identity: identity, request: q, value: out.Value}
 	if step.value.Kind != "append" || step.value.Revision != 2 ||
 		step.value.MaterializedRows != 3 || step.value.ResultCount != 2 ||
 		step.value.ResultBytes <= 0 || step.value.SubjectKind != "person" ||
@@ -213,6 +222,7 @@ func TestIPPersonEvidenceAppendFreshReplayAndRetired(t *testing.T) {
 		step.value.AppliedMS != w.now().UnixMilli() {
 		t.Fatal(step.value)
 	}
+	ipPolicyCommitTurn(t, turn, tx)
 	pageBytes := step.value.ResultBytes
 	for query, want := range map[string]int64{
 		`SELECT count(*) FROM metadata_evidence_aliases WHERE evidence_id='` + chain.staged.begin.EvidenceID + `' AND ordinal IN(0,1)`:                                         2,
@@ -341,7 +351,8 @@ func TestIPPersonEvidenceAppendFullChainContiguous(t *testing.T) {
 func TestIPPersonEvidenceAppendShapeRefusals(t *testing.T) {
 	begin := ipPersonResult{Kind: "begin", OperationID: strings.Repeat("a", 32), PersonID: 42,
 		Provider: "tmdb", ProviderID: "42", Lease: strings.Repeat("b", 32), Generation: 1,
-		Revision: 2, LeaseGeneration: 1, LeaseUntilMS: 300000}
+		Revision: 2, LeaseGeneration: 1, LeaseUntilMS: 300000, BuildGeneration: 1,
+		EvidenceID: "evidence-one", BuildID: "build-person-1"}
 	base := ipPersonAppendFor(begin, ipPersonFamilyAlias, 0, 1, 1, 1)
 	base.aliases = ipPersonAliasPageRows(0, 1)
 	identity := ipPersonIdentity(3, 0x70)
@@ -448,7 +459,7 @@ func TestIPPersonEvidenceAppendRejectsForeignStaleAndGapped(t *testing.T) {
 	}{
 		{"evidence", func(q *ipPersonEvidenceAppendRequest) { q.evidenceID = "evidence-other" }, nil, ErrConflict},
 		{"build", func(q *ipPersonEvidenceAppendRequest) { q.buildID = "build-other" }, nil, ErrConflict},
-		{"build_generation", func(q *ipPersonEvidenceAppendRequest) { q.buildGeneration = 2 }, nil, ErrConflict},
+		{"build_generation", nil, []string{`UPDATE metadata_person_builds SET generation=2`}, ErrConflict},
 		{"build_revision", func(q *ipPersonEvidenceAppendRequest) { q.buildRevision = 1 }, nil, ErrConflict},
 		{"provider", func(q *ipPersonEvidenceAppendRequest) { q.provider = "tvdb" }, nil, ErrResolveRequired},
 		{"provider_id", func(q *ipPersonEvidenceAppendRequest) { q.providerID = "99" }, nil, ErrResolveRequired},

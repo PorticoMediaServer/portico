@@ -76,7 +76,8 @@ func TestIPPersonCrossKindPurposeDescriptorsAndTurns(t *testing.T) {
 	w, r, p, _ := seedIPPersonCrossFixture(t)
 	person := ipPersonResult{Kind: "claim", OperationID: strings.Repeat("a", 32), PersonID: 42,
 		Provider: "tmdb", ProviderID: "42", Lease: strings.Repeat("b", 32), Generation: 1,
-		Revision: 2, LeaseGeneration: 1, LeaseUntilMS: 300000}
+		Revision: 2, LeaseGeneration: 1, LeaseUntilMS: 300000, BuildGeneration: 1,
+		EvidenceID: "evidence-person-1", BuildID: "build-person-1"}
 	appendReq := ipPersonAppendFor(person, ipPersonFamilyAlias, 0, 1, 1, 1)
 	appendReq.aliases = ipPersonAliasPageRows(0, 1)
 	sealReq := ipPersonSealFor(person, ipPersonBeginRequestFor(t, person, 1, 1), 1)

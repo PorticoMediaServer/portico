@@ -352,7 +352,7 @@ func TestIPArtworkReencodeIdenticalVariantsNoRevisionBump(t *testing.T) {
 // the same key, a retirement token, a wrong count or a mismatched accepted
 // revision can never replay.
 func TestIPArtworkReencodeMalformedReceiptRefused(t *testing.T) {
-	const insert = `INSERT INTO artwork_command_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,applied_ms,result_digest,command_kind,accepted_revision,result_count,result_bytes,result_complete,lease_generation,lease_until_ms,material_intent_id,selected_digest,storage_revision,retirement_token) VALUES(901,X'01000000000000000000000000000000',2,X'02000000000000000000000000000000',X'0300000000000000000000000000000000000000000000000000000000000000',1,X'0400000000000000000000000000000000000000000000000000000000000000','reencode',?,?,?,1,1,?,?,?,?,?)`
+	const insert = `INSERT INTO artwork_command_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,applied_ms,result_digest,command_kind,accepted_revision,result_count,result_bytes,result_complete,lease_generation,lease_until_ms,material_intent_id,selected_digest,storage_revision,retirement_token) VALUES(901,X'01000000000000000000000000000000',2,X'05000000000000000000000000000000',X'0300000000000000000000000000000000000000000000000000000000000000',1,X'0400000000000000000000000000000000000000000000000000000000000000','reencode',?,?,?,1,1,?,?,?,?,?)`
 	for _, tc := range []struct {
 		name   string
 		mutate func(t *testing.T, w *executor, spec ipArtworkMaterialPublishSpec, slots []ipArtworkMaterialSlot)
