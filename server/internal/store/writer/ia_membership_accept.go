@@ -720,8 +720,10 @@ func iaMembershipApplyChange(ctx context.Context, turn *commandTurn, r iaMembers
 	switch p.change.effect {
 	case "present":
 		if p.linkFound {
-			err = wc008DraftChanged(ctx, turn, iaMembershipLinkUpdate, p.change.part, p.change.start, iaEpisodeNullableReal(p.change.end), p.change.edition, iaMembershipNullableCue(p.change.cueOrdinal),
-				p.subjectID, asset.id, r.scope.libraryID, p.link.part, p.link.available, p.link.start, iaEpisodeNullableReal(p.link.end), p.link.edition, iaMembershipNullableCue(p.link.cue))
+			linkID, oldLink := iaMembershipLinkWriteArgs(iaMembershipLinkUpdate, iaMembershipLinkUpdateNullEnd, iaMembershipLinkUpdateNullCue, iaMembershipLinkUpdateNullBoth, p.link)
+			linkArgs := []any{p.change.part, p.change.start, iaEpisodeNullableReal(p.change.end), p.change.edition, iaMembershipNullableCue(p.change.cueOrdinal),
+				p.subjectID, asset.id, r.scope.libraryID, p.link.part, p.link.available, p.link.start}
+			err = wc008DraftChanged(ctx, turn, linkID, append(linkArgs, oldLink...)...)
 		} else {
 			err = wc008DraftChanged(ctx, turn, iaMembershipLinkInsert, iaMembershipNullableCue(p.change.cueOrdinal), p.subjectID, asset.id, p.change.part, int64(1),
 				p.change.start, iaEpisodeNullableReal(p.change.end), p.change.edition, p.playback[:], int64(1), r.scope.libraryID)
@@ -736,8 +738,9 @@ func iaMembershipApplyChange(ctx context.Context, turn *commandTurn, r iaMembers
 			return iaMembershipWriteBoundary(ctx, turn, p.subjectID, asset.token, p.change.boundaryStatus)
 		}
 	case "removed":
-		if err = wc008DraftChanged(ctx, turn, iaMembershipLinkDelete, p.subjectID, asset.id, r.scope.libraryID, p.link.part, p.link.available,
-			p.link.start, iaEpisodeNullableReal(p.link.end), p.link.edition, iaMembershipNullableCue(p.link.cue)); err != nil {
+		linkID, oldLink := iaMembershipLinkWriteArgs(iaMembershipLinkDelete, iaMembershipLinkDeleteNullEnd, iaMembershipLinkDeleteNullCue, iaMembershipLinkDeleteNullBoth, p.link)
+		linkArgs := []any{p.subjectID, asset.id, r.scope.libraryID, p.link.part, p.link.available, p.link.start}
+		if err = wc008DraftChanged(ctx, turn, linkID, append(linkArgs, oldLink...)...); err != nil {
 			return err
 		}
 		if err = wc008DraftChanged(ctx, turn, iaMembershipContributionDelete, p.subjectID, asset.id, r.scope.libraryID); err != nil {
@@ -781,6 +784,31 @@ func iaMembershipNullableCue(v int64) any {
 		return nil
 	}
 	return v
+}
+
+// iaMembershipLinkWriteArgs selects the closed nullable link statement whose
+// stored end_seconds/cue_ordinal match old, and appends the non-null stored
+// values in statement order. The hot grammar has no IS ? form, so each nullable
+// combination is its own statement (see iaMembershipStatements).
+func iaMembershipLinkWriteArgs(full, nullEnd, nullCue, nullBoth stmt.ID, old iaMembershipLinkFacts) (stmt.ID, []any) {
+	id := full
+	switch {
+	case old.end == nil && old.cue <= 0:
+		id = nullBoth
+	case old.end == nil:
+		id = nullEnd
+	case old.cue <= 0:
+		id = nullCue
+	}
+	args := []any{}
+	if old.end != nil {
+		args = append(args, *old.end)
+	}
+	args = append(args, old.edition)
+	if old.cue > 0 {
+		args = append(args, old.cue)
+	}
+	return id, args
 }
 
 func iaMembershipAdvanceDirectory(ctx context.Context, turn *commandTurn, r iaMembershipAcceptRequest) (err error) {

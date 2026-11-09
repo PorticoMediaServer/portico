@@ -25,7 +25,13 @@ const (
 	iaMembershipEntityUpdate       stmt.ID = "ia.membership.entity_update"
 	iaMembershipLinkInsert         stmt.ID = "ia.membership.link_insert"
 	iaMembershipLinkUpdate         stmt.ID = "ia.membership.link_update"
+	iaMembershipLinkUpdateNullEnd  stmt.ID = "ia.membership.link_update_null_end"
+	iaMembershipLinkUpdateNullCue  stmt.ID = "ia.membership.link_update_null_cue"
+	iaMembershipLinkUpdateNullBoth stmt.ID = "ia.membership.link_update_null_both"
 	iaMembershipLinkDelete         stmt.ID = "ia.membership.link_delete"
+	iaMembershipLinkDeleteNullEnd  stmt.ID = "ia.membership.link_delete_null_end"
+	iaMembershipLinkDeleteNullCue  stmt.ID = "ia.membership.link_delete_null_cue"
+	iaMembershipLinkDeleteNullBoth stmt.ID = "ia.membership.link_delete_null_both"
 	iaMembershipBoundaryInsert     stmt.ID = "ia.membership.boundary_insert"
 	iaMembershipBoundaryUpdate     stmt.ID = "ia.membership.boundary_update"
 	iaMembershipBoundaryDelete     stmt.ID = "ia.membership.boundary_delete"
@@ -185,25 +191,6 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(entity_id,asset_id) DO NOTHING`,
 				{Name: "new_link", Bindings: []any{nil, int64(31), int64(41), int64(0), int64(1), float64(0), nil, "", inc, int64(1), int64(7)}},
 				{Name: "new_ranged_link", Bindings: []any{int64(1), int64(31), int64(41), int64(0), int64(1), float64(0), float64(42), "", inc, int64(1), int64(7)}},
 			}},
-		{ID: iaMembershipLinkUpdate, Kind: stmt.Write,
-			SQL: `UPDATE catalog_asset_links SET part_index=?,available=1,start_seconds=?,end_seconds=?,edition=?,cue_ordinal=?
-WHERE entity_id=? AND asset_id=? AND library_id=? AND part_index=? AND available=? AND start_seconds=? AND end_seconds IS ? AND edition=? AND cue_ordinal IS ?
-RETURNING part_index,available,start_seconds,end_seconds,edition,cue_ordinal,playback_origin_incarnation,playback_origin_revision`,
-			Params: []stmt.Param{i("next_part"), r("next_start"), nr("next_end"), t("next_edition"), ni("next_cue"),
-				i("entity_id"), i("asset_id"), i("library_id"), i("part"), i("available"), r("start_seconds"), nr("end_seconds"), t("edition"), ni("cue_ordinal")},
-			Cohorts: []stmt.Cohort{
-				{Name: "edition_change", Bindings: []any{int64(0), float64(0), nil, "Extended", nil, int64(31), int64(41), int64(7), int64(0), int64(1), float64(0), nil, "", nil}},
-				{Name: "stale_link", Bindings: []any{int64(1), float64(0), nil, "", nil, int64(31), int64(41), int64(7), int64(9), int64(1), float64(0), nil, "", nil}},
-			}},
-		{ID: iaMembershipLinkDelete, Kind: stmt.Write,
-			SQL: `DELETE FROM catalog_asset_links
-WHERE entity_id=? AND asset_id=? AND library_id=? AND part_index=? AND available=? AND start_seconds=? AND end_seconds IS ? AND edition=? AND cue_ordinal IS ?
-RETURNING part_index,available,start_seconds,end_seconds,edition,cue_ordinal,playback_origin_incarnation,playback_origin_revision`,
-			Params: []stmt.Param{i("entity_id"), i("asset_id"), i("library_id"), i("part"), i("available"), r("start_seconds"), nr("end_seconds"), t("edition"), ni("cue_ordinal")},
-			Cohorts: []stmt.Cohort{
-				{Name: "removed_link", Bindings: []any{int64(31), int64(41), int64(7), int64(0), int64(1), float64(0), nil, "", nil}},
-				{Name: "stale_link", Bindings: []any{int64(31), int64(41), int64(7), int64(9), int64(1), float64(0), nil, "", nil}},
-			}},
 		{ID: iaMembershipBoundaryInsert, Kind: stmt.Write,
 			SQL:    `INSERT INTO episode_asset_boundaries(item_id,asset_id,status) VALUES(?,?,?) ON CONFLICT(item_id,asset_id) DO NOTHING`,
 			Params: []stmt.Param{i("item_id"), t("asset_id"), t("status")},
@@ -265,6 +252,70 @@ RETURNING job_revision,last_command_sequence`,
 			Cohorts: []stmt.Cohort{
 				{Name: "removed_membership", Bindings: []any{int64(31), int64(41), int64(7)}},
 			}},
+	}
+	// Nullable stored link facts have four CLOSED variants, not IS ?, OR or a
+	// sentinel: the hot grammar admits IS NULL or a plain comparison only.
+	for _, variant := range []struct {
+		update, remove   stmt.ID
+		endNull, cueNull bool
+	}{
+		{iaMembershipLinkUpdate, iaMembershipLinkDelete, false, false},
+		{iaMembershipLinkUpdateNullEnd, iaMembershipLinkDeleteNullEnd, true, false},
+		{iaMembershipLinkUpdateNullCue, iaMembershipLinkDeleteNullCue, false, true},
+		{iaMembershipLinkUpdateNullBoth, iaMembershipLinkDeleteNullBoth, true, true},
+	} {
+		predicate := ` WHERE entity_id=? AND asset_id=? AND library_id=? AND part_index=? AND available=? AND start_seconds=?`
+		var tail []stmt.Param
+		if variant.endNull {
+			predicate += ` AND end_seconds IS NULL`
+		} else {
+			predicate += ` AND end_seconds=?`
+			tail = append(tail, nr("end_seconds"))
+		}
+		predicate += ` AND edition=?`
+		tail = append(tail, t("edition"))
+		if variant.cueNull {
+			predicate += ` AND cue_ordinal IS NULL`
+		} else {
+			predicate += ` AND cue_ordinal=?`
+			tail = append(tail, ni("cue_ordinal"))
+		}
+		predicate += ` RETURNING part_index,available,start_seconds,end_seconds,edition,cue_ordinal,playback_origin_incarnation,playback_origin_revision`
+		old := func(stale bool) []any {
+			args := []any{int64(31), int64(41), int64(7), int64(0), int64(1), float64(0)}
+			if stale {
+				args[3] = int64(9)
+			}
+			if !variant.endNull {
+				args = append(args, float64(42))
+			}
+			args = append(args, "")
+			if !variant.cueNull {
+				args = append(args, int64(1))
+			}
+			return args
+		}
+		updateParams := []stmt.Param{i("next_part"), r("next_start"), nr("next_end"), t("next_edition"), ni("next_cue"),
+			i("entity_id"), i("asset_id"), i("library_id"), i("part"), i("available"), r("start_seconds")}
+		updateParams = append(updateParams, tail...)
+		updateArgs := append([]any{int64(0), float64(0), nil, "Extended", nil}, old(false)...)
+		staleUpdateArgs := append([]any{int64(1), float64(0), nil, "", nil}, old(true)...)
+		defs = append(defs, stmt.Definition{ID: variant.update, Kind: stmt.Write,
+			SQL:    `UPDATE catalog_asset_links SET part_index=?,available=1,start_seconds=?,end_seconds=?,edition=?,cue_ordinal=?` + predicate,
+			Params: updateParams,
+			Cohorts: []stmt.Cohort{
+				{Name: "edition_change", Bindings: updateArgs},
+				{Name: "stale_link", Bindings: staleUpdateArgs},
+			}})
+		deleteParams := []stmt.Param{i("entity_id"), i("asset_id"), i("library_id"), i("part"), i("available"), r("start_seconds")}
+		deleteParams = append(deleteParams, tail...)
+		defs = append(defs, stmt.Definition{ID: variant.remove, Kind: stmt.Write,
+			SQL:    `DELETE FROM catalog_asset_links` + predicate,
+			Params: deleteParams,
+			Cohorts: []stmt.Cohort{
+				{Name: "removed_link", Bindings: old(false)},
+				{Name: "stale_link", Bindings: old(true)},
+			}})
 	}
 	defs = append(defs,
 		stmt.Definition{ID: iaMembershipReceiptInsert, Kind: stmt.Write,
@@ -352,7 +403,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaMembershipEntityUpdate:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_entities"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
-		case iaMembershipLinkUpdate, iaMembershipLinkDelete:
+		case iaMembershipLinkUpdate, iaMembershipLinkUpdateNullEnd, iaMembershipLinkUpdateNullCue, iaMembershipLinkUpdateNullBoth,
+			iaMembershipLinkDelete, iaMembershipLinkDeleteNullEnd, iaMembershipLinkDeleteNullCue, iaMembershipLinkDeleteNullBoth:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_asset_links"}
 			defs[n].Plan.Seeks = []string{"entity_id=? AND asset_id=?"}
 		case iaMembershipBoundaryInsert, iaMembershipBoundaryUpdate, iaMembershipBoundaryDelete:
