@@ -49,7 +49,7 @@ func TestRSAudioRelationPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defs := RSAudioRelationDefinitions()
+	defs := RSArtistAlbumDefinitions()
 	cat, err := stmt.Describe(defs)
 	if err != nil {
 		t.Fatal(err)
@@ -65,6 +65,19 @@ func TestRSAudioRelationPlans(t *testing.T) {
 		}
 		if _, err = stmt.New(defs, g.Receipt()); err != nil {
 			t.Fatal(err)
+		}
+		// rs.audio.album_artist supplies the legacy year/title key and must be
+		// qualified under BOTH statistics profiles, not only via the reader's
+		// composed fixture.
+		found := false
+		for _, entry := range g.Manifest {
+			if entry.ID == readStatementID("rs.audio.album_artist") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("%v capture lacks rs.audio.album_artist", stats)
 		}
 		captures = append(captures, g)
 	}
