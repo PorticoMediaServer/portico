@@ -187,10 +187,15 @@ func (r *RSPeopleSearchReader) Begin(ctx context.Context, owner governor.OwnerID
 	return p, nil, nil
 }
 
-// revalidate makes the ONE native call for a hydration poll. Its fresh read
-// must rejoin every kept hit and own-scope anchor before any summary is reused;
-// additional returned matches are evidence only and never alter the selection.
-func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Request, budget time.Duration, out BrowseOutput, p *RSPeopleSearchPreparation) (*BrowseReadResult, error) {
+// revalidate advances the ONE native call for a hydration poll. It carries a
+// fence/revision witness for the retained scope instead of re-reading every
+// retained row: each poll proves the current bank/source/permission fence and
+// advances at most one bounded native page. A pending page is progress only
+// when it kept a continuation; a pending census or a proof that cannot advance
+// refuses explicitly and never becomes a ready empty page. The retained
+// summaries themselves are re-proved by the borrower's source fences and by the
+// complete delivery fence before any payload is published.
+func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Request, budget time.Duration, out BrowseOutput, p *RSPeopleSearchPreparation) (bool, *BrowseReadResult, error) {
 	s := p.search
 	v := s.input.Views[s.library]
 	v.Kind = 0
@@ -198,8 +203,10 @@ func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Requ
 	v.Now = v.Now.Add(time.Since(s.started))
 	in := FullSearchInput{View: v, After: cloneFullCursor(s.after)}
 	if s.stamp == nil {
-		return nil, ErrUnqualified
+		return false, nil, ErrUnqualified
 	}
+	// s.stamp is the kept scope's fence witness: the selection reduced it to
+	// metadata only, so no retained row is re-read on a hydration poll.
 	in.Retained = append(in.Retained, s.stamp)
 	for _, a := range s.anchors {
 		if a != nil {
@@ -208,38 +215,55 @@ func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Requ
 	}
 	page, cost, e := r.search.read(ctx, req, budget, out, in, s.input.Query)
 	if e != nil {
-		return cost, e
+		return false, cost, e
 	}
-	// Hydration has no preparation/rank continuation of its own: a pending or
-	// partial native census cannot certify the already selected page.
-	if page.Stamp == nil || page.Partial || page.Disposition != SearchResults {
-		return cost, ErrUnqualified
+	switch page.Disposition {
+	case SearchResults:
+	case SearchPending:
+		if page.Next == nil || page.Stamp == nil {
+			return false, cost, ErrUnqualified
+		}
+		// Keep the continuation so the next poll resumes this walk instead of
+		// restarting it; the retained set is not re-read either way.
+		s.after = cloneFullCursor(page.Next)
+		return false, cost, nil
+	default:
+		return false, cost, ErrUnqualified
 	}
+	if page.Stamp == nil || page.Partial {
+		return false, cost, ErrUnqualified
+	}
+	s.after = cloneFullCursor(page.Next)
 	for _, hit := range page.Hits {
-		if hit.Subject != search.ManifestPerson || hit.Kind != 0 || hit.Library != 0 && hit.Library != v.Library {
-			return cost, ErrInput
+		// The native walk proves other groups' candidates for the same query;
+		// only person hits are this adapter's selected scope.
+		if hit.Subject != search.ManifestPerson {
+			continue
+		}
+		if hit.Kind != 0 || hit.Library != 0 && hit.Library != v.Library {
+			return false, cost, ErrInput
 		}
 	}
 	for _, prior := range in.Retained {
 		if prior == nil {
-			return cost, ErrUnqualified
+			return false, cost, ErrUnqualified
 		}
 		if e = page.Stamp.ValidateRetained(ctx, out, prior); e != nil {
-			return cost, e
+			return false, cost, e
 		}
 	}
 	if rsSearchRetainedBytes(s)+2*page.Stamp.MetadataBytes()+p.retained+p.work.used > s.lease.PayloadBytes() {
-		return cost, governor.ErrSnapshotBudget
+		return false, cost, governor.ErrSnapshotBudget
 	}
-	stamp, e := page.Stamp.RetainHits(s.hits)
+	fence, e := page.Stamp.RetainHits(nil)
 	if e != nil {
-		return cost, e
+		return false, cost, e
 	}
-	s.stamp = stamp
-	if len(s.anchors) > 0 {
-		s.anchors[s.library], e = page.Stamp.RetainHits(nil)
-	}
-	return cost, e
+	// A fresh fence issued by THIS poll's read is required by the delivery
+	// fence; it carries no per-hit proof, which the people delivery fence
+	// re-proves from each selected person's current source instead.
+	s.stamp = fence
+	return true, cost, nil
 }
 
 func rsPeopleSearchSummaryBytes(v RSPeopleSearchSummary) int64 {
@@ -318,15 +342,36 @@ func rsPeopleSearchCursorBytes(c *RSSearchCursor) int64 {
 	return n
 }
 
+// rsPeopleSelectionAdvanced reports whether a pending selection poll kept a
+// continuation or completed its library stream. A pending page with neither
+// cannot reach a selected page on any later poll, so it is an explicit census
+// refusal rather than an unbounded retry loop.
+func rsPeopleSelectionAdvanced(s *RSSearchPreparation, library int) bool {
+	if len(s.streams) == 0 {
+		return s.after != nil || s.exhausted
+	}
+	if library < 0 || library >= len(s.streams) {
+		return false
+	}
+	return s.streams[library].after != nil || s.streams[library].done
+}
+
 // advance performs one native revalidation plus at most one borrowed hydration
 // quantum. Only that one original lease is held; the reducer's charge() sees
 // the shared reservation, and its local sub-account is restored on return.
 func (r *RSPeopleSearchReader) advance(ctx context.Context, req governor.Request, budget time.Duration, out BrowseOutput, p *RSPeopleSearchPreparation) (bool, *BrowseReadResult, error) {
 	s, w := p.search, p.work
 	if !p.selected {
+		read := s.library
 		page, cost, e := r.search.pollLocked(ctx, req, budget, out, s, true)
-		if e != nil || page.Pending {
+		if e != nil {
 			return false, cost, e
+		}
+		if page.Pending {
+			if !rsPeopleSelectionAdvanced(s, read) {
+				return false, cost, ErrUnqualified
+			}
+			return false, cost, nil
 		}
 		if len(page.Groups) != 1 || page.Groups[0].Group != RSSearchPeople || page.Partial {
 			return false, cost, ErrUnqualified
@@ -349,10 +394,17 @@ func (r *RSPeopleSearchReader) advance(ctx context.Context, req governor.Request
 		}
 		p.selected = true
 		p.retained = 8192 + int64(cap(p.ids))*16 + int64(len(g.Hits))*32 + rsPeopleSearchCursorBytes(p.next)
+		// Hydration polls carry only this fence witness. The per-hit native
+		// proofs are not re-read row by row: each selected summary is re-proved
+		// from its current person source by the borrower's fences and by the
+		// complete delivery fence.
+		if s.stamp, e = s.stamp.RetainHits(nil); e != nil {
+			return false, cost, e
+		}
 		return false, cost, nil
 	}
-	cost, e := r.revalidate(ctx, req, budget, out, p)
-	if e != nil {
+	ready, cost, e := r.revalidate(ctx, req, budget, out, p)
+	if e != nil || !ready {
 		return false, cost, e
 	}
 	if cost == nil {

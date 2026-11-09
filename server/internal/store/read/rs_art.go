@@ -44,6 +44,23 @@ func (r *ForegroundReader) Artwork(ctx context.Context, request governor.Request
 		return r.artwork(ctx, request, budget, output, in)
 	})
 }
+
+// rsArtPreflightCalls declares the complete bounded fence/work call recipe for
+// one art window. A Reading leaf fence binds the capped accepted-publication
+// list in the same window: the common principal/library/kind points (5), the
+// accepted source and book library points (2), the capped publication list (1)
+// and, for each candidate converter publication, its asset-key/local pair
+// (2*cap), plus the art root point. Catalogue/detail recipes keep the shared
+// common eight-call window.
+func rsArtPreflightCalls(in ArtworkInput) uint16 {
+	switch in.View.policy.recipe {
+	case rsReadingNativePolicy, rsReadingMobiPolicy:
+		return 5 + 3 + 2*rsReadingPublicationCap + 1
+	default:
+		return 0
+	}
+}
+
 func (r *ForegroundReader) artwork(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in ArtworkInput) (ArtworkFact, BrowseReadResult, error) {
 	if r == nil || in.Item <= 0 || (in.View.policy.recipe != 0 && in.View.policy.subject != in.Item) {
 		return ArtworkFact{}, BrowseReadResult{}, ErrInput
@@ -70,7 +87,7 @@ func (r *ForegroundReader) artwork(ctx context.Context, request governor.Request
 		return ArtworkFact{}, BrowseReadResult{}, ErrUnqualified
 	}
 
-	windows := &rsByteWindow{source: r.snapshots, goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
+	windows := &rsByteWindow{source: r.snapshots, preflightCalls: rsArtPreflightCalls(in), goCopyBytes: output.Request.Need[governor.MemoryBytes] / 2}
 	var source []any
 	var selected []any
 	var choices []rsArtCandidate
