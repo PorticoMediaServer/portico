@@ -1,0 +1,12 @@
+{
+  "id": 42,
+  "name": "Ada Lovelace",
+  "biography": "Mathematician.",
+  "birthday": "1815-12-10",
+  "deathday": "1852-11-27",
+  "place_of_birth": "London, England, UK",
+  "known_for_department": "Acting",
+  "gender": 1,
+  "profile_path": "/ada.jpg",
+  "also_known_as": ["Augusta Ada King"]
+}

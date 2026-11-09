@@ -1,0 +1,35 @@
+{
+  "status": "success",
+  "data": {
+    "series": {
+      "id": 71663
+    },
+    "episodes": [
+      {
+        "id": 9005,
+        "seriesId": 71663,
+        "name": "Série Finale",
+        "overview": "Closing.",
+        "seasonNumber": 2,
+        "number": 2,
+        "absoluteNumber": 5,
+        "aired": "2021-03-11"
+      },
+      {
+        "id": 9006,
+        "seriesId": 71663,
+        "name": "Special",
+        "overview": "",
+        "seasonNumber": 0,
+        "number": 1,
+        "absoluteNumber": 6,
+        "aired": ""
+      }
+    ]
+  },
+  "links": {
+    "next": null,
+    "prev": "https://api4.thetvdb.com/v4/series/71663/episodes/official?page=1",
+    "self": "https://api4.thetvdb.com/v4/series/71663/episodes/official?page=2"
+  }
+}
