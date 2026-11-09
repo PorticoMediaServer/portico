@@ -20,10 +20,11 @@ import (
 // MusicBrainz artist/release/recording preparation. One recorded lookup body is
 // normalized into the exact nonmovie evidence families IP-06/IP-07 stage and
 // seal: the closed header projection plus aliases (a verified MBID redirect),
-// release-group secondary-type terms, media, tracks and artist credits. It never
-// acquires an observation, writes a catalogue identity, accepts a source or
-// matches a book. A release body without its complete declared media/tracks is
-// refused rather than repaired into a complete source.
+// release-group secondary-type terms, media, tracks, each track's pre-staged
+// recording header and artist credits. It never acquires an observation, writes
+// a catalogue identity, accepts a source or matches a book. A release body
+// without its complete declared media/tracks is refused rather than repaired
+// into a complete source.
 var (
 	// ErrMBEvidence is the closed normalization refusal: a partial medium, a
 	// duplicate track, a foreign identifier, an invalid date or a body outside
@@ -54,11 +55,18 @@ const (
 	maxMBLengthMillis  = 1_000_000
 	maxMBJSONDepth     = 64
 
-	// The release parser/shape is the pinned IP-READ-SOURCE-CONTRACT name under
-	// the IP-06 "ip.<provider>." namespace every nonmovie header must carry. The
-	// artist and recording shapes follow the merged TV header convention.
-	mbReleaseParser = "ip.musicbrainz.release.header-complete-children.v1"
-	mbReleaseShape  = "ip.musicbrainz.release.detail+artist-credits+recordings+release-groups.v1"
+	// maxMBEvidenceID matches the IP-06 header/identity bound. A recording
+	// evidence ID longer than this is not the identity the writer could stage.
+	maxMBEvidenceID = 128
+
+	// The parser/request pair is the ONLY identity IP-06 admission accepts for
+	// this provider and subject kind. Its corrected shape materializes the
+	// closed family order alias, external, term, rating, episode, media, track,
+	// credit, pre-stages every track's recording header before the track that
+	// references it and keeps track-scoped artist credits. The superseded v1
+	// spellings encode the old credit-before-media/track order and are refused.
+	mbEvidenceFamiliesSuffix = "complete-ordered-families.v2"
+	mbEvidenceDetailSuffix   = "detail+recordings+media+tracks+credits.v2"
 
 	// The exact vocabulary the read contract pins for the COMPLETE original
 	// ordered release-group secondary-type array. It is not genre or a release
@@ -95,6 +103,21 @@ type MBObservation struct {
 	EvidenceID                                string
 	SubjectID                                 int64
 	ObservedAt, SourceURL, ETag, LastModified string
+	// Recordings binds each distinct recording MBID of a release body to the
+	// recording's own prepared evidence identity and provider-subject key. The
+	// adapter never invents either and never reuses the release's. IP-06 stages
+	// one header per binding immediately before the tracks that reference it. A
+	// release body must bind every distinct recording exactly once; an artist or
+	// recording observation binds none.
+	Recordings map[string]MBRecordingTarget
+}
+
+// MBRecordingTarget is the worker's binding for one release-track recording:
+// the evidence ID and metadata_provider_subjects key of the recording's own
+// header. Both are native writer identities, not provider facts.
+type MBRecordingTarget struct {
+	EvidenceID string
+	SubjectID  int64
 }
 
 // MBRedirect retains the original requested MBID next to the canonical one. A
@@ -118,25 +141,33 @@ type MBMedium struct {
 }
 
 // MBTrack is one complete track coordinate. TrackID and RecordingID are
-// provider MBIDs; the recording evidence ID is a separate prepared observation
-// the worker resolves, not a provider fact.
+// provider MBIDs. RecordingEvidenceID is the writer evidence identity of the
+// recording header in Recording; that header carries every recording fact and
+// is staged immediately before the track, and the separate subject binding is
+// supplied by MBRecordingTarget. Artist is the track's joined display and stays
+// alongside the track-scoped credit rows.
 type MBTrack struct {
 	TrackID                  string
 	MediumPosition, Position int64
 	Number, Title, Artist    string
 	LengthMillis             writer.EvidenceInteger
 	RecordingID              string
+	RecordingEvidenceID      string
+	Recording                writer.EvidenceHeaderInput
 }
 
-// MBCredit is one artist credit of the evidence subject itself. Class is always
-// "artist" and the scope is empty. IP-06's closed family order materializes the
-// credit family before media/tracks, so a track-scoped credit could not satisfy
-// metadata_evidence_credits' generated-track foreign key; a track's complete
-// artist credit is retained exactly as the track row's joined display instead.
+// MBCredit is one artist credit. The release subject's own credits carry an
+// empty Scope; a track's complete artist credit carries Scope set to the exact
+// release-track ID and preserves every artist identity, provider order and join
+// phrase. IP-06 materializes the credit family after media/tracks, so the
+// track-scoped rows satisfy metadata_evidence_credits' generated-track foreign
+// key without dropping a credit or deferring a constraint.
 type MBCredit struct {
 	Ordinal                                          int64
-	Class, ProviderPersonID, Name                    string
+	Class, Scope, ProviderPersonID, Name             string
 	ArtistName, SortName, Disambiguation, JoinPhrase string
+	SourceOrdinal                                    int64
+	SourceOrdinalPresent                             bool
 }
 
 // MBReleaseClass is the album browse section from the read contract's ordered
@@ -186,8 +217,25 @@ func (d MBEvidence) Digest() [32]byte { return d.digest }
 func (d MBEvidence) Redirects() []MBRedirect { return slices.Clone(d.redirects) }
 func (d MBEvidence) Terms() []MBTerm         { return slices.Clone(d.terms) }
 func (d MBEvidence) Media() []MBMedium       { return slices.Clone(d.media) }
-func (d MBEvidence) Tracks() []MBTrack       { return slices.Clone(d.tracks) }
-func (d MBEvidence) Credits() []MBCredit     { return slices.Clone(d.credits) }
+
+// Recordings returns the distinct recording headers of one release in the
+// first-seen track order IP-06 pre-stages them. Declared tracks with no bound
+// recording are refused during preparation, so every returned header has an ID.
+func (d MBEvidence) Recordings() []writer.EvidenceHeaderInput {
+	var out []writer.EvidenceHeaderInput
+	seen := make(map[string]bool, len(d.tracks))
+	for _, track := range d.tracks {
+		if seen[track.RecordingEvidenceID] {
+			continue
+		}
+		seen[track.RecordingEvidenceID] = true
+		out = append(out, track.Recording)
+	}
+	return out
+}
+
+func (d MBEvidence) Tracks() []MBTrack   { return slices.Clone(d.tracks) }
+func (d MBEvidence) Credits() []MBCredit { return slices.Clone(d.credits) }
 
 // Class reports the album browse section of a release observation. Every other
 // subject kind has no release classification.
@@ -206,18 +254,22 @@ func mbEntity(kind enrich.SubjectKind) (string, bool) {
 	}
 }
 
+// mbParser and mbShape return the exact current IP-06 pair for one MusicBrainz
+// subject kind. The provider-specific namespace is closed: no other spelling,
+// including the superseded v1 order, is admissible.
+func mbEvidencePair(kind enrich.SubjectKind) (parser, shape string) {
+	prefix := "ip.musicbrainz." + string(kind) + ".evidence."
+	return prefix + mbEvidenceFamiliesSuffix, prefix + mbEvidenceDetailSuffix
+}
+
 func mbParser(kind enrich.SubjectKind) string {
-	if kind == enrich.Release {
-		return mbReleaseParser
-	}
-	return "ip.musicbrainz." + string(kind) + ".header.v1"
+	parser, _ := mbEvidencePair(kind)
+	return parser
 }
 
 func mbShape(kind enrich.SubjectKind) string {
-	if kind == enrich.Release {
-		return mbReleaseShape
-	}
-	return "ip.musicbrainz." + string(kind) + ".detail.header.v1"
+	_, shape := mbEvidencePair(kind)
+	return shape
 }
 
 // mbSourcePath is the only accepted source path for one route. Query, fragment
@@ -387,13 +439,16 @@ func PrepareMusicBrainz(consent MBConsent, o MBObservation, body []byte) (MBEvid
 	}
 	input.ObservationDigest = sha256.Sum256(frozen)
 	input.SourceURL = musicBrainzOrigin + path
+	if o.Route.Kind != enrich.Release && len(o.Recordings) != 0 {
+		return zero, ErrMBEvidence
+	}
 	var canonical string
 	var rows mbRows
 	switch o.Route.Kind {
 	case enrich.Artist:
 		canonical, rows, err = mbParseArtist(frozen, &input)
 	case enrich.Release:
-		canonical, rows, err = mbParseRelease(frozen, &input)
+		canonical, rows, err = mbParseRelease(frozen, &input, o.Recordings)
 	default:
 		canonical, rows, err = mbParseRecording(frozen, &input)
 	}
@@ -539,7 +594,7 @@ func mbParseRecording(body []byte, h *writer.EvidenceHeaderInput) (string, mbRow
 	}
 	credits := make([]MBCredit, 0, len(raw.ArtistCredit))
 	next := int64(0)
-	if err := mbAppendCredits(&credits, raw.ArtistCredit, &next); err != nil {
+	if err := mbAppendCredits(&credits, raw.ArtistCredit, &next, ""); err != nil {
 		return "", mbRows{}, err
 	}
 	h.Title = raw.Title
@@ -549,7 +604,7 @@ func mbParseRecording(body []byte, h *writer.EvidenceHeaderInput) (string, mbRow
 	return raw.ID, mbRows{credits: credits}, nil
 }
 
-func mbParseRelease(body []byte, h *writer.EvidenceHeaderInput) (string, mbRows, error) {
+func mbParseRelease(body []byte, h *writer.EvidenceHeaderInput, targets map[string]MBRecordingTarget) (string, mbRows, error) {
 	var raw mbReleaseJSON
 	if err := json.Unmarshal(body, &raw); err != nil || !mbMBID(raw.ID) || !mbTitle(raw.Title) ||
 		!mbText(raw.Disambiguation, maxMBNameText) || !mbCountry(raw.Country) ||
@@ -583,7 +638,7 @@ func mbParseRelease(body []byte, h *writer.EvidenceHeaderInput) (string, mbRows,
 	}
 	credits := make([]MBCredit, 0, len(raw.ArtistCredit))
 	next := int64(0)
-	if err := mbAppendCredits(&credits, raw.ArtistCredit, &next); err != nil {
+	if err := mbAppendCredits(&credits, raw.ArtistCredit, &next, ""); err != nil {
 		return "", mbRows{}, err
 	}
 	if len(raw.Media) == 0 || len(raw.Media) > maxMBMedia {
@@ -592,7 +647,13 @@ func mbParseRelease(body []byte, h *writer.EvidenceHeaderInput) (string, mbRows,
 	media := make([]MBMedium, 0, len(raw.Media))
 	tracks := make([]MBTrack, 0)
 	seenTrack := make(map[string]bool)
+	bound := make(map[string]bool, len(targets))
+	boundEvidence := make(map[string]string, len(targets))
 	for i, medium := range raw.Media {
+		// A medium's format and title are the provider's exact strings and may
+		// be empty. Only the positive contiguous position, the byte/text bounds
+		// and the complete declared track count are evidence rules; presentation
+		// fallback belongs to a later read.
 		if medium.Position != int64(i)+1 || !mbShort(medium.Format) || !mbText(medium.Title, maxMBText) ||
 			medium.TrackCount <= 0 || int64(len(medium.Tracks)) != medium.TrackCount ||
 			len(tracks)+len(medium.Tracks) > maxMBTracks {
@@ -613,11 +674,52 @@ func mbParseRelease(body []byte, h *writer.EvidenceHeaderInput) (string, mbRows,
 			if !ok {
 				return "", mbRows{}, ErrMBEvidence
 			}
+			// The embedded recording is a complete observation of its own: a
+			// title and its own non-empty artist credit are required, its null
+			// length stays absent, and it gets a pre-staged evidence header bound
+			// to the worker's exact recording identity and subject key.
+			recordingLength, recordingPresent, ok := mbLength(track.Recording.Length)
+			if !ok || !mbTitle(track.Recording.Title) ||
+				!mbText(track.Recording.Disambiguation, maxMBNameText) ||
+				len(track.Recording.ArtistCredit) == 0 {
+				return "", mbRows{}, ErrMBEvidence
+			}
+			recordingArtist, ok := mbCreditDisplay(track.Recording.ArtistCredit)
+			if !ok {
+				return "", mbRows{}, ErrMBEvidence
+			}
+			target, ok := targets[track.Recording.ID]
+			if !ok || !mbText(target.EvidenceID, maxMBEvidenceID) || len(target.EvidenceID) == 0 ||
+				target.SubjectID <= 0 {
+				return "", mbRows{}, ErrMBEvidence
+			}
+			if previous, ok := boundEvidence[target.EvidenceID]; ok && previous != track.Recording.ID {
+				return "", mbRows{}, ErrMBEvidence
+			}
+			boundEvidence[target.EvidenceID] = track.Recording.ID
+			bound[track.Recording.ID] = true
+			recording := mbRecordingInput(h, target, track.Recording, recordingArtist,
+				writer.EvidenceInteger{Present: recordingPresent, Value: recordingLength})
+			if _, err := writer.NewEvidenceHeader(recording); err != nil {
+				return "", mbRows{}, errors.Join(ErrMBEvidence, err)
+			}
 			tracks = append(tracks, MBTrack{TrackID: track.ID, MediumPosition: medium.Position,
 				Position: track.Position, Number: track.Number, Title: track.Title, Artist: artist,
 				LengthMillis: writer.EvidenceInteger{Present: present, Value: length},
-				RecordingID:  track.Recording.ID})
+				RecordingID:  track.Recording.ID, RecordingEvidenceID: target.EvidenceID,
+				Recording: recording})
+			// A track's complete credit array is retained as track-scoped rows,
+			// in provider order, alongside the joined display. No credit is
+			// dropped to make the family order fit.
+			if err := mbAppendCredits(&credits, track.ArtistCredit, &next, track.ID); err != nil {
+				return "", mbRows{}, err
+			}
 		}
+	}
+	// A binding must name a recording this body declares: no missing target and
+	// no target for a recording the release does not carry.
+	if len(bound) != len(targets) {
+		return "", mbRows{}, ErrMBEvidence
 	}
 	h.Title = raw.Title
 	h.Artist = display
@@ -631,6 +733,20 @@ func mbParseRelease(body []byte, h *writer.EvidenceHeaderInput) (string, mbRows,
 	h.PrimaryType = group.PrimaryType
 	return raw.ID, mbRows{terms: terms, media: media, tracks: tracks, credits: credits,
 		class: mbClassifyRelease(group.PrimaryType, group.SecondaryTypes)}, nil
+}
+
+// mbRecordingInput projects one embedded release-track recording into the exact
+// recording evidence header IP-06 stages before the track. The recorded body is
+// the release response, so its digest, observed time, source URL and validators
+// are carried unchanged; the adapter never invents a separate acquisition.
+func mbRecordingInput(h *writer.EvidenceHeaderInput, target MBRecordingTarget,
+	raw mbRecordingJSON, artist string, length writer.EvidenceInteger) writer.EvidenceHeaderInput {
+	return writer.EvidenceHeaderInput{ID: target.EvidenceID, SubjectID: target.SubjectID,
+		ParserVersion: mbParser(enrich.Recording), RequestShape: mbShape(enrich.Recording),
+		Provider: "musicbrainz", SubjectKind: "recording", ProviderID: raw.ID,
+		Language: h.Language, Region: h.Region, ObservationDigest: h.ObservationDigest,
+		ObservedAt: h.ObservedAt, SourceURL: h.SourceURL, ETag: h.ETag, LastModified: h.LastModified,
+		Title: raw.Title, Artist: artist, Disambiguation: raw.Disambiguation, LengthMillis: length}
 }
 
 // mbCreditName validates one complete artist credit and returns its credited
@@ -651,7 +767,7 @@ func mbCreditName(value mbArtistCreditJSON) (string, bool) {
 }
 
 // mbValidateCredits validates one complete declared credit array, including a
-// track's own credits, even when only the joined display is persisted.
+// track's own credits, before any row is materialized.
 func mbValidateCredits(values []mbArtistCreditJSON) error {
 	if len(values) > maxMBArtistCredits {
 		return ErrMBEvidence
@@ -682,18 +798,20 @@ func mbCreditDisplay(values []mbArtistCreditJSON) (string, bool) {
 	return out.String(), true
 }
 
-// mbAppendCredits materializes one complete subject credit array into the closed
-// artist-credit family in provider order. Every ordinal is contiguous from zero.
-func mbAppendCredits(out *[]MBCredit, values []mbArtistCreditJSON, next *int64) error {
+// mbAppendCredits materializes one complete credit array into the closed
+// artist-credit family in provider order. Every ordinal is contiguous from the
+// page's next position; Scope is empty for the evidence subject's own credits
+// and the exact release-track ID for a track's credits.
+func mbAppendCredits(out *[]MBCredit, values []mbArtistCreditJSON, next *int64, scope string) error {
 	if err := mbValidateCredits(values); err != nil {
 		return err
 	}
-	for _, value := range values {
+	for i, value := range values {
 		name, _ := mbCreditName(value)
-		*out = append(*out, MBCredit{Ordinal: *next, Class: "artist",
+		*out = append(*out, MBCredit{Ordinal: *next, Class: "artist", Scope: scope,
 			ProviderPersonID: value.Artist.ID, Name: name, ArtistName: value.Artist.Name,
 			SortName: value.Artist.SortName, Disambiguation: value.Artist.Disambiguation,
-			JoinPhrase: value.JoinPhrase})
+			JoinPhrase: value.JoinPhrase, SourceOrdinal: int64(i), SourceOrdinalPresent: true})
 		*next = *next + 1
 	}
 	return nil
@@ -863,17 +981,42 @@ func mbEvidenceDigest(route MBRoute, input writer.EvidenceHeaderInput, epoch int
 		flag(value.LengthMillis.Present)
 		number(value.LengthMillis.Value)
 		text(value.RecordingID)
+		text(value.RecordingEvidenceID)
+		// The pre-staged recording header is part of the track identity: a
+		// changed subject binding, title, credit or validator changes preparation.
+		text(value.Recording.ID)
+		number(value.Recording.SubjectID)
+		text(value.Recording.ParserVersion)
+		text(value.Recording.RequestShape)
+		text(value.Recording.Provider)
+		text(value.Recording.SubjectKind)
+		text(value.Recording.ProviderID)
+		text(value.Recording.Language)
+		text(value.Recording.Region)
+		_, _ = h.Write(value.Recording.ObservationDigest[:])
+		text(value.Recording.ObservedAt)
+		text(value.Recording.SourceURL)
+		text(value.Recording.ETag)
+		text(value.Recording.LastModified)
+		text(value.Recording.Title)
+		text(value.Recording.Artist)
+		text(value.Recording.Disambiguation)
+		flag(value.Recording.LengthMillis.Present)
+		number(value.Recording.LengthMillis.Value)
 	}
 	number(int64(len(rows.credits)))
 	for _, value := range rows.credits {
 		number(value.Ordinal)
 		text(value.Class)
+		text(value.Scope)
 		text(value.ProviderPersonID)
 		text(value.Name)
 		text(value.ArtistName)
 		text(value.SortName)
 		text(value.Disambiguation)
 		text(value.JoinPhrase)
+		flag(value.SourceOrdinalPresent)
+		number(value.SourceOrdinal)
 	}
 	var out [32]byte
 	copy(out[:], h.Sum(nil))

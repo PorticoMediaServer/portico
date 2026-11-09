@@ -40,7 +40,19 @@
           "recording": {
             "id": "4e5f6071-8293-4ea0-90b1-3c4d5e6f7081",
             "title": "Safe from Harm",
-            "length": 341000
+            "length": 341000,
+            "artist-credit": [
+              {
+                "name": "Massive Attack",
+                "joinphrase": "",
+                "artist": {
+                  "id": "2c3d4e5f-6071-4c8d-8e9f-1a2b3c4d5e6f",
+                  "name": "Massive Attack",
+                  "sort-name": "Massive Attack",
+                  "disambiguation": ""
+                }
+              }
+            ]
           }
         }
       ]

@@ -63,7 +63,30 @@
           "recording": {
             "id": "f7e4e5c6-5162-4c73-8d3e-4f5061728394",
             "title": "Safe from Harm",
-            "length": 341000
+            "length": 341000,
+            "disambiguation": "album version",
+            "artist-credit": [
+              {
+                "name": "Massive Attack",
+                "joinphrase": " feat. ",
+                "artist": {
+                  "id": "b3a0a1e2-1d2c-4d3e-8f9a-0b1c2d3e4f50",
+                  "name": "Massive Attack",
+                  "sort-name": "Massive Attack",
+                  "disambiguation": ""
+                }
+              },
+              {
+                "name": "Shara Nelson",
+                "joinphrase": "",
+                "artist": {
+                  "id": "e6d3d4b5-4051-4b62-9c2d-3e4f50617283",
+                  "name": "Shara Nelson",
+                  "sort-name": "Nelson, Shara",
+                  "disambiguation": "British singer"
+                }
+              }
+            ]
           }
         },
         {
@@ -76,7 +99,19 @@
           "recording": {
             "id": "b9a6a7e8-7384-4e95-8f50-617283940516",
             "title": "Unfinished Sympathy",
-            "length": null
+            "length": null,
+            "artist-credit": [
+              {
+                "name": "Massive Attack",
+                "joinphrase": "",
+                "artist": {
+                  "id": "b3a0a1e2-1d2c-4d3e-8f9a-0b1c2d3e4f50",
+                  "name": "Massive Attack",
+                  "sort-name": "Massive Attack",
+                  "disambiguation": ""
+                }
+              }
+            ]
           }
         }
       ]
@@ -116,7 +151,29 @@
           "recording": {
             "id": "c0b7b8f9-8495-4fa6-9a61-728394051627",
             "title": "Hymn of the Big Wheel",
-            "length": 40000
+            "length": 40000,
+            "artist-credit": [
+              {
+                "name": "Massive Attack",
+                "joinphrase": " & ",
+                "artist": {
+                  "id": "b3a0a1e2-1d2c-4d3e-8f9a-0b1c2d3e4f50",
+                  "name": "Massive Attack",
+                  "sort-name": "Massive Attack",
+                  "disambiguation": ""
+                }
+              },
+              {
+                "name": "Horace Andy",
+                "joinphrase": "",
+                "artist": {
+                  "id": "a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                  "name": "Horace Andy",
+                  "sort-name": "Andy, Horace",
+                  "disambiguation": ""
+                }
+              }
+            ]
           }
         }
       ]
