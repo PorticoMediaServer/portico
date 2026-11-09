@@ -183,6 +183,7 @@ func TestUSRestrictionsSavedResult(t *testing.T) {
 	}
 	for n, change := range []func(*usRestrictionsSavedResult){
 		func(v *usRestrictionsSavedResult) { v.revision++ },
+		func(v *usRestrictionsSavedResult) { v.appliedMS++ },
 		func(v *usRestrictionsSavedResult) { v.ratingSystem = "TV" },
 		func(v *usRestrictionsSavedResult) { v.maximumAgeRating = "R" },
 		func(v *usRestrictionsSavedResult) { v.maximumAge++ },

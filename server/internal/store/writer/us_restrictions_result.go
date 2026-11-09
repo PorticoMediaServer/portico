@@ -65,6 +65,9 @@ func usRestrictionsResultDigest(identity CommandIdentity, request RequestDigest,
 	e.text(v.profile)
 	e.text(v.profileLifetime)
 	e.number(uint64(v.revision))
+	// US-07's policy result digest includes appliedMS; this sibling keeps the
+	// same immutable timestamp witness in its digest.
+	e.number(uint64(v.appliedMS))
 	e.text(v.ratingSystem)
 	e.text(v.maximumAgeRating)
 	// maximumAge is signed (-1 means no ceiling); +1 keeps -1 distinct from 0.

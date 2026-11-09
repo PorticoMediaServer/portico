@@ -55,10 +55,14 @@ func usRestrictionsDefinitions() []stmt.Definition {
 		{ID: usRestrictionsScopeCheck, SQL: `SELECT 1
 FROM direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1
 CROSS JOIN authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1 ON f.account_id=m.account_id
-WHERE m.account_id=? AND f.id=? AND f.role=m.role AND m.role='owner' AND m.disabled=0`,
-			Params:  []stmt.Param{text("account"), text("family")},
-			Cohorts: []stmt.Cohort{{Name: "current_owner", Bindings: []any{"issuer", "issuer-family"}}, {Name: "missing", Bindings: []any{"no-account", "no-family"}}},
-			Plan:    scopePlan},
+WHERE m.account_id=? AND f.id=? AND m.incarnation=? AND f.role=m.role AND m.role='owner' AND m.disabled=0`,
+			Params: []stmt.Param{text("account"), text("family"), text("member-incarnation")},
+			Cohorts: []stmt.Cohort{
+				{Name: "current_owner", Bindings: []any{"issuer", "issuer-family", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}},
+				{Name: "stale_member_lifetime", Bindings: []any{"issuer", "issuer-family", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+				{Name: "missing", Bindings: []any{"no-account", "no-family", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}},
+			},
+			Plan: scopePlan},
 		{ID: usRestrictionsTargetFacts, SQL: `SELECT p.deleted,p.is_primary
 FROM direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2
 WHERE p.account_id=? AND p.id=? AND p.lifetime=?`,
