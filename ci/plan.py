@@ -202,7 +202,7 @@ def assert_merge_shard_budget(bins, tests, all_tests, durations):
     return go_batch_model(bins, all_tests, durations)
 
 
-def balance_merge(tests, durations, all_tests, target=GO_TEST_TARGET, max_count=128):
+def balance_merge(tests, durations, all_tests, target=GO_TEST_TARGET, max_count=128, shard_target=None):
     """Deterministic weighted open-shop packing for full Go shards.
 
     Parents whose measured weight alone exceeds the per-command target get their
@@ -210,6 +210,9 @@ def balance_merge(tests, durations, all_tests, target=GO_TEST_TARGET, max_count=
     processing-time packs into the fewest shards whose modeled commands fit.
     The ceiling is 128: GitHub matrices allow 256 jobs, and the imported trains
     keep growing the full inventory past the old 64-shard limit.
+    shard_target also caps a shard's serialized wall clock (complete batch then
+    partial pool); the short tier uses it so its predicted seconds stay
+    truthful. A lone parent over the target remains the documented exception.
     """
     units = [(sum(parent_seconds(t, durations) for t in unit), unit) for unit in merge_units(tests, durations)]
     heavy = sorted((unit for weight, unit in units if weight > target),
@@ -226,11 +229,16 @@ def balance_merge(tests, durations, all_tests, target=GO_TEST_TARGET, max_count=
             bins[index].extend(unit)
             costs[index] += sum(parent_seconds(t, durations) for t in unit)
         fits = True
-        for row in go_batch_model(bins, all_tests, durations):
+        rows = go_batch_model(bins, all_tests, durations)
+        for row in rows:
             for command in row['commands']:
                 single = command['kind'] == 'partial' and command['tests'] == 1
                 if command['seconds'] > (GO_TEST_DEADLINE if single else target):
                     fits = False
+            lone_heavy = (len(row['commands']) == 1 and row['commands'][0]['kind'] == 'partial'
+                          and row['commands'][0]['tests'] == 1)
+            if shard_target is not None and row['seconds'] > shard_target and not lone_heavy:
+                fits = False
         if fits:
             return bins, costs
     raise ValueError(f'the full Go inventory needs more than {max_count} shards to fit the batch budget')
@@ -255,6 +263,54 @@ def balance_short_censuses(tests, durations, max_count=10):
     ordinary = [(shard,cost) for shard,cost in ordinary if shard]
     return ([shard for shard,cost in ordinary] + [census],
             [cost for shard,cost in ordinary] + [sum(durations.get(t['package']+'.'+t['name'],1) for t in census)])
+
+
+def split_short_censuses(tests):
+    census = [t for t in tests if (t['package'], t['name']) in SHORT_CENSUSES]
+    ordinary = [t for t in tests if (t['package'], t['name']) not in SHORT_CENSUSES]
+    return ordinary, census
+
+
+def balance_short_large(tests, durations, all_tests, max_count=128):
+    """Size a large short-tier inventory by the merge budget, not a shard cap.
+
+    Promoted PR work gets more VMs, not longer deadlines. The 10-shard LPT
+    layout (kept for ordinary PRs) stacks every inferred full inventory into
+    ~760s batches, leaving no room for compile, link or run-to-run variance
+    under the 780s `go test -timeout`. Here the short tier reuses the merge
+    tier's weighted open-shop packing at its own guarded durations: a parent
+    over the target gets a shard alone, everything else packs into the fewest
+    shards whose modeled commands fit the target. The 128 ceiling is only a
+    guard against an inventory that cannot be planned. Censuses keep the same
+    isolation the small-tier layout gives them.
+    """
+    ordinary, census = split_short_censuses(tests)
+    bins = (balance_merge(ordinary, durations, all_tests, max_count=max_count,
+                          shard_target=GO_TEST_TARGET)[0] if ordinary else [])
+    if census: bins.append(census)
+    # Fail closed exactly like the merge tier: a modeled command over budget (or
+    # a single parent over the deadline) cannot reach the runner.
+    rows = assert_merge_shard_budget(bins, tests, all_tests, durations)
+    # predicted_seconds is the modeled wall clock for the shard, which is what
+    # the deadline applies to; a single parent keeps its own seconds.
+    return bins, [row['seconds'] for row in rows]
+
+
+def balance_short(tests, durations, all_tests, max_count=10, large_durations=None):
+    """Short-tier dispatch: ordinary PRs keep the LPT layout and its 10-shard cap.
+
+    Once the inventory is promoted/full or the LPT layout would model a shard
+    over GO_TEST_TARGET, the budget (not the cap) sizes the shards. A promoted
+    inventory is priced by the caller's measured full table: ci/durations.json
+    only covers the parents ordinary short PRs run, and the 20s unmeasured
+    default for the rest would plan hundreds of shards.
+    """
+    bins, costs = balance_short_censuses(tests, durations, max_count=max_count)
+    rows = go_batch_model(bins, all_tests, durations)
+    if max(costs, default=0.0) <= GO_TEST_TARGET and all(row['seconds'] <= GO_TEST_TARGET for row in rows):
+        return bins, costs
+    return balance_short_large(tests, large_durations if large_durations is not None else durations,
+                               all_tests)
 
 def components(paths, full=False):
     if full: return sorted(COMPONENTS), True
@@ -398,6 +454,12 @@ def make_plan(paths, full=False, tier="short"):
     diagnostics=[t for lane in tiers['nightly_lanes'].values() for t in lane]
     exclusions=diagnostics if tier=='nightly' else tiers['nightly_only']
     short_durations=guarded_costs(packages,durations) if tier=='short' else durations
+    # A promoted short PR runs the whole Go inventory, but ci/durations.json
+    # only measured the parents ordinary PRs exercise. Price that inventory
+    # from ci/merge_durations.json (over the short baseline) before choosing
+    # shards; the unmeasured default stays 20s for anything still absent.
+    promoted_durations=(guarded_costs(packages,observed_durations(durations,'merge'),full_packages)
+                        if tier=='short' else None)
     if tier=='short': durations=guarded_costs(packages,durations,full_packages)
     excluded={(t['package'],t['name']) for t in exclusions}
     inventory=[t for t in inventory if (t['package'],t['name']) not in excluded]
@@ -408,7 +470,8 @@ def make_plan(paths, full=False, tier="short"):
         # size their shards from measured parent weights so every go test batch
         # stays under the deadline as the inventory grows.
         if tier=='short':
-            return balance_short_censuses(tests,durations,max_count=20 if full_packages else 10)
+            if full_packages: return balance_short_large(tests,promoted_durations,all_test_names)
+            return balance_short(tests,durations,all_test_names,large_durations=promoted_durations)
         return balance_merge(tests,durations,all_test_names)
     cost=sum(parent_seconds(t,durations) for t in inventory)
     js=[]; js_reasons={}
