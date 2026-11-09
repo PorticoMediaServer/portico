@@ -150,7 +150,7 @@ func TestRSDetailComposedArtPendingIsNotInvented(t *testing.T) {
 	f, r := newRSDetailComposedFixture(t, false)
 	// The season's selected poster renditions are not ready. The composed slot
 	// reports pending instead of borrowing a digest, URL or rendition size.
-	f.exec(t, `UPDATE artwork_blobs SET status='deleting' WHERE digest=?`, rsArtDigest(2))
+	f.exec(t, `UPDATE artwork_blobs SET status='deleting',deletion_token=zeroblob(16) WHERE digest=?`, rsArtDigest(2))
 	in := RSDetailComposedInput{View: f.input, Item: 1103}
 	in.View.Kind = 3
 	d, _, err := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
