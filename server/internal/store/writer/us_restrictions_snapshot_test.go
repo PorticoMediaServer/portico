@@ -36,23 +36,22 @@ func TestUSRestrictionsSourceStatementInventory(t *testing.T) {
 // before any source row is materialized.
 func TestUSRestrictionsScopeNarrowing(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		setup func(*executor, *usRestrictionsCommand)
+		name string
+		sql  string
 	}{
-		{"session_role_drift", func(w *executor, c *usRestrictionsCommand) {
-			wc008NativeExec(t, w, `UPDATE authorization_session_families SET role='admin' WHERE id='issuer-family'`)
-		}},
-		{"membership_role_drift", func(w *executor, c *usRestrictionsCommand) {
-			wc008NativeExec(t, w, `UPDATE direct_memberships SET role='admin' WHERE account_id='issuer'`)
-		}},
-		{"membership_disabled", func(w *executor, c *usRestrictionsCommand) {
-			wc008NativeExec(t, w, `UPDATE direct_memberships SET disabled=1 WHERE account_id='issuer'`)
-		}},
+		{"session_role_drift", `UPDATE authorization_session_families SET role='admin' WHERE id='issuer-family'`},
+		{"membership_role_drift", `UPDATE direct_memberships SET role='admin' WHERE account_id='issuer'`},
+		{"membership_disabled", `UPDATE direct_memberships SET disabled=1 WHERE account_id='issuer'`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w, _, r, proof, input := usRestrictionsFixture(t, true, nil)
 			turn, a, _ := usRestrictionsTurn(t, w, r, proof, input.kind, 0)
-			tc.setup(w, input)
+			// The fixture pool has ONE writer connection and the open frame owns
+			// it, so drift current source on the frame's own connection, exactly
+			// as a prior statement in this same frame would.
+			if _, err := turn.transaction.conn.ExecContext(turn.transaction.ctx, tc.sql); err != nil {
+				t.Fatal(tc.sql, err)
+			}
 			before, err := readUSRestrictionsFreshTarget(t.Context(), turn, a, input)
 			if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(before, usRestrictionsBefore{}) {
 				t.Fatal("role narrowing", before, err)

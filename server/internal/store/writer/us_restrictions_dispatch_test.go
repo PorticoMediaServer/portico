@@ -327,6 +327,9 @@ func TestUSRestrictionsDispatchDenialAndOrder(t *testing.T) {
 			wc008NativeExec(t, w, `UPDATE direct_profiles SET lifetime=? WHERE id=?`, strings.Repeat("9", 32), c.request.profile)
 		}, ErrDisclosureDenied},
 		{"cross_account", false, func(q *usRestrictionsRequest) { q.account = "other-account" }, nil, ErrDisclosureDenied},
+		// A current issuer with an arbitrary/old member lifetime: the saved
+		// member witness must be the CURRENT membership, not merely 32 hex.
+		{"stale_member_incarnation", true, func(q *usRestrictionsRequest) { q.memberIncarnation = strings.Repeat("e", 32) }, nil, ErrDisclosureDenied},
 		{"stale_revision", true, func(q *usRestrictionsRequest) { q.expectedRevision = 2 }, nil, ErrConflict},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -475,6 +478,74 @@ func TestUSRestrictionsDispatchCanceledAndBareResolve(t *testing.T) {
 	}
 	if usRestrictionsQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 {
 		t.Fatal("bare Resolve wrote a receipt")
+	}
+}
+
+// A denial that arrives only at the FINAL release REPLACES the body outcome and
+// rolls the whole prefix back: the accepted source/receipt prefix never
+// survives. The virtual clock is installed AFTER the turn is minted, so the
+// entry checks stay valid; the effect is composed and stored before the final
+// disclosure recheck sees the expired authority.
+func TestUSRestrictionsDispatchLateReleaseDeniesAndRollsBack(t *testing.T) {
+	// Probe one complete dispatch to learn how many instants it samples.
+	w, _, r, proof, input := usRestrictionsFixture(t, true, nil)
+	probe, probeAuth, _ := usRestrictionsTurn(t, w, r, proof, input.kind, 0)
+	probeClock := usPolicyStepClockOn(w, 0, 0)
+	if _, _, err := runUSRestrictionsDispatch(t.Context(), probe, probeAuth, usRestrictionsInput(t, input)); err != nil {
+		t.Fatal("probe run failed", err)
+	}
+	total := probeClock.calls
+	if total <= 6 {
+		t.Fatalf("dispatch sampled too few instants: %d", total)
+	}
+	w, _, r, proof, input = usRestrictionsFixture(t, true, nil)
+	deniedTurn, deniedAuth, _ := usRestrictionsTurn(t, w, r, proof, input.kind, 0)
+	// The captured proof is what every recheck re-runs; shortening it AFTER the
+	// entry authorization is the only way to expire it mid-frame. The final
+	// disclosure's FIRST sample is the sixth control sample from the end (its
+	// two remaining samples and the terminal's three follow it), so flipping
+	// there leaves a composed prefix that the release must roll back. The step
+	// stays inside the runtime safety ceiling, making this a denial, not an
+	// overrun.
+	deniedAuth.proof.tokenExpiry = w.now().Add(time.Second)
+	usPolicyStepClockOn(w, total-5, 2*time.Second)
+	out, _, err := runUSRestrictionsDispatch(t.Context(), deniedTurn, deniedAuth, usRestrictionsInput(t, input))
+	if !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usRestrictionsDispatchResult{}) {
+		t.Fatal("release denial joined or missed", out, err)
+	}
+	if revision, _, _, labels, _ := usRestrictionsSource(t, w, usRestrictionsProfileID); revision != 1 || labels != `["old"]` {
+		t.Fatal("release denial left a source prefix", revision, labels)
+	}
+	if usRestrictionsQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 ||
+		usRestrictionsQuery(t, w, `SELECT count(*) FROM security_restriction_results`) != 0 ||
+		usRestrictionsQuery(t, w, `SELECT count(*) FROM security_restriction_result_labels`) != 0 ||
+		usRestrictionsQuery(t, w, `SELECT last_sequence FROM security_command_owners`) != 0 ||
+		usRestrictionsQuery(t, w, `SELECT retained_variable_bytes FROM security_command_owners`) != 0 {
+		t.Fatal("release denial left a receipt prefix")
+	}
+}
+
+// A profile id is not a global key: a request that claims the caller's OWN
+// account but names a profile owned by ANOTHER account is refused before any
+// receipt or source effect.
+func TestUSRestrictionsDispatchForeignProfileDenied(t *testing.T) {
+	const foreignProfile = "foreign-profile"
+	w, _, r, proof, input := usRestrictionsFixture(t, false, func(q *usRestrictionsRequest) {
+		q.profile, q.profileLifetime = foreignProfile, strings.Repeat("e", 32)
+	})
+	// The fixture created the profile under the caller's account; move it to a
+	// foreign account so the (account, profile) key cannot match the request.
+	wc008NativeExec(t, w, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES('foreign-account','foreign-account',X'','foreign-profile')`)
+	wc008NativeExec(t, w, `UPDATE direct_profiles SET account_id='foreign-account' WHERE id=?`, foreignProfile)
+	turn, a, _ := usRestrictionsTurn(t, w, r, proof, input.kind, 0)
+	out, _, err := runUSRestrictionsDispatch(t.Context(), turn, a, usRestrictionsInput(t, input))
+	if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usRestrictionsDispatchResult{}) {
+		t.Fatal("foreign profile under the caller's own account was accepted", out, err)
+	}
+	if usRestrictionsQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 0 ||
+		usRestrictionsQuery(t, w, `SELECT last_sequence FROM security_command_owners`) != 0 ||
+		usRestrictionsQuery(t, w, `SELECT count(*) FROM profile_restrictions WHERE profile_id=?`, foreignProfile) != 0 {
+		t.Fatal("foreign profile denial wrote a prefix")
 	}
 }
 

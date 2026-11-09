@@ -54,12 +54,19 @@ func readUSRestrictionsFreshTarget(ctx context.Context, turn *commandTurn, a *us
 	issuer := a.proof.witness.issuer
 	// The product edits only a profile of the CALLER's own account. A profile id
 	// from another account is a different operation and is not admitted here.
+	// Legacy admin/member main-profile and account-scoped session paths are
+	// refused ON PURPOSE by the owner-role scope check below; they must be
+	// widened deliberately (with their own reviewed role branch and ownerGrant
+	// read) before any product wiring, never admitted by coincidence.
 	if q.account != issuer.account {
 		return out, ErrDisclosureDenied
 	}
 	// Current session/membership role narrowing and the owner recording grant,
-	// compared inside SQLite before any source row is materialized.
-	row, err := usRestrictionsRow(ctx, turn, usRestrictionsScopeCheck, q.account, issuer.family)
+	// compared inside SQLite before any source row is materialized. The member
+	// incarnation is the SAME witness US-05/US-09 CAS in SQL: a request carrying
+	// an old membership's lifetime with a current issuer is refused here rather
+	// than saved as the member lifetime that made the change.
+	row, err := usRestrictionsRow(ctx, turn, usRestrictionsScopeCheck, q.account, issuer.family, q.memberIncarnation)
 	if err != nil {
 		return out, err
 	}
