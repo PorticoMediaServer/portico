@@ -4,7 +4,7 @@ func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name: "mp-start-accept", resultTypes: []string{"mpStartAcceptValue", "mpStartAcceptResult", "mpStartAcceptOwner"},
 		names: []string{"applyMPStartPrepAccept", "applyMPStartPrepRetire", "applyMPStartPrepTimeout",
-			"checkMPStartAcceptDisclosure", "composeMPStartAccept", "executeMPStartAccept",
+			"checkMPStartAcceptDisclosure", "checkMPStartAcceptScope", "composeMPStartAccept", "executeMPStartAccept",
 			"mpStartAcceptLoadPayload", "mpStartAcceptReadReceipt", "mpStartAcceptWriteReceipt",
 			"readMPStartAcceptFresh", "readMPStartAcceptOwner", "runMPStartAccept"},
 		bypasses: []string{

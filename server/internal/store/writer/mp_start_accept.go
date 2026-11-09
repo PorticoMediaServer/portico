@@ -190,6 +190,11 @@ func mpStartAcceptWorkingBytes(v *mpStartAcceptInvocation) uint64 {
 	for _, x := range []string{a.server, a.authority, a.account, a.profile, a.device, a.family, a.grant, a.sessionHash, v.disclosure.library} {
 		n += uint64(len(x)) * 32
 	}
+	s := v.disclosure.scope
+	for _, x := range []string{s.memberBirth, s.profileBirth, s.memberLibraries, s.membershipRole, s.role,
+		s.primaryProfile, s.profileLibraries.String, s.horizon, s.expires} {
+		n += uint64(len(x)) * 32
+	}
 	if c := v.command; c != nil {
 		f := c.fence()
 		n += uint64(len(f.id)+len(f.execution)) * 32
@@ -210,7 +215,7 @@ func checkMPStartAcceptDisclosure(w *Writer, v *mpStartAcceptInvocation) error {
 	if d.self != d || d.writer != w || w == nil || w.effective == nil || d.lifetime == nil || d.lifetime.Err() != nil || d.revoked.Load() || d.incarnation != v.command.reference.Identity.Incarnation {
 		return ErrDisclosureDenied
 	}
-	if !mpPrepTexts(d.library) || d.actor != v.command.fence().actor || d.actor.device != v.command.fence().actor.device {
+	if !mpPrepTexts(d.library) || !d.actor.sameSession(v.command.fence().actor) {
 		return ErrDisclosureDenied
 	}
 	return nil
@@ -253,7 +258,7 @@ func executeMPStartAccept(ctx context.Context, t *commandTurn, v *mpStartAcceptI
 	kind, reference := v.command.kind, v.command.reference
 	out.Outcome.Reference = reference
 	fence := v.command.fence()
-	owner, err := readMPStartAcceptFresh(ctx, t, kind, fence)
+	owner, err := readMPStartAcceptFresh(ctx, t, kind, v.disclosure, fence)
 	if err != nil {
 		return out, false, err
 	}
@@ -373,7 +378,7 @@ func readMPStartAcceptOwner(ctx context.Context, t *commandTurn, id, device stri
 	return nil
 }
 
-func readMPStartAcceptFresh(ctx context.Context, t *commandTurn, kind CommandID, f mpStartAcceptFence) (out mpStartAcceptOwner, err error) {
+func readMPStartAcceptFresh(ctx context.Context, t *commandTurn, kind CommandID, d *mpStartPrepDisclosure, f mpStartAcceptFence) (out mpStartAcceptOwner, err error) {
 	defer func() {
 		x, e := finishCommand(ctx, commandLifetime(t), struct {
 			O mpStartAcceptOwner
@@ -396,16 +401,20 @@ func readMPStartAcceptFresh(ctx context.Context, t *commandTurn, kind CommandID,
 	// deadline/source/queue/item/replacement comparisons deliberately do NOT run
 	// here: the original receipt must be classified first so an applied-but-
 	// unACKed retry still returns its saved original after the head moved.
-	if !f.actor.valid(now) {
-		return out, ErrDisclosureDenied
+	// This precedes the owner and receipt reads on fresh, saved-original and
+	// ACKed-retired paths alike. Scope is current-turn authority, never a saved
+	// source-head freshness gate or a field persisted on the preparation.
+	if err = checkMPStartAcceptScope(ctx, t, d, f, now); err != nil {
+		return out, err
 	}
-	if err = checkMPAcceptActor(ctx, t, f.actor); err != nil {
+	if err = checkMPAcceptActor(ctx, t, d.actor); err != nil {
 		return out, err
 	}
 	if err = readMPStartAcceptOwner(ctx, t, f.id, f.actor.device, &out); err != nil {
 		return out, err
 	}
-	if out.actor != f.actor {
+	if !out.actor.sameSession(d.actor) || out.member != d.scope.memberBirth || out.profileLifetime != d.scope.profileBirth ||
+		out.source.library != d.library {
 		return out, ErrDisclosureDenied
 	}
 	out.nowMS = now
@@ -421,6 +430,12 @@ func readMPStartAcceptFresh(ctx context.Context, t *commandTurn, kind CommandID,
 func checkMPStartAcceptFreshGates(ctx context.Context, t *commandTurn, kind CommandID, f mpStartAcceptFence, out mpStartAcceptOwner) error {
 	if !f.valid() || out.nowMS <= 0 {
 		return ErrInvalid
+	}
+	// The immutable stored actor remains the exact fresh-transition fence. A
+	// rotated CURRENT token can authorize the original request, but cannot
+	// rewrite its actor or its request digest. Replay returned above this gate.
+	if out.actor != f.actor {
+		return ErrDisclosureDenied
 	}
 	switch kind {
 	case MPStartPrepAccept:

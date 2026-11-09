@@ -85,5 +85,13 @@ func mpStartAcceptDefinitions() []stmt.Definition {
 			defs[i].Plan = stmt.Plan{Hot: true, Indexes: []string{"mp_start_command_owner"}}
 		}
 	}
+	// Reuse MP-04's exact native scope/token statements in this command frame;
+	// their presence in MP-07's registry alone does not budget them for 703-705.
+	for _, d := range wcProgressProtocolDefinitions() {
+		switch d.ID {
+		case wcProgressNativeScope, wcProgressNativeProfileScope, wcProgressNativeToken:
+			defs = append(defs, d)
+		}
+	}
 	return defs
 }
