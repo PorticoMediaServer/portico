@@ -387,8 +387,8 @@ func (p *RBContainerMetricsPreparation) window(ctx context.Context, request gove
 	args := make([][]any, len(legs))
 	for i, leg := range legs {
 		// The first source bind is the requested container, never the cohort's
-		// compilation example.
-		one := append([]any{fence.profile, p.view.policy.subject}, p.spec.binds[1:]...)
+		// compilation example; the profile PK bind follows it.
+		one := append([]any{p.view.policy.subject, fence.profile}, p.spec.binds[1:]...)
 		one = append(one, leg.keys...)
 		args[i] = append(one, int64(rbContainerMetricsRaw+1))
 	}
