@@ -5,9 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
-	_ "embed"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"os"
 	"reflect"
@@ -22,9 +20,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
-//go:embed testdata/mp-worker-f-draft.sql
-var mpWorkerDraftDDL string
-
 type mpRepeatFixture struct {
 	w         *Writer
 	e         *executor
@@ -33,25 +28,46 @@ type mpRepeatFixture struct {
 	authority *governor.Authority
 }
 
+// mpWorkerRequireCanonicalF proves that the fixture ran on the adopted full F
+// schema: change018 parents, their reverse indexes and the queue control columns.
+// The previous selected-subset overlay is removed, so absence here is fatal.
+func mpWorkerRequireCanonicalF(t *testing.T, e *executor) {
+	t.Helper()
+	for _, table := range []string{"mp_queue_command_receipts", "mp_next_stop_obligations"} {
+		var n int
+		if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM sqlite_schema WHERE type='table' AND name=?`, table).Scan(&n); err != nil || n != 1 {
+			t.Fatal("canonical F table missing", table, n, err)
+		}
+	}
+	for _, column := range []struct{ table, name string }{
+		{"playback_sessions", "mp_command_incarnation"},
+		{"playback_v1_prepared", "mp_media_generation"},
+		{"queues_v1", "mp_receipt_reclaim_due_ms"},
+	} {
+		var n int
+		if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM pragma_table_xinfo('`+column.table+`') WHERE name=?`, column.name).Scan(&n); err != nil || n != 1 {
+			t.Fatal("canonical F column missing", column.table, column.name, n, err)
+		}
+	}
+	for _, index := range []string{"mp_queue_command_owner", "mp_next_stop_media_fk", "mp_queue_receipt_due"} {
+		var n int
+		if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM sqlite_schema WHERE type='index' AND name=?`, index).Scan(&n); err != nil || n != 1 {
+			t.Fatal("canonical F index missing", index, n, err)
+		}
+	}
+	var foreignKeys int
+	if err := e.db.QueryRowContext(t.Context(), `PRAGMA foreign_keys`).Scan(&foreignKeys); err != nil || foreignKeys != 1 {
+		t.Fatal("canonical F fixture requires enforced foreign keys", foreignKeys, err)
+	}
+}
+
 func mpWorkerFixture(t *testing.T, next bool) mpRepeatFixture {
 	t.Helper()
 	w, pd, a := wcProgressCompositionFixture(t)
 	e := w.effective.executor
-	// Exact selected F statements only, no production schema promotion or fake
-	// receipt table. Once F lands, adopted columns are used instead of the draft.
-	var existing int
-	if err := e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM pragma_table_xinfo('queues_v1') WHERE name='mp_command_incarnation'`).Scan(&existing); err != nil {
-		t.Fatal(err)
-	}
-	if existing == 0 {
-		for _, sql := range strings.Split(mpWorkerDraftDDL, ";") {
-			if strings.TrimSpace(sql) != "" {
-				if _, err := e.db.ExecContext(t.Context(), sql); err != nil {
-					t.Fatal(sql, err)
-				}
-			}
-		}
-	}
+	// The adopted change018 F parents are the only fixture DDL. A missing parent
+	// is a canonical-bootstrap failure, never a reason to recreate schema here.
+	mpWorkerRequireCanonicalF(t, e)
 	exec := func(q string, args ...any) {
 		t.Helper()
 		if _, err := e.db.ExecContext(t.Context(), q, args...); err != nil {
@@ -80,7 +96,7 @@ func mpWorkerFixture(t *testing.T, next bool) mpRepeatFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Complete Capture of the actual post-overlay schema and the existing union.
+	// Complete Capture of the canonical adopted schema and the existing union.
 	all := []stmt.Definition{}
 	for _, entry := range w.effective.registry.Manifest() {
 		all = append(all, entry.Definition)
@@ -420,6 +436,261 @@ func TestMPWorkerRepeatEveryMutationRollsBack(t *testing.T) {
 	}
 }
 
+// mpPrefixFaultConn fails one exact occurrence of one statement, so the turn is
+// observed after its earlier writes already ran inside the same transaction.
+type mpPrefixFaultConn struct {
+	writerDriverConn
+	target     string
+	occurrence int
+	seen       int
+}
+
+func (c *mpPrefixFaultConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
+	if q == c.target {
+		c.seen++
+		if c.seen == c.occurrence {
+			return nil, errMPMutation
+		}
+	}
+	return c.writerDriverConn.QueryContext(ctx, q, args)
+}
+
+// mpWorkerReopenFaultPool swaps the writer pool for one decorated driver without
+// changing the schema or connection policy.
+func mpWorkerReopenFaultPool(t *testing.T, f mpRepeatFixture, decorate func(driver.Conn) driver.Conn) {
+	t.Helper()
+	if err := f.e.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(f.w.effective.path, f.e.config, sqliteconn.ExistingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.e.openPool(connector, decorate)
+	primeEffectiveFixturePool(t, f.e)
+}
+
+// mpWorkerParentFacts is the whole parent/child footprint of one command754 turn:
+// the queue owner sequence/ACK/debt row and queue edit, the media stop request,
+// the prepared next, and every receipt/obligation/event row count. A failed prefix
+// must leave all of it exactly as it was.
+type mpWorkerParentFacts struct {
+	revision, updatedMS, custody                                      int64
+	repeat                                                            string
+	last, ack, ownerRevision, receiptRows, receiptBytes, controlBytes int64
+	sessionState, sessionRequest                                      string
+	grantRetired, retired, exited, physicalRevision, cleanup          int64
+	preparedState, preparedCancel                                     string
+	receipts, obligations, events                                     int64
+}
+
+func mpWorkerReadParentFacts(t *testing.T, f mpRepeatFixture) mpWorkerParentFacts {
+	t.Helper()
+	var o mpWorkerParentFacts
+	if err := f.e.db.QueryRowContext(t.Context(), `SELECT revision,updated_ms,repeat,mp_command_last_sequence,mp_command_acknowledged_sequence,mp_owner_revision,mp_receipt_rows,mp_receipt_variable_bytes,mp_control_variable_bytes,custody_generation FROM queues_v1 WHERE id='mp-queue'`).Scan(&o.revision, &o.updatedMS, &o.repeat, &o.last, &o.ack, &o.ownerRevision, &o.receiptRows, &o.receiptBytes, &o.controlBytes, &o.custody); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.e.db.QueryRowContext(t.Context(), `SELECT state,mp_retire_request_id,mp_grant_retired,mp_retired_generation,mp_exited_generation,mp_revision,mp_cleanup_complete FROM playback_sessions WHERE id='mp-media'`).Scan(&o.sessionState, &o.sessionRequest, &o.grantRetired, &o.retired, &o.exited, &o.physicalRevision, &o.cleanup); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.e.db.QueryRowContext(t.Context(), `SELECT state,ifnull(cancel_reason,'') FROM playback_v1_prepared WHERE token='mp-next'`).Scan(&o.preparedState, &o.preparedCancel); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []struct {
+		query string
+		dest  *int64
+	}{
+		{`SELECT count(*) FROM mp_queue_command_receipts`, &o.receipts},
+		{`SELECT count(*) FROM mp_next_stop_obligations`, &o.obligations},
+		{`SELECT count(*) FROM api_events`, &o.events},
+	} {
+		if err := f.e.db.QueryRowContext(t.Context(), q.query).Scan(q.dest); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return o
+}
+
+// Every command754 write runs after its predecessors. Failing each position in
+// order must roll back the whole parent turn: sequence, debt, queue edit, next
+// cancellation, stop request, obligation and both events. A per-statement failure
+// that left earlier prefixes behind would be a partial accepted state.
+func TestMPWorkerRepeatCommandPrefixRollback(t *testing.T) {
+	positions := []struct {
+		name       string
+		id         stmt.ID
+		occurrence int
+	}{
+		{"stop", mpRepeatStop, 1},
+		{"obligation", mpRepeatObligation, 1},
+		{"cancel", mpRepeatCancel, 1},
+		{"update", mpRepeatUpdate, 1},
+		{"event-first", wcAPIEventInsert, 1},
+		{"event-second", wcAPIEventInsert, 2},
+		{"receipt", mpWorkerInsert, 1},
+		{"debt", mpWorkerDebt, 1},
+	}
+	for _, p := range positions {
+		t.Run(p.name, func(t *testing.T) {
+			f := mpWorkerFixture(t, true)
+			before := mpWorkerReadParentFacts(t, f)
+			var target string
+			for _, d := range mpWorkerDefinitions() {
+				if d.ID == p.id {
+					target = d.SQL
+				}
+			}
+			if target == "" {
+				t.Fatal(p.id)
+			}
+			mpWorkerReopenFaultPool(t, f, func(c driver.Conn) driver.Conn {
+				return &mpPrefixFaultConn{writerDriverConn: c.(writerDriverConn), target: target, occurrence: p.occurrence}
+			})
+			out, err := f.run(t.Context(), f.command)
+			if !errors.Is(err, errMPMutation) || !reflect.DeepEqual(out, mpWorkerResult{}) {
+				t.Fatal(out, err)
+			}
+			if after := mpWorkerReadParentFacts(t, f); after != before {
+				t.Fatalf("prefix left partial effects: before %+v after %+v", before, after)
+			}
+			mpWorkerAssertReturned(t, f)
+		})
+	}
+}
+
+// The adopted owner row allows exactly one unacknowledged receipt. Sequence 2 is
+// refused before any effect until sequence 1 is acknowledged; ACK retires serving
+// of the original but never refunds its rows/bytes, and the next sequence then
+// becomes fresh. This is protocol witness only: command 780 is still MP-29's gate.
+func TestMPWorkerReceiptSequenceAckWindow(t *testing.T) {
+	f := mpWorkerFixture(t, false)
+	if _, err := f.run(t.Context(), f.command); err != nil {
+		t.Fatal(err)
+	}
+	var last, ack, rows, bytes int64
+	if err := f.e.db.QueryRowContext(t.Context(), `SELECT mp_command_last_sequence,mp_command_acknowledged_sequence,mp_receipt_rows,mp_receipt_variable_bytes FROM queues_v1 WHERE id='mp-queue'`).Scan(&last, &ack, &rows, &bytes); err != nil {
+		t.Fatal(err)
+	}
+	if last != 1 || ack != 0 || rows != 1 || bytes <= 0 {
+		t.Fatal("first receipt did not establish one unacknowledged slot", last, ack, rows, bytes)
+	}
+
+	q := f.command.input
+	q.ExpectedRevision = 4
+	q.Repeat = "one"
+	id := f.command.reference.Identity
+	id.Sequence = 2
+	id.OperationID = [16]byte{90}
+	second, err := newMPRepeatCommand(id, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := f.w.runMPRepeat(t.Context(), f.cap, q.Queue, second.reference, second)
+	if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(out, mpWorkerResult{}) {
+		t.Fatal("second sequence bypassed the acknowledgement window", out, err)
+	}
+	var afterRefusalLast, afterRefusalAck, afterRefusalRows, afterRefusalBytes, receipts int64
+	if err = f.e.db.QueryRowContext(t.Context(), `SELECT mp_command_last_sequence,mp_command_acknowledged_sequence,mp_receipt_rows,mp_receipt_variable_bytes FROM queues_v1 WHERE id='mp-queue'`).Scan(&afterRefusalLast, &afterRefusalAck, &afterRefusalRows, &afterRefusalBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.e.db.QueryRowContext(t.Context(), `SELECT count(*) FROM mp_queue_command_receipts`).Scan(&receipts); err != nil {
+		t.Fatal(err)
+	}
+	if afterRefusalLast != last || afterRefusalAck != ack || afterRefusalRows != rows || afterRefusalBytes != bytes || receipts != 1 {
+		t.Fatal("refused sequence left partial debt", afterRefusalLast, afterRefusalAck, afterRefusalRows, afterRefusalBytes, receipts)
+	}
+
+	// The parent ACK effect of command780 (MP-29, unimplemented) advances only the
+	// floor. Storage stays charged until an actual reclaim turn deletes rows.
+	result, err := f.e.db.ExecContext(t.Context(), `UPDATE queues_v1 SET mp_command_acknowledged_sequence=1 WHERE id='mp-queue' AND mp_command_last_sequence=1 AND mp_command_acknowledged_sequence=0`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := result.RowsAffected(); err != nil || n != 1 {
+		t.Fatal("ACK floor did not advance", n, err)
+	}
+	var ackRows, ackBytes int64
+	if err = f.e.db.QueryRowContext(t.Context(), `SELECT mp_receipt_rows,mp_receipt_variable_bytes FROM queues_v1 WHERE id='mp-queue'`).Scan(&ackRows, &ackBytes); err != nil || ackRows != rows || ackBytes != bytes {
+		t.Fatal("ACK refunded storage", ackRows, ackBytes, err)
+	}
+
+	retired, err := f.run(t.Context(), nil)
+	if err != nil || retired.Outcome.State != ResultRetired || retired.Value != (mpQueueRepeatValue{}) || retired.Digest != (ResultDigest{}) {
+		t.Fatal("acknowledged original was served as Applied", retired, err)
+	}
+
+	applied, err := f.w.runMPRepeat(t.Context(), f.cap, q.Queue, second.reference, second)
+	if err != nil || applied.Outcome.State != Applied || !applied.Value.Changed || applied.Value.Revision != 5 {
+		t.Fatal("post-ACK sequence did not apply", applied, err)
+	}
+	var grownRows, grownBytes, grownLast, grownAck, sum int64
+	if err = f.e.db.QueryRowContext(t.Context(), `SELECT mp_command_last_sequence,mp_command_acknowledged_sequence,mp_receipt_rows,mp_receipt_variable_bytes FROM queues_v1 WHERE id='mp-queue'`).Scan(&grownLast, &grownAck, &grownRows, &grownBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.e.db.QueryRowContext(t.Context(), `SELECT sum(variable_bytes) FROM mp_queue_command_receipts`).Scan(&sum); err != nil {
+		t.Fatal(err)
+	}
+	if grownLast != 2 || grownAck != 1 || grownRows != 2 || grownBytes != sum || grownBytes <= bytes {
+		t.Fatal("debt did not track both receipts", grownLast, grownAck, grownRows, grownBytes, sum)
+	}
+	replay, err := f.w.runMPRepeat(t.Context(), f.cap, q.Queue, second.reference, nil)
+	if err != nil || !replay.Outcome.Replayed || replay.Value != applied.Value || replay.Digest != applied.Digest {
+		t.Fatal("saved original after ACK", replay, err)
+	}
+	mpWorkerAssertReturned(t, f)
+}
+
+// mpOwnerCASFaultConn mutates the owner between its read and the debt CAS, exactly
+// as a racing ACK/owner write would. The debt statement must lose the CAS and the
+// whole turn must roll back rather than absorb the newer owner facts.
+type mpOwnerCASFaultConn struct {
+	writerDriverConn
+	target string
+	fired  bool
+	err    error
+}
+
+func (c *mpOwnerCASFaultConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
+	if q == c.target && !c.fired {
+		c.fired = true
+		if _, err := c.writerDriverConn.ExecContext(ctx, `UPDATE queues_v1 SET mp_owner_revision=mp_owner_revision+1 WHERE id='mp-queue'`, nil); err != nil {
+			c.err = err
+			return nil, err
+		}
+	}
+	return c.writerDriverConn.QueryContext(ctx, q, args)
+}
+
+func TestMPWorkerReceiptOwnerCASRollsBack(t *testing.T) {
+	f := mpWorkerFixture(t, true)
+	before := mpWorkerReadParentFacts(t, f)
+	var target string
+	for _, d := range mpWorkerDefinitions() {
+		if d.ID == mpWorkerDebt {
+			target = d.SQL
+		}
+	}
+	if target == "" {
+		t.Fatal(mpWorkerDebt)
+	}
+	fault := &mpOwnerCASFaultConn{target: target}
+	mpWorkerReopenFaultPool(t, f, func(c driver.Conn) driver.Conn {
+		fault.writerDriverConn = c.(writerDriverConn)
+		return fault
+	})
+	out, err := f.run(t.Context(), f.command)
+	if !fault.fired || fault.err != nil {
+		t.Fatal("owner CAS witness did not run", fault.fired, fault.err)
+	}
+	if err == nil || !reflect.DeepEqual(out, mpWorkerResult{}) {
+		t.Fatal("stale owner facts were absorbed", out, err)
+	}
+	if after := mpWorkerReadParentFacts(t, f); after != before {
+		t.Fatalf("CAS failure left partial effects: before %+v after %+v", before, after)
+	}
+	mpWorkerAssertReturned(t, f)
+}
+
 func TestMPWorkerRepeatCancelledAfterCommitKeepsOriginal(t *testing.T) {
 	f := mpWorkerFixture(t, false)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -454,40 +725,74 @@ func TestMPWorkerClosedDefinitionSyntax(t *testing.T) {
 	}
 }
 
-// Draft F has a real new partial due index, so its fixture policy extends the
-// complete adopted policy by that exact predicate. No production schema guard
-// or plan rule is changed, and this Capture never claims embedded layout parity.
+// mpWorkerFamilyGate names one still-unimplemented MP worker family, the command
+// metadata it owns and the prerequisite that holds it. MP-04 supplies exactly one
+// accepting command, 754 (mp_queue_repeat); a descriptor or a reusable composed
+// frame is never acceptance for the rest. MP-24 therefore reuses this 754 frame
+// and leaves 753/755/760 closed. MP-05's trusted physical observation boundary is
+// a separate prerequisite consumed by the stop/exit families, not a command, and
+// is not reimplemented here. The seven MP receipt roots (start, physical, session,
+// job, version, queue, next) share one sequence/ACK/debt/fixed-result protocol;
+// only the queue root is exercised by this frame, and MP-29 owns ACK/reclaim for
+// all seven and stays gated.
+type mpWorkerFamilyGate struct {
+	family   string
+	commands []CommandID
+	gate     string
+}
+
+var mpWorkerFamilyGates = []mpWorkerFamilyGate{
+	{"MP-07", []CommandID{700, 701, 702}, "start preparation birth/claim/seal needs the embedded F schema and UO birth"},
+	{"MP-08", []CommandID{703, 704, 705}, "preparation accept/retire/timeout needs MP-07 and the MP-05 physical seam"},
+	{"MP-09", []CommandID{710, 711}, "logical/physical session birth and ready need MP-04, MP-07 and UO birth"},
+	{"MP-20", []CommandID{740, 741, 742, 743, 747, 748}, "prepared job birth/claim/renew/cancel/deadline/retry needs MP-04, MP-05, MP-10 and UO birth"},
+	{"MP-21", []CommandID{744, 746}, "prepared version publication and encode cleanup need MP-20"},
+	{"MP-22", []CommandID{745, 749}, "version retirement and separate cleanup execution need MP-21 and the MP-05 physical seam"},
+	{"MP-23", []CommandID{750, 751, 752, 759}, "queue birth/snapshot/stage/seal needs MP-04 accepting composition and UO birth"},
+	{"MP-24", []CommandID{753, 755, 760}, "queue edit/shuffle/advance reuse the landed 754 frame and need MP-23 custody"},
+	{"MP-25", []CommandID{761, 762, 763, 764}, "next prepare/commit/cancel/physical-exit need MP-09, MP-23, MP-24 and the MP-05 seam"},
+	{"MP-29", []CommandID{780, 781, 782, 783, 784, 785, 786, 787}, "ACK and bounded worker receipt reclaim across the seven roots need the preceding families merged"},
+}
+
+func TestMPWorkerUnimplementedFamiliesStayClosed(t *testing.T) {
+	if !commandPlanPurpose(MPQueueRepeat) {
+		t.Fatal("the one implemented MP worker command is closed")
+	}
+	claimed := map[CommandID]string{}
+	for _, gate := range mpWorkerFamilyGates {
+		if gate.family == "" || gate.gate == "" || len(gate.commands) == 0 {
+			t.Fatal("incomplete family gate", gate)
+		}
+		for _, id := range gate.commands {
+			if id == MPQueueRepeat {
+				t.Fatal("implemented command listed as unimplemented", gate.family)
+			}
+			if other, ok := claimed[id]; ok {
+				t.Fatal("command claimed by two families", id, other, gate.family)
+			}
+			claimed[id] = gate.family
+			// Metadata is not permission: the purpose exists and stays closed.
+			if _, err := Describe(id); err != nil || commandPlanPurpose(id) {
+				t.Fatal("unimplemented family opened or unregistered", gate.family, id, err)
+			}
+		}
+	}
+}
+
+// The adopted complete index policy already carries mp_queue_receipt_due, so the
+// Capture reads it unchanged. No production schema guard or plan rule is changed,
+// and this Capture never claims embedded layout parity or performance.
 func mpWorkerCaptureFixture(t *testing.T, c *sql.Conn, cfg sqliteconn.Config, defs []stmt.Definition, sources ...string) plan.Golden {
 	t.Helper()
 	data, err := schema.ReadContract("INT-INDEX-POLICY.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var policy struct {
-		Indexes []map[string]any `json:"indexes"`
-	}
-	if err = json.Unmarshal(data, &policy); err != nil {
-		t.Fatal(err)
-	}
-	foundDue := false
-	for _, entry := range policy.Indexes {
-		if entry["index"] == "mp_queue_receipt_due" {
-			foundDue = true
-		}
-	}
-	if !foundDue {
-		policy.Indexes = append(policy.Indexes, map[string]any{"index": "mp_queue_receipt_due", "predicate": "mp_receipt_reclaim_due_ms IS NOT NULL", "choice": "repeat_exact_predicate"})
-		data, err = json.Marshal(policy)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
 	indexPolicy, err := plan.ReadIndexPolicy(data)
 	if err != nil {
 		t.Fatal(err)
 	}
 	hash := sha256.New()
-	hash.Write([]byte(mpWorkerDraftDDL))
 	for _, name := range sources {
 		b, e := os.ReadFile(name)
 		if e != nil {
@@ -500,12 +805,12 @@ func mpWorkerCaptureFixture(t *testing.T, c *sql.Conn, cfg sqliteconn.Config, de
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden, err := cachedCapture(t.Context(), c, catalogue, plan.Fixture{ConnectionPolicy: cfg, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "MP04 exact F draft subset over locked G+013; complete adopted partial policy plus exact F receipt_due; synthetic resource forecasts; not adopted schema or performance qualification"}, indexPolicy)
+	golden, err := cachedCapture(t.Context(), c, catalogue, plan.Fixture{ConnectionPolicy: cfg, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "MP04 accepting command754 witness on canonical adopted F (484242fb) through sqliteconn/bootstrap, FK1/DQS0/0; complete adopted policy; synthetic resource forecasts; not performance qualification"}, indexPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if golden.Receipt() == nil || len(golden.Manifest) != len(defs) {
-		t.Fatal("incomplete F draft Capture")
+		t.Fatal("incomplete canonical F Capture")
 	}
 	return golden
 }
