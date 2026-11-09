@@ -80,6 +80,7 @@ func New(ctx context.Context, d *db.DB, version string, log *slog.Logger) (*Serv
 	}
 	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: id, now: time.Now}
 	s.systemRoutes()
+	s.catalogueRoutes()
 	return s, nil
 }
 

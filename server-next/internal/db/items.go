@@ -28,6 +28,8 @@ type Item struct {
 	CommunityRating float64
 	ParentID        int64
 	RootID          int64
+	ParentPublicID  string
+	RootPublicID    string
 	Images          []Image
 	State           State
 	// For an item that holds others: how many playable items under it the viewer may see, and
@@ -153,17 +155,22 @@ func decodeCursor(text, sort string, desc bool, columns int) (*listCursor, error
 
 const itemColumns = `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.year, 0), ifnull(i.release_date, ''), i.added_at,
 	ifnull(i.duration_ms, 0), i.index_number, i.parent_index, i.child_count, ifnull(i.content_rating, ''),
-	ifnull(i.community_rating, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0), ` + stateColumns
+	ifnull(i.community_rating, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0),
+	ifnull((SELECT public_id FROM items WHERE id = i.parent_id), ''), ifnull((SELECT public_id FROM items WHERE id = i.root_id), ''), ` + stateColumns
 
 const stateJoin = ` LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id WHERE `
 
 const itemFrom = ` FROM items i` + stateJoin
 
-func scanItem(row interface{ Scan(...any) error }, it *Item, extra ...any) error {
-	dest := append([]any{&it.ID, &it.PublicID, &it.Kind, &it.Title, &it.sortTitle, &it.Year, &it.ReleaseDate, &it.AddedAt,
+// dest is where a row of itemColumns scans to.
+func (it *Item) dest() []any {
+	return append([]any{&it.ID, &it.PublicID, &it.Kind, &it.Title, &it.sortTitle, &it.Year, &it.ReleaseDate, &it.AddedAt,
 		&it.DurationMS, &it.IndexNumber, &it.ParentIndex, &it.ChildCount, &it.ContentRating, &it.CommunityRating,
-		&it.ParentID, &it.RootID}, it.State.dest()...)
-	return row.Scan(append(dest, extra...)...)
+		&it.ParentID, &it.RootID, &it.ParentPublicID, &it.RootPublicID}, it.State.dest()...)
+}
+
+func scanItem(row interface{ Scan(...any) error }, it *Item, extra ...any) error {
+	return row.Scan(append(it.dest(), extra...)...)
 }
 
 // Items lists items. The viewer's restrictions, every filter and the page position are all part

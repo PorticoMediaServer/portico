@@ -476,3 +476,72 @@ func TestUndoPutsBackWhatWasThere(t *testing.T) {
 		t.Fatalf("a used undo token: %v", err)
 	}
 }
+
+// Home shows what was started and not finished, and the newest titles. The feed tells a viewer
+// only about things it may see and its own state, and tells a reader that fell too far behind
+// to read everything again.
+func TestHomeRowsAndEvents(t *testing.T) {
+	l := newLibrary(t, 600)
+	v, limited, yes := l.all, l.viewers[9], true
+	films := everything(t, l.d, v, db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}})
+	state(t, l.d, v, films[0].PublicID, db.StateEdit{PositionMS: position(60_000)})
+	state(t, l.d, v, films[1].PublicID, db.StateEdit{PositionMS: position(60_000)})
+	state(t, l.d, v, films[1].PublicID, db.StateEdit{Watched: &yes})
+	row, err := l.d.ContinueWatching(ctx, v)
+	if err != nil || len(row) != 1 || row[0].PublicID != films[0].PublicID {
+		t.Fatalf("continue watching: %d items, %v; want only the unfinished film", len(row), err)
+	}
+	if other, _ := l.d.ContinueWatching(ctx, limited); len(other) != 0 {
+		t.Fatal("another profile's progress showed on this profile's Home")
+	}
+	recent, err := l.d.RecentlyAdded(ctx, limited)
+	if err != nil || len(recent) == 0 {
+		t.Fatalf("recently added: %d items, %v", len(recent), err)
+	}
+	kinds := map[db.ItemKind]bool{}
+	for _, item := range recent {
+		kinds[item.Kind] = true
+		if _, err := l.d.Item(ctx, limited, item.PublicID); err != nil {
+			t.Fatalf("recently added showed %q, which the profile may not open: %v", item.Title, err)
+		}
+	}
+	if kinds[db.KindEpisode] || kinds[db.KindTrack] || !kinds[db.KindMovie] {
+		t.Fatalf("recently added should hold whole titles, films among them: %v", kinds)
+	}
+	if everyone, _ := l.d.RecentlyAdded(ctx, v); !kinds[db.KindMovie] || len(everyone) != 40 {
+		t.Fatalf("recently added for the unrestricted profile has %d titles", len(everyone))
+	}
+
+	events, next, reread, err := l.d.Events(ctx, limited, 0, 100_000)
+	head, _ := l.d.ChangesHead(ctx)
+	if err != nil || reread || next != head || len(events) == 0 {
+		t.Fatalf("events: %d, next %d of %d, reread %v, %v", len(events), next, head, reread, err)
+	}
+	for _, e := range events {
+		if e.Topic == db.TopicState {
+			t.Fatal("a profile heard about another profile's state")
+		}
+		if e.Topic == db.TopicItem {
+			if _, err := l.d.Item(ctx, limited, e.PublicID); err != nil {
+				t.Fatalf("a profile heard about an item it may not open: %v", err)
+			}
+		}
+	}
+	mine, _, _, _ := l.d.Events(ctx, v, 0, 100_000)
+	if last := mine[len(mine)-1]; last.Topic != db.TopicState || last.PublicID != films[1].PublicID {
+		t.Fatalf("the profile's own last event is %+v, want its state on the second film", last)
+	}
+
+	// Once old changes are pruned, a reader still at the start is told to read everything again.
+	db.SetChangesKeepRows(10)
+	defer db.SetChangesKeepRows(200_000)
+	if _, err := l.d.PruneChanges(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, reread, _ = l.d.Events(ctx, v, 0, 100); !reread {
+		t.Fatal("a cursor older than the oldest kept change was not told to reread")
+	}
+	if events, _, reread, _ = l.d.Events(ctx, v, head-3, 100); reread || len(events) != 3 {
+		t.Fatalf("a recent cursor after pruning: %d events, reread %v", len(events), reread)
+	}
+}

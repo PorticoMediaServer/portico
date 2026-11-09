@@ -119,6 +119,17 @@ func LeafKind(libraryKind string) db.ItemKind {
 	return db.KindMovie
 }
 
+// TitleKind is the kind a library of this kind lists first: its films, shows, albums or books.
+func TitleKind(libraryKind string) db.ItemKind {
+	switch libraryKind {
+	case db.LibraryShows:
+		return db.KindShow
+	case db.LibraryMusic:
+		return db.KindAlbum
+	}
+	return LeafKind(libraryKind)
+}
+
 // State gives each profile about target state rows spread over the library: mostly watched,
 // some part-way through, some favourites and some on My List. It reads the lists once, the
 // way an app does, and writes through the same state path as background work. A restricted
