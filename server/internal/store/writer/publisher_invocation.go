@@ -104,6 +104,8 @@ func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDi
 	switch wc := invocation.(type) {
 	case *mpRepeatInvocation:
 		return checkMPWorkerDisclosure(w, wc)
+	case *mpStartPrepInvocation:
+		return checkMPStartPrepDisclosure(w, wc)
 	case *enrichmentInvocation:
 		return validateEnrichmentInvocation(r, w, wc)
 	case *wcProgressInvocation:

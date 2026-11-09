@@ -718,7 +718,7 @@ func TestMPWorkerClosedDefinitionSyntax(t *testing.T) {
 			t.Fatal(d.ID, issues)
 		}
 	}
-	for _, id := range []CommandID{700, 701, 753, 755, 780} {
+	for _, id := range []CommandID{753, 755, 780} {
 		if commandPlanPurpose(id) {
 			t.Fatal("unrelated purpose opened", id)
 		}
@@ -742,7 +742,6 @@ type mpWorkerFamilyGate struct {
 }
 
 var mpWorkerFamilyGates = []mpWorkerFamilyGate{
-	{"MP-07", []CommandID{700, 701, 702}, "start preparation birth/claim/seal needs the embedded F schema and UO birth"},
 	{"MP-08", []CommandID{703, 704, 705}, "preparation accept/retire/timeout needs MP-07 and the MP-05 physical seam"},
 	{"MP-09", []CommandID{710, 711}, "logical/physical session birth and ready need MP-04, MP-07 and UO birth"},
 	{"MP-20", []CommandID{740, 741, 742, 743, 747, 748}, "prepared job birth/claim/renew/cancel/deadline/retry needs MP-04, MP-05, MP-10 and UO birth"},
