@@ -125,7 +125,6 @@ export interface NativeShellRuntime {
   /** The shell-owned download sheet, opened by a title page's drawn Download action. */
   renderDownloads?: () => ReactNode;
   /** Existing shell sheet for retained changes in this exact selected scope. */
-  renderPendingChanges?: () => ReactNode;
   /** Destinations name their own copy context; Home stays the default. */
   error: (error: unknown, retry: () => void, context?: ErrorContext) => StateViewProps;
   reportError: (error: unknown) => void;

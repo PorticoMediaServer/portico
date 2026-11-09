@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {sameUserMutationScope, validateUserMutationState} from '../../../../packages/client-core/src/user-mutations.ts';
+const sameUserMutationScope = (a, b) => ['serverId', 'origin', 'authority', 'accountId', 'profileId', 'familyId', 'deviceId'].every(key => a[key] === b[key]);
 
 /** Bounded platform-owner fixture: aggregate CAS and selection changes execute
  * synchronously before resolving, just as one native storage transaction does.
@@ -11,7 +11,6 @@ export function userMutationBridge() {
       const payload = JSON.parse(json);
       if (operation === 'read') return JSON.stringify(state);
       if (operation === 'cas') {
-        validateUserMutationState(payload.next);
         assert.equal(payload.next.revision, payload.expectedRevision + 1);
         if (payload.expectedRevision !== state.revision) return false;
         state = structuredClone(payload.next);
@@ -26,7 +25,7 @@ export function userMutationBridge() {
         delete next.leaseOwner; delete next.leaseUntilMs;
         return next;
       });
-      state = validateUserMutationState({...state, revision: state.revision + 1, entries});
+      state = {...state, revision: state.revision + 1, entries};
       return true;
     },
   };

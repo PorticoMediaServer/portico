@@ -54,17 +54,7 @@ export function createOwnerSources(options: OwnerSourcesOptions) {
     if (!current() || signal?.aborted) throw {code: 'cancelled'};
     try {const result = await options.api.request<T>(path, method, body, signal);if (!current() || signal?.aborted) throw {code: 'cancelled'};return result;}
     catch (error) {if (terminal(error)) reportError(error);throw error;}
-  }, ...(options.api.acknowledgeUserMutation ? {async acknowledgeUserMutation(intentId: string) {
-    if (!current()) throw {code: 'cancelled'};
-    try {await options.api.acknowledgeUserMutation!(intentId);if (!current()) throw {code: 'cancelled'};}
-    catch (error) {if (terminal(error)) reportError(error);throw error;}
-  }} : {}), ...(options.api.getUserMutationScope ? {getUserMutationScope: () => current() ? options.api.getUserMutationScope!() : undefined} : {}),
-  ...(options.api.getUserMutationCoordinator ? {getUserMutationCoordinator: () => current() ? options.api.getUserMutationCoordinator!() : undefined} : {}),
-  ...(options.api.awaitUserMutationsReady ? {async awaitUserMutationsReady() {
-    if (!current()) throw {code: 'cancelled'};
-    await options.api.awaitUserMutationsReady!();
-    if (!current()) throw {code: 'cancelled'};
-  }} : {})};
+  }};
   const sources = new LiveSourceController(api, options.serverId, current, reportError);
   const defaults = new AutoSaveForm(liveDefaultsForm({api, serverId: options.serverId, console: new ConsoleClient(api, {serverId: options.serverId, viewerId: options.viewerId}), operationId: channelRequestID}), current, reportError);
   const recording = new AutoSaveForm(recordingForm({api, serverId: options.serverId, console: new ConsoleClient(api, {serverId: options.serverId, viewerId: options.viewerId}), operationId: channelRequestID}), current, reportError);

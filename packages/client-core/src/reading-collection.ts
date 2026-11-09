@@ -46,7 +46,7 @@ export class ReadingCollection {
     this.items = Object.freeze(input.map(item => Object.freeze({...item})));
     this.remaining = Object.freeze(this.items.map(item => item.id));
     this.check();
-    const api: DetailApi = {acknowledgeUserMutation: async intentId => {this.check(); await options.api.acknowledgeUserMutation?.(intentId); this.check();}, request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {
+    const api: DetailApi = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {
       this.check();
       const value = await options.api.request<T>(path, method, body, signal ? AbortSignal.any([signal, options.signal]) : options.signal);
       this.check(); return value;

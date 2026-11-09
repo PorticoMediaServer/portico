@@ -126,12 +126,6 @@ async function presenterFixture(t: any) {
   const context = captured;
   assert.ok(runtime);
   assert.ok(context);
-  // What the coordinator itself is asked to admit. Its own reconciliation of a
-  // pending intent never comes through here, so a re-send can't pass for a retry.
-  const admissions: {operation: string; path: string; method: string}[] = [];
-  const coordinator = context.api.getUserMutationCoordinator()!;
-  const run = coordinator.run.bind(coordinator);
-  coordinator.run = (input, signal) => {admissions.push({operation: input.operation, path: input.path, method: input.method}); return run(input, signal);};
   const lifetime = new NativeScreenLifetime(context);
   const ports = createNativeSettingsPorts(context, lifetime, () => {});
   const hosts = () => app.hosts() as any[];
@@ -141,7 +135,6 @@ async function presenterFixture(t: any) {
   const writes = (path: string, method: string) => app.requests.filter((request: any) => request.path === path && request.method === method);
   // The General page's own saves. Background reads (the guide's sources) can land at any time.
   const generalSaves = () => [...writes('/v1/admin/console/settings', 'PATCH'), ...writes('/v1/admin/maintenance/settings', 'PUT')].length;
-  const generalAdmissions = () => admissions.filter(entry => entry.path === '/v1/admin/console/settings' || entry.path === '/v1/admin/maintenance/settings').length;
   const settle = async () => {await renderer.settle(); await app.settle();};
   const mount = async (presenter: 'general' | 'remote') => {
     await renderer.render(React.createElement(ThemeProvider, {width: 390, children:
@@ -173,22 +166,9 @@ async function presenterFixture(t: any) {
       }
     }
   });
-  // Ambiguous delivery stays pending and retries the immutable key. Advance
-  // only the coordinator's wall clock, then explicitly reconcile its real CAS
-  // state; app/Fabric timers still use the real event loop.
-  const failPending = async () => {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      t.mock.timers.tick(60_000);
-      await context.api.getUserMutationCoordinator()!.reconcile();
-      await settle();
-    }
-  };
-  const retryPending = async () => {
-    t.mock.timers.tick(60_000);
-    await context.api.getUserMutationCoordinator()!.reconcile();
-    await settle();
-  };
-  return {app, failure, failPending, retryPending, lifetime, hosts, byTestId, pressable, text, writes, generalSaves, generalAdmissions, settle, mount, unmount, contextCurrent, retireRuntime};
+  // A settings save is one request: it fails or succeeds at once, with nothing retrying behind it.
+  const failPending = settle, retryPending = settle;
+  return {app, failure, failPending, retryPending, lifetime, hosts, byTestId, pressable, text, writes, generalSaves, settle, mount, unmount, contextCurrent, retireRuntime};
 }
 
 const press = (app: any, host: any) => host.props.onPress({nativeEvent: {}, stopPropagation() {}});
@@ -209,20 +189,20 @@ test('a rejected General save shows the real FormSet saveError, keeps the draft 
   await f.failPending();
   assert.match(f.text(), /Something went wrong\. Try again\./, 'the rejected write projects the shared inline error state');
   assert.equal(f.byTestId('server-general-name').props.value, 'Rejected name', 'the unsaved draft is retained');
-  assert.equal(f.writes('/v1/admin/console/settings', 'PATCH').length, 5, 'bounded transport retries keep one original intent');
+  assert.equal(f.writes('/v1/admin/console/settings', 'PATCH').length, 1, 'a settings save is one request, with nothing retrying behind the page');
   const original = f.writes('/v1/admin/console/settings', 'PATCH')[0].body.idempotencyKey;
   assert.equal(typeof original, 'string');
   f.failure.consoleWrite = false;
   const retry = f.pressable('Try again');
   assert.ok(retry, 'the visible error offers the shared retry action');
-  const admittedBefore = f.generalAdmissions();
+  const admittedBefore = f.generalSaves();
   press(f.app, retry);
   await f.settle();
-  assert.equal(f.generalAdmissions(), admittedBefore + 1, 'the mounted page hands its retry to the coordinator');
+  assert.equal(f.generalSaves(), admittedBefore + 1, 'the mounted page sends its retry');
   await f.retryPending();
   const retried = f.writes('/v1/admin/console/settings', 'PATCH');
-  assert.equal(retried.length, 6);
-  assert.ok(retried.every(request => JSON.stringify(request.body) === JSON.stringify(retried[0].body)), 'every physical retry keeps the original body');
+  assert.equal(retried.length, 2);
+  assert.ok(retried.every(request => JSON.stringify(request.body) === JSON.stringify(retried[0].body)), 'the retry keeps the original body');
   assert.equal(retried[1].body.idempotencyKey, original, 'the retry re-sends the same original operation identity');
   assert.equal(f.byTestId('server-general-name').props.value, 'Rejected name');
   assert.equal(f.pressable('Try again'), undefined, 'the accepted save clears the inline error');
@@ -279,7 +259,7 @@ test('a partial multi-form failure keeps the unsaved General form and still repo
   const runtimeWrites = f.writes('/v1/admin/console/settings', 'PATCH');
   const maintenanceWrites = f.writes('/v1/admin/maintenance/settings', 'PUT');
   assert.equal(runtimeWrites.length, 1, 'the runtime form saved first');
-  assert.equal(maintenanceWrites.length, 5, 'the maintenance form retains its intent across bounded transport retries');
+  assert.equal(maintenanceWrites.length, 1, 'the maintenance save is one request');
   assert.ok(f.app.receipts.some((receipt: any) => receipt.path === '/v1/admin/console/settings' && receipt.method === 'PATCH' && receipt.status === 200));
 });
 
@@ -297,10 +277,10 @@ test('a really unmounted General page refuses its captured retry', async t => {
   await f.unmount();
   const beforeUnmount = f.generalSaves();
   assert.ok(beforeUnmount > 0, 'the original save was sent');
-  const admittedBefore = f.generalAdmissions();
+  const admittedBefore = f.generalSaves();
   press(f.app, unmountedRetry);
   await f.settle();
-  assert.equal(f.generalAdmissions(), admittedBefore, 'the coordinator is never asked to admit the unmounted page\'s retry');
+  assert.equal(f.generalSaves(), admittedBefore, 'the unmounted page\'s retry sends nothing');
   assert.equal(f.generalSaves(), beforeUnmount, 'the unmounted page never dispatches through its retired form group');
 });
 
@@ -320,10 +300,10 @@ test('a retired original bootstrap authority refuses its captured retry', async 
   assert.equal(f.contextCurrent(), false, 'the actual original bootstrap authority is retired, not only the ports lifetime');
   const beforeRetirement = f.generalSaves();
   assert.ok(beforeRetirement > 0, 'the original save was sent');
-  const admittedBefore = f.generalAdmissions();
+  const admittedBefore = f.generalSaves();
   press(f.app, replacedRetry);
   await f.settle();
-  assert.equal(f.generalAdmissions(), admittedBefore, 'the coordinator is never asked to admit the retired authority\'s retry');
+  assert.equal(f.generalSaves(), admittedBefore, 'the retired authority\'s retry sends nothing');
   assert.equal(f.generalSaves(), beforeRetirement, 'the retired original authority refuses the captured retry');
 });
 
@@ -342,14 +322,14 @@ test('a rejected Remote access save projects the same inline state and retries t
   assert.match(f.text(), /Something went wrong\. Try again\./);
   assert.ok(f.pressable('Save'), 'the rejected save keeps the remote form dirty');
   const writes = f.writes('/v1/networking/remote/config', 'POST');
-  assert.equal(writes.length, 5);
+  assert.equal(writes.length, 1);
   assert.equal(writes[0].body.config.mapping, true, 'the retry keeps the owner edit');
   f.failure.remoteWrite = false;
   press(f.app, f.pressable('Try again'));
   await f.retryPending();
   const retried = f.writes('/v1/networking/remote/config', 'POST');
-  assert.equal(retried.length, 6);
-  assert.ok(retried.every(request => JSON.stringify(request.body) === JSON.stringify(retried[0].body)), 'every physical retry keeps the original body');
+  assert.equal(retried.length, 2);
+  assert.ok(retried.every(request => JSON.stringify(request.body) === JSON.stringify(retried[0].body)), 'the retry keeps the original body');
   assert.deepEqual(retried[0].body, retried[1].body, 'the retry re-sends the same original configuration');
   assert.equal(f.pressable('Try again'), undefined, 'the accepted save clears the inline error');
   assert.equal(f.pressable('Save'), undefined, 'the accepted save clears dirty');

@@ -27,9 +27,8 @@ const STALE_CODES: ReadonlySet<string> = new Set([
 
 /** The server (or a client check) said what the action was based on is out of date. */
 export function isStaleAnswer(error: unknown): boolean {
-  const e = error as {code?: unknown; status?: unknown; retry?: unknown; mutationKey?:unknown} | null;
+  const e = error as {code?: unknown; status?: unknown; retry?: unknown} | null;
   if (!e || typeof e !== 'object') return false;
-  if(typeof e.mutationKey==='string'&&/^p251_[0-9]{13}_[0-9a-f]{32}$/.test(e.mutationKey))return false;
   if (typeof e.code === 'string' && STALE_CODES.has(e.code)) return true;
   if (e.retry === 'after_refresh') return true;
   return e.status === 412;

@@ -41,18 +41,6 @@ export class NativeRemoteSourcesController extends NativeScreenStore<NativeRemot
     const originalApi = ports.context.api;
     const requireCurrent = () => {if (!admitted()) throw screenScopeEnded();};
     const service = new RemoteSourceService({
-      ...(originalApi.acknowledgeUserMutation ? {acknowledgeUserMutation: async (id: string) => {
-        requireCurrent(); await originalApi.acknowledgeUserMutation(id); requireCurrent();
-      }} : {}),
-      ...(originalApi.awaitUserMutationsReady ? {awaitUserMutationsReady: async () => {
-        requireCurrent(); await originalApi.awaitUserMutationsReady(); requireCurrent();
-      }} : {}),
-      ...(originalApi.getUserMutationCoordinator ? {getUserMutationCoordinator: () => {
-        requireCurrent(); const value = originalApi.getUserMutationCoordinator(); requireCurrent(); return value;
-      }} : {}),
-      ...(originalApi.getUserMutationScope ? {getUserMutationScope: () => {
-        requireCurrent(); const value = originalApi.getUserMutationScope(); requireCurrent(); return value;
-      }} : {}),
       request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {
         if (!admitted()) return Promise.reject(screenScopeEnded());
         return lifetime.request(async current => {
@@ -125,20 +113,6 @@ export class NativeRemoteSourcesController extends NativeScreenStore<NativeRemot
     const originalApi = this.ports.context.api;
     const requireCurrent = () => {this.assertAllowed(); if (!guard()) throw screenScopeEnded();};
     return {
-      ...(originalApi.awaitUserMutationsReady ? {awaitUserMutationsReady: async () => {
-        requireCurrent(); await originalApi.awaitUserMutationsReady(); requireCurrent();
-      }} : {}),
-      ...(originalApi.getUserMutationCoordinator ? {getUserMutationCoordinator: () => {
-        requireCurrent(); const value = originalApi.getUserMutationCoordinator(); requireCurrent(); return value;
-      }} : {}),
-      ...(originalApi.getUserMutationScope ? {getUserMutationScope: () => {
-        requireCurrent(); const value = originalApi.getUserMutationScope(); requireCurrent(); return value;
-      }} : {}),
-      ...(originalApi.acknowledgeUserMutation ? {acknowledgeUserMutation: async (id: string) => {
-        this.assertAllowed(); if (!guard()) throw screenScopeEnded();
-        await originalApi.acknowledgeUserMutation(id);
-        this.assertAllowed(); if (!guard()) throw screenScopeEnded();
-      }} : {}),
       request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
       this.assertAllowed();
       if (!guard()) return Promise.reject(screenScopeEnded());

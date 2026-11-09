@@ -25,9 +25,9 @@ function receipt(operationId=operation,settings=parent()){
 const opening=(isCurrent:()=>boolean=()=>true):SourceChoiceOpening=>({signal:new AbortController().signal,isCurrent,consentDirty:false});
 function deferred<T>(){let resolve!:(value:T)=>void,reject!:(error:unknown)=>void;const promise=new Promise<T>((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};}
 type Call={path:string;method:string;body:unknown;signal?:AbortSignal};
-function harness(hooks:Partial<{put:(call:Call)=>Promise<unknown>;fresh:()=>Promise<unknown>;recover:()=>Promise<unknown>;acknowledge:(id:string)=>Promise<void>;initial:SourceReadSettings;advanced:SourceAdvancedSettings;operationId:()=>Promise<string>}>= {}){
+function harness(hooks:Partial<{put:(call:Call)=>Promise<unknown>;fresh:()=>Promise<unknown>;recover:()=>Promise<unknown>;initial:SourceReadSettings;advanced:SourceAdvancedSettings;operationId:()=>Promise<string>}>= {}){
  const calls:Call[]=[];let submitted=false;
- const api:LibraryContentApi={acknowledgeUserMutation:hooks.acknowledge,request:async<T>(path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T>=>{
+ const api:LibraryContentApi={request:async<T>(path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T>=>{
   const call={path,method,body,signal};calls.push(call);let result:unknown;
   if(method==='PUT'){submitted=true;result=hooks.put?await hooks.put(call):receipt();}
   else if(path.includes('/source-operations/'))result=hooks.recover?await hooks.recover():receipt();
@@ -40,19 +40,6 @@ function harness(hooks:Partial<{put:(call:Call)=>Promise<unknown>;fresh:()=>Prom
  return {service,calls,pair:async()=>{const read=await service.readProfile('dav'),adv=await service.readAdvanced('dav');return {read,adv,offered:read.choiceDefinitions![1]!};}};
 }
 
-test('choice acknowledgement failure retains its original parent and retries only consumption before readback',async()=>{
- const acks:string[]=[];let fail=true;
- const h=harness({acknowledge:async id=>{acks.push(id);if(fail)throw new Error('consume failed');}});
- try{
-  const {read,adv,offered}=await h.pair(),unknown=await h.service.saveProfileStartChoice(read,adv,offered,opening());
-  assert.equal(unknown.kind,'unknown');if(unknown.kind!=='unknown')return;
-  const original=unknown.intent;assert.equal(original.operationId,operation);assert.equal(original.body.expectedRevision,read.revision);assert.equal(h.service.getSnapshot().ambiguous,true);
-  assert.equal(h.calls.filter(call=>call.method==='PUT').length,1);fail=false;
-  const recovered=await h.service.recoverStartChoice(original);assert.equal(recovered.kind,'applied');assert.deepEqual(acks,[operation,operation]);
-  assert.equal(h.calls.filter(call=>call.method==='PUT').length,1);assert.equal(h.calls.filter(call=>call.path.includes('/source-operations/')).length,0,'the already parsed historical parent remains owned until consumption');
-  assert.equal(h.service.getSnapshot().ambiguous,false);
- }finally{h.service.dispose();}
-});
 
 test('read-only baseline comparison is coherent, empty is explicit, consent and legacy are not counted',()=>{
  const settings=parent();assert.deepEqual(sourceChoiceComparison(settings)?.changedFields,[]);

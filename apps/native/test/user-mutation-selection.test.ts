@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NativeUserMutationSelectionOwner} from '../src-next/platform/user-mutation-selection.ts';
-import {sameUserMutationScope,type UserMutationScope} from '../../../packages/client-core/src/user-mutations.ts';
+import {sameNativeStopScope as sameUserMutationScope,type NativeStopScope as UserMutationScope} from '../src-next/platform/user-mutations.ts';
 const original:UserMutationScope={serverId:'server',origin:'http://192.0.2.1',authority:'local',accountId:'account',profileId:'profile',familyId:'family',deviceId:'device'};
 function fixture(){
  let selected:UserMutationScope|undefined=original,active:UserMutationScope|undefined;let state='pending',checks=Promise.resolve();const errors:unknown[]=[];

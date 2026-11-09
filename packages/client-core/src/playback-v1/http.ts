@@ -15,7 +15,6 @@ export type V1Request = Readonly<{method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DE
   singleAttempt?: boolean}>;
 export type V1Response = Readonly<{status: number; headers: Readonly<Record<string, string>>; body?: unknown}>;
 export interface V1Http {
-  acknowledgeUserMutation?(intentId: string): Promise<void>;
   /** Resolves with any HTTP response; rejects only when there is no response (offline, aborted). */
   send(request: V1Request): Promise<V1Response>;
 }

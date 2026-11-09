@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NativeModules} from 'react-native';
-import {newUserMutationKey, isUserMutationKey} from '../../../packages/client-core/src/user-mutations.ts';
+import {castStopKey} from '../../../packages/client-core/src/cast/sender.ts';
 
 const real = globalThis.crypto;
 const set = (value: unknown) => Object.defineProperty(globalThis, 'crypto', {value, writable: true, configurable: true});
@@ -12,13 +12,13 @@ const runtime = NativeModules.PorticoRuntime as Record<string, unknown>;
 const restore = {playbackRequestId: runtime.playbackRequestId, playbackRandomBytes: runtime.playbackRandomBytes};
 test.afterEach(() => { set(real); Object.assign(runtime, restore); });
 
-test('a runtime with no `crypto` can make mutation keys (the signed-in start builds one)', async () => {
+test('a runtime with no `crypto` can make a Cast stop key', async () => {
   const asked: number[] = [];
   runtime.playbackRandomBytes = (n: number) => { asked.push(n); return Array.from({length: n}, (_, i) => (i * 37 + n) % 256); };
   set(undefined);
   await install();
-  const key = newUserMutationKey(1_761_700_000_000);
-  assert.ok(isUserMutationKey(key), key);
+  const key = castStopKey(1_761_700_000_000);
+  assert.match(key, /^p251_1761700000000_[a-f0-9]{32}$/);
   assert.equal(typeof globalThis.crypto.randomUUID, 'function');
   const big = globalThis.crypto.getRandomValues(new Uint8Array(150));
   assert.deepEqual(asked.slice(1), [64, 64, 22], 'filled in chunks of at most 64');

@@ -193,17 +193,17 @@ test('source retirement or original abort refuses a late capability response wit
 });
 
 
-test('personal selection wrapper forwards acknowledgement only after a validated Detail receipt', async () => {
+test('personal selection saves only on a validated Detail answer', async () => {
   for(const valid of [false,true]) {
-    const acks:string[]=[],operations:string[]=[];
-    const api:DetailApi={acknowledgeUserMutation:async key=>{acks.push(key);},request:async<T>(_path:string,method='GET',body?:unknown)=>{
+    const operations:string[]=[];
+    const api:DetailApi={request:async<T>(_path:string,method='GET',body?:unknown)=>{
       if(method==='GET')return detail() as T;
       const operation=body as {operationId:string};operations.push(operation.operationId);
       return {operationId:operation.operationId,serverId:'server',libraryId:'movies',itemId:'movie',viewerFence:valid?'detail-only':'other',personal:state(1)} as T;
     }};
     const binding=createCataloguePersonalSelection(withQueries({api,scope,requestId:async()=>crypto.randomUUID(),signal:new AbortController().signal,isCurrent:()=>true}));
     try{binding.service.setEntries([entry]);binding.service.selectLoaded();await binding.service.apply('favorite',true);
-      assert.deepEqual(acks,valid?operations:[]);assert.equal(binding.service.getSnapshot().results[0].status,valid?'saved':'failed');
+      assert.equal(operations.length,1);assert.equal(binding.service.getSnapshot().results[0].status,valid?'saved':'failed');
     }finally{binding.dispose();}
   }
 });

@@ -1,4 +1,3 @@
-import * as userMutations from '../../../packages/client-core/src/user-mutations.ts';
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import * as notifications from '../../../packages/client-core/src/notifications.ts';
@@ -25,7 +24,7 @@ const inbox = await screenModule(new URL('../../../packages/client-core/src/inbo
 });
 const preferences = await screenModule(new URL('../../../packages/client-core/src/preferences-reader.ts', import.meta.url), {
   react,
-  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues, './user-mutations.ts': userMutations,
+  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues,
 });
 const guide = await screenModule(new URL('../../../packages/client-core/src/guide/directory.ts', import.meta.url), {
   react,

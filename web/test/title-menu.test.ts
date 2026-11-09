@@ -36,7 +36,7 @@ function harness(options: {role?: 'owner' | 'member'; read?: (entry: ContentEntr
   const details: Detail[] = [];
   const owner = options.role !== 'member';
   const context = withQueries({
-    api: {request: async (path: string, method?: string, body?: unknown, signal?: AbortSignal) => { log.requests.push(`${method ?? 'GET'} ${path}`); log.wire.push({path, method, body, signal}); return {}; }, requestRaw: async () => ({}), acknowledgeUserMutation: async () => {}},
+    api: {request: async (path: string, method?: string, body?: unknown, signal?: AbortSignal) => { log.requests.push(`${method ?? 'GET'} ${path}`); log.wire.push({path, method, body, signal}); return {}; }, requestRaw: async () => ({})},
     scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => state.live,
     identity: {viewer: {role: options.role ?? 'owner', authority: 'local'}},
     effects: {reportError: (error: unknown) => { log.errors.push(error); }, openEntry: (entry: unknown) => { log.opened.push(entry); }, play: async () => {},

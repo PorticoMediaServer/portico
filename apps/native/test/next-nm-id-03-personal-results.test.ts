@@ -28,7 +28,7 @@ const detail = (serverId: string, entry: {id: string; title: string}, revision: 
   metadata: {status: 'available'}, markers: [],
 });
 
-test('NM-ID-03: a failed Saved personal result keeps the same operation on Retry and Done closes it', async t => {
+test('NM-ID-03: a Saved personal edit the server did not answer is kept and sent later, and Done closes the sheet', async t => {
   t.mock.timers.enable({apis: ['Date'], now: Date.now()});
   const entry = movie('m1', 'Selected movie');
   let failWrite = true, revision = 1;
@@ -108,31 +108,21 @@ test('NM-ID-03: a failed Saved personal result keeps the same operation on Retry
       await settle();
       assert.ok(nodeWithTestID('saved-personal-results'), 'the Saved result sheet is the actual product Dialog');
       assert.ok(nodeWithTestID(focusTestID('saved-personal-results', 'done')), 'Done keeps its footer identity');
-      // A server 500 has an ambiguous outcome: the durable owner first retries
-      // the same command, then exposes its pending error after five attempts.
-      for (let attempt = 0; attempt < 4; attempt++) {
-        t.mock.timers.tick(60_000);
-        await booted.api.getUserMutationCoordinator()!.reconcile();
-        await settle();
-      }
-      const retry = nodeWithTestID(focusTestID('saved-personal-results', 'retry'));
-      assert.ok(retry, 'a failed write offers the actual Retry leaf');
+      // A server 500 is no answer: the outbox keeps the edit and sends the same write again later.
       const puts = () => app.requests.filter((request: any) => request.method === 'PUT' && request.path === `/v1/items/${entry.id}/personal-state`);
-      assert.equal(puts().length, 5);
+      assert.equal(puts().length, 1);
       assert.ok(app.receipts.some((receipt: any) => receipt.method === 'PUT' && receipt.path === `/v1/items/${entry.id}/personal-state` && receipt.status === 500));
+      assert.equal(nodeWithTestID(focusTestID('saved-personal-results', 'retry')), undefined, 'a kept edit asks nothing more of the person');
+      assert.equal(booted.api.getOutbox()!.waiting(), 1, 'the edit waits to sync');
       const firstBody = puts()[0].body;
       assert.equal(firstBody.watchlisted, true);
       assert.equal(firstBody.expectedRevision, 1);
       failWrite = false;
-      press(retry);
-      t.mock.timers.tick(60_000);
-      await booted.api.getUserMutationCoordinator()!.reconcile();
+      booted.api.getOutbox()!.wake();
       await settle();
-      assert.equal(puts().length, 6, 'Retry re-sends the captured original operation');
-      assert.ok(puts().every((request: any) => JSON.stringify(request.body) === JSON.stringify(firstBody)), 'all physical retries preserve the original body');
-      assert.equal(puts()[1].body.operationId, firstBody.operationId, 'the same operation identity is retained');
-      assert.deepEqual(puts()[1].body, firstBody, 'the retried target/body are the captured original');
-      assert.equal(nodeWithTestID(focusTestID('saved-personal-results', 'retry')), undefined, 'the accepted retry retires Retry');
+      assert.equal(puts().length, 2, 'the kept edit is sent once the server answers');
+      assert.deepEqual(puts()[1].body, firstBody, 'the same write, with the same operation identity');
+      assert.equal(booted.api.getOutbox()!.waiting(), 0);
       press(nodeWithTestID(focusTestID('saved-personal-results', 'done'))!);
       await settle();
       assert.equal(nodeWithTestID('saved-personal-results'), undefined, 'Done closes the actual result sheet');

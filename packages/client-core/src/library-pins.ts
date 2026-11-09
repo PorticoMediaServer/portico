@@ -71,7 +71,7 @@ export function libraryNavigationRequest(expectedRevision:number,pinnedLibraryId
  return freeze({expectedRevision,pinnedLibraryIds:[...pinnedLibraryIds]});
 }
 
-export interface PinsApi{acknowledgeUserMutation?(intentId:string):Promise<void>;request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}
+export interface PinsApi{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}
 
 /** The viewer's pinned collections, saved views and playlists, in their arrangement. */
 export async function readPinOrder(api:PinsApi,serverId:string,signal?:AbortSignal):Promise<PinOrder>{
@@ -86,7 +86,6 @@ export async function setResourcePin(api:PinsApi,kind:PinnedResourceKind,resourc
  if(!kinds.includes(kind)||!id(resourceId)||!count(pinRevision)||!/^[A-Za-z0-9_-]{1,128}$/.test(operationId))bad('That pin cannot be saved.');
  const raw=await api.request<unknown>(encodedRoutePath("put_saved_pins_kind_id",{"kind":kind,"id":encodeURIComponent(resourceId)}),'PUT',{operationId,expectedRevision:pinRevision,pinned});
  if(!obj(raw)||typeof raw.pinned!=='boolean'||!count(raw.pinRevision))bad();
- await api.acknowledgeUserMutation?.(operationId);
  return freeze({pinned:raw.pinned,pinRevision:raw.pinRevision});
 }
 export async function readLibraryNavigation(api:PinsApi,signal?:AbortSignal):Promise<LibraryNavigationPins>{

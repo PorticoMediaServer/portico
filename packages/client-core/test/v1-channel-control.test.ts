@@ -13,8 +13,6 @@ const channel: ChannelReference = {kind: 'library-channel', sourceId: 'news', ch
  * resolves to the live edge; a report within 1 s of the pending seek acknowledges it. */
 class ChannelServer implements V1Http {
   log: V1Request[] = [];
-  consumed: string[] = [];
-  async acknowledgeUserMutation(intentId: string) { this.consumed.push(intentId); }
   refuse?: string;
   private reads = 0;
   private s: any;
@@ -93,8 +91,6 @@ test('v1 channels: a tune starts a channel session, joins at the live edge, and 
   } finally { playback.leave(); }
   await settle();
   assert.ok(server.log.some(r => r.method === 'DELETE'), 'leaving stops the session');
-  const stopped = server.log.find(r => r.method === 'DELETE')!;
-  assert.deepEqual(server.consumed, [`stop:ps_1:${(stopped.body as {generation:number}).generation}`], 'a consumed channel Stop releases its exact durable receipt');
 });
 
 test('v1 channels: pause and a seek in the window are PATCHes on the current revision', async () => {
@@ -603,7 +599,6 @@ test('channel close reports a refused Stop without leaving its completion barrie
       if (request.method === 'DELETE') {deletes++;throw new Error('Playback authority retired.');}
       return server.send(request);
     },
-    acknowledgeUserMutation: id => server.acknowledgeUserMutation(id),
   }});
   try {
     await control.open(channel, {state: () => {}, error: value => {errors.push(value);}});
@@ -611,7 +606,6 @@ test('channel close reports a refused Stop without leaving its completion barrie
     await settle();
     assert.equal(deletes, 1);
     assert.equal(errors.length, 1, 'the original Stop refusal reaches the owner');
-    assert.deepEqual(server.consumed, [], 'refusal cannot consume an unconfirmed Stop');
   } finally {control.close();}
 });
 

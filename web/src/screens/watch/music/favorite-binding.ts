@@ -35,9 +35,7 @@ export function createMusicFavorite(source: MusicFavoriteSource) {
     return true;
   };
   const assert = () => {if (!current()) throw new DOMException('Music favorite opening retired', 'AbortError');};
-  const api = {async acknowledgeUserMutation(intentId: string): Promise<void> {
-    assert();await context.api.acknowledgeUserMutation?.(intentId);assert();
-  }, async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const api = {async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
     assert();const active = signal ? AbortSignal.any([life.signal, signal]) : life.signal;active.throwIfAborted();
     const result = await context.api.request<T>(path, method, body, active);
     assert();active.throwIfAborted();return result;

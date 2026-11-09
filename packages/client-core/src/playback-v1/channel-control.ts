@@ -412,11 +412,10 @@ export class V1ChannelControl implements ChannelPlayback {
   private stop(id: string, generation?: number): Promise<unknown> {
     const send = (g?: number) => call(this.http, {method: 'DELETE', path: encodedRoutePath("stop_playback_session", {"id": enc(id)}), body: g === undefined ? {} : {generation: g}}, [200, 204]);
     // A generation the stream moved past since the last reading (412) still ends this session.
-    const work = send(generation).then(async response => {
-      if (generation !== undefined) await this.http.acknowledgeUserMutation?.(`stop:${id}:${generation}`);
-      return response;
-    }, error => {
+    const work = send(generation).catch(error => {
       if (generation !== undefined && error instanceof PlaybackApiError && error.status === 412) return send(undefined);
+      // No answer: the outbox keeps the stop and sends it when the server is back.
+      if ((error as {code?: unknown} | null)?.code === 'sync_pending') return undefined;
       throw error;
     });
     this.stopping = Promise.all([this.stopping.catch(() => {}), work]);

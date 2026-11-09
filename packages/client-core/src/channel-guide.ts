@@ -5,7 +5,6 @@ import {unreadableServerResponse} from './server-messages.ts';
 import {GUIDE_RATE_LIMIT_ATTEMPTS, isRateLimited, rateLimitDelay} from './guide/rate-limit.ts';
 import {HOUR_MS, MINUTE_MS, localDayStart, zoneOffset} from './guide/time.ts';
 import {keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
-import {UserMutationError} from './user-mutations.ts';
 import {serverNow} from './server-clock.ts';
 /** Server-authored linear guide. Clients choose a viewport, never a schedule. */
 export const GUIDE_PROTOCOL = '1.0' as const;
@@ -35,7 +34,7 @@ export type GuideChannel = Readonly<{
 export type GuideSource = Readonly<{id: string; name: string; generation: string; publishedAt: string; availableStart: string; availableEnd: string; provenance: ChannelKind; refreshState: string}>;
 export type ChannelGuide = Readonly<{state: 'ready' | 'no-sources' | 'no-channels' | 'no-guide-data' | 'filter-empty' | 'guide-stale' | 'continuation-required'; viewerFence: string; start: string; end: string; timezone: string; channels: readonly GuideChannel[]; sources: readonly GuideSource[]; nextCursor: string; observedAt: string; /** Guide.days: how many calendar days from now are covered (today counts as 1), at most 31. Absent on older servers. */ days?: number}>;
 export type GuideRoute = Readonly<{kind: ChannelKind; start: string; end: string; timezone: string; search: string; sourceId: string; favorites?: boolean; includeHidden?: boolean; includeServerHidden?: boolean; group?: string}>;
-export interface ChannelApi { acknowledgeUserMutation?(intentId: string): Promise<void>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> }
+export interface ChannelApi { request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> }
 export type GuideSnapshot = Readonly<{phase: 'idle' | 'loading' | 'retained-refreshing' | 'ready' | 'error'; guide: ChannelGuide | null; route: GuideRoute | null; error: string | null; hasPrevious: boolean}>;
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max = 512): v is string => typeof v === 'string' && v.length <= max && !/[\x00-\x1f\x7f]/.test(v);
@@ -227,11 +226,7 @@ export function unavailableIsServerWide(reason: LinearUnavailableReason | string
 /** A retry uses the same request ID and expected revision, never an optimistic local toggle. */
 export async function saveChannelPreference(api: ChannelApi, serverId: string, channel: GuideChannel, requestId: string, values: {favorite: boolean; hidden: boolean}, signal?: AbortSignal): Promise<number> {
  const raw = await api.request<unknown>(channel.provenance === 'live-source' ? routePath("post_channels_preferences") : routePath("post_library_channels_preferences"), 'POST', routeBody("post_channels_preferences", {requestId, sourceId: channel.sourceId, channelId: channel.id, expectedRevision: channel.preferenceRevision, ...values}), signal);
- // A compact receipt proves acceptance, not the historical preference revision
- // needed by this caller. Leave it for current-state review in Pending changes.
- if (object(raw) && object(raw.mutationReceipt)) throw new UserMutationError('mutation_needs_review');
  if (!object(raw) || raw.protocolVersion !== GUIDE_PROTOCOL || raw.serverId !== serverId || !Number.isSafeInteger(raw.revision) || Number(raw.revision) <= channel.preferenceRevision) invalid();
- await api.acknowledgeUserMutation?.(requestId);
  return Number(raw.revision);
 }
 /** Native's secure UUID generator supplies the same 192-bit-shaped operation key as web. */

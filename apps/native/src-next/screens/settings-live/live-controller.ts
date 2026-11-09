@@ -28,18 +28,6 @@ export class NativeLiveController extends NativeScreenStore<NativeLiveSnapshot> 
     this.lifetime = lifetime; this.memory = memory; this.memoryReady = !memory;
     const requireCurrent = () => {lifetime.assert(); if (this.disposed) throw screenScopeEnded();};
     this.api = {
-      ...(api.awaitUserMutationsReady ? {awaitUserMutationsReady: async () => {
-        requireCurrent(); await api.awaitUserMutationsReady!(); requireCurrent();
-      }} : {}),
-      ...(api.getUserMutationCoordinator ? {getUserMutationCoordinator: () => {
-        requireCurrent(); const value = api.getUserMutationCoordinator!(); requireCurrent(); return value;
-      }} : {}),
-      ...(api.getUserMutationScope ? {getUserMutationScope: () => {
-        requireCurrent(); const value = api.getUserMutationScope!(); requireCurrent(); return value;
-      }} : {}),
-      ...(api.acknowledgeUserMutation ? {acknowledgeUserMutation: async (id: string) => {
-        requireCurrent(); await api.acknowledgeUserMutation!(id); requireCurrent();
-      }} : {}),
       request: async <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
         requireCurrent(); const value = await lifetime.request(next => api.request<T>(path, method, body, next), signal); requireCurrent(); return value;
       }};
@@ -147,12 +135,7 @@ export class NativeLiveController extends NativeScreenStore<NativeLiveSnapshot> 
         try {const value = await this.lifetime.request(signal => this.api.request<T>(path, method, body, signal), original.signal);requireCommand();return value;}
         catch (error) {requireCommand();throw error;}
       },
-      ...(this.api.awaitUserMutationsReady ? {awaitUserMutationsReady: async () => {requireCommand(); await this.api.awaitUserMutationsReady!(); requireCommand();}} : {}),
-      ...(this.api.getUserMutationScope ? {getUserMutationScope: () => {requireCommand(); const value = this.api.getUserMutationScope!(); requireCommand(); return value;}} : {}),
-      ...(this.api.getUserMutationCoordinator ? {getUserMutationCoordinator: () => {requireCommand(); const value = this.api.getUserMutationCoordinator!(); requireCommand(); return value;}} : {}),
-      ...(this.api.acknowledgeUserMutation ? {acknowledgeUserMutation: async (id: string) => {
-        requireCommand(); await this.api.acknowledgeUserMutation!(id); requireCommand();
-      }} : {})} : this.api;
+      } : this.api;
       const revision = await saveChannelPreference(api, this.lifetime.authority.serverId, raw, operationId, capturedValues, original?.signal ?? this.lifetime.signal);
       requireCommand();
       this.lifetime.assert();

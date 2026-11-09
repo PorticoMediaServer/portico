@@ -315,11 +315,11 @@ export class PersonalSavedService{
    }
   }
   this.publish({pending:true,mutationError:null,result:null});
-  try{const operationId=await this.bounded(()=>this.requestId());if(!this.alive(g))return false;if(!uuid.test(operationId)&&!/^p251_[0-9]{13}_[a-f0-9]{32}$/.test(operationId))throw new Error('A UUIDv4 operation ID is required.');body.operationId=operationId;this.command={intent:freeze({...intent}),path,method,body:freeze(body),fence:this.state.viewerFence,...(rebased?{rebased}:{})};return await this.send();}
+  try{const operationId=await this.bounded(()=>this.requestId());if(!this.alive(g))return false;if(!uuid.test(operationId))throw new Error('A UUIDv4 operation ID is required.');body.operationId=operationId;this.command={intent:freeze({...intent}),path,method,body:freeze(body),fence:this.state.viewerFence,...(rebased?{rebased}:{})};return await this.send();}
   catch(e){if(this.alive(g))this.publish({pending:false,mutationError:info(e),retryPending:!!this.command});return false;}
  }
  private async send():Promise<boolean>{const c=this.command,g=this.generation;if(!c||this.disposed)return false;this.publish({pending:true,mutationError:null});
-  try{const raw=await this.request<unknown>(c.path,c.method,c.body);if(!this.alive(g))return false;if(obj(raw)&&obj(raw.mutationReceipt)&&['applied','deleted','removed'].includes(String(raw.mutationReceipt.status))){await this.refresh();if(!this.alive(g))return false;this.command=undefined;this.publish({pending:false,retryPending:false,mutationError:null,result:null});await this.api.acknowledgeUserMutation?.(String(c.body.operationId));return true;}if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==c.fence)bad();const receipt=c.intent.action==='pin'?raw:raw.receipt;if(!obj(receipt)||receipt.operationId!==c.body.operationId||!num(receipt.revision))bad();const activity=c.intent.action==='clear-history'||c.intent.action==='reset-viewing-activity';if(!activity&&(!id(receipt.resourceId)||typeof receipt.deleted!=='boolean'))bad();
+  try{const raw=await this.request<unknown>(c.path,c.method,c.body);if(!this.alive(g))return false;if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==c.fence)bad();const receipt=c.intent.action==='pin'?raw:raw.receipt;if(!obj(receipt)||receipt.operationId!==c.body.operationId||!num(receipt.revision))bad();const activity=c.intent.action==='clear-history'||c.intent.action==='reset-viewing-activity';if(!activity&&(!id(receipt.resourceId)||typeof receipt.deleted!=='boolean'))bad();
    if(c.intent.action!=='create'&&!activity&&receipt.resourceId!==this.state.resource?.id)bad();
    const deleted=obj(raw.current)&&raw.current.resourceId===receipt.resourceId&&typeof raw.current.deleted==='boolean'?raw.current.deleted:receipt.deleted===true;
    const entries=c.intent.action==='entries'&&receipt.entries!==undefined?parseEntryOutcomes(receipt.entries):undefined;
@@ -327,13 +327,13 @@ export class PersonalSavedService{
    if(entries?.failed.length){this.publish({pending:false,retryPending:true,mutationError:null,result:{entries,...undo,...(typeof receipt.resourceId==='string'?{resourceId:receipt.resourceId}:{}),deleted}});await this.refresh();return false;}
    this.command=undefined;this.publish({pending:false,retryPending:false,mutationError:null,result:{...(entries?{entries}:{}),...undo,...(typeof receipt.resourceId==='string'?{resourceId:receipt.resourceId}:{}),deleted},candidates:[],candidateCursor:''});
    // A list paged further than its first page stays where the viewer is (a move, a removal deep in a collection).
-   if(!deleted&&!((this.state.history.length||this.seen>PAGE)&&await this.readThrough({}).catch(()=>false)))await this.refresh();await this.api.acknowledgeUserMutation?.(String(c.body.operationId));return this.alive(g);
+   if(!deleted&&!((this.state.history.length||this.seen>PAGE)&&await this.readThrough({}).catch(()=>false)))await this.refresh();return this.alive(g);
   }catch(e){if(!this.alive(g))return false;const error=info(e);this.publish({pending:false,retryPending:true,mutationError:error});if(error.conflict)await this.refresh();
    return false;}
  }
  /** Network retry is byte-identical. Rebase is a separate, explicit reviewed intent. */
  retry=()=>this.state.pending?Promise.resolve(false):this.send();
- async rebase():Promise<boolean>{const c=this.command;if(!c||this.state.pending||!this.state.mutationError?.conflict)return false;await this.api.dismissReviewedUserMutation?.(String(c.body.operationId));this.command=undefined;return this.mutate(c.intent);}
- dismiss():void{if(this.state.pending)return;const command=this.command;const finish=()=>{if(this.command===command){this.command=undefined;this.publish({retryPending:false,mutationError:null});}};if(command&&this.api.dismissReviewedUserMutation)void this.api.dismissReviewedUserMutation(String(command.body.operationId)).then(finish,error=>this.publish({mutationError:info(error)}));else finish();}
+ async rebase():Promise<boolean>{const c=this.command;if(!c||this.state.pending||!this.state.mutationError?.conflict)return false;this.command=undefined;return this.mutate(c.intent);}
+ dismiss():void{if(this.state.pending)return;this.command=undefined;this.publish({retryPending:false,mutationError:null});}
  dispose():void{this.disposed=true;this.generation++;for(const c of this.controllers)c.abort();this.controllers.clear();this.command=undefined;this.listeners.clear();}
 }

@@ -1,4 +1,4 @@
-import {UserMutationError, parseUserMutationReceipt, type UserMutationTerminalProof, type UserMutationScope} from '../../../../../packages/client-core/src/user-mutations';
+import type {NativeStopScope} from '../user-mutations';
 import {nativeListeningStatus} from './listening-status';
 import type {RouteSnapshot} from '../../../../../packages/client-core/src/route-connection';
 import {listeningDeadline,type NativeListeningV1Context,type NativeListeningV1Control,type NativeListeningV1Event,type NativeQueueAdvance,type ListeningAction,type NativeListeningCommandTarget,type ListeningDeadlines,type NativeListeningPolicy} from '../../../../../packages/client-core/src/playback/native-listening.ts';
@@ -87,12 +87,12 @@ function capturedPolicy(value:NativeListeningPolicy):NativeListeningPolicy {
 export class NativeListeningV1Adapter implements NativeListeningV1Control {
  private bridge:NativeListeningBridge;private principal:ListeningPrincipal;private bearer:()=>string;private id:()=>string;private subscribe:(sink:(event:unknown)=>void)=>()=>void;
  private route?:{getSnapshot:()=>RouteSnapshot;subscribe:(listener:()=>void)=>()=>void};
- private originalMutationScope?:UserMutationScope;
+ private originalMutationScope?:NativeStopScope;
  private mutationClock?:()=>Promise<number>;
- private mutationScope?:()=>UserMutationScope|undefined;
+ private mutationScope?:()=>NativeStopScope|undefined;
  private epoch=0;private policyAttempt=0;private policy?:NativeListeningPolicy;
  private current?:{owner:string;sessionId:string;sink:(event:NativeListeningV1Event)=>void;sequence:number;last?:NativeListeningV1Event;ancestor?:string;unsubscribe:()=>void};
- constructor(options:{mutationClock?:()=>Promise<number>;mutationScope?:()=>UserMutationScope|undefined;route?:{getSnapshot:()=>RouteSnapshot;subscribe:(listener:()=>void)=>()=>void};bridge:NativeListeningBridge;principal:ListeningPrincipal;bearer:()=>string;id:()=>string;subscribe:(sink:(event:unknown)=>void)=>()=>void}){const scope=options.mutationScope?.();this.originalMutationScope=scope?Object.freeze({...scope}):undefined;this.mutationClock=options.mutationClock;this.mutationScope=options.mutationScope;this.route=options.route;this.bridge=options.bridge;this.principal=listeningPrincipal(options.principal);this.bearer=options.bearer;this.id=options.id;this.subscribe=options.subscribe;}
+ constructor(options:{mutationClock?:()=>Promise<number>;mutationScope?:()=>NativeStopScope|undefined;route?:{getSnapshot:()=>RouteSnapshot;subscribe:(listener:()=>void)=>()=>void};bridge:NativeListeningBridge;principal:ListeningPrincipal;bearer:()=>string;id:()=>string;subscribe:(sink:(event:unknown)=>void)=>()=>void}){const scope=options.mutationScope?.();this.originalMutationScope=scope?Object.freeze({...scope}):undefined;this.mutationClock=options.mutationClock;this.mutationScope=options.mutationScope;this.route=options.route;this.bridge=options.bridge;this.principal=listeningPrincipal(options.principal);this.bearer=options.bearer;this.id=options.id;this.subscribe=options.subscribe;}
  async adopt(context:NativeListeningV1Context,sink:(event:NativeListeningV1Event)=>void){
   if(!this.bridge.adoptListeningSession)throw new Error('This app version can’t hand audio to the system player.');
   const playbackRun=context.playbackRun,epoch=++this.epoch,previous=this.current;this.current=undefined;
@@ -105,7 +105,7 @@ export class NativeListeningV1Adapter implements NativeListeningV1Control {
    if(!Number.isSafeInteger(offset))throw new Error('mutation_clock');
    if(this.current!==active)return;
    const scope=this.mutationScope?.();
-   if(this.mutationScope&&(!scope||!this.originalMutationScope||(['serverId','origin','authority','accountId','profileId','familyId','deviceId'] as const).some(key=>scope[key]!==this.originalMutationScope![key])))throw new UserMutationError('mutation_scope_changed');
+   if(this.mutationScope&&(!scope||!this.originalMutationScope||(['serverId','origin','authority','accountId','profileId','familyId','deviceId'] as const).some(key=>scope[key]!==this.originalMutationScope![key])))throw Object.assign(new Error('mutation_scope_changed'),{code:'mutation_scope_changed'});
    const capturedScope=scope?Object.freeze({...scope}):undefined;
    const route=this.route?.getSnapshot();
    const raw=await this.bridge.adoptListeningSession({owner:active.owner,origin:this.principal.origin,transport:route?{ready:route.phase==='ready',origin:route.origin,revision:route.revision}:undefined,principalKey:principalKey(this.principal),
@@ -178,8 +178,10 @@ export class NativeListeningV1Adapter implements NativeListeningV1Control {
   ++this.epoch;const active=this.current;this.current=undefined;if(!active)return;active.unsubscribe();
   const result=await this.bridge.retireListening(active.owner,stop);
   if(stop&&result&&typeof result==='object'&&'state' in result){
-   const status=result as {state:string;key?:string;code?:string;receipt?:unknown;terminalProof?:UserMutationTerminalProof;draft?:unknown};
-   if(status.state!=='confirmed')throw Object.assign(new UserMutationError(status.code|| (status.state==='pending'?'mutation_pending':'mutation_needs_review'),status.key,status.receipt&&status.key?parseUserMutationReceipt(status.receipt,{key:status.key,operation:'stop_playback_session'}):undefined,undefined,status.terminalProof??undefined),{draft:status.draft});
+   // The system player keeps a stop it could not deliver and sends it again by itself. These are its own codes.
+   const status=result as {state:string;code?:string;draft?:unknown};
+   const code=status.code||(status.state==='pending'?'mutation_pending':'mutation_needs_review');
+   if(status.state!=='confirmed')throw Object.assign(new Error(code),{code,draft:status.draft});
   }
  }
  async sessionUpdated(sessionId:string){const active=this.current;if(!active||active.sessionId!==sessionId||!this.bridge.listeningSessionUpdated)return;await this.bridge.listeningSessionUpdated(active.owner,sessionId);}

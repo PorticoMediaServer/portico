@@ -1,4 +1,3 @@
-import {isUserMutationKey, parseUserMutationReceipt} from './user-mutations.ts';
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 /**
  * X-12: Remove from Continue Watching, on the server's own dismissal (api/home.md, "Continue
@@ -10,7 +9,7 @@ import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
  * passes it; otherwise the current revision is read from the title's detail. A conflict
  * preserves that authored operation and revision for review; it never rebases automatically.
  */
-type Api = {acknowledgeUserMutation?(intentId: string): Promise<void>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
+type Api = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
 
 export type ContinueDismissalInput = Readonly<{
   itemId: string;
@@ -52,23 +51,8 @@ export async function setContinueDismissed(api: Api, input: ContinueDismissalInp
   const operationId = String(await createOperationId());
   if (!operation.test(operationId)) throw new Error('Invalid operation ID.');
   const raw = await api.request<unknown>(itemPath(itemId) + '/personal-state', 'PUT', {operationId, expectedRevision: revision, continueDismissed: dismissed}, signal);
-  let confirmed: number;
-  if (object(raw) && raw.mutationReceipt !== undefined) {
-    const marker = raw.mutationReceipt;
-    if (!object(marker) || typeof marker.key !== 'string' || !isUserMutationKey(marker.key)) invalid();
-    const recovered = parseUserMutationReceipt(marker, {key: marker.key, operation: 'put_items_id_personal_state'});
-    if (recovered.status !== 'applied' || recovered.targetId !== itemId || !revisionValue(recovered.revision)) invalid();
-    const current = await api.request<unknown>(itemPath(itemId) + '/detail', 'GET', undefined, signal); // query-read: kept (write recovery: the applied revision, read fresh after a recovered receipt)
-    if (!object(current) || !object(current.scope) || current.scope.itemId !== itemId || !identifier(current.scope.serverId) || !identifier(current.scope.libraryId) || !identifier(current.scope.viewerFence) || !object(current.item) || current.item.id !== itemId || current.item.libraryId !== current.scope.libraryId) invalid();
-    const value = personalRevision(current);
-    if (value === undefined || value < recovered.revision) invalid();
-    confirmed = value;
-  } else {
-    if (!object(raw) || raw.operationId !== operationId || raw.itemId !== itemId || !identifier(raw.serverId) || !identifier(raw.libraryId) || !identifier(raw.viewerFence)) invalid();
-    const value = personalRevision(raw.current === undefined ? raw : {personal: raw.current});
-    if (value === undefined || value < revision) invalid();
-    confirmed = value;
-  }
-  await api.acknowledgeUserMutation?.(operationId);
+  if (!object(raw) || raw.operationId !== operationId || raw.itemId !== itemId || !identifier(raw.serverId) || !identifier(raw.libraryId) || !identifier(raw.viewerFence)) invalid();
+  const confirmed = personalRevision(raw.current === undefined ? raw : {personal: raw.current});
+  if (confirmed === undefined || confirmed < revision) invalid();
   return {revision: confirmed};
 }

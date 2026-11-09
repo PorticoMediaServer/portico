@@ -27,7 +27,6 @@ export function useBrowseLease(context: ScreenContext, routeKey: string, routeCu
     const assert = () => {if (!current()) throw new DOMException('Browse opening retired', 'AbortError');};
     const life: ReturnType<typeof screenLifetime> = {...original, current, assert,
       api: {
-        async acknowledgeUserMutation(intentId: string): Promise<void> {assert();await original.api.acknowledgeUserMutation(intentId);assert();},
         async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
           assert();const value = await original.api.request<T>(path, method, body, signal);assert();return value;
         },

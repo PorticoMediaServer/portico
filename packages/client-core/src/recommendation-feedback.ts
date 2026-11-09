@@ -16,7 +16,7 @@ import {routePath} from "../../contracts/src/route-paths.ts";
 import {PERSONAL_BATCH_PATH, parsePersonalBatchReceipt, personalBatchBody} from './personal-saved.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 
-type Api = {acknowledgeUserMutation?(intentId:string):Promise<void>;request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
+type Api = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
 
 export const RESET_RECOMMENDATIONS_PATH = routePath("post_me_recommendations_reset");
 
@@ -55,7 +55,6 @@ export async function setNotInterested(api: Api, input: NotInterestedInput): Pro
   const receipt = parsePersonalBatchReceipt(await api.request<unknown>(PERSONAL_BATCH_PATH, 'PUT', body, input.signal), input.serverId, [input.itemId]);
   const row = receipt.results[0]!;
   if (!row.ok) throw Object.assign(new Error(row.message || 'The change was not accepted.'), {code: row.code});
-  await api.acknowledgeUserMutation?.(input.operationId);
   const revision = (row.personal as {revision?: unknown} | null)?.revision;
   return {revision: typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0 ? revision : 0};
 }

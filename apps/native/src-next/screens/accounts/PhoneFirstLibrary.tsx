@@ -28,18 +28,6 @@ export function PhoneFirstLibrary({context, onDone}: {context: NativeShellBootst
     };
     const originalApi = context.api;
     const api: LibraryContentApi = {
-      ...(originalApi.acknowledgeUserMutation ? {acknowledgeUserMutation: async (id: string) => {
-        assertOwner(); await originalApi.acknowledgeUserMutation(id); assertOwner();
-      }} : {}),
-      ...(originalApi.awaitUserMutationsReady ? {awaitUserMutationsReady: async () => {
-        assertOwner(); await originalApi.awaitUserMutationsReady(); assertOwner();
-      }} : {}),
-      ...(originalApi.getUserMutationCoordinator ? {getUserMutationCoordinator: () => {
-        assertOwner(); const value = originalApi.getUserMutationCoordinator(); assertOwner(); return value;
-      }} : {}),
-      ...(originalApi.getUserMutationScope ? {getUserMutationScope: () => {
-        assertOwner(); const value = originalApi.getUserMutationScope(); assertOwner(); return value;
-      }} : {}),
       request: async <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {
       assertOwner(); const result = await lifetime.request(current => originalApi.request<T>(path, method, body, current), signal);
       assertOwner(); return result;

@@ -387,6 +387,5 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
       hidden={!!snapshot.mediaExpanded || tvListeningPresent || (stacks ? immersiveRoute(stackTop) : false)}/>
     {runtime.renderSelection()}
     {runtime.renderDownloads?.()}
-    {runtime.renderPendingChanges?.()}
   </View></NativeStackSlotsProvider>;
 }

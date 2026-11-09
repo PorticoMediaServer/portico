@@ -267,9 +267,12 @@ export class SessionsClient {
   async stop(id: string, positionMs?: number, signal?: AbortSignal, generation?: number): Promise<void> {
     const body = {...(positionMs !== undefined ? {positionMs: Math.max(0, Math.round(positionMs))} : {}), ...(generation !== undefined ? {generation} : {})};
     const request = {method: 'DELETE', path: encodedRoutePath("stop_playback_session", {"id": enc(id)}), ...(signal ? {signal} : {}), ...(Object.keys(body).length ? {body} : {})} as const;
-    // A session the server no longer knows (it restarted, or already ended it) is stopped.
-    await call(this.http, request, [204, 200]).catch(e => { if (!(e instanceof PlaybackApiError && (e.status === 404 || e.status === 410))) throw e; });
-    if (generation !== undefined) await this.http.acknowledgeUserMutation?.(`stop:${id}:${generation}`);
+    // A session the server no longer knows (it restarted, or already ended it) is stopped. So is one whose
+    // stop got no answer: the outbox keeps it, and the final position is sent when the server is back.
+    await call(this.http, request, [204, 200]).catch(e => {
+      const gone = e instanceof PlaybackApiError && (e.status === 404 || e.status === 410);
+      if (!gone && (e as {code?: unknown} | null)?.code !== 'sync_pending') throw e;
+    });
   }
 
   /** Become the player reporting this session (P2-20): the epoch its samples carry. */

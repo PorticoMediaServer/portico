@@ -27,18 +27,6 @@ export function createStorageForms(context: NativeShellBootstrapContext, ids: re
   const originalApi = context.api;
   const requireCurrent = () => {if (!current()) throw screenScopeEnded();};
   const api: ConsoleAPI = {
-    ...(originalApi.acknowledgeUserMutation ? {acknowledgeUserMutation: async (id: string) => {
-      requireCurrent(); await originalApi.acknowledgeUserMutation(id); requireCurrent();
-    }} : {}),
-    ...(originalApi.awaitUserMutationsReady ? {awaitUserMutationsReady: async () => {
-      requireCurrent(); await originalApi.awaitUserMutationsReady(); requireCurrent();
-    }} : {}),
-    ...(originalApi.getUserMutationCoordinator ? {getUserMutationCoordinator: () => {
-      requireCurrent(); const value = originalApi.getUserMutationCoordinator(); requireCurrent(); return value;
-    }} : {}),
-    ...(originalApi.getUserMutationScope ? {getUserMutationScope: () => {
-      requireCurrent(); const value = originalApi.getUserMutationScope(); requireCurrent(); return value;
-    }} : {}),
     ...(originalApi.requestConsole ? {requestConsole: async <T,>(path: string, method: string, body: unknown, caller: AbortSignal): Promise<T> => {
       requireCurrent();
       try {

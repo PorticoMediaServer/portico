@@ -10,7 +10,7 @@ import {integrationMessages} from './en-US/integrations.ts';
  * Messages are ICU MessageFormat. IDs are stable: change a message's meaning
  * by adding a new ID, not by editing the old one (A11Y-12.10).
  */
-import {recoveryMessages} from './en-US/recovery.ts';
+import {syncMessages} from './en-US/sync.ts';
 import {nextMessages} from './en-US/next/index.ts';
 import {musicMixMessages} from './en-US/music-mixes.ts';
 import {musicMetadataMessages} from './en-US/music-metadata.ts';
@@ -33,7 +33,7 @@ import {liveOwnerMessages} from './en-US/live-owner.ts';
 import {savedViewSummaryMessages} from './en-US/saved-view.ts';
 
 export const enUS = {
-  ...recoveryMessages,
+  ...syncMessages,
   ...remoteAccessMessages,
   ...musicMetadataMessages,
   // Player engine facts shown by the shared player; keep their existing wording.
