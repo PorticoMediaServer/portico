@@ -306,6 +306,11 @@ func seedPeopleSearchSecondLibrary(t *testing.T, f *browseFixture) {
 	f.exec(t, "COMMIT")
 	seedPeopleSearchImage(t, f, 6001, 1040)
 	f.exec(t, `INSERT INTO catalog_credits(image_id,entity_id,ord,person_id,role_id,department_id,credited_name,provider,credit_id,source_ordinal) VALUES(6001,1040,0,1,1,2,'Keanu','fixture','other-library',0)`)
+	// The episode's show container takes part in the native walk as a related
+	// source, so it must have its own current native publication exactly like
+	// every other entity in this fixture. Without one the walk reports an
+	// incomplete proof forever instead of returning the person page.
+	nativeFixtureImage(t, f, search.ManifestEntity, 1200, 6003, []nativeFixtureField{{1, "Other Show"}})
 	nativeFixtureImage(t, f, search.ManifestEntity, 1040, 6002, []nativeFixtureField{{1, "Title 1040"}})
 }
 
