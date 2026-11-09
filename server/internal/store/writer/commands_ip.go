@@ -13,6 +13,7 @@ const (
 
 	IPEntityEvidenceBegin  CommandID = 210
 	IPEntityEvidenceAppend CommandID = 211
+	IPEntitySeal           CommandID = 212
 
 	IPArtworkDiscoveryClaim  CommandID = 220
 	IPArtworkDiscoveryPage   CommandID = 221
@@ -38,6 +39,7 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPEntityFinish, "ip_entity_finish", Normal},
 	{IPEntityEvidenceBegin, "ip_entity_evidence_begin", Normal},
 	{IPEntityEvidenceAppend, "ip_entity_evidence_append", Normal},
+	{IPEntitySeal, "ip_entity_seal", Normal},
 	{IPArtworkDiscoveryClaim, "ip_artwork_discovery_claim", Normal},
 	{IPArtworkDiscoveryPage, "ip_artwork_discovery_page", Normal},
 	{IPArtworkDiscoveryFinish, "ip_artwork_discovery_finish", Normal},
