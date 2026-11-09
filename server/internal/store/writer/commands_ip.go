@@ -25,6 +25,7 @@ const (
 	IPTVSetSeal  CommandID = 215
 
 	IPEntityAccept CommandID = 216
+	IPEntityDelta  CommandID = 217
 
 	IPArtworkDiscoveryClaim  CommandID = 220
 	IPArtworkDiscoveryPage   CommandID = 221
@@ -64,6 +65,7 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPTVSetPage, "ip_tv_set_page", Normal},
 	{IPTVSetSeal, "ip_tv_set_seal", Normal},
 	{IPEntityAccept, "ip_entity_accept", Normal},
+	{IPEntityDelta, "ip_entity_delta", Normal},
 	{IPArtworkDiscoveryClaim, "ip_artwork_discovery_claim", Normal},
 	{IPArtworkDiscoveryPage, "ip_artwork_discovery_page", Normal},
 	{IPArtworkDiscoveryFinish, "ip_artwork_discovery_finish", Normal},

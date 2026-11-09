@@ -173,7 +173,7 @@ func (b ipPolicyBudget) check(ctx context.Context, turn *commandTurn, bytes int6
 	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
 		IPPersonClaim, IPPersonRenew, IPPersonFinish, IPPersonEvidenceBegin,
 		IPEntityEvidenceBegin, IPEntityEvidenceAppend, IPEntitySeal,
-		IPTVSetBegin, IPTVSetPage, IPTVSetSeal, IPEntityAccept,
+		IPTVSetBegin, IPTVSetPage, IPTVSetSeal, IPEntityAccept, IPEntityDelta,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
 		IPArtworkMaterialIntent, IPArtworkMaterialInstalled, IPArtworkMaterialPublish,
 		IPArtworkSelect, IPArtworkClear, IPArtworkUploadAccept, IPArtworkReencode:
