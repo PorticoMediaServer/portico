@@ -670,6 +670,16 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		// obligation is already completed (or was never armed by a legacy
 		// sweep): it is NOT ErrConflict, and it is deliberately not repaired
 		// here.
+		//
+		// 'any valid reason' does not include the empty string. The schema
+		// admits revoked_reason='' as a stored value, but '' is the ABSENCE of a
+		// recorded cause, not a cause: RevokeFamilyTx never writes it, so a
+		// revoked=1/''/row is not an authentic first cause to finish on. Refuse
+		// it with the same named conflict as any other witness mismatch instead
+		// of stamping a blank cause into a completed 522.
+		if family.reason == "" {
+			return out, ErrConflict
+		}
 	default:
 		return out, ErrResolveRequired
 	}
@@ -714,8 +724,9 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		}
 		deviceChanged = true
 	default:
-		// Already logically retired by the original 522; no second revision
-		// bump, no second retirement timestamp.
+		// Already logically retired, whether by an earlier 522 or by another
+		// retirement path/import; there is no second revision bump and no
+		// second retirement timestamp.
 	}
 	// (4) ONE bound hint in the same frame. A replay never reaches apply (the
 	// retained receipt resolves first), and an already-complete source writes

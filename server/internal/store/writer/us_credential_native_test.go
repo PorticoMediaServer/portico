@@ -1238,6 +1238,83 @@ func TestUSCredentialRevokeIgnoredErrorCannotCommit(t *testing.T) {
 	}
 }
 
+// The COMPLETING path (family already revoked elsewhere, credential marker and
+// device still live) fails closed the same way: a fault at the marker step and
+// at the device step -- after the marker was already written in the frame --
+// rolls the whole turn back. No rows move, no hint and no 522 receipt survive.
+func TestUSCredentialRevokeCompletePrefixRollback(t *testing.T) {
+	const firstAt = "2020-01-02T03:04:05Z"
+	for _, step := range []struct{ name, trigger string }{
+		{"marker", `CREATE TRIGGER us_credential_complete_fail_marker BEFORE UPDATE ON api_credentials WHEN OLD.revoked_ms=0 AND NEW.revoked_ms>0 BEGIN SELECT RAISE(ABORT,'fault'); END`},
+		{"device", `CREATE TRIGGER us_credential_complete_fail_device BEFORE UPDATE ON identity_devices WHEN OLD.retired_ms=0 AND NEW.retired_ms>0 BEGIN SELECT RAISE(ABORT,'fault'); END`},
+	} {
+		t.Run(step.name, func(t *testing.T) {
+			w, proof := usCredentialAuthorityFixture(t, false)
+			usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+			r := usCredentialRegistry(t)
+			issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+			usCredentialFamilyRevokedElsewhere(t, w, "password_change", firstAt, nil)
+			credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+			wc008NativeExec(t, w, step.trigger)
+			revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
+			turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+			out, floor, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke))
+			if err == nil || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+				t.Fatal("faulted completion carried output", out, floor, err)
+			}
+			credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+			if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+				t.Fatal("faulted completion changed a source/family/device row")
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 0 {
+				t.Fatal("faulted completion left an event", n)
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 0 {
+				t.Fatal("faulted completion left a 522 receipt", n)
+			}
+		})
+	}
+}
+
+// The same completing path under a parent that ignores the error: a missing
+// marker or device statement after the earlier step wrote still cannot COMMIT.
+func TestUSCredentialRevokeCompleteIgnoredErrorCannotCommit(t *testing.T) {
+	const firstAt = "2020-01-02T03:04:05Z"
+	for _, missing := range []struct {
+		name string
+		id   stmt.ID
+	}{{"marker", usCredentialRevokeWrite}, {"device", usCredentialDeviceRetire}} {
+		t.Run(missing.name, func(t *testing.T) {
+			w, proof := usCredentialAuthorityFixture(t, false)
+			usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+			r := usCredentialRegistry(t)
+			issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+			usCredentialFamilyRevokedElsewhere(t, w, "password_change", firstAt, int64(4321))
+			revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
+			credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+			turn, _, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+			delete(turn.steps, missing.id)
+			out, err := applyUSCredentialRevoke(t.Context(), turn, revoke.revoke, w.now().UnixMilli())
+			if err == nil || !reflect.DeepEqual(out, usCredentialRevokeEffect{}) {
+				t.Fatal("missing completion step produced an effect", out, err)
+			}
+			if _, err = turn.transaction.commit(); err == nil {
+				t.Fatal("ignored completion error committed")
+			}
+			credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+			if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+				t.Fatal("ignored completion error changed a row")
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 0 {
+				t.Fatal("ignored completion error left an event", n)
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 0 {
+				t.Fatal("ignored completion error left a 522 receipt", n)
+			}
+		})
+	}
+}
+
 // Foreign / ordinary-family / mismatched-device / platform-mismatch sources are
 // refused with zero output and byte-identical source rows.
 func TestUSCredentialRevokeRefusesForeignFamilyAndDevice(t *testing.T) {
@@ -1343,6 +1420,149 @@ func TestUSCredentialRevokeRefusesForeignFamilyAndDevice(t *testing.T) {
 	})
 }
 
+// usCredentialFamilyRevokedElsewhere pre-revokes the credential's own family the
+// way another path would (sign-out, password change, membership removal, an
+// import or a previous 522): revoked=1 with a non-admin first cause and either a
+// set or a completed (NULL) teardown obligation. The credential marker and the
+// device are left for the command under test.
+func usCredentialFamilyRevokedElsewhere(t *testing.T, w *executor, reason, at string, due any) {
+	t.Helper()
+	wc008NativeExec(t, w, `UPDATE authorization_session_families SET revoked=1,revoked_reason=?,revoked_at=?,teardown_due_ms=? WHERE id=? AND revoked=0`, reason, at, due, usCredentialFamilyID)
+}
+
+// The completing path is a claim about the SAME exact family/device chain, not a
+// licence to finish any already-revoked family. Every family/device bind is
+// re-proved before the marker-only completion, so a family revoked by another
+// path with a drifted device_id (or a NULL device, another server/member/
+// lifetime, a mismatched device, or an ordinary family) must be refused with
+// zero output: the marker write it already attempted rolls back, no receipt or
+// hint is kept, and the credential/family/both devices stay byte-identical.
+func TestUSCredentialRevokeRefusesAlreadyRevokedFamilyDrift(t *testing.T) {
+	const firstAt = "2020-01-02T03:04:05Z"
+	const otherDeviceID = "credential-device-0002"
+	revokeIdentity := CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{7}, Sequence: 2}
+
+	drifts := []struct {
+		name   string
+		mutate func(*testing.T, *executor)
+	}{
+		{"family_on_another_api_device", func(t *testing.T, w *executor) {
+			stamp := time.UnixMilli(w.now().UnixMilli()).UTC().Format(time.RFC3339)
+			wc008NativeExec(t, w, `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES(?,?,'api-credential-other','Second API','api','api-token','',?,?)`, otherDeviceID, usCredentialAccountID, stamp, stamp)
+			wc008NativeExec(t, w, `UPDATE authorization_session_families SET device_id=? WHERE id=?`, otherDeviceID, usCredentialFamilyID)
+		}},
+		{"family_without_device", func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE authorization_session_families SET device_id=NULL WHERE id=?`, usCredentialFamilyID)
+		}},
+		{"server_drift", func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE authorization_session_families SET server_id='other-server-0001' WHERE id=?`, usCredentialFamilyID)
+		}},
+		{"member_incarnation_drift", func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE authorization_session_families SET command_member_incarnation=? WHERE id=?`, strings.Repeat("e", 32), usCredentialFamilyID)
+		}},
+		{"lifetime_drift", func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE authorization_session_families SET command_profile_lifetime=? WHERE id=?`, strings.Repeat("e", 32), usCredentialFamilyID)
+		}},
+		{"device_account_mismatch", func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE identity_devices SET account_id='foreign-account' WHERE id=?`, usCredentialDeviceID)
+		}},
+		{"device_platform_mismatch", func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE identity_devices SET platform='ios' WHERE id=?`, usCredentialDeviceID)
+		}},
+		{"device_installation_mismatch", func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE identity_devices SET installation_id='api-credential-other' WHERE id=?`, usCredentialDeviceID)
+		}},
+		{"ordinary_family", func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE authorization_session_families SET security_kind=0 WHERE id=?`, usCredentialFamilyID)
+		}},
+	}
+	// The already-revoked family is exercised with a still-armed teardown
+	// obligation AND with a completed (NULL) one: neither state may weaken the
+	// exact-witness binds.
+	teardowns := []struct {
+		name string
+		due  any
+	}{{"teardown_set", int64(4321)}, {"teardown_null", nil}}
+
+	for _, drift := range drifts {
+		for _, teardown := range teardowns {
+			t.Run(drift.name+"_"+teardown.name, func(t *testing.T) {
+				w, proof := usCredentialAuthorityFixture(t, false)
+				usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+				r := usCredentialRegistry(t)
+				issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+				usCredentialFamilyRevokedElsewhere(t, w, "password_change", firstAt, teardown.due)
+				drift.mutate(t, w)
+				credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+				extraBefore := ""
+				if n := usCredentialCount(t, w, `SELECT count(*) FROM identity_devices WHERE id=?`, otherDeviceID); n == 1 {
+					extraBefore = usCredentialTableRow(t, w, "identity_devices", "id", otherDeviceID)
+				}
+				command := usCredentialRevokeCommandFixture(t, w, proof, issue, revokeIdentity)
+				usCredentialAssertRevokeRefused(t, w, r, proof, command)
+				credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+				if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+					t.Fatal("already-revoked family drift refusal changed a row")
+				}
+				if extraBefore != "" && usCredentialTableRow(t, w, "identity_devices", "id", otherDeviceID) != extraBefore {
+					t.Fatal("already-revoked family drift retired the other device")
+				}
+				if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 0 {
+					t.Fatal("already-revoked family drift left a hint", n)
+				}
+				if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 0 {
+					t.Fatal("already-revoked family drift left a 522 receipt", n)
+				}
+				if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id=?`, issue.issue.prepared.id); n != 0 {
+					t.Fatal("already-revoked family drift wrote the credential marker", n)
+				}
+				if n := usCredentialCount(t, w, `SELECT retired_ms FROM identity_devices WHERE id=?`, usCredentialDeviceID); n != 0 {
+					t.Fatal("already-revoked family drift retired the credential device", n)
+				}
+			})
+		}
+	}
+}
+
+// A revoked=1 family with an empty revoked_reason is schema-legal but is NOT a
+// valid first cause: an empty string is the absence of a recorded reason and
+// RevokeFamilyTx never writes it. The completing path refuses it with
+// ErrConflict rather than finishing a 522 on a blank cause.
+func TestUSCredentialRevokeRefusesRevokedFamilyWithoutReason(t *testing.T) {
+	const firstAt = "2020-01-02T03:04:05Z"
+	w, proof := usCredentialAuthorityFixture(t, false)
+	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+	r := usCredentialRegistry(t)
+	issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+	usCredentialFamilyRevokedElsewhere(t, w, "password_change", firstAt, nil)
+	// The schema permits the empty string; clearing it after the transition also
+	// avoids the 0->1 metadata trigger that would otherwise fill a cause in.
+	wc008NativeExec(t, w, `UPDATE authorization_session_families SET revoked_reason='' WHERE id=?`, usCredentialFamilyID)
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM authorization_session_families WHERE id=? AND revoked=1 AND revoked_reason=''`, usCredentialFamilyID); n != 1 {
+		t.Fatal("fixture did not produce a schema-legal revoked row without a reason", n)
+	}
+	credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+	command := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{7}, Sequence: 2})
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+	out, floor, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, command))
+	if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("blank-cause completion was not refused as ErrConflict", out, floor, err)
+	}
+	credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+	if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+		t.Fatal("blank-cause refusal changed a row")
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 1 {
+		t.Fatal("blank-cause refusal wrote a receipt", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 0 {
+		t.Fatal("blank-cause refusal left a hint", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 0 {
+		t.Fatal("blank-cause refusal left a 522 receipt", n)
+	}
+}
+
 // A repeat 522 against a source that is already fully completed for ANY first
 // cause is an idempotent Applied: no second marker/family/device write, no
 // second hint, no revision bump and no re-armed teardown. A family revoked for
@@ -1424,53 +1644,92 @@ func TestUSCredentialRevokeAlreadyRevokedSource(t *testing.T) {
 // marker and device retirement for an ALREADY-revoked family, whatever revoked
 // it first. The family's first cause, revoked_at, revoke original/sequence and
 // teardown lifecycle stay byte-identical: 522 never rewrites another
-// revocation and never re-arms a completed teardown.
+// revocation and never re-arms a completed teardown. Every change combination
+// is covered, so the ONE hint follows the ACTUAL change: a live device retired
+// by this command (only the deviceChanged arm), a marker completed by this
+// command, both, or neither.
 func TestUSCredentialRevokeCompletesAlreadyRevokedFamily(t *testing.T) {
 	const firstAt = "2020-01-02T03:04:05Z"
 	for _, tc := range []struct {
-		name    string
-		reason  string
-		dueMS   int64
-		dueNull bool
+		name          string
+		reason        string
+		dueMS         int64
+		dueNull       bool
+		markerSet     bool
+		deviceRetired bool
 	}{
-		{"another_reason", "password_change", 4321, false},
-		{"completed_teardown", "membership_removed", 0, true},
-		{"admin_revoke", "admin_revoke", 4321, false},
+		{"another_reason", "password_change", 4321, false, false, false},
+		{"completed_teardown", "membership_removed", 0, true, false, false},
+		{"admin_revoke", "admin_revoke", 4321, false, false, false},
+		// The family was revoked elsewhere and the source marker is already set,
+		// but the device is still live: only the device step changes, so only
+		// the deviceChanged arm can raise the hint.
+		{"marker_set_device_live", "password_change", 4321, false, true, false},
+		// The family was revoked elsewhere and the device was already retired,
+		// but the source marker is missing: completing the marker is the only
+		// change and still raises exactly one hint.
+		{"marker_unset_device_retired", "password_change", 4321, false, false, true},
+		// Nothing is left to complete: no hint, no revision bump, no rewrite.
+		{"fully_complete_noop", "password_change", 4321, false, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w, proof := usCredentialAuthorityFixture(t, false)
 			usCredentialOwnerFixture(t, w, proof, [16]byte{1})
 			r := usCredentialRegistry(t)
 			issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+			nowMS := w.now().UnixMilli()
+			// A sticky timestamp from an earlier command, so a rewrite with this
+			// command's now would be visible.
+			stickyMS := nowMS - 5000
 			var due any
 			if !tc.dueNull {
 				due = tc.dueMS
 			}
-			wc008NativeExec(t, w, `UPDATE authorization_session_families SET revoked=1,revoked_reason=?,revoked_at=?,teardown_due_ms=? WHERE id=? AND revoked=0`, tc.reason, firstAt, due, usCredentialFamilyID)
+			usCredentialFamilyRevokedElsewhere(t, w, tc.reason, firstAt, due)
+			if tc.markerSet {
+				wc008NativeExec(t, w, `UPDATE api_credentials SET revoked_ms=? WHERE id=?`, stickyMS, issue.issue.prepared.id)
+			}
+			if tc.deviceRetired {
+				wc008NativeExec(t, w, `UPDATE identity_devices SET retired_ms=?,revision=revision+1 WHERE id=?`, stickyMS, usCredentialDeviceID)
+			}
 			familyBefore := usCredentialTableRow(t, w, "authorization_session_families", "id", usCredentialFamilyID)
-			revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
-			if revoke.revoke.prepared.request.revokedMS != 0 {
-				t.Fatal("fixture marker was not unset")
+			request := usCredentialRevokeRequestFor(w, issue)
+			if tc.markerSet {
+				request.revokedMS = stickyMS
+			}
+			revoke, err := prepareUSCredentialNativeRevoke(CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2}, usCredentialOwnerID, proof.witness.issuer, request)
+			if err != nil {
+				t.Fatal(err)
 			}
 			turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
 			out, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke))
 			if err != nil {
 				t.Fatal(err)
 			}
-			ms := out.Value.revokedMS
-			if out.Outcome.State != Applied || out.Outcome.Replayed || ms <= 0 || out.Value.state != "revoked" {
+			if out.Outcome.State != Applied || out.Outcome.Replayed || out.Value.state != "revoked" {
 				t.Fatal("completion result", out)
 			}
-			// The missing source marker and device retirement are completed.
-			if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id=?`, issue.issue.prepared.id); n != ms {
-				t.Fatal("completion marker", n, ms)
+			wantMarker := nowMS
+			if tc.markerSet {
+				wantMarker = stickyMS
+				if out.Value.revokedMS != stickyMS {
+					t.Fatal("completion rewrote the sticky marker in its result", out.Value.revokedMS, stickyMS)
+				}
+			}
+			// The missing source marker and device retirement are completed once.
+			if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id=?`, issue.issue.prepared.id); n != wantMarker {
+				t.Fatal("completion marker", n, wantMarker)
 			}
 			var retired, revision int64
 			if err = w.db.QueryRowContext(t.Context(), `SELECT retired_ms,revision FROM identity_devices WHERE id=?`, usCredentialDeviceID).Scan(&retired, &revision); err != nil {
 				t.Fatal(err)
 			}
-			if retired != ms || revision != 2 {
-				t.Fatal("completion device retirement", retired, revision)
+			wantRetired := nowMS
+			if tc.deviceRetired {
+				wantRetired = stickyMS
+			}
+			if retired != wantRetired || revision != 2 {
+				t.Fatal("completion device state", retired, revision, wantRetired)
 			}
 			// The family row is BYTE-IDENTICAL: first cause, revoked_at,
 			// revoke original/sequence and teardown_due_ms are all preserved.
@@ -1489,9 +1748,17 @@ func TestUSCredentialRevokeCompletesAlreadyRevokedFamily(t *testing.T) {
 			if n := usCredentialCount(t, w, `SELECT count(*) FROM authorization_session_families WHERE id=? AND command_last_sequence=0 AND revoke_operation_id IS NULL`, usCredentialFamilyID); n != 1 {
 				t.Fatal("completion invented a family command")
 			}
-			// Exactly ONE hint and ONE 522 receipt for the completing original.
-			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events WHERE audience=? AND type='list.changed' AND resource_kind='list' AND resource_id='devices'`, apievents.AdminAudience); n != 1 {
-				t.Fatal("completion hint count", n)
+			// Exactly ONE hint iff this command changed the marker or the
+			// device, asserted against the api_events rows themselves.
+			wantHints := int64(1)
+			if tc.markerSet && tc.deviceRetired {
+				wantHints = 0
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events WHERE audience=? AND type='list.changed' AND resource_kind='list' AND resource_id='devices'`, apievents.AdminAudience); n != wantHints {
+				t.Fatal("completion hint count", n, wantHints)
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != wantHints {
+				t.Fatal("completion appended another event", n)
 			}
 			if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 1 {
 				t.Fatal("completion receipt count", n)
