@@ -85,6 +85,25 @@ func uoJobLeaseRow(t *testing.T, w *executor, f uoJobFamily, key1, key2 string) 
 	return lease
 }
 
+func uoJobDueMS(t *testing.T, w *executor, f uoJobFamily, key1, key2 string) sql.NullInt64 {
+	t.Helper()
+	shape, ok := uoJobShape(f)
+	if !ok {
+		t.Fatal("unknown family", f)
+	}
+	query := "SELECT job_due_ms FROM " + shape.table + " WHERE " + shape.key1 + "=?"
+	args := []any{key1}
+	if shape.key2 != "" {
+		query += " AND " + shape.key2 + "=?"
+		args = append(args, key2)
+	}
+	var due sql.NullInt64
+	if err := w.db.QueryRowContext(t.Context(), query, args...).Scan(&due); err != nil {
+		t.Fatal(err)
+	}
+	return due
+}
+
 func uoJobVariableBytes(t *testing.T, w *executor, f uoJobFamily, key1, key2 string) int64 {
 	t.Helper()
 	shape, ok := uoJobShape(f)
@@ -134,6 +153,22 @@ func uoJobMarkTerminal(t *testing.T, w *executor, f uoJobFamily, key1, key2 stri
 	}
 }
 
+func uoJobMarkNonTerminal(t *testing.T, w *executor, f uoJobFamily, key1, key2 string) {
+	t.Helper()
+	switch f {
+	case uoJobPersonal:
+		wc008NativeExec(t, w, `UPDATE personal_jobs SET state='queued' WHERE id=?`, key1)
+	case uoJobWebhook:
+		wc008NativeExec(t, w, `UPDATE webhook_deliveries SET state='pending' WHERE id=?`, key1)
+	case uoJobNotice:
+		wc008NativeExec(t, w, `UPDATE notice_broadcast_work SET delivered=0 WHERE scope=? AND operation_id=?`, key1, key2)
+	case uoJobServiceOutbox:
+		wc008NativeExec(t, w, `UPDATE identity_service_outbox SET delivered_ms=0 WHERE notice_id=?`, key1)
+	default:
+		t.Fatal("unknown family", f)
+	}
+}
+
 func uoJobTurn(t *testing.T, w *executor) *commandTurn {
 	t.Helper()
 	return wc008NativeTurn(t, w, ClaimOperationalJob, uoJobDefinitions())
@@ -172,20 +207,146 @@ func TestUOJobLeaseClaimRenewAndStaleWorker(t *testing.T) {
 }
 
 func TestUOJobLeaseExpiryAndRetry(t *testing.T) {
-	old := uoJobLease{owner: 1, generation: 2, expiresMS: 100, attempts: 3, revision: 4, nextMS: sql.NullInt64{Int64: 10, Valid: true}}
-	if _, err := old.transition(uoLeaseChange{action: uoLeaseRenew, nowMS: 100, owner: 1, generation: 2, durationMS: 100}); err == nil {
-		t.Fatal("expired renewal")
+	for _, family := range uoJobFamilies() {
+		t.Run(uoJobFamilyName(family), func(t *testing.T) {
+			w := uoJobExecutor(t)
+			uoJobSeed(t, w)
+			key1, key2 := uoJobKey(family)
+			job := uoOperationalJob{family: family, key1: key1, key2: key2, lease: uoJobLeaseRow(t, w, family, key1, key2)}
+
+			turn := uoJobTurn(t, w)
+			claimed, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 100, owner: 7, durationMS: 1000})
+			if err != nil {
+				t.Fatal(err)
+			}
+			uoJobCommit(t, turn)
+
+			job.lease = claimed
+			turn = uoJobTurn(t, w)
+			if out, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseRenew, nowMS: 1100, owner: 7, generation: 1, durationMS: 100}); !errors.Is(err, ErrConflict) || out != (uoJobLease{}) {
+				t.Fatal("expired renewal", out, err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+
+			job.lease = claimed
+			turn = uoJobTurn(t, w)
+			successor, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 1100, owner: 2, durationMS: 100})
+			if err != nil || successor.owner != 2 || successor.generation != claimed.generation+1 || successor.attempts != claimed.attempts+1 {
+				t.Fatal("expired takeover", successor, err)
+			}
+			uoJobCommit(t, turn)
+
+			job.lease = successor
+			turn = uoJobTurn(t, w)
+			retry, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseFinish, nowMS: 1150, owner: 2, generation: 2, nextMS: sql.NullInt64{Int64: 1500, Valid: true}})
+			if err != nil || retry.nextMS.Int64 != 1500 || retry.owner != 0 {
+				t.Fatal("retry finish", retry, err)
+			}
+			uoJobCommit(t, turn)
+
+			job.lease = retry
+			turn = uoJobTurn(t, w)
+			if out, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 1499, owner: 3, durationMS: 100}); !errors.Is(err, ErrConflict) || out != (uoJobLease{}) {
+				t.Fatal("retry became due early", out, err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+
+			job.lease = retry
+			turn = uoJobTurn(t, w)
+			if due, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 1500, owner: 3, durationMS: 100}); err != nil || due.owner != 3 || due.generation != retry.generation+1 {
+				t.Fatal("retry due claim", due, err)
+			}
+		})
 	}
-	next, err := old.transition(uoLeaseChange{action: uoLeaseClaim, nowMS: 100, owner: 2, durationMS: 100})
-	if err != nil || next.generation != 3 || next.attempts != 4 {
-		t.Fatal(next, err)
+}
+
+func TestUOJobLeaseExpiredTakeover(t *testing.T) {
+	for _, family := range uoJobFamilies() {
+		t.Run(uoJobFamilyName(family), func(t *testing.T) {
+			w := uoJobExecutor(t)
+			uoJobSeed(t, w)
+			key1, key2 := uoJobKey(family)
+			initial := uoJobLeaseRow(t, w, family, key1, key2)
+			job := uoOperationalJob{family: family, key1: key1, key2: key2, lease: initial}
+
+			turn := uoJobTurn(t, w)
+			claimed, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 100, owner: 7, durationMS: 1000})
+			if err != nil || claimed.nextMS != initial.nextMS {
+				t.Fatal("claim kept no due time", claimed, err)
+			}
+			uoJobCommit(t, turn)
+			// The claimed row remains in the partial due index for its expiry.
+			if due := uoJobDueMS(t, w, family, key1, key2); !due.Valid || due.Int64 != 1100 {
+				t.Fatal("claimed row left the due index", due)
+			}
+
+			// A live lease is not claimable even though its due time has passed.
+			job.lease = claimed
+			turn = uoJobTurn(t, w)
+			if out, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 1099, owner: 8, durationMS: 100}); !errors.Is(err, ErrConflict) || out != (uoJobLease{}) {
+				t.Fatal("live lease claimed", out, err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+			if got := uoJobLeaseRow(t, w, family, key1, key2); got != claimed {
+				t.Fatal("failed live claim changed row", got, claimed)
+			}
+
+			// Once expired, a successor claims the same row with the next generation.
+			job.lease = claimed
+			turn = uoJobTurn(t, w)
+			successor, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 1100, owner: 8, durationMS: 100})
+			if err != nil || successor.owner != 8 || successor.generation != claimed.generation+1 || successor.attempts != claimed.attempts+1 {
+				t.Fatal("expired takeover", successor, err)
+			}
+			uoJobCommit(t, turn)
+			if due := uoJobDueMS(t, w, family, key1, key2); !due.Valid || due.Int64 != 1200 {
+				t.Fatal("successor row left the due index", due)
+			}
+		})
 	}
-	retry, err := next.transition(uoLeaseChange{action: uoLeaseFinish, nowMS: 150, owner: 2, generation: 3, nextMS: sql.NullInt64{Int64: 500, Valid: true}})
-	if err != nil || retry.nextMS.Int64 != 500 || retry.owner != 0 {
-		t.Fatal(retry, err)
-	}
-	if _, err := retry.transition(uoLeaseChange{action: uoLeaseClaim, nowMS: 499, owner: 3, durationMS: 100}); err == nil {
-		t.Fatal("retry became due early")
+}
+
+func TestUOJobLeaseFinishAtExactExpiry(t *testing.T) {
+	for _, family := range uoJobFamilies() {
+		t.Run(uoJobFamilyName(family), func(t *testing.T) {
+			w := uoJobExecutor(t)
+			uoJobSeed(t, w)
+			key1, key2 := uoJobKey(family)
+			job := uoOperationalJob{family: family, key1: key1, key2: key2, lease: uoJobLeaseRow(t, w, family, key1, key2)}
+
+			turn := uoJobTurn(t, w)
+			claimed, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 100, owner: 7, durationMS: 1000})
+			if err != nil {
+				t.Fatal(err)
+			}
+			uoJobCommit(t, turn)
+
+			// Finish is refused at exactly now == expiry; the lease is exclusive
+			// only while now < expiry.
+			job.lease = claimed
+			turn = uoJobTurn(t, w)
+			if out, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseFinish, nowMS: 1100, owner: 7, generation: 1}); !errors.Is(err, ErrConflict) || out != (uoJobLease{}) {
+				t.Fatal("finish at exact expiry", out, err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+			if got := uoJobLeaseRow(t, w, family, key1, key2); got != claimed {
+				t.Fatal("refused finish changed row", got, claimed)
+			}
+
+			job.lease = claimed
+			turn = uoJobTurn(t, w)
+			if finished, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseFinish, nowMS: 1099, owner: 7, generation: 1}); err != nil || finished.owner != 0 {
+				t.Fatal("finish before expiry", finished, err)
+			}
+		})
 	}
 }
 
@@ -200,7 +361,7 @@ func TestUOJobLeaseNativeClaimRenewFinish(t *testing.T) {
 
 			turn := uoJobTurn(t, w)
 			claimed, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 100, owner: 7, durationMS: 1000})
-			if err != nil || claimed.owner != 7 || claimed.generation != 1 || claimed.expiresMS != 1100 || claimed.attempts != 1 || claimed.revision != initial.revision+1 || claimed.nextMS.Valid {
+			if err != nil || claimed.owner != 7 || claimed.generation != 1 || claimed.expiresMS != 1100 || claimed.attempts != 1 || claimed.revision != initial.revision+1 || claimed.nextMS != initial.nextMS {
 				t.Fatal("claim", claimed, err)
 			}
 			uoJobCommit(t, turn)
@@ -499,6 +660,21 @@ func TestUOJobLeaseReclaimRefusesLivePendingAndStale(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			// A terminal row with a next-attempt time is not claimable: the claim
+			// path is guarded by the non-terminal predicate.
+			job.lease = retry
+			turn = uoJobTurn(t, w)
+			if out, err := applyUOJobLease(t.Context(), turn, job, uoLeaseChange{action: uoLeaseClaim, nowMS: 600, owner: 9, durationMS: 100}); !errors.Is(err, ErrConflict) || out != (uoJobLease{}) {
+				t.Fatal("terminal row claimed", out, err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+			if got := uoJobLeaseRow(t, w, family, key1, key2); got != retry {
+				t.Fatal("terminal claim changed row", got, retry)
+			}
+			uoJobMarkNonTerminal(t, w, family, key1, key2)
+
 			// A stale generation/attempt/revision never refunds bytes.
 			job.lease = retry
 			turn = uoJobTurn(t, w)
@@ -533,20 +709,37 @@ func TestUOJobLeaseReclaimRefusesLivePendingAndStale(t *testing.T) {
 			if family == uoJobPersonal {
 				// A terminal parent with owned child rows is not one-row
 				// reclaimable; the child family must refund those bytes first.
-				wc008NativeExec(t, w, `INSERT INTO personal_job_items(job_id,ordinal,item_id) VALUES('job-personal',0,1)`)
+				// Each child table is probed independently.
+				childCases := []struct {
+					name, table, insert, delete string
+				}{
+					{"items", "personal_job_items", `INSERT INTO personal_job_items(job_id,ordinal,item_id) VALUES('job-personal',0,1)`, `DELETE FROM personal_job_items WHERE job_id='job-personal'`},
+					{"failures", "personal_job_failures", `INSERT INTO personal_job_failures(job_id,ordinal,item_id,code) VALUES('job-personal',0,1,'failed')`, `DELETE FROM personal_job_failures WHERE job_id='job-personal'`},
+					{"outcomes", "personal_job_membership_outcomes", `INSERT INTO personal_job_membership_outcomes(job_id,item_public_id,outcome) VALUES('job-personal',?, 'failed')`, `DELETE FROM personal_job_membership_outcomes WHERE job_id='job-personal'`},
+				}
+				for _, child := range childCases {
+					t.Run("child_"+child.name, func(t *testing.T) {
+						args := []any{}
+						if child.name == "outcomes" {
+							args = append(args, []byte{3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+						}
+						wc008NativeExec(t, w, child.insert, args...)
+						job.lease = terminal
+						turn = uoJobTurn(t, w)
+						if out, err := applyUOJobReclaim(t.Context(), turn, job); !errors.Is(err, ErrConflict) || out != (uoJobReclaimResult{}) {
+							t.Fatal("parent with child rows reclaimed", out, err)
+						}
+						if _, err := turn.transaction.rollback(nil); err != nil {
+							t.Fatal(err)
+						}
+						var children int64
+						if err := w.db.QueryRowContext(t.Context(), "SELECT count(*) FROM "+child.table+" WHERE job_id='job-personal'").Scan(&children); err != nil || children != 1 {
+							t.Fatal("child row deleted", children, err)
+						}
+						wc008NativeExec(t, w, child.delete)
+					})
+				}
 				job.lease = terminal
-				turn = uoJobTurn(t, w)
-				if out, err := applyUOJobReclaim(t.Context(), turn, job); !errors.Is(err, ErrConflict) || out != (uoJobReclaimResult{}) {
-					t.Fatal("parent with child rows reclaimed", out, err)
-				}
-				if _, err := turn.transaction.rollback(nil); err != nil {
-					t.Fatal(err)
-				}
-				var children int64
-				if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM personal_job_items WHERE job_id='job-personal'`).Scan(&children); err != nil || children != 1 {
-					t.Fatal("child row deleted", children, err)
-				}
-				wc008NativeExec(t, w, `DELETE FROM personal_job_items WHERE job_id='job-personal'`)
 				turn = uoJobTurn(t, w)
 				reclaimed, err := applyUOJobReclaim(t.Context(), turn, job)
 				if err != nil || !reclaimed.removed {
@@ -584,12 +777,13 @@ func TestUOJobLeaseClosedFamilyCandidates(t *testing.T) {
 	}
 
 	definitions := uoJobDefinitions()
-	if len(definitions) != 3*len(uoJobFamilies())+len(uoJobPersonalChildProbes) {
+	if len(definitions) != 4*len(uoJobFamilies())+len(uoJobPersonalChildProbes) {
 		t.Fatal("unexpected statement count", len(definitions))
 	}
 	familyIDs := map[string]bool{}
 	for _, family := range uoJobFamilies() {
 		familyIDs[string(uoJobLeaseID(family))] = true
+		familyIDs[string(uoJobClaimID(family))] = true
 		familyIDs[string(uoJobCurrentID(family))] = true
 		familyIDs[string(uoJobReclaimID(family))] = true
 	}
@@ -610,7 +804,7 @@ func TestUOJobLeaseClosedFamilyCandidates(t *testing.T) {
 		seen[string(definition.ID)] = true
 	}
 	for _, family := range uoJobFamilies() {
-		for _, id := range []stmt.ID{uoJobLeaseID(family), uoJobCurrentID(family), uoJobReclaimID(family)} {
+		for _, id := range []stmt.ID{uoJobLeaseID(family), uoJobClaimID(family), uoJobCurrentID(family), uoJobReclaimID(family)} {
 			if !seen[string(id)] {
 				t.Fatal("missing closed family statement", id)
 			}
