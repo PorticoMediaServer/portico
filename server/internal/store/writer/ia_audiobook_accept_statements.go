@@ -255,7 +255,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 	for n := range defs {
 		defs[n].Owner = "store/writer IA audiobook accept"
 		defs[n].CallSites = []string{"store/writer/ia_audiobook_accept.go"}
-		// Preserve the nested accepted-series family's declared keys.
+		// Preserve nested accepted-series and shared search plan contracts.
 		defs[n].Plan.Hot = true
 		switch defs[n].ID {
 		case iaBookOwner:
