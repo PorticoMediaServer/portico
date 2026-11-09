@@ -137,12 +137,22 @@ func applyUSFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirth
 		return out, e
 	}
 	var role string
-	var gate int64
-	if e = row.Scan(&role, &gate); e != nil {
+	var gate, primary int64
+	if e = row.Scan(&role, &primary, &gate); e != nil {
 		return out, usFamilyBirthReadError(e)
 	}
-	if (role != "owner" && role != "admin" && role != "member") || (gate != 0 && gate != 1) {
+	if (role != "owner" && role != "admin" && role != "member") || (gate != 0 && gate != 1) || (primary != 0 && primary != 1) {
 		return out, ErrDisclosureDenied
+	}
+
+	// Match the product's effective profile role. Account owner/admin tier is
+	// never carried into a secondary profile's interactive or credential family.
+	if primary == 0 {
+		role = "member"
+	} else {
+		if _, e = wc008DraftInteger(ctx, turn, usFamilyBirthPrimary, i.account, i.profile); e != nil {
+			return out, usFamilyBirthReadError(e)
+		}
 	}
 
 	points := []struct {

@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	usFamilyBirthPrimary          stmt.ID = "us.family.birth.primary"
 	usFamilyBirthCredentialMarker stmt.ID = "us.family.birth.credential_marker"
 	usFamilyBirthCredentialAbsent stmt.ID = "us.family.birth.credential_absent"
 	usFamilyBirthAPIDevice        stmt.ID = "us.family.birth.api_device"
@@ -29,7 +30,7 @@ func usFamilyBirthDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	b := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
 	defs := []stmt.Definition{
-		{ID: usFamilyBirthPrincipal, SQL: `SELECT m.role,CASE WHEN p.pin_hash IS NULL THEN 0 ELSE 1 END FROM accounts AS a INDEXED BY sqlite_autoindex_accounts_1 CROSS JOIN direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 ON m.account_id=a.id CROSS JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2 ON p.account_id=a.id WHERE a.id=? AND a.epoch=? AND a.must_change=0 AND m.incarnation=? AND m.disabled=0 AND p.id=? AND p.lifetime=? AND p.deleted=0`, Params: []stmt.Param{t("account"), i("epoch"), t("member"), t("profile"), t("lifetime")}},
+		{ID: usFamilyBirthPrincipal, SQL: `SELECT m.role,p.is_primary,CASE WHEN p.pin_hash IS NULL THEN 0 ELSE 1 END FROM accounts AS a INDEXED BY sqlite_autoindex_accounts_1 CROSS JOIN direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 ON m.account_id=a.id CROSS JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2 ON p.account_id=a.id WHERE a.id=? AND a.epoch=? AND a.must_change=0 AND m.incarnation=? AND m.disabled=0 AND p.id=? AND p.lifetime=? AND p.deleted=0`, Params: []stmt.Param{t("account"), i("epoch"), t("member"), t("profile"), t("lifetime")}},
 		{ID: usFamilyBirthServer, SQL: `SELECT 1 FROM configuration INDEXED BY sqlite_autoindex_configuration_1 WHERE key='id' AND value=?`, Params: []stmt.Param{t("server")}},
 		{ID: usFamilyBirthState, SQL: `SELECT 1 FROM identity_state WHERE singleton=1 AND sign_in_kind='local' AND authority_generation=? AND transition_id IS NULL`, Params: []stmt.Param{i("generation")}},
 		{ID: usFamilyBirthDevice, SQL: `SELECT 1 FROM identity_devices INDEXED BY sqlite_autoindex_identity_devices_1 WHERE id=? AND authority='local' AND account_id=? AND installation_id=? AND retired_ms=0`, Params: []stmt.Param{t("device"), t("account"), t("installation")}},
@@ -45,6 +46,7 @@ func usFamilyBirthDefinitions() []stmt.Definition {
 	credential.SQL = strings.Replace(credential.SQL, ",0) RETURNING", ",1) RETURNING", 1)
 	defs = append(defs, credential)
 	defs = append(defs,
+		stmt.Definition{ID: usFamilyBirthPrimary, SQL: `SELECT 1 FROM accounts INDEXED BY sqlite_autoindex_accounts_1 WHERE id=? AND profile_id=?`, Params: []stmt.Param{t("account"), t("profile")}},
 		stmt.Definition{ID: usFamilyBirthCredentialMarker, SQL: `SELECT 1 FROM api_credentials INDEXED BY sqlite_autoindex_api_credentials_1 WHERE id=? AND kind=? AND account_id=? AND profile_id=? AND family_id=? AND device_id=? AND secret_hash=? AND name=? AND scopes=? AND hint=? AND expires_ms=? AND revoked_ms=0 AND parent_id IS NULL AND secret=''`, Params: []stmt.Param{t("id"), t("kind"), t("account"), t("profile"), t("family"), t("device"), t("hash"), t("name"), t("scopes"), t("hint"), i("expires")}},
 		stmt.Definition{ID: usFamilyBirthCredentialAbsent, SQL: `SELECT 1 FROM api_credentials INDEXED BY sqlite_autoindex_api_credentials_3 WHERE family_id=?`, Params: []stmt.Param{t("family")}},
 		stmt.Definition{ID: usFamilyBirthOriginLineage, SQL: `SELECT 1 FROM identity_pin_lineages INDEXED BY sqlite_autoindex_identity_pin_lineages_1 WHERE id=? AND account_id=? AND origin_device_id=?`, Params: []stmt.Param{t("lineage"), t("account"), t("device")}},
