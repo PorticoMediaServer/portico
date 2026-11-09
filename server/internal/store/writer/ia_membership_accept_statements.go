@@ -19,6 +19,8 @@ const (
 	iaMembershipIdentity           stmt.ID = "ia.membership.identity"
 	iaMembershipEntity             stmt.ID = "ia.membership.entity"
 	iaMembershipExtraItem          stmt.ID = "ia.membership.extra_item"
+	iaMembershipSeasonChild        stmt.ID = "ia.membership.season_child"
+	iaMembershipSeasonEpisode      stmt.ID = "ia.membership.season_episode"
 	iaMembershipLink               stmt.ID = "ia.membership.link"
 	iaMembershipLinkList           stmt.ID = "ia.membership.link_list"
 	iaMembershipBoundary           stmt.ID = "ia.membership.boundary"
@@ -150,6 +152,20 @@ WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AN
 				{Name: "extra_item", Bindings: []any{int64(33)}},
 				{Name: "missing_item", Bindings: []any{int64(35)}},
 			}},
+		{ID: iaMembershipSeasonChild, Kind: stmt.Read,
+			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_parent WHERE parent_id=? AND library_id=? AND kind=4 LIMIT 1`,
+			Params: []stmt.Param{i("season_id"), i("library_id")},
+			Cohorts: []stmt.Cohort{
+				{Name: "season_with_episode", Bindings: []any{int64(71), int64(7)}},
+				{Name: "season_without_episode", Bindings: []any{int64(72), int64(7)}},
+			}},
+		{ID: iaMembershipSeasonEpisode, Kind: stmt.Read,
+			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_season WHERE season_id=? AND library_id=? AND kind=4 LIMIT 1`,
+			Params: []stmt.Param{i("season_id"), i("library_id")},
+			Cohorts: []stmt.Cohort{
+				{Name: "season_with_episode", Bindings: []any{int64(71), int64(7)}},
+				{Name: "season_without_episode", Bindings: []any{int64(72), int64(7)}},
+			}},
 		{ID: iaMembershipLink, Kind: stmt.Read,
 			SQL: `SELECT part_index,available,start_seconds,end_seconds,edition,cue_ordinal,playback_origin_incarnation,playback_origin_revision
 FROM catalog_asset_links WHERE entity_id=? AND asset_id=? AND library_id=?`,
@@ -247,7 +263,7 @@ RETURNING job_revision,last_command_sequence`,
 				{Name: "one_membership", Bindings: []any{int64(7), int64(31), int64(41), int64(1), int64(0), int64(42), int64(1)}},
 			}},
 		{ID: iaMembershipContributionDelete, Kind: stmt.Write,
-			SQL:    `DELETE FROM catalog_asset_contributions WHERE parent_id=? AND asset_id=? AND library_id=?`,
+			SQL:    `DELETE FROM catalog_asset_contributions WHERE parent_id=? AND asset_id=? AND library_id=? AND membership_refs=1 AND authored_refs=0`,
 			Params: []stmt.Param{i("parent_id"), i("asset_id"), i("library_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "removed_membership", Bindings: []any{int64(31), int64(41), int64(7)}},
@@ -391,6 +407,12 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaMembershipExtraItem:
 			defs[n].Plan.PrimaryKeys = []string{"item_extras"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
+		case iaMembershipSeasonChild:
+			defs[n].Plan.Indexes = []string{"catalog_entities_parent"}
+			defs[n].Plan.Seeks = []string{"parent_id=?"}
+		case iaMembershipSeasonEpisode:
+			defs[n].Plan.Indexes = []string{"catalog_entities_season"}
+			defs[n].Plan.Seeks = []string{"season_id=?"}
 		case iaMembershipLink:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_asset_links"}
 			defs[n].Plan.Seeks = []string{"entity_id=? AND asset_id=?"}

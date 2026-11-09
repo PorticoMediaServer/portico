@@ -137,9 +137,14 @@ func iaMembershipParentKind(subjectKind int64) (int64, bool) {
 	}
 }
 
+// A link change on a reading item (kind 20/21) is inseparable from its
+// reading_publications row: the publication's FK cascades from the link, so a
+// present link would create an asset link with no publication and a removed link
+// would delete the publication this writer never observed. Those kinds stay with
+// the reading accepting class.
 func iaMembershipLinkKind(subjectKind int64) bool {
 	switch subjectKind {
-	case 1, 4, 7, 9, 11, 12, 20, 21:
+	case 1, 4, 7, 9, 11, 12:
 		return true
 	default:
 		return false
@@ -165,6 +170,15 @@ func validateIAMembershipOriginal(id CommandIdentity, r iaMembershipAcceptReques
 	// The distinct-total cap is one row per retained subject: duplicates are
 	// refused rather than silently deduplicated or applied twice. A move is two
 	// different subjects (old source removed, new destination present).
+	//
+	// A destination that is itself a changed subject is refused too: the plan
+	// reads every destination BEFORE the first write, so a child placed under a
+	// season or album reparented in the same request would copy the destination's
+	// OLD denormalized parent (show/artist) instead of the accepted one.
+	moved := make(map[string]bool, len(r.changes))
+	for _, c := range r.changes {
+		moved[c.subjectKey] = true
+	}
 	seen := make(map[string]bool, len(r.changes))
 	for _, c := range r.changes {
 		if !iaEpisodeKey(c.subjectKey) || c.subjectRevision <= 0 || c.part < 0 ||
@@ -174,6 +188,9 @@ func validateIAMembershipOriginal(id CommandIdentity, r iaMembershipAcceptReques
 			c.end != nil && (math.IsNaN(*c.end) || math.IsInf(*c.end, 0) || *c.end <= c.start) ||
 			c.cueOrdinal < 0 || c.cueOrdinal > 0 && c.subjectKind != 7 && c.subjectKind != 9 {
 			return invalid("ia_membership_change")
+		}
+		if c.parentKey != "" && moved[c.parentKey] {
+			return invalid("ia_membership_destination_changed")
 		}
 		if c.effect != "" && c.effect != "present" && c.effect != "removed" {
 			return invalid("ia_membership_effect")
@@ -573,6 +590,19 @@ func iaMembershipPlan(ctx context.Context, turn *commandTurn, r iaMembershipAcce
 		if c.subjectKind == 4 && !parent.show.Valid {
 			return out, ErrConflict
 		}
+		// A season reparent rewrites only the season's own show_id. Its episodes
+		// keep the old show_id (the schema links neither the columns nor the
+		// episode-position index), so a bounded cascade is not yet owned here: any
+		// episode child refuses the move instead of leaving stale hierarchy.
+		if c.subjectKind == 3 {
+			episodes, err := iaMembershipSeasonHasEpisodes(ctx, turn, r.scope.libraryID, node.subjectID)
+			if err != nil {
+				return out, err
+			}
+			if episodes {
+				return out, ErrConflict
+			}
+		}
 		if err = iaMembershipCheckCycle(ctx, turn, r.scope.libraryID, node.subjectID, parentID); err != nil {
 			return out, err
 		}
@@ -682,6 +712,31 @@ func iaMembershipCheckCycle(ctx context.Context, turn *commandTurn, libraryID, s
 	return ErrCap
 }
 
+// A season's episodes are found by both hierarchy columns: parent_id is the
+// canonical child edge, season_id is the denormalized column the episode's
+// show_id must agree with. Each probe is one bounded pointed read.
+func iaMembershipSeasonHasEpisodes(ctx context.Context, turn *commandTurn, libraryID, seasonID int64) (found bool, err error) {
+	defer func() { found, err = finishCommand(ctx, commandLifetime(turn), found, err) }()
+	for _, id := range []stmt.ID{iaMembershipSeasonChild, iaMembershipSeasonEpisode} {
+		step, ok := turn.steps[id]
+		if !ok {
+			return false, invalid("ia_membership_season_steps")
+		}
+		rows, err := turn.query(ctx, step.statementStep, seasonID, libraryID)
+		if err != nil {
+			return false, err
+		}
+		next := rows.Next()
+		if err = errors.Join(rows.Err(), rows.Close()); err != nil {
+			return false, err
+		}
+		if next {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func iaMembershipApplyChange(ctx context.Context, turn *commandTurn, r iaMembershipAcceptRequest, asset iaExtraAssetFacts, p *iaMembershipPlanned) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	if p.destination != nil {
@@ -699,6 +754,10 @@ func iaMembershipApplyChange(ctx context.Context, turn *commandTurn, r iaMembers
 			artist = sql.NullInt64{Int64: destination, Valid: true}
 		case 7:
 			album = sql.NullInt64{Int64: destination, Valid: true}
+			// A song's artist_id is a denormalized copy of its album's artist; the
+			// destination album always carries one (schema CHECK kind<>6 OR
+			// artist_id IS NOT NULL), so both columns follow the new parent.
+			artist = p.destination.artist
 		case 9:
 			book = sql.NullInt64{Int64: destination, Valid: true}
 		}

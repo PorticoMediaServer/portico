@@ -48,6 +48,7 @@ func iaMembershipAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOw
 		args []any
 	}{
 		{`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0),(2,'show',0,1,1,1,0),(3,'season',0,1,1,1,0),(4,'episode',1,0,1,1,0),(5,'artist',0,1,1,1,0),(6,'album',0,1,1,1,0),(7,'song',1,0,1,1,1)`, nil},
+		{`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(8,'book',0,1,1,1,0),(9,'audiobook_file',1,0,1,1,1)`, nil},
 		{`INSERT INTO libraries(id,name,kind,root,configuration_present,configuration_revision,configuration_metadata_revision) VALUES('membership-library','Membership','tv','/media/membership',1,1,1)`, nil},
 		{`INSERT INTO catalog_libraries(id,library_id,root) VALUES(7,'membership-library','/media/membership')`, nil},
 		{`INSERT INTO library_sources(id,library_id,name,configured_root,root,classification,root_identity,follow_symlinks,interval_seconds,next_scan_at,identity_confirmed,incarnation,generation,health,enabled,kind) VALUES('membership-source','membership-library','Membership','/media/membership','/media/membership','local','membership-root-identity',0,0,'',1,'membership-incarnation',3,'ready',1,'local')`, nil},
@@ -58,7 +59,9 @@ func iaMembershipAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOw
 		{`INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(41,'membership-token','/media/membership/Show/Season 1/Episode 1.mkv',42,7,'','','',0,0,0,7)`, nil},
 		{`INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(70,X'70000000000000000000000000000000',7,2),(71,X'71000000000000000000000000000000',7,3),(72,X'72000000000000000000000000000000',7,3),(31,X'31000000000000000000000000000000',7,4),(60,X'60000000000000000000000000000000',7,1),(80,X'80000000000000000000000000000000',7,5),(81,X'81000000000000000000000000000000',7,6),(92,X'92000000000000000000000000000000',7,7)`, nil},
 		{`INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,title,sort_title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,year,added_at,metadata_language,show_id,season_id,season_number,numbering,episode_number,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,artist_id,album_id) VALUES(70,X'70000000000000000000000000000000',7,2,NULL,'Show','','show','s','show','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(71,X'71000000000000000000000000000000',7,3,70,'Season 1','','season 1','s','season 1','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',70,NULL,1,'seasonal',NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(72,X'72000000000000000000000000000000',7,3,70,'Season 2','','season 2','s','season 2','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',70,NULL,2,'seasonal',NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(31,X'31000000000000000000000000000000',7,4,71,'Episode 1','','episode 1','e','episode 1','e',1,0,'2026-11-01T00:00:00.000000000Z','en-US',70,71,1,'seasonal',1,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(60,X'60000000000000000000000000000000',7,1,NULL,'Movie','','movie','m','movie','m',1,2020,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(80,X'80000000000000000000000000000000',7,5,NULL,'Artist','','artist','a','artist','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(81,X'81000000000000000000000000000000',7,6,80,'Album','','album','a','album','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,80,NULL),(92,X'92000000000000000000000000000000',7,7,81,'Song','','song','s','song','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,80,81)`, nil},
-		{`INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(7,'membership-episode-key',31),(7,'membership-season-key',72),(7,'membership-movie-key',60),(7,'membership-album-key',81),(7,'membership-song-key',92)`, nil},
+		{`INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(73,X'73000000000000000000000000000000',7,2),(82,X'82000000000000000000000000000000',7,8),(83,X'83000000000000000000000000000000',7,8),(84,X'84000000000000000000000000000000',7,5),(85,X'85000000000000000000000000000000',7,6),(93,X'93000000000000000000000000000000',7,9)`, nil},
+		{`INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,title,sort_title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,year,added_at,metadata_language,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,artist_id,book_id) VALUES(73,X'73000000000000000000000000000000',7,2,NULL,'Show 2','','show 2','s','show 2','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(84,X'84000000000000000000000000000000',7,5,NULL,'Artist 2','','artist 2','a','artist 2','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(82,X'82000000000000000000000000000000',7,8,NULL,'Book','','book','b','book','b',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(83,X'83000000000000000000000000000000',7,8,NULL,'Book 2','','book 2','b','book 2','b',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(85,X'85000000000000000000000000000000',7,6,84,'Album 2','','album 2','a','album 2','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,84,NULL),(93,X'93000000000000000000000000000000',7,9,82,'Audiobook File','','audiobook file','a','audiobook file','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,82)`, nil},
+		{`INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(7,'membership-episode-key',31),(7,'membership-season-key',72),(7,'membership-movie-key',60),(7,'membership-album-key',81),(7,'membership-song-key',92),(7,'membership-season-one-key',71),(7,'membership-show-two-key',73),(7,'membership-artist-two-key',84),(7,'membership-album-two-key',85),(7,'membership-book-two-key',83),(7,'membership-file-key',93)`, nil},
 		{`INSERT INTO catalog_asset_links(entity_id,asset_id,part_index,available,start_seconds,end_seconds,edition,playback_origin_incarnation,playback_origin_revision,library_id) VALUES(31,41,0,1,0,NULL,'',X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',1,7)`, nil},
 		{`INSERT INTO catalog_asset_contributions(library_id,parent_id,asset_id,membership_refs,authored_refs,file_size,file_size_revision) VALUES(7,31,41,1,0,42,1)`, nil},
 		{`INSERT INTO episode_asset_boundaries(item_id,asset_id,status) VALUES(31,'membership-token','whole_source')`, nil},
@@ -380,6 +383,159 @@ func TestIAMembershipAcceptDestinationOnlyChronology(t *testing.T) {
 	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_asset_links WHERE entity_id=31 AND part_index=0`); got != 1 {
 		t.Fatal("reparent rewrote the link", got)
 	}
+}
+
+// The denormalized hierarchy columns are pinned to one accepted parent. A season
+// reparent rewrites only the season's show_id, so it refuses while any episode
+// child exists; a destination that is itself moved in the same request is refused
+// before IO; a song's artist_id follows its new album. A removal also never
+// deletes a contribution that still carries authored references.
+func TestIAMembershipAcceptHierarchyGuards(t *testing.T) {
+	manualRef := func() ReceiptReference {
+		return ReceiptReference{Identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 2, OperationID: [16]byte{2}}, RequestDigest: RequestDigest{1}}
+	}
+	t.Run("season_with_episodes_refused", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{{subjectKey: "membership-season-one-key", subjectKind: 3, subjectRevision: 1, parentKey: "membership-show-two-key"}}
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) {
+			t.Fatal("season with episodes", out, err)
+		}
+		turn.transaction.rollback(nil)
+		iaMembershipRefused(t, w)
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=71 AND parent_id=70 AND show_id=70 AND revision=1`); got != 1 {
+			t.Fatal("refused season reparent moved the season", got)
+		}
+	})
+	t.Run("season_without_episodes_reparents", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{{subjectKey: "membership-season-key", subjectKind: 3, subjectRevision: 1, parentKey: "membership-show-two-key"}}
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 1 {
+			t.Fatal("childless season reparent", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		for _, check := range []struct {
+			query string
+			want  int64
+		}{
+			{`SELECT count(*) FROM catalog_entities WHERE id=72 AND parent_id=73 AND show_id=73 AND season_number=2 AND revision=2`, 1},
+			{`SELECT count(*) FROM catalog_entities WHERE id=70 AND revision=1`, 1},
+			{`SELECT count(*) FROM catalog_entities WHERE id=31 AND parent_id=71 AND show_id=70 AND revision=1`, 1},
+			{`SELECT count(*) FROM scan_media_result_members WHERE member_kind='identity' AND subject_id=72 AND parent_id=73 AND parent_kind=2`, 1},
+			{`SELECT count(*) FROM scan_media_result_members WHERE member_kind='membership'`, 0},
+		} {
+			if got := iaEpisodeCount(t, w, check.query); got != check.want {
+				t.Fatal(check.query, got, check.want)
+			}
+		}
+	})
+	t.Run("destination_moved_same_request_refused", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{
+			{subjectKey: "membership-episode-key", subjectKind: 4, subjectRevision: 1, parentKey: "membership-season-key"},
+			{subjectKey: "membership-season-key", subjectKind: 3, subjectRevision: 1, parentKey: "membership-show-two-key"},
+		}
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, manualRef())
+		if !errors.Is(err, ErrInvalid) || out.decision != 0 || len(out.result.facts.members) != 0 {
+			t.Fatal("same-request destination move", out, err)
+		}
+		turn.transaction.rollback(nil)
+		iaMembershipRefused(t, w)
+		// The same episode move alone is accepted: only the interdependency was
+		// refused, not the destination season.
+		q.changes = q.changes[:1]
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err = iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh {
+			t.Fatal("episode move to an unmoved season", out, err)
+		}
+		turn.transaction.rollback(nil)
+	})
+	t.Run("album_reparent_keeps_artist", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{{subjectKey: "membership-album-key", subjectKind: 6, subjectRevision: 1, parentKey: "membership-artist-two-key"}}
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh {
+			t.Fatal("album reparent", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=81 AND parent_id=84 AND artist_id=84 AND revision=2`); got != 1 {
+			t.Fatal("album artist did not follow the destination artist", got)
+		}
+	})
+	t.Run("song_reparent_follows_album_artist", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{{subjectKey: "membership-song-key", subjectKind: 7, subjectRevision: 1, parentKey: "membership-album-two-key"}}
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh {
+			t.Fatal("song reparent", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=92 AND parent_id=85 AND album_id=85 AND artist_id=84 AND revision=2`); got != 1 {
+			t.Fatal("song artist did not follow the destination album", got)
+		}
+	})
+	t.Run("audiobook_file_reparent", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{{subjectKey: "membership-file-key", subjectKind: 9, subjectRevision: 1, parentKey: "membership-book-two-key"}}
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh {
+			t.Fatal("audiobook file reparent", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=93 AND parent_id=83 AND book_id=83 AND revision=2`); got != 1 {
+			t.Fatal("file book did not follow the destination book", got)
+		}
+	})
+	t.Run("authored_contribution_refuses_removal", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		wc008NativeExec(t, w, `UPDATE catalog_asset_contributions SET membership_refs=2,authored_refs=1 WHERE parent_id=31 AND asset_id=41`)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{{subjectKey: "membership-episode-key", subjectKind: 4, subjectRevision: 1, effect: "removed", boundaryStatus: "whole_source", part: 0, start: 0}}
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if !errors.Is(err, ErrConflict) || out.decision != 0 {
+			t.Fatal("authored contribution removal", out, err)
+		}
+		turn.transaction.rollback(nil)
+		iaMembershipRefused(t, w)
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_asset_contributions WHERE parent_id=31 AND asset_id=41 AND membership_refs=2 AND authored_refs=1`); got != 1 {
+			t.Fatal("refused removal lost the authored contribution", got)
+		}
+	})
+	t.Run("reading_item_kinds_refused", func(t *testing.T) {
+		for _, kind := range []int64{20, 21} {
+			w, reg, p := iaMembershipAcceptFixture(t)
+			q := newIAMembershipAcceptRequest(w)
+			q.changes = []iaMembershipChange{{subjectKey: "membership-reading-key", subjectKind: kind, subjectRevision: 1, effect: "present", start: 0}}
+			turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, manualRef())
+			if !errors.Is(err, ErrInvalid) || out.decision != 0 {
+				t.Fatal("reading item link change", kind, out, err)
+			}
+			turn.transaction.rollback(nil)
+			iaMembershipRefused(t, w)
+		}
+	})
 }
 
 // Every fresh witness is re-proven after the receipt is Fresh.
