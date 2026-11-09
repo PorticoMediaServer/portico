@@ -80,6 +80,12 @@ func (b usInvitationAuthorityBudget) check(ctx context.Context, turn *commandTur
 // This is the only mint. The US-01 preparation holds owned comparisons only;
 // parsed times/hash are re-derived from raw witness values before native use.
 // No cached DTO/role, callback, public constructor or caller bool mints a proof.
+// Wiring: the Fresh production entry passes prepared.scope.issuer as expected;
+// it is compared with the independently current session witness, never inferred
+// from Issuer() alone. Resolve/ACK have no Fresh prepared request and need their
+// own current issuer binding source in us_invitation_receipts.go, including the
+// native security-owner lifetime columns. Retained originals are not a current
+// binding source, and their original request digest must not be rewritten.
 func authorizeUSInvitationManager(ctx context.Context, turn *commandTurn, p *usOwnerAuthorityProof, expected usPolicyIssuer, lifetime context.Context, b usInvitationAuthorityBudget) (out *usInvitationAuthorization, err error) {
 	defer func() { usInvitationAuthorityFailure(turn, err) }()
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
@@ -235,6 +241,11 @@ func (a *usInvitationAuthorization) ManagesTier(role string) bool {
 	}
 	return a.role == "owner" || role == "member"
 }
+
+// A native source refusal cancels the frame in the nested mint. Its denial can
+// therefore match BOTH ErrDisclosureDenied and context.Canceled. Adapters must
+// classify denial FIRST and replace the body outcome; cancellation must not turn
+// an authority refusal into a transport retry.
 func (a *usInvitationAuthorization) Recheck(ctx context.Context, turn *commandTurn) (err error) {
 	defer func() {
 		if err != nil && a != nil {

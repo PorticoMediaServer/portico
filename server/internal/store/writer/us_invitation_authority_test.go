@@ -521,3 +521,118 @@ func TestUSInvitationAuthorityExpectedIssuerBinding(t *testing.T) {
 		})
 	}
 }
+
+// Each clamp is the unique earliest horizon in its fixture. Live controls just
+// inside and exactly at it pass; one nanosecond beyond it must refuse. Source
+// rows and raw preparation agree, so deleting a clamp cannot hide behind a
+// stale timestamp comparison or another earlier window.
+func TestUSInvitationAuthorityDeadlineClamps(t *testing.T) {
+	for _, role := range []string{"owner", "admin"} {
+		for _, clamp := range []string{"horizon", "manage", "remember"} {
+			for _, boundary := range []string{"inside", "exact", "past"} {
+				t.Run(role+"/"+clamp+"/"+boundary, func(t *testing.T) {
+					w, p := usInvitationAuthorityFixture(t, role)
+					if clamp != "horizon" {
+						p = usInvitationAuthorityProtect(t, w, p, true)
+					}
+					witness := p.witness
+					witness.tokenExpiry = w.now().Add(time.Minute).Format(time.RFC3339)
+					witness.horizon = w.now().Add(2 * time.Minute).Format(time.RFC3339)
+					end := w.now().Add(5 * time.Second)
+					switch clamp {
+					case "horizon":
+						witness.horizon = end.Format(time.RFC3339)
+					case "manage":
+						witness.manage = end.Format(time.RFC3339)
+						witness.remember = w.now().Add(30 * time.Second).Format(time.RFC3339)
+					case "remember":
+						witness.remember = end.Format(time.RFC3339)
+						witness.manage = w.now().Add(30 * time.Second).Format(time.RFC3339)
+					}
+					var err error
+					p, err = prepareUSOwnerAuthority(witness)
+					if err != nil {
+						t.Fatal(err)
+					}
+					wc008NativeExec(t, w, `UPDATE authorization_family_tokens SET expires_at=?`, witness.tokenExpiry)
+					wc008NativeExec(t, w, `UPDATE authorization_session_families SET authorization_horizon=?,remember_until=?,manage_until=?`, witness.horizon, witness.remember, witness.manage)
+					turn, b := usInvitationAuthorityTurn(t, w, 550)
+					deadline := end
+					if boundary == "inside" {
+						deadline = deadline.Add(-time.Nanosecond)
+					} else if boundary == "past" {
+						deadline = deadline.Add(time.Nanosecond)
+					}
+					turn.transaction.ctx = authorityDeadlineContext{Context: turn.transaction.ctx, deadline: deadline}
+					usInvitationAuthorityDrift(t, turn, `UPDATE search_revision SET revision=2`)
+					a, err := authorizeUSInvitationManager(t.Context(), turn, p, p.witness.issuer, t.Context(), b)
+					if boundary != "past" {
+						if err != nil || a == nil || !a.ManagesTier("member") {
+							t.Fatal("live boundary refused", a, err)
+						}
+						if err = a.Recheck(t.Context(), turn); err != nil {
+							t.Fatal("live boundary recheck", err)
+						}
+					} else {
+						if a != nil || !errors.Is(err, ErrDisclosureDenied) {
+							t.Fatal("expired window admitted", a, err)
+						}
+						if _, err = turn.transaction.commit(); err == nil {
+							t.Fatal("ignored window refusal committed")
+						}
+						var revision int
+						if err = w.db.QueryRowContext(t.Context(), `SELECT revision FROM search_revision`).Scan(&revision); err != nil || revision != 1 {
+							t.Fatal("refusal prefix survived", revision, err)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestUSInvitationAuthorityMemberFamilyRefused(t *testing.T) {
+	for _, kind := range []CommandID{550, 551, 552} {
+		for _, afterMint := range []bool{false, true} {
+			t.Run(fmt.Sprint(kind, "/", afterMint), func(t *testing.T) {
+				role := "member"
+				if afterMint {
+					role = "owner"
+				}
+				w, p := usInvitationAuthorityFixture(t, role)
+				turn, b := usInvitationAuthorityTurn(t, w, kind)
+				var a *usInvitationAuthorization
+				var err error
+				if afterMint {
+					a, err = authorizeUSInvitationManager(t.Context(), turn, p, p.witness.issuer, t.Context(), b)
+					if err != nil {
+						t.Fatal("owner control", err)
+					}
+					usInvitationAuthorityDrift(t, turn, `UPDATE direct_memberships SET role='member'`, `UPDATE authorization_session_families SET role='member'`)
+					err = a.Recheck(t.Context(), turn)
+				} else {
+					a, err = authorizeUSInvitationManager(t.Context(), turn, p, p.witness.issuer, t.Context(), b)
+				}
+				if !errors.Is(err, ErrDisclosureDenied) || !afterMint && a != nil {
+					t.Fatal("member/member authorized", a, err)
+				}
+				if afterMint && (a.Issuer() != "" || a.ManagesTier("member")) {
+					t.Fatal("downgraded proof usable")
+				}
+			})
+		}
+	}
+}
+
+func TestUSInvitationAuthorityDenialPrecedesCancellation(t *testing.T) {
+	w, p := usInvitationAuthorityFixture(t, "admin")
+	turn, a := usInvitationAuthorityMint(t, w, p, 550)
+	usInvitationAuthorityDrift(t, turn, `UPDATE direct_memberships SET disabled=1`)
+	err := a.Recheck(t.Context(), turn)
+	if !errors.Is(err, ErrDisclosureDenied) || !errors.Is(err, context.Canceled) {
+		t.Fatal("joined denial classification changed", err)
+	}
+	if a.Issuer() != "" || a.ManagesTier("member") {
+		t.Fatal("canceled denial retained permissions")
+	}
+}
