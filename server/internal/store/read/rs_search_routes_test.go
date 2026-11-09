@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -299,77 +300,82 @@ func TestRSSearchRoutesAllGroupsAndPerGroupErrors(t *testing.T) {
 }
 
 func TestRSSearchRoutesCancellationGenerationAndBudget(t *testing.T) {
-	in := RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 1}, Text: "alpha"}}
-	var calls int
-	routes := NewRSSearchRoutes(nil, func(ctx context.Context, _ governor.Request, _ time.Duration, _ BrowseOutput, _ RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
-		calls++
-		deadline, ok := ctx.Deadline()
-		if !ok || deadline.After(time.Now().Add(RSSearchGroupBudget)) {
-			t.Fatal("group budget was not applied")
-		}
-		<-ctx.Done()
-		return RSSearchPage{}, nil, ctx.Err()
-	}, nil, nil, nil)
-
-	// Cancellation before preparation opens no adapter.
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	if _, _, err := routes.Read(ctx, governor.Request{}, time.Second, BrowseOutput{}, in); !errors.Is(err, context.Canceled) || calls != 0 {
-		t.Fatal(err, calls)
-	}
-
-	// Cancellation observed after an adapter result suppresses that result.
-	in = RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 1}, Text: "alpha"}}
-	routes = NewRSSearchRoutes(nil, func(ctx context.Context, _ governor.Request, _ time.Duration, _ BrowseOutput, _ RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
-		calls++
-		cancel()
-		return RSSearchPage{Complete: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, nil, nil
-	}, nil, nil, nil)
-	ctx, cancel = context.WithCancel(t.Context())
-	result, _, err := routes.Read(ctx, governor.Request{}, time.Second, BrowseOutput{}, in)
-	if !errors.Is(err, context.Canceled) || len(result.Page.Groups) != 0 {
-		t.Fatal("cancelled result escaped", result, err)
-	}
-
-	// The request-generation guard refuses before and after preparation.
-	calls = 0
-	current := false
-	routes = NewRSSearchRoutes(nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
-		calls++
-		return RSSearchPage{Complete: true}, nil, nil
-	}, nil, nil, nil)
-	in.Current = func() bool { return current }
-	if _, _, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, in); !errors.Is(err, ErrSearchSuperseded) || calls != 0 {
-		t.Fatal(err, calls)
-	}
-	current = true
-	calls = 0
-	guard := func() bool { return calls == 0 }
-	in.Current = guard
-	if _, _, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, in); !errors.Is(err, ErrSearchSuperseded) || calls != 1 {
-		t.Fatal("superseded prepared result escaped", err, calls)
-	}
-
-	// The caller's shorter budget wins and the 600ms group ceiling still holds.
-	for _, budget := range []time.Duration{100 * time.Millisecond, 5 * time.Second} {
-		start := time.Now()
-		var got time.Duration
-		routes = NewRSSearchRoutes(nil, func(ctx context.Context, _ governor.Request, _ time.Duration, _ BrowseOutput, _ RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+	// A virtual clock makes the group deadline exact: the route derives it from
+	// time.Now inside the bubble, so elapsed real time cannot leak into the
+	// assertion.
+	synctest.Test(t, func(t *testing.T) {
+		in := RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 1}, Text: "alpha"}}
+		var calls int
+		routes := NewRSSearchRoutes(nil, func(ctx context.Context, _ governor.Request, _ time.Duration, _ BrowseOutput, _ RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+			calls++
 			deadline, ok := ctx.Deadline()
-			if !ok {
-				t.Fatal("adapter has no deadline")
+			if !ok || deadline.After(time.Now().Add(RSSearchGroupBudget)) {
+				t.Fatal("group budget was not applied")
 			}
-			got = deadline.Sub(start)
+			<-ctx.Done()
+			return RSSearchPage{}, nil, ctx.Err()
+		}, nil, nil, nil)
+
+		// Cancellation before preparation opens no adapter.
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, _, err := routes.Read(ctx, governor.Request{}, time.Second, BrowseOutput{}, in); !errors.Is(err, context.Canceled) || calls != 0 {
+			t.Fatal(err, calls)
+		}
+
+		// Cancellation observed after an adapter result suppresses that result.
+		in = RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 1}, Text: "alpha"}}
+		routes = NewRSSearchRoutes(nil, func(ctx context.Context, _ governor.Request, _ time.Duration, _ BrowseOutput, _ RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+			calls++
+			cancel()
+			return RSSearchPage{Complete: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, nil, nil
+		}, nil, nil, nil)
+		ctx, cancel = context.WithCancel(t.Context())
+		result, _, err := routes.Read(ctx, governor.Request{}, time.Second, BrowseOutput{}, in)
+		if !errors.Is(err, context.Canceled) || len(result.Page.Groups) != 0 {
+			t.Fatal("cancelled result escaped", result, err)
+		}
+
+		// The request-generation guard refuses before and after preparation.
+		calls = 0
+		current := false
+		routes = NewRSSearchRoutes(nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+			calls++
 			return RSSearchPage{Complete: true}, nil, nil
 		}, nil, nil, nil)
-		in.Current = nil
-		if _, _, err := routes.Read(t.Context(), governor.Request{}, budget, BrowseOutput{}, in); err != nil {
-			t.Fatal(err)
+		in.Current = func() bool { return current }
+		if _, _, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, in); !errors.Is(err, ErrSearchSuperseded) || calls != 0 {
+			t.Fatal(err, calls)
 		}
-		if got <= 0 || got > min(budget, RSSearchGroupBudget) {
-			t.Fatal("wrong group deadline", got, budget)
+		current = true
+		calls = 0
+		guard := func() bool { return calls == 0 }
+		in.Current = guard
+		if _, _, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, in); !errors.Is(err, ErrSearchSuperseded) || calls != 1 {
+			t.Fatal("superseded prepared result escaped", err, calls)
 		}
-	}
+
+		// The caller's shorter budget wins and the 600ms group ceiling still holds.
+		for _, budget := range []time.Duration{100 * time.Millisecond, 5 * time.Second} {
+			start := time.Now()
+			var got time.Duration
+			routes = NewRSSearchRoutes(nil, func(ctx context.Context, _ governor.Request, _ time.Duration, _ BrowseOutput, _ RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("adapter has no deadline")
+				}
+				got = deadline.Sub(start)
+				return RSSearchPage{Complete: true}, nil, nil
+			}, nil, nil, nil)
+			in.Current = nil
+			if _, _, err := routes.Read(t.Context(), governor.Request{}, budget, BrowseOutput{}, in); err != nil {
+				t.Fatal(err)
+			}
+			if got <= 0 || got > min(budget, RSSearchGroupBudget) {
+				t.Fatal("wrong group deadline", got, budget)
+			}
+		}
+	})
 }
 
 func TestRSSearchRoutesBoundedPages(t *testing.T) {

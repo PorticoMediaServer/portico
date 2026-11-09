@@ -1,7 +1,6 @@
 package read
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -43,12 +42,12 @@ func TestRSSavedMembersBeginGuards(t *testing.T) {
 	if e = p.Close(); e != nil {
 		t.Fatal("close is not idempotent", e)
 	}
-	if _, _, e = r.Members(context.Background(), foregroundRequest(), time.Second, BrowseOutput{}, SavedCollectionInput{View: f.input, Resource: "saved", After: &SavedCollectionCursor{}}); !errors.Is(e, ErrStale) {
+	if e = savedMembersError(t, f, r, SavedCollectionInput{View: f.input, Resource: "saved", After: &SavedCollectionCursor{}}); !errors.Is(e, ErrStale) {
 		t.Fatal("Members accepted a foreign cursor", e)
 	}
 	viewAfter := f.input
 	viewAfter.After = &BrowseCursor{}
-	if _, _, e = r.Members(context.Background(), foregroundRequest(), time.Second, BrowseOutput{}, SavedCollectionInput{View: viewAfter, Resource: "saved"}); !errors.Is(e, ErrInput) {
+	if e = savedMembersError(t, f, r, SavedCollectionInput{View: viewAfter, Resource: "saved"}); !errors.Is(e, ErrInput) {
 		t.Fatal("Members accepted a view cursor", e)
 	}
 }

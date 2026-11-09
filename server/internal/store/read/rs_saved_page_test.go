@@ -209,6 +209,7 @@ func TestRSSavedMembersNoLibraryPrincipal(t *testing.T) {
 
 func TestRSSavedMembersMixedLibrariesReauthorize(t *testing.T) {
 	f, r := newRSSavedMembersFixture(t)
+	f.exec(t, `UPDATE direct_memberships SET allowed_libraries='["movies","other"]' WHERE account_id='a'`)
 	f.exec(t, `UPDATE direct_profiles SET allowed_libraries='["movies","other"]' WHERE id='p'`)
 	f.exec(t, `INSERT INTO saved_resource_entries(id,resource_id,item_id,order_key)VALUES('other-lib','saved',1040,'e')`)
 	page := savedMembersComplete(t, f, r, SavedCollectionInput{View: f.input, Resource: "saved"})

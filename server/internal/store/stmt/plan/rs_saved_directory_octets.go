@@ -15,7 +15,12 @@ const rsSavedDirectoryResourceOctetsSQL = `SELECT octet_length(r.id),octet_lengt
 const rsSavedDirectoryShareResourceOctetsSQL = `SELECT octet_length(s.resource_id) FROM saved_resource_shares AS s WHERE s.rowid=?`
 const rsSavedDirectoryEntryOctetsSQL = `SELECT octet_length(e.id),octet_length(e.order_key) FROM saved_resource_entries AS e WHERE e.rowid=? AND e.resource_id=?`
 const rsSavedDirectoryMetadataOctetsSQL = `SELECT octet_length(r.name),octet_length(r.summary),octet_length(r.created_at),octet_length(r.visibility) FROM saved_resources AS r INDEXED BY sqlite_autoindex_saved_resources_1 WHERE r.id=? AND r.kind='collection' AND r.deleted=0`
-const rsSavedDirectoryCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(e.public_id),octet_length(e.title),octet_length(e.overview) FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`
+
+// The octets statement measures the same member point as the card payload.
+// IFNULL(p.item_id,e.id)=e.id is always true for the joined row and keeps the
+// optional personal LEFT JOIN in the measured statement, so SQLite cannot drop
+// it and the declared personal_current_live access path stays real.
+const rsSavedDirectoryCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(e.public_id),octet_length(e.title),octet_length(e.overview) FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0 AND IFNULL(p.item_id,e.id)=e.id`
 
 func init() {
 	for _, v := range []struct {

@@ -438,7 +438,7 @@ func TestRSSavedDirectoryMixedReadingAndAutomaticSamples(t *testing.T) {
 		public := make([]byte, 16)
 		public[0], public[14], public[15] = 0xe3, 0x32, 0xdc
 		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(13020,?,2,20)`, public)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,admission_own_age,has_reading_attribution_members,reading_numbered_order,reading_number_value)VALUES(13020,?,2,20,'Reading','typed','t','typed','t',0,?,?,8,0,1,0)`, public, public, public)
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,admission_own_age,has_reading_attribution_members,reading_numbered_order,reading_number_value)VALUES(13020,?,2,20,'Reading','typed','t','typed','t',0,?,?,8,1,1,0)`, public, public, public)
 		f.exec(t, `UPDATE libraries SET kind='book' WHERE id='other'`)
 		f.exec(t, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,available,library_id)VALUES(13020,'book-asset','/books/title.epub',100,1,'epub','','',0,0,0,0,2)`)
 		f.exec(t, `INSERT INTO catalog_asset_links(entity_id,asset_id,library_id)VALUES(13020,13020,2)`)
