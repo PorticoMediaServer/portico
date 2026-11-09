@@ -527,6 +527,15 @@ func ipEditBulkPageTargetMatches(raw, want ipEditBulkTarget) bool {
 		raw.Revision == want.Revision && raw.Incarnation == want.Incarnation
 }
 
+// ipEditBulkPageMarkStale records the target's explicit stale failure. It is
+// the page's only non-applied disposition, so an ineligible target never aborts
+// the bounded page or the honest terminal count.
+func ipEditBulkPageMarkStale(ctx context.Context, turn *commandTurn, operation string, target ipEditBulkTarget) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
+	return ipBulkExpectOne(ctx, turn, ipBulkPageTargetStale, operation, target.Ordinal,
+		target.EntityID, target.Incarnation[:], target.Revision)
+}
+
 // ipEditBulkTargetOutcome is the page's per-target disposition: applied, or an
 // explicit stale failure recorded in the target row.
 type ipEditBulkTargetOutcome struct {
@@ -534,9 +543,9 @@ type ipEditBulkTargetOutcome struct {
 }
 
 // ipEditBulkPageTarget applies the captured field bundle to one eligible target
-// as ONE atomic typed owner edit under the target edit owner's own incarnation.
-// It returns applied=false when the target is no longer eligible and was marked
-// stale.
+// as ONE atomic typed owner edit under the target edit owner's own next command
+// sequence. It returns applied=false when the target is no longer eligible and
+// was marked stale.
 func ipEditBulkPageTarget(ctx context.Context, turn *commandTurn, c *ipEditBulkPageCommand, fields []fieldmeta.TextEdit, target ipEditBulkTarget, appliedMS int64) (out ipEditBulkTargetOutcome, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	r := c.request.Root
@@ -544,20 +553,27 @@ func ipEditBulkPageTarget(ctx context.Context, turn *commandTurn, c *ipEditBulkP
 	if err != nil {
 		return out, err
 	}
-	if found && (ipEntryOwnerKind(facts.kind) != r.Kind || facts.revision != target.Revision) {
+	// Eligibility proves the exact captured identity: kind, revision AND the
+	// metadata incarnation begin froze. A reborn entity under the same id and
+	// revision was never captured and must never be edited here.
+	if found && (ipEntryOwnerKind(facts.kind) != r.Kind || facts.revision != target.Revision ||
+		facts.incarnation != target.Incarnation) {
 		found = false
 	}
 	if !found {
-		if err = ipBulkExpectOne(ctx, turn, ipBulkPageTargetStale, r.Operation, target.Ordinal,
-			target.EntityID, target.Incarnation[:], target.Revision); err != nil {
-			return out, err
-		}
-		return out, nil
+		return out, ipEditBulkPageMarkStale(ctx, turn, r.Operation, target)
 	}
 	owner, err := ipEditBulkPageEditOwnerFacts(ctx, turn, r.Kind, target.EntityID)
 	if err != nil {
 		return out, err
 	}
+	// The target edit owner has its OWN command sequence, independent of this
+	// page's identity. A brand-new owner is born at 1; an existing owner enters
+	// at last+1 exactly like the normal typed edit. An unacknowledged
+	// predecessor (or a saturated sequence) cannot admit a fresh command: the
+	// target is stale for this page instead of breaking last-ack<=1.
+	sequence := int64(1)
+	childIncarnation := c.identity.Incarnation
 	source := ipTextEditSource{
 		EntityID: target.EntityID, LibraryID: r.LibraryID, Kind: r.Kind, Actor: r.Actor,
 		LibraryKey: r.Library, TargetKind: facts.kind, OwnerRevision: 1,
@@ -566,9 +582,12 @@ func ipEditBulkPageTarget(ctx context.Context, turn *commandTurn, c *ipEditBulkP
 		MetadataIncarnation: facts.incarnation, Projection: ipTextProjection{},
 	}
 	if owner.found {
-		if owner.revision <= 0 || owner.last >= c.identity.Sequence {
-			return out, ErrConflict
+		if owner.last > owner.ack || owner.last == math.MaxInt64 {
+			return out, ipEditBulkPageMarkStale(ctx, turn, r.Operation, target)
 		}
+		sequence = owner.last + 1
+		childIncarnation = [16]byte{}
+		copy(childIncarnation[:], owner.incarnation)
 		source.OwnerRevision = owner.revision
 	}
 	hasKeys := false
@@ -597,33 +616,33 @@ func ipEditBulkPageTarget(ctx context.Context, turn *commandTurn, c *ipEditBulkP
 		}
 		edit.Fields[j] = ipTextEditField{Field: f.Field, Before: state, Edit: fields[j]}
 	}
-	childIncarnation := c.identity.Incarnation
-	if owner.found {
-		copy(childIncarnation[:], owner.incarnation)
-	}
-	childIdentity := CommandIdentity{Incarnation: childIncarnation, Sequence: c.identity.Sequence,
+	childIdentity := CommandIdentity{Incarnation: childIncarnation, Sequence: sequence,
 		OperationID: ipEditBulkTargetOperation(c.identity, target.Ordinal)}
 	child, err := newIPTextEditCommand(childIdentity, edit)
 	if err != nil {
-		return out, ErrResolveRequired
+		// The captured bundle cannot be validated against this target as it now
+		// stands (for example a lock over an absent value). Record the explicit
+		// stale failure and continue the page; a retry is then identical.
+		return out, ipEditBulkPageMarkStale(ctx, turn, r.Operation, target)
+	}
+	ownerFacts := receiptOwnerFacts{exists: true, incarnation: childIncarnation}
+	if owner.found {
+		ownerFacts.lastSequence, ownerFacts.acknowledgedSequence = owner.last, owner.ack
+		copy(ownerFacts.incarnation[:], owner.incarnation)
+	}
+	decision, err := classifyReceipt(receiptIdentity{childIdentity, child.digest}, IPFieldEdit, ownerFacts, receiptFacts{})
+	if err != nil || decision != receiptFresh {
+		return out, errors.Join(ErrResolveRequired, err)
 	}
 	entry := &ipCommandEntry{
-		request: ipEntryRequest{purpose: IPFieldEdit, action: ipEntryApply, reference: ReceiptReference{Identity: childIdentity, RequestDigest: child.digest},
-			targetID: target.EntityID, targetKind: facts.kind, libraryID: r.LibraryID, libraryKey: r.Library},
-		decision: receiptFresh, ownerID: owner.id,
-	}
-	if owner.found {
-		entry.owner = receiptOwnerFacts{exists: true, lastSequence: owner.last, acknowledgedSequence: owner.ack}
-		copy(entry.owner.incarnation[:], owner.incarnation)
-	} else {
-		entry.owner = receiptOwnerFacts{exists: true, incarnation: c.identity.Incarnation}
+		request: ipTextEditEntryRequest(child), decision: decision, ownerID: owner.id, owner: ownerFacts,
 	}
 	result, err := ipTextEditWriteFresh(ctx, turn, child, entry, appliedMS)
 	if err != nil {
 		return out, err
 	}
 	if err = ipBulkExpectOne(ctx, turn, ipBulkPageTargetApplied, result.value.SubjectRevision,
-		result.value.OwnerID, childIncarnation[:], c.identity.Sequence, r.Operation, target.Ordinal,
+		result.value.OwnerID, childIncarnation[:], sequence, r.Operation, target.Ordinal,
 		target.EntityID, target.Incarnation[:], target.Revision); err != nil {
 		return out, err
 	}

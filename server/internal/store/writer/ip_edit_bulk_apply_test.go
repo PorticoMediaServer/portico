@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	fieldmeta "github.com/PorticoMediaServer/portico/server/internal/store/metadata"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
@@ -178,7 +179,7 @@ func TestIPEditBulkPageFreshReplayRetired(t *testing.T) {
 	for query, want := range map[string]int64{
 		`SELECT count(*) FROM metadata_repair_cascades WHERE id='` + id + `' AND job_revision=2 AND last_command_sequence=2 AND acknowledged_command_sequence=1 AND after_item='2' AND processed=2 AND failed=0 AND status='running'`: 1,
 		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND state='applied' AND edit_owner_id IS NOT NULL AND result_revision IS NOT NULL`:                                                          2,
-		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND edit_command_incarnation=X'01000000000000000000000000000000' AND edit_command_sequence=2`:                                               2,
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND edit_command_incarnation=X'01000000000000000000000000000000' AND edit_command_sequence=1`:                                               2,
 		`SELECT count(*) FROM metadata_owner_fields WHERE field='country' AND value='US' AND value_present=1`:                                                                                                                         2,
 		`SELECT count(*) FROM metadata_owner_history`:                                 2,
 		`SELECT count(*) FROM metadata_edit_receipts WHERE command_kind='field_edit'`: 2,
@@ -800,4 +801,156 @@ func TestIPEditBulkPageStaleRevision(t *testing.T) {
 		t.Fatal("stale page revision admitted", out, err)
 	}
 	ipTextRollback(t, turn, tx)
+}
+
+// A target edit owns its OWN command sequence, never the page's. An existing
+// owner advances from its own last (even far past the page sequence), and a
+// brand-new owner is born at sequence 1 with last=1/ack=0.
+func TestIPEditBulkPageTargetOwnerSequence(t *testing.T) {
+	w, r, p := ipBulkApplyFixture(t)
+	birth := ipBulkBirth(t, w, r, p)
+	ipTextExec(t, w, `INSERT INTO metadata_edit_owners(entity_id,kind,command_incarnation,revision,last_command_sequence,acknowledged_command_sequence) VALUES(778,'item',X'21000000000000000000000000000000',3,5,5)`)
+	ipBulkAck(t, w)
+	cmd := ipBulkPageCommandFor(t, ipBulkIdentity(2, 3), birth, 1, 0, ipBulkTargets(), nil)
+	out, turn, tx, err := ipBulkPageApply(t, w, r, p, cmd)
+	if err != nil || out.Outcome.State != Applied || out.Value.Processed != 2 || out.Value.Failed != 0 || !out.Value.NoNext {
+		t.Fatal(out, err)
+	}
+	ipTextCommit(t, turn, tx)
+	id := out.Value.OwnerID
+	first := out.Value
+	for query, want := range map[string]int64{
+		`SELECT count(*) FROM metadata_edit_owners WHERE entity_id=778 AND revision=4 AND last_command_sequence=6 AND acknowledged_command_sequence=5`:                                                                    1,
+		`SELECT count(*) FROM metadata_edit_owners WHERE entity_id=779 AND command_incarnation=X'01000000000000000000000000000000' AND revision=2 AND last_command_sequence=1 AND acknowledged_command_sequence=0`:        1,
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND ordinal=0 AND edit_command_sequence=6 AND edit_command_incarnation=X'21000000000000000000000000000000' AND state='applied'`: 1,
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND ordinal=1 AND edit_command_sequence=1 AND edit_command_incarnation=X'01000000000000000000000000000000' AND state='applied'`: 1,
+		`SELECT count(*) FROM metadata_edit_receipts WHERE command_incarnation=X'21000000000000000000000000000000' AND command_sequence=6`:                                                                                1,
+		`SELECT count(*) FROM metadata_edit_receipts WHERE command_incarnation=X'01000000000000000000000000000000' AND command_sequence=1`:                                                                                1,
+	} {
+		if got := ipTextQueryInt(t, w, query); got != want {
+			t.Fatal(query, got, want)
+		}
+	}
+	receipts := ipTextQueryInt(t, w, `SELECT count(*) FROM metadata_edit_receipts`)
+	// The page replay is served by its own receipt and writes nothing new.
+	out, turn, tx, err = ipBulkPageApply(t, w, r, p, cmd)
+	if err != nil || !out.Outcome.Replayed || out.Value != first {
+		t.Fatal("page replay served a different result", out, err)
+	}
+	ipTextRollback(t, turn, tx)
+	if got := ipTextQueryInt(t, w, `SELECT count(*) FROM metadata_edit_receipts`); got != receipts {
+		t.Fatal("replay wrote a target receipt", got)
+	}
+	if got := ipTextQueryInt(t, w, `SELECT count(*) FROM metadata_edit_owners`); got != 2 {
+		t.Fatal("replay wrote an edit owner", got)
+	}
+}
+
+// An unacknowledged predecessor cannot admit a fresh target command. The target
+// is recorded stale and the page still applies its remaining eligible targets.
+func TestIPEditBulkPageUnackedTargetOwnerStale(t *testing.T) {
+	w, r, p := ipBulkApplyFixture(t)
+	birth := ipBulkBirth(t, w, r, p)
+	ipTextExec(t, w, `INSERT INTO metadata_edit_owners(entity_id,kind,command_incarnation,revision,last_command_sequence,acknowledged_command_sequence) VALUES(778,'item',X'21000000000000000000000000000000',2,5,4)`)
+	ipBulkAck(t, w)
+	cmd := ipBulkPageCommandFor(t, ipBulkIdentity(2, 3), birth, 1, 0, ipBulkTargets(), nil)
+	out, turn, tx, err := ipBulkPageApply(t, w, r, p, cmd)
+	if err != nil || out.Outcome.State != Applied || out.Value.Processed != 1 || out.Value.Failed != 1 || !out.Value.NoNext {
+		t.Fatal(out, err)
+	}
+	ipTextCommit(t, turn, tx)
+	id := out.Value.OwnerID
+	first := out.Value
+	for query, want := range map[string]int64{
+		`SELECT count(*) FROM metadata_edit_owners WHERE entity_id=778 AND revision=2 AND last_command_sequence=5 AND acknowledged_command_sequence=4`:                           1,
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND ordinal=0 AND state='stale' AND edit_owner_id IS NULL AND result_revision IS NULL`: 1,
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND ordinal=1 AND state='applied'`:                                                     1,
+		`SELECT count(*) FROM metadata_owner_fields WHERE entity_id=778`:                                                                                                         0,
+		`SELECT count(*) FROM metadata_edit_receipts`: 1,
+	} {
+		if got := ipTextQueryInt(t, w, query); got != want {
+			t.Fatal(query, got, want)
+		}
+	}
+	receipts := ipTextQueryInt(t, w, `SELECT count(*) FROM metadata_edit_receipts`)
+	out, turn, tx, err = ipBulkPageApply(t, w, r, p, cmd)
+	if err != nil || !out.Outcome.Replayed || out.Value != first {
+		t.Fatal("stale-page replay served a different result", out, err)
+	}
+	ipTextRollback(t, turn, tx)
+	if got := ipTextQueryInt(t, w, `SELECT count(*) FROM metadata_edit_receipts`); got != receipts {
+		t.Fatal("replay wrote a target receipt", got)
+	}
+}
+
+// A target whose captured bundle cannot be validated against its current state
+// is stale for this page, never a page-aborting error: locking studio where one
+// target has no studio value must still apply the valid target.
+func TestIPEditBulkPageIneligibleTargetStale(t *testing.T) {
+	w, r, p := ipBulkApplyFixture(t)
+	birth := ipBulkCommand(t, ipBulkIdentity(1, 2), func(q *ipEditBulkRequest) {
+		q.Root.Fields = []ipEditBulkField{{Field: fieldmeta.Studio, Edit: fieldmeta.TextEdit{Action: fieldmeta.LockText}}}
+	})
+	turn, tx, b := ipBulkApplyTurn(t, w, r, IPEditBulkBegin)
+	if begun, err := applyIPEditBulkBegin(t.Context(), turn, p, t.Context(), b, birth); err != nil || begun.Outcome.State != Applied {
+		t.Fatal(begun, err)
+	}
+	ipTextCommit(t, turn, tx)
+	ipTextExec(t, w, `UPDATE catalog_entities SET studio='Studio A' WHERE id=778`)
+	ipBulkAck(t, w)
+	cmd := ipBulkPageCommandFor(t, ipBulkIdentity(2, 3), birth, 1, 0, ipBulkTargets(), nil)
+	out, turn, tx, err := ipBulkPageApply(t, w, r, p, cmd)
+	if err != nil || out.Outcome.State != Applied || out.Value.Processed != 1 || out.Value.Failed != 1 ||
+		out.Value.AfterOrdinal != 2 || !out.Value.NoNext {
+		t.Fatal(out, err)
+	}
+	ipTextCommit(t, turn, tx)
+	id := out.Value.OwnerID
+	for query, want := range map[string]int64{
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND ordinal=0 AND state='applied'`:                         1,
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND ordinal=1 AND state='stale' AND edit_owner_id IS NULL`: 1,
+		`SELECT count(*) FROM metadata_owner_fields WHERE entity_id=778 AND field='studio' AND value='Studio A' AND value_present=1 AND locked=1`:    1,
+		`SELECT count(*) FROM metadata_owner_fields WHERE entity_id=779`:                                                                             0,
+		`SELECT count(*) FROM metadata_edit_receipts`:                                                                                                1,
+	} {
+		if got := ipTextQueryInt(t, w, query); got != want {
+			t.Fatal(query, got, want)
+		}
+	}
+	receipts := ipTextQueryInt(t, w, `SELECT count(*) FROM metadata_edit_receipts`)
+	out, turn, tx, err = ipBulkPageApply(t, w, r, p, cmd)
+	if err != nil || !out.Outcome.Replayed || out.Value.Processed != 1 || out.Value.Failed != 1 {
+		t.Fatal("ineligible-target replay differed", out, err)
+	}
+	ipTextRollback(t, turn, tx)
+	if got := ipTextQueryInt(t, w, `SELECT count(*) FROM metadata_edit_receipts`); got != receipts {
+		t.Fatal("replay wrote a target receipt", got)
+	}
+}
+
+// A reborn entity under the same id AND revision was never captured. The page
+// proves the captured metadata incarnation, records it stale and edits nothing.
+func TestIPEditBulkPageRebornTargetStale(t *testing.T) {
+	w, r, p := ipBulkApplyFixture(t)
+	birth := ipBulkBirth(t, w, r, p)
+	reborn := [16]byte{0x44}
+	ipTextExec(t, w, `UPDATE catalog_entities SET metadata_incarnation=? WHERE id=778`, reborn[:])
+	ipBulkAck(t, w)
+	out, turn, tx, err := ipBulkPageApply(t, w, r, p, ipBulkPageCommandFor(t, ipBulkIdentity(2, 3), birth, 1, 0, ipBulkTargets(), nil))
+	if err != nil || out.Outcome.State != Applied || out.Value.Processed != 1 || out.Value.Failed != 1 || !out.Value.NoNext {
+		t.Fatal(out, err)
+	}
+	ipTextCommit(t, turn, tx)
+	id := out.Value.OwnerID
+	for query, want := range map[string]int64{
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND ordinal=0 AND state='stale' AND edit_owner_id IS NULL AND result_revision IS NULL`: 1,
+		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND ordinal=1 AND state='applied'`:                                                     1,
+		`SELECT count(*) FROM metadata_owner_fields WHERE entity_id=778`:                                                                                                         0,
+		`SELECT count(*) FROM metadata_edit_receipts r JOIN metadata_edit_owners o ON o.id=r.owner_id WHERE o.entity_id=778`:                                                     0,
+		`SELECT count(*) FROM metadata_owner_fields WHERE entity_id=779`:                                                                                                         1,
+	} {
+		if got := ipTextQueryInt(t, w, query); got != want {
+			t.Fatal(query, got, want)
+		}
+	}
 }
