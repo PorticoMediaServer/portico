@@ -109,7 +109,7 @@ func mpPhysicalDefinitions() []stmt.Definition {
 }
 func mpPhysicalPurpose(id CommandID) bool {
 	switch id {
-	case 705, 719, 727, 736, 746, 749, 764:
+	case 705, 719, 727, 736, 746, 749, 764, 816:
 		return true
 	}
 	return false
