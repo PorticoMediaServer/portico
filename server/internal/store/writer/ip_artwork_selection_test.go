@@ -116,6 +116,12 @@ func ipArtworkSelectionBytes(n byte) []byte {
 	return value
 }
 
+func ipArtworkSelectionBytes32(n byte) []byte {
+	value := make([]byte, 32)
+	value[0] = n
+	return value
+}
+
 // One accepted source with its three ready slots and (optionally) the retained
 // original upload bytes. It is content custody only, not a selection.
 func ipArtworkSelectionSource(t *testing.T, w *executor, seed int, original bool) (string, [3]string) {
@@ -831,7 +837,7 @@ func TestIPArtworkSelectionMalformedReceiptRefused(t *testing.T) {
 				selectedArg = other
 			}
 			ipPolicyExec(t, w, insert, cmd.identity.OperationID[:], cmd.digest[:],
-				[]byte{4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				ipArtworkSelectionBytes32(4),
 				tc.label, tc.count, int64(1)<<50, tc.role, tc.choice, tc.selectionRevision,
 				selectedArg, nil, historyArg)
 			ipPolicyExec(t, w, `UPDATE artwork_subject_jobs SET last_command_sequence=2,acknowledged_command_sequence=1 WHERE id=901`)
