@@ -8,11 +8,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
-// Group C is not embedded yet. plan.Capture refuses a live schema that differs
-// from the embedded native layout, so no Capture golden can be recorded here
-// without faking one. These native EXPLAIN receipts are the same standard the
-// merged IA-05 entry applies to its unembedded draft: every hot read is one
-// SEARCH and no statement needs a temp B-tree.
+// Per-statement native EXPLAIN controls complement the complete canonical C019
+// registry Captures in TestC019NativeWriterRegistries. Neither enables a caller.
 func TestIAConfigureLibraryStatementPlans(t *testing.T) {
 	w, _, _ := iaConfigureLibraryFixture(t)
 	defs := append(iaLibraryDefinitions(), wcAPIEventDefinitions()...)
@@ -57,5 +54,5 @@ func TestIAConfigureLibraryStatementPlans(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d hot configuration statements on the group C draft; EXPLAIN-only, no Capture claim", len(defs))
+	t.Logf("%d hot configuration statements on canonical C019; per-statement EXPLAIN controls", len(defs))
 }

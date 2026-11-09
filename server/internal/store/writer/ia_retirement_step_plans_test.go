@@ -12,7 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
-// An unrecorded composed native capture on F018. INT owns selective final
+// An unrecorded composed native capture on C019. INT owns selective final
 // goldens and the sole #1556 baseline; this test changes neither artifact.
 func TestIARetirementUnitNativePlans(t *testing.T) {
 	w, registry, _, _, _ := iaRetirementUnitFixture(t, false)
@@ -43,12 +43,12 @@ func TestIARetirementUnitNativePlans(t *testing.T) {
 	c := turn.transaction.conn
 	cfg := w.config
 	cfg.Synchronous = sqliteconn.Normal
-	g, err := plan.Capture(t.Context(), c, catalogue, plan.Fixture{ConnectionPolicy: cfg, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "IA F018 canonical retirement participant; unrecorded composed native capture, no authority/HOLD/performance qualification; sole shared #1556 baseline unchanged"}, policy)
+	g, err := plan.Capture(t.Context(), c, catalogue, plan.Fixture{ConnectionPolicy: cfg, SHA256: hex.EncodeToString(h.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "IA C019 canonical retirement participant; unrecorded composed native capture, no authority/HOLD/performance qualification; sole shared #1556 baseline unchanged"}, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(g.Manifest) != len(defs) || g.Receipt() == nil {
 		t.Fatal("incomplete actual registry")
 	}
-	t.Logf("%d actual registered statements on full F018; unrecorded Capture, no golden/baseline change", len(g.Manifest))
+	t.Logf("%d actual registered statements on full C019; unrecorded Capture, no golden/baseline change", len(g.Manifest))
 }
