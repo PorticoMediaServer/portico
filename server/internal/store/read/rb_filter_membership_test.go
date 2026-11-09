@@ -568,13 +568,14 @@ func TestRBFilterMembershipEpisodeGroups(t *testing.T) {
 func TestRBFilterMembershipLegacyOracleFrozen(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := rbMembershipFixture(t)
+		db := rbMembershipOracleDB(t, f.path)
 		for _, vector := range rbMembershipLegacyVectors(t) {
 			for _, kind := range rbMembershipVectorKinds(t, vector) {
 				for _, keep := range []bool{false, true} {
 					in := MembershipFilterInput{View: f.input, Query: json.RawMessage(vector.Query)}
 					in.View.Kind, in.View.KeepArticles, in.View.Limit = kind, keep, 2
 					got := rbMembershipTraverse(t, f, in)
-					want := rbMembershipLegacyMatches(t, f, in.View, vector.Where, vector.Args)
+					want := rbMembershipLegacyMatches(t, db, in.View, vector.Where, vector.Args)
 					if !reflect.DeepEqual(got, want) {
 						t.Fatalf("legacy oracle differs %s kind=%d keep=%v: native %v legacy %v", vector.Query, kind, keep, got, want)
 					}
