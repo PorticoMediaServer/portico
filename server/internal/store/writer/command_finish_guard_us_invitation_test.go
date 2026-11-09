@@ -14,6 +14,7 @@ func init() {
 	registerCommandFinishGuard(commandFinishGuardFamily{
 		name:        "us_invitation_dispatch",
 		resultTypes: []string{"usInvitationDispatchResult"},
+		names:       []string{"readUSInvitationSource", "readUSInvitationBinding", "readUSInvitationHeader", "readUSInvitationTyped", "readUSInvitationLibraryOctets", "readUSInvitationLibraries", "applyUSInvitationEffect", "checkUSInvitationCreateAdmission"},
 		bypasses: []string{
 			`func invitationDispatchBypass(ctx context.Context)(out usInvitationDispatchResult,err error){return out,nil}`,
 			`func invitationCompletionBypass(ctx context.Context)(out usInvitationDispatchResult,err error){return out,nil}`,
