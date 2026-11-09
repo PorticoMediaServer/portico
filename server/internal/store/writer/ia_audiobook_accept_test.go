@@ -50,7 +50,7 @@ func iaBookAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAut
 			[]any{searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint}},
 		{`UPDATE search_revision SET revision=1,active_generation_id=1,building_generation_id=NULL,input_sequence=0 WHERE singleton=1`, nil},
 	} {
-		if _, err = w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
+		if _, err := w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
 			t.Fatal(query.sql, err)
 		}
 	}
