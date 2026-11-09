@@ -388,9 +388,9 @@ func ipEntityJobRenewSaved(in ipEntityJobRenewRequest, identity CommandIdentity,
 		r.acceptedRevision != in.jobRevision+1 || r.operationID != identity.OperationID {
 		return zero, ErrResolveRequired
 	}
-	return ipEntityJobResult{Kind: "renew", OperationID: ipEntityJobHex(identity.OperationID),
+	return ipEntityJobResult{Kind: "renew", OperationID: in.operationID,
 		EntityID: in.entityID, Provider: in.provider, Purpose: in.purpose, SelectedID: in.selectedID,
-		Lease: ipEntityJobHex(identity.Incarnation), Generation: in.jobGeneration,
+		Lease: in.lease, Generation: in.jobGeneration,
 		Revision: in.jobRevision + 1, LeaseUntilMS: until, AppliedMS: r.appliedMS, ResultCount: 1}, nil
 }
 
@@ -400,7 +400,7 @@ func ipEntityJobFinishSaved(in ipEntityJobFinishRequest, identity CommandIdentit
 		r.acceptedRevision != in.jobRevision+1 || r.operationID != identity.OperationID {
 		return zero, ErrResolveRequired
 	}
-	return ipEntityJobResult{Kind: "finish", OperationID: ipEntityJobHex(identity.OperationID),
+	return ipEntityJobResult{Kind: "finish", OperationID: in.operationID,
 		EntityID: in.entityID, Provider: in.provider, Purpose: in.purpose, SelectedID: in.selectedID,
 		Generation: in.jobGeneration, Revision: in.jobRevision + 1, LeaseUntilMS: r.appliedMS,
 		AppliedMS: r.appliedMS, Outcome: in.outcome, ResultCount: 1}, nil
@@ -606,14 +606,14 @@ func ipEntityJobOwnerFresh(ctx context.Context, turn *commandTurn, ownerID strin
 	return ipPolicyProviderConsent(ctx, turn, provider, owner.consentRevision)
 }
 
-func ipEntityJobRecordReceipt(ctx context.Context, turn *commandTurn, id CommandIdentity, request RequestDigest,
+func ipEntityJobRecordReceipt(ctx context.Context, turn *commandTurn, owner string, id CommandIdentity, request RequestDigest,
 	value ipEntityJobResult, terminal int64, kind string, phase string) (out ResultDigest, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	digest, err := ipEntityJobResultDigest(id, request, value)
 	if err != nil {
 		return out, err
 	}
-	written, err := turn.exec(ctx, turn.steps[ipEntityJobRecordStmt].statementStep, ipEntityJobHex(id.OperationID),
+	written, err := turn.exec(ctx, turn.steps[ipEntityJobRecordStmt].statementStep, owner,
 		id.Incarnation[:], id.Sequence, id.OperationID[:], request[:], kind, value.Revision,
 		value.AppliedMS, digest[:], phase, terminal)
 	if err != nil {
@@ -692,7 +692,7 @@ func applyIPEntityClaim(ctx context.Context, turn *commandTurn, p *usOwnerAuthor
 	if err != nil {
 		return zero, err
 	}
-	digest, err := ipEntityJobRecordReceipt(ctx, turn, c.identity, c.digest, value, 0, "claim", "claimed")
+	digest, err := ipEntityJobRecordReceipt(ctx, turn, ownerID, c.identity, c.digest, value, 0, "claim", "claimed")
 	if err != nil {
 		return zero, err
 	}
@@ -783,7 +783,7 @@ func applyIPEntityRenew(ctx context.Context, turn *commandTurn, p *usOwnerAuthor
 		Provider: q.provider, Purpose: q.purpose, SelectedID: q.selectedID, Lease: q.lease,
 		Generation: q.jobGeneration, Revision: revision, LeaseUntilMS: until, AppliedMS: appliedMS,
 		ResultCount: 1}
-	digest, err := ipEntityJobRecordReceipt(ctx, turn, c.identity, c.digest, value, 0, "renew", "claimed")
+	digest, err := ipEntityJobRecordReceipt(ctx, turn, q.operationID, c.identity, c.digest, value, 0, "renew", "claimed")
 	if err != nil {
 		return zero, err
 	}
@@ -877,7 +877,7 @@ func applyIPEntityFinish(ctx context.Context, turn *commandTurn, p *usOwnerAutho
 		Provider: q.provider, Purpose: q.purpose, SelectedID: q.selectedID, Generation: q.jobGeneration,
 		Revision: revision, LeaseUntilMS: appliedMS, AppliedMS: appliedMS, Outcome: q.outcome,
 		ResultCount: 1}
-	digest, err := ipEntityJobRecordReceipt(ctx, turn, c.identity, c.digest, value, 1, "finish", q.outcome)
+	digest, err := ipEntityJobRecordReceipt(ctx, turn, q.operationID, c.identity, c.digest, value, 1, "finish", q.outcome)
 	if err != nil {
 		return zero, err
 	}

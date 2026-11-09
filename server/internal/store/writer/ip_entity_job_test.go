@@ -113,11 +113,15 @@ func ipEntityJobIdentity(seed byte, sequence int64, operation byte) CommandIdent
 }
 
 func ipEntityJobClaimFor(id int64, provider string) ipEntityJobClaimRequest {
+	policyIncarnation := [16]byte{9}
+	if provider == "musicbrainz" {
+		policyIncarnation[0] = 0x0a
+	}
 	return ipEntityJobClaimRequest{entityID: id, libraryID: 777, entityIncarnation: ipEntityJobIncarnation(id),
 		libraryKey: "ip-library", provider: provider, purpose: "metadata", role: ipEntityJobRole,
 		selectedID: fmt.Sprintf("%s-%d", provider, id), jobGeneration: 1, jobRevision: 1,
 		entityRevision: 1, sourceRevision: 1, identityRevision: 1, metadataRevision: 1,
-		policyIncarnation: [16]byte{9}, policyRevision: 1, consentRevision: 1}
+		policyIncarnation: policyIncarnation, policyRevision: 1, consentRevision: 1}
 }
 
 func ipEntityJobClaimCommand(t *testing.T, identity CommandIdentity, mutate func(*ipEntityJobClaimRequest)) *ipEntityJobCommand {

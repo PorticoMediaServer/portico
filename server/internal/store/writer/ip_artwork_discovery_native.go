@@ -226,7 +226,7 @@ func ipArtworkDiscoveryDecode(ctx context.Context, turn *commandTurn, stage, ord
 		out, size, err = v.candidate, v.bytes, e
 	}()
 	if budget < 0 {
-		return out, 0, invalid("ip_artwork_native_byte_budget")
+		return out, 0, ErrConflict
 	}
 	rows, err := ipTextRows(ctx, turn, ipADOctets, stage, ordinal)
 	if err != nil {
@@ -247,7 +247,7 @@ func ipArtworkDiscoveryDecode(ctx context.Context, turn *commandTurn, stage, ord
 		actualBytes += length
 	}
 	if actualBytes > budget {
-		return out, 0, invalid("ip_artwork_native_byte_budget")
+		return out, 0, ErrConflict
 	}
 	rows, err = ipTextRows(ctx, turn, ipADCandidate, stage, ordinal)
 	if err != nil {

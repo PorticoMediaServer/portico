@@ -120,7 +120,7 @@ func ipArtworkDiscoveryApply(t *testing.T, w *executor, r *ipPolicyRegistry, p *
 
 func ipArtworkDiscoveryAck(t *testing.T, w *executor, sequence int64) {
 	t.Helper()
-	ipPolicyExec(t, w, `UPDATE artwork_subject_jobs SET acknowledged_command_sequence=? WHERE id IN(901,902)`, sequence)
+	ipPolicyExec(t, w, `UPDATE artwork_subject_jobs SET last_command_sequence=max(last_command_sequence,?),acknowledged_command_sequence=? WHERE id IN(901,902)`, sequence, sequence)
 }
 
 // Discovery produces an immutable candidate head only: no artwork source,

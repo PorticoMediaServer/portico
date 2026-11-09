@@ -13,6 +13,13 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
+// ipBulkPublic is a 16-byte public id distinguished by its first byte.
+func ipBulkPublic(first byte) []byte {
+	id := make([]byte, 16)
+	id[0] = first
+	return id
+}
+
 func ipBulkFixture(t *testing.T) (*executor, *ipEntryRegistry, *usOwnerAuthorityProof) {
 	t.Helper()
 	w, keeper, p := ipEntrySecurityFixture(t)
@@ -34,7 +41,7 @@ func ipBulkFixture(t *testing.T) (*executor, *ipEntryRegistry, *usOwnerAuthority
 		ipBulkExec(t, w, sql)
 	}
 	ipBulkExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(778,?,777,1),(779,?,777,1),(780,?,777,8),(781,?,778,1)`,
-		[16]byte{8}[:], [16]byte{9}[:], [16]byte{10}[:], [16]byte{11}[:])
+		ipBulkPublic(8), ipBulkPublic(9), ipBulkPublic(10), ipBulkPublic(11))
 	for _, row := range []struct {
 		id       int64
 		library  int64
@@ -213,7 +220,7 @@ func TestIPEditBulkBeginFreshReplayRetired(t *testing.T) {
 	}
 
 	// Catalogue movement after capture must not rebuild the original result.
-	ipTextExec(t, w, `UPDATE catalog_entities SET revision=99,metadata_incarnation=? WHERE id IN(778,779)`, [16]byte{12}[:])
+	ipTextExec(t, w, `UPDATE catalog_entities SET revision=99,metadata_incarnation=? WHERE id IN(778,779)`, ipBulkPublic(12))
 	turn, tx, b := ipBulkTurn(t, w, r)
 	out, err = applyIPEditBulkBegin(t.Context(), turn, p, t.Context(), b, cmd)
 	if err != nil || !out.Outcome.Replayed || out.Digest != original.Digest || !ipEditBulkResultEqual(out.Value, original.Value) {
