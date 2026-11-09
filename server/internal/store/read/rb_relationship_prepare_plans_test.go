@@ -105,7 +105,7 @@ func TestRBRelationshipPreparePlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capture := range captures {
-		if len(capture.Golden.Manifest) != 16 || len(capture.Golden.Plans) != 32 {
+		if len(capture.Golden.Manifest) != 18 || len(capture.Golden.Plans) != 36 {
 			t.Fatal("incomplete statement/cohort Capture coverage")
 		}
 	}
