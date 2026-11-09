@@ -86,7 +86,7 @@ func ftsReadDatabase(t *testing.T) string {
 
 func ftsReader(t *testing.T, path string) (*sql.Conn, plan.Fixture, plan.IndexPolicy) {
 	t.Helper()
-	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 128}}
+	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 129}}
 	db, _, err := sqliteconn.Open(t.Context(), path, cfg)
 	if err != nil {
 		t.Fatal(err)

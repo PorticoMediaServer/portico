@@ -77,10 +77,13 @@ func snapshotRegistry(t *testing.T) *stmt.Registry {
 	return r
 }
 
+var snapshotConnectError = errors.New("test snapshot connect refused")
+
 type snapshotConnector struct {
 	driver.Connector
 	opened, closed, rollbacks atomic.Int64
 	failRollback              atomic.Bool
+	failConnect               atomic.Bool
 	rollbackBadConn           atomic.Bool
 	failClose                 atomic.Bool
 	checkpointPanic           atomic.Bool
@@ -112,6 +115,9 @@ func (c *snapshotConn) SQLiteMainFileIdentity() (uint64, uint64, error) {
 }
 
 func (c *snapshotConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	if c.failConnect.Load() {
+		return nil, snapshotConnectError
+	}
 	raw, err := c.Connector.Connect(ctx)
 	if err != nil {
 		return nil, err

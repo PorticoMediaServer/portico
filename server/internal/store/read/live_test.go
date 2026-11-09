@@ -557,7 +557,7 @@ func TestLiveCustodyCoversEveryWindowAndWholeRetry(t *testing.T) {
 	f, r := newLiveFixture(t)
 	observed := &foregroundBoundary{Snapshots: f.snapshots, mutate: func(phase int) {
 		usage := f.authority.Usage()[governor.Foreground]
-		if f.authority.ForegroundUsage().Live != 1 || usage[governor.MemoryBytes] != (20<<20)+4096 || usage[governor.Reader] != 1 || usage[governor.QueueBytes] != 4096 {
+		if f.authority.ForegroundUsage().Live != 1 || usage[governor.MemoryBytes] != governor.ForegroundRequestBytes+4096 || usage[governor.Reader] != 1 || usage[governor.QueueBytes] != 4096 {
 			t.Fatal("window lost or doubled live/read/output custody", phase, usage)
 		}
 		if phase == 3 {

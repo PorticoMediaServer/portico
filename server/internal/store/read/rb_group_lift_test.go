@@ -195,7 +195,7 @@ func newRBGroupLiftFixture(t *testing.T) (*browseFixture, *RBGroupLiftReader) {
 }
 
 func rbGroupLiftRequest() governor.Request {
-	return governor.Request{Key: governor.JobKey{Domain: 396, ID: "rb-group-lift-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 200000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	return governor.Request{Key: governor.JobKey{Domain: 396, ID: "rb-group-lift-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 200000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 }
 
 func rbGroupLiftRun(t *testing.T, job *RBGroupLiftPreparation) RBGroupLiftAdvance {

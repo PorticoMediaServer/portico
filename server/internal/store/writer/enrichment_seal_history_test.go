@@ -27,7 +27,7 @@ func sealHistorySnapshot(t *testing.T, w *executor) (*governor.Snapshots, *gover
 	if err != nil {
 		t.Fatal(err)
 	}
-	reader := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 4 << 20, Columns: 128}}
+	reader := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 4 << 20, Columns: 129}}
 	connector, err := sqliteconn.Connector(path, reader)
 	if err != nil {
 		t.Fatal(err)

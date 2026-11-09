@@ -83,7 +83,7 @@ func newRBSelectionFixture(t *testing.T) (*browseFixture, *RBSelectionPrepareRea
 }
 
 func rbSelectionRequest() governor.Request {
-	return governor.Request{Key: governor.JobKey{Domain: 397, ID: "rb-selection-prepare-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	return governor.Request{Key: governor.JobKey{Domain: 397, ID: "rb-selection-prepare-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 }
 
 func rbSelectionAdvanceAll(t *testing.T, job *RBSelectionPreparation) RBSelectionPrepareAdvance {

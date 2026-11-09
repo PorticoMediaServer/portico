@@ -49,7 +49,7 @@ func autoindexFixture(t *testing.T, analyzed bool) (*sql.Conn, *sql.Conn, plan.F
 	}
 	policy := f.ConnectionPolicy
 	policy.Role = sqliteconn.Reader
-	policy.ReadLimits = sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 128}
+	policy.ReadLimits = sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 129}
 	db, settings, err := sqliteconn.Open(t.Context(), path, policy)
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func autoindexFixture(t *testing.T, analyzed bool) (*sql.Conn, *sql.Conn, plan.F
 	}
 	t.Logf("autoindex actual Reader settings: %+v", actual)
 	sum := sha256.Sum256([]byte(f.SHA256 + strings.Join(setup, "\n") + string(state)))
-	return reader, writer, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(sum[:]), Statistics: state, Implementations: "bundled SQLite3.53.4; tiny two-row main PK/UNIQUE fixtures; actual fixed Reader C128/L65536; compile and point-read controls only"}
+	return reader, writer, plan.Fixture{ConnectionPolicy: policy, SHA256: hex.EncodeToString(sum[:]), Statistics: state, Implementations: "bundled SQLite3.53.4; tiny two-row main PK/UNIQUE fixtures; actual fixed Reader C129/L65536; compile and point-read controls only"}
 }
 
 func autoindexDefinitions() []stmt.Definition {

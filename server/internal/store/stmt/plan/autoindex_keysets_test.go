@@ -57,7 +57,7 @@ func policyKeysetFixture(t *testing.T, analyzed bool, extraSeed ...string) (*sql
 	}
 	f.ConnectionPolicy.Role = sqliteconn.Reader
 	f.ConnectionPolicy.CacheKiB = 1024
-	f.ConnectionPolicy.ReadLimits = sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 128}
+	f.ConnectionPolicy.ReadLimits = sqliteconn.ReadLimits{LengthBytes: 65536, Columns: 129}
 	db, _, err := sqliteconn.Open(t.Context(), path, f.ConnectionPolicy)
 	if err != nil {
 		t.Fatal(err)

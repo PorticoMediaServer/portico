@@ -48,7 +48,7 @@ func rbPersonalOrderFixtureHash(t *testing.T) string {
 func rbPersonalOrderFixture(t *testing.T, live bool) *browseFixture {
 	t.Helper()
 	cfg := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	cfg.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	cfg.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundRequestBytes}
 	if live {
 		cfg = readfixture.LiveConfig(time.Now)
 	}

@@ -6,7 +6,12 @@ import (
 	"time"
 )
 
-const ForegroundRequestBytes int64 = 20 << 20
+// ForegroundReadBytes funds the C129/L65536 native row plus the unchanged
+// 4 MiB foreground Go-copy margin. All fixed foreground read recipes use it.
+const ForegroundReadBytes int64 = 129*65536 + (4 << 20)
+
+// A LIVE request keeps its read and 8 MiB output holdings concurrently.
+const ForegroundRequestBytes int64 = ForegroundReadBytes + (8 << 20)
 
 // ForegroundProfile is supplied by trusted whole-server composition. Assigned
 // and Effective are configured bounds, not attestations of the host. New checks

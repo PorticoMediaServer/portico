@@ -377,17 +377,22 @@ func TestRBSavedViewDirectory(t *testing.T) {
 		}
 		savedViewSameDeadline(t, hook)
 		for _, memory := range hook.memory {
-			if memory != 12<<20 {
+			if memory != governor.ForegroundReadBytes {
 				t.Fatal("forecast changed original request ceiling", hook.memory)
 			}
 		}
+		wantGo := governor.ForegroundReadBytes - f.snapshots.NativeRowReservation()
+		wantNative := wantGo / 2
+		if wantGo != 4<<20 || wantNative != 2<<20 {
+			t.Fatal("C129 recipe must preserve the original copy/row allowances", wantGo, wantNative)
+		}
 		for _, forecast := range hook.forecasts {
-			if forecast.GoCopyBytes != 4<<20 || forecast.NativeRowBytes != 2<<20 {
+			if forecast.GoCopyBytes != wantGo || forecast.NativeRowBytes != wantNative {
 				t.Fatal("original explicit forecast allowances changed", forecast)
 			}
 		}
 		for _, window := range append(cost.LookupWindows, cost.PublicationWindows...) {
-			if window.GoReservedBytes != 4<<20 || window.NativeReservedBytes <= 2<<20 || window.GoReservedBytes+window.NativeReservedBytes > 12<<20 {
+			if window.GoReservedBytes != wantGo || window.NativeReservedBytes != wantNative+64+64*129 || window.GoReservedBytes+window.NativeReservedBytes > governor.ForegroundReadBytes {
 				t.Fatal("native decode overhead or original Go-copy hold unfunded", window)
 			}
 		}

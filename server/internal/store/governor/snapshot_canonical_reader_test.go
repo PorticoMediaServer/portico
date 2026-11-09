@@ -119,6 +119,14 @@ func TestSnapshotCanonicalReader129Lifecycle(t *testing.T) {
 	fault.failRollback.Store(true)
 	check("failed rollback physically discards Reader", 1, 1, snapshotRollbackError)
 	fault.failRollback.Store(false)
+	fault.failConnect.Store(true)
+	r := Request{Key: JobKey{Domain: 71, ID: "failed-replacement129"}, Owner: 1, Class: Foreground, Need: Amounts{Reader: 1, MemoryBytes: ForegroundReadBytes}, Budget: UnitBudget{RawRows: 8, VMOps: 10000, Pages: 128}, Deadline: time.Now().Add(time.Second)}
+	called := false
+	out, err := s.Read(t.Context(), r, time.Second, func(*ReadScope) error { called = true; return nil })
+	if !errors.Is(err, snapshotConnectError) || called || out.NativeReservedBytes != nativeReservation || out.GoReservedBytes != goReservation || unreserved.Load() != 0 || a.Usage() != [4]Amounts{} || len(s.slots) != 0 || s.db.Stats().InUse != 0 || fault.opened.Load() != 1 || fault.closed.Load() != 1 {
+		t.Fatal("failed replacement retained custody or entered callback", out, err, called, a.Usage())
+	}
+	fault.failConnect.Store(false)
 	check("replacement Reader on analyzed schema", 2, 1, nil)
 	if err := s.Close(); err != nil || fault.closed.Load() != 2 || a.Usage() != [4]Amounts{} {
 		t.Fatal("replacement Reader cleanup", err, fault.closed.Load(), a.Usage())
