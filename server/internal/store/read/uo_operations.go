@@ -218,7 +218,14 @@ func (r *ForegroundReader) operationsWindow(ctx context.Context, request governo
 		view.policy = readPolicyBinding{recipe: uoPersonalOperationsPolicy, state: uoPersonalOperationsPurpose}
 	}
 	steps, root := uoOperationsRead(in, output)
-	page, result, err = publishRead(ctx, r.snapshots, request, budget, output, view, steps, root)
+	// Device/conflict keysets carry no publication root: their exact octet
+	// preflight and payload share one snapshot behind the shared fence, whose
+	// current principal is re-read and compared at publication.
+	if root == nil {
+		page, result, err = publishRead(ctx, r.snapshots, request, budget, output, view, steps)
+	} else {
+		page, result, err = publishRead(ctx, r.snapshots, request, budget, output, view, steps, root)
+	}
 	if err == nil {
 		page.Statements = result.LookupStatements + result.PublicationStatements
 	}
@@ -267,39 +274,39 @@ func uoOperationsRead(in UOOperationsInput, output BrowseOutput) ([]readStep[UOO
 	switch in.Family {
 	case UOOperationsConflicts, UOOperationsDevices:
 		var rows, sizes [][]any
-		root := func(q browseQuery) ([]any, error) {
-			rows, sizes = nil, nil
-			var e error
-			sizes, e = q(base+".sizes", in.View.TokenHash, after, int64(MaxRaw+1))
-			if e != nil {
-				return nil, e
-			}
-			if e := uoOperationsReserve(output, sizes); e != nil {
-				return nil, e
-			}
-			rows, e = q(base, in.View.TokenHash, after, int64(len(sizes)))
-			if e != nil {
-				return nil, e
-			}
-			if len(rows) != len(sizes) {
-				return nil, ErrStale
-			}
-			var source []any
-			for i, row := range rows {
-				if e := uoOperationsCheckSizes(in.Family, row, sizes[i]); e != nil {
-					return nil, e
-				}
-				source = append(source, row...)
-			}
-			return source, nil
-		}
-		step := func(ctx context.Context, _ browseQuery, f browseFence, draft *UOOperationsPage) error {
+		step := func(ctx context.Context, q browseQuery, f browseFence, draft *UOOperationsPage) error {
 			if in.After != nil && (in.After.fence != f || in.After.family != in.Family) {
 				return ErrStale
 			}
+			rows, sizes = nil, nil
+			// The shared fence resolved the viewing token's own profile in this
+			// same snapshot; the forced PK device keyset binds that exact profile
+			// and never a caller-supplied id. Conflicts stay bound by the token.
+			viewer := in.View.TokenHash
+			if in.Family == UOOperationsDevices {
+				viewer = f.profile
+			}
+			var e error
+			sizes, e = q(base+".sizes", viewer, after, int64(MaxRaw+1))
+			if e != nil {
+				return e
+			}
+			if e := uoOperationsReserve(output, sizes); e != nil {
+				return e
+			}
+			rows, e = q(base, viewer, after, int64(len(sizes)))
+			if e != nil {
+				return e
+			}
+			if len(rows) != len(sizes) {
+				return ErrStale
+			}
 			draft.RawRows = len(rows)
-			for _, row := range rows {
+			for i, row := range rows {
 				if e := ctx.Err(); e != nil {
+					return e
+				}
+				if e := uoOperationsCheckSizes(in.Family, row, sizes[i]); e != nil {
 					return e
 				}
 				draft.RawPositions++
@@ -328,12 +335,12 @@ func uoOperationsRead(in UOOperationsInput, output BrowseOutput) ([]readStep[UOO
 			}
 			return uoOperationsFinish(draft, rows)
 		}
-		return []readStep[UOOperationsPage]{step}, root
+		return []readStep[UOOperationsPage]{step}, nil
 	case UOOperationsSettings:
 		var rows, sizes [][]any
 		var head [][]any
 		root := func(q browseQuery) ([]any, error) {
-			rows, sizes, head = nil, nil, nil
+			head = nil
 			var e error
 			head, e = q(base+".head", in.View.TokenHash)
 			if e != nil {
@@ -342,31 +349,26 @@ func uoOperationsRead(in UOOperationsInput, output BrowseOutput) ([]readStep[UOO
 			if len(head) != 1 || len(head[0]) != 3 {
 				return nil, ErrDenied
 			}
-			sizes, e = q(base+".pending.sizes", in.View.TokenHash, after, int64(MaxRaw+1))
+			return append([]any(nil), head[0]...), nil
+		}
+		step := func(ctx context.Context, q browseQuery, f browseFence, draft *UOOperationsPage) error {
+			if in.After != nil && (in.After.fence != f || in.After.family != in.Family) {
+				return ErrStale
+			}
+			rows, sizes = nil, nil
+			var e error
+			sizes, e = q(base+".pending.sizes", after, int64(MaxRaw+1))
 			if e != nil {
-				return nil, e
+				return e
 			}
 			if e := uoOperationsReserve(output, sizes); e != nil {
-				return nil, e
+				return e
 			}
-			rows, e = q(base+".pending", in.View.TokenHash, after, int64(len(sizes)))
+			rows, e = q(base+".pending", after, int64(len(sizes)))
 			if e != nil {
-				return nil, e
+				return e
 			}
 			if len(rows) != len(sizes) {
-				return nil, ErrStale
-			}
-			source := append([]any(nil), head[0]...)
-			for i, row := range rows {
-				if e := uoOperationsCheckSizes(in.Family, row, sizes[i]); e != nil {
-					return nil, e
-				}
-				source = append(source, row...)
-			}
-			return source, nil
-		}
-		step := func(ctx context.Context, _ browseQuery, f browseFence, draft *UOOperationsPage) error {
-			if in.After != nil && (in.After.fence != f || in.After.family != in.Family) {
 				return ErrStale
 			}
 			settings, e := uoSettingsValue(head[0])
@@ -374,8 +376,11 @@ func uoOperationsRead(in UOOperationsInput, output BrowseOutput) ([]readStep[UOO
 				return e
 			}
 			draft.RawRows = len(rows)
-			for _, row := range rows {
+			for i, row := range rows {
 				if e := ctx.Err(); e != nil {
+					return e
+				}
+				if e := uoOperationsCheckSizes(in.Family, row, sizes[i]); e != nil {
 					return e
 				}
 				draft.RawPositions++

@@ -119,7 +119,7 @@ func TestUONoticeReclaimLeavesLiveAndUnexpiredWork(t *testing.T) {
 		t.Fatal("live work reclaimed", out)
 	}
 	var liveRecords, operations int
-	if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM notification_records WHERE sequence=?), (SELECT count(*) FROM notice_broadcast_work)`).Scan(&liveRecords, &operations); err != nil || liveRecords != 1 || operations != 1 {
+	if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM notification_records WHERE sequence=?), (SELECT count(*) FROM notice_broadcast_work)`, live.sequence).Scan(&liveRecords, &operations); err != nil || liveRecords != 1 || operations != 1 {
 		t.Fatal("live notice or unexpired operation deleted", liveRecords, operations, err)
 	}
 	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM notification_records WHERE sequence=?`, live.sequence).Scan(&liveRecords); err != nil || liveRecords != 1 {

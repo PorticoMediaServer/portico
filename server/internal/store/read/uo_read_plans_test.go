@@ -14,6 +14,9 @@ import (
 // the fixture.
 func TestUOActivityPlanCapture(t *testing.T) {
 	f := newForegroundSource(t)
+	// Give ANALYZE the completed/recent sparsity a live personal stream has, so
+	// the planner cannot prefer a skip-scan the pinned sparse-index recipe refuses.
+	f.exec(t, `UPDATE personal_items SET last_played_at=activity_at, last_completed_at=activity_at WHERE item_id%4=0`)
 	definitions := UOActivityDefinitions()
 	if len(definitions) != 25 {
 		t.Fatal("unexpected UO activity statement inventory", len(definitions))
