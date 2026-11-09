@@ -81,6 +81,7 @@ class Disk {
   }
 }
 
+type Trouble = 'busy' | 'slow-down' | 'elsewhere';
 class Server {
   up = true;
   /** How many times each key's edit was applied, and for whom. */
@@ -89,9 +90,10 @@ class Server {
   private nextToken = 0;
   signIn(who: Who) { const token = 'token-' + ++this.nextToken; this.tokens.set(token, who); return token; }
   /** Undefined: the request reached nobody. */
-  handle(token: string, entry: OutboxEntry, trouble: 'busy' | 'slow-down' | undefined): OutboxAnswer | undefined {
+  handle(token: string, entry: OutboxEntry, trouble: Trouble | undefined): OutboxAnswer | undefined {
     if (!this.up) return undefined;
     if (trouble === 'busy') return {status: 503};
+    if (trouble === 'elsewhere') return {status: 302}; // a proxy sends the request somewhere else
     if (trouble === 'slow-down') return {status: 429, retryAfterMs: 20_000};
     const who = this.tokens.get(token);
     if (!who) return {status: 401};
@@ -111,7 +113,7 @@ async function sequence(seed: number) {
   const edits = new Map<string, Edit>();
   let session: {who: Who; token: string} | undefined;
   let outbox!: Outbox, life = 0;
-  let loseRequest = 0, loseReply = 0, trouble: ('busy' | 'slow-down')[] = [];
+  let loseRequest = 0, loseReply = 0, trouble: Trouble[] = [];
   let lastEdit: Edit | undefined, nextEdit = 0;
   const sentTooOld: string[] = [];
 
@@ -159,7 +161,7 @@ async function sequence(seed: number) {
       if (session && lastEdit && lastEdit.who === session.who && !lastEdit.refusedToCaller && !lastEdit.dropped.length) write(lastEdit);
     } else if (roll < 0.44) loseRequest++;
     else if (roll < 0.52) loseReply++;
-    else if (roll < 0.58) trouble.push(pick(['busy', 'slow-down'] as const));
+    else if (roll < 0.58) trouble.push(pick(['busy', 'slow-down', 'elsewhere'] as const));
     else if (roll < 0.63) { server.up = false; }
     else if (roll < 0.68) { server.up = true; outbox.wake(); }
     else if (roll < 0.74) { life++; outbox.dispose(); boot(); }
