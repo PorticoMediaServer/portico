@@ -405,6 +405,32 @@ func TestMGLCDispatchEveryAcceptedPurposeRetires(t *testing.T) {
 	})
 }
 
+// A nine-library build is refused by the frame's typed invalid-input error, not
+// silently truncated to the eight-library component window, and performs no
+// effect.
+func TestMGLCDispatchRefusesNineLibraries(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w, b := mgLCFixture(t)
+		b.libraries = make([]mgLCLibraryWitness, 9)
+		for i := range b.libraries {
+			b.libraries[i] = mgLCLibraryWitness{id: "lc-lib-" + string(rune('a'+i)), revision: 11, order: 1,
+				metadata: 1, origin: 1, catalogue: int64(101 + i), incarnation: [16]byte{7}}
+		}
+		turn := mgLCDispatchTurn(t, w, MGLCBegin)
+		got, _, err := mgLCDispatch(t.Context(), turn, b, mgLCNext(b, mgLCProgress{}), MGLCBegin, mgLCDispatchInput{})
+		if !errors.Is(err, ErrInvalid) || got != (mgLCSaved{}) {
+			t.Fatal("nine-library build accepted", got, err)
+		}
+		if _, err := turn.transaction.rollback(nil); err != nil {
+			t.Fatal(err)
+		}
+		var owners int
+		if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM lc_generations WHERE id='lc-new'`).Scan(&owners); err != nil || owners != 0 {
+			t.Fatal("refused frame wrote a generation", owners, err)
+		}
+	})
+}
+
 func TestMGLCDispatchDescriptorInventory(t *testing.T) {
 	ds := mgLCDispatchDescriptors()
 	if len(ds) != 7 {

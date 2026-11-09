@@ -277,13 +277,13 @@ func (p *Producer) Plan(limit int) (ScheduleBatch, error) {
 			return ScheduleBatch{}, ErrScheduleInput
 		}
 		remaining := block.Interval.End.UTC.UnixMilli() - state.Cursor
-		candidate, found := p.choose(&state, used, rule, block, remaining)
+		candidate, found := p.choose(&state, used, history, rule, block, remaining)
 		if !found && block.Fallback != "" {
 			fallback, ok := p.rules[block.Fallback]
 			if !ok {
 				return ScheduleBatch{}, ErrScheduleInput
 			}
-			candidate, found = p.choose(&state, used, fallback, block, remaining)
+			candidate, found = p.choose(&state, used, history, fallback, block, remaining)
 			if found {
 				rule = fallback
 			}
@@ -552,8 +552,10 @@ func unitAt(b [16]byte, half int) float64 {
 }
 
 // choose is the pure form of librarychannels.selectCandidate. It mutates only
-// the batch-local state and used map; history/lists stay frozen.
-func (p *Producer) choose(state *ScheduleState, used map[usedKey]int64, r librarychannels.Rule,
+// the batch-local state and used map. history is the caller's frozen history
+// plus every slot already emitted in this batch, so dedupe and the consecutive
+// limit see earlier slots of the same batch and never depend on batch size.
+func (p *Producer) choose(state *ScheduleState, used map[usedKey]int64, history []HistoryEntry, r librarychannels.Rule,
 	block librarychannels.ResolvedBlock, remaining int64) (Candidate, bool) {
 	cursor := state.Rules[r.ID]
 	if block.Anchor == "block-start" && cursor.LastBlock != block.ID {
@@ -562,7 +564,7 @@ func (p *Producer) choose(state *ScheduleState, used map[usedKey]int64, r librar
 	if cursor.Done {
 		return Candidate{}, false
 	}
-	facts := scheduleHistoryFacts(p.history, r.DeduplicationWindow, r.MaxConsecutive)
+	facts := scheduleHistoryFacts(history, r.DeduplicationWindow, r.MaxConsecutive)
 	inOrder := r.EpisodeMode == "in-order" || r.EpisodeMode == "marathon" || r.EpisodeMode == "rotate"
 	pool := p.pool[r.ID]
 	for attempt := 0; attempt < 2; attempt++ {
