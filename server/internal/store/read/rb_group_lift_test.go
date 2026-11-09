@@ -76,7 +76,7 @@ func newRBGroupLiftSource(t *testing.T) *browseFixture {
 		add(6340+n, 7, fmt.Sprintf("Song Two %d", n), ",parent_id,album_id,disc_number,track_number", albumTwo, albumTwo, int64(1), n+1)
 	}
 	add(6360, 7, "Retired Song", ",parent_id,album_id,retired", albumOne, albumOne, int64(1))
-	add(book, 8, "Book", ",parent_id", nil)
+	add(book, 8, "Book", ",parent_id,author,book_author_identity_key", nil, "", "author:")
 	for n := int64(0); n < 5; n++ {
 		add(6510+n, 9, fmt.Sprintf("Part %d", n), ",parent_id,book_id,part_number", book, book, n+1)
 	}

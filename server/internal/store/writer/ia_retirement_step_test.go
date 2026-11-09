@@ -17,8 +17,8 @@ import (
 func iaRetirementUnitFixture(t *testing.T, folder bool) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof, iaRetirementUnitScope, iaRetirementMediaVictim) {
 	t.Helper()
 	w, keeper, p := iaEntrySecurityFixture(t)
-	if schema.SHA256 != "484242fbb520ace5b4bfc1db015e2f3530dc01cfa5ff08bfd22a5244812905ca" {
-		t.Fatal("F018 candidate source changed; report binding drift, do not record a new baseline", schema.SHA256)
+	if schema.SHA256 != "81d6971a2eeb98f07304cf9e889af5f0bf94572c9c8f3fa8539a099d7f98d46b" {
+		t.Fatal("C019 composed source changed; report binding drift, do not record a new baseline", schema.SHA256)
 	}
 	for _, q := range []string{
 		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(20,'ebook',0,0,1,1,0)`,

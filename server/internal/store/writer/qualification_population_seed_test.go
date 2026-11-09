@@ -85,8 +85,8 @@ func seedQualificationPopulation(t *testing.T, w *executor, spec qualificationPo
 	// Adopted changes through CHANGE-018 media leave the movie
 	// population SQL/defaults and logical shape unchanged. Export fresh images
 	// with this exact schema; manifests from earlier schemas remain refused.
-	if schema.SHA256 != "484242fbb520ace5b4bfc1db015e2f3530dc01cfa5ff08bfd22a5244812905ca" {
-		t.Fatal("canonical-movies-v1 requires exact canonical schema018")
+	if schema.SHA256 != "81d6971a2eeb98f07304cf9e889af5f0bf94572c9c8f3fa8539a099d7f98d46b" {
+		t.Fatal("canonical-movies-v1 requires exact canonical schema019")
 	}
 	conn, err := w.db.Conn(t.Context())
 	if err != nil {

@@ -34,7 +34,12 @@ func newIAAudioSource(t *testing.T) *browseFixture {
 		public := make([]byte, 16)
 		binary.LittleEndian.PutUint64(public, uint64(v.id))
 		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,?)`, v.id, public, v.kind)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id,album_id,book_id,disc_number,track_number,part_number,admission_own_age) VALUES(?,?,1,?,'é Album','audio','audio','audio','audio',0,?,?,?,?,?,?,?,?,12)`, v.id, public, v.kind, public, public, v.artist, v.album, v.book, v.disc, v.track, v.part)
+		// The admitted fixture author is empty; it grants no author membership.
+		var authorKey any
+		if v.kind == 8 {
+			authorKey = "author:"
+		}
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id,album_id,book_id,disc_number,track_number,part_number,admission_own_age,author,book_author_identity_key) VALUES(?,?,1,?,'é Album','audio','audio','audio','audio',0,?,?,?,?,?,?,?,?,12,'',?)`, v.id, public, v.kind, public, public, v.artist, v.album, v.book, v.disc, v.track, v.part, authorKey)
 	}
 	f.exec(t, `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(2003,2001)`)
 	f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE id=2008`)
