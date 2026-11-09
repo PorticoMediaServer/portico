@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -492,4 +493,312 @@ func rsRouteHit(group RSSearchGroup, id int64) FullSearchHit {
 		h.PersonName = "person"
 	}
 	return h
+}
+
+func rsRouteLiveHits(n int) []FullSearchHit {
+	hits := make([]FullSearchHit, n)
+	for i := range hits {
+		hits[i] = rsRouteHit(RSSearchLiveTV, int64(i+1))
+	}
+	return hits
+}
+
+// Each group starts its own bounded window: Live must not be charged the time
+// catalogue already spent inside the same 600ms ceiling.
+func TestRSSearchRoutesAllGroupLiveGetsItsOwnGroupDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		in := RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 0}, Text: "alpha"}}
+		routes := NewRSSearchRoutes(nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+			time.Sleep(500 * time.Millisecond)
+			return RSSearchPage{Complete: true, Partial: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, nil, nil
+		}, nil, func(ctx context.Context, _ governor.Request, budget time.Duration, _ BrowseOutput, _ RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("Live group has no deadline")
+			}
+			if span := deadline.Sub(time.Now()); span < 550*time.Millisecond || span > RSSearchGroupBudget || budget < 550*time.Millisecond {
+				t.Fatalf("Live group inherited catalogue's spent budget: span %v budget %v", span, budget)
+			}
+			return RSSearchGroupPage{Group: RSSearchLiveTV, Hits: rsRouteLiveHits(1)}, nil, nil
+		}, nil)
+		result, _, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, in)
+		if err != nil || len(result.Page.Groups) != 2 {
+			t.Fatal(result, err)
+		}
+	})
+}
+
+// A real foreground read scope authorizes exactly ONE public read operation. The
+// all-group route must therefore hand Live its own output grant: reusing the
+// catalogue's output makes every real MG Live adapter fail with governor.ErrGrant.
+func TestRSSearchRoutesAllGroupLiveGetsItsOwnOutput(t *testing.T) {
+	f, _ := newLiveFixture(t)
+	q, request, output := liveRequests("rs-route-live-output")
+	in := RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 0}, Text: "alpha"}}
+	var grants []*governor.Grant
+	// Both fakes perform the same single-use begin a real public reader does, so
+	// a shared output is refused instead of being silently tolerated.
+	begin := func(ctx context.Context, req governor.Request, out BrowseOutput) error {
+		if out.live == nil {
+			t.Fatal("route did not pass foreground custody")
+		}
+		if err := out.live.begin(ctx, out, req, f.snapshots); err != nil {
+			return err
+		}
+		out.live.reads.Done()
+		grants = append(grants, out.Grant)
+		return nil
+	}
+	catalogue := func(ctx context.Context, req governor.Request, _ time.Duration, out BrowseOutput, _ RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+		if err := begin(ctx, req, out); err != nil {
+			return RSSearchPage{}, nil, err
+		}
+		return RSSearchPage{Complete: true, Partial: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, nil, nil
+	}
+	live := func(ctx context.Context, req governor.Request, _ time.Duration, out BrowseOutput, _ RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+		if err := begin(ctx, req, out); err != nil {
+			return RSSearchGroupPage{}, nil, err
+		}
+		return RSSearchGroupPage{Group: RSSearchLiveTV, Hits: rsRouteLiveHits(1)}, &BrowseReadResult{LookupStatements: 1}, nil
+	}
+	routes := NewRSSearchRoutes(nil, catalogue, nil, live, nil)
+	var result RSSearchRoutesResult
+	var cost *BrowseReadResult
+	consumption, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, q, output, func(ctx context.Context, custody BrowseOutput) error {
+		var e error
+		result, cost, e = routes.Read(ctx, request, time.Second, custody, in)
+		return e
+	})
+	if err != nil || consumption.Refusal != nil {
+		t.Fatal(err, consumption.Refusal)
+	}
+	if len(result.Page.Groups) != 2 || result.Page.Groups[1].Group != RSSearchLiveTV || len(result.Errors) != 0 {
+		t.Fatal("Live group did not survive its own output", result, result.Errors)
+	}
+	if len(grants) != 2 || grants[0] == nil || grants[1] == nil || grants[0] == grants[1] {
+		t.Fatal("each source must hold its own output grant", grants)
+	}
+	if cost == nil || cost.LookupStatements != 1 {
+		t.Fatal("Live cost missing from the composite", cost)
+	}
+	assertLiveUsage(t, f, 0, 0)
+}
+
+// The all-group preview is eight cards per group. A Live adapter that returns a
+// selected-group-sized (or any over-limit) page is refused by name, never
+// silently trimmed into an exact-looking answer.
+func TestRSSearchRoutesAllGroupLivePreviewLimit(t *testing.T) {
+	catalogue := func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+		return RSSearchPage{Complete: true, Partial: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, nil, nil
+	}
+	in := RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 0}, Text: "alpha"}}
+	for _, tc := range []struct {
+		hits int
+		ok   bool
+	}{
+		{hits: 8, ok: true},
+		{hits: 9},
+		{hits: 40},
+	} {
+		page := RSSearchGroupPage{Group: RSSearchLiveTV, Hits: rsRouteLiveHits(tc.hits)}
+		routes := NewRSSearchRoutes(nil, catalogue, nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+			return page, nil, nil
+		}, nil)
+		result, _, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, in)
+		if err != nil {
+			t.Fatal(tc.hits, err)
+		}
+		if tc.ok {
+			if len(result.Page.Groups) != 2 || len(result.Errors) != 0 {
+				t.Fatal(tc.hits, result, result.Errors)
+			}
+			continue
+		}
+		if len(result.Page.Groups) != 1 || len(result.Errors) != 1 ||
+			result.Errors[0].Group != RSSearchLiveTV || !errors.Is(result.Errors[0].Err, ErrRSSearchPreviewOverflow) {
+			t.Fatal(tc.hits, result, result.Errors)
+		}
+	}
+}
+
+// A pending catalogue page carries neither groups nor a Live prefix: pending
+// with a group is exactly the shape rssValidateRSSearchPage refuses.
+func TestRSSearchRoutesAllGroupPendingCatalogue(t *testing.T) {
+	cost := &BrowseReadResult{LookupStatements: 2}
+	liveCalled := false
+	routes := NewRSSearchRoutes(nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+		return RSSearchPage{Pending: true}, cost, nil
+	}, nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+		liveCalled = true
+		return RSSearchGroupPage{Group: RSSearchLiveTV}, nil, nil
+	}, nil)
+	result, got, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 0}, Text: "alpha"}})
+	if err != nil || got != cost || liveCalled {
+		t.Fatal(err, got, liveCalled)
+	}
+	if !result.Page.Pending || result.Page.Complete || len(result.Page.Groups) != 0 || len(result.Pending) != 0 {
+		t.Fatal("pending all-group page must carry no groups", result)
+	}
+}
+
+// Live's cost is part of the composite: dropping the second source's windows,
+// statements or refusal would under-report the read and hide a governor refusal.
+func TestRSSearchRoutesAllGroupLiveCost(t *testing.T) {
+	window := governor.SnapshotResult{Started: time.Now()}
+	refusal := &governor.Refusal{Code: governor.Capacity}
+	catalogueCost := &BrowseReadResult{LookupStatements: 2, PublicationStatements: 3, Attempts: 1, LookupWindows: []governor.SnapshotResult{window}}
+	liveCost := &BrowseReadResult{LookupStatements: 5, PublicationStatements: 7, Attempts: 3, LookupWindows: []governor.SnapshotResult{window, window}, PublicationWindows: []governor.SnapshotResult{window}, Refusal: refusal}
+	page := RSSearchGroupPage{Group: RSSearchLiveTV, Hits: rsRouteLiveHits(1)}
+	routes := NewRSSearchRoutes(nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+		return RSSearchPage{Complete: true, Partial: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, catalogueCost, nil
+	}, nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+		return page, liveCost, nil
+	}, nil)
+	result, cost, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 0}, Text: "alpha"}})
+	if err != nil || len(result.Page.Groups) != 2 {
+		t.Fatal(err, result)
+	}
+	if cost.LookupStatements != 7 || cost.PublicationStatements != 10 || cost.Attempts != 3 ||
+		len(cost.LookupWindows) != 3 || len(cost.PublicationWindows) != 1 || cost.Refusal != refusal {
+		t.Fatalf("composite cost dropped Live work: %+v", cost)
+	}
+
+	// A failing Live source still contributes its cost and refusal.
+	cost.Refusal = nil
+	liveCost.Refusal = refusal
+	routes = NewRSSearchRoutes(nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+		return RSSearchPage{Complete: true, Partial: true}, &BrowseReadResult{LookupStatements: 1}, nil
+	}, nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+		return RSSearchGroupPage{}, liveCost, governor.ErrBusy
+	}, nil)
+	result, cost, err = routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 0}, Text: "alpha"}})
+	if err != nil || len(result.Errors) != 1 || !errors.Is(result.Errors[0].Err, governor.ErrBusy) {
+		t.Fatal(err, result.Errors)
+	}
+	if cost.LookupStatements != 6 || cost.Refusal != refusal {
+		t.Fatalf("failed group cost dropped: %+v", cost)
+	}
+}
+
+// A request generation that moves on while Live runs cannot let its group escape
+// with the catalogue page.
+func TestRSSearchRoutesAllGroupSupersededAfterLive(t *testing.T) {
+	calls := 0
+	liveCalled := false
+	routes := NewRSSearchRoutes(nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+		return RSSearchPage{Complete: true, Partial: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, nil, nil
+	}, nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+		liveCalled = true
+		return RSSearchGroupPage{Group: RSSearchLiveTV, Hits: rsRouteLiveHits(1)}, nil, nil
+	}, nil)
+	in := RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 0}, Text: "alpha"}}
+	in.Current = func() bool { calls++; return calls <= 2 }
+	result, _, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, in)
+	if !errors.Is(err, ErrSearchSuperseded) || !liveCalled || len(result.Page.Groups) != 0 {
+		t.Fatal("superseded Live group escaped", result, err)
+	}
+}
+
+// The full-mode catalogue cursor is forwarded, and sources with no published
+// continuation refuse it by name instead of silently ignoring it.
+func TestRSSearchRoutesForwardCursorAndRefuseUnsupported(t *testing.T) {
+	cursor := &FullSearchCursor{query: "alpha"}
+	var got *FullSearchCursor
+	routes := NewRSSearchRoutes(nil, func(_ context.Context, _ governor.Request, _ time.Duration, _ BrowseOutput, in RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+		got = in.After
+		return RSSearchPage{Complete: true, Groups: []RSSearchGroupPage{{Group: 1, Hits: []FullSearchHit{rsRouteHit(1, 1)}}}}, nil, nil
+	}, nil, nil, nil)
+	if _, _, err := routes.Read(t.Context(), governor.Request{}, time.Second, BrowseOutput{}, RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 1}, Text: "alpha", FullAfter: cursor}}); err != nil || got != cursor {
+		t.Fatal("catalogue cursor not forwarded", got, err)
+	}
+	for _, tc := range []struct {
+		name string
+		in   RSSearchRouteInput
+	}{
+		{"reading-text", RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Kind: 20}, Text: "alpha", FullAfter: cursor}, ReadingText: true}},
+		{"live", RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{}, Text: "alpha", FullAfter: cursor}, Group: RSSearchLiveTV}},
+		{"people", RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{}, Text: "alpha", FullAfter: cursor}, Group: RSSearchPeople}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := planRSSearchRoute(tc.in); !errors.Is(err, ErrRSSearchContinuationUnsupported) {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// Neither the caller's request/output nor the planned query/AFTER may be zeroed
+// on the way to a source; each fake records exactly what it was given.
+func TestRSSearchRoutesForwardRequestOutputAndQuery(t *testing.T) {
+	request := governor.Request{Key: governor.JobKey{Domain: 7, ID: "forward"}, Owner: 3, Class: governor.Foreground, Deadline: time.Now().Add(time.Minute)}
+	grant := &governor.Grant{}
+	output := BrowseOutput{Authority: nil, Grant: grant, Request: governor.Request{Key: governor.JobKey{Domain: 8, ID: "output"}, Owner: 3, Class: governor.Foreground, Need: governor.Amounts{governor.MemoryBytes: 8 << 20}, Deadline: request.Deadline}}
+	view := BrowseInput{Database: "db", TokenHash: "token", Library: 1, Kind: 1, Limit: 8}
+	planned, err := search.PlanQuery("alpha", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name    string
+		in      RSSearchRouteInput
+		group   RSSearchGroup
+		source  RSSearchSource
+		cursor  *FullSearchCursor
+		wantErr error
+	}{
+		{name: "catalogue", in: RSSearchRouteInput{SearchInput: SearchInput{View: view, Text: "alpha"}}, group: 1, source: RSSearchSourceCatalogue},
+		{name: "catalogue-after", in: RSSearchRouteInput{SearchInput: SearchInput{View: view, Text: "alpha", FullAfter: &FullSearchCursor{}}}, group: 1, source: RSSearchSourceCatalogue},
+		{name: "reading-text", in: RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Database: "db", TokenHash: "token", Library: 1, Kind: 20, Limit: 8}, Text: "alpha"}, ReadingText: true}, group: RSSearchReading, source: RSSearchSourceReadingText},
+		{name: "live", in: RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Database: "db", TokenHash: "token", Library: 1, Limit: 8}, Text: "alpha"}, Group: RSSearchLiveTV}, group: RSSearchLiveTV, source: RSSearchSourceLive},
+		{name: "people", in: RSSearchRouteInput{SearchInput: SearchInput{View: BrowseInput{Database: "db", TokenHash: "token", Library: 1, Limit: 8}, Text: "alpha"}, Group: RSSearchPeople}, group: RSSearchPeople, source: RSSearchSourcePeople},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var sawReq governor.Request
+			var sawOut BrowseOutput
+			var sawAfter *FullSearchCursor
+			check := func(req governor.Request, out BrowseOutput, in RSSearchRouteRequest) {
+				sawReq, sawOut, sawAfter = req, out, in.After
+				if !reflect.DeepEqual(req, request) {
+					t.Fatal("request zeroed or replaced", req)
+				}
+				if !reflect.DeepEqual(out, output) {
+					t.Fatal("output zeroed or replaced", out)
+				}
+				if in.Query != planned || in.Group != tc.group || in.View.Kind != tc.in.View.Kind || !in.Full {
+					t.Fatal("route request incomplete", in, in.Query.Mode())
+				}
+				wantAfter := tc.in.FullAfter
+				if in.After != wantAfter {
+					t.Fatal("AFTER cursor dropped", in.After, wantAfter)
+				}
+			}
+			catalogue := func(_ context.Context, req governor.Request, _ time.Duration, out BrowseOutput, in RSSearchRouteRequest) (RSSearchPage, *BrowseReadResult, error) {
+				check(req, out, in)
+				return RSSearchPage{Complete: true, Groups: []RSSearchGroupPage{{Group: in.Group, Hits: []FullSearchHit{rsRouteHit(in.Group, 1)}}}}, nil, nil
+			}
+			reading := func(_ context.Context, req governor.Request, _ time.Duration, out BrowseOutput, in RSSearchRouteRequest) (RSSearchReadingTextPage, *BrowseReadResult, error) {
+				check(req, out, in)
+				return RSSearchReadingTextPage{Hits: []RSSearchReadingTextHit{{ItemID: 1, SectionPath: "s", Excerpt: "x", MatchLength: 1}}}, nil, nil
+			}
+			live := func(_ context.Context, req governor.Request, _ time.Duration, out BrowseOutput, in RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+				check(req, out, in)
+				return RSSearchGroupPage{Group: RSSearchLiveTV, Hits: rsRouteLiveHits(1)}, nil, nil
+			}
+			people := func(_ context.Context, req governor.Request, _ time.Duration, out BrowseOutput, in RSSearchRouteRequest) (RSSearchGroupPage, *BrowseReadResult, error) {
+				check(req, out, in)
+				return RSSearchGroupPage{Group: RSSearchPeople, Hits: []FullSearchHit{rsRouteHit(RSSearchPeople, 1)}}, nil, nil
+			}
+			routes := NewRSSearchRoutes(nil, catalogue, reading, live, people)
+			result, _, err := routes.Read(t.Context(), request, time.Second, output, tc.in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Route.Source != tc.source || result.Route.Group != tc.group {
+				t.Fatal(result.Route)
+			}
+			if sawReq.Key != request.Key || sawOut.Grant != grant || sawAfter != tc.in.FullAfter {
+				t.Fatal("source saw a zeroed request/output/AFTER", sawReq, sawOut, sawAfter)
+			}
+		})
+	}
 }

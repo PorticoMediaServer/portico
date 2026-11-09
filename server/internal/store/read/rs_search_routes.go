@@ -58,6 +58,13 @@ var (
 	ErrRSSearchLivePending        = errors.New("live search is pending MG's active-generation channel matcher")
 	ErrRSSearchPeoplePending      = errors.New("people search is pending the native people directory adapter")
 	ErrRSSearchGroupUnsupported   = errors.New("search group has no published source")
+	// ErrRSSearchPreviewOverflow names an all-group preview group that returned
+	// more than the bounded eight cards. It is a refusal, never a silent trim of
+	// an exact answer.
+	ErrRSSearchPreviewOverflow = errors.New("all-group search preview allows at most eight cards per group")
+	// ErrRSSearchContinuationUnsupported refuses a catalogue full-search cursor
+	// for a source whose page publishes no continuation of its own.
+	ErrRSSearchContinuationUnsupported = errors.New("search continuation is not published by this source")
 )
 
 // RSSearchGroupError preserves the existing per-group error/success outcome
@@ -170,11 +177,19 @@ func planRSSearchRoute(in RSSearchRouteInput) (RSSearchRoute, error) {
 		if group != RSSearchReading {
 			return RSSearchRoute{}, ErrInput
 		}
+		// The accepted-section text page publishes no continuation of its own;
+		// a catalogue full-search cursor must not be forwarded to it.
+		if in.FullAfter != nil {
+			return RSSearchRoute{}, ErrRSSearchContinuationUnsupported
+		}
 		return RSSearchRoute{Mode: query.Mode(), Source: RSSearchSourceReadingText, Group: group, Full: true}, nil
 	}
 	source, err := RSSearchSourceForGroup(group)
 	if err != nil {
 		return RSSearchRoute{}, err
+	}
+	if in.FullAfter != nil && source != RSSearchSourceCatalogue {
+		return RSSearchRoute{}, ErrRSSearchContinuationUnsupported
 	}
 	return RSSearchRoute{Mode: query.Mode(), Source: source, Group: group, Full: group != 0}, nil
 }
@@ -296,15 +311,15 @@ func (r *RSSearchRoutes) Read(ctx context.Context, request governor.Request, bud
 	if groupBudget <= 0 {
 		return result, nil, ErrInput
 	}
-	groupCtx, cancel := context.WithTimeout(ctx, groupBudget)
-	defer cancel()
 
 	switch route.Source {
 	case RSSearchSourceTitles:
 		if r == nil || r.Titles == nil {
 			return result, nil, ErrRSSearchTitlesPending
 		}
-		page, cost, err := r.Titles(groupCtx, request, groupBudget, output, req.View, req.Query)
+		groupCtx, cancel, deadline := rssGroupDeadline(ctx, request, budget)
+		defer cancel()
+		page, cost, err := r.Titles(groupCtx, request, time.Until(deadline), output, req.View, req.Query)
 		if err != nil {
 			return result, nil, rssRouteGroupError(route.Group, err)
 		}
@@ -321,7 +336,9 @@ func (r *RSSearchRoutes) Read(ctx context.Context, request governor.Request, bud
 		if r == nil || r.Catalogue == nil {
 			return result, nil, ErrRSSearchCataloguePending
 		}
-		page, cost, err := r.Catalogue(groupCtx, request, groupBudget, output, req)
+		groupCtx, cancel, deadline := rssGroupDeadline(ctx, request, budget)
+		defer cancel()
+		page, cost, err := r.Catalogue(groupCtx, request, time.Until(deadline), output, req)
 		if err != nil {
 			return result, nil, rssRouteGroupError(route.Group, err)
 		}
@@ -333,14 +350,31 @@ func (r *RSSearchRoutes) Read(ctx context.Context, request governor.Request, bud
 		}
 		result.Page = page
 		if route.Group == 0 {
-			result.Pending, result.Errors = r.appendLive(groupCtx, request, groupBudget, output, req, &result)
+			// A pending catalogue page carries no prefix or groups at all. Live
+			// is not polled behind it, so the page keeps the validator's pending
+			// shape and never becomes "pending with a Live group".
+			if page.Pending {
+				return result, cost, nil
+			}
+			if cost == nil {
+				cost = &BrowseReadResult{}
+			}
+			result.Pending, result.Errors = r.appendLive(ctx, request, budget, output, req, &result, cost)
+			// A request generation that moved on while Live ran must not let the
+			// superseded Live group escape with the catalogue page.
+			if err = rssRouteCurrent(ctx, in); err != nil {
+				result.Page, result.Pending, result.Errors = RSSearchPage{}, nil, nil
+				return result, cost, err
+			}
 		}
 		return result, cost, nil
 	case RSSearchSourceReadingText:
 		if r == nil || r.Reading == nil {
 			return result, nil, ErrRSSearchReadingTextPending
 		}
-		page, cost, err := r.Reading(groupCtx, request, groupBudget, output, req)
+		groupCtx, cancel, deadline := rssGroupDeadline(ctx, request, budget)
+		defer cancel()
+		page, cost, err := r.Reading(groupCtx, request, time.Until(deadline), output, req)
 		if err != nil {
 			return result, nil, rssRouteGroupError(route.Group, err)
 		}
@@ -356,7 +390,9 @@ func (r *RSSearchRoutes) Read(ctx context.Context, request governor.Request, bud
 		if r == nil || r.Live == nil {
 			return result, nil, ErrRSSearchLivePending
 		}
-		page, cost, err := r.Live(groupCtx, request, groupBudget, output, req)
+		groupCtx, cancel, deadline := rssGroupDeadline(ctx, request, budget)
+		defer cancel()
+		page, cost, err := r.Live(groupCtx, request, time.Until(deadline), output, req)
 		if err != nil {
 			return result, nil, rssRouteGroupError(route.Group, err)
 		}
@@ -372,7 +408,9 @@ func (r *RSSearchRoutes) Read(ctx context.Context, request governor.Request, bud
 		if r == nil || r.People == nil {
 			return result, nil, ErrRSSearchPeoplePending
 		}
-		page, cost, err := r.People(groupCtx, request, groupBudget, output, req)
+		groupCtx, cancel, deadline := rssGroupDeadline(ctx, request, budget)
+		defer cancel()
+		page, cost, err := r.People(groupCtx, request, time.Until(deadline), output, req)
 		if err != nil {
 			return result, nil, rssRouteGroupError(route.Group, err)
 		}
@@ -392,20 +430,108 @@ func (r *RSSearchRoutes) Read(ctx context.Context, request governor.Request, bud
 // appendLive adds the explicitly requested Live group to an all-group request.
 // Without MG's adapter it is named pending; a failing owner adapter is kept as
 // a per-group error while every catalogue group still stands.
-func (r *RSSearchRoutes) appendLive(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, req RSSearchRouteRequest, result *RSSearchRoutesResult) ([]RSSearchGroup, []RSSearchGroupError) {
+//
+// Live is a second source under the caller's request. It gets its own bounded
+// group deadline and, whenever the caller holds a real foreground read scope,
+// its own output grant: the caller's BrowseOutput authorizes exactly one public
+// read operation, so handing it to a second source would refuse every Live read
+// with governor.ErrGrant. The Live cost (windows, statements, refusal) is added
+// to the composite cost, never discarded.
+func (r *RSSearchRoutes) appendLive(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, req RSSearchRouteRequest, result *RSSearchRoutesResult, cost *BrowseReadResult) ([]RSSearchGroup, []RSSearchGroupError) {
 	req.Group = RSSearchLiveTV
 	if r == nil || r.Live == nil {
 		return []RSSearchGroup{RSSearchLiveTV}, nil
 	}
-	page, _, err := r.Live(ctx, request, budget, output, req)
+	groupCtx, cancel, deadline := rssGroupDeadline(ctx, request, budget)
+	defer cancel()
+	liveOutput := output
+	if output.live != nil {
+		derived, release, err := output.live.derive(groupCtx, rssDerivedOutputRequest(output.Request, deadline))
+		if err != nil {
+			return nil, []RSSearchGroupError{{Group: RSSearchLiveTV, Err: err}}
+		}
+		defer release()
+		liveOutput = derived
+	}
+	page, liveCost, err := r.Live(groupCtx, request, time.Until(deadline), liveOutput, req)
+	addSearchReadCost(cost, liveCost)
 	if err != nil {
 		return nil, []RSSearchGroupError{{Group: RSSearchLiveTV, Err: err}}
 	}
-	if err = rssValidateGroupPage(page, RSSearchRoute{Mode: search.ReadFull, Source: RSSearchSourceLive, Group: RSSearchLiveTV}); err != nil {
+	if err = rssValidatePreviewGroupPage(page); err != nil {
 		return nil, []RSSearchGroupError{{Group: RSSearchLiveTV, Err: err}}
 	}
 	result.Page.Groups = append(result.Page.Groups, page)
 	return nil, nil
+}
+
+// rssGroupDeadline bounds one source's own work. Each group starts a fresh
+// 600ms window; the caller's request/context deadline still caps the total, so
+// the Live group is not charged the time catalogue already spent.
+func rssGroupDeadline(ctx context.Context, request governor.Request, budget time.Duration) (context.Context, context.CancelFunc, time.Time) {
+	deadline := time.Now().Add(min(budget, RSSearchGroupBudget))
+	if !request.Deadline.IsZero() && request.Deadline.Before(deadline) {
+		deadline = request.Deadline
+	}
+	if limit, ok := ctx.Deadline(); ok && limit.Before(deadline) {
+		deadline = limit
+	}
+	groupCtx, cancel := context.WithDeadline(ctx, deadline)
+	return groupCtx, cancel, deadline
+}
+
+// rssDerivedOutputRequest derives one source's output budget from the caller's
+// output request: same owner/class and the same bounded memory-only profile,
+// never a longer deadline than the caller's protected request.
+func rssDerivedOutputRequest(base governor.Request, deadline time.Time) governor.Request {
+	derived := base
+	derived.Deadline = deadline
+	return derived
+}
+
+// derive mints a second, independent one-public-read scope from this foreground
+// scope. It does not weaken the rule that ONE output authorizes ONE read: the
+// derived scope carries its own output grant and its own single-use flag, while
+// the LIVE grant still proves the caller's original foreground admission. The
+// returned release joins the derived reads and retires its grant; callers must
+// invoke it before returning to the foreground consumer.
+func (s *foregroundOutput) derive(ctx context.Context, outputRequest governor.Request) (BrowseOutput, func() error, error) {
+	if s == nil || ctx == nil {
+		return BrowseOutput{}, nil, governor.ErrGrant
+	}
+	if outputRequest.Owner != s.request.Owner || outputRequest.Class != governor.Foreground || outputRequest.Writer ||
+		outputRequest.Need[governor.MemoryBytes] != 8<<20 || outputRequest.Deadline.IsZero() ||
+		outputRequest.Deadline.After(s.request.ProtectedDeadline) || len(outputRequest.IO) != 0 || len(outputRequest.Footprint) != 0 {
+		return BrowseOutput{}, nil, ErrInput
+	}
+	for resource, n := range outputRequest.Need {
+		if resource != int(governor.MemoryBytes) && n != 0 {
+			return BrowseOutput{}, nil, ErrInput
+		}
+	}
+	s.mu.Lock()
+	if s.closed || s.ctx.Err() != nil {
+		s.mu.Unlock()
+		return BrowseOutput{}, nil, governor.ErrGrant
+	}
+	authority, live, request, pool, started, admission := s.authority, s.live, s.request, s.pool, s.started, s.admission
+	s.mu.Unlock()
+	decision := authority.TryContext(ctx, outputRequest)
+	if decision.Refusal != nil || decision.Grant == nil {
+		return BrowseOutput{}, nil, governor.ErrBusy
+	}
+	child := &foregroundOutput{
+		authority: authority, pool: pool, live: live, request: request,
+		output: decision.Grant, outputRequest: outputRequest, ctx: ctx, started: started, admission: admission,
+	}
+	release := func() error {
+		child.mu.Lock()
+		child.closed = true
+		child.mu.Unlock()
+		child.reads.Wait()
+		return authority.Retired(decision.Grant)
+	}
+	return BrowseOutput{Authority: authority, Grant: decision.Grant, Request: outputRequest, live: child}, release, nil
 }
 
 func rssRouteCurrent(ctx context.Context, in RSSearchRouteInput) error {
@@ -460,10 +586,24 @@ func rssValidateRSSearchPage(page RSSearchPage, route RSSearchRoute) error {
 }
 
 func rssValidateGroupPage(page RSSearchGroupPage, route RSSearchRoute) error {
-	if page.Group != route.Group {
+	return rssValidateGroupPageLimit(page, route.Group, RSSearchRouteLimit(route), ErrInput)
+}
+
+// rssValidatePreviewGroupPage validates one all-group preview: the same bounded
+// group shape at the preview limit (eight cards), with a named refusal when the
+// owner adapter returns more. An exact answer is refused, never silently cut.
+func rssValidatePreviewGroupPage(page RSSearchGroupPage) error {
+	return rssValidateGroupPageLimit(page, RSSearchLiveTV, 8, ErrRSSearchPreviewOverflow)
+}
+
+func rssValidateGroupPageLimit(page RSSearchGroupPage, group RSSearchGroup, limit int, overflow error) error {
+	if page.Group != group {
 		return ErrInput
 	}
-	if len(page.Hits) > RSSearchRouteLimit(route) {
+	if len(page.Hits) > limit {
+		if overflow != nil {
+			return overflow
+		}
 		return ErrInput
 	}
 	for _, hit := range page.Hits {
