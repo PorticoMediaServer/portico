@@ -77,7 +77,13 @@ func usCredentialAuthorityFixture(t *testing.T, short bool) (*executor, *usOwner
 		wc008NativeExec(t, w, `UPDATE authorization_session_families SET authorization_horizon=? WHERE id='issuer-family'`, witness.horizon)
 	}
 	for n, scope := range []string{"profile_pin", "profile_remember", "profile_lineage"} {
-		wc008NativeExec(t, w, `INSERT INTO identity_security_fences(id,scope_kind,account_id,member_incarnation,profile_id,profile_lifetime,lineage_id,updated_ms) VALUES(?,?,?,?,?,?,?,0)`, n+2, scope, i.account, i.memberIncarnation, i.profile, i.profileLifetime, "issuer-lineage")
+		// The closed schema CHECK allows a lineage id only on the lineage scope;
+		// the PIN gates carry profile/lifetime with an empty lineage.
+		lineage := ""
+		if scope == "profile_lineage" {
+			lineage = "issuer-lineage"
+		}
+		wc008NativeExec(t, w, `INSERT INTO identity_security_fences(id,scope_kind,account_id,member_incarnation,profile_id,profile_lifetime,lineage_id,updated_ms) VALUES(?,?,?,?,?,?,?,0)`, n+2, scope, i.account, i.memberIncarnation, i.profile, i.profileLifetime, lineage)
 	}
 	return w, proof
 }
@@ -104,14 +110,33 @@ func usCredentialIssueCommandFixture(t *testing.T, w *executor, proof *usOwnerAu
 	return command
 }
 
+func usCredentialRevokeRequestFor(w *executor, issue *usCredentialNativeCommand) usCredentialRevokeRequest {
+	p := issue.issue.prepared
+	return usCredentialRevokeRequest{target: p.target, id: p.id, kind: p.kind, name: p.name, scopes: p.scopes, secretHash: p.secretHash,
+		hint: p.hint, family: p.family, device: p.device, createdMS: w.now().UnixMilli(), expiresMS: p.expiresMS}
+}
+
 func usCredentialRevokeCommandFixture(t *testing.T, w *executor, proof *usOwnerAuthorityProof, issue *usCredentialNativeCommand, identity CommandIdentity) *usCredentialNativeCommand {
 	t.Helper()
-	p := issue.issue.prepared
-	request := usCredentialRevokeRequest{target: p.target, id: p.id, kind: p.kind, name: p.name, scopes: p.scopes, secretHash: p.secretHash,
-		hint: p.hint, family: p.family, device: p.device, createdMS: w.now().UnixMilli(), expiresMS: p.expiresMS}
-	command, err := prepareUSCredentialNativeRevoke(identity, usCredentialOwnerID, proof.witness.issuer, request)
+	command, err := prepareUSCredentialNativeRevoke(identity, usCredentialOwnerID, proof.witness.issuer, usCredentialRevokeRequestFor(w, issue))
 	if err != nil {
 		t.Fatal(err)
+	}
+	return command
+}
+
+// usCredentialIssuedAcknowledged issues one token and advances the owner's ACK
+// floor so a following revoke is admissible.
+func usCredentialIssuedAcknowledged(t *testing.T, w *executor, proof *usOwnerAuthorityProof, r *stmt.Registry) *usCredentialNativeCommand {
+	t.Helper()
+	command := usCredentialIssueCommandFixture(t, w, proof, "token", CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1})
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
+	if _, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, command)); err != nil {
+		t.Fatal(err)
+	}
+	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
+	if _, floor, err := runUSCredentialDispatch(t.Context(), turn, a, &usCredentialInvocation{request: usCredentialInput(t, command).request, ack: true}); err != nil || floor.AcknowledgedThrough != 1 {
+		t.Fatal("ack", floor, err)
 	}
 	return command
 }
@@ -244,17 +269,31 @@ func TestUSCredentialNative(t *testing.T) {
 		t.Fatal("token wrote recoverable custody", n)
 	}
 
-	// Replay: the saved original, zero charge, and NO protected wire again.
+	// Replay: the saved original, zero charge, and NO protected wire again. The
+	// sealed columns stay exactly as the first response wrote them; replay must
+	// never read them back into the returned value.
+	sealedBefore := usCredentialStoredSecretBody(t, w)
 	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
 	replay, _, err := runUSCredentialDispatch(t.Context(), turn, a, &usCredentialInvocation{request: usCredentialInput(t, command).request})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replay.Outcome.State != Applied || !replay.Outcome.Replayed || !reflect.DeepEqual(replay.Value, original.Value) || replay.Digest != original.Digest {
+	if replay.Outcome.State != Applied || !replay.Outcome.Replayed || replay.Digest != original.Digest {
 		t.Fatal("replay was not the saved original", replay)
+	}
+	if original.Value.secret.present() || replay.Value.secret.present() {
+		t.Fatal("saved value carried the sealed wire", original.Value, replay.Value)
+	}
+	if !reflect.DeepEqual(replay.Value, original.Value) {
+		t.Fatal("replay differed from the saved original", replay)
 	}
 	if replay.Secret.present() || replay.ChargedBytes != 0 || replay.OwnerCount != 1 {
 		t.Fatal("replay re-disclosed the secret or rebuilt a receipt", replay)
+	}
+	// A real scan of the returned value, not its redacted Format string.
+	usCredentialScanValue(t, "replay", replay)
+	if sealedAfter := usCredentialStoredSecretBody(t, w); !bytes.Equal(sealedAfter, sealedBefore) || !bytes.Equal(sealedAfter, usCredentialSealedBody("token")) {
+		t.Fatal("replay rewrote the sealed column", len(sealedBefore), len(sealedAfter))
 	}
 	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_credentials`); n != 1 {
 		t.Fatal("replay wrote source", n)
@@ -314,9 +353,10 @@ func TestUSCredentialReplayAfterSourceDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(replay.Value, original.Value) || replay.Secret.present() {
+	if !reflect.DeepEqual(replay.Value, original.Value) || replay.Value.secret.present() || replay.Secret.present() {
 		t.Fatal("source drift changed the saved original", replay)
 	}
+	usCredentialScanValue(t, "drift replay", replay)
 }
 
 // Key and app-password keep current owner-recovery custody; a token does not.
@@ -344,8 +384,18 @@ func TestUSCredentialSecretBinding(t *testing.T) {
 			if n := usCredentialCount(t, w, `SELECT count(*) FROM security_credential_secrets`); n != wantSecrets {
 				t.Fatal("recoverable custody count", n, wantSecrets)
 			}
-			// The digest binds the sealed artifact: any change is a different result.
+			if out.Value.secret.present() {
+				t.Fatal("first-response value carried the sealed wire")
+			}
+			// The digest binds the sealed artifact even though the dispatch
+			// value does not: re-attaching the original sealed wire reproduces
+			// the saved digest, and any change is a different result.
 			v := cloneUSCredentialResult(out.Value)
+			v.secret = usCredentialSecretFor(kind)
+			bound, err := usCredentialResultDigest(command.identity, command.digest, v)
+			if err != nil || bound != out.Digest {
+				t.Fatal("sealed wire did not reconstruct the saved digest", err)
+			}
 			v.secret.body[0]++
 			if d, e := usCredentialResultDigest(command.identity, command.digest, v); e != nil || d == out.Digest {
 				t.Fatal("sealed body not bound", e)
@@ -422,6 +472,50 @@ func TestUSCredentialEntryPassesDeferredDenies(t *testing.T) {
 	}
 }
 
+// The same deferred deny, but landing AFTER the source write and before release,
+// must still replace the outcome with zero output and roll the whole prefix
+// back. The reviewed path reads the trusted clock 16 times before the effect
+// (three per successful owner recheck for quota, custody and lookup, plus the
+// applied-ms sample); the 17th read is the family birth, which runs after
+// api_credentials is inserted. The store's later recheck then denies on the
+// expired token.
+func TestUSCredentialPostWriteDeferredDenial(t *testing.T) {
+	const preEffectClockReads = 16
+	w, proof := usCredentialAuthorityFixture(t, true)
+	base := w.now()
+	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+	r := usCredentialRegistry(t)
+	command := usCredentialIssueCommandFixture(t, w, proof, "token", CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1})
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
+	calls := 0
+	w.now = func() time.Time {
+		calls++
+		if calls <= preEffectClockReads {
+			return base
+		}
+		return base.Add(2 * time.Second)
+	}
+	out, floor, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, command))
+	if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("post-write deny did not replace the outcome", out, floor, err)
+	}
+	if calls <= preEffectClockReads {
+		t.Fatal("the deferred clock flip never landed", calls)
+	}
+	for _, query := range []string{
+		`SELECT count(*) FROM api_credentials`,
+		`SELECT count(*) FROM authorization_session_families WHERE id='credential-family-0001'`,
+		`SELECT count(*) FROM identity_devices WHERE id='credential-device-0001'`,
+		`SELECT count(*) FROM security_command_receipts`,
+		`SELECT count(*) FROM security_credential_results`,
+		`SELECT retained_count FROM security_command_owners WHERE id='credential-owner'`,
+	} {
+		if n := usCredentialCount(t, w, query); n != 0 {
+			t.Fatal("post-write deny left a prefix", query, n)
+		}
+	}
+}
+
 // A failure after a nonempty prefix (including the scope children) rolls the
 // whole issue back: source, family, device, receipt, result and debt.
 func TestUSCredentialChildScopeRollback(t *testing.T) {
@@ -494,6 +588,52 @@ func TestUSCredentialUnknownCommitNeverApplied(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A caller cancellation landing immediately after the physical COMMIT must not
+// publish output, and a retry must resolve the committed original without the
+// sealed wire.
+func TestUSCredentialPostCommitCallerCancel(t *testing.T) {
+	w, proof := usCredentialAuthorityFixture(t, false)
+	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+	r := usCredentialRegistry(t)
+	command := usCredentialIssueCommandFixture(t, w, proof, "token", CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1})
+	var path string
+	if err := w.db.QueryRowContext(t.Context(), `SELECT file FROM pragma_database_list WHERE name='main'`).Scan(&path); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(path, w.config, sqliteconn.ExistingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	fault := &faultConnector{Connector: connector, afterNativeCommit: cancel}
+	installFaultPool(w, fault)
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
+	out, floor, err := runUSCredentialDispatch(ctx, turn, a, usCredentialInput(t, command))
+	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("late caller cancel published output", out, floor, err)
+	}
+	if fault.commits.Load() != 1 {
+		t.Fatal("physical COMMIT did not happen", fault.commits.Load())
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_credentials`); n != 1 {
+		t.Fatal("committed source missing", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 1 {
+		t.Fatal("committed receipt missing", n)
+	}
+	// Retry: the same original resolves, without the first-response secret.
+	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
+	replay, _, err := runUSCredentialDispatch(t.Context(), turn, a, &usCredentialInvocation{request: usCredentialInput(t, command).request})
+	if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed {
+		t.Fatal("retry did not resolve the original", replay, err)
+	}
+	if replay.Secret.present() || replay.Value.secret.present() {
+		t.Fatal("retry re-disclosed the sealed wire", replay)
+	}
+	usCredentialScanValue(t, "cancelled retry", replay)
 }
 
 // A canceled preparation denies before any read and writes nothing.
@@ -639,22 +779,119 @@ func TestUSCredentialForeignAccountTarget(t *testing.T) {
 	}
 }
 
+func usCredentialAssertRevokeRefused(t *testing.T, w *executor, r *stmt.Registry, proof *usOwnerAuthorityProof, command *usCredentialNativeCommand) {
+	t.Helper()
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+	out, floor, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, command))
+	if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+		t.Fatal("revoke authority refusal", out, floor, err)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 1 {
+		t.Fatal("refused revoke wrote a receipt", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_credential_results`); n != 1 {
+		t.Fatal("refused revoke wrote a result", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT retained_count FROM security_command_owners WHERE id=?`, usCredentialOwnerID); n != 1 {
+		t.Fatal("refused revoke charged the owner", n)
+	}
+}
+
+// Revoke is bounded to the exact current TOP-LEVEL source row under the caller's
+// account key. A foreign credential id, a descendant row and a stale witness are
+// each refused with zero output, no receipt and no source change.
+func TestUSCredentialRevokeRefusesForeignChildAndStaleWitness(t *testing.T) {
+	revokeIdentity := CommandIdentity{Incarnation: [16]byte{5}, OperationID: [16]byte{7}, Sequence: 2}
+
+	t.Run("foreign_credential_id", func(t *testing.T) {
+		w, proof := usCredentialAuthorityFixture(t, false)
+		usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+		r := usCredentialRegistry(t)
+		issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+		// A credential that really exists, but under another account, while the
+		// request still carries the caller's account key.
+		wc008NativeExec(t, w, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES('foreign-account','foreign-user',X'','foreign-profile')`)
+		wc008NativeExec(t, w, `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms) VALUES('credential-foreign-0001','token','foreign-account','foreign-profile','Automation','read,playback',?,'abcdef','credential-foreign-family','credential-foreign-device',?)`, usCredentialFixtureHash("foreign-credential"), w.now().UnixMilli())
+		request := usCredentialRevokeRequestFor(w, issue)
+		request.id, request.family, request.device, request.secretHash = "credential-foreign-0001", "credential-foreign-family", "credential-foreign-device", usCredentialFixtureHash("foreign-credential")
+		command, err := prepareUSCredentialNativeRevoke(revokeIdentity, usCredentialOwnerID, proof.witness.issuer, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		usCredentialAssertRevokeRefused(t, w, r, proof, command)
+		if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id='credential-foreign-0001'`); n != 0 {
+			t.Fatal("foreign credential was revoked", n)
+		}
+	})
+
+	t.Run("child_row", func(t *testing.T) {
+		w, proof := usCredentialAuthorityFixture(t, false)
+		usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+		r := usCredentialRegistry(t)
+		issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+		i := proof.witness.issuer
+		wc008NativeExec(t, w, `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms,expires_ms,parent_id) VALUES('credential-child-0001','token',?,?,'Automation','read,playback',?,'abcdef','credential-child-family','credential-child-device',?,0,?)`, i.account, i.profile, usCredentialFixtureHash("child-credential"), w.now().UnixMilli(), issue.issue.prepared.id)
+		request := usCredentialRevokeRequestFor(w, issue)
+		request.id, request.family, request.device, request.secretHash = "credential-child-0001", "credential-child-family", "credential-child-device", usCredentialFixtureHash("child-credential")
+		command, err := prepareUSCredentialNativeRevoke(revokeIdentity, usCredentialOwnerID, proof.witness.issuer, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		usCredentialAssertRevokeRefused(t, w, r, proof, command)
+		if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id='credential-child-0001'`); n != 0 {
+			t.Fatal("descendant credential was revoked", n)
+		}
+		if n := usCredentialCount(t, w, `SELECT count(*) FROM api_credentials WHERE parent_id=?`, issue.issue.prepared.id); n != 1 {
+			t.Fatal("descendant row disappeared", n)
+		}
+	})
+
+	t.Run("stale_witness", func(t *testing.T) {
+		w, proof := usCredentialAuthorityFixture(t, false)
+		usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+		r := usCredentialRegistry(t)
+		issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+		request := usCredentialRevokeRequestFor(w, issue)
+		request.name = "Stale automation"
+		command, err := prepareUSCredentialNativeRevoke(revokeIdentity, usCredentialOwnerID, proof.witness.issuer, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		usCredentialAssertRevokeRefused(t, w, r, proof, command)
+		if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id=?`, issue.issue.prepared.id); n != 0 {
+			t.Fatal("stale witness revoked the source", n)
+		}
+		if n := usCredentialCount(t, w, `SELECT count(*) FROM api_credentials WHERE id=? AND name='Automation'`, issue.issue.prepared.id); n != 1 {
+			t.Fatal("stale witness changed the source", n)
+		}
+	})
+}
+
 // A credential-born family never mints ordinary US-01 authority, even after its
 // revoked source marker is drained. The security_kind=1 marker is independent.
 func TestUSCredentialRevokedMarkerDrainNeverOrdinaryAuthority(t *testing.T) {
 	w, proof := usCredentialAuthorityFixture(t, false)
 	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
 	r := usCredentialRegistry(t)
-	command := usCredentialIssueCommandFixture(t, w, proof, "token", CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1})
-	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
-	if _, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, command)); err != nil {
-		t.Fatal(err)
-	}
+	command := usCredentialIssuedAcknowledged(t, w, proof, r)
 	if kind := usCredentialCount(t, w, `SELECT security_kind FROM authorization_session_families WHERE id=?`, usCredentialFamilyID); kind != 1 {
 		t.Fatal("credential family kind", kind)
 	}
+	// Revoke the live source first so the drain below is real: clearing a marker
+	// that was never written proves nothing.
+	revoke := usCredentialRevokeCommandFixture(t, w, proof, command, CommandIdentity{Incarnation: [16]byte{5}, OperationID: [16]byte{6}, Sequence: 2})
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+	if _, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke)); err != nil {
+		t.Fatal(err)
+	}
+	if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE family_id=?`, usCredentialFamilyID); n <= 0 {
+		t.Fatal("revoke marker was never written", n)
+	}
 	// Drain the revoked marker: clearing it must not turn the family ordinary.
 	wc008NativeExec(t, w, `UPDATE api_credentials SET revoked_ms=0 WHERE family_id=?`, usCredentialFamilyID)
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_credentials WHERE family_id=? AND revoked_ms<>0`, usCredentialFamilyID); n != 0 {
+		t.Fatal("revoke marker was not drained", n)
+	}
 	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
 	if err := a.recheck(t.Context(), turn); err != nil {
 		t.Fatal("ordinary issuer session should still pass", err)
@@ -715,9 +952,11 @@ func TestUSCredentialNoSecretLeak(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replay.Secret.present() || strings.Contains(fmt.Sprint(replay), usCredentialSealedSentinel) {
+	if replay.Secret.present() || replay.Value.secret.present() {
 		t.Fatal("replay disclosed the secret again")
 	}
+	// fmt.Sprint is redacted, so scan the value reachable from the result.
+	usCredentialScanValue(t, "no-secret replay", replay)
 }
 
 func usCredentialScanForSentinels(t *testing.T, w *executor, plaintext, sealed string) {
@@ -812,4 +1051,67 @@ func usCredentialScanForSentinels(t *testing.T, w *executor, plaintext, sealed s
 			t.Fatal(table, err)
 		}
 	}
+}
+
+// usCredentialStoredSecretBody reads the one sealed result body the first
+// response wrote. Replay must leave it byte-for-byte sealed.
+func usCredentialStoredSecretBody(t *testing.T, w *executor) []byte {
+	t.Helper()
+	var body []byte
+	if err := w.db.QueryRowContext(t.Context(), `SELECT secret_body FROM security_credential_results WHERE owner_id=?`, usCredentialOwnerID).Scan(&body); err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
+// usCredentialScanValue walks every reachable string and byte slice of a value
+// and fails on either sentinel. The closed types redact Format, so this is the
+// real check that a returned value does not carry the sealed artifact.
+func usCredentialScanValue(t *testing.T, label string, value any) {
+	t.Helper()
+	var check func(string)
+	check = func(text string) {
+		if strings.Contains(text, usCredentialPlaintextSentinel) || strings.Contains(text, usCredentialSealedSentinel) {
+			t.Fatalf("%s leaked credential material", label)
+		}
+	}
+	var walk func(reflect.Value)
+	walk = func(v reflect.Value) {
+		switch v.Kind() {
+		case reflect.Pointer, reflect.Interface:
+			if !v.IsNil() {
+				walk(v.Elem())
+			}
+		case reflect.Struct:
+			for i := 0; i < v.NumField(); i++ {
+				walk(v.Field(i))
+			}
+		case reflect.Slice:
+			if v.IsNil() {
+				return
+			}
+			if v.Type().Elem().Kind() == reflect.Uint8 {
+				check(string(v.Bytes()))
+				return
+			}
+			for i := 0; i < v.Len(); i++ {
+				walk(v.Index(i))
+			}
+		case reflect.Array:
+			if v.Type().Elem().Kind() == reflect.Uint8 {
+				b := make([]byte, v.Len())
+				for i := range b {
+					b[i] = byte(v.Index(i).Uint())
+				}
+				check(string(b))
+				return
+			}
+			for i := 0; i < v.Len(); i++ {
+				walk(v.Index(i))
+			}
+		case reflect.String:
+			check(v.String())
+		}
+	}
+	walk(reflect.ValueOf(value))
 }

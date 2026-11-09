@@ -155,6 +155,11 @@ var usGroupBProducers = []usGroupBProducer{
 	// and no plaintext secret. The family/device births stay in the listed
 	// us_family_birth_statements.go helper.
 	{File: "server/internal/store/writer/us_credential_native.go", Op: "insert", Table: "api_credentials", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "P05", Note: "V1 US top-level API credential issue source row", Prefix: `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms,expires_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?`},
+
+	// US-11 revoke-authority tests seed one foreign credential and one
+	// descendant row so the exact top-level revoke can prove it touches neither.
+	{File: "server/internal/store/writer/us_credential_native_test.go", Op: "insert", Table: "api_credentials", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "P05", Note: "V1 US credential revoke foreign-account fixture row", Prefix: `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms) VALUES('credential-foreign-0001','token',`},
+	{File: "server/internal/store/writer/us_credential_native_test.go", Op: "insert", Table: "api_credentials", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "P05", Note: "V1 US credential revoke descendant-row fixture", Prefix: `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms,expires_ms,parent_id) VALUES('credential-c`},
 }
 
 // usGroupBOtherSources are the non-Go sites this census tracks. The Python baseline
