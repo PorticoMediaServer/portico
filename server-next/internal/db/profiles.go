@@ -120,15 +120,26 @@ type ProfileEdit struct {
 	PINHash *string
 	// SessionID is the session making the edit, which stays on the profile when its PIN changes.
 	SessionID int64
-	Now       time.Time
+	// Proof is set when the edit is allowed by proving the account's password again, not
+	// by being on the main profile: a forgotten PIN being replaced.
+	Proof *PasswordProof
+	Now   time.Time
 }
 
 // UpdateProfile edits a profile. When a PIN is set or changed, every other device on that
-// profile is sent back to the profile chooser, where the new PIN is asked for, and the
-// account's other sign-ins get fresh tokens so none keeps a right the PIN now protects.
+// profile is sent back to the profile chooser, where the new PIN is asked for; the device
+// making the change stays where it is. A Proof that fails is ErrBadCredentials,
+// ErrBadSecondStep or a *LimitedError.
 func (d *DB) UpdateProfile(ctx context.Context, e ProfileEdit) (Profile, error) {
 	var out Profile
+	var refused error
 	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		refused = nil
+		if e.Proof != nil {
+			if ok, err := proven(tx, e.Now, *e.Proof, &refused); err != nil || !ok {
+				return err
+			}
+		}
 		p, err := scanProfile(tx.QueryRow(`SELECT `+profileColumns+` FROM profiles WHERE user_id = ? AND public_id = ?`, e.UserID, e.PublicID))
 		if err != nil {
 			return err
@@ -142,7 +153,7 @@ func (d *DB) UpdateProfile(ctx context.Context, e ProfileEdit) (Profile, error) 
 		if e.PINHash != nil {
 			p.PINHash = *e.PINHash
 			if p.PINHash != "" {
-				if err := markStale(tx, c, `user_id = ? AND id <> ?`, e.UserID, e.SessionID); err != nil {
+				if err := markStale(tx, c, `profile_id = ? AND id <> ?`, p.ID, e.SessionID); err != nil {
 					return err
 				}
 				if _, err := tx.Exec(`UPDATE sessions SET profile_id = NULL WHERE profile_id = ? AND id <> ?`, p.ID, e.SessionID); err != nil {
@@ -154,6 +165,9 @@ func (d *DB) UpdateProfile(ctx context.Context, e ProfileEdit) (Profile, error) 
 			p.Name, p.Color, p.PINHash, e.Now.UnixMilli(), p.ID))
 		return err
 	})
+	if err == nil {
+		err = refused
+	}
 	return out, err
 }
 

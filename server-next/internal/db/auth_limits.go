@@ -23,10 +23,20 @@ type Limit struct {
 	FloorKey string
 	// Delay says how long to make the source wait after this many recent failures.
 	Delay func(failures int) time.Duration
+	// Lasting failures do not fade: they stand until cleared, or for a day after the last one.
+	// Without it the count halves every 15 minutes.
+	Lasting bool
+	// Doubling makes each wait twice as long as the one before, up to a day, and starts
+	// over once a day has passed since the last wait ended.
+	Doubling bool
 }
 
 // limitHalfLife is how fast old failures stop counting: the count halves each period.
-const limitHalfLife = 15 * time.Minute
+// limitForget is when a count is dropped altogether.
+const (
+	limitHalfLife = 15 * time.Minute
+	limitForget   = 24 * time.Hour
+)
 
 func limitKey(key string) string {
 	sum := sha256.Sum256([]byte(key))
@@ -59,17 +69,21 @@ func (d *DB) LimitWait(ctx context.Context, now time.Time, limits ...Limit) (tim
 	return limitWait(ctx, d.read, now, limits)
 }
 
-func limitCount(tx *sql.Tx, bucket, key string, now time.Time) (int, error) {
+func limitCount(tx *sql.Tx, bucket, key string, now time.Time, lasting bool) (int, error) {
 	var failures int
 	var last int64
 	err := tx.QueryRow(`SELECT failures, last_failure_at FROM auth_limits WHERE bucket = ? AND key_hash = ?`, bucket, limitKey(key)).Scan(&failures, &last)
-	if errors.Is(err, sql.ErrNoRows) {
+	age := now.Sub(time.UnixMilli(last))
+	switch {
+	case errors.Is(err, sql.ErrNoRows), err == nil && age >= limitForget:
 		return 0, nil
+	case lasting:
+		return failures, err
 	}
-	halvings := now.Sub(time.UnixMilli(last)) / limitHalfLife
-	return failures >> min(max(halvings, 0), 30), err
+	return failures >> min(max(age/limitHalfLife, 0), 30), err
 }
 
+// limitStore records a count as of at, and the wait that follows it, if any.
 func limitStore(tx *sql.Tx, bucket, key string, failures int, now time.Time, wait time.Duration) error {
 	var until any
 	if wait > 0 {
@@ -84,17 +98,17 @@ func limitStore(tx *sql.Tx, bucket, key string, failures int, now time.Time, wai
 
 // limitFail counts one wrong guess against every limit.
 func limitFail(tx *sql.Tx, now time.Time, limits []Limit) error {
-	// Counts that have had a day to fade no longer matter.
-	if _, err := tx.Exec(`DELETE FROM auth_limits WHERE last_failure_at < ?`, now.Add(-24*time.Hour).UnixMilli()); err != nil {
+	// Counts that are a day old no longer matter.
+	if _, err := tx.Exec(`DELETE FROM auth_limits WHERE last_failure_at < ?`, now.Add(-limitForget).UnixMilli()); err != nil {
 		return err
 	}
 	for _, l := range limits {
-		failures, err := limitCount(tx, l.Bucket, l.Key, now)
+		failures, err := limitCount(tx, l.Bucket, l.Key, now, l.Lasting)
 		if err != nil {
 			return err
 		}
 		if l.FloorKey != "" {
-			floor, err := limitCount(tx, l.Bucket, l.FloorKey, now)
+			floor, err := limitCount(tx, l.Bucket, l.FloorKey, now, l.Lasting)
 			if err != nil {
 				return err
 			}
@@ -108,6 +122,18 @@ func limitFail(tx *sql.Tx, now time.Time, limits []Limit) error {
 		if l.Delay != nil {
 			wait = l.Delay(failures)
 		}
+		if wait > 0 && l.Doubling {
+			// How many waits came before this one is kept beside the count, dated when the
+			// last of them ended.
+			repeats, err := limitCount(tx, l.Bucket+"_repeat", l.Key, now, true)
+			if err != nil {
+				return err
+			}
+			wait = min(wait<<min(repeats, 10), limitForget)
+			if err := limitStore(tx, l.Bucket+"_repeat", l.Key, repeats+1, now.Add(wait), 0); err != nil {
+				return err
+			}
+		}
 		if err := limitStore(tx, l.Bucket, l.Key, failures, now, wait); err != nil {
 			return err
 		}
@@ -115,11 +141,11 @@ func limitFail(tx *sql.Tx, now time.Time, limits []Limit) error {
 	return nil
 }
 
-// limitClear forgets the failures behind a proof that succeeded. A source-wide count has no
-// Delay tied to one secret and is left alone: one good sign-in must not wipe a source's record.
+// limitClear forgets the failures behind a proof that succeeded. A network's count of
+// everything it got wrong is left alone: one good sign-in must not wipe its record.
 func limitClear(tx *sql.Tx, limits []Limit) error {
 	for _, l := range limits {
-		if l.Bucket == "source" {
+		if l.Doubling {
 			continue
 		}
 		for _, key := range []string{l.Key, l.FloorKey} {

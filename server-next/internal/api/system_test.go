@@ -32,7 +32,7 @@ func openTestServer(t *testing.T, path string) *Server {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { closeDB(d) })
-	s, err := New(context.Background(), d, "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s, err := New(context.Background(), d, filepath.Dir(path), "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}

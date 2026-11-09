@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
 // A fresh database takes the whole schema, passes SQLite's own checks, and opens again.
@@ -116,5 +117,37 @@ func TestWriteCommitsRollsBackAndSharesTheWriter(t *testing.T) {
 	d.read.QueryRow(`SELECT count(*) FILTER (WHERE key = 'kept'), count(*) FILTER (WHERE key = 'dropped') FROM settings`).Scan(&kept, &dropped)
 	if kept != 1 || dropped != 0 {
 		t.Fatalf("kept %d, dropped %d; want 1 and 0", kept, dropped)
+	}
+}
+
+// A network that keeps failing is blocked for longer each time, and each block ends by itself.
+func TestARepeatedBlockDoublesAndEndsByItself(t *testing.T) {
+	d, err := Open(context.Background(), filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	ctx, now := context.Background(), time.UnixMilli(time.Now().UnixMilli())
+	limit := Limit{Bucket: "source", Key: "203.0.113.9", Doubling: true, Delay: func(failures int) time.Duration {
+		if failures < 30 {
+			return 0
+		}
+		return 15 * time.Minute
+	}}
+	for block, want := range []time.Duration{15 * time.Minute, 30 * time.Minute, time.Hour} {
+		var wait time.Duration
+		for tries := 0; wait == 0 && err == nil && tries < 30; tries++ {
+			if err := d.write(ctx, User, func(tx *sql.Tx) error { return limitFail(tx, now, []Limit{limit}) }); err != nil {
+				t.Fatal(err)
+			}
+			wait, err = d.LimitWait(ctx, now, limit)
+		}
+		if err != nil || wait != want {
+			t.Fatalf("block %d lasts %v (%v), want %v", block+1, wait, err, want)
+		}
+		now = now.Add(want)
+		if wait, _ := d.LimitWait(ctx, now, limit); wait != 0 {
+			t.Fatalf("block %d did not end by itself: %v left", block+1, wait)
+		}
 	}
 }

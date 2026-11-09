@@ -172,9 +172,6 @@ type SessionState struct {
 	ProfileID       int64
 	ProfilePublicID string
 	ProfilePrimary  bool
-	// PrimaryHasPIN: the account's main profile is protected by a PIN, so a sign-in that has
-	// not selected it may not manage the account.
-	PrimaryHasPIN bool
 
 	DevicePublicID string
 	InstallationID string
@@ -192,14 +189,13 @@ func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error
 			s.revoked_at IS NOT NULL, s.refresh_hash, ifnull(s.previous_refresh_hash, ''), ifnull(s.previous_request_id, ''),
 			u.id, u.public_id, u.role, u.disabled_at IS NOT NULL,
 			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0),
-			EXISTS (SELECT 1 FROM profiles pp WHERE pp.user_id = u.id AND pp.is_primary = 1 AND pp.pin_hash IS NOT NULL),
 			d.public_id, d.client_id
 		FROM sessions s JOIN users u ON u.id = s.user_id JOIN devices d ON d.id = s.device_id
 		LEFT JOIN profiles p ON p.id = s.profile_id
 		WHERE s.id = ?`, id).Scan(&s.ID, &s.PublicID, &s.Generation, &expires, &renewed,
 		&s.revoked, &s.refreshHash, &s.previousHash, &s.previousRequestID,
 		&s.UserID, &s.UserPublicID, &s.UserRole, &s.disabled,
-		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.PrimaryHasPIN,
+		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary,
 		&s.DevicePublicID, &s.InstallationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
@@ -276,6 +272,9 @@ func (d *DB) SignIn(ctx context.Context, a SignInAttempt) (SessionState, error) 
 		if err != nil || !ok {
 			return err
 		}
+		if err := limitClear(tx, a.Limits); err != nil {
+			return err
+		}
 		out, err = startSession(tx, a.UserID, a.Session, a.Now)
 		return err
 	})
@@ -289,7 +288,8 @@ func (d *DB) SignIn(ctx context.Context, a SignInAttempt) (SessionState, error) 
 // proofStands settles a password proof inside the transaction that acts on it. It refuses
 // while the source must still wait, even if the guess was right, so guesses sent together
 // gain nothing. It checks the account is not disabled and its password is still the one the
-// proof was made against. A failure is counted; a success clears the count.
+// proof was made against. A failure is counted. A success is not cleared here: the caller
+// clears the count once everything the action needs has been proven.
 // When it returns false with a nil error, *refused says why and the transaction should commit.
 func proofStands(tx *sql.Tx, now time.Time, limits []Limit, ok bool, userID int64, checkedHash string, refused *error) (bool, error) {
 	wait, err := limitWait(context.Background(), tx, now, limits)
@@ -313,7 +313,40 @@ func proofStands(tx *sql.Tx, now time.Time, limits []Limit, ok bool, userID int6
 		*refused = ErrBadCredentials
 		return false, limitFail(tx, now, limits)
 	}
-	return true, limitClear(tx, limits)
+	return true, nil
+}
+
+// PasswordProof is a signed-in user's current password, already compared outside any
+// transaction against CheckedHash.
+type PasswordProof struct {
+	UserID      int64
+	CheckedHash string
+	OK          bool
+	Limits      []Limit
+}
+
+// ErrBadSecondStep: the account uses two-step sign-in and its code was missing or wrong.
+var ErrBadSecondStep = errors.New("second step refused")
+
+// proven settles what a change to an account's own credentials needs: the current password
+// and, for an account with two-step sign-in, its code as well, in the transaction that
+// makes the change. The count of wrong guesses is cleared only when all of it was shown.
+func proven(tx *sql.Tx, now time.Time, p PasswordProof, refused *error) (bool, error) {
+	ok, err := proofStands(tx, now, p.Limits, p.OK, p.UserID, p.CheckedHash, refused)
+	if err != nil || !ok {
+		return false, err
+	}
+	var twoStep bool
+	if err := tx.QueryRow(`SELECT two_factor_enabled_at IS NOT NULL FROM users WHERE id = ?`, p.UserID).Scan(&twoStep); err != nil {
+		return false, err
+	}
+	if twoStep {
+		// Two-step sign-in cannot be turned on yet, and no code can be checked here, so the
+		// password alone is never enough for an account that has it.
+		*refused = ErrBadSecondStep
+		return false, limitFail(tx, now, p.Limits)
+	}
+	return true, limitClear(tx, p.Limits)
 }
 
 // Renewal is a refresh token presented for a new pair of tokens. The token itself was
@@ -411,7 +444,7 @@ func (d *DB) RevokeOtherSessions(ctx context.Context, userID, keepSessionID int6
 }
 
 // endedSessionsKept is how long an ended session stays in the session list.
-const endedSessionsKept = 30 * 24 * time.Hour
+const endedSessionsKept = 90 * 24 * time.Hour
 
 // SessionInfo is one row of a person's session list.
 type SessionInfo struct {
@@ -424,12 +457,14 @@ type SessionInfo struct {
 	LastUsedAt      time.Time
 	ExpiresAt       time.Time
 	// EndedAt is zero while the session is live.
-	EndedAt    time.Time
-	EndReason  string
+	EndedAt   time.Time
+	EndReason string
+	// RemoteAddr is where the session was last used from. It is for telling home from away
+	// and is never shown.
 	RemoteAddr string
 }
 
-// Sessions lists a user's live sessions and those that ended in the last 30 days, newest use first.
+// Sessions lists a user's live sessions and those that ended in the last 90 days, newest use first.
 func (d *DB) Sessions(ctx context.Context, userID int64, now time.Time) ([]SessionInfo, error) {
 	rows, err := d.read.QueryContext(ctx, `
 		SELECT s.id, s.public_id, d.public_id, d.name, ifnull(p.public_id, ''), s.created_at, s.last_used_at, s.expires_at,

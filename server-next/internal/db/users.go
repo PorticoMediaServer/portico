@@ -40,8 +40,8 @@ type Credentials struct {
 }
 
 // CredentialsByUsername looks an account up by the lower-cased username people sign in with.
-func (d *DB) CredentialsByUsername(ctx context.Context, usernameKey string) (Credentials, error) {
-	return d.credentials(ctx, `username_key = ?`, usernameKey)
+func (d *DB) CredentialsByUsername(ctx context.Context, username string) (Credentials, error) {
+	return d.credentials(ctx, `username = ?`, username)
 }
 
 // CredentialsByID looks up a signed-in user's own password, to prove them again.
@@ -65,8 +65,8 @@ var ErrSetupDone = errors.New("setup is already done")
 
 // NewOwner is the first account on a new server.
 type NewOwner struct {
+	// Username is already in its stored form: see auth.Username.
 	Username     string
-	UsernameKey  string
 	PasswordHash string
 	ProfileName  string
 	Session      NewSession
@@ -85,7 +85,7 @@ func (d *DB) CreateOwner(ctx context.Context, o NewOwner) (SessionState, error) 
 		if exists {
 			return ErrSetupDone
 		}
-		userID, err := insertUser(tx, o.Username, o.UsernameKey, o.PasswordHash, "owner", o.ProfileName, o.Now)
+		userID, err := insertUser(tx, o.Username, o.PasswordHash, "owner", o.ProfileName, o.Now)
 		if err != nil {
 			return err
 		}
@@ -97,17 +97,17 @@ func (d *DB) CreateOwner(ctx context.Context, o NewOwner) (SessionState, error) 
 }
 
 // insertUser creates an account with its main profile. A taken username is ErrConflict.
-func insertUser(tx *sql.Tx, username, usernameKey, passwordHash, role, profileName string, now time.Time) (int64, error) {
+func insertUser(tx *sql.Tx, username, passwordHash, role, profileName string, now time.Time) (int64, error) {
 	at := now.UnixMilli()
 	var taken bool
-	if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM users WHERE username_key = ?)`, usernameKey).Scan(&taken); err != nil {
+	if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM users WHERE username = ?)`, username).Scan(&taken); err != nil {
 		return 0, err
 	}
 	if taken {
 		return 0, ErrConflict
 	}
-	res, err := tx.Exec(`INSERT INTO users (public_id, username, username_key, password_hash, password_changed_at, role, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, NewID("usr"), username, usernameKey, passwordHash, at, role, at, at)
+	res, err := tx.Exec(`INSERT INTO users (public_id, username, password_hash, password_changed_at, role, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, NewID("usr"), username, passwordHash, at, role, at, at)
 	if err != nil {
 		return 0, err
 	}
@@ -120,33 +120,23 @@ func insertUser(tx *sql.Tx, username, usernameKey, passwordHash, role, profileNa
 	return userID, err
 }
 
-// PasswordChange is a new password for a user whose current one has already been compared,
-// outside any transaction, against CheckedHash.
-type PasswordChange struct {
-	UserID      int64
-	CheckedHash string
-	CurrentOK   bool
-	NewHash     string
-	Limits      []Limit
-	Now         time.Time
-}
-
-// ChangePassword stores the new password and, in the same commit, ends every session of
-// the user, so whoever knew the old password is signed out everywhere. Keys and tokens made
-// for tools are not sessions and keep working. A wrong current password is ErrBadCredentials.
-func (d *DB) ChangePassword(ctx context.Context, p PasswordChange) error {
+// ChangePassword stores the new password for a user who proved the current one and, in the
+// same commit, ends every other session of the user, so whoever knew the old password is
+// signed out. The session that made the change stays. Keys and tokens made for tools are
+// not sessions and keep working. A wrong current password is ErrBadCredentials.
+func (d *DB) ChangePassword(ctx context.Context, p PasswordProof, newHash string, keepSessionID int64, now time.Time) error {
 	var refused error
 	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
 		refused = nil
-		ok, err := proofStands(tx, p.Now, p.Limits, p.CurrentOK, p.UserID, p.CheckedHash, &refused)
+		ok, err := proven(tx, now, p, &refused)
 		if err != nil || !ok {
 			return err
 		}
-		at := p.Now.UnixMilli()
-		if _, err := tx.Exec(`UPDATE users SET password_hash = ?, password_changed_at = ?, updated_at = ? WHERE id = ?`, p.NewHash, at, at, p.UserID); err != nil {
+		at := now.UnixMilli()
+		if _, err := tx.Exec(`UPDATE users SET password_hash = ?, password_changed_at = ?, updated_at = ? WHERE id = ?`, newHash, at, at, p.UserID); err != nil {
 			return err
 		}
-		return revoke(tx, c, p.Now, "password_changed", `user_id = ?`, p.UserID)
+		return revoke(tx, c, now, "password_changed", `user_id = ? AND id <> ?`, p.UserID, keepSessionID)
 	})
 	if err == nil {
 		err = refused
