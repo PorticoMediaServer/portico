@@ -170,7 +170,7 @@ func (b ipPolicyBudget) check(ctx context.Context, turn *commandTurn, bytes int6
 	}
 	tx := turn.transaction
 	switch tx.descriptor.ID {
-	case IPPolicySet, IPRefreshBegin, IPRefreshPage,
+	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish:
 	default:
 		return ErrInvalid

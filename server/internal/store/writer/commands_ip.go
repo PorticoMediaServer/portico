@@ -7,6 +7,9 @@ const (
 	IPPolicySet    CommandID = 200
 	IPRefreshBegin CommandID = 201
 	IPRefreshPage  CommandID = 202
+	IPEntityClaim  CommandID = 203
+	IPEntityRenew  CommandID = 204
+	IPEntityFinish CommandID = 205
 
 	IPArtworkDiscoveryClaim  CommandID = 220
 	IPArtworkDiscoveryPage   CommandID = 221
@@ -21,6 +24,9 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPPolicySet, "ip_policy_set", Normal},
 	{IPRefreshBegin, "ip_refresh_begin", Normal},
 	{IPRefreshPage, "ip_refresh_page", Normal},
+	{IPEntityClaim, "ip_entity_claim", Normal},
+	{IPEntityRenew, "ip_entity_renew", Normal},
+	{IPEntityFinish, "ip_entity_finish", Normal},
 	{IPArtworkDiscoveryClaim, "ip_artwork_discovery_claim", Normal},
 	{IPArtworkDiscoveryPage, "ip_artwork_discovery_page", Normal},
 	{IPArtworkDiscoveryFinish, "ip_artwork_discovery_finish", Normal},
