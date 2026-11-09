@@ -728,8 +728,8 @@ func TestIPArtworkGCBoundsAndDescriptors(t *testing.T) {
 		t.Fatal("tokenless finalize admitted", c, err)
 	}
 	for _, want := range []Descriptor{
-		{IPArtworkGCMark, "ip_artwork_gc_mark", Normal},
-		{IPArtworkGCFinish, "ip_artwork_gc_finish", Normal},
+		{IPArtworkGCMark, "ip_artwork_gc_mark", Full},
+		{IPArtworkGCFinish, "ip_artwork_gc_finish", Full},
 	} {
 		if got, err := Describe(want.ID); err != nil || got != want {
 			t.Fatal(got, err)

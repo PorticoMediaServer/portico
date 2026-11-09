@@ -9,6 +9,7 @@ import (
 	"errors"
 	"math"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -19,6 +20,17 @@ import (
 // a provider or the network: every file fact is verified by the caller before the
 // turn and repeated here, and the writer refuses any difference from the durable
 // row.
+//
+// Both commands are FULL durability; there is no NORMAL fallback. MARK is an
+// external destructive handoff fence: the caller may start its unlink ONLY after
+// the durable mark original (retiring row/receipt at the exact revision, token
+// and byte count) is confirmed committed at FULL. An uncertain COMMIT is
+// ResolveRequired and is never unlink permission, even though this body already
+// wrote the row: the result it returns is only an in-transaction candidate and
+// the caller owns the commit boundary. FINALIZE is also FULL so the replacement
+// of the physical row by its receipt is equally durable before completion is
+// reported. A rollback can therefore never resurrect a ready row whose file was
+// already unlinked.
 //
 // Current owner authority precedes historical receipt disclosure; the ORIGINAL
 // saved result is served without any fresh source/lease/policy probe. A fresh
@@ -522,6 +534,14 @@ func applyIPArtworkGC(ctx context.Context, turn *commandTurn, p *usOwnerAuthorit
 		turn.transaction.descriptor.ID != c.kind {
 		return zero, ErrInvalid
 	}
+	// The frame must be the compiled FULL frame for this purpose. The descriptor
+	// and the connected PRAGMA are both witnessed so a NORMAL frame can never
+	// masquerade as a durable mark or finalize.
+	tx := turn.transaction
+	if tx.descriptor.Durability != Full || !tx.begun || tx.done || !tx.policyVerified ||
+		tx.settings.Synchronous != int(sqliteconn.Full) {
+		return zero, ErrInvalid
+	}
 	q := c.request
 	if err = ipArtworkGCRequestShape(c.kind, c.identity, q); err != nil {
 		return zero, err
@@ -591,6 +611,10 @@ func applyIPArtworkGC(ctx context.Context, turn *commandTurn, p *usOwnerAuthorit
 	if err != nil || saved.decision != receiptReplay || saved.digest != digest || saved.result != value {
 		return zero, errors.Join(ErrResolveRequired, err)
 	}
+	// This candidate result is returned before the caller commits; it only
+	// becomes durable truth (and, for MARK, unlink permission) after the FULL
+	// COMMIT returns success. An uncertain commit is ResolveRequired and the
+	// driver must re-read the durable row rather than unlink from this value.
 	out.Value, out.Digest, out.Outcome.State = saved.result, saved.digest, Applied
 	return out, nil
 }
