@@ -431,14 +431,21 @@ func (r *RSSearchRoutes) Read(ctx context.Context, request governor.Request, bud
 // Without MG's adapter it is named pending; a failing owner adapter is kept as
 // a per-group error while every catalogue group still stands.
 //
+// The catalogue's continuity cursor belongs to the catalogue section only. The
+// all-group Live preview is always its first-page preview, so the cursor is
+// cleared here rather than forwarded to an adapter that publishes no
+// continuation of its own; accepting it in plan and forwarding it here would
+// hand Live a catalogue *FullSearchCursor.
+//
 // Live is a second source under the caller's request. It gets its own bounded
 // group deadline and, whenever the caller holds a real foreground read scope,
 // its own output grant: the caller's BrowseOutput authorizes exactly one public
 // read operation, so handing it to a second source would refuse every Live read
 // with governor.ErrGrant. The Live cost (windows, statements, refusal) is added
 // to the composite cost, never discarded.
-func (r *RSSearchRoutes) appendLive(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, req RSSearchRouteRequest, result *RSSearchRoutesResult, cost *BrowseReadResult) ([]RSSearchGroup, []RSSearchGroupError) {
+func (r *RSSearchRoutes) appendLive(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, req RSSearchRouteRequest, result *RSSearchRoutesResult, cost *BrowseReadResult) (pending []RSSearchGroup, groupErrors []RSSearchGroupError) {
 	req.Group = RSSearchLiveTV
+	req.After = nil
 	if r == nil || r.Live == nil {
 		return []RSSearchGroup{RSSearchLiveTV}, nil
 	}
@@ -446,11 +453,22 @@ func (r *RSSearchRoutes) appendLive(ctx context.Context, request governor.Reques
 	defer cancel()
 	liveOutput := output
 	if output.live != nil {
-		derived, release, err := output.live.derive(groupCtx, rssDerivedOutputRequest(output.Request, deadline))
+		derived, refusal, release, err := output.live.derive(groupCtx, rssDerivedOutputRequest(output.Request, deadline))
+		if refusal != nil {
+			// A second-source admission refusal is the composite read's refusal,
+			// exactly as ConsumeForeground records its own admission refusal.
+			cost.Refusal = refusal
+		}
 		if err != nil {
 			return nil, []RSSearchGroupError{{Group: RSSearchLiveTV, Err: err}}
 		}
-		defer release()
+		// A retirement failure means physical output custody is uncertain. It is
+		// surfaced as this group's error rather than discarded.
+		defer func() {
+			if rerr := release(); rerr != nil {
+				groupErrors = append(groupErrors, RSSearchGroupError{Group: RSSearchLiveTV, Err: rerr})
+			}
+		}()
 		liveOutput = derived
 	}
 	page, liveCost, err := r.Live(groupCtx, request, time.Until(deadline), liveOutput, req)
@@ -481,8 +499,8 @@ func rssGroupDeadline(ctx context.Context, request governor.Request, budget time
 }
 
 // rssDerivedOutputRequest derives one source's output budget from the caller's
-// output request: same owner/class and the same bounded memory-only profile,
-// never a longer deadline than the caller's protected request.
+// output request: same owner/class and the same bounded memory-only profile.
+// derive further clamps it to the parent output's own deadline.
 func rssDerivedOutputRequest(base governor.Request, deadline time.Time) governor.Request {
 	derived := base
 	derived.Deadline = deadline
@@ -494,31 +512,47 @@ func rssDerivedOutputRequest(base governor.Request, deadline time.Time) governor
 // derived scope carries its own output grant and its own single-use flag, while
 // the LIVE grant still proves the caller's original foreground admission. The
 // returned release joins the derived reads and retires its grant; callers must
-// invoke it before returning to the foreground consumer.
-func (s *foregroundOutput) derive(ctx context.Context, outputRequest governor.Request) (BrowseOutput, func() error, error) {
+// invoke it before returning to the foreground consumer, and its retirement
+// error is the caller's to surface.
+//
+// The doubled reservation is deliberate until MG's Live adapter defines a
+// shared-output API. The parent grant stays held while the derived grant is a
+// second, independent Foreground admission: each source is admission-checked
+// against MaxGrantsPerClass and the memory partition, the parent is never
+// charged zero, and a full ledger refuses the second source as a named
+// per-group Live error instead of silently reusing the parent's authorization.
+func (s *foregroundOutput) derive(ctx context.Context, outputRequest governor.Request) (BrowseOutput, *governor.Refusal, func() error, error) {
 	if s == nil || ctx == nil {
-		return BrowseOutput{}, nil, governor.ErrGrant
+		return BrowseOutput{}, nil, nil, governor.ErrGrant
 	}
 	if outputRequest.Owner != s.request.Owner || outputRequest.Class != governor.Foreground || outputRequest.Writer ||
 		outputRequest.Need[governor.MemoryBytes] != 8<<20 || outputRequest.Deadline.IsZero() ||
 		outputRequest.Deadline.After(s.request.ProtectedDeadline) || len(outputRequest.IO) != 0 || len(outputRequest.Footprint) != 0 {
-		return BrowseOutput{}, nil, ErrInput
+		return BrowseOutput{}, nil, nil, ErrInput
 	}
 	for resource, n := range outputRequest.Need {
 		if resource != int(governor.MemoryBytes) && n != 0 {
-			return BrowseOutput{}, nil, ErrInput
+			return BrowseOutput{}, nil, nil, ErrInput
 		}
 	}
 	s.mu.Lock()
 	if s.closed || s.ctx.Err() != nil {
 		s.mu.Unlock()
-		return BrowseOutput{}, nil, governor.ErrGrant
+		return BrowseOutput{}, nil, nil, governor.ErrGrant
 	}
 	authority, live, request, pool, started, admission := s.authority, s.live, s.request, s.pool, s.started, s.admission
+	parentOutput := s.outputRequest
 	s.mu.Unlock()
+	// The derived output may not outlive the parent output it is minted from,
+	// even when the group's own window is longer.
+	if parentOutput.Deadline.Before(outputRequest.Deadline) {
+		outputRequest.Deadline = parentOutput.Deadline
+	}
 	decision := authority.TryContext(ctx, outputRequest)
 	if decision.Refusal != nil || decision.Grant == nil {
-		return BrowseOutput{}, nil, governor.ErrBusy
+		// Return the refusal beside ErrBusy so the caller can record its code and
+		// RetryAt, as ConsumeForeground does for its own admission refusals.
+		return BrowseOutput{}, decision.Refusal, nil, governor.ErrBusy
 	}
 	child := &foregroundOutput{
 		authority: authority, pool: pool, live: live, request: request,
@@ -531,7 +565,7 @@ func (s *foregroundOutput) derive(ctx context.Context, outputRequest governor.Re
 		child.reads.Wait()
 		return authority.Retired(decision.Grant)
 	}
-	return BrowseOutput{Authority: authority, Grant: decision.Grant, Request: outputRequest, live: child}, release, nil
+	return BrowseOutput{Authority: authority, Grant: decision.Grant, Request: outputRequest, live: child}, nil, release, nil
 }
 
 func rssRouteCurrent(ctx context.Context, in RSSearchRouteInput) error {
