@@ -16,6 +16,11 @@ const (
 	// legs, and the bounded RS member-eligibility points for one collection
 	// window. It is never inferred from a request.
 	rbGroupLiftMaxQueries = 96
+	// rbGroupLiftPageMaxQueries is the page recipe only: the common fence, the
+	// authored root/automatic/publication proof and the optional publication
+	// point. It stays below the common 64-raw request budget; only Advance needs
+	// the full 96-query preparation forecast.
+	rbGroupLiftPageMaxQueries = 16
 	// rbGroupLiftFixedRowBytes is the fixed per-row decode allowance for the
 	// narrow typed lift rows that share the payload window with measured order
 	// keys. Wide entity strings are not read by this recipe.

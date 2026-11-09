@@ -204,7 +204,8 @@ func (p *rbPreparedEntry) retainIDs(ids []int64) error {
 	if p.purpose != rbPreparedOrder || !p.captured || p.complete {
 		return ErrInput
 	}
-	if len(ids) > cap(p.ids)-len(p.ids) {
+	need := len(p.ids) + len(ids)
+	if need > p.payloadIDCapacityLocked() {
 		_ = p.closeLocked()
 		return errRBPreparationCapacity
 	}
@@ -214,9 +215,50 @@ func (p *rbPreparedEntry) retainIDs(ids []int64) error {
 			return ErrInput
 		}
 	}
+	if need > cap(p.ids) {
+		// Grow to the exact need. No whole-payload vector is stacked under a
+		// second workspace: the staged producer sizes its keys from the payload
+		// left after this vector and restores the full capacity only once the
+		// staged keys are released.
+		grown := make([]int64, len(p.ids), need)
+		copy(grown, p.ids)
+		p.ids = grown
+	}
 	p.ids = append(p.ids, ids...)
 	p.total += int64(len(ids))
 	return nil
+}
+
+// payloadIDCapacityLocked is the inspected retained-ID ceiling for the current
+// captured fence. It is the same payload capture used for the initial vector.
+func (p *rbPreparedEntry) payloadIDCapacityLocked() int {
+	payload := p.lease.PayloadBytes() - 2*rbPreparedFenceBytes(p.fence)
+	payload = payload / 4096 * 4096
+	if payload <= 0 {
+		return 0
+	}
+	return int(payload / 8)
+}
+
+// restoreIDCapacity expands the retained-ID vector back to the whole payload
+// AFTER a provisional staged workspace has been released. It never runs while
+// the staged keys are live, so the two allocations do not overlap.
+func (p *rbPreparedEntry) restoreIDCapacity() {
+	if p == nil || p.cache == nil {
+		return
+	}
+	p.cache.mu.Lock()
+	defer p.cache.mu.Unlock()
+	if p.closed || !p.captured {
+		return
+	}
+	limit := p.payloadIDCapacityLocked()
+	if cap(p.ids) >= limit {
+		return
+	}
+	grown := make([]int64, len(p.ids), limit)
+	copy(grown, p.ids)
+	p.ids = grown
 }
 
 // Ordered numeric source streams make each value's count a contiguous run.
