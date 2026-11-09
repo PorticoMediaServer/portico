@@ -11,5 +11,6 @@ func mgDomainDescriptors() []Descriptor {
 	out = append(out, mgGuideDescriptors()...)
 	out = append(out, mgGuidePublicationDescriptors()...)
 	out = append(out, mgPersonalDescriptors()...)
+	out = append(out, mgLCDispatchDescriptors()...)
 	return append(out, mgGuideReclaimDescriptors()...)
 }
