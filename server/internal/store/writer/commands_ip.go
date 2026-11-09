@@ -37,6 +37,8 @@ const (
 	IPArtworkSelect            CommandID = 226
 	IPArtworkClear             CommandID = 227
 	IPArtworkUploadAccept      CommandID = 228
+	IPArtworkGCMark            CommandID = 229
+	IPArtworkGCFinish          CommandID = 230
 	IPArtworkReencode          CommandID = 231
 
 	IPFieldEdit      CommandID = 240
@@ -75,6 +77,8 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPArtworkSelect, "ip_artwork_select", Normal},
 	{IPArtworkClear, "ip_artwork_clear", Normal},
 	{IPArtworkUploadAccept, "ip_artwork_upload_accept", Normal},
+	{IPArtworkGCMark, "ip_artwork_gc_mark", Normal},
+	{IPArtworkGCFinish, "ip_artwork_gc_finish", Normal},
 	{IPArtworkReencode, "ip_artwork_reencode", Normal},
 	{IPFieldEdit, "ip_field_edit", Normal},
 	{IPFieldLock, "ip_field_lock", Normal},
