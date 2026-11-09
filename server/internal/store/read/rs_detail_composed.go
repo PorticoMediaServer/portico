@@ -165,7 +165,12 @@ func (r *RSDetailComposedReader) detail(ctx context.Context, request governor.Re
 		}
 		if selected != nil {
 			name, args := "rs.art.verify", selected[:20]
-			if selected[20] != nil {
+			if selected[4] == nil {
+				// A locked NULL digest has no artwork_sources row to join; its
+				// exact witness is the selection key itself, exactly as the
+				// merged artwork reader verifies its empty choice.
+				name, args = "rs.art.verify_empty", []any{selected[0], selected[1], selected[2], selected[5], selected[6], selected[19]}
+			} else if selected[20] != nil {
 				name = "rs.art.verify_local"
 				args = selected
 			}
@@ -311,6 +316,12 @@ func (r *RSDetailComposedReader) detail(ctx context.Context, request governor.Re
 			}
 			selected = rows[0]
 			pending = nil
+			if rsArtAbsent(selected) {
+				// A locked NULL digest is explicit absence, not pending work: it
+				// stops alias/ancestor fallback and keeps the zero artwork fact.
+				d.Art.State = RSDetailFactAbsent
+				return ctx.Err()
+			}
 			if !rsArtReady(selected) {
 				d.Art.State = RSDetailFactPending
 				return ctx.Err()
@@ -357,9 +368,22 @@ func (r *RSDetailComposedReader) detail(ctx context.Context, request governor.Re
 			if len(rows) > 128 {
 				return ErrUnqualified
 			}
+			// Same precedence as the foreground reader: PK order puts locked
+			// before matched for each role, so the first row for a role is its
+			// precedence choice and a later matched row never revives a consumed
+			// role. A locked selection with a NULL digest is a present empty
+			// choice: it consumes the role and omits the image rather than being
+			// asserted as a string or replaced by matched art. The logic is
+			// duplicated here because the merged foreground loop takes no shared
+			// helper and that file is outside this task's scope.
+			lastRole := ""
 			for _, v := range rows {
 				role := v[0].(string)
-				if len(d.Images) > 0 && d.Images[len(d.Images)-1].Role == role {
+				if role == lastRole {
+					continue
+				}
+				lastRole = role
+				if v[2] == nil {
 					continue
 				}
 				d.Images = append(d.Images, Image{Role: role, Digest: v[2].(string), Provider: v[3].(string), Origin: v[4].(string), Revision: v[5].(int64)})
