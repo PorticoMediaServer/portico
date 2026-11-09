@@ -904,13 +904,14 @@ func (e *rbSelectionEntry) handoff(f browseFence, q RBSelectionQuery) (RBSelecti
 		return RBSelectionResult{}, ErrInput
 	}
 	n := len(e.rows)
-	if q.Start > n {
-		return RBSelectionResult{}, ErrInput
-	}
 	out := RBSelectionResult{Start: q.Start, Total: int64(n)}
 	// Exact range: positions are sliced from the finished order, never sought
-	// with OFFSET and never re-counted.
-	count := min(q.Limit, n-q.Start)
+	// with OFFSET and never re-counted. A start beyond the finished order is the
+	// legacy OFFSET empty page, not an input error.
+	count := 0
+	if q.Start < n {
+		count = min(q.Limit, n-q.Start)
+	}
 	for k := 0; k < count; k++ {
 		rank := int64(q.Start + k)
 		row := &e.rows[e.ascIndexForRank(rank, n)]
@@ -1058,6 +1059,11 @@ func rbSelectionAddDuration(total *int64, missing *int64, row rbSelectionRow) er
 // rbSelectionDurationMs converts the maintained seconds metric to integer
 // milliseconds. Absent, zero and non-positive values are an explicit missing
 // fact (the aggregate is then a lower bound); NaN/Inf/overflow is refused.
+// This rounds each row before summing, while legacy browse_counts sums seconds
+// and rounds the total once, so a container-free aggregate can differ by less
+// than a millisecond. Container kinds (2/3/6/8) also use the container's own
+// duration_key rather than the distinct member sum until task 09 wiring; see
+// RB_SELECTION.md.
 func rbSelectionDurationMs(value any) (int64, bool, error) {
 	var seconds float64
 	switch v := value.(type) {
