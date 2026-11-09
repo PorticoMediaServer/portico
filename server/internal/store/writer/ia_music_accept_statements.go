@@ -101,7 +101,7 @@ AND kind='local' AND classification='local' AND enabled=1 AND identity_confirmed
 				{Name: "stale_source", Bindings: []any{"music-source", "music-library", int64(4), "music-incarnation", "music-root-identity", "/media/music", false}},
 			}},
 		{ID: iaMusicDirectory, Kind: stmt.Read,
-			SQL: `SELECT pages,skipped FROM inventory_directories
+			SQL: `SELECT pages,skipped FROM inventory_directories INDEXED BY sqlite_autoindex_inventory_directories_1
 WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AND pages=? AND skipped=? AND state='pending'`,
 			Params: []stmt.Param{t("run_id"), t("relative_path"), t("identity"), t("revision"), t("cursor"), i("pages"), i("skipped")},
 			Cohorts: []stmt.Cohort{

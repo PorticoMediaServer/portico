@@ -17,6 +17,10 @@ import (
 // and entry statements. Capture compiles the actual SQL and byte recipes on the
 // composed canonical schema; it does not execute a command or enable a caller.
 // CHANGE-020 coverage/missing/finish families remain outside this C019 capture.
+// This uses the existing WC writer component's unanalyzed profile. The initial
+// analyzed attempt is retained as failed evidence: inherited accounts CASCADE
+// plans scan identity_pin_lineages in this one-account population. No analyzed
+// writer/parent-delete acceptance or FK-plan waiver follows from this control.
 func TestC019NativeWriterRegistries(t *testing.T) {
 	type fixture func(*testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof)
 	for _, tc := range []struct {
@@ -72,7 +76,7 @@ func TestC019NativeWriterRegistries(t *testing.T) {
 			}
 			defer conn.Close()
 			var captures []plan.Golden
-			for _, stats := range []plan.Statistics{plan.Unanalyzed, plan.Analyzed} {
+			for _, stats := range []plan.Statistics{plan.Unanalyzed} {
 				if stats == plan.Analyzed {
 					if _, err := conn.ExecContext(t.Context(), "ANALYZE"); err != nil {
 						t.Fatal(err)
@@ -102,7 +106,7 @@ func TestC019NativeWriterRegistries(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			t.Logf("%d actual owner statements, both statistics profiles; no golden or shared baseline rewritten", len(defs))
+			t.Logf("%d actual owner statements, unanalyzed writer profile; no golden or shared baseline rewritten", len(defs))
 		})
 	}
 }

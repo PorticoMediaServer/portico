@@ -117,7 +117,7 @@ AND kind='local' AND classification='local' AND enabled=1 AND identity_confirmed
 				{Name: "stale_source", Bindings: []any{"membership-source", "membership-library", int64(4), "membership-incarnation", "membership-root-identity", "/media/membership", false}},
 			}},
 		{ID: iaMembershipDirectory, Kind: stmt.Read,
-			SQL: `SELECT pages,skipped FROM inventory_directories
+			SQL: `SELECT pages,skipped FROM inventory_directories INDEXED BY sqlite_autoindex_inventory_directories_1
 WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AND pages=? AND skipped=? AND state='pending'`,
 			Params: []stmt.Param{t("run_id"), t("relative_path"), t("identity"), t("revision"), t("cursor"), i("pages"), i("skipped")},
 			Cohorts: []stmt.Cohort{
@@ -465,6 +465,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaMembershipBoundaryInsert, iaMembershipBoundaryUpdate, iaMembershipBoundaryDelete:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_episode_asset_boundaries_1"}
 			defs[n].Plan.Seeks = []string{"item_id=? AND asset_id=?"}
+		case iaMembershipContributionDelete:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_asset_contributions"}
+			defs[n].Plan.Seeks = []string{"parent_id=? AND asset_id=?"}
 		case iaMembershipDirectoryCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_directories_1"}
 			defs[n].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "inventory_directories", Name: "sqlite_autoindex_inventory_directories_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "job_id", Collation: "BINARY"}, {Name: "relative_path", Collation: "BINARY"}}}}
