@@ -14,6 +14,9 @@ import (
 // The parent owns current authorization, fresh classification, admission,
 // accounting, cursor/receipt/event and physical commit. These comparison inputs
 // grant no deletion permission. Every error requires whole-turn rollback.
+// Classify ErrConflict/ErrInvalid before cancellation: poisoning may join the
+// domain error with context.Canceled. Cancellation never authorizes a retry of
+// a failed participant inside the same frame.
 type uoReadingPruneKind uint8
 
 const (
@@ -349,6 +352,10 @@ func uoReadingResumeHasMore(ctx context.Context, turn *commandTurn, personal int
 func uoReadingPublicID(s string) bool {
 	return len(s) > 0 && len(s) <= 128 && strings.IndexByte(s, 0) < 0
 }
+// An absent global row contributes a zero cutoff: global prune selects nothing,
+// but family prune still uses its account cutoff. Only the global case is a
+// bootstrap no-op; family behavior here is not legacy missing-global parity.
+// The canonical outer owner initializes the global fact before composing work.
 func uoReadingPruneGlobalCut(ctx context.Context, turn *commandTurn) (int64, error) {
 	row, err := wc008DraftQuery(ctx, turn, uoReadingGlobalCut)
 	if err != nil {
