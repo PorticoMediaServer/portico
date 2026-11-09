@@ -17,7 +17,7 @@ import (
 func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
 	case IAConfigureLibrary, IAConfigureSource, IAConfigureSourceDisable, IAAcceptEpisodeInventory, IAAcceptAudioInventory,
-		IAAcceptReadingInventory, IAAcceptExtraInventory, IAAcceptMembership, IAReconcileObject:
+		IAAcceptReadingInventory, IAAcceptExtraInventory, IAAcceptMembership, IAReconcileObject, IACoverageVerify:
 		return governor.Background, nil
 	case InventoryAccept, BasicAccept, BasicStage, BasicSeal, InventoryCreate, InventoryClaim, InventoryDirectoryDiscover, InventoryDirectoryEOF, InventoryDirectoryRefuse, InventoryTraversalComplete:
 		return governor.ScanMinimum, nil

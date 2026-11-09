@@ -19,6 +19,7 @@ const (
 	IAAcceptExtraInventory   CommandID = 113
 	IAAcceptMembership       CommandID = 114
 	IAReconcileObject        CommandID = 120
+	IACoverageVerify         CommandID = 121
 )
 
 // ConfigureSource is NORMAL: a rename, interval or root change grants nothing.
@@ -37,4 +38,5 @@ var iaCommands = commandRegistration{owner: "IA", descriptors: []Descriptor{
 	{IAAcceptExtraInventory, "ia_accept_extra_inventory", Normal},
 	{IAAcceptMembership, "ia_accept_membership", Normal},
 	{IAReconcileObject, "ia_reconcile_object", Normal},
+	{IACoverageVerify, "ia_coverage_verify", Normal},
 }}

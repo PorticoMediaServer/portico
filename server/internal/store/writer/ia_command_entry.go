@@ -213,6 +213,8 @@ func iaEntryCommandKind(purpose CommandID) (string, error) {
 		return "membership_accept", nil
 	case IAReconcileObject:
 		return "inventory_reconcile", nil
+	case IACoverageVerify:
+		return "inventory_verify", nil
 	default:
 		return "", ErrInvalid
 	}

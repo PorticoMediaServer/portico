@@ -101,6 +101,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIAMediaResult(IAAcceptMembership, identity, request, v.facts)
 	case iaReconcileObjectResult:
 		return preflightIAReconcileResult(identity, request, v.facts)
+	case iaCoverageVerifyResult:
+		return preflightIACoverageVerifyResult(identity, request, v.facts)
 	case iaConfigureLibraryResult:
 		return preflightIAConfigurationResult(IAConfigureLibrary, identity, request, v.facts)
 	case iaConfigureSourceResult:
@@ -188,6 +190,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIAMediaResult(e, IAAcceptMembership, identity, request, v.facts)
 	case iaReconcileObjectResult:
 		return writeIAReconcileResult(e, identity, request, v.facts)
+	case iaCoverageVerifyResult:
+		return writeIACoverageVerifyResult(e, identity, request, v.facts)
 	case iaConfigureLibraryResult:
 		return writeIAConfigurationResult(e, IAConfigureLibrary, identity, request, v.facts)
 	case iaConfigureSourceResult:
