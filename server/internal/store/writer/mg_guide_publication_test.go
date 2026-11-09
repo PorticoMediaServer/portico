@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 func mgGuideHeadFixture(source, generation, state string, revision int64) mgGuideHead {
@@ -132,7 +134,7 @@ func TestMGGuideNativeZeroProgrammeGuide(t *testing.T) {
 		t.Fatal("zero-programme guide did not seal", sealed)
 	}
 	_, result := mgGuidePublishCommitted(t, w, sealed, false)
-	if result.head != mgGuideHeadFixture("source", "new", "active", 8) || result.operation.staged[1] != 0 {
+	if result.head != mgGuideHeadFixture("source", "new", "active", 8) || result.operation.progress.staged[1] != 0 {
 		t.Fatal("zero-programme guide did not publish", result)
 	}
 }
@@ -248,12 +250,13 @@ func TestMGGuideNativeSealAndPublishFences(t *testing.T) {
 		second.request = "guide-request-2"
 		second.manifest.generation = "new2"
 		second.manifest.expectedChain = mgGuideChainFor(second.manifest, stages, 2)
-		if other := mgGuideCompleteCommitted(t, w, second, stages); other.progress.manifest.generation != "new2" {
+		other := mgGuideCompleteCommitted(t, w, second, stages)
+		if other.progress.manifest.generation != "new2" {
 			t.Fatal("second guide birth", other.progress)
 		}
 		path := mgGuideDatabasePath(t, w)
 		_, sealedA := mgGuideSealCommitted(t, w, first)
-		_, sealedB := mgGuideSealCommitted(t, w, second)
+		_, sealedB := mgGuideSealCommitted(t, w, other)
 		_, published := mgGuidePublishCommitted(t, w, sealedA, true)
 		if published.head != mgGuideHeadFixture("source", "new", "active", 7) {
 			t.Fatal("first refresh", published.head)
@@ -400,8 +403,9 @@ func mgGuideZeroChannelFixture(t *testing.T) (*executor, mgGuideNative) {
 // the head flip.
 func TestMGGuidePublicationLateFailureRollsBackHead(t *testing.T) {
 	for _, test := range []struct {
-		name, target string
-		fresh        bool
+		name   string
+		target stmt.ID
+		fresh  bool
 	}{
 		{"head-then-operation", mgGuidePublishOperation, false},
 		{"source-then-operation", mgGuidePublishSource, false},
