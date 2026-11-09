@@ -25,9 +25,10 @@ function fixture(response:unknown=grant){
  const options={serverId:'server',isCurrent:()=>current,retireLateGrant:async(s:any)=>{retired.push(s.sessionFamilyId);}};
  return {api,options,calls,retired,set:(value:unknown)=>{reply=value;},end:()=>{current=false;}};
 }
-test('public move is explicit, committed and consistent with server kind; absent/unknown/contradictory facts refuse credentials',()=>{
+test('public move is consistent with server kind; an absent or unknown move is no move, and a contradictory one refuses credentials',()=>{
  const system={id:'server',name:'Home',version:'1',signIn:'local',move:null,setupRequired:false,hostedConfigured:true,hostedAttached:false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
- for(const move of [undefined,'preview','switch','to_portico'])assert.throws(()=>parseServerSignIn({...system,move}));
+ for(const move of [undefined,'preview','switch'])assert.equal(parseServerSignIn({...system,move}).move,null);
+ assert.throws(()=>parseServerSignIn({...system,move:'to_portico'}));
  assert.equal(parseServerSignIn({...system,move:'to_local'}).move,'to_local');
  assert.equal(parseServerSignIn({...system,signIn:'portico',move:'to_portico'}).move,'to_portico');
 });

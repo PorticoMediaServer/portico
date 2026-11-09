@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {withUnknownFields} from './unknown-fields.ts';
 import {currentUTCTimestamp,parseLocalSession,utcOrderKey} from '../src/local-session.ts';
 
 const future = '2099-01-01T00:00:00Z';
@@ -88,10 +89,14 @@ test('device, installation, refresh and server-identity bounds hold', () => {
   }
 });
 
-test('a stored record forgives expiry and unknown fields, nothing else', () => {
+test('a stored record forgives expiry, nothing else', () => {
   const past = session({expiresAt: '2026-01-01T00:00:00Z'});
-  assert.equal(parseLocalSession({...past, futureField: 1} as never, {}, {stored: true}).sessionFamilyId, 'fam-1');
+  assert.equal(parseLocalSession(past, {}, {stored: true}).sessionFamilyId, 'fam-1');
   assert.throws(() => parseLocalSession({...past, sessionFamilyId: 'bad id!'}, {}, {stored: true}));
-  // A fresh server answer stays exact: unknown fields are refused.
-  assert.throws(() => parseLocalSession({...session(), futureField: 1} as never), {code: 'invalid_current_session'});
+});
+
+test('a sign-in answer from a newer server reads the same, and its unknown fields are not kept', () => {
+  const key = 'k'.repeat(43);
+  const answer = session({deviceId: 'device', installationId: 'inst', refreshToken: 'r'.repeat(43), serverIdentity: {publicKey: key, fingerprint: key}});
+  assert.deepEqual(parseLocalSession(withUnknownFields(answer)), parseLocalSession(answer));
 });

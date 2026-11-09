@@ -12,5 +12,5 @@ test('selected viewer records reject ambiguous envelopes and credential-bearing 
  const previous=record('previous');assert.deepEqual(parseSelectedViewerRecord(previous),previous);
  for(const server of ['https://user:password@server.example','https://server.example/?token=x','https://server.example/#x','file:///tmp/server'])assert.throws(()=>selectedViewerRecord(server,previous.session));
  assert.throws(()=>parseSelectedViewerRecord({...previous,version:0}));
- assert.throws(()=>selectedViewerRecord(previous.serverUrl,{...previous.session,accountToken:'not-a-viewer-token'}));
+ assert.equal('accountToken' in selectedViewerRecord(previous.serverUrl,{...previous.session,accountToken:'not-a-viewer-token'}).session,false);
 });

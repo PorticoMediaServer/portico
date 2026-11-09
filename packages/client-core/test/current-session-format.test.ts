@@ -12,7 +12,6 @@ test('current local envelope preserves all family metadata and captured viewer b
 test('old local shapes and noncanonical generations are refused without synthesis',()=>{
  for(const field of ['sessionFamilyId','tokenGeneration','authorizationHorizon']){const value:any=local();delete value[field];assert.throws(()=>parseLocalSession(value));}
  for(const tokenGeneration of ['0','01','+1','1.0','9223372036854775808',1])assert.throws(()=>parseLocalSession({...local(),tokenGeneration}));
- assert.throws(()=>parseLocalSession({...local(),obsolete:true}));
 });
 test('invalid calendar, expired access and sub-millisecond horizon overflow are refused',()=>{
  for(const expiresAt of ['2099-02-30T00:00:00Z','2000-01-01T00:00:00Z','2099-01-01'])assert.throws(()=>parseLocalSession({...local(),expiresAt}));

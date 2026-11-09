@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {withUnknownFields} from './unknown-fields.ts';
 import {parseServerSignIn, ServerSignInProbe, signInLabelKey, serverSignInSettingsURL} from '../src/sign-in.ts';
 const system = (signIn = 'local') => ({id: 'server', name: 'Study', signIn, move:null,version: '1', setupRequired: false, hostedConfigured: true, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
 test('Change this on the web opens Sign-in on the exact chosen server without secrets or alternate authorities',()=>{
@@ -22,6 +23,12 @@ test('missing/unknown/malformed kind never offers credentials; setup remains sep
   for (const signIn of [undefined, '', 'both', 'hosted']) assert.throws(() => parseServerSignIn({...system(), signIn}), {code: 'invalid_system'});
   const probe = new ServerSignInProbe(async () => Response.json({...system(), setupRequired: true}));
   await probe.inspect('https://server.test'); assert.equal(probe.getSnapshot().destination, 'setup'); probe.dispose();
+});
+test('a newer server that adds fields to /system, or stops reporting a move or its Portico account state, still offers sign-in', async () => {
+  assert.deepEqual(parseServerSignIn(withUnknownFields(system())), parseServerSignIn(system()));
+  const {move: _move, hostedConfigured: _configured, hostedAttached: _attached, ...fewer} = system('portico');
+  const probe = new ServerSignInProbe(async () => Response.json(withUnknownFields(fewer)));
+  await probe.inspect('https://server.test'); assert.equal(probe.getSnapshot().destination, 'portico-account'); probe.dispose();
 });
 test('cancelled/offline/timed-out/late probes cannot reopen an old password form', async () => {
   let answer!: (v: Response) => void;

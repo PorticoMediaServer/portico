@@ -77,13 +77,12 @@ for (const kind of ['installation', 'route', 'counter', 'state', 'origin'] as co
   await assert.rejects(f.start()); assert.equal(f.sent.length, 0); assert.equal(f.bound.length, 0);
 });
 
-for (const kind of ['transaction', 'expiry', 'proof', 'registration', 'operation', 'account', 'phase', 'duplicate-url', 'foreign-url', 'name', 'code'] as const)
+for (const kind of ['transaction', 'expiry', 'proof', 'operation', 'account', 'phase', 'duplicate-url', 'foreign-url', 'name', 'code'] as const)
   test('untrusted ' + kind + ' response cannot bind protected state or navigate', async t => {
     const f = await fixture(t);
     if (kind === 'transaction') f.raw.ownerContinuation.transactionId = '';
     if (kind === 'expiry') f.raw.ownerContinuation.expiresAt = '2030-01-02T03:09:06Z';
     if (kind === 'proof') f.raw.ownerContinuation.start.signature = f.raw.ownerContinuation.claim.signature;
-    if (kind === 'registration') Object.assign(f.raw.ownerContinuation, {returnRegistration: {id: 'invented', origin: claim.address}});
     if (kind === 'operation') f.raw.operation.operationId = 'other-operation';
     if (kind === 'account') f.raw.accountId = 'another-account';
     if (kind === 'phase') f.raw.ownerContinuation.phase = 'installed';
