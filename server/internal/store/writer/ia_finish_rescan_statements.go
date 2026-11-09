@@ -119,7 +119,7 @@ FROM inventory_runs WHERE job_id=? AND command_incarnation=?`,
 				{Name: "no_protected_path", Bindings: []any{"finish-closed", "", int64(iaFinishPageRows)}},
 			}},
 		{ID: iaFinishSkipped, Kind: stmt.Read,
-			SQL:    `SELECT relative_path FROM inventory_directories INDEXED BY sqlite_autoindex_inventory_directories_1 WHERE job_id=? AND skipped>0 AND relative_path>? ORDER BY relative_path LIMIT ?`,
+			SQL:    `SELECT relative_path FROM inventory_directories INDEXED BY inventory_directories_skipped WHERE job_id=? AND skipped>0 AND relative_path>? ORDER BY relative_path LIMIT ?`,
 			Params: []stmt.Param{t("run_id"), t("after_path"), i("row_limit")},
 			Cohorts: []stmt.Cohort{
 				{Name: "skipped_directory", Bindings: []any{"finish-run", "", int64(iaFinishPageRows)}},
@@ -215,7 +215,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Indexes = []string{"inventory_scan_issues_protected"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>?"}
 		case iaFinishSkipped:
-			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_directories_1"}
+			defs[n].Plan.Indexes = []string{"inventory_directories_skipped"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>?"}
 		case iaFinishBlockedCharged:
 			defs[n].Plan.Indexes = []string{"inventory_directories_pending", "sqlite_autoindex_inventory_scan_issues_1"}
