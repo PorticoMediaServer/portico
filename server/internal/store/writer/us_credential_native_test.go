@@ -1514,7 +1514,7 @@ func TestUSCredentialRevokeUnknownCommitNeverApplied(t *testing.T) {
 			if fault.commits.Load() != 1 || native != after {
 				t.Fatal("physical COMMIT disposition changed", fault.commits.Load(), native, after)
 			}
-			oracle := usCredentialOracle(t, w, path)
+			oracle := usCredentialOracle(t, path)
 			credentialAfter := usCredentialDBRow(t, oracle, "api_credentials", "family_id", usCredentialFamilyID)
 			familyAfter := usCredentialDBRow(t, oracle, "authorization_session_families", "id", usCredentialFamilyID)
 			deviceAfter := usCredentialDBRow(t, oracle, "identity_devices", "id", usCredentialDeviceID)
@@ -1539,14 +1539,13 @@ func TestUSCredentialRevokeUnknownCommitNeverApplied(t *testing.T) {
 
 // usCredentialOracle opens a separate read-only pool for row checks after the
 // writer's own pool is fenced by an ambiguous COMMIT.
-func usCredentialOracle(t *testing.T, w *executor, path string) *sql.DB {
+func usCredentialOracle(t *testing.T, path string) *sql.DB {
 	t.Helper()
-	connector, err := sqliteconn.Connector(path, w.config, sqliteconn.ExistingFile)
+	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
+	db, _, err := sqliteconn.Open(t.Context(), path, cfg, sqliteconn.ExistingFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db := sql.OpenDB(connector)
-	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
