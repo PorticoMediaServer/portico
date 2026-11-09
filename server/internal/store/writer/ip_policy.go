@@ -172,6 +172,7 @@ func (b ipPolicyBudget) check(ctx context.Context, turn *commandTurn, bytes int6
 	switch tx.descriptor.ID {
 	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
 		IPPersonClaim, IPPersonRenew, IPPersonFinish, IPPersonEvidenceBegin,
+		IPPersonEvidenceAppend, IPPersonSeal,
 		IPEntityEvidenceBegin, IPEntityEvidenceAppend, IPEntitySeal,
 		IPTVSetBegin, IPTVSetPage, IPTVSetSeal, IPEntityAccept, IPEntityDelta,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,

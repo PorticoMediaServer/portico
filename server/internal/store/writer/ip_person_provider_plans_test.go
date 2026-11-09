@@ -13,7 +13,9 @@ import (
 // with no temp B-tree; writes are bounded CAS statements.
 func TestIPPersonProviderNativePlans(t *testing.T) {
 	w, _, _, _ := ipPersonFixture(t)
-	for _, d := range ipPersonDefinitions() {
+	definitions := append(append(ipPersonDefinitions(), ipPersonEvidenceAppendDefinitions()...),
+		ipPersonEvidenceSealDefinitions()...)
+	for _, d := range definitions {
 		d := d
 		t.Run(string(d.ID), func(t *testing.T) {
 			rows, err := w.db.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+d.SQL, d.Cohorts[0].Bindings...)

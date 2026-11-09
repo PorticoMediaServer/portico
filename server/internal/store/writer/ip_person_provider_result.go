@@ -26,7 +26,11 @@ func ipPersonResultDigest(id CommandIdentity, request RequestDigest, v ipPersonR
 }
 
 func ipPersonKind(value string) bool {
-	return value == "claim" || value == "renew" || value == "finish" || value == "begin"
+	switch value {
+	case "claim", "renew", "finish", "begin", "append", "seal":
+		return true
+	}
+	return false
 }
 
 func ipPersonFinishOutcome(value string) bool {
@@ -53,12 +57,12 @@ func preflightIPPersonResult(v ipPersonResult) error {
 	}
 	if !ipPersonKind(v.Kind) || !ipPolicyProviderCode(v.Provider) || len(v.OperationID) != 32 ||
 		v.PersonID <= 0 || v.Generation <= 0 || v.Revision <= 0 || v.LeaseGeneration <= 0 ||
-		v.AppliedMS < 0 || v.AppliedMS > math.MaxInt64-ipPersonLeaseMS || v.ResultCount != 1 {
+		v.AppliedMS < 0 || v.AppliedMS > math.MaxInt64-ipPersonLeaseMS || v.ResultCount < 0 {
 		return ErrInvalid
 	}
 	switch v.Kind {
 	case "claim":
-		if len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || len(v.Lease) != 32 ||
+		if v.ResultCount != 1 || len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || len(v.Lease) != 32 ||
 			v.Outcome != "" || v.EvidenceID != "" || v.BuildID != "" || v.SubjectKind != "" ||
 			v.ParserVersion != "" || v.BuildGeneration != 0 || v.MaterializedRows != 0 || v.ResultBytes != 0 ||
 			v.Generation != 1 || v.Revision != 1 || v.LeaseGeneration != 1 ||
@@ -66,7 +70,7 @@ func preflightIPPersonResult(v ipPersonResult) error {
 			return ErrInvalid
 		}
 	case "renew":
-		if len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || len(v.Lease) != 32 ||
+		if v.ResultCount != 1 || len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || len(v.Lease) != 32 ||
 			v.Outcome != "" || v.EvidenceID != "" || v.BuildID != "" || v.SubjectKind != "" ||
 			v.ParserVersion != "" || v.BuildGeneration != 0 || v.MaterializedRows != 0 || v.ResultBytes != 0 ||
 			v.Revision < 2 || v.LeaseGeneration < 2 ||
@@ -74,15 +78,35 @@ func preflightIPPersonResult(v ipPersonResult) error {
 			return ErrInvalid
 		}
 	case "finish":
-		if len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || v.Lease != "" ||
+		if v.ResultCount != 1 || len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || v.Lease != "" ||
 			!ipPersonFinishOutcome(v.Outcome) || v.EvidenceID != "" || v.BuildID != "" ||
 			v.SubjectKind != "" || v.ParserVersion != "" || v.BuildGeneration != 0 ||
 			v.MaterializedRows != 0 || v.ResultBytes != 0 || v.Revision < 2 ||
 			v.LeaseUntilMS != v.AppliedMS || v.Commitment != [32]byte{} {
 			return ErrInvalid
 		}
-	default:
+	case "append":
+		// One bounded alias/external page: the saved result names its rows and
+		// page bytes, never a seal commitment or a parser domain.
 		if len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || len(v.Lease) != 32 ||
+			v.Outcome != "" || v.EvidenceID == "" || v.BuildID == "" || v.SubjectKind != "person" ||
+			v.ParserVersion != "" || v.BuildGeneration <= 0 || v.MaterializedRows <= 1 ||
+			v.ResultCount <= 0 || v.ResultCount > ipPersonMaxChildren || v.ResultBytes <= 0 ||
+			v.Revision < 2 || v.LeaseUntilMS <= v.AppliedMS || v.Commitment != [32]byte{} {
+			return ErrInvalid
+		}
+	case "seal":
+		// The complete typed person proof: exact sealed row/byte counts and the
+		// whole-manifest commitment, never an acceptance or publication.
+		if len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || len(v.Lease) != 32 ||
+			v.Outcome != "" || v.EvidenceID == "" || v.BuildID == "" || v.SubjectKind != "person" ||
+			v.ParserVersion == "" || v.BuildGeneration <= 0 || v.MaterializedRows <= 0 ||
+			v.ResultCount != 1 || v.ResultBytes < v.MaterializedRows || v.Revision < 2 ||
+			v.LeaseUntilMS <= v.AppliedMS || v.Commitment == [32]byte{} {
+			return ErrInvalid
+		}
+	default:
+		if v.ResultCount != 1 || len(v.ProviderID) == 0 || len(v.ProviderID) > ipPersonProviderIDMax || len(v.Lease) != 32 ||
 			v.Outcome != "" || v.EvidenceID == "" || v.BuildID == "" || v.SubjectKind != "person" ||
 			v.ParserVersion == "" || v.BuildGeneration <= 0 || v.MaterializedRows != 1 ||
 			v.ResultBytes <= 0 || v.Revision < 2 || v.LeaseUntilMS <= v.AppliedMS ||

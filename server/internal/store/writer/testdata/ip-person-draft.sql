@@ -1,6 +1,8 @@
 -- Exact D subset needed by IP-14's person operation claim/renew/finish and
--- person evidence BEGIN, 8 November 2026. Proposed fixture only; group D is
--- not embedded and this makes no Capture claim. The embedded schema owns
+-- person evidence BEGIN plus IP-15's person alias/external append and seal,
+-- 8 November 2026. Proposed fixture only; group D is not embedded and this
+-- makes no Capture claim. The alias/external child primary keys are embedded;
+-- this subset adds the person seal unique/proof FK. The embedded schema owns
 -- catalog_people, catalog_libraries, metadata_providers, provider subjects, the
 -- provider policy and the generic metadata_evidence body. This adds the exact
 -- person custody/receipt/build subset plus the typed exact-date evidence

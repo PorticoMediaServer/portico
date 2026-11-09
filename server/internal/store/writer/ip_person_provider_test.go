@@ -40,6 +40,8 @@ func ipPersonFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usOwnerAuthor
 		ipPolicyExec(t, w, query)
 	}
 	defs := append(ipPolicyDefinitions(), ipPersonDefinitions()...)
+	defs = append(defs, ipPersonEvidenceAppendDefinitions()...)
+	defs = append(defs, ipPersonEvidenceSealDefinitions()...)
 	registry, err := stmttest.New(t, defs)
 	if err != nil {
 		t.Fatal(err)

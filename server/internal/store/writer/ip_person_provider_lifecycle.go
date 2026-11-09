@@ -56,6 +56,7 @@ type ipPersonCommand struct {
 	renew    ipPersonRenewRequest
 	finish   ipPersonFinishRequest
 	begin    ipPersonEvidenceBeginRequest
+	append   ipPersonEvidenceAppendRequest
 }
 
 type ipPersonCommandResult struct {
@@ -106,6 +107,11 @@ type ipPersonReceipt struct {
 	resultDigest     [32]byte
 	evidenceID       string
 	buildID          string
+	sealAlgorithm    string
+	sealVersion      int64
+	sealRows         int64
+	sealBytes        int64
+	sealCommitment   [32]byte
 }
 
 type ipPersonLookup struct {
@@ -254,7 +260,11 @@ func ipPersonTimeText(ms int64) string {
 
 // The person receipt family has no claim/finish command kinds: a claim is the
 // BEGIN-kind receipt with no evidence, and finish is the retry-kind receipt.
-// The mapping is derived from the stored pair, never from a caller field.
+// The mapping is derived from the stored pair, never from a caller field. The
+// persisted spellings are the pinned person DDL's closed CHECK list: 209's
+// evidence begin is stored as 'begin' with an evidence ID, 232's evidence
+// append as 'append', and 233's seal as 'evidence_seal'. Registry descriptor
+// names (ip_person_evidence_begin/-_append/ip_person_seal) are never stored.
 func ipPersonReceiptKind(kind, evidenceID string) (CommandID, bool) {
 	switch kind {
 	case "begin":
@@ -266,6 +276,16 @@ func ipPersonReceiptKind(kind, evidenceID string) (CommandID, bool) {
 		return IPPersonRenew, true
 	case "retry":
 		return IPPersonFinish, true
+	case "append":
+		if evidenceID == "" {
+			return 0, false
+		}
+		return IPPersonEvidenceAppend, true
+	case "evidence_seal":
+		if evidenceID == "" {
+			return 0, false
+		}
+		return IPPersonSeal, true
 	}
 	return 0, false
 }
@@ -316,10 +336,13 @@ func ipPersonOwnerLookupReceipt(ctx context.Context, turn *commandTurn, purpose 
 		return out, err
 	}
 	var receiptIncarnation, operation, requestDigest, resultDigest []byte
-	var evidenceID, buildID sql.NullString
+	var evidenceID, buildID, sealAlgorithm sql.NullString
+	var sealVersion, sealRows, sealBytes sql.NullInt64
+	var sealCommitment []byte
 	err = row.Scan(&receiptIncarnation, &out.receipt.sequence, &operation, &requestDigest,
 		&out.receipt.appliedMS, &resultDigest, &out.receipt.kind, &out.receipt.acceptedRevision,
-		&out.receipt.resultCount, &evidenceID, &buildID)
+		&out.receipt.resultCount, &evidenceID, &buildID, &sealAlgorithm, &sealVersion,
+		&sealCommitment, &sealRows, &sealBytes)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	} else if err != nil {
@@ -327,7 +350,23 @@ func ipPersonOwnerLookupReceipt(ctx context.Context, turn *commandTurn, purpose 
 	} else {
 		out.receipt.evidenceID = evidenceID.String
 		out.receipt.buildID = buildID.String
+		out.receipt.sealAlgorithm = sealAlgorithm.String
+		out.receipt.sealVersion = sealVersion.Int64
+		out.receipt.sealRows = sealRows.Int64
+		out.receipt.sealBytes = sealBytes.Int64
 		kind, known := ipPersonReceiptKind(out.receipt.kind, out.receipt.evidenceID)
+		sealFields := sealAlgorithm.Valid || sealVersion.Valid || sealCommitment != nil ||
+			sealRows.Valid || sealBytes.Valid
+		if sealFields != (kind == IPPersonSeal) {
+			return out, ErrResolveRequired
+		}
+		if kind == IPPersonSeal && (out.receipt.sealAlgorithm != ipPersonSealAlgorithm ||
+			out.receipt.sealVersion != ipPersonSealVersion || len(sealCommitment) != 32 ||
+			out.receipt.sealRows <= 0 || out.receipt.sealBytes <= 0) {
+			return out, ErrResolveRequired
+		} else if kind == IPPersonSeal {
+			copy(out.receipt.sealCommitment[:], sealCommitment)
+		}
 		if len(receiptIncarnation) != 16 || len(operation) != 16 || len(requestDigest) != 32 ||
 			len(resultDigest) != 32 || out.receipt.sequence <= 0 || out.receipt.appliedMS < 0 ||
 			out.receipt.acceptedRevision <= 0 || out.receipt.resultCount < 0 || !known ||

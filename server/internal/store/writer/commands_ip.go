@@ -47,6 +47,13 @@ const (
 	IPEditBulkBegin  CommandID = 243
 	IPEditBulkPage   CommandID = 244
 	IPEditBulkFinish CommandID = 245
+
+	// Person evidence child custody is a separate family from the entity
+	// evidence commands 211/212: person token/revision authority, owner
+	// identity and proof/receipt FKs are distinct even where numeric IDs,
+	// incarnations and sequences coincide.
+	IPPersonEvidenceAppend CommandID = 232
+	IPPersonSeal           CommandID = 233
 )
 
 var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
@@ -80,6 +87,8 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPArtworkGCMark, "ip_artwork_gc_mark", Normal},
 	{IPArtworkGCFinish, "ip_artwork_gc_finish", Normal},
 	{IPArtworkReencode, "ip_artwork_reencode", Normal},
+	{IPPersonEvidenceAppend, "ip_person_evidence_append", Normal},
+	{IPPersonSeal, "ip_person_seal", Normal},
 	{IPFieldEdit, "ip_field_edit", Normal},
 	{IPFieldLock, "ip_field_lock", Normal},
 	{IPFieldRestore, "ip_field_restore", Normal},
