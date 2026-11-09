@@ -183,8 +183,8 @@ func reclaimCrashInput(t *testing.T, operation string) (*executor, string, recla
 
 func reclaimCrashRegistry(t *testing.T, w *executor) *stmt.Registry {
 	t.Helper()
-	if schema.SHA256 != progressCrashSchema017 {
-		t.Fatal("reclaim captures require schema017", schema.SHA256)
+	if schema.SHA256 != progressCrashSchema018 {
+		t.Fatal("reclaim captures require schema018", schema.SHA256)
 	}
 	defs := wcReclaimDefinitions()
 	if len(defs) != 5 {
