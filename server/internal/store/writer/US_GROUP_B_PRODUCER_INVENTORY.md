@@ -143,3 +143,8 @@ Each list is disjoint. A prep task updates only its own files; no product schema
 - The P05/P06 fixtures are the only v1-native sites at this head. Credential fixtures exist only in `us_authority_test.go` at present; US-11 adds the first accepting credential producer.
 - `internal/testauth/session.go` is legacy today: no `store/*` test calls it. If a v1 fixture later adopts it, add a v1-specific helper that writes `security_kind` explicitly rather than inferring it (CHANGE-015 producer-impact rule).
 - The family `INSERT-SELECT` sites copy an existing family row, so they inherit the source kind. They still must stay listed because the copied row may be ordinary or credential.
+
+
+F018 integration P08: recognize adopted schema484242fb alongside historical
+9d9/014/015 pins. Added exact full-F fixture/participant guard sites: server/internal/store/writer/ia_retirement_step_test.go, server/internal/store/writer/mp_external_guide_pin_plans_test.go, server/internal/store/writer/mp_reading_plans_test.go, server/internal/store/writer/mp_session_stop_guard_plans_test.go, server/internal/store/writer/mp_worker_dispatch_test.go. Historical golden/schema bindings stay unchanged;
+no producer kind/default or reader qualification is inferred.

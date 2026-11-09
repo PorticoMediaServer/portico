@@ -501,8 +501,9 @@ func TestUSGroupBProducerInventoryOtherSources(t *testing.T) {
 // the hash-only guard edits after P05 and P06, so a producer task must not touch these
 // files. The accepted prefixes cover the retained schema012+013 pin (9d9aa39d), the
 // adopted CHANGE-014 schema carried by PR #1803 (782904d7), and the group B proposal
-// after the embed (44411dfe), so the census stays true across both embeds.
-var usGroupBSchemaSHAPrefixes = []string{"9d9aa39d", "782904d7", "44411dfe"}
+// after the embed (44411dfe), and adopted F018 (484242fb). Historical captures
+// retain their source/schema pair; only real fixture/guard changes enter this census.
+var usGroupBSchemaSHAPrefixes = []string{"9d9aa39d", "782904d7", "44411dfe", "484242fb"}
 
 var usGroupBSchemaGuardReference = regexp.MustCompile(`progressCrashSchema|requires schema[0-9]{3}`)
 
@@ -522,6 +523,11 @@ type usGroupBSchemaGuard struct {
 }
 
 var usGroupBSchemaGuards = []usGroupBSchemaGuard{
+	{File: "server/internal/store/writer/ia_retirement_step_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
+	{File: "server/internal/store/writer/mp_external_guide_pin_plans_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
+	{File: "server/internal/store/writer/mp_reading_plans_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
+	{File: "server/internal/store/writer/mp_session_stop_guard_plans_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
+	{File: "server/internal/store/writer/mp_worker_dispatch_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
 	{File: "server/internal/store/schema/schema.go", Literals: 1, Guards: "embedded schema.sql SHA256 constant", HashOnly: true},
 	{File: "server/internal/store/schema/SHA256SUMS", Literals: 1, Guards: "schema.sql checksum line", HashOnly: true},
 	{File: "server/internal/store/schema/INT-LARGE-INDEXES.json", Literals: 1, Guards: "ddl_sha256 in the large-index contract; the index set also moves with group B foreign keys", HashOnly: false},
