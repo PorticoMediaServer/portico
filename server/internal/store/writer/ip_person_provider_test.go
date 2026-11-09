@@ -482,10 +482,21 @@ func TestIPPersonEvidenceBeginFreshReplayAndRecovery(t *testing.T) {
 			t.Fatal(query, got)
 		}
 	}
-	// Replay returns the exact saved BEGIN after fresh source changes.
+	// Replay returns the exact saved BEGIN after fresh source changes. The build
+	// is advanced to a coherent sealed-ready state: its own evidence_seal receipt
+	// names the evidence and the exact staged rows/bytes the CHECK requires.
 	original := out
 	ipPolicyExec(t, w, `UPDATE catalog_people SET revision=9 WHERE id=42`)
-	ipPolicyExec(t, w, `UPDATE metadata_person_builds SET state='ready' WHERE id='`+q.buildID+`'`)
+	sealOperation := make([]byte, 16)
+	sealOperation[0], sealOperation[1] = 0x6d, 0x01
+	sealCommitment := make([]byte, 32)
+	sealCommitment[0] = 0x5b
+	ipPolicyExec(t, w, `INSERT INTO metadata_person_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,applied_ms,result_digest,command_kind,accepted_revision,after_ordinal,result_count,evidence_id,build_id,seal_algorithm,seal_version,seal_commitment,seal_rows,seal_bytes) VALUES(?,?,3,?,?,0,?,'evidence_seal',?,0,?,?,?,'ip.person.manifest',1,?,?,?)`,
+		first.OperationID, identity.Incarnation[:], sealOperation, make([]byte, 32),
+		make([]byte, 32), first.Revision+1, q.expectedRows, q.header.ID, q.buildID,
+		sealCommitment, q.expectedRows, q.expectedBytes)
+	ipPolicyExec(t, w, `UPDATE metadata_person_builds SET state='ready',cursor=expected_rows,staged_rows=expected_rows,staged_bytes=expected_bytes,seal_owner=?,seal_incarnation=?,seal_sequence=3 WHERE id='`+q.buildID+`'`,
+		first.OperationID, identity.Incarnation[:])
 	ipPolicyExec(t, w, `UPDATE metadata_evidence SET title='changed' WHERE id='`+q.header.ID+`'`)
 	turn, tx, b = ipPolicyTurn(t, w, r, IPPersonEvidenceBegin)
 	replay, err := applyIPPersonEvidenceBegin(t.Context(), turn, p, t.Context(), b, mustIPPersonBegin(t, identity, q))
@@ -518,6 +529,9 @@ func TestIPPersonEvidenceBeginFreshReplayAndRecovery(t *testing.T) {
 		got.commitment != q.expectedCommitment {
 		t.Fatal(got)
 	}
+	// Bounded reclamation drops the owner receipts only after the build stops
+	// naming its seal proof; recovery then still finds the build by owner key.
+	ipPolicyExec(t, w, `UPDATE metadata_person_builds SET state='done',seal_owner=NULL,seal_incarnation=NULL,seal_sequence=NULL WHERE id='`+q.buildID+`'`)
 	ipPolicyExec(t, w, `DELETE FROM metadata_person_receipts`)
 	got = recovery()
 	if !got.exists || got.buildID != q.buildID || got.commitment != q.expectedCommitment {

@@ -57,10 +57,12 @@ func ipEntityDeltaDefinitions() []stmt.Definition {
 			Plan:   stmt.Plan{Hot: true, Indexes: []string{"metadata_ip_receipt_evidence"}},
 		},
 		{
-			// A retained set proof must still be complete and own the old evidence.
-			ID: ipEntityDeltaPriorSetStmt, SQL: `SELECT evidence_id,complete,coverage_complete FROM metadata_publication_sets WHERE id=? AND entity_id=?`,
+			// A retained set proof must still be complete and own the old
+			// evidence. The set header has no evidence column of its own; its
+			// exact IP set-seal receipt is the proof that names the evidence.
+			ID: ipEntityDeltaPriorSetStmt, SQL: `SELECT r.evidence_id,s.complete,s.coverage_complete FROM metadata_publication_sets AS s JOIN metadata_ip_receipts AS r ON r.owner_id=s.ip_proof_owner AND r.command_incarnation=s.ip_proof_incarnation AND r.command_sequence=s.ip_proof_sequence AND r.command_kind='set_seal' AND r.set_id=s.id WHERE s.id=? AND s.entity_id=?`,
 			Params: []stmt.Param{t("set"), i("entity")},
-			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_publication_sets"}},
+			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_publication_sets"}, Indexes: []string{"metadata_ip_receipt_set"}},
 		},
 		{
 			ID: ipEntityDeltaPriorSetSealStmt, SQL: `SELECT command_incarnation,command_sequence,terminal,proof_pin_count FROM metadata_ip_receipts WHERE owner_id=? AND set_id=? AND command_kind='set_seal'`,

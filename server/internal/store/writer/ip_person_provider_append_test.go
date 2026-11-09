@@ -217,10 +217,10 @@ func TestIPPersonEvidenceAppendFreshReplayAndRetired(t *testing.T) {
 	for query, want := range map[string]int64{
 		`SELECT count(*) FROM metadata_evidence_aliases WHERE evidence_id='` + chain.staged.begin.EvidenceID + `' AND ordinal IN(0,1)`:                                         2,
 		`SELECT count(*) FROM metadata_person_builds WHERE id='` + chain.staged.begin.BuildID + `' AND state='building' AND cursor=3 AND staged_rows=3 AND content_revision=2`: 1,
-		`SELECT staged_bytes FROM metadata_person_builds WHERE id='` + chain.staged.begin.BuildID + `':                                                                        ` + ipWritingInt(headerBytes+pageBytes),
-		`SELECT count(*) FROM metadata_person_receipts WHERE command_kind='append' AND after_ordinal=3 AND accepted_revision=2 AND result_count=2`: 1,
-		`SELECT last_command_sequence FROM metadata_person_operations WHERE id='` + chain.staged.begin.OperationID + `'`:                           3,
-		`SELECT count(*) FROM metadata_person_builds WHERE state<>'building' OR seal_owner IS NOT NULL`:                                            0,
+		`SELECT staged_bytes FROM metadata_person_builds WHERE id='` + chain.staged.begin.BuildID + `'`:                                                                        headerBytes + pageBytes,
+		`SELECT count(*) FROM metadata_person_receipts WHERE command_kind='append' AND after_ordinal=3 AND accepted_revision=2 AND result_count=2`:                             1,
+		`SELECT last_command_sequence FROM metadata_person_operations WHERE id='` + chain.staged.begin.OperationID + `'`:                                                       3,
+		`SELECT count(*) FROM metadata_person_builds WHERE state<>'building' OR seal_owner IS NOT NULL`:                                                                        0,
 	} {
 		if got := ipPolicyQueryInt(t, w, query); got != want {
 			t.Fatal(query, got)

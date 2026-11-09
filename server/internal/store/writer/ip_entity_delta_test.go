@@ -99,9 +99,18 @@ func ipEntityDeltaSecondClaim(t *testing.T, w *executor, r *ipPolicyRegistry,
 	return out.Value, identity
 }
 
+// ipEntityDeltaEvidenceIdentity is the delta fixture's second evidence chain and
+// delta-command identity: the shared evidence identity with a distinct
+// operation-ID salt (0x6c), so the second chain can never collide with the first
+// accept chain's operation IDs in one fixture database.
+func ipEntityDeltaEvidenceIdentity(claim CommandIdentity, sequence int64) CommandIdentity {
+	return ipEntityEvidenceChainIdentity(claim, sequence, 0x6c)
+}
+
 // ipEntityDeltaStageSecond stages and seals one second observation under the
-// new owner. observationDigest is the provider content digest; an equal digest
-// makes the later replacement an exact no-op.
+// new owner. observationDigest is the provider content digest of that separate
+// observation; no-op identity is the typed cohort, because the schema keeps one
+// evidence row per content digest.
 func ipEntityDeltaStageSecond(t *testing.T, w *executor, r *ipPolicyRegistry, p *usOwnerAuthorityProof,
 	setup ipEntityDeltaSetup, evidenceID, buildID string, pages []ipEntitySealPage,
 	observationDigest [32]byte) ipEntityAcceptStaged {
@@ -114,7 +123,7 @@ func ipEntityDeltaStageSecond(t *testing.T, w *executor, r *ipPolicyRegistry, p 
 	bq.header = ipEntityEvidenceHeader(evidenceID)
 	bq.header.ObservationDigest = observationDigest
 	first, turn, tx := ipEntityEvidenceApplyBegin(t, w, r, p,
-		mustEvidenceBegin(t, ipEntityEvidenceIdentity(claim, 2), bq))
+		mustEvidenceBegin(t, ipEntityDeltaEvidenceIdentity(claim, 2), bq))
 	ipPolicyCommitTurn(t, turn, tx)
 	ipEntityEvidenceAck(t, w, first.Value, 2)
 
@@ -127,7 +136,7 @@ func ipEntityDeltaStageSecond(t *testing.T, w *executor, r *ipPolicyRegistry, p 
 		familyStart := before - page.AfterOrdinal
 		request := ipEntitySealPageRequest(owner, current, page, counts[page.Family], familyStart, before)
 		out, turn, tx := ipEntityEvidenceApplyAppend(t, w, r, p,
-			mustEvidenceAppend(t, ipEntityEvidenceIdentity(claim, sequence), request))
+			mustEvidenceAppend(t, ipEntityDeltaEvidenceIdentity(claim, sequence), request))
 		ipPolicyCommitTurn(t, turn, tx)
 		ipEntityEvidenceAck(t, w, out.Value, sequence)
 		current = out.Value
@@ -138,9 +147,11 @@ func ipEntityDeltaStageSecond(t *testing.T, w *executor, r *ipPolicyRegistry, p 
 	seal.observationDigest = observationDigest
 	staged := ipEntityAcceptStaged{owner: owner, claim: claim, pages: pages,
 		declarations: declarations, begin: current, sequence: sequence, seal: seal}
-	c := ipEntitySealCommandFor(t, ipEntitySealStaged{owner: owner, claim: claim, pages: pages,
-		declarations: declarations, begin: current, seal: seal, sequence: sequence})
-	out, turn, tx := ipEntitySealApply(t, w, r, p, c)
+	sealCommand, err := newIPEntitySealCommand(ipEntityDeltaEvidenceIdentity(claim, sequence), seal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, turn, tx := ipEntitySealApply(t, w, r, p, sealCommand)
 	if out.Outcome.State != Applied {
 		t.Fatal(out)
 	}
@@ -228,7 +239,7 @@ func ipEntityDeltaPagesWithTerm(value string) []ipEntitySealPage {
 func ipEntityDeltaCommandFor(t *testing.T, staged ipEntityAcceptStaged,
 	q ipEntityDeltaRequest) *ipEntityDeltaCommand {
 	t.Helper()
-	c, err := newIPEntityDeltaCommand(ipEntityEvidenceIdentity(staged.claim, staged.sequence+1), q)
+	c, err := newIPEntityDeltaCommand(ipEntityDeltaEvidenceIdentity(staged.claim, staged.sequence+1), q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,15 +349,15 @@ func TestIPEntityDeltaReplaceRetainsOldSourceAndReplays(t *testing.T) {
 	}
 }
 
-// An observation identical to the accepted head is an exact no-op: the accepted
-// publication and selection revision stay put, the new source is not charged as
-// a downstream proof, and only one terminal delta receipt records the attempt.
-// A changed typed value with the same observation content is NOT a no-op.
+// An observation carrying the exact accepted typed cohort is an exact no-op: the
+// accepted publication and selection revision stay put, the new source is not
+// charged as a downstream proof, and only one terminal delta receipt records the
+// attempt. A changed typed value with the same observation shape is NOT a no-op.
 func TestIPEntityDeltaExactNoOpVersusNewObservation(t *testing.T) {
 	t.Run("exact_noop", func(t *testing.T) {
 		w, r, p, setup := ipEntityDeltaFixture(t)
 		second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
-			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-one"))
+			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
 		out, turn, tx := ipEntityDeltaApply(t, w, r, p, ipEntityDeltaCommandFor(t, second,
 			ipEntityDeltaRequestFor(t, second, setup, "publication-two", ipEntityDeltaBaseFields())))
 		if out.Outcome.State != Applied || !out.Value.NoOp ||
@@ -373,7 +384,7 @@ func TestIPEntityDeltaExactNoOpVersusNewObservation(t *testing.T) {
 	t.Run("changed_owner_automatic_is_new", func(t *testing.T) {
 		w, r, p, setup := ipEntityDeltaFixture(t)
 		second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
-			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-one"))
+			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
 		fields := ipEntityDeltaBaseFields()
 		fields[5].Value = "Ended"
 		out, turn, tx := ipEntityDeltaApply(t, w, r, p, ipEntityDeltaCommandFor(t, second,
@@ -387,7 +398,7 @@ func TestIPEntityDeltaExactNoOpVersusNewObservation(t *testing.T) {
 	t.Run("changed_sealed_cohort_is_new", func(t *testing.T) {
 		w, r, p, setup := ipEntityDeltaFixture(t)
 		second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
-			ipEntityDeltaPagesWithTerm("Comedy"), ipEntityEvidenceDigest("evidence-one"))
+			ipEntityDeltaPagesWithTerm("Comedy"), ipEntityEvidenceDigest("evidence-two"))
 		q := ipEntityDeltaRequestFor(t, second, setup, "publication-two", ipEntityDeltaBaseFields())
 		q.observation.terms[0].Value = "Comedy"
 		out, turn, tx := ipEntityDeltaApply(t, w, r, p, ipEntityDeltaCommandFor(t, second, q))
@@ -400,7 +411,7 @@ func TestIPEntityDeltaExactNoOpVersusNewObservation(t *testing.T) {
 	t.Run("changed_typed_value_is_new", func(t *testing.T) {
 		w, r, p, setup := ipEntityDeltaFixture(t)
 		second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
-			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-one"))
+			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
 		out, turn, tx := ipEntityDeltaApply(t, w, r, p, ipEntityDeltaCommandFor(t, second,
 			ipEntityDeltaRequestFor(t, second, setup, "publication-two", ipEntityDeltaSecondFields())))
 		if out.Outcome.State != Applied || out.Value.NoOp ||
@@ -421,40 +432,45 @@ func TestIPEntityDeltaExactNoOpVersusNewObservation(t *testing.T) {
 
 func TestIPEntityDeltaWrongPreviousHeadRefused(t *testing.T) {
 	cases := []struct {
-		name   string
-		mutate func(*ipEntityDeltaRequest)
-		sql    []string
-		want   error
+		name      string
+		mutate    func(*ipEntityDeltaRequest)
+		sql       []string
+		unchecked bool
+		want      error
 	}{
-		{"wrong_publication_id", func(q *ipEntityDeltaRequest) { q.previousPublicationID = "publication-x" }, nil, ErrConflict},
-		{"wrong_previous_evidence", func(q *ipEntityDeltaRequest) { q.previousEvidenceID = "evidence-x" }, nil, ErrConflict},
-		{"stale_selection_revision", func(q *ipEntityDeltaRequest) { q.observation.selectionRevision = 1 }, nil, ErrConflict},
-		{"selection_revision_advanced", nil, []string{`UPDATE metadata_subject_providers SET revision=3 WHERE entity_id=1`}, ErrConflict},
-		{"selection_evidence_moved", nil, []string{`UPDATE metadata_subject_providers SET accepted_evidence_id='evidence-two' WHERE entity_id=1`}, ErrConflict},
-		{"prior_superseded", nil, []string{`UPDATE metadata_publications SET decision='superseded' WHERE id='publication-one'`}, ErrConflict},
-		{"prior_selection_revision", nil, []string{`UPDATE metadata_publications SET selection_revision=0 WHERE id='publication-one'`}, ErrConflict},
-		{"prior_evidence_mismatch", nil, []string{`UPDATE metadata_publications SET evidence_id=NULL WHERE id='publication-one'`}, ErrConflict},
-		{"prior_evidence_unsealed", nil, []string{`UPDATE metadata_evidence SET sealed=0 WHERE id='evidence-one'`}, ErrConflict},
-		{"prior_evidence_foreign", nil, []string{`UPDATE metadata_evidence SET region='CA' WHERE id='evidence-one'`}, ErrConflict},
-		{"prior_pin_drained", nil, []string{`UPDATE metadata_ip_receipts SET proof_pin_count=0 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, ErrConflict},
-		{"prior_seal_not_terminal", nil, []string{`UPDATE metadata_ip_receipts SET terminal=0 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, ErrConflict},
-		{"prior_seal_sequence_moved", nil, []string{`UPDATE metadata_ip_receipts SET command_sequence=999 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, ErrConflict},
-		{"search_intent_missing", nil, []string{`DELETE FROM search_publish_jobs WHERE id=1`}, ErrResolveRequired},
+		{"wrong_publication_id", func(q *ipEntityDeltaRequest) { q.previousPublicationID = "publication-x" }, nil, false, ErrConflict},
+		{"wrong_previous_evidence", func(q *ipEntityDeltaRequest) { q.previousEvidenceID = "evidence-x" }, nil, false, ErrConflict},
+		{"stale_selection_revision", func(q *ipEntityDeltaRequest) { q.observation.selectionRevision = 1 }, nil, false, ErrConflict},
+		{"selection_revision_advanced", nil, []string{`UPDATE metadata_subject_providers SET revision=3 WHERE entity_id=1`}, false, ErrConflict},
+		{"selection_evidence_moved", nil, []string{`UPDATE metadata_subject_providers SET accepted_evidence_id='evidence-two' WHERE entity_id=1`}, true, ErrConflict},
+		{"prior_superseded", nil, []string{`UPDATE metadata_publications SET decision='superseded' WHERE id='publication-one'`}, false, ErrConflict},
+		{"prior_selection_revision", nil, []string{`UPDATE metadata_publications SET selection_revision=0 WHERE id='publication-one'`}, false, ErrConflict},
+		{"prior_evidence_mismatch", nil, []string{`UPDATE metadata_publications SET evidence_id=NULL WHERE id='publication-one'`}, true, ErrConflict},
+		{"prior_evidence_unsealed", nil, []string{`UPDATE metadata_evidence SET sealed=0 WHERE id='evidence-one'`}, false, ErrConflict},
+		{"prior_evidence_foreign", nil, []string{`UPDATE metadata_evidence SET region='CA' WHERE id='evidence-one'`}, true, ErrConflict},
+		{"prior_pin_drained", nil, []string{`UPDATE metadata_ip_receipts SET proof_pin_count=0 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, false, ErrConflict},
+		{"prior_seal_not_terminal", nil, []string{`UPDATE metadata_ip_receipts SET terminal=0 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, false, ErrConflict},
+		{"prior_seal_sequence_moved", nil, []string{`UPDATE metadata_ip_receipts SET command_sequence=999 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, false, ErrConflict},
+		{"search_intent_missing", nil, []string{`DELETE FROM search_publish_jobs WHERE id=1`}, false, ErrResolveRequired},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			w, r, p, setup := ipEntityDeltaFixture(t)
 			second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
 				ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
-			for _, query := range tc.sql {
-				ipPolicyExec(t, w, query)
+			if tc.unchecked {
+				ipEntityDeltaExecUnchecked(t, w, tc.sql...)
+			} else {
+				for _, query := range tc.sql {
+					ipPolicyExec(t, w, query)
+				}
 			}
 			q := ipEntityDeltaRequestFor(t, second, setup, "publication-two", ipEntityDeltaSecondFields())
 			if tc.mutate != nil {
 				tc.mutate(&q)
 			}
 			c, err := newIPEntityDeltaCommand(
-				ipEntityEvidenceIdentity(second.claim, second.sequence+1), q)
+				ipEntityDeltaEvidenceIdentity(second.claim, second.sequence+1), q)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -522,7 +538,7 @@ func TestIPEntityDeltaShapeRefusals(t *testing.T) {
 		ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
 	base := ipEntityDeltaRequestFor(t, second, setup, "publication-two", ipEntityDeltaSecondFields())
 	longID := strings.Repeat("x", ipEntityAcceptIDMax+1)
-	identity := ipEntityEvidenceIdentity(second.claim, second.sequence+1)
+	identity := ipEntityDeltaEvidenceIdentity(second.claim, second.sequence+1)
 	mutations := []struct {
 		name   string
 		mutate func(*ipEntityDeltaRequest)
@@ -569,7 +585,7 @@ func TestIPEntityDeltaConflictingRequestAndSequence(t *testing.T) {
 	changed.observation.fields = append([]ipEntityAcceptField(nil), changed.observation.fields...)
 	changed.observation.fields[0].Value = "Different Series"
 	conflicting, err := newIPEntityDeltaCommand(
-		ipEntityEvidenceIdentity(second.claim, second.sequence+1), changed)
+		ipEntityDeltaEvidenceIdentity(second.claim, second.sequence+1), changed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -580,7 +596,7 @@ func TestIPEntityDeltaConflictingRequestAndSequence(t *testing.T) {
 	}
 	ipPolicyRollbackTurn(t, turn, tx)
 
-	otherIdentity := ipEntityEvidenceIdentity(second.claim, second.sequence+1)
+	otherIdentity := ipEntityDeltaEvidenceIdentity(second.claim, second.sequence+1)
 	otherIdentity.OperationID = [16]byte{0x6b, 0xff}
 	other, err := newIPEntityDeltaCommand(otherIdentity,
 		ipEntityDeltaRequestFor(t, second, setup, "publication-two", ipEntityDeltaSecondFields()))
@@ -695,6 +711,26 @@ func TestIPEntityDeltaExpiredLeaseRefused(t *testing.T) {
 	}
 }
 
+// ipEntityDeltaExecUnchecked seeds one deliberately foreign or incomplete prior
+// head that no real writer can produce (the normal FKs would reject it), so the
+// delta's own exact-old-head guards are what the case exercises. Enforcement is
+// restored on the same pinned connection immediately after the seed.
+func ipEntityDeltaExecUnchecked(t *testing.T, w *executor, queries ...string) {
+	t.Helper()
+	conn, err := w.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	statements := append([]string{`PRAGMA foreign_keys=OFF`}, queries...)
+	statements = append(statements, `PRAGMA foreign_keys=ON`)
+	for _, query := range statements {
+		if _, err := conn.ExecContext(t.Context(), query); err != nil {
+			t.Fatal(query, err)
+		}
+	}
+}
+
 // ipEntityDeltaSeedSet inserts one complete TV set header and its exact IP-08
 // set-seal receipt under one owner. It is test fixture state, not a command.
 func ipEntityDeltaSeedSet(t *testing.T, w *executor, owner ipEntityJobResult, incarnation []byte,
@@ -704,8 +740,11 @@ func ipEntityDeltaSeedSet(t *testing.T, w *executor, owner ipEntityJobResult, in
 		setID, incarnation, owner.OperationID, incarnation, sequence)
 	commitment := make([]byte, 32)
 	commitment[0] = 0x5a
+	// metadata_ip_receipts.operation_id is globally unique, so each seeded set
+	// seal derives its own operation identity from its set ID.
+	setOperation := ipEntityEvidenceDigest(setID)
 	ipPolicyExec(t, w, `INSERT INTO metadata_ip_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,result_digest,result_phase,after_family,after_ordinal,after_key,result_count,result_bytes,terminal,evidence_id,evidence_subject_id,parser_version,build_id,set_id,seal_algorithm,seal_version,seal_commitment,seal_rows,seal_bytes,proof_pin_count) VALUES(?,?,?,?,?,'set_seal',2,0,?,'sealed',1,0,'set-digest',2,64,1,?,1,'`+ipEntityEvidenceParser("tmdb", "series")+`',?,?,'ip.tv-set',1,?,2,64,?)`,
-		owner.OperationID, incarnation, sequence, make([]byte, 16), make([]byte, 32),
+		owner.OperationID, incarnation, sequence, setOperation[:16], make([]byte, 32),
 		make([]byte, 32), evidenceID, buildID, setID, commitment, pins)
 }
 
@@ -721,7 +760,7 @@ func TestIPEntityDeltaRetainedAndNewSetProof(t *testing.T) {
 		{"replace_set", nil, false},
 		{"prior_set_incomplete", []string{`UPDATE metadata_publication_sets SET complete=0 WHERE id='set-one'`}, true},
 		{"prior_set_pin_drained", []string{`UPDATE metadata_ip_receipts SET proof_pin_count=0 WHERE command_kind='set_seal' AND set_id='set-one'`}, true},
-		{"prior_set_evidence_mismatch", []string{`UPDATE metadata_publication_sets SET evidence_id='evidence-two' WHERE id='set-one'`}, true},
+		{"prior_set_evidence_mismatch", []string{`UPDATE metadata_ip_receipts SET evidence_id='evidence-two' WHERE command_kind='set_seal' AND set_id='set-one'`}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -743,7 +782,7 @@ func TestIPEntityDeltaRetainedAndNewSetProof(t *testing.T) {
 			q.previousSetID = "set-one"
 			q.observation.setID = "set-two"
 			c, err := newIPEntityDeltaCommand(
-				ipEntityEvidenceIdentity(second.claim, second.sequence+2), q)
+				ipEntityDeltaEvidenceIdentity(second.claim, second.sequence+2), q)
 			if err != nil {
 				t.Fatal(err)
 			}

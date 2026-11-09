@@ -83,7 +83,8 @@ type ipEntityDeltaPriorHead struct {
 }
 
 // ipEntityDeltaPriorEvidence is the retained upstream source header. Its digest
-// is the exact observation content identity that decides an exact no-op.
+// is validated as the source content identity; the typed cohort decides an
+// exact no-op because one content digest can never own two evidence rows.
 type ipEntityDeltaPriorEvidence struct {
 	subjectID                                 int64
 	provider, subjectKind, providerID, parser string
@@ -519,10 +520,13 @@ func ipEntityDeltaFieldsSame(ctx context.Context, turn *commandTurn,
 	return true, nil
 }
 
-// ipEntityDeltaNoOp is the EXACT no-op decision: the new observation carries
-// the same provider content digest and the same typed field/child cohort as the
-// old accepted head, and it keeps the same set (or no set). Anything else is a
-// new observation and publishes a replacement head.
+// ipEntityDeltaNoOp is the EXACT no-op decision: the new sealed observation
+// carries the same provider namespace and the same typed field/child cohort as
+// the old accepted head, and it keeps the same set (or no set). The stored
+// observation digest cannot be the witness: metadata_evidence keeps exactly one
+// row per provider/subject/shape/content digest, so a second sealed observation
+// with the old digest cannot exist. Anything else is a new observation and
+// publishes a replacement head.
 func ipEntityDeltaNoOp(ctx context.Context, turn *commandTurn, q ipEntityDeltaRequest,
 	newest ipEntityAcceptEvidenceFacts, prior ipEntityDeltaPriorEvidence,
 	before ipEntityAcceptProjectionFacts) (noOp bool, err error) {
@@ -530,7 +534,7 @@ func ipEntityDeltaNoOp(ctx context.Context, turn *commandTurn, q ipEntityDeltaRe
 	if q.observation.setID != q.previousSetID {
 		return false, nil
 	}
-	if newest.digest != prior.digest || newest.provider != prior.provider ||
+	if newest.provider != prior.provider ||
 		newest.subjectKind != prior.subjectKind || newest.providerID != prior.providerID ||
 		newest.parser != prior.parser || newest.language != prior.language ||
 		newest.region != prior.region || newest.requestShape != prior.requestShape {
@@ -701,8 +705,7 @@ func ipEntityDeltaFresh(ctx context.Context, turn *commandTurn, identity Command
 		return out, err
 	}
 	for _, row := range observation.external {
-		if err = execIPEntityAccept(ctx, turn, ipEntityAcceptExternalStmt,
-			observation.entityID, row.Provider, row.SubjectKind, row.ProviderID); err != nil {
+		if err = ipEntityDeltaExternal(ctx, turn, observation.entityID, row); err != nil {
 			return out, err
 		}
 	}
@@ -760,6 +763,21 @@ func ipEntityDeltaFresh(ctx context.Context, turn *commandTurn, identity Command
 		return out, err
 	}
 	return value, nil
+}
+
+// ipEntityDeltaExternal registers one entity external ID without demanding a new
+// row. A replacement head normally keeps the provider external ID the old head
+// already registered; the registry insert is idempotent by design, so a
+// zero-row outcome is the expected "already present" result, not a conflict.
+func ipEntityDeltaExternal(ctx context.Context, turn *commandTurn, entityID int64,
+	row ipEntityAcceptExternal) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
+	step, err := sealStep(turn, ipEntityAcceptExternalStmt)
+	if err != nil {
+		return err
+	}
+	_, err = turn.exec(ctx, step, entityID, row.Provider, row.SubjectKind, row.ProviderID)
+	return err
 }
 
 func ipEntityDeltaRecord(ctx context.Context, turn *commandTurn, identity CommandIdentity,

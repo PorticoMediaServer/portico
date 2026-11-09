@@ -391,7 +391,9 @@ func TestIPMBSecondaryTypesVocabularyAndClassification(t *testing.T) {
 		{"Single", []string{"Live"}, MBClassSingle},
 		{"Album", nil, MBClassAlbum},
 		{"Soundtrack", []string{"Live"}, MBClassAlbum},
-		{"Compilation", nil, MBClassCompilation},
+		// Compilation is a MusicBrainz secondary type, never a primary one:
+		// it outranks the primary Album classification.
+		{"Album", []string{"Compilation"}, MBClassCompilation},
 	} {
 		got := mbClassifyRelease(tc.primary, tc.secondary)
 		if got != tc.want {

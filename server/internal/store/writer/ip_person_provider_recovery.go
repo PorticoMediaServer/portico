@@ -44,7 +44,7 @@ func ipPersonRecover(ctx context.Context, turn *commandTurn, r ipPersonRecoveryR
 	var generation, cursor, rows, bytes, stagedRows, stagedBytes, charge, contentRev, ownerGeneration sql.NullInt64
 	if err = row.Scan(&out.ownerGeneration, &phase, &out.ownerRevision, &buildID, &evidenceID,
 		&generation, &state, &cursor, &rows, &bytes, &stagedRows, &stagedBytes, &charge,
-		&contentRev, &algorithm, &commitment, &ownerGeneration); err != nil {
+		&contentRev, &algorithm, &commitment, &ownerGeneration, &owner); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return out, ErrResolveRequired
 		}

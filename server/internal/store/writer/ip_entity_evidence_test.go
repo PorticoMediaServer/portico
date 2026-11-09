@@ -59,6 +59,17 @@ func ipEntityEvidenceIdentity(claim CommandIdentity, sequence int64) CommandIden
 	return CommandIdentity{Incarnation: claim.Incarnation, Sequence: sequence, OperationID: token}
 }
 
+// ipEntityEvidenceChainIdentity is ipEntityEvidenceIdentity under one explicit
+// operation-ID salt. A fixture that stages two independent evidence chains in
+// one database (both beginning at sequence 2) must not reuse the first chain's
+// globally unique operation IDs; the salt keeps each chain's operation
+// namespace distinct while the single-chain helper above keeps its exact output.
+func ipEntityEvidenceChainIdentity(claim CommandIdentity, sequence int64, salt byte) CommandIdentity {
+	var token [16]byte
+	token[0], token[1], token[2] = 0x6b, salt, byte(sequence)
+	return CommandIdentity{Incarnation: claim.Incarnation, Sequence: sequence, OperationID: token}
+}
+
 func ipEntityEvidenceDigest(value string) [32]byte {
 	return sha256.Sum256([]byte(value))
 }

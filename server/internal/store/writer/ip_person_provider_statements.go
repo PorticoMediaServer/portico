@@ -166,7 +166,7 @@ func ipPersonDefinitions() []stmt.Definition {
 		{
 			// The unique build-owner index is the ONLY recovery selector: no
 			// latest build, MAX, generation scan or ID-tail fallback.
-			ID: ipPersonRecoveryStmt, SQL: `SELECT o.generation,o.phase,o.revision,b.id,b.evidence_id,b.generation,b.state,b.cursor,b.expected_rows,b.expected_bytes,b.staged_rows,b.staged_bytes,b.materialized_charge,b.content_revision,b.expected_algorithm,b.expected_commitment,b.owner_generation FROM metadata_person_operations AS o JOIN catalog_people AS p ON p.id=o.person_id LEFT JOIN metadata_person_builds AS b INDEXED BY metadata_person_build_owner ON b.owner_id=o.id AND b.owner_incarnation=o.command_incarnation WHERE o.id=? AND o.command_incarnation=? AND o.person_id=? AND p.token=?`,
+			ID: ipPersonRecoveryStmt, SQL: `SELECT o.generation,o.phase,o.revision,b.id,b.evidence_id,b.generation,b.state,b.cursor,b.expected_rows,b.expected_bytes,b.staged_rows,b.staged_bytes,b.materialized_charge,b.content_revision,b.expected_algorithm,b.expected_commitment,b.owner_generation,b.owner_id FROM metadata_person_operations AS o JOIN catalog_people AS p ON p.id=o.person_id LEFT JOIN metadata_person_builds AS b INDEXED BY metadata_person_build_owner ON b.owner_id=o.id AND b.owner_incarnation=o.command_incarnation WHERE o.id=? AND o.command_incarnation=? AND o.person_id=? AND p.token=?`,
 			Params: []stmt.Param{t("owner"), b("incarnation"), i("person"), t("token")},
 			Plan:   stmt.Plan{Hot: true, PrimaryKeys: []string{"o", "p"}, Indexes: []string{"metadata_person_build_owner"}},
 			Cohorts: []stmt.Cohort{

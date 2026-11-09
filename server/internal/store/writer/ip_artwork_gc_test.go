@@ -204,7 +204,7 @@ func TestIPArtworkGCMarkFences(t *testing.T) {
 	cases := []struct {
 		name   string
 		sql    []string
-		mutate func(*ipArtworkGCRequest)
+		mutate func(*ipArtworkGCRequest, *ipArtworkMaterialOwner)
 	}{
 		{"selection", []string{`INSERT INTO artwork_selections(kind,entity_id,role,choice,digest,provider,image_id,origin,attribution,source_fence,actor,observed_at) VALUES('entity',778,'poster','locked',?,'upload','id','upload','','fence','owner','fixture')`}, nil},
 		{"history", []string{`INSERT INTO metadata_owner_history(kind,entity_id,base_revision,revision,trigger,actor,observed_at,before_json,after_json) VALUES('entity',778,'1','2','fixture','owner','fixture','{}','{}')`, `INSERT INTO metadata_owner_history_artwork(history_id,role,choice,digest) VALUES(1,'poster','locked',?)`}, nil},
@@ -216,14 +216,14 @@ func TestIPArtworkGCMarkFences(t *testing.T) {
 		{"backup_hold", []string{`INSERT INTO backup_blob_holds VALUES(1,'backup','epoch','scratch',0,'copying')`}, nil},
 		{"blob_deleting", []string{`UPDATE artwork_blobs SET status='deleting',storage_revision=2,deletion_token=X'0f000000000000000000000000000000' WHERE digest=(SELECT small_blob FROM artwork_sources WHERE digest=?)`}, nil},
 		{"stale_revision", []string{`UPDATE artwork_sources SET revision=2 WHERE digest=?`}, nil},
-		{"stale_original", nil, func(q *ipArtworkGCRequest) { q.bytes = 1 << 20 }},
-		{"missing_source", nil, func(q *ipArtworkGCRequest) { q.digest = ipArtworkMaterialHex(9) }},
+		{"stale_original", nil, func(q *ipArtworkGCRequest, _ *ipArtworkMaterialOwner) { q.bytes = 1 << 20 }},
+		{"missing_source", nil, func(q *ipArtworkGCRequest, _ *ipArtworkMaterialOwner) { q.digest = ipArtworkMaterialHex(9) }},
 		{"wrong_phase", []string{`UPDATE artwork_subject_jobs SET phase='providers' WHERE id=901`}, nil},
 		{"stale_lease_owner", []string{`UPDATE artwork_subject_jobs SET job_lease_owner=8 WHERE id=901`}, nil},
 		{"expired_lease", []string{`UPDATE artwork_subject_jobs SET job_lease_expires_ms=1 WHERE id=901`}, nil},
-		{"stale_owner_revision", nil, func(q *ipArtworkGCRequest) { q.owner.revision = 2 }},
-		{"stale_source_incarnation", nil, func(q *ipArtworkGCRequest) { q.owner.sourceIncarnation = [16]byte{5} }},
-		{"wrong_entity", nil, func(q *ipArtworkGCRequest) { q.owner.entityID = 779 }},
+		{"stale_owner_revision", nil, func(_ *ipArtworkGCRequest, o *ipArtworkMaterialOwner) { o.revision = 2 }},
+		{"stale_source_incarnation", nil, func(_ *ipArtworkGCRequest, o *ipArtworkMaterialOwner) { o.sourceIncarnation = [16]byte{5} }},
+		{"wrong_entity", nil, func(_ *ipArtworkGCRequest, o *ipArtworkMaterialOwner) { o.entityID = 779 }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -236,11 +236,12 @@ func TestIPArtworkGCMarkFences(t *testing.T) {
 					ipPolicyExec(t, w, query)
 				}
 			}
+			owner := ipArtworkGCOwner()
 			q := ipArtworkGCRequest{target: ipArtworkGCSource, digest: digest, revision: 1, bytes: 2 << 20}
 			if tc.mutate != nil {
-				tc.mutate(&q)
+				tc.mutate(&q, &owner)
 			}
-			cmd := ipArtworkGCCommandFor(t, IPArtworkGCMark, ipArtworkGCOwner(), 1, 2, q)
+			cmd := ipArtworkGCCommandFor(t, IPArtworkGCMark, owner, 1, 2, q)
 			turn, tx, b := ipPolicyTurn(t, w, r, IPArtworkGCMark)
 			out, err := applyIPArtworkGC(t.Context(), turn, p, t.Context(), b, cmd)
 			if out != (ipArtworkGCCommandResult{}) || !errors.Is(err, ErrConflict) {
@@ -789,7 +790,14 @@ func TestIPArtworkGCReceiptOwnStatement(t *testing.T) {
 		kind CommandID
 	}{
 		{"foreign_kind", []string{`UPDATE artwork_command_receipts SET command_kind='material_publish',result_complete=1`}, IPArtworkGCMark},
-		{"missing_token", []string{`UPDATE artwork_command_receipts SET retirement_token=NULL`}, IPArtworkGCMark},
+		// A mark receipt whose token is absent is an impossible durable row: no
+		// writing command can produce it, so the fixture disables CHECK
+		// enforcement only for this corruption to prove the lookup refuses it.
+		{"missing_token", []string{
+			`PRAGMA ignore_check_constraints=ON`,
+			`UPDATE artwork_command_receipts SET retirement_token=NULL`,
+			`PRAGMA ignore_check_constraints=OFF`,
+		}, IPArtworkGCMark},
 		{"foreign_target", []string{`UPDATE artwork_command_receipts SET after_ordinal=0`}, IPArtworkGCMark},
 		{"mark_at_finish", nil, IPArtworkGCFinish},
 		{"selected_fk", []string{`UPDATE artwork_command_receipts SET selected_digest=?`}, IPArtworkGCMark},
@@ -808,9 +816,14 @@ func TestIPArtworkGCReceiptOwnStatement(t *testing.T) {
 				}
 			}
 			ipPolicyExec(t, w, `UPDATE artwork_subject_jobs SET last_command_sequence=1 WHERE id=901`)
+			// A mark carries no caller token; only finalize repeats the minted one.
+			var token [16]byte
+			if tc.kind == IPArtworkGCFinish {
+				token = [16]byte{1}
+			}
 			cmd := ipArtworkGCCommandFor(t, tc.kind, ipArtworkGCOwner(), 1, 2,
 				ipArtworkGCRequest{target: ipArtworkGCSource, digest: digest, revision: 1, bytes: 2 << 20,
-					token: [16]byte{1}})
+					token: token})
 			turn, tx, _ := ipPolicyTurn(t, w, r, tc.kind)
 			if _, err := ipArtworkGCLookup(t.Context(), turn, tc.kind, cmd.request, cmd.identity, cmd.digest); !errors.Is(err, ErrResolveRequired) {
 				t.Fatal("malformed gc receipt decoded", err)
