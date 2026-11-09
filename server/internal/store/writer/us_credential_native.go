@@ -541,6 +541,14 @@ func applyUSCredentialIssue(ctx context.Context, turn *commandTurn, job *usCrede
 // even if a parent ignores the error, so a marker-only or family-only prefix
 // can never commit.
 //
+// An ALREADY-revoked family is the SAME exact target once those binds are
+// proved, whatever FIRST revoked it. In that branch a fresh 522 only completes
+// the missing source marker and device retirement: it preserves the family's
+// first cause, revoked_at, revoke original/sequence and existing teardown
+// lifecycle byte for byte. It never rewrites another revocation's reason, never
+// invents a second family command/receipt, never re-arms a completed (NULL)
+// teardown_due_ms, and never rewrites a sticky revoked_ms/retired_ms.
+//
 // Physical device/family/secret deletion is deliberately NOT here:
 // authorization_session_families.device_id is ON DELETE SET NULL and other
 // tables CASCADE/RESTRICT on the device, so 522 only sets identity_devices.
@@ -651,16 +659,17 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		family.incarnation, family.generation = gotIncarnation, gotGeneration
 		familyChanged = true
 	case 1:
-		// A fully completed earlier 522 (or a marker-only row completed below)
-		// is not re-revoked and gets no second family command/receipt. A family
-		// revoked for any other reason, or without the durable teardown
-		// obligation, is not this operation's exact current target. This fails
-		// closed on purpose: SOL-USERS should rule which already-revoked
-		// reasons (and whether a cleared teardown_due_ms) an idempotent 522 may
-		// accept before legacy sweeps or a teardown consumer land.
-		if family.reason != "admin_revoke" || !family.due.Valid || family.due.Int64 < 0 {
-			return out, ErrConflict
-		}
+		// An already-revoked family is this credential's exact current target
+		// once the binds above are proved, whatever FIRST revoked it. SOL-USERS'
+		// ruling: a fresh 522 may monotonically finish a previously denied
+		// target by completing the credential marker and device retirement
+		// below, but it PRESERVES that first cause. It never rewrites
+		// revoked_reason/revoked_at, never invents a revoke_operation_id or a
+		// second family command/receipt, and never re-arms or rewrites the
+		// existing teardown lifecycle. A NULL teardown_due_ms means the
+		// obligation is already completed (or was never armed by a legacy
+		// sweep): it is NOT ErrConflict, and it is deliberately not repaired
+		// here.
 	default:
 		return out, ErrResolveRequired
 	}

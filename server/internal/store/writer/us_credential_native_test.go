@@ -1133,12 +1133,20 @@ func TestUSCredentialRevokeOwnFamilyAndDevice(t *testing.T) {
 	}
 
 	// Replay: saved original, no second effect, no second event, no revision
-	// bump and no second teardown mark.
+	// bump and no second teardown mark. It is read-only: total_changes does not
+	// move.
 	credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+	changesBefore := usCredentialCount(t, w, `SELECT total_changes()`)
 	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
 	replay, _, err := runUSCredentialDispatch(t.Context(), turn, a, &usCredentialInvocation{request: usCredentialInput(t, revoke).request})
 	if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed || !reflect.DeepEqual(replay.Value, revoked.Value) {
 		t.Fatal("revoke replay", replay, err)
+	}
+	if replay.Secret.present() || replay.Value.secret.present() {
+		t.Fatal("revoke replay disclosed a secret")
+	}
+	if changesAfter := usCredentialCount(t, w, `SELECT total_changes()`); changesAfter != changesBefore {
+		t.Fatal("revoke replay wrote changes", changesBefore, changesAfter)
 	}
 	credentialAgain, familyAgain, deviceAgain := usCredentialRevokeRows(t, w)
 	if credentialAgain != credentialAfter || familyAgain != familyAfter || deviceAgain != deviceAfter {
@@ -1335,24 +1343,21 @@ func TestUSCredentialRevokeRefusesForeignFamilyAndDevice(t *testing.T) {
 	})
 }
 
-// A repeat 522 against a fully revoked source (credential marker set, family
-// admin_revoke with its teardown obligation, device already retired) is an
-// idempotent Applied: no second source/family/device write, no second hint and
-// no revision bump. A family revoked for another reason, or whose teardown
-// obligation was cleared, is ErrConflict: accepting either would pass a
-// legacy/foreign sweep off as this operation. SOL-USERS should rule which
-// already-revoked reasons (and whether a cleared teardown_due_ms) an idempotent
-// 522 may accept before legacy sweeps or a teardown consumer land; until then
-// this fails closed.
+// A repeat 522 against a source that is already fully completed for ANY first
+// cause is an idempotent Applied: no second marker/family/device write, no
+// second hint, no revision bump and no re-armed teardown. A family revoked for
+// another reason, or whose teardown obligation is already completed (NULL), is
+// the same exact current target. 522 preserves the first cause and the existing
+// lifecycle, and revoked_ms/retired_ms are sticky: they keep their ORIGINAL
+// values instead of being rewritten with the new command's now.
 func TestUSCredentialRevokeAlreadyRevokedSource(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		mutate string
-		refuse bool
 	}{
-		{"completed_admin_revoke", "", false},
-		{"family_revoked_for_another_reason", `UPDATE authorization_session_families SET revoked_reason='explicit_signout' WHERE id='credential-family-0001'`, true},
-		{"family_teardown_due_cleared", `UPDATE authorization_session_families SET teardown_due_ms=NULL WHERE id='credential-family-0001'`, true},
+		{"completed_admin_revoke", ""},
+		{"completed_another_reason", `UPDATE authorization_session_families SET revoked_reason='password_change' WHERE id='credential-family-0001'`},
+		{"completed_teardown_cleared", `UPDATE authorization_session_families SET teardown_due_ms=NULL WHERE id='credential-family-0001'`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w, proof := usCredentialAuthorityFixture(t, false)
@@ -1365,6 +1370,7 @@ func TestUSCredentialRevokeAlreadyRevokedSource(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			originalMS := revoked.Value.revokedMS
 			// Advance the owner's ACK floor so a second fresh original at
 			// sequence 3 is admissible.
 			turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
@@ -1374,39 +1380,121 @@ func TestUSCredentialRevokeAlreadyRevokedSource(t *testing.T) {
 			if tc.mutate != "" {
 				wc008NativeExec(t, w, tc.mutate)
 			}
-			credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+			// Freeze the repeat request against the ORIGINAL clock, then move
+			// the trusted clock forward so a non-sticky rewrite would be visible.
 			request := usCredentialRevokeRequestFor(w, issue)
-			request.revokedMS = revoked.Value.revokedMS
+			request.revokedMS = originalMS
 			repeat, err := prepareUSCredentialNativeRevoke(CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{9}, Sequence: 3}, usCredentialOwnerID, proof.witness.issuer, request)
 			if err != nil {
 				t.Fatal(err)
 			}
+			base := w.now()
+			w.now = func() time.Time { return base.Add(5 * time.Second) }
+			credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
 			turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
 			out, floor, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, repeat))
-			if tc.refuse {
-				if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
-					t.Fatal("already-revoked variant was accepted", out, floor, err)
-				}
-				if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 1 {
-					t.Fatal("refused repeat wrote a 522 receipt", n)
-				}
-			} else {
-				if err != nil || out.Outcome.State != Applied || out.Outcome.Replayed || out.Value.revokedMS != revoked.Value.revokedMS {
-					t.Fatal("completed repeat", out, err)
-				}
-				if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 2 {
-					t.Fatal("completed repeat receipt", n)
-				}
+			if err != nil || out.Outcome.State != Applied || out.Outcome.Replayed || out.Value.revokedMS != originalMS {
+				t.Fatal("completed repeat", out, floor, err)
 			}
 			credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
 			if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
 				t.Fatal("repeat 522 changed a source row")
 			}
-			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 1 {
-				t.Fatal("repeat 522 appended a hint", n)
+			// Sticky: the original timestamps, not the new now.
+			if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id=?`, issue.issue.prepared.id); n != originalMS {
+				t.Fatal("repeat 522 rewrote the marker", n, originalMS)
+			}
+			if n := usCredentialCount(t, w, `SELECT retired_ms FROM identity_devices WHERE id=?`, usCredentialDeviceID); n != originalMS {
+				t.Fatal("repeat 522 rewrote the device retirement", n, originalMS)
 			}
 			if n := usCredentialCount(t, w, `SELECT revision FROM identity_devices WHERE id=?`, usCredentialDeviceID); n != 2 {
 				t.Fatal("repeat 522 bumped the device revision", n)
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 2 {
+				t.Fatal("completed repeat receipt", n)
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 1 {
+				t.Fatal("repeat 522 appended a hint", n)
+			}
+		})
+	}
+}
+
+// A fresh 522 whose credential row is still live may complete the missing
+// marker and device retirement for an ALREADY-revoked family, whatever revoked
+// it first. The family's first cause, revoked_at, revoke original/sequence and
+// teardown lifecycle stay byte-identical: 522 never rewrites another
+// revocation and never re-arms a completed teardown.
+func TestUSCredentialRevokeCompletesAlreadyRevokedFamily(t *testing.T) {
+	const firstAt = "2020-01-02T03:04:05Z"
+	for _, tc := range []struct {
+		name    string
+		reason  string
+		dueMS   int64
+		dueNull bool
+	}{
+		{"another_reason", "password_change", 4321, false},
+		{"completed_teardown", "membership_removed", 0, true},
+		{"admin_revoke", "admin_revoke", 4321, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, proof := usCredentialAuthorityFixture(t, false)
+			usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+			r := usCredentialRegistry(t)
+			issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+			var due any
+			if !tc.dueNull {
+				due = tc.dueMS
+			}
+			wc008NativeExec(t, w, `UPDATE authorization_session_families SET revoked=1,revoked_reason=?,revoked_at=?,teardown_due_ms=? WHERE id=? AND revoked=0`, tc.reason, firstAt, due, usCredentialFamilyID)
+			familyBefore := usCredentialTableRow(t, w, "authorization_session_families", "id", usCredentialFamilyID)
+			revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
+			if revoke.revoke.prepared.request.revokedMS != 0 {
+				t.Fatal("fixture marker was not unset")
+			}
+			turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+			out, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ms := out.Value.revokedMS
+			if out.Outcome.State != Applied || out.Outcome.Replayed || ms <= 0 || out.Value.state != "revoked" {
+				t.Fatal("completion result", out)
+			}
+			// The missing source marker and device retirement are completed.
+			if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id=?`, issue.issue.prepared.id); n != ms {
+				t.Fatal("completion marker", n, ms)
+			}
+			var retired, revision int64
+			if err = w.db.QueryRowContext(t.Context(), `SELECT retired_ms,revision FROM identity_devices WHERE id=?`, usCredentialDeviceID).Scan(&retired, &revision); err != nil {
+				t.Fatal(err)
+			}
+			if retired != ms || revision != 2 {
+				t.Fatal("completion device retirement", retired, revision)
+			}
+			// The family row is BYTE-IDENTICAL: first cause, revoked_at,
+			// revoke original/sequence and teardown_due_ms are all preserved.
+			if got := usCredentialTableRow(t, w, "authorization_session_families", "id", usCredentialFamilyID); got != familyBefore {
+				t.Fatal("completion rewrote the family first cause")
+			}
+			var reason string
+			var gotDue sql.NullInt64
+			if err = w.db.QueryRowContext(t.Context(), `SELECT revoked_reason,teardown_due_ms FROM authorization_session_families WHERE id=?`, usCredentialFamilyID).Scan(&reason, &gotDue); err != nil {
+				t.Fatal(err)
+			}
+			if reason != tc.reason || gotDue.Valid == tc.dueNull || gotDue.Valid && gotDue.Int64 != tc.dueMS {
+				t.Fatal("completion changed the teardown lifecycle", reason, gotDue)
+			}
+			// No second family command/receipt.
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM authorization_session_families WHERE id=? AND command_last_sequence=0 AND revoke_operation_id IS NULL`, usCredentialFamilyID); n != 1 {
+				t.Fatal("completion invented a family command")
+			}
+			// Exactly ONE hint and ONE 522 receipt for the completing original.
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events WHERE audience=? AND type='list.changed' AND resource_kind='list' AND resource_id='devices'`, apievents.AdminAudience); n != 1 {
+				t.Fatal("completion hint count", n)
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 1 {
+				t.Fatal("completion receipt count", n)
 			}
 		})
 	}
