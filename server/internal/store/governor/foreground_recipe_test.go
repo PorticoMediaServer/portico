@@ -38,8 +38,8 @@ func TestForegroundReadRecipeFundsMaximumConcurrentWindows(t *testing.T) {
 			}
 			var held []*Grant
 			defer func() {
-				for _, grant := range held {
-					if err := a.Retired(grant); err != nil {
+				for i := len(held) - 1; i >= 0; i-- {
+					if err := a.Retired(held[i]); err != nil {
 						t.Error(err)
 					}
 				}
