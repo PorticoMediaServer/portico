@@ -138,6 +138,13 @@ func (r *RSAuthorBookReader) Begin(ctx context.Context, owner governor.OwnerID, 
 	p.input.View.TokenHash = strings.Clone(v.TokenHash)
 	if in.After != nil {
 		a := *in.After
+		// The cursor key is retained output too: charge its actual title bytes
+		// and fixed overhead before cloning them, as the artist album cursor does.
+		if err := p.charge(128 + 4*int64(len(a.titleKey))); err != nil {
+			_ = p.close()
+			return nil, nil, err
+		}
+		a.titleKey = strings.Clone(a.titleKey)
 		p.input.After = &a
 	}
 	return p, nil, nil
@@ -265,6 +272,16 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 	if needed > out.Request.Need[governor.MemoryBytes]/2 {
 		return page, cost, governor.ErrSnapshotBudget
 	}
+	var next *RSAuthorBookCursor
+	if len(p.selected) > 0 && p.start+len(p.selected) < len(p.entries) {
+		last := p.entries[p.start+len(p.selected)-1]
+		// A continuation retains the last ordering key verbatim, including its
+		// actual title bytes, so charge and clone it like the artist album cursor.
+		if err = p.charge(128 + 4*int64(len(last.titleKey))); err != nil {
+			return
+		}
+		next = &RSAuthorBookCursor{identity: p.identity(), author: p.input.Author, library: p.input.View.Library, kind: 8, limit: p.input.Limit, titleKey: strings.Clone(last.titleKey), id: last.id}
+	}
 	if err = r.authority.ReadyPreparation(p.lease); err != nil {
 		return
 	}
@@ -279,11 +296,7 @@ func (r *RSAuthorBookReader) poll(ctx context.Context, q governor.Request, out B
 	if err = r.authority.HandoffPreparation(p.lease); err != nil {
 		return
 	}
-	page = RSAuthorBookPage{Cards: p.cards, Total: len(p.entries), Complete: true}
-	if len(p.selected) > 0 && p.start+len(p.selected) < len(p.entries) {
-		last := p.entries[p.start+len(p.selected)-1]
-		page.Next = &RSAuthorBookCursor{identity: p.identity(), author: p.input.Author, library: p.input.View.Library, kind: 8, limit: p.input.Limit, titleKey: last.titleKey, id: last.id}
-	}
+	page = RSAuthorBookPage{Cards: p.cards, Total: len(p.entries), Next: next, Complete: true}
 	// Output now owns the charged values; retiring the preparation drops all
 	// references without mutating the consumer's copied page.
 	err = p.close()

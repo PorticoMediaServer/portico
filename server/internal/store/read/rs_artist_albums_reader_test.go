@@ -574,6 +574,84 @@ func TestRSArtistAlbumReaderRequiresVisibleMember(t *testing.T) {
 	})
 }
 
+// The member admission band is a COALESCE sentinel, so every (maximum_age,
+// allow_unrated) fence must agree with the independent SQL oracle for a NULL,
+// 0, 12 and 18 member. In particular, a BlockUnrated profile whose maximum is
+// the fence's -1 must still hide an unrated member; previously it fell through
+// the maximumAge>=0 branch and published the album. Each case seeds the same
+// member age through BOTH discovery paths: a primary album (artist_id=2006)
+// and a featured-only album (another live primary artist plus a
+// catalog_song_artists credit), so the two paths cannot disagree.
+func TestRSArtistAlbumReaderUnratedMemberTruthTable(t *testing.T) {
+	members := []struct {
+		name string
+		age  any
+	}{
+		{"unrated", nil},
+		{"age0", int64(0)},
+		{"age12", int64(12)},
+		{"age18", int64(18)},
+	}
+	cases := []struct {
+		name         string
+		maximumAge   int64
+		allowUnrated int64
+	}{
+		{"no-max-allow-unrated", -1, 1},
+		{"no-max-block-unrated", -1, 0},
+		{"max12-allow-unrated", 12, 1},
+		{"max12-block-unrated", 12, 0},
+		{"max0-block-unrated", 0, 0},
+		{"max0-allow-unrated", 0, 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f, r := artistAlbumFixture(t)
+				f.exec(t, `UPDATE catalog_entities SET retired=1 WHERE kind=6`)
+				f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES('p',?,?)`, c.maximumAge, c.allowUnrated)
+				for i, m := range members {
+					primary, member := int64(9300+i), int64(6300+i)
+					artistAlbumEntity(t, f, primary, 6, "primary "+m.name, int64(2006), nil, nil)
+					artistAlbumEntity(t, f, member, 7, "member", nil, primary, m.age)
+
+					featured, song := int64(9400+i), int64(6400+i)
+					artistAlbumEntity(t, f, featured, 6, "featured "+m.name, int64(1998), nil, nil)
+					artistAlbumEntity(t, f, song, 7, "member", nil, featured, m.age)
+					f.exec(t, `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(?,2006)`, song)
+				}
+				want := artistAlbumSQLOracle(t, f, 2006, 1, c.maximumAge, c.allowUnrated)
+				got, page := artistAlbumPage(t, f, r, 20, nil)
+				if page.Total != len(want) || !slices.Equal(got, want) {
+					t.Fatal("member band differs from oracle", c.name, got, want)
+				}
+				unratedPrimary, unratedFeatured := int64(9300), int64(9400)
+				if c.allowUnrated == 0 {
+					if slices.Contains(got, unratedPrimary) || slices.Contains(got, unratedFeatured) {
+						t.Fatal("block-unrated published an unrated member", c.name, got)
+					}
+				} else if !slices.Contains(got, unratedPrimary) || !slices.Contains(got, unratedFeatured) {
+					t.Fatal("allow-unrated lost an unrated member", c.name, got)
+				}
+				// A rated member inside the current band keeps the album through
+				// both paths. With no maximum every rated age qualifies; otherwise
+				// the member at exactly the maximum proves the inclusive bound.
+				rated := 3 // age18, visible only when no maximum applies
+				if c.maximumAge == 12 {
+					rated = 1 // age12
+				} else if c.maximumAge == 0 {
+					rated = 1 // age0
+				}
+				for _, album := range []int64{9300 + int64(rated), 9400 + int64(rated)} {
+					if !slices.Contains(got, album) {
+						t.Fatal("rated visible member lost the album", c.name, album, got)
+					}
+				}
+			})
+		})
+	}
+}
+
 // The art helper reads the album's own accepted poster. Legacy listening pages
 // fall back to the first visible member song's poster; that cross-family
 // fallback is not wired here (see the fixture handoff note), so this pins the
