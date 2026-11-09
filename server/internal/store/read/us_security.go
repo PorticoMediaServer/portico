@@ -78,7 +78,10 @@ type usSecurityPurpose struct {
 
 func (*usSecurityPurpose) readPolicyState() {}
 
-const usSecurityPolicy readPolicyID = 32700
+// 32710 keeps us-security-read clear of main's UO operation policies
+// (uoPersonalOperationsPolicy = 32700, uoAdminOperationsPolicy = 32701); the
+// two branches once claimed 32700 independently and panicked at package init.
+const usSecurityPolicy readPolicyID = 32710
 
 func init() {
 	registerReadPolicy(readPolicyRecipe{
