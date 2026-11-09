@@ -21,9 +21,12 @@ import (
 // Every entry consumes the SAME private same-commandTurn proof UO-01 defines and
 // UO-02's component already uses: the proof's frame, purpose, lifetime, deadline
 // and identity are rechecked before the retained owner/receipt lookup and again
-// at release through this purpose's uoFlagsRelease gate (which calls the shared
-// release and then keeps Fresh on an active root). This file mints no developer
-// token, invents no second issuer and accepts no caller bool.
+// at release. Purpose 600 uses the ACTIVE-ONLY shared uoRootReclaimRelease (its
+// uoFlagsRelease gate re-reads active as the last check) and NEVER the separate
+// 654 draining maintenance release: a Fresh flags patch must end on an active
+// root, while an authorized replay or retired disclosure may end draining. This
+// file mints no developer token, invents no second issuer and accepts no caller
+// bool.
 // UO-01's bindUORoot still refuses every NORMAL proof until Sol's current-session
 // mint lands, so the purpose keeps its own proof checks instead of presenting a
 // binding that cannot pass.
@@ -101,13 +104,14 @@ func appendUOFlagsChangedHint(ctx context.Context, turn *commandTurn, identity u
 	return err
 }
 
-// uoFlagsRelease is this purpose's final gate before the terminal. UO-01's
-// shared release now admits a Fresh 654 maintenance cleanup on a draining root
-// (the SOL-USERS reclaim exception); 600 keeps the domain rule unchanged: a
-// Fresh flags patch must end on an ACTIVE root, while an authorized replay or
-// retired disclosure may end draining. It calls the shared release first so a
-// missing/foreign root, a stale incarnation or a finished frame still fails with
-// the shared class, then re-reads an active state as the last check.
+// uoFlagsRelease is this purpose's final gate before the terminal. Purpose 600
+// uses the ACTIVE-ONLY shared uoRootReclaimRelease and never the separate 654
+// draining maintenance release: a Fresh flags patch must end on an ACTIVE root,
+// while an authorized replay or retired disclosure may end draining. It calls
+// the shared release first so a missing/foreign root, a stale incarnation or a
+// finished frame still fails with the shared class, then re-reads an active
+// state as the last check so the flags purpose keeps its own rule independently
+// of the 654 maintenance path.
 func uoFlagsRelease(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, rootID string, decision receiptDecision) error {
 	if err := uoRootReclaimRelease(ctx, turn, proof, rootID, decision); err != nil {
 		return err
