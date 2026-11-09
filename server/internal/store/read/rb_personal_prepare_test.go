@@ -391,15 +391,18 @@ func rbPersonalPrepareCount(t *testing.T, f *browseFixture, query string) int {
 }
 
 func TestRBPersonalPrepareCapacityBeforeAppend(t *testing.T) {
+	// The fixed split charges the key-header array once and each value's text
+	// before append. A value whose text would cross W refuses without a partial
+	// write; nothing is copied or grown to make it fit.
 	p := &RBPersonalPreparation{staged: make([]rbPersonalValuedKey, 0, 4), stagedCap: 128, stageIDs: make([]int64, 0, rbPersonalPrepareRaw)}
-	if err := p.appendStaged(rbPersonalValuedKey{id: 1}); err != nil {
+	if err := p.appendStaged(rbPersonalValuedKey{id: 1, text: strings.Repeat("a", 60)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.appendStaged(rbPersonalValuedKey{id: 2}); err != nil {
+	if err := p.appendStaged(rbPersonalValuedKey{id: 2, text: strings.Repeat("b", 60)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.appendStaged(rbPersonalValuedKey{id: 3}); !errors.Is(err, errRBPersonalPrepareWorkspace) || len(p.staged) != 2 {
-		t.Fatal("workspace grew past its charge before refusing", err, len(p.staged))
+	if err := p.appendStaged(rbPersonalValuedKey{id: 3, text: strings.Repeat("c", 20)}); !errors.Is(err, errRBPersonalPrepareWorkspace) || len(p.staged) != 2 || p.stagedBytes != 120 {
+		t.Fatal("workspace grew past its charge before refusing", err, len(p.staged), p.stagedBytes)
 	}
 
 	synctest.Test(t, func(t *testing.T) {
@@ -696,11 +699,135 @@ func TestRBPersonalPrepareStagingAtomicPerWindow(t *testing.T) {
 	}
 }
 
-// TestRBPersonalPrepareWorkspaceWithinGrant measures the retained accounting of
-// a descending personalRating walk while the valued run is prepared first
-// (total == 0) and proves the staged keys, next-key vector, batch IDs and fence
-// clones never exceed the preparation payload.
-func TestRBPersonalPrepareWorkspaceWithinGrant(t *testing.T) {
+// rbPersonalPrepareHolding is the exact observable physical accounting of one
+// fixed-split job. idsBytes and stagedBytes are the real allocation extents, not
+// logical lengths, so a hidden copy/shrink/restore would show up immediately.
+type rbPersonalPrepareHolding struct {
+	payload, fence, idsBytes, stagedBytes int64
+	idsCap, stagedCap                     int
+	idsData, stagedData                   unsafe.Pointer
+}
+
+func rbPersonalPrepareCheckHolding(t *testing.T, job *RBPersonalPreparation) rbPersonalPrepareHolding {
+	t.Helper()
+	job.entry.cache.mu.Lock()
+	defer job.entry.cache.mu.Unlock()
+	if !job.entry.captured {
+		t.Fatal("holding inspected before the fixed split was captured")
+	}
+	h := rbPersonalPrepareHolding{
+		payload: job.entry.lease.PayloadBytes(),
+		fence:   2 * rbPreparedFenceBytes(job.entry.fence),
+		idsCap:  cap(job.entry.ids),
+		idsData: unsafe.Pointer(unsafe.SliceData(job.entry.ids)),
+	}
+	h.idsBytes = int64(h.idsCap) * 8
+	if job.staged != nil {
+		h.stagedCap = cap(job.staged)
+		h.stagedData = unsafe.Pointer(unsafe.SliceData(job.staged))
+		h.stagedBytes = int64(cap(job.staged))*rbPersonalValuedKeyBytes + int64(cap(job.stageIDs))*8
+		text := job.stagedBytes - h.stagedBytes
+		if text < 0 {
+			t.Fatalf("staged text accounting underflow: %d", text)
+		}
+		h.stagedBytes += text
+	} else if job.stagedBytes != 0 || job.stageIDs != nil {
+		t.Fatalf("staged accounting outlived its allocation: %d %v", job.stagedBytes, job.stageIDs)
+	}
+	if h.fence+h.idsBytes+h.stagedBytes > h.payload {
+		t.Fatalf("physical peak exceeds the grant: fence=%d ids=%d staged=%d payload=%d", h.fence, h.idsBytes, h.stagedBytes, h.payload)
+	}
+	workspace := job.entry.workspace
+	if workspace <= 0 {
+		t.Fatal("fixed split has no workspace budget")
+	}
+	wantIDs := int((h.payload - workspace - h.fence) / 8)
+	if h.idsCap != wantIDs {
+		t.Fatalf("ids cap %d is not the fixed split cap_ids %d", h.idsCap, wantIDs)
+	}
+	if h.fence+h.idsBytes+workspace > h.payload {
+		t.Fatalf("split exceeds the grant: fence=%d ids=%d W=%d payload=%d", h.fence, h.idsBytes, workspace, h.payload)
+	}
+	if h.stagedBytes > workspace {
+		t.Fatalf("staged workspace %d exceeds W=%d", h.stagedBytes, workspace)
+	}
+	return h
+}
+
+// rbPersonalPrepareWindowStep runs exactly ONE admitted window so a test can
+// observe the split between windows, where the old shrink-copy lived.
+func rbPersonalPrepareWindowStep(t *testing.T, job *RBPersonalPreparation) (done bool) {
+	t.Helper()
+	var result RBPersonalPrepareAdvance
+	if _, err := job.window(t.Context(), rbPersonalPrepareRequest(), time.Second, &result); err != nil {
+		t.Fatal(err)
+	}
+	return job.complete
+}
+
+// TestRBPersonalPrepareAscendingFixedSplit is the reviewed case: an ascending
+// personalRating walk retains the large unrated remainder first, then the first
+// valued key allocates the workspace. The ID vector must keep its cap_ids and
+// backing array from capture to Ready, and ids+staged+fences must stay <= the
+// payload at every observed point. The old shrink-copy failed both.
+func TestRBPersonalPrepareAscendingFixedSplit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBPersonalPrepareFixture(t)
+		in := RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder}
+		job, err := r.BeginRBPersonalPrepare(t.Context(), 1, 4<<20, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer job.Close()
+		var first rbPersonalPrepareHolding
+		var stagedCap int
+		var stagedData unsafe.Pointer
+		stagedSeen, ready := false, false
+		for n := 0; n < 512 && !ready; n++ {
+			ready = rbPersonalPrepareWindowStep(t, job)
+			h := rbPersonalPrepareCheckHolding(t, job)
+			if n == 0 {
+				first = h
+			} else if h.idsCap != first.idsCap || h.idsData != first.idsData {
+				t.Fatalf("retained-ID vector changed after capture: cap %d->%d data %p->%p", first.idsCap, h.idsCap, first.idsData, h.idsData)
+			}
+			if job.staged != nil {
+				if !stagedSeen {
+					stagedSeen, stagedCap, stagedData = true, h.stagedCap, h.stagedData
+					job.entry.cache.mu.Lock()
+					rest := job.entry.total
+					job.entry.cache.mu.Unlock()
+					if rest <= 0 {
+						t.Fatal("ascending valued workspace appeared before the unrated remainder was retained")
+					}
+				} else if h.stagedCap != stagedCap || h.stagedData != stagedData {
+					t.Fatalf("staged workspace changed after allocation: cap %d->%d data %p->%p", stagedCap, h.stagedCap, stagedData, h.stagedData)
+				}
+			}
+		}
+		if !stagedSeen || !ready {
+			t.Fatalf("ascending walk did not observe staging then readiness: staged=%v ready=%v", stagedSeen, ready)
+		}
+		final := rbPersonalPrepareCheckHolding(t, job)
+		if final.idsCap != first.idsCap || final.idsData != first.idsData {
+			t.Fatal("Ready copied or reallocated the retained-ID vector")
+		}
+		if job.staged != nil || job.stageIDs != nil {
+			t.Fatal("ready preparation kept the staged workspace")
+		}
+		job.entry.cache.mu.Lock()
+		total := job.entry.total
+		job.entry.cache.mu.Unlock()
+		if want := int64(len(rbPersonalPrepareWant(t, f, "p", in.Order, false, false))); total != want {
+			t.Fatalf("ready total %d differs from the complete admitted set %d", total, want)
+		}
+	})
+}
+
+// TestRBPersonalPrepareDescendingFixedSplit covers valued-first ordering: the
+// first window already stages keys, and the ID vector must be the fixed cap_ids
+// (the old path shrank it to zero and then copied on every retain batch).
+func TestRBPersonalPrepareDescendingFixedSplit(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f, r := newRBPersonalPrepareFixture(t)
 		in := RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder}
@@ -709,51 +836,250 @@ func TestRBPersonalPrepareWorkspaceWithinGrant(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second); err != nil {
+		defer job.Close()
+		var result RBPersonalPrepareAdvance
+		if _, err := job.window(t.Context(), rbPersonalPrepareRequest(), time.Second, &result); err != nil {
 			t.Fatal(err)
 		}
+		first := rbPersonalPrepareCheckHolding(t, job)
+		if job.staged == nil || job.stageIDs == nil {
+			t.Fatal("descending first window did not allocate the fixed valued workspace")
+		}
 		job.entry.cache.mu.Lock()
-		if job.entry.total != 0 {
-			job.entry.cache.mu.Unlock()
-			t.Fatal("descending rating did not prepare the valued run first")
-		}
-		if job.staged == nil || cap(job.staged) == 0 || job.stageIDs == nil {
-			job.entry.cache.mu.Unlock()
-			t.Fatal("valued workspace was not allocated")
-		}
-		payload := job.entry.lease.PayloadBytes()
-		fence := 2 * rbPreparedFenceBytes(job.entry.fence)
-		idBytes := int64(cap(job.entry.ids)) * 8
-		textBytes := job.stagedBytes - 64*int64(len(job.staged))
-		stagedActual := int64(cap(job.staged))*int64(unsafe.Sizeof(rbPersonalValuedKey{})) + textBytes
-		batchIDs := int64(cap(job.stageIDs)) * 8
-		stable := fence + idBytes + stagedActual + batchIDs
-		// One retained ID per possible staged key must also fit while the keys
-		// are still live; this is the retain-time peak, not just today's len.
-		projected := fence + idBytes + 8*int64(cap(job.staged)) + stagedActual + batchIDs
+		total := job.entry.total
 		job.entry.cache.mu.Unlock()
-		if stable > payload || projected > payload {
-			t.Fatalf("workspace exceeds the grant: stable=%d projected=%d payload=%d", stable, projected, payload)
+		if total != 0 {
+			t.Fatal("descending rating prepared the remainder before the valued run")
 		}
-		done := rbPersonalPrepareRun(t, job)
-		if !done.Ready {
-			t.Fatalf("preparation did not finish: %+v", done)
+		stagedCap, stagedData := first.stagedCap, first.stagedData
+		ready := false
+		for n := 0; n < 128 && !ready; n++ {
+			advance, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := rbPersonalPrepareCheckHolding(t, job)
+			if h.idsCap != first.idsCap || h.idsData != first.idsData {
+				t.Fatal("retained-ID vector changed after the fixed split")
+			}
+			if job.staged != nil && (h.stagedCap != stagedCap || h.stagedData != stagedData) {
+				t.Fatal("staged workspace changed after its single allocation")
+			}
+			ready = advance.Ready
 		}
-		if job.staged != nil || cap(job.staged) != 0 || job.stageIDs != nil {
+		if !ready {
+			t.Fatal("descending preparation did not finish")
+		}
+		if job.staged != nil || job.stageIDs != nil {
 			t.Fatal("ready preparation kept the staged workspace")
 		}
 		job.entry.cache.mu.Lock()
-		retained := 2*rbPreparedFenceBytes(job.entry.fence) + int64(cap(job.entry.ids))*8
+		total = job.entry.total
+		job.entry.cache.mu.Unlock()
+		if want := int64(len(rbPersonalPrepareWant(t, f, "p", in.Order, true, false))); total != want {
+			t.Fatalf("ready total %d differs from the complete admitted set %d", total, want)
+		}
+	})
+}
+
+// TestRBPersonalPrepareRestartFixedSplit invalidates content while the valued
+// run is staged, then runs the remainder phase again. Attempt two must reuse the
+// same cap_ids and W allocations, reset both lengths to zero, and stay inside
+// the split through Ready.
+func TestRBPersonalPrepareRestartFixedSplit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBPersonalPrepareFixture(t)
+		in := RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder}
+		job, err := r.BeginRBPersonalPrepare(t.Context(), 1, 4<<20, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer job.Close()
+		var first rbPersonalPrepareHolding
+		staged, stagedCap := false, 0
+		for n := 0; n < 512 && !staged; n++ {
+			if rbPersonalPrepareWindowStep(t, job) {
+				t.Fatal("walk became ready before a restart was injected")
+			}
+			h := rbPersonalPrepareCheckHolding(t, job)
+			if n == 0 {
+				first = h
+			} else if h.idsCap != first.idsCap || h.idsData != first.idsData {
+				t.Fatal("retained-ID vector changed before the restart")
+			}
+			if job.staged != nil {
+				staged, stagedCap = true, h.stagedCap
+			}
+		}
+		if !staged {
+			t.Fatal("restart was not injected inside the valued phase")
+		}
+		f.exec(t, `UPDATE libraries SET data_revision=data_revision+1 WHERE id='movies'`)
+		restarted, ready := false, false
+		for n := 0; n < 128 && !ready; n++ {
+			advance, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := rbPersonalPrepareCheckHolding(t, job)
+			if h.idsCap != first.idsCap || h.idsData != first.idsData {
+				t.Fatal("restart copied or reallocated the retained-ID vector")
+			}
+			if job.staged != nil && h.stagedCap != stagedCap {
+				// W is allocated once for the whole job, including both attempts.
+				t.Fatalf("restart resized the staged workspace: %d != %d", h.stagedCap, stagedCap)
+			}
+			if advance.Restarts > 0 && !restarted {
+				restarted = true
+				if job.staged == nil || len(job.staged) != 0 {
+					t.Fatalf("restart kept attempt-one staged values: %d", len(job.staged))
+				}
+				job.entry.cache.mu.Lock()
+				retained := len(job.entry.ids)
+				job.entry.cache.mu.Unlock()
+				if retained > 0 {
+					t.Fatalf("restart kept %d retained IDs from attempt one", retained)
+				}
+			}
+			ready = advance.Ready
+		}
+		if !restarted || !ready {
+			t.Fatalf("restart did not complete: restarted=%v ready=%v", restarted, ready)
+		}
+		if job.staged != nil || job.stageIDs != nil {
+			t.Fatal("ready preparation kept the staged workspace after restart")
+		}
+		job.entry.cache.mu.Lock()
 		total := job.entry.total
 		job.entry.cache.mu.Unlock()
-		if retained > payload {
-			t.Fatalf("ready retained vector exceeds the grant: %d > %d", retained, payload)
+		if want := int64(len(rbPersonalPrepareWant(t, f, "p", in.Order, false, false))); total != want {
+			t.Fatalf("restart published a truncated or mixed set: %d != %d", total, want)
 		}
-		if total != int64(len(rbPersonalPrepareWant(t, f, "p", in.Order, true, false))) {
-			t.Fatalf("ready total %d differs from the complete admitted set", total)
+	})
+}
+
+// TestRBPersonalPrepareDropsWorkspaceOnCloseAndDenial proves a retired lease
+// keeps neither the W region nor the reader's job slot, on both Close and the
+// viewer-denial path.
+func TestRBPersonalPrepareDropsWorkspaceOnCloseAndDenial(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBPersonalPrepareFixture(t)
+		stage := func(in RBPersonalPrepareInput) *RBPersonalPreparation {
+			t.Helper()
+			job, err := r.BeginRBPersonalPrepare(t.Context(), 1, 4<<20, in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for n := 0; n < 512; n++ {
+				if rbPersonalPrepareWindowStep(t, job) {
+					t.Fatal("walk became ready before the workspace was observed")
+				}
+				if job.staged != nil && len(job.staged) > 0 {
+					return job
+				}
+			}
+			t.Fatal("workspace was never staged")
+			return nil
 		}
+		assertDropped := func(job *RBPersonalPreparation) {
+			t.Helper()
+			if job.staged != nil || job.stageIDs != nil || job.stagedBytes != 0 || job.stagedCap != 0 {
+				t.Fatalf("job kept staged state after retirement: %v %v %d %d", job.staged, job.stageIDs, job.stagedBytes, job.stagedCap)
+			}
+			for _, held := range job.reader.jobs {
+				if held == job {
+					t.Fatal("reader slot still references the retired job")
+				}
+			}
+			if !job.entry.closed {
+				t.Fatal("retired job entry is still open")
+			}
+			if usage := f.authority.Usage()[governor.Foreground][governor.MemoryBytes]; usage != 0 {
+				t.Fatalf("retired lease still holds %d bytes", usage)
+			}
+		}
+		in := RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder}
+		job := stage(in)
 		if err := job.Close(); err != nil {
 			t.Fatal(err)
+		}
+		assertDropped(job)
+
+		job = stage(in)
+		f.exec(t, `INSERT INTO viewer_revisions(profile_id,library_id,revision) VALUES('p','movies',1) ON CONFLICT(profile_id,library_id) DO UPDATE SET revision=revision+1`)
+		if _, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second); !errors.Is(err, ErrDenied) {
+			t.Fatal("viewer edit did not deny", err)
+		}
+		assertDropped(job)
+		if err := job.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// TestRBPersonalPrepareFixedSplitRefusals proves each half of the split refuses
+// by its own named error without a truncated order or retained values.
+func TestRBPersonalPrepareFixedSplitRefusals(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// A small W cannot hold the valued run: the workspace error, never a
+		// truncated exact order.
+		f, r := newRBPersonalPrepareFixture(t)
+		in := RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder}
+		in.View.Descending = true
+		job, err := r.BeginRBPersonalPrepare(t.Context(), 1, 40960, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var failure error
+		for n := 0; n < 128 && failure == nil; n++ {
+			advance, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second)
+			if err != nil {
+				failure = err
+				break
+			}
+			if advance.Ready {
+				t.Fatal("undersized valued workspace published a truncated set")
+			}
+		}
+		if !errors.Is(failure, errRBPersonalPrepareWorkspace) {
+			t.Fatalf("valued run above W refused with %v", failure)
+		}
+		if !job.entry.closed || job.staged != nil || job.stageIDs != nil || job.entry.total != 0 {
+			t.Fatal("workspace refusal kept a partial set")
+		}
+		if usage := f.authority.Usage()[governor.Foreground][governor.MemoryBytes]; usage != 0 {
+			t.Fatalf("workspace refusal retained %d bytes", usage)
+		}
+		if _, _, err := rbPersonalPrepareRead(t, f, job, f.input, nil, 40); err == nil {
+			t.Fatal("closed preparation still paged")
+		}
+
+		// A small cap_ids cannot hold the unrated remainder: the existing named
+		// capacity error, never a truncated order.
+		f, r = newRBPersonalPrepareFixture(t)
+		job, err = r.BeginRBPersonalPrepare(t.Context(), 1, 16384, RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder})
+		if err != nil {
+			t.Fatal(err)
+		}
+		failure = nil
+		for n := 0; n < 128 && failure == nil; n++ {
+			advance, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second)
+			if err != nil {
+				failure = err
+				break
+			}
+			if advance.Ready {
+				t.Fatal("undersized ID vector published a truncated set")
+			}
+		}
+		if !errors.Is(failure, errRBPreparationCapacity) {
+			t.Fatalf("remainder above cap_ids refused with %v", failure)
+		}
+		if !job.entry.closed || job.staged != nil || job.stageIDs != nil || job.entry.total != 0 {
+			t.Fatal("capacity refusal kept a partial set")
+		}
+		if usage := f.authority.Usage()[governor.Foreground][governor.MemoryBytes]; usage != 0 {
+			t.Fatalf("capacity refusal retained %d bytes", usage)
 		}
 	})
 }
