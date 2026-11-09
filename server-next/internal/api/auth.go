@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/netip"
@@ -91,10 +92,19 @@ type Account struct {
 }
 
 // SignInResponse is the answer to a sign-in: the new session, the account and its profiles.
+// For an account with two-step sign-in the password gets a challenge instead, and
+// POST /v1/auth/two-factor with the challenge and a code gets the session.
 type SignInResponse struct {
-	Session  Session   `json:"session"`
-	Account  Account   `json:"account"`
-	Profiles []Profile `json:"profiles"`
+	Session   Session    `json:"session,omitzero"`
+	Account   Account    `json:"account,omitzero"`
+	Profiles  []Profile  `json:"profiles,omitempty"`
+	Challenge *Challenge `json:"challenge,omitempty"`
+}
+
+// Challenge is a password sign-in waiting for its second step.
+type Challenge struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // Me is who the caller is.
@@ -126,7 +136,35 @@ func (s *Server) authRoutes() {
 	Handle(s, "POST /v1/auth/refresh", Public, s.refresh)
 	Handle(s, "DELETE /v1/auth/session", Public, s.signOut)
 	Handle(s, "POST /v1/auth/password", SignedIn, s.changePassword)
-	Handle(s, "GET /v1/me", SignedIn, s.me)
+	// A tool with a key can ask who it is acting for.
+	Handle(s, "GET /v1/me", SignedIn, s.me).Scope = ScopeRead
+	Handle(s, "POST /v1/auth/password-reset/confirm", Public, s.resetPassword)
+	s.twoFactorRoutes()
+	s.codeRoutes()
+}
+
+// passwordProof compares the caller's current password and returns the proof for the
+// transaction that will act on it. A wait already in force is refused here.
+func (s *Server) passwordProof(r *http.Request, password string) (db.PasswordProof, error) {
+	ctx, caller := r.Context(), CallerFrom(r.Context())
+	p := db.PasswordProof{UserID: caller.UserID,
+		Limits: guessLimits(r, "password", "user:"+strconv.FormatInt(caller.UserID, 10), auth.PasswordDelay)}
+	if wait, err := s.db.LimitWait(ctx, s.now(), p.Limits...); err != nil {
+		return p, err
+	} else if wait > 0 {
+		return p, errTooManyAttempts(wait)
+	}
+	creds, err := s.db.CredentialsByID(ctx, caller.UserID)
+	if err != nil {
+		return p, err
+	}
+	p.CheckedHash = creds.PasswordHash
+	p.OK, err = s.passwords.Check(ctx, creds.PasswordHash, password)
+	return p, err
+}
+
+func errWrongCurrentPassword() *Error {
+	return refusal(http.StatusForbidden, "current_password_incorrect", "The current password is not correct.", false)
 }
 
 // session mints the tokens that say what st says. issued is when they count from.
@@ -152,22 +190,36 @@ func (s *Server) session(st db.SessionState, issued time.Time, refreshToken stri
 	}
 }
 
-// newSession checks what the app said about its device and prepares a session for it.
-func (s *Server) newSession(r *http.Request, device DeviceInfo, now time.Time) (db.NewSession, string, error) {
+// checkDevice checks what an app said about the install it runs on.
+func checkDevice(device DeviceInfo) (db.DeviceInfo, error) {
 	switch {
 	case !auth.ValidToken(device.InstallationID, 32):
-		return db.NewSession{}, "", ErrField("device.installationId", "Send the id this app made for itself: 32 to 128 letters, digits, _ or -.")
+		return db.DeviceInfo{}, ErrField("device.installationId", "Send the id this app made for itself: 32 to 128 letters, digits, _ or -.")
 	case !auth.ValidName(device.Name):
-		return db.NewSession{}, "", ErrField("device.name", "Give the device a name of at most 120 characters.")
+		return db.DeviceInfo{}, ErrField("device.name", "Give the device a name of at most 120 characters.")
 	case len(device.Platform) > 64 || len(device.App) > 64 || len(device.AppVersion) > 64:
-		return db.NewSession{}, "", ErrField("device", "Platform, app and version are at most 64 characters each.")
+		return db.DeviceInfo{}, ErrField("device", "Platform, app and version are at most 64 characters each.")
 	}
+	return db.DeviceInfo{InstallationID: device.InstallationID, Name: device.Name, Platform: device.Platform, App: device.App, AppVersion: device.AppVersion}, nil
+}
+
+// mintSession prepares a session and its first refresh token. The device is filled in by
+// the caller, or by the stored request the session answers.
+func (s *Server) mintSession(r *http.Request, now time.Time) (db.NewSession, string) {
 	id := db.NewSessionID()
 	refresh := s.tokens.FirstRefresh(id)
-	return db.NewSession{
-		ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: remoteHost(r),
-		Device: db.DeviceInfo{InstallationID: device.InstallationID, Name: device.Name, Platform: device.Platform, App: device.App, AppVersion: device.AppVersion},
-	}, refresh, nil
+	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: remoteHost(r)}, refresh
+}
+
+// newSession checks what the app said about its device and prepares a session for it.
+func (s *Server) newSession(r *http.Request, device DeviceInfo, now time.Time) (db.NewSession, string, error) {
+	checked, err := checkDevice(device)
+	if err != nil {
+		return db.NewSession{}, "", err
+	}
+	session, refresh := s.mintSession(r, now)
+	session.Device = checked
+	return session, refresh, nil
 }
 
 // remoteHost is the address a request came from, without the port.
@@ -274,8 +326,12 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 	if err != nil {
 		return SignInResponse{}, err
 	}
-	st, err := s.db.SignIn(ctx, db.SignInAttempt{UserID: creds.UserID, CheckedHash: creds.PasswordHash, PasswordOK: ok,
-		Limits: limits, Session: session, Now: now})
+	// If the account has two-step sign-in, this challenge is stored in place of a session.
+	device, _ := json.Marshal(session.Device)
+	challenge := Challenge{Token: auth.NewSecret(), ExpiresAt: now.Add(challengeLife).UTC()}
+	st, challenged, err := s.db.SignIn(ctx, db.SignInAttempt{UserID: creds.UserID, CheckedHash: creds.PasswordHash, PasswordOK: ok,
+		Limits: limits, Session: session, Now: now,
+		Challenge: db.Code{Kind: "two_factor", Hash: auth.Hash(challenge.Token), Payload: string(device), ExpiresAt: challenge.ExpiresAt}})
 	var limited *db.LimitedError
 	switch {
 	case errors.As(err, &limited):
@@ -284,6 +340,8 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 		return SignInResponse{}, errBadSignIn()
 	case err != nil:
 		return SignInResponse{}, err
+	case challenged:
+		return SignInResponse{Challenge: &challenge}, nil
 	}
 	return s.signedIn(ctx, st, now, refresh)
 }
@@ -334,38 +392,28 @@ func (s *Server) signOut(r *http.Request, _ None) (None, error) {
 }
 
 func (s *Server) changePassword(r *http.Request, req PasswordRequest) (None, error) {
-	ctx, now, caller := r.Context(), s.now(), CallerFrom(r.Context())
+	ctx, now := r.Context(), s.now()
 	if !auth.ValidPassword(req.NewPassword) {
 		return None{}, ErrField("newPassword", "Choose a password of at least 8 characters.")
 	}
-	limits := guessLimits(r, "password", "user:"+strconv.FormatInt(caller.UserID, 10), auth.PasswordDelay)
-	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
-		return None{}, err
-	} else if wait > 0 {
-		return None{}, errTooManyAttempts(wait)
-	}
-	creds, err := s.db.CredentialsByID(ctx, caller.UserID)
-	if err != nil {
-		return None{}, err
-	}
-	ok, err := s.passwords.Check(ctx, creds.PasswordHash, req.CurrentPassword)
+	proof, err := s.passwordProof(r, req.CurrentPassword)
 	if err != nil {
 		return None{}, err
 	}
 	var hash string
-	if ok {
+	if proof.OK {
 		if hash, err = s.passwords.Hash(ctx, req.NewPassword); err != nil {
 			return None{}, err
 		}
 	}
-	err = s.db.ChangePassword(ctx, db.PasswordChange{UserID: caller.UserID, CheckedHash: creds.PasswordHash, CurrentOK: ok,
-		NewHash: hash, Limits: limits, Now: now})
+	err = s.db.ChangePassword(ctx, db.PasswordChange{UserID: proof.UserID, CheckedHash: proof.CheckedHash, CurrentOK: proof.OK,
+		NewHash: hash, Limits: proof.Limits, Now: now})
 	var limited *db.LimitedError
 	switch {
 	case errors.As(err, &limited):
 		return None{}, errTooManyAttempts(limited.Wait)
 	case errors.Is(err, db.ErrBadCredentials):
-		return None{}, refusal(http.StatusForbidden, "current_password_incorrect", "The current password is not correct.", false)
+		return None{}, errWrongCurrentPassword()
 	}
 	return None{}, err
 }

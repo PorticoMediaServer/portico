@@ -248,3 +248,29 @@ func (d *DB) SelectProfile(ctx context.Context, s ProfileSelection) (SessionStat
 	out.Stamp = stamp
 	return out, err
 }
+
+// ClearProfilePIN removes a forgotten PIN for someone who proves the account's password,
+// from whatever profile or chooser they are on. A wrong password is ErrBadCredentials.
+func (d *DB) ClearProfilePIN(ctx context.Context, p PasswordProof, publicID string, now time.Time) (Profile, error) {
+	var out Profile
+	var refused error
+	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		refused = nil
+		ok, err := proofStands(tx, now, p.Limits, p.OK, p.UserID, p.CheckedHash, &refused)
+		if err != nil || !ok {
+			return err
+		}
+		// The account's sign-ins fetch fresh tokens: without a PIN on the main profile, a
+		// sign-in at the chooser may manage the account again.
+		if err := markStale(tx, c, `user_id = ?`, p.UserID); err != nil {
+			return err
+		}
+		out, err = scanProfile(tx.QueryRow(`UPDATE profiles SET pin_hash = NULL, updated_at = ? WHERE user_id = ? AND public_id = ? RETURNING `+profileColumns,
+			now.UnixMilli(), p.UserID, publicID))
+		return err
+	})
+	if err == nil {
+		err = refused
+	}
+	return out, err
+}

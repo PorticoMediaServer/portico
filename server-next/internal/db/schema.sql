@@ -415,6 +415,8 @@ CREATE INDEX images_profile ON images (profile_id) WHERE profile_id IS NOT NULL;
 -- D. Users, sign-in and access
 -- ---------------------------------------------------------------------------------------
 
+-- two_factor_secret is set when enrolment starts and counts once two_factor_enabled_at is set.
+-- two_factor_last_step is the last authenticator time step accepted, so one code works once.
 CREATE TABLE users (
   id                  INTEGER NOT NULL PRIMARY KEY,
   public_id           TEXT    NOT NULL UNIQUE,
@@ -427,6 +429,7 @@ CREATE TABLE users (
   all_libraries       INTEGER NOT NULL DEFAULT 1 CHECK (all_libraries IN (0, 1)),
   two_factor_secret   BLOB,
   two_factor_enabled_at INTEGER,
+  two_factor_last_step INTEGER,
   disabled_at         INTEGER,
   notes               TEXT,
   extra               TEXT,

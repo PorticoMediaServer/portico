@@ -225,6 +225,8 @@ type NewSession struct {
 	ExpiresAt   time.Time
 	Device      DeviceInfo
 	RemoteAddr  string
+	// ProfileID starts the session on a profile; 0 starts it at the profile chooser.
+	ProfileID int64
 }
 
 // startSession registers the device and inserts the session, for a user already proven.
@@ -245,8 +247,9 @@ func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (Sessio
 		userID, now.Add(-endedSessionsKept).UnixMilli()); err != nil {
 		return SessionState{}, err
 	}
-	if _, err := tx.Exec(`INSERT INTO sessions (id, public_id, user_id, device_id, refresh_hash, created_at, expires_at, last_used_at, remote_addr)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''))`, n.ID, NewID("ses"), userID, deviceID, n.RefreshHash, at, n.ExpiresAt.UnixMilli(), at, n.RemoteAddr); err != nil {
+	if _, err := tx.Exec(`INSERT INTO sessions (id, public_id, user_id, profile_id, device_id, refresh_hash, created_at, expires_at, last_used_at, remote_addr)
+		VALUES (?, ?, ?, nullif(?, 0), ?, ?, ?, ?, ?, nullif(?, ''))`,
+		n.ID, NewID("ses"), userID, n.ProfileID, deviceID, n.RefreshHash, at, n.ExpiresAt.UnixMilli(), at, n.RemoteAddr); err != nil {
 		return SessionState{}, err
 	}
 	return sessionState(context.Background(), tx, n.ID)
@@ -261,20 +264,34 @@ type SignInAttempt struct {
 	PasswordOK  bool
 	Limits      []Limit
 	Session     NewSession
-	Now         time.Time
+	// Challenge is stored, and no session started, when the account has two-step sign-in.
+	Challenge Code
+	Now       time.Time
 }
 
 // SignIn records the attempt and, if it is good, starts a session. A wrong guess is counted
 // in the same commit. The answer is ErrBadCredentials or a *LimitedError for every refusal,
-// whether or not the account exists.
-func (d *DB) SignIn(ctx context.Context, a SignInAttempt) (SessionState, error) {
-	var out SessionState
+// whether or not the account exists. For an account with two-step sign-in the password is
+// only the first step: challenged is true, the challenge is stored and there is no session yet.
+func (d *DB) SignIn(ctx context.Context, a SignInAttempt) (out SessionState, challenged bool, err error) {
 	var refused error
-	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, _ *changes) error {
-		refused = nil
+	var stamp TokenStamp
+	stamp, err = d.writeSessionsStamped(ctx, func(tx *sql.Tx, _ *changes) error {
+		refused, challenged = nil, false
 		ok, err := proofStands(tx, a.Now, a.Limits, a.PasswordOK, a.UserID, a.CheckedHash, &refused)
 		if err != nil || !ok {
 			return err
+		}
+		if err := tx.QueryRow(`SELECT two_factor_enabled_at IS NOT NULL FROM users WHERE id = ?`, a.UserID).Scan(&challenged); err != nil {
+			return err
+		}
+		if challenged {
+			// One sign-in at a time is waiting for its second step.
+			if _, err := tx.Exec(`DELETE FROM auth_codes WHERE user_id = ? AND kind = ?`, a.UserID, a.Challenge.Kind); err != nil {
+				return err
+			}
+			a.Challenge.UserID = a.UserID
+			return insertCode(tx, a.Challenge, a.Now)
 		}
 		out, err = startSession(tx, a.UserID, a.Session, a.Now)
 		return err
@@ -283,7 +300,7 @@ func (d *DB) SignIn(ctx context.Context, a SignInAttempt) (SessionState, error) 
 		err = refused
 	}
 	out.Stamp = stamp
-	return out, err
+	return out, challenged, err
 }
 
 // proofStands settles a password proof inside the transaction that acts on it. It refuses

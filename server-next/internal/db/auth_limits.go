@@ -133,3 +133,9 @@ func limitClear(tx *sql.Tx, limits []Limit) error {
 	}
 	return nil
 }
+
+// RecordFailure counts one wrong guess that had no transaction of its own, such as a
+// sign-in code nobody issued.
+func (d *DB) RecordFailure(ctx context.Context, now time.Time, limits ...Limit) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error { return limitFail(tx, now, limits) })
+}

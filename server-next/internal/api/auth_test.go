@@ -444,6 +444,23 @@ func TestProfilesPINsAndWhoMayManage(t *testing.T) {
 	if code != 200 || renewed.Viewer.ProfileID != "" || renewed.Viewer.Role != "account" {
 		t.Errorf("after its profile got a PIN the tablet renewed to %d %+v; want a session with no profile", code, renewed.Viewer)
 	}
+	// A forgotten PIN on the main profile is removed with the account's password, from the chooser.
+	stuck := signIn(t, s, 3).Session
+	reset := "/v1/profiles/" + mainID + "/pin"
+	if code := status(t, s, "DELETE", reset, stuck.AccessToken, nil); code != 403 {
+		t.Errorf("removing the main profile's PIN from the chooser without the password answered %d, want 403", code)
+	}
+	if code := status(t, s, "DELETE", reset, stuck.AccessToken, ProfilePINRemove{CurrentPassword: "not the password"}); code != 403 {
+		t.Errorf("a PIN reset with a wrong password answered %d, want 403", code)
+	}
+	if code := status(t, s, "DELETE", reset, stuck.AccessToken, ProfilePINRemove{CurrentPassword: testPassword}); code != 204 {
+		t.Errorf("a PIN reset with the password answered %d, want 204", code)
+	}
+	now = now.Add(time.Second)
+	_, stuck = renew(t, s, stuck.RefreshToken, 3, "r1")
+	if w := call(t, s, "POST", "/v1/profiles/"+mainID+"/select", stuck.AccessToken, ProfileSelect{}, &main); w.Code != 200 {
+		t.Errorf("after the PIN reset the main profile still asks for a PIN (%d)", w.Code)
+	}
 	// Another account's profile id is simply not there.
 	if code := status(t, s, "POST", "/v1/profiles/prf_someoneelses/select", main.AccessToken, ProfileSelect{}); code != 404 {
 		t.Errorf("selecting an unknown profile answered %d, want 404", code)

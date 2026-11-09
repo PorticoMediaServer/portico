@@ -38,12 +38,9 @@ func (s *Server) systemRoutes() {
 		return Health{Status: "ok"}, nil
 	})
 	Handle(s, "GET /v1/system", Public, func(r *http.Request, _ None) (System, error) {
-		name, ok, err := s.db.Setting(r.Context(), "server.name")
+		name, err := s.serverName(r)
 		if err != nil {
 			return System{}, err
-		}
-		if !ok {
-			name = "Portico"
 		}
 		hasUsers, err := s.db.HasUsers(r.Context())
 		if err != nil {
@@ -52,4 +49,13 @@ func (s *Server) systemRoutes() {
 		return System{ID: s.id, Name: name, Version: s.version, APIMajor: APIMajor, Capabilities: []string{},
 			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}, nil
 	})
+}
+
+// serverName is the name the owner gave this server, or "Portico" until they do.
+func (s *Server) serverName(r *http.Request) (string, error) {
+	name, ok, err := s.db.Setting(r.Context(), "server.name")
+	if err == nil && !ok {
+		name = "Portico"
+	}
+	return name, err
 }
