@@ -220,7 +220,9 @@ func TestUSPasswordDeferredDenialReplacesOutcome(t *testing.T) {
 		turn, a, _ = usPasswordTurn(t, w, r, proof, 0)
 		usPasswordFlipClockOn(w, calls)
 		custody, err = lookupUSPasswordCustody(t.Context(), turn, a, q)
-		if err != ErrDisclosureDenied || !reflect.DeepEqual(custody, usPasswordCustody{}) {
+		// The denial class must be the ONLY class: never joined to the body's
+		// benign conflict classes, and the body outcome must be zeroed.
+		if !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrResolveRequired) || errors.Is(err, ErrConflict) || !reflect.DeepEqual(custody, usPasswordCustody{}) {
 			t.Fatal("deferred custody denial joined or leaked", custody, err)
 		}
 	})
@@ -252,7 +254,7 @@ func TestUSPasswordDeferredDenialReplacesOutcome(t *testing.T) {
 		turn, a, _ = usPasswordTurn(t, w, r, proof, 0)
 		usPasswordFlipClockOn(w, calls)
 		charged, err = storeUSPasswordResult(t.Context(), turn, a, q, v, digest)
-		if err != ErrDisclosureDenied || charged != 0 {
+		if !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrResolveRequired) || errors.Is(err, ErrConflict) || charged != 0 {
 			t.Fatal("deferred store denial joined or kept the body charge", charged, err)
 		}
 		// The zeroed output is not a missing body: the caller's rollback discards
@@ -354,7 +356,10 @@ func usPasswordForeignAccount(t *testing.T, w *executor) usPasswordForeignWitnes
 	}
 	wc008NativeExec(t, w, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES(?,?,?,?)`,
 		f.account, f.account, []byte(usPasswordPreviousHash), f.profile)
-	wc008NativeExec(t, w, `INSERT INTO direct_memberships(account_id,incarnation,role) VALUES(?,?,'owner')`, f.account, f.member)
+	// A second OWNER row is impossible (direct_one_owner is unique); the target
+	// read and CAS do not depend on the role, so an ordinary member is the same
+	// foreign-witness shape.
+	wc008NativeExec(t, w, `INSERT INTO direct_memberships(account_id,incarnation,role) VALUES(?,?,'member')`, f.account, f.member)
 	wc008NativeExec(t, w, `INSERT INTO direct_profiles(id,account_id,name,is_primary,lifetime) VALUES(?,?,'Foreign',1,?)`,
 		f.profile, f.account, f.lifetime)
 	return f
@@ -390,7 +395,7 @@ func TestUSPasswordForeignTargetDenied(t *testing.T) {
 			r := usPasswordRegistry(t, w)
 			turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
 			out, _, err := runUSPasswordDispatch(t.Context(), turn, a, usPasswordInput(t, target))
-			if err != ErrDisclosureDenied || !reflect.DeepEqual(out, usPasswordDispatchResult{}) {
+			if !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrResolveRequired) || errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usPasswordDispatchResult{}) {
 				t.Fatal("foreign target was not refused as a disclosure denial", out, err)
 			}
 			if n := usPasswordCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 0 {
