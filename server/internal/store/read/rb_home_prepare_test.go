@@ -98,7 +98,11 @@ func rbHomePrepareEntitySeed(t *testing.T, f *browseFixture, id, library, kind i
 		artistID = id
 	}
 	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,?,?)`, id, b, library, kind)
-	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,show_id,season_id,season_number,episode_number,album_id,book_id,artist_id,numbering,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,added_at,last_content_added_at,admission_own_age) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'seasonal','Prepared','prepared','prepared','prepared','prepared',0,?,?,?,1,?,?,10)`, id, b, library, kind, parent, show, season, seasonNumber, episodeNumber, album, book, artistID, b, b, b, date, date)
+	var authorKey any
+	if kind == 8 {
+		authorKey = "author:"
+	}
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,show_id,season_id,season_number,episode_number,album_id,book_id,artist_id,numbering,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,added_at,last_content_added_at,admission_own_age,author,book_author_identity_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'seasonal','Prepared','prepared','prepared','prepared','prepared',0,?,?,?,1,?,?,10,'',?)`, id, b, library, kind, parent, show, season, seasonNumber, episodeNumber, album, book, artistID, b, b, b, date, date, authorKey)
 }
 
 func rbHomePrepareAssetSeed(t *testing.T, f *browseFixture, id, library int64, source, incarnation string) {

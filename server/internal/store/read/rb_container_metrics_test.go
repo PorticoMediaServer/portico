@@ -37,8 +37,12 @@ func newRBContainerMetricsSource(t *testing.T) *browseFixture {
 	}
 	entity := func(id, kind, library int64, title string) {
 		public := subject(id, kind, library)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,admission_own_age,duration_key,community_rating_key,critic_rating_key,file_size_key,resolution_key,latest_aired_key)
-VALUES(?,?,?,?,?,?,?,?,?,0,?,?,0,0,0,0,0,NULL,'')`, id, public, library, kind, title, title, title, title, title, public, public)
+		var authorKey any
+		if kind == 8 {
+			authorKey = "author:"
+		}
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,admission_own_age,duration_key,community_rating_key,critic_rating_key,file_size_key,resolution_key,latest_aired_key,author,book_author_identity_key)
+VALUES(?,?,?,?,?,?,?,?,?,0,?,?,0,0,0,0,0,NULL,'','',?)`, id, public, library, kind, title, title, title, title, title, public, public, authorKey)
 	}
 	// A container's own metrics are never inherited by its aggregate.
 	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2001,?,1,2)`, rbContainerMetricsPublic(2001))

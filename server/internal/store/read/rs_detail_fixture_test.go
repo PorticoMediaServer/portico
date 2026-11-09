@@ -21,11 +21,15 @@ func newRSDetailSource(t *testing.T) *browseFixture {
 	f.exec(t, `PRAGMA defer_foreign_keys=ON`)
 	for kind := int64(1); kind <= 10; kind++ {
 		id := 1100 + kind
+		var authorKey any
+		if kind == 8 {
+			authorKey = "author:author"
+		}
 		public := make([]byte, 16)
 		public[0] = 0x80
 		public[15] = byte(kind)
 		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,?)`, id, public, kind)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,show_id,season_number,episode_number,numbering,artist_id,album_id,book_id) VALUES(?,?,1,?,'Typed title','title','t','title','t',0,?,?,?,3,7,'absolute',?,?,?)`, id, public, kind, public, public, int64(1102), int64(1105), int64(1106), int64(1108))
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,show_id,season_number,episode_number,numbering,artist_id,album_id,book_id,author,book_author_identity_key) VALUES(?,?,1,?,'Typed title','title','t','title','t',0,?,?,?,3,7,'absolute',?,?,?,'Author',?)`, id, public, kind, public, public, int64(1102), int64(1105), int64(1106), int64(1108), authorKey)
 	}
 	f.exec(t, `UPDATE catalog_entities SET overview='Accepted overview',year=2024,original_title='Original',tagline='Accepted tagline',edition='Deluxe',release_date='2024-01-01',content_rating='PG',studio='Studio',network='Network',country='CA',added_at='2026-11-01T00:00:00.000000000Z',last_content_added_at='2026-11-05T00:00:00.000000000Z',record_label='Record label',release_country='CA',edition_key='deluxe',disc_number=2,track_number=9,author='Author',narrator='Narrator',series='Series',series_position='2.5',part_number=4,collection_name_key='typed collection',collection_revision=5 WHERE id BETWEEN 1101 AND 1110`)
 	// Only a show may carry nondefault show settings, and the E canonical CHECK
