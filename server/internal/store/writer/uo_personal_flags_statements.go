@@ -57,12 +57,20 @@ WHERE e.id=? AND e.library_id=? AND e.public_id=? AND e.revision=? AND e.admissi
 		// joins catalog_kinds.playable=1 and catalog_libraries.retired=0, then
 		// VisibleItem rejects a retired entity. The kind name is read so a later
 		// kind change cannot be mistaken for the same target.
-		visibilityDef(uoFlagsTargetEntity, `SELECT e.id,e.library_id,l.library_id,e.kind,k.name,k.playable,e.retired,e.revision,e.admission_revision,e.admission_own_age,l.retired
+		//
+		// The bridge to libraries carries the native age-publication fence
+		// (browse_statements.go "library"): a pending age operation or an input
+		// age not yet published refuses rather than admitting a stale own age.
+		// dvr_catalog_provenance marks a published recording, which
+		// contentaccess.VisibleItemTx hides when the profile cannot record.
+		visibilityDef(uoFlagsTargetEntity, `SELECT e.id,e.library_id,l.library_id,e.kind,k.name,k.playable,e.retired,e.revision,e.admission_revision,e.admission_own_age,lib.age_input_revision,lib.age_published_revision,lib.age_pending_operations,l.retired,dvr.item_id
 FROM catalog_entities AS e
 JOIN catalog_libraries AS l ON l.id=e.library_id
+JOIN libraries AS lib ON lib.id=l.library_id
 JOIN catalog_kinds AS k ON k.id=e.kind
+LEFT JOIN dvr_catalog_provenance AS dvr ON dvr.item_id=e.id
 WHERE e.public_id=?`,
-			[]stmt.Param{b("public")}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_catalog_entities_1"}, PrimaryKeys: []string{"l", "k"}, Seeks: []string{"public_id=?"}}),
+			[]stmt.Param{b("public")}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_catalog_entities_1", "sqlite_autoindex_libraries_1"}, PrimaryKeys: []string{"l", "k", "dvr"}, Seeks: []string{"public_id=?"}}),
 		// The exact current membership/profile pair the proof identity names. The
 		// incarnation and lifetime values are compared with the validated proof so
 		// a superseded membership/profile cannot keep an old root's write path.
@@ -71,15 +79,26 @@ FROM direct_memberships AS m
 JOIN direct_profiles AS p ON p.account_id=m.account_id
 WHERE m.account_id=? AND p.id=?`,
 			[]stmt.Param{s("account"), s("profile")}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_profiles_2", "sqlite_autoindex_direct_memberships_1"}, Seeks: []string{"account_id=? AND id=?", "account_id=?"}}),
-		// A missing restriction row is the documented "nothing blocked" default,
-		// exactly as identity.RestrictionsTx answers it.
-		visibilityDef(uoFlagsTargetRestrictions, `SELECT COALESCE(r.maximum_age,-1),COALESCE(r.allow_unrated,1),COALESCE(r.blocked_labels,'[]'),COALESCE(r.revision,0)
-FROM profile_restrictions AS r
-WHERE r.profile_id=?`,
-			[]stmt.Param{s("profile")}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_profile_restrictions_1"}, Seeks: []string{"profile_id=?"}}),
+		// A missing restriction row is the documented default: nothing blocked
+		// EXCEPT recordings, which are off for every profile but the server
+		// owner's primary profile. The COALESCE answers identity.DefaultRestrictions
+		// and defaultRestrictions exactly (identity/restrictions.go:114), so a
+		// missing row cannot be read as permission to record. The principal row
+		// is already proved enabled and not deleted before this read; the CASE
+		// still states the full rule so it cannot drift from the identity copy.
+		visibilityDef(uoFlagsTargetRestrictions, `SELECT COALESCE(r.maximum_age,-1),COALESCE(r.allow_unrated,1),COALESCE(r.blocked_labels,'[]'),COALESCE(r.revision,0),COALESCE(r.allow_dvr,CASE WHEN p.is_primary=1 AND p.deleted=0 AND m.role='owner' AND m.disabled=0 THEN 1 ELSE 0 END)
+FROM direct_profiles AS p
+JOIN direct_memberships AS m ON m.account_id=p.account_id
+LEFT JOIN profile_restrictions AS r ON r.profile_id=p.id
+WHERE p.id=?`,
+			[]stmt.Param{s("profile")}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_profiles_1", "sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_profile_restrictions_1"}, Seeks: []string{"id=?", "account_id=?", "profile_id=?"}}),
 		// The native read fence refuses an account carrying a stored access-limits
 		// document because those account-level ceilings/labels have no native
-		// predicate yet. The writer refuses rather than failing open.
+		// predicate yet. The writer refuses rather than failing open. Accepted
+		// invitations write exactly such a row (access/invitations.go:101), so
+		// invited members are refused today; this MUST be evaluated (the limits
+		// applied) instead of refused before the 600 primitive is wired. Native
+		// returns ErrUnqualified here while this is a terminal disclosure denial.
 		visibilityDef(uoFlagsTargetAccessLimits, `SELECT account_id FROM access_limits WHERE account_id=?`,
 			[]stmt.Param{s("account")}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_access_limits_1"}, Seeks: []string{"account_id=?"}}),
 	}

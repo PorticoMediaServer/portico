@@ -181,7 +181,13 @@ func persistUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCur
 // so a viewer who lost access gets a refusal with no payload. public is the
 // retry custody's target when it has one; zero means the decoded original names
 // the target, which is still proved before return.
-func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup, public [16]byte) (out uoRootFlagsResult, err error) {
+//
+// expectedLibrary, when nonempty, is the library from the retry's complete
+// validated input. The original is sound where it was applied, but a later MOVE
+// means the item is no longer the target that request named, so the replay
+// refuses. A zero-input retry has no library to compare and cannot detect the
+// move; the held complete result must carry the library for that case.
+func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup, public [16]byte, expectedLibrary string) (out uoRootFlagsResult, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	q := lookup.reference
 	if lookup.turn != turn || q.kind != SetPersonalFlags || lookup.decision != receiptReplay {
@@ -190,8 +196,9 @@ func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCur
 	if _, err = uoRootProofCurrent(proof, turn); err != nil {
 		return out, err
 	}
+	var current uoFlagsTargetProof
 	if public != ([16]byte{}) {
-		if _, err = proveUOFlagsPublicVisible(ctx, turn, proof, public); err != nil {
+		if current, err = proveUOFlagsPublicVisible(ctx, turn, proof, public); err != nil {
 			return out, err
 		}
 	}
@@ -213,13 +220,46 @@ func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCur
 		if result.public != public {
 			return uoRootFlagsResult{}, ErrDisclosureDenied
 		}
-	} else if _, err = proveUOFlagsPublicVisible(ctx, turn, proof, result.public); err != nil {
+	} else if current, err = proveUOFlagsPublicVisible(ctx, turn, proof, result.public); err != nil {
 		return uoRootFlagsResult{}, err
+	}
+	if expectedLibrary != "" && current.libraryKey != expectedLibrary {
+		return uoRootFlagsResult{}, ErrDisclosureDenied
 	}
 	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, receiptReplay); err != nil {
 		return uoRootFlagsResult{}, err
 	}
 	return result, turn.checkLifetimes(ctx)
+}
+
+// verifyUORootFlagsOriginal validates the retained 600 original for ACK without
+// re-proving target visibility. ACK discloses no payload and performs no effect:
+// it only moves the floor, so requiring the item to remain visible would wedge
+// the root forever after an item is retired or hidden (every later Fresh
+// sequence would then answer Resolve-required). Root identity, the current
+// proof, the receipt header and the canonical original bytes are still proved
+// here; only the viewing-authority half is omitted.
+func verifyUORootFlagsOriginal(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup) (out uoRootFlagsResult, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	q := lookup.reference
+	if lookup.turn != turn || q.kind != SetPersonalFlags || lookup.decision != receiptReplay {
+		return out, ErrInvalid
+	}
+	if _, err = uoRootProofCurrent(proof, turn); err != nil {
+		return out, err
+	}
+	payload, digest, err := readUORootFlagsPayload(ctx, turn, proof, lookup)
+	if err != nil {
+		return out, err
+	}
+	result, err := decodeUORootFlags(q.identity, q.request, q.root, payload, digest)
+	if err != nil {
+		return uoRootFlagsResult{}, err
+	}
+	if lookup.resultCount != 0 || result.appliedMS != lookup.appliedMS {
+		return uoRootFlagsResult{}, ErrResolveRequired
+	}
+	return result, nil
 }
 
 // acknowledgeUORootFlags moves only the root ACK floor. A replay first proves
@@ -236,8 +276,9 @@ func acknowledgeUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRoo
 		// UO-01's acknowledgeUORootOperation validates a replay through its
 		// GENERIC uoRootOperationResult decoder, so it cannot accept purpose
 		// 600's typed original. Verify that original here and reuse the shared
-		// purpose-agnostic floor body.
-		if _, err := restoreUORootFlags(ctx, turn, proof, lookup, [16]byte{}); err != nil {
+		// purpose-agnostic floor body. This checks root/receipt identity only:
+		// ACK discloses nothing, so target visibility must not gate it.
+		if _, err := verifyUORootFlagsOriginal(ctx, turn, proof, lookup); err != nil {
 			return 0, err
 		}
 		return acknowledgeUORootVerified(ctx, turn, proof, lookup, nowMS)

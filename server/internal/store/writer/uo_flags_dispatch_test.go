@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"go/ast"
 	"go/parser"
@@ -25,13 +26,16 @@ func uoFlagsDispatchDefinitions() []stmt.Definition {
 // catalog rows are the same native fixture the merged flags component uses. The
 // input's profileKey is DERIVED from that proven identity exactly as a real
 // caller must, never an unrelated caller string.
-func uoFlagsDispatchFixture(t *testing.T) (w *executor, path, root string, identity uoRootIdentity, incarnation [16]byte, q uoPersonalFlagsInput) {
+func uoFlagsDispatchFixture(t *testing.T, decorate ...func(driver.Conn) driver.Conn) (w *executor, path, root string, identity uoRootIdentity, incarnation [16]byte, q uoPersonalFlagsInput) {
 	t.Helper()
-	w, path, _ = testExecutor(t)
+	w, path, _ = testExecutor(t, decorate...)
 	identity = uoRootIdentity{account: "account", memberIncarnation: strings.Repeat("a", 32), profile: "profile", profileLifetime: strings.Repeat("b", 32), installation: strings.Repeat("c", 32), family: "family"}
 	q = uoPersonalFlagsInput{profileKey: uoFlagsPersonalOwnerKey(uoFlagsNativeAuthority, identity.account, identity.profile), libraryKey: "library-one", subjectID: 2111, libraryID: 7, publicID: [16]byte{3, 128}, entityRevision: 1, admissionRevision: 1,
 		patch: uoPersonalFlagsPatch{watchlisted: uoFlagValue{set: true, value: true}}}
 	wc008NativeExec(t, w, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(7,'library-one','/fixture')`)
+	// The proof joins the native libraries bridge for the age-publication fence,
+	// so the fixture must carry the same settled row a real library has.
+	wc008NativeExec(t, w, `INSERT INTO libraries(id,name,kind,root) VALUES('library-one','Library One','movies','/fixture')`)
 	wc008NativeExec(t, w, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0)`)
 	wc008NativeExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2111,?,7,1)`, q.publicID[:])
 	wc008NativeExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) VALUES(2111,?,7,1,'Title','title','t','title','t',0,?,?)`, q.publicID[:], q.publicID[:], q.publicID[:])
@@ -691,7 +695,7 @@ func TestUOFlagsTargetVisibility(t *testing.T) {
 			q.libraryKey = "library-two"
 		}},
 		{"moved to another library", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
-			wc008NativeExec(t, w, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(8,'library-two','/fixture-two')`)
+			uoFlagsInsertSecondLibrary(t, w)
 			tx, err := w.db.BeginTx(t.Context(), nil)
 			if err != nil {
 				t.Fatal(err)
@@ -817,6 +821,340 @@ func TestUOFlagsReplayRequiresCurrentAccess(t *testing.T) {
 	if afterPersonal != beforePersonal || afterReceipts != beforeReceipts || afterEvents != beforeEvents {
 		t.Fatal("access-loss replay wrote facts", beforePersonal, afterPersonal, beforeReceipts, afterReceipts, beforeEvents, afterEvents)
 	}
+}
+
+// uoFlagsFailQueryConn fails one matching native query. It is test-only fault
+// injection on the existing fixture connection, proving the final proof's real
+// SQL error is surfaced rather than relabelled as a disclosure denial.
+type uoFlagsFailQueryConn struct {
+	writerDriverConn
+	match  func(string) bool
+	failAt int
+	seen   int
+	err    error
+}
+
+func (c *uoFlagsFailQueryConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if c.match(query) {
+		c.seen++
+		if c.seen == c.failAt {
+			return nil, c.err
+		}
+	}
+	return c.writerDriverConn.QueryContext(ctx, query, args)
+}
+
+func uoFlagsFailTargetQuery(err error, failAt int) func(driver.Conn) driver.Conn {
+	return func(conn driver.Conn) driver.Conn {
+		return &uoFlagsFailQueryConn{
+			writerDriverConn: conn.(writerDriverConn),
+			match:            func(q string) bool { return strings.Contains(q, "e.admission_own_age") },
+			failAt:           failAt,
+			err:              err,
+		}
+	}
+}
+
+func uoFlagsInsertSecondItem(t *testing.T, w *executor, public [16]byte) {
+	t.Helper()
+	wc008NativeExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2112,?,7,1)`, public[:])
+	wc008NativeExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) VALUES(2112,?,7,1,'Second','second','s','second','s',0,?,?)`, public[:], public[:], public[:])
+}
+
+func uoFlagsInsertRecording(t *testing.T, w *executor) {
+	t.Helper()
+	wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(77,'asset-token-one','/recordings/one',1,1,'mp4','h264','aac',1920,1080,1.0,7)`)
+	wc008NativeExec(t, w, `INSERT INTO dvr_catalog_provenance(item_id,recording_id,asset_id,source_id,channel_id,programme_id,guide_generation,artifact_digest,captured_start_ms,captured_end_ms,state) VALUES(2111,'recording-one','asset-token-one','source','channel','programme','guide','x-artifact-digest',0,1,'completed')`)
+}
+
+func uoFlagsInsertSecondLibrary(t *testing.T, w *executor) {
+	t.Helper()
+	wc008NativeExec(t, w, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(8,'library-two','/fixture-two')`)
+	wc008NativeExec(t, w, `INSERT INTO libraries(id,name,kind,root) VALUES('library-two','Library Two','movies','/fixture-two')`)
+}
+
+// TestUOFlagsAckAfterItemRetired is blocker 1's control: ACK discloses no
+// payload, so it must move the floor even after the applied item is retired or
+// hidden. Otherwise the root wedges and every later Fresh sequence answers
+// Resolve-required forever. The following Fresh N+1 on a still-visible item
+// proves the root still admits work.
+func TestUOFlagsAckAfterItemRetired(t *testing.T) {
+	w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+	ref := uoFlagsRef(t, root, 1, 9, q)
+	turn := uoFlagsDispatchTurn(t, w)
+	if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+		t.Fatal(err)
+	}
+	second := [16]byte{4, 128}
+	uoFlagsInsertSecondItem(t, w, second)
+	wc008NativeExec(t, w, `UPDATE catalog_entities SET retired=1 WHERE id=2111`)
+	turn = uoFlagsDispatchTurn(t, w)
+	out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, nowMS: 400, ack: true})
+	if err != nil || out != (uoRootFlagsResult{}) || floor != 1 {
+		t.Fatal("ACK after retirement", out, floor, err)
+	}
+	next := q
+	next.subjectID, next.publicID, next.expectedRevision = 2112, second, 0
+	turn = uoFlagsDispatchTurn(t, w)
+	nextOut, nextFloor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 2, 10, next), public: second, input: next, nowMS: 500})
+	if err != nil || nextFloor != 0 || !nextOut.effect.changed || nextOut.public != second {
+		t.Fatal("Fresh N+1 after ACK", nextOut, nextFloor, err)
+	}
+	if got := uoFlagsScalar(t, w, `SELECT watchlisted FROM personal_items WHERE profile_id=? AND item_id=2112`, q.profileKey); got != 1 {
+		t.Fatal("Fresh N+1 did not apply the second item", got)
+	}
+}
+
+// TestUOFlagsAgePublicationFence mirrors the native read fence
+// (read/browse.go:223-226): a pending age operation or an input age that is not
+// yet published refuses on both Fresh and replay, while a settled library passes.
+func TestUOFlagsAgePublicationFence(t *testing.T) {
+	t.Run("pending operation refuses fresh", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE libraries SET age_pending_operations=1 WHERE id='library-one'`)
+		uoFlagsAssertRefused(t, w, root, identity, q)
+	})
+	t.Run("unpublished input age refuses fresh", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE libraries SET age_input_revision=2,age_published_revision=1 WHERE id='library-one'`)
+		uoFlagsAssertRefused(t, w, root, identity, q)
+	})
+	t.Run("settled age passes", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE libraries SET age_input_revision=7,age_published_revision=7,age_pending_operations=0 WHERE id='library-one'`)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if err != nil || floor != 0 || !out.effect.changed {
+			t.Fatal("settled age refused", out, floor, err)
+		}
+	})
+	t.Run("pending operation refuses replay", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		ref := uoFlagsRef(t, root, 1, 9, q)
+		turn := uoFlagsDispatchTurn(t, w)
+		if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+			t.Fatal(err)
+		}
+		wc008NativeExec(t, w, `UPDATE libraries SET age_pending_operations=1 WHERE id='library-one'`)
+		before := uoFlagsTotalChanges(t, w)
+		turn = uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 400})
+		if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("pending age replay disclosed", out, floor, err)
+		}
+		if after := uoFlagsTotalChanges(t, w); after != before {
+			t.Fatal("pending age replay wrote facts", before, after)
+		}
+	})
+}
+
+// TestUOFlagsRecordingsFence mirrors contentaccess.VisibleItemTx's recording
+// rule: a published recording is invisible to a profile whose Recordings
+// permission is off. The default is off except the server owner's primary
+// profile. Both Fresh and replay are covered, and the owner/allowed controls
+// prove the fence is the recording column rather than a blanket refusal.
+func TestUOFlagsRecordingsFence(t *testing.T) {
+	t.Run("admin secondary with recordings off refuses fresh", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='admin',allowed_libraries='[]' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries=NULL WHERE id='profile'`)
+		uoFlagsInsertRecording(t, w)
+		uoFlagsAssertRefused(t, w, root, identity, q)
+	})
+	t.Run("admin secondary with recordings off refuses replay", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='admin',allowed_libraries='[]' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries=NULL WHERE id='profile'`)
+		wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,allow_dvr) VALUES('profile',1)`)
+		uoFlagsInsertRecording(t, w)
+		ref := uoFlagsRef(t, root, 1, 9, q)
+		turn := uoFlagsDispatchTurn(t, w)
+		if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+			t.Fatal(err)
+		}
+		wc008NativeExec(t, w, `UPDATE profile_restrictions SET allow_dvr=0 WHERE profile_id='profile'`)
+		before := uoFlagsTotalChanges(t, w)
+		turn = uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 400})
+		if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("recording replay disclosed after recordings off", out, floor, err)
+		}
+		if after := uoFlagsTotalChanges(t, w); after != before {
+			t.Fatal("recording replay wrote facts", before, after)
+		}
+	})
+	t.Run("owner main profile records", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='owner',allowed_libraries='[]' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET is_primary=1,allowed_libraries=NULL WHERE id='profile'`)
+		uoFlagsInsertRecording(t, w)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if err != nil || floor != 0 || !out.effect.changed {
+			t.Fatal("owner main profile refused a recording", out, floor, err)
+		}
+	})
+	t.Run("recordings on allows", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='admin',allowed_libraries='[]' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries=NULL WHERE id='profile'`)
+		wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,allow_dvr) VALUES('profile',1)`)
+		uoFlagsInsertRecording(t, w)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if err != nil || floor != 0 || !out.effect.changed {
+			t.Fatal("recordings-on profile refused", out, floor, err)
+		}
+	})
+}
+
+// TestUOFlagsFinalProofErrorSurfaces is blocker 4's control: only a proof denial
+// may become ErrDisclosureDenied. A real SQL failure in the final proof (here the
+// target lookup) must be returned as itself; a real denial still denies.
+func TestUOFlagsFinalProofErrorSurfaces(t *testing.T) {
+	injected := errors.New("injected final proof lookup failure")
+	t.Run("fresh final proof SQL failure surfaces", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t, uoFlagsFailTargetQuery(injected, 2))
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if !errors.Is(err, injected) || errors.Is(err, ErrDisclosureDenied) {
+			t.Fatal("final proof SQL error was relabelled", err)
+		}
+		if out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("final proof SQL error published output", out, floor)
+		}
+		uoFlagsNoEffects(t, w, root)
+	})
+	t.Run("replay final proof SQL failure surfaces", func(t *testing.T) {
+		// Apply uses two target lookups (first proof and its release recheck);
+		// the replay uses one for restore and the fourth for its release recheck.
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t, uoFlagsFailTargetQuery(injected, 4))
+		ref := uoFlagsRef(t, root, 1, 9, q)
+		turn := uoFlagsDispatchTurn(t, w)
+		if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+			t.Fatal(err)
+		}
+		before := uoFlagsTotalChanges(t, w)
+		turn = uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 400})
+		if !errors.Is(err, injected) || errors.Is(err, ErrDisclosureDenied) {
+			t.Fatal("replay final proof SQL error was relabelled", err)
+		}
+		if out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("replay final proof SQL error published output", out, floor)
+		}
+		if after := uoFlagsTotalChanges(t, w); after != before {
+			t.Fatal("failed replay wrote facts", before, after)
+		}
+	})
+	t.Run("real denial still denies", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `CREATE TRIGGER uo_flags_retire_after_effect AFTER INSERT ON api_events BEGIN UPDATE catalog_entities SET retired=1 WHERE id=2111; END`)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("final proof denial", out, floor, err)
+		}
+		uoFlagsNoEffects(t, w, root)
+	})
+}
+
+// TestUOFlagsReplayMoveRefused is blocker 5's rule: a replay that carries its
+// validated input compares the request library with the item's CURRENT library
+// and refuses a moved item. Both libraries are granted here, so only the move
+// check can be the refusal.
+func TestUOFlagsReplayMoveRefused(t *testing.T) {
+	w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+	ref := uoFlagsRef(t, root, 1, 9, q)
+	turn := uoFlagsDispatchTurn(t, w)
+	if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+		t.Fatal(err)
+	}
+	uoFlagsInsertSecondLibrary(t, w)
+	tx, err := w.db.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.ExecContext(t.Context(), `PRAGMA defer_foreign_keys=ON`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.ExecContext(t.Context(), `UPDATE catalog_subjects SET library_id=8 WHERE id=2111`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.ExecContext(t.Context(), `UPDATE catalog_entities SET library_id=8 WHERE id=2111`); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	wc008NativeExec(t, w, `UPDATE direct_memberships SET allowed_libraries='["library-one","library-two"]' WHERE account_id='account'`)
+	wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries='["library-one","library-two"]' WHERE id='profile'`)
+	before := uoFlagsTotalChanges(t, w)
+	turn = uoFlagsDispatchTurn(t, w)
+	out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 400})
+	if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+		t.Fatal("moved item replay disclosed", out, floor, err)
+	}
+	if after := uoFlagsTotalChanges(t, w); after != before {
+		t.Fatal("moved item replay wrote facts", before, after)
+	}
+}
+
+// TestUOFlagsReplayDecodedTargetProof covers restore's decoded-original proof
+// site: a zero-target retry still proves the item named inside the saved
+// original before returning it, so losing access refuses with no payload.
+func TestUOFlagsReplayDecodedTargetProof(t *testing.T) {
+	w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+	ref := uoFlagsRef(t, root, 1, 9, q)
+	turn := uoFlagsDispatchTurn(t, w)
+	if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+		t.Fatal(err)
+	}
+	wc008NativeExec(t, w, `UPDATE direct_memberships SET allowed_libraries='[]' WHERE account_id='account'`)
+	before := uoFlagsTotalChanges(t, w)
+	turn = uoFlagsDispatchTurn(t, w)
+	out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, nowMS: 400})
+	if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+		t.Fatal("decoded target replay disclosed", out, floor, err)
+	}
+	if after := uoFlagsTotalChanges(t, w); after != before {
+		t.Fatal("decoded target refusal wrote facts", before, after)
+	}
+}
+
+// TestUOFlagsAdminWithoutGrant is survivor 6: the proof follows LEGACY and
+// admits an ADMIN without a library grant (native browse.go grants that bypass
+// to the owner only). A later role change to member must then be caught by the
+// release recheck, so deleting the admin bypass fails this fixture.
+func TestUOFlagsAdminWithoutGrant(t *testing.T) {
+	adminSetup := func(t *testing.T, w *executor) {
+		t.Helper()
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='admin',allowed_libraries='[]' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries=NULL WHERE id='profile'`)
+	}
+	t.Run("admin without a grant is admitted", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		adminSetup(t, w)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if err != nil || floor != 0 || !out.effect.changed {
+			t.Fatal("admin without a grant refused", out, floor, err)
+		}
+	})
+	t.Run("role change after the first proof refuses", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		adminSetup(t, w)
+		wc008NativeExec(t, w, `CREATE TRIGGER uo_flags_role_drift AFTER INSERT ON api_events BEGIN UPDATE direct_memberships SET role='member' WHERE account_id='account'; END`)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("role drift not refused", out, floor, err)
+		}
+		uoFlagsNoEffects(t, w, root)
+		if got := uoFlagsScalar(t, w, `SELECT count(*) FROM direct_memberships WHERE account_id='account' AND role='admin'`); got != 1 {
+			t.Fatal("role drift was not rolled back", got)
+		}
+	})
 }
 
 // TestUOFlagsPersonalOwnerKeyGolden pins the local owner-key bytes to the

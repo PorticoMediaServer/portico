@@ -105,6 +105,10 @@ type uoFlagsTargetRow struct {
 	playable                          bool
 	entityRevision, admissionRevision int64
 	ownAge                            sql.NullInt64
+	ageInputRevision                  int64
+	agePublishedRevision              int64
+	agePendingOperations              int64
+	recording                         bool
 }
 
 type uoFlagsViewerFacts struct {
@@ -185,6 +189,11 @@ func proveUOFlagsPublicVisible(ctx context.Context, turn *commandTurn, proof *uo
 
 // readUOFlagsTargetRow copies only the exact current item/library point. A miss,
 // a retired item or a retired library is the same denial class as a hidden one.
+//
+// The library's age publication state is part of the point, mirroring the native
+// read fence exactly (store/read/browse.go:223-226): a pending age operation or
+// an input age that is not yet published means the viewer's admission cannot
+// trust admission_own_age yet, so it refuses instead of admitting a stale age.
 func readUOFlagsTargetRow(ctx context.Context, turn *commandTurn, public [16]byte) (out uoFlagsTargetRow, err error) {
 	if public == ([16]byte{}) {
 		return out, ErrDisclosureDenied
@@ -194,30 +203,43 @@ func readUOFlagsTargetRow(ctx context.Context, turn *commandTurn, public [16]byt
 		return out, err
 	}
 	var playable, retired, libraryRetired int64
-	err = row.Scan(&out.entityID, &out.libraryID, &out.libraryKey, &out.kind, &out.kindName, &playable, &retired, &out.entityRevision, &out.admissionRevision, &out.ownAge, &libraryRetired)
+	var recording sql.NullInt64
+	err = row.Scan(&out.entityID, &out.libraryID, &out.libraryKey, &out.kind, &out.kindName, &playable, &retired, &out.entityRevision, &out.admissionRevision, &out.ownAge, &out.ageInputRevision, &out.agePublishedRevision, &out.agePendingOperations, &libraryRetired, &recording)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrDisclosureDenied
 	}
 	if err != nil {
 		return out, err
 	}
-	if out.entityID <= 0 || out.libraryID <= 0 || out.libraryKey == "" || out.kindName == "" || out.entityRevision <= 0 || out.admissionRevision <= 0 || (playable != 0 && playable != 1) || (retired != 0 && retired != 1) || (libraryRetired != 0 && libraryRetired != 1) || retired != 0 || libraryRetired != 0 {
+	if out.entityID <= 0 || out.libraryID <= 0 || out.libraryKey == "" || out.kindName == "" || out.entityRevision <= 0 || out.admissionRevision <= 0 || (playable != 0 && playable != 1) || (retired != 0 && retired != 1) || (libraryRetired != 0 && libraryRetired != 1) || retired != 0 || libraryRetired != 0 || out.ageInputRevision < 0 || out.agePublishedRevision < 0 || out.agePendingOperations != 0 || out.ageInputRevision != out.agePublishedRevision || recording.Valid && recording.Int64 <= 0 {
 		return out, ErrDisclosureDenied
 	}
 	out.playable = playable == 1
+	out.recording = recording.Valid
 	return out, nil
 }
 
 // validateUOFlagsViewer is the current membership/profile fence plus admission.
-// It follows the native read principal fence and admittedItem: disabled member
-// or deleted profile, a superseded membership incarnation/profile lifetime, a
-// library outside the member's grants or the profile's narrowed set, any stored
-// blocked label (that predicate is not represented natively; refuse rather than
-// fail open), and the age/unrated admission of the item's own rating.
+// It matches the LEGACY viewing fence (contentaccess.VisibleItemTx and the PUT
+// personal-state path): disabled member or deleted profile, a superseded
+// membership incarnation/profile lifetime, a library outside the member's grants
+// or the profile's narrowed set, any stored blocked label (that predicate is not
+// represented natively; refuse rather than fail open), the profile's Recordings
+// permission for a published recording, and the age/unrated admission of the
+// item's own rating.
+//
+// This deliberately matches LEGACY where native differs: identity/access_tier.go
+// admits an ADMIN without a library grant, while native browse.go:223 gives that
+// bypass to the owner only. This proof follows legacy and the difference is
+// tracked separately.
 //
 // A stored access_limits document is refused too: native reads do not yet
 // represent the account's narrowed ceiling/denied labels, and this proof must not
-// silently ignore them.
+// silently ignore them. Accepted invitations write such a row
+// (access/invitations.go:101), so invited members are refused here today. This
+// MUST be evaluated (the limits applied) rather than refused before the 600
+// primitive is wired. Native answers ErrUnqualified for the same row; this is a
+// terminal disclosure denial, which differs and is tracked separately.
 func validateUOFlagsViewer(ctx context.Context, turn *commandTurn, identity uoRootIdentity, target uoFlagsTargetRow) (out uoFlagsViewerFacts, err error) {
 	row, err := wc008DraftQuery(ctx, turn, uoFlagsTargetPrincipal, identity.account, identity.profile)
 	if err != nil {
@@ -275,18 +297,29 @@ func validateUOFlagsViewer(ctx context.Context, turn *commandTurn, identity uoRo
 		return out, err
 	}
 	maxAge, allowUnrated, blockedRaw, restrictionRevision := int64(-1), int64(1), "[]", int64(0)
+	allowDVR := int64(0)
 	row, err = wc008DraftQuery(ctx, turn, uoFlagsTargetRestrictions, identity.profile)
 	if err != nil {
 		return out, err
 	}
-	switch err = row.Scan(&maxAge, &allowUnrated, &blockedRaw, &restrictionRevision); {
+	switch err = row.Scan(&maxAge, &allowUnrated, &blockedRaw, &restrictionRevision, &allowDVR); {
 	case err == nil:
 	case errors.Is(err, sql.ErrNoRows):
-		maxAge, allowUnrated, blockedRaw, restrictionRevision = -1, 1, "[]", 0
+		// The principal row above already proved the profile and membership
+		// exist, so a miss here is only the no-restriction-row default. Keep the
+		// same safe default: recordings off unless the owner's primary profile.
+		maxAge, allowUnrated, blockedRaw, restrictionRevision, allowDVR = -1, 1, "[]", 0, 0
 	default:
 		return out, err
 	}
-	if maxAge < -1 || (allowUnrated != 0 && allowUnrated != 1) || restrictionRevision < 0 || !utf8.ValidString(blockedRaw) {
+	if maxAge < -1 || (allowUnrated != 0 && allowUnrated != 1) || restrictionRevision < 0 || !utf8.ValidString(blockedRaw) || (allowDVR != 0 && allowDVR != 1) {
+		return out, ErrDisclosureDenied
+	}
+	// contentaccess.VisibleItemTx hides a published recording from a profile
+	// whose Recordings permission is off. The default is off for every profile
+	// except the server owner's primary profile (identity.DefaultRestrictions and
+	// defaultRestrictions); the SQL COALESCE answers that same rule.
+	if target.recording && allowDVR == 0 {
 		return out, ErrDisclosureDenied
 	}
 	var labels []string
@@ -554,16 +587,28 @@ func runUOFlagsDispatch(ctx context.Context, turn *commandTurn, proof *uoRootCur
 			}
 		case receiptReplay:
 			// A retained original is disclosed only to a viewer who may STILL see
-			// its item. Prove the public target first when the retry custody names
-			// it; restore proves again against the decoded original before it
-			// returns anything.
-			if inv.public != ([16]byte{}) {
-				if targetProof, err = proveUOFlagsPublicVisible(ctx, turn, proof, inv.public); err != nil {
+			// its item. restore proves that against the caller's target (or the
+			// decoded original when it has none) before any payload is returned.
+			//
+			// A retry that carries its complete input also proves the retained
+			// request library still names the item's CURRENT library. The digest
+			// is recomputed first, so the library compared below is the one the
+			// saved original actually authorized, not an arbitrary caller value.
+			// A moved item then refuses. The zero-input retry carries no library
+			// to compare, so it cannot detect a move; the held complete result
+			// must carry the library for that case (SOL sign-off requested
+			// separately).
+			var expectedLibrary string
+			if inv.input != (uoPersonalFlagsInput{}) {
+				if err = bindUOFlagsFreshInput(proof, inv.reference, inv.input); err != nil {
 					return withdrawUOFlags(turn, err)
 				}
-				targetProven = true
+				if inv.public != ([16]byte{}) && inv.public != inv.input.publicID {
+					return withdrawUOFlags(turn, ErrDisclosureDenied)
+				}
+				expectedLibrary = inv.input.libraryKey
 			}
-			out, err = restoreUORootFlags(ctx, turn, proof, lookup, inv.public)
+			out, err = restoreUORootFlags(ctx, turn, proof, lookup, inv.public, expectedLibrary)
 		case receiptRetired:
 			// A submission to an ACKed sequence is the retired class, never a
 			// Resolve-required loop. No payload is disclosed and nothing is written.
@@ -590,17 +635,24 @@ func runUOFlagsDispatch(ctx context.Context, turn *commandTurn, proof *uoRootCur
 			if !targetProven {
 				return withdrawUOFlags(turn, ErrDisclosureDenied)
 			}
+			// Classify like the replay branch: a proof denial stays the
+			// disclosure-denied class, while a frame-deadline or SQL failure is
+			// returned as the real error instead of being relabelled as a denial.
+			// A non-nil proof error therefore wins over the typed mismatch (the
+			// zero proof never equals targetProof); a clean proof that no longer
+			// matches the first one is the denial.
 			fresh, proofErr := proveUOFlagsTargetVisible(ctx, turn, proof, inv.input)
-			if proofErr != nil || fresh != targetProof {
-				return withdrawUOFlags(turn, ErrDisclosureDenied)
-			}
-		} else if lookup.decision == receiptReplay && out.public != ([16]byte{}) {
-			fresh, proofErr := proveUOFlagsPublicVisible(ctx, turn, proof, out.public)
 			if proofErr != nil {
 				return withdrawUOFlags(turn, proofErr)
 			}
-			if targetProven && fresh != targetProof {
+			if fresh != targetProof {
 				return withdrawUOFlags(turn, ErrDisclosureDenied)
+			}
+		} else if lookup.decision == receiptReplay && out.public != ([16]byte{}) {
+			// The restore proof already ran before the payload left it; this
+			// second, later proof is the release-time authority check.
+			if _, proofErr := proveUOFlagsPublicVisible(ctx, turn, proof, out.public); proofErr != nil {
+				return withdrawUOFlags(turn, proofErr)
 			}
 		}
 		if err = uoFlagsRelease(ctx, turn, proof, inv.reference.root, decision); err != nil {
