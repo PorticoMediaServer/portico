@@ -189,6 +189,11 @@ func nativePostingSource(query browseQuery, scope *fullQueryScope, slot uint8, i
 		return source, 1, err
 	}
 	if slot == 1 {
+		if scope.peopleOnly {
+			// The own-prefix slot can only name an entity. A People action
+			// selects person cards, so that candidate is never in scope.
+			return nil, 0, nil
+		}
 		s, err := nativeEntitySource(query, scope, id)
 		return s, 1, err
 	}
@@ -222,6 +227,9 @@ func nativePostingSource(query browseQuery, scope *fullQueryScope, slot uint8, i
 	}
 	if err != nil || s == nil {
 		return s, 0, err
+	}
+	if scope.peopleOnly && s.key.Subject != search.ManifestPerson {
+		return nil, 0, nil
 	}
 	if v[0] != s.key.PublicationID || v[6] != s.key.InputGeneration {
 		return nil, 0, nil

@@ -114,7 +114,7 @@ func nativePreviewAdvance(ctx context.Context, q browseQuery, scope *fullQuerySc
 		if !exhausted && !budget {
 			state.top = nil
 			state.more = false
-			page.Next = &FullSearchCursor{query: scope.query.Fold(), bank: scope.bank, revision: scope.revision, input: scope.input, native: state}
+			page.Next = &FullSearchCursor{query: scope.query.Fold(), bank: scope.bank, revision: scope.revision, input: scope.input, people: scope.peopleOnly, native: state}
 		}
 		return ownFullSearchPage(page, in.View.Limit)
 	}

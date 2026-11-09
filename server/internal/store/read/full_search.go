@@ -31,8 +31,11 @@ type FullSearchHit struct {
 type FullSearchCursor struct {
 	query                 string
 	bank, revision, input int64
-	after                 canonicalCandidateProof
-	native                *nativeContinuation
+	// people binds a continuation to the subject scope that issued it. A
+	// zero-value cursor keeps the original all-subject walk.
+	people bool
+	after  canonicalCandidateProof
+	native *nativeContinuation
 }
 
 const NativePreviewCandidates = 2000
@@ -54,6 +57,12 @@ type FullSearchInput struct {
 	Preview  bool
 	// Remaining MATCH candidate allowance; preview is always capped at2000.
 	CandidateBudget int
+	// PeopleOnly narrows a full search to person candidates: no entity
+	// candidate is proved and no inverse entity/work owner is expanded. The
+	// zero value searches every subject exactly as before, so existing callers
+	// are unchanged. A People action selects only person cards, so the entity
+	// proofs it used to pay for could never reach its page.
+	PeopleOnly bool
 }
 type FullSearchPage struct {
 	Disposition SearchDisposition
@@ -207,7 +216,7 @@ func (p *fullSearchTop) finish(complete bool) (FullSearchPage, error) {
 	out := FullSearchPage{Disposition: SearchResults, Hits: p.hits, Exhausted: !p.more}
 	if p.more && len(p.hits) > 0 {
 		last := hitRank(p.hits[len(p.hits)-1])
-		out.Next = &FullSearchCursor{query: p.scope.query.Fold(), bank: p.scope.bank, revision: p.scope.revision, input: p.scope.input, after: last}
+		out.Next = &FullSearchCursor{query: p.scope.query.Fold(), bank: p.scope.bank, revision: p.scope.revision, input: p.scope.input, people: p.scope.peopleOnly, after: last}
 	}
 	return ownFullSearchPage(out, p.limit)
 }

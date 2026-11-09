@@ -62,6 +62,12 @@ func nativeSourceFields(ctx context.Context, q browseQuery, scope *fullQueryScop
 func nativeCandidate(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, id int64, lead nativeSearchLead) (canonicalCandidateProof, FullSearchHit, bool, error) {
 	var empty canonicalCandidateProof
 	var hit FullSearchHit
+	if scope != nil && scope.peopleOnly {
+		// A People action admits person candidates only. Refusing here, before
+		// any source or inverse-owner read, keeps a work's complete credit
+		// cohort out of the read even if a future route reaches this proof.
+		return empty, hit, false, nil
+	}
 	source, err := nativeEntitySource(q, scope, id)
 	if err != nil || source == nil {
 		return empty, hit, false, err
@@ -285,6 +291,12 @@ func nativeOwnerPage(q browseQuery, relation ownerRelation, owner int64, after *
 	return ownerPage{positions: []ownerPosition{pos}, after: &ownerCursor{relation, owner, pos}}, nil
 }
 func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, f browseFence, in BrowseInput, lead nativeSearchLead, e *nativeExpansion, top *fullSearchTop) (bool, error) {
+	// A People walk proves direct person candidates only. Entity sources and
+	// the inverse work owners of a person can only yield entity hits, which
+	// the People page never selects, so their credit cohorts are not walked.
+	if scope.peopleOnly && e.source.Subject != search.ManifestPerson {
+		return true, nil
+	}
 	// Reverse fan-out must not bypass the same preview budget merely because
 	// one People/collection MATCH posting can own a million work positions.
 	if scope.nativeWork != nil && e.direct {
@@ -390,6 +402,9 @@ func nativeExpandOne(ctx context.Context, q browseQuery, scope *fullQueryScope, 
 	if !e.direct {
 		e.direct = true
 		return false, emit(source.key.SubjectID, fullRouteKey{})
+	}
+	if scope.peopleOnly {
+		return true, nil
 	}
 	if e.field > 4 {
 		return true, nil
