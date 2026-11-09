@@ -51,6 +51,17 @@ const (
 	rbHomePrepareSelectionCap = 4096
 	// rbHomePrepareLibraryCap mirrors the manifest's own finite library census.
 	rbHomePrepareLibraryCap = 16
+	// The retained workspace charges the typed maps and slices this preparation
+	// keeps between quanta, not only the hydrated entity values. A map entry,
+	// its pointer and the parallel slice slot for one candidate or work, and one
+	// child-id reference, are charged before the value is stored so the admitted
+	// retained-byte ceiling covers them.
+	rbHomePrepareCandidateCost = 160
+	rbHomePrepareWorkCost      = 160
+	rbHomePrepareChildRefCost  = 32
+	// rbHomePreparePendingReserve keeps room for the named pending page when a
+	// value or card charge hits the ceiling; the refusal itself must still fit.
+	rbHomePreparePendingReserve = 1024
 )
 
 // rbHomePrepareEntityColumns is the closed entity projection shared by the

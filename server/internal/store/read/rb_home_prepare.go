@@ -99,7 +99,11 @@ type RBHomePreparePreparation struct {
 	active        map[int64]int64
 	personalAfter int64
 	personalDone  bool
-	selectionAt   int
+	considered    map[int64]bool
+	ordered       []int64
+	orderedDirty  bool
+	cut           map[int64]string
+	resumeStreams bool
 	works         []int64
 	workAt        int
 	completion    map[int64]*rbHomePrepareWork
@@ -168,13 +172,17 @@ type rbHomePrepareLibrary struct {
 // rbHomePrepareEntry is the values-only governor holding. It never escapes the
 // reader and carries no raw row, statement or transaction.
 type rbHomePrepareEntry struct {
-	ctx                       context.Context
-	owner                     governor.OwnerID
-	key                       [32]byte
-	lease                     *governor.PreparationLease
-	scope                     rbHomePrepareScope
-	captured, complete        bool
-	delivered, closed         bool
+	ctx                context.Context
+	owner              governor.OwnerID
+	key                [32]byte
+	lease              *governor.PreparationLease
+	scope              rbHomePrepareScope
+	captured, complete bool
+	delivered, closed  bool
+	// restarts is the job-wide F-04 content-restart budget. It survives across
+	// Advance polls; a fresh per-call counter would let one job restart on every
+	// poll and exceed the limit.
+	restarts                  int
 	cards                     []HomeFixedCard
 	pending                   string
 	rawPositions, rawBindings int
@@ -248,7 +256,7 @@ func (r *RBHomePrepareReader) Begin(ctx context.Context, owner governor.OwnerID,
 	entry := &rbHomePrepareEntry{ctx: ctx, owner: owner, key: key, lease: d.Lease}
 	p := &RBHomePreparePreparation{
 		reader: r, entry: entry, view: in.View, row: in.RowID, started: time.Now(),
-		candidates: map[int64]*rbHomePrepareCandidate{}, active: map[int64]int64{},
+		candidates: map[int64]*rbHomePrepareCandidate{}, active: map[int64]int64{}, considered: map[int64]bool{},
 		completion: map[int64]*rbHomePrepareWork{}, entities: map[int64]*rbHomePrepareEntity{}, seasons: map[int64]bool{}, childrenOf: map[int64][]int64{}, hydrated: map[int64]bool{},
 		personalDone: in.RowID == "new_on_server",
 	}
@@ -276,7 +284,7 @@ func (p *RBHomePreparePreparation) Advance(ctx context.Context, request governor
 	if err = p.check(); err != nil {
 		return result, err
 	}
-	for attempt := 0; ; attempt++ {
+	for {
 		err = p.walk(ctx, request, budget, &result)
 		if err == nil {
 			result.Ready = p.entry.complete
@@ -285,7 +293,7 @@ func (p *RBHomePreparePreparation) Advance(ctx context.Context, request governor
 		if !errors.Is(err, errRBPrepareContent) {
 			return result, err
 		}
-		if attempt >= rbHomePrepareRestartLimit || p.entry.delivered {
+		if p.entry.restarts >= rbHomePrepareRestartLimit || p.entry.delivered {
 			p.clear()
 			_ = p.entry.close(p.reader)
 			return result, ErrStale
@@ -299,6 +307,7 @@ func (p *RBHomePreparePreparation) Advance(ctx context.Context, request governor
 			}
 			p.nextScope = nil
 		}
+		p.entry.restarts++
 		result.Restarts++
 	}
 }
@@ -480,7 +489,18 @@ func (p *RBHomePreparePreparation) reduce(s *savedViewSession, query browseQuery
 		if err := p.advancePersonal(s, query, &budget); err != nil {
 			return err
 		}
-		if p.pending == "" && p.indexReady() {
+		if p.pending != "" {
+			return nil
+		}
+		if p.resumeStreams {
+			// A later round found that the composed-date cut is not yet proved.
+			// Take the newly read candidates into selection; completion and the
+			// frontier decide again whether the shelf is closed.
+			p.resumeStreams = false
+			p.phase = 1
+			return nil
+		}
+		if p.indexReady() {
 			p.phase = 1
 		}
 	case 1:
@@ -534,7 +554,7 @@ func (p *RBHomePreparePreparation) indexReady() bool {
 		if stream.done {
 			continue
 		}
-		threshold, ok := p.threshold(stream.library)
+		threshold, ok := p.candidateThreshold(stream.library)
 		if !ok {
 			return false
 		}
@@ -547,9 +567,11 @@ func (p *RBHomePreparePreparation) indexReady() bool {
 	return true
 }
 
-// threshold returns the newest-works cut for one library (or globally for the
-// server-wide shelf) once at least the published row size is known.
-func (p *RBHomePreparePreparation) threshold(library int64) (string, bool) {
+// candidateThreshold returns the newest-works cut over candidate LEAF dates for
+// one library (or globally for the server-wide shelf). It is only the initial
+// input-batch gate: leaf dates are an upper bound for composed dates, so it must
+// never be mistaken for the published cut. frontier proves that cut.
+func (p *RBHomePreparePreparation) candidateThreshold(library int64) (string, bool) {
 	var dates []string
 	for _, c := range p.candidates {
 		if c.date == "" {
@@ -649,7 +671,12 @@ func (p *RBHomePreparePreparation) readStream(query browseQuery, stream *rbHomeP
 			continue
 		}
 		public, _ := row[2].([]byte)
-		p.addCandidate(work, stream.library, kind, date, public)
+		if err := p.addCandidate(work, stream.library, kind, date, public); err != nil {
+			return err
+		}
+		if p.pending != "" {
+			return nil
+		}
 	}
 	if !full {
 		if stream.values {
@@ -661,12 +688,23 @@ func (p *RBHomePreparePreparation) readStream(query browseQuery, stream *rbHomeP
 	return nil
 }
 
-func (p *RBHomePreparePreparation) addCandidate(id, library, kind int64, date string, public []byte) {
+// addCandidate keeps one work candidate. The retained candidate map, its pointer
+// and the parallel ordering slice are charged before the value is stored, so the
+// admitted retained-byte ceiling covers the workspace and never truncates it.
+func (p *RBHomePreparePreparation) addCandidate(id, library, kind int64, date string, public []byte) error {
 	c := p.candidates[id]
 	if c == nil {
+		if len(p.candidateList) >= rbHomePrepareSelectionCap {
+			p.pending = "home_prepare_selection_cap"
+			return nil
+		}
+		if err := p.entry.retainValue(rbHomePrepareCandidateCost + int64(len(date))); err != nil {
+			return err
+		}
 		c = &rbHomePrepareCandidate{id: id, library: library, kind: kind}
 		p.candidates[id] = c
 		p.candidateList = append(p.candidateList, id)
+		p.orderedDirty = true
 	}
 	if date != "" && (c.date == "" || date > c.date) {
 		c.date = date
@@ -674,6 +712,7 @@ func (p *RBHomePreparePreparation) addCandidate(id, library, kind int64, date st
 	if kind == 1 && id == c.id && len(public) == 16 {
 		copy(c.public[:], public)
 	}
+	return nil
 }
 
 // keepEntity adds one typed entity value and charges its actual retained bytes
@@ -732,13 +771,20 @@ func (p *RBHomePreparePreparation) advancePersonal(s *savedViewSession, query br
 		library := row[1].(int64)
 		fence, ok := p.libraryFence(library)
 		if !ok {
-			return ErrDenied
+			// Legacy Home starts from the visible libraries' membership, so a
+			// personal row whose library has left the viewer's scope is simply
+			// not part of the shelf. Ignoring it matches that source; denying the
+			// whole row would publish less than the legacy composition.
+			continue
 		}
 		ent, err := p.hydrateEntity(s, query, id, library, fence, true)
 		if err != nil {
 			return err
 		}
 		if ent == nil {
+			// A personal row that no longer names a visible entity is not a
+			// member of any in-scope library. Legacy iterates library membership,
+			// never the personal set, so this row is ignored rather than stale.
 			continue
 		}
 		if err := p.keepEntity(id, ent); err != nil {
@@ -792,17 +838,26 @@ func (p *RBHomePreparePreparation) advancePersonal(s *savedViewSession, query br
 	return nil
 }
 
-// advanceSelection hydrates the candidate work rows once, then fixes the exact
-// selected work set.
+// advanceSelection considers one candidate work in descending leaf-date order.
+// Hydration is what proves whether a candidate can yield a card, so the loop
+// keeps taking candidates until every candidate that could reach the current
+// composed-date cut has been hydrated. Completion and frontier then decide
+// whether the shelf is exact; unplayable works are completed (so their absence
+// is proved) but never counted.
 func (p *RBHomePreparePreparation) advanceSelection(s *savedViewSession, query browseQuery) error {
-	if p.selectionAt < len(p.candidateList) {
-		if len(p.candidateList) > rbHomePrepareSelectionCap {
-			p.pending = "home_prepare_selection_cap"
-			return nil
+	if err := p.selectActive(); err != nil {
+		return err
+	}
+	ordered := p.orderedCandidates()
+	for _, id := range ordered {
+		if p.considered[id] {
+			continue
 		}
-		id := p.candidateList[p.selectionAt]
-		p.selectionAt++
 		c := p.candidates[id]
+		p.considered[id] = true
+		if p.belowCut(c) {
+			continue
+		}
 		if _, ok := p.entities[id]; !ok {
 			fence, ok := p.libraryFence(c.library)
 			if !ok {
@@ -822,69 +877,56 @@ func (p *RBHomePreparePreparation) advanceSelection(s *savedViewSession, query b
 		ent := p.entities[id]
 		c.kind = ent.Kind
 		c.public = ent.Public
+		if err := p.addWork(id, ent.Library, ent.Kind); err != nil {
+			return err
+		}
 		return nil
-	}
-	if err := p.selectWorks(); err != nil {
-		return err
 	}
 	p.phase = 2
 	return nil
 }
 
-func (p *RBHomePreparePreparation) selectWorks() error {
-	var chosen []int64
-	switch p.row {
-	case "new_on_server":
-		chosen = append(chosen, p.sortedCandidates(0)...)
-		if len(chosen) > rbHomePrepareRowLimit {
-			chosen = chosen[:rbHomePrepareRowLimit]
-		}
-	case "listen_next":
-		byLibrary := map[int64][]int64{}
-		for _, id := range p.candidateList {
-			c := p.candidates[id]
-			byLibrary[c.library] = append(byLibrary[c.library], id)
-		}
-		for library := range byLibrary {
-			sorted := p.sortedCandidates(library)
-			if len(sorted) > rbHomePrepareRowLimit {
-				sorted = sorted[:rbHomePrepareRowLimit]
-			}
-			chosen = append(chosen, sorted...)
-		}
-		for id := range p.active {
-			chosen = append(chosen, id)
-		}
-	default:
-		for id := range p.active {
-			chosen = append(chosen, id)
-		}
-	}
-	seen := map[int64]bool{}
-	for _, id := range chosen {
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
+// selectActive adds the profile's own activity works. They are a complete
+// personal source, not part of a chronology frontier, so every one is selected.
+func (p *RBHomePreparePreparation) selectActive() error {
+	for id := range p.active {
 		ent := p.entities[id]
 		if ent == nil {
-			return ErrStale
+			continue
 		}
-		p.works = append(p.works, id)
-		p.completion[id] = &rbHomePrepareWork{id: id, library: ent.Library, kind: ent.Kind}
+		if err := p.addWork(id, ent.Library, ent.Kind); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (p *RBHomePreparePreparation) sortedCandidates(library int64) []int64 {
-	ids := make([]int64, 0, len(p.candidateList))
-	for _, id := range p.candidateList {
-		if library != 0 && p.candidates[id].library != library {
-			continue
-		}
-		ids = append(ids, id)
+// addWork retains one selected work and charges its workspace before growth.
+func (p *RBHomePreparePreparation) addWork(id, library, kind int64) error {
+	if _, ok := p.completion[id]; ok {
+		return nil
 	}
-	slices.SortFunc(ids, func(a, b int64) int {
+	if len(p.works) >= rbHomePrepareSelectionCap {
+		p.pending = "home_prepare_selection_cap"
+		return nil
+	}
+	if err := p.entry.retainValue(rbHomePrepareWorkCost); err != nil {
+		return err
+	}
+	p.works = append(p.works, id)
+	p.completion[id] = &rbHomePrepareWork{id: id, library: library, kind: kind}
+	return nil
+}
+
+// orderedCandidates returns the candidate ids in descending leaf-date order.
+// Leaf dates are only the discovery order (and an upper bound for composed
+// dates); the published order is proved later from actualDate.
+func (p *RBHomePreparePreparation) orderedCandidates() []int64 {
+	if !p.orderedDirty && len(p.ordered) == len(p.candidateList) {
+		return p.ordered
+	}
+	p.ordered = append(p.ordered[:0], p.candidateList...)
+	slices.SortFunc(p.ordered, func(a, b int64) int {
 		ca, cb := p.candidates[a], p.candidates[b]
 		if ca.date != cb.date {
 			if ca.date > cb.date {
@@ -892,12 +934,33 @@ func (p *RBHomePreparePreparation) sortedCandidates(library int64) []int64 {
 			}
 			return 1
 		}
-		// Match the published shelf: sortHomeCards and homeFixedRecent break an
-		// equal-instant tie by descending public id, so the selection cut must
-		// keep that same end of the run.
-		return -strings.Compare(entityid.Encode(ca.public[:]), entityid.Encode(cb.public[:]))
+		if ca.id > cb.id {
+			return -1
+		}
+		if ca.id < cb.id {
+			return 1
+		}
+		return 0
 	})
-	return ids
+	p.orderedDirty = false
+	return p.ordered
+}
+
+// belowCut reports that a candidate's leaf date is older than the proved
+// composed-date cut for its scope. Every unread or unselected work's composed
+// date is at most its leaf date, so such a candidate can never enter the
+// published row and need not be hydrated. The cut only advances, so using it
+// here never skips a work that the final proof still needs.
+func (p *RBHomePreparePreparation) belowCut(c *rbHomePrepareCandidate) bool {
+	scope := int64(0)
+	if p.row == "listen_next" {
+		scope = c.library
+	}
+	cut, ok := p.cut[scope]
+	if !ok {
+		return false
+	}
+	return c.date == "" || c.date < cut
 }
 
 func (p *RBHomePreparePreparation) advanceCompletion(s *savedViewSession, query browseQuery, budget *int) error {
@@ -919,14 +982,19 @@ func (p *RBHomePreparePreparation) advanceCompletion(s *savedViewSession, query 
 		return nil
 	}
 	if p.workAt >= len(p.works) {
-		// Availability can move a work's composed date below its newest
-		// admitted leaf date. Once the cut works are complete, pull in any
-		// remaining candidate whose admitted frontier could still reach the
-		// actual cut, so a truncated top set is never published.
-		if p.extendSelection() {
-			return nil
+		// Availability can move a work's composed date below its newest admitted
+		// leaf date. The shelf is exact only once the composed-date cut is proved
+		// against the next unread leaf-date upper bound; otherwise keep reading.
+		needSelection, needStreams := p.frontier()
+		switch {
+		case needSelection:
+			p.phase = 1
+		case needStreams:
+			p.resumeStreams = true
+			p.phase = 0
+		default:
+			p.phase = 3
 		}
-		p.phase = 3
 	}
 	return nil
 }
@@ -976,93 +1044,168 @@ func (p *RBHomePreparePreparation) actualDate(id int64) string {
 	return best
 }
 
-// actualThreshold returns the published-row-size cut over composed dates for
-// one library (zero = the whole shelf), or "" when fewer than that many works
-// can produce a card.
-func (p *RBHomePreparePreparation) actualThreshold(library int64) (string, bool) {
-	var dates []string
-	for _, id := range p.works {
-		ent := p.entities[id]
-		if ent == nil || library != 0 && ent.Library != library {
-			continue
-		}
-		if date := p.actualDate(id); date != "" {
-			dates = append(dates, date)
-		}
-	}
-	if len(dates) < rbHomePrepareRowLimit {
-		return "", false
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
-	return dates[rbHomePrepareRowLimit-1], true
+// rbHomePreparePublished is one card-producing work's composed date and public
+// id, in the same tie order as homeFixedRecent/sortHomeCards.
+type rbHomePreparePublished struct {
+	date   string
+	public [16]byte
 }
 
-// extendSelection appends every candidate that can still affect the composed
-// cut. A shelf with fewer than the published number of card-producing works
-// includes every remaining candidate, because an undated or lower work can
-// still fill it.
-func (p *RBHomePreparePreparation) extendSelection() bool {
-	add := func(id int64) bool {
-		if _, ok := p.completion[id]; ok {
-			return false
-		}
+// publishable returns the works that actually yield a card for one scope (zero =
+// the whole shelf), ordered exactly like the published row. A work whose newest
+// admitted leaf has no resolvable binding is absent: it is skipped, never
+// counted toward the row size.
+func (p *RBHomePreparePreparation) publishable(scope int64) []rbHomePreparePublished {
+	out := make([]rbHomePreparePublished, 0, len(p.works))
+	for _, id := range p.works {
 		ent := p.entities[id]
 		if ent == nil {
-			return false
+			continue
 		}
-		if len(p.works) >= rbHomePrepareSelectionCap {
-			p.pending = "home_prepare_selection_cap"
-			return false
+		if scope != 0 && ent.Library != scope {
+			continue
 		}
-		p.works = append(p.works, id)
-		p.completion[id] = &rbHomePrepareWork{id: id, library: ent.Library, kind: ent.Kind}
-		return true
+		date := p.actualDate(id)
+		if date == "" {
+			continue
+		}
+		out = append(out, rbHomePreparePublished{date: date, public: ent.Public})
 	}
-	switch p.row {
-	case "new_on_server":
-		threshold, ok := p.actualThreshold(0)
-		if !ok {
-			added := false
-			for _, id := range p.candidateList {
-				if add(id) {
-					added = true
-				}
+	slices.SortFunc(out, func(a, b rbHomePreparePublished) int {
+		if a.date != b.date {
+			if a.date > b.date {
+				return -1
 			}
-			return added
+			return 1
 		}
-		added := false
-		for _, id := range p.candidateList {
-			if p.candidates[id].date != "" && p.candidates[id].date < threshold {
+		return -strings.Compare(entityid.Encode(a.public[:]), entityid.Encode(b.public[:]))
+	})
+	return out
+}
+
+// frontier proves whether the published composed-date cut is final. A
+// candidate's composed date is never newer than its newest leaf date, so the
+// next unread leaf date is an upper bound for every unread work's composed date.
+// The shelf is exact only when the published row size of card-producing works is
+// known and the limit-th composed date is strictly newer than that upper bound
+// (an equal instant could still outrank by public id), or the scope's source is
+// genuinely exhausted. It reports whether more candidates must be hydrated or
+// more source rows read; both are bounded by the named capacity refusals.
+func (p *RBHomePreparePreparation) frontier() (needSelection, needStreams bool) {
+	if p.row != "new_on_server" && p.row != "listen_next" {
+		return false, false
+	}
+	if p.cut == nil {
+		p.cut = map[int64]string{}
+	}
+	for _, scope := range p.scopes() {
+		published := p.publishable(scope)
+		if len(published) >= rbHomePrepareRowLimit {
+			cut := published[rbHomePrepareRowLimit-1].date
+			p.cut[scope] = cut
+			if p.hasUnconsidered(scope, cut, true) {
+				needSelection = true
 				continue
 			}
-			if add(id) {
-				added = true
+			if p.scopeStreamsDone(scope) {
+				continue
 			}
-		}
-		return added
-	case "listen_next":
-		libraries := map[int64]bool{}
-		for _, id := range p.candidateList {
-			libraries[p.candidates[id].library] = true
-		}
-		added := false
-		for library := range libraries {
-			threshold, ok := p.actualThreshold(library)
-			for _, id := range p.candidateList {
-				if p.candidates[id].library != library {
-					continue
-				}
-				if ok && (p.candidates[id].date == "" || p.candidates[id].date < threshold) {
-					continue
-				}
-				if add(id) {
-					added = true
-				}
+			upper, known := p.scopeUpperBound(scope)
+			if !known || !(cut > upper) {
+				needStreams = true
 			}
+			continue
 		}
-		return added
+		// Fewer card-producing works than the published row are known. Any
+		// remaining candidate could still add one, so none may be skipped and the
+		// source must be read to its end before the shelf is called exhausted.
+		if p.hasUnconsidered(scope, "", false) {
+			needSelection = true
+		}
+		if !p.scopeStreamsDone(scope) {
+			needStreams = true
+		}
+	}
+	return needSelection, needStreams
+}
+
+// scopes names the independent published rows: the whole shelf for
+// new_on_server, or each configured listening library for listen_next.
+func (p *RBHomePreparePreparation) scopes() []int64 {
+	if p.row == "new_on_server" {
+		return []int64{0}
+	}
+	if p.row != "listen_next" {
+		return nil
+	}
+	seen := map[int64]bool{}
+	scopes := make([]int64, 0, len(p.streams))
+	for _, stream := range p.streams {
+		if seen[stream.library] {
+			continue
+		}
+		seen[stream.library] = true
+		scopes = append(scopes, stream.library)
+	}
+	slices.Sort(scopes)
+	return scopes
+}
+
+// hasUnconsidered reports whether a candidate at or above the scope's cut is
+// still unselected. When no cut exists every remaining candidate of the scope
+// could produce a card, so any unconsidered candidate needs selection.
+func (p *RBHomePreparePreparation) hasUnconsidered(scope int64, cut string, hasCut bool) bool {
+	for _, id := range p.orderedCandidates() {
+		if p.considered[id] {
+			continue
+		}
+		c := p.candidates[id]
+		if scope != 0 && c.library != scope {
+			continue
+		}
+		if !hasCut {
+			return true
+		}
+		if c.date != "" && c.date >= cut {
+			return true
+		}
 	}
 	return false
+}
+
+func (p *RBHomePreparePreparation) scopeStreamsDone(scope int64) bool {
+	for _, stream := range p.streams {
+		if scope != 0 && stream.library != scope {
+			continue
+		}
+		if !stream.done {
+			return false
+		}
+	}
+	return true
+}
+
+// scopeUpperBound is the newest leaf date that any unread candidate of the scope
+// could still have. An unstarted stream is unknown, not empty.
+func (p *RBHomePreparePreparation) scopeUpperBound(scope int64) (string, bool) {
+	upper := ""
+	for _, stream := range p.streams {
+		if scope != 0 && stream.library != scope {
+			continue
+		}
+		if stream.done {
+			continue
+		}
+		if !stream.started {
+			return "", false
+		}
+		// The undated bucket sorts after every dated row, so it contributes no
+		// dated upper bound.
+		if stream.values && stream.date > upper {
+			upper = stream.date
+		}
+	}
+	return upper, true
 }
 
 func (p *RBHomePreparePreparation) readWork(s *savedViewSession, query browseQuery, w *rbHomePrepareWork) error {
@@ -1132,6 +1275,9 @@ func (p *RBHomePreparePreparation) readChildren(s *savedViewSession, query brows
 			w.children++
 			p.rawRows++
 			p.rawPositions++
+			if err := p.entry.retainValue(rbHomePrepareChildRefCost); err != nil {
+				return err
+			}
 			p.childrenOf[w.id] = append(p.childrenOf[w.id], ent.ID)
 			if _, ok := p.entities[ent.ID]; !ok {
 				if err := p.keepEntity(ent.ID, ent); err != nil {
@@ -1466,6 +1612,12 @@ func (p *RBHomePreparePreparation) revalidate(s *savedViewSession, query browseQ
 	if scope.Principal != p.entry.scope.Principal {
 		return ErrStale
 	}
+	if p.entry.pending != "" {
+		// The retained page is a named pending/refusal, not a composed shelf, so
+		// there is no row visibility to prove. The exact principal and scope were
+		// compared above; a pending manifest also projects no rows to test.
+		return nil
+	}
 	doc := homeManifestSourceProject(frame, s.input(current).Now).Manifest
 	for _, row := range doc.Rows {
 		if row.ID == p.row {
@@ -1531,6 +1683,9 @@ func (p *RBHomePreparePreparation) clear() {
 	p.streams = nil
 	p.candidates = nil
 	p.candidateList = nil
+	p.considered = nil
+	p.ordered = nil
+	p.cut = nil
 	p.active = nil
 	p.works = nil
 	p.completion = nil
@@ -1546,10 +1701,14 @@ func (p *RBHomePreparePreparation) reset() error {
 	p.streams = nil
 	p.candidates = map[int64]*rbHomePrepareCandidate{}
 	p.candidateList = nil
+	p.ordered = nil
+	p.orderedDirty = false
+	p.cut = nil
+	p.resumeStreams = false
 	p.active = map[int64]int64{}
 	p.personalAfter = 0
 	p.personalDone = p.row == "new_on_server"
-	p.selectionAt = 0
+	p.considered = map[int64]bool{}
 	p.works = nil
 	p.workAt = 0
 	p.completion = map[int64]*rbHomePrepareWork{}
@@ -1609,7 +1768,7 @@ func (e *rbHomePrepareEntry) retainValue(size int64) error {
 	if e == nil || !e.captured || e.closed {
 		return ErrInput
 	}
-	if size < 0 || size > e.payload-e.retained {
+	if size < 0 || size > e.payload-rbHomePreparePendingReserve-e.retained {
 		return errRBHomePrepareCapacity
 	}
 	e.retained += size
@@ -1633,7 +1792,7 @@ func (e *rbHomePrepareEntry) retainPage(page HomeFixedPage) error {
 	for _, card := range page.Items {
 		size += 192 + 2*int64(len(card.Added)) + 2*int64(len(card.ActivityAt))
 	}
-	if size > e.payload-e.retained {
+	if size > e.payload-rbHomePreparePendingReserve-e.retained {
 		return errRBHomePrepareCapacity
 	}
 	e.retained += size
