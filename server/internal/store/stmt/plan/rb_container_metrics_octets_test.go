@@ -9,7 +9,7 @@ import (
 
 func rbContainerMetricsOctetControl() stmt.Definition {
 	spec := rbContainerMetricsOctetSources()[0]
-	params := append([]stmt.Param{{Name: "profile", Type: stmt.Text}}, spec.params...)
+	params := []stmt.Param{spec.params[0], {Name: "profile", Type: stmt.Text}, spec.params[1]}
 	params = append(params, stmt.Param{Name: "key0", Type: stmt.Integer}, stmt.Param{Name: "limit", Type: stmt.Integer})
 	id := stmt.ID("read.browse.rb.container_metrics.children.show.tail0.bytes")
 	return stmt.Definition{
@@ -18,8 +18,7 @@ func rbContainerMetricsOctetControl() stmt.Definition {
 		Kind:   stmt.Read,
 		Owner:  "store/read",
 		Params: params,
-		Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_show_fk", "personal_current_live"}, Seeks: []string{"show_id=?", "profile_id=? AND item_id=?"},
-			Waivers: []stmt.Waiver{{StatementID: id, Stage: "eqp", Form: "BLOOM FILTER", Match: "BLOOM FILTER ON p (profile_id=? AND item_id=?)", Reason: "bundled planner join bloom filter; the current-personal index seek is still pinned"}}},
+		Plan:   stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_show_fk", "personal_current_live", "sqlite_autoindex_direct_profiles_1"}, Seeks: []string{"show_id=?", "profile_id=? AND item_id=?", "id=?"}},
 	}
 }
 
@@ -39,7 +38,7 @@ func TestRBContainerMetricsOctetRange(t *testing.T) {
 			d.SQL = strings.Replace(d.SQL, "catalog_entities_show_fk", "catalog_entities_parent", 1)
 		},
 		func(d *stmt.Definition) { d.Owner = "foreign-owner" },
-		func(d *stmt.Definition) { d.Params[1].Type = stmt.Text },
+		func(d *stmt.Definition) { d.Params[3].Type = stmt.Text },
 		func(d *stmt.Definition) { d.Params[4].Nullable = true },
 		func(d *stmt.Definition) { d.Plan.Hot = false },
 		func(d *stmt.Definition) { d.Plan.AllowedScans = []string{"e"} },

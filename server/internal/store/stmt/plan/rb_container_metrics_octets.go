@@ -22,11 +22,11 @@ type rbContainerMetricsOctetKey struct {
 }
 
 type rbContainerMetricsOctetSource struct {
-	name, from, where, index, order, scopeAlias, scopeColumn, lastColumn string
-	keys                                                                 []rbContainerMetricsOctetKey
-	textFirst                                                            bool
-	partial                                                              bool
-	params                                                               []stmt.Param
+	name, from, where, scopeJoin, extra, index, order, scopeAlias, scopeColumn, lastColumn string
+	keys                                                                                   []rbContainerMetricsOctetKey
+	textFirst                                                                              bool
+	partial                                                                                bool
+	params                                                                                 []stmt.Param
 }
 
 func rbContainerMetricsOctetSources() []rbContainerMetricsOctetSource {
@@ -35,21 +35,21 @@ func rbContainerMetricsOctetSources() []rbContainerMetricsOctetSource {
 	return []rbContainerMetricsOctetSource{
 		{
 			name: "show", from: entity + "catalog_entities_show_fk",
-			where: "show_id IS NOT NULL AND e.show_id=? AND e.library_id=?",
+			where: "show_id IS NOT NULL", scopeJoin: "e.show_id=?",
 			index: "catalog_entities_show_fk", order: "k0 ASC", scopeAlias: "e", scopeColumn: "show_id", lastColumn: "id", partial: true,
 			keys:   []rbContainerMetricsOctetKey{{sql: "e.id", alias: "k0"}},
 			params: []stmt.Param{i("show"), i("library")},
 		},
 		{
 			name: "season", from: entity + "catalog_entities_parent",
-			where: "parent_id IS NOT NULL AND e.parent_id=? AND e.library_id=?",
+			where: "parent_id IS NOT NULL", scopeJoin: "e.parent_id=?",
 			index: "catalog_entities_parent", order: "k0 ASC", scopeAlias: "e", scopeColumn: "parent_id", lastColumn: "id", partial: true,
 			keys:   []rbContainerMetricsOctetKey{{sql: "e.id", alias: "k0"}},
 			params: []stmt.Param{i("parent"), i("library")},
 		},
 		{
 			name: "album", from: entity + "catalog_entities_album",
-			where: "album_id IS NOT NULL AND e.album_id=? AND e.library_id=?",
+			where: "album_id IS NOT NULL", scopeJoin: "e.album_id=?",
 			index: "catalog_entities_album", order: "k0 ASC,k1 ASC,k2 ASC", scopeAlias: "e", scopeColumn: "album_id", lastColumn: "id", partial: true,
 			keys: []rbContainerMetricsOctetKey{
 				{sql: "COALESCE(e.disc_number,1)", alias: "k0"},
@@ -60,7 +60,7 @@ func rbContainerMetricsOctetSources() []rbContainerMetricsOctetSource {
 		},
 		{
 			name: "book", from: entity + "catalog_entities_book",
-			where: "book_id IS NOT NULL AND e.book_id=? AND e.library_id=?",
+			where: "book_id IS NOT NULL", scopeJoin: "e.book_id=?",
 			index: "catalog_entities_book", order: "k0 ASC,k1 ASC,k2 ASC", scopeAlias: "e", scopeColumn: "book_id", lastColumn: "id", partial: true,
 			keys: []rbContainerMetricsOctetKey{
 				{sql: "COALESCE(e.disc_number,1)", alias: "k0"},
@@ -70,9 +70,8 @@ func rbContainerMetricsOctetSources() []rbContainerMetricsOctetSource {
 			params: []stmt.Param{i("book"), i("library")},
 		},
 		{
-			name:  "collection",
-			from:  "catalog_collection_members AS m INDEXED BY catalog_collection_members_page CROSS JOIN catalog_entities AS e ON e.id=m.item_id",
-			where: "m.collection_id=? AND e.library_id=?",
+			name: "collection", from: "catalog_collection_members AS m INDEXED BY catalog_collection_members_page",
+			scopeJoin: "m.collection_id=?", extra: " CROSS JOIN catalog_entities AS e ON e.id=m.item_id",
 			index: "catalog_collection_members_page", order: "k0 ASC,k1 ASC", scopeAlias: "m", scopeColumn: "collection_id", lastColumn: "item_id",
 			keys:   []rbContainerMetricsOctetKey{{sql: "m.order_key", text: true, alias: "k0"}, {sql: "m.item_id", alias: "k1"}},
 			params: []stmt.Param{i("collection"), i("library")}, textFirst: true,
@@ -92,13 +91,16 @@ func rbContainerMetricsOctetKeyColumns(spec rbContainerMetricsOctetSource) strin
 }
 
 func rbContainerMetricsOctetSelect(spec rbContainerMetricsOctetSource, preds []string, order string) string {
-	where := spec.where
+	where := "dp.id=? AND e.library_id=?"
+	if spec.where != "" {
+		where = "dp.id=? AND " + spec.where + " AND e.library_id=?"
+	}
 	for _, pred := range preds {
 		where += " AND " + pred
 	}
 	return "SELECT e.id,octet_length(e.latest_aired_key),COALESCE(octet_length(p.last_played_at),0)," + rbContainerMetricsOctetKeyColumns(spec) +
-		" FROM " + spec.from +
-		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id AND p.item_public_id=e.public_id" +
+		" FROM direct_profiles AS dp CROSS JOIN " + spec.from + " ON " + spec.scopeJoin + spec.extra +
+		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=dp.id AND p.item_id=e.id AND p.item_public_id=e.public_id" +
 		" WHERE " + where + " ORDER BY " + order + " LIMIT ?"
 }
 
@@ -119,7 +121,7 @@ func init() {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	p := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	for _, spec := range rbContainerMetricsOctetSources() {
-		plan := stmt.Plan{Hot: true, Indexes: []string{spec.index, "personal_current_live"}, Seeks: []string{spec.scopeColumn + "=?", "profile_id=? AND item_id=?"}}
+		plan := stmt.Plan{Hot: true, Indexes: []string{spec.index, "personal_current_live", "sqlite_autoindex_direct_profiles_1"}, Seeks: []string{spec.scopeColumn + "=?", "profile_id=? AND item_id=?", "id=?"}}
 		if spec.name == "collection" {
 			plan.PrimaryKeys = []string{"e"}
 		}
@@ -155,8 +157,8 @@ func init() {
 			legs = append(legs, leg{name: "tail" + strconv.Itoa(level), pred: preds, kp: keyParams, kb: keyBinds})
 		}
 		for _, one := range legs {
-			// The personal LEFT JOIN's profile binds first, before spec.where.
-			params := append([]stmt.Param{p("profile")}, spec.params...)
+			// SQL text order: child scope equality, profile PK bind, library.
+			params := []stmt.Param{spec.params[0], p("profile"), spec.params[1]}
 			params = append(params, one.kp...)
 			params = append(params, i("limit"))
 			order := spec.order
@@ -166,11 +168,6 @@ func init() {
 			sqlText := rbContainerMetricsOctetSelect(spec, one.pred, order)
 			id := stmt.ID("read.browse.rb.container_metrics.children." + spec.name + "." + one.name + ".bytes")
 			legPlan := plan
-			legPlan.Waivers = append(append([]stmt.Waiver(nil), plan.Waivers...), stmt.Waiver{
-				StatementID: id, Stage: "eqp", Form: "BLOOM FILTER",
-				Match:  "BLOOM FILTER ON p (profile_id=? AND item_id=?)",
-				Reason: "bundled planner join bloom filter; the current-personal index seek is still pinned",
-			})
 			if spec.name == "album" || spec.name == "book" {
 				fk := "album_id=?"
 				if spec.name == "book" {

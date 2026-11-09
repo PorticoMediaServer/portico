@@ -1,6 +1,10 @@
 package read
 
-import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+import (
+	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+)
 
 // RBAcrossDefinitions is the cross-library ready inventory. It reuses the
 // exact catalog_entities title/added/content/scalar indexes and adds no new
@@ -86,6 +90,11 @@ func rbAcrossDefinitions() []stmt.Definition {
 	// Landed scalar orders reuse their exact maintained index and partial
 	// predicate; missing values keep the same NULL bucket as the source order.
 	for _, order := range rbScalarOrders() {
+		// A policy-required constant kind list is materialised by SQLite as a
+		// literal-only ephemeral index. That is a temp B-tree of compiled
+		// integers, never a row scan, so it is documented as an exact waiver
+		// instead of widening any shared EQP rule.
+		constantList := strings.Contains(order.predicate, " IN(")
 		for _, desc := range []bool{false, true} {
 			direction, orderBy, op := "asc", "ASC", ">"
 			if desc {
@@ -107,23 +116,35 @@ func rbAcrossDefinitions() []stmt.Definition {
 			}
 			args := []any{int64(1), order.kind}
 			empty := []any{int64(999999), order.kind}
-			add(prefix+"first", base+end, []stmt.Param{i("library"), i("kind"), i("limit")}, append(args, int64(MaxRaw+1)), append(empty, int64(MaxRaw+1)), order.index)
-			add(prefix+"tail", base+" AND e."+order.column+"=? AND e.id"+op+"?"+end,
+			addScalar := func(name, sqlText string, params []stmt.Param, present, empty []any, index string) {
+				add(name, sqlText, params, present, empty, index)
+				if !constantList {
+					return
+				}
+				last := &out[len(out)-1]
+				last.Plan.Waivers = []stmt.Waiver{{
+					StatementID: last.ID, Stage: "eqp", Form: "FOR IN-OPERATOR",
+					Match:  order.predicate,
+					Reason: "policy-required constant kind list is a literal-only ephemeral index; the keyed SEARCH reads no row for it",
+				}}
+			}
+			addScalar(prefix+"first", base+end, []stmt.Param{i("library"), i("kind"), i("limit")}, append(args, int64(MaxRaw+1)), append(empty, int64(MaxRaw+1)), order.index)
+			addScalar(prefix+"tail", base+" AND e."+order.column+"=? AND e.id"+op+"?"+end,
 				[]stmt.Param{i("library"), i("kind"), {Name: "key", Type: order.typ}, i("after"), i("limit")},
 				append(append(append([]any{}, args...), key(keyValue)...), int64(3), int64(MaxRaw+1)),
 				append(append(append([]any{}, empty...), key(keyValue)...), int64(3), int64(MaxRaw+1)), order.index)
-			add(prefix+"next", base+" AND e."+order.column+op+"?"+end,
+			addScalar(prefix+"next", base+" AND e."+order.column+op+"?"+end,
 				[]stmt.Param{i("library"), i("kind"), {Name: "key", Type: order.typ}, i("limit")},
 				append(append(append([]any{}, args...), key(keyValue)...), int64(MaxRaw+1)),
 				append(append(append([]any{}, empty...), key(keyValue)...), int64(MaxRaw+1)), order.index)
-			add(prefix+"null_tail", base+" AND e."+order.column+" IS NULL AND e.id"+op+"?"+end,
+			addScalar(prefix+"null_tail", base+" AND e."+order.column+" IS NULL AND e.id"+op+"?"+end,
 				[]stmt.Param{i("library"), i("kind"), i("after"), i("limit")},
 				append(args, int64(0), int64(MaxRaw+1)), append(empty, int64(0), int64(MaxRaw+1)), order.index)
 			part, name := "values", "values"
 			if desc {
 				part, name = "nulls", "nulls"
 			}
-			add(prefix+name, base+" AND e."+order.column+" IS "+map[string]string{"values": "NOT NULL", "nulls": "NULL"}[part]+end,
+			addScalar(prefix+name, base+" AND e."+order.column+" IS "+map[string]string{"values": "NOT NULL", "nulls": "NULL"}[part]+end,
 				[]stmt.Param{i("library"), i("kind"), i("limit")}, append(args, int64(MaxRaw+1)), append(empty, int64(MaxRaw+1)), order.index)
 		}
 	}
