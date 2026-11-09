@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"slices"
+	"sort"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
@@ -82,7 +83,7 @@ func TestMPOctetPointRequiresExactSearches(t *testing.T) {
 	if err := checkMPOctetPoint(p, rows); err != nil {
 		t.Fatal(err)
 	}
-	for name, mutate := range map[string]func(*Rows){
+	mutations := map[string]func(*Rows){
 		"missing": func(r *Rows) { r.Values = r.Values[:len(r.Values)-1] },
 		"scan": func(r *Rows) {
 			r.Values[0][3] = "SCAN q"
@@ -92,10 +93,22 @@ func TestMPOctetPointRequiresExactSearches(t *testing.T) {
 		},
 		"short-row": func(r *Rows) { r.Values[0] = r.Values[0][:3] },
 		"non-text":  func(r *Rows) { r.Values[0][3] = int64(1) },
-	} {
+	}
+	names := make([]string, 0, len(mutations))
+	for name := range mutations {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
 		changed := rows
-		changed.Values = append([][]any(nil), rows.Values...)
-		mutate(&changed)
+		changed.Values = make([][]any, len(rows.Values))
+		for i, row := range rows.Values {
+			changed.Values[i] = append([]any(nil), row...)
+		}
+		mutations[name](&changed)
+		if err := checkMPOctetPoint(p, rows); err != nil {
+			t.Fatalf("%s: mutation changed the original EQP rows: %v", name, err)
+		}
 		if err := checkMPOctetPoint(p, changed); err == nil {
 			t.Fatalf("%s: incomplete MP point EQP accepted", name)
 		}
