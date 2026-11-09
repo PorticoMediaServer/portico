@@ -61,6 +61,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightUORootOperation(v)
 	case uoRootReclaimResult:
 		return preflightUORootReclaim(v)
+	case uoRootFlagsResult:
+		return preflightUORootFlags(v)
 	case mpQueueRepeatValue:
 		return preflightMPRepeatValue(v)
 	case evidenceSealResult:
@@ -160,6 +162,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeUORootOperation(e, identity, request, v)
 	case uoRootReclaimResult:
 		return writeUORootReclaim(e, identity, request, v)
+	case uoRootFlagsResult:
+		return writeUORootFlags(e, identity, request, v)
 	case mpQueueRepeatValue:
 		return writeMPRepeatValue(e, identity, request, v)
 	case evidenceSealResult:
