@@ -18,6 +18,8 @@ func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
 	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPFieldEdit, IPFieldLock, IPFieldRestore:
 		return governor.Background, nil
+	case IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish:
+		return governor.Background, nil
 	case IAConfigureLibrary, IAConfigureSource:
 		return governor.Background, nil
 	case InventoryAccept, BasicAccept, BasicStage, BasicSeal, InventoryCreate, InventoryClaim, InventoryDirectoryDiscover, InventoryDirectoryEOF, InventoryDirectoryRefuse, InventoryTraversalComplete:

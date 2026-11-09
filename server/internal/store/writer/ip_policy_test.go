@@ -28,9 +28,7 @@ func ipPolicySecurityFixture(t *testing.T) (*executor, *checkpointComponent, *us
 	// Frozen whole-second current clock, no real-clock assertions.
 	now := f.now().UTC().Truncate(time.Second)
 	w.now = func() time.Time { return now }
-	if _, err := w.db.ExecContext(t.Context(), usAuthorityDraftDDL); err != nil {
-		t.Fatal(err)
-	}
+	// Group B (security) is embedded, so the retired overlay DDL is not replayed.
 	_, request := usPolicyFixture()
 	witness := usOwnerAuthorityWitness{issuer: request.issuer, device: "issuer-device", lineage: "issuer-lineage", installationID: "issuer-installation-synthetic-000001", tokenExpiry: now.Add(10 * time.Minute).Format(time.RFC3339), horizon: now.Add(time.Hour).Format(time.RFC3339)}
 	proof, err := prepareUSOwnerAuthority(witness)
