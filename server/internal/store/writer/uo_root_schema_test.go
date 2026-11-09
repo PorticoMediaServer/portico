@@ -13,7 +13,7 @@ func uoRootFixture(t *testing.T) (*executor, string) {
 	w := wc008NativeExecutor(t)
 	wc008NativeExec(t, w, `INSERT INTO user_mutation_global(singleton) VALUES(1) ON CONFLICT(singleton) DO NOTHING`)
 	root := "abcdefghijklmnopqrstuv"
-	wc008NativeExec(t, w, `INSERT INTO user_mutation_roots(id,installation_incarnation,account_id,profile_id,account_incarnation,profile_incarnation,family_id,registration_revision,state) VALUES(?,?,?,?,?,?,?,?,?)`, root, strings.Repeat("i", 32), "account", "profile", "account-birth", strings.Repeat("p", 32), "family", int64(1), "active")
+	wc008NativeExec(t, w, `INSERT INTO user_mutation_roots(id,installation_incarnation,account_id,profile_id,account_incarnation,profile_incarnation,family_id,registration_revision,state) VALUES(?,?,?,?,?,?,?,?,?)`, root, strings.Repeat("i", 32), "account", "profile", strings.Repeat("m", 32), strings.Repeat("p", 32), "family", int64(1), "active")
 	wc008NativeExec(t, w, `INSERT INTO user_mutation_command_owners(root_id,command_incarnation) VALUES(?,?)`, root, []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
 	return w, root
 }
