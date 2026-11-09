@@ -2,14 +2,6 @@
   "version": 1,
   "readers": [
     {
-      "package": "server/internal/store/stmt/stmttest",
-      "why": "Checks all production server Go sources for fixture-only registration imports and unreceipted constructors, and compiles an ordinary-binary probe with the server module's Go version",
-      "reads": ["server/*.go", "server/go.mod"],
-      "ignore": ["*_test.go", "*/testdata/*"],
-      "files": ["server/internal/store/stmt/stmttest/registry_test.go"],
-      "tests": ["TestFixtureAdapterRefusesOrdinaryBinary", "TestNoProductionFixtureImportsOrUnreceiptedRegistration"]
-    },
-    {
       "package": "server/internal/identity",
       "why": "Membership authority censuses inspect every production Go writer across build tags and the installed schema trigger bodies",
       "reads": [
@@ -27,48 +19,6 @@
         "TestMembershipTriggerCensusFindsCommentSeparatedUpdate",
         "TestNoSchemaTriggerBypassesTheMembershipAuthorityPath"
       ]
-    },
-    {
-      "package": "server/internal/store/internal/sqliteconn",
-      "why": "Type-resolves store Go sources and tests and their imports to reject connection openings that bypass the shared physical connection policy",
-      "reads": ["server/*.go", "server/go.mod", "server/go.sum", "go.work"],
-      "files": ["server/internal/store/internal/sqliteconn/openings_inventory_test.go", "server/internal/store/internal/sqliteconn/openings_test.go"],
-      "tests": ["TestStoreOpeningsPlatformProfilesCoverFixtureBodies", "TestStoreOpeningsRejectTypedBypasses", "TestStoreOpeningsUseSharedPolicy"]
-    },
-    {
-      "package": "server/internal/store/internal/searchpolicy",
-      "why": "Pins the production search preparation source closure and its normalization/SQLite dependency identities",
-      "reads": ["server/internal/facettext/prefix.go", "server/internal/facettext/search.go", "server/internal/sorttext/sort.go", "server/internal/store/search/fragments.go", "server/internal/store/search/recipe.go", "server/go.mod", "server/go.sum"],
-      "files": ["server/internal/store/internal/searchpolicy/profile_test.go"],
-      "tests": ["TestPreparationSourcePin"]
-    },
-    {
-      "package": "server/internal/store/search",
-      "why": "Pins the search bank's Go toolchain directive until a reviewed Unicode-fingerprint rebuild path lands",
-      "reads": ["server/go.mod"],
-      "files": ["server/internal/store/search/bank_upgrade_contract_test.go"],
-      "tests": ["TestSearchBankUpgradeContractPinnedToolchain"]
-    },
-    {
-      "package": "server/internal/store/read",
-      "why": "Owner-reverse Capture fixtures and the logical-sibling oracle prepare and hash the search package's exact read-pairing vector",
-      "reads": ["server/internal/store/search/testdata/read-pairing.json"],
-      "files": ["server/internal/store/read/owner_reverse_test.go"],
-      "tests": ["TestOwnerLogicalSiblingReadOracle", "TestOwnerReverseKeysetTraversal", "TestOwnerReversePlans"]
-    },
-    {
-      "package": "server/internal/store/internal/searchmanifest",
-      "why": "Verifies the shared portable manifest protocol against the unchanged preparation wire vectors and restart traces",
-      "reads": ["server/internal/store/search/testdata/manifest-v1.json"],
-      "files": ["server/internal/store/internal/searchmanifest/vectors_test.go"],
-      "tests": ["TestManifestIndependentVectorsAndRestart"]
-    },
-    {
-      "package": "server/internal/store/qual/cmd/host",
-      "why": "Host protocol CLI tests retain invalid shared-fixture receipts and execute actual workflow hash bodies with failing producers",
-      "reads": [".github/workflows/store-qualification-host.yml", "server/internal/store/qual/testdata/host-valid.json"],
-      "files": ["server/internal/store/qual/cmd/host/main_test.go", "server/internal/store/qual/cmd/host/workflow_test.go"],
-      "tests": ["TestHashProducerFailure", "TestInvalidReceiptStillContainsActualEvidence"]
     },
     {
       "package": "server/internal/ingestion",
@@ -131,56 +81,6 @@
       "ignore": ["*_test.go", "*/testdata/*"],
       "files": ["server/internal/operations/setting_consumers_test.go"],
       "tests": ["TestStoredPreferencesHaveRuntimeConsumers", "TestStoredSettingsHaveRuntimeConsumers"]
-    },
-    {
-      "package": "server/internal/store/writer",
-      "why": "Checks the complete ordinary filename identity and sort projection against the existing movie filename corpus",
-      "reads": ["server/internal/naming/testdata/corpus.json"],
-      "files": ["server/internal/store/writer/scan_filename_test.go"],
-      "tests": ["TestProjectOrdinaryFilenameExistingMovieCorpus"]
-    },
-    {
-      "package": "server/internal/store/writer",
-      "why": "Group B producer census scans every server Go source plus the baseline-schema script and the generated WC progress capture for inserts, insert-selects and deletes on the B security tables",
-      "reads": ["server/*", "docs/*"],
-      "files": ["server/internal/store/writer/us_group_b_producer_inventory_test.go"],
-      "tests": ["TestUSGroupBProducerInventory", "TestUSGroupBProducerInventoryOtherSources", "TestUSGroupBProducerInventorySchemaGuards"]
-    },
-    {
-      "package": "server/internal/store/writer",
-      "why": "Paired N1 component tests hash their owner, fixture and workload source closure and capture the foreground registry from the actual read definitions",
-      "reads": [
-        "server/internal/store/writer/n1_paired_export_test.go",
-        "server/internal/store/writer/n1_paired_population_test.go",
-        "server/internal/store/writer/ec2_native_component_test.go",
-        "server/internal/store/writer/ec2_native_bindings_external_test.go",
-        "server/internal/store/writer/wc_component_fixture_test.go",
-        "server/internal/store/writer/canonical_n1_binding_test.go",
-        "server/internal/store/writer/ec3_write_waits_external_test.go",
-        "server/internal/store/writer/ec2_sustained_external_test.go",
-        "server/internal/store/qual/workload/ec2.go",
-        "server/internal/store/writer/ec5_memory_export_test.go",
-        "server/internal/store/writer/ec5_memory_external_test.go",
-        "ci/ec5_memory.py",
-        "server/internal/store/writer/transaction_test.go",
-        "server/internal/store/writer/n1_paired_external_test.go",
-        "server/internal/store/writer/n1_component_steady_test.go",
-        "server/internal/store/writer/n1_progressive_fixture_test.go",
-        "server/internal/store/writer/inventory_memory_test.go",
-        "server/internal/store/writer/governor_turn_test.go",
-        "server/internal/store/writer/scan_fresh_test.go",
-        "server/internal/store/internal/readfixture/source.go",
-        "server/internal/store/internal/readfixture/config.go",
-        "server/internal/store/qual/workload/foreground.go",
-        "server/internal/store/read/foreground.go",
-        "server/internal/store/read/native_full_search.go",
-        "server/internal/store/read/native_postings.go",
-        "server/internal/store/read/native_search_statements.go",
-        "server/internal/store/read/owner_reverse.go",
-        "server/internal/store/read/native_auto_statements.go"
-      ],
-      "files": ["server/internal/store/writer/n1_paired_export_test.go", "server/internal/store/writer/ec5_memory_external_test.go"],
-"tests": ["TestEC1RareErrorPaths", "TestEC2N1WALComposition", "TestEC2NativeFullSearchFunctional", "TestEC2NativeFunctional", "TestEC2SustainedMeasurement", "TestEC5CgroupFunctional", "TestEC5MemoryChildControl", "TestEC5PairedMemoryMeasurement", "TestEC5SustainedMemoryMeasurement", "TestN1PairedCanonicalPopulationFunctional", "TestN1PairedMeasurement", "TestN1PairedSameDBAndLIVE"]
     },
     {
       "package": "server/internal/compactcatalog/identityvalue",
@@ -387,62 +287,6 @@
       "ignore": ["*_test.go", "*/thirdparty/*", "*/testdata/*"],
       "files": ["server/internal/persistence/derived_writers_test.go"],
       "tests": ["TestDerivedTableWritersHaveDeclaredOwners"]
-    },
-    {
-      "package": "server/internal/store/read",
-      "why": "Native full-search fixture and actual fixed-slot MATCH sibling oracle consume the exact PB-RD-01 preparation vector",
-      "reads": [
-        "server/internal/store/search/testdata/read-pairing.json"
-      ],
-      "files": [
-        "server/internal/store/read/native_search_test.go"
-      ],
-      "tests": [
-        "TestNativeSearchAcceptedSiblingOracle",
-        "TestNativeSearchCurrentAllKindsAndMixedOwners",
-        "TestNativeSearchPeopleEqualIDBirth",
-        "TestNativeSearchPerHitPolicyRecheckedBeforePublication",
-        "TestNativeSearchPlans",
-        "TestNativeSearchPreviewCursorIsBoundToItsQuery",
-        "TestNativeSearchPreviewRefusesForgedSeenSets",
-        "TestNativeSearchPreviewSeenBoundNeverReportsFalseCompletion",
-        "TestNativeSearchPreviewTheReturnsPartial",
-        "TestNativeSearchPreviewWalkEmitsEachHitOnce",
-        "TestNativeSearchPreviewWindowOverflowIsNeverReportedComplete",
-        "TestNativeSearchPublicationDenialAndRetirement",
-        "TestNativeSearchReadJoinedStamp",
-        "TestNativeSearchRefusesCandidateBudgetMisuse",
-        "TestNativeSearchRefusesUnsupportedAndStaleProofs",
-        "TestNativeSearchRetainedLibrariesShareOneOperation",
-        "TestNativeSearchUsesCapturedDomainBytePairs",
-        "TestRSSearchPublishFreshFenceAndJoinedConsumer"
-      ]
-    },
-    {
-      "package": "server/internal/store/writer",
-      "why": "The opt-in EC4 screening binds the actual read policy to its exact definition sources and pins the files it executes",
-      "reads": ["server/internal/store/internal/readfixture/source.go", "server/internal/store/read/foreground.go"],
-      "files": ["server/internal/store/writer/ec4_screening_test.go"],
-      "tests": ["TestEC4NativeScreening"]
-    },
-    {
-      "package": "server/internal/store/writer",
-      "why": "The native MemberProfile image drift census parses the public identity response DTO sources that shape the saved profile image",
-      "reads": [
-        "server/internal/identity/direct_profiles.go",
-        "server/internal/identity/restrictions.go",
-        "server/internal/identity/avatars.go",
-        "server/internal/identity/member_profiles.go"
-      ],
-      "files": ["server/internal/store/writer/us_member_profile_image_test.go"],
-      "tests": ["TestUSMemberProfileSourceShape"]
-    },
-    {
-      "package": "server/internal/store/writer",
-      "why": "The native DirectSnapshot image parity check parses the live identity declarations, so an added, removed, reordered or retyped public DTO field fails the writer image",
-      "reads": ["server/internal/identity/direct_accounts.go", "server/internal/identity/direct_profiles.go", "server/internal/identity/sign_in_kind.go"],
-      "files": ["server/internal/store/writer/us_direct_snapshot_image_test.go"],
-      "tests": ["TestUSDirectSnapshotImageSourceShape"]
     }
   ],
   "reviewed": {

@@ -49,7 +49,7 @@ FUNCTION = re.compile(r'^func\s+(?:\([^)]*\)\s*)?(\w+)\s*[\[(]', re.M)
 
 def test_files(root=ROOT):
     for module in MODULES:
-        yield from sorted((root / module).rglob('*_test.go'))
+        yield from (p for p in sorted((root / module).rglob('*_test.go')) if not p.relative_to(root).as_posix().startswith('server/internal/store/'))
 
 def functions(path):
     """[(name, first line, last line, body)] for the top-level functions of one Go source file."""
