@@ -17,8 +17,14 @@ const rsSavedMembersEntryTailSQL = `SELECT rowid FROM saved_resource_entries IND
 const rsSavedMembersEntryNextSQL = `SELECT rowid FROM saved_resource_entries INDEXED BY saved_resource_entries_order WHERE resource_id=? AND order_key>? ORDER BY order_key,id LIMIT ?`
 const rsSavedMembersShareRoleSQL = `SELECT role FROM saved_resource_shares INDEXED BY sqlite_autoindex_saved_resource_shares_1 WHERE resource_id=? AND authority='local' AND account_id=? AND profile_id=?`
 const rsSavedMembersItemSQL = `SELECT id,library_id,kind,retired FROM catalog_entities WHERE id=?`
+const rsSavedMembersLibraryNameSQL = `SELECT l.name FROM libraries AS l INDEXED BY sqlite_autoindex_libraries_1 WHERE l.id=?`
 const rsSavedMembersCardSQL = `SELECT e.id,e.sort_key,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,e.kind,e.overview,p.revision,p.resume_position,p.resume_unit,p.play_count,p.favorite,p.watchlisted,p.watched,p.resume_completed FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`
-const rsSavedMembersCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(e.public_id),octet_length(e.title),octet_length(e.overview) FROM catalog_entities AS e LEFT JOIN personal_items AS p ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`
+
+// The octets statement measures the same member point as the card payload. The
+// personal LEFT JOIN is kept in the measured statement (IFNULL(p.item_id,e.id)=e.id
+// is always true for the joined row) so SQLite cannot drop the unused table and
+// the declared personal_current_live access path stays real, not decorative.
+const rsSavedMembersCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(e.public_id),octet_length(e.title),octet_length(e.overview) FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0 AND IFNULL(p.item_id,e.id)=e.id`
 
 func init() {
 	registerRSBytePoint("rs.saved.members.entry", rsBytePoint{lengths: "rs.saved.members.entry_octets", columns: []int{0, 1}})
@@ -45,13 +51,11 @@ func SavedCollectionPageDefinitions() []stmt.Definition {
 	sharePlan.AutoIndexes = rsSavedAutoIndexes(sharePlan.Indexes)
 	add("share_role", rsSavedMembersShareRoleSQL, []stmt.Param{s("resource"), s("account"), s("profile")}, []any{"saved", "a", "p"}, sharePlan)
 	add("item", rsSavedMembersItemSQL, []stmt.Param{i("item")}, []any{int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_entities"}})
-	for _, v := range []struct{ name, sql string }{{"card", rsSavedMembersCardSQL}, {"card_octets", rsSavedMembersCardOctetsSQL}} {
-		p := stmt.Plan{Hot: true, PrimaryKeys: []string{"e"}}
-		if v.name == "card" {
-			p.Indexes = []string{"personal_current_live"}
-		}
-		add(v.name, v.sql, []stmt.Param{s("profile"), i("item"), i("library"), i("kind")}, []any{"p", int64(1), int64(1), int64(1)}, p)
-	}
+	libraryName := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_libraries_1"}}
+	libraryName.AutoIndexes = rsSavedAutoIndexes(libraryName.Indexes)
+	add("library_name", rsSavedMembersLibraryNameSQL, []stmt.Param{s("library")}, []any{"movies"}, libraryName)
+	add("card", rsSavedMembersCardSQL, []stmt.Param{s("profile"), i("item"), i("library"), i("kind")}, []any{"p", int64(1), int64(1), int64(1)}, stmt.Plan{Hot: true, Indexes: []string{"personal_current_live"}, PrimaryKeys: []string{"e"}})
+	add("card_octets", rsSavedMembersCardOctetsSQL, []stmt.Param{s("profile"), i("item"), i("library"), i("kind")}, []any{"p", int64(1), int64(1), int64(1)}, stmt.Plan{Hot: true, Indexes: []string{"personal_current_live"}, PrimaryKeys: []string{"e"}})
 	return out
 }
 

@@ -49,6 +49,8 @@ func rsSavedAutoIndexes(indexes []string) []stmt.AutoIndexBinding {
 			table, columns = "authorization_family_tokens", []string{"token_hash"}
 		case "sqlite_autoindex_authorization_session_families_1":
 			table, columns = "authorization_session_families", []string{"id"}
+		case "sqlite_autoindex_libraries_1":
+			table, columns = "libraries", []string{"id"}
 		default:
 			continue
 		}

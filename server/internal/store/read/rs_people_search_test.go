@@ -140,6 +140,10 @@ func seedPeopleSearchLabels(t *testing.T, f *browseFixture) {
 func seedPeopleSearchCrewCredit(t *testing.T, f *browseFixture) {
 	t.Helper()
 	seedPeopleSearchLabels(t, f)
+	// A kind-2 (show) view is a container, and the catalogue policy admits a
+	// container only when the profile's age policy does. The explicit default
+	// restriction keeps that proof real instead of relying on an absent row.
+	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated)VALUES('p',-1,1)`)
 	seedPeopleSearchImage(t, f, 5001, 1)
 	f.exec(t, `UPDATE catalog_entities SET kind=2,retired=0 WHERE id=1`)
 	f.exec(t, `INSERT INTO catalog_credits(image_id,entity_id,ord,person_id,role_id,department_id,credited_name,provider,credit_id,source_ordinal) VALUES(5001,1,0,1,3,4,'Keanu Direction','fixture','crew',0)`)
@@ -288,7 +292,18 @@ func seedPeopleSearchSecondLibrary(t *testing.T, f *browseFixture) {
 	t.Helper()
 	seedPeopleSearchLabels(t, f)
 	f.exec(t, `UPDATE direct_memberships SET allowed_libraries='["movies","other"]' WHERE account_id='a'`)
-	f.exec(t, `UPDATE catalog_entities SET kind=4,retired=0 WHERE id=1040`)
+	// 1040 becomes a legal episode of a show in its own (second) library: the
+	// schema requires every kind-4 row to carry show_id, numbering and
+	// episode_number, and the show reference is library-scoped. The entity and
+	// its subject row reference each other's identity tuple, so both kind
+	// changes are deferred to COMMIT exactly as the base native seed does.
+	f.exec(t, "BEGIN")
+	f.exec(t, "PRAGMA defer_foreign_keys=ON")
+	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(1200,x'000000000000000000000000000004b0',2,2)`)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) VALUES(1200,x'000000000000000000000000000004b0',2,2,'Other Show','other show','o','other show','o',0,zeroblob(16),zeroblob(16))`)
+	f.exec(t, `UPDATE catalog_subjects SET kind=4 WHERE id=1040`)
+	f.exec(t, `UPDATE catalog_entities SET kind=4,show_id=1200,numbering='seasonal',episode_number=1,retired=0 WHERE id=1040`)
+	f.exec(t, "COMMIT")
 	seedPeopleSearchImage(t, f, 6001, 1040)
 	f.exec(t, `INSERT INTO catalog_credits(image_id,entity_id,ord,person_id,role_id,department_id,credited_name,provider,credit_id,source_ordinal) VALUES(6001,1040,0,1,1,2,'Keanu','fixture','other-library',0)`)
 	nativeFixtureImage(t, f, search.ManifestEntity, 1040, 6002, []nativeFixtureField{{1, "Title 1040"}})
@@ -323,8 +338,18 @@ func TestRSPeopleSearchDuplicateCrossLibraryPersonHydratesOnce(t *testing.T) {
 func seedPeopleSearchUbiquitous(t *testing.T, f *browseFixture) {
 	t.Helper()
 	seedPeopleSearchLabels(t, f)
+	// Entity and subject identity tuples reference each other, so the kind
+	// changes are deferred to COMMIT exactly as the base native seed does.
+	f.exec(t, "BEGIN")
+	f.exec(t, "PRAGMA defer_foreign_keys=ON")
+	for _, id := range []int64{100, 101, 102, 103, 104, 105} {
+		// Legal episodes of the library-1 show seeded above: kind 4 rows must
+		// carry show_id, numbering and episode_number.
+		f.exec(t, `UPDATE catalog_subjects SET kind=4 WHERE id=?`, id)
+		f.exec(t, `UPDATE catalog_entities SET kind=4,show_id=1,numbering='seasonal',episode_number=?,retired=0 WHERE id=?`, id, id)
+	}
+	f.exec(t, "COMMIT")
 	for n, id := range []int64{100, 101, 102, 103, 104, 105} {
-		f.exec(t, `UPDATE catalog_entities SET kind=4,retired=0 WHERE id=?`, id)
 		seedPeopleSearchImage(t, f, 7000+id, id)
 		role, department := int64(1), int64(2)
 		if n%2 == 1 {
