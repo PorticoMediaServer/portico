@@ -70,7 +70,7 @@ func iaExtraAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAu
 func seedIAExtraOwner(t *testing.T, w *executor) {
 	t.Helper()
 	wc008NativeExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(60,X'60000000000000000000000000000000',7,1)`)
-	wc008NativeExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,added_at,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision) VALUES(60,X'60000000000000000000000000000000',7,1,'Owner','','owner','o','owner','o',1,'2026-11-01T00:00:00Z',zeroblob(16),zeroblob(16),zeroblob(16),1)`)
+	wc008NativeExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,added_at,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision) VALUES(60,X'60000000000000000000000000000000',7,1,'Owner','','owner','o','owner','o',1,'2026-11-01T00:00:00.000000000Z',zeroblob(16),zeroblob(16),zeroblob(16),1)`)
 	wc008NativeExec(t, w, `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(7,'extra-owner-key',60)`)
 }
 

@@ -163,6 +163,30 @@ func iaMissingTxCount(t *testing.T, turn *commandTurn, query string) int64 {
 	return n
 }
 
+// A tampered saved original is a test-only counterfactual: some receipt shapes
+// are impossible through the schema CHECKs, so enforcement is disabled on one
+// dedicated connection for the direct UPDATE and restored before it returns to
+// the pool. A writer turn never sees the relaxed connection.
+func execIATamperUnchecked(t *testing.T, w *executor, query string) {
+	t.Helper()
+	conn, err := w.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(t.Context(), `PRAGMA ignore_check_constraints=ON`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if _, err := conn.ExecContext(t.Context(), `PRAGMA ignore_check_constraints=OFF`); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if _, err := conn.ExecContext(t.Context(), query); err != nil {
+		t.Fatal(query, err)
+	}
+}
+
 // A refused request writes no receipt, does not advance the run and leaves the
 // retained objects untouched.
 func iaMissingNoEffects(t *testing.T, w *executor) {
@@ -316,10 +340,10 @@ func TestIAMissingRequiresVerifiedCoverage(t *testing.T) {
 			wc008NativeExec(t, w, `DELETE FROM scan_command_receipts WHERE command_sequence=2`)
 		},
 		"coverage_for_other_directory": func(t *testing.T, w *executor, _ *iaMissingRequest) {
-			wc008NativeExec(t, w, `UPDATE scan_command_receipts SET ia_verified_directory='Missing/Sub',ia_verified_identity='missing-sub-directory-identity',ia_verified_revision='missing-sub-directory-revision' WHERE command_sequence=2`)
+			wc008NativeExec(t, w, `UPDATE scan_command_receipts SET ia_verified_directory='Missing/Sub',ia_verified_identity=CAST('missing-sub-directory-identity' AS BLOB),ia_verified_revision=CAST('missing-sub-directory-revision' AS BLOB) WHERE command_sequence=2`)
 		},
 		"coverage_seal_drift": func(t *testing.T, w *executor, _ *iaMissingRequest) {
-			wc008NativeExec(t, w, `UPDATE scan_command_receipts SET ia_verified_revision='older-revision' WHERE command_sequence=2`)
+			wc008NativeExec(t, w, `UPDATE scan_command_receipts SET ia_verified_revision=CAST('older-revision' AS BLOB) WHERE command_sequence=2`)
 		},
 		"coverage_not_verify": func(t *testing.T, w *executor, _ *iaMissingRequest) {
 			wc008NativeExec(t, w, `UPDATE scan_command_receipts SET command_kind='inventory_reconcile',ia_verified_directory=NULL,ia_verified_identity=NULL,ia_verified_revision=NULL WHERE command_sequence=2`)
@@ -402,7 +426,7 @@ func TestIAMissingRefusesUnsafeWindows(t *testing.T) {
 	t.Run("skipped_listing_first_absence", func(t *testing.T) {
 		w, keeper, p := iaMissingFinishFixture(t)
 		reg := iaMissingRegistry(t, keeper)
-		wc008NativeExec(t, w, `UPDATE scan_command_receipts SET ia_verified_directory='Missing/Skipped',ia_verified_identity='missing-skipped-identity',ia_verified_revision='missing-skipped-revision' WHERE command_sequence=1`)
+		wc008NativeExec(t, w, `UPDATE scan_command_receipts SET ia_verified_directory='Missing/Skipped',ia_verified_identity=CAST('missing-skipped-identity' AS BLOB),ia_verified_revision=CAST('missing-skipped-revision' AS BLOB) WHERE command_sequence=1`)
 		q := iaMissingAcceptRequest(w)
 		q.directory = iaMissingSeal{relativePath: "Missing/Skipped", identity: "missing-skipped-identity", revision: "missing-skipped-revision", cursor: "skipped-cursor", state: "done", pages: 1, skipped: 1}
 		q.coverageSequence = 1
@@ -575,7 +599,7 @@ func TestIAMissingAuthorityCells(t *testing.T) {
 		ref := iaMissingAcceptReference(t, q, 3, 2)
 		turn, budget := iaEntryTurn(t, w, reg, iaEntryRequest{purpose: IAMarkMissing, action: iaEntryApply, libraryID: q.scope.libraryID, libraryKey: q.scope.libraryKey})
 		cancelled, cancel := context.WithCancel(t.Context())
-		defer cancel()
+		cancel()
 		out, err := acceptIAMissing(cancelled, turn, p, cancelled, budget, ref, q)
 		if err == nil || out.decision != 0 || len(out.result.facts.members) != 0 {
 			t.Fatal("cancelled lifetime", out, err)
@@ -635,6 +659,7 @@ func TestIAMissingReplayRejectsTamperedReceipt(t *testing.T) {
 		"missing_member": `DELETE FROM scan_reconcile_members WHERE command_kind='inventory_missing' AND ordinal=1`,
 		"member_path":    `UPDATE scan_reconcile_members SET before_path='Missing/Other.mkv' WHERE command_kind='inventory_missing' AND ordinal=0`,
 	} {
+		unchecked := name == "authoritative" || name == "finished_ms"
 		t.Run(name, func(t *testing.T) {
 			w, keeper, p := iaMissingFinishFixture(t)
 			reg := iaMissingRegistry(t, keeper)
@@ -647,7 +672,11 @@ func TestIAMissingReplayRejectsTamperedReceipt(t *testing.T) {
 			if _, err = turn.transaction.commit(); err != nil {
 				t.Fatal(err)
 			}
-			wc008NativeExec(t, w, mutate)
+			if unchecked {
+				execIATamperUnchecked(t, w, mutate)
+			} else {
+				wc008NativeExec(t, w, mutate)
+			}
 			turn, replay, err := iaMissingAcceptRun(t, w, reg, p, q, ref)
 			if err == nil || replay.decision != 0 || replay.digest != (ResultDigest{}) || len(replay.result.facts.members) != 0 {
 				t.Fatal("tampered receipt served", replay, err)

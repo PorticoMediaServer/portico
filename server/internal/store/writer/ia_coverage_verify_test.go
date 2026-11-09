@@ -568,6 +568,7 @@ func TestIACoverageVerifyRejectsConflictingOriginal(t *testing.T) {
 	ref := iaCoverageAcceptReference(t, q, 2, 2)
 	changed := q
 	changed.raw++
+	changed.accepted++
 	turn, out, err := iaCoverageAcceptRun(t, w, reg, p, changed, ref)
 	if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) {
 		t.Fatal("changed request digest", out, err)

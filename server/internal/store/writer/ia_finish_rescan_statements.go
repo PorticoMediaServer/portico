@@ -109,7 +109,7 @@ FROM inventory_runs WHERE job_id=? AND command_incarnation=?`,
 				{Name: "no_protected_path", Bindings: []any{"finish-closed", int64(iaFinishMaxRows + 1)}},
 			}},
 		{ID: iaFinishUnseen, Kind: stmt.Read,
-			SQL: `SELECT id,relative_path FROM inventory_objects INDEXED BY inventory_objects_source
+			SQL: `SELECT relative_path FROM inventory_objects INDEXED BY inventory_objects_source
 WHERE source_id=? AND retired=0 AND id>? AND root_incarnation=? AND state='available' AND seen_job<>?
 ORDER BY id LIMIT ?`,
 			Params: []stmt.Param{t("source_id"), t("after_object_id"), t("incarnation"), t("run_id"), i("row_limit")},

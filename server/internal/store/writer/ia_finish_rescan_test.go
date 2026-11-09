@@ -42,13 +42,20 @@ func iaFinishAcceptRun(t *testing.T, w *executor, r *iaEntryRegistry, p *usOwner
 // and leaves the completion marker empty.
 func iaFinishNoEffects(t *testing.T, w *executor) {
 	t.Helper()
+	iaFinishNoEffectsAt(t, w, "reconciling", "")
+}
+
+// A fresh gate can itself mutate the run before the call; the refusal must
+// still leave that pre-call state and the run revision untouched.
+func iaFinishNoEffectsAt(t *testing.T, w *executor, phase, finishedAt string) {
+	t.Helper()
 	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM scan_command_receipts WHERE command_kind='inventory_finish'`); got != 0 {
 		t.Fatal("refused finish wrote a receipt", got)
 	}
 	if got := iaEpisodeCount(t, w, `SELECT job_revision FROM inventory_runs WHERE job_id=?`, iaFinishTestRunID); got != 5 {
 		t.Fatal("refused finish advanced the run", got)
 	}
-	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM inventory_runs WHERE job_id=? AND phase='reconciling' AND finished_at=''`, iaFinishTestRunID); got != 1 {
+	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM inventory_runs WHERE job_id=? AND phase=? AND finished_at=?`, iaFinishTestRunID, phase, finishedAt); got != 1 {
 		t.Fatal("refused finish moved the run", got)
 	}
 }
@@ -271,40 +278,49 @@ func TestIAFinishRescanRefusesOpenObligations(t *testing.T) {
 
 // Every fresh witness is re-proven after the receipt is Fresh.
 func TestIAFinishRescanFreshGates(t *testing.T) {
-	for name, mutate := range map[string]func(*testing.T, *executor, *iaFinishRescanRequest){
-		"retired_library": func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
+	type gate struct {
+		mutate     func(*testing.T, *executor, *iaFinishRescanRequest)
+		phase      string
+		finishedAt string
+	}
+	for name, g := range map[string]gate{
+		"retired_library": {mutate: func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
 			wc008NativeExec(t, w, `UPDATE catalog_libraries SET retired=1 WHERE id=8`)
-		},
-		"offline_source": func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
+		}},
+		"offline_source": {mutate: func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
 			wc008NativeExec(t, w, `UPDATE library_sources SET health='offline' WHERE id='finish-source'`)
-		},
-		"stale_source": func(_ *testing.T, _ *executor, q *iaFinishRescanRequest) { q.source.generation++ },
-		"changed_lease": func(t *testing.T, w *executor, q *iaFinishRescanRequest) {
+		}},
+		"stale_source": {mutate: func(_ *testing.T, _ *executor, q *iaFinishRescanRequest) { q.source.generation++ }},
+		"changed_lease": {mutate: func(t *testing.T, w *executor, q *iaFinishRescanRequest) {
 			q.run.leaseExpiresMS = w.now().UnixMilli()
-		},
-		"stale_run_revision": func(_ *testing.T, _ *executor, q *iaFinishRescanRequest) { q.run.revision++ },
-		"changed_run_phase": func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
+		}},
+		"stale_run_revision": {mutate: func(_ *testing.T, _ *executor, q *iaFinishRescanRequest) { q.run.revision++ }},
+		"changed_run_phase": {phase: "inventory", mutate: func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
 			wc008NativeExec(t, w, `UPDATE inventory_runs SET phase='inventory' WHERE job_id='finish-run'`)
-		},
-		"finished_run": func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
+		}},
+		"finished_run": {finishedAt: "2026-11-08T00:00:00.000000000Z", mutate: func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
 			wc008NativeExec(t, w, `UPDATE inventory_runs SET finished_at='2026-11-08T00:00:00.000000000Z' WHERE job_id='finish-run'`)
-		},
-		"impossible_counters": func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
+		}},
+		"impossible_counters": {mutate: func(t *testing.T, w *executor, _ *iaFinishRescanRequest) {
 			wc008NativeExec(t, w, `UPDATE inventory_runs SET analyzed=9 WHERE job_id='finish-run'`)
-		},
+		}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			w, keeper, p := iaMissingFinishFixture(t)
 			reg := iaFinishRegistry(t, keeper)
 			q := iaFinishAcceptRequest(w)
 			ref := iaFinishAcceptReference(t, q, 2, 3)
-			mutate(t, w, &q)
+			g.mutate(t, w, &q)
 			turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
 			if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.phase) != 0 {
 				t.Fatal("fresh gate", out, err)
 			}
 			turn.transaction.rollback(nil)
-			iaFinishNoEffects(t, w)
+			phase := g.phase
+			if phase == "" {
+				phase = "reconciling"
+			}
+			iaFinishNoEffectsAt(t, w, phase, g.finishedAt)
 		})
 	}
 }
@@ -357,7 +373,7 @@ func TestIAFinishRescanAuthorityCells(t *testing.T) {
 		ref := iaFinishAcceptReference(t, q, 2, 3)
 		turn, budget := iaEntryTurn(t, w, reg, iaEntryRequest{purpose: IAFinishRescan, action: iaEntryApply, libraryID: q.scope.libraryID, libraryKey: q.scope.libraryKey})
 		cancelled, cancel := context.WithCancel(t.Context())
-		defer cancel()
+		cancel()
 		out, err := acceptIAFinishRescan(cancelled, turn, p, cancelled, budget, ref, q)
 		if err == nil || out.decision != 0 || len(out.result.facts.phase) != 0 {
 			t.Fatal("cancelled lifetime", out, err)
@@ -417,6 +433,7 @@ func TestIAFinishRescanReplayRejectsTamperedReceipt(t *testing.T) {
 		"processed":     `UPDATE scan_command_receipts SET ia_processed=99 WHERE command_kind='inventory_finish'`,
 		"authoritative": `UPDATE scan_command_receipts SET ia_authoritative=0 WHERE command_kind='inventory_finish'`,
 	} {
+		unchecked := name == "finished_ms"
 		t.Run(name, func(t *testing.T) {
 			w, keeper, p := iaMissingFinishFixture(t)
 			reg := iaFinishRegistry(t, keeper)
@@ -429,7 +446,11 @@ func TestIAFinishRescanReplayRejectsTamperedReceipt(t *testing.T) {
 			if _, err = turn.transaction.commit(); err != nil {
 				t.Fatal(err)
 			}
-			wc008NativeExec(t, w, mutate)
+			if unchecked {
+				execIATamperUnchecked(t, w, mutate)
+			} else {
+				wc008NativeExec(t, w, mutate)
+			}
 			turn, replay, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
 			if err == nil || replay.decision != 0 || replay.digest != (ResultDigest{}) || len(replay.result.facts.phase) != 0 {
 				t.Fatal("tampered receipt served", replay, err)
