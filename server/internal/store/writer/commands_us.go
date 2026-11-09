@@ -13,6 +13,7 @@ const (
 	usPINClear             CommandID = 533
 	USMemberLibraries      CommandID = 540
 	USProfileLibraries     CommandID = 541
+	USProfileRestrictions  CommandID = 542
 )
 
 var usCommands = commandRegistration{owner: "US", descriptors: []Descriptor{
@@ -26,4 +27,5 @@ var usCommands = commandRegistration{owner: "US", descriptors: []Descriptor{
 	{ID: usPINClear, Name: "us_profile_pin_clear", Durability: Full},
 	{ID: USMemberLibraries, Name: "us_member_libraries", Durability: Full},
 	{ID: USProfileLibraries, Name: "us_profile_libraries", Durability: Full},
+	{ID: USProfileRestrictions, Name: "us_profile_restrictions", Durability: Full},
 }}
