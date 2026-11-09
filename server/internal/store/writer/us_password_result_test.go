@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -167,34 +168,278 @@ func TestUSPasswordReplayAfterSourceDrift(t *testing.T) {
 	}
 }
 
-// A deny that arrives after classification REPLACES the body outcome and never
-// joins with a benign conflict class.
+// usPasswordFlipClock expires the stamped authorization at a pinned clock
+// read, mirroring US-07's late-denial test. It is installed only AFTER the turn
+// is minted, so the entry authorization and the turn's start still see the
+// original time.
+type usPasswordFlipClock struct {
+	base   time.Time
+	flipAt int
+	calls  int
+}
+
+func (c *usPasswordFlipClock) now() time.Time {
+	c.calls++
+	if c.flipAt > 0 && c.calls >= c.flipAt {
+		return c.base.Add(2 * time.Hour)
+	}
+	return c.base
+}
+
+func usPasswordFlipClockOn(w *executor, flipAt int) *usPasswordFlipClock {
+	c := &usPasswordFlipClock{base: w.now(), flipAt: flipAt}
+	w.now = c.now
+	return c
+}
+
+// A denial that arrives on the deferred (pre-CAS) recheck REPLACES the body
+// outcome. The entry recheck must PASS first, so the virtual clock expires the
+// stamp on the LAST clock read of a successful body; the pinned read count
+// fails the test if either deferred authority check is removed.
 func TestUSPasswordDeferredDenialReplacesOutcome(t *testing.T) {
+	t.Run("custody", func(t *testing.T) {
+		w, proof, command := usPasswordFixture(t)
+		r := usPasswordRegistry(t, w)
+		turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
+		q, err := usPasswordReceiptForCommand(command)
+		if err != nil {
+			t.Fatal(err)
+		}
+		clock := usPasswordFlipClockOn(w, 0)
+		custody, err := lookupUSPasswordCustody(t.Context(), turn, a, q)
+		if err != nil || custody.decision != receiptFresh || !custody.owner.exists {
+			t.Fatal("control did not reach the body outcome", custody, err)
+		}
+		if clock.calls == 0 {
+			t.Fatal("no authority clock reads")
+		}
+		calls := clock.calls
+		// The control only read source; release the frame before the replay of
+		// the same identical setup on the same database.
+		_, _ = turn.transaction.rollback(nil)
+		turn, a, _ = usPasswordTurn(t, w, r, proof, 0)
+		usPasswordFlipClockOn(w, calls)
+		custody, err = lookupUSPasswordCustody(t.Context(), turn, a, q)
+		if err != ErrDisclosureDenied || !reflect.DeepEqual(custody, usPasswordCustody{}) {
+			t.Fatal("deferred custody denial joined or leaked", custody, err)
+		}
+	})
+	t.Run("store", func(t *testing.T) {
+		w, proof, command := usPasswordFixture(t)
+		r := usPasswordRegistry(t, w)
+		turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
+		q, err := usPasswordReceiptForCommand(command)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := usPasswordSavedFixture(command)
+		digest, err := usPasswordResultDigest(command.identity, command.digest, v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		charge, err := usPasswordResultVariableBytes(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		clock := usPasswordFlipClockOn(w, 0)
+		charged, err := storeUSPasswordResult(t.Context(), turn, a, q, v, digest)
+		if err != nil || charged != charge || charged <= 0 {
+			t.Fatal("control did not reach the body outcome", charged, err)
+		}
+		calls := clock.calls
+		_, _ = turn.transaction.rollback(nil)
+
+		turn, a, _ = usPasswordTurn(t, w, r, proof, 0)
+		usPasswordFlipClockOn(w, calls)
+		charged, err = storeUSPasswordResult(t.Context(), turn, a, q, v, digest)
+		if err != ErrDisclosureDenied || charged != 0 {
+			t.Fatal("deferred store denial joined or kept the body charge", charged, err)
+		}
+		// The zeroed output is not a missing body: the caller's rollback discards
+		// the prefix the body wrote before the deferred denial.
+		_, _ = turn.transaction.rollback(err)
+		if n := usPasswordCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 0 {
+			t.Fatal("denied store kept a receipt", n)
+		}
+		if n := usPasswordCount(t, w, `SELECT count(*) FROM security_password_results`); n != 0 {
+			t.Fatal("denied store kept a typed child", n)
+		}
+		if n := usPasswordCount(t, w, `SELECT retained_count FROM security_command_owners WHERE id=?`, usPasswordOwnerID); n != 0 {
+			t.Fatal("denied store kept owner debt", n)
+		}
+		if epoch, hash, _ := usPasswordAccount(t, w, usPasswordAccountID); epoch != 1 || string(hash) != usPasswordPreviousHash {
+			t.Fatal("denied store moved the source", epoch)
+		}
+	})
+}
+
+// The 520 release proof reads the frame's post-effect state and fails closed on
+// ANY deviation. Each witness is mutated separately inside the frame.
+func TestUSPasswordPostStateVerificationFailsClosed(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		sql  string
+		args []any
+	}{
+		{"epoch", `UPDATE accounts SET epoch=epoch+1 WHERE id=?`, []any{usPasswordAccountID}},
+		{"profile", `UPDATE accounts SET profile_id='other-profile' WHERE id=?`, []any{usPasswordAccountID}},
+		{"must_change", `UPDATE accounts SET must_change=1 WHERE id=?`, []any{usPasswordAccountID}},
+		{"hash", `UPDATE accounts SET password_hash=? WHERE id=?`, []any{[]byte(usPasswordPreviousHash), usPasswordAccountID}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, proof, command := usPasswordFixture(t)
+			r := usPasswordRegistry(t, w)
+			turn, _, _ := usPasswordTurn(t, w, r, proof, 0)
+			if _, err := applyUSPasswordReplace(t.Context(), turn, command); err != nil {
+				t.Fatal(err)
+			}
+			v := usPasswordSavedFixture(command)
+			if err := verifyUSPasswordPostState(t.Context(), turn, command, v); err != nil {
+				t.Fatalf("control post-state was refused: %v", err)
+			}
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), tc.sql, tc.args...); err != nil {
+				t.Fatal(err)
+			}
+			if err := verifyUSPasswordPostState(t.Context(), turn, command, v); !errors.Is(err, ErrResolveRequired) {
+				t.Fatalf("tampered post-state was accepted: %v", err)
+			}
+		})
+	}
+}
+
+// After a committed 520 the OLD-epoch session no longer authorizes the next
+// command (US-01's binding path, its 'epoch' case), while a session issued after
+// the scalar advance replays the ORIGINAL void result.
+func TestUSPasswordStaleEpochProofDeniedThenNextEpochReplay(t *testing.T) {
 	w, proof, command := usPasswordFixture(t)
 	r := usPasswordRegistry(t, w)
 	turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
-	q, err := usPasswordReceiptForCommand(command)
+	original, _, err := runUSPasswordDispatch(t.Context(), turn, a, usPasswordInput(t, command))
+	if err != nil || original.Outcome.State != Applied || original.Outcome.Replayed {
+		t.Fatal("original", original, err)
+	}
+	// The very session that authorized the original is stale at the next
+	// command: accounts.epoch moved to 2 while the stamp binds 1.
+	turn, b := usOwnerAuthorityTurn(t, w, r)
+	if got, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), b); got != nil || !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal("old-epoch session survived the password epoch advance", got, err)
+	}
+	// Release the denied frame before re-authenticating on the same database.
+	_, _ = turn.transaction.rollback(nil)
+	// A re-authenticated next-epoch session reads the saved original.
+	current := usPasswordCurrentProof(t, w, proof)
+	turn, a, _ = usPasswordTurn(t, w, r, current, 0)
+	replay, _, err := runUSPasswordDispatch(t.Context(), turn, a, &usPasswordInvocation{request: usPasswordInput(t, command).request})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The stamp was valid at entry; expire it AFTER the entry authorization so
-	// only the later current-source checks see it.
-	a.until = w.now().Add(-time.Second)
-	custody, err := lookupUSPasswordCustody(t.Context(), turn, a, q)
-	if !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(custody, usPasswordCustody{}) {
-		t.Fatal("deferred custody denial joined or leaked", custody, err)
+	if replay.Outcome.State != Applied || !replay.Outcome.Replayed || !reflect.DeepEqual(replay.Value, original.Value) || replay.Digest != original.Digest {
+		t.Fatal("next-epoch replay did not return the saved original", replay)
 	}
-	v := usPasswordSavedFixture(command)
-	digest, err := usPasswordResultDigest(command.identity, command.digest, v)
-	if err != nil {
+}
+
+// usPasswordForeignWitness builds a COMPLETE second account whose current hash
+// is the caller's "previous" witness. That is the shape a caller-supplied
+// witness attack would use, so the own-account barrier is the only thing that
+// can refuse it.
+type usPasswordForeignWitness struct{ account, member, profile, lifetime string }
+
+func usPasswordForeignAccount(t *testing.T, w *executor) usPasswordForeignWitness {
+	t.Helper()
+	f := usPasswordForeignWitness{
+		account:  "foreign-account",
+		member:   strings.Repeat("f", 32),
+		profile:  "foreign-profile",
+		lifetime: strings.Repeat("e", 32),
+	}
+	wc008NativeExec(t, w, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES(?,?,?,?)`,
+		f.account, f.account, []byte(usPasswordPreviousHash), f.profile)
+	wc008NativeExec(t, w, `INSERT INTO direct_memberships(account_id,incarnation,role) VALUES(?,?,'owner')`, f.account, f.member)
+	wc008NativeExec(t, w, `INSERT INTO direct_profiles(id,account_id,name,is_primary,lifetime) VALUES(?,?,'Foreign',1,?)`,
+		f.profile, f.account, f.lifetime)
+	return f
+}
+
+// The target account/profile/member-incarnation/lifetime equality is the ONLY
+// barrier against replacing another account's password: neither the source
+// target read nor the scalar CAS ever sees the issuer. Each case substitutes
+// one foreign witness; deleting the barrier must fail this test (the coherent
+// foreign-account case would then replace the foreign password).
+func TestUSPasswordForeignTargetDenied(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		mutate func(*usPasswordReplaceRequest, usPasswordForeignWitness)
+	}{
+		{"foreign_account", func(q *usPasswordReplaceRequest, f usPasswordForeignWitness) {
+			q.target.account, q.target.username, q.target.profileName = f.account, f.account, "Foreign"
+			q.target.memberIncarnation, q.target.profile, q.target.profileLifetime = f.member, f.profile, f.lifetime
+		}},
+		{"foreign_profile", func(q *usPasswordReplaceRequest, f usPasswordForeignWitness) { q.target.profile = f.profile }},
+		{"foreign_member_incarnation", func(q *usPasswordReplaceRequest, f usPasswordForeignWitness) { q.target.memberIncarnation = f.member }},
+		{"foreign_profile_lifetime", func(q *usPasswordReplaceRequest, f usPasswordForeignWitness) { q.target.profileLifetime = f.lifetime }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, proof, command := usPasswordFixture(t)
+			foreign := usPasswordForeignAccount(t, w)
+			q := command.request
+			tc.mutate(&q, foreign)
+			target, err := prepareUSPasswordCommand(command.identity, usPasswordOwnerID, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := usPasswordRegistry(t, w)
+			turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
+			out, _, err := runUSPasswordDispatch(t.Context(), turn, a, usPasswordInput(t, target))
+			if err != ErrDisclosureDenied || !reflect.DeepEqual(out, usPasswordDispatchResult{}) {
+				t.Fatal("foreign target was not refused as a disclosure denial", out, err)
+			}
+			if n := usPasswordCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 0 {
+				t.Fatal("foreign target wrote a receipt", n)
+			}
+			if epoch, hash, _ := usPasswordAccount(t, w, usPasswordAccountID); epoch != 1 || string(hash) != usPasswordPreviousHash {
+				t.Fatal("foreign target moved the issuer source", epoch)
+			}
+			if epoch, hash, _ := usPasswordAccount(t, w, foreign.account); epoch != 1 || string(hash) != usPasswordPreviousHash {
+				t.Fatal("foreign target moved the foreign source", epoch)
+			}
+		})
+	}
+}
+
+// The scalar CAS carries its own epoch predicate: usPasswordTargetRead must not
+// be the only thing between a stale witness and a source write.
+func TestUSPasswordReplaceCASRequiresStampedEpoch(t *testing.T) {
+	w, proof, command := usPasswordFixture(t)
+	r := usPasswordRegistry(t, w)
+	turn, _, _ := usPasswordTurn(t, w, r, proof, 0)
+	cas := func(epoch int64) error {
+		t.Helper()
+		row, err := usPasswordQuery(t.Context(), turn, usPasswordReplaceWrite, command.request.nextHash, usPasswordAccountID, epoch, command.request.previousHash, usPasswordProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var account, profile string
+		var next int64
+		var mustChange bool
+		var hash []byte
+		return row.Scan(&account, &profile, &next, &mustChange, &hash)
+	}
+	if err := cas(2); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("stale epoch CAS affected a row: %v", err)
+	}
+	var epoch int64
+	var hash []byte
+	var mustChange bool
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT epoch,password_hash,must_change FROM accounts WHERE id=?`, usPasswordAccountID).Scan(&epoch, &hash, &mustChange); err != nil {
 		t.Fatal(err)
 	}
-	charged, err := storeUSPasswordResult(t.Context(), turn, a, q, v, digest)
-	if !errors.Is(err, ErrDisclosureDenied) || charged != 0 {
-		t.Fatal("deferred store denial joined or leaked", charged, err)
+	if epoch != 1 || string(hash) != string(command.request.previousHash) || mustChange {
+		t.Fatal("stale epoch CAS moved the source", epoch, mustChange)
 	}
-	if n := usPasswordCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 0 {
-		t.Fatal("denied store wrote a receipt", n)
+	// Positive control: the stamped epoch DOES write, so the zero above is the
+	// predicate and not a broken binding.
+	if err := cas(1); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -394,12 +639,59 @@ func TestUSPasswordNoSecretLeak(t *testing.T) {
 			}
 		}
 	}
-	if err != nil {
-		for _, sentinel := range sentinels {
-			if strings.Contains(err.Error(), sentinel) {
-				t.Fatal("error leaked password material", sentinel)
+	// Failing compositions: the ACTUAL error strings must carry no image
+	// either. The successful run above returns nil, so scanning that `err` was
+	// dead code.
+	for _, tc := range []struct {
+		name string
+		run  func(*testing.T) error
+	}{
+		{"foreign_target", func(t *testing.T) error {
+			w, proof, command := usPasswordFixture(t)
+			q := command.request
+			q.target.profileLifetime = strings.Repeat("d", 32)
+			foreign, err := prepareUSPasswordCommand(command.identity, usPasswordOwnerID, q)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
+			r := usPasswordRegistry(t, w)
+			turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
+			_, _, err = runUSPasswordDispatch(t.Context(), turn, a, usPasswordInput(t, foreign))
+			return err
+		}},
+		{"stale_epoch", func(t *testing.T) error {
+			w, proof, command := usPasswordFixture(t)
+			stale := *command
+			stale.request.target.epoch = 2
+			stale.digest, _ = canonicalRequestDigest(stale.kind, 1, stale.identity, stale.request)
+			r := usPasswordRegistry(t, w)
+			turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
+			_, _, err := runUSPasswordDispatch(t.Context(), turn, a, usPasswordInput(t, &stale))
+			return err
+		}},
+		{"receipt_failure", func(t *testing.T) error {
+			w, proof, command := usPasswordFixture(t)
+			r := usPasswordRegistry(t, w)
+			turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
+			delete(turn.steps, usPasswordOwnerAdvance)
+			_, _, err := runUSPasswordDispatch(t.Context(), turn, a, usPasswordInput(t, command))
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.run(t)
+			if err == nil {
+				t.Fatal("expected a failing composition")
+			}
+			for _, format := range []string{"%v", "%+v", "%s", "%q"} {
+				text := fmt.Sprintf(format, err)
+				for _, sentinel := range sentinels {
+					if strings.Contains(text, sentinel) {
+						t.Fatal("error leaked password material", tc.name, format, sentinel)
+					}
+				}
+			}
+		})
 	}
 	// Database rows: every table, every column, EXCEPT accounts.password_hash.
 	usPasswordScanForSentinels(t, w, sentinels...)

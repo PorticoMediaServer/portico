@@ -34,10 +34,14 @@ const (
 	usPasswordOwnerReceipts     int64 = 64
 	usPasswordOwnerReceiptBytes int64 = 1 << 20
 
-	// Three dispatcher-owned current-authority rechecks: the entry recheck
-	// before any owner or payload read, the scoped owner re-read that settles
-	// retirement/quota, and the final current disclosure before the terminal.
-	usPasswordDispatchRechecks int64 = 3
+	// Nine current-authority checks bound one fresh 520 dispatch: the entry
+	// recheck before any owner or payload read, the scoped owner re-read that
+	// settles retirement/quota, BOTH custody lookups (lookup and store, each
+	// with an entry and a deferred pre-CAS recheck), the lookup release check,
+	// and the store's entry and deferred (pre-CAS) rechecks. The fresh path's
+	// final disclosure is verifyUSPasswordPostState instead of a tenth stamp.
+	// This is a funded forecast, not a user quota.
+	usPasswordDispatchRechecks int64 = 9
 	usPasswordRecheckBytes     int64 = 64 << 10
 )
 
@@ -76,6 +80,12 @@ func prepareUSPasswordCommand(identity CommandIdentity, ownerID string, in usPas
 	if err != nil {
 		return nil, err
 	}
+	// The digest binds the complete frozen request, including the caller's
+	// salted next image. A retry that regenerates the salt/next image is a
+	// DIFFERENT request and conflicts with the saved receipt instead of
+	// replaying it, so product wiring must persist the ReceiptReference (or the
+	// whole frozen request) across retries. Replay is defined only for the exact
+	// original identity and digest.
 	return &usPasswordCommand{kind: usLocalPasswordReplace, owner: ownerID, identity: identity, request: request, digest: digest}, nil
 }
 
@@ -810,7 +820,12 @@ func executeUSPasswordInvocation(ctx context.Context, turn *commandTurn, a *usOw
 	// current direct-owner main-profile session; a different target account,
 	// profile lifetime, member incarnation or epoch is a different operation and
 	// is refused rather than silently composed. This explicit narrowing is what
-	// keeps the recipe from becoming a general cross-account product rule.
+	// keeps the recipe from becoming a general cross-account product rule. This
+	// equality is the ONLY barrier against replacing another account's password:
+	// neither the source target read nor the scalar CAS ever sees the issuer, so
+	// removing this predicate would let a caller's own verified images (and the
+	// receipt below) be aimed at a foreign account whose current hash the caller
+	// supplied as its "previous" witness.
 	issuer := a.proof.witness.issuer
 	t := input.request.target
 	if t.account != issuer.account || t.profile != issuer.profile || t.memberIncarnation != issuer.memberIncarnation || t.profileLifetime != issuer.profileLifetime {
@@ -849,6 +864,13 @@ func executeUSPasswordInvocation(ctx context.Context, turn *commandTurn, a *usOw
 	}
 	charged, err := storeUSPasswordResult(ctx, turn, a, q, v, out.Digest)
 	if err != nil || charged != charge {
+		// Inherited US-07 dispatch behaviour: the policy dispatcher's equivalent
+		// store site joins ErrResolveRequired with the store error
+		// (us_policy_dispatch.go), and US-07's follow-up replaced only the
+		// deferred-recheck joins, not this one. A deferred store denial therefore
+		// reaches the caller as both classes here, but the frame is rolled back
+		// by runUSPasswordDispatch with zero output, so nothing is applied or
+		// disclosed. Mirror US-07 if its dispatch site changes.
 		return out, floor, errors.Join(ErrResolveRequired, err)
 	}
 	effect, e := applyUSPasswordReplace(ctx, turn, input)
@@ -872,6 +894,15 @@ func executeUSPasswordInvocation(ctx context.Context, turn *commandTurn, a *usOw
 // current disclosure and the FULL physical terminal; the caller supplies only
 // the already admitted turn.
 func runUSPasswordDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, inv *usPasswordInvocation) (out usPasswordDispatchResult, floor AckResult, err error) {
+	// The shared dispatcher's final publication is deferred on the CALLER's
+	// context: transaction.commit/rollback cancel the frame lifetime, so a
+	// lifetime-based finish here would misreport a committed command as
+	// canceled. The explicit release below still runs on the live frame
+	// lifetime, immediately before the terminal.
+	defer func() {
+		v, e := finishCommand(ctx, ctx, usPasswordCompletion{out, floor}, err)
+		out, floor, err = v.out, v.floor, e
+	}()
 	out, floor, err = executeUSPasswordInvocation(ctx, turn, a, inv)
 	if err != nil {
 		return withdrawUSPassword(turn, err)
@@ -892,8 +923,9 @@ func runUSPasswordDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAut
 		return withdrawUSPassword(turn, ctxErr)
 	}
 	// The release rule runs BEFORE the terminal: the transaction cancels its
-	// own lifetime at commit/rollback, so a deferred finish afterwards would
-	// misreport a committed command as canceled.
+	// own lifetime at commit/rollback, so this release uses the live frame
+	// lifetime. The deferred publication at function exit rechecks the CALLER's
+	// context after physical return, exactly like the shared dispatcher.
 	release, releaseErr := finishCommand(ctx, commandLifetime(turn), usPasswordCompletion{out, floor}, nil)
 	if releaseErr != nil {
 		return withdrawUSPassword(turn, releaseErr)
