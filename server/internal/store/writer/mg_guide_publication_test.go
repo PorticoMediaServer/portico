@@ -499,7 +499,7 @@ func TestMGGuidePublicationReplayAfterACKAndRetirement(t *testing.T) {
 	if err != nil || replay != publish {
 		t.Fatal("publication replay after ACK", replay, err)
 	}
-	replaySeal, err := mgSaveGuideReceipt(t.Context(), turn, mgGuideNativeResult{}, seal.key.identity, seal.key.requestDigest, mgGuideReceiptSeal, seal.projection)
+	replaySeal, err := mgSaveGuideReceipt(t.Context(), turn, mgGuideNativeResult{operation: sealed}, seal.key.identity, seal.key.requestDigest, mgGuideReceiptSeal, seal.projection)
 	if err != nil || replaySeal != seal {
 		t.Fatal("seal replay after publication", replaySeal, err)
 	}
@@ -540,7 +540,7 @@ func TestMGGuidePublicationLostCommitObservedFresh(t *testing.T) {
 	if err := reader.QueryRowContext(t.Context(), `SELECT result_digest,command_sequence,accepted_revision FROM live_operation_command_receipts WHERE request_id=? AND command_kind='publish'`, b.request).Scan(&digest, &sequence, &receiptRevision); err != nil {
 		t.Fatal(err)
 	}
-	if len(digest) != 32 || sequence != publish.key.identity.Sequence || receiptRevision != 8 {
+	if len(digest) != 32 || sequence != publish.key.identity.Sequence || receiptRevision != published.operation.progress.revision {
 		t.Fatal("fresh receipt read", len(digest), sequence, receiptRevision)
 	}
 	var want [32]byte

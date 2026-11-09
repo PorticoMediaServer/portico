@@ -180,3 +180,15 @@ func mgTunerTotalChanges(t *testing.T, e *executor) int64 {
 	}
 	return changes
 }
+
+// Total native changes on the turn's own writer connection. The fixture pool
+// holds exactly one connection, so a same-turn refusal proof must never wait on
+// a second one.
+func mgTunerTurnChanges(t *testing.T, turn *commandTurn) int64 {
+	t.Helper()
+	var changes int64
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes()`).Scan(&changes); err != nil {
+		t.Fatal(err)
+	}
+	return changes
+}

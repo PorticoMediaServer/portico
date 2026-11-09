@@ -142,8 +142,9 @@ func (p mgGuideReclaimPage) valid(s mgGuideReclaimState) bool {
 
 // planMGGuideReclaimStep advances exactly one bounded slice. A partial page
 // deletes its rows and keeps the family; an exhausted page advances to the next
-// child family as its own command. The `generation` family is never planned
-// here because its deletion gate is closed.
+// child family as its own command. Entering the final `generation` family is
+// only a cursor transition: its deletion gate stays closed and the family
+// itself is never planned here.
 func planMGGuideReclaimStep(s mgGuideReclaimState, identity CommandIdentity, page mgGuideReclaimPage) (out mgGuideReclaimTransition, err error) {
 	if !s.valid() || s.status != "superseded" || s.family == mgGuideReclaimNone ||
 		s.family == mgGuideReclaimGeneration || s.family == mgGuideReclaimComplete ||
@@ -156,7 +157,7 @@ func planMGGuideReclaimStep(s mgGuideReclaimState, identity CommandIdentity, pag
 		return mgGuideReclaimTransition{s.family, page.last, s.sequence + 1, s.revision + 1}, nil
 	}
 	next, ok := s.family.next()
-	if !ok || next == mgGuideReclaimGeneration {
+	if !ok {
 		return out, ErrConflict
 	}
 	return mgGuideReclaimTransition{next, "", s.sequence + 1, s.revision + 1}, nil

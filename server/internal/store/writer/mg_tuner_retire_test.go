@@ -158,12 +158,12 @@ func TestMGTunerRetireExactNativeReleaseAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := mgTunerTotalChanges(t, e)
+	before := mgTunerTurnChanges(t, replayTurn)
 	out, err := retireMGTuner(t.Context(), replay, s, mgTunerRetireRequest{allocation: want, key: key})
 	if err != nil || out.allocation != want || out.release != nil {
 		t.Fatal(out, err)
 	}
-	if after := mgTunerTotalChanges(t, e); after != before {
+	if after := mgTunerTurnChanges(t, replayTurn); after != before {
 		t.Fatal("replay performed SQL effects", before, after)
 	}
 	// A stale held tuple never relaunches the retired row and never refunds it.
@@ -188,6 +188,9 @@ func TestMGTunerRetireRefusals(t *testing.T) {
 				if _, err := e.db.ExecContext(t.Context(), `UPDATE live_allocations SET lease_until_ms=lease_until_ms+1 WHERE id='alloc'`); err != nil {
 					t.Fatal(err)
 				}
+				// A refusal must restore this already-drifted native row, not the
+				// pre-drift fixture tuple.
+				orig.lease++
 			}
 			if cell == "released-stale" {
 				if _, err := e.db.ExecContext(t.Context(), `UPDATE live_allocations SET state='released' WHERE id='alloc'`); err != nil {
@@ -213,7 +216,7 @@ func TestMGTunerRetireRefusals(t *testing.T) {
 				t.Fatal(err)
 			}
 			if cell == "revoked" {
-				if _, err = e.db.ExecContext(t.Context(), `UPDATE authorization_session_families SET revoked=1 WHERE id='issuer-family'`); err != nil {
+				if _, err = turn.transaction.conn.ExecContext(t.Context(), `UPDATE authorization_session_families SET revoked=1 WHERE id='issuer-family'`); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -283,11 +286,11 @@ func TestMGTunerRetireRequiresJoinedPhysicalExit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := mgTunerTotalChanges(t, e)
+	before := mgTunerTurnChanges(t, turn)
 	if out, err := retireMGTuner(t.Context(), m, s, mgTunerRetireRequest{allocation: a, key: key}); !errors.Is(err, ErrDisclosureDenied) || out != (mgTunerRetireResult{}) {
 		t.Fatal("expired lease retired a live process", out, err)
 	}
-	if after := mgTunerTotalChanges(t, e); after != before {
+	if after := mgTunerTurnChanges(t, turn); after != before {
 		t.Fatal("refusal performed SQL effects", before, after)
 	}
 	if e2, err := s.start(mpPhysicalRoot{"mg-media", "mg-second", 2}, &mpPhysicalTestSupervisor{}, mpPhysicalCommand(), nil, nil); e2 != nil || !errors.Is(err, ErrConflict) {
@@ -304,7 +307,8 @@ func TestMGTunerRetireRequiresJoinedPhysicalExit(t *testing.T) {
 }
 
 // A joined process is still not an exit: the native stop/exit fields must prove
-// it before a release token can be sealed. The update prefix rolls back.
+// it before a release token can be sealed. The trusted bridge refuses the
+// unproven release as a denied disclosure; the update prefix rolls back.
 func TestMGTunerRetireRequiresNativeExitFields(t *testing.T) {
 	e, _, p := mgTunerRetireExecutor(t, mgActorOwner)
 	s, o, key := mgTunerRetirePhysical(t, e, "mg-media", "mg-execution")
@@ -317,7 +321,7 @@ func TestMGTunerRetireRequiresNativeExitFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out, err := retireMGTuner(t.Context(), m, s, mgTunerRetireRequest{allocation: a, key: key, observation: o}); !errors.Is(err, ErrResolveRequired) || out != (mgTunerRetireResult{}) {
+	if out, err := retireMGTuner(t.Context(), m, s, mgTunerRetireRequest{allocation: a, key: key, observation: o}); !errors.Is(err, ErrDisclosureDenied) || out != (mgTunerRetireResult{}) {
 		t.Fatal("unproven native exit released", out, err)
 	}
 	mgTunerRetireTurnDone(t, turn)

@@ -31,13 +31,29 @@ const (
 	mgGuideReclaimDeleteChoices  stmt.ID = "mg.guide.reclaim.delete_choices"
 )
 
-// Actual persisted native bytes of one child row, never a caller's estimate.
-// Fixed row/header costs are the caller's separate admission overhead.
+// The persisted row values a bounded page reads to measure its actual native
+// bytes. The family's cursor key stays first so a page can never advance on a
+// foreign column. Fixed row/header costs are the caller's separate admission
+// overhead.
 const (
-	mgGuideProgrammeBytes = `length(CAST(id AS BLOB))+length(CAST(channel_id AS BLOB))+length(CAST(provider_key AS BLOB))+length(CAST(title AS BLOB))+length(CAST(start_utc AS BLOB))+length(CAST(end_utc AS BLOB))+length(CAST(lineage AS BLOB))+coalesce(length(CAST(metadata_series_id AS BLOB)),0)+coalesce(length(CAST(metadata_episode_id AS BLOB)),0)+coalesce(length(CAST(metadata_new_evidence AS BLOB)),0)+coalesce(length(CAST(metadata_description AS BLOB)),0)+coalesce(length(CAST(metadata_facts AS BLOB)),0)+coalesce(length(CAST(icon_url AS BLOB)),0)`
-	mgGuideChannelBytes   = `length(CAST(generation_id AS BLOB))+length(CAST(channel_id AS BLOB))+length(CAST(provider_key AS BLOB))+length(CAST(name AS BLOB))+length(CAST(number AS BLOB))+coalesce(length(CAST(source_number AS BLOB)),0)+length(CAST(group_name AS BLOB))+length(locator_sealed)+length(CAST(available_start AS BLOB))+length(CAST(available_end AS BLOB))+coalesce(length(CAST(attribute_country AS BLOB)),0)+coalesce(length(CAST(attribute_catchup AS BLOB)),0)+coalesce(length(CAST(attribute_catchup_source AS BLOB)),0)+coalesce(length(CAST(attribute_catchup_days AS BLOB)),0)+coalesce(length(CAST(logo_url AS BLOB)),0)`
-	mgGuideChoiceBytes    = `length(CAST(generation_id AS BLOB))+length(CAST(channel_key AS BLOB))+length(CAST(name AS BLOB))+length(CAST(group_name AS BLOB))`
+	mgGuideProgrammeRow = `id,channel_id,provider_key,title,start_utc,end_utc,lineage,metadata_series_id,metadata_episode_id,metadata_new_evidence,metadata_description,metadata_facts,icon_url`
+	mgGuideChannelRow   = `channel_id,generation_id,provider_key,name,number,source_number,group_name,locator_sealed,available_start,available_end,attribute_country,attribute_catchup,attribute_catchup_source,attribute_catchup_days,logo_url`
+	mgGuideChoiceRow    = `channel_key,generation_id,name,group_name`
 )
+
+// Exact projected column count per child family, so a page can never scan a
+// different table's row shape under a matching family label.
+func mgGuideReclaimWidth(f mgGuideReclaimFamily) int {
+	switch f {
+	case mgGuideReclaimProgrammes:
+		return 13
+	case mgGuideReclaimChannels:
+		return 15
+	case mgGuideReclaimChoices:
+		return 4
+	}
+	return 0
+}
 
 func mgGuideReclaimDefinitions() []stmt.Definition {
 	txt := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
@@ -83,15 +99,15 @@ WHERE request_id>? AND source_id=? AND status='superseded' AND reclaim_family<>'
 ORDER BY request_id LIMIT 1`, Params: candidateParams,
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_live_operations_1"}, Seeks: []string{"request_id>?"}, AutoIndexes: []stmt.AutoIndexBinding{operationsPK}},
 			Cohorts: cohort("after", candidateParams)},
-		{ID: mgGuideReclaimProgramme, Kind: stmt.Read, SQL: `SELECT id,` + mgGuideProgrammeBytes + `
+		{ID: mgGuideReclaimProgramme, Kind: stmt.Read, SQL: `SELECT ` + mgGuideProgrammeRow + `
 FROM live_programmes INDEXED BY sqlite_autoindex_live_programmes_1 WHERE generation_id=? AND id>? ORDER BY id LIMIT 9`, Params: programmeParams,
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_live_programmes_1"}, Seeks: []string{"generation_id=?", "id>?"}, AutoIndexes: []stmt.AutoIndexBinding{programmesPK}},
 			Cohorts: cohort("page", programmeParams)},
-		{ID: mgGuideReclaimChannel, Kind: stmt.Read, SQL: `SELECT channel_id,` + mgGuideChannelBytes + `
+		{ID: mgGuideReclaimChannel, Kind: stmt.Read, SQL: `SELECT ` + mgGuideChannelRow + `
 FROM live_channel_versions INDEXED BY sqlite_autoindex_live_channel_versions_1 WHERE generation_id=? AND channel_id>? ORDER BY channel_id LIMIT 9`, Params: programmeParams,
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_live_channel_versions_1"}, Seeks: []string{"generation_id=?", "channel_id>?"}, AutoIndexes: []stmt.AutoIndexBinding{channelsPK}},
 			Cohorts: cohort("page", programmeParams)},
-		{ID: mgGuideReclaimChoice, Kind: stmt.Read, SQL: `SELECT channel_key,` + mgGuideChoiceBytes + `
+		{ID: mgGuideReclaimChoice, Kind: stmt.Read, SQL: `SELECT ` + mgGuideChoiceRow + `
 FROM live_channel_choices INDEXED BY sqlite_autoindex_live_channel_choices_1 WHERE generation_id=? AND channel_key>? ORDER BY channel_key LIMIT 9`, Params: programmeParams,
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_live_channel_choices_1"}, Seeks: []string{"generation_id=?", "channel_key>?"}, AutoIndexes: []stmt.AutoIndexBinding{choicesPK}},
 			Cohorts: cohort("page", programmeParams)},
@@ -554,10 +570,13 @@ func mgGuideGenerationPinned(ctx context.Context, t *commandTurn, state mgGuideR
 }
 
 // One bounded PK page with a single lookahead row. `page.last` is always a row
-// this caller will delete, never the unselected lookahead key.
+// this caller will delete, never the unselected lookahead key. The closed
+// statement grammar exposes no octet cast, so each admitted row's actual
+// persisted bytes are measured from the bounded values it already read.
 func mgReadGuideReclaimKeys(ctx context.Context, t *commandTurn, id stmt.ID, state mgGuideReclaimState) (out mgGuideReclaimPage, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
-	if id != mgGuideReclaimStatementFor(state.family) {
+	width := mgGuideReclaimWidth(state.family)
+	if id != mgGuideReclaimStatementFor(state.family) || width == 0 {
 		return out, ErrInvalid
 	}
 	step, err := mgGuideReclaimStatementStep(t, id)
@@ -570,12 +589,20 @@ func mgReadGuideReclaimKeys(ctx context.Context, t *commandTurn, id stmt.ID, sta
 	}
 	out.family, out.after = state.family, state.cursor
 	for rows.Next() {
-		var key string
-		var bytes int64
-		if err = rows.Scan(&key, &bytes); err != nil {
+		values := make([]sql.NullString, width)
+		targets := make([]any, width)
+		for i := range values {
+			targets[i] = &values[i]
+		}
+		if err = rows.Scan(targets...); err != nil {
 			return out, errors.Join(err, rows.Close())
 		}
-		if !mgGuideText(key, true, mgGuideReclaimCursor) || bytes < 0 || key <= out.last {
+		key := values[0].String
+		var bytes int64
+		for _, value := range values {
+			bytes += int64(len(value.String))
+		}
+		if !mgGuideText(key, true, mgGuideReclaimCursor) || key <= out.last {
 			return out, errors.Join(ErrConflict, rows.Close())
 		}
 		// One lookahead row proves `more` without COUNTing the family. It is
