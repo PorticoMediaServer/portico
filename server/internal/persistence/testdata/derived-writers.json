@@ -13466,7 +13466,7 @@
       ]
     },
     "internal/usermutation/store.go": {
-      "sha256": "a1e9ef94d616ddfcf21841397ff8215dda055130476d469e04b7e8258538702d",
+      "sha256": "948b47ab8ade058e76728aad84ce4a1b2daeefd5c68d1f59a16f8dee34ea1687",
       "effects": [
         {
           "table": "*",
