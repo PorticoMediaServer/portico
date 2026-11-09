@@ -23,7 +23,7 @@ func (b ipEntryBudget) check(ctx context.Context, turn *commandTurn, bytes int64
 	}
 	tx := turn.transaction
 	switch tx.descriptor.ID {
-	case IPFieldEdit, IPFieldLock, IPFieldRestore:
+	case IPFieldEdit, IPFieldLock, IPFieldRestore, IPEditBulkBegin, IPEditBulkPage, IPEditBulkFinish:
 	default:
 		return ErrInvalid
 	}

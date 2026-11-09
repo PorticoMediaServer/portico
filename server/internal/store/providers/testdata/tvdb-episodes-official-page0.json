@@ -1,0 +1,41 @@
+{
+  "status": "success",
+  "data": {
+    "series": {
+      "id": 71663,
+      "name": "Fixture Show"
+    },
+    "episodes": [
+      {
+        "id": 9001,
+        "seriesId": 71663,
+        "name": "Arrival",
+        "overview": "First episode.",
+        "seasonNumber": 1,
+        "number": 1,
+        "absoluteNumber": 1,
+        "aired": "2020-01-01",
+        "runtime": 42,
+        "image": "https://artworks.thetvdb.com/banners/fixture-9001.jpg"
+      },
+      {
+        "id": 9002,
+        "seriesId": 71663,
+        "name": "Signal",
+        "overview": "",
+        "seasonNumber": 1,
+        "number": 2,
+        "absoluteNumber": 2,
+        "aired": "2020-01-08",
+        "runtime": 41
+      }
+    ]
+  },
+  "links": {
+    "next": "https://api4.thetvdb.com/v4/series/71663/episodes/official?page=1",
+    "prev": null,
+    "self": "https://api4.thetvdb.com/v4/series/71663/episodes/official?page=0",
+    "total_items": 6,
+    "page_size": 500
+  }
+}
