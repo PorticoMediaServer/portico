@@ -65,7 +65,7 @@ CROSS JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2 ON
 LEFT JOIN profile_restrictions AS pr INDEXED BY sqlite_autoindex_profile_restrictions_1 ON pr.profile_id=p.id
 LEFT JOIN access_limits AS lim INDEXED BY sqlite_autoindex_access_limits_1 ON lim.account_id=a.id
 WHERE t.token_hash=? AND t.retired=0 AND t.generation=f.current_generation AND f.revoked=0 AND f.pin_gate=0
-AND f.authority='local' AND d.authority='local' AND d.account_id=a.id AND a.epoch=f.epoch
+AND f.authority='local' AND d.authority='local' AND d.retired_ms=0 AND d.account_id=a.id AND a.epoch=f.epoch
 AND f.authority_generation=? AND m.disabled=0 AND p.deleted=0
 AND f.command_member_incarnation=m.incarnation AND f.command_profile_lifetime=p.lifetime`, []stmt.Param{s("token"), i("authority_generation")}, []any{"token", int64(1)}, stmt.Plan{Hot: true, Seeks: []string{"token_hash=?", "account_id=? AND id=?"}, Indexes: []string{"sqlite_autoindex_authorization_family_tokens_1", "sqlite_autoindex_authorization_session_families_1", "sqlite_autoindex_identity_devices_1", "sqlite_autoindex_accounts_1", "sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_direct_profiles_2", "sqlite_autoindex_profile_restrictions_1", "sqlite_autoindex_access_limits_1"}})
 	add("library_identity", "SELECT library_id,root FROM catalog_libraries WHERE id=? AND retired=0", []stmt.Param{i("library")}, []any{int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_libraries"}, Seeks: []string{"rowid=?"}})
