@@ -58,9 +58,15 @@ func lookupUORootCommand(ctx context.Context, turn *commandTurn, binding *uoRoot
 	if !q.validFor(turn) || binding == nil {
 		return out, ErrInvalid
 	}
-	// Current disclosure is checked before ANY retained owner/header/payload
+	// Current authority is checked before ANY retained owner/header/payload
 	// lookup. A cached stamp or descriptor grants nothing here.
 	if err = binding.check(ctx, turn); err != nil {
+		return out, err
+	}
+	// The root PK precedes the command-owner lookup. A missing or foreign root
+	// is one ErrUORootGone class, never a retryable or empty result.
+	rootState, err := binding.root(ctx, turn, q.root)
+	if err != nil {
 		return out, err
 	}
 	row, err := wc008DraftQuery(ctx, turn, uoRootOwnerPoint, q.root)
@@ -113,9 +119,21 @@ func lookupUORootCommand(ctx context.Context, turn *commandTurn, binding *uoRoot
 	if err != nil {
 		return out, err
 	}
-	// A constructor-time check cannot outlive a revocation during these reads.
+	// A draining root keeps an authorized ORIGINAL replay but admits no Fresh
+	// effect. This is not a "newest installation root" comparison.
+	if decision == receiptFresh && rootState != "active" {
+		return out, ErrUORootGone
+	}
+	// A constructor-time check cannot outlive a revocation or root change during
+	// these reads.
 	if err = binding.check(ctx, turn); err != nil {
 		return out, err
+	}
+	if rootState, err = binding.root(ctx, turn, q.root); err != nil {
+		return out, err
+	}
+	if decision == receiptFresh && rootState != "active" {
+		return out, ErrUORootGone
 	}
 	return uoRootLookup{turn: turn, binding: binding, reference: q, owner: owner, decision: decision, payloadBytes: size, variableBytes: variable, resultCount: found.resultCount, appliedMS: appliedMS}, nil
 }
@@ -138,19 +156,27 @@ func readUORootPayload(ctx context.Context, turn *commandTurn, lookup uoRootLook
 		return nil, ResultDigest{}, err
 	}
 	q := lookup.reference
+	if _, err = lookup.binding.root(ctx, turn, q.root); err != nil {
+		return nil, ResultDigest{}, err
+	}
 	row, err := wc008DraftQuery(ctx, turn, uoRootReceiptPayload, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], lookup.payloadBytes)
 	if err != nil {
 		return nil, ResultDigest{}, err
 	}
 	var stored []byte
-	if err = row.Scan(&payload, &stored); err != nil {
+	if err = row.Scan(&payload, &stored); errors.Is(err, sql.ErrNoRows) {
+		return nil, ResultDigest{}, ErrResolveRequired
+	} else if err != nil {
 		return nil, ResultDigest{}, err
 	}
 	if int64(len(payload)) != lookup.payloadBytes || len(stored) != 32 {
 		return nil, ResultDigest{}, ErrResolveRequired
 	}
 	copy(digest[:], stored)
-	// The payload is not released while current authority is stale.
+	// The payload is not released while current authority or the root is stale.
+	if _, err = lookup.binding.root(ctx, turn, q.root); err != nil {
+		return nil, ResultDigest{}, err
+	}
 	if err = lookup.binding.check(ctx, turn); err != nil {
 		return nil, ResultDigest{}, err
 	}
@@ -179,6 +205,15 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 	if err = lookup.binding.check(ctx, turn); err != nil {
 		return out, err
 	}
+	// B3: a draining root never admits a Fresh effect; persistence rechecks the
+	// root's state at the moment of the effect.
+	rootState, err := lookup.binding.root(ctx, turn, q.root)
+	if err != nil {
+		return out, err
+	}
+	if rootState != "active" {
+		return out, ErrUORootGone
+	}
 	if decision, e := classifyReceipt(receiptIdentity{command: q.identity, digest: q.request}, q.kind, o.facts, receiptFacts{}); e != nil || decision != receiptFresh {
 		return out, ErrResolveRequired
 	}
@@ -202,7 +237,7 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 	}
 	actual, err := wc008DraftInteger(ctx, turn, uoRootReceiptInsert, q.root, q.identity.Incarnation[:], q.identity.Sequence, q.identity.OperationID[:], int64(q.kind), q.request[:], int64(1), int64(0), digest[:], payload, appliedMS)
 	if err != nil {
-		return out, err
+		return out, uoRootInsertError(err)
 	}
 	if actual != complete {
 		return out, ErrResolveRequired
@@ -216,12 +251,32 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 	if _, err = wc008DraftInteger(ctx, turn, advance, args...); err != nil {
 		return out, err
 	}
-	// Recheck before release so a revocation during the effects cannot return a
-	// digest that looks like an Applied result.
+	// Recheck the root and current authority before release so a revocation or
+	// root change during the effects cannot return a digest that looks Applied.
+	rootState, err = lookup.binding.root(ctx, turn, q.root)
+	if err != nil {
+		return out, err
+	}
+	if rootState != "active" {
+		return out, ErrUORootGone
+	}
 	if err = lookup.binding.check(ctx, turn); err != nil {
 		return out, err
 	}
 	return digest, turn.checkLifetimes(ctx)
+}
+
+// A duplicate operation (UNIQUE) or primary key (PK) on the closed receipt
+// INSERT is an identity conflict, never a fresh success or a generic SQL error.
+func uoRootInsertError(err error) error {
+	var coded interface{ Code() int }
+	if errors.As(err, &coded) {
+		switch coded.Code() {
+		case 1555, 2067: // SQLITE_CONSTRAINT_PRIMARYKEY, SQLITE_CONSTRAINT_UNIQUE
+			return errors.Join(ErrConflict, err)
+		}
+	}
+	return err
 }
 
 func restoreUORootOperation(ctx context.Context, turn *commandTurn, lookup uoRootLookup) (out uoOperationResult, err error) {
@@ -242,6 +297,7 @@ func restoreUORootOperation(ctx context.Context, turn *commandTurn, lookup uoRoo
 }
 
 const (
+	uoRootIdentityPoint    stmt.ID = "uo.root.identity.point"
 	uoRootOwnerPoint       stmt.ID = "uo.root.owner.point"
 	uoRootReceiptMeta      stmt.ID = "uo.root.receipt.meta"
 	uoRootReceiptPayload   stmt.ID = "uo.root.receipt.payload"
@@ -261,6 +317,7 @@ func uoRootDefinitions() []stmt.Definition {
 	incarnation, operation := bytes.Repeat([]byte{1}, 16), bytes.Repeat([]byte{2}, 16)
 	request, digest := bytes.Repeat([]byte{3}, 32), bytes.Repeat([]byte{4}, 32)
 	definitions := []stmt.Definition{
+		d(uoRootIdentityPoint, stmt.Read, `SELECT account_id,profile_id,account_incarnation,profile_incarnation,family_id,installation_incarnation,state FROM user_mutation_roots WHERE id=?`, s("root")),
 		d(uoRootOwnerPoint, stmt.Read, `SELECT command_incarnation,last_command_sequence,acknowledged_command_sequence,revision,receipt_rows,receipt_variable_bytes,receipt_reclaim_after_sequence,receipt_reclaim_due_ms FROM user_mutation_command_owners WHERE root_id=?`, s("root")),
 		d(uoRootReceiptMeta, stmt.Read, `SELECT command_kind,result_version,result_count,applied_ms,length(result_payload),variable_bytes,length(result_digest),operation_id,request_digest FROM user_mutation_command_receipts WHERE root_id=? AND command_incarnation=? AND command_sequence=?`, s("root"), b("incarnation"), i("sequence")),
 		d(uoRootReceiptPayload, stmt.Read, `SELECT result_payload,result_digest FROM user_mutation_command_receipts WHERE root_id=? AND command_incarnation=? AND command_sequence=? AND operation_id=? AND command_kind=? AND request_digest=? AND length(result_payload)=? AND length(result_digest)=32`, s("root"), b("incarnation"), i("sequence"), b("operation"), i("kind"), b("request"), i("payload_bytes")),
@@ -269,6 +326,7 @@ func uoRootDefinitions() []stmt.Definition {
 		d(uoRootOwnerAdvanceNull, stmt.Write, `UPDATE user_mutation_command_owners SET last_command_sequence=?,receipt_rows=?,receipt_variable_bytes=?,revision=? WHERE root_id=? AND command_incarnation=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND revision=? AND receipt_rows=? AND receipt_variable_bytes=? AND receipt_reclaim_after_sequence=? AND receipt_reclaim_due_ms IS NULL RETURNING last_command_sequence`, i("next_sequence"), i("next_rows"), i("next_bytes"), i("next_revision"), s("root"), b("incarnation"), i("old_sequence"), i("old_floor"), i("old_revision"), i("old_rows"), i("old_bytes"), i("old_cursor")),
 	}
 	bindings := [][]any{
+		{root},
 		{root},
 		{root, incarnation, int64(1)},
 		{root, incarnation, int64(1), operation, int64(600), request, int64(512)},
@@ -279,13 +337,14 @@ func uoRootDefinitions() []stmt.Definition {
 	for n := range definitions {
 		definitions[n].Cohorts = []stmt.Cohort{{Name: "root_custody_point", Bindings: bindings[n]}}
 	}
-	// Native access paths: the owner table's TEXT PK is an automatic unique
-	// index, while the receipt table is WITHOUT ROWID and seeks its PK directly.
+	// Native access paths: both TEXT PKs are automatic unique indexes, while the
+	// receipt table is WITHOUT ROWID and seeks its PK directly.
 	ownerIndex := "sqlite_autoindex_user_mutation_command_owners_1"
-	definitions[0].Plan.Indexes, definitions[0].Plan.Seeks = []string{ownerIndex}, []string{"root_id=?"}
-	definitions[1].Plan.PrimaryKeys = []string{"user_mutation_command_receipts"}
-	definitions[2].Plan.Indexes, definitions[2].Plan.Seeks = []string{"sqlite_autoindex_user_mutation_command_receipts_2"}, []string{"root_id=? AND command_incarnation=? AND operation_id=?"}
-	definitions[4].Plan.Indexes, definitions[4].Plan.Seeks = []string{"sqlite_autoindex_user_mutation_command_owners_2"}, []string{"root_id=? AND command_incarnation=?"}
+	definitions[0].Plan.Indexes, definitions[0].Plan.Seeks = []string{"sqlite_autoindex_user_mutation_roots_1"}, []string{"id=?"}
+	definitions[1].Plan.Indexes, definitions[1].Plan.Seeks = []string{ownerIndex}, []string{"root_id=?"}
+	definitions[2].Plan.PrimaryKeys = []string{"user_mutation_command_receipts"}
+	definitions[3].Plan.Indexes, definitions[3].Plan.Seeks = []string{"sqlite_autoindex_user_mutation_command_receipts_2"}, []string{"root_id=? AND command_incarnation=? AND operation_id=?"}
 	definitions[5].Plan.Indexes, definitions[5].Plan.Seeks = []string{"sqlite_autoindex_user_mutation_command_owners_2"}, []string{"root_id=? AND command_incarnation=?"}
+	definitions[6].Plan.Indexes, definitions[6].Plan.Seeks = []string{"sqlite_autoindex_user_mutation_command_owners_2"}, []string{"root_id=? AND command_incarnation=?"}
 	return definitions
 }
