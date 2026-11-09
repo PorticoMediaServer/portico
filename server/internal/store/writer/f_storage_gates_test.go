@@ -77,8 +77,9 @@ func TestFStorageGatePrivateCallerCensus(t *testing.T) {
 	}
 }
 
-// A descriptor or stored row is not a trusted turn, source or authority mint.
-// Reaching each unfinished boundary without its owner composition must refuse.
+// Nil turn/authority inputs must refuse at each private participant boundary.
+// This is a nil-input control, not proof for an admitted but incomplete owner
+// transaction; the non-test caller census above enforces the closed adapter.
 func TestFStorageGateUncomposedRefuses(t *testing.T) {
 	ctx := context.Background()
 	checks := map[string]func() error{

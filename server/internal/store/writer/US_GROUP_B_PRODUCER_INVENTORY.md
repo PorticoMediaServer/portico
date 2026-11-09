@@ -154,3 +154,5 @@ D/CHANGE-017 recognizes only the adopted `7462ff76` schema prefix in the exact g
 F018 integration P08: recognize adopted schema484242fb alongside historical
 9d9/014/015 pins. Added exact full-F fixture/participant guard sites: server/internal/store/writer/ia_retirement_step_test.go, server/internal/store/writer/mp_external_guide_pin_plans_test.go, server/internal/store/writer/mp_reading_plans_test.go, server/internal/store/writer/mp_session_stop_guard_plans_test.go, server/internal/store/writer/mp_worker_dispatch_test.go. Historical golden/schema bindings stay unchanged;
 no producer kind/default or reader qualification is inferred.
+
+F018 actual native VM captures also carry one schema literal each: `testdata/wc-progress-composition.json`, `testdata/wc-progress-capture_start.json`, and `testdata/wc-progress-pending_drain.json`. These are captured VM changes with unchanged manifests, not hash-only producer edits; INT owns their schema-binding census.

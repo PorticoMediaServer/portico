@@ -23,8 +23,10 @@ no migration, database repair or legacy caller cutover is included.
 the unfinished participant entry points, including function-value references.
 Its only allowed internal references are the two reviewed US-to-UO custody
 delegations; those US outer entry points are themselves uncalled.
-`TestFStorageGateUncomposedRefuses` reaches each boundary without a trusted owner
-composition and requires refusal. Closing an owner gate requires updating this
+`TestFStorageGateUncomposedRefuses` checks nil-turn/authority refusal only; it
+does not qualify an admitted but incomplete owner transaction. The caller census
+is the storage-embed guard. Wiring must add real owner-transaction refusal and
+rollback cases. Closing an owner gate requires updating this
 census in the same reviewed composition, not deleting the gate test.
 
 Existing native tests also enforce the unimplemented worker-family refusal,
