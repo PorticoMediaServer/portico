@@ -94,6 +94,9 @@ AND p.id=? AND p.lifetime=? AND p.revision=? AND p.name=? AND p.deleted=?`,
 		// Accounts PK epoch CAS. The previous hash is an independent proof
 		// witness; the new image is written once. No family, token, device or
 		// credential row is touched here: WC owns explicit session revocation.
+		// The epoch predicate is a real barrier on its own, not just a shadow of
+		// usPasswordTargetRead's a.epoch=?: TestUSPasswordReplaceCASRequiresStampedEpoch
+		// runs this statement directly with a stale epoch and pins the zero rows.
 		{ID: usPasswordReplaceWrite, Kind: stmt.Write, SQL: `UPDATE accounts INDEXED BY sqlite_autoindex_accounts_1 SET password_hash=?,epoch=epoch+1
 WHERE id=? AND epoch=? AND password_hash=? AND profile_id=? AND must_change=0 AND epoch>=1 AND epoch<9007199254740991
 RETURNING id,profile_id,epoch,must_change,password_hash`,
