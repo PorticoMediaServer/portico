@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -11,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
@@ -124,50 +124,74 @@ func (h *usPINHarness) source(t *testing.T, profile string) (revision, pinRevisi
 	return revision, pinRevision, present
 }
 
-// usPINImageFromProduct converts the product's independent memberProfileTx
-// result into the image DTO so every public field is compared, not a chosen
-// subset.
-func usPINImageFromProduct(p identity.MemberProfile) USMemberProfileImage {
-	out := USMemberProfileImage{
-		ID: p.ID, Name: p.Name, Primary: p.Primary, Position: p.Position, Art: p.Art,
-		Revision: p.Revision, PINRevision: p.PINRevision, PINRequired: p.PINRequired,
-		AllowedLibraries: append([]string{}, p.AllowedLibraries...),
-		Restrictions: USMemberProfileRestrictionsImage{
-			ProfileID: p.Restrictions.ProfileID, RatingSystem: p.Restrictions.RatingSystem,
-			MaximumAgeRating: p.Restrictions.MaximumAgeRating, MaximumAge: p.Restrictions.MaximumAge,
-			AllowUnrated: p.Restrictions.AllowUnrated, BlockedLabels: append([]string{}, p.Restrictions.BlockedLabels...),
-			AllowDownloads: p.Restrictions.AllowDownloads, AllowLiveTV: p.Restrictions.AllowLiveTV,
-			AllowDVR: p.Restrictions.AllowDVR, AllowWatchTogether: p.Restrictions.AllowWatchTogether,
-			Revision: p.Restrictions.Revision,
-		},
-	}
-	if p.Avatar != nil {
-		out.Avatar = &USMemberProfileAvatarImage{ProfileID: p.Avatar.ProfileID, Version: p.Avatar.Version,
-			UpdatedAt: p.Avatar.UpdatedAt, SourceMIME: p.Avatar.SourceMIME, URL: p.Avatar.URL}
-	}
-	return out
-}
-
-// productImage is the independent product read: the merged memberProfileTx
-// response for this profile, never the loader's own SQL.
+// productImage is an INDEPENDENT plain-SQL oracle for the product's
+// memberProfileTx response. The adopted schema-v1 keeps the avatar on the
+// direct_profiles row (avatar_digest/avatar_source_mime/avatar_version/
+// avatar_updated_at) rather than the legacy per-profile avatar table, so the
+// expected image is built here field by field from direct_profiles and
+// profile_restrictions, sharing no SQL with the loader under test.
 func (h *usPINHarness) productImage(t *testing.T, profile string) USMemberProfileImage {
 	t.Helper()
-	tx, err := h.w.db.BeginTx(t.Context(), &sql.TxOptions{ReadOnly: true})
+	var out USMemberProfileImage
+	var libraries sql.NullString
+	var avatarPresent, avatarVersion int64
+	var avatarUpdated, avatarMime sql.NullString
+	err := h.w.db.QueryRowContext(t.Context(), `SELECT id,name,is_primary,position,art,revision,pin_revision,pin_hash IS NOT NULL,allowed_libraries,avatar_digest IS NOT NULL,avatar_version,avatar_updated_at,avatar_source_mime
+FROM direct_profiles WHERE account_id=? AND id=? AND deleted=0`, h.issuer.account, profile).
+		Scan(&out.ID, &out.Name, &out.Primary, &out.Position, &out.Art, &out.Revision, &out.PINRevision,
+			&out.PINRequired, &libraries, &avatarPresent, &avatarVersion, &avatarUpdated, &avatarMime)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = tx.Rollback() }()
-	profiles, err := identity.MemberProfilesTx(t.Context(), tx, h.issuer.account)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range profiles.Items {
-		if p.ID == profile {
-			return usPINImageFromProduct(p)
+	if libraries.Valid {
+		if err = json.Unmarshal([]byte(libraries.String), &out.AllowedLibraries); err != nil {
+			t.Fatal(err)
 		}
 	}
-	t.Fatalf("product read has no profile %q", profile)
-	return USMemberProfileImage{}
+	if out.AllowedLibraries == nil {
+		out.AllowedLibraries = []string{}
+	}
+	var ratingSystem, maximumAgeRating, blockedLabels string
+	var maximumAge, allowUnrated, allowDownloads, allowLiveTV, allowDVR, allowWatchTogether, restrictionRevision int64
+	err = h.w.db.QueryRowContext(t.Context(), `SELECT rating_system,maximum_age_rating,blocked_labels,maximum_age,allow_unrated,allow_downloads,allow_live_tv,allow_dvr,allow_watch_together,revision
+FROM profile_restrictions WHERE profile_id=?`, profile).
+		Scan(&ratingSystem, &maximumAgeRating, &blockedLabels, &maximumAge, &allowUnrated,
+			&allowDownloads, &allowLiveTV, &allowDVR, &allowWatchTogether, &restrictionRevision)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		var defaultDVR int64
+		if err = h.w.db.QueryRowContext(t.Context(), `SELECT EXISTS(SELECT 1 FROM direct_profiles p JOIN direct_memberships m ON m.account_id=p.account_id WHERE p.id=? AND p.is_primary=1 AND p.deleted=0 AND m.role='owner' AND m.disabled=0)`, profile).Scan(&defaultDVR); err != nil {
+			t.Fatal(err)
+		}
+		out.Restrictions = USMemberProfileRestrictionsImage{
+			ProfileID: profile, MaximumAge: -1, AllowUnrated: true, BlockedLabels: []string{},
+			AllowDownloads: true, AllowLiveTV: true, AllowDVR: defaultDVR == 1, AllowWatchTogether: true, Revision: 1,
+		}
+	case err != nil:
+		t.Fatal(err)
+	default:
+		var blocked []string
+		if err = json.Unmarshal([]byte(blockedLabels), &blocked); err != nil {
+			t.Fatal(err)
+		}
+		out.Restrictions = USMemberProfileRestrictionsImage{
+			ProfileID: profile, RatingSystem: ratingSystem, MaximumAgeRating: maximumAgeRating,
+			MaximumAge: int(maximumAge), AllowUnrated: allowUnrated == 1, BlockedLabels: blocked,
+			AllowDownloads: allowDownloads == 1, AllowLiveTV: allowLiveTV == 1, AllowDVR: allowDVR == 1,
+			AllowWatchTogether: allowWatchTogether == 1, Revision: restrictionRevision,
+		}
+	}
+	if avatarPresent == 1 {
+		if !avatarUpdated.Valid || !avatarMime.Valid {
+			t.Fatalf("present avatar on %q has NULL updated_at/source_mime", profile)
+		}
+		out.Avatar = &USMemberProfileAvatarImage{
+			ProfileID: profile, Version: avatarVersion, UpdatedAt: avatarUpdated.String,
+			SourceMIME: avatarMime.String,
+			URL:        fmt.Sprintf("/v1/admin/access/members/%s/profiles/%s/avatar?v=%d", h.issuer.account, profile, avatarVersion),
+		}
+	}
+	return out
 }
 
 // usPINImageMismatches compares the ENTIRE MemberProfile field by field. Any
@@ -310,7 +334,7 @@ func TestUSPINPhysicalOriginalReplayAndACK(t *testing.T) {
 	for id := range turn.steps {
 		switch id {
 		case usPINImageProfileOctets, usPINImageProfile, usPINImageRestrictionOctets, usPINImageRestriction,
-			usPINImageAvatarOctets, usPINImageAvatar, usPINImageDefaultDVR, usPINTargetSelf, usPINSetWrite, usPINClearWrite,
+			usPINImageDefaultDVR, usPINTargetSelf, usPINSetWrite, usPINClearWrite,
 			usPINReceiptInsert, usPolicyOwnerAdvance:
 			delete(turn.steps, id)
 		}
@@ -409,33 +433,62 @@ func TestUSPINSetThenClearBothRevisionBumps(t *testing.T) {
 }
 
 // The image of a secondary profile at stored position 2 is the complete product
-// MemberProfile for both a SET and a CLEAR. The old parity fixture only ever
-// compared the primary profile at the default position, which hid an unloaded
-// position field.
+// MemberProfile for both a SET and a CLEAR, with its stored avatar present and
+// absent. The old parity fixture only ever compared the primary profile at the
+// default position, which hid an unloaded position field; the avatar lives on the
+// direct_profiles row in the adopted schema.
 func TestUSPINSecondaryProfileImageParity(t *testing.T) {
-	h := usPINDispatchFixture(t)
-	lifetime := strings.Repeat("d", 32)
-	set := h.command(t, usPINSet, usPINIdentity(1), usPINIssuerSecondary, lifetime, 1, 1)
-	got, err := h.dispatch(t, usPINSet, h.input(t, set))
-	if err != nil || got.Result.Outcome.State != Applied || got.Result.Image.Profile == nil {
-		t.Fatal("secondary set", got, err)
+	const lifetime = "dddddddddddddddddddddddddddddddd"
+	for _, avatar := range []bool{false, true} {
+		t.Run(map[bool]string{false: "absent-avatar", true: "present-avatar"}[avatar], func(t *testing.T) {
+			h := usPINDispatchFixture(t)
+			if avatar {
+				wc008NativeExec(t, h.w, `UPDATE direct_profiles SET avatar_digest=?,avatar_source_mime=?,avatar_version=?,avatar_updated_at=? WHERE account_id=? AND id=?`,
+					"secondary-digest", "image/jpeg", 5, "2026-11-09T01:02:03Z", h.issuer.account, usPINIssuerSecondary)
+			}
+			set := h.command(t, usPINSet, usPINIdentity(1), usPINIssuerSecondary, lifetime, 1, 1)
+			got, err := h.dispatch(t, usPINSet, h.input(t, set))
+			if err != nil || got.Result.Outcome.State != Applied || got.Result.Image.Profile == nil {
+				t.Fatal("secondary set", got, err)
+			}
+			if image := got.Result.Image.Profile; image.Position != 2 || image.Primary || !image.PINRequired {
+				t.Fatalf("secondary set image facts: position=%d primary=%v pin=%v", image.Position, image.Primary, image.PINRequired)
+			}
+			h.assertImageParity(t, got.Result.Image.Profile, usPINIssuerSecondary)
+			checkSecondaryAvatar(t, got.Result.Image.Profile, avatar)
+			if _, err := h.dispatch(t, usPINSet, &usPINInvocation{request: h.input(t, set).request, ack: true}); err != nil {
+				t.Fatal(err)
+			}
+			clear := h.command(t, usPINClear, usPINIdentity(2), usPINIssuerSecondary, lifetime, 2, 2)
+			got, err = h.dispatch(t, usPINClear, h.input(t, clear))
+			if err != nil || got.Result.Outcome.State != Applied || got.Result.Image.Profile == nil {
+				t.Fatal("secondary clear", got, err)
+			}
+			if image := got.Result.Image.Profile; image.Position != 2 || image.Primary || image.PINRequired {
+				t.Fatalf("secondary clear image facts: position=%d primary=%v pin=%v", image.Position, image.Primary, image.PINRequired)
+			}
+			h.assertImageParity(t, got.Result.Image.Profile, usPINIssuerSecondary)
+			checkSecondaryAvatar(t, got.Result.Image.Profile, avatar)
+		})
 	}
-	if image := got.Result.Image.Profile; image.Position != 2 || image.Primary || !image.PINRequired {
-		t.Fatalf("secondary set image facts: position=%d primary=%v pin=%v", image.Position, image.Primary, image.PINRequired)
+}
+
+// checkSecondaryAvatar pins the secondary profile's avatar image on every fresh
+// response: the direct_profiles columns when present, and no avatar at all when
+// the digest is NULL.
+func checkSecondaryAvatar(t *testing.T, image *USMemberProfileImage, present bool) {
+	t.Helper()
+	if !present {
+		if image.Avatar != nil {
+			t.Fatalf("absent avatar produced %+v", *image.Avatar)
+		}
+		return
 	}
-	h.assertImageParity(t, got.Result.Image.Profile, usPINIssuerSecondary)
-	if _, err := h.dispatch(t, usPINSet, &usPINInvocation{request: h.input(t, set).request, ack: true}); err != nil {
-		t.Fatal(err)
+	if image.Avatar == nil || image.Avatar.ProfileID != usPINIssuerSecondary || image.Avatar.Version != 5 ||
+		image.Avatar.UpdatedAt != "2026-11-09T01:02:03Z" || image.Avatar.SourceMIME != "image/jpeg" ||
+		image.Avatar.URL != usPINProfileURL("issuer", usPINIssuerSecondary, 5) {
+		t.Fatalf("present avatar image: %+v", image.Avatar)
 	}
-	clear := h.command(t, usPINClear, usPINIdentity(2), usPINIssuerSecondary, lifetime, 2, 2)
-	got, err = h.dispatch(t, usPINClear, h.input(t, clear))
-	if err != nil || got.Result.Outcome.State != Applied || got.Result.Image.Profile == nil {
-		t.Fatal("secondary clear", got, err)
-	}
-	if image := got.Result.Image.Profile; image.Position != 2 || image.Primary || image.PINRequired {
-		t.Fatalf("secondary clear image facts: position=%d primary=%v pin=%v", image.Position, image.Primary, image.PINRequired)
-	}
-	h.assertImageParity(t, got.Result.Image.Profile, usPINIssuerSecondary)
 }
 
 // One scalar fence generation gates every other family of the profile without
@@ -852,8 +905,8 @@ func TestUSPINImageStoredRestrictionsAndAvatar(t *testing.T) {
 	h := usPINDispatchFixture(t)
 	wc008NativeExec(t, h.w, `INSERT INTO profile_restrictions(profile_id,rating_system,maximum_age_rating,maximum_age,allow_unrated,blocked_labels,allow_downloads,allow_live_tv,allow_dvr,allow_watch_together,revision) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
 		h.issuer.profile, "mpaa", "PG-13", 13, 0, `["violence","gore"]`, 0, 1, 0, 1, 4)
-	wc008NativeExec(t, h.w, `INSERT INTO profile_avatars(profile_id,digest,source_mime,version,updated_at) VALUES(?,?,?,?,?)`,
-		h.issuer.profile, "digest", "image/png", 3, "2026-11-08T00:00:00Z")
+	wc008NativeExec(t, h.w, `UPDATE direct_profiles SET avatar_digest=?,avatar_source_mime=?,avatar_version=?,avatar_updated_at=? WHERE account_id=? AND id=?`,
+		"digest", "image/png", 3, "2026-11-08T00:00:00Z", h.issuer.account, h.issuer.profile)
 	command := h.command(t, usPINSet, usPINIdentity(1), h.issuer.profile, h.issuer.profileLifetime, 1, 1)
 	got, err := h.dispatch(t, usPINSet, h.input(t, command))
 	if err != nil {
