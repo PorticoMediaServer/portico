@@ -71,6 +71,9 @@ const (
 	usCredentialRevokeRead   stmt.ID = "us.credential.source.revoke_read"
 	usCredentialRevokeWrite  stmt.ID = "us.credential.source.revoke_write"
 	usCredentialFamilyRead   stmt.ID = "us.credential.family.read"
+	usCredentialFamilyRevoke stmt.ID = "us.credential.family.revoke"
+	usCredentialDeviceRead   stmt.ID = "us.credential.device.read"
+	usCredentialDeviceRetire stmt.ID = "us.credential.device.retire"
 	usCredentialSecretInsert stmt.ID = "us.credential.secret.insert"
 )
 
@@ -164,13 +167,51 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING ` + credentialColumns,
 			Cohorts: []stmt.Cohort{{Name: "current", Bindings: append([]any{int64(2000)}, credentialBindings...)}},
 			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_api_credentials_1"}, Seeks: []string{"id=?"},
 				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("api_credentials", "sqlite_autoindex_api_credentials_1", "pk", "id")}}},
-		// The captured family incarnation is current source evidence for the
-		// immutable result. The credential family MUST stay security_kind=1.
-		{ID: usCredentialFamilyRead, Kind: stmt.Read, SQL: `SELECT command_incarnation FROM authorization_session_families INDEXED BY sqlite_autoindex_authorization_session_families_1 WHERE id=? AND account_id=? AND profile_id=? AND security_kind=1`,
+		// The captured family incarnation/generation, revocation shape and the
+		// complete owner binding are current source evidence for the immutable
+		// result AND the approval prefix. The credential family MUST stay
+		// security_kind=1.
+		{ID: usCredentialFamilyRead, Kind: stmt.Read, SQL: `SELECT command_incarnation,current_generation,revoked,revoked_reason,teardown_due_ms,server_id,command_member_incarnation,command_profile_lifetime FROM authorization_session_families INDEXED BY sqlite_autoindex_authorization_session_families_1 WHERE id=? AND account_id=? AND profile_id=? AND authority='local' AND security_kind=1`,
 			Params:  []stmt.Param{text("family"), text("account"), text("profile")},
 			Cohorts: []stmt.Cohort{{Name: "credential_family", Bindings: []any{"us-credential-family", "us-credential-account", "us-credential-profile"}}},
 			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_authorization_session_families_1"}, Seeks: []string{"id=?"},
 				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("authorization_session_families", "sqlite_autoindex_authorization_session_families_1", "pk", "id")}}},
+		// The credential's OWN family denial. This is the same shape as WC
+		// #1265's scalar admin_revoke: revoked/reason/at plus the durable
+		// teardown_due_ms obligation. It sets no revoke_operation_id and writes
+		// no second family command/receipt: the family CAS is conditional on
+		// command_last_sequence=0 and an unclaimed revoke slot.
+		{ID: usCredentialFamilyRevoke, Kind: stmt.Write, SQL: `UPDATE authorization_session_families INDEXED BY sqlite_autoindex_authorization_session_families_1
+SET revoked=1,revoked_reason='admin_revoke',revoked_at=?,teardown_due_ms=?
+WHERE id=? AND server_id=? AND account_id=? AND profile_id=? AND authority='local' AND security_kind=1
+AND command_member_incarnation=? AND command_profile_lifetime=?
+AND command_incarnation=? AND current_generation=?
+AND revoked=0 AND command_last_sequence=0 AND revoke_operation_id IS NULL
+RETURNING command_incarnation,current_generation,revoked,revoked_reason,revoked_at,teardown_due_ms`,
+			Params: []stmt.Param{text("revoked_at"), integer("due_ms"), text("family"), text("server"), text("account"), text("profile"),
+				text("member"), text("lifetime"), {Name: "incarnation", Type: stmt.Blob}, integer("generation")},
+			Cohorts: []stmt.Cohort{{Name: "own_deny", Bindings: []any{"1970-01-01T00:00:01Z", int64(1000), "us-credential-family", "us-credential-server", "us-credential-account", "us-credential-profile",
+				"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, int64(1)}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_authorization_session_families_1"}, Seeks: []string{"id=?"},
+				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("authorization_session_families", "sqlite_autoindex_authorization_session_families_1", "pk", "id")}}},
+		// The credential's OWN bound API device. Birth hardcodes platform 'api'
+		// (usFamilyBirthAPIDevice), so that value is the prepared shape, not a
+		// new caller input. Retirement is LOGICAL only: authorization_session_
+		// families.device_id is ON DELETE SET NULL and US-26 owns physical
+		// child-first reclamation after reverse-reference drains.
+		{ID: usCredentialDeviceRead, Kind: stmt.Read, SQL: `SELECT account_id,platform,revision,retired_ms FROM identity_devices INDEXED BY sqlite_autoindex_identity_devices_1 WHERE id=? AND authority='local'`,
+			Params:  []stmt.Param{text("device")},
+			Cohorts: []stmt.Cohort{{Name: "own_device", Bindings: []any{"us-credential-device"}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_identity_devices_1"}, Seeks: []string{"id=?"},
+				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("identity_devices", "sqlite_autoindex_identity_devices_1", "pk", "id")}}},
+		{ID: usCredentialDeviceRetire, Kind: stmt.Write, SQL: `UPDATE identity_devices INDEXED BY sqlite_autoindex_identity_devices_1
+SET retired_ms=?,revision=revision+1
+WHERE id=? AND authority='local' AND account_id=? AND platform='api' AND revision=? AND retired_ms=0
+RETURNING retired_ms,revision`,
+			Params:  []stmt.Param{integer("retired_ms"), text("device"), text("account"), integer("revision")},
+			Cohorts: []stmt.Cohort{{Name: "own_device", Bindings: []any{int64(1000), "us-credential-device", "us-credential-account", int64(1)}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_identity_devices_1"}, Seeks: []string{"id=?"},
+				AutoIndexes: []stmt.AutoIndexBinding{usCredentialPoint("identity_devices", "sqlite_autoindex_identity_devices_1", "pk", "id")}}},
 		// Current owner-recovery custody for key/app-password. A token has no
 		// recoverable source secret and never reaches this statement.
 		{ID: usCredentialSecretInsert, Kind: stmt.Write, SQL: `INSERT INTO security_credential_secrets(credential_id,kind,account_id,member_incarnation,profile_id,profile_lifetime,family_id,family_incarnation,secret_hash,key_id,nonce,body,aad_digest)
@@ -183,7 +224,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING variable_bytes`,
 		defs[n].Owner = "store/writer US credential source effects"
 		defs[n].CallSites = []string{"store/writer/us_credential_native.go"}
 	}
-	return defs
+	// The 522 hint is the SAME bounded append owner/ring protocol as WC #1265:
+	// one devices list.changed hint co-committed in this frame, never an
+	// unbounded fanout or a second event store.
+	return append(defs, wcAPIEventDefinitions()...)
 }
 
 // usCredentialReceiptDefinitions is the closed retained-result set: the W
@@ -471,10 +515,39 @@ func applyUSCredentialIssue(ctx context.Context, turn *commandTurn, job *usCrede
 	return out, turn.checkLifetimes(ctx)
 }
 
-// applyUSCredentialRevoke updates only the exact top-level source row. It never
-// touches a descendant credential, another family or a user's sessions.
+// applyUSCredentialRevoke revokes the exact top-level source row and, in the
+// SAME FULL frame, its OWN security_kind=1 family and OWN bound API device. It
+// never touches a descendant credential, another family, the issuer's session
+// or the issuer's device.
+//
+// Order is the binding one: (1) the source marker (revoked_ms), (2) the
+// credential's own family denial (revoked/reason/at + WC #1265's scalar
+// teardown_due_ms obligation), (3) logical retirement of the credential's own
+// identity_devices row, then (4) ONE devices list.changed hint. Every step is
+// CAS-bound to the same prepared witness and the same trusted clock. Any
+// failure cancels the whole frame, even if a parent ignores the error, so a
+// marker-only or family-only prefix can never commit.
+//
+// Physical device/family/secret deletion is deliberately NOT here:
+// authorization_session_families.device_id is ON DELETE SET NULL and other
+// tables CASCADE/RESTRICT on the device, so 522 only sets identity_devices.
+// retired_ms and keeps the source identity/tombstone. US-26 child-first
+// reclamation performs physical cleanup after exact reverse-reference drains.
+// The durable teardown_due_ms obligation is the seam for owning domains to
+// drain queues/playback/streams outside the security hold; 522 acceptance
+// waits for that obligation+consumer seam, not for physical cleanup.
 func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCredentialRevokeJob, nowMS int64) (out usCredentialRevokeEffect, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	defer func() {
+		out, err = finishCommand(ctx, commandLifetime(turn), out, err)
+		// A parent accidentally ignoring an error still cannot COMMIT a partial
+		// marker/family/device/event prefix.
+		if err != nil && turn != nil && turn.transaction != nil {
+			tx := turn.transaction
+			if tx.begun && !tx.done && tx.cancel != nil {
+				tx.cancel()
+			}
+		}
+	}()
 	if turn == nil || turn.transaction == nil || job == nil || nowMS < 0 {
 		return out, ErrInvalid
 	}
@@ -488,6 +561,7 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 	if nowMS < in.createdMS || nowMS < in.revokedMS {
 		return out, ErrConflict
 	}
+	// (1) Marker. The exact current TOP-LEVEL source row, unchanged shape.
 	args := usCredentialSourceBindings(in)
 	id := usCredentialRevokeRead
 	want := usCredentialSourceRow{account: in.target.account, profile: in.target.profile, id: in.id, kind: in.kind, name: in.name, scopes: in.scopes, secretHash: in.secretHash, hint: in.hint, family: in.family, device: in.device, createdMS: in.createdMS, expiresMS: in.expiresMS, revokedMS: in.revokedMS, endedReason: in.endedReason}
@@ -510,18 +584,107 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 	if out.row != want {
 		return out, ErrResolveRequired
 	}
+	// (2) The credential's OWN security_kind=1 family. The credential row
+	// supplied family_id; this read/cas binds it to the CURRENT target
+	// member/profile lifetime, server, incarnation and generation.
 	row, e = usCredentialQuery(ctx, turn, usCredentialFamilyRead, in.family, in.target.account, in.target.profile)
 	if e != nil {
 		return out, e
 	}
-	var incarnation []byte
-	if e = row.Scan(&incarnation); e != nil {
+	var family struct {
+		incarnation                  []byte
+		generation, revoked          int64
+		due                          sql.NullInt64
+		reason, server, member, life string
+	}
+	if e = row.Scan(&family.incarnation, &family.generation, &family.revoked, &family.reason, &family.due, &family.server, &family.member, &family.life); e != nil {
 		return out, errors.Join(ErrConflict, e)
 	}
-	if len(incarnation) != 16 {
+	if len(family.incarnation) != 16 || family.generation <= 0 {
 		return out, ErrResolveRequired
 	}
-	copy(out.familyIncarnation[:], incarnation)
+	if family.server != job.issuer.server || family.member != in.target.memberIncarnation || family.life != in.target.profileLifetime {
+		return out, ErrConflict
+	}
+	familyChanged := false
+	switch family.revoked {
+	case 0:
+		revokedAt := time.UnixMilli(nowMS).UTC().Format(time.RFC3339)
+		row, e = usCredentialQuery(ctx, turn, usCredentialFamilyRevoke, revokedAt, nowMS, in.family, job.issuer.server, in.target.account, in.target.profile,
+			in.target.memberIncarnation, in.target.profileLifetime, family.incarnation, family.generation)
+		if e != nil {
+			return out, e
+		}
+		var gotIncarnation []byte
+		var gotGeneration, gotRevoked int64
+		var gotDue sql.NullInt64
+		var gotReason, gotAt string
+		if e = row.Scan(&gotIncarnation, &gotGeneration, &gotRevoked, &gotReason, &gotAt, &gotDue); e != nil {
+			return out, errors.Join(ErrConflict, e)
+		}
+		if len(gotIncarnation) != 16 || gotGeneration != family.generation || gotRevoked != 1 ||
+			gotReason != "admin_revoke" || gotAt != revokedAt || !gotDue.Valid || gotDue.Int64 != nowMS {
+			return out, ErrResolveRequired
+		}
+		family.incarnation, family.generation = gotIncarnation, gotGeneration
+		familyChanged = true
+	case 1:
+		// A fully completed earlier 522 (or a marker-only row completed below)
+		// is not re-revoked and gets no second family command/receipt. A family
+		// revoked for any other reason, or without the durable teardown
+		// obligation, is not this operation's exact current target.
+		if family.reason != "admin_revoke" || !family.due.Valid || family.due.Int64 < 0 {
+			return out, ErrConflict
+		}
+	default:
+		return out, ErrResolveRequired
+	}
+	copy(out.familyIncarnation[:], family.incarnation)
+	// (3) The credential's OWN bound API device: LOGICAL retirement only.
+	row, e = usCredentialQuery(ctx, turn, usCredentialDeviceRead, in.device)
+	if e != nil {
+		return out, e
+	}
+	var device struct {
+		account, platform string
+		revision, retired int64
+	}
+	if e = row.Scan(&device.account, &device.platform, &device.revision, &device.retired); e != nil {
+		return out, errors.Join(ErrConflict, e)
+	}
+	if device.account != in.target.account {
+		return out, ErrDisclosureDenied
+	}
+	if device.platform != "api" || device.revision <= 0 {
+		return out, ErrConflict
+	}
+	deviceChanged := false
+	switch device.retired {
+	case 0:
+		row, e = usCredentialQuery(ctx, turn, usCredentialDeviceRetire, nowMS, in.device, in.target.account, device.revision)
+		if e != nil {
+			return out, e
+		}
+		var retired, revision sql.NullInt64
+		if e = row.Scan(&retired, &revision); e != nil {
+			return out, errors.Join(ErrConflict, e)
+		}
+		if !retired.Valid || retired.Int64 != nowMS || !revision.Valid || revision.Int64 != device.revision+1 {
+			return out, ErrResolveRequired
+		}
+		deviceChanged = true
+	default:
+		// Already logically retired by the original 522; no second revision
+		// bump, no second retirement timestamp.
+	}
+	// (4) ONE bound hint in the same frame. A replay never reaches apply (the
+	// retained receipt resolves first), and an already-complete source writes
+	// nothing, so there is never a second event for one original.
+	if out.changed || familyChanged || deviceChanged {
+		if _, e = appendWCAPIEvent(ctx, turn, wcSecurityDevicesEvent(nowMS)); e != nil {
+			return out, e
+		}
+	}
 	out.lastUsedMS = out.row.lastUsedMS
 	return out, turn.checkLifetimes(ctx)
 }
@@ -1443,7 +1606,9 @@ func executeUSCredentialInvocation(ctx context.Context, turn *commandTurn, a *us
 		// without this projection.
 		out.Secret = cloneUSCredentialSecret(input.issue.secret)
 	}
-	// 521/522 append no api_event and raise no notice in this component.
+	// 521 appends no event. 522's ONE devices list.changed hint is appended
+	// inside applyUSCredentialRevoke with the source/family/device prefix, so a
+	// failed frame can never publish it.
 	return out, floor, false, turn.checkLifetimes(ctx)
 }
 
