@@ -126,8 +126,6 @@ const (
 	usPINImageProfile           stmt.ID = "us.pin.image.profile"
 	usPINImageRestrictionOctets stmt.ID = "us.pin.image.restriction_octets"
 	usPINImageRestriction       stmt.ID = "us.pin.image.restriction"
-	usPINImageAvatarOctets      stmt.ID = "us.pin.image.avatar_octets"
-	usPINImageAvatar            stmt.ID = "us.pin.image.avatar"
 	usPINImageDefaultDVR        stmt.ID = "us.pin.image.default_dvr"
 )
 
@@ -144,9 +142,6 @@ func usPINImageDefinitions() []stmt.Definition {
 	restrictionPoint := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_profile_restrictions_1"}, Seeks: []string{"profile_id=?"},
 		AutoIndexes: []stmt.AutoIndexBinding{{Table: "profile_restrictions", Name: "sqlite_autoindex_profile_restrictions_1", Origin: "u",
 			Columns: []stmt.IndexColumn{{Name: "profile_id", Collation: "BINARY"}}}}}
-	avatarPoint := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_profile_avatars_1"}, Seeks: []string{"profile_id=?"},
-		AutoIndexes: []stmt.AutoIndexBinding{{Table: "profile_avatars", Name: "sqlite_autoindex_profile_avatars_1", Origin: "u",
-			Columns: []stmt.IndexColumn{{Name: "profile_id", Collation: "BINARY"}}}}}
 	defaultDVRPoint := stmt.Plan{Hot: true,
 		Indexes: []string{"sqlite_autoindex_direct_profiles_2", "sqlite_autoindex_direct_memberships_1"},
 		Seeks:   []string{"account_id=? AND id=?", "account_id=?"},
@@ -157,11 +152,11 @@ func usPINImageDefinitions() []stmt.Definition {
 				Columns: []stmt.IndexColumn{{Name: "account_id", Collation: "BINARY"}}},
 		}}
 	defs := []stmt.Definition{
-		{ID: usPINImageProfileOctets, SQL: `SELECT octet_length(id),octet_length(name),octet_length(art),coalesce(octet_length(allowed_libraries),0),revision,pin_revision,length(pin_hash),is_primary,position
+		{ID: usPINImageProfileOctets, SQL: `SELECT octet_length(id),octet_length(name),octet_length(art),coalesce(octet_length(allowed_libraries),0),revision,pin_revision,length(pin_hash),is_primary,position,coalesce(length(avatar_digest),-1),avatar_version,octet_length(avatar_updated_at),octet_length(avatar_source_mime)
 FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2
 WHERE account_id=? AND id=? AND deleted=0`,
 			Params: []stmt.Param{text("account"), text("profile")}, Cohorts: []stmt.Cohort{{Name: "exact_profile", Bindings: []any{"us-pin-account", "us-pin-profile"}}}, Plan: profilePoint},
-		{ID: usPINImageProfile, SQL: `SELECT id,name,art,allowed_libraries,revision,pin_revision,length(pin_hash),is_primary,position
+		{ID: usPINImageProfile, SQL: `SELECT id,name,art,allowed_libraries,revision,pin_revision,length(pin_hash),is_primary,position,coalesce(length(avatar_digest),-1),avatar_version,avatar_updated_at,avatar_source_mime
 FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2
 WHERE account_id=? AND id=? AND deleted=0`,
 			Params: []stmt.Param{text("account"), text("profile")}, Cohorts: []stmt.Cohort{{Name: "exact_profile", Bindings: []any{"us-pin-account", "us-pin-profile"}}}, Plan: profilePoint},
@@ -173,14 +168,6 @@ WHERE profile_id=?`,
 FROM profile_restrictions INDEXED BY sqlite_autoindex_profile_restrictions_1
 WHERE profile_id=?`,
 			Params: []stmt.Param{text("profile")}, Cohorts: []stmt.Cohort{{Name: "exact_profile", Bindings: []any{"us-pin-profile"}}}, Plan: restrictionPoint},
-		{ID: usPINImageAvatarOctets, SQL: `SELECT version,octet_length(updated_at),octet_length(source_mime)
-FROM profile_avatars INDEXED BY sqlite_autoindex_profile_avatars_1
-WHERE profile_id=?`,
-			Params: []stmt.Param{text("profile")}, Cohorts: []stmt.Cohort{{Name: "exact_profile", Bindings: []any{"us-pin-profile"}}}, Plan: avatarPoint},
-		{ID: usPINImageAvatar, SQL: `SELECT version,updated_at,source_mime
-FROM profile_avatars INDEXED BY sqlite_autoindex_profile_avatars_1
-WHERE profile_id=?`,
-			Params: []stmt.Param{text("profile")}, Cohorts: []stmt.Cohort{{Name: "exact_profile", Bindings: []any{"us-pin-profile"}}}, Plan: avatarPoint},
 		// RestrictionsTx's documented "nothing blocked" default needs the
 		// profile's recording entitlement: a primary profile of an owner records
 		// from the start. One INTEGER point, no materialization.
@@ -291,8 +278,10 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 		return nil, 0, err
 	}
 	var idN, nameN, artN, librariesN, pinLength, primary sql.NullInt64
-	var revision, pinRevision, position int64
-	if err = row.Scan(&idN, &nameN, &artN, &librariesN, &revision, &pinRevision, &pinLength, &primary, &position); err != nil {
+	var revision, pinRevision, position, avatarDigestN, avatarVersion int64
+	var avatarUpdatedN, avatarMimeN sql.NullInt64
+	if err = row.Scan(&idN, &nameN, &artN, &librariesN, &revision, &pinRevision, &pinLength, &primary, &position,
+		&avatarDigestN, &avatarVersion, &avatarUpdatedN, &avatarMimeN); err != nil {
 		return nil, 0, errors.Join(ErrResolveRequired, err)
 	}
 	var profileN [4]int64
@@ -302,7 +291,7 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 		}
 	}
 	if revision != v.revision || pinRevision != v.pinRevision || !primary.Valid || (primary.Int64 != 0 && primary.Int64 != 1) ||
-		pinLength.Valid != v.pinRequired || position < 0 {
+		pinLength.Valid != v.pinRequired || position < 0 || avatarDigestN < -1 {
 		return nil, 0, ErrResolveRequired
 	}
 
@@ -347,30 +336,22 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 		}
 	}
 
-	avatarPresent := true
-	row, err = usPolicyRow(ctx, turn, usPINImageAvatarOctets, target.profile)
-	if err != nil {
-		return nil, 0, err
-	}
-	var version, updatedN, mimeN sql.NullInt64
-	switch scan := row.Scan(&version, &updatedN, &mimeN); {
-	case errors.Is(scan, sql.ErrNoRows):
-		avatarPresent = false
-	case scan != nil:
-		return nil, 0, errors.Join(ErrResolveRequired, scan)
-	}
+	avatarPresent := avatarDigestN >= 0
+	avatarVersionExpected := avatarVersion
 	var avatarN [2]int64
 	avatarURL := ""
 	if avatarPresent {
-		if !version.Valid || version.Int64 < 1 {
+		if avatarVersion < 1 || !avatarUpdatedN.Valid || !avatarMimeN.Valid {
 			return nil, 0, ErrResolveRequired
 		}
-		for n, value := range []sql.NullInt64{updatedN, mimeN} {
+		for n, value := range []sql.NullInt64{avatarUpdatedN, avatarMimeN} {
 			if avatarN[n], err = usPolicyOctet(value); err != nil {
 				return nil, 0, err
 			}
 		}
-		avatarURL = usPINProfileURL(target.account, target.profile, version.Int64)
+		avatarURL = usPINProfileURL(target.account, target.profile, avatarVersion)
+	} else if avatarUpdatedN.Valid || avatarMimeN.Valid {
+		return nil, 0, ErrResolveRequired
 	}
 
 	// The image repeats the profile ID in Restrictions.ProfileID and, when
@@ -429,14 +410,16 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 		return nil, 0, err
 	}
 	var id, name, art string
-	var libraries sql.NullString
+	var libraries, avatarUpdated, avatarMime sql.NullString
 	var pinPresent sql.NullInt64
-	var profilePosition int64
-	if err = row.Scan(&id, &name, &art, &libraries, &revision, &pinRevision, &pinPresent, &primary, &profilePosition); err != nil {
+	var profilePosition, avatarNowDigestN int64
+	if err = row.Scan(&id, &name, &art, &libraries, &revision, &pinRevision, &pinPresent, &primary, &profilePosition,
+		&avatarNowDigestN, &avatarVersion, &avatarUpdated, &avatarMime); err != nil {
 		return nil, 0, errors.Join(ErrResolveRequired, err)
 	}
 	if id != target.profile || revision != v.revision || pinRevision != v.pinRevision || pinPresent.Valid != v.pinRequired ||
-		profilePosition != position || int64(len(id)) != profileN[0] || int64(len(name)) != profileN[1] || int64(len(art)) != profileN[2] {
+		profilePosition != position || avatarNowDigestN != avatarDigestN || avatarVersion != avatarVersionExpected ||
+		int64(len(id)) != profileN[0] || int64(len(name)) != profileN[1] || int64(len(art)) != profileN[2] {
 		return nil, 0, ErrResolveRequired
 	}
 	image := USMemberProfileImage{
@@ -490,22 +473,16 @@ func captureUSPINProfileImage(ctx context.Context, turn *commandTurn, a *usOwner
 	}
 
 	if avatarPresent {
-		row, err = usPolicyRow(ctx, turn, usPINImageAvatar, target.profile)
-		if err != nil {
-			return nil, 0, err
-		}
-		var updatedAt, sourceMIME string
-		var avatarVersion int64
-		if err = row.Scan(&avatarVersion, &updatedAt, &sourceMIME); err != nil {
-			return nil, 0, errors.Join(ErrResolveRequired, err)
-		}
-		if avatarVersion != version.Int64 || int64(len(updatedAt)) != avatarN[0] || int64(len(sourceMIME)) != avatarN[1] {
+		if avatarVersion < 1 || !avatarUpdated.Valid || !avatarMime.Valid ||
+			int64(len(avatarUpdated.String)) != avatarN[0] || int64(len(avatarMime.String)) != avatarN[1] {
 			return nil, 0, ErrResolveRequired
 		}
 		image.Avatar = &USMemberProfileAvatarImage{
-			ProfileID: target.profile, Version: avatarVersion, UpdatedAt: updatedAt,
-			SourceMIME: sourceMIME, URL: usPINProfileURL(target.account, target.profile, avatarVersion),
+			ProfileID: target.profile, Version: avatarVersion, UpdatedAt: avatarUpdated.String,
+			SourceMIME: avatarMime.String, URL: usPINProfileURL(target.account, target.profile, avatarVersion),
 		}
+	} else if avatarUpdated.Valid || avatarMime.Valid {
+		return nil, 0, ErrResolveRequired
 	}
 
 	// Frozen carrier contract on the fresh image: the image can never cost more
