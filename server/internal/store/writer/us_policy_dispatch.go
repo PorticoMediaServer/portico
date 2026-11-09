@@ -1218,7 +1218,11 @@ func runUSPolicyDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAutho
 	// The release rule runs BEFORE the terminal: the transaction cancels its
 	// own lifetime at commit/rollback, so this release uses the live frame
 	// lifetime. The deferred final publication rechecks the CALLER's context
-	// after physical return, exactly like the shared dispatcher.
+	// after physical return. It mirrors dispatchCommand's caller-context recheck
+	// but does not join currentCommandDisclosure / tx.lifetimeErr; before any
+	// production entry that defer must also check the in-memory a.lifetime.Err()
+	// and turn.transaction.lifetimeErr. Do NOT call a.recheck there: it denies
+	// once transaction.done is set (us_authority.go:286).
 	release, releaseErr := finishCommand(ctx, commandLifetime(turn), usPolicyCompletion{out, floor, historical}, nil)
 	if releaseErr != nil {
 		return withdrawUSPolicy(turn, releaseErr)

@@ -580,6 +580,77 @@ func TestUSPolicyDispatchCanceledReleaseDeniesAndRollsBack(t *testing.T) {
 	}
 }
 
+// A caller cancellation that arrives only AFTER the physical COMMIT must still
+// withdraw the publication: zero output, zero Image, no result. The COMMIT is
+// durable, so a retry on a fresh caller context resolves the ORIGINAL through
+// the receipt without applying the source again. Deleting the deferred final
+// publication at the end of runUSPolicyDispatch makes this test publish the
+// committed result with a nil error.
+func TestUSPolicyDispatchCanceledAfterCommitPublishesNothing(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		kind       CommandID
+		libraries  []string
+		revision   int64
+		eventCount int64
+	}{
+		{"540_member_libraries", USMemberLibraries, []string{"movies", "music"}, 2, 1},
+		{"541_profile_libraries", USProfileLibraries, []string{"movies"}, 2, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, _, r, proof, input := usPolicyDispatchFixture(t, tc.kind, tc.libraries)
+			inv := usPolicyDispatchInput(t, input)
+			turn, a, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+			caller, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			// Cancel from the first trusted clock sample AFTER COMMIT is attempted:
+			// physically the COMMIT has returned, and no pre-terminal context check
+			// remains. Only the deferred final publication can still clear the
+			// result. The transaction's own lifetime is untouched.
+			originalNow := w.now
+			cancelled := false
+			w.now = func() time.Time {
+				if !cancelled && turn.transaction.commitAttempted && !turn.transaction.done {
+					cancelled = true
+					cancel()
+				}
+				return originalNow()
+			}
+			out, floor, err := runUSPolicyDispatch(caller, turn, a, inv)
+			w.now = originalNow
+			if !cancelled || !errors.Is(err, context.Canceled) || !reflect.DeepEqual(out, usPolicyDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+				t.Fatal("post-commit cancellation published a result", out, floor, err)
+			}
+			revision, libraries, events := usPolicyDispatchSource(t, w, tc.kind)
+			if revision != tc.revision || libraries.String == "" || events != tc.eventCount || usPolicyDispatchQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 1 {
+				t.Fatal("original source/receipt state", revision, libraries, events)
+			}
+			// Retry on a fresh caller context: the receipt returns the committed
+			// ORIGINAL, and the source is not applied a second time.
+			before := usPolicyDispatchQuery(t, w, `SELECT total_changes()`)
+			retryTurn, retryAuth, _ := usPolicyDispatchTurn(t, w, r, proof, input.kind, 0)
+			retry, retryFloor, err := runUSPolicyDispatch(t.Context(), retryTurn, retryAuth, &usPolicyInvocation{request: inv.request})
+			if err != nil || retry.Outcome.State != Applied || !retry.Outcome.Replayed || retryFloor.AcknowledgedThrough != 0 {
+				t.Fatal("retry did not resolve the original", retry, err)
+			}
+			if retry.Value.revision != tc.revision || !reflect.DeepEqual(retry.Value.libraries, tc.libraries) || retry.Digest == (ResultDigest{}) {
+				t.Fatal("retry lost the original value", retry)
+			}
+			// A retried 541 has no fresh caller Image: the retained result body is
+			// the complete primitive result, never a source-derived snapshot.
+			if retry.Image.Snapshot != nil || retry.ImageBytes != 0 {
+				t.Fatal("retry rebuilt a response image", retry.Image)
+			}
+			revision, libraries, events = usPolicyDispatchSource(t, w, tc.kind)
+			if revision != tc.revision || libraries.String == "" || events != tc.eventCount ||
+				usPolicyDispatchQuery(t, w, `SELECT count(*) FROM security_command_receipts`) != 1 ||
+				usPolicyDispatchQuery(t, w, `SELECT total_changes()`) != before {
+				t.Fatal("retry re-applied the source", revision, libraries, events)
+			}
+		})
+	}
+}
+
 // The retained owner quota refuses a fresh result BEFORE any source effect.
 func TestUSPolicyDispatchReceiptQuotaRefusesBeforeEffects(t *testing.T) {
 	w, _, r, proof, input := usPolicyDispatchFixture(t, USMemberLibraries, []string{"movies", "music"})
