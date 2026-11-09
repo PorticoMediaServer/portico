@@ -31,7 +31,10 @@ func TestRBPersonalPreparePlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalogue.Manifest()) != 14 {
+	// 20: the valued orders use bounded conjunctive first/equality-tail/next
+	// legs (lastPlayed adds a same-value later-public leg and byte preflights),
+	// plus the six title-remainder legs.
+	if len(catalogue.Manifest()) != 20 {
 		t.Fatal("review changed statement inventory")
 	}
 	path := "testdata/rb-personal-prepare-plans.json.gz"

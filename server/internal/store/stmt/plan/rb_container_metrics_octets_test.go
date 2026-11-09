@@ -9,14 +9,17 @@ import (
 
 func rbContainerMetricsOctetControl() stmt.Definition {
 	spec := rbContainerMetricsOctetSources()[0]
-	params := append(append([]stmt.Param(nil), spec.params...), stmt.Param{Name: "key0", Type: stmt.Integer}, stmt.Param{Name: "limit", Type: stmt.Integer})
+	params := append([]stmt.Param{{Name: "profile", Type: stmt.Text}}, spec.params...)
+	params = append(params, stmt.Param{Name: "key0", Type: stmt.Integer}, stmt.Param{Name: "limit", Type: stmt.Integer})
+	id := stmt.ID("read.browse.rb.container_metrics.children.show.tail0.bytes")
 	return stmt.Definition{
-		ID:     stmt.ID("read.browse.rb.container_metrics.children.show.tail0.bytes"),
-		SQL:    rbContainerMetricsOctetSelect(spec, []string{"e.id>?"}),
+		ID:     id,
+		SQL:    rbContainerMetricsOctetSelect(spec, []string{"e.id>?"}, "k0 ASC"),
 		Kind:   stmt.Read,
 		Owner:  "store/read",
 		Params: params,
-		Plan:   stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_show_fk", "personal_current_live"}, Seeks: []string{"show_id=?", "profile_id=? AND item_id=?"}},
+		Plan: stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_show_fk", "personal_current_live"}, Seeks: []string{"show_id=?", "profile_id=? AND item_id=?"},
+			Waivers: []stmt.Waiver{{StatementID: id, Stage: "eqp", Form: "BLOOM FILTER", Match: "BLOOM FILTER ON p (profile_id=? AND item_id=?)", Reason: "bundled planner join bloom filter; the current-personal index seek is still pinned"}}},
 	}
 }
 
@@ -36,8 +39,8 @@ func TestRBContainerMetricsOctetRange(t *testing.T) {
 			d.SQL = strings.Replace(d.SQL, "catalog_entities_show_fk", "catalog_entities_parent", 1)
 		},
 		func(d *stmt.Definition) { d.Owner = "foreign-owner" },
-		func(d *stmt.Definition) { d.Params[0].Type = stmt.Text },
-		func(d *stmt.Definition) { d.Params[3].Nullable = true },
+		func(d *stmt.Definition) { d.Params[1].Type = stmt.Text },
+		func(d *stmt.Definition) { d.Params[4].Nullable = true },
 		func(d *stmt.Definition) { d.Plan.Hot = false },
 		func(d *stmt.Definition) { d.Plan.AllowedScans = []string{"e"} },
 		func(d *stmt.Definition) { d.Plan.Seeks = nil },

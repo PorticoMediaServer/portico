@@ -26,54 +26,68 @@ func newRBContainerMetricsSource(t *testing.T) *browseFixture {
 	t.Helper()
 	f := newBrowseSource(t)
 	for _, q := range []string{
-		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(3,'season',0,1,1,1,0),(4,'episode',1,0,1,1,0),(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1),(8,'book',0,1,1,1,0),(9,'audiobook_file',1,0,1,1,1),(10,'collection',0,1,1,1,0),(20,'ebook',0,0,1,1,0),(21,'comic',0,0,1,1,0)`,
+		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(3,'season',0,1,1,1,0),(4,'episode',1,0,1,1,0),(5,'artist',0,1,1,1,1),(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1),(8,'book',0,1,1,1,0),(9,'audiobook_file',1,0,1,1,1),(10,'collection',0,1,1,1,0),(20,'ebook',0,0,1,1,0),(21,'comic',0,0,1,1,0)`,
 	} {
 		f.exec(t, q)
 	}
-	entity := func(id, kind, library int64, title string) {
+	subject := func(id, kind, library int64) []byte {
 		public := rbContainerMetricsPublic(id)
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,?,?)`, id, public, library, kind)
+		return public
+	}
+	entity := func(id, kind, library int64, title string) {
+		public := subject(id, kind, library)
 		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,admission_own_age,duration_key,community_rating_key,critic_rating_key,file_size_key,resolution_key,latest_aired_key)
 VALUES(?,?,?,?,?,?,?,?,?,0,?,?,0,0,0,0,0,NULL,'')`, id, public, library, kind, title, title, title, title, title, public, public)
 	}
 	// A container's own metrics are never inherited by its aggregate.
+	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2001,?,1,2)`, rbContainerMetricsPublic(2001))
 	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,admission_own_age,duration_key,community_rating_key,critic_rating_key,file_size_key,resolution_key,latest_aired_key)
 VALUES(2001,?,1,2,'Show','show','s','Show','S',0,?,?,99,9999.0,9.9,9.9,9999,4000,'2099-01-01T00:00:00Z')`, rbContainerMetricsPublic(2001), rbContainerMetricsPublic(2001), rbContainerMetricsPublic(2001))
-	entity(2002, 3, 1, "Season")
-	f.exec(t, `UPDATE catalog_entities SET show_id=2001 WHERE id=2002`)
-	entity(2003, 6, 1, "Album")
+	seasonPublic := subject(2002, 3, 1)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,show_id,season_number) VALUES(2002,?,1,3,'Season','season','s','Season','S',0,?,?,2001,1)`, seasonPublic, seasonPublic, seasonPublic)
+	artistPublic := subject(1999, 5, 1)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id) VALUES(1999,?,1,5,'Artist','artist','a','Artist','A',0,?,?,NULL)`, artistPublic, artistPublic, artistPublic)
+	albumPublic := subject(2003, 6, 1)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id) VALUES(2003,?,1,6,'Album','album','a','Album','A',0,?,?,1999)`, albumPublic, albumPublic, albumPublic)
 	entity(2004, 8, 1, "Book")
 	entity(2005, 10, 1, "Collection")
 	entity(2006, 10, 1, "Nested collection")
 	entity(2007, 2, 1, "Empty show")
 	f.exec(t, `UPDATE catalog_entities SET duration_key=9999,community_rating_key=9.9,file_size_key=9999 WHERE id=2007`)
 	entity(2100, 2, 1, "Large show")
+	// Show 2001's own episodes; 2100 is the separate Large show below.
 	for n := int64(0); n < 5; n++ {
-		id := int64(2100) + n
+		id := int64(2200) + n
 		public := rbContainerMetricsPublic(id)
 		retired := int64(0)
-		if id == 2104 {
+		if id == 2204 {
 			retired = 1
 		}
 		resolution := []int64{720, 1080, 2160, 480, 4000}[n]
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired,admission_own_age,duration_key,community_rating_key,critic_rating_key,file_size_key,resolution_key,latest_aired_key,show_id,parent_id)
-VALUES(?,?,1,4,?,?,?,?,?,0,?,?,?,1,?,?,?,?,?,?,2001,2002)`, id, public, fmt.Sprintf("Episode %d", id), fmt.Sprintf("episode %d", id), "e", fmt.Sprintf("Episode %d", id), "E", public, public, retired, float64(100*(n+1)), float64(n+1), float64(n+1), int64(1000*(n+1)), resolution, fmt.Sprintf("2026-01-%02dT00:00:00Z", n+1))
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,4)`, id, public)
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired,admission_own_age,duration_key,community_rating_key,critic_rating_key,file_size_key,resolution_key,latest_aired_key,show_id,parent_id,numbering,episode_number)
+VALUES(?,?,1,4,?,?,?,?,?,0,?,?,?,1,?,?,?,?,?,?,2001,2002,'seasonal',?)`, id, public, fmt.Sprintf("Episode %d", id), fmt.Sprintf("episode %d", id), "e", fmt.Sprintf("Episode %d", id), "E", public, public, retired, float64(100*(n+1)), float64(n+1), float64(n+1), int64(1000*(n+1)), resolution, fmt.Sprintf("2026-01-%02dT00:00:00Z", n+1), n+1)
 		f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating,play_count,last_played_at) VALUES('p',?,?,1,?,?,?)`, public, id, int64(2*(n+1)), int64(n+1), fmt.Sprintf("2026-02-%02dT00:00:00Z", n+1))
 	}
 	// The firehose container for multi-quantum and sparse continuation tests.
 	for n := int64(0); n < 600; n++ {
 		id := int64(3000) + n
 		public := rbContainerMetricsPublic(id)
-		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,duration_key,file_size_key,latest_aired_key,show_id)
-VALUES(?,?,1,4,?,?,?,?,?,0,?,?,?,?,?,2100)`, id, public, fmt.Sprintf("Bulk %d", id), fmt.Sprintf("bulk %d", id), "b", fmt.Sprintf("Bulk %d", id), "B", public, public, float64(n+1), 1000+n, fmt.Sprintf("2026-04-%02dT00:00:00Z", n%28+1))
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,4)`, id, public)
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,duration_key,file_size_key,latest_aired_key,show_id,numbering,episode_number)
+VALUES(?,?,1,4,?,?,?,?,?,0,?,?,?,?,?,2100,'absolute',?)`, id, public, fmt.Sprintf("Bulk %d", id), fmt.Sprintf("bulk %d", id), "b", fmt.Sprintf("Bulk %d", id), "B", public, public, float64(n+1), 1000+n, fmt.Sprintf("2026-04-%02dT00:00:00Z", n%28+1), n+1)
 	}
 	for n := int64(0); n < 3; n++ {
 		id := int64(2300) + n
 		public := rbContainerMetricsPublic(id)
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,7)`, id, public)
 		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,duration_key,album_id,disc_number,track_number) VALUES(?,?,1,7,?,?,?,?,?,0,?,?,?,2003,1,?)`, id, public, fmt.Sprintf("Track %d", id), fmt.Sprintf("track %d", id), "t", fmt.Sprintf("Track %d", id), "T", public, public, float64(60*(n+1)), n+1)
 	}
 	for n := int64(0); n < 2; n++ {
 		id := int64(2400) + n
 		public := rbContainerMetricsPublic(id)
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,9)`, id, public)
 		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,duration_key,book_id,disc_number,part_number) VALUES(?,?,1,9,?,?,?,?,?,0,?,?,?,2004,1,?)`, id, public, fmt.Sprintf("Part %d", id), fmt.Sprintf("part %d", id), "p", fmt.Sprintf("Part %d", id), "P", public, public, float64(300*(n+1)), n+1)
 	}
 	f.exec(t, `UPDATE catalog_entities SET duration_key=40,file_size_key=400 WHERE id=1`)
@@ -165,14 +179,16 @@ func rbContainerMetricsDeliver(t *testing.T, f *browseFixture, job *RBContainerM
 
 func rbContainerMetricsOracle(t *testing.T, f *browseFixture, container int64, source string) (members int64, duration, community, critic float64, fileSize, resolution int64, latest string, rating float64, played string, plays int64) {
 	t.Helper()
-	where := "e.show_id=" + fmt.Sprint(container)
+	// The aggregate counts only leaf children; a hierarchy walk also passes
+	// intermediate containers, which are never folded.
+	where := "e.show_id=" + fmt.Sprint(container) + " AND e.kind=4"
 	switch source {
 	case "season":
-		where = "e.parent_id=" + fmt.Sprint(container)
+		where = "e.parent_id=" + fmt.Sprint(container) + " AND e.kind=4"
 	case "album":
-		where = "e.album_id=" + fmt.Sprint(container)
+		where = "e.album_id=" + fmt.Sprint(container) + " AND e.kind=7"
 	case "book":
-		where = "e.book_id=" + fmt.Sprint(container)
+		where = "e.book_id=" + fmt.Sprint(container) + " AND e.kind=9"
 	}
 	row := f.conn.QueryRowContext(t.Context(), `SELECT count(e.id),COALESCE(max(e.duration_key),0),COALESCE(max(e.community_rating_key),0),COALESCE(max(e.critic_rating_key),0),COALESCE(max(e.file_size_key),0),COALESCE(max(e.resolution_key),0),COALESCE(max(e.latest_aired_key),''),COALESCE(max(p.rating),0),COALESCE(max(p.last_played_at),''),COALESCE(sum(p.play_count),0)
 FROM catalog_entities AS e LEFT JOIN personal_items AS p ON p.profile_id='p' AND p.item_id=e.id AND p.item_public_id=e.public_id
@@ -224,7 +240,7 @@ func TestRBContainerMetricsHiddenChildExcluded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Episode 2104 is retired and carries the newest, largest and most-rated
+	// Episode 2204 is retired and carries the newest, largest and most-rated
 	// values; none of them may leak into the permitted aggregate.
 	if page.Metrics.Members != 4 || page.Metrics.Duration != 400 || page.Metrics.LatestAired != "2026-01-04T00:00:00Z" || page.Metrics.PersonalRating != 8 || page.Metrics.PlayCount != 10 {
 		t.Fatalf("hidden child influenced the aggregate: %+v", page.Metrics)
@@ -257,7 +273,7 @@ func TestRBContainerMetricsOwnerOnlyFileSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 2104 is retired, so the owner sees the largest permitted child (4000).
+	// 2204 is retired, so the owner sees the largest permitted child (4000).
 	if page.Metrics.FileSize != 4000 || page.Metrics.Members != 4 {
 		t.Fatalf("owner file size: %+v", page.Metrics)
 	}

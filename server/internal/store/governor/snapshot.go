@@ -53,8 +53,11 @@ func NewSnapshots(connector driver.Connector, c sqliteconn.Config, g Governor, a
 	if connector == nil || g == nil || a == nil || g != a.ledger || c.Role != sqliteconn.Reader || c.Connections <= 0 || c.CacheKiB <= 0 || c.ReadLimits.LengthBytes <= 0 || c.ReadLimits.Columns <= 0 || c.ReadLimits.Columns > 128 || registry == nil {
 		return nil, sqliteconn.ErrPolicy
 	}
+	// The compiled inventory bound covers the full cross-library ready recipe
+	// (title/chronology/scalar source families) with headroom, while remaining a
+	// finite private list rather than a request-supplied set.
 	manifest := registry.Manifest()
-	if len(manifest) == 0 || len(manifest) > 128 {
+	if len(manifest) == 0 || len(manifest) > 256 {
 		return nil, sqliteconn.ErrPolicy
 	}
 	reads := make(map[stmt.ID]stmt.Statement, len(manifest))
