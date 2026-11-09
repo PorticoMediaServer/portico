@@ -286,6 +286,12 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaMusicAsset:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_catalog_assets_3"}
 			defs[n].Plan.Seeks = []string{"library_id=? AND path=?"}
+		case iaMusicIdentityInsert:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_identities"}
+		case iaMusicLinkInsert:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_asset_links"}
+		case iaMusicSongArtistInsert:
+			defs[n].Plan.PrimaryKeys = []string{"catalog_song_artists"}
 		case iaMusicIdentity:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_identities"}
 			defs[n].Plan.Seeks = []string{"library_id=? AND source_key=?"}
