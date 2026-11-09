@@ -54,9 +54,19 @@ func (q uoRootReference) validFor(turn *commandTurn) bool {
 }
 
 func lookupUORootCommand(ctx context.Context, turn *commandTurn, binding *uoRootBinding, q uoRootReference) (out uoRootLookup, err error) {
+	defer func() {
+		if isUOUserBirthPurpose(q.kind) {
+			uoPublicReadingPoison(turn, err)
+		}
+	}()
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if !q.validFor(turn) || binding == nil {
 		return out, ErrInvalid
+	}
+	if isUOUserBirthPurpose(q.kind) {
+		if q.kind != 700 || turn.transaction.birthStart == nil || turn.transaction.birthStart.turn != turn || turn.transaction.birthStart.root.reference != q {
+			return out, ErrInvalid
+		}
 	}
 	// Current authority is checked before ANY retained owner/header/payload
 	// lookup. A cached stamp or descriptor grants nothing here.
@@ -199,6 +209,11 @@ func persistUORootOperation(ctx context.Context, turn *commandTurn, lookup uoRoo
 func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRootLookup, result any) (out ResultDigest, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	q, o := lookup.reference, lookup.owner
+	defer func() {
+		if isUOUserBirthPurpose(q.kind) {
+			uoPublicReadingPoison(turn, err)
+		}
+	}()
 	if lookup.turn != turn || lookup.binding == nil || !q.validFor(turn) || lookup.decision != receiptFresh || o.revision == math.MaxInt64 || o.rows == math.MaxInt64 {
 		return out, ErrResolveRequired
 	}
@@ -219,6 +234,18 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 	}
 	var appliedMS int64
 	switch v := result.(type) {
+	case uoBirthStartResult:
+		if v.root != q.root || q.kind != 700 {
+			return out, ErrInvalid
+		}
+		state := turn.transaction.birthStart
+		if state == nil || state.turn != turn || state.saved || state.root.reference != q {
+			return out, ErrInvalid
+		}
+		if err = checkUOBirthStartNative(ctx, turn, state, v); err != nil {
+			return out, err
+		}
+		appliedMS = v.appliedMS
 	case uoRootOperationResult:
 		if v.root != q.root || v.kind != q.kind {
 			return out, ErrInvalid
