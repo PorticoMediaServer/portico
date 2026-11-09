@@ -65,11 +65,11 @@ func rbScalarFixtureHash(t *testing.T) string {
 }
 func newRBScalarFixture(t *testing.T) *browseFixture {
 	t.Helper()
-	return composeReadFixture(t, newRBScalarSource(t), RBBrowseDefinitions(), governor.Config{Now: time.Now, MaxGrantsPerClass: 2, Partitions: [4]governor.Amounts{governor.Foreground: {governor.Reader: 1, governor.MemoryBytes: 20 << 20}}}, true, rbScalarFixtureHash(t))
+	return composeReadFixture(t, newRBScalarSource(t), RBBrowseDefinitions(), governor.Config{Now: time.Now, MaxGrantsPerClass: 2, Partitions: [4]governor.Amounts{governor.Foreground: {governor.Reader: 1, governor.MemoryBytes: governor.ForegroundRequestBytes}}}, true, rbScalarFixtureHash(t))
 }
 func (f *browseFixture) scalar(t *testing.T, in ScalarInput) (ScalarPage, BrowseReadResult, error) {
 	t.Helper()
-	request := governor.Request{Key: governor.JobKey{Domain: 93, ID: "scalar"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	request := governor.Request{Key: governor.JobKey{Domain: 93, ID: "scalar"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 	return f.reader.sortedWindow(t.Context(), request, time.Second, f.output, in)
 }
 

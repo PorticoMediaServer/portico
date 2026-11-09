@@ -57,7 +57,7 @@ func rbTermMusic(t *testing.T, f *browseFixture) {
 func rbTermFixture(t *testing.T, live bool) *browseFixture {
 	f := rbTermSource(t)
 	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundRequestBytes}
 	if live {
 		gc = readfixture.LiveConfig(time.Now)
 	}

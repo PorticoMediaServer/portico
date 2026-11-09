@@ -63,7 +63,7 @@ func newRBExactFacetFixture(t *testing.T) (*browseFixture, *ExactFacetReader) {
 	return f, r
 }
 func rbFacetReadRequest() governor.Request {
-	return governor.Request{Key: governor.JobKey{Domain: 398, ID: "exact-numeric-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: rbFacetRaw + 10, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	return governor.Request{Key: governor.JobKey{Domain: 398, ID: "exact-numeric-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: rbFacetRaw + 10, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 }
 func rbFacetPublicationRequest() governor.Request {
 	return governor.Request{Key: governor.JobKey{Domain: 397, ID: "facet-test-discretionary-publication"}, Owner: 2, Class: governor.Background, Writer: true, MaxHold: 25 * time.Millisecond, Deadline: time.Now().Add(time.Second), Need: governor.Amounts{governor.MemoryBytes: 4096, governor.WALBytes: 4096}, Budget: governor.UnitBudget{RawRows: 1, VMOps: 1, Pages: 1}, Footprint: []governor.Scope{{Library: 1}}}

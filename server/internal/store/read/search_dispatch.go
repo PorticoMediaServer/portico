@@ -112,7 +112,7 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 		in.View.Library <= 0 || in.View.Kind < 0 || in.View.Kind > 99 ||
 		request.Writer || request.Deadline.IsZero() || request.Key != live.Key ||
 		request.Owner != live.Owner || request.Class != governor.Foreground ||
-		request.Need[governor.Reader] != 1 || request.Need[governor.MemoryBytes] != 12<<20 {
+		request.Need[governor.Reader] != 1 || request.Need[governor.MemoryBytes] != governor.ForegroundReadBytes {
 		return out, ErrInput
 	}
 	query, err := search.PlanQuery(in.Text, in.ShowMore)

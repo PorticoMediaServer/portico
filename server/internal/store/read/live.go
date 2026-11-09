@@ -151,7 +151,7 @@ func (s *foregroundOutput) begin(ctx context.Context, output BrowseOutput, reque
 		return err
 	}
 
-	if request.Need[governor.Reader] != 1 || request.Need[governor.MemoryBytes] != 12<<20 {
+	if request.Need[governor.Reader] != 1 || request.Need[governor.MemoryBytes] != governor.ForegroundReadBytes {
 		return governor.ErrSnapshotBudget
 	}
 

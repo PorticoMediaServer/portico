@@ -123,7 +123,7 @@ func rbHomePrepareBegin(t *testing.T, r *RBHomePrepareReader, f *browseFixture, 
 }
 
 func rbHomePrepareRequest() governor.Request {
-	return governor.Request{Key: governor.JobKey{Domain: 395, ID: "rb-home-prepare-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	return governor.Request{Key: governor.JobKey{Domain: 395, ID: "rb-home-prepare-quantum"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 }
 
 func rbHomePrepareRun(t *testing.T, job *RBHomePreparePreparation) RBHomePrepareAdvance {

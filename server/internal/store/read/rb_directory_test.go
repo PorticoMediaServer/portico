@@ -94,7 +94,7 @@ func newRBDirectoryFixture(t *testing.T) *browseFixture {
 
 func (f *browseFixture) directory(t *testing.T, in RBDirectoryInput) (RBDirectoryPage, BrowseReadResult, error) {
 	t.Helper()
-	request := governor.Request{Key: governor.JobKey{Domain: 95, ID: "directory"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	request := governor.Request{Key: governor.JobKey{Domain: 95, ID: "directory"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 	return f.reader.directoryWindow(t.Context(), request, time.Second, f.output, in)
 }
 
@@ -276,7 +276,7 @@ func TestRBDirectoryPaginationAndScopeDrift(t *testing.T) {
 
 func TestRBDirectoryRefusesAfterCancellation(t *testing.T) {
 	f := newRBDirectoryFixture(t)
-	request := governor.Request{Key: governor.JobKey{Domain: 95, ID: "directory"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	request := governor.Request{Key: governor.JobKey{Domain: 95, ID: "directory"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	page, _, err := f.reader.directoryWindow(ctx, request, time.Second, f.output, RBDirectoryInput{View: f.input})

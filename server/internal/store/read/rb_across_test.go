@@ -20,7 +20,7 @@ func newRBAcrossFixture(t *testing.T) *browseFixture {
 
 func (f *browseFixture) across(t *testing.T, in RBAcrossInput) (RBAcrossPage, BrowseReadResult, error) {
 	t.Helper()
-	request := governor.Request{Key: governor.JobKey{Domain: 96, ID: "across"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	request := governor.Request{Key: governor.JobKey{Domain: 96, ID: "across"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 	return f.reader.acrossWindow(t.Context(), request, time.Second, f.output, in)
 }
 
@@ -364,7 +364,7 @@ func TestRBAcrossRetiredLibraryDrift(t *testing.T) {
 
 func TestRBAcrossRefusesAfterCancellation(t *testing.T) {
 	f := newRBAcrossFixture(t)
-	request := governor.Request{Key: governor.JobKey{Domain: 96, ID: "across"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
+	request := governor.Request{Key: governor.JobKey{Domain: 96, ID: "across"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundReadBytes}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	in := RBAcrossInput{View: f.input, Sort: RBAcrossTitle}

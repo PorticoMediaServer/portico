@@ -82,7 +82,7 @@ func TestOwnerLogicalSiblingReadOracle(t *testing.T) {
 	f := newForegroundSource(t)
 	seedOwnerRelations(t, f)
 	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundRequestBytes}
 	f = composeReadFixture(t, f, FullSearchDefinitions(), gc, true, ownerFixtureHash(t))
 	var candidateRows, sameRow int
 	rows, e := f.conn.QueryContext(t.Context(), `SELECT prefix_tokens,normalized FROM search_fragments WHERE publication_id=1 AND field=4 ORDER BY ordinal`)
@@ -216,7 +216,7 @@ func TestOwnerReverseKeysetTraversal(t *testing.T) {
 	f := newForegroundSource(t)
 	seedOwnerRelations(t, f)
 	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundRequestBytes}
 	f = composeReadFixture(t, f, FullSearchDefinitions(), gc, true, ownerFixtureHash(t))
 	for _, rel := range []ownerRelation{personWorks, artistAlbums, artistSongs, showChildren, authoredMembers} {
 		t.Run(fmt.Sprint(rel), func(t *testing.T) {

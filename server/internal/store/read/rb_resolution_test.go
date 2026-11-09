@@ -40,7 +40,7 @@ func rbResolutionFixtureHash(t *testing.T) string {
 }
 func rbResolutionFixture(t *testing.T, live bool) *browseFixture {
 	cfg := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	cfg.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	cfg.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: governor.ForegroundRequestBytes}
 	if live {
 		cfg = readfixture.LiveConfig(time.Now)
 	}
