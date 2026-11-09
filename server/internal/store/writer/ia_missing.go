@@ -137,7 +137,7 @@ func validateIAMissingOriginal(id CommandIdentity, r iaMissingRequest) error {
 	}
 	if !inventoryPath(d.relativePath, true) || !iaMissingText(d.identity, iaMissingMaxKeyBytes) ||
 		!iaMissingText(d.revision, iaMissingMaxKeyBytes) || !iaMissingTextAllowEmpty(d.cursor, iaMissingMaxKeyBytes) ||
-		d.state != "done" || d.pages < 0 || d.skipped < 0 || d.skipped > d.pages {
+		d.state != "done" || d.skipped != 0 || d.pages < 0 {
 		return invalid("ia_missing_directory")
 	}
 	if !iaMissingTextAllowEmpty(r.beforeKey, iaMissingMaxKeyBytes) {
@@ -340,6 +340,12 @@ func applyIAMissing(ctx context.Context, turn *commandTurn, authority *iaEntryAu
 	if err != nil {
 		return out, err
 	}
+	// The absence proof must still hold in the mark transaction itself. A skip
+	// that appeared after preparation, seal or receipt read blocks every new
+	// missing effect; the window bytes above are never written on their own.
+	if err = iaMissingCheckSkipped(ctx, turn, r); err != nil {
+		return out, err
+	}
 	// The seal, coverage and frontier reads are current-authority evidence too: a
 	// same-turn revocation observed there still precedes every write.
 	if err = authority.recheck(ctx, turn); err != nil {
@@ -372,8 +378,9 @@ func applyIAMissing(ctx context.Context, turn *commandTurn, authority *iaEntryAu
 }
 
 // The exact directory seal is the CAS: identity, revision, cursor, state and the
-// page/skip counters must all still equal the prepared observation. A changed
-// directory is unstable, never an empty or absent subtree.
+// page/skip counters must all still equal the prepared observation, and a done row
+// alone never proves absence: skips at the selected directory refuse the window. A
+// changed directory is unstable, never an empty or absent subtree.
 func iaMissingCheckSeal(ctx context.Context, turn *commandTurn, r iaMissingRequest) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	row, err := wc008DraftQuery(ctx, turn, iaMissingSealRow, r.scope.runID, r.directory.relativePath)
@@ -388,7 +395,7 @@ func iaMissingCheckSeal(ctx context.Context, turn *commandTurn, r iaMissingReque
 	if err != nil {
 		return errors.Join(ErrConflict, err)
 	}
-	if got != r.directory || got.state != "done" {
+	if got != r.directory || got.state != "done" || got.skipped != 0 {
 		return ErrConflict
 	}
 	return nil
@@ -459,6 +466,27 @@ func iaMissingExists(ctx context.Context, turn *commandTurn, id stmt.ID, args ..
 	return found, errors.Join(rows.Err(), rows.Close())
 }
 
+// iaMissingSkippedUnavailable mirrors the coverage hold: the veto statement forces
+// inventory_directories_skipped, which the embedded schema does not create. Until
+// INT admits the index a prepare failure is a typed hold, never a marked window.
+var iaMissingSkippedUnavailable = errors.New("ia missing: bounded skipped-directory access not admitted")
+
+// The zero-skip proof is consumed natively in this same turn, immediately before
+// the run CAS and the first mark CAS. A skipped descendant anywhere under the
+// verified directory blocks every new missing effect, even when the earlier
+// coverage read was clean.
+func iaMissingCheckSkipped(ctx context.Context, turn *commandTurn, r iaMissingRequest) error {
+	low, high := iaMissingBounds(r.directory.relativePath)
+	found, err := iaMissingExists(ctx, turn, iaMissingSkipped, r.scope.runID, low, high)
+	if err != nil {
+		return errors.Join(ErrResolveRequired, iaMissingSkippedUnavailable, err)
+	}
+	if found {
+		return ErrConflict
+	}
+	return nil
+}
+
 // Half-open native path bounds select only descendants of exactly this
 // directory. UTF-8 cannot produce 0xff, so the root window stays complete
 // without a LIKE pattern or a temporary sort.
@@ -471,9 +499,10 @@ func iaMissingBounds(directory string) (low, high string) {
 
 // The window is the direct children of exactly this verified directory. Objects
 // already seen by this run, already missing, retired or outside the directory
-// are distinct states and are never re-marked. A listing that skipped entries
-// can only confirm an object that was already missing once; it can never create
-// a first absence.
+// are distinct states and are never re-marked. The exact seal and the same-turn
+// skip veto have already proven this directory and its whole subtree were listed
+// without skips, so this observation can prove absence; the observation-count
+// floor is retained as defence in depth and is always zero on an accepted path.
 func iaMissingWindow(ctx context.Context, turn *commandTurn, r iaMissingRequest) (out []iaMissingCandidate, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	skipped := int64(0)

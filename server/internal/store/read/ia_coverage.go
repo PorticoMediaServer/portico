@@ -31,9 +31,10 @@ type IACoverageDirectory struct {
 
 // IACoveragePage couples the admitted source with one exact directory row and the
 // bounded descendant frontier. Pending and Blocked are partial/unreadable
-// evidence; Protected is an unrepresentable refusal. Sealed is true only for a
-// done row with no descendant pending, blocked or protected issue: an empty or
-// incomplete window is never an absence proof.
+// evidence; Protected is an unrepresentable refusal; Skipped is a listing that
+// omitted entries. Sealed is true only for a done row with no descendant pending,
+// blocked, protected or skipped directory: an empty or incomplete window is never
+// an absence proof.
 type IACoveragePage struct {
 	Library    int64
 	LibraryKey string
@@ -43,6 +44,7 @@ type IACoveragePage struct {
 	Pending    bool
 	Blocked    bool
 	Protected  bool
+	Skipped    bool
 	Sealed     bool
 	RawRows    int
 }
@@ -216,7 +218,16 @@ func (r *ForegroundReader) iaCoverageDirectoryState(ctx context.Context, request
 			}
 			*check.set = found
 		}
-		d.Sealed = directory.State == "done" && !d.Pending && !d.Blocked && !d.Protected
+		// The selected directory is checked separately at its exact point; the
+		// bounded subtree window excludes it for non-root paths.
+		skippedSubtree, e := s.exists("skipped", in.Run, low, high)
+		if e != nil {
+			return e
+		}
+		d.Skipped = directory.Skipped != 0 || skippedSubtree
+		// A done row alone never proves absence. Any skip in the exact directory or
+		// its sealed subtree is incomplete coverage, so it can never seal.
+		d.Sealed = directory.State == "done" && !d.Pending && !d.Blocked && !d.Protected && !d.Skipped
 		return ctx.Err()
 	}}
 	page, result, e := publishRead(ctx, s, request, budget, output, in.View, steps, root)
@@ -277,6 +288,7 @@ const iaCoverageDirectoryOctetsSQL = `SELECT octet_length(relative_path),octet_l
 const iaCoveragePendingSQL = `SELECT 1 FROM inventory_directories INDEXED BY inventory_directories_pending WHERE job_id=? AND state='pending' AND relative_path>=? AND relative_path<? LIMIT 1`
 const iaCoverageBlockedSQL = `SELECT 1 FROM inventory_directories INDEXED BY inventory_directories_pending WHERE job_id=? AND state='blocked' AND relative_path>=? AND relative_path<? LIMIT 1`
 const iaCoverageProtectedSQL = `SELECT 1 FROM inventory_scan_issues INDEXED BY inventory_scan_issues_protected WHERE job_id=? AND protect=1 AND relative_path>=? AND relative_path<? LIMIT 1`
+const iaCoverageSkippedSQL = `SELECT 1 FROM inventory_directories INDEXED BY inventory_directories_skipped WHERE job_id=? AND skipped>0 AND relative_path>=? AND relative_path<? LIMIT 1`
 
 // IACoverageHarnessDefinitions is inert harness composition, not registration or
 // authorization. Capture these exact definitions on the actual reader first.
@@ -293,6 +305,7 @@ func IACoverageHarnessDefinitions() []stmt.Definition {
 	directoryPlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_inventory_directories_1"}, Seeks: []string{"job_id=? AND relative_path=?"}}
 	pendingPlan := stmt.Plan{Hot: true, Indexes: []string{"inventory_directories_pending"}, Seeks: []string{"job_id=? AND state=? AND relative_path>? AND relative_path<?"}}
 	protectedPlan := stmt.Plan{Hot: true, Indexes: []string{"inventory_scan_issues_protected"}, Seeks: []string{"job_id=? AND relative_path>? AND relative_path<?"}}
+	skippedPlan := stmt.Plan{Hot: true, Indexes: []string{"inventory_directories_skipped"}, Seeks: []string{"job_id=? AND relative_path>? AND relative_path<?"}}
 	return []stmt.Definition{
 		add("library_octets", iaCoverageLibraryOctetsSQL, []stmt.Param{i("library")}, []any{int64(1)}, []any{int64(9999999)}, libraryPlan),
 		add("library", iaCoverageLibrarySQL, []stmt.Param{i("library")}, []any{int64(1)}, []any{int64(9999999)}, libraryPlan),
@@ -303,5 +316,6 @@ func IACoverageHarnessDefinitions() []stmt.Definition {
 		add("pending", iaCoveragePendingSQL, []stmt.Param{s("run"), s("low"), s("high")}, []any{"run-1", "Coverage/", "Coverage0"}, []any{"run-1", "Root/", "Root0"}, pendingPlan),
 		add("blocked", iaCoverageBlockedSQL, []stmt.Param{s("run"), s("low"), s("high")}, []any{"run-1", "Coverage/", "Coverage0"}, []any{"run-1", "Root/", "Root0"}, pendingPlan),
 		add("protected", iaCoverageProtectedSQL, []stmt.Param{s("run"), s("low"), s("high")}, []any{"run-1", "Coverage/", "Coverage0"}, []any{"run-1", "Root/", "Root0"}, protectedPlan),
+		add("skipped", iaCoverageSkippedSQL, []stmt.Param{s("run"), s("low"), s("high")}, []any{"run-1", "Coverage/", "Coverage0"}, []any{"run-1", "Root/", "Root0"}, skippedPlan),
 	}
 }

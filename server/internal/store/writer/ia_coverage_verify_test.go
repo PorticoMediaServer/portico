@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -43,16 +44,29 @@ func TestIACoverageVerifyDescriptor(t *testing.T) {
 
 // One private W frame, the frozen clock and the exact group C draft subset. The
 // fixture seeds only a prepared source/run and sealed directories; it is not a
-// qualified population, admission profile or product wiring.
+// qualified population, admission profile or product wiring. The skip-veto index
+// overlay is test-only: with skippedIndex false the family runs on the same draft
+// without the bounded access and must fail closed.
 func iaCoverageVerifyFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof) {
 	t.Helper()
+	return iaCoverageVerifyFixtureOverlay(t, true)
+}
+
+func iaCoverageVerifyFixtureOverlay(t *testing.T, skippedIndex bool) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof) {
+	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-coverage-verify-draft.sql")
-	if err != nil {
-		t.Fatal(err)
+	ddlFiles := []string{"testdata/ia-coverage-verify-draft.sql"}
+	if skippedIndex {
+		ddlFiles = append(ddlFiles, "testdata/ia-skipped-directory-index-draft.sql")
 	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
+	for _, name := range ddlFiles {
+		ddl, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
+			t.Fatal(name, err)
+		}
 	}
 	for _, query := range []struct {
 		sql  string
@@ -70,7 +84,7 @@ func iaCoverageVerifyFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwne
 		{`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('coverage-run','Coverage/Sub','coverage-sub-directory-identity','coverage-sub-directory-revision','7','done',1,0)`, nil},
 		{`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('coverage-run','Coverage/Empty','coverage-empty-directory-identity','coverage-empty-directory-revision','empty-cursor','done',1,0)`, nil},
 	} {
-		if _, err = w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
+		if _, err := w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
 			t.Fatal(query.sql, err)
 		}
 	}
@@ -361,6 +375,117 @@ func TestIACoverageVerifySubtreeScoping(t *testing.T) {
 		t.Fatal("sibling frontier blocked coverage", out, err)
 	}
 	turn.transaction.rollback(nil)
+}
+
+// The skip veto is a native subtree point, not an EOF inference: a skip on the
+// selected directory, the root or any descendant refuses coverage, while a skip in
+// a sibling prefix, outside the subtree or under another job never blocks it.
+func TestIACoverageVerifySkippedSubtreeVeto(t *testing.T) {
+	seedDir := func(t *testing.T, w *executor, job, relativePath string, skipped int64) {
+		t.Helper()
+		wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES(?,?,?,?,?,'done',?,?)`,
+			job, relativePath, relativePath+"-identity", relativePath+"-revision", "1", skipped, skipped)
+	}
+	root := func(skipped int64) iaCoverageWitness {
+		return iaCoverageWitness{relativePath: ".", identity: "coverage-root-directory-identity",
+			revision: "coverage-root-directory-revision", cursor: "1", state: "done", pages: 1, skipped: skipped}
+	}
+	ptr := func(w iaCoverageWitness) *iaCoverageWitness { return &w }
+	for name, tc := range map[string]struct {
+		directory *iaCoverageWitness
+		seed      func(*testing.T, *executor)
+		fresh     bool
+	}{
+		"selected_native_skip": {seed: func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE inventory_directories SET skipped=1 WHERE job_id='coverage-run' AND relative_path='Coverage'`)
+		}},
+		"root_selected_skip": {
+			directory: ptr(root(0)),
+			seed: func(t *testing.T, w *executor) {
+				wc008NativeExec(t, w, `UPDATE inventory_directories SET skipped=1 WHERE job_id='coverage-run' AND relative_path='.'`)
+			}},
+		"first_descendant_skip": {seed: func(t *testing.T, w *executor) { seedDir(t, w, "coverage-run", "Coverage/000", 1) }},
+		"end_descendant_skip":   {seed: func(t *testing.T, w *executor) { seedDir(t, w, "coverage-run", "Coverage/zzz", 1) }},
+		"deep_descendant_skip":  {seed: func(t *testing.T, w *executor) { seedDir(t, w, "coverage-run", "Coverage/Sub/Deep/Leaf", 1) }},
+		"root_clean_deep_skip": {directory: ptr(root(0)),
+			seed: func(t *testing.T, w *executor) { seedDir(t, w, "coverage-run", "Coverage/Sub/Deep", 1) }},
+		"sibling_prefix_skip": {fresh: true, seed: func(t *testing.T, w *executor) {
+			seedDir(t, w, "coverage-run", "CoverageTwo", 1)
+			seedDir(t, w, "coverage-run", "Coverages", 1)
+		}},
+		"out_of_subtree_skip": {fresh: true, seed: func(t *testing.T, w *executor) { seedDir(t, w, "coverage-run", "Other/Skip", 1) }},
+		"other_job_skip": {fresh: true, seed: func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `INSERT INTO jobs(id,library_id,status,processed,created_at) VALUES('coverage-other','coverage-library','running',0,'')`)
+			seedDir(t, w, "coverage-other", "Coverage/Skipped", 1)
+		}},
+		"large_clean_subtree": {fresh: true, seed: func(t *testing.T, w *executor) {
+			for i := 0; i < 64; i++ {
+				seedDir(t, w, "coverage-run", "Coverage/Bulk/"+strconv.Itoa(i), 0)
+			}
+		}},
+		"zero_skip_empty_subtree": {fresh: true, directory: &iaCoverageWitness{relativePath: iaCoverageTestEmptyDirectory,
+			identity: "coverage-empty-directory-identity", revision: "coverage-empty-directory-revision",
+			cursor: iaCoverageTestEmptyCursor, state: "done", pages: 1}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, reg, p := iaCoverageVerifyFixture(t)
+			q := iaCoverageAcceptRequest(w)
+			if tc.directory != nil {
+				q.directory = *tc.directory
+				if q.directory.relativePath == iaCoverageTestEmptyDirectory {
+					q.raw, q.filtered, q.accepted = 0, 0, 0
+				}
+			}
+			if tc.seed != nil {
+				tc.seed(t, w)
+			}
+			ref := iaCoverageAcceptReference(t, q, 2, 2)
+			turn, out, err := iaCoverageAcceptRun(t, w, reg, p, q, ref)
+			if tc.fresh {
+				if err != nil || out.decision != receiptFresh {
+					t.Fatal("skip-free subtree refused", out, err)
+				}
+				turn.transaction.rollback(nil)
+				return
+			}
+			if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) ||
+				len(out.result.facts.directory) != 0 {
+				t.Fatal("skip authorized absence", out, err)
+			}
+			turn.transaction.rollback(nil)
+			iaCoverageNoEffects(t, w)
+		})
+	}
+	// A prepared witness that already carries a skip is not a valid absence proof,
+	// at the selected directory or at the root.
+	for name, directory := range map[string]iaCoverageWitness{
+		"prepared_selected_skip": {relativePath: "Coverage", identity: iaCoverageTestIdentity,
+			revision: iaCoverageTestRevision, cursor: iaCoverageTestCursor, state: "done", pages: 1, skipped: 1},
+		"prepared_root_skip": root(1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			q := iaCoverageVerifyRequest{directory: directory}
+			if _, err := newIACoverageVerifyCommand(CommandIdentity{Incarnation: [16]byte{1}, Sequence: 2, OperationID: [16]byte{2}}, q); !errors.Is(err, ErrInvalid) {
+				t.Fatal("prepared skip accepted", err)
+			}
+		})
+	}
+}
+
+// Absence verification fails closed when the bounded skipped-directory access
+// cannot be prepared: the same draft without the test-only index yields a typed
+// hold with zero effects, never a successful empty window and never a raw crash.
+func TestIACoverageVerifySkippedAccessUnavailableHolds(t *testing.T) {
+	w, reg, p := iaCoverageVerifyFixtureOverlay(t, false)
+	q := iaCoverageAcceptRequest(w)
+	ref := iaCoverageAcceptReference(t, q, 2, 2)
+	turn, out, err := iaCoverageAcceptRun(t, w, reg, p, q, ref)
+	if !errors.Is(err, ErrResolveRequired) || !errors.Is(err, iaCoverageSkippedUnavailable) ||
+		out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.directory) != 0 {
+		t.Fatal("missing bounded access did not hold", out, err)
+	}
+	turn.transaction.rollback(nil)
+	iaCoverageNoEffects(t, w)
 }
 
 // Current authority precedes every retained read: a forged issuer, a demoted

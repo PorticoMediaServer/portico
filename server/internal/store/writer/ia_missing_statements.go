@@ -19,6 +19,7 @@ const (
 	iaMissingPending        stmt.ID = "ia.missing.pending"
 	iaMissingBlocked        stmt.ID = "ia.missing.blocked"
 	iaMissingProtected      stmt.ID = "ia.missing.protected"
+	iaMissingSkipped        stmt.ID = "ia.missing.skipped"
 	iaMissingWindowStmt     stmt.ID = "ia.missing.window"
 	iaMissingMark           stmt.ID = "ia.missing.mark"
 	iaMissingRunCAS         stmt.ID = "ia.missing.run_cas"
@@ -124,6 +125,17 @@ WHERE job_id=? AND protect=1 AND relative_path>=? AND relative_path<? LIMIT 1`,
 				{Name: "refused_subtree", Bindings: []any{"missing-run", "Missing/", "Missing0"}},
 				{Name: "clean_subtree", Bindings: []any{"missing-run", "Root/", "Root0"}},
 			}},
+		// A skip anywhere in the verified subtree can never authorize absence. This
+		// point is re-read in the mark transaction immediately before the first
+		// missing effect, so a late skip still blocks new marks.
+		{ID: iaMissingSkipped, Kind: stmt.Read,
+			SQL: `SELECT 1 FROM inventory_directories INDEXED BY inventory_directories_skipped
+WHERE job_id=? AND skipped>0 AND relative_path>=? AND relative_path<? LIMIT 1`,
+			Params: subtree,
+			Cohorts: []stmt.Cohort{
+				{Name: "skipped_subtree", Bindings: []any{"missing-run", "Missing/", "Missing0"}},
+				{Name: "clean_subtree", Bindings: []any{"missing-run", "Root/", "Root0"}},
+			}},
 		{ID: iaMissingWindowStmt, Kind: stmt.Read,
 			SQL: `SELECT id,asset_id,revision,relative_path,missing_since,missing_observations,last_missing_job
 FROM inventory_objects INDEXED BY inventory_objects_directory
@@ -221,6 +233,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Seeks = []string{"job_id=? AND state=? AND relative_path>? AND relative_path<?"}
 		case iaMissingProtected:
 			defs[n].Plan.Indexes = []string{"inventory_scan_issues_protected"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>? AND relative_path<?"}
+		case iaMissingSkipped:
+			defs[n].Plan.Indexes = []string{"inventory_directories_skipped"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>? AND relative_path<?"}
 		case iaMissingWindowStmt:
 			defs[n].Plan.Indexes = []string{"inventory_objects_directory"}

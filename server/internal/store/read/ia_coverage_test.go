@@ -2,27 +2,20 @@ package read
 
 import (
 	"context"
-	"crypto/sha256"
-	_ "embed"
-	"encoding/hex"
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
-
-//go:embed ia_coverage_test.go
-var iaCoverageJournal string
-
-func iaCoverageHash(t *testing.T) string {
-	h := sha256.Sum256([]byte(readfixture.ForegroundHash(t) + iaCoverageJournal))
-	return hex.EncodeToString(h[:])
-}
 
 // newIACoverageSource seeds one configured source plus sealed and frontier
 // directories for one run. Coverage is preparation evidence only: the writer
@@ -43,10 +36,52 @@ func newIACoverageSource(t *testing.T) *browseFixture {
 	return f
 }
 
+// The skip veto forces a test-only partial index that INT has not admitted, so
+// plan.Capture cannot mint a receipt here: the index is undeclared policy. The
+// functional custody is composed over the deliberately unqualified fault registry
+// and the plan test below EXPLAINs every definition on the same draft. No Capture
+// golden is recorded; a Capture on the adopted schema is a later gate.
+func composeIACoverageFixture(t *testing.T, f *browseFixture, definitions []stmt.Definition, gc governor.Config) *browseFixture {
+	t.Helper()
+	registry, err := stmttest.New(t, definitions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := browseReaderConfig()
+	connector, err := sqliteconn.Connector(f.path, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, a, err := governor.New(gc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.governor, f.authority = g, a
+	f.snapshots, err = governor.NewSnapshots(connector, reader, g, a, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := f.snapshots.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	f.reader, err = NewBrowseReader(f.snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
 func newIACoverageFixture(t *testing.T) (*browseFixture, *ForegroundReader) {
 	t.Helper()
 	f := newIACoverageSource(t)
-	f = composeReadFixture(t, f, append(browseDefinitions(), IACoverageHarnessDefinitions()...), readfixture.LiveConfig(time.Now), false, iaCoverageHash(t))
+	ddl, err := os.ReadFile("testdata/ia-coverage-skipped-index-draft.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.exec(t, string(ddl))
+	f = composeIACoverageFixture(t, f, append(browseDefinitions(), IACoverageHarnessDefinitions()...), readfixture.LiveConfig(time.Now))
 	r, e := NewForegroundReader(f.snapshots)
 	if e != nil {
 		t.Fatal(e)
@@ -134,6 +169,56 @@ func TestIACoverageDirectoryStateSubtreeRefusals(t *testing.T) {
 	})
 }
 
+// A done row alone never proves absence: a skip at the selected directory, the
+// root or any descendant keeps the subtree unsealed, while skips outside the exact
+// half-open bound never leak in.
+func TestIACoverageDirectoryStateSkipVeto(t *testing.T) {
+	t.Run("selected_skip", func(t *testing.T) {
+		f, r := newIACoverageFixture(t)
+		f.exec(t, `UPDATE inventory_directories SET skipped=1 WHERE job_id='run-1' AND relative_path='Clean'`)
+		page, _, e := iaCoverageRead(t, f, r, iaCoverageInput(f))
+		if e != nil || !page.Skipped || page.Sealed || page.Directory.Skipped != 1 {
+			t.Fatalf("selected skip sealed=%+v err=%v", page, e)
+		}
+	})
+	t.Run("root_skip", func(t *testing.T) {
+		f, r := newIACoverageFixture(t)
+		f.exec(t, `UPDATE inventory_directories SET skipped=1 WHERE job_id='run-1' AND relative_path='.'`)
+		in := iaCoverageInput(f)
+		in.Directory = "."
+		page, _, e := iaCoverageRead(t, f, r, in)
+		if e != nil || !page.Skipped || page.Sealed {
+			t.Fatalf("root skip sealed=%+v err=%v", page, e)
+		}
+	})
+	t.Run("deep_descendant_skip", func(t *testing.T) {
+		f, r := newIACoverageFixture(t)
+		f.exec(t, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('run-1','Clean/Sub/Deep','deep-identity','deep-revision','1','done',1,1)`)
+		page, _, e := iaCoverageRead(t, f, r, iaCoverageInput(f))
+		if e != nil || !page.Skipped || page.Sealed {
+			t.Fatalf("deep skip sealed=%+v err=%v", page, e)
+		}
+	})
+	t.Run("out_of_subtree_skip", func(t *testing.T) {
+		f, r := newIACoverageFixture(t)
+		f.exec(t, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('run-1','CleanTwo','two-identity','two-revision','1','done',1,1)`)
+		f.exec(t, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('run-1','Other','other-identity','other-revision','1','done',1,1)`)
+		page, _, e := iaCoverageRead(t, f, r, iaCoverageInput(f))
+		if e != nil || page.Skipped || !page.Sealed {
+			t.Fatalf("sibling skip leaked=%+v err=%v", page, e)
+		}
+	})
+	t.Run("zero_skip_empty_subtree", func(t *testing.T) {
+		f, r := newIACoverageFixture(t)
+		in := iaCoverageInput(f)
+		in.Directory = "Clean/Sub"
+		page, _, e := iaCoverageRead(t, f, r, in)
+		if e != nil || page.Skipped || !page.Sealed || len(page.Directory.Path) == 0 {
+			t.Fatalf("clean empty subtree sealed=%+v err=%v", page, e)
+		}
+	})
+}
+
 // A foreign library, a foreign source and a missing directory are denied before
 // any frontier is published.
 func TestIACoverageDirectoryStateDenials(t *testing.T) {
@@ -175,13 +260,14 @@ func TestIACoverageDirectoryStateCustodyAndInput(t *testing.T) {
 }
 
 // Every preparation statement is a closed read on the embedded inventory
-// relations with an indexed SEARCH. The group C receipt table is not touched, so
-// a Capture golden can be recorded after this commit against the embedded
-// reader; none is invented here.
+// relations with an indexed SEARCH. The skipped-directory veto forces the
+// test-only draft index (testdata/ia-coverage-skipped-index-draft.sql), which INT
+// has not admitted, so this stays EXPLAIN-only on that draft fixture: no Capture
+// golden is recorded and the group C receipt table is not touched.
 func TestIACoverageDirectoryPlans(t *testing.T) {
 	f, _ := newIACoverageFixture(t)
 	defs := IACoverageHarnessDefinitions()
-	if len(defs) != 9 {
+	if len(defs) != 10 {
 		t.Fatal("coverage read family inventory changed", len(defs))
 	}
 	for _, d := range defs {
@@ -194,6 +280,7 @@ func TestIACoverageDirectoryPlans(t *testing.T) {
 				t.Fatal(d.ID, cohort.Name, err)
 			}
 			searched := false
+			var details []string
 			for rows.Next() {
 				var id, parent, unused int
 				var detail string
@@ -201,6 +288,7 @@ func TestIACoverageDirectoryPlans(t *testing.T) {
 					rows.Close()
 					t.Fatal(err)
 				}
+				details = append(details, detail)
 				if strings.Contains(detail, "TEMP B-TREE") || strings.Contains(detail, "SCAN ") && !strings.HasPrefix(detail, "SCAN CONSTANT") {
 					rows.Close()
 					t.Fatal(d.ID, cohort.Name, detail)
@@ -217,7 +305,13 @@ func TestIACoverageDirectoryPlans(t *testing.T) {
 			if !searched {
 				t.Fatal(d.ID, cohort.Name, "read has no indexed SEARCH")
 			}
+			if d.ID == readStatementID("foreground.ia.coverage.skipped") {
+				want := "SEARCH inventory_directories USING INDEX inventory_directories_skipped (job_id=? AND relative_path>? AND relative_path<?)"
+				if len(details) != 1 || details[0] != want {
+					t.Fatal(d.ID, cohort.Name, details, want)
+				}
+			}
 		}
 	}
-	t.Logf("%d coverage directory statements EXPLAINed on the embedded schema; Capture golden deferred", len(defs))
+	t.Logf("%d coverage directory statements EXPLAINed on the group C draft; Capture golden deferred to index adoption", len(defs))
 }

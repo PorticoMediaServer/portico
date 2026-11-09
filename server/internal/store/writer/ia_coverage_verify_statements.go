@@ -16,6 +16,7 @@ const (
 	iaCoveragePending       stmt.ID = "ia.coverage.pending"
 	iaCoverageBlocked       stmt.ID = "ia.coverage.blocked"
 	iaCoverageProtected     stmt.ID = "ia.coverage.protected"
+	iaCoverageSkipped       stmt.ID = "ia.coverage.skipped"
 	iaCoverageRunCAS        stmt.ID = "ia.coverage.run_cas"
 	iaCoverageReceiptInsert stmt.ID = "ia.coverage.receipt_insert"
 )
@@ -97,6 +98,17 @@ WHERE job_id=? AND protect=1 AND relative_path>=? AND relative_path<? LIMIT 1`,
 				{Name: "refused_subtree", Bindings: []any{"coverage-run", "Coverage/", "Coverage0"}},
 				{Name: "clean_subtree", Bindings: []any{"coverage-run", "Root/", "Root0"}},
 			}},
+		// Absence fails closed unless the whole sealed subtree is skip-free. The
+		// statement forces the bounded INT-requested index; on a schema without it
+		// preparation fails and the caller holds instead of accepting coverage.
+		{ID: iaCoverageSkipped, Kind: stmt.Read,
+			SQL: `SELECT 1 FROM inventory_directories INDEXED BY inventory_directories_skipped
+WHERE job_id=? AND skipped>0 AND relative_path>=? AND relative_path<? LIMIT 1`,
+			Params: subtree,
+			Cohorts: []stmt.Cohort{
+				{Name: "skipped_subtree", Bindings: []any{"coverage-run", "Coverage/", "Coverage0"}},
+				{Name: "clean_subtree", Bindings: []any{"coverage-run", "Root/", "Root0"}},
+			}},
 		{ID: iaCoverageRunCAS, Kind: stmt.Write,
 			SQL: `UPDATE inventory_runs SET job_revision=?,last_command_sequence=?,phase='reconciling'
 WHERE job_id=? AND command_incarnation=? AND original_library_id=? AND original_library_key=? AND original_resolved_root=? AND original_follow_symlinks=?
@@ -159,6 +171,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Seeks = []string{"job_id=? AND state=? AND relative_path>? AND relative_path<?"}
 		case iaCoverageProtected:
 			defs[n].Plan.Indexes = []string{"inventory_scan_issues_protected"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>? AND relative_path<?"}
+		case iaCoverageSkipped:
+			defs[n].Plan.Indexes = []string{"inventory_directories_skipped"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>? AND relative_path<?"}
 		case iaCoverageRunCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}

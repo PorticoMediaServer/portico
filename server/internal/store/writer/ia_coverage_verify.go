@@ -28,6 +28,13 @@ const (
 // with the exact resolved pin set; no provider or pin SQL is invented here.
 var iaCoveragePinsUnresolved = errors.New("ia coverage: MP-10 source pins unresolved")
 
+// iaCoverageSkippedUnavailable is the named fail-closed seam for the bounded
+// skipped-directory proof. The veto statement forces inventory_directories_skipped,
+// which the embedded schema does not create. Until INT admits that index a prepare
+// failure is a typed hold for absence verification, never success and never a raw
+// crash.
+var iaCoverageSkippedUnavailable = errors.New("ia coverage: bounded skipped-directory access not admitted")
+
 // IA-18 verifies one complete sealed directory subtree before any reconciliation
 // may infer absence. Its private outcome and history carry the exact typed result;
 // no public facade, worker or producer is wired, so the accepting body stays
@@ -143,7 +150,7 @@ func validateIACoverageOriginal(id CommandIdentity, r iaCoverageVerifyRequest) e
 	}
 	if !inventoryPath(d.relativePath, true) || !iaCoverageText(d.identity, iaCoverageMaxKeyBytes) ||
 		!iaCoverageText(d.revision, iaCoverageMaxKeyBytes) || !iaCoverageTextAllowEmpty(d.cursor, iaCoverageMaxKeyBytes) ||
-		d.state != "done" || d.pages < 0 || d.skipped < 0 {
+		d.state != "done" || d.skipped != 0 || d.pages < 0 {
 		return invalid("ia_coverage_directory")
 	}
 	if r.raw < 0 || r.filtered < 0 || r.accepted < 0 || r.refused < 0 ||
@@ -349,6 +356,9 @@ func applyIACoverageVerify(ctx context.Context, turn *commandTurn, authority *ia
 	if err = iaCoverageCheckFrontier(ctx, turn, r); err != nil {
 		return out, err
 	}
+	if err = iaCoverageCheckSkipped(ctx, turn, r); err != nil {
+		return out, err
+	}
 	// The reads above are current-authority evidence too: a same-turn revocation
 	// observed there still precedes every write.
 	if err = authority.recheck(ctx, turn); err != nil {
@@ -380,8 +390,9 @@ func applyIACoverageVerify(ctx context.Context, turn *commandTurn, authority *ia
 }
 
 // The exact directory seal is the CAS: identity, revision, cursor, state and the
-// page/skip counters must all still equal the prepared observation. A changed
-// directory is unstable, never an empty or absent subtree.
+// page/skip counters must all still equal the prepared observation, and a done row
+// alone never proves absence: skips at the selected directory refuse coverage. A
+// changed directory is unstable, never an empty or absent subtree.
 func iaCoverageCheckSeal(ctx context.Context, turn *commandTurn, r iaCoverageVerifyRequest) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	row, err := wc008DraftQuery(ctx, turn, iaCoverageSeal, r.scope.runID, r.directory.relativePath)
@@ -396,7 +407,7 @@ func iaCoverageCheckSeal(ctx context.Context, turn *commandTurn, r iaCoverageVer
 	if err != nil {
 		return errors.Join(ErrConflict, err)
 	}
-	if got != r.directory || got.state != "done" {
+	if got != r.directory || got.state != "done" || got.skipped != 0 {
 		return ErrConflict
 	}
 	return nil
@@ -433,6 +444,23 @@ func iaCoverageExists(ctx context.Context, turn *commandTurn, id stmt.ID, args .
 	}
 	found = rows.Next()
 	return found, errors.Join(rows.Err(), rows.Close())
+}
+
+// The skipped-directory veto is a native bounded existence point over exactly this
+// directory's sealed subtree. Skips may still confirm a positive observed file,
+// but they can never authorize absence, so any skip refuses coverage. The statement
+// forces the INT-requested index; a schema that cannot prepare it is a typed hold,
+// not a successful empty window.
+func iaCoverageCheckSkipped(ctx context.Context, turn *commandTurn, r iaCoverageVerifyRequest) error {
+	low, high := iaCoverageBounds(r.directory.relativePath)
+	found, err := iaCoverageExists(ctx, turn, iaCoverageSkipped, r.scope.runID, low, high)
+	if err != nil {
+		return errors.Join(ErrResolveRequired, iaCoverageSkippedUnavailable, err)
+	}
+	if found {
+		return ErrConflict
+	}
+	return nil
 }
 
 // Half-open native path bounds select only descendants of exactly this

@@ -2,6 +2,7 @@ package writer
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"os"
 	"strings"
@@ -34,16 +35,28 @@ const (
 // One private W frame, the frozen clock and the exact group C draft subset. The
 // fixture seeds only prepared sources/runs, sealed directories and retained
 // objects; it is not a qualified population, admission profile or product
-// wiring.
+// wiring. The skip-veto index overlay is test-only: with skippedIndex false the
+// mark path runs without the bounded access and must fail closed.
 func iaMissingFinishFixture(t *testing.T) (*executor, *checkpointComponent, *usOwnerAuthorityProof) {
 	t.Helper()
+	return iaMissingFinishFixtureOverlay(t, true)
+}
+
+func iaMissingFinishFixtureOverlay(t *testing.T, skippedIndex bool) (*executor, *checkpointComponent, *usOwnerAuthorityProof) {
+	t.Helper()
 	w, keeper, proof := iaEntrySecurityFixture(t)
-	ddl, err := os.ReadFile("testdata/ia-missing-finish-draft.sql")
-	if err != nil {
-		t.Fatal(err)
+	ddlFiles := []string{"testdata/ia-missing-finish-draft.sql"}
+	if skippedIndex {
+		ddlFiles = append(ddlFiles, "testdata/ia-skipped-directory-index-draft.sql")
 	}
-	if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
-		t.Fatal(err)
+	for _, name := range ddlFiles {
+		ddl, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = w.db.ExecContext(t.Context(), string(ddl)); err != nil {
+			t.Fatal(name, err)
+		}
 	}
 	expiry := w.now().Add(time.Hour).UnixMilli()
 	inc := iaEpisodeBytes(1)
@@ -69,7 +82,6 @@ func iaMissingFinishFixture(t *testing.T) (*executor, *checkpointComponent, *usO
 		{`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('missing-run','Missing',? ,?,'42','done',1,0)`, []any{iaMissingTestIdentity, iaMissingTestRevision}},
 		{`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('missing-run','Missing/Sub','missing-sub-directory-identity','missing-sub-directory-revision','7','done',1,0)`, nil},
 		{`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('missing-run','Missing/Empty','missing-empty-identity','missing-empty-revision','empty-cursor','done',1,0)`, nil},
-		{`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('missing-run','Missing/Skipped','missing-skipped-identity','missing-skipped-revision','skipped-cursor','done',1,1)`, nil},
 		{`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('finish-run','.','finish-root-directory-identity','finish-root-directory-revision','1','done',1,0)`, nil},
 		{`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('finish-run','Finish','finish-directory-identity','finish-directory-revision','9','done',1,0)`, nil},
 		{`INSERT INTO scan_command_receipts(run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,source_id,source_incarnation,next_cursor,result_count,result_digest,ia_before_key,ia_after_key,ia_phase,ia_authoritative,ia_processed,ia_analyzed,ia_warnings,ia_finished_ms,ia_source_health,ia_verified_directory,ia_verified_identity,ia_verified_revision) VALUES('missing-run',?,1,?,?,'inventory_verify',4,1,'missing-source','missing-incarnation','',0,?,'Missing/Empty','Missing/Empty','reconciling',0,0,0,0,0,'ready','Missing/Empty',?,?)`,
@@ -97,7 +109,7 @@ func iaMissingFinishFixture(t *testing.T) (*executor, *checkpointComponent, *usO
 		{`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns,seen_job,directory_path,state) VALUES('object:finish:1','finish-source','finish-asset-1','finish-incarnation','Finish/One.mkv','ino:51','object-revision:1','{}',42,7,'finish-run','Finish','available')`, nil},
 		{`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns,seen_job,directory_path,state) VALUES('object:finish:2','finish-source','finish-asset-2','finish-incarnation','Finish/Two.mkv','ino:52','object-revision:1','{}',42,7,'finish-run','Finish','available')`, nil},
 	} {
-		if _, err = w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
+		if _, err := w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
 			t.Fatal(query.sql, err)
 		}
 	}
@@ -423,25 +435,186 @@ func TestIAMissingRefusesUnsafeWindows(t *testing.T) {
 			iaMissingNoEffects(t, w)
 		})
 	}
-	t.Run("skipped_listing_first_absence", func(t *testing.T) {
-		w, keeper, p := iaMissingFinishFixture(t)
-		reg := iaMissingRegistry(t, keeper)
-		wc008NativeExec(t, w, `UPDATE scan_command_receipts SET ia_verified_directory='Missing/Skipped',ia_verified_identity=CAST('missing-skipped-identity' AS BLOB),ia_verified_revision=CAST('missing-skipped-revision' AS BLOB) WHERE command_sequence=1`)
+	t.Run("selected_skip_prepared", func(t *testing.T) {
+		w, _, _ := iaMissingFinishFixture(t)
 		q := iaMissingAcceptRequest(w)
 		q.directory = iaMissingSeal{relativePath: "Missing/Skipped", identity: "missing-skipped-identity", revision: "missing-skipped-revision", cursor: "skipped-cursor", state: "done", pages: 1, skipped: 1}
 		q.coverageSequence = 1
-		ref := iaMissingAcceptReference(t, q, 3, 2)
-		turn, out, err := iaMissingAcceptRun(t, w, reg, p, q, ref)
-		if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 0 {
-			t.Fatal("skipped listing created a first absence", out, err)
-		}
-		if _, err = turn.transaction.commit(); err != nil {
-			t.Fatal(err)
-		}
-		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM inventory_objects WHERE id='object:missing:7' AND state='available'`); got != 1 {
-			t.Fatal("skipped first absence", got)
+		if _, err := newIAMissingCommand(CommandIdentity{Incarnation: [16]byte{1}, Sequence: 3, OperationID: [16]byte{2}}, q); !errors.Is(err, ErrInvalid) {
+			t.Fatal("prepared skip accepted", err)
 		}
 	})
+}
+
+// The skipped-directory veto is re-read natively in the mark transaction: a skip
+// on the selected directory, the root or any descendant blocks new missing effects,
+// while skips outside the exact half-open bound or under another job do not.
+func TestIAMissingSkippedSubtreeVeto(t *testing.T) {
+	seedDir := func(t *testing.T, w *executor, job, relativePath string, skipped int64) {
+		t.Helper()
+		wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES(?,?,?,?,?,'done',?,?)`,
+			job, relativePath, relativePath+"-identity", relativePath+"-revision", "1", skipped, skipped)
+	}
+	rootSeal := func() *iaMissingSeal {
+		return &iaMissingSeal{relativePath: ".", identity: "missing-root-directory-identity",
+			revision: "missing-root-directory-revision", cursor: "1", state: "done", pages: 1}
+	}
+	for name, tc := range map[string]struct {
+		directory  *iaMissingSeal
+		coverage   int64
+		beforeKey  string
+		seed       func(*testing.T, *executor)
+		fresh      bool
+		expectRows int
+	}{
+		"selected_native_skip": {seed: func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE inventory_directories SET skipped=1 WHERE job_id='missing-run' AND relative_path='Missing'`)
+		}},
+		"root_selected_skip": {directory: rootSeal(), seed: func(t *testing.T, w *executor) {
+			wc008NativeExec(t, w, `UPDATE inventory_directories SET skipped=1 WHERE job_id='missing-run' AND relative_path='.'`)
+		}},
+		"first_descendant_skip": {seed: func(t *testing.T, w *executor) { seedDir(t, w, "missing-run", "Missing/000", 1) }},
+		"end_descendant_skip":   {seed: func(t *testing.T, w *executor) { seedDir(t, w, "missing-run", "Missing/zzz", 1) }},
+		"deep_descendant_skip":  {seed: func(t *testing.T, w *executor) { seedDir(t, w, "missing-run", "Missing/Sub/Deep/Leaf", 1) }},
+		"sibling_prefix_skip": {fresh: true, expectRows: 2, seed: func(t *testing.T, w *executor) {
+			seedDir(t, w, "missing-run", "MissingTwo", 1)
+			seedDir(t, w, "missing-run", "Missings", 1)
+		}},
+		"out_of_subtree_skip": {fresh: true, expectRows: 2, seed: func(t *testing.T, w *executor) { seedDir(t, w, "missing-run", "Other/Skip", 1) }},
+		"other_job_skip":      {fresh: true, expectRows: 2, seed: func(t *testing.T, w *executor) { seedDir(t, w, "finish-run", "Finish/Skipped", 1) }},
+		"zero_skip_empty": {fresh: true, expectRows: 0, coverage: 1, beforeKey: "object:missing:0",
+			directory: &iaMissingSeal{relativePath: "Missing/Empty", identity: "missing-empty-identity",
+				revision: "missing-empty-revision", cursor: "empty-cursor", state: "done", pages: 1}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, keeper, p := iaMissingFinishFixture(t)
+			reg := iaMissingRegistry(t, keeper)
+			q := iaMissingAcceptRequest(w)
+			if tc.directory != nil {
+				q.directory = *tc.directory
+				if tc.coverage != 0 {
+					q.coverageSequence = tc.coverage
+				}
+				q.beforeKey = tc.beforeKey
+			}
+			if tc.seed != nil {
+				tc.seed(t, w)
+			}
+			ref := iaMissingAcceptReference(t, q, 3, 2)
+			turn, out, err := iaMissingAcceptRun(t, w, reg, p, q, ref)
+			if tc.fresh {
+				if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != int64(tc.expectRows) ||
+					len(out.result.facts.members) != tc.expectRows {
+					t.Fatal("skip-free window refused", out, err)
+				}
+				turn.transaction.rollback(nil)
+				return
+			}
+			if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.members) != 0 {
+				t.Fatal("skip authorized a missing mark", out, err)
+			}
+			turn.transaction.rollback(nil)
+			iaMissingNoEffects(t, w)
+		})
+	}
+	// A prepared seal that already carries a skip is not a valid absence proof.
+	w, _, _ := iaMissingFinishFixture(t)
+	q := iaMissingAcceptRequest(w)
+	q.directory.skipped = 1
+	if _, err := newIAMissingCommand(CommandIdentity{Incarnation: [16]byte{1}, Sequence: 3, OperationID: [16]byte{2}}, q); !errors.Is(err, ErrInvalid) {
+		t.Fatal("prepared skip accepted", err)
+	}
+}
+
+// A skip that appears after preparation, seal and coverage but before the mark is
+// caught by the same-turn native proof: the whole unit rolls back with zero
+// missing effects.
+func TestIAMissingLateSkipBlocksMark(t *testing.T) {
+	w, keeper, p := iaMissingFinishFixture(t)
+	reg := iaMissingRegistry(t, keeper)
+	state := installIASkipMutation(t, w, "FROM inventory_objects",
+		`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('missing-run','Missing/Late','late-identity','late-revision','1','done',1,1)`)
+	q := iaMissingAcceptRequest(w)
+	ref := iaMissingAcceptReference(t, q, 3, 2)
+	turn, out, err := iaMissingAcceptRun(t, w, reg, p, q, ref)
+	if !state.fired || state.err != nil {
+		t.Fatal("late skip mutation did not run", state.err)
+	}
+	if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.members) != 0 {
+		t.Fatal("late skip authorized a missing mark", out, err)
+	}
+	turn.transaction.rollback(nil)
+	iaMissingNoEffects(t, w)
+	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM inventory_objects WHERE state='missing' AND last_missing_job='missing-run'`); got != 0 {
+		t.Fatal("late skip left missing effects", got)
+	}
+	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM scan_reconcile_members WHERE command_kind='inventory_missing'`); got != 0 {
+		t.Fatal("late skip left member rows", got)
+	}
+}
+
+// The same base draft without the test-only bounded index is a typed hold, never a
+// successful empty window and never a raw crash.
+func TestIAMissingSkippedAccessUnavailableHolds(t *testing.T) {
+	w, keeper, p := iaMissingFinishFixtureOverlay(t, false)
+	reg := iaMissingRegistry(t, keeper)
+	q := iaMissingAcceptRequest(w)
+	ref := iaMissingAcceptReference(t, q, 3, 2)
+	turn, out, err := iaMissingAcceptRun(t, w, reg, p, q, ref)
+	if !errors.Is(err, ErrResolveRequired) || !errors.Is(err, iaMissingSkippedUnavailable) ||
+		out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.members) != 0 {
+		t.Fatal("missing bounded access did not hold", out, err)
+	}
+	turn.transaction.rollback(nil)
+	iaMissingNoEffects(t, w)
+}
+
+// Native fault injection for the late-skip cell: after the window rows close, the
+// same writer transaction inserts a skipped descendant, so only the in-turn proof
+// can see it.
+type iaMissingSkipMutation struct {
+	fired bool
+	err   error
+}
+type iaMissingSkipMutationConn struct {
+	writerDriverConn
+	query    string
+	mutation string
+	state    *iaMissingSkipMutation
+}
+
+func (c *iaMissingSkipMutationConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	rows, err := c.writerDriverConn.QueryContext(ctx, query, args)
+	if err != nil || !strings.Contains(query, c.query) {
+		return rows, err
+	}
+	return &receiptCloseRows{Rows: rows, hook: func() {
+		if c.state.fired {
+			return
+		}
+		c.state.fired = true
+		_, c.state.err = c.writerDriverConn.ExecContext(ctx, c.mutation, nil)
+	}}, nil
+}
+func installIASkipMutation(t *testing.T, w *executor, query, mutation string) *iaMissingSkipMutation {
+	t.Helper()
+	var sequence int
+	var name, path string
+	if err := w.db.QueryRowContext(t.Context(), `PRAGMA database_list`).Scan(&sequence, &name, &path); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(path, w.config, sqliteconn.ExistingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := &iaMissingSkipMutation{}
+	w.openPool(connector, func(conn driver.Conn) driver.Conn {
+		return &iaMissingSkipMutationConn{writerDriverConn: conn.(writerDriverConn), query: query, mutation: mutation, state: state}
+	})
+	return state
 }
 
 // One window changes at most eight rows; the ninth waits for the next keyset
