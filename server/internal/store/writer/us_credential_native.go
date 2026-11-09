@@ -57,10 +57,13 @@ const (
 	usCredentialOwnerReceipts     int64 = 64
 	usCredentialOwnerReceiptBytes int64 = 1 << 20
 
-	// Three dispatcher-owned rechecks: the entry recheck before any owner or
-	// payload read, the scoped owner re-read that settles retirement/quota, and
-	// the final current disclosure before the terminal.
-	usCredentialDispatchRechecks int64 = 3
+	// Ten dispatcher-owned rechecks bound one fresh dispatch: the entry recheck
+	// before any owner or payload read, the scoped owner re-read that settles
+	// retirement/quota, the lookup custody's entry and deferred pre-terminal
+	// rechecks plus the lookup release check, the store's own entry and deferred
+	// rechecks plus the store custody's entry and deferred pre-terminal checks,
+	// and the final current disclosure before the terminal.
+	usCredentialDispatchRechecks int64 = 10
 	usCredentialRecheckBytes     int64 = 64 << 10
 )
 
@@ -1664,7 +1667,11 @@ func runUSCredentialDispatch(ctx context.Context, turn *commandTurn, a *usOwnerA
 	// The release rule runs BEFORE the terminal: the transaction cancels its
 	// own lifetime at commit/rollback, so this release uses the live frame
 	// lifetime. The deferred final publication rechecks the CALLER's context
-	// after physical return, exactly like the shared dispatcher.
+	// after physical return. It mirrors dispatchCommand's caller-context recheck
+	// but does not join currentCommandDisclosure / tx.lifetimeErr; before any
+	// production entry that defer must also check the in-memory a.lifetime.Err()
+	// and turn.transaction.lifetimeErr. Do NOT call a.recheck there: it denies
+	// once transaction.done is set (us_authority.go:296).
 	release, releaseErr := finishCommand(ctx, commandLifetime(turn), usCredentialCompletion{out, floor, historical}, nil)
 	if releaseErr != nil {
 		return withdrawUSCredential(turn, releaseErr)
