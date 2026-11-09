@@ -390,7 +390,9 @@ func ipTextFieldLockCatalogUpdate(ctx context.Context, turn *commandTurn, ids ip
 		return ipTextExpectOne(ctx, turn, ids.ProjectionUpdate,
 			next.Title, next.SortTitle, next.MetadataLanguage, next.SortKey, next.SortHead,
 			next.SortKeyKeepArticles, next.SortHeadKeepArticles, s.EntityID,
-			p.Title, p.SortTitle, p.Language, p.SortKey, p.SortHead, p.SortKeyKeepArticles, p.SortHeadKeepArticles)
+			catalog.Projection.Title, catalog.Projection.SortTitle, catalog.Projection.Language,
+			catalog.Projection.SortKey, catalog.Projection.SortHead,
+			catalog.Projection.SortKeyKeepArticles, catalog.Projection.SortHeadKeepArticles)
 	}
 	return ipTextExpectOne(ctx, turn, ids.ScalarUpdate,
 		string(field), value, string(field), value, string(field), value,

@@ -92,7 +92,7 @@ func ipEntitySealDeclarations(pages []ipEntitySealPage) []ipEvidenceFamilyDeclar
 	return out
 }
 
-func ipEntitySealCounts(declarations []ipEvidenceFamilyDeclaration) map[string]int64 {
+func ipEntitySealDeclaredCounts(declarations []ipEvidenceFamilyDeclaration) map[string]int64 {
 	out := make(map[string]int64, len(declarations))
 	for _, declaration := range declarations {
 		out[declaration.Name] = declaration.Rows
@@ -149,7 +149,7 @@ func ipEntitySealStage(t *testing.T, w *executor, r *ipPolicyRegistry, p *usOwne
 	owner, claim := ipEntityJobClaimed(t, w, r, p, 1, "tmdb")
 	pages := ipEntitySealPages()
 	declarations := ipEntitySealDeclarations(pages)
-	counts := ipEntitySealCounts(declarations)
+	counts := ipEntitySealDeclaredCounts(declarations)
 	bq := ipEntityEvidenceBeginFor(owner, "evidence-one", "build-one", counts)
 	bq.families = declarations
 	first, turn, tx := ipEntityEvidenceApplyBegin(t, w, r, p,

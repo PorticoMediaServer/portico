@@ -187,12 +187,14 @@ func TestIPEntityEvidenceBeginFreshReplayAndRetired(t *testing.T) {
 		t.Fatal("begin replay after source change", replay, err)
 	}
 	ipPolicyRollbackTurn(t, turn, tx)
-	for _, query := range []string{
-		`SELECT count(*) FROM metadata_evidence`,
-		`SELECT count(*) FROM metadata_evidence_builds`,
-		`SELECT count(*) FROM metadata_ip_receipts`,
+	// The claim receipt and the begin receipt share the IP receipt header; a
+	// replay may add no receipt of its own.
+	for query, want := range map[string]int64{
+		`SELECT count(*) FROM metadata_evidence`:        1,
+		`SELECT count(*) FROM metadata_evidence_builds`: 1,
+		`SELECT count(*) FROM metadata_ip_receipts`:     2,
 	} {
-		if got := ipPolicyQueryInt(t, w, query); got != 1 {
+		if got := ipPolicyQueryInt(t, w, query); got != want {
 			t.Fatal("begin replay wrote rows", query, got)
 		}
 	}
@@ -286,7 +288,9 @@ func TestIPEntityEvidenceBeginNamespacesAndIdentity(t *testing.T) {
 		if got := ipPolicyQueryInt(t, w, `SELECT count(*) FROM metadata_evidence`); got != 1 {
 			t.Fatal("refused begins wrote evidence", got)
 		}
-		if got := ipPolicyQueryInt(t, w, `SELECT count(*) FROM metadata_ip_receipts`); got != 1 {
+		// The claim and the first begin each saved one receipt; neither refused
+		// begin may add a third.
+		if got := ipPolicyQueryInt(t, w, `SELECT count(*) FROM metadata_ip_receipts`); got != 2 {
 			t.Fatal("refused begins wrote receipts", got)
 		}
 	})
@@ -336,7 +340,11 @@ func TestIPEntityEvidenceAppendAliasChain(t *testing.T) {
 		t.Fatal("append replay after build change", replay, err)
 	}
 	ipPolicyRollbackTurn(t, turn, tx)
+	// Restore the torn mutable source too: the replay above proved it is not
+	// read, but the next fresh page is a current-source CAS and must not be
+	// stale.
 	ipPolicyExec(t, w, `UPDATE metadata_evidence_builds SET state='building',phase='children' WHERE id='build-one'`)
+	ipPolicyExec(t, w, `UPDATE catalog_entities SET metadata_revision=1,revision=1 WHERE id=1`)
 	ipEntityEvidenceAck(t, w, one.Value, 3)
 	turn, tx, b = ipPolicyTurn(t, w, r, IPEntityEvidenceAppend)
 	retired, err := applyIPEntityEvidenceAppend(t.Context(), turn, p, t.Context(), b,
@@ -524,7 +532,10 @@ func TestIPEntityEvidenceAppendRejectsForeignAndStaleBuild(t *testing.T) {
 		{"observed_at", func(q *ipEntityEvidenceAppendRequest) { q.observedAt = "2026-01-02T00:00:00Z" }, nil, ErrConflict},
 		{"build_revision", func(q *ipEntityEvidenceAppendRequest) { q.buildRevision = 2 }, nil, ErrConflict},
 		{"builder_cursor", func(q *ipEntityEvidenceAppendRequest) {
+			// Coherent with the request's own cursors, but ahead of the open
+			// build, so the first ordinal must move with it.
 			q.afterOrdinal, q.materializedBefore = 1, 2
+			q.aliases = ipEntityEvidenceAliasRows(1, 1)
 		}, nil, ErrConflict},
 		{"owner_generation", func(q *ipEntityEvidenceAppendRequest) { q.generation = 2 }, nil, ErrConflict},
 		{"owner_provider", func(q *ipEntityEvidenceAppendRequest) { q.provider, q.selectedID = "tvdb", "tvdb-1" }, nil, ErrResolveRequired},
