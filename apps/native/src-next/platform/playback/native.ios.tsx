@@ -1,5 +1,5 @@
 import {readUserMutationClockOffset} from '../../../../../packages/client-core/src/query/user-mutation-clock';
-import {nativeStopScope} from '../user-mutations';
+import {nativeStopScope} from '../native-stop-scope';
 import React, {useCallback, useEffect, useRef, useSyncExternalStore, type ComponentRef} from 'react';
 import {AppState, NativeEventEmitter, NativeModules, Platform, UIManager, findNodeHandle, requireNativeComponent, type HostComponent, type ViewProps} from 'react-native';
 import {CapabilityPublisher} from '../../../../../packages/client-core/src/playback-v1/options';

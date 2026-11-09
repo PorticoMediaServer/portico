@@ -1,4 +1,4 @@
-import type {NativeStopScope} from '../user-mutations';
+import type {NativeStopScope} from '../native-stop-scope';
 import {nativeListeningStatus} from './listening-status';
 import type {RouteSnapshot} from '../../../../../packages/client-core/src/route-connection';
 import {listeningDeadline,type NativeListeningV1Context,type NativeListeningV1Control,type NativeListeningV1Event,type NativeQueueAdvance,type ListeningAction,type NativeListeningCommandTarget,type ListeningDeadlines,type NativeListeningPolicy} from '../../../../../packages/client-core/src/playback/native-listening.ts';

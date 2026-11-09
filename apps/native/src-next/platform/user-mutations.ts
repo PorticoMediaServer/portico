@@ -1,9 +1,10 @@
 import {parseAppSessionRecord} from '../../../../packages/client-core/src/app-sessions';
-import type {LocalSession} from '../../../../packages/client-core/src/index';
 import {subscribeNativeAppSessions} from './app-session-storage';
 import {NativeQueueStore} from './queue-storage';
 import {NativeUserMutationSelectionOwner} from './user-mutation-selection';
 import {NativeModules} from 'react-native';
+import {nativeStopScope, type NativeStopScope} from './native-stop-scope';
+export {nativeStopScope, sameNativeStopScope, type NativeStopScope} from './native-stop-scope';
 
 /**
  * The system audio player (Kotlin and Objective-C) sends its own stop when listening ends from the
@@ -13,14 +14,6 @@ import {NativeModules} from 'react-native';
  * Everything else a person does while out of reach goes through the outbox (`outbox-store.ts`).
  * This goes when the native players send a plain stop.
  */
-export type NativeStopScope = Readonly<{serverId: string; origin: string; authority: string; accountId: string; profileId: string; familyId: string; deviceId?: string}>;
-export const sameNativeStopScope = (a: NativeStopScope, b: NativeStopScope) =>
-  (['serverId', 'origin', 'authority', 'accountId', 'profileId', 'familyId', 'deviceId'] as const).every(key => a[key] === b[key]);
-export function nativeStopScope(origin: string, session: LocalSession | undefined): NativeStopScope | undefined {
-  return session && {serverId: session.viewer.serverId, origin, authority: session.viewer.authority, accountId: session.viewer.accountId,
-    profileId: session.viewer.profileId, familyId: session.sessionFamilyId, ...(session.deviceId ? {deviceId: session.deviceId} : {})};
-}
-
 export interface NativeUserMutationBridge {
   userMutationTransaction(operation: 'read' | 'cas' | 'scope' | 'retireScope', payload: string): Promise<string | boolean>;
 }

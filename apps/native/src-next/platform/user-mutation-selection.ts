@@ -1,4 +1,4 @@
-import {sameNativeStopScope,type NativeStopScope} from './user-mutations';
+import {sameNativeStopScope,type NativeStopScope} from './native-stop-scope';
 
 type Store={activate(scope:NativeStopScope):Promise<void>;retire(scope:NativeStopScope):Promise<boolean>};
 /** The durable selected identity owns custody. Component replacement, refreshed
