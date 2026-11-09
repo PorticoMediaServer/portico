@@ -36,6 +36,4 @@ test('a saved record with fields this client does not know reads back instead of
  const read=parseSelectedViewerRecord(later);
  assert.equal(read?.session.installationId,'inst_1');
  assert.equal((read?.session as Record<string,unknown>).refreshExpiresAt,undefined);
- // A fresh server answer stays exact.
- assert.throws(()=>parseLocalSession({...session('2099-01-01T00:00:00Z'),refreshExpiresAt:past}));
 });

@@ -265,7 +265,10 @@ export class SessionsClient {
   }
 
   async stop(id: string, positionMs?: number, signal?: AbortSignal, generation?: number): Promise<void> {
-    await call(this.http, {method: 'DELETE', path: encodedRoutePath("stop_playback_session", {"id": enc(id)}), ...(signal ? {signal} : {}), ...((positionMs !== undefined || generation !== undefined) ? {body: {...(positionMs !== undefined ? {positionMs: Math.max(0, Math.round(positionMs))} : {}), ...(generation !== undefined ? {generation} : {})}} : {})}, [204, 200]);
+    const body = {...(positionMs !== undefined ? {positionMs: Math.max(0, Math.round(positionMs))} : {}), ...(generation !== undefined ? {generation} : {})};
+    const request = {method: 'DELETE', path: encodedRoutePath("stop_playback_session", {"id": enc(id)}), ...(signal ? {signal} : {}), ...(Object.keys(body).length ? {body} : {})} as const;
+    // A session the server no longer knows (it restarted, or already ended it) is stopped.
+    await call(this.http, request, [204, 200]).catch(e => { if (!(e instanceof PlaybackApiError && (e.status === 404 || e.status === 410))) throw e; });
     if (generation !== undefined) await this.http.acknowledgeUserMutation?.(`stop:${id}:${generation}`);
   }
 
@@ -341,6 +344,8 @@ export function seekNeedsServer(session: Session): boolean {
   return [d.video, d.audio, d.subtitles].some(x => x?.action === 'transcode' || x?.action === 'burn');
 }
 
+const LOST_SESSION_RESTART_MS = 5000;
+
 export class PlaybackSessionController {
   private readonly client: SessionsClient;
   private readonly player: MediaPlayer;
@@ -365,6 +370,8 @@ export class PlaybackSessionController {
   private changeChain: Promise<unknown> = Promise.resolve();
   private changeSerial = 0;
   private leaseAtRisk = false;
+  /** When playback was last restarted because the server no longer knew the session. */
+  private lostRestartAt = -Infinity;
   private lastStart?: {target: StartTarget; options: StartOptions};
   private carriedFor?: number;
 
@@ -537,11 +544,17 @@ export class PlaybackSessionController {
     const session = this.state.session;
     const token = this.startToken;
     this.retireReporter();
-    if (!end && session) end = await this.client.get(session.id).then(s => s.end, () => undefined);
+    let lost = false;
+    if (!end && session) end = await this.client.get(session.id).then(s => s.end, e => { lost = e instanceof PlaybackApiError && (e.status === 404 || e.status === 410); return undefined; });
     if (this.disposed || token !== this.startToken || (session && this.state.session?.id !== session.id)) return; // replaced while its end was read
-    // Only a lapsed lease is resumed; an administrator's stop or a move elsewhere is final. The
-    // server names a lapse; when the reason can't be read, a lease this device knew was at risk is one.
-    const lapsed = end ? end.reason === 'lease_expired' : this.leaseAtRisk;
+    // A lapsed lease is resumed, and so is a session the server no longer knows (it restarted):
+    // the title starts again where it was. An administrator's stop or a move elsewhere is final.
+    // The server names a lapse; when the reason can't be read, a lease this device knew was at risk is one.
+    // A server that keeps forgetting the session gets one restart every few seconds, not a loop.
+    const now = this.timers.now?.() ?? Date.now();
+    if (lost && now - this.lostRestartAt < LOST_SESSION_RESTART_MS) lost = false;
+    else if (lost) this.lostRestartAt = now;
+    const lapsed = end ? end.reason === 'lease_expired' : this.leaseAtRisk || lost;
     if (lapsed && session) {
       const at = this.state.observation?.positionMs ?? session.presentation.startPositionMs;
       this.leaseAtRisk = false;

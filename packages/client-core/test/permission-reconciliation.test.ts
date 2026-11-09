@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {withUnknownFields} from './unknown-fields.ts';
 import {LocalSessionRefresher, type PermissionReconciliation} from '../src/session-refresh.ts';
 import {parseLocalSession} from '../src/local-session.ts';
 import {SessionRefreshError, type RememberedServer} from '../src/server-connections.ts';
@@ -53,6 +54,11 @@ test('a changed supported role commits once before handover and preserves exact 
   const h=harness(t,{onRotated:()=>{assert.equal(h.record!.session.viewer.role,'admin');assert.equal(h.counts().commits,1);}});h.role('admin');
   assert.deepEqual(await h.ref.reconcilePermissions(),{kind:'adopted',role:'admin'});assert.equal(h.ref.current().viewer.role,'admin');
   assert.equal(h.record!.selectionId,'selection');assert.equal(h.record!.session.accessToken,original().accessToken);assert.equal(h.rotated.length,1);
+});
+test('a viewer answer from a newer server, with fields this app does not know, still updates the role',async t=>{
+  const h=harness(t);h.reply(withUnknownFields({viewer:{...original().viewer,role:'admin'}}));
+  assert.deepEqual(await h.ref.reconcilePermissions(),{kind:'adopted',role:'admin'});
+  assert.deepEqual(h.record!.session.viewer,{...original().viewer,role:'admin'});
 });
 test('legacy wrapper is true only for an actual committed role change',async t=>{
   const h=harness(t);h.role('member');assert.equal(await h.ref.permissionDenied(),true);assert.equal(h.rotated.length,1);

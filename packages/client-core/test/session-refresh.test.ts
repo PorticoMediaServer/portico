@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {withUnknownFields} from './unknown-fields.ts';
 import {ApiError, HttpLocalApi, ViewerService, type LocalSession} from '../src/index.ts';
 import {parseLocalSession} from '../src/local-session.ts';
 import {selectedViewerRecord} from '../src/viewer-selection.ts';
@@ -553,6 +554,15 @@ test('an expired successor is never rotated before a failed durable adoption can
   assert.equal(restarted.accessToken, 'access_3');assert.equal(server.rotations, 2);
 });
 
+test('a renewal answer from a newer server, with fields this app does not know, still renews the sign-in', async t => {
+  const {server, store, env} = setup(t);
+  const newer: typeof fetch = async (input, init) => Response.json(withUnknownFields(await (await server.fetch(input, init)).json()));
+  const renewed = await refreshStoredSession({env, api: new HttpLocalApi(ORIGIN, '', newer), family: {sessionFamilyId: 'family_1', serverId: 'srv'}, rejected: 'access_1'});
+  assert.equal(renewed.accessToken, 'access_2');
+  assert.equal(store.peek()?.session.tokenGeneration, '2');
+  assert.equal('addedByANewerServer' in store.peek()!.session, false);
+});
+
 test('expired replay validation retains every family, viewer, pin, installation and horizon fence', async t => {
   const {server, store, env} = setup(t);
   const original = structuredClone(store.peek()!);
@@ -569,7 +579,6 @@ test('expired replay validation retains every family, viewer, pin, installation 
     {...expired, deviceId: 'another_device'},
     {...expired, authorizationHorizon: iso(clock - 1)},
     {...expired, refreshToken: original.session.refreshToken},
-    {...expired, unexpected: true},
   ];
   for (const answer of invalid) {
     await store.change(() => ({...original, pendingRefresh: 'held_receipt'}));

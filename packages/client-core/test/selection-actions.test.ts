@@ -49,18 +49,18 @@ test('selection action synchronous offer validates real model semantics without 
     assert.throws(() => selectionActionTargetInput({...target, ...patch} as never, {action: 'delete', options: {deleteFiles: true}}));
   }
 });
-test('selection action parsers accept only exact bounded previews and truthful aggregate jobs', () => {
+test('selection action parsers accept only bounded previews and truthful aggregate jobs', () => {
   assert.deepEqual(parseSelectionActionPreparation(ready), ready);
   assert.deepEqual(parseSelectionActionJob(job), job);
   assert.deepEqual(parseSelectionActionPreparation({kind: 'selection-action-preparing', preparationId: 'prep', retryAfterMs: 0}),
     {kind: 'selection-action-preparing', preparationId: 'prep', retryAfterMs: 0});
   assert.equal(parseSelectionActionPreparation({...ready, action: 'download', bytesKnown: false, bytes: 0}).kind, 'selection-action-preview');
   for (const patch of [{total: 0}, {total: Number.MAX_SAFE_INTEGER + 1}, {bytesKnown: false}, {confirmation: '48,000'}, {confirmationKind: 'title'},
-    {expiresAt: 'invalid'}, {sample: Array(21).fill(ready.sample[0])}, {sample: [ready.sample[0], ready.sample[0]]}, {targetIds: ['item']}]) {
+    {expiresAt: 'invalid'}, {sample: Array(21).fill(ready.sample[0])}, {sample: [ready.sample[0], ready.sample[0]]}]) {
     assert.throws(() => parseSelectionActionPreparation({...ready, ...patch}));
   }
   for (const patch of [{done: 1}, {state: 'complete'}, {admitted: 48_001}, {done: 48_000, failed: 1}, {bytesDeleted: 1},
-    {state: 'running'}, {retryAfterMs: -1}, {targets: ['item']}]) assert.throws(() => parseSelectionActionJob({...job, ...patch}));
+    {state: 'running'}, {retryAfterMs: -1}]) assert.throws(() => parseSelectionActionJob({...job, ...patch}));
   assert.equal(parseSelectionActionJob({...job, state: 'partial', done: 1, failed: 1, errorCode: 'interrupted'}).state, 'partial');
   const cancelledPartial = parseSelectionActionJob({...job, state: 'partial', done: 0, failed: 1, filesDeleted: 1, bytesDeleted: 5000, errorCode: 'cancelled'});
   assert.equal(cancelledPartial.done, 0); assert.equal(cancelledPartial.filesDeleted, 1); assert.equal(cancelledPartial.bytesDeleted, 5000);

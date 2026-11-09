@@ -118,6 +118,9 @@ export class FakePlaybackServer {
   private setTimer: (fn: () => void, ms: number) => unknown;
   private clearTimer: (t: unknown) => void;
 
+  /** The server restarted: sessions it was running are no longer known to it. */
+  restart(): void { this.sessions.clear(); this.keys.clear(); }
+
   constructor(options: FakeServerOptions = {}) {
     this.o = {reportEveryMs: 10_000, leaseMs: 120_000, deviceId: 'this-device', ring: 1000, ...options};
     this.now = options.now ?? Date.now;

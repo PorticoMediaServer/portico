@@ -451,6 +451,40 @@ test('attach: a session another request made is taken over, loads at the viewerâ
   ctl.dispose();
 });
 
+test('a server restart mid-play starts the title again where it was, once, and a stop for a session the server forgot succeeds', async () => {
+  const c = clockwork();
+  const server = new FakePlaybackServer({now: c.now});
+  const player = new FakePlayer();
+  const ended: string[] = [];
+  const ctl = new PlaybackSessionController({http: fakeHttp(server), player, timers: c, key, onServerEnded: (_s, end) => ended.push(end.reason)});
+  const first = await ctl.start({itemId: 'movie'}, {audio: {trackId: 'a2'}});
+  player.state = 'playing'; player.positionMs = 600_000; player.emit('time');
+  await settle();
+  server.restart();
+  await c.advance(2000); // the next report finds the session unknown
+  await settle();
+  const second = ctl.getSnapshot().session!;
+  assert.notEqual(second.id, first!.id);
+  assert.equal(ctl.getSnapshot().phase, 'active');
+  assert.equal(player.loads.at(-1)!.startPositionMs, 600_000);
+  assert.equal(second.presentation.audioTrackId, 'a2', 'the same choices');
+  assert.deepEqual(ended, [], 'the viewer is not shown an end');
+  // A server that forgets the session again straight away is not restarted in a loop.
+  server.restart();
+  player.state = 'paused'; player.emit('state'); // a state change is reported at once
+  await settle();
+  await c.advance(1000);
+  await settle();
+  assert.equal(ctl.getSnapshot().phase, 'ended');
+  // Stopping a session the server no longer knows is a stop that worked.
+  const other = new PlaybackSessionController({http: fakeHttp(server), player: new FakePlayer(), timers: c, key});
+  await other.start({itemId: 'movie'}, {});
+  server.restart();
+  await other.stop();
+  assert.equal(other.getSnapshot().phase, 'ended');
+  ctl.dispose(); other.dispose();
+});
+
 test('a lapsed lease is given back to the owner with the last position; an administratorâ€™s stop is not', async () => {
   const c = clockwork();
   const server = new FakePlaybackServer({now: c.now, leaseMs: 120_000});

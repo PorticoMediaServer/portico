@@ -84,17 +84,16 @@ export function selectionActionTargetInput<C>(target: QuerySelectionTarget<C>, o
 export function parseSelectionActionPreparation(raw: unknown): SelectionActionPreparation {
   if (!object(raw) || !id(raw.preparationId, 128)) invalid();
   if (raw.kind === 'selection-action-preparing') {
-    if (!exact(raw, ['kind', 'preparationId', 'retryAfterMs']) || !count(raw.retryAfterMs)) invalid();
+    if (!count(raw.retryAfterMs)) invalid();
     return Object.freeze({kind: raw.kind, preparationId: raw.preparationId, retryAfterMs: raw.retryAfterMs});
   }
-  if (raw.kind !== 'selection-action-preview' || !exact(raw, ['kind', 'preparationId', 'action', 'basis', 'total', 'files', 'bytes', 'bytesKnown', 'confirmation', 'confirmationKind', 'expiresAt', 'sample'])
-    || !action(raw.action) || !validSelectionBasis(raw.basis) || !count(raw.total) || !raw.total || !count(raw.files) || !count(raw.bytes)
+  if (raw.kind !== 'selection-action-preview' || !action(raw.action) || !validSelectionBasis(raw.basis) || !count(raw.total) || !raw.total || !count(raw.files) || !count(raw.bytes)
     || typeof raw.bytesKnown !== 'boolean' || raw.action === 'delete' && !raw.bytesKnown
     || !text(raw.confirmation) || !raw.confirmation || raw.confirmationKind !== (raw.total === 1 ? 'title' : 'count')
     || raw.total > 1 && raw.confirmation !== String(raw.total)
     || !text(raw.expiresAt, 64) || !Number.isFinite(Date.parse(raw.expiresAt)) || !Array.isArray(raw.sample) || raw.sample.length > 20 || raw.sample.length > raw.total) invalid();
   const sample = raw.sample.map(entry => {
-    if (!object(entry) || !exact(entry, ['itemId', 'title', 'kind']) || !id(entry.itemId) || !text(entry.title) || !text(entry.kind, 64) || ![...leafPivots.values()].includes(entry.kind)) invalid();
+    if (!object(entry) || !id(entry.itemId) || !text(entry.title) || !text(entry.kind, 64) || ![...leafPivots.values()].includes(entry.kind)) invalid();
     return Object.freeze({itemId: entry.itemId, title: entry.title, kind: entry.kind});
   });
   if (new Set(sample.map(entry => entry.itemId)).size !== sample.length) invalid();
@@ -105,8 +104,7 @@ export function parseSelectionActionPreparation(raw: unknown): SelectionActionPr
 
 export const isSelectionActionTerminal = (state: SelectionActionState): boolean => ['complete', 'partial', 'failed', 'cancelled'].includes(state);
 export function parseSelectionActionJob(raw: unknown): SelectionActionJob {
-  if (!object(raw) || !exact(raw, ['operationId', 'action', 'state', 'total', 'admitted', 'done', 'failed', 'bytesDeleted', 'filesDeleted', 'errorCode', 'retryAfterMs'])
-    || !id(raw.operationId) || !action(raw.action) || !['capturing', 'sealed', 'running', 'cancelling', 'complete', 'partial', 'failed', 'cancelled'].includes(String(raw.state))) invalid();
+  if (!object(raw) || !id(raw.operationId) || !action(raw.action) || !['capturing', 'sealed', 'running', 'cancelling', 'complete', 'partial', 'failed', 'cancelled'].includes(String(raw.state))) invalid();
   for (const key of ['total', 'admitted', 'done', 'failed', 'bytesDeleted', 'filesDeleted', 'retryAfterMs']) if (!count(raw[key])) invalid();
   const v = raw as unknown as SelectionActionJob;
   if (!v.total || v.admitted > v.total || v.done > v.total - v.failed || v.done + v.failed > v.admitted
@@ -114,7 +112,8 @@ export function parseSelectionActionJob(raw: unknown): SelectionActionJob {
     || ['sealed', 'running'].includes(v.state) && v.admitted !== v.total
     || ['capturing', 'sealed'].includes(v.state) && (v.done !== 0 || v.failed !== 0 || v.bytesDeleted !== 0 || v.filesDeleted !== 0)
     || raw.errorCode !== undefined && (!text(raw.errorCode, 160) || !raw.errorCode)) invalid();
-  return Object.freeze({...v});
+  return Object.freeze({operationId: v.operationId, action: v.action, state: v.state, total: v.total, admitted: v.admitted, done: v.done, failed: v.failed,
+    bytesDeleted: v.bytesDeleted, filesDeleted: v.filesDeleted, ...(v.errorCode === undefined ? {} : {errorCode: v.errorCode}), retryAfterMs: v.retryAfterMs});
 }
 
 function checkedId(value: string, max = 160) {if (!id(value, max)) invalid(); return value;}

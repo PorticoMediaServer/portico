@@ -13,14 +13,18 @@ const text = (v: unknown, max: number): v is string => typeof v === 'string' && 
  * optional here and carried when present. */
 export function parseServerSignIn(raw: unknown): ServerSignIn {
   if (!object(raw) || !text(raw.id, 256) || !text(raw.name, 120) ||
-      !['portico', 'local'].includes(String(raw.signIn)) || raw.move!==null&&!['to_portico','to_local'].includes(String(raw.move)) || typeof raw.setupRequired !== 'boolean' ||
-      typeof raw.hostedConfigured !== 'boolean' || typeof raw.hostedAttached !== 'boolean' || !Number.isSafeInteger(raw.apiLevel) || (raw.apiLevel as number) < 1)
+      !['portico', 'local'].includes(String(raw.signIn)) || typeof raw.setupRequired !== 'boolean' || !Number.isSafeInteger(raw.apiLevel) || (raw.apiLevel as number) < 1)
     throw new RouteError('invalid_system', 'This server did not report how to sign in.');
-  if(raw.move==='to_portico'&&raw.signIn!=='portico'||raw.move==='to_local'&&raw.signIn!=='local')throw new RouteError('invalid_system','The server reported a different sign-in move.');
-  const moveEndsAt=raw.moveEndsAt===undefined||raw.moveEndsAt===null?null:typeof raw.moveEndsAt==='string'&&raw.moveEndsAt.length<=64&&raw.move==='to_portico'&&Number.isFinite(Date.parse(raw.moveEndsAt))?raw.moveEndsAt:undefined;
-  if(moveEndsAt===undefined)throw new RouteError('invalid_system','The server reported an unreadable move window.');
-  return Object.freeze({id: raw.id, name: raw.name, signIn: raw.signIn as SignInKind,move:raw.move as ServerSignIn['move'],
-    setupRequired: raw.setupRequired, hostedConfigured: raw.hostedConfigured, hostedAttached: raw.hostedAttached, apiLevel: raw.apiLevel as number, moveEndsAt,
+  // What this app must know is who the server is, how to sign in and whether setup is pending. The rest is
+  // read when present: a server that stops reporting a move or its Portico account state is one with none.
+  const move = raw.move === 'to_portico' || raw.move === 'to_local' ? raw.move : null;
+  if (move === 'to_portico' && raw.signIn !== 'portico' || move === 'to_local' && raw.signIn !== 'local') throw new RouteError('invalid_system', 'The server reported a different sign-in move.');
+  const endsAt = raw.moveEndsAt;
+  const moveEndsAt = endsAt === undefined || endsAt === null ? null
+    : typeof endsAt === 'string' && endsAt.length <= 64 && move === 'to_portico' && Number.isFinite(Date.parse(endsAt)) ? endsAt : undefined;
+  if (moveEndsAt === undefined) throw new RouteError('invalid_system', 'The server reported an unreadable move window.');
+  return Object.freeze({id: raw.id, name: raw.name, signIn: raw.signIn as SignInKind, move, setupRequired: raw.setupRequired,
+    hostedConfigured: raw.hostedConfigured === true, hostedAttached: raw.hostedAttached === true, apiLevel: raw.apiLevel as number, moveEndsAt,
     ...(text(raw.version, 256) ? {version: raw.version} : {}), ...serverAPI(raw)});
 }
 /** O-159: the negotiation facts. A server without them, or with a shape this client can't read,
