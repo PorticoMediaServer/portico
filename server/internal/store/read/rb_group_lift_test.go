@@ -858,15 +858,14 @@ func TestRBGroupLiftIntermediateHop(t *testing.T) {
 			f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,parent_id,retired,show_id,season_id,episode_number,season_number) VALUES(?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?)`,
 				id, public, library, kind, title, title, title, title, title, public, public, parent, retired, show, season, episode, seasonNumber)
 		}
-		// Retired season between episode 6820 and visible show 6800.
+		// Retired season between episode 6820 and visible show 6800. The schema's
+		// composite (library_id,parent_id/show_id/season_id) foreign keys force a
+		// parent chain to stay in one library, so "foreign-library season" cannot
+		// exist as an authored entity row; the retired hop is the reachable case.
 		add(6800, 2, 1, 0, "Hop Show", nil, nil, nil, nil, nil)
 		add(6810, 3, 1, 1, "Retired Hop Season", int64(6800), int64(6800), nil, nil, int64(1))
 		add(6820, 4, 1, 0, "Hop Episode", int64(6810), int64(6800), int64(6810), int64(1), nil)
-		// Foreign-library season between episode 6821 and visible show 6801.
-		add(6801, 2, 1, 0, "Foreign Hop Show", nil, nil, nil, nil, nil)
-		add(6811, 3, 2, 0, "Foreign Hop Season", int64(6801), int64(6801), nil, nil, int64(1))
-		add(6821, 4, 1, 0, "Foreign Hop Episode", int64(6811), int64(6801), int64(6811), int64(1), nil)
-		f.exec(t, `INSERT INTO catalog_collection_members(collection_id,item_id,order_key) VALUES(7000,6820,'a9000'),(7000,6821,'a9001')`)
+		f.exec(t, `INSERT INTO catalog_collection_members(collection_id,item_id,order_key) VALUES(7000,6820,'a9000')`)
 
 		in := RBGroupLiftInput{View: f.input, Source: RBGroupLiftCollection, Subject: 7000}
 		in.View.Kind = 2
@@ -885,8 +884,8 @@ func TestRBGroupLiftIntermediateHop(t *testing.T) {
 		if !slices.Equal(got, want) {
 			t.Fatalf("intermediate hop changed the lifted shows: got %v want %v", got, want)
 		}
-		if slices.Contains(got, int64(6800)) || slices.Contains(got, int64(6801)) {
-			t.Fatal("a show behind a retired or foreign-library season was lifted")
+		if slices.Contains(got, int64(6800)) {
+			t.Fatal("a show behind a retired season was lifted")
 		}
 		if !slices.Contains(got, int64(6001)) {
 			t.Fatal("the rejected hop truncated the rest of the visible show walk")
