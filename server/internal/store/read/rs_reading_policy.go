@@ -13,6 +13,8 @@ const rsReadingPublicationCap = 64
 func init() {
 	// Native search uses the native-format recipe only. Converter permission
 	// remains private to its configured reader and cannot be selected by a hit.
+	// A refusal from this per-item validator means the item is ineligible, so
+	// native search skips it; only a recheck of an already admitted item refuses.
 	for _, recipe := range []struct {
 		id   readPolicyID
 		mobi bool

@@ -45,6 +45,11 @@ type rsReadingNativeOptions struct {
 	attribution  int64
 	maximumAge   int64 // -1 means no profile restriction
 	allowUnrated int64
+	// extraTitle seeds a second Reading item that matches the same query. It is
+	// the hidden neighbour in the skip tests; empty means a single-item fixture.
+	extraTitle  string
+	extraAge    int64
+	extraFormat string
 }
 
 func rsReadingNativePositiveOptions(kind int64) rsReadingNativeOptions {
@@ -93,8 +98,20 @@ func rsReadingNativeSource(t *testing.T, o rsReadingNativeOptions) *browseFixtur
 	}
 	f.exec(t, `INSERT INTO catalog_asset_links(entity_id,asset_id,library_id)VALUES(1101,1,1)`)
 	f.exec(t, `INSERT INTO reading_publications(item_id,asset_id,format)VALUES(1101,1,?)`, o.format)
+	if o.extraTitle != "" {
+		extraPublic := []byte{0xf0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
+		f.exec(t, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(2,'reading-asset-hidden','/media/reading-hidden',1000,1,'reading','','',0,0,0,1)`)
+		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind)VALUES(1102,?,1,?)`, extraPublic, o.kind)
+		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,retired,admission_own_age,has_reading_attribution_members,reading_numbered_order,reading_number_value,reading_author_value,reading_author_key,reading_author_source)VALUES(1102,?,1,?,?,?,?,?,?,0,?,?,0,?,1,1,0,'Hidden author','hidden author','owner')`,
+			extraPublic, o.kind, o.extraTitle, "native reading hidden", "native reading hidden", "native reading hidden", "native reading hidden", extraPublic, extraPublic, o.extraAge)
+		f.exec(t, `INSERT INTO catalog_asset_links(entity_id,asset_id,library_id)VALUES(1102,2,1)`)
+		f.exec(t, `INSERT INTO reading_publications(item_id,asset_id,format)VALUES(1102,2,?)`, o.extraFormat)
+	}
 	// Publish only after every source mutation has been seeded.
 	nativeFixtureImage(t, f, search.ManifestEntity, 1101, 2101, []nativeFixtureField{{1, rsReadingNativeTitle}})
+	if o.extraTitle != "" {
+		nativeFixtureImage(t, f, search.ManifestEntity, 1102, 2102, []nativeFixtureField{{1, o.extraTitle}})
+	}
 	return f
 }
 
@@ -152,6 +169,33 @@ func rsReadingNativeComplete(t *testing.T, f *browseFixture, r *NativeFullSearch
 	return FullSearchPage{}
 }
 
+// rsReadingNativePageShape is the viewer-visible results page plus its
+// continuation shape. Custody, stamps and internal candidate work are
+// deliberately excluded: a hidden match must not change any of them, but those
+// values also carry fixture-local identities.
+type rsReadingNativePageShape struct {
+	disposition        SearchDisposition
+	exhausted, partial bool
+	hasNext            bool
+	hits               []rsReadingNativeHitShape
+}
+
+type rsReadingNativeHitShape struct {
+	subject        search.ManifestSubject
+	id, library    int64
+	kind           int64
+	tier           uint8
+	title, sortKey string
+}
+
+func rsReadingNativeShape(page FullSearchPage) rsReadingNativePageShape {
+	shape := rsReadingNativePageShape{disposition: page.Disposition, exhausted: page.Exhausted, partial: page.Partial, hasNext: page.Next != nil}
+	for _, hit := range page.Hits {
+		shape.hits = append(shape.hits, rsReadingNativeHitShape{hit.Subject, hit.ID, hit.Library, hit.Kind, hit.Tier, hit.Item.Title, hit.SortKey})
+	}
+	return shape
+}
+
 func assertRSNativeReadingHit(t *testing.T, page FullSearchPage, kind int64) {
 	t.Helper()
 	if page.Stamp == nil || !page.Exhausted {
@@ -192,17 +236,14 @@ type rsReadingNativeControl struct {
 	requireErr bool
 }
 
+// Per-item ineligibility is a skip, never a refusal: an unattributed Reading
+// item simply is not a hit and the viewer gets an ordinary empty page. Missing
+// compiled definitions are not an item fact, so they still refuse.
 func TestRSNativeReadingNegativeControls(t *testing.T) {
-	age := rsReadingNativePositiveOptions(20)
-	age.ownAge, age.maximumAge, age.allowUnrated = 30, 12, 0
 	attribution := rsReadingNativePositiveOptions(20)
 	attribution.attribution = 0
-	mobi := rsReadingNativePositiveOptions(20)
-	mobi.format = "mobi"
 	for _, c := range []rsReadingNativeControl{
-		{name: "age-over-profile", options: age, withRS: true},
 		{name: "attribution-missing", options: attribution, withRS: true},
-		{name: "converter-only-format", options: mobi, withRS: true},
 		{name: "missing-rs-definitions", options: rsReadingNativePositiveOptions(20), withRS: false, requireErr: true},
 	} {
 		c := c
@@ -212,18 +253,14 @@ func TestRSNativeReadingNegativeControls(t *testing.T) {
 				var after *FullSearchCursor
 				for poll := 0; poll < 100; poll++ {
 					page, err := rsReadingNativeRead(t, f, r, after, nil)
-					if err != nil {
-						want := ErrDenied
-						if !c.withRS {
-							want = sqliteconn.ErrPolicy
-						}
-						if !errors.Is(err, want) {
-							t.Fatalf("unexpected refusal class: %v, want %v", err, want)
-						}
-						if !reflect.DeepEqual(page, FullSearchPage{}) {
-							t.Fatalf("refusal leaked output: %+v (%v)", page, err)
+					if c.requireErr {
+						if !errors.Is(err, sqliteconn.ErrPolicy) || !reflect.DeepEqual(page, FullSearchPage{}) {
+							t.Fatalf("missing definitions: page %+v err %v", page, err)
 						}
 						return
+					}
+					if err != nil {
+						t.Fatalf("ineligible item refused the page: %v", err)
 					}
 					switch page.Disposition {
 					case SearchPending:
@@ -232,16 +269,11 @@ func TestRSNativeReadingNegativeControls(t *testing.T) {
 						}
 						after = page.Next
 						continue
-					case SearchUnavailable:
-						t.Fatal("domain negative must not pass on unrelated native unavailability")
 					case SearchResults:
 						if len(page.Hits) != 0 {
-							t.Fatalf("negative control granted a hit: %+v", page.Hits)
+							t.Fatalf("ineligible item granted a hit: %+v", page.Hits)
 						}
 						if page.Exhausted {
-							if c.requireErr {
-								t.Fatal("missing definitions were accepted")
-							}
 							return
 						}
 						if page.Next == nil {
@@ -254,6 +286,47 @@ func TestRSNativeReadingNegativeControls(t *testing.T) {
 					}
 				}
 				t.Fatal("bounded negative continuation did not finish")
+			})
+		})
+	}
+}
+
+// A restricted profile must not learn that an over-age matching item exists.
+// The results page, its hits and its continuation shape are identical to the
+// same fixture without the hidden item, and no poll refuses.
+func TestRSNativeReadingHiddenAgeSkipped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		visible := rsReadingNativePositiveOptions(20)
+		visible.maximumAge = 12
+		hidden := visible
+		hidden.extraTitle = "Native Reading Hidden"
+		hidden.extraAge = 30
+		hidden.extraFormat = "epub"
+		f, r := rsReadingNativeFixture(t, hidden, true)
+		withHidden := rsReadingNativeComplete(t, f, r)
+		assertRSNativeReadingHit(t, withHidden, 20)
+		g, s := rsReadingNativeFixture(t, visible, true)
+		withoutHidden := rsReadingNativeComplete(t, g, s)
+		assertRSNativeReadingHit(t, withoutHidden, 20)
+		if !reflect.DeepEqual(rsReadingNativeShape(withHidden), rsReadingNativeShape(withoutHidden)) {
+			t.Fatalf("hidden item changed the viewer-visible page shape: %+v vs %+v", rsReadingNativeShape(withHidden), rsReadingNativeShape(withoutHidden))
+		}
+	})
+}
+
+// A converter-only edition is not a native hit for any viewer; the other match
+// is still returned and no poll refuses.
+func TestRSNativeReadingConverterOnlySkipped(t *testing.T) {
+	for _, maximumAge := range []int64{-1, 12} {
+		maximumAge := maximumAge
+		t.Run(fmt.Sprintf("maximumAge%d", maximumAge), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				o := rsReadingNativePositiveOptions(20)
+				o.maximumAge = maximumAge
+				o.extraTitle = "Native Reading Hidden"
+				o.extraFormat = "mobi"
+				f, r := rsReadingNativeFixture(t, o, true)
+				assertRSNativeReadingHit(t, rsReadingNativeComplete(t, f, r), 20)
 			})
 		})
 	}
