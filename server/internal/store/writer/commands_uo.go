@@ -2,11 +2,15 @@ package writer
 
 // UO owns explicit CommandID constants 600–699.
 const (
-	SetPersonalFlags       CommandID = 600
-	PublishNotice          CommandID = 620
-	WithdrawNotice         CommandID = 621
-	AcknowledgeNotices     CommandID = 622
-	ReadAllNotices         CommandID = 623
+	SetPersonalFlags   CommandID = 600
+	PublishNotice      CommandID = 620
+	WithdrawNotice     CommandID = 621
+	AcknowledgeNotices CommandID = 622
+	ReadAllNotices     CommandID = 623
+	// AdvanceNoticeOperation is allocated to UO-14's shared broadcast operation.
+	// This slice reads one operation's completion point and reclaims expired
+	// work; it adds no advance body, and a descriptor alone never admits a turn.
+	// The operation writer/dispatcher that owns 624 must supply that body.
 	AdvanceNoticeOperation CommandID = 624
 	ReclaimNotices         CommandID = 625
 )

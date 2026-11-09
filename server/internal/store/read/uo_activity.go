@@ -110,6 +110,18 @@ type UOActivityCursor struct {
 	id     int64
 }
 
+// sameBindings is the keyset continuation shared by the exact octet preflight
+// and its matching payload. A current personal row seeks on (time, public id);
+// the immutable history row has no public id, so it seeks on (occurred_at, id).
+// The two statements have deliberately different third parameter types, and
+// binding the wrong one fails every continuation in the registry.
+func (c *UOActivityCursor) sameBindings(family UOActivityFamily, token string, limit int64) []any {
+	if family == UOActivityHistory {
+		return []any{token, c.at, c.id, limit}
+	}
+	return []any{token, c.at, c.public[:], limit}
+}
+
 // UOActivityHead is the current personal generation root. It is a numeric
 // witness, never a permission or a historical receipt.
 type UOActivityHead struct {
@@ -225,7 +237,7 @@ func (r *ForegroundReader) activityWindow(ctx context.Context, request governor.
 			if in.After == nil {
 				sizes, e = q(base+".first.bytes", in.View.TokenHash, int64(MaxRaw+1))
 			} else {
-				sizes, e = q(base+".same.bytes", in.View.TokenHash, in.After.at, in.After.public[:], int64(MaxRaw+1))
+				sizes, e = q(base+".same.bytes", in.After.sameBindings(in.Family, in.View.TokenHash, int64(MaxRaw+1))...)
 			}
 			if e != nil {
 				return e
@@ -252,7 +264,7 @@ func (r *ForegroundReader) activityWindow(ctx context.Context, request governor.
 			if in.After == nil {
 				sameRows, e = q(base+".first", in.View.TokenHash, int64(len(sizes)))
 			} else {
-				sameRows, e = q(base+".same", in.View.TokenHash, in.After.at, in.After.public[:], int64(len(sizes)+len(sizesTail)))
+				sameRows, e = q(base+".same", in.After.sameBindings(in.Family, in.View.TokenHash, int64(len(sizes)+len(sizesTail)))...)
 				if e == nil && len(sizesTail) > 0 {
 					tailRows, e = q(base+".older", in.View.TokenHash, in.After.at, int64(len(sizesTail)))
 				}
@@ -375,8 +387,16 @@ func uoActivityCheckSizes(row, size []any) error {
 	if row[1] != size[1] {
 		return ErrStale
 	}
-	title, ok := row[4].(string)
-	if !ok || int64(len(title)) != size[2].(int64) {
+	// A personal row may legally outlive its catalogue entity: the projection is
+	// a LEFT JOIN, so an orphan carries a NULL title (and NULL library/kind, which
+	// the item decoder skips). Compare against the same-snapshot NULL rather than
+	// failing the whole stream as stale.
+	title, titleOK := row[4].(string)
+	sizeTitle, sizeOK := size[2].(int64)
+	if !titleOK && size[2] != nil {
+		return ErrUnqualified
+	}
+	if titleOK != sizeOK || titleOK && int64(len(title)) != sizeTitle {
 		return ErrStale
 	}
 	return nil
