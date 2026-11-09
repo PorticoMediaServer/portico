@@ -56,6 +56,8 @@ func applyBasicControl(ctx context.Context, turn *commandTurn, kind CommandID, i
 	removed := false
 	if in.operation == basicControlAbandon {
 		removed, err = abandonBasicInput(ctx, turn, in)
+	} else if in.operation == basicControlResume {
+		err = resumeBasicCopy(ctx, turn, in, appliedMS)
 	} else {
 		err = runBasicControlBody(ctx, turn, purpose, in)
 	}

@@ -13,6 +13,15 @@ import source_readers
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENTS = ['web', 'packages', 'apps/native', 'apps/vega', 'apps/desktop', 'website']
+# Full (merge/nightly) Go shards are planned from measured parent weights so no
+# single `go test` batch approaches its -timeout. A shard runs one complete-package
+# command (-p=GO_PACKAGE_WORKERS) and then its split packages in a worker pool.
+GO_TEST_DEADLINE = 780.0   # ci/run.py `go test -timeout`
+GO_TEST_BUDGET = GO_TEST_DEADLINE * 0.6   # regression ceiling for any batch
+GO_TEST_TARGET = GO_TEST_DEADLINE * 0.5   # planner's aim for every batch
+GO_PACKAGE_WORKERS = 4     # PORTICO_CI_GO_PACKAGE_JOBS default
+GO_PACKAGE_SPLIT_SECONDS = 150
+UNMEASURED_PARENT_SECONDS = 20.0  # above the measured p99 unless named in the table
 
 def command(args, cwd=ROOT):
     return subprocess.check_output(args, cwd=cwd, text=True, timeout=180)
@@ -94,6 +103,136 @@ def balance(tests, durations, count=None, max_count=10):
         costs[i] += sum(durations.get(t['package']+'.'+t['name'], 1.0) for t in unit)
     assert sorted((t['package'],t['name']) for b in bins for t in b) == sorted((t['package'],t['name']) for t in tests)
     return bins, costs
+
+def observed_durations(durations, tier):
+    """Merge/nightly price parents from the measured table over the short baseline."""
+    if tier == 'short':
+        return dict(durations)
+    table = ROOT/'ci/merge_durations.json'
+    if not table.is_file():
+        return dict(durations)
+    measured = dict(durations)
+    measured.update({str(k): float(v) for k, v in json.loads(table.read_text()).items()})
+    return measured
+
+
+def parent_seconds(test, durations):
+    return durations.get(test['package']+'.'+test['name'], UNMEASURED_PARENT_SECONDS)
+
+
+def merge_units(tests, durations):
+    """Per-test units for a heavy package, whole groups otherwise (deterministic)."""
+    grouped = {}
+    for t in sorted(tests, key=lambda t: (t['package'], t['name'])):
+        grouped.setdefault(t['package'], []).append(t)
+    units = []
+    for group in grouped.values():
+        if sum(parent_seconds(t, durations) for t in group) > GO_PACKAGE_SPLIT_SECONDS:
+            units.extend([[t] for t in group])
+        else:
+            units.append(group)
+    return units
+
+
+def go_batch_model(bins, all_tests, durations, workers=GO_PACKAGE_WORKERS):
+    """Model the commands ci/run.py runs per shard: one complete batch, then partials.
+
+    Complete packages share one -p=workers command, so it costs the larger of its
+    largest package and its summed work divided by the worker count. Each split
+    package is its own command in a workers-wide pool.
+    """
+    rows = []
+    for shard in bins:
+        grouped = {}
+        for t in shard:
+            grouped.setdefault(t['package'], []).append(t)
+        complete = []
+        partial = []
+        for package, tests in grouped.items():
+            seconds = sum(parent_seconds(t, durations) for t in tests)
+            if {t['name'] for t in tests} == all_tests.get(package, {t['name'] for t in tests}):
+                complete.append((package, seconds, len(tests)))
+            else:
+                partial.append((package, seconds, len(tests)))
+        complete_seconds = (max([sum(s for _, s, _ in complete)/workers]
+                                + [s for _, s, _ in complete]) if complete else 0.0)
+        pool_seconds = (max([max(s for _, s, _ in partial), sum(s for _, s, _ in partial)/workers])
+                        if partial else 0.0)
+        commands = ([{'kind': 'complete', 'packages': sorted(p for p, _, _ in complete),
+                      'tests': sum(n for _, _, n in complete), 'seconds': round(complete_seconds, 1)}]
+                    if complete else [])
+        commands += [{'kind': 'partial', 'package': package, 'tests': count, 'seconds': round(seconds, 1)}
+                     for package, seconds, count in sorted(partial)]
+        rows.append({'seconds': round(complete_seconds+pool_seconds, 1),
+                     'complete_seconds': round(complete_seconds, 1),
+                     'partial_pool_seconds': round(pool_seconds, 1),
+                     'commands': commands})
+    return rows
+
+
+def oversized_single_parents(bins, all_tests, durations):
+    """Parents that alone exceed the budget; the planner cannot split a test by name."""
+    found = []
+    for row in go_batch_model(bins, all_tests, durations):
+        for command in row['commands']:
+            if (command['kind'] == 'partial' and command['tests'] == 1
+                    and command['seconds'] > GO_TEST_BUDGET):
+                found.append({'package': command['package'], 'seconds': command['seconds']})
+    return sorted(found, key=lambda x: (-x['seconds'], x['package']))
+
+
+def assert_merge_shard_budget(bins, tests, all_tests, durations):
+    """Fail closed if a full-inventory shard plans a batch over budget.
+
+    A single parent that alone exceeds the budget is reported, not failed: it
+    cannot be split by test name. It must still fit the 780 s deadline itself.
+    """
+    flattened = sorted((t['package'], t['name']) for shard in bins for t in shard)
+    if len(set(flattened)) != len(flattened):
+        raise ValueError('go shard assignment duplicates a parent')
+    if flattened != sorted((t['package'], t['name']) for t in tests):
+        raise ValueError('go shard assignment does not cover every parent exactly once')
+    for index, row in enumerate(go_batch_model(bins, all_tests, durations)):
+        for command in row['commands']:
+            limit = GO_TEST_DEADLINE if command['kind'] == 'partial' and command['tests'] == 1 else GO_TEST_BUDGET
+            if command['seconds'] > limit:
+                label = command.get('package') or ','.join(command.get('packages', []))
+                raise ValueError(f'go shard {index} {command["kind"]} batch {label} '
+                                 f'is {command["seconds"]}s, over its {limit:.0f}s limit')
+    return go_batch_model(bins, all_tests, durations)
+
+
+def balance_merge(tests, durations, all_tests, target=GO_TEST_TARGET, max_count=64):
+    """Deterministic weighted open-shop packing for full Go shards.
+
+    Parents whose measured weight alone exceeds the per-command target get their
+    own shard (two of them could never share a batch). Everything else longest-
+    processing-time packs into the fewest shards whose modeled commands fit.
+    """
+    units = [(sum(parent_seconds(t, durations) for t in unit), unit) for unit in merge_units(tests, durations)]
+    heavy = sorted((unit for weight, unit in units if weight > target),
+                   key=lambda u: (-sum(parent_seconds(t, durations) for t in u), u[0]['package'], u[0]['name']))
+    rest = sorted((unit for weight, unit in units if weight <= target),
+                  key=lambda u: (-sum(parent_seconds(t, durations) for t in u), u[0]['package'], u[0]['name']))
+    for count in range(1, max_count+1):
+        # A parent longer than the target cannot share a batch with anything, so
+        # its shard is closed before the remaining units are packed.
+        bins = [[t] for unit in heavy for t in unit] + [[] for _ in range(count)]
+        costs = [sum(parent_seconds(t, durations) for t in shard) for shard in bins]
+        for unit in rest:
+            index = min(range(len(heavy), len(bins)), key=lambda i: (costs[i], i))
+            bins[index].extend(unit)
+            costs[index] += sum(parent_seconds(t, durations) for t in unit)
+        fits = True
+        for row in go_batch_model(bins, all_tests, durations):
+            for command in row['commands']:
+                single = command['kind'] == 'partial' and command['tests'] == 1
+                if command['seconds'] > (GO_TEST_DEADLINE if single else target):
+                    fits = False
+        if fits:
+            return bins, costs
+    raise ValueError(f'the full Go inventory needs more than {max_count} shards to fit the batch budget')
+
 
 SHORT_CENSUSES = {
     ('github.com/PorticoMediaServer/portico/server/internal/persistence', 'TestProductionStatementsPrepareAgainstTheBaseline'),
@@ -246,6 +385,7 @@ def make_plan(paths, full=False, tier="short"):
     inventory=list({(t['package'],t['name']):t for t in inventory}.values())
     durations=json.loads((ROOT/'ci/durations.json').read_text())
     durations={k.replace('portico.local/server','github.com/PorticoMediaServer/portico/server'):v for k,v in durations.items()}
+    durations=observed_durations(durations,tier)
     tiers=json.loads((ROOT/'ci/tiers.json').read_text())
     all_inventory=list(inventory)
     # A package chosen only for its source-reading tests runs just those: the rest of its tests are unrelated.
@@ -259,12 +399,16 @@ def make_plan(paths, full=False, tier="short"):
     if tier=='short': durations=guarded_costs(packages,durations,full_packages)
     excluded={(t['package'],t['name']) for t in exclusions}
     inventory=[t for t in inventory if (t['package'],t['name']) not in excluded]
-    cost=sum(durations.get(t['package']+'.'+t['name'],1) for t in inventory)
-    # Promoted PR work gets more VMs, not longer deadlines. Queue/nightly retain
-    # their existing ten-shard allocation; source censuses keep their own VM.
-    shard_limit = 20 if full_packages else 10
-    bins,costs=(balance_short_censuses(inventory,durations,max_count=shard_limit)
-                if tier=='short' else balance(inventory,durations))
+    all_test_names={}
+    for t in all_inventory: all_test_names.setdefault(t['package'],set()).add(t['name'])
+    def shards(tests):
+        # Promoted PR work gets more VMs, not longer deadlines. Queue/nightly
+        # size their shards from measured parent weights so every go test batch
+        # stays under the deadline as the inventory grows.
+        if tier=='short':
+            return balance_short_censuses(tests,durations,max_count=20 if full_packages else 10)
+        return balance_merge(tests,durations,all_test_names)
+    cost=sum(parent_seconds(t,durations) for t in inventory)
     js=[]; js_reasons={}
     from js_affected import select as affected_js
     for component in selected:
@@ -289,12 +433,17 @@ def make_plan(paths, full=False, tier="short"):
     assigned=[t for t in inventory if '/httpapi' in t['package'] and t['name'] in producer_consumers and any(f.endswith(producer_consumers[t['name']]) for f in js_files)]
     assigned_keys={(t['package'],t['name']) for t in assigned}
     inventory=[t for t in inventory if (t['package'],t['name']) not in assigned_keys]
-    bins,costs=(balance_short_censuses(inventory,durations,max_count=shard_limit)
-                if tier=='short' else balance(inventory,durations))
+    bins,costs=shards(inventory)
     from explain import selection_reasons
     why=selection_reasons(paths,full,selected,go_owned,components,js_reasons,go_fallbacks,source_readers=reader_tests)
     extra=sum(durations.get(t['package']+'.'+t['name'],1)-short_durations.get(t['package']+'.'+t['name'],1) for t in inventory)
-    return {'full_go_packages':sorted(full_packages), 'full_go_extra_seconds':extra,'selection_diagnostics':why,'source_reader_tests':[{'package':k,'name':n,'changed':c} for k,v in sorted(reader_tests.items()) for n,c in sorted(v.items())],'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
+    budget={}
+    if tier!='short':
+        rows=assert_merge_shard_budget(bins,inventory,all_test_names,durations)
+        budget={'deadline_seconds':GO_TEST_DEADLINE,'budget_seconds':GO_TEST_BUDGET,'target_seconds':GO_TEST_TARGET,
+                'workers':GO_PACKAGE_WORKERS,'commands_seconds':[row['seconds'] for row in rows],
+                'oversized_single_tests':oversized_single_parents(bins,all_test_names,durations)}
+    return {'full_go_packages':sorted(full_packages), 'full_go_extra_seconds':extra,'selection_diagnostics':why,'source_reader_tests':[{'package':k,'name':n,'changed':c} for k,v in sorted(reader_tests.items()) for n,c in sorted(v.items())],'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'shard_budget':budget,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
 
 def event_tier(event, tier, full):
     if event in ['pull_request','push']:

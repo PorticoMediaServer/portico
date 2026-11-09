@@ -55,6 +55,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return invalid("result_command_sequence")
 	}
 	switch v := result.(type) {
+	case mgSourceOriginalDenial:
+		return preflightMGSourceDenial(v)
 	case mpQueueRepeatValue:
 		return preflightMPRepeatValue(v)
 	case evidenceSealResult:
@@ -99,6 +101,14 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIAMediaResult(IAAcceptExtraInventory, identity, request, v.facts)
 	case iaMembershipResult:
 		return preflightIAMediaResult(IAAcceptMembership, identity, request, v.facts)
+	case iaReconcileObjectResult:
+		return preflightIAReconcileResult(identity, request, v.facts)
+	case iaCoverageVerifyResult:
+		return preflightIACoverageVerifyResult(identity, request, v.facts)
+	case iaMissingResult:
+		return preflightIAMissingResult(identity, request, v.facts)
+	case iaFinishRescanResult:
+		return preflightIAFinishRescanResult(identity, request, v.facts)
 	case iaConfigureLibraryResult:
 		return preflightIAConfigurationResult(IAConfigureLibrary, identity, request, v.facts)
 	case iaConfigureSourceResult:
@@ -140,6 +150,8 @@ func encodeCanonicalResult(e *requestEncoder, identity CommandIdentity, request 
 
 func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request RequestDigest, result any) error {
 	switch v := result.(type) {
+	case mgSourceOriginalDenial:
+		return writeMGSourceDenial(e, identity, request, v)
 	case mpQueueRepeatValue:
 		return writeMPRepeatValue(e, identity, request, v)
 	case evidenceSealResult:
@@ -184,6 +196,14 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIAMediaResult(e, IAAcceptExtraInventory, identity, request, v.facts)
 	case iaMembershipResult:
 		return writeIAMediaResult(e, IAAcceptMembership, identity, request, v.facts)
+	case iaReconcileObjectResult:
+		return writeIAReconcileResult(e, identity, request, v.facts)
+	case iaCoverageVerifyResult:
+		return writeIACoverageVerifyResult(e, identity, request, v.facts)
+	case iaMissingResult:
+		return writeIAMissingResult(e, identity, request, v.facts)
+	case iaFinishRescanResult:
+		return writeIAFinishRescanResult(e, identity, request, v.facts)
 	case iaConfigureLibraryResult:
 		return writeIAConfigurationResult(e, IAConfigureLibrary, identity, request, v.facts)
 	case iaConfigureSourceResult:

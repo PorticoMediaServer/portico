@@ -21,6 +21,7 @@ const (
 	basicControlSelectEntity                                  // Stage: phase 1->2, after_entity = sole leaf
 	basicControlCopyFamily                                    // Stage: one copy turn of one family (phase 2)
 	basicControlAbandon                                       // Stage: one abandon turn of an unaccepted input
+	basicControlResume                                        // Stage: reset a dropped FIRST walk and copy one native cursor turn
 )
 
 // Exactly one pointer is set. A closed concrete variant keeps the canonical
@@ -151,6 +152,9 @@ func validateBasicControlRequest(identity CommandIdentity, in basicControlReques
 	if s.changeID <= 0 || s.inputRevision <= 0 || s.expectedEpoch <= 0 || s.expectedEpoch == math.MaxInt64 || s.objectRevision == "" ||
 		s.runID != in.original.scope.runID || s.libraryID != in.original.scope.libraryID || s.sourceID != in.original.source.id || s.incarnation != in.original.source.incarnation {
 		return ErrInvalid
+	}
+	if in.operation == basicControlResume {
+		return validateBasicResumeRequest(in, purpose)
 	}
 	if in.operation == basicControlAbandon {
 		return validateBasicAbandonRequest(in, purpose)

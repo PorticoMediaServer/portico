@@ -163,6 +163,49 @@ func (v USDirectProfileImage) Clone() USDirectProfileImage {
 	return v
 }
 
+// USDirectSnapshotImageOctets is the frozen carrier's variable-octet contract:
+// the sum of every captured TEXT/string length, with explicit overflow refusal.
+// Fixed container/slice overhead is charged separately by the caller. A fresh
+// image may never cost more than the native source octets it was decoded from.
+func USDirectSnapshotImageOctets(v USDirectSnapshotImage) (int64, error) {
+	total := int64(0)
+	add := func(n int) error {
+		if n < 0 || int64(n) > maxCanonicalResultBytes-total {
+			return &Refusal{Code: RefusalCapacity}
+		}
+		total += int64(n)
+		return nil
+	}
+	addStrings := func(values []string) error {
+		for _, s := range values {
+			if err := add(len(s)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for _, s := range []string{v.Authority, v.ServerID, v.Account.ID, v.Account.Username, v.Account.PrimaryProfileID,
+		v.Account.Role, v.Account.DisabledAt, v.Account.DisabledReason, v.Account.HostedAccountID} {
+		if err := add(len(s)); err != nil {
+			return 0, err
+		}
+	}
+	if err := addStrings(v.Account.AllowedLibraries); err != nil {
+		return 0, err
+	}
+	for _, p := range v.Profiles {
+		for _, s := range []string{p.ID, p.Name, p.Art} {
+			if err := add(len(s)); err != nil {
+				return 0, err
+			}
+		}
+		if err := addStrings(p.AllowedLibraries); err != nil {
+			return 0, err
+		}
+	}
+	return total, nil
+}
+
 // ManifestSHA256 is an image-only manual LP/integer manifest, version 1.
 // Ordinals are local to each fixed-count container; slices include presence,
 // length and element ordinals. Integers use signed two's-complement uint64.

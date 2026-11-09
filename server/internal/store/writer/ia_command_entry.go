@@ -39,7 +39,11 @@ type iaCommandEntry struct {
 // current independent authority. Resolve never creates authority or an owner.
 func enterIACommand(ctx context.Context, turn *commandTurn, q iaEntryRequest, p *usOwnerAuthorityProof, lifetime context.Context, budget iaEntryBudget) (out *iaCommandEntry, err error) {
 	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
-	if turn == nil || turn.transaction == nil || q.purpose != turn.transaction.descriptor.ID || (q.purpose != IAConfigureLibrary && q.purpose != IAConfigureSource) || (q.action != iaEntryResolve && q.action != iaEntryApply) || q.libraryID <= 0 || !iaEntryText(q.libraryKey) || (q.purpose == IAConfigureSource) != (q.sourceID != "") || (q.sourceID != "" && !iaEntryText(q.sourceID)) {
+	if turn == nil || turn.transaction == nil {
+		return nil, ErrInvalid
+	}
+	resultPurpose, known := iaEntryResultPurpose(turn.transaction.descriptor.ID)
+	if !known || q.purpose != resultPurpose || (q.purpose != IAConfigureLibrary && q.purpose != IAConfigureSource) || (q.action != iaEntryResolve && q.action != iaEntryApply) || q.libraryID <= 0 || !iaEntryText(q.libraryKey) || (q.purpose == IAConfigureSource) != (q.sourceID != "") || (q.sourceID != "" && !iaEntryText(q.sourceID)) {
 		return nil, ErrInvalid
 	}
 	ref := q.reference
@@ -168,6 +172,20 @@ func (e *iaCommandEntry) checkFreshSource(ctx context.Context, turn *commandTurn
 	return e.authority.recheck(ctx, turn)
 }
 
+// One persisted result purpose may carry more than one durability descriptor:
+// configure_source (NORMAL) and its explicit FULL disable descriptor. Owner,
+// header and codec identity always use the result purpose; the compiled
+// descriptor fixes durability alone and is never chosen by the caller.
+func iaEntryResultPurpose(id CommandID) (CommandID, bool) {
+	switch id {
+	case IAConfigureLibrary:
+		return IAConfigureLibrary, true
+	case IAConfigureSource, IAConfigureSourceDisable:
+		return IAConfigureSource, true
+	}
+	return 0, false
+}
+
 // Descriptor labels are metadata, not persisted command_kind values. Keep this
 // closed map aligned with group C and the typed codecs, independent of IA04's
 // prefixed names. Later IA bodies must not persist Describe(...).Name.
@@ -175,7 +193,7 @@ func iaEntryCommandKind(purpose CommandID) (string, error) {
 	switch purpose {
 	case IAConfigureLibrary:
 		return "configure_library", nil
-	case IAConfigureSource:
+	case IAConfigureSource, IAConfigureSourceDisable:
 		return "configure_source", nil
 	case IARetireLibrary:
 		return "retire_library", nil
@@ -193,6 +211,14 @@ func iaEntryCommandKind(purpose CommandID) (string, error) {
 		return "extra_inventory_accept", nil
 	case IAAcceptMembership:
 		return "membership_accept", nil
+	case IAReconcileObject:
+		return "inventory_reconcile", nil
+	case IACoverageVerify:
+		return "inventory_verify", nil
+	case IAMarkMissing:
+		return "inventory_missing", nil
+	case IAFinishRescan:
+		return "inventory_finish", nil
 	default:
 		return "", ErrInvalid
 	}

@@ -56,6 +56,13 @@ func closedOctetDefinition(d stmt.Definition) bool {
 	return ok
 }
 
+// Definition-aware lexical lint. It applies exactly the closed-octet allowance
+// Capture applies to an exact registered point definition; membership alone
+// grants no authority, and Capture still re-checks the native key and EQP.
+func LintSQLDefinition(d stmt.Definition) []LintIssue {
+	return lintSQL(d.SQL, closedOctetDefinition(d))
+}
+
 func checkOctetDefinition(d stmt.Definition) error {
 	if s, registered := pointOctets.byID[d.ID]; registered {
 		if _, exact := pointOctets.match(d); !exact {
