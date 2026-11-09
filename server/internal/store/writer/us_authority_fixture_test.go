@@ -13,6 +13,23 @@ func usOwnerAuthorityFixture(t *testing.T) (*executor, *stmt.Registry, *usOwnerA
 	// Frozen whole-second current clock, no real-clock assertions.
 	now := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 	w.now = func() time.Time { return now }
+	proof := usOwnerAuthorityPopulation(t, w, now)
+
+	// The current Capture correctly refuses an unadopted B layout against the
+	// locked native schema. Keep this unit registry explicitly unqualified;
+	// installed Capture/EXPLAIN receipts wait for B promotion, never bypass it.
+	r, err := stmttest.New(t, usAuthorityDefinitions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w, r, proof
+}
+
+// The exact ordinary US owner population, reusable on an executor that also
+// carries another domain's native fixture. now must be the executor's frozen
+// clock so the witness deadlines and the actor rechecks agree.
+func usOwnerAuthorityPopulation(t *testing.T, w *executor, now time.Time) *usOwnerAuthorityProof {
+	t.Helper()
 	_, request := usPolicyFixture()
 	witness := usOwnerAuthorityWitness{issuer: request.issuer, device: "issuer-device", lineage: "issuer-lineage", installationID: "issuer-installation-synthetic-000001", tokenExpiry: now.Add(10 * time.Minute).Format(time.RFC3339), horizon: now.Add(time.Hour).Format(time.RFC3339)}
 	proof, err := prepareUSOwnerAuthority(witness)
@@ -40,15 +57,7 @@ func usOwnerAuthorityFixture(t *testing.T) (*executor, *stmt.Registry, *usOwnerA
 			t.Fatal(query.sql, err)
 		}
 	}
-
-	// The current Capture correctly refuses an unadopted B layout against the
-	// locked native schema. Keep this unit registry explicitly unqualified;
-	// installed Capture/EXPLAIN receipts wait for B promotion, never bypass it.
-	r, err := stmttest.New(t, usAuthorityDefinitions())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return w, r, proof
+	return proof
 }
 
 func usOwnerAuthorityTurn(t *testing.T, w *executor, r *stmt.Registry) (*commandTurn, usOwnerAuthorityBudget) {

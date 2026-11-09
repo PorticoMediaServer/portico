@@ -25,7 +25,7 @@ func mgTunerRow(ctx context.Context, t *commandTurn, id stmt.ID, args ...any) (c
 		return commandRow{}, ErrInvalid
 	}
 	switch id {
-	case mgTunerRead, mgTunerResource, mgTunerChannel, mgTunerShared, mgTunerNext, mgTunerReservation, mgTunerInsert, mgTunerRenew:
+	case mgTunerRead, mgTunerResource, mgTunerChannel, mgTunerShared, mgTunerNext, mgTunerReservation, mgTunerInsert, mgTunerRenew, mgTunerRetire, mgTunerReconcileNext:
 	default:
 		return commandRow{}, ErrInvalid
 	}
@@ -65,14 +65,14 @@ func readMGTuner(ctx context.Context, t *commandTurn, id stmt.ID, args ...any) (
 	return scanMGTuner(row)
 }
 
-// This body accepts only the two NORMAL purposes and requires the native
+// This body accepts only the NORMAL tuner purposes and requires the native
 // synchronous level to match the declared durability. It is not a runtime
 // recipe: the accepting parent still admits, receipts and commits.
 func mgTunerPurpose(t *commandTurn, purpose CommandID) error {
 	if t == nil || t.transaction == nil || t.transaction.descriptor.ID != purpose || !t.transaction.policyVerified {
 		return ErrInvalid
 	}
-	if purpose != MGAcquireAllocation && purpose != MGRenewAllocation {
+	if purpose != MGAcquireAllocation && purpose != MGRenewAllocation && purpose != MGTunerRetireAllocation && purpose != MGTunerReconcileAllocations {
 		return ErrInvalid
 	}
 	if t.transaction.descriptor.Durability != Normal || t.transaction.settings.Synchronous != int(sqliteconn.Normal) {
@@ -88,7 +88,7 @@ func mgTunerTime(ctx context.Context, t *commandTurn) (out int64, err error) {
 	}
 	tx := t.transaction
 	switch tx.descriptor.ID {
-	case MGAcquireAllocation, MGRenewAllocation:
+	case MGAcquireAllocation, MGRenewAllocation, MGTunerRetireAllocation, MGTunerReconcileAllocations:
 	default:
 		return 0, ErrInvalid
 	}
@@ -285,7 +285,7 @@ func acquireMGTuner(ctx context.Context, a *mgSourceAcquisition, r mgTunerReques
 		return out, err
 	}
 	alloc := r.allocation
-	if alloc.state != "active" || alloc.generation != 1 || alloc.created != now || alloc.lease-now > mgTunerLeaseMS {
+	if alloc.state != "active" || alloc.generation != 1 || alloc.created != now || alloc.lease <= now || alloc.lease-now > mgTunerLeaseMS {
 		return out, ErrConflict
 	}
 	if !mgTunerOwner(a, alloc) {

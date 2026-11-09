@@ -45,7 +45,7 @@ func TestMGTunerNativeAcquireExactAndRenew(t *testing.T) {
 }
 
 func TestMGTunerNativeAcquireRefusals(t *testing.T) {
-	for _, cell := range []string{"purpose", "guide", "channel", "foreign-account", "authority", "generation", "created", "state", "lease-window", "reservation-forged", "preempt-unbacked", "boundary-short", "cancelled"} {
+	for _, cell := range []string{"purpose", "guide", "channel", "foreign-account", "authority", "generation", "created", "state", "zero-length-lease", "lease-window", "reservation-forged", "preempt-unbacked", "boundary-short", "cancelled"} {
 		t.Run(cell, func(t *testing.T) {
 			purpose := MGAcquireAllocation
 			if cell == "purpose" {
@@ -71,6 +71,9 @@ func TestMGTunerNativeAcquireRefusals(t *testing.T) {
 				r.allocation.state = "preempting"
 			case "lease-window":
 				r.allocation.lease = r.allocation.created + mgTunerLeaseMS + 1
+			case "zero-length-lease":
+				// lease == created == now is representable and would insert.
+				r.allocation.lease = r.allocation.created
 			case "reservation-forged":
 				// A live deadline that no enabled reservation backs is data, not a grant.
 				r.allocation.preempt = r.allocation.created + 15000

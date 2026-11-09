@@ -43,8 +43,9 @@ type mgActorAuthorization struct {
 // Funded from the accepting frame's ONE governor reservation. No descriptor,
 // private test permit or previously FULL connection qualifies a runtime recipe.
 type mgAuthorityBudget struct {
-	memory  uint64
-	fixture *mgAuthorityFixturePermit
+	memory      uint64
+	fixture     *mgAuthorityFixturePermit
+	maintenance bool
 }
 type mgAuthorityFixturePermit struct{ frame *transaction }
 
@@ -63,6 +64,13 @@ func (b mgAuthorityBudget) check(ctx context.Context, t *commandTurn, bytes int6
 		expected = Full
 	// Acquisition/renewal only: cleanup/reconcile/fail/delete IDs are excluded.
 	case 814, 815, 820, 830, 831, 832, 833, 835:
+	// Tuner retire/reconcile are maintenance custody, never a content grant. The
+	// separate budget flag keeps them from opening acquisition frames and keeps a
+	// cleanup stamp from laundering source/viewer authority.
+	case 816, 817:
+		if !b.maintenance {
+			return ErrInvalid
+		}
 	default:
 		return ErrInvalid
 	}
