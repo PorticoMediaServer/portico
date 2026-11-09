@@ -181,6 +181,11 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if !ok {
 		return page, invalid("unknown sort %q", q.Sort)
 	}
+	if q.Sort == SortOrder && q.Parent == "" {
+		// Season and episode numbers order one show's items. Over a whole library they have
+		// no index and mean nothing, so the list would be sorted afresh for every page.
+		return page, invalid("the order sort is for the items under a parent")
+	}
 	if q.Limit <= 0 {
 		q.Limit = defaultPageSize
 	}
