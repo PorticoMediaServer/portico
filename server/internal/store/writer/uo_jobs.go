@@ -29,7 +29,7 @@ const (
 type uoJobFamilyShape struct {
 	table, key1, key2, revision string
 	dueIndex, pkIndex           string
-	terminal                    string
+	terminal, nonTerminal       string
 	byteColumns                 []string
 }
 
@@ -56,6 +56,7 @@ func uoJobShape(family uoJobFamily) (uoJobFamilyShape, bool) {
 			table: "personal_jobs", key1: "id", revision: "revision",
 			dueIndex: "personal_jobs_governor_due", pkIndex: "sqlite_autoindex_personal_jobs_1",
 			terminal:    "state IN ('complete','partial','failed')",
+			nonTerminal: "state NOT IN ('complete','partial','failed')",
 			byteColumns: []string{"operation_id", "request_hash", "principal", "selector", "args", "error_code", "selection_scope", "selection_fence", "selection_cursor", "command", "destination_kind", "destination_target_id", "destination_order_prefix"},
 		}, true
 	case uoJobWebhook:
@@ -63,6 +64,7 @@ func uoJobShape(family uoJobFamily) (uoJobFamilyShape, bool) {
 			table: "webhook_deliveries", key1: "id", revision: "job_revision",
 			dueIndex: "webhook_deliveries_governor_due", pkIndex: "sqlite_autoindex_webhook_deliveries_1",
 			terminal:    "state IN ('delivered','failed')",
+			nonTerminal: "state NOT IN ('delivered','failed')",
 			byteColumns: []string{"type", "subject", "data", "error"},
 		}, true
 	case uoJobNotice:
@@ -70,6 +72,7 @@ func uoJobShape(family uoJobFamily) (uoJobFamilyShape, bool) {
 			table: "notice_broadcast_work", key1: "scope", key2: "operation_id", revision: "revision",
 			dueIndex:    "notice_broadcast_work_governor_due",
 			terminal:    "delivered=1",
+			nonTerminal: "delivered<>1",
 			byteColumns: []string{"scope", "operation_id", "digest", "last_account", "last_profile", "upper_account", "upper_profile", "ids"},
 		}, true
 	case uoJobServiceOutbox:
@@ -77,6 +80,7 @@ func uoJobShape(family uoJobFamily) (uoJobFamilyShape, bool) {
 			table: "identity_service_outbox", key1: "notice_id", revision: "job_revision",
 			dueIndex: "identity_service_outbox_governor_due", pkIndex: "sqlite_autoindex_identity_service_outbox_1",
 			terminal:    "delivered_ms>0",
+			nonTerminal: "delivered_ms<=0",
 			byteColumns: []string{"operation_id", "server_id", "claim_generation", "credential_generation", "payload", "signature"},
 		}, true
 	default:
@@ -128,7 +132,9 @@ func (old uoJobLease) transition(q uoLeaseChange) (uoJobLease, error) {
 			return uoJobLease{}, ErrConflict
 		}
 		after.owner, after.generation, after.expiresMS, after.attempts = q.owner, old.generation+1, q.nowMS+q.durationMS, old.attempts+1
-		after.nextMS = sql.NullInt64{}
+		// nextMS is deliberately left unchanged: job_due_ms stays in the partial
+		// due index during the lease, so a crashed worker's row is visible again
+		// after expiry. A live lease is refused by the expiry check above.
 	case uoLeaseRenew:
 		if old.owner != q.owner || old.generation != q.generation || q.generation <= 0 || q.nowMS >= old.expiresMS || q.durationMS <= 0 || q.durationMS > 300_000 || q.durationMS > math.MaxInt64-q.nowMS || q.nextMS.Valid {
 			return uoJobLease{}, ErrConflict
@@ -185,7 +191,11 @@ func applyUOJobLease(ctx context.Context, turn *commandTurn, job uoOperationalJo
 	args := []any{after.owner, after.generation, after.expiresMS, after.attempts, nullableLeaseAttempt(after.nextMS), after.revision}
 	args = append(args, keyArgs...)
 	args = append(args, old.owner, old.generation, old.expiresMS, old.attempts, leaseAttemptParam(old.nextMS), old.revision)
-	row, err := wc008DraftQuery(ctx, turn, uoJobLeaseID(job.family), args...)
+	statementID := uoJobLeaseID(job.family)
+	if change.action == uoLeaseClaim {
+		statementID = uoJobClaimID(job.family)
+	}
+	row, err := wc008DraftQuery(ctx, turn, statementID, args...)
 	if err != nil {
 		return out, err
 	}
@@ -318,6 +328,14 @@ func uoJobCurrentID(f uoJobFamily) stmt.ID {
 	return stmt.ID(string(id) + ".current")
 }
 
+func uoJobClaimID(f uoJobFamily) stmt.ID {
+	id := uoJobLeaseID(f)
+	if id == "" {
+		return ""
+	}
+	return stmt.ID(string(id) + ".claim")
+}
+
 func uoJobReclaimID(f uoJobFamily) stmt.ID {
 	id := uoJobLeaseID(f)
 	if id == "" {
@@ -350,28 +368,39 @@ func uoJobDefinitions() []stmt.Definition {
 			from += " INDEXED BY " + shape.pkIndex
 		}
 		rev := shape.revision
-		leaseSQL := "UPDATE " + from + " SET job_lease_owner=?,job_lease_generation=?,job_lease_expires_ms=?,job_attempts=?,job_next_attempt_ms=?," + rev + "=? WHERE " + keyWhere +
-			" AND job_lease_owner=? AND job_lease_generation=? AND job_lease_expires_ms=? AND job_attempts=? AND COALESCE(job_next_attempt_ms,-1)=? AND " + rev + "=? RETURNING " + rev
+		leaseBase := "UPDATE " + from + " SET job_lease_owner=?,job_lease_generation=?,job_lease_expires_ms=?,job_attempts=?,job_next_attempt_ms=?," + rev + "=? WHERE " + keyWhere +
+			" AND job_lease_owner=? AND job_lease_generation=? AND job_lease_expires_ms=? AND job_attempts=? AND COALESCE(job_next_attempt_ms,-1)=? AND " + rev + "=?"
+		leaseSQL := leaseBase + " RETURNING " + rev
+		claimSQL := leaseBase + " AND " + shape.nonTerminal + " RETURNING " + rev
 		leaseParams := []stmt.Param{
 			{Name: "next_owner", Type: stmt.Integer}, {Name: "next_generation", Type: stmt.Integer},
 			{Name: "next_expiry", Type: stmt.Integer}, {Name: "next_attempts", Type: stmt.Integer},
 			{Name: "next_attempt", Type: stmt.Integer, Nullable: true}, {Name: "next_revision", Type: stmt.Integer},
 			{Name: "key1", Type: stmt.Text},
 		}
-		leaseArgs := []any{int64(7), int64(1), int64(1100), int64(1), nil, int64(2), "job-one"}
+		leaseArgs := []any{int64(7), int64(1), int64(1100), int64(1), int64(100), int64(2), "job-one"}
+		claimArgs := []any{int64(7), int64(1), int64(1100), int64(1), int64(100), int64(2), "job-one"}
 		if shape.key2 != "" {
 			leaseParams = append(leaseParams, stmt.Param{Name: "key2", Type: stmt.Text})
 			leaseArgs = append(leaseArgs, "operation-one")
+			claimArgs = append(claimArgs, "operation-one")
 		}
 		leaseParams = append(leaseParams,
 			stmt.Param{Name: "old_owner", Type: stmt.Integer}, stmt.Param{Name: "old_generation", Type: stmt.Integer},
 			stmt.Param{Name: "old_expiry", Type: stmt.Integer}, stmt.Param{Name: "old_attempts", Type: stmt.Integer},
 			stmt.Param{Name: "old_attempt", Type: stmt.Integer}, stmt.Param{Name: "old_revision", Type: stmt.Integer})
-		leaseArgs = append(leaseArgs, int64(0), int64(0), int64(0), int64(0), int64(-1), int64(1))
+		leaseArgs = append(leaseArgs, int64(7), int64(1), int64(100), int64(1), int64(100), int64(1))
+		claimArgs = append(claimArgs, int64(0), int64(0), int64(0), int64(0), int64(100), int64(1))
 		out = append(out, stmt.Definition{
 			ID: uoJobLeaseID(f), Owner: "store/writer UO operations", Kind: stmt.Write,
 			SQL: leaseSQL, Params: leaseParams,
-			Cohorts:   []stmt.Cohort{{Name: "claim_successor", Bindings: leaseArgs}},
+			Cohorts:   []stmt.Cohort{{Name: "renew_or_finish", Bindings: leaseArgs}},
+			CallSites: []string{"store/writer/uo_jobs.go:applyUOJobLease"}, Plan: plan,
+		})
+		out = append(out, stmt.Definition{
+			ID: uoJobClaimID(f), Owner: "store/writer UO operations", Kind: stmt.Write,
+			SQL: claimSQL, Params: leaseParams,
+			Cohorts:   []stmt.Cohort{{Name: "due_nonterminal", Bindings: claimArgs}},
 			CallSites: []string{"store/writer/uo_jobs.go:applyUOJobLease"}, Plan: plan,
 		})
 
