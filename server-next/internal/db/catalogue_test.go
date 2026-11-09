@@ -210,6 +210,10 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 					f.rating, f.labels = root.rating, append(f.labels, root.labels...)
 					f.genres = append(f.genres, root.genres...)
 				}
+				// A label on a season or an album covers what is in it, like one on the show or artist.
+				if detail.Parent != nil && (detail.Root == nil || detail.Parent.PublicID != detail.Root.PublicID) {
+					f.labels = append(f.labels, facts[detail.Parent.PublicID].labels...)
+				}
 				facts[item.PublicID] = f
 				ids = append(ids, item.PublicID)
 			}

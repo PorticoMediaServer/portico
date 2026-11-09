@@ -35,13 +35,7 @@ type access struct {
 	blockedTags  []int64 // labels the profile must never be shown
 }
 
-// queryer is a transaction, read or write.
-type queryer interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-func ids(ctx context.Context, tx queryer, query string, args ...any) ([]int64, error) {
+func ids(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]int64, error) {
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -58,7 +52,7 @@ func ids(ctx context.Context, tx queryer, query string, args ...any) ([]int64, e
 	return out, rows.Err()
 }
 
-func loadAccess(ctx context.Context, tx queryer, v Viewer) (access, error) {
+func loadAccess(ctx context.Context, tx *sql.Tx, v Viewer) (access, error) {
 	var a access
 	var userAll, profileAll bool
 	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age FROM profiles p
@@ -108,9 +102,10 @@ func (a access) libraryVisible(library string) string {
 // counts, and the state writes), so a restricted title is never fetched and then filtered.
 //
 // A row is visible when its library is, its rating is within the profile's limit, and neither
-// it nor the title it belongs to carries a label the profile has blocked. Children are stored
-// with the rating they inherit, so an episode needs no join to its show. When a limit is set,
-// a title with no rating is hidden: unknown is not the same as suitable.
+// it nor anything it sits under (its album or season, its artist or show) carries a label the
+// profile has blocked. Children are stored with the rating they inherit, so an episode needs
+// no join to its show. When a limit is set, a title with no rating is hidden: unknown is not
+// the same as suitable.
 //
 // A profile with no restriction gets the condition "1", so its reads cost nothing extra.
 func (a access) visible(alias string) string {
@@ -120,7 +115,8 @@ func (a access) visible(alias string) string {
 	}
 	if len(a.blockedTags) > 0 {
 		blocked := "(SELECT item_id FROM item_tags WHERE tag_id IN " + intList(a.blockedTags) + ")"
-		cond += " AND " + alias + ".id NOT IN " + blocked + " AND ifnull(" + alias + ".root_id, 0) NOT IN " + blocked
+		cond += " AND " + alias + ".id NOT IN " + blocked + " AND ifnull(" + alias + ".parent_id, 0) NOT IN " + blocked +
+			" AND ifnull(" + alias + ".root_id, 0) NOT IN " + blocked
 	}
 	return "(" + cond + ")"
 }
