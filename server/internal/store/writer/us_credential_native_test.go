@@ -358,6 +358,33 @@ func TestUSCredentialNative(t *testing.T) {
 	}
 }
 
+// The saved-result read binds the sealed columns to concrete Go destinations.
+// The guarded command row refuses *sql.RawBytes with
+// "raw_scan_destination: invalid writer input (limit 0)", so the replay path
+// must scan the stored artifact even though it never projects it.
+func TestUSCredentialResultReadScansSealedColumns(t *testing.T) {
+	w, proof := usCredentialAuthorityFixture(t, false)
+	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+	r := usCredentialRegistry(t)
+	command := usCredentialIssueCommandFixture(t, w, proof, "key", CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{2}, Sequence: 1})
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
+	if _, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, command)); err != nil {
+		t.Fatal(err)
+	}
+	q, err := usCredentialReceiptForCommand(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, _, _ = usCredentialTurn(t, w, r, proof, usAPICredentialIssue, 0)
+	v, typedBytes, scopeCount, err := readUSCredentialResult(t.Context(), turn, q)
+	if err != nil {
+		t.Fatalf("saved result scan refused: %v", err)
+	}
+	if typedBytes <= 0 || scopeCount != 2 || !v.secret.present() || !bytes.Equal(v.secret.body, usCredentialSealedBody("key")) {
+		t.Fatal("saved result scan did not read the sealed columns", typedBytes, scopeCount, v.secret.present())
+	}
+}
+
 // A replay is independent of later source drift: only the retained receipt and
 // its typed cohort are read.
 func TestUSCredentialReplayAfterSourceDrift(t *testing.T) {
