@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -370,10 +372,39 @@ func TestMPOctetCaptureRejectsChangedPoints(t *testing.T) {
 		},
 		"unknown": func(d *stmt.Definition) { d.ID = readStatementID("foreground.mp.unknown_octets") },
 	}
+	names := make([]string, 0, len(mutations))
+	for name := range mutations {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 	for _, point := range points {
-		for name, mutate := range mutations {
+		if _, err := mpOctetCapture(t, conn, fixture, policy, point); err != nil {
+			t.Fatalf("%s: unchanged point refused: %v", point.ID, err)
+		}
+		before, err := json.Marshal(point)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range names {
 			d := point
-			mutate(&d)
+			// A struct copy shares slice backing arrays. Each mutation owns
+			// its parameter/plan slices, including nested native key columns.
+			// Cohorts and call sites are read-only in this mutation inventory.
+			d.Params = append([]stmt.Param(nil), point.Params...)
+			d.Plan.Indexes = append([]string(nil), point.Plan.Indexes...)
+			d.Plan.Seeks = append([]string(nil), point.Plan.Seeks...)
+			d.Plan.PrimaryKeys = append([]string(nil), point.Plan.PrimaryKeys...)
+			d.Plan.AllowedScans = append([]string(nil), point.Plan.AllowedScans...)
+			d.Plan.Waivers = append([]stmt.Waiver(nil), point.Plan.Waivers...)
+			d.Plan.AutoIndexes = append([]stmt.AutoIndexBinding(nil), point.Plan.AutoIndexes...)
+			for i := range d.Plan.AutoIndexes {
+				d.Plan.AutoIndexes[i].Columns = append([]stmt.IndexColumn(nil), point.Plan.AutoIndexes[i].Columns...)
+			}
+			mutations[name](&d)
+			after, err := json.Marshal(point)
+			if err != nil || string(after) != string(before) {
+				t.Fatalf("%s %s: mutation changed the original definition: %v", point.ID, name, err)
+			}
 			if _, err := mpOctetCapture(t, conn, fixture, policy, d); err == nil {
 				t.Fatalf("%s %s: changed point certified", point.ID, name)
 			}
