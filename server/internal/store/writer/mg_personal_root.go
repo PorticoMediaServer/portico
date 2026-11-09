@@ -251,6 +251,8 @@ func mgPersonalResultPayload(id CommandIdentity, q RequestDigest, result any) ([
 		return mgSourceCommandPayload(id, q, v)
 	case mgDVRPolicyResult:
 		return mgDVRPolicyResultPayload(id, q, v)
+	case mgRecordingIntentResult:
+		return mgRecordingIntentPayload(id, q, v)
 	}
 	return nil, ResultDigest{}, ErrInvalid
 }

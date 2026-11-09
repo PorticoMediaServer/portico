@@ -65,6 +65,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightMGPersonalReminder(v)
 	case mgDVRPolicyResult:
 		return preflightMGDVRPolicyResult(v)
+	case mgRecordingIntentResult:
+		return preflightMGRecordingIntent(v)
 	case uoRootOperationResult:
 		return preflightUORootOperation(v)
 	case mpQueueRepeatValue:
@@ -170,6 +172,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeMGPersonalReminder(e, identity, request, v)
 	case mgDVRPolicyResult:
 		return writeMGDVRPolicyResult(e, identity, request, v)
+	case mgRecordingIntentResult:
+		return writeMGRecordingIntent(e, identity, request, v)
 	case uoRootOperationResult:
 		return writeUORootOperation(e, identity, request, v)
 	case mpQueueRepeatValue:
