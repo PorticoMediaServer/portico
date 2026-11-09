@@ -54,11 +54,11 @@ class FullPackageSelection(unittest.TestCase):
                 self.assertEqual(plan.full_go_packages(packages, ['server/a/' + path]), {'a', 'b', 'c', 'x'})
                 self.assertEqual(plan.full_go_packages(packages, ['server/a/README.md']), set())
 
-    def test_promoted_prs_can_use_twenty_shards_without_changing_queue_cap(self):
+    def test_promoted_prs_can_use_twenty_shards_without_raising_the_feedback_cap(self):
         tests = [{'package': 'p', 'name': 'Test' + str(i)} for i in range(200)]
         costs = {'p.' + t['name']: 20 for t in tests}
         self.assertEqual(len(plan.balance_short_censuses(tests, costs, max_count=20)[0]), 20)
-        self.assertEqual(len(plan.balance(tests, costs)[0]), 10)
+        self.assertEqual(len(plan.balance_short_censuses(tests, costs)[0]), 10)
 
     def test_batch_crash_parents_keep_complete_inventory_on_separate_shards(self):
         package = 'github.com/PorticoMediaServer/portico/server/internal/store/writer'
