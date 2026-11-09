@@ -73,6 +73,8 @@ type usGroupBProducer struct {
 }
 
 var usGroupBProducers = []usGroupBProducer{
+	{File: "server/internal/store/writer/uo_public_reading_authority_test.go", Op: "insert", Table: "api_credentials", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "F-P03/UO-02", Note: "Canonical reading current-session credential exclusion fixture", Prefix: `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms) VALUES('c','key','issuer','issuer-profile`},
+
 	{File: "server/internal/store/writer/mp_worker_dispatch_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 MP-04 queue worker current-device fixture; Group B P05 cutover", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('mp-device',?,'mp-install','Fixture','test`},
 
 	{File: "server/internal/access/access_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBLegacy, Purpose: usGroupBOrdinary, Fixture: "", Note: "Legacy access fixture device", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen,last_profile_id,ip) VALUES ('d-a','member','i-a','`},                                                                                  // line 1250
