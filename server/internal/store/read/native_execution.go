@@ -177,7 +177,15 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	if in.CandidateBudget < 0 || in.CandidateBudget > NativePreviewCandidates || !in.Preview && in.CandidateBudget != 0 {
 		return page, cost, ErrInput
 	}
+	if in.PeopleOnly && in.View.Kind != 0 {
+		return page, cost, ErrInput
+	}
 	priorCandidates := 0
+	if in.After != nil {
+		if in.After.people != in.PeopleOnly {
+			return page, cost, ErrStale
+		}
+	}
 	if in.After != nil && in.After.native != nil {
 		if in.After.native.preview != in.Preview {
 			return page, cost, ErrStale
@@ -203,6 +211,15 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	if request.Budget.RawRows < 4096 || request.Need[governor.MemoryBytes]-r.snapshots.NativeRowReservation() < 4<<20 || output.Request.Need[governor.MemoryBytes] < 8<<20 {
 		return page, cost, governor.ErrSnapshotBudget
 	}
+	// A People page retains up to forty person policies and re-proves them in
+	// both snapshots. Each window keeps its own Go-copy account, and the scope
+	// uses the full Go grant (the native row reservation already leaves exactly
+	// that much) instead of the catalogue half-grant. The zero value is
+	// unchanged: every other query keeps the original 2 MiB window.
+	copyLimit := int64(2 << 20)
+	if in.PeopleOnly {
+		copyLimit = 4 << 20
+	}
 	deadline := earliest(request.Deadline, output.Request.Deadline, started.Add(min(budget, time.Second)))
 	request.Deadline = deadline
 	var initial nativeSearchFence
@@ -221,7 +238,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 				return nil, e
 			}
 			if fact, ok := nativeCachedKind(kindCache, name, args); ok {
-				if copies > (2<<20)-128 {
+				if copies > copyLimit-128 {
 					return nil, governor.ErrSnapshotBudget
 				}
 				copies += 128
@@ -262,7 +279,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 				}
 			}
 			// Half of the Go-copy grant remains for reducer/matcher/owner workspace.
-			if copies > 2<<20 {
+			if copies > copyLimit {
 				return nil, governor.ErrSnapshotBudget
 			}
 			return rows, nil
@@ -283,7 +300,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 		}
 		for _, proof := range retained {
 			copies += 256 + int64(len(proof.witness))
-			if copies > 2<<20 {
+			if copies > copyLimit {
 				return governor.ErrSnapshotBudget
 			}
 			if err = nativeValidateRetainedPolicy(q, in.View, libraryFences, proof); err != nil {
@@ -305,6 +322,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 			return e
 		}
 		scopeQuery.nativeWork = work
+		scopeQuery.peopleOnly = in.PeopleOnly
 		if in.Preview {
 			draft, e = nativePreviewAdvance(scope.Context(), q, scopeQuery, initial, in, &calls)
 		} else {
@@ -335,6 +353,13 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	if !time.Now().Before(deadline) {
 		return FullSearchPage{}, cost, errors.Join(lookupErr, ctx.Err(), context.DeadlineExceeded)
 	}
+	// A People page accumulates up to forty person policies, and each of the two
+	// snapshots must re-prove them. Charge each window against its own documented
+	// half-grant instead of one Go-copy counter shared across both; the lookup
+	// window's rows are already released before the final window opens.
+	if in.PeopleOnly {
+		copies = 0
+	}
 	// The fresh view performs fences ONLY. Cancellation cannot release a page;
 	// an observed security denial takes precedence over simultaneous cancellation.
 	finalCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
@@ -348,7 +373,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 				return nil, e
 			}
 			if fact, ok := nativeCachedKind(kindCache, name, args); ok {
-				if copies > (2<<20)-128 {
+				if copies > copyLimit-128 {
 					return nil, governor.ErrSnapshotBudget
 				}
 				copies += 128
@@ -372,7 +397,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 					}
 				}
 			}
-			if copies > 2<<20 {
+			if copies > copyLimit {
 				return nil, governor.ErrSnapshotBudget
 			}
 			return rows, nil
@@ -462,7 +487,7 @@ func (r *NativeFullSearchReader) nativeWindow(ctx context.Context, request gover
 	draft.Stamp.ownWitnesses()
 	metadataBytes := draft.Stamp.MetadataBytes()
 	copies += metadataBytes
-	if metadataBytes > MaxNativeStampBytes || copies > 2<<20 {
+	if metadataBytes > MaxNativeStampBytes || copies > copyLimit {
 		return FullSearchPage{}, cost, governor.ErrSnapshotBudget
 	}
 	return draft, cost, nil
@@ -652,7 +677,7 @@ func nativeAdvance(ctx context.Context, q browseQuery, scope *fullQueryScope, f 
 		state.top = append(state.top, nativeRankHit{hit.Subject, hit.ID, hit.Library, hit.Kind, hit.Tier, hit.PeopleSubtier})
 	}
 	state.more = top.more
-	cursor := &FullSearchCursor{query: scope.query.Fold(), bank: scope.bank, revision: scope.revision, input: scope.input, native: state}
+	cursor := &FullSearchCursor{query: scope.query.Fold(), bank: scope.bank, revision: scope.revision, input: scope.input, people: scope.peopleOnly, native: state}
 	if in.After != nil {
 		cursor.after = in.After.after
 	}
