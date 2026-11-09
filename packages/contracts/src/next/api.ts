@@ -8,6 +8,41 @@ export interface Account {
   role: string;
 }
 
+export interface Challenge {
+  token: string;
+  expiresAt: string;
+}
+
+export interface CodeCollect {
+  deviceSecret: string;
+}
+
+export interface CodeDecision {
+  deny?: boolean;
+}
+
+export interface CodeResult {
+  status: string;
+  intervalMs?: number;
+  signIn?: SignInResponse;
+}
+
+export interface CodeReview {
+  device: DeviceInfo;
+  expiresAt: string;
+}
+
+export interface CodeStart {
+  device: DeviceInfo;
+}
+
+export interface CodeStarted {
+  code: string;
+  deviceSecret: string;
+  expiresAt: string;
+  intervalMs: number;
+}
+
 export interface Device {
   id: string;
   name: string;
@@ -57,6 +92,82 @@ export interface Health {
   status: string;
 }
 
+export interface Invitation {
+  id: string;
+  code?: string;
+  role: string;
+  state: string;
+  allLibraries: boolean;
+  libraries: string[];
+  note?: string;
+  createdBy?: string;
+  acceptedBy?: string;
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt?: string;
+}
+
+export interface InvitationAccept {
+  username: string;
+  password: string;
+  profileName?: string;
+  device: DeviceInfo;
+}
+
+export interface InvitationCreate {
+  role?: string;
+  allLibraries?: boolean;
+  libraries?: string[];
+  note?: string;
+  expiresInDays?: number;
+}
+
+export interface InvitationEdit {
+  role?: string;
+  allLibraries?: boolean;
+  libraries?: string[];
+  note?: string;
+  expiresInDays?: number;
+}
+
+export interface InvitationPage {
+  items: Invitation[];
+  nextCursor?: string;
+}
+
+export interface InvitationPreview {
+  serverName: string;
+  role: string;
+  allLibraries: boolean;
+  libraries: string[];
+  expiresAt: string;
+}
+
+export interface Key {
+  id: string;
+  name: string;
+  scopes: string[];
+  createdAt: string;
+  lastUsedAt?: string;
+  expiresAt?: string;
+}
+
+export interface KeyCreate {
+  name: string;
+  scopes: string[];
+  expiresAt?: string;
+}
+
+export interface KeyCreated {
+  key: Key;
+  secret: string;
+}
+
+export interface KeyPage {
+  items: Key[];
+  nextCursor?: string;
+}
+
 export interface Me {
   account: Account;
   profile?: Profile;
@@ -64,8 +175,53 @@ export interface Me {
   canManageAccount: boolean;
 }
 
+export interface Member extends Account {
+  disabled: boolean;
+  createdAt: string;
+  allLibraries: boolean;
+  libraries: string[];
+  twoFactorEnabled: boolean;
+  notes?: string;
+}
+
+export interface MemberCreate {
+  username: string;
+  password: string;
+  role?: string;
+  profileName?: string;
+}
+
+export interface MemberEdit {
+  role?: string;
+  disabled?: boolean;
+  notes?: string;
+  allLibraries?: boolean;
+  libraries?: string[];
+}
+
+export interface MemberPage {
+  items: Member[];
+  nextCursor?: string;
+}
+
 export interface PasswordRequest {
   currentPassword: string;
+  newPassword: string;
+  code?: string;
+}
+
+export interface PasswordResetCode {
+  code: string;
+  expiresAt: string;
+}
+
+export interface PasswordResetCreate {
+  resetTwoFactor?: boolean;
+}
+
+export interface PasswordResetRequest {
+  username: string;
+  code: string;
   newPassword: string;
 }
 
@@ -91,6 +247,7 @@ export interface ProfileEdit {
 export interface ProfilePIN {
   pin: string;
   currentPassword?: string;
+  code?: string;
 }
 
 export interface ProfilePage {
@@ -100,6 +257,10 @@ export interface ProfilePage {
 
 export interface ProfileSelect {
   pin?: string;
+}
+
+export interface RecoveryCodes {
+  recoveryCodes: string[];
 }
 
 export interface RefreshRequest {
@@ -154,9 +315,10 @@ export interface SignInRequest {
 }
 
 export interface SignInResponse {
-  session: Session;
-  account: Account;
-  profiles: Profile[];
+  session?: Session;
+  account?: Account;
+  profiles?: Profile[];
+  challenge?: Challenge;
 }
 
 export interface System {
@@ -167,6 +329,35 @@ export interface System {
   capabilities: string[];
   setupRequired: boolean;
   signInMethods: string[];
+}
+
+export interface TwoFactorEnrol {
+  currentPassword: string;
+}
+
+export interface TwoFactorFinish {
+  challenge: string;
+  code: string;
+}
+
+export interface TwoFactorProof {
+  currentPassword: string;
+  code: string;
+}
+
+export interface TwoFactorSetup {
+  secret: string;
+  uri: string;
+}
+
+export interface TwoFactorState {
+  enabled: boolean;
+  enabledAt?: string;
+  recoveryCodesLeft: number;
+}
+
+export interface TwoFactorVerify {
+  code: string;
 }
 
 export interface Viewer {
@@ -192,6 +383,17 @@ export interface Routes {
   'DELETE /v1/auth/session': {access: 'public'; request: undefined; response: undefined};
   'POST /v1/auth/password': {access: 'signedIn'; request: PasswordRequest; response: undefined};
   'GET /v1/me': {access: 'signedIn'; request: undefined; response: Me};
+  'POST /v1/auth/password-reset/confirm': {access: 'public'; request: PasswordResetRequest; response: undefined};
+  'POST /v1/auth/two-factor': {access: 'public'; request: TwoFactorFinish; response: SignInResponse};
+  'GET /v1/me/two-factor': {access: 'signedIn'; request: undefined; response: TwoFactorState};
+  'POST /v1/me/two-factor': {access: 'signedIn'; request: TwoFactorEnrol; response: TwoFactorSetup};
+  'POST /v1/me/two-factor/confirm': {access: 'signedIn'; request: TwoFactorVerify; response: RecoveryCodes};
+  'POST /v1/me/two-factor/recovery-codes': {access: 'signedIn'; request: TwoFactorProof; response: RecoveryCodes};
+  'DELETE /v1/me/two-factor': {access: 'signedIn'; request: TwoFactorProof; response: undefined};
+  'POST /v1/auth/codes': {access: 'public'; request: CodeStart; response: CodeStarted};
+  'GET /v1/auth/codes/{id}': {access: 'withProfile'; request: undefined; response: CodeReview};
+  'POST /v1/auth/codes/{id}/approve': {access: 'withProfile'; request: CodeDecision; response: undefined};
+  'POST /v1/auth/codes/{id}/redeem': {access: 'public'; request: CodeCollect; response: CodeResult};
   'GET /v1/profiles': {access: 'signedIn'; request: undefined; response: ProfilePage};
   'POST /v1/profiles': {access: 'signedIn'; request: ProfileCreate; response: Profile};
   'GET /v1/profiles/{id}': {access: 'signedIn'; request: undefined; response: Profile};
@@ -206,4 +408,25 @@ export interface Routes {
   'GET /v1/devices': {access: 'signedIn'; request: undefined; response: DevicePage};
   'PATCH /v1/devices/{id}': {access: 'signedIn'; request: DeviceEdit; response: Device};
   'DELETE /v1/devices/{id}': {access: 'signedIn'; request: undefined; response: undefined};
+  'GET /v1/admin/members': {access: 'admin'; request: undefined; response: MemberPage};
+  'POST /v1/admin/members': {access: 'admin'; request: MemberCreate; response: Member};
+  'GET /v1/admin/members/{id}': {access: 'admin'; request: undefined; response: Member};
+  'PATCH /v1/admin/members/{id}': {access: 'admin'; request: MemberEdit; response: Member};
+  'DELETE /v1/admin/members/{id}': {access: 'admin'; request: undefined; response: undefined};
+  'POST /v1/admin/members/{id}/password-reset': {access: 'admin'; request: PasswordResetCreate; response: PasswordResetCode};
+  'GET /v1/admin/invitations': {access: 'admin'; request: undefined; response: InvitationPage};
+  'POST /v1/admin/invitations': {access: 'admin'; request: InvitationCreate; response: Invitation};
+  'PATCH /v1/admin/invitations/{id}': {access: 'admin'; request: InvitationEdit; response: Invitation};
+  'DELETE /v1/admin/invitations/{id}': {access: 'admin'; request: undefined; response: undefined};
+  'GET /v1/auth/invitations/{id}': {access: 'public'; request: undefined; response: InvitationPreview};
+  'POST /v1/auth/invitations/{id}/accept': {access: 'public'; request: InvitationAccept; response: SignInResponse};
+  'GET /v1/me/tokens': {access: 'signedIn'; request: undefined; response: KeyPage};
+  'POST /v1/me/tokens': {access: 'signedIn'; request: KeyCreate; response: KeyCreated};
+  'DELETE /v1/me/tokens/{id}': {access: 'signedIn'; request: undefined; response: undefined};
+  'GET /v1/me/app-passwords': {access: 'signedIn'; request: undefined; response: KeyPage};
+  'POST /v1/me/app-passwords': {access: 'signedIn'; request: KeyCreate; response: KeyCreated};
+  'DELETE /v1/me/app-passwords/{id}': {access: 'signedIn'; request: undefined; response: undefined};
+  'GET /v1/admin/api-keys': {access: 'owner'; request: undefined; response: KeyPage};
+  'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
+  'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
 }
