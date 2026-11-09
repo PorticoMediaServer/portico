@@ -14,10 +14,11 @@ import (
 )
 
 // Witnesses are bounded, owned comparison inputs, never permissions. This
-// recipe checks only the approved FULL frames (540/541 policy and the ordinary
-// 520 local owner password replacement) for a current direct-owner main-profile
-// interactive session with a registered installation and device. It excludes
-// reset-file sessions and narrow grants. It proves no
+// recipe checks only the approved FULL frames (540/541 policy, the ordinary
+// 520 local owner password replacement, the caller's own-account 532/533 PIN
+// composition and this 542 profile-restrictions composition) for a current
+// direct-owner main-profile interactive session with a registered installation
+// and device. It excludes reset-file sessions and narrow grants. It proves no
 // root/admin/setup/Hosted/factor/recovery/ownership-transfer authority and grants
 // no command. Each consumer must state its extra conditions and recheck before
 // release. Raw installation proof never enters receipts, events, errors or
@@ -87,7 +88,7 @@ func (b usOwnerAuthorityBudget) check(ctx context.Context, turn *commandTurn, by
 	// own-account PIN composition; its extra conditions live in
 	// us_pin_receipts.go, not here.
 	switch tx.descriptor.ID {
-	case USMemberLibraries, USProfileLibraries, usLocalPasswordReplace, usPINSet, usPINClear:
+	case USMemberLibraries, USProfileLibraries, usLocalPasswordReplace, usPINSet, usPINClear, USProfileRestrictions:
 	default:
 		return ErrInvalid
 	}
