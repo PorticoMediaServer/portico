@@ -303,6 +303,15 @@ func ipPersonReceiptKind(kind, evidenceID string) (CommandID, bool) {
 	return 0, false
 }
 
+// ipPersonReceiptReadPacket is the finish-guard publication shape for the
+// three receipt facts: they may leave the command frame only while its
+// lifetime is live, exactly like the typed release results.
+type ipPersonReceiptReadPacket struct {
+	receipt ipPersonReceipt
+	kind    CommandID
+	found   bool
+}
+
 // ipPersonReceiptRead reads and validates the ONE original receipt row for the
 // exact owner incarnation and command sequence. It never classifies a purpose
 // and never reads mutable owner state; the caller binds the stored kind to its
@@ -310,6 +319,11 @@ func ipPersonReceiptKind(kind, evidenceID string) (CommandID, bool) {
 // equal numeric witnesses can never satisfy this read.
 func ipPersonReceiptRead(ctx context.Context, turn *commandTurn, ownerID string,
 	ref ReceiptReference) (out ipPersonReceipt, kind CommandID, found bool, err error) {
+	defer func() {
+		packet, failure := finishCommand(ctx, commandLifetime(turn),
+			ipPersonReceiptReadPacket{out, kind, found}, err)
+		out, kind, found, err = packet.receipt, packet.kind, packet.found, failure
+	}()
 	row, err := wc008DraftQuery(ctx, turn, ipPersonReceiptStmt, ownerID, ref.Identity.Incarnation[:], ref.Identity.Sequence)
 	if err != nil {
 		return out, 0, false, err

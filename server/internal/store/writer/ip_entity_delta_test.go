@@ -289,11 +289,16 @@ func TestIPEntityDeltaReplaceRetainsOldSourceAndReplays(t *testing.T) {
 		`SELECT proof_pin_count FROM metadata_ip_receipts WHERE command_kind='evidence_seal' AND owner_id='` + setup.first.owner.OperationID + `'`:                                                                                                                                                                                                                                                                                                                                2,
 		`SELECT proof_pin_count FROM metadata_ip_receipts WHERE command_kind='evidence_seal' AND owner_id='` + setup.owner.OperationID + `'`:                                                                                                                                                                                                                                                                                                                                      2,
 		`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='delta' AND publication_id='publication-two' AND evidence_id='evidence-two' AND terminal=1 AND result_phase='accepted' AND result_count=6`:                                                                                                                                                                                                                                                                  1,
-		`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='accept'`:                                                                                                    1,
-		`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Replacement Series' AND overview='Replacement overview' AND year=2021 AND revision=3 AND metadata_revision=3`: 1,
-		`SELECT count(*) FROM metadata_field_origins WHERE entity_id=1 AND publication_id='publication-two' AND evidence_id='evidence-two'`:                                        6,
-		`SELECT count(*) FROM metadata_field_origins WHERE entity_id=1 AND publication_id='publication-one'`:                                                                       0,
-		`SELECT last_command_sequence FROM metadata_provider_operations WHERE id='` + setup.owner.OperationID + `'`:                                                                second.sequence + 1,
+		`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='accept'`: 1,
+		// The fixture locks the owner 'description' field (the catalogue overview)
+		// to an explicit empty, so the replacement keeps that locked effective
+		// value in the projection and retains the provider observation only as the
+		// automatic value; the unlocked title and year are replaced in place.
+		`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Replacement Series' AND overview='' AND year=2021 AND revision=3 AND metadata_revision=3`:                                                                  1,
+		`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='' AND value_present=1 AND locked=1 AND automatic_value='Replacement overview' AND automatic_present=1`: 1,
+		`SELECT count(*) FROM metadata_field_origins WHERE entity_id=1 AND publication_id='publication-two' AND evidence_id='evidence-two'`:                                                                                     6,
+		`SELECT count(*) FROM metadata_field_origins WHERE entity_id=1 AND publication_id='publication-one'`:                                                                                                                    0,
+		`SELECT last_command_sequence FROM metadata_provider_operations WHERE id='` + setup.owner.OperationID + `'`:                                                                                                             second.sequence + 1,
 	} {
 		if got := ipPolicyQueryInt(t, w, query); got != want {
 			t.Fatal(query, got)
