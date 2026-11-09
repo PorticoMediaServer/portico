@@ -537,6 +537,9 @@ type usGroupBSchemaGuard struct {
 }
 
 var usGroupBSchemaGuards = []usGroupBSchemaGuard{
+	{File: "server/internal/store/writer/testdata/wc-progress-composition.json", Literals: 1, Guards: "F018 actual native VM capture schema binding; preserve manifests and record only observed VM changes", HashOnly: false},
+	{File: "server/internal/store/writer/testdata/wc-progress-capture_start.json", Literals: 1, Guards: "F018 actual native VM capture schema binding; preserve manifests and record only observed VM changes", HashOnly: false},
+	{File: "server/internal/store/writer/testdata/wc-progress-pending_drain.json", Literals: 1, Guards: "F018 actual native VM capture schema binding; preserve manifests and record only observed VM changes", HashOnly: false},
 	{File: "server/internal/store/writer/ia_retirement_step_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
 	{File: "server/internal/store/writer/mp_external_guide_pin_plans_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
 	{File: "server/internal/store/writer/mp_reading_plans_test.go", Literals: 1, Guards: "F018 exact full-schema fixture/participant guard; INT owns this source/schema binding", HashOnly: true},
