@@ -194,6 +194,9 @@ func proveUOFlagsPublicVisible(ctx context.Context, turn *commandTurn, proof *uo
 // read fence exactly (store/read/browse.go:223-226): a pending age operation or
 // an input age that is not yet published means the viewer's admission cannot
 // trust admission_own_age yet, so it refuses instead of admitting a stale age.
+// The refusal is this proof's TERMINAL disclosure denial (ErrDisclosureDenied):
+// the native read answers a retryable ErrUnqualified for the same pending state,
+// and the two classes are deliberately not unified yet.
 func readUOFlagsTargetRow(ctx context.Context, turn *commandTurn, public [16]byte) (out uoFlagsTargetRow, err error) {
 	if public == ([16]byte{}) {
 		return out, ErrDisclosureDenied
@@ -226,7 +229,10 @@ func readUOFlagsTargetRow(ctx context.Context, turn *commandTurn, public [16]byt
 // or the profile's narrowed set, any stored blocked label (that predicate is not
 // represented natively; refuse rather than fail open), the profile's Recordings
 // permission for a published recording, and the age/unrated admission of the
-// item's own rating.
+// item's own rating. For a private Recorded-TV library it applies the legacy
+// private-owner overlay INSTEAD of the shared grants: another profile is
+// refused, its owner is admitted without a grant, and the owner's Recordings
+// switch withholds the whole library.
 //
 // This deliberately matches LEGACY where native differs: identity/access_tier.go
 // admits an ADMIN without a library grant, while native browse.go:223 gives that
@@ -267,11 +273,38 @@ func validateUOFlagsViewer(ctx context.Context, turn *commandTurn, identity uoRo
 	if memberIncarnation != identity.memberIncarnation || profileLifetime != identity.profileLifetime {
 		return out, ErrDisclosureDenied
 	}
+	// A private Recorded-TV library is owned by exactly one [authority,account,
+	// profile] tuple and is NOT authorized by the shared grant lists
+	// (recordingaccess/access.go:32-48). Legacy refuses another profile's
+	// private library even for the server owner or an admin, admits the owning
+	// profile without any shared grant, and hides the WHOLE private library when
+	// the owning profile's Recordings switch is off. Read the exact owner point
+	// before any grant decision so the role bypass below cannot outrank it.
+	row, err = wc008DraftQuery(ctx, turn, uoFlagsTargetPrivateLibrary, target.libraryKey)
+	if err != nil {
+		return out, err
+	}
+	var privateAuthority, privateAccount, privateProfile string
+	var privateOwned bool
+	switch err = row.Scan(&privateAuthority, &privateAccount, &privateProfile); {
+	case err == nil:
+		if privateAuthority != uoFlagsNativeAuthority || privateAccount != identity.account || privateProfile != identity.profile {
+			return out, ErrDisclosureDenied
+		}
+		privateOwned = true
+	case errors.Is(err, sql.ErrNoRows):
+		// A shared library: the ordinary membership/profile grants decide below.
+	default:
+		return out, err
+	}
 	var memberAllowed []string
 	if !utf8.ValidString(memberLibraries) {
 		return out, ErrDisclosureDenied
 	}
-	if err = json.Unmarshal([]byte(memberLibraries), &memberAllowed); err != nil || memberAllowed == nil || len(memberAllowed) > 100 || !uoFlagsContains(memberAllowed, target.libraryKey) && role != "owner" && role != "admin" {
+	if err = json.Unmarshal([]byte(memberLibraries), &memberAllowed); err != nil || memberAllowed == nil || len(memberAllowed) > 100 {
+		return out, ErrDisclosureDenied
+	}
+	if !privateOwned && !uoFlagsContains(memberAllowed, target.libraryKey) && role != "owner" && role != "admin" {
 		return out, ErrDisclosureDenied
 	}
 	if profileLibraries.Valid {
@@ -279,7 +312,12 @@ func validateUOFlagsViewer(ctx context.Context, turn *commandTurn, identity uoRo
 		if !utf8.ValidString(profileLibraries.String) {
 			return out, ErrDisclosureDenied
 		}
-		if err = json.Unmarshal([]byte(profileLibraries.String), &profileAllowed); err != nil || profileAllowed == nil || len(profileAllowed) > 100 || !uoFlagsContains(profileAllowed, target.libraryKey) {
+		if err = json.Unmarshal([]byte(profileLibraries.String), &profileAllowed); err != nil || profileAllowed == nil || len(profileAllowed) > 100 {
+			return out, ErrDisclosureDenied
+		}
+		// Legacy clears the target for an owned private library, so the
+		// profile's narrowed library set does not apply to it either.
+		if !privateOwned && !uoFlagsContains(profileAllowed, target.libraryKey) {
 			return out, ErrDisclosureDenied
 		}
 	}
@@ -313,6 +351,13 @@ func validateUOFlagsViewer(ctx context.Context, turn *commandTurn, identity uoRo
 		return out, err
 	}
 	if maxAge < -1 || (allowUnrated != 0 && allowUnrated != 1) || restrictionRevision < 0 || !utf8.ValidString(blockedRaw) || (allowDVR != 0 && allowDVR != 1) {
+		return out, ErrDisclosureDenied
+	}
+	// The owning profile's Recordings switch withholds its entire private
+	// library, not only rows carrying dvr_catalog_provenance
+	// (recordingaccess/access.go:38-42): browse, search and a known item id all
+	// lose the library while the switch is off.
+	if privateOwned && allowDVR == 0 {
 		return out, ErrDisclosureDenied
 	}
 	// contentaccess.VisibleItemTx hides a published recording from a profile

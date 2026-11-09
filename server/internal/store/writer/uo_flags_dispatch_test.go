@@ -1167,6 +1167,288 @@ func TestUOFlagsPersonalOwnerKeyGolden(t *testing.T) {
 	}
 }
 
+// uoFlagsPrivateLibrary inserts the exact native private-owner row
+// (dvr_private_libraries, schema.sql) for the fixture's target library. The
+// row is the plain-SQL oracle the proof's keyed read must reproduce.
+func uoFlagsPrivateLibrary(t *testing.T, w *executor, account, profile string) {
+	t.Helper()
+	wc008NativeExec(t, w, `INSERT INTO dvr_private_libraries(library_id,authority,account_id,profile_id) VALUES('library-one','local',?,?)`, account, profile)
+}
+
+// uoFlagsDropGrants removes the fixture's shared library grants from both the
+// membership and the profile, so only the private-owner overlay can admit.
+func uoFlagsDropGrants(t *testing.T, w *executor) {
+	t.Helper()
+	wc008NativeExec(t, w, `UPDATE direct_memberships SET allowed_libraries='[]' WHERE account_id='account'`)
+	wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries='[]' WHERE id='profile'`)
+}
+
+// TestUOFlagsPrivateLibraryFence ports recordingaccess/access.go:32-48: a
+// Recorded-TV library belongs to one local profile. Another profile's private
+// library is refused even for the server owner or an admin and even with a
+// shared grant; its owning profile is admitted without a shared grant; and the
+// owner's Recordings switch withholds the WHOLE private library, not only rows
+// with dvr_catalog_provenance. Fresh, replay and the final release proof are
+// each covered with plain-SQL fixture edits.
+func TestUOFlagsPrivateLibraryFence(t *testing.T) {
+	t.Run("owner main profile cannot see another profile's private library", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='owner' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET is_primary=1 WHERE id='profile'`)
+		wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,allow_dvr) VALUES('profile',1)`)
+		uoFlagsPrivateLibrary(t, w, "account", "profile-other")
+		uoFlagsAssertRefused(t, w, root, identity, q)
+		if got := uoFlagsScalar(t, w, `SELECT count(*) FROM dvr_private_libraries WHERE library_id='library-one' AND profile_id='profile-other'`); got != 1 {
+			t.Fatal("private-owner oracle changed", got)
+		}
+	})
+
+	t.Run("admin with recordings on cannot see another profile's private library", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='admin',allowed_libraries='[]' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries=NULL WHERE id='profile'`)
+		wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,allow_dvr) VALUES('profile',1)`)
+		uoFlagsPrivateLibrary(t, w, "account", "profile-other")
+		uoFlagsAssertRefused(t, w, root, identity, q)
+	})
+
+	t.Run("member with a grant cannot see another profile's private library", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		uoFlagsPrivateLibrary(t, w, "account", "profile-other")
+		uoFlagsAssertRefused(t, w, root, identity, q)
+	})
+
+	t.Run("owning member is admitted without a shared grant", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		uoFlagsDropGrants(t, w)
+		wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,allow_dvr) VALUES('profile',1)`)
+		uoFlagsPrivateLibrary(t, w, "account", "profile")
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if err != nil || floor != 0 || !out.effect.changed || !out.effect.state.watchlisted {
+			t.Fatal("owning member without a grant refused", out, floor, err)
+		}
+		if got := uoFlagsScalar(t, w, `SELECT count(*) FROM personal_items WHERE profile_id=? AND watchlisted=1`, q.profileKey); got != 1 {
+			t.Fatal("owning member patch not written", got)
+		}
+	})
+
+	t.Run("owning owner main profile is admitted by the recordings default", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='owner' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET is_primary=1 WHERE id='profile'`)
+		uoFlagsDropGrants(t, w)
+		uoFlagsPrivateLibrary(t, w, "account", "profile")
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if err != nil || floor != 0 || !out.effect.changed {
+			t.Fatal("owning owner default refused", out, floor, err)
+		}
+	})
+
+	t.Run("recordings off hides the whole private library from its owner", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		uoFlagsDropGrants(t, w)
+		uoFlagsPrivateLibrary(t, w, "account", "profile")
+		// No profile_restrictions row and no dvr_catalog_provenance row: the
+		// item is an ordinary row in the private library, and still hidden.
+		if got := uoFlagsScalar(t, w, `SELECT (SELECT count(*) FROM profile_restrictions) + (SELECT count(*) FROM dvr_catalog_provenance)`); got != 0 {
+			t.Fatal("fixture is not the plain private-library case", got)
+		}
+		uoFlagsAssertRefused(t, w, root, identity, q)
+	})
+
+	t.Run("replay refuses another profile's private library before payload", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		uoFlagsDropGrants(t, w)
+		wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,allow_dvr) VALUES('profile',1)`)
+		uoFlagsPrivateLibrary(t, w, "account", "profile")
+		ref := uoFlagsRef(t, root, 1, 9, q)
+		turn := uoFlagsDispatchTurn(t, w)
+		if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+			t.Fatal(err)
+		}
+		wc008NativeExec(t, w, `UPDATE dvr_private_libraries SET profile_id='profile-other' WHERE library_id='library-one'`)
+		before := uoFlagsTotalChanges(t, w)
+		turn = uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 400})
+		if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("private-library replay disclosed a payload", out, floor, err)
+		}
+		if after := uoFlagsTotalChanges(t, w); after != before {
+			t.Fatal("private-library replay wrote facts", before, after)
+		}
+	})
+
+	t.Run("final proof refuses a flipped private library", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		uoFlagsDropGrants(t, w)
+		wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,allow_dvr) VALUES('profile',1)`)
+		uoFlagsPrivateLibrary(t, w, "account", "profile")
+		// The last write of a changed Fresh patch is the personal.changed hint;
+		// flipping the private owner there leaves the final proof to deny.
+		wc008NativeExec(t, w, `CREATE TRIGGER uo_flags_private_drift AFTER INSERT ON api_events BEGIN UPDATE dvr_private_libraries SET profile_id='profile-other' WHERE library_id='library-one'; END`)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("final proof admitted a flipped private library", out, floor, err)
+		}
+		uoFlagsNoEffects(t, w, root)
+		if got := uoFlagsScalar(t, w, `SELECT count(*) FROM dvr_private_libraries WHERE library_id='library-one' AND profile_id='profile'`); got != 1 {
+			t.Fatal("private-owner drift was not rolled back", got)
+		}
+	})
+}
+
+// TestUOFlagsRecordingsDefaultCase pins the missing-restriction default to
+// identity/restrictions.go:114 exactly: Recordings is on only for the server
+// owner's PRIMARY profile. An admin whose profile is primary and an owner's
+// secondary profile both default to off, so deleting either CASE term admits a
+// recording and fails here.
+func TestUOFlagsRecordingsDefaultCase(t *testing.T) {
+	t.Run("admin primary profile defaults off", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='admin' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET is_primary=1 WHERE id='profile'`)
+		uoFlagsInsertRecording(t, w)
+		uoFlagsAssertRefused(t, w, root, identity, q)
+		if got := uoFlagsScalar(t, w, `SELECT count(*) FROM profile_restrictions WHERE profile_id='profile'`); got != 0 {
+			t.Fatal("fixture stored an explicit restriction", got)
+		}
+	})
+	t.Run("owner secondary profile defaults off", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `UPDATE direct_memberships SET role='owner' WHERE account_id='account'`)
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET is_primary=0 WHERE id='profile'`)
+		uoFlagsInsertRecording(t, w)
+		uoFlagsAssertRefused(t, w, root, identity, q)
+	})
+}
+
+// TestUOFlagsAckForeignOwner is the cross-actor ACK control: an ACK of another
+// actor's root, or of a receipt whose root has since changed owner, ends in the
+// shared Gone class at dispatch before any floor movement. binding.root is the
+// identity point that must refuse it (uo_root_binding.go).
+func TestUOFlagsAckForeignOwner(t *testing.T) {
+	t.Run("another root", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		const otherRoot = "zyxwvutsrqponmlkjihgfe"
+		wc008NativeExec(t, w, `INSERT INTO user_mutation_roots(id,installation_incarnation,account_id,profile_id,account_incarnation,profile_incarnation,family_id,registration_revision,state) VALUES(?,?,'account-other','profile-other',?,?,'family-other',1,'active')`,
+			otherRoot, strings.Repeat("d", 32), strings.Repeat("d", 32), strings.Repeat("e", 32))
+		before := uoFlagsTotalChanges(t, w)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, otherRoot, 1, 11, q), nowMS: 400, ack: true})
+		if !errors.Is(err, ErrUORootGone) || out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("foreign root ACK", out, floor, err)
+		}
+		if after := uoFlagsTotalChanges(t, w); after != before {
+			t.Fatal("foreign root ACK wrote facts", before, after)
+		}
+		if last, ack, _, rows, bytes := uoFlagsOwnerOracle(t, w, root); last != 0 || ack != 0 || rows != 0 || bytes != 0 {
+			t.Fatal("foreign root ACK moved the acting owner", last, ack, rows, bytes)
+		}
+	})
+	t.Run("another actor's receipt", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		ref := uoFlagsRef(t, root, 1, 9, q)
+		turn := uoFlagsDispatchTurn(t, w)
+		if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+			t.Fatal(err)
+		}
+		wc008NativeExec(t, w, `UPDATE user_mutation_roots SET account_id='account-other',profile_id='profile-other' WHERE id=?`, root)
+		before := uoFlagsTotalChanges(t, w)
+		turn = uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, nowMS: 400, ack: true})
+		if !errors.Is(err, ErrUORootGone) || out != (uoRootFlagsResult{}) || floor != 0 {
+			t.Fatal("another actor's receipt ACK", out, floor, err)
+		}
+		if after := uoFlagsTotalChanges(t, w); after != before {
+			t.Fatal("another actor's ACK wrote facts", before, after)
+		}
+	})
+}
+
+// TestUOFlagsReplayHiddenTargetBeforePayload hides the target AFTER the
+// original in a way the earlier tests do not (retirement, not a grant removal)
+// and requires the zero-target replay to return zero payload bytes and write
+// nothing.
+func TestUOFlagsReplayHiddenTargetBeforePayload(t *testing.T) {
+	w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+	ref := uoFlagsRef(t, root, 1, 9, q)
+	turn := uoFlagsDispatchTurn(t, w)
+	if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+		t.Fatal(err)
+	}
+	wc008NativeExec(t, w, `UPDATE catalog_entities SET retired=1 WHERE id=2111`)
+	before := uoFlagsTotalChanges(t, w)
+	turn = uoFlagsDispatchTurn(t, w)
+	out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, nowMS: 400})
+	if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+		t.Fatal("hidden-target replay returned payload", out, floor, err)
+	}
+	if out.public != ([16]byte{}) || out.effect != (uoPersonalFlagsEffect{}) || out.appliedMS != 0 {
+		t.Fatal("hidden-target replay leaked result fields", out)
+	}
+	if after := uoFlagsTotalChanges(t, w); after != before {
+		t.Fatal("hidden-target replay wrote facts", before, after)
+	}
+}
+
+// uoFlagsOrderConn records the order of root-identity and target-entity reads.
+// It is the ordering counter that distinguishes restore's decoded-target proof
+// from the dispatcher's final proof: both deny, but only the former runs before
+// restore's own release (the next root-identity read).
+type uoFlagsOrderConn struct {
+	writerDriverConn
+	rootReads    int
+	targetAtRoot []int
+}
+
+func (c *uoFlagsOrderConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	switch {
+	case strings.Contains(query, "FROM user_mutation_roots WHERE id=?"):
+		c.rootReads++
+	case strings.Contains(query, "e.admission_own_age"):
+		c.targetAtRoot = append(c.targetAtRoot, c.rootReads)
+	}
+	return c.writerDriverConn.QueryContext(ctx, query, args)
+}
+
+// TestUOFlagsReplayDecodedTargetProofSite proves restore's decoded-target proof
+// is load-bearing rather than shadowed by the dispatcher's final proof. The
+// target is hidden after the original; the third target read (the decoded-target
+// site) must deny BEFORE restore's release reads the root identity again. If the
+// site were deleted, the final proof would still deny, but its read would happen
+// after another root read, so the ordering assertion fails.
+func TestUOFlagsReplayDecodedTargetProofSite(t *testing.T) {
+	var order *uoFlagsOrderConn
+	w, _, root, identity, _, q := uoFlagsDispatchFixture(t, func(conn driver.Conn) driver.Conn {
+		order = &uoFlagsOrderConn{writerDriverConn: conn.(writerDriverConn)}
+		return order
+	})
+	ref := uoFlagsRef(t, root, 1, 9, q)
+	turn := uoFlagsDispatchTurn(t, w)
+	if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+		t.Fatal(err)
+	}
+	wc008NativeExec(t, w, `UPDATE catalog_entities SET retired=1 WHERE id=2111`)
+	turn = uoFlagsDispatchTurn(t, w)
+	out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, nowMS: 400})
+	if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+		t.Fatal("decoded-target replay disclosed", out, floor, err)
+	}
+	if order == nil || len(order.targetAtRoot) != 3 {
+		t.Fatalf("target reads = %+v, want the Fresh pair plus the decoded-target site", order)
+	}
+	// The decoded-target proof denies immediately: no root read follows its
+	// target read. The final proof is followed by the dispatcher's release root
+	// read, so if that site were the one denying, the last target read would no
+	// longer be the last root-touching read.
+	if order.targetAtRoot[2] != order.rootReads {
+		t.Fatalf("third target read at root count %d, final root count %d: a root release followed it, so the denial came from the final proof, not the decoded-target site", order.targetAtRoot[2], order.rootReads)
+	}
+}
+
 func uoFlagsDecl(t *testing.T, file *ast.File, name string) *ast.FuncDecl {
 	t.Helper()
 	for _, decl := range file.Decls {

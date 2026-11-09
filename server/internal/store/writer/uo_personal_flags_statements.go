@@ -15,10 +15,11 @@ const (
 	// native read fence's item/principal shapes (store/read/browse_statements.go
 	// plus admittedItem in store/read/browse.go); the writer must not import the
 	// read package into its core.
-	uoFlagsTargetEntity       stmt.ID = "uo.personal.flags.target.entity"
-	uoFlagsTargetPrincipal    stmt.ID = "uo.personal.flags.target.principal"
-	uoFlagsTargetRestrictions stmt.ID = "uo.personal.flags.target.restrictions"
-	uoFlagsTargetAccessLimits stmt.ID = "uo.personal.flags.target.access_limits"
+	uoFlagsTargetEntity         stmt.ID = "uo.personal.flags.target.entity"
+	uoFlagsTargetPrincipal      stmt.ID = "uo.personal.flags.target.principal"
+	uoFlagsTargetPrivateLibrary stmt.ID = "uo.personal.flags.target.private_library"
+	uoFlagsTargetRestrictions   stmt.ID = "uo.personal.flags.target.restrictions"
+	uoFlagsTargetAccessLimits   stmt.ID = "uo.personal.flags.target.access_limits"
 )
 
 // Inert finite domain statements, not a registered production command.
@@ -79,6 +80,15 @@ FROM direct_memberships AS m
 JOIN direct_profiles AS p ON p.account_id=m.account_id
 WHERE m.account_id=? AND p.id=?`,
 			[]stmt.Param{s("account"), s("profile")}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_profiles_2", "sqlite_autoindex_direct_memberships_1"}, Seeks: []string{"account_id=? AND id=?", "account_id=?"}}),
+		// The private Recorded-TV owner of the target library, if any
+		// (recordingaccess/access.go:32-48). This is a keyed primary-key read of
+		// the exact native row; no grant list or role is consulted first. A miss
+		// means the library is shared and the ordinary grants decide, while a
+		// hit is owned by one profile: another profile is refused outright, and
+		// the owner is admitted only while its Recordings switch is on, without
+		// needing the library in its shared grants.
+		visibilityDef(uoFlagsTargetPrivateLibrary, `SELECT authority,account_id,profile_id FROM dvr_private_libraries WHERE library_id=?`,
+			[]stmt.Param{s("library")}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_dvr_private_libraries_1"}, Seeks: []string{"library_id=?"}}),
 		// A missing restriction row is the documented default: nothing blocked
 		// EXCEPT recordings, which are off for every profile but the server
 		// owner's primary profile. The COALESCE answers identity.DefaultRestrictions
@@ -113,6 +123,7 @@ WHERE p.id=?`,
 		{int64(2), int64(2), "profile-one", "library-one", int64(1), int64(1)},
 		{public},
 		{"account", "profile"},
+		{"library-one"},
 		{"profile"},
 		{"account"},
 	}
