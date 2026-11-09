@@ -137,7 +137,7 @@ WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AN
 				{Name: "missing_entity", Bindings: []any{int64(32), int64(7)}},
 			}},
 		{ID: iaEpisodeDirectoryCAS, Kind: stmt.Write,
-			SQL: `UPDATE inventory_directories SET cursor=?,pages=?
+			SQL: `UPDATE inventory_directories INDEXED BY sqlite_autoindex_inventory_directories_1 SET cursor=?,pages=?
 WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AND pages=? AND skipped=? AND state='pending'
 RETURNING cursor,pages,skipped`,
 			Params: []stmt.Param{t("next_cursor"), i("next_pages"), t("run_id"), t("relative_path"), t("identity"), t("revision"), t("cursor"), i("pages"), i("skipped")},
@@ -345,7 +345,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_library_sources_2"}
 			defs[n].Plan.Seeks = []string{"library_id=? AND root=?"}
 		case iaEpisodeDirectory:
-			defs[n].Plan.PrimaryKeys = []string{"inventory_directories"}
+			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_directories_1"}
+			defs[n].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "inventory_directories", Name: "sqlite_autoindex_inventory_directories_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "job_id", Collation: "BINARY"}, {Name: "relative_path", Collation: "BINARY"}}}}
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path=?"}
 		case iaEpisodeAsset:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_catalog_assets_3"}
@@ -357,7 +358,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.PrimaryKeys = []string{"catalog_entities"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
 		case iaEpisodeDirectoryCAS:
-			defs[n].Plan.PrimaryKeys = []string{"inventory_directories"}
+			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_directories_1"}
+			defs[n].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "inventory_directories", Name: "sqlite_autoindex_inventory_directories_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "job_id", Collation: "BINARY"}, {Name: "relative_path", Collation: "BINARY"}}}}
 			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path=?"}
 		case iaEpisodeRunCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}
@@ -365,10 +367,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaEpisodeContainer, iaEpisodeContainerAdvance, iaEpisodeContainerAdvanceNull:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_entities"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
-		case iaEpisodeSearchHead:
+		case iaEpisodeSearchHead, iaEpisodeSearchSequence, iaEpisodeSearchBuilding:
 			defs[n].Plan.PrimaryKeys = []string{"search_revision"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
-		case iaEpisodeSearchBank:
+		case iaEpisodeSearchBank, iaEpisodeSearchPending:
 			defs[n].Plan.PrimaryKeys = []string{"search_generations"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
 		case iaEpisodeSearchExisting:
