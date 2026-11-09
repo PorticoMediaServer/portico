@@ -12,7 +12,12 @@ import (
 // itself returns fixed numeric rowids only.
 const rsSavedMembersMetadataOctetsSQL = `SELECT octet_length(name),octet_length(summary),octet_length(created_at),octet_length(visibility) FROM saved_resources INDEXED BY sqlite_autoindex_saved_resources_1 WHERE id=? AND kind='collection' AND deleted=0`
 const rsSavedMembersEntryOctetsSQL = `SELECT octet_length(e.id),octet_length(e.order_key) FROM saved_resource_entries AS e WHERE e.rowid=? AND e.resource_id=?`
-const rsSavedMembersCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(e.public_id),octet_length(e.title),octet_length(e.overview) FROM catalog_entities AS e LEFT JOIN personal_items AS p ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`
+
+// The octets statement measures the same member point as the card payload.
+// IFNULL(p.item_id,e.id)=e.id is always true for the joined row and keeps the
+// optional personal LEFT JOIN in the measured statement, so SQLite cannot drop
+// it and the declared personal_current_live access path stays real.
+const rsSavedMembersCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(e.public_id),octet_length(e.title),octet_length(e.overview) FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0 AND IFNULL(p.item_id,e.id)=e.id`
 
 func init() {
 	for _, v := range []struct {

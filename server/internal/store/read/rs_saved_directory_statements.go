@@ -46,14 +46,20 @@ const (
 
 	rsSavedDirectoryItemSQL = `SELECT id,library_id,kind,retired FROM catalog_entities WHERE id=?`
 
+	rsSavedDirectoryLibraryNameSQL = `SELECT l.name FROM libraries AS l INDEXED BY sqlite_autoindex_libraries_1 WHERE l.id=?`
+
 	rsSavedDirectoryEntrySQL       = `SELECT e.id,e.order_key,e.item_id FROM saved_resource_entries AS e WHERE e.rowid=? AND e.resource_id=?`
 	rsSavedDirectoryEntryOctetsSQL = `SELECT octet_length(e.id),octet_length(e.order_key) FROM saved_resource_entries AS e WHERE e.rowid=? AND e.resource_id=?`
 	rsSavedDirectoryEntryFirstSQL  = `SELECT e.rowid FROM saved_resource_entries AS e INDEXED BY saved_resource_entries_order WHERE e.resource_id=? ORDER BY e.order_key,e.id LIMIT ?`
 	rsSavedDirectoryEntryTailSQL   = `SELECT e.rowid FROM saved_resource_entries AS e INDEXED BY saved_resource_entries_order WHERE e.resource_id=? AND e.order_key=? AND e.id>? ORDER BY e.order_key,e.id LIMIT ?`
 	rsSavedDirectoryEntryNextSQL   = `SELECT e.rowid FROM saved_resource_entries AS e INDEXED BY saved_resource_entries_order WHERE e.resource_id=? AND e.order_key>? ORDER BY e.order_key,e.id LIMIT ?`
 
-	rsSavedDirectoryCardSQL       = `SELECT e.id,e.sort_key,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,e.kind,e.overview,p.revision,p.resume_position,p.resume_unit,p.play_count,p.favorite,p.watchlisted,p.watched,p.resume_completed FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`
-	rsSavedDirectoryCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(e.public_id),octet_length(e.title),octet_length(e.overview) FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`
+	rsSavedDirectoryCardSQL = `SELECT e.id,e.sort_key,e.public_id,e.title,e.retired,e.revision,e.admission_own_age,e.kind,e.overview,p.revision,p.resume_position,p.resume_unit,p.play_count,p.favorite,p.watchlisted,p.watched,p.resume_completed FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0`
+	// The octets statement measures the same member point as the payload.
+	// IFNULL(p.item_id,e.id)=e.id is always true for the joined row and keeps the
+	// optional personal join in the measured statement, so the declared
+	// personal_current_live path is a real access path, not a dropped join.
+	rsSavedDirectoryCardOctetsSQL = `SELECT octet_length(e.sort_key),octet_length(e.public_id),octet_length(e.title),octet_length(e.overview) FROM catalog_entities AS e LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id WHERE e.id=? AND e.library_id=? AND e.kind=? AND e.retired=0 AND IFNULL(p.item_id,e.id)=e.id`
 )
 
 func init() {
@@ -148,15 +154,16 @@ func SavedDirectoryDefinitions() []stmt.Definition {
 	add("SavedCollectionDirectoryWork", "metadata_octets", rsSavedDirectoryMetadataOctetsSQL, []stmt.Param{text("resource")}, []any{"saved"}, metadataPlan)
 
 	add("SavedCollectionDirectoryWork", "item", rsSavedDirectoryItemSQL, []stmt.Param{integer("item")}, []any{int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_entities"}})
+	libraryName := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_libraries_1"}}
+	libraryName.AutoIndexes = rsSavedDirectoryAutoIndexes(libraryName.Indexes)
+	add("SavedCollectionDirectoryWork", "library_name", rsSavedDirectoryLibraryNameSQL, []stmt.Param{text("library")}, []any{"movies"}, libraryName)
 
 	entryOrder := stmt.Plan{Hot: true, Indexes: []string{"saved_resource_entries_order"}}
 	add("SavedCollectionDirectoryWork", "entry.first", rsSavedDirectoryEntryFirstSQL, []stmt.Param{text("resource"), integer("limit")}, []any{"saved", int64(2)}, entryOrder)
 	add("SavedCollectionDirectoryWork", "entry.tail", rsSavedDirectoryEntryTailSQL, []stmt.Param{text("resource"), text("key"), text("after"), integer("limit")}, []any{"saved", "", "", int64(2)}, entryOrder)
 	add("SavedCollectionDirectoryWork", "entry.next", rsSavedDirectoryEntryNextSQL, []stmt.Param{text("resource"), text("key"), integer("limit")}, []any{"saved", "", int64(2)}, entryOrder)
-	for _, v := range []struct{ name, sql string }{{"card", rsSavedDirectoryCardSQL}, {"card_octets", rsSavedDirectoryCardOctetsSQL}} {
-		cardPlan := stmt.Plan{Hot: true, Indexes: []string{"personal_current_live"}, PrimaryKeys: []string{"e"}}
-		add("SavedCollectionDirectoryWork", v.name, v.sql, []stmt.Param{text("profile"), integer("item"), integer("library"), integer("kind")}, []any{"p", int64(1), int64(1), int64(1)}, cardPlan)
-	}
+	add("SavedCollectionDirectoryWork", "card", rsSavedDirectoryCardSQL, []stmt.Param{text("profile"), integer("item"), integer("library"), integer("kind")}, []any{"p", int64(1), int64(1), int64(1)}, stmt.Plan{Hot: true, Indexes: []string{"personal_current_live"}, PrimaryKeys: []string{"e"}})
+	add("SavedCollectionDirectoryWork", "card_octets", rsSavedDirectoryCardOctetsSQL, []stmt.Param{text("profile"), integer("item"), integer("library"), integer("kind")}, []any{"p", int64(1), int64(1), int64(1)}, stmt.Plan{Hot: true, Indexes: []string{"personal_current_live"}, PrimaryKeys: []string{"e"}})
 	return out
 }
 
@@ -176,6 +183,8 @@ func rsSavedDirectoryAutoIndexes(indexes []string) []stmt.AutoIndexBinding {
 			table, columns = "authorization_family_tokens", []string{"token_hash"}
 		case "sqlite_autoindex_authorization_session_families_1":
 			table, columns = "authorization_session_families", []string{"id"}
+		case "sqlite_autoindex_libraries_1":
+			table, columns = "libraries", []string{"id"}
 		case "sqlite_autoindex_saved_pins_1":
 			table, columns = "saved_pins", []string{"owner_key", "kind", "resource_id"}
 		case "sqlite_autoindex_saved_pin_order_revisions_1":

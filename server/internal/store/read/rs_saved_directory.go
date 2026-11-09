@@ -820,7 +820,14 @@ func (p *SavedCollectionDirectoryWork) advance(ctx context.Context, req governor
 			if rsSavedPrincipal(child) != rsSavedPrincipal(f) {
 				return ErrStale
 			}
-			c.libraryName = child.library
+			names, e := q("rs.saved.directory.library_name", child.library)
+			if e != nil {
+				return e
+			}
+			if len(names) != 1 {
+				return ErrStale
+			}
+			c.libraryName = names[0][0].(string)
 			return p.markEligible()
 		})
 	case rsSavedDirectoryAutomatic:
