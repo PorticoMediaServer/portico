@@ -128,10 +128,16 @@ func (c *snapshotOwnedConn) PrepareContext(ctx context.Context, q string) (drive
 		}
 		return c.Conn.Prepare(q)
 	})
+	// A failed prepare may return a typed-nil statement behind a non-nil driver
+	// interface. Tracking it would close a nil handle during snapshot cleanup, so
+	// only a successful prepare may own native statement state.
+	if err != nil {
+		return nil, err
+	}
 	if st != nil {
 		st = &snapshotOwnedStmt{Stmt: st, c: c, close: c.track(false, st.Close)}
 	}
-	return st, err
+	return st, nil
 }
 func (c *snapshotOwnedConn) ResetSession(ctx context.Context) error {
 	if native, ok := c.Conn.(driver.SessionResetter); ok {

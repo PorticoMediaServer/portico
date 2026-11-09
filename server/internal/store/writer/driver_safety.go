@@ -168,10 +168,16 @@ func (c *safeWriterConn) Prepare(q string) (driver.Stmt, error) {
 }
 func (c *safeWriterConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
 	st, err := safeDriver(c.scope, "prepare", true, func() (driver.Stmt, error) { return c.writerDriverConn.PrepareContext(ctx, q) })
+	// A failed prepare may return a typed-nil statement behind a non-nil driver
+	// interface. Wrapping it would register a closer that dereferences nil, so only
+	// a successful prepare may own native statement state.
+	if err != nil {
+		return nil, err
+	}
 	if st != nil {
 		st = &safeWriterStmt{Stmt: st, scope: c.scope}
 	}
-	return st, err
+	return st, nil
 }
 func (c *safeWriterConn) ExecContext(ctx context.Context, q string, a []driver.NamedValue) (driver.Result, error) {
 	r, err := safeDriver(c.scope, "exec", true, func() (driver.Result, error) { return c.writerDriverConn.ExecContext(ctx, q, a) })
@@ -359,10 +365,15 @@ func (c *ownedPhysicalConn) Prepare(q string) (driver.Stmt, error) {
 }
 func (c *ownedPhysicalConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
 	st, err := safeDriver(c.scope, "native prepare", true, func() (driver.Stmt, error) { return c.writerDriverConn.PrepareContext(ctx, q) })
+	// Same typed-nil guard: a failed prepare must never register a native closer it
+	// cannot close. The driver error is returned unchanged to the caller.
+	if err != nil {
+		return nil, err
+	}
 	if st != nil {
 		st = &safeWriterStmt{Stmt: st, scope: c.scope, owned: c.scope.own(false, st.Close)}
 	}
-	return st, err
+	return st, nil
 }
 func (c *ownedPhysicalConn) QueryContext(ctx context.Context, q string, a []driver.NamedValue) (driver.Rows, error) {
 	st, err := c.PrepareContext(ctx, q)

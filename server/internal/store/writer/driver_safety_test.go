@@ -213,6 +213,53 @@ func TestDriverCarrierPanicPermutation(t *testing.T) {
 	}
 }
 
+// A failed prepare may hand back a typed-nil statement behind a non-nil driver
+// interface. Both wrappers must return nil, err and register no closer for it,
+// so pool close can never dereference the nil handle.
+func TestDriverFailedPrepareDoesNotOwnTypedNilStatement(t *testing.T) {
+	var typedNil *carrierStmt
+	failure := errors.New("prepare failed")
+	conn := func() writerDriverConn {
+		return typedNilPrepareConn{carrierConn{&carrierProbe{}}, typedNil, failure}
+	}
+	for name, open := range map[string]func(*driverSafety) (driver.Stmt, error){
+		"safe_writer_conn": func(s *driverSafety) (driver.Stmt, error) {
+			return (&safeWriterConn{conn(), s}).PrepareContext(t.Context(), "")
+		},
+		"owned_physical_conn": func(s *driverSafety) (driver.Stmt, error) {
+			return (&ownedPhysicalConn{writerDriverConn: conn(), scope: s}).PrepareContext(t.Context(), "")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			scope := &driverSafety{log: &driverPanicLog{}}
+			st, err := open(scope)
+			if !errors.Is(err, failure) || st != nil {
+				t.Fatal("failed prepare returned state", st, err)
+			}
+			scope.mu.Lock()
+			registered := len(scope.resources)
+			scope.mu.Unlock()
+			if registered != 0 {
+				t.Fatal("nil statement closer registered", registered)
+			}
+			if err := scope.closeAll(); err != nil {
+				t.Fatal("pool close", err)
+			}
+		})
+	}
+}
+
+type typedNilPrepareConn struct {
+	carrierConn
+	stmt driver.Stmt
+	err  error
+}
+
+func (c typedNilPrepareConn) Prepare(string) (driver.Stmt, error) { return c.stmt, c.err }
+func (c typedNilPrepareConn) PrepareContext(context.Context, string) (driver.Stmt, error) {
+	return c.stmt, c.err
+}
+
 func TestDriverColumnsStableCopy(t *testing.T) {
 	scope := &driverSafety{log: &driverPanicLog{}}
 	probe := &carrierProbe{names: []string{"original"}}
