@@ -9,7 +9,7 @@ import (
 func TestCohortExactOrderAndBytes(t *testing.T) {
 	pairs := []Pair{{Name: "Saga", Position: "1"}, {Name: "Émile", Position: ""}, {Name: "Ünïcode", Position: "2.5"}}
 	count, retained, digest, err := Cohort(pairs)
-	if err != nil || count != 3 || retained != 24+len("Saga")+len("1")+len("Émile")+len("Ünïcode")+len("2.5") || digest == ([32]byte{}) {
+	if err != nil || count != 3 || retained != 24+int64(len("Saga")+len("1")+len("Émile")+len("Ünïcode")+len("2.5")) || digest == ([32]byte{}) {
 		t.Fatal(count, retained, digest, err)
 	}
 	// Order is part of the identity: a reordered complete set is a different head.

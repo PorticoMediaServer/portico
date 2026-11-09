@@ -74,7 +74,7 @@ func seedIAExtraOwner(t *testing.T, w *executor) {
 	wc008NativeExec(t, w, `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(7,'extra-owner-key',60)`)
 }
 
-func iaExtraAcceptRequest(w *executor) iaExtraAcceptRequest {
+func newIAExtraAcceptRequest(w *executor) iaExtraAcceptRequest {
 	return iaExtraAcceptRequest{
 		scope:  inventoryScope{runID: iaExtraTestRunID, libraryKey: iaExtraTestLibraryKey, libraryID: iaExtraTestLibraryID},
 		source: inventorySource{id: iaExtraTestSourceID, incarnation: "extra-incarnation", rootIdentity: "extra-root-identity", resolvedRoot: []byte(iaExtraTestRoot), generation: 3},
@@ -139,7 +139,7 @@ func iaExtraNoEffects(t *testing.T, w *executor) {
 // changes without any new effect.
 func TestIAExtraAcceptFreshReplayAndLiveCohort(t *testing.T) {
 	w, reg, p := iaExtraAcceptFixture(t)
-	q := iaExtraAcceptRequest(w)
+	q := newIAExtraAcceptRequest(w)
 	ref := iaExtraAcceptReference(t, q, 2, 2)
 	turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 	if err != nil || out.decision != receiptFresh || out.digest == (ResultDigest{}) {
@@ -195,7 +195,7 @@ func TestIAExtraAcceptResolvedOwner(t *testing.T) {
 	t.Run("resolved", func(t *testing.T) {
 		w, reg, p := iaExtraAcceptFixture(t)
 		seedIAExtraOwner(t, w)
-		q := iaExtraAcceptRequest(w)
+		q := newIAExtraAcceptRequest(w)
 		q.ownerKey, q.ownerKind = "extra-owner-key", 1
 		ref := iaExtraAcceptReference(t, q, 2, 2)
 		turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
@@ -215,7 +215,7 @@ func TestIAExtraAcceptResolvedOwner(t *testing.T) {
 	t.Run("wrong_owner_kind", func(t *testing.T) {
 		w, reg, p := iaExtraAcceptFixture(t)
 		seedIAExtraOwner(t, w)
-		q := iaExtraAcceptRequest(w)
+		q := newIAExtraAcceptRequest(w)
 		q.ownerKey, q.ownerKind = "extra-owner-key", 2
 		ref := iaExtraAcceptReference(t, q, 2, 2)
 		turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
@@ -229,7 +229,7 @@ func TestIAExtraAcceptResolvedOwner(t *testing.T) {
 	})
 	t.Run("missing_owner", func(t *testing.T) {
 		w, reg, p := iaExtraAcceptFixture(t)
-		q := iaExtraAcceptRequest(w)
+		q := newIAExtraAcceptRequest(w)
 		q.ownerKey, q.ownerKind = "extra-owner-key", 1
 		ref := iaExtraAcceptReference(t, q, 2, 2)
 		turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
@@ -262,7 +262,7 @@ func TestIAExtraAcceptFreshGates(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			w, reg, p := iaExtraAcceptFixture(t)
-			q := iaExtraAcceptRequest(w)
+			q := newIAExtraAcceptRequest(w)
 			mutate(t, w, &q)
 			ref := iaExtraAcceptReference(t, q, 2, 2)
 			turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
@@ -284,7 +284,7 @@ func TestIAExtraAcceptFreshGates(t *testing.T) {
 // rewrite or a second identity.
 func TestIAExtraAcceptReusedItemConflict(t *testing.T) {
 	w, reg, p := iaExtraAcceptFixture(t)
-	first := iaExtraAcceptRequest(w)
+	first := newIAExtraAcceptRequest(w)
 	ref := iaExtraAcceptReference(t, first, 2, 2)
 	turn, out, err := iaExtraAcceptRun(t, w, reg, p, first, ref)
 	if err != nil || out.decision != receiptFresh {
@@ -317,7 +317,7 @@ func TestIAExtraAcceptReusedItemConflict(t *testing.T) {
 // reaches the link insert conflicts and leaves the first cohort untouched.
 func TestIAExtraAcceptRepeatedAssetConflicts(t *testing.T) {
 	w, reg, p := iaExtraAcceptFixture(t)
-	first := iaExtraAcceptRequest(w)
+	first := newIAExtraAcceptRequest(w)
 	ref := iaExtraAcceptReference(t, first, 2, 2)
 	turn, out, err := iaExtraAcceptRun(t, w, reg, p, first, ref)
 	if err != nil || out.decision != receiptFresh {
@@ -350,7 +350,7 @@ func TestIAExtraAcceptRepeatedAssetConflicts(t *testing.T) {
 func TestIAExtraAcceptAuthorityCells(t *testing.T) {
 	t.Run("forged_issuer", func(t *testing.T) {
 		w, reg, p := iaExtraAcceptFixture(t)
-		q := iaExtraAcceptRequest(w)
+		q := newIAExtraAcceptRequest(w)
 		ref := iaExtraAcceptReference(t, q, 2, 2)
 		fake := *p
 		fake.witness.issuer.family = "forged"
@@ -373,7 +373,7 @@ func TestIAExtraAcceptAuthorityCells(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				w, reg, p := iaExtraAcceptFixture(t)
 				wc008NativeExec(t, w, mutation)
-				q := iaExtraAcceptRequest(w)
+				q := newIAExtraAcceptRequest(w)
 				ref := iaExtraAcceptReference(t, q, 2, 2)
 				turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 				if !errors.Is(err, ErrDisclosureDenied) || out.decision != 0 || len(out.result.facts.members) != 0 {
@@ -386,7 +386,7 @@ func TestIAExtraAcceptAuthorityCells(t *testing.T) {
 	})
 	t.Run("cancelled_lifetime", func(t *testing.T) {
 		w, reg, p := iaExtraAcceptFixture(t)
-		q := iaExtraAcceptRequest(w)
+		q := newIAExtraAcceptRequest(w)
 		ref := iaExtraAcceptReference(t, q, 2, 2)
 		turn, budget := iaExtraAcceptTurn(t, w, reg, q)
 		cancelled, cancel := context.WithCancel(t.Context())
@@ -407,7 +407,7 @@ func TestIAExtraAcceptLateAuthorityRechecks(t *testing.T) {
 	t.Run("before_writes", func(t *testing.T) {
 		w, reg, p := iaExtraAcceptFixture(t)
 		state := installIAEntryQueryRevocation(t, w, "FROM catalog_assets")
-		q := iaExtraAcceptRequest(w)
+		q := newIAExtraAcceptRequest(w)
 		ref := iaExtraAcceptReference(t, q, 2, 2)
 		turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 		if !state.fired || state.err != nil {
@@ -422,7 +422,7 @@ func TestIAExtraAcceptLateAuthorityRechecks(t *testing.T) {
 	t.Run("after_writes", func(t *testing.T) {
 		w, reg, p := iaExtraAcceptFixture(t)
 		wc008NativeExec(t, w, `CREATE TRIGGER ia_extra_late_revocation AFTER INSERT ON catalog_asset_links BEGIN UPDATE identity_security_fences SET denied=1; END`)
-		q := iaExtraAcceptRequest(w)
+		q := newIAExtraAcceptRequest(w)
 		ref := iaExtraAcceptReference(t, q, 2, 2)
 		turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 		if !errors.Is(err, ErrDisclosureDenied) || out.decision != 0 || len(out.result.facts.members) != 0 {
@@ -446,7 +446,7 @@ func TestIAExtraAcceptReplayRejectsTamperedCohort(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			w, reg, p := iaExtraAcceptFixture(t)
-			q := iaExtraAcceptRequest(w)
+			q := newIAExtraAcceptRequest(w)
 			ref := iaExtraAcceptReference(t, q, 2, 2)
 			turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 			if err != nil || out.decision != receiptFresh {
@@ -468,7 +468,7 @@ func TestIAExtraAcceptReplayRejectsTamperedCohort(t *testing.T) {
 func TestIAExtraAcceptRefusesUnusableSearchBank(t *testing.T) {
 	w, reg, p := iaExtraAcceptFixture(t)
 	wc008NativeExec(t, w, `UPDATE search_generations SET unicode_fingerprint='bad'`)
-	q := iaExtraAcceptRequest(w)
+	q := newIAExtraAcceptRequest(w)
 	ref := iaExtraAcceptReference(t, q, 2, 2)
 	turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 	if err == nil || out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.members) != 0 {
@@ -491,7 +491,7 @@ func TestIAExtraAcceptUnknownCommitIsNotSuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFaultPool(w, &faultConnector{Connector: base, afterCommit: true, replyError: true})
-	q := iaExtraAcceptRequest(w)
+	q := newIAExtraAcceptRequest(w)
 	ref := iaExtraAcceptReference(t, q, 2, 2)
 	turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 	if err != nil || out.decision != receiptFresh {
@@ -531,7 +531,7 @@ func TestIAExtraAcceptUnknownCommitIsNotSuccess(t *testing.T) {
 // digest and no new effect, even while the physical rows still exist.
 func TestIAExtraAcceptRetiredAfterAck(t *testing.T) {
 	w, reg, p := iaExtraAcceptFixture(t)
-	q := iaExtraAcceptRequest(w)
+	q := newIAExtraAcceptRequest(w)
 	ref := iaExtraAcceptReference(t, q, 2, 2)
 	turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 	if err != nil || out.decision != receiptFresh {
@@ -561,7 +561,7 @@ func TestIAExtraAcceptRetiredAfterAck(t *testing.T) {
 // fresh admission or a new receipt.
 func TestIAExtraAcceptRejectsConflictingOriginal(t *testing.T) {
 	w, reg, p := iaExtraAcceptFixture(t)
-	q := iaExtraAcceptRequest(w)
+	q := newIAExtraAcceptRequest(w)
 	ref := iaExtraAcceptReference(t, q, 2, 2)
 	changed := q
 	changed.files[0].revision += "x"
@@ -583,7 +583,7 @@ func TestIAExtraAcceptRejectsConflictingOriginal(t *testing.T) {
 
 func TestIAExtraAcceptRollbackLeavesNoEffect(t *testing.T) {
 	w, reg, p := iaExtraAcceptFixture(t)
-	q := iaExtraAcceptRequest(w)
+	q := newIAExtraAcceptRequest(w)
 	ref := iaExtraAcceptReference(t, q, 2, 2)
 	turn, out, err := iaExtraAcceptRun(t, w, reg, p, q, ref)
 	if err != nil || out.decision != receiptFresh {

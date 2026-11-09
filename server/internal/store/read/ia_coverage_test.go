@@ -185,7 +185,7 @@ func TestIACoverageDirectoryPlans(t *testing.T) {
 		t.Fatal("coverage read family inventory changed", len(defs))
 	}
 	for _, d := range defs {
-		if d.Kind != stmt.Read || !d.Plan.Hot || len(d.Plan.Waivers) != 0 || len(plan.LintSQL(d.SQL)) != 0 {
+		if d.Kind != stmt.Read || !d.Plan.Hot || len(d.Plan.Waivers) != 0 || len(plan.LintSQLDefinition(d)) != 0 {
 			t.Fatal("coverage read statements must retain closed hot read grammar", d.ID)
 		}
 		for _, cohort := range d.Cohorts {

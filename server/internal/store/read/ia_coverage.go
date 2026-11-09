@@ -290,9 +290,9 @@ func IACoverageHarnessDefinitions() []stmt.Definition {
 	}
 	libraryPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_libraries"}, Seeks: []string{"rowid=?"}}
 	sourcePlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_library_sources_1"}, Seeks: []string{"id=?"}}
-	directoryPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"sqlite_autoindex_inventory_directories_1"}, Seeks: []string{"job_id=? AND relative_path=?"}}
-	pendingPlan := stmt.Plan{Hot: true, Indexes: []string{"inventory_directories_pending"}, Seeks: []string{"job_id=? AND state=? AND relative_path>=? AND relative_path<?"}}
-	protectedPlan := stmt.Plan{Hot: true, Indexes: []string{"inventory_scan_issues_protected"}, Seeks: []string{"job_id=? AND relative_path>=? AND relative_path<?"}}
+	directoryPlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_inventory_directories_1"}, Seeks: []string{"job_id=? AND relative_path=?"}}
+	pendingPlan := stmt.Plan{Hot: true, Indexes: []string{"inventory_directories_pending"}, Seeks: []string{"job_id=? AND state=? AND relative_path>? AND relative_path<?"}}
+	protectedPlan := stmt.Plan{Hot: true, Indexes: []string{"inventory_scan_issues_protected"}, Seeks: []string{"job_id=? AND relative_path>? AND relative_path<?"}}
 	return []stmt.Definition{
 		add("library_octets", iaCoverageLibraryOctetsSQL, []stmt.Param{i("library")}, []any{int64(1)}, []any{int64(9999999)}, libraryPlan),
 		add("library", iaCoverageLibrarySQL, []stmt.Param{i("library")}, []any{int64(1)}, []any{int64(9999999)}, libraryPlan),

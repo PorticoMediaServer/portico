@@ -77,7 +77,7 @@ func iaMembershipAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOw
 	return w, &iaEntryRegistry{registry, keeper}, proof
 }
 
-func iaMembershipAcceptRequest(w *executor) iaMembershipAcceptRequest {
+func newIAMembershipAcceptRequest(w *executor) iaMembershipAcceptRequest {
 	return iaMembershipAcceptRequest{
 		scope:  inventoryScope{runID: iaMembershipTestRunID, libraryKey: iaMembershipTestLibraryKey, libraryID: iaMembershipTestLibraryID},
 		source: inventorySource{id: iaMembershipTestSourceID, incarnation: "membership-incarnation", rootIdentity: "membership-root-identity", resolvedRoot: []byte(iaMembershipTestRoot), generation: 3},
@@ -144,7 +144,7 @@ func iaMembershipRefused(t *testing.T, w *executor) {
 // entity's own title/art are never rewritten, and no search/name fanout occurs.
 func TestIAMembershipAcceptReparentAndPresent(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	q.changes = append(q.changes, iaMembershipChange{subjectKey: "membership-movie-key", subjectKind: 1, subjectRevision: 1, effect: "present", edition: "Extended", part: 0, start: 0})
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
@@ -193,7 +193,7 @@ func TestIAMembershipAcceptReparentAndPresent(t *testing.T) {
 // contribution and episode boundary in the same complete unit.
 func TestIAMembershipAcceptRemovedLinkAndBoundary(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	q.changes = []iaMembershipChange{{subjectKey: "membership-episode-key", subjectKind: 4, subjectRevision: 1, effect: "removed", boundaryStatus: "whole_source", part: 0, start: 0}}
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
@@ -229,7 +229,7 @@ func TestIAMembershipAcceptRemovedLinkAndBoundary(t *testing.T) {
 // a conflict, so the delete can never silently remove unproven boundary evidence.
 func TestIAMembershipAcceptStaleBoundaryRefuses(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	q.changes = []iaMembershipChange{{subjectKey: "membership-episode-key", subjectKind: 4, subjectRevision: 1, effect: "removed", boundaryStatus: "unknown_multi_episode", part: 0, start: 0}}
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
@@ -245,7 +245,7 @@ func TestIAMembershipAcceptStaleBoundaryRefuses(t *testing.T) {
 // the exact CAS.
 func TestIAMembershipAcceptEditionPartUpdate(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	q.changes = []iaMembershipChange{{subjectKey: "membership-episode-key", subjectKind: 4, subjectRevision: 1, effect: "present",
 		edition: "Extended", part: 2, start: 0, boundaryStatus: "unknown_multi_episode"}}
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
@@ -277,7 +277,7 @@ func TestIAMembershipAcceptEditionPartUpdate(t *testing.T) {
 func TestIAMembershipAcceptDistinctTotalCap(t *testing.T) {
 	t.Run("too_many", func(t *testing.T) {
 		w, reg, p := iaMembershipAcceptFixture(t)
-		q := iaMembershipAcceptRequest(w)
+		q := newIAMembershipAcceptRequest(w)
 		q.changes = make([]iaMembershipChange, iaMembershipMaxChanges+1)
 		for i := range q.changes {
 			q.changes[i] = iaMembershipChange{subjectKey: "membership-missing-" + string(rune('a'+i%26)), subjectKind: 4, subjectRevision: 1, effect: "present", start: 0}
@@ -292,7 +292,7 @@ func TestIAMembershipAcceptDistinctTotalCap(t *testing.T) {
 	})
 	t.Run("duplicate", func(t *testing.T) {
 		w, reg, p := iaMembershipAcceptFixture(t)
-		q := iaMembershipAcceptRequest(w)
+		q := newIAMembershipAcceptRequest(w)
 		q.changes = append(q.changes, q.changes[0])
 		ref := ReceiptReference{Identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 2, OperationID: [16]byte{2}}, RequestDigest: RequestDigest{1}}
 		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
@@ -309,7 +309,7 @@ func TestIAMembershipAcceptDistinctTotalCap(t *testing.T) {
 func TestIAMembershipAcceptStaleRetainedID(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
 	wc008NativeExec(t, w, `UPDATE catalog_entities SET revision=2 WHERE id=31`)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
 	if !errors.Is(err, ErrConflict) || out.decision != 0 {
@@ -331,7 +331,7 @@ func TestIAMembershipAcceptNoAncestryCycle(t *testing.T) {
 	// album -> song -> album would be created by reparenting the song under the
 	// album; seed the malformed back edge first to model the attempted cycle.
 	wc008NativeExec(t, w, `UPDATE catalog_entities SET parent_id=92 WHERE id=81`)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	q.changes = []iaMembershipChange{{subjectKey: "membership-song-key", subjectKind: 7, subjectRevision: 1, parentKey: "membership-album-key"}}
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
@@ -349,7 +349,7 @@ func TestIAMembershipAcceptNoAncestryCycle(t *testing.T) {
 // no descendant art/name/search row is fanned out.
 func TestIAMembershipAcceptDestinationOnlyChronology(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
 	if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 1 {
@@ -401,7 +401,7 @@ func TestIAMembershipAcceptFreshGates(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			w, reg, p := iaMembershipAcceptFixture(t)
-			q := iaMembershipAcceptRequest(w)
+			q := newIAMembershipAcceptRequest(w)
 			mutate(t, w, &q)
 			ref := iaMembershipAcceptReference(t, q, 2, 2)
 			turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
@@ -419,7 +419,7 @@ func TestIAMembershipAcceptFreshGates(t *testing.T) {
 func TestIAMembershipAcceptAuthorityCells(t *testing.T) {
 	t.Run("forged_issuer", func(t *testing.T) {
 		w, reg, p := iaMembershipAcceptFixture(t)
-		q := iaMembershipAcceptRequest(w)
+		q := newIAMembershipAcceptRequest(w)
 		ref := iaMembershipAcceptReference(t, q, 2, 2)
 		fake := *p
 		fake.witness.issuer.family = "forged"
@@ -442,7 +442,7 @@ func TestIAMembershipAcceptAuthorityCells(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				w, reg, p := iaMembershipAcceptFixture(t)
 				wc008NativeExec(t, w, mutation)
-				q := iaMembershipAcceptRequest(w)
+				q := newIAMembershipAcceptRequest(w)
 				ref := iaMembershipAcceptReference(t, q, 2, 2)
 				turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
 				if !errors.Is(err, ErrDisclosureDenied) || out.decision != 0 || len(out.result.facts.members) != 0 {
@@ -455,7 +455,7 @@ func TestIAMembershipAcceptAuthorityCells(t *testing.T) {
 	})
 	t.Run("cancelled_lifetime", func(t *testing.T) {
 		w, reg, p := iaMembershipAcceptFixture(t)
-		q := iaMembershipAcceptRequest(w)
+		q := newIAMembershipAcceptRequest(w)
 		ref := iaMembershipAcceptReference(t, q, 2, 2)
 		turn, budget := iaMembershipAcceptTurn(t, w, reg, q)
 		cancelled, cancel := context.WithCancel(t.Context())
@@ -475,7 +475,7 @@ func TestIAMembershipAcceptLateAuthorityRechecks(t *testing.T) {
 	t.Run("before_writes", func(t *testing.T) {
 		w, reg, p := iaMembershipAcceptFixture(t)
 		state := installIAEntryQueryRevocation(t, w, "FROM catalog_assets")
-		q := iaMembershipAcceptRequest(w)
+		q := newIAMembershipAcceptRequest(w)
 		ref := iaMembershipAcceptReference(t, q, 2, 2)
 		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
 		if !state.fired || state.err != nil {
@@ -490,7 +490,7 @@ func TestIAMembershipAcceptLateAuthorityRechecks(t *testing.T) {
 	t.Run("after_writes", func(t *testing.T) {
 		w, reg, p := iaMembershipAcceptFixture(t)
 		wc008NativeExec(t, w, `CREATE TRIGGER ia_membership_late_revocation AFTER UPDATE ON catalog_entities BEGIN UPDATE identity_security_fences SET denied=1; END`)
-		q := iaMembershipAcceptRequest(w)
+		q := newIAMembershipAcceptRequest(w)
 		ref := iaMembershipAcceptReference(t, q, 2, 2)
 		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
 		if !errors.Is(err, ErrDisclosureDenied) || out.decision != 0 || len(out.result.facts.members) != 0 {
@@ -513,7 +513,7 @@ func TestIAMembershipAcceptReplayRejectsTamperedCohort(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			w, reg, p := iaMembershipAcceptFixture(t)
-			q := iaMembershipAcceptRequest(w)
+			q := newIAMembershipAcceptRequest(w)
 			ref := iaMembershipAcceptReference(t, q, 2, 2)
 			turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
 			if err != nil || out.decision != receiptFresh {
@@ -545,7 +545,7 @@ func TestIAMembershipAcceptUnknownCommitIsNotSuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFaultPool(w, &faultConnector{Connector: base, afterCommit: true, replyError: true})
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	q.changes = append(q.changes, iaMembershipChange{subjectKey: "membership-movie-key", subjectKind: 1, subjectRevision: 1, effect: "present", start: 0})
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
@@ -585,7 +585,7 @@ func TestIAMembershipAcceptUnknownCommitIsNotSuccess(t *testing.T) {
 // digest and no new effect, even while the physical rows still exist.
 func TestIAMembershipAcceptRetiredAfterAck(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
 	if err != nil || out.decision != receiptFresh {
@@ -613,7 +613,7 @@ func TestIAMembershipAcceptRetiredAfterAck(t *testing.T) {
 // fresh admission or a new receipt.
 func TestIAMembershipAcceptRejectsConflictingOriginal(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	changed := q
 	changed.changes[0].part = 9
@@ -635,7 +635,7 @@ func TestIAMembershipAcceptRejectsConflictingOriginal(t *testing.T) {
 
 func TestIAMembershipAcceptRollbackLeavesNoEffect(t *testing.T) {
 	w, reg, p := iaMembershipAcceptFixture(t)
-	q := iaMembershipAcceptRequest(w)
+	q := newIAMembershipAcceptRequest(w)
 	ref := iaMembershipAcceptReference(t, q, 2, 2)
 	turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
 	if err != nil || out.decision != receiptFresh {

@@ -40,8 +40,8 @@ func TestIABookSeriesPlans(t *testing.T) {
 		t.Fatal("series family inventory changed", len(defs))
 	}
 	for _, d := range defs {
-		if !d.Plan.Hot || len(d.Plan.Waivers) != 0 || len(plan.LintSQL(d.SQL)) != 0 {
-			t.Fatal("closed hot grammar", d.ID, plan.LintSQL(d.SQL))
+		if !d.Plan.Hot || len(d.Plan.Waivers) != 0 || len(plan.LintSQLDefinition(d)) != 0 {
+			t.Fatal("closed hot grammar", d.ID, plan.LintSQLDefinition(d))
 		}
 		if len(d.Cohorts) == 0 {
 			t.Fatal("statement lacks a native plan cohort", d.ID)
