@@ -159,10 +159,12 @@ type fullSearchTop struct {
 }
 
 // boundTo reports whether the cursor was issued for exactly this folded query,
-// bank, revision and input. Every continuation path (exact, native and native
-// preview) must check it before consuming any cursor-held position.
+// bank, revision, input and subject scope. Every continuation path (exact,
+// native and native preview) must check it before consuming any cursor-held
+// position. The subject-scope term is defence in depth: the native window also
+// refuses a cross-scope replay before this check.
 func (c *FullSearchCursor) boundTo(scope *fullQueryScope) bool {
-	return c != nil && scope != nil && c.query == scope.query.Fold() && c.bank == scope.bank && c.revision == scope.revision && c.input == scope.input
+	return c != nil && scope != nil && c.query == scope.query.Fold() && c.bank == scope.bank && c.revision == scope.revision && c.input == scope.input && c.people == scope.peopleOnly
 }
 
 func newFullSearchTop(scope *fullQueryScope, limit int, after *FullSearchCursor) (*fullSearchTop, error) {
