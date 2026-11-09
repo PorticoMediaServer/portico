@@ -163,7 +163,7 @@ RETURNING job_revision,last_command_sequence`,
 				{Name: "new_book_subject", Bindings: []any{operation, int64(7), int64(8)}},
 			}},
 		{ID: iaBookIdentityInsert, Kind: stmt.Write,
-			SQL:    `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(?,?,?) ON CONFLICT DO NOTHING`,
+			SQL:    `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(?,?,?) ON CONFLICT(library_id,source_key) DO NOTHING`,
 			Params: []stmt.Param{i("library_id"), t("source_key"), i("subject_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "first_identity", Bindings: []any{int64(7), "book-key", int64(31)}},
@@ -305,64 +305,18 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 }
 
 // iaBookSearchStatements is the exact IA-11 search-intent family under the
-// shared IDs applyIAMediaSearchInput names. SQL and cohorts are the merged
-// definitions, not a second protocol.
+// shared IDs applyIAMediaSearchInput names. It reuses IA-11's single definition
+// of that family instead of keeping a second copy of the SQL and cohorts.
 func iaBookSearchStatements() []stmt.Definition {
-	t := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
-	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
-	b := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
-	inc := make([]byte, 16)
-	return []stmt.Definition{
-		{ID: iaEpisodeSearchHead, Kind: stmt.Read,
-			SQL:     `SELECT revision,active_generation_id,building_generation_id,input_sequence FROM search_revision WHERE singleton=1`,
-			Params:  nil,
-			Cohorts: []stmt.Cohort{{Name: "singleton", Bindings: []any{}}}},
-		{ID: iaEpisodeSearchBank, Kind: stmt.Read,
-			SQL:    `SELECT bank_key,recipe_version,engine_version,unicode_fingerprint,state,pending_subjects FROM search_generations WHERE id=?`,
-			Params: []stmt.Param{i("bank_id")},
-			Cohorts: []stmt.Cohort{
-				{Name: "active_bank", Bindings: []any{int64(1)}},
-				{Name: "missing_bank", Bindings: []any{int64(999)}},
-			}},
-		{ID: iaEpisodeSearchExisting, Kind: stmt.Read,
-			SQL:    `SELECT id FROM search_publish_jobs WHERE entity_id=? LIMIT 1`,
-			Params: []stmt.Param{i("subject_id")},
-			Cohorts: []stmt.Cohort{
-				{Name: "new_subject", Bindings: []any{int64(31)}},
-				{Name: "existing_subject", Bindings: []any{int64(32)}},
-			}},
-		{ID: iaEpisodeSearchInsert, Kind: stmt.Write,
-			SQL: `INSERT INTO search_publish_jobs(entity_id,search_generation_id,input_generation,source_incarnation,source_revision,recipe_version,phase,job_next_attempt_ms)
-VALUES(?,?,?,?,?,?,?,?)`,
-			Params: []stmt.Param{i("subject_id"), i("bank_id"), i("input_generation"), b("source_incarnation"), i("source_revision"), t("recipe_version"), t("phase"), i("accepted_at_ms")},
-			Cohorts: []stmt.Cohort{
-				{Name: "first_intent", Bindings: []any{int64(31), int64(1), int64(1), inc, int64(1), "v1", "capture", int64(1000)}},
-			}},
-		{ID: iaEpisodeSearchPending, Kind: stmt.Write,
-			SQL: `UPDATE search_generations SET pending_subjects=?
-WHERE id=? AND state=? AND bank_key=? AND recipe_version=? AND engine_version=? AND unicode_fingerprint=?
-AND pending_subjects=? AND pending_subjects<9223372036854775807`,
-			Params: []stmt.Param{i("next_pending"), i("bank_id"), t("bank_state"), t("bank_key"), t("recipe_version"), t("engine_version"), t("unicode_fingerprint"), i("expected_pending")},
-			Cohorts: []stmt.Cohort{
-				{Name: "first_pending", Bindings: []any{int64(1), int64(1), "active", "v1", "v1", "unicode-v1", int64(0)}},
-			}},
-		{ID: iaEpisodeSearchSequence, Kind: stmt.Write,
-			SQL: `UPDATE search_revision SET input_sequence=?
-WHERE singleton=1 AND revision=? AND active_generation_id=? AND building_generation_id IS NULL
-AND input_sequence=? AND input_sequence<9223372036854775807`,
-			Params: []stmt.Param{i("next_input_sequence"), i("expected_revision"), i("active_bank"), i("expected_input_sequence")},
-			Cohorts: []stmt.Cohort{
-				{Name: "active_only", Bindings: []any{int64(1), int64(1), int64(1), int64(0)}},
-			}},
-		{ID: iaEpisodeSearchBuilding, Kind: stmt.Write,
-			SQL: `UPDATE search_revision SET input_sequence=?
-WHERE singleton=1 AND revision=? AND active_generation_id=? AND building_generation_id=?
-AND input_sequence=? AND input_sequence<9223372036854775807`,
-			Params: []stmt.Param{i("next_input_sequence"), i("expected_revision"), i("active_bank"), i("building_bank"), i("expected_input_sequence")},
-			Cohorts: []stmt.Cohort{
-				{Name: "active_building", Bindings: []any{int64(1), int64(1), int64(1), int64(2), int64(0)}},
-			}},
+	var defs []stmt.Definition
+	for _, def := range iaEpisodeStatements() {
+		switch def.ID {
+		case iaEpisodeSearchHead, iaEpisodeSearchBank, iaEpisodeSearchExisting, iaEpisodeSearchInsert,
+			iaEpisodeSearchPending, iaEpisodeSearchSequence, iaEpisodeSearchBuilding:
+			defs = append(defs, def)
+		}
 	}
+	return defs
 }
 
 // Complete private family: current US owner authority, the finite book

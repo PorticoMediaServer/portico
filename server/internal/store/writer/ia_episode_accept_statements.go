@@ -169,7 +169,7 @@ RETURNING job_revision,last_command_sequence`,
 				{Name: "new_season_subject", Bindings: []any{operation, int64(7), int64(3)}},
 			}},
 		{ID: iaEpisodeIdentityInsert, Kind: stmt.Write,
-			SQL:    `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(?,?,?) ON CONFLICT DO NOTHING`,
+			SQL:    `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(?,?,?) ON CONFLICT(library_id,source_key) DO NOTHING`,
 			Params: []stmt.Param{i("library_id"), t("source_key"), i("subject_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "first_identity", Bindings: []any{int64(7), "episode-show-key", int64(31)}},
@@ -241,7 +241,7 @@ WHERE id=? AND state=? AND bank_key=? AND recipe_version=? AND engine_version=? 
 AND pending_subjects=? AND pending_subjects<9223372036854775807`,
 			Params: []stmt.Param{i("next_pending"), i("bank_id"), t("bank_state"), t("bank_key"), t("recipe_version"), t("engine_version"), t("unicode_fingerprint"), i("expected_pending")},
 			Cohorts: []stmt.Cohort{
-				{Name: "first_pending", Bindings: []any{int64(1), int64(1), "active", "v1", "v1", "unicode-v1", int64(0)}},
+				{Name: "first_pending", Bindings: []any{int64(1), int64(1), "active", "v1", "v1", "unicode-v1", searchInputExampleFingerprint, int64(0)}},
 			}},
 		{ID: iaEpisodeSearchSequence, Kind: stmt.Write,
 			SQL: `UPDATE search_revision SET input_sequence=?

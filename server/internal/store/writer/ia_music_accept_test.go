@@ -162,8 +162,8 @@ func TestIAMusicAcceptFreshReplayAndLiveCohort(t *testing.T) {
 		{`SELECT count(*) FROM catalog_identities WHERE library_id=7`, nil, 3},
 		{`SELECT count(*) FROM catalog_entities WHERE library_id=7`, nil, 3},
 		{`SELECT count(*) FROM catalog_entities WHERE kind=5 AND artist_id IS NULL AND album_id IS NULL`, nil, 1},
-		{`SELECT count(*) FROM catalog_entities WHERE kind=6 AND artist_id=(SELECT id FROM catalog_identities WHERE source_key='artist-key')`, nil, 1},
-		{`SELECT count(*) FROM catalog_entities WHERE kind=7 AND album_id=(SELECT id FROM catalog_identities WHERE source_key='album-key') AND artist_id=(SELECT id FROM catalog_identities WHERE source_key='artist-key')`, nil, 1},
+		{`SELECT count(*) FROM catalog_entities WHERE kind=6 AND artist_id=(SELECT subject_id FROM catalog_identities WHERE source_key='artist-key')`, nil, 1},
+		{`SELECT count(*) FROM catalog_entities WHERE kind=7 AND album_id=(SELECT subject_id FROM catalog_identities WHERE source_key='album-key') AND artist_id=(SELECT subject_id FROM catalog_identities WHERE source_key='artist-key')`, nil, 1},
 		{`SELECT count(*) FROM catalog_entities WHERE kind IN(5,6,7) AND music_incarnation IS NOT NULL AND music_revision=1 AND music_membership_revision=1`, nil, 3},
 		{`SELECT count(*) FROM catalog_song_artists`, nil, 1},
 		{`SELECT count(*) FROM catalog_asset_links WHERE asset_id=41 AND part_index=0 AND cue_ordinal IS NULL AND start_seconds=0 AND end_seconds IS NULL`, nil, 1},
@@ -188,8 +188,11 @@ func TestIAMusicAcceptFreshReplayAndLiveCohort(t *testing.T) {
 		replay.result.facts.acceptedRevision != out.result.facts.acceptedRevision {
 		t.Fatal("saved music replay", replay, err)
 	}
-	if got := iaMusicCount(t, w, `SELECT count(*) FROM scan_command_receipts`); got != 1 {
-		t.Fatal("replay minted a receipt", got)
+	// The replay frame still holds the single writer connection, so the
+	// no-new-receipt check reads the open transaction itself.
+	var receipts int64
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM scan_command_receipts`).Scan(&receipts); err != nil || receipts != 1 {
+		t.Fatal("replay minted a receipt", receipts, err)
 	}
 	turn.transaction.rollback(nil)
 }
@@ -294,7 +297,7 @@ func TestIAMusicAcceptBounds(t *testing.T) {
 		}
 		ref := ReceiptReference{Identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 2, OperationID: [16]byte{2}}, RequestDigest: RequestDigest{1}}
 		turn, out, err := iaMusicAcceptRun(t, w, reg, p, q, ref)
-		if err != nil || out.decision != 0 || len(out.result.facts.members) != 0 {
+		if !errors.Is(err, ErrInvalid) || out.decision != 0 || len(out.result.facts.members) != 0 {
 			t.Fatal("seventeen songs", out, err)
 		}
 		turn.transaction.rollback(nil)
@@ -309,7 +312,7 @@ func TestIAMusicAcceptBounds(t *testing.T) {
 		}
 		ref := ReceiptReference{Identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 2, OperationID: [16]byte{2}}, RequestDigest: RequestDigest{1}}
 		turn, out, err := iaMusicAcceptRun(t, w, reg, p, q, ref)
-		if err != nil || out.decision != 0 || len(out.result.facts.members) != 0 {
+		if !errors.Is(err, ErrInvalid) || out.decision != 0 || len(out.result.facts.members) != 0 {
 			t.Fatal("sixty five artists", out, err)
 		}
 		turn.transaction.rollback(nil)

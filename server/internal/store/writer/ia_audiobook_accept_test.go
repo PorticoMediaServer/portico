@@ -231,8 +231,11 @@ func TestIABookAcceptFreshReplayAndLiveCohort(t *testing.T) {
 		replay.result.facts.acceptedRevision != out.result.facts.acceptedRevision {
 		t.Fatal("saved book replay", replay, err)
 	}
-	if got := iaBookCount(t, w, `SELECT count(*) FROM scan_command_receipts`); got != 1 {
-		t.Fatal("replay minted a receipt", got)
+	// The replay frame still holds the single writer connection, so the
+	// no-new-receipt check reads the open transaction itself.
+	var receipts int64
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM scan_command_receipts`).Scan(&receipts); err != nil || receipts != 1 {
+		t.Fatal("replay minted a receipt", receipts, err)
 	}
 	turn.transaction.rollback(nil)
 }

@@ -26,13 +26,6 @@ const (
 	iaMusicLinkInsert         stmt.ID = "ia.audio.music.link_insert"
 	iaMusicContributionInsert stmt.ID = "ia.audio.music.contribution_insert"
 	iaMusicSongArtistInsert   stmt.ID = "ia.audio.music.song_artist_insert"
-	iaMusicSearchHead         stmt.ID = "ia.audio.music.search_head"
-	iaMusicSearchBank         stmt.ID = "ia.audio.music.search_bank"
-	iaMusicSearchExisting     stmt.ID = "ia.audio.music.search_existing"
-	iaMusicSearchInsert       stmt.ID = "ia.audio.music.search_insert"
-	iaMusicSearchPending      stmt.ID = "ia.audio.music.search_pending"
-	iaMusicSearchSequence     stmt.ID = "ia.audio.music.search_sequence"
-	iaMusicSearchBuilding     stmt.ID = "ia.audio.music.search_building"
 	iaMusicReceiptInsert      stmt.ID = "ia.audio.music.receipt_insert"
 	iaMusicMemberInsert       stmt.ID = "ia.audio.music.member_insert"
 )
@@ -171,7 +164,7 @@ RETURNING job_revision,last_command_sequence`,
 				{Name: "new_song_subject", Bindings: []any{operation, int64(7), int64(7)}},
 			}},
 		{ID: iaMusicIdentityInsert, Kind: stmt.Write,
-			SQL:    `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(?,?,?) ON CONFLICT DO NOTHING`,
+			SQL:    `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(?,?,?) ON CONFLICT(library_id,source_key) DO NOTHING`,
 			Params: []stmt.Param{i("library_id"), t("source_key"), i("subject_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "first_identity", Bindings: []any{int64(7), "music-album-key", int64(31)}},
@@ -213,59 +206,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(entity_id,asset_id) DO NOTHING`,
 				{Name: "one_song_membership", Bindings: []any{int64(7), int64(33), int64(41), int64(1), int64(0), int64(42), int64(1)}},
 			}},
 		{ID: iaMusicSongArtistInsert, Kind: stmt.Write,
-			SQL:    `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(?,?) ON CONFLICT DO NOTHING`,
+			SQL:    `INSERT INTO catalog_song_artists(song_id,artist_id) VALUES(?,?) ON CONFLICT(song_id,artist_id) DO NOTHING`,
 			Params: []stmt.Param{i("song_id"), i("artist_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "song_artist_edge", Bindings: []any{int64(33), int64(31)}},
-			}},
-		{ID: iaMusicSearchHead, Kind: stmt.Read,
-			SQL:     `SELECT revision,active_generation_id,building_generation_id,input_sequence FROM search_revision WHERE singleton=1`,
-			Params:  nil,
-			Cohorts: []stmt.Cohort{{Name: "singleton", Bindings: []any{}}}},
-		{ID: iaMusicSearchBank, Kind: stmt.Read,
-			SQL:    `SELECT bank_key,recipe_version,engine_version,unicode_fingerprint,state,pending_subjects FROM search_generations WHERE id=?`,
-			Params: []stmt.Param{i("bank_id")},
-			Cohorts: []stmt.Cohort{
-				{Name: "active_bank", Bindings: []any{int64(1)}},
-				{Name: "missing_bank", Bindings: []any{int64(999)}},
-			}},
-		{ID: iaMusicSearchExisting, Kind: stmt.Read,
-			SQL:    `SELECT id FROM search_publish_jobs WHERE entity_id=? LIMIT 1`,
-			Params: []stmt.Param{i("subject_id")},
-			Cohorts: []stmt.Cohort{
-				{Name: "new_subject", Bindings: []any{int64(31)}},
-				{Name: "existing_subject", Bindings: []any{int64(32)}},
-			}},
-		{ID: iaMusicSearchInsert, Kind: stmt.Write,
-			SQL: `INSERT INTO search_publish_jobs(entity_id,search_generation_id,input_generation,source_incarnation,source_revision,recipe_version,phase,job_next_attempt_ms)
-VALUES(?,?,?,?,?,?,?,?)`,
-			Params: []stmt.Param{i("subject_id"), i("bank_id"), i("input_generation"), b("source_incarnation"), i("source_revision"), t("recipe_version"), t("phase"), i("accepted_at_ms")},
-			Cohorts: []stmt.Cohort{
-				{Name: "first_intent", Bindings: []any{int64(31), int64(1), int64(1), inc, int64(1), "v1", "capture", int64(1000)}},
-			}},
-		{ID: iaMusicSearchPending, Kind: stmt.Write,
-			SQL: `UPDATE search_generations SET pending_subjects=?
-WHERE id=? AND state=? AND bank_key=? AND recipe_version=? AND engine_version=? AND unicode_fingerprint=?
-AND pending_subjects=? AND pending_subjects<9223372036854775807`,
-			Params: []stmt.Param{i("next_pending"), i("bank_id"), t("bank_state"), t("bank_key"), t("recipe_version"), t("engine_version"), t("unicode_fingerprint"), i("expected_pending")},
-			Cohorts: []stmt.Cohort{
-				{Name: "first_pending", Bindings: []any{int64(1), int64(1), "active", "v1", "v1", "unicode-v1", int64(0)}},
-			}},
-		{ID: iaMusicSearchSequence, Kind: stmt.Write,
-			SQL: `UPDATE search_revision SET input_sequence=?
-WHERE singleton=1 AND revision=? AND active_generation_id=? AND building_generation_id IS NULL
-AND input_sequence=? AND input_sequence<9223372036854775807`,
-			Params: []stmt.Param{i("next_input_sequence"), i("expected_revision"), i("active_bank"), i("expected_input_sequence")},
-			Cohorts: []stmt.Cohort{
-				{Name: "active_only", Bindings: []any{int64(1), int64(1), int64(1), int64(0)}},
-			}},
-		{ID: iaMusicSearchBuilding, Kind: stmt.Write,
-			SQL: `UPDATE search_revision SET input_sequence=?
-WHERE singleton=1 AND revision=? AND active_generation_id=? AND building_generation_id=?
-AND input_sequence=? AND input_sequence<9223372036854775807`,
-			Params: []stmt.Param{i("next_input_sequence"), i("expected_revision"), i("active_bank"), i("building_bank"), i("expected_input_sequence")},
-			Cohorts: []stmt.Cohort{
-				{Name: "active_building", Bindings: []any{int64(1), int64(1), int64(1), int64(2), int64(0)}},
 			}},
 		{ID: iaMusicReceiptInsert, Kind: stmt.Write,
 			SQL: `INSERT INTO scan_command_receipts(
@@ -304,6 +248,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 					"", "present", int64(1), float64(0), float64(42), nil, nil, nil, nil, nil}},
 			}},
 	}
+	// The music accept appends the shared search-intent family. applyIAMediaSearchInput
+	// names the exact IA-11 IDs, so the family is registered once and reused here.
+	defs = append(defs, iaBookSearchStatements()...)
 	for n := range defs {
 		defs[n].Owner = "store/writer IA music accept"
 		defs[n].CallSites = []string{"store/writer/ia_music_accept.go", "store/writer/ia_music_types.go"}
@@ -342,13 +289,13 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaMusicRunCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND command_incarnation=?"}
-		case iaMusicSearchHead:
+		case iaEpisodeSearchHead:
 			defs[n].Plan.PrimaryKeys = []string{"search_revision"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
-		case iaMusicSearchBank:
+		case iaEpisodeSearchBank:
 			defs[n].Plan.PrimaryKeys = []string{"search_generations"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
-		case iaMusicSearchExisting:
+		case iaEpisodeSearchExisting:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_search_publish_jobs_1"}
 			defs[n].Plan.Seeks = []string{"entity_id=?"}
 		}

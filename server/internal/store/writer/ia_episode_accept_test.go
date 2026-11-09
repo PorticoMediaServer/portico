@@ -169,7 +169,7 @@ func TestIAEpisodeAcceptFreshReplayAndLiveCohort(t *testing.T) {
 		{`SELECT count(*) FROM catalog_identities WHERE library_id=7`, nil, 3},
 		{`SELECT count(*) FROM catalog_entities WHERE library_id=7`, nil, 3},
 		{`SELECT count(*) FROM catalog_entities WHERE kind=2 AND show_id IS NULL AND parent_id IS NULL`, nil, 1},
-		{`SELECT count(*) FROM catalog_entities WHERE kind=3 AND show_id=(SELECT id FROM catalog_identities WHERE source_key='show-key') AND season_number=1`, nil, 1},
+		{`SELECT count(*) FROM catalog_entities WHERE kind=3 AND show_id=(SELECT subject_id FROM catalog_identities WHERE source_key='show-key') AND season_number=1`, nil, 1},
 		{`SELECT count(*) FROM catalog_entities WHERE kind=4 AND episode_number=1 AND numbering='seasonal' AND tv_hierarchy_revision=1`, nil, 1},
 		{`SELECT count(*) FROM catalog_asset_links WHERE asset_id=41 AND part_index=0 AND start_seconds=0 AND end_seconds IS NULL`, nil, 1},
 		{`SELECT count(*) FROM catalog_asset_contributions WHERE asset_id=41 AND membership_refs=1 AND file_size=42`, nil, 1},
@@ -193,8 +193,11 @@ func TestIAEpisodeAcceptFreshReplayAndLiveCohort(t *testing.T) {
 		replay.result.facts.acceptedRevision != out.result.facts.acceptedRevision {
 		t.Fatal("saved episode replay", replay, err)
 	}
-	if got := iaEpisodeCount(t, w, `SELECT count(*) FROM scan_command_receipts`); got != 1 {
-		t.Fatal("replay minted a receipt", got)
+	// The replay frame still holds the single writer connection, so the
+	// no-new-receipt check reads the open transaction itself.
+	var receipts int64
+	if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM scan_command_receipts`).Scan(&receipts); err != nil || receipts != 1 {
+		t.Fatal("replay minted a receipt", receipts, err)
 	}
 	turn.transaction.rollback(nil)
 }

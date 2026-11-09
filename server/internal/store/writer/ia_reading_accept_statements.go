@@ -196,7 +196,7 @@ RETURNING job_revision,last_command_sequence`,
 				{Name: "new_comic_subject", Bindings: []any{operation, int64(7), int64(21)}},
 			}},
 		{ID: iaReadingIdentityInsert, Kind: stmt.Write,
-			SQL:    `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(?,?,?) ON CONFLICT DO NOTHING`,
+			SQL:    `INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(?,?,?) ON CONFLICT(library_id,source_key) DO NOTHING`,
 			Params: []stmt.Param{i("library_id"), t("source_key"), i("subject_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "first_identity", Bindings: []any{int64(7), "reading-item-key", int64(31)}},

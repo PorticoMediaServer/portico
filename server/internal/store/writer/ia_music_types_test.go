@@ -130,6 +130,12 @@ func TestIAMusicCommandCapsPayload(t *testing.T) {
 func TestIAMusicCommandClonesAndBindsRequest(t *testing.T) {
 	q := iaMusicTypeRequest()
 	end := float64(10)
+	// A ranged song is only a valid whole-file witness through a complete CUE
+	// cohort, so the clone target uses that shape rather than a trimmed file.
+	q.cue = &iaMusicCue{complete: true, file: inventoryFile{sourceKey: "cue-source-key", relativePath: "Album/album.cue",
+		assetPath: iaMusicTestRoot + "/Album/album.cue", objectIdentity: "object:cue:1", revision: "cue-revision", size: 1, modifiedNS: 2,
+		metadataLanguage: "en-US", title: "album"}}
+	q.songs[0].cueOrdinal = 1
 	q.songs[0].start = 0
 	q.songs[0].end = &end
 	command, err := newIAMusicInventoryCommand(iaMusicTypeIdentity(), q)
