@@ -14,7 +14,7 @@ import {parseSync, transformSync} from 'rolldown/utils';
 import * as receiverQueries from '../../../../packages/client-core/src/query/receiver.ts';
 import * as serverClock from '../../../../packages/client-core/src/server-clock.ts';
 import * as userMutationClock from '../../../../packages/client-core/src/query/user-mutation-clock.ts';
-import * as nativeStops from '../../src-next/platform/user-mutations.ts';
+import * as nativeStopScope from '../../src-next/platform/native-stop-scope.ts';
 import * as personalHistoryActions from '../../../../packages/client-core/src/personal-history-actions.ts';
 import * as failureWords from '../../src-next/screens/watch/failure-words.ts';
 import * as tvPlayPause from '../../src-next/platform/tv-play-pause.ts';
@@ -79,7 +79,7 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /client-core\/src\/playback-v1\/subtitle-upload(\.ts)?$/.test(source) ? subtitleUploads
   : /client-core\/src\/query\/receiver(\.ts)?$/.test(source) ? receiverQueries
   : /\/query\/user-mutation-clock(?:\.ts)?$/.test(source) ? userMutationClock
-  : /(^|\/)platform\/user-mutations$|^\.\.\/user-mutations$/.test(source) ? nativeStops
+  : /(^|\/)native-stop-scope$/.test(source) ? nativeStopScope
   : /\/personal-history-actions(?:\.ts)?$/.test(source) ? personalHistoryActions
   : /client-core\/src\/query\/native-account-client(?:\.ts)?$/.test(source) ? nativeAccountClient
   : /client-core\/src\/query\/profile-security-transport(?:\.ts)?$/.test(source) ? profileTransport
