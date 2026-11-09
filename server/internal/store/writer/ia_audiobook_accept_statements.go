@@ -255,7 +255,8 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 	for n := range defs {
 		defs[n].Owner = "store/writer IA audiobook accept"
 		defs[n].CallSites = []string{"store/writer/ia_audiobook_accept.go"}
-		defs[n].Plan = stmt.Plan{Hot: true}
+		// Preserve the nested accepted-series family's declared keys.
+		defs[n].Plan.Hot = true
 		switch defs[n].ID {
 		case iaBookOwner:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_1"}
