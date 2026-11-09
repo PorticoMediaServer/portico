@@ -29,8 +29,8 @@ import {NativeProfileGated, nativeProfileGated, type NativeConnected} from '../p
 import {nativeRememberedProfile, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {nativeManageGate, nativeManageRefused} from '../platform/manage-gate';
 import {beginNativeInstallation} from '../platform/installation';
-import {NativeStopResultConsumer} from '../platform/native-stop-consumer';
-import {NativeUserMutationStore,retainNativeUserMutationSelection} from '../platform/user-mutations';
+import {NativeOutboxStore} from '../platform/outbox-store';
+import {NativeStopStore, nativeStopScope, retainNativeStopScope} from '../platform/user-mutations';
 import {NativeQueueStore} from '../platform/queue-storage';
 import {bindNativeDeviceSettings, nativeDeviceSettings} from '../platform/device-settings';
 import {bindNativeServerPreferences} from '../platform/server-preferences';
@@ -100,7 +100,7 @@ export type NativeShellBootstrapContext = Readonly<{
   navigation: NativeShellNavigation;
 }>;
 /** Only the integrated family/action owners supply these implementations; never fallback no-ops. */
-export type NativeShellBindings = Pick<NativeShellRuntime, 'notice' | 'actions' | 'mixes' | 'musicDiscover' | 'listeningPlaylist' | 'listeningQueuePolicy' | 'listeningSongDetail' | 'selection' | 'setHomeWindow' | 'homeMenuRow' | 'renderSelection' | 'renderRoutes' | 'stacks' | 'renderWatch' | 'libraryMenu' | 'renderDestination' | 'renderHomeEmpty' | 'renderDownloads' | 'renderPendingChanges' | 'openServers' | 'connectionFacts' | 'error' | 'reportError' | 'onDestination' | 'scrollToTop' | 'registerScrollToTop' | 'registerTVPageBack' | 'registerTVRouteBack' | 'registerTVRailBack' | 'onArtworkError' | 'castControl' | 'ownerActivity'> & {
+export type NativeShellBindings = Pick<NativeShellRuntime, 'notice' | 'actions' | 'mixes' | 'musicDiscover' | 'listeningPlaylist' | 'listeningQueuePolicy' | 'listeningSongDetail' | 'selection' | 'setHomeWindow' | 'homeMenuRow' | 'renderSelection' | 'renderRoutes' | 'stacks' | 'renderWatch' | 'libraryMenu' | 'renderDestination' | 'renderHomeEmpty' | 'renderDownloads' | 'openServers' | 'connectionFacts' | 'error' | 'reportError' | 'onDestination' | 'scrollToTop' | 'registerScrollToTop' | 'registerTVPageBack' | 'registerTVRouteBack' | 'registerTVRailBack' | 'onArtworkError' | 'castControl' | 'ownerActivity'> & {
   account: NativeShellSnapshot['account'];
   getState: () => Pick<NativeShellSnapshot, 'destination' | 'railDestination' | 'contentVisible' | 'selectionActive' | 'homeObscured' | 'homeVisible'>;
   attach: (runtime: NativeShellRuntime) => void;
@@ -227,22 +227,21 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     selected = adopted.selected; identityServer = adopted.server; signInHint = adopted.hint;
     restored = {api: adopted.api, session: adopted.session}; api = adopted.api;
     api = restored.api;
-    api.setUserMutationSession(restored.session);
-    const mutationStore = new NativeUserMutationStore();
-    let reportMutationError = (error: unknown) => console.warn('[user-mutations]', error);
-    const mutationScope=api.getUserMutationScope();if(!mutationScope)throw cancelled();
-    markRestore('mutations');
-    await retainNativeUserMutationSelection(mutationStore,mutationScope,error=>reportMutationError(error)); assertCurrent();
-    const mutations = api.configureUserMutations(mutationStore);
-    const mutationApi = api;
-    const stopConsumer=new NativeStopResultConsumer({coordinator:mutations,scope:mutationApi.getUserMutationScope,
-      consumeLocal:async key=>{const bridge=NativeModules.PorticoPlaybackModule;if(typeof bridge?.consumeListeningStop!=='function')throw Object.assign(new Error('mutation_consumer_unavailable'),{code:'mutation_consumer_unavailable'});return await bridge.consumeListeningStop(key)===true;},
-      consumeResult:key=>mutationApi.consumeUserMutation(key),report:error=>reportMutationError(error)});
-    const nativeMutations = NativeModules.PorticoPlaybackModule ? new NativeEventEmitter(NativeModules.PorticoPlaybackModule).addListener('PorticoUserMutationStatus', (status: {state?: string; code?: string}) => {
-      if (['not_queued', 'review', 'quarantined'].includes(status.state ?? '')) reportMutationError(Object.assign(new Error(status.code ?? 'mutation_not_queued'), {code: status.code ?? 'mutation_not_queued'}));
-      void mutations.reconcile().catch(reportMutationError);
-    }) : undefined;
-    cleanups.push(() => {nativeMutations?.remove(); stopConsumer.dispose(); mutations.dispose(); mutationApi.setUserMutationSession(undefined);});
+    api.setOutboxSession(restored.session);
+    markRestore('outbox');
+    // The system audio player sends its own stop (platform/user-mutations.ts): it needs to know the
+    // sign-in in use, and its finished stops cleared away.
+    const stopStore = new NativeStopStore(), stopScope = nativeStopScope(api.baseUrl, api.getOutboxSession());
+    if (!stopScope) throw cancelled();
+    const reportStopError = (error: unknown) => console.warn('[listening-stop]', error);
+    await retainNativeStopScope(stopStore, stopScope, reportStopError); assertCurrent();
+    const clearStops = () => {void stopStore.clearFinished().catch(reportStopError);};
+    clearStops();
+    const nativeStops = NativeModules.PorticoPlaybackModule ? new NativeEventEmitter(NativeModules.PorticoPlaybackModule).addListener('PorticoUserMutationStatus', clearStops) : undefined;
+    // What a person does out of reach of the server is kept and sent later; coming back to the app is a moment to try.
+    const outbox = api.configureOutbox(new NativeOutboxStore()), outboxApi = api;
+    const awake = AppState.addEventListener('change', state => {if (state === 'active') outbox.wake();});
+    cleanups.push(() => {nativeStops?.remove(); awake.remove(); outbox.dispose(); outboxApi.setOutboxSession(undefined);});
     api.setDeviceClass(Platform.isTV ? 'television' : 'mobile');
     const local = api;
     trackNativeConnection(local);
@@ -410,7 +409,6 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     if (!selectedBeforePublish || !sameViewer(selectedBeforePublish.session, session) || selectedBeforePublish.serverUrl !== original.serverUrl) throw cancelled();
     await accountBinding.assertCurrent(); assertCurrent();
     const bound = bindings;
-    reportMutationError = error => bound.reportError(error);
     const publish = () => {
       if (!current()) return;
       const avatar = avatars.find(value => value.profileId === profile.id), picture = profilePictureSource(local, session!.accessToken, avatar, Platform.isTV ? 80 : 90);
@@ -425,7 +423,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     refresher = new LocalSessionRefresher({env, api: local, session, onRotated: renewed => {
       if (!current() || !sameViewer(session!, renewed)) {end(); return;}
       ownTokens.add(renewed.accessToken);
-      local.setUserMutationSession(renewed);
+      local.setOutboxSession(renewed);
       if (renewed.viewer.role !== session!.viewer.role) {session = renewed; rebuild(); return;}
       if (renewed.authorizationHorizon !== session!.authorizationHorizon) {
         // Local renewal slides its inactivity horizon. Re-enter the normal

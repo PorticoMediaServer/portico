@@ -66,7 +66,7 @@ export type PlayOnSnapshot = Readonly<{
 }>;
 
 type Options = Readonly<{
-  api: Readonly<{baseUrl?: string; createUserMutationKey?():Promise<string>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
+  api: Readonly<{baseUrl?: string; createCastStopKey?():Promise<string>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
     requestRaw?(path: string, method: string, options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>): Promise<{status: number; headers: Record<string, string>; body?: unknown}>}>;
   session: () => LocalSession | undefined;
   deviceName: () => string;

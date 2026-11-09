@@ -1,7 +1,7 @@
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
-import {HttpLocalApi, isUserMutationKey} from '@core/index.ts';
+import {HttpLocalApi} from '@core/index.ts';
 import {routePath} from '../../packages/contracts/src/route-paths.ts';
 import {FakePlaybackServer, fakeHttp} from '@core/playback-v1/testing/fake-server.ts';
 import type {V1Request, V1Response} from '@core/playback-v1/http.ts';
@@ -556,7 +556,7 @@ function castController(t: TestContext, f: ReturnType<typeof setup>) {
 test('WEB002 the MAIN SDK, canonical sender and mounted runtime retain through picker, receiver ACK and stopped continuation', async t => {
   const f = setup(t); await f.runtime.play('movie', 25); await f.arrive();
   const local = f.hls.instances.at(-1)!, first = f.runtime.getSnapshot(), sessionId = first.session!.id;
-  f.api.setUserMutationSession({accessToken: 'cast-test-token', expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-01-02T00:00:00Z',
+  f.api.setOutboxSession({accessToken: 'cast-test-token', expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-01-02T00:00:00Z',
     tokenGeneration: '1', sessionFamilyId: 'family', deviceId: 'sender-device', viewer: {...viewer, role: 'member'}});
   const policy = deferred();t.after(() => policy.resolve());
   f.intercept(async (request, response) => {
@@ -586,7 +586,7 @@ test('WEB002 the MAIN SDK, canonical sender and mounted runtime retain through p
     sendMessage: async (_namespace, message) => {
       const command = message as Record<string, unknown>;
       if (command.type === 'stop') {
-        assert.equal(isUserMutationKey(String(command.requestId)), true);
+        assert.match(String(command.requestId), /^p251_[0-9]{13}_[a-f0-9]{32}$/, 'the key form the present receiver requires');
         const retained = [...stored].filter(([key]) => key.startsWith('portico.cast.stop:')).flatMap(([,value]) => JSON.parse(value));
         assert.ok(retained.some(record => record.key === command.requestId && record.state === 'pending' && JSON.stringify(record.target) === JSON.stringify(command.target)), 'exact Stop identity is durable before SDK dispatch');
       }

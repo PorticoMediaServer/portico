@@ -1,5 +1,3 @@
-import {userMutationRoute} from './user-mutation-routes.ts';
-import {sameUserMutationScope,type UserMutationCoordinator,type UserMutationScope} from './user-mutations.ts';
 import {parseSettingsConfiguration} from './settings-configuration.ts';
 import {canonicalQualityLadder,canonicalMusicQualityLadder} from '../../contracts/src/types.ts';
 import {reportQuery,verifyReportInterval,type ReportContext} from './report-context.ts';
@@ -14,7 +12,7 @@ import {parseAttention} from './attention.ts';
 import {parsePlaybackHistory,type PlaybackHistoryPeriod} from './playback-history.ts';
 import {firstOfEach,keepReadable,noteSkipped} from './tolerant.ts';
 import {serverNow} from './server-clock.ts';
-export type ConsoleAPI={awaitUserMutationsReady?():Promise<void>;getUserMutationScope?():UserMutationScope|undefined;getUserMutationCoordinator?():UserMutationCoordinator|undefined;acknowledgeUserMutation?(intentId:string):Promise<void>;request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>;requestConsole?<T>(path:string,method:string,body:unknown,signal:AbortSignal):Promise<T>};
+export type ConsoleAPI={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>;requestConsole?<T>(path:string,method:string,body:unknown,signal:AbortSignal):Promise<T>};
 export type ConsoleScope={serverId:string;viewerId:string};
 export type Page<T>={items:T[];nextCursor:string};
 export type HardwareBackend='auto'|'software'|'videotoolbox'|'vaapi'|'qsv'|'nvenc'|'amf';
@@ -126,7 +124,7 @@ let sequence=0;
 /** Operation keys are uniqueness tokens, not credentials or authorization. */
 export function consoleOperationId():string{return globalThis.crypto?.randomUUID?.()??`op-${Date.now().toString(36)}-${(++sequence).toString(36)}-${Math.random().toString(36).slice(2,16)}`;}
 export class ConsoleClient {
- private disposed=false;private requests=new Set<AbortController>();private intents=new Map<string,{body:string;key:string;method:string;parse:(v:unknown)=>unknown;binding?:UserMutationScope;ack?:Promise<void>}>();private reconciled=new Set<()=>void>();private listeners=new Set<()=>void>();
+ private disposed=false;private requests=new Set<AbortController>();private intents=new Map<string,{body:string;key:string;method:string;parse:(v:unknown)=>unknown}>();private reconciled=new Set<()=>void>();private listeners=new Set<()=>void>();
  private drafts=new Map<string,unknown>();private denied=false;private refusal?:unknown;private recoveredExport?:SupportExport;
  private settingsRead = new Map<number,RuntimeSettings>();
  private pendingSettings?:{expectedRevision:number;baseline:RuntimeSettings;patch:string};
@@ -141,38 +139,25 @@ export class ConsoleClient {
  setDraft(key:string,value:unknown){if(this.disposed||this.denied)return;if(value===undefined)this.drafts.delete(key);else this.drafts.set(key,value);}
  getDraft<T>(key:string):T|undefined{return this.drafts.get(key) as T|undefined;}
  hasDrafts(){return this.drafts.size>0||this.hasUnconfirmed();}
- hasUnconfirmed(){if(this.disposed||this.denied)return false;const scope=this.api.getUserMutationScope?.();return this.intents.size>0||!!this.api.getUserMutationCoordinator?.()?.snapshot().some(entry=>scope&&sameUserMutationScope(entry.scope,scope)&&(entry.path===routePath('change_console_settings')||entry.path===routePath('patch_preferences')));}
+ hasUnconfirmed(){return !this.disposed&&!this.denied&&this.intents.size>0;}
  takeRecoveredExport(){const value=this.recoveredExport;this.recoveredExport=undefined;return value&&value.expiresAt>serverNow()?value:undefined;}
  onReconciled(fn:()=>void){this.reconciled.add(fn);return()=>{this.reconciled.delete(fn);};}
- private async restoreIntent(path:string,method:string,parse:(v:unknown)=>unknown,recoverConfirmed=false){
-  const coordinator=this.api.getUserMutationCoordinator?.();if(!coordinator||!userMutationRoute(path,method))return;
-  await this.api.awaitUserMutationsReady?.();await coordinator.reconcile();const scope=this.api.getUserMutationScope?.();
-  const retained=coordinator.snapshot().find(entry=>scope&&sameUserMutationScope(entry.scope,scope)&&entry.path===path&&entry.method===method);
-  if(!this.intents.has(path)&&retained){
-   const body=obj(retained.body)?{...retained.body}:undefined;if(body)delete body.idempotencyKey;
-   if(!body&&!recoverConfirmed)throw new Error('A previous action has an unconfirmed result. Reconcile it before submitting another draft.');
-   this.intents.set(path,{body:body?JSON.stringify(body):'{}',key:retained.intentId,method,parse,binding:retained.scope});
-  }
- }
  async reconcilePending(){
-  await this.restoreIntent(routePath('change_console_settings'),'PATCH',parseSettings,true);
-  await this.restoreIntent(routePath('patch_preferences'),'PATCH',parsePreferenceSnapshot,true);
   const entry=this.intents.entries().next().value;if(!entry)return;
   const [path,intent]=entry;const body=JSON.parse(intent.body) as Record<string,unknown>;
-  const live=this.api.getUserMutationScope?.();if(intent.binding&&(!live||!sameUserMutationScope(intent.binding,live)))throw new Error('The selected viewer changed. Review the original pending action.');
-  try{const value=await this.call(path,intent.method,{...body,idempotencyKey:intent.key},intent.parse,intent);if(this.intents.get(path)===intent)this.intents.delete(path);
+  try{const value=await this.call(path,intent.method,{...body,idempotencyKey:intent.key},intent.parse);if(this.intents.get(path)===intent)this.intents.delete(path);
    if(path===routePath("post_admin_console_exports"))this.recoveredExport=value as SupportExport;
    if(path===routePath("get_console_settings")){this.drafts.delete('runtime-settings');this.pendingSettings=undefined;this.rememberSettings(value as SettingsDocument);}
    else if(path===routePath("get_preferences"))this.drafts.delete('preferences:'+body.scope);
    else if(path===routePath("get_admin_console_schedules"))this.drafts.delete('schedule');
    for(const fn of this.reconciled)fn();
-  }catch(e){if(!(userMutationRoute(path,intent.method)&&this.api.getUserMutationCoordinator?.())&&obj(e)&&[400,404,409,410,429].includes(e.status)){if(this.intents.get(path)===intent)this.intents.delete(path);for(const fn of this.reconciled)fn();}throw e;}
+  }catch(e){if(obj(e)&&[400,404,409,410,429].includes(e.status)){if(this.intents.get(path)===intent)this.intents.delete(path);for(const fn of this.reconciled)fn();}throw e;}
  }
- private async call<T>(path:string,method:string,body:unknown,parse:(v:unknown)=>T,custody?:{ack?:Promise<void>}):Promise<T>{
+ private async call<T>(path:string,method:string,body:unknown,parse:(v:unknown)=>T):Promise<T>{
   if(this.disposed||this.denied)throw this.ended(new Error('This server scope is closed.'));const c=new AbortController();this.requests.add(c);const timer=setTimeout(()=>c.abort(),10000);
   try{const raw=await (this.api.requestConsole?this.api.requestConsole<unknown>(path,method,body,c.signal):this.api.request<unknown>(path,method,body,c.signal));if(this.disposed||this.denied||c.signal.aborted)throw this.ended(new Error('Console request ended.'));
    if(!obj(raw)||!obj(raw.scope)||raw.scope.serverId!==this.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence)){this.revoke();throw new Error('The selected viewer changed. Reopen this server.');}
-   const out=parse(raw.data);const intent=body&&typeof body==='object'?(body as Record<string,unknown>).idempotencyKey:undefined;if(typeof intent==='string'){if(custody)await(custody.ack??=(this.api.acknowledgeUserMutation?.(intent)??Promise.resolve()).catch(error=>{custody.ack=undefined;throw error;}));else await this.api.acknowledgeUserMutation?.(intent);}return out;
+   return parse(raw.data);
   }catch(e){if(obj(e)&&(e.status===401||e.status===403)&&e.code!=='profile_pin_manage')this.revoke(e);throw this.ended(e);}finally{clearTimeout(timer);this.requests.delete(c);}
  }
  private ended(error:unknown){return !this.disposed&&this.denied&&this.refusal!==undefined?this.refusal:error;}
@@ -183,7 +168,7 @@ export class ConsoleClient {
   */
  private async mutate<T>(path:string,method:string,body:Record<string,unknown>,parse:(v:unknown)=>T,rebase?:()=>Promise<number|Readonly<{revision:number;body:Record<string,unknown>}>|undefined>):Promise<T>{
   const pending=this.intents.get(path);
-  if(!userMutationRoute(path,method)&&pending&&pending.method===method&&'expectedRevision' in body){
+  if(pending&&pending.method===method&&'expectedRevision' in body){
    const sent=JSON.parse(pending.body) as Record<string,unknown>;
    // A rebased write whose answer was lost is still the same intent: replay its exact receipt key.
    if(JSON.stringify({...body,expectedRevision:sent.expectedRevision})===pending.body)body=sent;
@@ -192,7 +177,7 @@ export class ConsoleClient {
    try{return await this.mutateOnce(path,method,body,parse);}
    catch(e){
     const current=obj(e)?e.currentRevision:undefined;
-    if(userMutationRoute(path,method)||retries>=2||!rebase||method==='PUT'||!obj(e)||!['console_conflict','revision_mismatch'].includes(String(e.code))||typeof current!=='number'||!('expectedRevision' in body)||current===body.expectedRevision)throw e;
+    if(retries>=2||!rebase||method==='PUT'||!obj(e)||!['console_conflict','revision_mismatch'].includes(String(e.code))||typeof current!=='number'||!('expectedRevision' in body)||current===body.expectedRevision)throw e;
     const rebased=await rebase();if(rebased===undefined)throw e;
     body=typeof rebased==='number'?{...body,expectedRevision:rebased}:{...rebased.body,expectedRevision:rebased.revision};
    }
@@ -200,14 +185,11 @@ export class ConsoleClient {
  }
  private async mutateOnce<T>(path:string,method:string,body:Record<string,unknown>,parse:(v:unknown)=>T):Promise<T>{
   const serialized=JSON.stringify(body);
-  if(this.api.getUserMutationCoordinator?.())await this.restoreIntent(path,method,parse);
   let intent=this.intents.get(path);
   if(intent&&intent.body!==serialized)throw new Error('A previous action has an unconfirmed result. Confirm the pending action before submitting different values.');
-  if(!intent){intent={body:serialized,key:consoleOperationId(),method,parse,binding:this.api.getUserMutationScope?.()};this.intents.set(path,intent);}
-  const live=this.api.getUserMutationScope?.();if(intent.binding&&(!live||!sameUserMutationScope(intent.binding,live)))throw new Error('The selected viewer changed. Review the original pending action.');
-  try{const result=await this.call(path,method,{...JSON.parse(intent.body),idempotencyKey:intent.key},parse,intent);if(this.intents.get(path)===intent)this.intents.delete(path);return result;}
-  catch(e){// Mounted cohort work stays owned until parsed acknowledgement or explicit review. Legacy commands keep their refusal semantics.
-   if(!(userMutationRoute(path,method)&&this.api.getUserMutationCoordinator?.())&&obj(e)&&[400,404,409,410,412,428,429].includes(e.status)&&this.intents.get(path)===intent)this.intents.delete(path);throw e;}
+  if(!intent){intent={body:serialized,key:consoleOperationId(),method,parse};this.intents.set(path,intent);}
+  try{const result=await this.call(path,method,{...JSON.parse(intent.body),idempotencyKey:intent.key},parse);if(this.intents.get(path)===intent)this.intents.delete(path);return result;}
+  catch(e){if(obj(e)&&[400,404,409,410,412,428,429].includes(e.status)&&this.intents.get(path)===intent)this.intents.delete(path);throw e;}
 
  }
  registry(){return this.call(routePath("get_console_registry"),'GET',undefined,base);}
@@ -229,18 +211,12 @@ export class ConsoleClient {
   const pending=this.intents.get(path);
   if(pending&&this.pendingSettings?.patch!==patchText)throw new Error('A previous action has an unconfirmed result. Confirm the pending action before submitting different values.');
   // Complete wire documents come only from a captured server read. The sparse
-  // patch is retained solely to prove safe rebases and identify a lost response.
+  // patch is retained solely to identify a lost response.
   const body:Record<string,unknown>=pending?JSON.parse(pending.body):{expectedRevision,values:{...original,...patch}};
   if(!pending)this.pendingSettings={expectedRevision,baseline:original,patch:patchText};
   try{
-   const doc=await this.mutate(path,'PATCH',body,parseSettings,async()=>{
-    const current=await this.settings();
-    for(const [key,value] of Object.entries(patch)){
-     const now=(current.requested as unknown as Record<string,unknown>)[key],before=(original as unknown as Record<string,unknown>)[key];
-     if(JSON.stringify(now)!==JSON.stringify(before)&&JSON.stringify(now)!==JSON.stringify(value))return undefined;
-    }
-    return {revision:current.revision,body:{expectedRevision:current.revision,values:{...current.requested,...patch}}};
-   });
+   // A conflict is never rebased here: the owner reads the current settings and saves again.
+   const doc=await this.mutate(path,'PATCH',body,parseSettings);
    this.rememberSettings(doc);return doc;
   }finally{if(!this.intents.has(path))this.pendingSettings=undefined;}
  }

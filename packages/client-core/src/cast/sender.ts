@@ -1,4 +1,3 @@
-import {newUserMutationKey, isUserMutationKey} from '../user-mutations.ts';
 import {sameCastController,sameCastRemote,type CastControllerStamp,type CastRemoteIdentity} from './remote-identity.ts';
 import {castBinding,castContext,castScopeEqual,castProofKey,readCastProof,type CastControllerContext,type CastControllerBinding,type CastControllerProof} from './controller-proof.ts';
 import {routeBody} from "../../../contracts/src/routes.ts";
@@ -30,7 +29,15 @@ export interface CastTransport {
   end(stopReceiver: boolean): void;
 }
 
-export type CastApi = {createUserMutationKey?():Promise<string>;request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
+/** The present Cast receiver and server accept a stop only under a key of this form (a time and 32 hex digits).
+ * It goes when Cast moves to the rebuilt server. */
+const isCastStopKey = (key: string) => /^p251_[0-9]{13}_[a-f0-9]{32}$/.test(key);
+export function castStopKey(now = Date.now()): string {
+  const random = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(random);
+  return 'p251_' + String(now).padStart(13, '0') + '_' + Array.from(random, value => value.toString(16).padStart(2, '0')).join('');
+}
+export type CastApi = {createCastStopKey?():Promise<string>;request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
 
 export type CastPhase = 'off' | 'connecting' | 'pairing' | 'waiting' | 'casting' | 'error' | 'replaced';
 
@@ -653,7 +660,7 @@ export class CastController {
   setAudioTrack(trackId:number,expected?:CastRemoteIdentity) { if(this.controlTarget(expected)&&Number.isSafeInteger(trackId))this.sendControl({type:'audio',trackId,...this.targetFields(expected)},expected); }
   /** `null` turns subtitles off. */
   setSubtitleTrack(trackId:number|null,expected?:CastRemoteIdentity) { if(this.controlTarget(expected))this.sendControl({type:'subtitles',trackIds:trackId===null?[]:[trackId],...this.targetFields(expected)},expected); }
-  stop(expected?:CastRemoteIdentity, suppliedMutationKey?:string) {
+  stop(expected?:CastRemoteIdentity, suppliedKey?:string) {
     if(expected&&!sameCastRemote(expected,this.state.remoteIdentity))return;
     if(this.adopting){this.release(false,false);return;}
     this.clearTimer(this.takeoverTimer);
@@ -670,9 +677,9 @@ export class CastController {
     }
     const target=expected??this.state.remoteIdentity,transport=this.transport;
     if(target&&transport&&this.controlTarget(target)){
-      if (!suppliedMutationKey && this.api.createUserMutationKey) {
+      if (!suppliedKey && this.api.createCastStopKey) {
         const generation=this.startGeneration;
-        void this.api.createUserMutationKey().then(key=>{if(this.current()&&this.startGeneration===generation&&this.transport===transport&&sameCastRemote(target,this.state.remoteIdentity))this.stop(target,key);},()=>this.fail('cast.error.unreachable'));
+        void this.api.createCastStopKey().then(key=>{if(this.current()&&this.startGeneration===generation&&this.transport===transport&&sameCastRemote(target,this.state.remoteIdentity))this.stop(target,key);},()=>this.fail('cast.error.unreachable'));
         return;
       }
       const generation=this.startGeneration;
@@ -681,11 +688,11 @@ export class CastController {
       try {
         if(!this.controllerStorage)throw new Error('mutation_not_queued');
         const raw=this.controllerStorage.get(storageKey), records: {key:string;target:CastRemoteIdentity;state:string}[]=raw?JSON.parse(raw):[];
-        if(!Array.isArray(records)||records.length>256||records.some(record=>!isUserMutationKey(record.key)||!record.target?.occurrence||!['pending','confirmed'].includes(record.state)))throw new Error('mutation_store_damaged');
+        if(!Array.isArray(records)||records.length>256||records.some(record=>!isCastStopKey(record.key)||!record.target?.occurrence||!['pending','confirmed'].includes(record.state)))throw new Error('mutation_store_damaged');
         const occurrence=target.occurrence;
         const prior=records.find(record=>record.target.occurrence.sessionId===occurrence.sessionId&&record.target.occurrence.generation===occurrence.generation&&record.target.occurrence.itemId===occurrence.itemId);
         if(prior?.state==='confirmed'){this.publish({remoteStopped:true,controlPending:false});return;}
-        requestId=prior?.key??suppliedMutationKey??newUserMutationKey();
+        requestId=prior?.key??suppliedKey??castStopKey();
         if(!prior){
           // Receipt UI has already consumed previous completed commands. Pending
           // commands for other occurrences keep their original custody and key.

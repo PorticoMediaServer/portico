@@ -65,11 +65,6 @@ export function screenLifetime(context: ScreenContext) {
   const inherited = context.libraryRouteSignal;
   const signal = (input?: AbortSignal) => inherited || input ? AbortSignal.any([life.signal, ...(inherited ? [inherited] : []), ...(input ? [input] : [])]) : life.signal;
   const api = {
-    async acknowledgeUserMutation(intentId: string): Promise<void> {
-      assert();
-      await context.api.acknowledgeUserMutation?.(intentId);
-      assert();
-    },
     async request<T>(path: string, method?: string, body?: unknown, input?: AbortSignal): Promise<T> {
       assert();
       const active = signal(input); active.throwIfAborted();

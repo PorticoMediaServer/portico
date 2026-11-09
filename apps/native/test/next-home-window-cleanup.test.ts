@@ -1,5 +1,3 @@
-import * as mutationRecovery from '../../../packages/client-core/src/user-mutation-recovery.ts';
-import {NativePendingChanges} from '../src-next/shell/pending-changes.ts';
 import {homeActionDiagnostics} from '../src-next/platform/home-action-diagnostics.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -52,8 +50,6 @@ test('Home window unmounts and expired Live windows never throw (P2-74 E-tv-30)'
     '../screens/library/selection-actions': {}, '../screens/downloads/request': {}, '../platform/offline-downloads': {}, './selection-display': {},
     react: h.react, 'react-native': {BackHandler: {addEventListener: () => ({remove() {}})}, NativeModules: {}, Platform: {isTV: true}, View: 'View'},
     '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../../../packages/client-core/src/user-mutation-recovery': mutationRecovery,
-    './pending-changes': {NativePendingChanges}, './PendingChanges': {PendingChanges: 'PendingChanges'},
     '../../../../packages/client-core/src/home-selection/index': {...homeSelection, HomeSelectionController: Probe},
     '../../../../packages/client-core/src/home-selection': homeCapabilities,
     '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({silent: true})},
@@ -76,7 +72,7 @@ test('Home window unmounts and expired Live windows never throw (P2-74 E-tv-30)'
   });
   const navigation = new NativeShellNavigation(authority, () => authority);
   const bindings = createNativeShellBindings({home, session: () => ({viewer: {...authority, authority: 'local', role: 'member'}}), current: () => true,
-    authority: () => authority, navigation, subscribeAuthority: navigation.subscribe, libraries: () => [{id: 'movies'}], api: {getUserMutationCoordinator: () => undefined, getUserMutationScope: () => undefined, request() {throw new Error('unexpected request');}}, events: {on: () => () => {}},
+    authority: () => authority, navigation, subscribeAuthority: navigation.subscribe, libraries: () => [{id: 'movies'}], api: {getOutbox: () => undefined, onOutboxDropped: () => () => {}, request() {throw new Error('unexpected request');}}, events: {on: () => () => {}},
     account: {account: {role: 'member'}}, playback: {selectionPlayback: () => ({play() {throw new Error('unused playback');}, enqueue() {throw new Error('unused enqueue');}, playChannel() {throw new Error('unused channel');}}), getSnapshot: () => ({dock: {local: {expanded}}})}});
   bindings.attach({getSnapshot: () => ({authority})});
   const [first] = home.getSnapshot().document!.rows;

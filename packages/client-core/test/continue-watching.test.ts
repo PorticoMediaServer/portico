@@ -73,28 +73,11 @@ test('personalRevision reads only a whole, non-negative revision', () => {
 });
 
 
-test('acknowledgement follows only an exact validated personal receipt', async () => {
+test('only an exact personal answer for this title and operation is accepted', async () => {
   for(const change of ['none','operation','item','revision','missing']) {
-    const acks:string[]=[];
-    const api={...fakeApi([call=>{const raw=receipt(call,2);if(change==='operation')raw.operationId='other';if(change==='item')raw.itemId='other';if(change==='revision')raw.personal.revision=-1;return change==='missing'?{}:raw;}]),acknowledgeUserMutation:async(key:string)=>{acks.push(key);}};
+    const api=fakeApi([call=>{const raw=receipt(call,2);if(change==='operation')raw.operationId='other';if(change==='item')raw.itemId='other';if(change==='revision')raw.personal.revision=-1;return change==='missing'?{}:raw;}]);
     const pending=setContinueDismissed(api,{itemId:'a',dismissed:true,revision:1,operationId});
-    if(change==='none'){assert.deepEqual(await pending,{revision:2});assert.deepEqual(acks,[api.calls[0].body.operationId]);}
-    else {await assert.rejects(pending,{code:'invalid_detail'});assert.deepEqual(acks,[]);}
-  }
-});
-
-
-const compact = () => ({key:'p251_1793200000000_0123456789abcdef0123456789abcdef',operation:'put_items_id_personal_state',status:'applied',targetId:'a',revision:2,committedMs:1793200000000,expiresMs:1795792000000});
-test('compact dismissal recovery consumes current detail even when its value changed after commit', async () => {
-  const acks:string[]=[];
-  const api={...fakeApi([()=>({mutationReceipt:compact()}),()=>({scope:{serverId:'server',libraryId:'library',itemId:'a',viewerFence:'fence'},item:{id:'a',libraryId:'library'},personal:{revision:5,continueDismissed:false}})]),acknowledgeUserMutation:async(key:string)=>{acks.push(key);}};
-  assert.deepEqual(await setContinueDismissed(api,{itemId:'a',dismissed:true,revision:1,operationId}),{revision:5});
-  assert.deepEqual(acks,[api.calls[0].body.operationId]);assert.equal(api.calls.length,2);assert.equal(api.calls[1].method,'GET');
-});
-test('compact dismissal recovery never acknowledges a wrong target or unreadable current detail', async () => {
-  for(const wrongTarget of [false,true]) {
-    const acks:string[]=[];const marker=compact();if(wrongTarget)marker.targetId='other';
-    const api={...fakeApi([()=>({mutationReceipt:marker}),()=>({personal:{revision:5}})]),acknowledgeUserMutation:async(key:string)=>{acks.push(key);}};
-    await assert.rejects(setContinueDismissed(api,{itemId:'a',dismissed:true,revision:1,operationId}));assert.deepEqual(acks,[]);
+    if(change==='none')assert.deepEqual(await pending,{revision:2});
+    else await assert.rejects(pending,{code:'invalid_detail'});
   }
 });

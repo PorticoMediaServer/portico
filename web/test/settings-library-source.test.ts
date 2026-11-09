@@ -1,7 +1,4 @@
 import test from 'node:test';
-import {HttpLocalApi, type LocalSession} from '@core/index.ts';
-import {emptyUserMutationState, type UserMutationState} from '@core/user-mutations.ts';
-import {UserMutationRecoveryModel} from '@core/user-mutation-recovery.ts';
 import assert from 'node:assert/strict';
 import type {LibraryAdminDocument, LibrarySettings} from '@core/administration.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
@@ -101,7 +98,7 @@ test('an ambiguous or conflicting save removes its old revision until a genuine 
     await f.source.select('selected');
     await assert.rejects(f.source.change('selected', 'libraries.cwWeeks', 20), failure);
     assert.equal(f.source.document('selected'), undefined);assert.equal(f.source.getSnapshot().error, failure);
-    await assert.rejects(f.source.change('selected', 'libraries.cwWeeks', 24), {code: 'mutation_needs_review'});assert.equal(writes, 1);
+    assert.equal(await f.source.change('selected', 'libraries.cwWeeks', 24), false, 'nothing is saved over a library that has not been read again');assert.equal(writes, 1);
     await f.source.select('selected');assert.equal(f.source.document('selected')?.revision, 8);assert.equal(writes, 1);
   } finally {f.source.dispose();}
 });
@@ -251,91 +248,6 @@ test('Sonic selection retirement suppresses a late answer and removal of its pro
     const pending = f.source.change('selected', 'libraries.sonicAnalysis', true);await f.source.select();
     assert.equal(signal?.aborted, true);release();assert.equal(await pending, false);assert.equal(f.source.getSnapshot().sonic, undefined);
   } finally {f.source.dispose();}
-});
-
-test('library parse and ack failures retain the original command across reread and draft changes', async () => {
-  for (const failure of ['parse', 'ack', 'conflict'] as const) {
-    const writes: any[] = [], acknowledgements: string[] = [];
-    let fail = true, revision = 7;
-    const api: LibraryContentApi = {
-      request: async <T,>(_path: string, method?: string, body?: unknown): Promise<T> => {
-        if (method !== 'PUT') return document('selected', revision) as T;
-        writes.push(structuredClone(body));
-        if (fail && failure === 'conflict') throw Object.assign(new Error('conflict'), {status: 409});
-        if (fail && failure === 'parse') return document('foreign', 8) as T;
-        return {...document('selected', 8), settings: (body as any).settings} as T;
-      },
-      acknowledgeUserMutation: async id => {acknowledgements.push(id);if (fail && failure === 'ack') throw new Error('ack storage failed');},
-    };
-    const source = new SettingsLibrarySource(api, () => true, () => {}, () => {});
-    try {
-      await source.select('selected');
-      await assert.rejects(source.change('selected', 'libraries.cwWeeks', 20));
-      assert.equal(acknowledgements.length, failure === 'ack' ? 1 : 0);
-      revision = 11;await source.select('selected');
-      await assert.rejects(source.change('selected', 'libraries.cwWeeks', 24), {code: 'mutation_needs_review'});
-      assert.equal(writes.length, 1);
-      // A different draft must not release the original request, even after a read.
-      await source.select('selected');fail = false;
-      assert.equal(await source.change('selected', 'libraries.cwWeeks', 20), true);
-      assert.deepEqual(writes[1], writes[0]);assert.equal(writes[1].expectedRevision, 7);
-      assert.equal(acknowledgements.at(-1), writes[0].operationId);
-    } finally {source.dispose();}
-  }
-});
-
-test('library wrapper never acknowledges a parsed answer after its opening closes', async () => {
-  let finish!: (value: LibraryAdminDocument) => void, acknowledgements = 0;
-  const source = new SettingsLibrarySource({
-    request: async <T,>(_path: string, method?: string): Promise<T> => method === 'PUT' ? new Promise(resolve => {finish = resolve;}) as Promise<T> : document('selected') as T,
-    acknowledgeUserMutation: async () => {acknowledgements++;},
-  }, () => true, () => {}, () => {});
-  try {
-    await source.select('selected');const saving = source.change('selected', 'libraries.cwWeeks', 20);
-    await source.select();finish(document('selected', 8));assert.equal(await saving, false);
-    assert.equal(acknowledgements, 0);
-  } finally {source.dispose();}
-});
-
-test('library frozen command releases only after real CAS root review and Keep as is', async () => {
-  let state = emptyUserMutationState(), conflict = true;const writes: any[] = [];
-  const store = {read: async () => structuredClone(state), compareAndSwap: async (revision: number, next: UserMutationState) => {if (revision !== state.revision) return false;state = structuredClone(next);return true;}};
-  const session = {accessToken: 'test-token', sessionFamilyId: 'family', deviceId: 'device', viewer: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', role: 'owner'}} as LocalSession;
-  const api = new HttpLocalApi('http://settings.test', session.accessToken, async (url, init) => {
-    const path = new URL(String(url)).pathname;
-    if (path === '/v1/user-mutations/policy') return Response.json({serverTimeMs: Date.now()});
-    if (path.startsWith('/v1/user-mutations/')) {const entry = state.entries[0];return conflict || !entry ? Response.json({error: {code: 'receipt_unknown'}}, {status: 404}) : Response.json({key: entry.key, operation: entry.operation, status: 'applied', targetId: 'selected', revision: 8, committedMs: Date.now(), expiresMs: Date.now() + 2592000000});}
-    assert.equal(path, '/v1/admin/libraries/selected/settings');
-    if (init?.method === 'PUT') {const body = JSON.parse(String(init.body));writes.push(body);if (conflict) return Response.json({error: {code: 'revision_mismatch'}}, {status: 409});return Response.json({...document('selected', 8), settings: body.settings});}
-    return Response.json(document('selected'));
-  });
-  api.setUserMutationSession(session);const core = api.configureUserMutations(store), source = new SettingsLibrarySource(api, () => true, () => {}, () => {}), model = new UserMutationRecoveryModel({api, coordinator: core, scope: api.getUserMutationScope});
-  try {
-    await source.select('selected');await assert.rejects(source.change('selected', 'libraries.cwWeeks', 20));assert.equal(writes.length, 1);
-    const original = state.entries[0];assert.equal(original.state, 'review');await source.select('selected');
-    await assert.rejects(source.change('selected', 'libraries.cwWeeks', 24));assert.equal(writes.length, 1);
-    await assert.rejects(model.keepAsIs(original.key));await model.review(original.key);await model.keepAsIs(original.key);
-    assert.equal(state.entries.length, 0);conflict = false;await source.select('selected');
-    assert.equal(await source.change('selected', 'libraries.cwWeeks', 24), true);assert.equal(writes.length, 2);
-    assert.notEqual(writes[1].operationId, writes[0].operationId);assert.equal(state.entries.length, 0);
-  } finally {model.dispose();source.dispose();core.dispose();}
-});
-
-test('library readiness cannot release custody or read scope after opening retirement', async () => {
-  let active = true, hold = false, finish!: () => void, getters = 0, writes = 0;
-  const scope = {serverId: 'server', origin: 'http://settings.test', authority: 'local', accountId: 'account', profileId: 'profile', familyId: 'family'};
-  const api: LibraryContentApi = {
-    request: async <T,>(_path: string, method?: string): Promise<T> => {if (method === 'PUT') {writes++;throw new Error('lost response');}return document('selected') as T;},
-    awaitUserMutationsReady: async () => {if (hold) await new Promise<void>(resolve => {finish = resolve;});},
-    getUserMutationScope: () => {getters++;return scope;},
-    getUserMutationCoordinator: () => {getters++;return {snapshot: () => []} as any;},
-  };
-  const source = new SettingsLibrarySource(api, () => active, () => {}, () => {});
-  try {
-    await source.select('selected');await assert.rejects(source.change('selected', 'libraries.cwWeeks', 20));await source.select('selected');
-    hold = true;const before = getters, retry = source.change('selected', 'libraries.cwWeeks', 24);active = false;finish();
-    assert.equal(await retry, false);assert.equal(getters, before);assert.equal(writes, 1);
-  } finally {source.dispose();}
 });
 
 test('quiet selected library settings bypass selection cache and preserve unrelated source state',async()=>{

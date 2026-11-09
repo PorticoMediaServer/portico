@@ -1,6 +1,4 @@
-import * as mutationRecovery from '../../../packages/client-core/src/user-mutation-recovery.ts';
 import {homeContinuationCard, homeContinuationSource} from '../../../packages/client-core/src/presentation/home-continuation';
-import {NativePendingChanges} from '../src-next/shell/pending-changes.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
@@ -87,8 +85,7 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
   const {createNativeShellBindings} = await screenModule(new URL('../src-next/shell/assembly.tsx', import.meta.url), {
     '../screens/library/selection-actions': {}, '../screens/downloads/request': {}, '../platform/offline-downloads': {}, './selection-display': {},
     react, 'react-native': {Platform: {isTV: false}, BackHandler: {addEventListener: () => ({remove() {}})}},
-    '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../../../packages/client-core/src/user-mutation-recovery': mutationRecovery,
-    './pending-changes': {NativePendingChanges}, './PendingChanges': {PendingChanges: 'PendingChanges'},
+    '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../packages/client-core/src/home-selection/index': {homeSelectionContext: selectionContext,
       HomeSelectionController: class {
         options: any; constructor(options: any) {this.options = options;} subscribe = subscribe;
@@ -113,7 +110,7 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
   const starts: any[] = [], navigation = {authority, revision: 1, route: {kind: 'shell'}, destination: {kind: 'home'}};
   const bindings = createNativeShellBindings({current: () => true, authority: () => authority, subscribeAuthority: subscribe,
     home: {getSnapshot: () => ({document}), subscribe}, session: () => ({viewer: {...authority, authority: 'local'}}),
-    navigation: {getSnapshot: () => navigation, subscribe}, api: {baseUrl: 'https://portico.test', getUserMutationCoordinator: () => undefined, getUserMutationScope: () => undefined}, account: {account: {role: 'member'}},
+    navigation: {getSnapshot: () => navigation, subscribe}, api: {baseUrl: 'https://portico.test', getOutbox: () => undefined, onOutboxDropped: () => () => {}}, account: {account: {role: 'member'}},
     playback: {selectionPlayback: () => ({}), start: async (input: any) => {starts.push(input);}}});
   try {
     bindings.actions.play(chapter, chapter.playback);

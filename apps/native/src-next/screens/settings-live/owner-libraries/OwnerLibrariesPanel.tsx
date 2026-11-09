@@ -53,18 +53,6 @@ export function NativeOwnerLibrariesPanel({ports, runtime, initialLibraryId, lif
     let active = true;
     const requireCurrent = () => {if (!active || !context.current() || context.authority() !== authority) throw screenScopeEnded();lifetime?.assert();};
     const api: LibraryContentApi = {
-      ...(originalApi.acknowledgeUserMutation ? {acknowledgeUserMutation: async (id: string) => {
-        requireCurrent(); await originalApi.acknowledgeUserMutation(id); requireCurrent();
-      }} : {}),
-      ...(originalApi.awaitUserMutationsReady ? {awaitUserMutationsReady: async () => {
-        requireCurrent(); await originalApi.awaitUserMutationsReady(); requireCurrent();
-      }} : {}),
-      ...(originalApi.getUserMutationCoordinator ? {getUserMutationCoordinator: () => {
-        requireCurrent(); const value = originalApi.getUserMutationCoordinator(); requireCurrent(); return value;
-      }} : {}),
-      ...(originalApi.getUserMutationScope ? {getUserMutationScope: () => {
-        requireCurrent(); const value = originalApi.getUserMutationScope(); requireCurrent(); return value;
-      }} : {}),
       request: async <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
         requireCurrent();
         const value = await (lifetime ? lifetime.request(next => originalApi.request<T>(path, method, body, next), signal) : originalApi.request<T>(path, method, body, signal));

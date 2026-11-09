@@ -106,9 +106,6 @@ function useReadingLifetime(context: ScreenContext, routeKey: string, routeCurre
     const retired = () => new DOMException('Reading route retired', 'AbortError');
     const life: ReturnType<typeof screenLifetime> = {...original, current,
       api: {
-        async acknowledgeUserMutation(intentId: string): Promise<void> {
-          if (!current()) throw retired(); await original.api.acknowledgeUserMutation(intentId); if (!current()) throw retired();
-        },
         async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
           if (!current()) throw retired(); const value = await original.api.request<T>(path, method, body, signal); if (!current()) throw retired(); return value;
         },

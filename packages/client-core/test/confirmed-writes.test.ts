@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {HttpLocalApi, emptyUserMutationState, type UserMutationState, type LocalSession} from '../src/index.ts';
+import {HttpLocalApi, type LocalSession, type OutboxEntry} from '../src/index.ts';
 import {routes} from '../../contracts/src/routes.ts';
 import {cachedLibraries, cachedTitle, readWriteAnswer, writeDependencies, writeRoute, writeRouteIds, type ConfirmedWrite, type WriteAnswer} from '../src/query/write-dependencies.ts';
 import {ShowWorkspaceService} from '../src/show-workspace.ts';
@@ -89,11 +89,11 @@ test('Saved, pins, history, preferences and the owner\'s libraries move what sho
 
 // ── The transport ────────────────────────────────────────────────────────────
 
-const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 class Store {
-  state = emptyUserMutationState();
-  async read() { return copy(this.state); }
-  async compareAndSwap(revision: number, next: UserMutationState) { if (this.state.revision !== revision) return false; this.state = copy(next); return true; }
+  entries = new Map<string, OutboxEntry>();
+  async list() { return [...this.entries.values()]; }
+  async put(entry: OutboxEntry) { this.entries.set(entry.id, entry); }
+  async delete(id: string) { this.entries.delete(id); }
 }
 const session = {accessToken: 'token', expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-01-02T00:00:00Z', tokenGeneration: '1', sessionFamilyId: 'family', deviceId: 'device',
   viewer: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', role: 'owner'}} as unknown as LocalSession;
@@ -102,26 +102,19 @@ function transport(options: {queued?: boolean; status?: number} = {}) {
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input)), method = init?.method ?? 'GET', headers = new Headers(init?.headers);
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
-    if (url.pathname === '/v1/user-mutations/policy') return Response.json({serverTimeMs: Date.now() + 86400000, retiredBeforeMs: 0});
-    if (url.pathname.startsWith('/v1/user-mutations/')) {
-      const key = url.pathname.split('/').pop()!;
-      const entry = store.state.entries.find(e => e.key === key);
-      return Response.json({key, operation: entry?.operation, status: 'applied', targetId: 'target', revision: 4, generation: 1, committedMs: Date.now(), expiresMs: Date.now() + 2592000000});
-    }
     if (method === 'GET') return Response.json({scope: {libraryId: 'L'}, personal: {revision: 3}});
     if (options.status && options.status >= 400) return Response.json({error: {code: 'refused'}}, {status: options.status});
-    if (url.pathname.endsWith('/reading/mark')) return Response.json({operationId: body?.operationId, revision: 4}, {headers: {'Portico-Mutation-Key': headers.get('Idempotency-Key') ?? ''}});
+    if (url.pathname.endsWith('/reading/mark')) return Response.json({operationId: body?.operationId, revision: 4});
     if (url.pathname.startsWith('/v1/containers/')) return Response.json(containerAnswer);
     if (url.pathname === '/v1/items/personal-state:batch') return Response.json(batchAnswer(['ep1'], ['ep2']));
-    if (url.pathname.endsWith('/personal-state')) return Response.json({...itemAnswer(url.pathname.split('/')[3], 'L'), operationId: body?.operationId}, {headers: headers.get('Idempotency-Key') ? {'Portico-Mutation-Key': headers.get('Idempotency-Key')!} : {}});
+    if (url.pathname.endsWith('/personal-state')) return Response.json({...itemAnswer(url.pathname.split('/')[3], 'L'), operationId: body?.operationId});
     return Response.json({ok: true});
   };
   const api = new HttpLocalApi('http://server.test', session.accessToken, fetcher);
-  let coordinator: {dispose(): void} | undefined;
-  if (options.queued) { api.setUserMutationSession(session); coordinator = api.configureUserMutations(store); }
+  if (options.queued) { api.setOutboxSession(session); api.configureOutbox(store); }
   const heard: ConfirmedWrite[] = [];
   const stop = api.onConfirmedWrite(write => heard.push(write));
-  return {api, heard, stop, dispose: () => { api.getUserMutationCoordinator()?.dispose(); coordinator?.dispose(); }};
+  return {api, heard, stop, dispose: () => { api.getOutbox()?.dispose(); }};
 }
 const settle = () => new Promise(resolve => setTimeout(resolve, 5));
 
@@ -169,7 +162,7 @@ test('a refused write tells nothing', async () => {
   } finally { t.dispose(); }
 });
 
-test('a write through the durable mutation queue is told when the server confirms it', async () => {
+test('a write through the outbox is told when the server confirms it', async () => {
   const t = transport({queued: true});
   try {
     const value = await t.api.request<{operationId: string}>('/v1/items/one/reading/mark', 'PUT', {operationId: 'original-uuid', expectedRevision: 3, read: true});

@@ -1,5 +1,4 @@
 import {routePath} from "../../contracts/src/route-paths.ts";
-import {sameUserMutationScope,type UserMutationCoordinator,type UserMutationScope} from './user-mutations.ts';
 import {parsePreferenceSnapshot,currentPreferenceSnapshot,type DeviceClass,type PreferencePatch,type PreferenceScope,type PreferenceSnapshot} from './preferences.ts';
 
 /**
@@ -13,10 +12,10 @@ import {parsePreferenceSnapshot,currentPreferenceSnapshot,type DeviceClass,type 
  * server's answer ends this scope, a read under a moved viewer fence is the
  * newer answer (the viewer's access was decided again; it never ends the
  * shell), a write answer under a moved fence is refused, and a PATCH
- * carries an idempotency key. The mounted transport owns durable custody;
- * manual retries reconnect to that intent rather than authoring another one.
+ * carries an idempotency key, so a retry of a save whose answer was lost is
+ * the same save.
  */
-export type PreferencesApi={awaitUserMutationsReady?():Promise<void>;getUserMutationScope?():UserMutationScope|undefined;getUserMutationCoordinator?():UserMutationCoordinator|undefined;acknowledgeUserMutation?(intentId:string):Promise<void>;request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>;requestConsole?<T>(path:string,method:string,body:unknown,signal:AbortSignal):Promise<T>};
+export type PreferencesApi={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>;requestConsole?<T>(path:string,method:string,body:unknown,signal:AbortSignal):Promise<T>};
 export type PreferencesScope={serverId:string;viewerId:string};
 export type PreferenceObservation=
   | Readonly<{kind:'ok';value:PreferenceSnapshot}>
@@ -35,7 +34,7 @@ export function preferencesOperationId():string{return globalThis.crypto?.random
 export class PreferencesReader {
   private disposed=false;private fence?:string;private requests=new Set<AbortController>();/** Reads started, and the start of the latest read whose answer the current fence came from. */private reads=0;private fenceRead=0;
   private snapshots=new Map<DeviceClass,PreferenceSnapshot>();private listeners=new Set<()=>void>();
-  private pending?:{body:string;key:string;binding?:UserMutationScope;ack?:Promise<void>};
+  private pending?:{body:string;key:string};
   getSnapshot=(deviceClass:DeviceClass='web')=>this.snapshots.get(deviceClass);
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
   private adopt(incoming:PreferenceSnapshot){if(this.disposed)throw new Error('This preferences scope is closed.');const current=this.snapshots.get(incoming.deviceClass);const next=currentPreferenceSnapshot(current,incoming);if(current!==next){this.snapshots.set(next.deviceClass,next);for(const listener of this.listeners)listener();}return next;}
@@ -54,7 +53,7 @@ export class PreferencesReader {
     if(read!==undefined)this.fenceRead=Math.max(this.fenceRead,read);
     this.fence=viewerFence;
   }
-  private async call<T>(path:string,method:string,body:unknown,parse:(v:unknown)=>T,custody?:{ack?:Promise<void>},observation?:{signal?:AbortSignal}):Promise<T>{
+  private async call<T>(path:string,method:string,body:unknown,parse:(v:unknown)=>T,observation?:{signal?:AbortSignal}):Promise<T>{
     if(this.disposed)throw new Error('This preferences scope is closed.');
     const read=method==='GET'?++this.reads:undefined;
     if(observation?.signal?.aborted)throw observation.signal.reason??new Error('Preferences request ended.');
@@ -73,7 +72,7 @@ export class PreferencesReader {
         this.admitFence(raw.scope.viewerFence,read);return out;
       }
       if(!object(raw)||!object(raw.scope)||raw.scope.serverId!==this.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence))throw new Error('The selected viewer changed. Reopen this server.');
-      const out=parse(raw.data);this.admitFence(raw.scope.viewerFence,read);const intent=body&&typeof body==='object'?(body as Record<string,unknown>).idempotencyKey:undefined;if(typeof intent==='string'){if(custody)await(custody.ack??=(this.api.acknowledgeUserMutation?.(intent)??Promise.resolve()).catch(error=>{custody.ack=undefined;throw error;}));else await this.api.acknowledgeUserMutation?.(intent);}return out;
+      const out=parse(raw.data);this.admitFence(raw.scope.viewerFence,read);return out;
     }finally{clearTimeout(timer);this.requests.delete(c);observation?.signal?.removeEventListener('abort',stop);}
   }
   preferences(deviceClass:DeviceClass){return this.call(routePath("get_preferences") + "?deviceClass=" + (deviceClass),'GET',undefined,parsePreferenceSnapshot).then(snapshot=>this.adopt(snapshot),error=>{
@@ -82,7 +81,7 @@ export class PreferencesReader {
   /** Cancellable observation on this reader's existing parser/store; defaults stay independent. */
   async observePreferences(deviceClass:DeviceClass,signal?:AbortSignal):Promise<PreferenceObservation>{
     try{
-      const snapshot=await this.call(routePath("get_preferences")+"?deviceClass="+deviceClass,'GET',undefined,raw=>{const parsed=parsePreferenceSnapshot(raw);if(parsed.deviceClass!==deviceClass)throw new Error('Unreadable preferences response.');return parsed;},undefined,{signal});
+      const snapshot=await this.call(routePath("get_preferences")+"?deviceClass="+deviceClass,'GET',undefined,raw=>{const parsed=parsePreferenceSnapshot(raw);if(parsed.deviceClass!==deviceClass)throw new Error('Unreadable preferences response.');return parsed;},{signal});
       if(this.disposed||signal?.aborted)throw signal?.reason??new Error('Preferences request ended.');
       return {kind:'ok',value:this.adopt(snapshot)};
     }catch(error){
@@ -92,44 +91,22 @@ export class PreferencesReader {
   }
   /** Consume the original result separately from a new edit after restart. */
   async reconcilePending(){
-    const coordinator=this.api.getUserMutationCoordinator?.();
-    if(coordinator){
-      await this.api.awaitUserMutationsReady?.();await coordinator.reconcile();const live=this.api.getUserMutationScope?.();
-      const retained=coordinator.snapshot().find(entry=>live&&sameUserMutationScope(entry.scope,live)&&entry.path===routePath('patch_preferences')&&entry.method==='PATCH');
-      if(!this.pending&&retained){
-        const body=object(retained.body)?{...retained.body}:{deviceClass:retained.recoveryDeviceClass};delete (body as Record<string,unknown>).idempotencyKey;
-        this.pending={body:JSON.stringify(body),key:retained.intentId,binding:retained.scope};
-      }
-    }
     const pending=this.pending;if(!pending)return;
-    const live=this.api.getUserMutationScope?.();if(pending.binding&&(!live||!sameUserMutationScope(pending.binding,live)))throw new Error('The selected viewer changed. Review the original pending action.');
-    const snapshot=await this.call(routePath('patch_preferences'),'PATCH',{...JSON.parse(pending.body),idempotencyKey:pending.key},parsePreferenceSnapshot,pending);
+    const snapshot=await this.call(routePath('patch_preferences'),'PATCH',{...JSON.parse(pending.body),idempotencyKey:pending.key},parsePreferenceSnapshot);
     if(this.pending===pending)this.pending=undefined;return this.adopt(snapshot);
   }
   /** `values` carries only the keys that change; `null` clears that override. */
   async applyPreferences(scope:PreferenceScope,deviceClass:DeviceClass,expectedRevision:number,values:PreferencePatch){
-    const body=JSON.stringify({scope,deviceClass,expectedRevision,values}),coordinator=this.api.getUserMutationCoordinator?.();
-    if(coordinator){
-      await this.api.awaitUserMutationsReady?.();await coordinator.reconcile();
-      const live=this.api.getUserMutationScope?.();
-      const retained=coordinator.snapshot().find(entry=>live&&sameUserMutationScope(entry.scope,live)&&entry.path===routePath('patch_preferences')&&entry.method==='PATCH');
-      if(!this.pending&&retained){
-        const frozen=object(retained.body)?{...retained.body}:undefined;if(frozen)delete frozen.idempotencyKey;
-        if(!frozen)throw new Error('A previous action has an unconfirmed result. Reconcile it before submitting another draft.');
-        this.pending={body:JSON.stringify(frozen),key:retained.intentId,binding:retained.scope};
-      }
-    }
+    const body=JSON.stringify({scope,deviceClass,expectedRevision,values});
     if(this.pending&&this.pending.body!==body)throw new Error('A previous action has an unconfirmed result. Review the original draft before submitting different values.');
-    const pending=this.pending??={body,key:preferencesOperationId(),binding:this.api.getUserMutationScope?.()};
-    const live=this.api.getUserMutationScope?.();if(pending.binding&&(!live||!sameUserMutationScope(pending.binding,live)))throw new Error('The selected viewer changed. Review the original pending action.');
+    const pending=this.pending??={body,key:preferencesOperationId()};
     try{
-      const snapshot=await this.call(routePath('patch_preferences'),'PATCH',{...JSON.parse(pending.body),idempotencyKey:pending.key},parsePreferenceSnapshot,pending);
+      const snapshot=await this.call(routePath('patch_preferences'),'PATCH',{...JSON.parse(pending.body),idempotencyKey:pending.key},parsePreferenceSnapshot);
       if(this.pending===pending)this.pending=undefined;
       return this.adopt(snapshot);
     }catch(error){
-      // Legacy transports have no durable owner. Definite refusals keep their
-      // existing edit flow; ambiguous answers still retain the original key.
-      if(!coordinator&&object(error)&&[400,404,409,410,412,428,429].includes(Number(error.status))&&this.pending===pending)this.pending=undefined;
+      // A definite refusal ends this save. A save with no answer keeps its key, so trying again is the same save.
+      if(object(error)&&[400,404,409,410,412,428,429].includes(Number(error.status))&&this.pending===pending)this.pending=undefined;
       throw error;
     }
   }

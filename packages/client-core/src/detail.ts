@@ -3,7 +3,6 @@ import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {wireDurations,wireDisplayDurations,durationIntent} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {isUserMutationKey, parseUserMutationReceipt} from './user-mutations.ts';
 import {parseLocalBook,parseLocalAudioPolicy,type LocalAudioPolicy,type LocalBookMetadata} from "./music-metadata.ts";
 /** Server-authored detail and explicit personal-state commands; no playback or ranking owner. */
 import type { MediaItem } from './index.ts';
@@ -22,7 +21,7 @@ export type DetailExtra = Readonly<{ type: DetailExtraType; label: string; items
 export const detailExtraTypes: readonly DetailExtraType[] = ['trailer','featurette','deleted_scene','behind_the_scenes','interview','scene','short','other'];
 export type DetailScope = Readonly<{ serverId: string; viewerId: string }>;
 export type DetailTarget = Readonly<{ libraryId: string; itemId: string }>;
-export interface DetailApi { acknowledgeUserMutation?(intentId: string): Promise<void>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> }
+export interface DetailApi { request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> }
 export type PersonalConflict = Readonly<{id:string;field:string;baseRevision:number;baseValue:unknown;choices:readonly Readonly<{operationId:string;deviceId:string;authoredAt:string;value:unknown}>[]}>;
 export type PersonalOfflineMutation = Readonly<{deviceId:string;deviceMutationId:string;sequence:number;baseRevision:number;authoredAt:string}>;
 export type PersonalState = Readonly<{ watchlisted:boolean;favorite:boolean;rating:number|null;revision:number;watched:boolean;progressSeconds:number;lastPlayedAt:string;status:'current'|'needs-resolution';conflicts:readonly PersonalConflict[] }>;
@@ -406,7 +405,7 @@ export class DetailService {
     try {
       if (!command.operationId) {
         const operationId = await this.deadline(this.requestId(), controller);
-        if (!uuid.test(operationId) && !isUserMutationKey(operationId)) throw new Failure('invalid_request_id', 'A UUIDv4 or user-mutation operation ID is required.');
+        if (!uuid.test(operationId)) throw new Failure('invalid_request_id', 'A UUIDv4 operation ID is required.');
         if (this.disposed || generation !== this.generation) return;
         command.operationId = operationId; command.expectedRevision = data.personal.revision;
       }
@@ -414,21 +413,8 @@ export class DetailService {
       const body = { operationId: command.operationId, expectedRevision: command.expectedRevision, [field]: command.intent.value, ...(command.offline?{offline:command.offline}:{}) };
       const raw = await this.deadline(api.request<unknown>(encodedRoutePath("put_items_id_personal_state", {"id": encodeURIComponent(data.scope.itemId)}), 'PUT', durationIntent(body,{progressSeconds:'progressMs'}), controller.signal), controller);
       if (this.disposed || generation !== this.generation) return;
-      if (obj(raw) && raw.mutationReceipt !== undefined) {
-        const marker = raw.mutationReceipt;
-        if (!obj(marker) || typeof marker.key !== 'string' || !isUserMutationKey(marker.key)) invalid();
-        const recovered = parseUserMutationReceipt(marker, {key: marker.key, operation: 'put_items_id_personal_state'});
-        if (recovered.status !== 'applied' || recovered.targetId !== data.scope.itemId || !integer(recovered.revision)) invalid();
-        // The tiny receipt proves the historical outcome. A separate, validated current
-        // read supplies display state; its values cannot prove or disprove that outcome.
-        const next = await this.deadline(this.queries.client.fetchQuery({...itemDetailQuery(this.queries, data.scope.itemId, this.related), staleTime: 0}), controller);
-        if (this.disposed || generation !== this.generation) return;
-        if (next.scope.libraryId !== data.scope.libraryId || next.personal.revision < recovered.revision) invalid();
-      } else {
-        const applied = receipt(raw, command.operationId, data);
-        this.applyPersonal(data.scope.itemId, applied.personal);
-      }
-      await api.acknowledgeUserMutation?.(command.operationId);
+      const applied = receipt(raw, command.operationId, data);
+      this.applyPersonal(data.scope.itemId, applied.personal);
       if (this.disposed || generation !== this.generation) return;
       this.commands.shift(); command.resolve(); this.publish({ mutationError: null });
       // Every other page showing this title (its show's episode list, a Home row, a grid) reads again in place now (N4-5).
@@ -438,9 +424,11 @@ export class DetailService {
     } catch (error) {
       if (this.disposed || generation !== this.generation) return;
       const info = errorInfo(error);
+      // Nothing answered: the outbox keeps the edit and sends it later, so this command is finished here.
+      if (info.code === 'sync_pending') { this.commands.shift(); command.resolve(); this.publish({ mutationError: info }); return; }
       // Keep the authored draft, ID and revision separate from refreshed server state.
       // A conflicting operation is reviewed explicitly; matching current values are not a receipt.
-      command.phase = ['personal_state_conflict','personal_needs_resolution','personal_needs_review','operation_expired','receipt_expired','idempotency_conflict','mutation_needs_review','revision_mismatch'].includes(info.code) ? 'conflict' : 'retry-required'; command.resolve();
+      command.phase = ['personal_state_conflict','personal_needs_resolution','personal_needs_review','operation_expired','idempotency_conflict','revision_mismatch'].includes(info.code) ? 'conflict' : 'retry-required'; command.resolve();
       this.publish({ mutationError: info });
       if (command.phase === 'conflict') await this.refresh();
     } finally {

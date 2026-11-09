@@ -11,12 +11,12 @@ function harness() {
     queueView: {queue: {currentEntryId: 'entry'}, items: [{entryId: 'entry', itemId: 'song', libraryId: 'library', kind: 'song'}]}};
   let session: any = {viewer: authority, sessionFamilyId: 'family', deviceId: 'device'};
   let held: Promise<void> | undefined, release: (() => void) | undefined;
-  const requests: any[] = [], acks:string[]=[];
+  const requests: any[] = [];
   const personal = () => ({watchlisted: false, favorite, rating: null, revision, watched: false, progressMs: 0, lastPlayedAt: '', status: 'current', conflicts: []});
   const detail = () => ({scope: {serverId: 'server', libraryId: 'library', itemId: 'song', viewerFence: 'detail-viewer'}, revision: {catalog: 1, viewer: 1},
     item: {id: 'song', libraryId: 'library', kind: 'song', title: 'Real song', durationMs: 180000, progressMs: 0, available: true}, personal: personal(),
     actions: [{id: 'favorite', labelKey: 'entry.addToFavorites', enabled: true}], metadata: {status: 'unavailable', ratings: [], genres: [], credits: []}});
-  const context: any = {epoch: 1, session: () => session, isCurrent: () => current, api: {baseUrl: 'https://local.invalid', getRouteConnection: () => undefined, acknowledgeUserMutation:async(id:string)=>{acks.push(id);},
+  const context: any = {epoch: 1, session: () => session, isCurrent: () => current, api: {baseUrl: 'https://local.invalid', getRouteConnection: () => undefined,
     async request(path: string, method: string, body?: any) {
       requests.push({path, method, body});
       if (method === 'PUT') {
@@ -30,7 +30,7 @@ function harness() {
   context.freshness = {queries: testQueries(context.api, {serverId: 'server', viewerId: 'viewer'})};
   const runtime: any = {getSnapshot: () => snapshot};
   const owner = () => createMusicFavorite({context, runtime, authority: snapshot.authority, fence: snapshot.fence, run: snapshot.playback.playbackRun, itemId: 'song', libraryId: 'library', isCurrent: () => current});
-  return {owner, requests, acks, get snapshot() {return snapshot;}, retire() {current = false;}, replace() {snapshot = {...snapshot, fence: {...snapshot.fence, sourceId: 'replacement'}};},
+  return {owner, requests, get snapshot() {return snapshot;}, retire() {current = false;}, replace() {snapshot = {...snapshot, fence: {...snapshot.fence, sourceId: 'replacement'}};},
     changeRun() {snapshot = {...snapshot, playback: {playbackRun: 4}};}, changeViewer() {session = {...session, viewer: {...session.viewer, profileId: 'other'}};},
     failNext() {failed = true;}, hold() {held = new Promise<void>(resolve => {release = resolve;});return () => release!();}};
 }
@@ -41,7 +41,7 @@ test('music Favorite reads and mutates the canonical personal revision for the c
     await owner.load();const shown = owner.getSnapshot();assert.equal(shown.phase, 'ready');assert.equal(shown.data?.personal.favorite, false);
     await owner.toggle(shown);assert.equal(owner.getSnapshot().data?.personal.favorite, true);
     const command = f.requests.find(request => request.method === 'PUT');assert.equal(command.body.expectedRevision, 4);assert.equal(command.body.favorite, true);
-    assert.match(command.body.operationId, /^[a-f0-9-]{36}$/);assert.deepEqual(f.acks,[command.body.operationId]);
+    assert.match(command.body.operationId, /^[a-f0-9-]{36}$/);
     await assert.rejects(owner.toggle(shown), {name: 'AbortError'});assert.equal(f.requests.filter(request => request.method === 'PUT').length, 1);
   } finally {owner.dispose();}
 });
@@ -66,7 +66,7 @@ test('a late Favorite response after replacement cannot publish into the success
   try {
     await owner.load();const release = f.hold(), task = owner.toggle(owner.getSnapshot());
     for (let i = 0; i < 20; i++) await Promise.resolve();assert.equal(f.requests.filter(request => request.method === 'PUT').length, 1);
-    f.replace();release();await task;assert.equal(owner.current(), false);assert.equal(owner.getSnapshot().data?.personal.favorite, false);assert.deepEqual(f.acks,[]);
+    f.replace();release();await task;assert.equal(owner.current(), false);assert.equal(owner.getSnapshot().data?.personal.favorite, false);
   } finally {owner.dispose();}
 });
 

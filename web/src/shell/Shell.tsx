@@ -26,7 +26,8 @@ import {LibraryNavigation} from './LibraryNavigation';
 import {DesktopNavigation} from './DesktopNavigation';
 import {usePageWindowChrome} from './window-chrome';
 import {SwitchProfileServerHost, HostedServerOpening, type SwitchProfileServerOpening, type HostedSwitchSelection} from './SwitchProfileServerHost';
-import {PendingChanges, type PendingChangesBinding} from './PendingChanges';
+import {PendingChanges} from './PendingChanges';
+import type {Outbox} from '@core/outbox.ts';
 import {ConnectionAway} from './ConnectionAway';
 import {deviceRemembers, forgetRememberedProfile} from '../platform/tab-session-gate';
 import {webScreens} from '../route-registry-view';
@@ -59,7 +60,8 @@ export type ShellProps = Readonly<{
   /** PR-1: management refusals for this sign-in; each one asks for the open profile's PIN (choosing it again unlocks management). */
   manageGate?: ManageGate; onSwitchServer?:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers?:readonly {id:string;label:string}[];
   onFeedback?: () => void;
-  pendingChanges?: PendingChangesBinding;
+  /** The edits kept on this device while the server is out of reach; the shell shows how many are waiting. */
+  outbox?: Outbox;
   overlays?: ReactNode;
   windowChrome?: ReactNode;
   phoneSelection?: ReactNode;
@@ -75,7 +77,7 @@ const collapseMemoryKey = 'portico.next.sidebar-collapsed';
 export function Shell(props: ShellProps) {
   return <PhoneSelectionProvider><ShellFrame {...props}/></PhoneSelectionProvider>;
 }
-function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachability, onSignOut,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,pendingChanges, phoneSelection, overlays, windowChrome, children}: ShellProps) {
+function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachability, onSignOut,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,outbox, phoneSelection, overlays, windowChrome, children}: ShellProps) {
   useWindowScrollAnchor();
   const sizeClass = useSizeClass(), coarsePointer = useCoarsePointer();
   // A live screen selection draws its own action bar here, in place of the tab bar.
@@ -198,8 +200,8 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachabil
       <span className={styles.profileText}><b>{identity.username || t('next.shell.usernameUnavailable')}</b><small>{identity.serverName}</small></span><Icon name="i-updown" size={18} />
     </button> : <ProfileAvatar className={styles.avatar} name={identity.profileName} initial={current.initial} art={identity.profileArt} size={navigation === 'rail' ? 40 : desktop ? 34 : 30}
       notificationDot={compact && identity.showNotificationDot && identity.unread > 0} aria-label={t('next.home.shell.profileMenu', {name: identity.profileName})} />} />;
-  const pendingCount = useSyncExternalStore(pendingChanges?.model.subscribe ?? noSubscription, () => pendingChanges?.model.snapshot().rows.length ?? 0, () => 0);
-  const pending = pendingChanges && pendingCount > 0 ? <PendingChanges key={pendingChanges.scopeKey} {...pendingChanges} /> : undefined;
+  const waiting = useSyncExternalStore(outbox?.subscribe ?? noSubscription, () => outbox?.waiting() ?? 0, () => 0);
+  const pending = waiting > 0 ? <PendingChanges count={waiting} /> : undefined;
   if (hostedSelection) return <HostedServerOpening selection={hostedSelection} cancel={() => setHostedSelection(undefined)} />;
   const captionRenderer = windowChrome ?? chrome.renderer;
   return <div className={styles.shell} data-shell-root data-desktop={desktop} data-size-class={sizeClass} data-pointer={coarsePointer ? 'coarse' : 'fine'} data-navigation={navigation} data-has-dock={dockVisible} data-window-os={chrome.os} data-window-fullscreen={chrome.fullscreen}>

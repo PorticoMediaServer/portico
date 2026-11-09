@@ -8,7 +8,6 @@ import {loadCertificate, saveCertificate, type CertificateApi, type CertificateC
 import {certificateClaimed} from './secure-connection.ts';
 import type {HttpLocalApi} from '../index.ts';
 import {DraftForm, type Loaded} from './draft-form.ts';
-import {UserMutationError, sameUserMutationScope, type UserMutationScope} from '../user-mutations.ts';
 
 /**
  * The server's settings documents as draft forms (`draft-form.ts`), one per document, for the
@@ -22,7 +21,7 @@ import {UserMutationError, sameUserMutationScope, type UserMutationScope} from '
 export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs';
 
 export type ServerFormDeps = Readonly<{
-  api: Pick<HttpLocalApi, 'request'> & Partial<Pick<HttpLocalApi, 'acknowledgeUserMutation' | 'awaitUserMutationsReady' | 'getUserMutationCoordinator' | 'getUserMutationScope'>>;
+  api: Pick<HttpLocalApi, 'request'>;
   console: ConsoleClient;
   /** The server every administration answer must name. */
   serverId: string;
@@ -158,29 +157,9 @@ export function alertsForm(deps: ServerFormDeps): DraftForm<AlertThresholds, {re
 
 // ── Live TV and recording defaults ──────────────────────────────────────────────────────────
 
-/** A failed parse or durable acknowledgement keeps the original ID, body and
- * revision. A changed draft must be reviewed before it can become another write. */
+/** One settings save, with a new operation ID each time. A save that gets no answer fails, and the form reads the current value again. */
 function settingsSave<D>(deps: ServerFormDeps, path: string, method: string, parse: (raw: unknown) => D) {
-  let pending: {payload: string; body: string; operationId: string; dispatched: boolean; scope?: UserMutationScope; parsed?: {value: D}} | undefined;
-  return async (payload: object): Promise<D> => {
-    await deps.api.awaitUserMutationsReady?.();
-    const scope = deps.api.getUserMutationScope?.(), coordinator = deps.api.getUserMutationCoordinator?.();
-    if (pending?.scope && (!scope || !sameUserMutationScope(pending.scope, scope))) throw new UserMutationError('mutation_scope_changed');
-    // Only an explicit later Save may release this opening's cache after root
-    // review has removed the original durable command. Never clear on failure.
-    if (pending?.dispatched && pending.scope && coordinator && !(await coordinator.inspectIntent(pending.operationId))) pending = undefined;
-    const serialized = JSON.stringify(payload);
-    if (pending && pending.payload !== serialized) throw new UserMutationError('mutation_needs_review');
-    if (!pending) {
-      const operationId = deps.operationId();
-      pending = {payload: serialized, body: JSON.stringify({...JSON.parse(serialized), operationId}), operationId, dispatched: false, ...(scope ? {scope} : {})};
-    }
-    const original = pending;
-    if (!original.parsed) {original.dispatched = true;original.parsed = {value: parse(await deps.api.request(path, method, JSON.parse(original.body)))};}
-    await deps.api.acknowledgeUserMutation?.(original.operationId);
-    pending = undefined;
-    return original.parsed.value;
-  };
+  return async (payload: object): Promise<D> => parse(await deps.api.request(path, method, {...payload, operationId: deps.operationId()}));
 }
 
 function documentForm<T extends object, D extends {revision: number; settings: T}>(deps: ServerFormDeps, path: string, parse: (raw: unknown) => D, validate?: (draft: T, doc: D | undefined) => string | undefined): DraftForm<T, D> {

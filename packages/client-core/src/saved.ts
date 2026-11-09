@@ -9,8 +9,7 @@ import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
 import type {ContentEntry, ContentHeading, ContentProjection} from './library-content.ts';
 export type SavedScope = Readonly<{ serverId: string; viewerId: string }>;
 export interface SavedApi {
- dismissReviewedUserMutation?(intentId:string):Promise<void>;
- acknowledgeUserMutation?(intentId: string): Promise<void>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> }
+ request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> }
 export type SavedShape = 'posters' | 'squares';
 export type SavedShapeCounts = Readonly<{posters:number;squares:number}>;
 export type SavedListFilter = 'all' | 'unwatched' | 'inProgress' | 'watched' | 'favorites';
@@ -531,7 +530,7 @@ export class SavedService {
    const c = this.commands[0];
    if (c && (this.running || c.phase === 'queued' || c.phase === 'sending')) return c.promise;
    if (c && (c.phase === 'retry-required' || c.phase === 'conflict')) {
-    if (c.phase === 'conflict') { await this.api.dismissReviewedUserMutation?.(c.operationId!); this.allowed(c.intent); c.operationId = undefined; c.body = undefined; if (c.intent.action === 'reorder') c.orderRevision = this.state.playlist!.revision; }
+    if (c.phase === 'conflict') { this.allowed(c.intent); c.operationId = undefined; c.body = undefined; if (c.intent.action === 'reorder') c.orderRevision = this.state.playlist!.revision; }
     let resolve!: () => void; let reject!: (error: unknown) => void; c.promise = new Promise<void>((res, rej) => { resolve = res; reject = rej; }); c.promise.catch(() => {}); c.resolve = resolve; c.reject = reject; c.phase = 'queued'; this.publish({ mutationError: null }); void this.pump(); return c.promise;
    }
    // Q7: failed commands are removed from the queue; retry the last failure
@@ -539,7 +538,7 @@ export class SavedService {
    // (conflict, after re-checking the current revision).
    const failed = this.lastFailure;
    if (!failed) return Promise.resolve();
-   if (failed.kind === 'conflict') {await this.api.dismissReviewedUserMutation?.(failed.operationId!); this.allowed(failed.intent);}
+   if (failed.kind === 'conflict') this.allowed(failed.intent);
    let resolve!: () => void; let reject!: (error: unknown) => void; const promise = new Promise<void>((res, rej) => { resolve = res; reject = rej; }); promise.catch(() => {});
    const orderRevision = failed.kind === 'conflict' && failed.intent.action === 'reorder' ? this.state.playlist!.revision : failed.orderRevision;
    this.quiet++;
@@ -552,7 +551,7 @@ export class SavedService {
   const c = this.commands[0], generation = this.generation, api = this.api, selected = this.state.route, fence = this.state.projection?.scope.viewerFence;
   const controller = new AbortController(); this.running = true; c.phase = 'sending'; this.publish({ mutationError: null });
   try {
-   if (!c.operationId) { this.allowed(c.intent); if (c.intent.action === 'reorder' && c.orderRevision !== this.state.playlist?.revision) throw new Failure('playlist_conflict', 'The playlist changed after this order was chosen. Reload and review before retrying.', true); const value = await this.deadline(this.requestId(), controller); if (!uuid.test(value) && !/^p251_[0-9]{13}_[a-f0-9]{32}$/.test(value)) throw new Failure('invalid_request_id', 'A UUIDv4 operation ID is required.'); if (generation !== this.generation || this.disposed) return; c.operationId = value; c.body = { operationId: value, ...(c.intent.action === 'create' ? {} : { expectedRevision: c.intent.action==='pin'?this.state.playlist!.pinRevision:c.orderRevision ?? this.state.playlist!.revision }) }; }
+   if (!c.operationId) { this.allowed(c.intent); if (c.intent.action === 'reorder' && c.orderRevision !== this.state.playlist?.revision) throw new Failure('playlist_conflict', 'The playlist changed after this order was chosen. Reload and review before retrying.', true); const value = await this.deadline(this.requestId(), controller); if (!uuid.test(value)) throw new Failure('invalid_request_id', 'A UUIDv4 operation ID is required.'); if (generation !== this.generation || this.disposed) return; c.operationId = value; c.body = { operationId: value, ...(c.intent.action === 'create' ? {} : { expectedRevision: c.intent.action==='pin'?this.state.playlist!.pinRevision:c.orderRevision ?? this.state.playlist!.revision }) }; }
    if (!selected || !fence) throw new Failure('saved_required', 'Reload Saved before retrying.', true);
    const value = c.intent; let path: string = routePath("post_playlists"), method = 'POST'; const body = { ...c.body };
    if (value.action !== 'create') { if (selected.view !== 'playlist') throw new Error('Playlist is not selected.'); path=encodedRoutePath(value.action==='rename'?'patch_playlists_id':'get_playlists_id',{id:encodeURIComponent(selected.playlistId)}); }
@@ -568,12 +567,6 @@ export class SavedService {
    }
    const raw = await this.deadline(api.request<unknown>(path, method, body, controller.signal), controller);
    if (this.disposed || generation !== this.generation) return;
-   if (record(raw) && record(raw.mutationReceipt) && ['applied','deleted','removed'].includes(String(raw.mutationReceipt.status))) {
-    await this.refresh();
-    if (this.disposed || generation !== this.generation) return;
-    this.commands.shift(); this.publish({lastReceipt:null, mutationError:null});
-    await api.acknowledgeUserMutation?.(c.operationId!);c.resolve();return;
-   }
    if (!record(raw) || raw.serverId !== this.bound.serverId || raw.viewerFence !== fence || raw.operationId !== c.operationId || !id(raw.playlistId) || selected.view === 'playlist' && raw.playlistId !== selected.playlistId || !int(raw.revision) || typeof raw.deleted !== 'boolean' || raw.entryId !== undefined && !id(raw.entryId) || raw.undoToken !== undefined && (!id(raw.undoToken) || !text(raw.undoUntil, 64))) invalid();
    const receipt: SavedReceipt = freeze({ serverId: this.bound.serverId, viewerFence: fence, operationId: c.operationId, playlistId: raw.playlistId, revision: raw.revision, deleted: raw.deleted, ...(raw.entryId === undefined ? {} : { entryId: raw.entryId as string }), ...(raw.undoToken === undefined ? {} : { undoToken: raw.undoToken as string, undoUntil: raw.undoUntil as string }) });
    const recoveryRead = this.readGeneration, recoveryTicket = this.quiet;
@@ -587,7 +580,6 @@ export class SavedService {
    if (!recoveryCurrent()) {settleCommitted(); return;}
    this.orderGeneration++;
    this.commands.shift(); this.publish({ lastReceipt: receipt, mutationError: null, candidates: null, candidatesLoading: false, order: null, orderLoading: false, orderError: null });
-   await api.acknowledgeUserMutation?.(c.operationId!);
    // Receipt subscribers may replace this read/route or begin a newer quiet
    // read. A committed command settles, but cannot borrow that successor.
    if (!recoveryCurrent()) {settleCommitted(); return;}

@@ -48,7 +48,6 @@ export function useReadingMarkAll(context: ScreenContext, libraryId: string, rou
     held.command = operation; held.busy = true; publish({opening: held, proof, busy: true});
     void commitReadingMarkAll(held.life.api, held.context.scope.serverId, held.libraryId, proof, operation, {
       isCurrent: () => current(held) && held.command === operation,
-      acknowledge: id => held.context.api.acknowledgeUserMutation?.(id),
       onCommitted: () => {
         held.command = undefined;
         // Publish at the original guarded acknowledgement point, before another

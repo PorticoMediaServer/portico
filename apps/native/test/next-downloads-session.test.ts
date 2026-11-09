@@ -1,5 +1,5 @@
 import {HttpLocalApi} from '../../../packages/client-core/src/index.ts';
-import {NativeUserMutationStore} from '../src-next/platform/user-mutations.ts';
+import {NativeStopStore, nativeStopScope} from '../src-next/platform/user-mutations.ts';
 import {NativeUserMutationSelectionOwner} from '../src-next/platform/user-mutation-selection.ts';
 import {userMutationBridge} from './helpers/user-mutation-bridge.mjs';
 import test from 'node:test';
@@ -100,8 +100,9 @@ const bootModules: Record<string, Record<string, unknown>> = {
   '../../../../packages/client-core/src/event-feed': {runEventFeed: subscribe},
   '../../../../packages/client-core/src/artwork': {ambientArtworkSource: noop},
   '../platform/user-mutations': {
-    NativeUserMutationStore: class extends NativeUserMutationStore {constructor() {super(active.mutationBridge);}},
-    retainNativeUserMutationSelection: (store: NativeUserMutationStore, scope: any, report: (error: unknown) => void) =>
+    nativeStopScope,
+    NativeStopStore: class extends NativeStopStore {constructor() {super(active.mutationBridge);}},
+    retainNativeStopScope: (store: NativeStopStore, scope: any, report: (error: unknown) => void) =>
       new NativeUserMutationSelectionOwner(async work => work({...active.viewer, origin: 'https://server.test', familyId: active.session.sessionFamilyId, deviceId: active.session.deviceId}), subscribe).activate(store, scope, report),
   },
   '../platform/server-connections': {trackNativeConnection: noop},

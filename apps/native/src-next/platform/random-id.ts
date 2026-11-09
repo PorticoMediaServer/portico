@@ -2,8 +2,8 @@ import {NativeModules} from 'react-native';
 
 /**
  * Hermes has no Web Crypto. Shared code makes its request ids with `crypto.randomUUID` when it
- * exists (client-core `randomId`), and its mutation keys and tokens with `crypto.getRandomValues`
- * (client-core `newUserMutationKey`, built when the shell starts). The app provides both once:
+ * exists (client-core `randomId`), and its Cast stop keys and tokens with `crypto.getRandomValues`
+ * (client-core `castStopKey`). The app provides both once:
  * the UUID from the native source that already makes playback request ids, the bytes from the
  * system's secure random source (`playbackRandomBytes`, at most 64 per call). Without them, the
  * signed-in start throws before Home and a shared service built without its own id source (the

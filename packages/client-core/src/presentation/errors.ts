@@ -168,6 +168,8 @@ function categorize(f: Facts, deviceOnline: boolean | undefined): ErrorCategory 
 /** Present any thrown value for a person. Never returns raw error text. */
 /** Codes with their own sentence, whatever their category. */
 const codeBodies: Record<string, MessageId> = {
+  // Not a failure: the outbox kept the edit and will send it (`outbox.ts`).
+  sync_pending: 'sync.kept',
   reading_progress_pending: 'error.readingProgressPending',
   factor_setup_required: 'error.factorSetupRequired',
   // AU-3: what was typed can't be a server address at all (not one that didn't answer).
@@ -213,7 +215,7 @@ const codeBodies: Record<string, MessageId> = {
   session_ended: 'error.sessionEnded',
 };
 /** Codes whose sentence says what to do instead, so the notice offers no Try again. */
-const noActionCodes = new Set(['comic_archive_unsupported', 'local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required', 'artwork_cap_unreachable', 'unsupported_artwork']);
+const noActionCodes = new Set(['sync_pending', 'comic_archive_unsupported', 'local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required', 'artwork_cap_unreachable', 'unsupported_artwork']);
 
 export function presentError(error: unknown, context: ErrorContext = 'generic', options: PresentOptions = {}): PresentedError {
   const i18n = options.i18n ?? defaultI18n;

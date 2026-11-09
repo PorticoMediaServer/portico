@@ -16,7 +16,6 @@ import type {ViewerQueryOptions} from './query/react.ts';
 import {queryKeys} from './query/keys.ts';
 import {dependsOn, titlesWithPersonalState} from './freshness-hub.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
-import type {UserMutationCoordinator, UserMutationScope} from './user-mutations.ts';
 /** Transport/state for server-authored semantic projections. No client ranking or grouping. */
 export type ContentView = 'discover' | 'browse' | 'collections' | 'categories' | 'show' | 'season' | 'artist' | 'album' | 'book' | 'collection' | 'releases' | 'songs' | 'authors' | 'series' | 'author' | 'book_series' | 'disc';
 export type ContentSurface = ContentView;
@@ -26,10 +25,6 @@ export type ContentScope = Readonly<{ viewerId: string; serverId: string }>;
 export type ContentReadContext = Readonly<{ signal: AbortSignal; isCurrent: () => boolean }>;
 export interface LibraryContentApi {
   request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
-  acknowledgeUserMutation?(intentId: string): Promise<void>;
-  awaitUserMutationsReady?(): Promise<void>;
-  getUserMutationCoordinator?(): UserMutationCoordinator | undefined;
-  getUserMutationScope?(): UserMutationScope | undefined;
   requestRaw?(path: string, method: string, options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal; deadlineMs?: number; singleAttempt?: boolean}>): Promise<import('./read-preparation.ts').PreparationResponse>;
 }
 export type ContentEntryKind = 'ebook' | 'comic' | 'movie' | 'show' | 'season' | 'episode' | 'artist' | 'album' | 'song' | 'book' | 'audiobook_file' | 'chapter' | 'collection' | 'category' | 'author' | 'book_series' | 'disc' | 'extra' | 'playlist' | 'radio';

@@ -36,7 +36,7 @@ export type RefresherSnapshot = Readonly<{
 
 export type LocalSessionRefresherOptions = Readonly<{
   env: ConnectionEnvironment;
-  api: Pick<HttpLocalApi, 'request' | 'setAccessToken' | 'setAuthRecovery'> & Partial<Pick<HttpLocalApi, 'setUserMutationSession' | 'serverNow'>>;
+  api: Pick<HttpLocalApi, 'request' | 'setAccessToken' | 'setAuthRecovery'> & Partial<Pick<HttpLocalApi, 'setOutboxSession' | 'serverNow'>>;
   /** The server's clock, for its expiries (`server-clock.ts`). `now` stays this device's clock, for the refresher's own waits. */
   serverNow?: () => number;
   /** The selected session (the viewer's copy is enough: the store supplies the refresh credential). */
@@ -123,7 +123,7 @@ export class LocalSessionRefresher implements AuthRecovery {
   constructor(options: LocalSessionRefresherOptions) {
     this.o = options;
     this.session = options.session;
-    options.api.setUserMutationSession?.(options.session);
+    options.api.setOutboxSession?.(options.session);
     this.now = options.now ?? Date.now;
     this.serverNow = options.serverNow ?? (options.api.serverNow ? () => options.api.serverNow!() : options.now ?? (() => serverNow()));
     this.setTimer = options.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
@@ -348,7 +348,7 @@ export class LocalSessionRefresher implements AuthRecovery {
     const {refreshToken: _secret, ...visible} = next;
     const changed = visible.accessToken !== this.session.accessToken;
     this.session = Object.freeze(visible);
-    if (changed) { this.o.api.setUserMutationSession ? this.o.api.setUserMutationSession(visible) : this.o.api.setAccessToken(visible.accessToken); this.o.onRotated?.(this.session); }
+    if (changed) { this.o.api.setOutboxSession ? this.o.api.setOutboxSession(visible) : this.o.api.setAccessToken(visible.accessToken); this.o.onRotated?.(this.session); }
     // Adoption may synchronously retire this authority and stop the refresher.
     // Keep that terminal state before publishing or installing another timer.
     if (this.done) return;

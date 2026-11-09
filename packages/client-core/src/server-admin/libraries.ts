@@ -21,7 +21,6 @@ export async function saveLibrarySettings(api:LibraryContentApi,current:LibraryA
  if(!operationId||operationId.length>128)throw new Error('Invalid library operation identity.');
  const doc=parseLibraryDocument(await api.request<unknown>(encodedRoutePath('put_library_settings',{id:libraryID(current.libraryId)}),'PUT',{expectedRevision:current.revision,operationId,settings},signal));
  if(doc.libraryId!==current.libraryId||doc.revision<=current.revision)throw new Error('Library settings write could not be reconciled.');
- await api.acknowledgeUserMutation?.(operationId);
  return doc;
 }
 /** Listed stable IDs come first; the server retains omitted IDs in their prior order. */

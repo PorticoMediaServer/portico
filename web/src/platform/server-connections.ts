@@ -1,7 +1,7 @@
 import {createBrowserHostedSource} from '@core/query/hosted-directory-source.ts';
 import {readConnectionFacts} from '@core/query/connection-operations.ts';
 import {clockOrigin, observeResponseClock} from '@core/server-clock.ts';
-import {IndexedDBUserMutationStore} from './user-mutations';
+import {IndexedDBOutboxStore} from './outbox-store';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {RouteConnection,sessionRoute} from '@core/route-connection';
 import {RouteError} from '@core/route-identity';
@@ -159,7 +159,12 @@ export async function restoreBrowserConnection(expected:LocalSession){
 }
 export async function forgetBrowserConnection(session:LocalSession){const env=browserConnectionEnvironment(session.viewer.serverId);const captured=sessionRoute(session.accessToken);await forgetNativeSession(env,session);const retained=await env.storage.read();if(retained&&sessionRoute(retained.session.accessToken)===captured)return;if(active===captured)active=undefined;setTimeout(()=>{if(active!==captured)captured?.dispose();},16000);}
 
-export function mountBrowserUserMutations(api: HttpLocalApi, session: LocalSession) {
- api.setUserMutationSession(session);
- return api.configureUserMutations(new IndexedDBUserMutationStore());
+/** Starts this tab's outbox for the signed-in session, and returns the way to stop it. */
+export function mountBrowserOutbox(api: HttpLocalApi, session: LocalSession) {
+ api.setOutboxSession(session);
+ const outbox = api.configureOutbox(new IndexedDBOutboxStore());
+ // The network coming back is the moment to try again.
+ const online = () => outbox.wake();
+ globalThis.addEventListener?.('online', online);
+ return () => { globalThis.removeEventListener?.('online', online); api.setOutboxSession(undefined); outbox.dispose(); };
 }

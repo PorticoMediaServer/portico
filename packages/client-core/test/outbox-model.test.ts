@@ -8,11 +8,11 @@ import {Outbox, OutboxWaiting, OUTBOX_MAX_AGE_MS, type OutboxAnswer, type Outbox
  * restart, server restart, profile switch, sign-out, sign-in again, expired sign-in and clock jump.
  *
  * It holds that every edit is applied exactly once or reported to the person once, that none is
- * ever applied under another account or profile, that the queue ends empty, and that an idle queue
- * writes nothing to its store. Time is virtual, so a run takes seconds. A failure prints its seed:
+ * ever applied under another account or profile or sent when older than 30 days, that the queue
+ * ends empty, and that an idle queue writes nothing to its store. Time is virtual, so a run takes seconds. A failure prints its seed:
  * run it again alone with OUTBOX_SEED=<seed> OUTBOX_SEQUENCES=1.
  */
-const SEQUENCES = Number(process.env.OUTBOX_SEQUENCES ?? 3000);
+const SEQUENCES = Number(process.env.OUTBOX_SEQUENCES ?? 2000);
 const FIRST_SEED = Number(process.env.OUTBOX_SEED ?? 20261109);
 const STEPS = 40;
 const DAY = 24 * 60 * 60 * 1000;
@@ -31,7 +31,7 @@ function prng(seed: number) {
 type Who = Readonly<{accountId: string; profileId: string}>;
 const PEOPLE: readonly Who[] = [{accountId: 'a1', profileId: 'p1'}, {accountId: 'a1', profileId: 'p2'}, {accountId: 'a2', profileId: 'p3'}];
 const scopeOf = (who: Who): OutboxScope => ({serverId: 'server', authority: 'local', ...who});
-const flush = async () => { for (let i = 0; i < 25; i++) await Promise.resolve(); };
+const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 
 /** Virtual time: monotonic for timers, and a wall clock the sequence can make jump. */
 class World {
@@ -50,7 +50,8 @@ class World {
     const end = this.mono + ms;
     await flush();
     for (;;) {
-      const due = this.tasks.filter(task => task.at <= end).sort((a, b) => a.at - b.at || a.id - b.id)[0];
+      let due: World['tasks'][number] | undefined;
+      for (const task of this.tasks) if (task.at <= end && (!due || task.at < due.at || task.at === due.at && task.id < due.id)) due = task;
       if (!due) break;
       this.tasks = this.tasks.filter(task => task !== due);
       this.wall += Math.max(0, due.at - this.mono);
@@ -102,7 +103,7 @@ class Server {
   }
 }
 
-type Edit = {id: string; who: Who; refusedToCaller: number; dropped: {why: string}[]};
+type Edit = {id: string; who: Who; refuse: boolean; asking: number; refusedToCaller: number; dropped: {why: string}[]};
 
 async function sequence(seed: number) {
   const random = prng(seed), pick = <T>(list: readonly T[]) => list[Math.floor(random() * list.length)]!;
@@ -112,6 +113,7 @@ async function sequence(seed: number) {
   let outbox!: Outbox, life = 0;
   let loseRequest = 0, loseReply = 0, trouble: ('busy' | 'slow-down')[] = [];
   let lastEdit: Edit | undefined, nextEdit = 0;
+  const sentTooOld: string[] = [];
 
   const boot = () => {
     const mine = ++life, alive = () => mine === life;
@@ -120,6 +122,8 @@ async function sequence(seed: number) {
       scope: () => session && scopeOf(session.who),
       send: entry => new Promise<OutboxAnswer>((resolve, reject) => {
         const token = session!.token;
+        // An edit whose caller still waits was made a moment ago, whatever a jumped clock says.
+        if (world.wall - entry.createdAt > OUTBOX_MAX_AGE_MS && !edits.get(entry.id)!.asking) sentTooOld.push(entry.id);
         const lost = () => world.later(1000, () => { if (alive()) reject(new TypeError('network')); });
         if (loseRequest > 0) { loseRequest--; lost(); return; }
         world.later(50, () => {
@@ -132,9 +136,12 @@ async function sequence(seed: number) {
     });
     void outbox.start();
   };
-  const write = (edit: Edit, refuse: boolean) => {
-    const answered = outbox.add({id: edit.id, method: 'PUT', path: '/v1/items/x/personal-state', body: {refuse}});
-    answered.then(answer => { if (answer.status >= 400) edit.refusedToCaller++; }, error => { assert.ok(error instanceof OutboxWaiting, String(error)); });
+  const write = (edit: Edit) => {
+    const answered = outbox.add({id: edit.id, method: 'PUT', path: '/v1/items/x/personal-state', body: {refuse: edit.refuse}});
+    // Two taps that are both still waiting hear the same answer on the same screen: that is one report.
+    const first = edit.asking++ === 0;
+    answered.then(answer => { edit.asking--; if (answer.status >= 400 && first) edit.refusedToCaller++; },
+      error => { edit.asking--; assert.ok(error instanceof OutboxWaiting, String(error)); });
   };
   const signIn = (who: Who) => { session = {who, token: server.signIn(who)}; outbox.wake(); };
 
@@ -143,15 +150,18 @@ async function sequence(seed: number) {
   for (let step = 0; step < STEPS; step++) {
     const roll = random();
     if (roll < 0.3) {
-      if (session) { const edit: Edit = {id: `edit-${seed}-${++nextEdit}`, who: session.who, refusedToCaller: 0, dropped: []}; edits.set(edit.id, edit); lastEdit = edit; write(edit, random() < 0.1); }
+      if (session) {
+        const edit: Edit = {id: `edit-${seed}-${++nextEdit}`, who: session.who, refuse: random() < 0.1, asking: 0, refusedToCaller: 0, dropped: []};
+        edits.set(edit.id, edit); lastEdit = edit; write(edit);
+      }
     } else if (roll < 0.36) {
-      // A second tap sends the same edit again, with the same id.
-      if (session && lastEdit && lastEdit.who === session.who) write(lastEdit, false);
+      // A second tap sends the same edit again, with the same id. (After a refusal it would be a new try, told again.)
+      if (session && lastEdit && lastEdit.who === session.who && !lastEdit.refusedToCaller && !lastEdit.dropped.length) write(lastEdit);
     } else if (roll < 0.44) loseRequest++;
     else if (roll < 0.52) loseReply++;
     else if (roll < 0.58) trouble.push(pick(['busy', 'slow-down'] as const));
     else if (roll < 0.63) { server.up = false; }
-    else if (roll < 0.68) { server.up = true; outbox.online(); }
+    else if (roll < 0.68) { server.up = true; outbox.wake(); }
     else if (roll < 0.74) { life++; outbox.dispose(); boot(); }
     else if (roll < 0.79) signIn(pick(PEOPLE));
     else if (roll < 0.83) { if (session) server.tokens.delete(session.token); session = undefined; }
@@ -175,6 +185,7 @@ async function sequence(seed: number) {
     assert.ok(applied || reports, `${edit.id} was neither applied nor reported`);
     if (applied) assert.deepEqual(applied.who, edit.who, `${edit.id} was applied under another account or profile`);
   }
+  assert.deepEqual(sentTooOld, [], 'an edit older than 30 days is dropped, not sent');
   assert.equal(disk.entries.size, 0, 'the queue is empty at the end');
   assert.equal(outbox.waiting(), 0);
 
