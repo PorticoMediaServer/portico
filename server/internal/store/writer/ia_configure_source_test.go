@@ -430,7 +430,37 @@ func TestIAConfigureSourceReplaySurvivesDetachedLiveState(t *testing.T) {
 	turn.transaction.rollback(nil)
 }
 
-// P1-A: a same-root configure carries the scanner's live health and identity
+// A disable that also moves the root must forget the old root's confirmation:
+// the new root has never been confirmed by the scanner, so the disable cannot
+// carry the old root's evidence forward.
+func TestIAConfigureSourceDisableWithRootMoveForgetsConfirmation(t *testing.T) {
+	w, r, p := iaConfigureSourceFixture(t)
+	root, moved := iaConfigureSourceRoot(t, "media"), iaConfigureSourceRoot(t, "media-disabled")
+	iaConfigureSourceLibrary(t, w, 795, "lib-disable-move", root)
+	iaConfigureSourceLive(t, w, "lib-disable-move", "source-disable-move", 1, "incarnation-1", root, "identity-1", true, "ready", true)
+	q := iaConfigureSourceRequestFixture(t, 795, "lib-disable-move", "source-disable-move")
+	q.reference = iaConfigureLibraryReference(20, 21, 22)
+	q.enabled = false
+	q.resolvedRoot, q.configuredRoot = moved, moved
+	q.incarnation, q.rootIdentity = "incarnation-2", "identity-2"
+	turn, budget := iaConfigureSourceTurn(t, w, r, q)
+	out, err := configureIASource(t.Context(), turn, p, t.Context(), budget, q)
+	if err != nil || out.decision != receiptFresh {
+		t.Fatal("disable with root move", out, err)
+	}
+	if s := out.result.facts.sources[0]; s.enabled || s.health != "unknown" || s.identityConfirmed ||
+		s.generation != 2 || s.incarnation != "incarnation-2" || s.resolvedRoot != moved {
+		t.Fatal("disable with root move kept the old confirmation", s)
+	}
+	if _, err = turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	if got := iaConfigureSourceCount(t, w, `SELECT count(*) FROM library_sources WHERE id='source-disable-move' AND enabled=0 AND identity_confirmed=0 AND generation=2 AND root=?`, moved); got != 1 {
+		t.Fatal("disable with root move live row", got)
+	}
+}
+
+// A same-root configure carries the scanner's live health and identity
 // confirmation forward; it never fabricates ready+confirmed. Only a root move
 // resets them to the not-confirmed state. Without carrying the live values every
 // case would publish ready/confirmed and relight playback or scan gating.

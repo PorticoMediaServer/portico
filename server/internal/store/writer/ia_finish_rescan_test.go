@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 func iaFinishAcceptRequest(w *executor) iaFinishRescanRequest {
@@ -306,6 +308,168 @@ func TestIAFinishRescanSkippedSubtreeDoesNotWedge(t *testing.T) {
 		t.Fatal("skipped subtree wedged finish", out, err)
 	}
 	turn.transaction.rollback(nil)
+}
+
+// The skipped page forces the test-only partial index. Without the overlay the
+// statement cannot prepare, so the finish holds with the same typed marker as
+// the IA-18/19 veto instead of treating a failed window as empty coverage.
+func TestIAFinishRescanSkippedAccessUnavailableHolds(t *testing.T) {
+	w, keeper, p := iaMissingFinishFixtureOverlay(t, false)
+	reg := iaFinishRegistry(t, keeper)
+	q := iaFinishAcceptRequest(w)
+	ref := iaFinishAcceptReference(t, q, 2, 3)
+	turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+	if !errors.Is(err, ErrResolveRequired) || !errors.Is(err, iaFinishSkippedUnavailable) ||
+		out.decision != 0 || out.digest != (ResultDigest{}) || len(out.result.facts.phase) != 0 {
+		t.Fatal("skipped bounded access did not hold", out, err)
+	}
+	turn.transaction.rollback(nil)
+	iaFinishNoEffects(t, w)
+}
+
+// The skipped frontier is a keyset page, not a single window: more than
+// iaFinishPageRows skipped directories are all accounted for, including an
+// exempt unseen object under a path past the first page. A skip owned by another
+// job never exempts this run's object.
+func TestIAFinishRescanSkippedPagesAndOtherJobIsolation(t *testing.T) {
+	t.Run("multi_page", func(t *testing.T) {
+		w, keeper, p := iaMissingFinishFixture(t)
+		reg := iaFinishRegistry(t, keeper)
+		for i := 0; i <= iaFinishPageRows; i++ {
+			path := fmt.Sprintf("Finish/Skip%03d", i)
+			wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('finish-run',?,?,?,'1','done',1,1)`,
+				path, path+"-identity", path+"-revision")
+		}
+		last := fmt.Sprintf("Finish/Skip%03d", iaFinishPageRows)
+		wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(80,'finish-skip-page','/media/finish/`+last+`/Film.mkv',42,7,'','','',0,0,0,8)`)
+		wc008NativeExec(t, w, `INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns,seen_job,directory_path,state) VALUES('object:finish:skip-page','finish-source','finish-skip-page','finish-incarnation',?,'ino:80','object-revision:1','{}',42,7,'',?,'available')`,
+			last+"/Film.mkv", last)
+		q := iaFinishAcceptRequest(w)
+		ref := iaFinishAcceptReference(t, q, 2, 3)
+		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.phase != iaFinishComplete || out.result.facts.warnings != 0 {
+			t.Fatal("skipped pages wedged finish", out, err)
+		}
+		turn.transaction.rollback(nil)
+	})
+	t.Run("other_job_isolation", func(t *testing.T) {
+		w, keeper, p := iaMissingFinishFixture(t)
+		reg := iaFinishRegistry(t, keeper)
+		wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('missing-run','Locked','missing-locked-identity','missing-locked-revision','1','done',1,1)`)
+		wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(81,'finish-other-job','/media/finish/Locked/Film.mkv',42,7,'','','',0,0,0,8)`)
+		wc008NativeExec(t, w, `INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns,seen_job,directory_path,state) VALUES('object:finish:other-job','finish-source','finish-other-job','finish-incarnation','Locked/Film.mkv','ino:81','object-revision:1','{}',42,7,'','Locked','available')`)
+		q := iaFinishAcceptRequest(w)
+		ref := iaFinishAcceptReference(t, q, 2, 3)
+		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+		if !errors.Is(err, ErrResolveRequired) || out.decision != 0 || out.digest != (ResultDigest{}) {
+			t.Fatal("foreign job skip exempted a local object", out, err)
+		}
+		turn.transaction.rollback(nil)
+		iaFinishNoEffects(t, w)
+	})
+}
+
+// A sparse frontier (many clean directories between two skipped ones) never
+// changes the plan: the keyset stays one SEARCH on the partial skipped index,
+// with no full scan and no temporary sort.
+func TestIAFinishRescanSkippedIndexSparseGapPlan(t *testing.T) {
+	w, _, _ := iaMissingFinishFixture(t)
+	wc008NativeExec(t, w, `WITH RECURSIVE c(n) AS (SELECT 0 UNION ALL SELECT n+1 FROM c WHERE n<199)
+INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped)
+SELECT 'finish-run','Finish/Clean'||printf('%03d',n),'clean-'||n,'clean-rev-'||n,'1','done',1,0 FROM c`)
+	wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('finish-run','Finish/A-Skipped','a-identity','a-revision','1','done',1,1)`)
+	wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('finish-run','Finish/Z-Skipped','z-identity','z-revision','1','done',1,1)`)
+	var def stmt.Definition
+	for _, d := range iaFinishRescanStatements() {
+		if d.ID == iaFinishSkipped {
+			def = d
+		}
+	}
+	if def.ID == "" {
+		t.Fatal("skipped statement missing")
+	}
+	rows, err := w.db.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+def.SQL, "finish-run", "", int64(iaFinishPageRows))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	details := []string{}
+	for rows.Next() {
+		var id, parent, unused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(detail, "TEMP B-TREE") || strings.Contains(detail, "SCAN ") {
+			t.Fatal("sparse gap changed the plan", detail)
+		}
+		details = append(details, detail)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	want := "SEARCH inventory_directories USING INDEX inventory_directories_skipped (job_id=? AND relative_path>?)"
+	if len(details) != 1 || details[0] != want {
+		t.Fatal(details, want)
+	}
+}
+
+// The exempt accumulation is bounded: nested rows collapse to their topmost
+// prefix, exactly the cap finishes, and one over the cap is a typed
+// resolve-required hold with zero effects.
+func TestIAFinishRescanExemptPrefixCap(t *testing.T) {
+	seed := func(t *testing.T, w *executor, count int) {
+		t.Helper()
+		wc008NativeExec(t, w, `WITH RECURSIVE c(n) AS (SELECT 0 UNION ALL SELECT n+1 FROM c WHERE n<?)
+INSERT INTO inventory_scan_issues(job_id,relative_path,reason,line,protect,warning)
+SELECT 'finish-run','P'||printf('%05d',n),'unreadable_entry',0,1,1 FROM c`, count-1)
+	}
+	t.Run("nested_collapses", func(t *testing.T) {
+		e := iaFinishExempt()
+		for _, path := range []string{"Locked", "Locked/A", "Locked/A/B", "Locked2", "Locked2/X"} {
+			if err := e.add(path); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if len(e.paths) != 2 {
+			t.Fatal("nested exempt paths did not collapse", e.paths)
+		}
+		if _, ok := e.paths["Locked"]; !ok {
+			t.Fatal("topmost prefix missing", e.paths)
+		}
+		if _, ok := e.paths["Locked2"]; !ok {
+			t.Fatal("second topmost prefix missing", e.paths)
+		}
+		if !e.covers("Locked/A/B/C") || !e.covers("Locked2/Y") || e.covers("Locked2nd") {
+			t.Fatal("prefix cover", e.paths)
+		}
+	})
+	t.Run("at_cap_finishes", func(t *testing.T) {
+		w, keeper, p := iaMissingFinishFixture(t)
+		reg := iaFinishRegistry(t, keeper)
+		seed(t, w, iaFinishExemptMaxPrefixes)
+		q := iaFinishAcceptRequest(w)
+		ref := iaFinishAcceptReference(t, q, 2, 3)
+		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.phase != iaFinishComplete {
+			t.Fatal("at-cap exempt set refused", out, err)
+		}
+		turn.transaction.rollback(nil)
+	})
+	t.Run("over_cap_holds", func(t *testing.T) {
+		w, keeper, p := iaMissingFinishFixture(t)
+		reg := iaFinishRegistry(t, keeper)
+		seed(t, w, iaFinishExemptMaxPrefixes+1)
+		q := iaFinishAcceptRequest(w)
+		ref := iaFinishAcceptReference(t, q, 2, 3)
+		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+		if !errors.Is(err, ErrResolveRequired) || !errors.Is(err, iaFinishExemptUnbounded) || errors.Is(err, ErrCap) ||
+			out.decision != 0 || out.digest != (ResultDigest{}) {
+			t.Fatal("over-cap exempt set", out, err)
+		}
+		turn.transaction.rollback(nil)
+		iaFinishNoEffects(t, w)
+	})
 }
 
 // Open durable obligations never converge: a pending directory, an unreadable

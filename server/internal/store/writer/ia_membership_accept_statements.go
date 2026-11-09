@@ -21,6 +21,7 @@ const (
 	iaMembershipExtraItem          stmt.ID = "ia.membership.extra_item"
 	iaMembershipSeasonChild        stmt.ID = "ia.membership.season_child"
 	iaMembershipSeasonEpisode      stmt.ID = "ia.membership.season_episode"
+	iaMembershipAlbumSongs         stmt.ID = "ia.membership.album_songs"
 	iaMembershipLink               stmt.ID = "ia.membership.link"
 	iaMembershipLinkList           stmt.ID = "ia.membership.link_list"
 	iaMembershipBoundary           stmt.ID = "ia.membership.boundary"
@@ -165,6 +166,13 @@ WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AN
 			Cohorts: []stmt.Cohort{
 				{Name: "season_with_episode", Bindings: []any{int64(71), int64(7)}},
 				{Name: "season_without_episode", Bindings: []any{int64(72), int64(7)}},
+			}},
+		{ID: iaMembershipAlbumSongs, Kind: stmt.Read,
+			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_album WHERE album_id=? AND library_id=? AND kind=7 LIMIT 1`,
+			Params: []stmt.Param{i("album_id"), i("library_id")},
+			Cohorts: []stmt.Cohort{
+				{Name: "album_with_song", Bindings: []any{int64(81), int64(7)}},
+				{Name: "album_without_song", Bindings: []any{int64(85), int64(7)}},
 			}},
 		{ID: iaMembershipLink, Kind: stmt.Read,
 			SQL: `SELECT part_index,available,start_seconds,end_seconds,edition,cue_ordinal,playback_origin_incarnation,playback_origin_revision
@@ -413,6 +421,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaMembershipSeasonEpisode:
 			defs[n].Plan.Indexes = []string{"catalog_entities_season"}
 			defs[n].Plan.Seeks = []string{"season_id=?"}
+		case iaMembershipAlbumSongs:
+			defs[n].Plan.Indexes = []string{"catalog_entities_album"}
+			defs[n].Plan.Seeks = []string{"album_id=?"}
 		case iaMembershipLink:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_asset_links"}
 			defs[n].Plan.Seeks = []string{"entity_id=? AND asset_id=?"}

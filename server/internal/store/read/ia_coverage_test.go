@@ -75,12 +75,19 @@ func composeIACoverageFixture(t *testing.T, f *browseFixture, definitions []stmt
 
 func newIACoverageFixture(t *testing.T) (*browseFixture, *ForegroundReader) {
 	t.Helper()
+	return newIACoverageFixtureOverlay(t, true)
+}
+
+func newIACoverageFixtureOverlay(t *testing.T, skippedIndex bool) (*browseFixture, *ForegroundReader) {
+	t.Helper()
 	f := newIACoverageSource(t)
-	ddl, err := os.ReadFile("testdata/ia-coverage-skipped-index-draft.sql")
-	if err != nil {
-		t.Fatal(err)
+	if skippedIndex {
+		ddl, err := os.ReadFile("testdata/ia-coverage-skipped-index-draft.sql")
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.exec(t, string(ddl))
 	}
-	f.exec(t, string(ddl))
 	f = composeIACoverageFixture(t, f, append(browseDefinitions(), IACoverageHarnessDefinitions()...), readfixture.LiveConfig(time.Now))
 	r, e := NewForegroundReader(f.snapshots)
 	if e != nil {
@@ -217,6 +224,17 @@ func TestIACoverageDirectoryStateSkipVeto(t *testing.T) {
 			t.Fatalf("clean empty subtree sealed=%+v err=%v", page, e)
 		}
 	})
+}
+
+// Without the test-only partial index the bounded skip check cannot prepare, so
+// the read fails closed instead of publishing a sealed page from an unbounded or
+// empty window.
+func TestIACoverageDirectoryStateSkippedAccessUnavailable(t *testing.T) {
+	f, r := newIACoverageFixtureOverlay(t, false)
+	page, _, e := iaCoverageRead(t, f, r, iaCoverageInput(f))
+	if e == nil || page.Sealed {
+		t.Fatalf("skip proof without the bounded index sealed=%+v err=%v", page, e)
+	}
 }
 
 // A foreign library, a foreign source and a missing directory are denied before

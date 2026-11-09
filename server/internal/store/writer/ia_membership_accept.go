@@ -325,10 +325,11 @@ func iaMembershipReceiptFacts(ctx context.Context, turn *commandTurn, runID stri
 	}
 	var operation, request, digest []byte
 	var kind string
-	var version int64
-	err = row.Scan(&operation, &request, &kind, &header.facts.resultCount, &digest, &header.acceptedRevision, &header.appliedMS,
-		&header.sourceID, &header.sourceIncarnation, &version, &header.memberBytes, &header.objectID, &header.objectRevision,
-		&header.cursorKind, &header.directoryPath, &header.directoryIdentity, &header.directoryRevision,
+	var resultCount, acceptedRevision, appliedMS, version, memberBytes sql.NullInt64
+	var sourceID, sourceIncarnation, objectID, objectRevision, cursorKind sql.NullString
+	err = row.Scan(&operation, &request, &kind, &resultCount, &digest, &acceptedRevision, &appliedMS,
+		&sourceID, &sourceIncarnation, &version, &memberBytes, &objectID, &objectRevision,
+		&cursorKind, &header.directoryPath, &header.directoryIdentity, &header.directoryRevision,
 		&header.expectedPayload, &header.nextPayload)
 	if errors.Is(err, sql.ErrNoRows) {
 		return owner, header, nil
@@ -336,7 +337,7 @@ func iaMembershipReceiptFacts(ctx context.Context, turn *commandTurn, runID stri
 	if err != nil {
 		return owner, header, err
 	}
-	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 || version != 1 {
+	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 {
 		return owner, header, ErrResolveRequired
 	}
 	header.facts.exists = true
@@ -344,9 +345,24 @@ func iaMembershipReceiptFacts(ctx context.Context, turn *commandTurn, runID stri
 	copy(header.facts.identity.command.OperationID[:], operation)
 	copy(header.facts.identity.digest[:], request)
 	copy(header.facts.resultDigest[:], digest)
-	if kind == iaMembershipReceiptKind {
-		header.facts.kind = IAAcceptMembership
+	if kind != iaMembershipReceiptKind {
+		// A receipt at this exact key belongs to another command purpose. Its IA
+		// media projection is intentionally NULL, so it is left undecoded and
+		// classifyReceipt answers the kind mismatch with ErrConflict rather than
+		// a raw NULL scan error.
+		return owner, header, nil
 	}
+	if !resultCount.Valid || !acceptedRevision.Valid || !appliedMS.Valid || !version.Valid || version.Int64 != 1 ||
+		!memberBytes.Valid || !sourceID.Valid || !sourceIncarnation.Valid || !objectID.Valid || !objectRevision.Valid || !cursorKind.Valid {
+		return owner, header, ErrResolveRequired
+	}
+	header.facts.resultCount = resultCount.Int64
+	header.acceptedRevision = acceptedRevision.Int64
+	header.appliedMS = appliedMS.Int64
+	header.memberBytes = memberBytes.Int64
+	header.sourceID, header.sourceIncarnation = sourceID.String, sourceIncarnation.String
+	header.objectID, header.objectRevision, header.cursorKind = objectID.String, objectRevision.String, cursorKind.String
+	header.facts.kind = IAAcceptMembership
 	return owner, header, nil
 }
 
@@ -603,6 +619,20 @@ func iaMembershipPlan(ctx context.Context, turn *commandTurn, r iaMembershipAcce
 				return out, ErrConflict
 			}
 		}
+		// An album reparent rewrites only the album's own artist_id. Its songs keep
+		// the old artist_id (the schema links neither the columns nor the song
+		// index), so any song child refuses a move that changes the album's artist.
+		// A move to the artist the album already has changes nothing observable and
+		// stays allowed, as does a childless album move.
+		if c.subjectKind == 6 && (!entity.artist.Valid || entity.artist.Int64 != parentID) {
+			songs, err := iaMembershipAlbumHasSongs(ctx, turn, r.scope.libraryID, node.subjectID)
+			if err != nil {
+				return out, err
+			}
+			if songs {
+				return out, ErrConflict
+			}
+		}
 		if err = iaMembershipCheckCycle(ctx, turn, r.scope.libraryID, node.subjectID, parentID); err != nil {
 			return out, err
 		}
@@ -735,6 +765,22 @@ func iaMembershipSeasonHasEpisodes(ctx context.Context, turn *commandTurn, libra
 		}
 	}
 	return false, nil
+}
+
+// An album's songs are found by its canonical child edge. The probe is one
+// bounded pointed read on the existing partial album index.
+func iaMembershipAlbumHasSongs(ctx context.Context, turn *commandTurn, libraryID, albumID int64) (found bool, err error) {
+	defer func() { found, err = finishCommand(ctx, commandLifetime(turn), found, err) }()
+	step, ok := turn.steps[iaMembershipAlbumSongs]
+	if !ok {
+		return false, invalid("ia_membership_album_steps")
+	}
+	rows, err := turn.query(ctx, step.statementStep, albumID, libraryID)
+	if err != nil {
+		return false, err
+	}
+	found = rows.Next()
+	return found, errors.Join(rows.Err(), rows.Close())
 }
 
 func iaMembershipApplyChange(ctx context.Context, turn *commandTurn, r iaMembershipAcceptRequest, asset iaExtraAssetFacts, p *iaMembershipPlanned) (err error) {

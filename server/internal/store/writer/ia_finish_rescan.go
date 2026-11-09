@@ -17,6 +17,18 @@ import (
 
 const iaFinishRescanRequestVersion uint16 = 1
 
+// iaFinishSkippedUnavailable mirrors the IA-18/19 skipped-directory veto: the
+// skipped page forces inventory_directories_skipped, which the embedded schema
+// does not create. Until INT admits the index a prepare failure is a typed hold,
+// never an empty or successful window.
+var iaFinishSkippedUnavailable = errors.New("ia finish: bounded skipped-directory access not admitted")
+
+// iaFinishExemptUnbounded is the typed hold for an exempt frontier whose
+// prefix-compressed topmost set exceeds iaFinishExemptMaxPrefixes. It is a
+// resolve-required hold, not ErrCap: the durable exempt evidence can be narrowed
+// by a later scan or operator action, so a retry is not permanently wedged.
+var iaFinishExemptUnbounded = errors.New("ia finish: exempt path prefixes exceed the bounded set")
+
 // IA-19 finishes a rescan only after every durable frontier and coverage
 // obligation closes. Its outcome and warning counter are derived from the
 // durable run, directory and object rows, never from an empty optional queue and
@@ -380,9 +392,23 @@ func iaFinishCheckRoot(ctx context.Context, turn *commandTurn, r iaFinishRescanR
 // inside an exempt subtree whose absence was never claimed. Blocked
 // (unreadable), protected (refused/unstable) and skipped directories all keep
 // their objects available and unproven: their subtrees are exempt, exactly like
-// a protected path. The exempt lists and the unseen frontier are paged by
+// a protected path. A skipped directory exempts its whole SUBTREE here, while the
+// legacy reconciler (server/internal/ingestion/inventory.go, the skipped check on
+// directory_path) exempts only the exact directory that recorded the skip. The
+// writer keeps the conservative whole-subtree behaviour on purpose: a skipped
+// listing omitted entries, so no descendant of it can be an absence proof.
+// The exempt lists and the unseen frontier are paged by
 // keyset until exhausted, so their COUNT can never wedge the run; only more
 // than iaFinishMaxRows genuinely unseen non-exempt objects refuse (ErrCap).
+//
+// The exempt accumulation is bounded too. Paths are prefix-compressed to their
+// topmost prefixes while paging (a nested exempt row adds no set entry), and the
+// accumulated set may not exceed iaFinishExemptMaxPrefixes distinct prefixes.
+// Over that cap the finish holds with ErrResolveRequired plus
+// iaFinishExemptUnbounded: it is not terminal success and not ErrCap, because
+// the exempt set is durable evidence the run owner can still narrow (for
+// example by resolving or re-scanning the protected subtrees) and a later retry
+// can then converge.
 //
 // The returned count is the exact blocked-subtree warning charge that the scan
 // writer did not already add to inventory_runs.warnings. The legacy and writer
@@ -399,33 +425,33 @@ func iaFinishCheckFrontier(ctx context.Context, turn *commandTurn, r iaFinishRes
 	if pending {
 		return 0, ErrConflict
 	}
-	blocked, err := iaFinishPathPages(ctx, turn, iaFinishBlocked, r.scope.runID)
-	if err != nil {
-		return 0, err
+	exempt := iaFinishExempt()
+	for _, id := range []stmt.ID{iaFinishBlocked, iaFinishProtected, iaFinishSkipped} {
+		if err = iaFinishCollectExempt(ctx, turn, id, r.scope.runID, exempt); err != nil {
+			if id == iaFinishSkipped {
+				// The skipped page is forced onto the INT-requested partial index.
+				// A schema that cannot prepare it is a typed hold, never a successful
+				// empty window.
+				return 0, errors.Join(ErrResolveRequired, iaFinishSkippedUnavailable, err)
+			}
+			return 0, err
+		}
 	}
-	protected, err := iaFinishPathPages(ctx, turn, iaFinishProtected, r.scope.runID)
-	if err != nil {
-		return 0, err
-	}
-	skipped, err := iaFinishPathPages(ctx, turn, iaFinishSkipped, r.scope.runID)
-	if err != nil {
-		return 0, err
-	}
-	genuine, err := iaFinishUnseenObligation(ctx, turn, r, iaFinishExempt(blocked, protected, skipped))
+	genuine, err := iaFinishUnseenObligation(ctx, turn, r, *exempt)
 	if err != nil {
 		return 0, err
 	}
 	if genuine > 0 {
 		return 0, ErrResolveRequired
 	}
-	uncharged, err := iaFinishPathPages(ctx, turn, iaFinishBlockedCharged, r.scope.runID)
+	uncharged, err := iaFinishCountPages(ctx, turn, iaFinishBlockedCharged, r.scope.runID)
 	if err != nil {
 		return 0, err
 	}
-	return int64(len(uncharged)), nil
+	return uncharged, nil
 }
 
-// iaFinishExempt is the closed prefix test shared by every exempt source. An
+// iaFinishExemptPaths is the closed prefix test shared by every exempt source. An
 // empty or root prefix protects the whole source (matching the scan writer's
 // unprotectedObjectSQL); otherwise a path is exempt when it equals a prefix or
 // sits below it. Keys are compared exactly and by path segment, never by bare
@@ -435,26 +461,36 @@ type iaFinishExemptPaths struct {
 	paths map[string]struct{}
 }
 
-func iaFinishExempt(groups ...[]string) iaFinishExemptPaths {
-	size := 0
-	for _, group := range groups {
-		size += len(group)
-	}
-	out := iaFinishExemptPaths{paths: make(map[string]struct{}, size)}
-	for _, group := range groups {
-		for _, prefix := range group {
-			prefix = strings.TrimSuffix(prefix, "/")
-			if prefix == "" || prefix == "." {
-				out.whole = true
-				continue
-			}
-			out.paths[prefix] = struct{}{}
-		}
-	}
-	return out
+func iaFinishExempt() *iaFinishExemptPaths {
+	return &iaFinishExemptPaths{paths: make(map[string]struct{})}
 }
 
-func (e iaFinishExemptPaths) covers(path string) bool {
+// add inserts one exempt path and keeps the set prefix-compressed: a path already
+// covered by an accumulated ancestor is dropped, and a new ancestor prunes the
+// descendants it now covers. It reports the typed over-cap hold exactly when the
+// insertion would exceed iaFinishExemptMaxPrefixes distinct topmost prefixes.
+func (e *iaFinishExemptPaths) add(path string) error {
+	path = strings.TrimSuffix(path, "/")
+	if path == "" || path == "." {
+		e.whole = true
+		return nil
+	}
+	if e.covers(path) {
+		return nil
+	}
+	for existing := range e.paths {
+		if strings.HasPrefix(existing, path+"/") {
+			delete(e.paths, existing)
+		}
+	}
+	e.paths[path] = struct{}{}
+	if len(e.paths) > iaFinishExemptMaxPrefixes {
+		return errors.Join(ErrResolveRequired, iaFinishExemptUnbounded)
+	}
+	return nil
+}
+
+func (e *iaFinishExemptPaths) covers(path string) bool {
 	if e.whole {
 		return true
 	}
@@ -509,21 +545,48 @@ func iaFinishUnseenObligation(ctx context.Context, turn *commandTurn, r iaFinish
 	}
 }
 
-// iaFinishPathPages reads one keyset-ordered exempt frontier to exhaustion,
-// iaFinishPageRows at a time. Exhaustion is exact: a short page is the end, and
-// a full page is followed by its successor key, so the caller accounts for
-// every exempt row instead of a prefix of them.
-func iaFinishPathPages(ctx context.Context, turn *commandTurn, id stmt.ID, runID string) (out []string, err error) {
-	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+// iaFinishCollectExempt pages one keyset-ordered exempt frontier to exhaustion,
+// iaFinishPageRows at a time, adding each topmost prefix to the bounded set.
+// Exhaustion is exact: a short page is the end, and a full page is followed by
+// its successor key, so the caller accounts for every exempt row instead of a
+// prefix of them.
+func iaFinishCollectExempt(ctx context.Context, turn *commandTurn, id stmt.ID, runID string, out *iaFinishExemptPaths) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	after := ""
 	for {
 		page, err := iaFinishRows(ctx, turn, id, runID, after, int64(iaFinishPageRows))
 		if err != nil {
-			return nil, err
+			return err
 		}
-		out = append(out, page...)
+		for _, path := range page {
+			if err = out.add(path); err != nil {
+				return err
+			}
+		}
 		if len(page) < iaFinishPageRows {
-			return out, nil
+			return nil
+		}
+		after = page[len(page)-1]
+	}
+}
+
+// iaFinishCountPages pages a keyset-ordered frontier to exhaustion and returns
+// only its size. The rows never accumulate, so a long frontier costs one page of
+// memory regardless of its count.
+func iaFinishCountPages(ctx context.Context, turn *commandTurn, id stmt.ID, runID string) (count int64, err error) {
+	defer func() { count, err = finishCommand(ctx, commandLifetime(turn), count, err) }()
+	after := ""
+	for {
+		page, err := iaFinishRows(ctx, turn, id, runID, after, int64(iaFinishPageRows))
+		if err != nil {
+			return 0, err
+		}
+		if int64(len(page)) > math.MaxInt64-count {
+			return 0, ErrCap
+		}
+		count += int64(len(page))
+		if len(page) < iaFinishPageRows {
+			return count, nil
 		}
 		after = page[len(page)-1]
 	}

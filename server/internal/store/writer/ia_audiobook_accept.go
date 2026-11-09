@@ -249,10 +249,11 @@ func iaBookReceiptFacts(ctx context.Context, turn *commandTurn, runID string, re
 	}
 	var operation, request, digest []byte
 	var kind string
-	var version int64
-	err = row.Scan(&operation, &request, &kind, &header.facts.resultCount, &digest, &header.acceptedRevision, &header.appliedMS,
-		&header.sourceID, &header.sourceIncarnation, &version, &header.memberBytes, &header.objectID, &header.objectRevision,
-		&header.cursorKind, &header.directoryPath, &header.directoryIdentity, &header.directoryRevision,
+	var resultCount, acceptedRevision, appliedMS, version, memberBytes sql.NullInt64
+	var sourceID, sourceIncarnation, objectID, objectRevision, cursorKind sql.NullString
+	err = row.Scan(&operation, &request, &kind, &resultCount, &digest, &acceptedRevision, &appliedMS,
+		&sourceID, &sourceIncarnation, &version, &memberBytes, &objectID, &objectRevision,
+		&cursorKind, &header.directoryPath, &header.directoryIdentity, &header.directoryRevision,
 		&header.expectedPayload, &header.nextPayload)
 	if errors.Is(err, sql.ErrNoRows) {
 		return owner, header, nil
@@ -260,7 +261,7 @@ func iaBookReceiptFacts(ctx context.Context, turn *commandTurn, runID string, re
 	if err != nil {
 		return owner, header, err
 	}
-	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 || version != 1 {
+	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 {
 		return owner, header, ErrResolveRequired
 	}
 	header.facts.exists = true
@@ -268,9 +269,24 @@ func iaBookReceiptFacts(ctx context.Context, turn *commandTurn, runID string, re
 	copy(header.facts.identity.command.OperationID[:], operation)
 	copy(header.facts.identity.digest[:], request)
 	copy(header.facts.resultDigest[:], digest)
-	if kind == iaBookReceiptKind {
-		header.facts.kind = IAAcceptAudioInventory
+	if kind != iaBookReceiptKind {
+		// A receipt at this exact key belongs to another command purpose. Its IA
+		// media projection is intentionally NULL, so it is left undecoded and
+		// classifyReceipt answers the kind mismatch with ErrConflict rather than
+		// a raw NULL scan error.
+		return owner, header, nil
 	}
+	if !resultCount.Valid || !acceptedRevision.Valid || !appliedMS.Valid || !version.Valid || version.Int64 != 1 ||
+		!memberBytes.Valid || !sourceID.Valid || !sourceIncarnation.Valid || !objectID.Valid || !objectRevision.Valid || !cursorKind.Valid {
+		return owner, header, ErrResolveRequired
+	}
+	header.facts.resultCount = resultCount.Int64
+	header.acceptedRevision = acceptedRevision.Int64
+	header.appliedMS = appliedMS.Int64
+	header.memberBytes = memberBytes.Int64
+	header.sourceID, header.sourceIncarnation = sourceID.String, sourceIncarnation.String
+	header.objectID, header.objectRevision, header.cursorKind = objectID.String, objectRevision.String, cursorKind.String
+	header.facts.kind = IAAcceptAudioInventory
 	return owner, header, nil
 }
 

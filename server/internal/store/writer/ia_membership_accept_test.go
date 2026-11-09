@@ -61,7 +61,7 @@ func iaMembershipAcceptFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOw
 		{`INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,title,sort_title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,year,added_at,metadata_language,show_id,season_id,season_number,numbering,episode_number,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,artist_id,album_id) VALUES(70,X'70000000000000000000000000000000',7,2,NULL,'Show','','show','s','show','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(71,X'71000000000000000000000000000000',7,3,70,'Season 1','','season 1','s','season 1','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',70,NULL,1,'seasonal',NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(72,X'72000000000000000000000000000000',7,3,70,'Season 2','','season 2','s','season 2','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',70,NULL,2,'seasonal',NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(31,X'31000000000000000000000000000000',7,4,71,'Episode 1','','episode 1','e','episode 1','e',1,0,'2026-11-01T00:00:00.000000000Z','en-US',70,71,1,'seasonal',1,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(60,X'60000000000000000000000000000000',7,1,NULL,'Movie','','movie','m','movie','m',1,2020,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(80,X'80000000000000000000000000000000',7,5,NULL,'Artist','','artist','a','artist','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(81,X'81000000000000000000000000000000',7,6,80,'Album','','album','a','album','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,80,NULL),(92,X'92000000000000000000000000000000',7,7,81,'Song','','song','s','song','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',NULL,NULL,NULL,NULL,NULL,zeroblob(16),zeroblob(16),zeroblob(16),1,80,81)`, nil},
 		{`INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(73,X'73000000000000000000000000000000',7,2),(82,X'82000000000000000000000000000000',7,8),(83,X'83000000000000000000000000000000',7,8),(84,X'84000000000000000000000000000000',7,5),(85,X'85000000000000000000000000000000',7,6),(93,X'93000000000000000000000000000000',7,9)`, nil},
 		{`INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,title,sort_title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,year,added_at,metadata_language,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,artist_id,book_id) VALUES(73,X'73000000000000000000000000000000',7,2,NULL,'Show 2','','show 2','s','show 2','s',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(84,X'84000000000000000000000000000000',7,5,NULL,'Artist 2','','artist 2','a','artist 2','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(82,X'82000000000000000000000000000000',7,8,NULL,'Book','','book','b','book','b',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(83,X'83000000000000000000000000000000',7,8,NULL,'Book 2','','book 2','b','book 2','b',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,NULL),(85,X'85000000000000000000000000000000',7,6,84,'Album 2','','album 2','a','album 2','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,84,NULL),(93,X'93000000000000000000000000000000',7,9,82,'Audiobook File','','audiobook file','a','audiobook file','a',1,0,'2026-11-01T00:00:00.000000000Z','en-US',zeroblob(16),zeroblob(16),zeroblob(16),1,NULL,82)`, nil},
-		{`INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(7,'membership-episode-key',31),(7,'membership-season-key',72),(7,'membership-movie-key',60),(7,'membership-album-key',81),(7,'membership-song-key',92),(7,'membership-season-one-key',71),(7,'membership-show-two-key',73),(7,'membership-artist-two-key',84),(7,'membership-album-two-key',85),(7,'membership-book-two-key',83),(7,'membership-file-key',93)`, nil},
+		{`INSERT INTO catalog_identities(library_id,source_key,subject_id) VALUES(7,'membership-episode-key',31),(7,'membership-season-key',72),(7,'membership-movie-key',60),(7,'membership-album-key',81),(7,'membership-song-key',92),(7,'membership-season-one-key',71),(7,'membership-show-two-key',73),(7,'membership-artist-key',80),(7,'membership-artist-two-key',84),(7,'membership-album-two-key',85),(7,'membership-book-two-key',83),(7,'membership-file-key',93)`, nil},
 		{`INSERT INTO catalog_asset_links(entity_id,asset_id,part_index,available,start_seconds,end_seconds,edition,playback_origin_incarnation,playback_origin_revision,library_id) VALUES(31,41,0,1,0,NULL,'',X'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',1,7)`, nil},
 		{`INSERT INTO catalog_asset_contributions(library_id,parent_id,asset_id,membership_refs,authored_refs,file_size,file_size_revision) VALUES(7,31,41,1,0,42,1)`, nil},
 		{`INSERT INTO episode_asset_boundaries(item_id,asset_id,status) VALUES(31,'membership-token','whole_source')`, nil},
@@ -387,9 +387,11 @@ func TestIAMembershipAcceptDestinationOnlyChronology(t *testing.T) {
 
 // The denormalized hierarchy columns are pinned to one accepted parent. A season
 // reparent rewrites only the season's show_id, so it refuses while any episode
-// child exists; a destination that is itself moved in the same request is refused
-// before IO; a song's artist_id follows its new album. A removal also never
-// deletes a contribution that still carries authored references.
+// child exists; an album reparent rewrites only the album's artist_id, so it
+// refuses while any song child exists unless the destination artist is already
+// the album's artist; a destination that is itself moved in the same request is
+// refused before IO; a song's artist_id follows its new album. A removal also
+// never deletes a contribution that still carries authored references.
 func TestIAMembershipAcceptHierarchyGuards(t *testing.T) {
 	manualRef := func() ReceiptReference {
 		return ReceiptReference{Identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 2, OperationID: [16]byte{2}}, RequestDigest: RequestDigest{1}}
@@ -459,20 +461,57 @@ func TestIAMembershipAcceptHierarchyGuards(t *testing.T) {
 		}
 		turn.transaction.rollback(nil)
 	})
-	t.Run("album_reparent_keeps_artist", func(t *testing.T) {
+	t.Run("album_with_songs_reparent_refused", func(t *testing.T) {
 		w, reg, p := iaMembershipAcceptFixture(t)
 		q := newIAMembershipAcceptRequest(w)
 		q.changes = []iaMembershipChange{{subjectKey: "membership-album-key", subjectKind: 6, subjectRevision: 1, parentKey: "membership-artist-two-key"}}
 		ref := iaMembershipAcceptReference(t, q, 2, 2)
 		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
-		if err != nil || out.decision != receiptFresh {
-			t.Fatal("album reparent", out, err)
+		if !errors.Is(err, ErrConflict) || out.decision != 0 || out.digest != (ResultDigest{}) {
+			t.Fatal("album with songs reparented", out, err)
+		}
+		turn.transaction.rollback(nil)
+		iaMembershipRefused(t, w)
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=81 AND parent_id=80 AND artist_id=80 AND revision=1`); got != 1 {
+			t.Fatal("refused album reparent moved the album", got)
+		}
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=92 AND parent_id=81 AND album_id=81 AND artist_id=80 AND revision=1`); got != 1 {
+			t.Fatal("refused album reparent moved the song", got)
+		}
+	})
+	t.Run("album_without_songs_reparents", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{{subjectKey: "membership-album-two-key", subjectKind: 6, subjectRevision: 1, parentKey: "membership-artist-key"}}
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 1 {
+			t.Fatal("childless album reparent", out, err)
 		}
 		if _, err = turn.transaction.commit(); err != nil {
 			t.Fatal(err)
 		}
-		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=81 AND parent_id=84 AND artist_id=84 AND revision=2`); got != 1 {
-			t.Fatal("album artist did not follow the destination artist", got)
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=85 AND parent_id=80 AND artist_id=80 AND revision=2`); got != 1 {
+			t.Fatal("childless album did not reparent", got)
+		}
+	})
+	t.Run("album_same_artist_move_allowed", func(t *testing.T) {
+		w, reg, p := iaMembershipAcceptFixture(t)
+		q := newIAMembershipAcceptRequest(w)
+		q.changes = []iaMembershipChange{{subjectKey: "membership-album-key", subjectKind: 6, subjectRevision: 1, parentKey: "membership-artist-key"}}
+		ref := iaMembershipAcceptReference(t, q, 2, 2)
+		turn, out, err := iaMembershipAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.resultCount != 1 {
+			t.Fatal("same-artist album move", out, err)
+		}
+		if _, err = turn.transaction.commit(); err != nil {
+			t.Fatal(err)
+		}
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=81 AND parent_id=80 AND artist_id=80 AND revision=2`); got != 1 {
+			t.Fatal("same-artist album move changed artist_id", got)
+		}
+		if got := iaEpisodeCount(t, w, `SELECT count(*) FROM catalog_entities WHERE id=92 AND parent_id=81 AND album_id=81 AND artist_id=80 AND revision=1`); got != 1 {
+			t.Fatal("same-artist album move touched the song", got)
 		}
 	})
 	t.Run("song_reparent_follows_album_artist", func(t *testing.T) {

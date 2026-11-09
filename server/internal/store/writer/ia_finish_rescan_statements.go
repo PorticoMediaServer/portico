@@ -8,10 +8,11 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 // group C draft receipt relation. There is no OFFSET, temporary sort,
 // library-wide scan or caller-selected SQL. Exempt (blocked, protected and
 // skipped) paths and exempt unseen objects are paged iaFinishPageRows at a
-// time, never refused for their count: a run with many unreadable folders or a
-// large protected subtree still accounts for every row and finishes truthfully.
-// Only genuinely unseen objects outside every exempt subtree keep the
-// iaFinishMaxRows refusal.
+// time and prefix-compressed into one bounded topmost-prefix set, so nested
+// exempt rows never accumulate individually; more than
+// iaFinishExemptMaxPrefixes disjoint prefixes is a typed hold rather than
+// silent success. Only genuinely unseen objects outside every exempt subtree
+// keep the iaFinishMaxRows refusal.
 const (
 	iaFinishOwner          stmt.ID = "ia.finish.owner"
 	iaFinishHeader         stmt.ID = "ia.finish.header"
@@ -34,9 +35,14 @@ const (
 	// iaFinishPageRows bounds one keyset window, not a count. Exempt rows are
 	// paged until the frontier is exhausted so a run is never wedged by their
 	// number; a page that fills is followed by its keyset successor.
-	iaFinishPageRows    = 64
-	iaFinishRootPath    = "."
-	iaFinishMaxKeyBytes = 512
+	iaFinishPageRows = 64
+	// iaFinishExemptMaxPrefixes bounds the TOTAL distinct topmost exempt prefixes
+	// one finish may hold at once. Nested exempt rows collapse into their nearest
+	// accumulated ancestor, so only disjoint subtrees count against this cap.
+	// Exceeding it is the typed iaFinishExemptUnbounded hold, never success.
+	iaFinishExemptMaxPrefixes = 4096
+	iaFinishRootPath          = "."
+	iaFinishMaxKeyBytes       = 512
 )
 
 func iaFinishRescanStatements() []stmt.Definition {

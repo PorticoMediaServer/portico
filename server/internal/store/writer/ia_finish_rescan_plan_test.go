@@ -32,6 +32,7 @@ func TestIAFinishRescanStatementPlans(t *testing.T) {
 				t.Fatal(d.ID, cohort.Name, err)
 			}
 			searched := false
+			var details []string
 			for rows.Next() {
 				var id, parent, unused int
 				var detail string
@@ -39,6 +40,7 @@ func TestIAFinishRescanStatementPlans(t *testing.T) {
 					rows.Close()
 					t.Fatal(err)
 				}
+				details = append(details, detail)
 				if strings.Contains(detail, "TEMP B-TREE") || strings.Contains(detail, "SCAN ") && !strings.HasPrefix(detail, "SCAN CONSTANT") {
 					rows.Close()
 					t.Fatal(d.ID, cohort.Name, detail)
@@ -54,6 +56,12 @@ func TestIAFinishRescanStatementPlans(t *testing.T) {
 			rows.Close()
 			if d.Kind == stmt.Read && !searched {
 				t.Fatal(d.ID, cohort.Name, "read has no indexed SEARCH")
+			}
+			if d.ID == iaFinishSkipped {
+				want := "SEARCH inventory_directories USING INDEX inventory_directories_skipped (job_id=? AND relative_path>?)"
+				if len(details) != 1 || details[0] != want {
+					t.Fatal(d.ID, cohort.Name, details, want)
+				}
 			}
 		}
 	}
