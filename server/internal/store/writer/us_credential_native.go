@@ -99,7 +99,7 @@ const (
 
 // Synthetic capture cohorts, never an actual credential or secret.
 const (
-	usCredentialCaptureHash     = "usH7UQVwFRaZZhPvF0OTB2ixxUX6nBUUo6aoJ9dWG4s"
+	usCredentialCaptureHash     = "us-credential-capture-hash-0000000000000000"
 	usCredentialCaptureSecretID = "us-credential"
 )
 
