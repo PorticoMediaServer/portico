@@ -31,8 +31,11 @@ type Claims struct {
 	// sign-in that has not selected a profile yet.
 	Role string `json:"r"`
 	// Manage says the bearer may change the account itself: its profiles, devices and sessions.
-	Manage    bool  `json:"m,omitempty"`
-	IssuedAt  int64 `json:"i"`
+	Manage bool `json:"m,omitempty"`
+	// Boot and Seq place the token in the server's order of session changes, so a token read
+	// before a change to its session can be told from one read after. See db.TokenStamp.
+	Boot      int64 `json:"b"`
+	Seq       int64 `json:"v"`
 	ExpiresAt int64 `json:"e"`
 }
 
@@ -89,16 +92,26 @@ func (t *Tokens) Access(c Claims, issued, sessionEnds time.Time) (string, time.T
 	if sessionEnds.Before(expires) {
 		expires = sessionEnds
 	}
-	c.IssuedAt, c.ExpiresAt = issued.UnixMilli(), expires.UnixMilli()
+	c.ExpiresAt = expires.UnixMilli()
 	payload, _ := json.Marshal(c)
 	return t.seal(kindAccess, payload), time.UnixMilli(c.ExpiresAt)
 }
 
 // CheckAccess returns the claims of an access token this server minted that has not expired.
 func (t *Tokens) CheckAccess(token string, now time.Time) (Claims, error) {
+	c, err := t.ExpiredAccess(token)
+	if err != nil || c.ExpiresAt <= now.UnixMilli() {
+		return Claims{}, ErrInvalidToken
+	}
+	return c, nil
+}
+
+// ExpiredAccess returns the claims of an access token this server minted, even after it has
+// expired. Its one use is signing out: an app whose token ran out can still end its session.
+func (t *Tokens) ExpiredAccess(token string) (Claims, error) {
 	var c Claims
 	payload, err := t.open(kindAccess, token)
-	if err != nil || json.Unmarshal(payload, &c) != nil || c.ExpiresAt <= now.UnixMilli() {
+	if err != nil || json.Unmarshal(payload, &c) != nil {
 		return Claims{}, ErrInvalidToken
 	}
 	return c, nil

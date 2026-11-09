@@ -28,6 +28,7 @@ type DB struct {
 	read      *sql.DB
 	queues    [2]chan writeRequest
 	closed    chan struct{}
+	marks     tokenMarks
 }
 
 // Open opens the database at path, creating it with the current schema if it is new.
@@ -47,6 +48,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		write.Close()
 		return nil, err
 	}
+	d.marks.boot = time.Now().UnixNano()
 	go d.writer()
 	return d, nil
 }

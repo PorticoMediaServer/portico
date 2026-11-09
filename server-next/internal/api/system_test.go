@@ -9,28 +9,47 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
-	d, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "main.db"))
+	return openTestServer(t, filepath.Join(t.TempDir(), "main.db"))
+}
+
+// openTestServer opens the database at path with cheap password hashing. The server's
+// clock is the real one until a test replaces s.now.
+func openTestServer(t *testing.T, path string) *Server {
+	t.Helper()
+	d, err := db.Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { d.Close() })
+	t.Cleanup(func() { closeDB(d) })
 	s, err := New(context.Background(), d, "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.passwords = auth.NewPasswords(bcrypt.MinCost, bcrypt.MinCost)
 	return s
 }
 
-// call sends one request and decodes the JSON reply into out when out is not nil.
-func call(t *testing.T, s *Server, method, path, token string, body, out any) *httptest.ResponseRecorder {
-	t.Helper()
+var closed sync.Map
+
+// closeDB closes a test database once, whether a test restarts its server or just ends.
+func closeDB(d *db.DB) {
+	if _, done := closed.LoadOrStore(d, true); !done {
+		d.Close()
+	}
+}
+
+func newRequest(method, path, token string, body any) *http.Request {
 	var reader io.Reader
 	if body != nil {
 		raw, _ := json.Marshal(body)
@@ -43,10 +62,25 @@ func call(t *testing.T, s *Server, method, path, token string, body, out any) *h
 	if token != "" {
 		r.Header.Set("Authorization", "Bearer "+token)
 	}
+	return r
+}
+
+func serve(s *Server, r *http.Request) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
+	return w
+}
+
+func jsonInto(w *httptest.ResponseRecorder, out any) error {
+	return json.Unmarshal(w.Body.Bytes(), out)
+}
+
+// call sends one request and decodes the JSON reply into out when out is not nil.
+func call(t *testing.T, s *Server, method, path, token string, body, out any) *httptest.ResponseRecorder {
+	t.Helper()
+	w := serve(s, newRequest(method, path, token, body))
 	if out != nil {
-		if err := json.Unmarshal(w.Body.Bytes(), out); err != nil {
+		if err := jsonInto(w, out); err != nil {
 			t.Fatalf("%s %s answered %d with a body that is not the expected JSON: %s", method, path, w.Code, w.Body)
 		}
 	}

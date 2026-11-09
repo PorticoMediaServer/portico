@@ -21,9 +21,10 @@ const userStreak = 4
 var errClosed = errors.New("database is closed")
 
 type writeRequest struct {
-	ctx  context.Context
-	fn   func(tx *sql.Tx) error
-	done chan error
+	ctx   context.Context
+	fn    func(tx *sql.Tx) error
+	after func()
+	done  chan error
 }
 
 // write runs fn in one transaction on the single write connection and commits it.
@@ -34,7 +35,14 @@ type writeRequest struct {
 // ctx can abandon the wait in the queue. Once fn has started, the commit is never cancelled:
 // a commit either happened or it did not, and the caller is told which.
 func (d *DB) write(ctx context.Context, p Priority, fn func(tx *sql.Tx) error) error {
-	req := writeRequest{ctx: ctx, fn: fn, done: make(chan error, 1)}
+	return d.writeThen(ctx, p, fn, nil)
+}
+
+// writeThen is write, followed by after once the commit has happened and before the next
+// write begins. It is for in-memory state that must change in step with what was committed:
+// whatever the next transaction reads from memory already reflects this one.
+func (d *DB) writeThen(ctx context.Context, p Priority, fn func(tx *sql.Tx) error, after func()) error {
+	req := writeRequest{ctx: ctx, fn: fn, after: after, done: make(chan error, 1)}
 	select {
 	case d.queues[p] <- req:
 		return <-req.done
@@ -71,7 +79,11 @@ func (d *DB) writer() {
 				}
 			}
 		}
-		req.done <- d.run(req)
+		err := d.run(req)
+		if err == nil && req.after != nil {
+			req.after()
+		}
+		req.done <- err
 	}
 }
 

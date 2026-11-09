@@ -12,25 +12,16 @@ import (
 //
 // Clients act on the HTTP status and the code. The message is for people.
 type Error struct {
-	Status  int     `json:"-"`
-	Code    string  `json:"code"`
-	Message string  `json:"message"`
-	Retry   Retry   `json:"retry"`
-	Fields  []Field `json:"fields,omitempty"`
+	Status  int    `json:"-"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	// Retry is true when sending the same request again may work.
+	Retry  bool    `json:"retry"`
+	Fields []Field `json:"fields,omitempty"`
 	// RetryAfterMs is how long to wait before trying again; it is also sent as Retry-After.
 	RetryAfterMs int64  `json:"retryAfterMs,omitempty"`
 	RequestID    string `json:"requestId"`
 }
-
-// Retry tells a client whether sending the request again can help.
-type Retry string
-
-const (
-	RetryNever        Retry = "never"
-	RetrySame         Retry = "same_request"
-	RetryAfterRefresh Retry = "after_refresh"
-	RetryAfterSignIn  Retry = "after_reauth"
-)
 
 // Field names one part of the request that was refused.
 type Field struct {
@@ -45,13 +36,13 @@ type errorBody struct {
 
 func (e *Error) Error() string { return e.Code }
 
-func refusal(status int, code, message string, retry Retry) *Error {
+func refusal(status int, code, message string, retry bool) *Error {
 	return &Error{Status: status, Code: code, Message: message, Retry: retry}
 }
 
 // The refusals every area shares. An area with its own refusal declares it beside its routes.
 func ErrInvalid(message string, fields ...Field) *Error {
-	e := refusal(http.StatusBadRequest, "invalid_request", message, RetryNever)
+	e := refusal(http.StatusBadRequest, "invalid_request", message, false)
 	e.Fields = fields
 	return e
 }
@@ -62,25 +53,25 @@ func ErrField(path, message string) *Error {
 }
 
 func ErrUnauthorized() *Error {
-	return refusal(http.StatusUnauthorized, "unauthorized", "Sign in to continue.", RetryAfterSignIn)
+	return refusal(http.StatusUnauthorized, "unauthorized", "Sign in to continue.", false)
 }
 
 func ErrNotPermitted() *Error {
-	return refusal(http.StatusForbidden, "not_permitted", "This action is not permitted.", RetryNever)
+	return refusal(http.StatusForbidden, "not_permitted", "This action is not permitted.", false)
 }
 
 // ErrNotFound is also the answer for a thing the caller may not know exists.
 func ErrNotFound() *Error {
-	return refusal(http.StatusNotFound, "not_found", "This is not available.", RetryNever)
+	return refusal(http.StatusNotFound, "not_found", "This is not available.", false)
 }
 
 func ErrConflict(code, message string) *Error {
-	return refusal(http.StatusConflict, code, message, RetryNever)
+	return refusal(http.StatusConflict, code, message, false)
 }
 
 // ErrTooMany asks the caller to wait before trying again.
 func ErrTooMany(code, message string, wait time.Duration) *Error {
-	e := refusal(http.StatusTooManyRequests, code, message, RetrySame)
+	e := refusal(http.StatusTooManyRequests, code, message, true)
 	e.RetryAfterMs = max(wait.Milliseconds(), 1000)
 	return e
 }
