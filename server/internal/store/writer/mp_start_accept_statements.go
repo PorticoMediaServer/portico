@@ -52,7 +52,7 @@ func mpStartAcceptDefinitions() []stmt.Definition {
 		// Expiry retires the preparation only. The execution row and its staged
 		// debt survive untouched: no timeout frees physical ownership.
 		mpAcceptDefinition("mp.accept.timeout", `UPDATE playback_start_preparation_lifecycle SET state='retired',revision=revision+1 WHERE operation_id=? AND revision=? AND execution_id=? AND state IN('pending','preparing','prepared','failed')`, "sis", stmt.Write),
-		mpAcceptDefinition("mp.accept.timeout_due", `SELECT deadline_ms,id FROM playback_start_preparations INDEXED BY playback_start_preparations_deadline WHERE deadline_ms<=? AND id=? LIMIT 1`, "is", stmt.Read),
+		mpAcceptDefinition("mp.accept.timeout_due", `SELECT deadline_ms,id FROM playback_start_preparations INDEXED BY playback_start_preparations_deadline WHERE deadline_ms=? AND id=? LIMIT 1`, "is", stmt.Read),
 		mpAcceptDefinition("mp.accept.native", `SELECT l.state,l.revision,l.execution_id,l.sealed,p.deadline_ms,coalesce(x.custody_media_session_id,''),coalesce(x.physical_exited,0),coalesce(x.cleaned,0),r.session_id,r.legacy_session_id,r.legacy_generation,r.snapshot_id FROM playback_start_preparations AS p INNER JOIN playback_start_preparation_lifecycle AS l ON l.operation_id=p.id INNER JOIN playback_start_preparation_results AS r ON r.operation_id=p.id LEFT JOIN mp_start_execution AS x ON x.operation_id=p.id WHERE p.id=?`, "s", stmt.Read),
 		mpAcceptDefinition("mp.accept.receipt_header", `SELECT operation_id,command_kind,request_digest,result_version,result_count,result_digest,applied_ms,length(result_payload),variable_bytes FROM mp_start_command_receipts WHERE owner_id=? AND command_incarnation=? AND command_sequence=?`, "sbi", stmt.Read),
 		mpAcceptDefinition("mp.accept.receipt_payload", `SELECT result_payload FROM mp_start_command_receipts WHERE owner_id=? AND command_incarnation=? AND command_sequence=?`, "sbi", stmt.Read),
@@ -78,7 +78,7 @@ func mpStartAcceptDefinitions() []stmt.Definition {
 		case "mp.accept.lifecycle", "mp.accept.retire", "mp.accept.timeout":
 			defs[i].Plan = stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_playback_start_preparation_lifecycle_1"}, Seeks: []string{"operation_id=?"}}
 		case "mp.accept.timeout_due":
-			defs[i].Plan = stmt.Plan{Hot: true, Indexes: []string{"playback_start_preparations_deadline"}, Seeks: []string{"deadline_ms<?"}}
+			defs[i].Plan = stmt.Plan{Hot: true, Indexes: []string{"playback_start_preparations_deadline"}, Seeks: []string{"deadline_ms=? AND id=?"}}
 		case "mp.accept.receipt_header", "mp.accept.receipt_payload":
 			defs[i].Plan = stmt.Plan{Hot: true, PrimaryKeys: []string{"mp_start_command_receipts"}, Seeks: []string{"owner_id=? AND command_incarnation=? AND command_sequence=?"}}
 		case "mp.accept.debt":

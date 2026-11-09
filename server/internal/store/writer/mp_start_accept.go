@@ -287,6 +287,14 @@ func executeMPStartAccept(ctx context.Context, t *commandTurn, v *mpStartAcceptI
 	default:
 		return out, false, ErrResolveRequired
 	}
+	// Only a FRESH command adopts today's head. A lost-response retry of an
+	// applied but unACKed terminal command returned its saved original above,
+	// even after the deadline passed, the queue/source moved or the replaced
+	// session ended. Replay re-checks current actor authority in the read above
+	// and has zero new effects.
+	if err = checkMPStartAcceptFreshGates(ctx, t, kind, fence, owner); err != nil {
+		return out, false, err
+	}
 	switch kind {
 	case MPStartPrepAccept:
 		out.Value, err = applyMPStartPrepAccept(ctx, t, fence, owner)
@@ -375,10 +383,19 @@ func readMPStartAcceptFresh(ctx context.Context, t *commandTurn, kind CommandID,
 	if !f.valid() {
 		return out, ErrInvalid
 	}
+	switch kind {
+	case MPStartPrepAccept, MPStartPrepRetire, MPStartPrepTimeout:
+	default:
+		return out, ErrInvalid
+	}
 	now, err := t.commandTimeMS(ctx, kind, 0)
 	if err != nil {
 		return out, err
 	}
+	// Current actor authority is re-proved on every turn, replay included. The
+	// deadline/source/queue/item/replacement comparisons deliberately do NOT run
+	// here: the original receipt must be classified first so an applied-but-
+	// unACKed retry still returns its saved original after the head moved.
 	if !f.actor.valid(now) {
 		return out, ErrDisclosureDenied
 	}
@@ -391,39 +408,52 @@ func readMPStartAcceptFresh(ctx context.Context, t *commandTurn, kind CommandID,
 	if out.actor != f.actor {
 		return out, ErrDisclosureDenied
 	}
+	out.nowMS = now
+	return out, nil
+}
+
+// checkMPStartAcceptFreshGates runs the exact freshness comparisons that belong
+// ONLY to a fresh terminal command, after the receipt lookup reported no saved
+// original. Accept revalidates the sealed deadline, source/queue equality and
+// current item/source/queue/replacement; retire deliberately adopts neither
+// today's source nor queue (it is abandoning the preparation); timeout proves
+// the stored deadline key elapsed.
+func checkMPStartAcceptFreshGates(ctx context.Context, t *commandTurn, kind CommandID, f mpStartAcceptFence, out mpStartAcceptOwner) error {
+	if !f.valid() || out.nowMS <= 0 {
+		return ErrInvalid
+	}
 	switch kind {
 	case MPStartPrepAccept:
-		if out.deadlineMS <= now {
-			return out, ErrConflict
+		if out.deadlineMS <= out.nowMS {
+			return ErrConflict
 		}
 		if out.source != f.source || out.queue != f.queue {
-			return out, ErrConflict
+			return ErrConflict
 		}
-		if err = checkMPAcceptPublicItem(ctx, t, out.item, out.part, out.source); err != nil {
-			return out, err
+		if err := checkMPAcceptPublicItem(ctx, t, out.item, out.part, out.source); err != nil {
+			return err
 		}
-		if err = checkMPAcceptSource(ctx, t, out.source); err != nil {
-			return out, err
+		if err := checkMPAcceptSource(ctx, t, out.source); err != nil {
+			return err
 		}
-		if err = checkMPAcceptQueue(ctx, t, out.queue, out.actor); err != nil {
-			return out, err
+		if err := checkMPAcceptQueue(ctx, t, out.queue, out.actor); err != nil {
+			return err
 		}
 		if out.replaces != "" {
-			if err = checkMPAcceptReplacement(ctx, t, out.replaces, out.replacesGeneration, out.actor); err != nil {
-				return out, err
+			if err := checkMPAcceptReplacement(ctx, t, out.replaces, out.replacesGeneration, out.actor); err != nil {
+				return err
 			}
 		}
 	case MPStartPrepRetire:
 		// Retiring a stale source/queue never validates or adopts today's source.
 	case MPStartPrepTimeout:
-		if out.deadlineMS > now {
-			return out, ErrConflict
+		if out.deadlineMS > out.nowMS {
+			return ErrConflict
 		}
 	default:
-		return out, ErrInvalid
+		return ErrInvalid
 	}
-	out.nowMS = now
-	return out, nil
+	return nil
 }
 
 // mpAcceptExec runs one closed write statement and requires exactly one changed
@@ -504,7 +534,7 @@ func applyMPStartPrepAccept(ctx context.Context, t *commandTurn, f mpStartAccept
 		return
 	}
 	if f.execution == "" || owner.state != "prepared" || !owner.sealed || owner.execution != f.execution ||
-		owner.revision != f.revision || owner.custody != "" || owner.deadlineMS <= owner.nowMS {
+		owner.lifecycleRevision != f.revision || owner.custody != "" || owner.deadlineMS <= owner.nowMS {
 		return out, ErrConflict
 	}
 	if err = mpAcceptExec(ctx, t, "mp.accept.custody", owner.ids.session, f.id, f.execution); err != nil {
@@ -525,7 +555,7 @@ func applyMPStartPrepRetire(ctx context.Context, t *commandTurn, f mpStartAccept
 	if err = mpPrepTurn(t, MPStartPrepRetire); err != nil {
 		return
 	}
-	if owner.state == "accepted" || owner.state == "retired" || owner.revision != f.revision ||
+	if owner.state == "accepted" || owner.state == "retired" || owner.lifecycleRevision != f.revision ||
 		owner.execution != f.execution || owner.custody != "" {
 		return out, ErrConflict
 	}

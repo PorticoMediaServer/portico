@@ -290,6 +290,197 @@ func TestMPStartAcceptReplayAfterAckRetired(t *testing.T) {
 	mpStartPrepAssertReturned(t, f)
 }
 
+// mpStartAcceptAckBump simulates the future MP-29 acknowledgement (command 780)
+// landing on the main path: it advances the acknowledged floor with the same raw
+// SQL f.ack uses AND bumps the receipt-debt counter mp_owner_revision. The
+// lifecycle revision is untouched, so the two counters drift apart exactly as
+// they will once ACK can run before every terminal command.
+func mpStartAcceptAckBump(t *testing.T, f mpStartPrepFixture, sequence int64) {
+	t.Helper()
+	result, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_start_preparations SET mp_command_acknowledged_sequence=?,mp_owner_revision=mp_owner_revision+1 WHERE id='mp-prep' AND mp_command_last_sequence>=? AND mp_command_acknowledged_sequence<=?`, sequence, sequence, sequence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := result.RowsAffected(); err != nil || n != 1 {
+		t.Fatal("ACK-style bump did not land", n, err)
+	}
+}
+
+func mpStartAcceptCounters(t *testing.T, f mpStartPrepFixture) (lifecycle, owner int64) {
+	t.Helper()
+	if err := f.e.db.QueryRowContext(t.Context(), `SELECT l.revision,p.mp_owner_revision FROM playback_start_preparations AS p INNER JOIN playback_start_preparation_lifecycle AS l ON l.operation_id=p.id WHERE p.id='mp-prep'`).Scan(&lifecycle, &owner); err != nil {
+		t.Fatal(err)
+	}
+	return lifecycle, owner
+}
+
+// TestMPStartAcceptFencesLifecycleRevision pins the 703/704/705 fence to the
+// lifecycle revision, never the receipt-debt counter. Once ACK (780) bumps
+// mp_owner_revision on the main path, comparing the fence against it would make
+// every terminal command a permanent wrong ErrConflict.
+func TestMPStartAcceptFencesLifecycleRevision(t *testing.T) {
+	t.Run("accept", func(t *testing.T) {
+		f := mpStartAcceptFixtureFor(t)
+		mpStartAcceptSealed(t, f)
+		mpStartAcceptAckBump(t, f, 2)
+		if lifecycle, owner := mpStartAcceptCounters(t, f); lifecycle != 3 || owner != lifecycle+1 {
+			t.Fatalf("fixture counters did not drift: lifecycle=%d owner=%d", lifecycle, owner)
+		}
+		accept, err := f.accept(t, 3, "mp-execution", 3, 0x70)
+		if err != nil || accept.Outcome.State != Applied || accept.Outcome.Replayed ||
+			accept.Value.State != "accepted" || accept.Value.Custody != "mp-session" || accept.Value.Revision != 4 {
+			t.Fatal("accept fenced on the receipt-debt revision", accept, err)
+		}
+		facts := mpStartAcceptReadFacts(t, f)
+		if facts.state != "accepted" || facts.revision != 4 || facts.custody != "mp-session" || facts.receipts != 3 {
+			t.Fatalf("accept effects %+v", facts)
+		}
+		mpStartPrepAssertReturned(t, f)
+	})
+	t.Run("retire", func(t *testing.T) {
+		f := mpStartAcceptFixtureFor(t)
+		if _, err := f.begin(t); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.claim(t, 1, "mp-execution", 1, 0x62); err != nil {
+			t.Fatal(err)
+		}
+		f.ack(t, 1)
+		mpStartAcceptAckBump(t, f, 1)
+		if lifecycle, owner := mpStartAcceptCounters(t, f); lifecycle != 2 || owner != lifecycle+1 {
+			t.Fatalf("fixture counters did not drift: lifecycle=%d owner=%d", lifecycle, owner)
+		}
+		retire, err := f.retire(t, 2, "mp-execution", 2, 0x71)
+		if err != nil || retire.Outcome.State != Applied || retire.Value.State != "retired" ||
+			retire.Value.Custody != "" || retire.Value.Revision != 3 {
+			t.Fatal("retire fenced on the receipt-debt revision", retire, err)
+		}
+		if facts := mpStartAcceptReadFacts(t, f); facts.state != "retired" || facts.revision != 3 || facts.receipts != 2 {
+			t.Fatalf("retire effects %+v", facts)
+		}
+		mpStartPrepAssertReturned(t, f)
+	})
+	t.Run("timeout", func(t *testing.T) {
+		f := mpStartAcceptFixtureFor(t)
+		if _, err := f.begin(t); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.claim(t, 1, "mp-execution", 1, 0x62); err != nil {
+			t.Fatal(err)
+		}
+		f.ack(t, 1)
+		mpStartExpire(t, f)
+		mpStartAcceptAckBump(t, f, 1)
+		if lifecycle, owner := mpStartAcceptCounters(t, f); lifecycle != 2 || owner != lifecycle+1 {
+			t.Fatalf("fixture counters did not drift: lifecycle=%d owner=%d", lifecycle, owner)
+		}
+		timeout, err := f.timeout(t, 2, "mp-execution", 2, 0x72)
+		if err != nil || timeout.Outcome.State != Applied || timeout.Value.State != "retired" ||
+			timeout.Value.Custody != "" || timeout.Value.Revision != 3 {
+			t.Fatal("timeout fenced on the receipt-debt revision", timeout, err)
+		}
+		if facts := mpStartAcceptReadFacts(t, f); facts.state != "retired" || facts.revision != 3 || facts.receipts != 2 {
+			t.Fatalf("timeout effects %+v", facts)
+		}
+		mpStartPrepAssertReturned(t, f)
+	})
+}
+
+// mpStartAcceptWithReplacement seals a preparation whose replaced logical
+// session still exists, so the fresh replacement gate has a witness to lose.
+func mpStartAcceptWithReplacement(t *testing.T, f mpStartPrepFixture) {
+	t.Helper()
+	if _, err := f.e.db.ExecContext(t.Context(), `INSERT INTO playback_v1_sessions(id,device_id,account_id,profile_id,authority,start_key,start_digest,kind,role,state,request,revision,generation,lease_expires_ms,created_ms,updated_ms) VALUES('mp-previous','mp-start-device',?,?,'local','mp-previous-key','mp-previous-digest','movie','primary','active','{}',1,2,?,100,100)`, f.actor.account, f.actor.profile, f.actor.horizonMS); err != nil {
+		t.Fatal(err)
+	}
+	q := f.beginInput()
+	q.replaces, q.replacesGeneration = "mp-previous", 2
+	command, err := newMPStartPrepCommand(MPStartPrepBegin, f.beginIdentity(), q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.run(t, MPStartPrepBegin, command.reference, q); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.claim(t, 1, "mp-execution", 1, 0x62); err != nil {
+		t.Fatal(err)
+	}
+	f.ack(t, 1)
+	if _, err = f.seal(t, 2, mpStartPrepCompletion{execution: "mp-execution", resultDigest: strings.Repeat("f", 64), stagedRows: 4, stagedBytes: 128}, 2, 0x65); err != nil {
+		t.Fatal(err)
+	}
+	f.ack(t, 2)
+}
+
+func mpStartAcceptMoveQueue(t *testing.T, f mpStartPrepFixture) {
+	t.Helper()
+	if _, err := f.e.db.ExecContext(t.Context(), `UPDATE queues_v1 SET custody_generation=8 WHERE id='mp-queue'`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mpStartAcceptEndReplacedSession(t *testing.T, f mpStartPrepFixture) {
+	t.Helper()
+	if _, err := f.e.db.ExecContext(t.Context(), `UPDATE playback_v1_sessions SET state='ended',ended_ms=updated_ms+1 WHERE id='mp-previous'`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMPStartAcceptReplayAfterFreshStateMoved pins receipt-first replay for
+// 703/704/705: a lost-response retry of an APPLIED but unACKed terminal command
+// returns its saved original with zero new effects after the deadline passed,
+// the queue moved or the replaced session ended. A genuinely FRESH 703 in the
+// same states is still refused.
+func TestMPStartAcceptReplayAfterFreshStateMoved(t *testing.T) {
+	cases := []struct {
+		name   string
+		seal   func(*testing.T, mpStartPrepFixture)
+		move   func(*testing.T, mpStartPrepFixture)
+		reason string
+	}{
+		{"deadline-passed", mpStartAcceptSealed, mpStartExpire, "expired"},
+		{"queue-moved", mpStartAcceptSealed, mpStartAcceptMoveQueue, "queue drift"},
+		{"replaced-session-ended", mpStartAcceptWithReplacement, mpStartAcceptEndReplacedSession, "ended replacement"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Replay the saved original first: the same applied, unACKed 703
+			// sequence is retried after the head moved.
+			f := mpStartAcceptFixtureFor(t)
+			c.seal(t, f)
+			accept, err := f.accept(t, 3, "mp-execution", 3, 0x70)
+			if err != nil || accept.Outcome.State != Applied || accept.Outcome.Replayed {
+				t.Fatal(accept, err)
+			}
+			c.move(t, f)
+			moved := mpStartAcceptReadFacts(t, f)
+			replay, err := f.accept(t, 3, "mp-execution", 3, 0x70)
+			if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed ||
+				replay.Value != accept.Value || replay.Digest != accept.Digest {
+				t.Fatal("replay after "+c.reason, replay, err)
+			}
+			if after := mpStartAcceptReadFacts(t, f); after != moved || after.state != "accepted" || after.custody != "mp-session" {
+				t.Fatalf("replay after %s added effects %+v -> %+v", c.reason, moved, after)
+			}
+			mpStartPrepAssertReturned(t, f)
+
+			// The same head state must still refuse a genuinely fresh 703 with
+			// zero effects: replay is the ONLY path that skips the fresh gates.
+			g := mpStartAcceptFixtureFor(t)
+			c.seal(t, g)
+			c.move(t, g)
+			before := mpStartAcceptReadFacts(t, g)
+			if out, e := g.accept(t, 3, "mp-execution", 3, 0x70); e == nil || !reflect.DeepEqual(out, mpStartAcceptResult{}) {
+				t.Fatal("fresh accept admitted after "+c.reason, out, e)
+			}
+			if after := mpStartAcceptReadFacts(t, g); after != before || after.custody != "" || after.state != "prepared" {
+				t.Fatalf("fresh refusal after %s changed state %+v -> %+v", c.reason, before, after)
+			}
+			mpStartPrepAssertReturned(t, g)
+		})
+	}
+}
+
 func TestMPStartAcceptRefusalsKeepOriginalState(t *testing.T) {
 	for _, name := range []string{"withdrawn-actor", "revoked-family", "stale-source", "stale-queue", "expired", "unsealed", "forged-actor", "wrong-revision", "copied", "cancelled", "stale-authority"} {
 		t.Run(name, func(t *testing.T) {
