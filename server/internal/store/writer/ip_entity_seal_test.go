@@ -681,7 +681,9 @@ func ipEntitySealSeedMusicBrainz(t *testing.T, w *executor) {
 		{26, "release", "musicbrainz-2"},
 	} {
 		_, shape := ipEntityEvidencePair("musicbrainz", row.kind)
-		ipPolicyExec(t, w, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(?, 'musicbrainz', ?, ?, 'en', 'US', ?, ?, 1)`,
+		// MusicBrainz evidence is locale-neutral: the subject binding carries the
+		// same canonical empty pair as the observation.
+		ipPolicyExec(t, w, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(?, 'musicbrainz', ?, ?, '', '', ?, ?, 1)`,
 			row.id, row.kind, row.providerID, shape, incarnation)
 	}
 }
@@ -837,10 +839,10 @@ func TestIPEntitySealReleaseTrackCreditsFKOn(t *testing.T) {
 	// A second release owns a foreign track. A credit in this build may never
 	// point at it: the immediate composite track foreign key includes the
 	// evidence ID. The foreign observation is a fixture, not a second build.
-	ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url) VALUES('evidence-two',26,?,'musicbrainz','release','musicbrainz-2','en','US',?,?,'2026-01-01T00:00:00Z','https://musicbrainz.org/ws/2/release/2')`,
+	ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url) VALUES('evidence-two',26,?,'musicbrainz','release','musicbrainz-2','','',?,?,'2026-01-01T00:00:00Z','https://musicbrainz.org/ws/2/release/2')`,
 		ipEntityEvidenceParser("musicbrainz", "release"), ipEntityEvidenceRequest("musicbrainz", "release"), strings.Repeat("2", 64))
 	ipPolicyExec(t, w, `INSERT INTO metadata_evidence_media(provider,evidence_kind,evidence_id,position,format,title) VALUES('musicbrainz','release','evidence-two',1,'CD','')`)
-	ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url) VALUES('rec-evidence-foreign',25,?,'musicbrainz','recording','rec-foreign','en','US',?,?,'2026-01-01T00:00:00Z','https://musicbrainz.org/ws/2/recording/foreign')`,
+	ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url) VALUES('rec-evidence-foreign',25,?,'musicbrainz','recording','rec-foreign','','',?,?,'2026-01-01T00:00:00Z','https://musicbrainz.org/ws/2/recording/foreign')`,
 		ipEntityEvidenceParser("musicbrainz", "recording"), ipEntityEvidenceRequest("musicbrainz", "recording"), strings.Repeat("3", 64))
 	ipPolicyExec(t, w, `INSERT INTO metadata_evidence_tracks(provider,evidence_kind,evidence_id,track_id,medium_position,position,number,title,artist,recording_evidence_id) VALUES('musicbrainz','release','evidence-two','foreign-track',1,1,'1','Foreign','Artist X','rec-evidence-foreign')`)
 
@@ -902,6 +904,9 @@ func TestIPEntitySealReleaseTrackCreditsFKOn(t *testing.T) {
 	staged := ipEntitySealStaged{owner: owner, claim: claim, pages: pages, declarations: declarations,
 		begin: current, sequence: sequence,
 		seal: ipEntitySealRequestFor(owner, current, declarations, pages)}
+	// MusicBrainz evidence is locale-neutral: the seal proof carries the same
+	// canonical empty pair staged by begin.
+	staged.seal.language, staged.seal.region = bq.header.Language, bq.header.Region
 	out, turn, tx := ipEntitySealApply(t, w, r, p, ipEntitySealCommandFor(t, staged))
 	if out.Outcome.State != Applied || out.Value.SealRows != 1+2+4+4 {
 		t.Fatal(out)

@@ -41,8 +41,8 @@ func preflightIPEntitySealResult(v ipEntitySealResult) error {
 		!ipEvidenceText(v.BuildID, ipEvidenceIDMax) || !ipPolicyProviderCode(v.Provider) ||
 		!ipEvidenceSubjectKind(v.SubjectKind) || !ipEvidenceText(v.ProviderID, ipEvidenceIDMax) ||
 		!ipEvidenceText(v.ParserVersion, ipEvidenceTextMax) ||
-		(len(v.Language) == 0 && !ipEntityEvidenceLocaleOptional(v.ParserVersion)) ||
-		(len(v.Region) == 0 && !ipEntityEvidenceLocaleOptional(v.ParserVersion)) ||
+		!ipEntityEvidenceLocaleValid(v.Provider, v.SubjectKind, v.ParserVersion,
+			v.RequestShape, v.Language, v.Region) ||
 		!ipEvidenceText(v.RequestShape, ipEvidenceTextMax) ||
 		!ipEvidenceText(v.ObservedAt, 64) || len(v.Lease) != 32 ||
 		v.SubjectID <= 0 || v.BuildGeneration <= 0 || v.OwnerGeneration <= 0 ||

@@ -365,10 +365,9 @@ func ipEntityAcceptShape(q ipEntityAcceptRequest) error {
 		q.subjectID <= 0 || !ipEntityAcceptSubjectKind(q.subjectKind) ||
 		!ipEvidenceText(q.providerID, ipEvidenceIDMax) || len(q.providerID) == 0 ||
 		!ipEvidenceText(q.parserVersion, ipEvidenceTextMax) || len(q.parserVersion) == 0 ||
-		!ipEvidenceText(q.language, 64) ||
-		(len(q.language) == 0 && !ipEntityEvidenceLocaleOptional(q.parserVersion)) ||
-		!ipEvidenceText(q.region, 64) ||
-		(len(q.region) == 0 && !ipEntityEvidenceLocaleOptional(q.parserVersion)) ||
+		!ipEvidenceText(q.language, 64) || !ipEvidenceText(q.region, 64) ||
+		!ipEntityEvidenceLocaleValid(q.provider, q.subjectKind, q.parserVersion,
+			q.requestShape, q.language, q.region) ||
 		!ipEvidenceText(q.requestShape, ipEvidenceTextMax) || len(q.requestShape) == 0 ||
 		!ipEvidenceText(q.observedAt, 64) || len(q.observedAt) == 0 ||
 		q.selectionIncarnation == [16]byte{} ||

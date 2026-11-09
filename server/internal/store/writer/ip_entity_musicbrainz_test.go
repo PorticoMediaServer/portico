@@ -365,6 +365,21 @@ func TestIPEntityMusicBrainzReleaseSealAndAccept(t *testing.T) {
 		if staged.seal.language != "" || staged.seal.region != "" {
 			t.Fatal("seal request carried a locale", staged.seal.language, staged.seal.region)
 		}
+		// A fabricated/wrong locale or a foreign namespace on the same
+		// MusicBrainz subject is refused, so the exception is bound to the exact
+		// (provider, kind, parser, request shape) namespace.
+		wrongLocale := staged.seal
+		wrongLocale.language, wrongLocale.region = "en", "US"
+		if c, err := newIPEntitySealCommand(ipEntityEvidenceIdentity(staged.claim, staged.sequence+1),
+			wrongLocale); c != nil || !errors.Is(err, ErrInvalid) {
+			t.Fatal("MusicBrainz non-empty locale admitted", c, err)
+		}
+		mixedNamespace := staged.seal
+		_, mixedNamespace.requestShape = ipEntityEvidencePair("tmdb", "release")
+		if c, err := newIPEntitySealCommand(ipEntityEvidenceIdentity(staged.claim, staged.sequence+1),
+			mixedNamespace); c != nil || !errors.Is(err, ErrInvalid) {
+			t.Fatal("mixed namespace admitted", c, err)
+		}
 	})
 	t.Run("artist_credits_accept", func(t *testing.T) {
 		pages := ipEntityMBArtistCohort(3)
@@ -421,6 +436,30 @@ func TestIPEntityMusicBrainzReleaseSealAndAccept(t *testing.T) {
 			if got := ipPolicyQueryInt(t, w, query); got != want {
 				t.Fatal("refused accept wrote state", query, got)
 			}
+		}
+	})
+	t.Run("tmdb_empty_locale_refuses_at_seal", func(t *testing.T) {
+		// The empty pair is canonical only in the exact ip.musicbrainz.*
+		// namespace. A TMDB evidence whose subject binding and observation carry
+		// the empty pair still begins and appends, but its seal is refused.
+		w, r, p, _ := ipEntitySealFixture(t)
+		owner, claim := ipEntityJobClaimed(t, w, r, p, 1, "tmdb")
+		incarnation := make([]byte, 16)
+		incarnation[0] = 0x2b
+		_, shape := ipEntityEvidencePair("tmdb", "release")
+		ipPolicyExec(t, w, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(30,'tmdb','release','tmdb-1','','',?,?,1)`,
+			shape, incarnation)
+		pages := []ipEntitySealPage{{Family: "alias", AfterOrdinal: 0, rows: 1,
+			aliases: []ipEvidenceAlias{{Ordinal: 0, RequestedID: "requested-release",
+				CanonicalID: "tmdb-1", Name: "Alias"}}}}
+		header := ipEntityEvidenceReleaseHeader("evidence-one", "tmdb", "tmdb-1", 30)
+		header.Language, header.Region = "", ""
+		staged, _ := ipEntitySealStageCustom(t, w, r, p, owner, claim, "evidence-one", "build-one",
+			header, pages, 2)
+		staged.seal.language, staged.seal.region = "", ""
+		if c, err := newIPEntitySealCommand(
+			ipEntityEvidenceIdentity(claim, staged.sequence), staged.seal); c != nil || !errors.Is(err, ErrInvalid) {
+			t.Fatal("TMDB empty locale admitted at seal", c, err)
 		}
 	})
 }

@@ -82,13 +82,34 @@ func ipEntityEvidencePairCurrent(provider, subjectKind, parser, request string) 
 	return parser == wantParser && request == wantRequest
 }
 
-// ipEntityEvidenceLocaleOptional reports whether one provider's evidence is
-// language/region independent. MusicBrainz lookups are not localized: its
-// adapter stages the empty pair, and the provider-subject/evidence UNIQUE keys
-// then hold exactly one row per observation. The screen providers (tmdb, tvdb)
-// always carry both values and keep requiring them.
-func ipEntityEvidenceLocaleOptional(parserVersion string) bool {
-	return strings.HasPrefix(parserVersion, "ip.musicbrainz.")
+// ipEntityEvidenceLocaleNeutral reports whether this exact evidence namespace
+// is the locale-neutral MusicBrainz one: provider musicbrainz, an
+// artist/release/recording subject and BOTH the current parser and request-shape
+// identity for that kind. Empty language/region is canonical only there; a
+// wrong namespace or a mixed pair is never locale-neutral.
+func ipEntityEvidenceLocaleNeutral(provider, subjectKind, parserVersion, requestShape string) bool {
+	switch subjectKind {
+	case "artist", "release", "recording":
+	default:
+		return false
+	}
+	if provider != "musicbrainz" {
+		return false
+	}
+	wantParser, wantRequest := ipEntityEvidencePair(provider, subjectKind)
+	return parserVersion == wantParser && requestShape == wantRequest
+}
+
+// ipEntityEvidenceLocaleValid binds the locale to the namespace. MusicBrainz
+// evidence is language/region independent and MUST carry the canonical empty
+// pair through its provider-subject identity, begin/append, seal, acceptance and
+// proof; the screen providers (tmdb, tvdb) still require both values. Empty is
+// never a blanket relaxation and no neutral placeholder locale is invented.
+func ipEntityEvidenceLocaleValid(provider, subjectKind, parserVersion, requestShape, language, region string) bool {
+	if ipEntityEvidenceLocaleNeutral(provider, subjectKind, parserVersion, requestShape) {
+		return language == "" && region == ""
+	}
+	return len(language) != 0 && len(region) != 0
 }
 
 func ipEvidenceFamilyIndex(name string) int {

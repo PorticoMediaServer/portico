@@ -84,22 +84,32 @@ func ipEntityEvidenceHeader(evidenceID string) EvidenceHeaderInput {
 }
 
 // ipEntityEvidenceReleaseHeader is one complete release observation header under
-// the corrected ordered-family shape.
+// the corrected ordered-family shape. MusicBrainz evidence is locale-neutral
+// and carries the canonical empty language/region pair.
 func ipEntityEvidenceReleaseHeader(evidenceID, provider, providerID string, subjectID int64) EvidenceHeaderInput {
 	parser, shape := ipEntityEvidencePair(provider, "release")
+	language, region := "en", "US"
+	if provider == "musicbrainz" {
+		language, region = "", ""
+	}
 	return EvidenceHeaderInput{ID: evidenceID, SubjectID: subjectID, ParserVersion: parser,
-		Provider: provider, SubjectKind: "release", ProviderID: providerID, Language: "en", Region: "US",
+		Provider: provider, SubjectKind: "release", ProviderID: providerID, Language: language, Region: region,
 		RequestShape: shape, ObservationDigest: ipEntityEvidenceDigest(evidenceID),
 		ObservedAt: "2026-01-01T00:00:00Z", SourceURL: "https://musicbrainz.org/ws/2/release/1",
 		Title: "Release One", Artist: "Artist One", Year: 2020}
 }
 
 // ipEntityEvidenceRecordingHeader is one pre-staged recording header for the
-// provider subject identified by subjectID.
+// provider subject identified by subjectID. MusicBrainz evidence carries the
+// canonical empty locale pair.
 func ipEntityEvidenceRecordingHeader(evidenceID, provider, providerID string, subjectID int64) EvidenceHeaderInput {
 	parser, shape := ipEntityEvidencePair(provider, "recording")
+	language, region := "en", "US"
+	if provider == "musicbrainz" {
+		language, region = "", ""
+	}
 	return EvidenceHeaderInput{ID: evidenceID, SubjectID: subjectID, ParserVersion: parser,
-		Provider: provider, SubjectKind: "recording", ProviderID: providerID, Language: "en", Region: "US",
+		Provider: provider, SubjectKind: "recording", ProviderID: providerID, Language: language, Region: region,
 		RequestShape: shape, ObservationDigest: ipEntityEvidenceDigest(evidenceID),
 		ObservedAt: "2026-01-01T00:00:00Z", SourceURL: "https://musicbrainz.org/ws/2/recording/1",
 		Title: "Recording One", Artist: "Artist One", LengthMillis: EvidenceInteger{Present: true, Value: 180000}}

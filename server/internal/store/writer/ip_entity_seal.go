@@ -175,10 +175,9 @@ func ipEntitySealShape(q ipEntitySealRequest) (ipEntitySealManifest, error) {
 		q.subjectID <= 0 || !ipEvidenceSubjectKind(q.subjectKind) ||
 		!ipEvidenceText(q.providerID, ipEvidenceIDMax) || len(q.providerID) == 0 ||
 		!ipEvidenceText(q.parserVersion, ipEvidenceTextMax) || len(q.parserVersion) == 0 ||
-		!ipEvidenceText(q.language, 64) ||
-		(len(q.language) == 0 && !ipEntityEvidenceLocaleOptional(q.parserVersion)) ||
-		!ipEvidenceText(q.region, 64) ||
-		(len(q.region) == 0 && !ipEntityEvidenceLocaleOptional(q.parserVersion)) ||
+		!ipEvidenceText(q.language, 64) || !ipEvidenceText(q.region, 64) ||
+		!ipEntityEvidenceLocaleValid(q.provider, q.subjectKind, q.parserVersion,
+			q.requestShape, q.language, q.region) ||
 		!ipEvidenceText(q.requestShape, ipEvidenceTextMax) || len(q.requestShape) == 0 ||
 		!ipEvidenceText(q.observedAt, 64) || len(q.observedAt) == 0 ||
 		!ipSealDigestSet(q.observationDigest) {
@@ -535,8 +534,8 @@ func ipEntitySealBuildRead(ctx context.Context, turn *commandTurn, buildID strin
 		len(out.phase) == 0 || !ipPolicyProviderCode(out.provider) || !ipEvidenceSubjectKind(out.subjectKind) ||
 		len(out.evidenceID) == 0 || len(out.owner) == 0 || len(out.providerID) == 0 ||
 		len(out.parser) == 0 ||
-		(len(out.language) == 0 && !ipEntityEvidenceLocaleOptional(out.parser)) ||
-		(len(out.region) == 0 && !ipEntityEvidenceLocaleOptional(out.parser)) ||
+		!ipEntityEvidenceLocaleValid(out.provider, out.subjectKind, out.parser,
+			out.requestShape, out.language, out.region) ||
 		len(out.requestShape) == 0 || len(out.observedAt) == 0 || len(out.digest) != 64 {
 		return out, ErrResolveRequired
 	}
