@@ -1612,10 +1612,10 @@ func (p *RBHomePreparePreparation) revalidate(s *savedViewSession, query browseQ
 	if scope.Principal != p.entry.scope.Principal {
 		return ErrStale
 	}
-	if p.entry.pending != "" {
-		// The retained page is a named pending/refusal, not a composed shelf, so
-		// there is no row visibility to prove. The exact principal and scope were
-		// compared above; a pending manifest also projects no rows to test.
+	if p.entry.pending != "" && frame.Manifest.Pending {
+		// A pending manifest projects no rows to test. The retained page is a
+		// named pending/refusal, not a composed shelf, and the exact principal and
+		// scope were compared above.
 		return nil
 	}
 	doc := homeManifestSourceProject(frame, s.input(current).Now).Manifest
