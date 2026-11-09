@@ -47,6 +47,8 @@ type Server struct {
 	setupCode, setupFile string
 	// playback runs the viewing sessions. See playback.go.
 	playback *playback.Service
+	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
+	feeds feeds
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
