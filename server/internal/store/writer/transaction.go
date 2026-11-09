@@ -430,7 +430,8 @@ type transaction struct {
 	primaryPanic        any
 	cleanupPanics       []terminalPanic
 
-	compositionClock *time.Time // real runtime's same mark survives all admission failures
+	compositionClock *time.Time                  // real runtime's same mark survives all admission failures
+	publicReading    *uoPublicReadingReservation // one closed canonical public-reading original
 }
 
 // observeTime records every trusted admission/helper sample, even a helper read
@@ -527,6 +528,9 @@ func (t *transaction) commit() (turnResult, error) {
 	err := t.ctx.Err()
 	if err == nil {
 		err = t.custody.check(t.descriptor.ID, t.workLimit)
+	}
+	if err == nil {
+		err = t.checkUOPublicReadingCommit()
 	}
 	if err == nil {
 		err = t.checkPublicationCommit()
