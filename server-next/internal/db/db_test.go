@@ -2,7 +2,11 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -60,5 +64,57 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Errorf("%s.%s is a foreign key with no index starting with it", table, column)
+	}
+}
+
+// Writes commit, a failed write leaves nothing behind, and background work still gets a turn
+// while user writes keep arriving.
+func TestWriteCommitsRollsBackAndSharesTheWriter(t *testing.T) {
+	ctx := context.Background()
+	d, err := Open(ctx, filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	set := func(p Priority, key string, fail bool) error {
+		return d.write(ctx, p, func(tx *sql.Tx) error {
+			if _, err := tx.Exec(`INSERT INTO settings (key, value, updated_at) VALUES (?, '1', 0)`, key); err != nil {
+				return err
+			}
+			if fail {
+				return errors.New("stop")
+			}
+			return nil
+		})
+	}
+	if err := set(User, "kept", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := set(User, "dropped", true); err == nil {
+		t.Fatal("a failed write reported success")
+	}
+	var users sync.WaitGroup
+	stop := make(chan struct{})
+	for i := range 4 {
+		users.Go(func() {
+			for n := 0; ; n++ {
+				select {
+				case <-stop:
+					return
+				default:
+					set(User, fmt.Sprintf("user-%d-%d", i, n), false)
+				}
+			}
+		})
+	}
+	if err := set(Background, "background", false); err != nil {
+		t.Fatal(err)
+	}
+	close(stop)
+	users.Wait()
+	var kept, dropped int
+	d.read.QueryRow(`SELECT count(*) FILTER (WHERE key = 'kept'), count(*) FILTER (WHERE key = 'dropped') FROM settings`).Scan(&kept, &dropped)
+	if kept != 1 || dropped != 0 {
+		t.Fatalf("kept %d, dropped %d; want 1 and 0", kept, dropped)
 	}
 }

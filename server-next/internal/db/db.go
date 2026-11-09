@@ -24,8 +24,10 @@ var schemaSQL string
 // DB is the main database. All writes go through the single write connection, so SQLite
 // never sees two writers. Reads use a small pool and never block on the writer in WAL mode.
 type DB struct {
-	write *sql.DB
-	read  *sql.DB
+	writeConn *sql.DB
+	read      *sql.DB
+	queues    [2]chan writeRequest
+	closed    chan struct{}
 }
 
 // Open opens the database at path, creating it with the current schema if it is new.
@@ -35,7 +37,8 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &DB{write: write}
+	d := &DB{writeConn: write, closed: make(chan struct{})}
+	d.queues[User], d.queues[Background] = make(chan writeRequest), make(chan writeRequest)
 	if err := d.ensureSchema(ctx); err != nil {
 		write.Close()
 		return nil, err
@@ -44,6 +47,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		write.Close()
 		return nil, err
 	}
+	go d.writer()
 	return d, nil
 }
 
@@ -64,11 +68,11 @@ func open(path, mode string, conns int) (*sql.DB, error) {
 
 func (d *DB) ensureSchema(ctx context.Context) error {
 	var tables int
-	if err := d.write.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table'`).Scan(&tables); err != nil {
+	if err := d.writeConn.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table'`).Scan(&tables); err != nil {
 		return err
 	}
 	if tables == 0 {
-		tx, err := d.write.BeginTx(ctx, nil)
+		tx, err := d.writeConn.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -83,14 +87,15 @@ func (d *DB) ensureSchema(ctx context.Context) error {
 		return tx.Commit()
 	}
 	var version int
-	err := d.write.QueryRowContext(ctx, `SELECT max(version) FROM schema_migrations`).Scan(&version)
+	err := d.writeConn.QueryRowContext(ctx, `SELECT max(version) FROM schema_migrations`).Scan(&version)
 	if err != nil || version != SchemaVersion {
 		return errors.New("this database was made by a different build of Portico; before the first release, delete it and start again")
 	}
 	return nil
 }
 
-// Close closes both connections.
+// Close stops the writer and closes both connections.
 func (d *DB) Close() error {
-	return errors.Join(d.read.Close(), d.write.Close())
+	close(d.closed)
+	return errors.Join(d.read.Close(), d.writeConn.Close())
 }
