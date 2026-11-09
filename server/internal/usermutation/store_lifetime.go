@@ -17,28 +17,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/mutationreceipt"
 )
 
-// ErrRootGone means the request names a mutation root that is not the live owner
-// for the authenticated scope: it was deleted, its profile lifetime or
-// membership incarnation rotated, or the family, profile or installation no
-// longer match. A request under a gone root must not apply and its old result
-// must not be returned, so callers roll the transaction back instead of treating
-// it as an absent target.
-var ErrRootGone = errors.New("mutation root is gone")
+// ErrRootGone retains the exact shared sentinel so HTTP callers can match
+// native and legacy receipt failures through the existing usermutation API.
+var ErrRootGone = mutationreceipt.ErrRootGone
 
-// ValidRootID applies the 22-character root grammar at protocol boundaries.
-func ValidRootID(v string) bool {
-	if len(v) != 22 {
-		return false
-	}
-	for _, c := range v {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-') {
-			return false
-		}
-	}
-	return true
-}
+// ValidRootID applies the shared protocol grammar without database access.
+func ValidRootID(v string) bool { return mutationreceipt.ValidRootID(v) }
 
 // lifetime is what the receiving transaction says the request is bound to.
 // profileLive is false for a profile row the server keeps only as a sanitized

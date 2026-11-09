@@ -27,8 +27,8 @@ func uoPublicReadingDefinitions() []stmt.Definition {
 	nt := func(n string) stmt.Param { p := t(n); p.Nullable = true; return p }
 	ni := func(n string) stmt.Param { p := i(n); p.Nullable = true; return p }
 	defs := []stmt.Definition{
-		{ID: uoPublicReadingRoot, SQL: `SELECT state FROM user_mutation_roots WHERE id=? AND account_id=? AND profile_id=? AND account_incarnation=? AND profile_incarnation=? AND family_id=? AND installation_incarnation=?`, Params: []stmt.Param{t("root"), t("account"), t("profile"), t("member"), t("lifetime"), t("family"), t("installation")}},
-		{ID: uoPublicReadingAccount, SQL: `SELECT id,retired_before_ms,ordinary_count FROM user_mutation_accounts WHERE authority='local' AND account_id=? AND owner_account_id=?`, Params: []stmt.Param{t("account"), t("owner")}},
+		{ID: uoPublicReadingRoot, SQL: `SELECT state FROM user_mutation_roots INDEXED BY sqlite_autoindex_user_mutation_roots_1 WHERE id=? AND account_id=? AND profile_id=? AND account_incarnation=? AND profile_incarnation=? AND family_id=? AND installation_incarnation=?`, Params: []stmt.Param{t("root"), t("account"), t("profile"), t("member"), t("lifetime"), t("family"), t("installation")}},
+		{ID: uoPublicReadingAccount, SQL: `SELECT id,retired_before_ms,ordinary_count FROM user_mutation_accounts INDEXED BY sqlite_autoindex_user_mutation_accounts_1 WHERE authority='local' AND account_id=? AND owner_account_id=?`, Params: []stmt.Param{t("account"), t("owner")}},
 		{ID: uoPublicReadingGlobal, SQL: `SELECT retired_before_ms,ordinary_count,ordinary_bytes FROM user_mutation_global WHERE singleton=1`},
 		{ID: uoPublicReadingHeader, SQL: `SELECT scope_id,profile_id,family_id,profile_incarnation,installation_incarnation,root_id,operation,digest,issued_ms,is_stop,status FROM user_mutation_receipts WHERE key=?`, Params: []stmt.Param{t("key")}},
 		{ID: uoPublicReadingHeaderOriginal, SQL: `SELECT status,target_id,revision,generation,position_ms,position_status,committed_ms FROM user_mutation_receipts WHERE key=? AND scope_id=? AND digest=? AND status='applied' AND is_stop=0`, Params: []stmt.Param{t("key"), i("scope"), t("digest")}},
@@ -40,8 +40,8 @@ func uoPublicReadingDefinitions() []stmt.Definition {
 		{ID: uoPublicReadingHeaderSave, Kind: stmt.Write, SQL: `UPDATE user_mutation_receipts SET status=?,target_id=?,revision=?,generation=?,position_ms=?,position_status=?,committed_ms=? WHERE key=? AND scope_id=? AND status='reserved' AND digest=? AND operation=? AND profile_id=? AND family_id=? AND profile_incarnation=? AND root_id=? AND installation_incarnation=? RETURNING issued_ms`, Params: []stmt.Param{t("status"), t("target"), i("revision"), i("generation"), i("position"), t("position_status"), i("committed"), t("key"), i("scope"), t("digest"), t("operation"), t("profile"), t("family"), t("lifetime"), t("root"), t("installation")}},
 		{ID: uoPublicReadingResultBirth, Kind: stmt.Write, SQL: `INSERT INTO user_mutation_reading_results(receipt_key,command_kind,result_version,item_public_id,asset_id,source_token,source_revision,format,cfi,section,page_index,progression,reading_revision,personal_revision,observed_ms,accepted,stale,cleared,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING variable_bytes`, Params: []stmt.Param{t("key"), i("kind"), i("version"), b("public"), ni("asset"), nt("token"), nt("source_revision"), nt("format"), nt("cfi"), nt("section"), ni("page"), {Name: "progression", Type: stmt.Real, Nullable: true}, i("reading_revision"), i("personal_revision"), i("observed"), i("accepted"), i("stale"), i("cleared"), t("reason")}},
 		{ID: uoPublicReadingGlobalReconcile, Kind: stmt.Write, SQL: `UPDATE user_mutation_global SET ordinary_bytes=? WHERE singleton=1 AND ordinary_count=? AND ordinary_bytes=? RETURNING singleton`, Params: []stmt.Param{i("actual"), i("count"), i("reserved")}},
-		{ID: uoPublicReadingResultBytes, SQL: `SELECT variable_bytes FROM user_mutation_reading_results WHERE receipt_key=? AND command_kind=? AND result_version=1`, Params: []stmt.Param{t("key"), i("kind")}},
-		{ID: uoPublicReadingResultRead, SQL: `SELECT item_public_id,asset_id,source_token,source_revision,format,cfi,section,page_index,progression,reading_revision,personal_revision,observed_ms,accepted,stale,cleared,reason FROM user_mutation_reading_results WHERE receipt_key=? AND command_kind=? AND result_version=1 AND variable_bytes=?`, Params: []stmt.Param{t("key"), i("kind"), i("bytes")}},
+		{ID: uoPublicReadingResultBytes, SQL: `SELECT variable_bytes FROM user_mutation_reading_results INDEXED BY sqlite_autoindex_user_mutation_reading_results_1 WHERE receipt_key=? AND command_kind=? AND result_version=1`, Params: []stmt.Param{t("key"), i("kind")}},
+		{ID: uoPublicReadingResultRead, SQL: `SELECT item_public_id,asset_id,source_token,source_revision,format,cfi,section,page_index,progression,reading_revision,personal_revision,observed_ms,accepted,stale,cleared,reason FROM user_mutation_reading_results INDEXED BY sqlite_autoindex_user_mutation_reading_results_1 WHERE receipt_key=? AND command_kind=? AND result_version=1 AND variable_bytes=?`, Params: []stmt.Param{t("key"), i("kind"), i("bytes")}},
 	}
 	for n := range defs {
 		d := &defs[n]
@@ -55,6 +55,7 @@ func uoPublicReadingDefinitions() []stmt.Definition {
 		case uoPublicReadingAccount:
 			d.Plan.Indexes = []string{"sqlite_autoindex_user_mutation_accounts_1"}
 			d.Plan.Seeks = []string{"authority=? AND account_id=?"}
+			d.Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "user_mutation_accounts", Name: "sqlite_autoindex_user_mutation_accounts_1", Origin: "u", Columns: []stmt.IndexColumn{{Name: "authority", Collation: "BINARY"}, {Name: "account_id", Collation: "BINARY"}}}}
 		case uoPublicReadingAccountReserve:
 			d.Plan.PrimaryKeys = []string{"user_mutation_accounts"}
 			d.Plan.Seeks = []string{"rowid=?"}
@@ -64,12 +65,14 @@ func uoPublicReadingDefinitions() []stmt.Definition {
 		case uoPublicReadingRoot:
 			d.Plan.Indexes = []string{"sqlite_autoindex_user_mutation_roots_1"}
 			d.Plan.Seeks = []string{"id=?"}
+			d.Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "user_mutation_roots", Name: "sqlite_autoindex_user_mutation_roots_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}
 		case uoPublicReadingHeader, uoPublicReadingHeaderOriginal, uoPublicReadingHeaderSave:
 			d.Plan.PrimaryKeys = []string{"user_mutation_receipts"}
 			d.Plan.Seeks = []string{"key=?"}
 		case uoPublicReadingResultBytes, uoPublicReadingResultRead:
 			d.Plan.Indexes = []string{"sqlite_autoindex_user_mutation_reading_results_1"}
 			d.Plan.Seeks = []string{"receipt_key=?"}
+			d.Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "user_mutation_reading_results", Name: "sqlite_autoindex_user_mutation_reading_results_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "receipt_key", Collation: "BINARY"}}}}
 		}
 	}
 	return defs

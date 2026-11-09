@@ -30,6 +30,8 @@ func (*usCurrentSessionAuthorization) Format(s fmt.State, _ rune) {
 }
 
 const (
+	usCurrentPrimary      stmt.ID = "us.current_session.primary"
+	usCurrentDevice       stmt.ID = "us.current_session.device"
 	usCurrentFamily       stmt.ID = "us.current_session.family"
 	usCurrentPrincipal    stmt.ID = "us.current_session.principal"
 	usCurrentPrincipalPIN stmt.ID = "us.current_session.principal_pin"
@@ -45,6 +47,7 @@ func usCurrentSessionDefinitions() []stmt.Definition {
 			d.SQL = strings.Replace(d.SQL, "SELECT f.control_variable_bytes,f.pin_gate", "SELECT f.control_variable_bytes,f.pin_gate,f.role", 1)
 			d.SQL = strings.Replace(d.SQL, "f.role='owner'", "f.role IN('owner','admin','member')", 1)
 		case usAuthorityDevice:
+			d.ID = usCurrentDevice
 			d.SQL += " AND platform<>'api'"
 		case usAuthorityPrincipal, usAuthorityPrincipalPIN:
 			protected := d.ID == usAuthorityPrincipalPIN
@@ -52,20 +55,19 @@ func usCurrentSessionDefinitions() []stmt.Definition {
 			if protected {
 				d.ID = usCurrentPrincipalPIN
 			}
-			d.SQL = `SELECT 1 FROM accounts AS a INDEXED BY sqlite_autoindex_accounts_1
+			d.SQL = `SELECT m.role,p.is_primary FROM accounts AS a INDEXED BY sqlite_autoindex_accounts_1
 CROSS JOIN direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 ON m.account_id=a.id
 CROSS JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2 ON p.account_id=a.id
 WHERE a.id=? AND a.epoch=? AND a.must_change=0 AND m.incarnation=? AND m.disabled=0
-AND p.id=? AND p.lifetime=? AND p.deleted=0 AND m.role=? AND p.pin_hash IS NULL`
+AND p.id=? AND p.lifetime=? AND p.deleted=0 AND p.pin_hash IS NULL`
 			if protected {
 				d.SQL = strings.Replace(d.SQL, "p.pin_hash IS NULL", "p.pin_hash IS NOT NULL", 1)
 			}
-			d.Params = append(d.Params, stmt.Param{Name: "current_role", Type: stmt.Text})
-			d.Cohorts[0].Bindings = append(d.Cohorts[0].Bindings, "member")
 		}
 		d.Owner = "store/writer US current local reading session"
 		d.CallSites = []string{"store/writer/us_current_fence.go"}
 	}
+	defs = append(defs, stmt.Definition{ID: usCurrentPrimary, Kind: stmt.Read, Owner: "store/writer US current local session primary binding", CallSites: []string{"store/writer/us_current_fence.go"}, SQL: `SELECT 1 FROM accounts INDEXED BY sqlite_autoindex_accounts_1 WHERE id=? AND profile_id=?`, Params: []stmt.Param{{Name: "account", Type: stmt.Text}, {Name: "profile", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "current_primary", Bindings: []any{"issuer", "issuer-profile"}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_accounts_1"}, Seeks: []string{"id=?"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "accounts", Name: "sqlite_autoindex_accounts_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}})
 	return defs
 }
 
@@ -118,22 +120,41 @@ func authorizeUSCurrentSession(ctx context.Context, turn *commandTurn, p *usOwne
 	if nativeBytes < 0 || nativeBytes > maxCanonicalResultBytes || (pinGate != 0 && pinGate != 1) || (role != "owner" && role != "admin" && role != "member") {
 		return nil, ErrDisclosureDenied
 	}
-	row, e = wc008DraftQuery(ctx, turn, usCurrentPrincipal, i.account, i.epoch, i.memberIncarnation, i.profile, i.profileLifetime, role)
+	row, e = wc008DraftQuery(ctx, turn, usCurrentPrincipal, i.account, i.epoch, i.memberIncarnation, i.profile, i.profileLifetime)
 	if e != nil {
 		return nil, e
 	}
 	protected := false
-	var present int64
-	err = row.Scan(&present)
+	var memberRole string
+	var primary int64
+	err = row.Scan(&memberRole, &primary)
 	if errors.Is(err, sql.ErrNoRows) {
-		if err = usAuthorityPresence(ctx, turn, usCurrentPrincipalPIN, true, i.account, i.epoch, i.memberIncarnation, i.profile, i.profileLifetime, role); err != nil {
+		row, e = wc008DraftQuery(ctx, turn, usCurrentPrincipalPIN, i.account, i.epoch, i.memberIncarnation, i.profile, i.profileLifetime)
+		if e != nil {
+			return nil, e
+		}
+		err = row.Scan(&memberRole, &primary)
+		protected = true
+	}
+	if err != nil {
+		return nil, usAuthorityReadError(err)
+	}
+	if primary != 0 && primary != 1 || memberRole != "owner" && memberRole != "admin" && memberRole != "member" {
+		return nil, ErrDisclosureDenied
+	}
+	// Session role is the product's effective profile role, not an account tier:
+	// secondary profiles always receive member, including owner/admin accounts.
+	if primary == 0 {
+		if role != "member" {
+			return nil, ErrDisclosureDenied
+		}
+	} else {
+		if role != memberRole {
+			return nil, ErrDisclosureDenied
+		}
+		if err = usAuthorityPresence(ctx, turn, usCurrentPrimary, true, i.account, i.profile); err != nil {
 			return nil, err
 		}
-		protected = true
-	} else if err != nil {
-		return nil, err
-	} else if present != 1 {
-		return nil, ErrDisclosureDenied
 	}
 
 	for _, c := range []struct {
@@ -142,7 +163,7 @@ func authorizeUSCurrentSession(ctx context.Context, turn *commandTurn, p *usOwne
 		present bool
 	}{
 		{usAuthorityCurrentServer, []any{i.server}, true}, {usAuthorityState, []any{i.authorityGeneration}, true},
-		{usAuthorityDevice, []any{w.device, i.account, w.installationID}, true}, {usAuthorityInstallation, []any{p.installationHash, i.installation}, true},
+		{usCurrentDevice, []any{w.device, i.account, w.installationID}, true}, {usAuthorityInstallation, []any{p.installationHash, i.installation}, true},
 		{usAuthorityGrant, []any{i.family}, false}, {usAuthorityCredential, []any{i.family}, false}, {usAuthorityResetSession, []any{i.family}, false}, {usAuthorityWaiting, []any{i.account}, false},
 	} {
 		if err = usAuthorityPresence(ctx, turn, c.id, c.present, c.args...); err != nil {
