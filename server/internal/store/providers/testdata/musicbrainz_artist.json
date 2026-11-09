@@ -1,0 +1,17 @@
+{
+  "id": "b3a0a1e2-1d2c-4d3e-8f9a-0b1c2d3e4f50",
+  "name": "Massive Attack",
+  "sort-name": "Massive Attack",
+  "disambiguation": "Bristol trip hop collective",
+  "type": "Group",
+  "country": "GB",
+  "life-span": {
+    "begin": "1988-01",
+    "end": "",
+    "ended": false
+  },
+  "aliases": [
+    {"name": "Massive", "sort-name": "Massive", "locale": null, "primary": false}
+  ],
+  "relations": []
+}

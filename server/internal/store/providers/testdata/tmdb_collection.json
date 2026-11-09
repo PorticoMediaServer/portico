@@ -1,0 +1,11 @@
+{
+  "id": 42,
+  "name": "Provider Saga",
+  "overview": "A provider collection.",
+  "poster_path": "/saga.jpg",
+  "parts": [
+    {"id": 7, "title": "First", "original_title": "First Original", "release_date": "2001-01-01", "poster_path": "/1.jpg", "adult": false},
+    {"id": 9, "title": "Second", "release_date": "2003-02-02"},
+    {"id": 11, "title": "Third"}
+  ]
+}

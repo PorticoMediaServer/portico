@@ -75,6 +75,50 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightEvidenceBeginResult(v)
 	case effectiveBeginResult:
 		return preflightEffectiveBeginResult(v)
+	case ipPolicyResult:
+		return preflightIPPolicyResult(v)
+	case ipRefreshResult:
+		return preflightIPRefreshResult(v)
+	case ipRefreshPageResult:
+		return preflightIPRefreshPageResult(v)
+	case ipArtworkDiscoverySavedResult:
+		return preflightIPArtworkDiscoveryResult(v)
+	case ipArtworkMaterialSavedResult:
+		return preflightIPArtworkMaterialResult(v)
+	case ipArtworkMaterialPublishSavedResult:
+		return preflightIPArtworkMaterialPublishResult(v)
+	case ipArtworkSelectionSavedResult:
+		return preflightIPArtworkSelectionResult(v)
+	case ipArtworkUploadSavedResult:
+		return preflightIPArtworkUploadResult(v)
+	case ipArtworkReencodeSavedResult:
+		return preflightIPArtworkReencodeResult(v)
+	case ipArtworkGCSavedResult:
+		return preflightIPArtworkGCResult(v)
+	case ipTextEditSavedResult:
+		return preflightIPTextEditResult(v)
+	case ipEntityJobResult:
+		return preflightIPEntityJobResult(v)
+	case ipPersonResult:
+		return preflightIPPersonResult(v)
+	case ipEntityEvidenceResult:
+		return preflightIPEntityEvidenceResult(v)
+	case ipEntitySealResult:
+		return preflightIPEntitySealResult(v)
+	case ipTVSetResult:
+		return preflightIPTVSetResult(v)
+	case ipEntityAcceptResult:
+		return preflightIPEntityAcceptResult(v)
+	case ipEntityDeltaResult:
+		return preflightIPEntityDeltaResult(v)
+	case ipTextLockSavedResult:
+		return preflightIPTextLockResult(v)
+	case ipEditBulkSavedResult:
+		return preflightIPEditBulkResult(v)
+	case ipEditBulkPageSavedResult:
+		return preflightIPEditBulkPageResult(v)
+	case ipEditBulkFinishSavedResult:
+		return preflightIPEditBulkFinishResult(v)
 	case enrichAcceptResult:
 		return preflightEnrichAcceptResult(v)
 	case inventoryAcceptResult:
@@ -172,6 +216,50 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeEvidenceBeginResult(e, identity, request, v)
 	case effectiveBeginResult:
 		return writeEffectiveBeginResult(e, identity, request, v)
+	case ipPolicyResult:
+		return writeIPPolicyResult(e, identity, request, v)
+	case ipRefreshResult:
+		return writeIPRefreshResult(e, identity, request, v)
+	case ipRefreshPageResult:
+		return writeIPRefreshPageResult(e, identity, request, v)
+	case ipArtworkDiscoverySavedResult:
+		return writeIPArtworkDiscoveryResult(e, identity, request, v)
+	case ipArtworkMaterialSavedResult:
+		return writeIPArtworkMaterialResult(e, identity, request, v)
+	case ipArtworkMaterialPublishSavedResult:
+		return writeIPArtworkMaterialPublishResult(e, identity, request, v)
+	case ipArtworkSelectionSavedResult:
+		return writeIPArtworkSelectionResult(e, identity, request, v)
+	case ipArtworkUploadSavedResult:
+		return writeIPArtworkUploadResult(e, identity, request, v)
+	case ipArtworkReencodeSavedResult:
+		return writeIPArtworkReencodeResult(e, identity, request, v)
+	case ipArtworkGCSavedResult:
+		return writeIPArtworkGCResult(e, identity, request, v)
+	case ipTextEditSavedResult:
+		return writeIPTextEditResult(e, identity, request, v)
+	case ipEntityJobResult:
+		return writeIPEntityJobResult(e, identity, request, v)
+	case ipPersonResult:
+		return writeIPPersonResult(e, identity, request, v)
+	case ipEntityEvidenceResult:
+		return writeIPEntityEvidenceResult(e, identity, request, v)
+	case ipEntitySealResult:
+		return writeIPEntitySealResult(e, identity, request, v)
+	case ipTVSetResult:
+		return writeIPTVSetResult(e, identity, request, v)
+	case ipEntityAcceptResult:
+		return writeIPEntityAcceptResult(e, identity, request, v)
+	case ipEntityDeltaResult:
+		return writeIPEntityDeltaResult(e, identity, request, v)
+	case ipTextLockSavedResult:
+		return writeIPTextLockResult(e, identity, request, v)
+	case ipEditBulkSavedResult:
+		return writeIPEditBulkResult(e, identity, request, v)
+	case ipEditBulkPageSavedResult:
+		return writeIPEditBulkPageResult(e, identity, request, v)
+	case ipEditBulkFinishSavedResult:
+		return writeIPEditBulkFinishResult(e, identity, request, v)
 	case enrichAcceptResult:
 		return writeEnrichAcceptResult(e, identity, request, v)
 	case inventoryAcceptResult:
