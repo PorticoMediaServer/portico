@@ -513,8 +513,9 @@ func TestUSGroupBProducerInventoryOtherSources(t *testing.T) {
 // files. The accepted prefixes cover the retained schema012+013 pin (9d9aa39d), the
 // adopted CHANGE-014 schema carried by PR #1803 (782904d7), and the group B proposal
 // after the embed (44411dfe), plus adopted E artwork storage (49b3df34).
+// D provider/person storage adds adopted7462ff76.
 // Only these exact adopted schema prefixes are recognized.
-var usGroupBSchemaSHAPrefixes = []string{"9d9aa39d", "782904d7", "44411dfe", "49b3df34"}
+var usGroupBSchemaSHAPrefixes = []string{"9d9aa39d", "782904d7", "44411dfe", "49b3df34", "7462ff76"}
 
 var usGroupBSchemaGuardReference = regexp.MustCompile(`progressCrashSchema|requires schema[0-9]{3}`)
 
