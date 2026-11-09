@@ -33,7 +33,7 @@ func TestRBRelationshipPreparePlans(t *testing.T) {
 	}
 	// 2 article-policy variants x 3 seek parts x (payload + same-snapshot byte
 	// preflight) + artist albums (first/tail) + album songs (first/tail).
-	if len(catalogue.Manifest()) != 16 {
+	if len(catalogue.Manifest()) != 18 {
 		t.Fatal("review changed statement inventory")
 	}
 	path := "testdata/rb-relationship-prepare-plans.json.gz"

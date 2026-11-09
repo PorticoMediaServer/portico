@@ -982,9 +982,12 @@ func (e *rbSelectionEntry) rankForAsc(i, n int) int64 {
 func (e *rbSelectionEntry) ascIndexForID(id int64) (int, bool) {
 	if e.byID != nil {
 		i, ok := slices.BinarySearchFunc(e.byID, id, func(v int32, target int64) int {
-			return compareInt64(int64(v), target)
+			return compareInt64(e.rows[v].key.id, target)
 		})
-		return i, ok
+		if !ok {
+			return 0, false
+		}
+		return int(e.byID[i]), true
 	}
 	lo, hi := 0, len(e.rows)
 	for lo < hi {
