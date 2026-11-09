@@ -19,6 +19,17 @@ import (
 // disclosure window. UO never reselects a session, reissues a token/URL/expiry,
 // promotes a 703 transfer, or reconstructs a current view from mutable rows.
 // This narrow input is the only birth evidence UO-24 consumes.
+//
+// The native birth checks bind only a strict SUBSET of the sealed view to the
+// born rows. The logical statement binds the view's ID, state and lease
+// (lease_expires_ms) together with the physical link/generation, lifetime and
+// zero counters; the physical statement binds only the physical
+// ID/generation/incarnation and lifetime. ItemID, VersionID, Queue (queue and
+// entry), Kind, Role and Presentation.Generation are NOT bound here: they
+// survive only inside the sealed original. MP-09's accepting composition must
+// reconcile those fields itself before it admits the birth; if it cannot, UO
+// must add them to the native check in a later change rather than treat this
+// seam as already binding them.
 type uoBirthSessionSource struct {
 	root, session, physical, device, startKey, startBody string
 	logical, physicalIncarnation                         [16]byte

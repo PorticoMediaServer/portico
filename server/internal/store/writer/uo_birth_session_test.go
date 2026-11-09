@@ -169,7 +169,7 @@ func TestUOBirthSession(t *testing.T) {
 	})
 
 	t.Run("distinctLogicalAndPhysicalLifetimes", func(t *testing.T) {
-		for _, mode := range []string{"physical-generation", "physical-incarnation", "logical-link", "logical-counter", "logical-root", "device", "lease", "state", "borrowed-logical", "borrowed-physical"} {
+		for _, mode := range []string{"physical-generation", "physical-incarnation", "logical-link", "logical-counter", "logical-root", "device", "lease", "state", "logical-account", "physical-account", "logical-profile", "physical-profile", "logical-member", "physical-member", "logical-lifetime", "physical-lifetime", "borrowed-logical", "borrowed-physical"} {
 			t.Run(mode, func(t *testing.T) {
 				w, p, q, source, view := uoBirthSessionFixture(t)
 				turn, a := uoBirthSessionTurn(t, w, p)
@@ -201,6 +201,22 @@ func TestUOBirthSession(t *testing.T) {
 					exec(`UPDATE playback_v1_sessions SET lease_expires_ms=1`)
 				case "state":
 					exec(`UPDATE playback_v1_sessions SET state='paused'`)
+				case "logical-account":
+					exec(`UPDATE playback_v1_sessions SET account_id='foreign'`)
+				case "physical-account":
+					exec(`UPDATE playback_sessions SET account_id='foreign'`)
+				case "logical-profile":
+					exec(`UPDATE playback_v1_sessions SET profile_id='foreign'`)
+				case "physical-profile":
+					exec(`UPDATE playback_sessions SET profile_id='foreign'`)
+				case "logical-member":
+					exec(`UPDATE playback_v1_sessions SET mp_owner_member_incarnation=?`, strings.Repeat("f", 32))
+				case "physical-member":
+					exec(`UPDATE playback_sessions SET mp_owner_member_incarnation=?`, strings.Repeat("f", 32))
+				case "logical-lifetime":
+					exec(`UPDATE playback_v1_sessions SET mp_owner_profile_lifetime=?`, strings.Repeat("f", 32))
+				case "physical-lifetime":
+					exec(`UPDATE playback_sessions SET mp_owner_profile_lifetime=?`, strings.Repeat("f", 32))
 				case "borrowed-logical":
 					source.logical = q.identity.Incarnation
 				case "borrowed-physical":
@@ -217,6 +233,148 @@ func TestUOBirthSession(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("fenceDeviceAndIdentity", func(t *testing.T) {
+		for _, mode := range []string{"fence-device", "fence-identity"} {
+			t.Run(mode, func(t *testing.T) {
+				w, p, q, source, view := uoBirthSessionFixture(t)
+				if mode == "fence-device" {
+					// Rows, the sealed original and the source all name this device;
+					// only the frozen US witness (fence) device stays the fixture one.
+					source.device = "fence-foreign"
+				}
+				turn, a := uoBirthSessionTurn(t, w, p)
+				lookup, err := lookupUOBirthSession(t.Context(), turn, a, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				uoBirthSessionRows(t, turn, p, source, view)
+				if mode == "fence-identity" {
+					lookup.root.binding.identity.account = "foreign"
+				}
+				if mode == "fence-device" {
+					// The exact native statements still MATCH the foreign device, so
+					// a refusal below cannot come from the SQL branch; it proves the
+					// explicit source-vs-witness device comparison is the gate.
+					leaseMS, ok := uoBirthSessionLeaseMS(view)
+					if !ok {
+						t.Fatal("fixture lease")
+					}
+					i := p.witness.issuer
+					if n, err := wc008DraftInteger(t.Context(), turn, uoBirthSessionLogical, source.session, source.device, i.account, i.profile, source.startKey, source.startBody, view.State, source.physical, source.physicalGeneration, leaseMS, source.createdMS, source.logical[:], source.root, i.memberIncarnation, i.profileLifetime); err != nil || n != 1 {
+						t.Fatal("logical native branch", n, err)
+					}
+					if n, err := wc008DraftInteger(t.Context(), turn, uoBirthSessionPhysical, source.physical, source.physicalGeneration, source.physicalIncarnation[:], source.root, i.account, i.profile, i.memberIncarnation, i.profileLifetime); err != nil || n != 1 {
+						t.Fatal("physical native branch", n, err)
+					}
+				}
+				if _, err = persistUOBirthSession(t.Context(), turn, lookup, source, view); err == nil {
+					t.Fatal("fence mismatch accepted")
+				}
+				if _, err = turn.transaction.commit(); err == nil {
+					t.Fatal("fence mismatch committed")
+				}
+				if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 0 {
+					t.Fatal(n)
+				}
+			})
+		}
+	})
+
+	t.Run("retiredAcknowledgedFloor", func(t *testing.T) {
+		for _, floor := range []struct {
+			name               string
+			last, acknowledged int64
+		}{{"at-floor", 1, 1}, {"below-floor", 2, 2}} {
+			t.Run(floor.name, func(t *testing.T) {
+				w, p, q, source, view := uoBirthSessionFixture(t)
+				turn, a := uoBirthSessionTurn(t, w, p)
+				lookup, err := lookupUOBirthSession(t.Context(), turn, a, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				uoBirthSessionRows(t, turn, p, source, view)
+				uoBirthSessionSave(t, turn, lookup, source, view)
+				uoPublicReadingCommit(t, turn)
+
+				// Sequence at or below the acknowledged floor is retired custody,
+				// not a replay: no header/payload is read and no original is restored.
+				wc008NativeExec(t, w, `UPDATE user_mutation_command_owners SET last_command_sequence=?,acknowledged_command_sequence=?`, floor.last, floor.acknowledged)
+				turn, a = uoBirthSessionTurn(t, w, p)
+				retired, err := lookupUOBirthSession(t.Context(), turn, a, q)
+				if err != nil || retired.root.decision != receiptRetired || !retired.original.equal(uoBirthSessionResult{}) {
+					t.Fatal(retired, err)
+				}
+				uoPublicReadingCommit(t, turn)
+
+				// Nothing may be finalized over a retired original.
+				turn, a = uoBirthSessionTurn(t, w, p)
+				retired, err = lookupUOBirthSession(t.Context(), turn, a, q)
+				if err != nil || retired.root.decision != receiptRetired {
+					t.Fatal(retired, err)
+				}
+				if _, err = persistUOBirthSession(t.Context(), turn, retired, source, view); !errors.Is(err, ErrInvalid) {
+					t.Fatal("retired original persisted", err)
+				}
+				_, _ = turn.transaction.rollback(nil)
+				if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 1 {
+					t.Fatal("retired persist wrote a receipt", n)
+				}
+				if n := uoPublicReadingCount(t, w, `SELECT receipt_rows FROM user_mutation_command_owners`); n != 1 {
+					t.Fatal("retired persist moved the owner counters", n)
+				}
+			})
+		}
+	})
+
+	t.Run("crossKindPersistRefused", func(t *testing.T) {
+		t.Run("startInSessionTurn", func(t *testing.T) {
+			w, p, q, source, view := uoBirthSessionFixture(t)
+			turn, a := uoBirthSessionTurn(t, w, p)
+			lookup, err := lookupUOBirthSession(t.Context(), turn, a, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			uoBirthSessionRows(t, turn, p, source, view)
+			now := w.now().UnixMilli()
+			start := &uoBirthStartLookup{turn: turn, root: lookup.root}
+			startResult := uoBirthStartResult{root: q.root, preparation: "cross-kind-preparation", device: p.witness.device, startKey: strings.Repeat("a", 64), startBody: strings.Repeat("b", 64), item: "cross-item", asset: "cross-asset", worker: [16]byte{9}, createdMS: now, deadlineMS: now + 60000, tokenExpiresMS: p.tokenExpiry.UnixMilli(), revision: 1, retryMS: 500, appliedMS: now}
+			// A complete 700 original presented to the 710 finalizer: the closed
+			// state holder is per purpose, so only a 710 result may be persisted.
+			if _, err = persistUOBirthStart(t.Context(), turn, start, startResult); !errors.Is(err, ErrInvalid) {
+				t.Fatal("700 result persisted in a 710 turn", err)
+			}
+			_, _ = turn.transaction.rollback(nil)
+			if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 0 {
+				t.Fatal(n)
+			}
+		})
+
+		t.Run("sessionInStartTurn", func(t *testing.T) {
+			w, p, q, source, view := uoBirthSessionFixture(t)
+			startReference := q
+			startReference.kind = 700
+			defs := append(usCurrentSessionDefinitions(), uoRootDefinitions()...)
+			defs = append(defs, uoBirthStartDefinitions()...)
+			turn := wc008NativeTurn(t, w, 700, defs)
+			a, err := authorizeUSCurrentSession(t.Context(), turn, p, t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			start, err := lookupUOBirthStart(t.Context(), turn, a, startReference)
+			if err != nil || start.root.decision != receiptFresh {
+				t.Fatal(start, err)
+			}
+			session := &uoBirthSessionLookup{turn: turn, root: start.root}
+			if _, err = persistUOBirthSession(t.Context(), turn, session, source, view); !errors.Is(err, ErrInvalid) {
+				t.Fatal("710 result persisted in a 700 turn", err)
+			}
+			_, _ = turn.transaction.rollback(nil)
+			if n := uoPublicReadingCount(t, w, `SELECT count(*) FROM user_mutation_command_receipts`); n != 0 {
+				t.Fatal(n)
+			}
+		})
 	})
 
 	t.Run("duplicateAndConflict", func(t *testing.T) {
@@ -554,6 +712,28 @@ func TestUOBirthSession(t *testing.T) {
 				t.Fatal("710 lookup accepted 700", out, err)
 			}
 			_, _ = turn.transaction.rollback(nil)
+		})
+
+		t.Run("otherBirthPurposesStayClosed", func(t *testing.T) {
+			w, _, _ := uoPublicReadingFixture(t, false)
+			for _, kind := range []CommandID{740, 750, 761} {
+				t.Run(fmt.Sprint(kind), func(t *testing.T) {
+					// The shared closed switch lists these as birth purposes but gives
+					// each no state holder; adding 710 must not open them. The turn's
+					// own kind is required to reach that switch. A non-nil but
+					// unusable binding keeps the assertion honest: without the
+					// default arm the later binding.check would answer
+					// ErrUORootCurrentFenceUnavailable instead of ErrInvalid.
+					defs := append(usCurrentSessionDefinitions(), uoRootDefinitions()...)
+					turn := wc008NativeTurn(t, w, kind, defs)
+					q := uoRootReference{root: "abcdefghijklmnopqrstuv", kind: kind, identity: CommandIdentity{Incarnation: [16]byte{1}, Sequence: 1, OperationID: [16]byte{2}}, request: RequestDigest{3}}
+					out, err := lookupUORootCommand(t.Context(), turn, &uoRootBinding{}, q)
+					if !errors.Is(err, ErrInvalid) || errors.Is(err, ErrUORootCurrentFenceUnavailable) || out != (uoRootLookup{}) {
+						t.Fatal("birth purpose default", out, err)
+					}
+					_, _ = turn.transaction.rollback(nil)
+				})
+			}
 		})
 	})
 
