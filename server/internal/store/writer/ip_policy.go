@@ -174,7 +174,8 @@ func (b ipPolicyBudget) check(ctx context.Context, turn *commandTurn, bytes int6
 		IPEntityEvidenceBegin, IPEntityEvidenceAppend, IPEntitySeal,
 		IPTVSetBegin, IPTVSetPage, IPTVSetSeal,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
-		IPArtworkMaterialIntent, IPArtworkMaterialInstalled, IPArtworkMaterialPublish:
+		IPArtworkMaterialIntent, IPArtworkMaterialInstalled, IPArtworkMaterialPublish,
+		IPArtworkSelect, IPArtworkClear:
 	default:
 		return ErrInvalid
 	}

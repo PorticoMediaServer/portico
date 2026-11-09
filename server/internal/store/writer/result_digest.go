@@ -83,6 +83,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightIPArtworkMaterialResult(v)
 	case ipArtworkMaterialPublishSavedResult:
 		return preflightIPArtworkMaterialPublishResult(v)
+	case ipArtworkSelectionSavedResult:
+		return preflightIPArtworkSelectionResult(v)
 	case ipTextEditSavedResult:
 		return preflightIPTextEditResult(v)
 	case ipEntityJobResult:
@@ -198,6 +200,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeIPArtworkMaterialResult(e, identity, request, v)
 	case ipArtworkMaterialPublishSavedResult:
 		return writeIPArtworkMaterialPublishResult(e, identity, request, v)
+	case ipArtworkSelectionSavedResult:
+		return writeIPArtworkSelectionResult(e, identity, request, v)
 	case ipTextEditSavedResult:
 		return writeIPTextEditResult(e, identity, request, v)
 	case ipEntityJobResult:

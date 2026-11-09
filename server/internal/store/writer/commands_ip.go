@@ -26,6 +26,8 @@ const (
 	IPArtworkMaterialIntent    CommandID = 223
 	IPArtworkMaterialInstalled CommandID = 224
 	IPArtworkMaterialPublish   CommandID = 225
+	IPArtworkSelect            CommandID = 226
+	IPArtworkClear             CommandID = 227
 
 	IPFieldEdit      CommandID = 240
 	IPFieldLock      CommandID = 241
@@ -54,6 +56,8 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPArtworkMaterialIntent, "ip_artwork_material_intent", Normal},
 	{IPArtworkMaterialInstalled, "ip_artwork_material_installed", Normal},
 	{IPArtworkMaterialPublish, "ip_artwork_material_publish", Normal},
+	{IPArtworkSelect, "ip_artwork_select", Normal},
+	{IPArtworkClear, "ip_artwork_clear", Normal},
 	{IPFieldEdit, "ip_field_edit", Normal},
 	{IPFieldLock, "ip_field_lock", Normal},
 	{IPFieldRestore, "ip_field_restore", Normal},
