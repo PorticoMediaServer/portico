@@ -87,6 +87,8 @@ class Server {
   /** How many times each key's edit was applied, and for whom. */
   applied = new Map<string, {count: number; who: Who}>();
   tokens = new Map<string, Who>();
+  /** Edits sent again with a token of someone other than their maker. */
+  strangers: string[] = [];
   private nextToken = 0;
   signIn(who: Who) { const token = 'token-' + ++this.nextToken; this.tokens.set(token, who); return token; }
   /** Undefined: the request reached nobody. */
@@ -99,7 +101,11 @@ class Server {
     if (!who) return {status: 401};
     if ((entry.body as {refuse?: boolean}).refuse) return {status: 422};
     const done = this.applied.get(entry.id);
-    if (done) return {status: 200}; // the same key again changes nothing
+    if (done) {
+      // The same key again changes nothing, but it must still come from the person who made the edit.
+      if (done.who !== who) this.strangers.push(entry.id);
+      return {status: 200};
+    }
     this.applied.set(entry.id, {count: 1, who});
     return {status: 200};
   }
@@ -187,6 +193,7 @@ async function sequence(seed: number) {
     assert.ok(applied || reports, `${edit.id} was neither applied nor reported`);
     if (applied) assert.deepEqual(applied.who, edit.who, `${edit.id} was applied under another account or profile`);
   }
+  assert.deepEqual(server.strangers, [], 'an edit is never sent again under another account or profile');
   assert.deepEqual(sentTooOld, [], 'an edit older than 30 days is dropped, not sent');
   assert.equal(disk.entries.size, 0, 'the queue is empty at the end');
   assert.equal(outbox.waiting(), 0);
