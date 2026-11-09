@@ -9,5 +9,6 @@ func mgDomainDescriptors() []Descriptor {
 	out = append(out, mgTunerRetireDescriptors()...)
 	out = append(out, mgRuleDescriptors()...)
 	out = append(out, mgGuideDescriptors()...)
-	return append(out, mgGuidePublicationDescriptors()...)
+	out = append(out, mgGuidePublicationDescriptors()...)
+	return append(out, mgGuideReclaimDescriptors()...)
 }
