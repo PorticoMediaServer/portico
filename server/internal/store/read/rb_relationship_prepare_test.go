@@ -107,6 +107,18 @@ func newRBRelationshipSource(t *testing.T) *browseFixture {
 
 // END_RB_RELATIONSHIP_PREPARE_JOURNAL
 
+// rbRelationshipTestEntity inserts one relationship row for the sparse/NULL
+// regressions. artist, album, disc and track may be nil; a caller that needs a
+// literal NULL the schema CHECK forbids enables ignore_check_constraints.
+func rbRelationshipTestEntity(t *testing.T, f *browseFixture, id, kind, library int64, key string, artist, album, disc, track any) {
+	t.Helper()
+	public := make([]byte, 16)
+	binary.LittleEndian.PutUint64(public, uint64(id))
+	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,?,?)`, id, public, library, kind)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id,album_id,disc_number,track_number) VALUES(?,?,?,?,?,?,'h',?,'h',0,?,?,?,?,?,?)`,
+		id, public, library, kind, fmt.Sprintf("Title %d", id), key, key, public, public, artist, album, disc, track)
+}
+
 func rbRelationshipFixtureHash(t *testing.T) string {
 	t.Helper()
 	data, err := os.ReadFile("rb_relationship_prepare_test.go")
@@ -179,6 +191,35 @@ func rbRelationshipAdvanceAll(t *testing.T, job *RBRelationshipPreparation) RBRe
 	}
 	t.Fatal("relationship preparation did not finish")
 	return last
+}
+
+// rbRelationshipAdvanceThroughBusy polls one preparation to readiness while
+// tolerating a mid-window governor refusal. A refusal must keep the private
+// cursors, so the next poll resumes; losing them would truncate the order or
+// fail to terminate. It reports whether a refusal was actually observed.
+func rbRelationshipAdvanceThroughBusy(t *testing.T, job *RBRelationshipPreparation) (RBRelationshipPrepareAdvance, bool) {
+	t.Helper()
+	var last RBRelationshipPrepareAdvance
+	busy := false
+	for n := 0; n < 512; n++ {
+		advance, err := job.Advance(t.Context(), rbRelationshipRequest(), time.Second)
+		if errors.Is(err, governor.ErrBusy) {
+			busy = true
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		last.Restarts += advance.Restarts
+		last.RawRows += advance.RawRows
+		last.Statements += advance.Statements
+		if advance.Ready {
+			last.Ready = true
+			return last, busy
+		}
+	}
+	t.Fatal("relationship preparation did not finish after refusals")
+	return last, busy
 }
 
 func rbRelationshipRead(t *testing.T, f *browseFixture, job *RBRelationshipPreparation, view BrowseInput, after *RBRelationshipPrepareCursor, limit int) (RBRelationshipPreparePage, BrowseReadResult, error) {
@@ -423,6 +464,94 @@ func TestRBRelationshipPrepareSparseRawContinuation(t *testing.T) {
 		got := rbRelationshipCollect(t, f, job, view)
 		if !slices.Equal(got, want) {
 			t.Fatal("sparse continuation lost or duplicated rows")
+		}
+	})
+}
+
+// TestRBRelationshipPrepareSparseParentsAndLiteralNulls fills one raw window
+// with empty outer parents so the 48-statement proof recipe is genuinely
+// exhausted mid-window, then checks that the private cursor resumes without
+// truncation. It also covers schema-forbidden literal NULL album/artist shapes
+// from a torn snapshot and the legal NULL disc/track coalescing.
+func TestRBRelationshipPrepareSparseParentsAndLiteralNulls(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBRelationshipFixture(t)
+		// Seventy empty albums and seventy empty artists sort before every
+		// recorded title, so the first window spends its statement budget on
+		// parents that produce no output at all.
+		for i := int64(0); i < 70; i++ {
+			key := fmt.Sprintf("%04d", i)
+			rbRelationshipTestEntity(t, f, 700000+i, 6, 1, key, int64(100000), nil, nil, nil)
+			rbRelationshipTestEntity(t, f, 710000+i, 5, 1, key, nil, nil, nil, nil)
+		}
+		// A torn snapshot can present a literal NULL artist on an album or a
+		// literal NULL album on a song even though the schema CHECK forbids
+		// them. They must be skipped, never fused into another parent.
+		f.exec(t, `PRAGMA ignore_check_constraints=ON`)
+		rbRelationshipTestEntity(t, f, 720000, 6, 1, "zz-null-artist", nil, nil, nil, nil)
+		rbRelationshipTestEntity(t, f, 720010, 7, 1, "song", nil, nil, nil, nil)
+		f.exec(t, `PRAGMA ignore_check_constraints=OFF`)
+		// NULL disc/track are legal: the song legs coalesce them to (1,0) for
+		// traversal while the published order stays by output ID.
+		rbRelationshipTestEntity(t, f, 720001, 7, 1, "song", nil, int64(200001), nil, nil)
+		rbRelationshipTestEntity(t, f, 720002, 7, 1, "song", nil, int64(200001), int64(2), nil)
+		rbRelationshipTestEntity(t, f, 720003, 7, 1, "song", nil, int64(200001), nil, int64(5))
+		// One song under the NULL-artist album: album order can reach it, but no
+		// artist order may attribute it to an artist it does not have.
+		rbRelationshipTestEntity(t, f, 720004, 7, 1, "song", nil, int64(720000), int64(1), int64(1))
+
+		cases := []struct {
+			name       string
+			sort       RBRelationshipSort
+			kind       int64
+			descending bool
+		}{
+			{"album_empty_albums", RBRelationshipAlbum, 7, false},
+			{"artist_empty_artists_albums", RBRelationshipArtist, 6, false},
+			{"artist_empty_artists_songs_desc", RBRelationshipArtist, 7, true},
+		}
+		for _, tc := range cases {
+			view := f.input
+			view.Kind, view.Descending = tc.kind, tc.descending
+			job := rbRelationshipBegin(t, r, view, tc.sort)
+			done, busy := rbRelationshipAdvanceThroughBusy(t, job)
+			if !done.Ready {
+				t.Fatalf("%s: preparation never became ready: %+v", tc.name, done)
+			}
+			if !busy {
+				t.Fatalf("%s: 48-statement window headroom was not exercised", tc.name)
+			}
+			if done.Restarts != 0 {
+				t.Fatalf("%s: progress was discarded and restarted instead of resumed: %+v", tc.name, done)
+			}
+			got := rbRelationshipCollect(t, f, job, view)
+			want := rbRelationshipOracle(t, f, tc.sort, tc.kind, false, tc.descending)
+			if !slices.Equal(got, want) {
+				t.Fatalf("%s: sparse continuation truncated or reordered: got %d want %d", tc.name, len(got), len(want))
+			}
+			// Song outputs only: the NULL-album song is absent and the
+			// NULL-artist album's song is present only in album order. Membership
+			// equality above proves it; these checks make the literals explicit.
+			if tc.kind == 7 {
+				if slices.Contains(got, int64(720010)) {
+					t.Fatalf("%s: NULL-album song was published", tc.name)
+				}
+				for _, id := range []int64{720001, 720002, 720003} {
+					if !slices.Contains(got, id) {
+						t.Fatalf("%s: NULL disc/track song %d was dropped", tc.name, id)
+					}
+				}
+				if tc.sort == RBRelationshipAlbum {
+					if !slices.Contains(got, int64(720004)) {
+						t.Fatalf("%s: NULL-artist album song was dropped from album order", tc.name)
+					}
+				} else if slices.Contains(got, int64(720004)) {
+					t.Fatalf("%s: NULL-artist album song was published in artist order", tc.name)
+				}
+			}
+			if err := job.Close(); err != nil {
+				t.Fatal(err)
+			}
 		}
 	})
 }

@@ -425,6 +425,10 @@ func (p *RBHomePreparePreparation) window(ctx context.Context, request governor.
 
 // readScope re-reads the complete committed manifest, the pinned principal and
 // every visible library's native fence, then reduces them to the compact scope.
+// It writes p.pending without its own p.mu lock. Both callers hold the job lock
+// for the whole call: Advance holds it across every quantum, and Row takes it
+// before liveRead for the publication revalidation. The value is only consumed
+// by reduce/compose under that same lock, so the two paths cannot race.
 func (p *RBHomePreparePreparation) readScope(s *savedViewSession, query browseQuery) (rbHomePrepareScope, homeManifestSourceFrame, error) {
 	var principal publicationPrincipalPin
 	frame, err := homeManifestSourcePinnedFrameRead(s, query, p.view, &principal)
@@ -1037,8 +1041,15 @@ func (p *RBHomePreparePreparation) actualDate(id int64) string {
 		return ""
 	}
 	if ent.Kind == 2 {
-		if fence, ok := p.libraryFence(ent.Library); ok && rbHomePrepareUnrestricted(fence) && ent.HasContentAdded {
-			return ent.ContentAdded
+		if fence, ok := p.libraryFence(ent.Library); ok && rbHomePrepareUnrestricted(fence) {
+			if ent.HasContentAdded {
+				return ent.ContentAdded
+			}
+			// Legacy homeFixedRecent stamps an unrestricted show from the show's
+			// own last_content_added_at, and homeFixedStamp(nil) is the empty
+			// stamp, which sorts last. Falling back to the newest leaf here would
+			// rank the card by a date the composition never uses.
+			return ""
 		}
 	}
 	return best
@@ -1547,6 +1558,13 @@ func (p *RBHomePreparePreparation) Row(ctx context.Context, request governor.Req
 	if p == nil || p.reader == nil || p.entry == nil || current.After != nil || current.Descending || current.KeepArticles {
 		return RBHomePreparePage{}, BrowseReadResult{}, ErrInput
 	}
+	// Row's revalidate re-enters readScope, which writes p.pending. Take the
+	// same job lock Advance and Close use so an overlapping poll gets ErrBusy
+	// instead of racing that unguarded write (and the delivery flags) here.
+	if !p.mu.TryLock() {
+		return RBHomePreparePage{}, BrowseReadResult{}, governor.ErrBusy
+	}
+	defer p.mu.Unlock()
 	return liveRead(ctx, request, budget, output, p.reader.fixed.native.pool, current.Now, func(ctx context.Context, request governor.Request, budget time.Duration, at time.Time) (RBHomePreparePage, BrowseReadResult, error) {
 		current.Now = at
 		s, err := newSavedViewSession(p.reader.fixed.native, ctx, request, budget, output, current)

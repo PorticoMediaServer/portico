@@ -97,6 +97,112 @@ func rbHomePreparePublishableOracle(t *testing.T, f *browseFixture, libraries []
 	return ids
 }
 
+// rbHomePrepareContentOracle is the independent unrestricted-show oracle. A
+// movie keeps its newest playable added_at; an unrestricted show uses the show
+// row's maintained last_content_added_at exactly like homeFixedRecent's
+// homeFixedStamp(work.Row[0][17]) (NULL is the empty stamp and sorts last). A
+// show only produces a card when at least one of its episodes is playable.
+func rbHomePrepareContentOracle(t *testing.T, f *browseFixture, libraries []int64, limit int) []int64 {
+	t.Helper()
+	allowed := map[int64]bool{}
+	for _, id := range libraries {
+		allowed[id] = true
+	}
+	published := map[int64]string{}
+	publics := map[int64][]byte{}
+	rows, err := f.conn.QueryContext(t.Context(), `
+		SELECT e.id,e.library_id,e.kind,e.public_id,e.retired,e.show_id,e.added_at,e.last_content_added_at,
+		       EXISTS(SELECT 1 FROM catalog_asset_links l JOIN catalog_assets a ON a.id=l.asset_id WHERE l.entity_id=e.id)
+		FROM catalog_entities e`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type showFact struct {
+		date string
+		ok   bool
+	}
+	shows := map[int64]showFact{}
+	type leaf struct {
+		id       int64
+		work     int64
+		workKind int64
+		date     string
+	}
+	var leaves []leaf
+	for rows.Next() {
+		var id, library, kind, retired, playable int64
+		var public []byte
+		var show sqlNullInt
+		var added, content sqlNullText
+		if err := rows.Scan(&id, &library, &kind, &public, &retired, &show, &added, &content, &playable); err != nil {
+			t.Fatal(err)
+		}
+		publics[id] = public
+		if !allowed[library] || retired != 0 {
+			continue
+		}
+		if kind == 2 {
+			shows[id] = showFact{date: content.text, ok: content.ok}
+			continue
+		}
+		if playable == 0 {
+			continue
+		}
+		switch kind {
+		case 1:
+			if !added.ok {
+				continue
+			}
+			leaves = append(leaves, leaf{id: id, work: id, workKind: 1, date: added.text})
+		case 4:
+			if !show.ok {
+				continue
+			}
+			leaves = append(leaves, leaf{id: id, work: show.value, workKind: 2})
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range leaves {
+		if l.workKind == 1 {
+			if current, ok := published[l.work]; !ok || l.date > current {
+				published[l.work] = l.date
+			}
+			continue
+		}
+		show, ok := shows[l.work]
+		if !ok {
+			continue
+		}
+		// The show's own row is the date source; the leaf only proves a card.
+		if _, ok := published[l.work]; !ok {
+			published[l.work] = show.date
+		}
+	}
+	ids := make([]int64, 0, len(published))
+	for id := range published {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(a, b int) bool {
+		x, y := published[ids[a]], published[ids[b]]
+		if x != y {
+			if x == "" {
+				return false
+			}
+			if y == "" {
+				return true
+			}
+			return x > y
+		}
+		return strings.Compare(entityid.Encode(publics[ids[a]]), entityid.Encode(publics[ids[b]])) > 0
+	})
+	if len(ids) > limit {
+		ids = ids[:limit]
+	}
+	return ids
+}
+
 func rbHomePrepareCompareIDs(t *testing.T, got []HomeFixedCard, want []int64, label string) {
 	t.Helper()
 	if len(got) != len(want) {
@@ -187,34 +293,220 @@ func TestRBHomePrepareComposedCut(t *testing.T) {
 		f, r := rbHomePrepareFixture(t, func(f *browseFixture) {
 			rbHomePrepareLibrarySeed(t, f, "shows", 3, "tv")
 			rbHomePrepareMemberLibraries(t, f, "movies", "shows")
-			// Show 2000 has the newest leaf (an unplayable episode at 11-10) but
-			// only an older playable leaf (11-01). Show 2100's playable leaf
-			// (11-05) is older by leaf date yet newer by composed date, so it must
-			// publish first.
-			rbHomePrepareEntitySeed(t, f, 2000, 3, 2, nil, nil, nil, nil, nil, "2026-11-10T00:00:00.000000000Z")
-			rbHomePrepareEntitySeed(t, f, 2100, 3, 2, nil, nil, nil, nil, nil, "2026-11-05T00:00:00.000000000Z")
-			rbHomePrepareEntitySeed(t, f, 3000, 3, 4, nil, int64(2000), nil, nil, nil, "2026-11-10T00:00:00.000000000Z")
-			rbHomePrepareEntitySeed(t, f, 3001, 3, 4, nil, int64(2000), nil, nil, nil, "2026-11-01T00:00:00.000000000Z")
+			// The old two-work case passed even on the pre-fix leaf frontier. Make
+			// the 100th COMPOSED date the cut: 98 movies are newer than both
+			// shows, one playable movie (2098) sits at 11-02, and the two shows'
+			// composed dates straddle it. Show 2150 (composed 11-05) publishes;
+			// show 2100 is the LAST work: its newest leaf is an unplayable episode
+			// at 11-10, but its only playable leaf is 11-01, so its composed date
+			// is 11-01 and it ranks below movie 2098 (11-02). A frontier that
+			// ordered by leaf dates would instead put show 2100 at 11-10 and drop
+			// movie 2098 from the published set.
+			base := time.Date(2026, 11, 11, 0, 0, 0, 0, time.UTC)
+			for n := int64(0); n < 98; n++ {
+				id := 2000 + n
+				rbHomePrepareMovieSeed(t, f, id, base.Add(time.Duration(n)*time.Minute).Format(rbHomePrepareStamp))
+				rbHomePrepareAssetSeed(t, f, id, 1, "fixed-source", "fixed-inc")
+			}
+			rbHomePrepareMovieSeed(t, f, 2098, "2026-11-02T00:00:00.000000000Z")
+			rbHomePrepareAssetSeed(t, f, 2098, 1, "fixed-source", "fixed-inc")
+			rbHomePrepareEntitySeed(t, f, 2100, 3, 2, nil, nil, nil, nil, nil, "2026-11-01T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 2150, 3, 2, nil, nil, nil, nil, nil, "2026-11-05T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 3000, 3, 4, nil, int64(2100), nil, nil, nil, "2026-11-10T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 3001, 3, 4, nil, int64(2100), nil, nil, nil, "2026-11-01T00:00:00.000000000Z")
 			rbHomePrepareAssetSeed(t, f, 3001, 3, "source-shows", "inc-shows")
-			rbHomePrepareEntitySeed(t, f, 3002, 3, 4, nil, int64(2100), nil, nil, nil, "2026-11-05T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 3002, 3, 4, nil, int64(2150), nil, nil, nil, "2026-11-05T00:00:00.000000000Z")
 			rbHomePrepareAssetSeed(t, f, 3002, 3, "source-shows", "inc-shows")
 		})
 		job := rbHomePrepareBegin(t, r, f, "new_on_server")
 		defer job.Close()
 		rbHomePrepareRun(t, job)
 		page, _, err := rbHomePrepareRead(t, f, job)
-		if err != nil || !page.Exact || page.Pending || len(page.Items) != 2 {
-			t.Fatalf("boundary shelf: %+v %v", page, err)
+		if err != nil || !page.Exact || page.Pending || len(page.Items) != 100 {
+			t.Fatalf("composed cut shelf: %+v %v", page, err)
 		}
 		want := rbHomePreparePublishableOracle(t, f, []int64{1, 3}, map[int64]bool{1: true, 2: true}, 100)
-		rbHomePrepareCompareIDs(t, page.Items, want, "boundary")
-		if page.Items[0].Work.ID != 2100 || page.Items[1].Work.ID != 2000 {
-			t.Fatalf("published order ignored composed dates: %+v", page.Items)
+		rbHomePrepareCompareIDs(t, page.Items, want, "composed cut")
+		if page.Items[98].Work.ID != 2150 || page.Items[99].Work.ID != 2098 {
+			t.Fatalf("the 100th composed date did not decide the boundary: %+v", page.Items[97:])
 		}
-		if page.Items[1].Added != "2026-11-01T00:00:00.000000000Z" {
-			t.Fatalf("older playable leaf did not fix the composed date: %+v", page.Items[1])
+		if page.Items[98].Added != "2026-11-05T00:00:00.000000000Z" || page.Items[99].Added != "2026-11-02T00:00:00.000000000Z" {
+			t.Fatalf("boundary cards used leaf dates: %+v", page.Items[98:])
+		}
+		for _, card := range page.Items {
+			if card.Work.ID == 2100 {
+				t.Fatalf("show 2100's unplayable newest leaf pushed it into the cut: %+v", card)
+			}
 		}
 	})
+}
+
+// TestRBHomePrepareTiedInstantFrontier binds the two strict comparisons in the
+// frontier. One instant holds 128 playable works read in the first windows and
+// an unplayable cluster (higher public ids) plus 30 more playable works that
+// are only read after the frontier asks for the next stream window.
+//
+// The strict `cut > upper` at rb_home_prepare.go's frontier is what keeps the
+// walk reading: after the first 128 are published, the unread window still has
+// leaf date == cut, and equality alone proves nothing because the unseen
+// candidates could outrank by public id. Changing `>` to `>=` would complete
+// there and drop the 30 later playables. The belowCut `<` is the other half:
+// after the later window is read, a candidate whose leaf date equals the cut
+// must still be hydrated; changing `<` to `<=` would skip those same 30 works.
+// The 70 unplayable works at the same instant carry higher public ids than the
+// later playables, so they are read first in that window and must never be
+// published.
+func TestRBHomePrepareTiedInstantFrontier(t *testing.T) {
+	homeFixedCase(t, "unread_tied_window_changes_page", func(t *testing.T) {
+		const instant = "2026-10-01T00:00:00.000000000Z"
+		f, r := rbHomePrepareFixture(t, func(f *browseFixture) {
+			// Two playable libraries are read before selection starts. The two
+			// empty libraries and the final cluster library exhaust one quantum's
+			// four-stream budget so the cluster stays unstarted for the frontier.
+			rbHomePrepareLibrarySeed(t, f, "za-empty", 4, "movie")
+			rbHomePrepareLibrarySeed(t, f, "zb-empty", 5, "movie")
+			rbHomePrepareLibrarySeed(t, f, "zlibrary", 6, "movie")
+			f.exec(t, `INSERT INTO library_sources(id,library_id,configured_root,root,incarnation,generation,identity_confirmed) VALUES('source-other','other','/media','/media','inc-other',3,1)`)
+			rbHomePrepareMemberLibraries(t, f, "movies", "other", "za-empty", "zb-empty", "zlibrary")
+			for n := int64(0); n < 64; n++ {
+				rbHomePrepareEntitySeed(t, f, 2000+n, 1, 1, nil, nil, nil, nil, nil, instant)
+				rbHomePrepareAssetSeed(t, f, 2000+n, 1, "fixed-source", "fixed-inc")
+				rbHomePrepareEntitySeed(t, f, 2100+n, 2, 1, nil, nil, nil, nil, nil, instant)
+				rbHomePrepareAssetSeed(t, f, 2100+n, 2, "source-other", "inc-other")
+			}
+			// The unread window: 70 unplayable works with the highest public ids,
+			// then 30 playable works that must displace the oldest first-window
+			// cards because the whole set ties on the composed instant.
+			for n := int64(0); n < 70; n++ {
+				rbHomePrepareEntitySeed(t, f, 4000+n, 6, 1, nil, nil, nil, nil, nil, instant)
+			}
+			for n := int64(0); n < 30; n++ {
+				rbHomePrepareEntitySeed(t, f, 3000+n, 6, 1, nil, nil, nil, nil, nil, instant)
+				rbHomePrepareAssetSeed(t, f, 3000+n, 6, "source-zlibrary", "inc-zlibrary")
+			}
+		})
+		job := rbHomePrepareBegin(t, r, f, "new_on_server")
+		defer job.Close()
+		rbHomePrepareRun(t, job)
+		page, _, err := rbHomePrepareRead(t, f, job)
+		if err != nil || !page.Exact || !page.Exhausted || page.Pending || len(page.Items) != 100 {
+			t.Fatalf("tied frontier was not proved: %+v %v", page, err)
+		}
+		want := rbHomePreparePublishableOracle(t, f, []int64{1, 2, 6}, map[int64]bool{1: true, 2: true}, 100)
+		rbHomePrepareCompareIDs(t, page.Items, want, "tied frontier")
+		// Public ids compare in their encoded (base64url) form, not numerically,
+		// but the later 3000-block still ranks above every first-window work, so
+		// all 30 must be in the page. An early stop at `cut >= upper` would miss
+		// them; a `belowCut <=` skip would miss them the same way.
+		present := map[int64]bool{}
+		for _, card := range page.Items {
+			present[card.Work.ID] = true
+			if card.Work.ID >= 4000 {
+				t.Fatalf("unplayable tied work %d was published", card.Work.ID)
+			}
+		}
+		for n := int64(0); n < 30; n++ {
+			if !present[3000+n] {
+				t.Fatalf("later tied work %d was dropped from the page", 3000+n)
+			}
+		}
+	})
+}
+
+// TestRBHomePrepareUnrestrictedContentCut exercises the UNRESTRICTED TV source:
+// the show stream is catalog_entities_content_added, and a show's composed date
+// is its own maintained last_content_added_at, never an episode's DateAdded.
+// The fixture's default profile is age-restricted at 12, so this is the only
+// test that reaches buildStreams' ContentAdded branch.
+func TestRBHomePrepareUnrestrictedContentCut(t *testing.T) {
+	homeFixedCase(t, "content_added_cut_ignores_episode_dates", func(t *testing.T) {
+		f, r := rbHomePrepareFixture(t, func(f *browseFixture) {
+			f.exec(t, `UPDATE profile_restrictions SET maximum_age=-1, allow_unrated=1 WHERE profile_id='p'`)
+			rbHomePrepareLibrarySeed(t, f, "shows", 3, "tv")
+			rbHomePrepareMemberLibraries(t, f, "movies", "shows")
+			base := time.Date(2026, 11, 11, 0, 0, 0, 0, time.UTC)
+			for n := int64(0); n < 98; n++ {
+				id := 2000 + n
+				rbHomePrepareMovieSeed(t, f, id, base.Add(time.Duration(n)*time.Minute).Format(rbHomePrepareStamp))
+				rbHomePrepareAssetSeed(t, f, id, 1, "fixed-source", "fixed-inc")
+			}
+			rbHomePrepareMovieSeed(t, f, 2098, "2026-11-03T00:00:00.000000000Z")
+			rbHomePrepareAssetSeed(t, f, 2098, 1, "fixed-source", "fixed-inc")
+			// Show 2100's content chronology is 11-02, older than its playable
+			// episode (11-01 is the playable one; 11-10 is unplayable) and older
+			// than its newest episode. Show 2150's content date is 11-05.
+			rbHomePrepareEntitySeed(t, f, 2100, 3, 2, nil, nil, nil, nil, nil, "2026-11-02T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 2200, 3, 3, int64(2100), int64(2100), nil, nil, nil, "2026-11-02T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 3000, 3, 4, int64(2200), int64(2100), int64(2200), nil, nil, "2026-11-10T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 3001, 3, 4, int64(2200), int64(2100), int64(2200), nil, nil, "2026-11-01T00:00:00.000000000Z")
+			rbHomePrepareAssetSeed(t, f, 3001, 3, "source-shows", "inc-shows")
+			rbHomePrepareEntitySeed(t, f, 2150, 3, 2, nil, nil, nil, nil, nil, "2026-11-05T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 2250, 3, 3, int64(2150), int64(2150), nil, nil, nil, "2026-11-05T00:00:00.000000000Z")
+			rbHomePrepareEntitySeed(t, f, 3002, 3, 4, int64(2250), int64(2150), int64(2250), nil, nil, "2026-11-01T00:00:00.000000000Z")
+			rbHomePrepareAssetSeed(t, f, 3002, 3, "source-shows", "inc-shows")
+		})
+		job := rbHomePrepareBegin(t, r, f, "new_on_server")
+		defer job.Close()
+		done := rbHomePrepareRun(t, job)
+		if done.Restarts != 0 {
+			t.Fatalf("unrestricted content walk restarted: %+v", done)
+		}
+		page, _, err := rbHomePrepareRead(t, f, job)
+		if err != nil || !page.Exact || page.Pending || len(page.Items) != 100 {
+			t.Fatalf("unrestricted content cut: %+v %v", page, err)
+		}
+		want := rbHomePrepareContentOracle(t, f, []int64{1, 3}, 100)
+		rbHomePrepareCompareIDs(t, page.Items, want, "unrestricted content")
+		// The 100th composed date is movie 2098 (11-03); show 2150's content date
+		// (11-05) publishes above it, and show 2100 (11-02) is out. An episode
+		// DateAdded frontier would invert exactly this pair.
+		if page.Items[98].Work.ID != 2150 || page.Items[99].Work.ID != 2098 {
+			t.Fatalf("episode dates drove the unrestricted cut: %+v", page.Items[97:])
+		}
+		for _, card := range page.Items {
+			if card.Work.ID == 2100 {
+				t.Fatalf("show 2100 was dated by its newest episode: %+v", card)
+			}
+		}
+	})
+}
+
+// TestRBHomePrepareActualDateUnrestrictedMissingContent pins the parity nit:
+// legacy homeFixedRecent stamps an unrestricted show from the show's own
+// last_content_added_at and homeFixedStamp(nil) is the empty stamp, which sorts
+// last. The column is nullable and no trigger forces it, so actualDate must
+// return the empty stamp instead of the newest playable leaf.
+func TestRBHomePrepareActualDateUnrestrictedMissingContent(t *testing.T) {
+	unrestricted := func() *RBHomePreparePreparation {
+		return &RBHomePreparePreparation{
+			row: "new_on_server",
+			entities: map[int64]*rbHomePrepareEntity{
+				2000: {ID: 2000, Kind: 2, Library: 3, Available: true},
+				3000: {ID: 3000, Kind: 4, Library: 3, Available: true, HasAdded: true, Added: "2026-11-05T00:00:00.000000000Z"},
+			},
+			childrenOf: map[int64][]int64{2000: {3000}},
+			entry: &rbHomePrepareEntry{scope: rbHomePrepareScope{Libraries: []rbHomePrepareLibrary{
+				{NativeID: 3, Fence: browseFence{maximumAge: -1, allowUnrated: 1}},
+			}}},
+		}
+	}
+	if got := unrestricted().actualDate(2000); got != "" {
+		t.Fatalf("unrestricted show without last_content_added_at returned %q, want the empty stamp", got)
+	}
+	// A restricted viewer keeps the newest admitted leaf, and a maintained
+	// content date still wins when the column is present.
+	p := unrestricted()
+	p.entry.scope.Libraries[0].Fence = browseFence{maximumAge: 12, allowUnrated: 0}
+	if got := p.actualDate(2000); got != "2026-11-05T00:00:00.000000000Z" {
+		t.Fatalf("restricted show lost its newest leaf date: %q", got)
+	}
+	p = unrestricted()
+	show := p.entities[2000]
+	show.HasContentAdded = true
+	show.ContentAdded = "2026-11-02T00:00:00.000000000Z"
+	if got := p.actualDate(2000); got != show.ContentAdded {
+		t.Fatalf("unrestricted show did not use its content chronology: %q", got)
+	}
 }
 
 // TestRBHomePrepareRestartBudgetPerJob proves the F-04 invalidation budget is

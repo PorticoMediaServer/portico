@@ -32,7 +32,8 @@ func TestRBRelationshipPreparePlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 2 article-policy variants x 3 seek parts x (payload + same-snapshot byte
-	// preflight) + artist albums (first/tail) + album songs (first/tail).
+	// preflight) = 12, + artist albums (first/tail) = 2, + album songs
+	// (first/equal tail/later track/later disc) = 4, for 18 statements.
 	if len(catalogue.Manifest()) != 18 {
 		t.Fatal("review changed statement inventory")
 	}
