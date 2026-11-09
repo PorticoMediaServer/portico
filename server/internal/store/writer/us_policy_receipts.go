@@ -22,6 +22,10 @@ type usPolicyReceiptRequest struct {
 
 type usPolicyOwnerFacts struct {
 	receiptOwnerFacts
+	// originalFamily is retained provenance, not an equality predicate: the
+	// owner is addressed by the exact issuer scope instead, so a renewed family
+	// of the same installation still resolves. US-07 consumes it.
+	originalFamily                     string
 	reclaimed, count, bytes, retiredMS int64
 }
 
@@ -85,12 +89,12 @@ func readUSPolicyOwner(ctx context.Context, turn *commandTurn, a *usOwnerAuthori
 		return out, err
 	}
 	var inc []byte
-	if err = row.Scan(&inc, &out.lastSequence, &out.acknowledgedSequence, &out.reclaimed, &out.count, &out.bytes, &out.retiredMS); errors.Is(err, sql.ErrNoRows) {
+	if err = row.Scan(&inc, &out.originalFamily, &out.lastSequence, &out.acknowledgedSequence, &out.reclaimed, &out.count, &out.bytes, &out.retiredMS); errors.Is(err, sql.ErrNoRows) {
 		return out, nil
 	} else if err != nil {
 		return out, err
 	}
-	if len(inc) != 16 || out.lastSequence < 0 || out.acknowledgedSequence < 0 || out.acknowledgedSequence > out.lastSequence || out.lastSequence-out.acknowledgedSequence > 1 || out.reclaimed < 0 || out.reclaimed > out.acknowledgedSequence || out.count < out.lastSequence-out.acknowledgedSequence || out.bytes < 0 || out.retiredMS < 0 || (out.count == 0) != (out.bytes == 0) {
+	if len(inc) != 16 || !usIdentifier(out.originalFamily) || out.lastSequence < 0 || out.acknowledgedSequence < 0 || out.acknowledgedSequence > out.lastSequence || out.lastSequence-out.acknowledgedSequence > 1 || out.reclaimed < 0 || out.reclaimed > out.acknowledgedSequence || out.count < out.lastSequence-out.acknowledgedSequence || out.bytes < 0 || out.retiredMS < 0 || (out.count == 0) != (out.bytes == 0) {
 		return out, ErrResolveRequired
 	}
 	out.exists = true
@@ -423,6 +427,11 @@ func acknowledgeUSPolicyAfterAuthority(ctx context.Context, turn *commandTurn, a
 	lookup, err := lookupUSPolicy(ctx, turn, a, q)
 	if err != nil {
 		return 0, err
+	}
+	// Retirement is a retention boundary. An ACK may not resurrect a retired
+	// owner, and its floor stays frozen at the retirement-time value.
+	if lookup.owner.retiredMS != 0 {
+		return 0, ErrOwnerUnavailable
 	}
 	if lookup.decision == receiptRetired {
 		return lookup.owner.acknowledgedSequence, nil
