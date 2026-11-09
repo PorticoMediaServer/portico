@@ -2,6 +2,7 @@ package read
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"reflect"
 	"strings"
@@ -85,8 +86,15 @@ func uoHistoryRow(t *testing.T, f *browseFixture, occurred, library string, kind
 	if err := f.conn.QueryRowContext(t.Context(), `SELECT lifetime FROM direct_profiles WHERE id='p'`).Scan(&lifetime); err != nil {
 		t.Fatal(err)
 	}
+	// The fixture's catalogue public ids are the little-endian subject id, so the
+	// declared (subject_id,item_public_id) pair must name the same subject or the
+	// native composite foreign key refuses the row.
+	var subject any
+	if len(public) == 16 {
+		subject = int64(binary.LittleEndian.Uint64(public))
+	}
 	f.exec(t, `INSERT INTO play_history(occurred_at,event_kind,account_key,profile_id,playback_id,occurrence_generation,accepted_sequence,item_public_id,item_kind,library_public_id,position,played_ms,completed,subject_id,activity_generation,membership_incarnation,profile_lifetime) VALUES(?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?,?)`,
-		occurred, "ended", "a", "p", "playback-"+occurred, int64(1), public, kind, library, int64(10), int64(1000), completed, int64(1), generation, member, lifetime)
+		occurred, "ended", "a", "p", "playback-"+occurred, int64(1), public, kind, library, int64(10), int64(1000), completed, subject, generation, member, lifetime)
 }
 
 func TestUOActivityActorItemTimeBoundedTraversal(t *testing.T) {
@@ -152,7 +160,7 @@ func TestUOActivityCrossProfileAndHeadGeneration(t *testing.T) {
 		t.Fatalf("current generation empty %+v %v", first, err)
 	}
 	uoHistoryHead(t, f, 3, 0)
-	page, _, err := uoActivityRead(t, f, r, UOActivityInput{View: f.input, Family: UOActivityProgress, After: first.Next})
+	page, _, err = uoActivityRead(t, f, r, UOActivityInput{View: f.input, Family: UOActivityProgress, After: first.Next})
 	if !errors.Is(err, ErrStale) || !reflect.DeepEqual(page, UOActivityPage{}) {
 		t.Fatalf("stale head cursor released %+v %v", page, err)
 	}
@@ -268,7 +276,7 @@ func TestUOActivityEffectiveWatchedRefusalAndFold(t *testing.T) {
 	if _, err := foldUOActivityWatched(1, public, 2, leaf, []uoActivityAncestorIntent{ancestors[0], ancestors[0]}); err == nil {
 		t.Fatal("duplicate ancestor identity accepted")
 	}
-	ancestors[1] = uoActivityAncestorIntent{uoActivityWatchedFact: fact(3, 2, 5, true, [16]byte{3}), membership: 4, watermark: 3}
+	ancestors[0] = uoActivityAncestorIntent{uoActivityWatchedFact: fact(4, 2, 5, true, [16]byte{4}), membership: 4, watermark: 3}
 	if got, err := foldUOActivityWatched(1, public, 2, leaf, ancestors); err != nil || got.watched || got.action != 5 {
 		t.Fatalf("ineligible member or tied action folded %+v %v", got, err)
 	}

@@ -231,7 +231,8 @@ func TestUONoticePublishRecordByteCap(t *testing.T) {
 	near.body = strings.Repeat("b", uoNoticeMaxBodyBytes)
 	near.arguments = uoNoticeWideArguments(11, uoNoticeMaxArgumentBytes)
 	near.actions = uoNoticeWideActions(1)
-	if uoNoticeRecordBytes(near.view, near.id, near.severity, near.source, near.category, near.title, near.body, near.dedupe, mustUONoticeJSON(t, near.arguments, near.actions)) > uoNoticeMaxRecordBytes {
+	nearArguments, nearActions := mustUONoticeJSON(t, near.arguments, near.actions)
+	if uoNoticeRecordBytes(near.view, near.id, near.severity, near.source, near.category, near.title, near.body, near.dedupe, nearArguments, nearActions) > uoNoticeMaxRecordBytes {
 		t.Fatal("near-cap fixture exceeds the cap before admission")
 	}
 	accepted := uoNoticePublishOne(t, w, near)
@@ -250,7 +251,8 @@ func TestUONoticePublishRecordByteCap(t *testing.T) {
 	wide.body = strings.Repeat("b", uoNoticeMaxBodyBytes)
 	wide.arguments = uoNoticeWideArguments(12, uoNoticeMaxArgumentBytes)
 	wide.actions = uoNoticeWideActions(3)
-	if uoNoticeRecordBytes(wide.view, wide.id, wide.severity, wide.source, wide.category, wide.title, wide.body, wide.dedupe, mustUONoticeJSON(t, wide.arguments, wide.actions)) <= uoNoticeMaxRecordBytes {
+	wideArguments, wideActions := mustUONoticeJSON(t, wide.arguments, wide.actions)
+	if uoNoticeRecordBytes(wide.view, wide.id, wide.severity, wide.source, wide.category, wide.title, wide.body, wide.dedupe, wideArguments, wideActions) <= uoNoticeMaxRecordBytes {
 		t.Fatal("over-cap fixture does not exceed the cap")
 	}
 	turn := uoNoticePublishTurn(t, w)
@@ -265,7 +267,7 @@ func TestUONoticePublishRecordByteCap(t *testing.T) {
 	}
 }
 
-func mustUONoticeJSON(t *testing.T, arguments map[string]string, actions []notify.Action) string {
+func mustUONoticeJSON(t *testing.T, arguments map[string]string, actions []notify.Action) (string, string) {
 	t.Helper()
 	args, err := uoNoticeEncodedArguments(arguments)
 	if err != nil {
@@ -275,7 +277,7 @@ func mustUONoticeJSON(t *testing.T, arguments map[string]string, actions []notif
 	if err != nil {
 		t.Fatal(err)
 	}
-	return args + acts
+	return args, acts
 }
 
 func TestUONoticePublishRootSeamRefuses(t *testing.T) {
