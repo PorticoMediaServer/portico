@@ -45,7 +45,7 @@ func iaReconcileObjectFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwn
 		{`INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(41,'reconcile-token','/media/reconcile/Reconcile/Movie.mkv',42,7,'','','',0,0,0,7)`, nil},
 		{`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns,seen_job,directory_path,state,analysis_state) VALUES('object:reconcile:1','reconcile-source','reconcile-token','reconcile-incarnation','Reconcile/Movie.mkv','ino:41','object-revision:1','{}',42,7,'reconcile-run','Reconcile','available','complete')`, nil},
 	} {
-		if _, err = w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
+		if _, err := w.db.ExecContext(t.Context(), query.sql, query.args...); err != nil {
 			t.Fatal(query.sql, err)
 		}
 	}

@@ -93,7 +93,7 @@ func iaReadingAcceptFixture(t *testing.T, kind int64) (*executor, *iaEntryRegist
 	}
 	for _, format := range iaReadingFormats(kind) {
 		path := root + "/" + dir + "/novel." + format
-		if _, err = w.db.ExecContext(t.Context(), `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(?,?,?,42,7,'','','',0,0,0,7)`,
+		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(?,?,?,42,7,'','','',0,0,0,7)`,
 			iaReadingAssetID(kind, format), "reading-token-"+format, path); err != nil {
 			t.Fatal(err)
 		}
