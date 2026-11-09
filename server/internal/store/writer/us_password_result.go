@@ -529,7 +529,7 @@ func storeUSPasswordResult(ctx context.Context, turn *commandTurn, a *usOwnerAut
 		return 0, scanErr
 	}
 	row, err := usPasswordQuery(ctx, turn, usPasswordReceiptInsert, q.ownerID, q.reference.Identity.Incarnation[:], q.reference.Identity.Sequence,
-		q.reference.Identity.OperationID[:], q.reference.RequestDigest[:], int64(q.kind), int64(1), codec, v.appliedMS, digest[:])
+		q.reference.Identity.OperationID[:], q.reference.RequestDigest[:], int64(q.kind), int64(1), codec, v.appliedMS, digest[:], int64(0))
 	if err != nil {
 		return 0, err
 	}

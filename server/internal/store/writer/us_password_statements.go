@@ -159,9 +159,9 @@ FROM security_command_receipts WHERE owner_id=? AND command_incarnation=? AND co
 FROM security_password_results WHERE owner_id=? AND command_incarnation=? AND command_sequence=?`,
 			Params: key, Cohorts: []stmt.Cohort{{Name: "original_child", Bindings: bind}}, Plan: childPlan},
 		{ID: usPasswordReceiptInsert, Kind: stmt.Write, SQL: `INSERT INTO security_command_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,result_codec,applied_ms,result_digest,result_count)
-VALUES(?,?,?,?,?,?,?,?,?,?,0) RETURNING variable_bytes`,
-			Params:  []stmt.Param{t("owner"), b("incarnation"), i("sequence"), b("operation"), b("request"), i("kind"), i("version"), t("codec"), i("applied_ms"), b("result")},
-			Cohorts: []stmt.Cohort{{Name: "void_password_result", Bindings: []any{"security-owner", inc, int64(1), op, digest, int64(520), int64(1), "password_replace_v1", int64(1000), digest}}}, Plan: stmt.Plan{Hot: true}},
+VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING variable_bytes`,
+			Params:  []stmt.Param{t("owner"), b("incarnation"), i("sequence"), b("operation"), b("request"), i("kind"), i("version"), t("codec"), i("applied_ms"), b("result"), i("result_count")},
+			Cohorts: []stmt.Cohort{{Name: "void_password_result", Bindings: []any{"security-owner", inc, int64(1), op, digest, int64(520), int64(1), "password_replace_v1", int64(1000), digest, int64(0)}}}, Plan: stmt.Plan{Hot: true}},
 		{ID: usPasswordChildInsert, Kind: stmt.Write, SQL: `INSERT INTO security_password_results(owner_id,command_incarnation,command_sequence,account_id,member_incarnation,profile_id,profile_lifetime,member_revision,profile_revision,previous_epoch,result_epoch)
 VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING variable_bytes`,
 			Params:  []stmt.Param{t("owner"), b("incarnation"), i("sequence"), t("account"), t("member"), t("profile"), t("lifetime"), i("member_revision"), i("profile_revision"), i("previous_epoch"), i("result_epoch")},
