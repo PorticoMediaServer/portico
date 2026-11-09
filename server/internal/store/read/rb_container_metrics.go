@@ -79,7 +79,9 @@ func rbContainerMetricApplies(kind int64, metric RBContainerMetric) bool {
 	case RBContainerCriticRating, RBContainerResolution:
 		return kind == 2 || kind == 3 || kind == 10
 	case RBContainerLatestAired:
-		return kind == 2 || kind == 3 || kind == 10
+		// browse_contract.go lists latestAired for show only; do not widen it
+		// to season/collection here.
+		return kind == 2
 	case RBContainerEpisodeCount:
 		return kind == 2 || kind == 3
 	}
@@ -110,6 +112,10 @@ type RBContainerMetrics struct {
 
 type RBContainerMetricsResult struct {
 	Metrics RBContainerMetrics
+	// Present is the requested metric mask. A metric bit that is not present
+	// was never requested and its field is zero/empty rather than a measured
+	// zero value.
+	Present RBContainerMetric
 	// Proof binds the exact ordered permitted-member set and its values. It is
 	// evidence, never an authorization grant.
 	Proof      [32]byte
@@ -161,14 +167,18 @@ type rbContainerMetricsCursor struct {
 // rbContainerMetricsEntry is the values-only governor holding. It is not a cache
 // purpose shared with another task and it never escapes the reader.
 type rbContainerMetricsEntry struct {
-	ctx                     context.Context
-	owner                   governor.OwnerID
-	reader                  *RBContainerMetricsReader
-	key                     [32]byte
-	lease                   *governor.PreparationLease
-	fence                   browseFence
-	captured, complete      bool
-	delivered, closed       bool
+	ctx                context.Context
+	owner              governor.OwnerID
+	reader             *RBContainerMetricsReader
+	key                [32]byte
+	lease              *governor.PreparationLease
+	fence              browseFence
+	captured, complete bool
+	delivered, closed  bool
+	// restarts is the job-wide F-04 content-restart budget. It survives across
+	// Advance polls; a fresh per-call counter would let one job restart on
+	// every poll and exceed the limit.
+	restarts                int
 	metrics                 RBContainerMetrics
 	proof                   [32]byte
 	retained, payloadBudget int64
@@ -271,7 +281,7 @@ func (p *RBContainerMetricsPreparation) Advance(ctx context.Context, request gov
 	if err = p.check(); err != nil {
 		return result, err
 	}
-	for attempt := 0; ; attempt++ {
+	for {
 		err = p.walk(ctx, request, budget, &result)
 		if err == nil {
 			result.Ready = p.complete
@@ -280,13 +290,14 @@ func (p *RBContainerMetricsPreparation) Advance(ctx context.Context, request gov
 		if !errors.Is(err, errRBContainerMetricsContent) {
 			return result, err
 		}
-		if attempt >= rbContainerMetricsRestartLimit || p.entry.delivered {
+		if p.entry.restarts >= rbContainerMetricsRestartLimit || p.entry.delivered {
 			_ = p.entry.close()
 			return result, ErrStale
 		}
 		if err = p.reset(); err != nil {
 			return result, err
 		}
+		p.entry.restarts++
 		result.Restarts++
 	}
 }
@@ -768,7 +779,7 @@ func (p *RBContainerMetricsPreparation) metricsPage(ctx context.Context, request
 	if err = output.Authority.CheckContext(ctx, output.Grant, output.Request); err != nil {
 		return RBContainerMetricsResult{}, result, err
 	}
-	page = RBContainerMetricsResult{Metrics: p.entry.metrics, Proof: p.entry.proof, Complete: true, Statements: result.PublicationStatements}
+	page = RBContainerMetricsResult{Metrics: p.entry.metrics, Present: p.requested, Proof: p.entry.proof, Complete: true, Statements: result.PublicationStatements}
 	return page, result, nil
 }
 
