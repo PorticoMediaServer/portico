@@ -79,12 +79,16 @@ func mpStartPrepFixtureFor(t *testing.T) mpStartPrepFixture {
 	exec(`INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('mp-start-device',?,'mp-start-install','Fixture','test','test','1','2026-11-08T00:00:00Z','2026-11-08T00:00:00Z')`, s.accountID)
 	exec(`UPDATE authorization_session_families SET device_id='mp-start-device' WHERE id=?`, s.familyID)
 	exec(`INSERT OR IGNORE INTO libraries(id,name,kind,root) VALUES('library-one','Library','movie','/wc-fixture')`)
-	exec(`INSERT INTO library_sources(id,library_id,root,generation,incarnation,root_identity,identity_confirmed,health,enabled) VALUES('mp-source','library-one','/wc-fixture',1,'mp-inc','mp-root',1,'ready',1)`)
+	exec(`INSERT OR IGNORE INTO catalog_libraries(id,library_id,root) VALUES(?,'library-one','/wc-fixture')`, s.libraryID)
+	exec(`INSERT OR IGNORE INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0)`)
+	exec(`INSERT INTO library_sources(id,library_id,configured_root,root,generation,incarnation,root_identity,identity_confirmed,health,enabled) VALUES('mp-source','library-one','/wc-fixture','/wc-fixture',1,'mp-inc','mp-root',1,'ready',1)`)
 	exec(`INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(8001,'mp-asset','mp.mkv',100,1,'matroska','h264','aac',1920,1080,1,?)`, s.libraryID)
 	var public [16]byte
 	copy(public[:], s.subjectPublicID[:])
 	public[0] ^= 0x5a
-	exec(`INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key) VALUES(8002,?,?,1,'Fixture','fixture','fixture','fixture','fixture',1)`, public[:], s.libraryID)
+	entityInc := [16]byte{0x52}
+	exec(`INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(8002,?,?,1)`, public[:], s.libraryID)
+	exec(`INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) VALUES(8002,?,?,1,'Fixture','fixture','fixture','fixture','fixture',1,?,?)`, public[:], s.libraryID, entityInc[:], entityInc[:])
 	exec(`INSERT INTO catalog_asset_links(entity_id,asset_id,library_id,part_index,available) VALUES(8002,8001,?,0,1)`, s.libraryID)
 	exec(`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,revision,evidence_json,size,modified_ns,state) VALUES('mp-object','mp-source','mp-asset','mp-inc','mp.mkv','r1','{}',100,1,'available')`)
 	exec(`INSERT INTO queues_v1(id,owner_kind,owner_id,authority,account_id,profile_id,revision,custody_generation,current_entry_id,created_ms,updated_ms) VALUES('mp-queue','device','mp-start-device','local',?,?,3,7,'entry',100,100)`, s.accountID, s.profileID)

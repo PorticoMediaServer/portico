@@ -50,7 +50,7 @@ func TestMPStartPrepPayloadIsACompleteOriginal(t *testing.T) {
 			t.Fatal("trailing bytes accepted")
 		}
 		forged := value
-		forged.Sealed = false
+		forged.Sealed = !value.Sealed
 		if _, _, err := mpStartPrepPayload(id, request, forged); err == nil {
 			t.Fatal("state/flag mismatch encoded")
 		}

@@ -810,6 +810,9 @@ func (r *effectiveRuntime) dispatchCommand(ctx context.Context, w *Writer, cap *
 					err = checkInventoryNativeScope(ctx, turn, scan.request)
 				}
 			}
+		} else if startPrep != nil || startAccept != nil {
+			// The MP start frames prove their own current actor/source/item/queue
+			// disclosure inside the body; they carry no enrichment scope.
 		} else {
 			err = r.disclose(ctx, turn, cap, request)
 		}

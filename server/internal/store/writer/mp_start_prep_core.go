@@ -216,6 +216,32 @@ func mpPrepOne(ctx context.Context, t *commandTurn, id stmt.ID, args ...any) err
 	return nil
 }
 
+// mpPrepExec runs one closed write statement and requires exactly one changed
+// row. The start CAS statements deliberately return no row: the CAS in their
+// WHERE clause is the entire proof, and an unexpected affected count is a
+// conflict, never a second birth, claim or seal.
+func mpPrepExec(ctx context.Context, t *commandTurn, id stmt.ID, args ...any) error {
+	if t == nil {
+		return ErrInvalid
+	}
+	step, ok := t.steps[id]
+	if !ok {
+		return ErrInvalid
+	}
+	result, err := t.exec(ctx, step.statementStep, args...)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return ErrConflict
+	}
+	return nil
+}
+
 // Native relationship supplement to W's current opaque disclosure, never a
 // replacement for membership/profile/item restriction and horizon checks.
 func checkMPPrepActor(ctx context.Context, t *commandTurn, a mpPrepActor, now int64) error {
@@ -342,22 +368,22 @@ func applyMPStartPrepBegin(ctx context.Context, t *commandTurn, owner [16]byte, 
 	// A duplicate device/key arrives only after the dispatcher's original
 	// key/body replay lookup. A changed duplicate is a conflict, never a
 	// second preparation.
-	if err = mpPrepOne(ctx, t, "mp.start.begin", q.id, q.actor.device, q.keyDigest, q.bodyDigest, q.item, q.source.asset, q.part, q.replaces, q.replacesGeneration, q.tokenExpiresMS, now, q.deadlineMS, owner[:], q.birth.birth.root, q.birth.birth.member, q.birth.birth.profileLifetime); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.begin", q.id, q.actor.device, q.keyDigest, q.bodyDigest, q.item, q.source.asset, q.part, q.replaces, q.replacesGeneration, q.tokenExpiresMS, now, q.deadlineMS, owner[:], q.birth.birth.root, q.birth.birth.member, q.birth.birth.profileLifetime); err != nil {
 		return out, err
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.actor_insert", append([]any{q.id}, q.actor.args()...)...); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.actor_insert", append([]any{q.id}, q.actor.args()...)...); err != nil {
 		return out, err
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.source_insert", append([]any{q.id}, q.source.args()...)...); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.source_insert", append([]any{q.id}, q.source.args()...)...); err != nil {
 		return out, err
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.queue_insert", append([]any{q.id, q.id, q.keyDigest, q.bodyDigest}, q.queue.args()...)...); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.queue_insert", append([]any{q.id, q.id, q.keyDigest, q.bodyDigest}, q.queue.args()...)...); err != nil {
 		return out, err
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.results_insert", q.id, q.results.session, q.results.legacySession, q.results.legacyGeneration, q.results.snapshot); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.results_insert", q.id, q.results.session, q.results.legacySession, q.results.legacyGeneration, q.results.snapshot); err != nil {
 		return out, err
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.lifecycle_insert", q.id); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.lifecycle_insert", q.id, "pending", int64(1), "", int64(0)); err != nil {
 		return out, err
 	}
 	return mpStartPrepValue{Preparation: q.id, State: "pending", Revision: 1, DeadlineMS: q.deadlineMS, Session: q.results.session, LegacySession: q.results.legacySession, LegacyGeneration: q.results.legacyGeneration, Snapshot: q.results.snapshot, AppliedMS: now}, nil
@@ -439,10 +465,10 @@ func applyMPStartPrepClaim(ctx context.Context, t *commandTurn, f mpStartPrepFen
 	if owner.state != "pending" || owner.execution != "" || owner.sealed {
 		return out, ErrConflict
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.claim", execution, f.id, f.revision); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.claim", execution, f.id, f.revision); err != nil {
 		return out, err
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.execution_insert", f.id, execution); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.execution_insert", f.id, execution); err != nil {
 		return out, err
 	}
 	return mpStartPrepValue{Preparation: f.id, State: "preparing", Execution: execution, Revision: f.revision + 1,
@@ -468,10 +494,10 @@ func applyMPStartPrepSeal(ctx context.Context, t *commandTurn, f mpStartPrepFenc
 	if owner.state != "preparing" || owner.execution != c.execution || !owner.sealed {
 		return out, ErrConflict
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.completion", c.resultDigest, c.stagedRows, c.stagedBytes, f.id, c.execution); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.completion", c.resultDigest, c.stagedRows, c.stagedBytes, f.id, c.execution); err != nil {
 		return out, err
 	}
-	if err = mpPrepOne(ctx, t, "mp.start.seal", f.id, f.revision, c.execution); err != nil {
+	if err = mpPrepExec(ctx, t, "mp.start.seal", f.id, f.revision, c.execution); err != nil {
 		return out, err
 	}
 	return mpStartPrepValue{Preparation: f.id, State: "prepared", Execution: c.execution, Revision: f.revision + 1,
@@ -492,16 +518,16 @@ func mpStartPrepDefinitions() []stmt.Definition {
 		mpPrepDefinition("mp.start.results_row", `SELECT session_id,legacy_session_id,legacy_generation,snapshot_id FROM playback_start_preparation_results WHERE operation_id=?`, "s", stmt.Read),
 		mpPrepDefinition("mp.start.execution_row", `SELECT execution_id,result_digest,staged_rows,staged_bytes,physical_exited,cleaned,cleanup_cursor FROM mp_start_execution WHERE operation_id=?`, "s", stmt.Read),
 		mpPrepDefinition("mp.start.result_native", `SELECT l.state,l.revision,l.execution_id,l.sealed,p.deadline_ms,coalesce(p.mp_user_root_id,''),r.session_id,r.legacy_session_id,r.legacy_generation,r.snapshot_id,p.created_ms FROM playback_start_preparations AS p INNER JOIN playback_start_preparation_lifecycle AS l ON l.operation_id=p.id INNER JOIN playback_start_preparation_results AS r ON r.operation_id=p.id WHERE p.id=?`, "s", stmt.Read),
-		mpPrepDefinition("mp.start.begin", `INSERT INTO playback_start_preparations(id,device_id,start_key_digest,start_body_digest,item_id,asset_id,part_index,replaces_session_id,replaces_generation,token_expires_ms,created_ms,deadline_ms,mp_command_incarnation,mp_user_root_id,mp_owner_member_incarnation,mp_owner_profile_lifetime) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "ssssssisiiiibsss", stmt.Write),
-		mpPrepDefinition("mp.start.actor_insert", `INSERT INTO playback_start_preparation_actor(operation_id,server_id,authority,account_id,profile_id,device_id,family_id,grant_id,session_hash,epoch,token_generation,original_horizon_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "sssssssssiii", stmt.Write),
-		mpPrepDefinition("mp.start.source_insert", `INSERT INTO playback_start_preparation_source(operation_id,library_id,library_source_id,asset_id,inventory_object_id,inventory_revision,root_identity,incarnation,remote_source_id,effective_configuration,read_policy_witness,read_authority_witness,library_generation,raw_configuration_generation,profile_revision,size,modified_ns) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "ssssssssssssiiiii", stmt.Write),
-		mpPrepDefinition("mp.start.queue_insert", `INSERT INTO playback_start_preparation_queue(operation_id,legacy_request_id,start_key_digest,start_body_digest,queue_id,queue_entry_id,queue_owner_kind,queue_owner_id,queue_revision,queue_custody_generation) VALUES(?,?,?,?,?,?,?,?,?,?) RETURNING 1`, "ssssssssii", stmt.Write),
-		mpPrepDefinition("mp.start.results_insert", `INSERT INTO playback_start_preparation_results(operation_id,session_id,legacy_session_id,legacy_generation,snapshot_id) VALUES(?,?,?,?,?) RETURNING 1`, "sssis", stmt.Write),
-		mpPrepDefinition("mp.start.lifecycle_insert", `INSERT INTO playback_start_preparation_lifecycle(operation_id,state,revision,execution_id,sealed) VALUES(?,'pending',1,'',0) RETURNING 1`, "s", stmt.Write),
-		mpPrepDefinition("mp.start.claim", `UPDATE playback_start_preparation_lifecycle SET state='preparing',execution_id=?,sealed=1,revision=revision+1 WHERE operation_id=? AND revision=? AND state='pending' AND execution_id='' AND sealed=0 RETURNING 1`, "ssi", stmt.Write),
-		mpPrepDefinition("mp.start.execution_insert", `INSERT INTO mp_start_execution(operation_id,execution_id,physical_exited,cleaned,exit_digest,result_digest,staged_rows,staged_bytes,cleanup_cursor) VALUES(?,?,0,0,'','',0,0,0) RETURNING 1`, "ss", stmt.Write),
-		mpPrepDefinition("mp.start.completion", `UPDATE mp_start_execution SET result_digest=?,staged_rows=?,staged_bytes=? WHERE operation_id=? AND execution_id=? AND result_digest='' AND cleaned=0 AND physical_exited=0 RETURNING 1`, "siiss", stmt.Write),
-		mpPrepDefinition("mp.start.seal", `UPDATE playback_start_preparation_lifecycle SET state='prepared',revision=revision+1 WHERE operation_id=? AND revision=? AND execution_id=? AND state='preparing' AND sealed=1 RETURNING 1`, "sis", stmt.Write),
+		mpPrepDefinition("mp.start.begin", `INSERT INTO playback_start_preparations(id,device_id,start_key_digest,start_body_digest,item_id,asset_id,part_index,replaces_session_id,replaces_generation,token_expires_ms,created_ms,deadline_ms,mp_command_incarnation,mp_user_root_id,mp_owner_member_incarnation,mp_owner_profile_lifetime) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, "ssssssisiiiibsss", stmt.Write),
+		mpPrepDefinition("mp.start.actor_insert", `INSERT INTO playback_start_preparation_actor(operation_id,server_id,authority,account_id,profile_id,device_id,family_id,grant_id,session_hash,epoch,token_generation,original_horizon_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, "sssssssssiii", stmt.Write),
+		mpPrepDefinition("mp.start.source_insert", `INSERT INTO playback_start_preparation_source(operation_id,library_id,library_source_id,asset_id,inventory_object_id,inventory_revision,root_identity,incarnation,remote_source_id,effective_configuration,read_policy_witness,read_authority_witness,library_generation,raw_configuration_generation,profile_revision,size,modified_ns) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, "ssssssssssssiiiii", stmt.Write),
+		mpPrepDefinition("mp.start.queue_insert", `INSERT INTO playback_start_preparation_queue(operation_id,legacy_request_id,start_key_digest,start_body_digest,queue_id,queue_entry_id,queue_owner_kind,queue_owner_id,queue_revision,queue_custody_generation) VALUES(?,?,?,?,?,?,?,?,?,?)`, "ssssssssii", stmt.Write),
+		mpPrepDefinition("mp.start.results_insert", `INSERT INTO playback_start_preparation_results(operation_id,session_id,legacy_session_id,legacy_generation,snapshot_id) VALUES(?,?,?,?,?)`, "sssis", stmt.Write),
+		mpPrepDefinition("mp.start.lifecycle_insert", `INSERT INTO playback_start_preparation_lifecycle(operation_id,state,revision,execution_id,sealed) VALUES(?,?,?,?,?)`, "ssisi", stmt.Write),
+		mpPrepDefinition("mp.start.claim", `UPDATE playback_start_preparation_lifecycle SET state='preparing',execution_id=?,sealed=1,revision=revision+1 WHERE operation_id=? AND revision=? AND state='pending' AND execution_id='' AND sealed=0`, "ssi", stmt.Write),
+		mpPrepDefinition("mp.start.execution_insert", `INSERT INTO mp_start_execution(operation_id,execution_id) VALUES(?,?)`, "ss", stmt.Write),
+		mpPrepDefinition("mp.start.completion", `UPDATE mp_start_execution SET result_digest=?,staged_rows=?,staged_bytes=? WHERE operation_id=? AND execution_id=? AND result_digest='' AND cleaned=0 AND physical_exited=0`, "siiss", stmt.Write),
+		mpPrepDefinition("mp.start.seal", `UPDATE playback_start_preparation_lifecycle SET state='prepared',revision=revision+1 WHERE operation_id=? AND revision=? AND execution_id=? AND state='preparing' AND sealed=1`, "sis", stmt.Write),
 	)
 	// Point plans: every single-table read/write seeks its TEXT primary key.
 	for name := range defs {
