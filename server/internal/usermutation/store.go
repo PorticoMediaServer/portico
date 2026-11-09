@@ -9,33 +9,34 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/mutationreceipt"
 )
 
+// Protocol values and DTOs are aliases of the database-free leaf.
 var (
-	ErrInvalidKey = errors.New("invalid mutation key")
-	ErrExpired    = errors.New("mutation receipt expired")
-	ErrConflict   = errors.New("mutation key conflicts with original request")
-	ErrCapacity   = errors.New("mutation receipt capacity exhausted")
+	ErrInvalidKey = mutationreceipt.ErrInvalidKey
+	ErrExpired    = mutationreceipt.ErrExpired
+	ErrConflict   = mutationreceipt.ErrConflict
+	ErrCapacity   = mutationreceipt.ErrCapacity
 )
 
 const (
-	RetentionMs           int64 = 30 * 24 * 60 * 60 * 1000
-	FutureSkewMs          int64 = 5 * 60 * 1000
-	MaxIDBytes                  = 128
-	MaxOperationBytes           = 96
-	MaxStatusBytes              = 32
-	ReceiptChargeBytes          = 4096
-	AccountChargeBytes          = 1024
-	BaseChargeBytes             = 65536
-	GlobalByteLimit             = 32 * 1024 * 1024
-	OrdinaryByteLimit           = 30 * 1024 * 1024
-	ReservedStopBytes           = 2 * 1024 * 1024
-	PruneLimit                  = 32
-	MaxReceiptRecordBytes       = 1024
+	RetentionMs           = mutationreceipt.RetentionMs
+	FutureSkewMs          = mutationreceipt.FutureSkewMs
+	MaxIDBytes            = mutationreceipt.MaxIDBytes
+	MaxOperationBytes     = mutationreceipt.MaxOperationBytes
+	MaxStatusBytes        = mutationreceipt.MaxStatusBytes
+	ReceiptChargeBytes    = mutationreceipt.ReceiptChargeBytes
+	AccountChargeBytes    = mutationreceipt.AccountChargeBytes
+	BaseChargeBytes       = mutationreceipt.BaseChargeBytes
+	GlobalByteLimit       = mutationreceipt.GlobalByteLimit
+	OrdinaryByteLimit     = mutationreceipt.OrdinaryByteLimit
+	ReservedStopBytes     = mutationreceipt.ReservedStopBytes
+	PruneLimit            = mutationreceipt.PruneLimit
+	MaxReceiptRecordBytes = mutationreceipt.MaxReceiptRecordBytes
 )
 
 // Binding is the authenticated owner a receipt belongs to. RootID is the
@@ -52,42 +53,8 @@ type Envelope struct {
 	Stop                   bool
 }
 
-// Result is deliberately closed: no arbitrary response body or JSON field.
-type Result struct {
-	Status         string `json:"status"`
-	TargetID       string `json:"targetId,omitempty"`
-	Revision       int64  `json:"revision,omitempty"`
-	Generation     int    `json:"generation,omitempty"`
-	PositionMs     int64  `json:"positionMs,omitempty"`
-	PositionStatus string `json:"positionStatus,omitempty"`
-}
-type Receipt struct {
-	Key       string `json:"key"`
-	Operation string `json:"operation"`
-	Result
-	CommittedMs int64 `json:"committedMs"`
-	ExpiresMs   int64 `json:"expiresMs"`
-}
-
-// JSONSchema keeps the compact receipt wire shape closed, including outcome
-// enums. Strings stay assignable from existing domain adapters; Save and SQL
-// independently enforce these same closed sets before anything is retained.
-func (Receipt) JSONSchema() map[string]any {
-	boundedString := func(n int) map[string]any { return map[string]any{"type": "string", "maxLength": n} }
-	number := func(n int64) map[string]any { return map[string]any{"type": "integer", "minimum": 0, "maximum": n} }
-	return map[string]any{
-		"type": "object", "additionalProperties": false,
-		"required": []string{"key", "operation", "status", "committedMs", "expiresMs"},
-		"properties": map[string]any{
-			"key":       map[string]any{"type": "string", "pattern": `^p251_[0-9]{13}_[0-9a-f]{32}$`, "minLength": 51, "maxLength": 51},
-			"operation": boundedString(MaxOperationBytes),
-			"status":    map[string]any{"type": "string", "enum": []string{"applied", "already_stopped", "conflict", "invalid", "terminal", "deleted", "removed", "partial"}},
-			"targetId":  boundedString(MaxIDBytes), "revision": number(9007199254740991), "generation": number(2147483647), "positionMs": number(9007199254740991),
-			"positionStatus": map[string]any{"type": "string", "enum": []string{"", "applied", "already_stopped", "not_renderer", "policy_rejected", "unchanged"}},
-			"committedMs":    number(9999999999999), "expiresMs": number(9999999999999 + RetentionMs),
-		},
-	}
-}
+type Result = mutationreceipt.Result
+type Receipt = mutationreceipt.Receipt
 
 type reader interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
@@ -125,37 +92,11 @@ func hexLower(s string, n int) bool {
 	return true
 }
 
-func parseKey(key string) (int64, error) {
-	if len(key) != 51 || !strings.HasPrefix(key, "p251_") || key[18] != '_' || !hexLower(key[19:], 32) {
-		return 0, ErrInvalidKey
-	}
-	for _, c := range key[5:18] {
-		if c < '0' || c > '9' {
-			return 0, ErrInvalidKey
-		}
-	}
-	issued, _ := strconv.ParseInt(key[5:18], 10, 64)
-	if issued <= 0 {
-		return 0, ErrInvalidKey
-	}
-	return issued, nil
-}
+func parseKey(key string) (int64, error) { return mutationreceipt.ParseKey(key) }
 
-// IssuedMs checks the wire grammar and wall-clock window. Persisted retirement
-// fences must also be checked; use Check/Lookup rather than this parser alone.
-func IssuedMs(key string, now int64) (int64, error) {
-	issued, err := parseKey(key)
-	if err != nil {
-		return 0, err
-	}
-	if now < 0 || now > 9999999999999 || issued > now+FutureSkewMs {
-		return 0, ErrInvalidKey
-	}
-	if issued < now-RetentionMs {
-		return 0, ErrExpired
-	}
-	return issued, nil
-}
+// IssuedMs validates the public grammar/window; persisted fences remain the
+// responsibility of Check/Lookup in the receiving transaction.
+func IssuedMs(key string, now int64) (int64, error) { return mutationreceipt.IssuedMs(key, now) }
 func validate(b Binding, e Envelope, now int64) (int64, error) {
 	if !validBinding(b) || !bounded(e.Operation, MaxOperationBytes, false) || !hexLower(e.Digest, 64) || now < 0 || now > 9999999999999 {
 		return 0, ErrInvalidKey

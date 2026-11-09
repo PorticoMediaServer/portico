@@ -10,15 +10,16 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
+	"github.com/PorticoMediaServer/portico/server/internal/mutationreceipt"
 )
 
 const uoReadingChildMaxBytes int64 = 51 + 16 + 512 + 64 + 4 + 4096 + 1024 + 128
-const uoReadingReserveBytes int64 = usermutation.ReceiptChargeBytes + uoReadingChildMaxBytes
+const uoReadingReserveBytes int64 = mutationreceipt.ReceiptChargeBytes + uoReadingChildMaxBytes
 
 // Existing public p251 identity and typed F child, NOT a lifetime-root receipt
 // or a new wire envelope. MP owns canonical request digest, source/permission
-// proof, reading_revision CAS, event and final command dispatch. Only 770/771,
+// proof, event and final command dispatch. UO owns personal reading effects
+// and their revision CAS; MP supplies source/location preparation. Only 770/771,
 // ordinary budget (never caller-selected reserved-stop quota), local interactive
 // proof, and one original per frame are admitted by this private first instance.
 type uoPublicReadingRequest struct {
@@ -36,7 +37,7 @@ type uoPublicReadingResult struct {
 	reason                                            string
 }
 type uoPublicReadingOriginal struct {
-	receipt usermutation.Receipt
+	receipt mutationreceipt.Receipt
 	reading uoPublicReadingResult
 }
 type uoPublicReadingCheck struct {
@@ -72,10 +73,10 @@ func (q uoPublicReadingRequest) validate(now int64) (int64, error) {
 	if _, err := q.operation(); err != nil {
 		return 0, err
 	}
-	if q.request == (RequestDigest{}) || q.root != "" && !usermutation.ValidRootID(q.root) {
+	if q.request == (RequestDigest{}) || q.root != "" && !mutationreceipt.ValidRootID(q.root) {
 		return 0, ErrInvalid
 	}
-	return usermutation.IssuedMs(q.key, now)
+	return mutationreceipt.IssuedMs(q.key, now)
 }
 
 func uoPublicReadingPoison(turn *commandTurn, err error) {
@@ -100,11 +101,13 @@ func checkUOPublicReadingRoot(ctx context.Context, turn *commandTurn, a *usCurre
 		return err
 	}
 	var state string
-	if err = row.Scan(&state); err != nil {
-		return errors.Join(usermutation.ErrRootGone, err)
+	if err = row.Scan(&state); errors.Is(err, sql.ErrNoRows) {
+		return mutationreceipt.ErrRootGone
+	} else if err != nil {
+		return err
 	}
 	if state != "active" && state != "draining" {
-		return usermutation.ErrRootGone
+		return mutationreceipt.ErrRootGone
 	}
 	if fresh && state != "active" {
 		return ErrConflict
@@ -156,11 +159,11 @@ func checkUOPublicReadingReceipt(ctx context.Context, turn *commandTurn, a *usCu
 		if !accountAbsent {
 			return out, ErrConflict
 		}
-		globalBytes = usermutation.BaseChargeBytes
+		globalBytes = mutationreceipt.BaseChargeBytes
 	}
-	cut := max(globalCut, accountCut, now-usermutation.RetentionMs)
+	cut := max(globalCut, accountCut, now-mutationreceipt.RetentionMs)
 	if issued < cut {
-		return out, usermutation.ErrExpired
+		return out, mutationreceipt.ErrExpired
 	}
 	operation, _ := q.operation()
 	digest := hex.EncodeToString(q.request[:])
@@ -200,7 +203,7 @@ func checkUOPublicReadingReceipt(ctx context.Context, turn *commandTurn, a *usCu
 		}
 		original.receipt.Key = q.key
 		original.receipt.Operation = operation
-		original.receipt.ExpiresMs = issued + usermutation.RetentionMs
+		original.receipt.ExpiresMs = issued + mutationreceipt.RetentionMs
 		if err = checkUOPublicReadingRoot(ctx, turn, a, q, false); err != nil {
 			return out, err
 		}
@@ -217,10 +220,10 @@ func checkUOPublicReadingReceipt(ctx context.Context, turn *commandTurn, a *usCu
 	// are separately reserved at their legal maximum, then reconciled on Save.
 	delta := uoReadingReserveBytes
 	if accountAbsent {
-		delta += usermutation.AccountChargeBytes
+		delta += mutationreceipt.AccountChargeBytes
 	}
-	if accountCount >= 8192 || globalCount >= 65536 || globalBytes > usermutation.OrdinaryByteLimit-delta {
-		return out, usermutation.ErrCapacity
+	if accountCount >= 8192 || globalCount >= 65536 || globalBytes > mutationreceipt.OrdinaryByteLimit-delta {
+		return out, mutationreceipt.ErrCapacity
 	}
 	if globalAbsent {
 		if _, err = wc008DraftInteger(ctx, turn, uoPublicReadingGlobalBirth, int64(1)); err != nil {
@@ -237,7 +240,7 @@ func checkUOPublicReadingReceipt(ctx context.Context, turn *commandTurn, a *usCu
 	if _, err = wc008DraftInteger(ctx, turn, uoPublicReadingAccountReserve, scope, accountCount); err != nil {
 		return out, err
 	}
-	if _, err = wc008DraftInteger(ctx, turn, uoPublicReadingGlobalReserve, globalCount+1, globalBytes+delta, max(globalCut, now-usermutation.RetentionMs), globalCount, globalBytes, globalCut); err != nil {
+	if _, err = wc008DraftInteger(ctx, turn, uoPublicReadingGlobalReserve, globalCount+1, globalBytes+delta, max(globalCut, now-mutationreceipt.RetentionMs), globalCount, globalBytes, globalCut); err != nil {
 		return out, err
 	}
 	if _, err = wc008DraftInteger(ctx, turn, uoPublicReadingHeaderBirth, q.key, scope, i.profile, i.family, i.profileLifetime, installation, q.root, operation, digest, issued, int64(0), "reserved"); err != nil {
@@ -252,7 +255,7 @@ func checkUOPublicReadingReceipt(ctx context.Context, turn *commandTurn, a *usCu
 	return uoPublicReadingCheck{reservation: r}, nil
 }
 
-func saveUOPublicReadingReceipt(ctx context.Context, turn *commandTurn, r *uoPublicReadingReservation, h usermutation.Result, v uoPublicReadingResult) (err error) {
+func saveUOPublicReadingReceipt(ctx context.Context, turn *commandTurn, r *uoPublicReadingReservation, h mutationreceipt.Result, v uoPublicReadingResult) (err error) {
 	defer func() {
 		_, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err)
 		uoPublicReadingPoison(turn, err)
@@ -424,8 +427,8 @@ func checkUOPublicReadingWindow(ctx context.Context, turn *commandTurn, r *uoPub
 	if err = row.Scan(&globalCut, &globalCount, &bytes); err != nil {
 		return err
 	}
-	if issued < max(cut, globalCut, now-usermutation.RetentionMs) {
-		return usermutation.ErrExpired
+	if issued < max(cut, globalCut, now-mutationreceipt.RetentionMs) {
+		return mutationreceipt.ErrExpired
 	}
 	return turn.checkLifetimes(ctx)
 }
