@@ -143,3 +143,5 @@ Each list is disjoint. A prep task updates only its own files; no product schema
 - The P05/P06 fixtures are the only v1-native sites at this head. Credential fixtures exist only in `us_authority_test.go` at present; US-11 adds the first accepting credential producer.
 - `internal/testauth/session.go` is legacy today: no `store/*` test calls it. If a v1 fixture later adopts it, add a v1-specific helper that writes `security_kind` explicitly rather than inferring it (CHANGE-015 producer-impact rule).
 - The family `INSERT-SELECT` sites copy an existing family row, so they inherit the source kind. They still must stay listed because the copied row may be ordinary or credential.
+
+E/CHANGE-016 embed adds adopted prefix `49b3df34` to the exact known-schema guard inventory. The three B producer tables and their required security choices remain unchanged. The population fixture now requires exact E bytes and exports fresh images; earlier-schema manifests remain refused.
