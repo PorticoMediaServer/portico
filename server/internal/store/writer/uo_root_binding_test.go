@@ -192,7 +192,7 @@ func TestUORootNormalSeamRefusesWithoutMint(t *testing.T) {
 		t.Fatal("zero NORMAL proof not the typed seam", err)
 	}
 	valid := uoRootNormalProof(t, normal)
-	// The shape is complete, but the authorized mint does not exist yet.
+	// The shape is complete, but it has no validated current-session mint.
 	if _, err := bindUORoot(normal, nil, valid); !errors.Is(err, ErrUORootCurrentFenceUnavailable) {
 		t.Fatal("unminted NORMAL proof not the typed seam", err)
 	}

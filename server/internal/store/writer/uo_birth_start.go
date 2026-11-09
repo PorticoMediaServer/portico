@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
+	"github.com/PorticoMediaServer/portico/server/internal/mutationreceipt"
 )
 
 type uoBirthStartLookup struct {
@@ -23,7 +23,7 @@ func (uoBirthStartLookup) Format(s fmt.State, _ rune) { formatUSPreparation(s, "
 func lookupUOBirthStart(ctx context.Context, turn *commandTurn, a *usCurrentSessionAuthorization, q uoRootReference) (out *uoBirthStartLookup, err error) {
 	defer func() { uoPublicReadingPoison(turn, err) }()
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if turn == nil || turn.transaction == nil || turn.transaction.birthStart != nil || q.kind != 700 || !usermutation.ValidRootID(q.root) || !q.validFor(turn) {
+	if turn == nil || turn.transaction == nil || turn.transaction.birthStart != nil || q.kind != 700 || !mutationreceipt.ValidRootID(q.root) || !q.validFor(turn) {
 		return nil, ErrInvalid
 	}
 	proof, err := bindUSCurrentUORoot(ctx, turn, a)
