@@ -411,8 +411,12 @@ func iaFinishCheckFrontier(ctx context.Context, turn *commandTurn, r iaFinishRes
 	if err != nil {
 		return 0, err
 	}
-	if _, err = iaFinishUnseenObligation(ctx, turn, r, iaFinishExempt(blocked, protected, skipped)); err != nil {
+	genuine, err := iaFinishUnseenObligation(ctx, turn, r, iaFinishExempt(blocked, protected, skipped))
+	if err != nil {
 		return 0, err
+	}
+	if genuine > 0 {
+		return 0, ErrResolveRequired
 	}
 	uncharged, err := iaFinishPathPages(ctx, turn, iaFinishBlockedCharged, r.scope.runID)
 	if err != nil {

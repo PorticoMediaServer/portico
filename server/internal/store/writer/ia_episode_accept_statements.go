@@ -7,34 +7,35 @@ import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 // OFFSET, temporary sort, library-wide scan or caller-selected SQL. The typed
 // member cohort is read only through its own receipt/kind prefix.
 const (
-	iaEpisodeOwner              stmt.ID = "ia.episode.owner"
-	iaEpisodeHeader             stmt.ID = "ia.episode.header"
-	iaEpisodeMemberBytes        stmt.ID = "ia.episode.member_bytes"
-	iaEpisodeMembers            stmt.ID = "ia.episode.members"
-	iaEpisodeLibrary            stmt.ID = "ia.episode.library"
-	iaEpisodeSource             stmt.ID = "ia.episode.source"
-	iaEpisodeDirectory          stmt.ID = "ia.episode.directory"
-	iaEpisodeAsset              stmt.ID = "ia.episode.asset"
-	iaEpisodeIdentity           stmt.ID = "ia.episode.identity"
-	iaEpisodeEntity             stmt.ID = "ia.episode.entity"
-	iaEpisodeDirectoryCAS       stmt.ID = "ia.episode.directory_cas"
-	iaEpisodeRunCAS             stmt.ID = "ia.episode.run_cas"
-	iaEpisodeContainer          stmt.ID = "ia.episode.container"
-	iaEpisodeContainerAdvance   stmt.ID = "ia.episode.container_advance"
-	iaEpisodeSubjectInsert      stmt.ID = "ia.episode.subject_insert"
-	iaEpisodeIdentityInsert     stmt.ID = "ia.episode.identity_insert"
-	iaEpisodeEntityInsert       stmt.ID = "ia.episode.entity_insert"
-	iaEpisodeLinkInsert         stmt.ID = "ia.episode.link_insert"
-	iaEpisodeContributionInsert stmt.ID = "ia.episode.contribution_insert"
-	iaEpisodeSearchHead         stmt.ID = "ia.episode.search_head"
-	iaEpisodeSearchBank         stmt.ID = "ia.episode.search_bank"
-	iaEpisodeSearchExisting     stmt.ID = "ia.episode.search_existing"
-	iaEpisodeSearchInsert       stmt.ID = "ia.episode.search_insert"
-	iaEpisodeSearchPending      stmt.ID = "ia.episode.search_pending"
-	iaEpisodeSearchSequence     stmt.ID = "ia.episode.search_sequence"
-	iaEpisodeSearchBuilding     stmt.ID = "ia.episode.search_building"
-	iaEpisodeReceiptInsert      stmt.ID = "ia.episode.receipt_insert"
-	iaEpisodeMemberInsert       stmt.ID = "ia.episode.member_insert"
+	iaEpisodeOwner                stmt.ID = "ia.episode.owner"
+	iaEpisodeHeader               stmt.ID = "ia.episode.header"
+	iaEpisodeMemberBytes          stmt.ID = "ia.episode.member_bytes"
+	iaEpisodeMembers              stmt.ID = "ia.episode.members"
+	iaEpisodeLibrary              stmt.ID = "ia.episode.library"
+	iaEpisodeSource               stmt.ID = "ia.episode.source"
+	iaEpisodeDirectory            stmt.ID = "ia.episode.directory"
+	iaEpisodeAsset                stmt.ID = "ia.episode.asset"
+	iaEpisodeIdentity             stmt.ID = "ia.episode.identity"
+	iaEpisodeEntity               stmt.ID = "ia.episode.entity"
+	iaEpisodeDirectoryCAS         stmt.ID = "ia.episode.directory_cas"
+	iaEpisodeRunCAS               stmt.ID = "ia.episode.run_cas"
+	iaEpisodeContainer            stmt.ID = "ia.episode.container"
+	iaEpisodeContainerAdvance     stmt.ID = "ia.episode.container_advance"
+	iaEpisodeContainerAdvanceNull stmt.ID = "ia.episode.container_advance_null"
+	iaEpisodeSubjectInsert        stmt.ID = "ia.episode.subject_insert"
+	iaEpisodeIdentityInsert       stmt.ID = "ia.episode.identity_insert"
+	iaEpisodeEntityInsert         stmt.ID = "ia.episode.entity_insert"
+	iaEpisodeLinkInsert           stmt.ID = "ia.episode.link_insert"
+	iaEpisodeContributionInsert   stmt.ID = "ia.episode.contribution_insert"
+	iaEpisodeSearchHead           stmt.ID = "ia.episode.search_head"
+	iaEpisodeSearchBank           stmt.ID = "ia.episode.search_bank"
+	iaEpisodeSearchExisting       stmt.ID = "ia.episode.search_existing"
+	iaEpisodeSearchInsert         stmt.ID = "ia.episode.search_insert"
+	iaEpisodeSearchPending        stmt.ID = "ia.episode.search_pending"
+	iaEpisodeSearchSequence       stmt.ID = "ia.episode.search_sequence"
+	iaEpisodeSearchBuilding       stmt.ID = "ia.episode.search_building"
+	iaEpisodeReceiptInsert        stmt.ID = "ia.episode.receipt_insert"
+	iaEpisodeMemberInsert         stmt.ID = "ia.episode.member_insert"
 )
 
 const iaEpisodeReceiptKind = "episode_inventory_accept"
@@ -172,12 +173,21 @@ RETURNING job_revision,last_command_sequence`,
 			}},
 		{ID: iaEpisodeContainerAdvance, Kind: stmt.Write,
 			SQL: `UPDATE catalog_entities SET last_content_added_at=?
-WHERE id=? AND library_id=? AND kind=? AND retired=0 AND last_content_added_at IS ?
+WHERE id=? AND library_id=? AND kind=? AND retired=0 AND last_content_added_at=?
 RETURNING last_content_added_at`,
 			Params: []stmt.Param{t("last_content_added_at"), i("subject_id"), i("library_id"), i("kind"), nt("prior_content_added_at")},
 			Cohorts: []stmt.Cohort{
-				{Name: "null_to_accepted", Bindings: []any{"2026-11-08T00:00:00.000000000Z", int64(31), int64(7), int64(2), nil}},
 				{Name: "older_to_accepted", Bindings: []any{"2026-11-08T00:00:00.000000000Z", int64(31), int64(7), int64(2), "2026-11-01T00:00:00.000000000Z"}},
+				{Name: "stale_container", Bindings: []any{"2026-11-08T00:00:00.000000000Z", int64(31), int64(7), int64(2), "2026-11-07T00:00:00.000000000Z"}},
+			}},
+		{ID: iaEpisodeContainerAdvanceNull, Kind: stmt.Write,
+			SQL: `UPDATE catalog_entities SET last_content_added_at=?
+WHERE id=? AND library_id=? AND kind=? AND retired=0 AND last_content_added_at IS NULL
+RETURNING last_content_added_at`,
+			Params: []stmt.Param{t("last_content_added_at"), i("subject_id"), i("library_id"), i("kind")},
+			Cohorts: []stmt.Cohort{
+				{Name: "null_to_accepted", Bindings: []any{"2026-11-08T00:00:00.000000000Z", int64(31), int64(7), int64(2)}},
+				{Name: "already_advanced", Bindings: []any{"2026-11-08T00:00:00.000000000Z", int64(31), int64(7), int64(3)}},
 			}},
 		{ID: iaEpisodeSubjectInsert, Kind: stmt.Write,
 			SQL:    `INSERT INTO catalog_subjects(public_id,library_id,kind) VALUES(?,?,?) RETURNING id`,
@@ -352,7 +362,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		case iaEpisodeRunCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}
 			defs[n].Plan.Seeks = []string{"job_id=? AND command_incarnation=?"}
-		case iaEpisodeContainer, iaEpisodeContainerAdvance:
+		case iaEpisodeContainer, iaEpisodeContainerAdvance, iaEpisodeContainerAdvanceNull:
 			defs[n].Plan.PrimaryKeys = []string{"catalog_entities"}
 			defs[n].Plan.Seeks = []string{"rowid=?"}
 		case iaEpisodeSearchHead:

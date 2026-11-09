@@ -687,7 +687,15 @@ func iaEpisodeAdvanceChronology(ctx context.Context, turn *commandTurn, libraryI
 	if prior.Valid && prior.String >= acceptedAt {
 		return nil
 	}
-	row, err = wc008DraftQuery(ctx, turn, iaEpisodeContainerAdvance, acceptedAt, subjectID, libraryID, kind, iaEpisodeNullableText(iaEpisodeTextPointerOf(prior)))
+	// The hot grammar has no IS ? form, so the two closed nullable variants are
+	// chosen from the stored value: an absent container matches IS NULL and a
+	// present one is an exact CAS against its observed instant.
+	id, args := iaEpisodeContainerAdvanceNull, []any{acceptedAt, subjectID, libraryID, kind}
+	if prior.Valid {
+		id = iaEpisodeContainerAdvance
+		args = append(args, prior.String)
+	}
+	row, err = wc008DraftQuery(ctx, turn, id, args...)
 	if err != nil {
 		return err
 	}
@@ -699,14 +707,6 @@ func iaEpisodeAdvanceChronology(ctx context.Context, turn *commandTurn, libraryI
 		return ErrResolveRequired
 	}
 	return nil
-}
-
-func iaEpisodeTextPointerOf(v sql.NullString) *string {
-	if !v.Valid {
-		return nil
-	}
-	s := v.String
-	return &s
 }
 
 // The complete typed cohort: show, each distinct season, each episode identity,
