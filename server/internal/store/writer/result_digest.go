@@ -71,6 +71,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 		return preflightMGRuleResult(v)
 	case mgCaptureResult:
 		return preflightMGCaptureResult(v)
+	case mgReconcileResult:
+		return preflightMGReconcile(v)
 	case uoRootOperationResult:
 		return preflightUORootOperation(v)
 	case mpQueueRepeatValue:
@@ -182,6 +184,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeMGRuleResult(e, identity, request, v)
 	case mgCaptureResult:
 		return writeMGCaptureResult(e, identity, request, v)
+	case mgReconcileResult:
+		return writeMGReconcile(e, identity, request, v)
 	case uoRootOperationResult:
 		return writeUORootOperation(e, identity, request, v)
 	case mpQueueRepeatValue:
