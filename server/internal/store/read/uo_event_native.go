@@ -183,15 +183,24 @@ const (
 func uoEventDefinitions() []stmt.Definition {
 	s := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
-	d := func(id stmt.ID, query string, params []stmt.Param, p stmt.Plan) stmt.Definition {
-		return stmt.Definition{ID: id, Kind: stmt.Read, SQL: query, Params: params, Owner: "store/read UO events", CallSites: []string{"store/read/uo_event_native.go"}, Plan: p}
+	d := func(id stmt.ID, query string, params []stmt.Param, cohorts []stmt.Cohort, p stmt.Plan) stmt.Definition {
+		return stmt.Definition{ID: id, Kind: stmt.Read, SQL: query, Params: params, Cohorts: cohorts, Owner: "store/read UO events", CallSites: []string{"store/read/uo_event_native.go"}, Plan: p}
 	}
 	point := []stmt.Param{i("id"), s("audience")}
 	return []stmt.Definition{
-		d(uoEventNext, `SELECT id FROM api_events INDEXED BY api_events_audience WHERE audience=? AND id>? AND id<=? ORDER BY id LIMIT ?`, []stmt.Param{s("audience"), i("after"), i("upper"), i("limit")}, stmt.Plan{Hot: true, Indexes: []string{"api_events_audience"}}),
-		d(uoEventOctets, `SELECT octet_length(type),octet_length(resource_kind),octet_length(resource_id),octet_length(revision),octet_length(data) FROM api_events WHERE id=? AND audience=?`, point, stmt.Plan{Hot: true, PrimaryKeys: []string{"api_events"}}),
-		d(uoEventPoint, `SELECT id,type,resource_kind,resource_id,revision,data,at_ms FROM api_events WHERE id=? AND audience=?`, point, stmt.Plan{Hot: true, PrimaryKeys: []string{"api_events"}}),
+		d(uoEventNext, `SELECT id FROM api_events INDEXED BY api_events_audience WHERE audience=? AND id>? AND id<=? ORDER BY id LIMIT ?`, []stmt.Param{s("audience"), i("after"), i("upper"), i("limit")}, []stmt.Cohort{{Name: "own_audience_window", Bindings: []any{"p", int64(0), int64(3), int64(101)}}}, stmt.Plan{Hot: true, Indexes: []string{"api_events_audience"}}),
+		d(uoEventOctets, `SELECT octet_length(type),octet_length(resource_kind),octet_length(resource_id),octet_length(revision),octet_length(data) FROM api_events WHERE id=? AND audience=?`, point, []stmt.Cohort{{Name: "point", Bindings: []any{int64(1), "p"}}}, stmt.Plan{Hot: true, PrimaryKeys: []string{"api_events"}}),
+		d(uoEventPoint, `SELECT id,type,resource_kind,resource_id,revision,data,at_ms FROM api_events WHERE id=? AND audience=?`, point, []stmt.Cohort{{Name: "point", Bindings: []any{int64(1), "p"}}}, stmt.Plan{Hot: true, PrimaryKeys: []string{"api_events"}}),
 	}
+}
+
+// UOEventDefinitions returns the inert UO event page and feed definitions for
+// explicit harness composition alongside HarnessDefinitions. Capture them on
+// the actual reader before registration; the product does not select this
+// layer before cutover. Every seek is a keyed SEARCH on the api_events PK or
+// the (audience,id) index; nothing scans or sorts into a temporary B-tree.
+func UOEventDefinitions() []stmt.Definition {
+	return append(uoEventDefinitions(), uoEventFeedDefinitions()...)
 }
 
 // Current content checks are supplied by the admitted composition, never by a

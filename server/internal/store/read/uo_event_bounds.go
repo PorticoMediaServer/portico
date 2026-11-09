@@ -225,15 +225,19 @@ const (
 
 func uoEventFeedDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
-	d := func(id stmt.ID, sql string, p ...stmt.Param) stmt.Definition {
-		return stmt.Definition{ID: id, Kind: stmt.Read, SQL: sql, Params: p, Owner: "store/read UO event feed", CallSites: []string{"store/read/uo_event_bounds.go"}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"api_events"}}}
+	d := func(id stmt.ID, sql string, params []stmt.Param, cohorts []stmt.Cohort, p ...string) stmt.Definition {
+		plan := stmt.Plan{Hot: true, PrimaryKeys: []string{"api_events"}}
+		if len(p) > 0 {
+			plan = stmt.Plan{Hot: true, Indexes: p}
+		}
+		return stmt.Definition{ID: id, Kind: stmt.Read, SQL: sql, Params: params, Cohorts: cohorts, Owner: "store/read UO event feed", CallSites: []string{"store/read/uo_event_bounds.go"}, Plan: plan}
 	}
 	return []stmt.Definition{
-		d(uoEventOldest, `SELECT id FROM api_events WHERE id>=? ORDER BY id LIMIT 1`, i("minimum")),
-		d(uoEventNewest, `SELECT id FROM api_events WHERE id<=? ORDER BY id DESC LIMIT 1`, i("maximum")),
-		d(uoEventRawWindow, `SELECT id FROM api_events WHERE id>? AND id<=? ORDER BY id LIMIT ?`, i("after"), i("upper"), i("limit")),
-		d(uoEventAudienceOctets, `SELECT octet_length(audience) FROM api_events WHERE id=?`, i("id")),
-		d(uoEventAudiencePoint, `SELECT audience FROM api_events WHERE id=?`, i("id")),
+		d(uoEventOldest, `SELECT id FROM api_events WHERE id>=? ORDER BY id LIMIT 1`, []stmt.Param{i("minimum")}, []stmt.Cohort{{Name: "retained_floor", Bindings: []any{int64(1)}}}),
+		d(uoEventNewest, `SELECT id FROM api_events WHERE id<=? ORDER BY id DESC LIMIT 1`, []stmt.Param{i("maximum")}, []stmt.Cohort{{Name: "high_water", Bindings: []any{int64(3)}}}),
+		d(uoEventRawWindow, `SELECT id FROM api_events WHERE id>? AND id<=? ORDER BY id LIMIT ?`, []stmt.Param{i("after"), i("upper"), i("limit")}, []stmt.Cohort{{Name: "raw_window", Bindings: []any{int64(0), int64(3), int64(101)}}}),
+		d(uoEventAudienceOctets, `SELECT octet_length(audience) FROM api_events WHERE id=?`, []stmt.Param{i("id")}, []stmt.Cohort{{Name: "point", Bindings: []any{int64(1)}}}),
+		d(uoEventAudiencePoint, `SELECT audience FROM api_events WHERE id=?`, []stmt.Param{i("id")}, []stmt.Cohort{{Name: "point", Bindings: []any{int64(1)}}}),
 	}
 }
 
