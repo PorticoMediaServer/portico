@@ -22,14 +22,18 @@ func checkUSReadingErasureTurn(turn *commandTurn) error {
 	}
 }
 
-func drainUSReadingPersonal(ctx context.Context, turn *commandTurn, s uoReadingPersonalScope) (uoReadingResumeDrainEffect, error) {
+func drainUSReadingPersonal(ctx context.Context, turn *commandTurn, s uoReadingPersonalScope) (out uoReadingResumeDrainEffect, err error) {
+	defer func() { uoReadingCustodyFailure(turn, err) }()
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if err := checkUSReadingErasureTurn(turn); err != nil {
 		return uoReadingResumeDrainEffect{}, err
 	}
 	return drainUOReadingResume(ctx, turn, s)
 }
 
-func pruneUSReadingProfileReceipts(ctx context.Context, turn *commandTurn, s uoReadingPruneScope) (uoReadingPruneEffect, error) {
+func pruneUSReadingProfileReceipts(ctx context.Context, turn *commandTurn, s uoReadingPruneScope) (out uoReadingPruneEffect, err error) {
+	defer func() { uoReadingCustodyFailure(turn, err) }()
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if err := checkUSReadingErasureTurn(turn); err != nil {
 		return uoReadingPruneEffect{}, err
 	}
