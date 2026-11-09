@@ -879,7 +879,9 @@ func TestMPStartAcceptClosedDefinitionSyntax(t *testing.T) {
 
 func TestMPStartAcceptCompositionStaysClosed(t *testing.T) {
 	f := mpStartPrepFixtureFor(t)
-	// Accept/retire/timeout need MP-07's staged rows and receipt root.
+	// Accept/retire/timeout need MP-07's staged rows and receipt root, so the
+	// preparation profile is installed before the first birth.
+	mpStartPrepComposeFixture(t, f)
 	if _, err := f.begin(t); err != nil {
 		t.Fatal(err)
 	}
@@ -888,7 +890,6 @@ func TestMPStartAcceptCompositionStaysClosed(t *testing.T) {
 	if !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || !reflect.DeepEqual(out, mpStartAcceptResult{}) {
 		t.Fatal("uninstalled terminal command ran", out, err)
 	}
-	mpStartPrepComposeFixture(t, f)
 	if err := composeMPStartAccept(t.Context(), f.w.effective, effectiveFixturePlan()); err == nil || f.w.effective.mpStartAcceptPlan != nil {
 		t.Fatal("unqualified terminal profile installed", err)
 	}

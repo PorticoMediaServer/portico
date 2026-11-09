@@ -442,7 +442,9 @@ func captureMPStartPrepOwner(ctx context.Context, t *commandTurn, kind CommandID
 	if out.state != "pending" && out.state != "preparing" {
 		return out, ErrConflict
 	}
-	if out.revision != f.revision {
+	// The fence carries the lifecycle revision. mp_owner_revision tracks
+	// receipt debt and may drift between commands, so it is never the CAS.
+	if out.lifecycleRevision != f.revision {
 		return out, ErrConflict
 	}
 	return out, nil

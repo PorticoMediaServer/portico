@@ -390,7 +390,13 @@ func TestMPStartPrepRefusalsKeepOriginalState(t *testing.T) {
 				}
 				out, err = f.seal(t, 2, mpStartPrepCompletion{execution: "mp-execution", resultDigest: strings.Repeat("f", 64), stagedRows: 4, stagedBytes: 128}, 2, 0x65)
 			case "interrupted-stage":
-				out, err = f.seal(t, 2, mpStartPrepCompletion{execution: "mp-execution", resultDigest: strings.Repeat("f", 64), stagedRows: 0, stagedBytes: 0}, 2, 0x65)
+				// A stage interrupted before writing anything reports zero
+				// totals. That is never a complete seal, so the canonical
+				// preflight refuses the request before any frame runs and the
+				// preparation must stay untouched.
+				q := f.sealInput(2, mpStartPrepCompletion{execution: "mp-execution", resultDigest: strings.Repeat("f", 64)})
+				reference := ReceiptReference{Identity: CommandIdentity{Incarnation: f.inc, Sequence: 2, OperationID: [16]byte{0x65}}}
+				out, err = f.run(t, MPStartPrepSeal, reference, q)
 			case "deadline-drift":
 				if _, e := f.e.db.ExecContext(t.Context(), `UPDATE playback_start_preparations SET deadline_ms=created_ms+1 WHERE id='mp-prep'`); e != nil {
 					t.Fatal(e)
@@ -495,14 +501,26 @@ type mpStartPrepPrefixFault struct {
 	seen       int
 }
 
+func (c *mpStartPrepPrefixFault) intercept(q string) bool {
+	if q != c.target {
+		return false
+	}
+	c.seen++
+	return c.seen == c.occurrence
+}
+
 func (c *mpStartPrepPrefixFault) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
-	if q == c.target {
-		c.seen++
-		if c.seen == c.occurrence {
-			return nil, errMPMutation
-		}
+	if c.intercept(q) {
+		return nil, errMPMutation
 	}
 	return c.writerDriverConn.QueryContext(ctx, q, args)
+}
+
+func (c *mpStartPrepPrefixFault) ExecContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
+	if c.intercept(q) {
+		return nil, errMPMutation
+	}
+	return c.writerDriverConn.ExecContext(ctx, q, args)
 }
 
 func mpStartPrepReopenFaultPool(t *testing.T, f mpStartPrepFixture, fault *mpStartPrepPrefixFault) {
