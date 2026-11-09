@@ -17,6 +17,20 @@ import (
 
 var errUOEventResync = errors.New("event resume requires resync")
 
+// errUOEventWakeCapacity is the named refusal for a hub map that would exceed
+// its bounded number of admitted audience entries.
+var errUOEventWakeCapacity = errors.New("event wake hub capacity exhausted")
+
+const (
+	// uoEventWakeMaxActive bounds concurrent streams admitted through one hub.
+	// A parent may configure a smaller cap on the hub itself.
+	uoEventWakeMaxActive = 8
+	// uoEventWakeMaxAudiences bounds the hub map. One stream may hold up to
+	// uoEventTransportAudiences entries, so the map stays bounded even when
+	// every stream is addressed by many audiences.
+	uoEventWakeMaxAudiences = 512
+)
+
 // These bindings are current read/disclosure facts, not bearer authority.
 // Each reconnect/read/delivery still requires current authorization. Keys are
 // process-local; restart/restore/audience drift intentionally requires resync.
@@ -143,8 +157,11 @@ func (c *uoEventCursorCodec) decode(token string, binding uoEventBinding) (int64
 // external GV memory grant remains charged through its release. No DB snapshot
 // or read connection belongs to this wait helper.
 type uoEventWakeHub struct {
-	mu        sync.Mutex
-	audiences map[string]*uoEventWakeAudience
+	mu           sync.Mutex
+	audiences    map[string]*uoEventWakeAudience
+	active       int
+	maxActive    int
+	maxAudiences int
 }
 type uoEventWakeAudience struct {
 	changed    chan struct{}
@@ -157,13 +174,69 @@ type uoEventSubscription struct {
 	entry    *uoEventWakeAudience
 	released bool
 }
+
+// uoEventSubscriptionSet is one stream's subscriptions to every addressed
+// audience key. Release is idempotent and drops each refcount once.
+type uoEventSubscriptionSet struct {
+	subs     []*uoEventSubscription
+	released bool
+}
 type uoEventWakePosition struct {
 	generation uint64
 	changed    <-chan struct{}
 }
 
+func (h *uoEventWakeHub) maxActiveStreams() int {
+	if h.maxActive > 0 {
+		return h.maxActive
+	}
+	return uoEventWakeMaxActive
+}
+func (h *uoEventWakeHub) maxAudienceEntries() int {
+	if h.maxAudiences > 0 {
+		return h.maxAudiences
+	}
+	return uoEventWakeMaxAudiences
+}
+
+// acquireStream enforces the configured concurrent-stream cap with a named
+// refusal before any subscription, map entry or SQL work exists.
+func (h *uoEventWakeHub) acquireStream() error {
+	if h == nil {
+		return ErrInput
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.active >= h.maxActiveStreams() {
+		return errUOEventTransportAtCapacity
+	}
+	h.active++
+	return nil
+}
+func (h *uoEventWakeHub) releaseStream() {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.active > 0 {
+		h.active--
+	}
+}
+
 func (h *uoEventWakeHub) subscribe(audience string) (*uoEventSubscription, error) {
-	if h == nil || audience == "" || len(audience) > 512 {
+	set, err := h.subscribeAll([]string{audience})
+	if err != nil {
+		return nil, err
+	}
+	return set.subs[0], nil
+}
+
+// subscribeAll admits one refcount per audience under a single lock, so a
+// failure leaves no partial subscription behind. A key that would grow the map
+// past the hub bound is a named refusal, never an unbounded entry.
+func (h *uoEventWakeHub) subscribeAll(audiences []string) (*uoEventSubscriptionSet, error) {
+	if h == nil || len(audiences) == 0 {
 		return nil, ErrInput
 	}
 	h.mu.Lock()
@@ -171,13 +244,52 @@ func (h *uoEventWakeHub) subscribe(audience string) (*uoEventSubscription, error
 	if h.audiences == nil {
 		h.audiences = make(map[string]*uoEventWakeAudience)
 	}
-	e := h.audiences[audience]
-	if e == nil {
-		e = &uoEventWakeAudience{changed: make(chan struct{})}
-		h.audiences[audience] = e
+	fresh := 0
+	for _, audience := range audiences {
+		if audience == "" || len(audience) > 512 {
+			return nil, ErrInput
+		}
+		if h.audiences[audience] == nil {
+			fresh++
+		}
 	}
-	e.refs++
-	return &uoEventSubscription{hub: h, audience: audience, entry: e}, nil
+	if len(h.audiences)+fresh > h.maxAudienceEntries() {
+		return nil, errUOEventWakeCapacity
+	}
+	set := &uoEventSubscriptionSet{subs: make([]*uoEventSubscription, 0, len(audiences))}
+	for _, audience := range audiences {
+		e := h.audiences[audience]
+		if e == nil {
+			e = &uoEventWakeAudience{changed: make(chan struct{})}
+			h.audiences[audience] = e
+		}
+		e.refs++
+		set.subs = append(set.subs, &uoEventSubscription{hub: h, audience: audience, entry: e})
+	}
+	return set, nil
+}
+func (s *uoEventSubscriptionSet) observe() ([]uoEventWakePosition, error) {
+	if s == nil {
+		return nil, ErrInput
+	}
+	out := make([]uoEventWakePosition, len(s.subs))
+	for i, sub := range s.subs {
+		position, err := sub.observe()
+		if err != nil {
+			return nil, err
+		}
+		out[i] = position
+	}
+	return out, nil
+}
+func (s *uoEventSubscriptionSet) release() {
+	if s == nil || s.released {
+		return
+	}
+	s.released = true
+	for _, sub := range s.subs {
+		sub.release()
+	}
 }
 func (s *uoEventSubscription) observe() (uoEventWakePosition, error) {
 	if s == nil || s.hub == nil {
