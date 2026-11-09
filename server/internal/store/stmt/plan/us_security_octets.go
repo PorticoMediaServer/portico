@@ -41,7 +41,7 @@ WHERE p.account_id=? AND p.deleted=0 ORDER BY p.position,p.id LIMIT ?`
 const usSecurityDevicesOctetsSQL = `SELECT octet_length(d.id),octet_length(d.account_id),octet_length(a.username),octet_length(d.last_profile_id),octet_length(d.name),octet_length(d.platform),octet_length(d.app),octet_length(d.app_version),octet_length(d.first_seen),octet_length(d.last_seen)
 FROM identity_devices AS d INDEXED BY identity_devices_people_activity
 CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=d.account_id
-WHERE d.account_id=? AND d.authority='local' ORDER BY d.platform,d.last_seen DESC LIMIT ?`
+WHERE d.account_id=? AND d.authority='local' AND d.retired_ms=0 ORDER BY d.platform,d.last_seen DESC LIMIT ?`
 
 func init() {
 	pointOctets.add(octetShape{

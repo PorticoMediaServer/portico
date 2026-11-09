@@ -123,16 +123,20 @@ WHERE p.account_id=? AND p.deleted=0 ORDER BY p.position,p.id LIMIT ?`
 // A complete bounded owner device page for one account. The official people
 // activity index supplies account/authority then platform and last-seen order,
 // so no temporary sort is needed. Address, installation id and session counts
-// are deliberately absent.
+// are deliberately absent. A retired device leaves the page exactly as it left
+// the session witness: retired_ms=0 is the same live predicate used by
+// usSecuritySessionSQL and the authority/device writers, and it is a residual
+// filter inside WHERE so the native key stays a SEARCH and the cap counts only
+// live devices.
 const usSecurityDevicesSQL = `SELECT d.id,d.account_id,a.username,d.last_profile_id,d.name,d.platform,d.app,d.app_version,d.first_seen,d.last_seen,d.revision
 FROM identity_devices AS d INDEXED BY identity_devices_people_activity
 CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=d.account_id
-WHERE d.account_id=? AND d.authority='local' ORDER BY d.platform,d.last_seen DESC LIMIT ?`
+WHERE d.account_id=? AND d.authority='local' AND d.retired_ms=0 ORDER BY d.platform,d.last_seen DESC LIMIT ?`
 
 const usSecurityDevicesOctetsSQL = `SELECT octet_length(d.id),octet_length(d.account_id),octet_length(a.username),octet_length(d.last_profile_id),octet_length(d.name),octet_length(d.platform),octet_length(d.app),octet_length(d.app_version),octet_length(d.first_seen),octet_length(d.last_seen)
 FROM identity_devices AS d INDEXED BY identity_devices_people_activity
 CROSS JOIN accounts AS a INDEXED BY sqlite_autoindex_accounts_1 ON a.id=d.account_id
-WHERE d.account_id=? AND d.authority='local' ORDER BY d.platform,d.last_seen DESC LIMIT ?`
+WHERE d.account_id=? AND d.authority='local' AND d.retired_ms=0 ORDER BY d.platform,d.last_seen DESC LIMIT ?`
 
 func usSecurityKey(table, name, origin string, columns ...string) stmt.AutoIndexBinding {
 	binding := stmt.AutoIndexBinding{Table: table, Name: name, Origin: origin}
