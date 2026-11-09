@@ -1044,7 +1044,7 @@ func TestRBPersonalPrepareFixedSplitRefusals(t *testing.T) {
 		if !errors.Is(failure, errRBPersonalPrepareWorkspace) {
 			t.Fatalf("valued run above W refused with %v", failure)
 		}
-		if !job.entry.closed || job.staged != nil || job.stageIDs != nil || job.entry.total != 0 {
+		if !job.entry.closed || job.staged != nil || job.stageIDs != nil || job.entry.ids != nil {
 			t.Fatal("workspace refusal kept a partial set")
 		}
 		if usage := f.authority.Usage()[governor.Foreground][governor.MemoryBytes]; usage != 0 {
@@ -1057,7 +1057,7 @@ func TestRBPersonalPrepareFixedSplitRefusals(t *testing.T) {
 		// A small cap_ids cannot hold the unrated remainder: the existing named
 		// capacity error, never a truncated order.
 		f, r = newRBPersonalPrepareFixture(t)
-		job, err = r.BeginRBPersonalPrepare(t.Context(), 1, 16384, RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder})
+		job, err = r.BeginRBPersonalPrepare(t.Context(), 1, 12288, RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1075,7 +1075,7 @@ func TestRBPersonalPrepareFixedSplitRefusals(t *testing.T) {
 		if !errors.Is(failure, errRBPreparationCapacity) {
 			t.Fatalf("remainder above cap_ids refused with %v", failure)
 		}
-		if !job.entry.closed || job.staged != nil || job.stageIDs != nil || job.entry.total != 0 {
+		if !job.entry.closed || job.staged != nil || job.stageIDs != nil || job.entry.ids != nil {
 			t.Fatal("capacity refusal kept a partial set")
 		}
 		if usage := f.authority.Usage()[governor.Foreground][governor.MemoryBytes]; usage != 0 {
