@@ -333,6 +333,12 @@ func applyIABookInventory(ctx context.Context, turn *commandTurn, authority *iaE
 	if err = wc008DraftChanged(ctx, turn, iaBookContributionInsert, r.scope.libraryID, allocated.file.subjectID, asset.id, int64(1), int64(0), r.files[0].size, asset.fileSizeRevision); err != nil {
 		return out, err
 	}
+	// IA-14: the accepted local series pairs publish with this exact accepted
+	// audiobook source and policy revision. The projection and its head commit
+	// or roll back with the rest of the unit.
+	if err = iaBookSeriesPublish(ctx, turn, r.scope.libraryID, allocated.book.subjectID, asset, r.run.policyRevision, iaBookSeriesAcceptedPairs(r)); err != nil {
+		return out, err
+	}
 	if err = applyIAMediaSearchInput(ctx, turn, allocated.newEntities, appliedMS, 8, 13); err != nil {
 		return out, err
 	}
@@ -385,6 +391,7 @@ func iaBookCheckDirectory(ctx context.Context, turn *commandTurn, r iaBookInvent
 
 type iaBookAssetFacts struct {
 	id, infoEpoch, fileSizeRevision int64
+	token                           string
 }
 
 func iaBookCheckAsset(ctx context.Context, turn *commandTurn, r iaBookInventoryRequest) (out iaBookAssetFacts, err error) {
@@ -404,6 +411,7 @@ func iaBookCheckAsset(ctx context.Context, turn *commandTurn, r iaBookInventoryR
 	if out.id <= 0 || token == "" || out.infoEpoch <= 0 || out.fileSizeRevision <= 0 {
 		return out, ErrResolveRequired
 	}
+	out.token = token
 	return out, nil
 }
 

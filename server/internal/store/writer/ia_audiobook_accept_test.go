@@ -156,7 +156,8 @@ func iaBookCount(t *testing.T, w *executor, query string, args ...any) int64 {
 func iaBookNoEffects(t *testing.T, w *executor) {
 	t.Helper()
 	for _, table := range []string{"catalog_subjects", "catalog_identities", "catalog_entities", "catalog_asset_links",
-		"catalog_asset_contributions", "scan_command_receipts", "scan_media_result_members", "search_publish_jobs"} {
+		"catalog_asset_contributions", "scan_command_receipts", "scan_media_result_members", "search_publish_jobs",
+		"catalog_book_series_heads", "catalog_book_series_members"} {
 		if got := iaBookCount(t, w, `SELECT count(*) FROM `+table); got != 0 {
 			t.Fatal("refused request wrote", table, got)
 		}

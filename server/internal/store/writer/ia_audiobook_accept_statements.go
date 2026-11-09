@@ -210,6 +210,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(entity_id,asset_id) DO NOTHING`,
 	// names these exact IDs, so the family is registered here instead of
 	// duplicating the append protocol.
 	defs = append(defs, iaBookSearchStatements()...)
+	// IA-14 publishes the accepted local book-series projection inside the same
+	// command; its exact head/member family is composed here, not registered
+	// twice.
+	defs = append(defs, iaBookSeriesStatements()...)
 	defs = append(defs,
 		stmt.Definition{ID: iaBookReceiptInsert, Kind: stmt.Write,
 			SQL: `INSERT INTO scan_command_receipts(
