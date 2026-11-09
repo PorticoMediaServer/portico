@@ -171,6 +171,7 @@ func (b ipPolicyBudget) check(ctx context.Context, turn *commandTurn, bytes int6
 	tx := turn.transaction
 	switch tx.descriptor.ID {
 	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
+		IPEntityEvidenceBegin, IPEntityEvidenceAppend,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
 		IPArtworkMaterialIntent, IPArtworkMaterialInstalled:
 	default:

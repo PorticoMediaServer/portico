@@ -1,0 +1,55 @@
+-- Exact D subset needed by IP-06's nonmovie entity evidence begin/append,
+-- 8 November 2026. Proposed fixture only; group D is not embedded and this
+-- makes no Capture claim. The provider-operation owner, immutable subject
+-- binding, evidence body/build/children and acquisition job are already in the
+-- embedded schema; this adds only the domain IP receipt header plus the exact
+-- evidence/build reverse indexes used by the closed begin/append statements.
+CREATE TABLE metadata_ip_receipts(
+ owner_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ operation_id BLOB NOT NULL UNIQUE CHECK(length(operation_id)=16),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('claim','renew','finish','begin','append','evidence_seal','set_begin','set_page','set_seal','accept','delta','reclaim')),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>0),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32),
+ result_phase TEXT NOT NULL,
+ after_family INTEGER NOT NULL CHECK(after_family>=0),
+ after_ordinal INTEGER NOT NULL CHECK(after_ordinal>=-1),
+ after_key TEXT NOT NULL,
+ result_count INTEGER NOT NULL CHECK(result_count>=0),
+ result_bytes INTEGER NOT NULL CHECK(result_bytes>=0),
+ terminal INTEGER NOT NULL CHECK(terminal IN(0,1)),
+ evidence_id TEXT,
+ evidence_subject_id INTEGER,
+ parser_version TEXT,
+ build_id TEXT,
+ set_id TEXT,
+ publication_id TEXT,
+ seal_algorithm TEXT,
+ seal_version INTEGER,
+ seal_commitment BLOB,
+ seal_rows INTEGER,
+ seal_bytes INTEGER,
+ proof_pin_count INTEGER NOT NULL DEFAULT 0 CHECK(proof_pin_count>=0),
+ proof_revision INTEGER NOT NULL DEFAULT 1 CHECK(proof_revision>0),
+ PRIMARY KEY(owner_id,command_incarnation,command_sequence),
+ UNIQUE(owner_id,command_incarnation,command_sequence,command_kind,evidence_id,evidence_subject_id,parser_version),
+ UNIQUE(owner_id,command_incarnation,command_sequence,command_kind,set_id),
+ FOREIGN KEY(owner_id,command_incarnation) REFERENCES metadata_provider_operations(id,command_incarnation) ON DELETE NO ACTION,
+ FOREIGN KEY(evidence_id,evidence_subject_id) REFERENCES metadata_evidence(id,subject_id) ON DELETE NO ACTION,
+ FOREIGN KEY(build_id) REFERENCES metadata_evidence_builds(id) ON DELETE NO ACTION,
+ FOREIGN KEY(set_id) REFERENCES metadata_publication_sets(id) ON DELETE NO ACTION,
+ FOREIGN KEY(publication_id) REFERENCES metadata_publications(id) ON DELETE NO ACTION,
+ CHECK((evidence_id IS NULL)=(evidence_subject_id IS NULL)),
+ CHECK((evidence_id IS NULL)=(parser_version IS NULL)),
+ CHECK((command_kind IN('evidence_seal','set_seal'))=(seal_algorithm IS NOT NULL)),
+ CHECK((seal_algorithm IS NULL)=(seal_version IS NULL) AND (seal_algorithm IS NULL)=(seal_commitment IS NULL) AND (seal_algorithm IS NULL)=(seal_rows IS NULL) AND (seal_algorithm IS NULL)=(seal_bytes IS NULL)),
+ CHECK(seal_algorithm IS NULL OR (length(seal_algorithm)>0 AND seal_version>0 AND length(seal_commitment)=32 AND seal_rows>0 AND seal_bytes>0)),
+ CHECK(command_kind<>'evidence_seal' OR (evidence_id IS NOT NULL AND build_id IS NOT NULL)),
+ CHECK(command_kind NOT IN('set_begin','set_page','set_seal') OR set_id IS NOT NULL),
+ CHECK(command_kind NOT IN('accept','delta') OR publication_id IS NOT NULL)
+) WITHOUT ROWID, STRICT;
+CREATE INDEX metadata_ip_receipt_evidence ON metadata_ip_receipts(evidence_id,owner_id) WHERE evidence_id IS NOT NULL;
+CREATE INDEX metadata_ip_receipt_build ON metadata_ip_receipts(build_id,owner_id) WHERE build_id IS NOT NULL;

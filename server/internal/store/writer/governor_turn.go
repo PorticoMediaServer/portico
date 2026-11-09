@@ -17,6 +17,7 @@ import (
 func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
 	case IPPolicySet, IPRefreshBegin, IPRefreshPage, IPEntityClaim, IPEntityRenew, IPEntityFinish,
+		IPEntityEvidenceBegin, IPEntityEvidenceAppend,
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
 		IPFieldEdit, IPFieldLock, IPFieldRestore, IPEditBulkBegin:
 		return governor.Background, nil

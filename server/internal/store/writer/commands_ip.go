@@ -11,6 +11,9 @@ const (
 	IPEntityRenew  CommandID = 204
 	IPEntityFinish CommandID = 205
 
+	IPEntityEvidenceBegin  CommandID = 210
+	IPEntityEvidenceAppend CommandID = 211
+
 	IPArtworkDiscoveryClaim  CommandID = 220
 	IPArtworkDiscoveryPage   CommandID = 221
 	IPArtworkDiscoveryFinish CommandID = 222
@@ -31,6 +34,8 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPEntityClaim, "ip_entity_claim", Normal},
 	{IPEntityRenew, "ip_entity_renew", Normal},
 	{IPEntityFinish, "ip_entity_finish", Normal},
+	{IPEntityEvidenceBegin, "ip_entity_evidence_begin", Normal},
+	{IPEntityEvidenceAppend, "ip_entity_evidence_append", Normal},
 	{IPArtworkDiscoveryClaim, "ip_artwork_discovery_claim", Normal},
 	{IPArtworkDiscoveryPage, "ip_artwork_discovery_page", Normal},
 	{IPArtworkDiscoveryFinish, "ip_artwork_discovery_finish", Normal},
