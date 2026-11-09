@@ -363,7 +363,10 @@ func mgScheduleRecording(ctx context.Context, t *commandTurn, owner mgRecordingO
 
 // The copied programme is immutable. An option edit compares the historical
 // pinned occurrence while independently re-checking the current source
-// revision/head and the exact current programme facts.
+// revision/head and the exact current programme facts. A waiting-source,
+// waiting-guide or conflicted row is still editable: the legacy reconcile path
+// only disabled its reservation, so either observed enabled value is accepted
+// and the edit re-enables that same window.
 func mgUpdateRecording(ctx context.Context, t *commandTurn, owner mgRecordingOwner, id string, expected int64, scope mgRecordingScope, f mgRecordingFrozen) (out mgRecordingIntentFacts, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	if !scope.valid() || scope.generation != scope.head || !f.valid() || !mgRecordingHex(id, 64) || expected < 1 {
@@ -401,7 +404,13 @@ func mgUpdateRecording(ctx context.Context, t *commandTurn, owner mgRecordingOwn
 	if err != nil {
 		return out, err
 	}
-	if !reservation.present || reservation.source != before.source || reservation.startMS != before.startMS || reservation.endMS != before.endMS || reservation.priority != before.priority || reservation.enabled != 1 {
+	// The legacy reconcile path moves a waiting-source, waiting-guide or
+	// conflicted row to that state and only disables its reservation
+	// (enabled=0), so an owner can still edit it back to scheduled. Either
+	// observed enabled value is admitted; the reserve-update CAS below stays on
+	// the exact value read. A missing row, or a window/source/priority that no
+	// longer matches the intent, is not this intent's window and refuses.
+	if !reservation.present || reservation.source != before.source || reservation.startMS != before.startMS || reservation.endMS != before.endMS || reservation.priority != before.priority {
 		return out, ErrConflict
 	}
 	args := append([]any{f.optionsJSON, f.startMS, f.endMS, f.options.Priority, nowMS}, before.fenceValues()...)
@@ -428,7 +437,10 @@ func mgUpdateRecording(ctx context.Context, t *commandTurn, owner mgRecordingOwn
 // Cancellation is owner/revision custody of the logical intent. It always
 // advances the cancel generation, keeps the guide pin, allocation, artifact,
 // share and capture namespace untouched, and never refunds a physical byte.
-// An already-cancelled intent is a truthful no-op at the same revision.
+// An already-cancelled intent is a truthful no-op at the same revision. A
+// waiting-source, waiting-guide or conflicted intent stays cancellable after a
+// source or guide replacement: its disabled reservation (enabled=0) is this
+// intent's same window, not a reason to refuse.
 func mgCancelRecording(ctx context.Context, t *commandTurn, owner mgRecordingOwner, id string, expected int64) (out mgRecordingIntentFacts, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
 	if !mgRecordingHex(id, 64) || expected < 1 {
@@ -465,6 +477,15 @@ func mgCancelRecording(ctx context.Context, t *commandTurn, owner mgRecordingOwn
 	if before.cancelGeneration == math.MaxInt64 {
 		return out, ErrConflict
 	}
+	// A waiting-source, waiting-guide or conflicted row still names this
+	// intent's exclusive window even when the legacy reconcile path only
+	// disabled it (enabled=0), so either observed enabled value is admitted and
+	// the reserve-disable CAS below stays on the exact value read. A missing
+	// row, or a window/source/priority that no longer matches the intent, is a
+	// different window and refuses before any effect.
+	if !reservation.present || reservation.source != before.source || reservation.startMS != before.startMS || reservation.endMS != before.endMS || reservation.priority != before.priority {
+		return out, ErrConflict
+	}
 	now, err := mgPersonalNow(ctx, t)
 	if err != nil {
 		return out, err
@@ -473,9 +494,6 @@ func mgCancelRecording(ctx context.Context, t *commandTurn, owner mgRecordingOwn
 	args := append([]any{nowMS, nowMS}, before.fenceValues()...)
 	if err = mgRecordingIntentChange(ctx, t, mgRecordingIntentCancel, args...); err != nil {
 		return out, err
-	}
-	if !reservation.present || reservation.source != before.source || reservation.startMS != before.startMS || reservation.endMS != before.endMS || reservation.priority != before.priority || reservation.enabled != 1 {
-		return out, ErrConflict
 	}
 	if err = mgRecordingIntentChange(ctx, t, mgRecordingIntentReserveDisable, id, reservation.source, reservation.startMS, reservation.endMS, reservation.priority, reservation.enabled); err != nil {
 		return out, err

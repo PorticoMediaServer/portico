@@ -18,8 +18,10 @@ type mgRecordingFixtureValues struct {
 	owner          mgRecordingOwner
 	scope          mgRecordingScope
 	other          mgRecordingScope
+	third          mgRecordingScope
 	programme      mgRecordingProgramme
 	otherProgramme mgRecordingProgramme
+	thirdProgramme mgRecordingProgramme
 	replacement    string
 	root           string
 	proof          *usOwnerAuthorityProof
@@ -55,7 +57,9 @@ func mgRecordingFixture(t *testing.T) (*executor, string, mgRecordingFixtureValu
 	i := p.proof.witness.issuer
 	source, generation, replacement := mgRecordingHexValue('1', 48), mgRecordingHexValue('2', 48), mgRecordingHexValue('3', 48)
 	channel, otherChannel := mgRecordingHexValue('4', 64), mgRecordingHexValue('7', 64)
+	thirdChannel := mgRecordingHexValue('8', 64)
 	programme, otherProgramme := mgRecordingHexValue('5', 64), mgRecordingHexValue('6', 64)
+	thirdProgramme := mgRecordingHexValue('9', 64)
 	start := now.Add(24 * time.Hour).UTC().Truncate(time.Second)
 	end := start.Add(time.Hour)
 	startText, endText := start.Format(time.RFC3339), end.Format(time.RFC3339)
@@ -66,8 +70,8 @@ func mgRecordingFixture(t *testing.T) (*executor, string, mgRecordingFixtureValu
 		{`INSERT INTO live_source_identities(id) VALUES(?)`, []any{source}},
 		{`INSERT INTO live_generations(id,source_id,name,tuner_count,channel_count,programme_count,created_at) VALUES(?,?,'Guide',1,2,2,'2026-11-07T00:00:00Z'),(?,?,'Next guide',1,0,0,'2026-11-07T00:00:00Z')`, []any{generation, source, replacement, source}},
 		{`INSERT INTO live_sources(id,name,revision,state,tuner_count,active_generation,published_at) VALUES(?,'Live',7,'active',1,?,'2026-11-07T00:00:00Z')`, []any{source, generation}},
-		{`INSERT INTO live_channel_versions(generation_id,channel_id,provider_key,name,number,group_name,position,locator_sealed,available_start,available_end) VALUES(?,?,'provider-1','Channel','1','Group',0,X'01','',''),(?,?,'provider-2','Other','2','Group',1,X'01','','')`, []any{generation, channel, generation, otherChannel}},
-		{`INSERT INTO live_programmes(generation_id,id,channel_id,provider_key,title,start_utc,end_utc,lineage) VALUES(?,?,?,'p1','Programme',?,?,'lineage'),(?,?,?,'p2','Other',?,?,'other')`, []any{generation, programme, channel, startText, endText, generation, otherProgramme, otherChannel, startText, endText}},
+		{`INSERT INTO live_channel_versions(generation_id,channel_id,provider_key,name,number,group_name,position,locator_sealed,available_start,available_end) VALUES(?,?,'provider-1','Channel','1','Group',0,X'01','',''),(?,?,'provider-2','Other','2','Group',1,X'01','',''),(?,?,'provider-3','Third','3','Group',2,X'01','','')`, []any{generation, channel, generation, otherChannel, generation, thirdChannel}},
+		{`INSERT INTO live_programmes(generation_id,id,channel_id,provider_key,title,start_utc,end_utc,lineage) VALUES(?,?,?,'p1','Programme',?,?,'lineage'),(?,?,?,'p2','Other',?,?,'other'),(?,?,?,'p3','Third',?,?,'third')`, []any{generation, programme, channel, startText, endText, generation, otherProgramme, otherChannel, startText, endText, generation, thirdProgramme, thirdChannel, startText, endText}},
 	} {
 		if _, err := w.db.ExecContext(t.Context(), q.sql, q.args...); err != nil {
 			t.Fatal(q.sql, err)
@@ -80,8 +84,10 @@ func mgRecordingFixture(t *testing.T) (*executor, string, mgRecordingFixtureValu
 		},
 		scope:          mgRecordingScope{source: source, generation: generation, head: generation, channel: channel, programme: programme, revision: 7},
 		other:          mgRecordingScope{source: source, generation: generation, head: generation, channel: otherChannel, programme: otherProgramme, revision: 7},
+		third:          mgRecordingScope{source: source, generation: generation, head: generation, channel: thirdChannel, programme: thirdProgramme, revision: 7},
 		programme:      mgRecordingProgramme{id: programme, channel: channel, provider: "p1", title: "Programme", start: startText, end: endText, lineage: "lineage", facts: mgRecordingNullableText{text: "{}", valid: true}},
 		otherProgramme: mgRecordingProgramme{id: otherProgramme, channel: otherChannel, provider: "p2", title: "Other", start: startText, end: endText, lineage: "other", facts: mgRecordingNullableText{text: "{}", valid: true}},
+		thirdProgramme: mgRecordingProgramme{id: thirdProgramme, channel: thirdChannel, provider: "p3", title: "Third", start: startText, end: endText, lineage: "third", facts: mgRecordingNullableText{text: "{}", valid: true}},
 		replacement:    replacement,
 		root:           p.root,
 		proof:          p.proof,
@@ -193,7 +199,15 @@ func mgRecordingKeepReference(t *testing.T, id CommandIdentity, r mgRecordingKee
 // need an existing occurrence start here rather than writing rows by hand.
 func scheduleMGRecording(t *testing.T, w *executor, v mgRecordingFixtureValues, fake *mgPersonalFakeRoots, identity CommandIdentity) mgRecordingAcceptance {
 	t.Helper()
+	return scheduleMGRecordingScope(t, w, v, fake, identity, v.scope, v.programme)
+}
+
+// scheduleMGRecordingScope is the same accepted fresh schedule for the
+// fixture's secondary channels/programmes.
+func scheduleMGRecordingScope(t *testing.T, w *executor, v mgRecordingFixtureValues, fake *mgPersonalFakeRoots, identity CommandIdentity, scope mgRecordingScope, programme mgRecordingProgramme) mgRecordingAcceptance {
+	t.Helper()
 	request := v.schedule()
+	request.scope, request.programme = scope, programme
 	reference := mgRecordingScheduleReference(t, identity, request)
 	turn := mgRecordingTurn(t, w, MGScheduleRecording)
 	out, err := acceptMGRecordingSchedule(t.Context(), turn, fake, v.proof, t.Context(), reference, request)
@@ -202,6 +216,20 @@ func scheduleMGRecording(t *testing.T, w *executor, v mgRecordingFixtureValues, 
 	}
 	mgPersonalCommit(t, turn)
 	return out
+}
+
+// disableMGRecordingReservation reproduces the legacy reconcile/worker state a
+// source disable, guide replacement or tuner conflict leaves behind: the intent
+// moves to a waiting/conflicted state and its reservation is only disabled, not
+// deleted. It is a native observation, never authority.
+func disableMGRecordingReservation(t *testing.T, w *executor, id, state, reason string) {
+	t.Helper()
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE dvr_recordings SET state=?,reason=? WHERE id=?`, state, reason, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE live_reservations SET enabled=0 WHERE id=?`, id); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func ackMGRecording(t *testing.T, w *executor, root string, sequence int64) {

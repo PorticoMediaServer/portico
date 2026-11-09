@@ -2,6 +2,7 @@ package writer
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -318,6 +319,338 @@ func TestMGRecordingCancelRetainsCustody(t *testing.T) {
 	}
 }
 
+// The legacy reconcile path (livechannels/dvr/reconcile.go and scheduled.go)
+// moves a waiting-source, waiting-guide or conflicted intent and only disables
+// its reservation (enabled=0). Cancel must still accept that row: the observed
+// enabled value is not the intent's custody, and the CAS stays on the value it
+// actually read. A window, priority or source that no longer belongs to the row
+// is still refused.
+func TestMGRecordingCancelDisabledReservation(t *testing.T) {
+	w, _, v := mgRecordingFixture(t)
+	fake := mgRecordingFake(v)
+	rows := []struct {
+		scope     mgRecordingScope
+		programme mgRecordingProgramme
+		state     string
+		reason    string
+	}{
+		{v.scope, v.programme, "waiting-source", "source-disabled"},
+		{v.other, v.otherProgramme, "waiting-guide", "programme-unavailable"},
+		{v.third, v.thirdProgramme, "conflicted", ""},
+	}
+	saved := make([]mgRecordingAcceptance, len(rows))
+	for n, row := range rows {
+		saved[n] = scheduleMGRecordingScope(t, w, v, fake, mgPersonalIdentity(int64(n+1), byte(n+1)), row.scope, row.programme)
+		ackMGRecording(t, w, v.root, int64(n+1))
+		disableMGRecordingReservation(t, w, saved[n].result.id, row.state, row.reason)
+	}
+
+	// A reservation whose window, priority or source moved is a different
+	// window, never this intent's disabled one: cancel refuses with no effect.
+	foreignSource := mgRecordingHexValue('c', 48)
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO live_source_identities(id) VALUES(?)`, foreignSource); err != nil {
+		t.Fatal(err)
+	}
+	for _, tamper := range []struct {
+		name, sql string
+		args      []any
+		restore   string
+	}{
+		{"window", `UPDATE live_reservations SET end_ms=end_ms+1000 WHERE id=?`, []any{saved[0].result.id}, `UPDATE live_reservations SET end_ms=end_ms-1000 WHERE id=?`},
+		{"priority", `UPDATE live_reservations SET priority=priority+1 WHERE id=?`, []any{saved[0].result.id}, `UPDATE live_reservations SET priority=priority-1 WHERE id=?`},
+		{"source", `UPDATE live_reservations SET source_id=? WHERE id=?`, []any{foreignSource, saved[0].result.id}, `UPDATE live_reservations SET source_id=? WHERE id=?`},
+	} {
+		if _, err := w.db.ExecContext(t.Context(), tamper.sql, tamper.args...); err != nil {
+			t.Fatal(tamper.name, err)
+		}
+		request := v.cancel(saved[0].result.id, 1)
+		turn := mgRecordingTurn(t, w, MGCancelRecording)
+		if got, err := acceptMGRecordingCancel(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingCancelReference(t, mgPersonalIdentity(4, 4), request), request); !errors.Is(err, ErrConflict) || got != (mgRecordingAcceptance{}) {
+			t.Fatal(tamper.name, "tampered reservation was cancelled", got, err)
+		}
+		if _, err := turn.transaction.rollback(nil); err != nil {
+			t.Fatal(err)
+		}
+		if tamper.name == "source" {
+			if _, err := w.db.ExecContext(t.Context(), tamper.restore, v.scope.source, saved[0].result.id); err != nil {
+				t.Fatal(tamper.name, err)
+			}
+		} else if _, err := w.db.ExecContext(t.Context(), tamper.restore, saved[0].result.id); err != nil {
+			t.Fatal(tamper.name, err)
+		}
+	}
+
+	// A missing reservation row is also refused: cancel never invents a window
+	// it did not read.
+	if _, err := w.db.ExecContext(t.Context(), `DELETE FROM live_reservations WHERE id=?`, saved[0].result.id); err != nil {
+		t.Fatal(err)
+	}
+	missing := v.cancel(saved[0].result.id, 1)
+	turn := mgRecordingTurn(t, w, MGCancelRecording)
+	if got, err := acceptMGRecordingCancel(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingCancelReference(t, mgPersonalIdentity(4, 4), missing), missing); !errors.Is(err, ErrConflict) || got != (mgRecordingAcceptance{}) {
+		t.Fatal("missing reservation was cancelled", got, err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO live_reservations(id,source_id,start_ms,end_ms,priority,enabled) VALUES(?,?,?,?,?,0)`, saved[0].result.id, v.scope.source, saved[0].result.startMS, saved[0].result.endMS, saved[0].result.priority); err != nil {
+		t.Fatal(err)
+	}
+	var tamperedState string
+	var tamperedRevision, tamperedEnabled int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT state,revision,(SELECT enabled FROM live_reservations WHERE id=?) FROM dvr_recordings WHERE id=?`, saved[0].result.id, saved[0].result.id).Scan(&tamperedState, &tamperedRevision, &tamperedEnabled); err != nil {
+		t.Fatal(err)
+	}
+	if tamperedState != "waiting-source" || tamperedRevision != 1 || tamperedEnabled != 0 {
+		t.Fatal("tampered reservation attempt changed the intent", tamperedState, tamperedRevision, tamperedEnabled)
+	}
+
+	for n, row := range rows {
+		want := mgRecordingExpectedResult(t, v, row.scope, row.programme, v.options(), "cancelled", 2, 0, 1, int64(4+n))
+		request := v.cancel(saved[n].result.id, 1)
+		turn := mgRecordingTurn(t, w, MGCancelRecording)
+		got, err := acceptMGRecordingCancel(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingCancelReference(t, mgPersonalIdentity(int64(4+n), byte(4+n)), request), request)
+		if err != nil || got.decision != receiptFresh || got.result != want {
+			t.Fatal(row.state, "disabled reservation was not cancellable", got, err)
+		}
+		mgPersonalCommit(t, turn)
+		ackMGRecording(t, w, v.root, int64(4+n))
+	}
+	for _, row := range rows {
+		id := mgRecordingID(v.owner, row.scope.source, row.scope.programme)
+		var state, reason string
+		var revision, reservationRows, enabled int64
+		if err := w.db.QueryRowContext(t.Context(), `SELECT state,reason,revision,(SELECT count(*) FROM live_reservations WHERE id=?),(SELECT enabled FROM live_reservations WHERE id=?) FROM dvr_recordings WHERE id=?`, id, id, id).Scan(&state, &reason, &revision, &reservationRows, &enabled); err != nil {
+			t.Fatal(err)
+		}
+		if state != "cancelled" || reason != "owner-cancelled" || revision != 2 || reservationRows != 1 || enabled != 0 {
+			t.Fatal(row.state, "cancel custody", state, reason, revision, reservationRows, enabled)
+		}
+	}
+}
+
+// A waiting/conflicted intent with a disabled reservation is also editable back
+// to scheduled: update accepts either observed enabled value, keeps the CAS on
+// it, and re-enables the same window. A tampered window is still refused.
+func TestMGRecordingUpdateDisabledReservation(t *testing.T) {
+	w, _, v := mgRecordingFixture(t)
+	fake := mgRecordingFake(v)
+	rows := []struct {
+		scope     mgRecordingScope
+		programme mgRecordingProgramme
+		state     string
+		reason    string
+	}{
+		{v.scope, v.programme, "waiting-source", "source-disabled"},
+		{v.other, v.otherProgramme, "waiting-guide", "programme-unavailable"},
+		{v.third, v.thirdProgramme, "conflicted", ""},
+	}
+	saved := make([]mgRecordingAcceptance, len(rows))
+	for n, row := range rows {
+		saved[n] = scheduleMGRecordingScope(t, w, v, fake, mgPersonalIdentity(int64(n+1), byte(n+1)), row.scope, row.programme)
+		ackMGRecording(t, w, v.root, int64(n+1))
+		disableMGRecordingReservation(t, w, saved[n].result.id, row.state, row.reason)
+	}
+
+	options := v.options()
+	options.Priority = 9
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE live_reservations SET end_ms=end_ms+1000 WHERE id=?`, saved[0].result.id); err != nil {
+		t.Fatal(err)
+	}
+	tampered := v.update(saved[0].result.id, 1, options)
+	tampered.scope, tampered.programme = rows[0].scope, rows[0].programme
+	turn := mgRecordingTurn(t, w, MGUpdateRecording)
+	if got, err := acceptMGRecordingUpdate(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingUpdateReference(t, mgPersonalIdentity(4, 4), tampered), tampered); !errors.Is(err, ErrConflict) || got != (mgRecordingAcceptance{}) {
+		t.Fatal("tampered reservation window was updated", got, err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE live_reservations SET end_ms=end_ms-1000 WHERE id=?`, saved[0].result.id); err != nil {
+		t.Fatal(err)
+	}
+
+	for n, row := range rows {
+		request := v.update(saved[n].result.id, 1, options)
+		request.scope, request.programme = row.scope, row.programme
+		want := mgRecordingExpectedResult(t, v, row.scope, row.programme, options, "scheduled", 2, 0, 1, int64(4+n))
+		turn := mgRecordingTurn(t, w, MGUpdateRecording)
+		got, err := acceptMGRecordingUpdate(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingUpdateReference(t, mgPersonalIdentity(int64(4+n), byte(4+n)), request), request)
+		if err != nil || got.decision != receiptFresh || got.result != want {
+			t.Fatal(row.state, "disabled reservation was not editable", got, err)
+		}
+		mgPersonalCommit(t, turn)
+		ackMGRecording(t, w, v.root, int64(4+n))
+	}
+	for n, row := range rows {
+		var state string
+		var revision, startMS, endMS, priority, enabled int64
+		if err := w.db.QueryRowContext(t.Context(), `SELECT state,revision,(SELECT start_ms FROM live_reservations WHERE id=?),(SELECT end_ms FROM live_reservations WHERE id=?),(SELECT priority FROM live_reservations WHERE id=?),(SELECT enabled FROM live_reservations WHERE id=?) FROM dvr_recordings WHERE id=?`, saved[n].result.id, saved[n].result.id, saved[n].result.id, saved[n].result.id, saved[n].result.id).Scan(&state, &revision, &startMS, &endMS, &priority, &enabled); err != nil {
+			t.Fatal(err)
+		}
+		want := mgRecordingExpectedResult(t, v, row.scope, row.programme, options, "scheduled", 2, 0, 1, 0)
+		if state != "scheduled" || revision != 2 || startMS != want.startMS || endMS != want.endMS || priority != 9 || enabled != 1 {
+			t.Fatal(row.state, "update re-enabled custody", state, revision, startMS, endMS, priority, enabled)
+		}
+	}
+}
+
+// Cancel refuses every terminal capture state that is not an already-cancelled
+// no-op: completed, incomplete-playable and failed intents stay untouched.
+func TestMGRecordingCancelTerminalRefusal(t *testing.T) {
+	for _, state := range []string{"completed", "incomplete-playable", "failed"} {
+		t.Run(state, func(t *testing.T) {
+			w, _, v := mgRecordingFixture(t)
+			fake := mgRecordingFake(v)
+			saved := scheduleMGRecording(t, w, v, fake, mgPersonalIdentity(1, 1))
+			ackMGRecording(t, w, v.root, 1)
+			if _, err := w.db.ExecContext(t.Context(), `UPDATE dvr_recordings SET state=? WHERE id=?`, state, saved.result.id); err != nil {
+				t.Fatal(err)
+			}
+			request := v.cancel(saved.result.id, 1)
+			turn := mgRecordingTurn(t, w, MGCancelRecording)
+			if got, err := acceptMGRecordingCancel(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingCancelReference(t, mgPersonalIdentity(2, 2), request), request); !errors.Is(err, ErrConflict) || got != (mgRecordingAcceptance{}) {
+				t.Fatal(state, "terminal occurrence was cancelled", got, err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+			var gotState string
+			var revision, enabled int64
+			if err := w.db.QueryRowContext(t.Context(), `SELECT state,revision,(SELECT enabled FROM live_reservations WHERE id=?) FROM dvr_recordings WHERE id=?`, saved.result.id, saved.result.id).Scan(&gotState, &revision, &enabled); err != nil {
+				t.Fatal(err)
+			}
+			if gotState != state || revision != 1 || enabled != 1 {
+				t.Fatal(state, "terminal refusal changed the intent", gotState, revision, enabled)
+			}
+		})
+	}
+}
+
+// Cancelling an intent that owns an artifact alone or an item alone retains its
+// source dependency, exactly as the combined custody case does: cancel never
+// orphans physical work.
+func TestMGRecordingCancelDependencyRetention(t *testing.T) {
+	for _, tc := range []struct{ name, sql string }{
+		{"artifact-alone", `UPDATE dvr_recordings SET artifact_id='artifact-1',item_id=0 WHERE id=?`},
+		{"item-alone", `UPDATE dvr_recordings SET artifact_id='',item_id=9 WHERE id=?`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, _, v := mgRecordingFixture(t)
+			fake := mgRecordingFake(v)
+			saved := scheduleMGRecording(t, w, v, fake, mgPersonalIdentity(1, 1))
+			ackMGRecording(t, w, v.root, 1)
+			if _, err := w.db.ExecContext(t.Context(), tc.sql, saved.result.id); err != nil {
+				t.Fatal(err)
+			}
+			request := v.cancel(saved.result.id, 1)
+			turn := mgRecordingTurn(t, w, MGCancelRecording)
+			if _, err := acceptMGRecordingCancel(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingCancelReference(t, mgPersonalIdentity(2, 2), request), request); err != nil {
+				t.Fatal(err)
+			}
+			mgPersonalCommit(t, turn)
+			var dependencies, reservations, enabled int64
+			if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM live_source_dependencies WHERE source_id=? AND kind='recording' AND id=?),(SELECT count(*) FROM live_reservations WHERE id=?),(SELECT enabled FROM live_reservations WHERE id=?)`, v.scope.source, saved.result.id, saved.result.id, saved.result.id).Scan(&dependencies, &reservations, &enabled); err != nil {
+				t.Fatal(err)
+			}
+			if dependencies != 1 || reservations != 1 || enabled != 0 {
+				t.Fatal(tc.name, "dependency retention", dependencies, reservations, enabled)
+			}
+		})
+	}
+}
+
+// A session authorized for owner A cannot schedule, update, cancel or keep
+// owner B's real intent, even when the typed request names B and its actual
+// recording id. The second account/profile/recording below are genuine native
+// rows, so removing the root-to-owner binding would let A act on B.
+func TestMGRecordingOwnerBindingRejectsForeignSession(t *testing.T) {
+	w, _, v := mgRecordingFixture(t)
+	fake := mgRecordingFake(v) // current session: fixture owner A
+	second := mgRecordingOwner{
+		account: "second-account", profile: "second-profile",
+		memberIncarnation: strings.Repeat("a", 32), profileLifetime: strings.Repeat("b", 32),
+		accountEpoch: 1, memberRevision: 1, profileRevision: 1,
+	}
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO accounts(id,username,password_hash,profile_id) VALUES(?,?,X'',?)`, []any{second.account, second.account, second.profile}},
+		{`INSERT INTO direct_memberships(account_id,incarnation,role) VALUES(?,?,'member')`, []any{second.account, second.memberIncarnation}},
+		{`INSERT INTO direct_profiles(id,account_id,name,is_primary,lifetime) VALUES(?,?,'Second',1,?)`, []any{second.profile, second.account, second.profileLifetime}},
+	} {
+		if _, err := w.db.ExecContext(t.Context(), q.sql, q.args...); err != nil {
+			t.Fatal(q.sql, err)
+		}
+	}
+	// Owner B's own accepted occurrence, created through the same effect the
+	// accepting frame uses (the fake session is minted only for owner A).
+	frozen, err := freezeMGRecordingIntent(v.otherProgramme, v.options())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var birth mgRecordingBirth
+	birth.incarnation[0], birth.operation[0], birth.digest[0] = 1, 1, 1
+	turn := mgRecordingTurn(t, w, MGScheduleRecording)
+	facts, err := mgScheduleRecording(t.Context(), turn, second, v.other, frozen, birth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mgPersonalCommit(t, turn)
+	// A clean fresh command point for the fixture root: a missing root-to-owner
+	// binding would then reach the effect instead of failing at receipt
+	// sequencing, so this cell fails on that mutation.
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE user_mutation_command_owners SET last_command_sequence=1,acknowledged_command_sequence=1 WHERE root_id=?`, v.root); err != nil {
+		t.Fatal(err)
+	}
+
+	options := v.options()
+	options.Priority = 8
+	updateRequest := v.update(facts.row.id, 1, options)
+	updateRequest.owner, updateRequest.scope, updateRequest.programme = second, v.other, v.otherProgramme
+	cancelRequest := mgRecordingCancelRequest{owner: second, id: facts.row.id, expected: 1}
+	keepRequest := mgRecordingKeepRequest{owner: second, id: facts.row.id, expected: 1, keep: true}
+	scheduleRequest := v.schedule()
+	scheduleRequest.owner, scheduleRequest.scope, scheduleRequest.programme = second, v.third, v.thirdProgramme
+
+	attempts := []struct {
+		purpose CommandID
+		run     func(*commandTurn) (mgRecordingAcceptance, error)
+	}{
+		{MGScheduleRecording, func(turn *commandTurn) (mgRecordingAcceptance, error) {
+			return acceptMGRecordingSchedule(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingScheduleReference(t, mgPersonalIdentity(2, 2), scheduleRequest), scheduleRequest)
+		}},
+		{MGUpdateRecording, func(turn *commandTurn) (mgRecordingAcceptance, error) {
+			return acceptMGRecordingUpdate(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingUpdateReference(t, mgPersonalIdentity(2, 2), updateRequest), updateRequest)
+		}},
+		{MGCancelRecording, func(turn *commandTurn) (mgRecordingAcceptance, error) {
+			return acceptMGRecordingCancel(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingCancelReference(t, mgPersonalIdentity(2, 2), cancelRequest), cancelRequest)
+		}},
+		{MGKeepRecording, func(turn *commandTurn) (mgRecordingAcceptance, error) {
+			return acceptMGRecordingKeep(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingKeepReference(t, mgPersonalIdentity(2, 2), keepRequest), keepRequest)
+		}},
+	}
+	for _, attempt := range attempts {
+		turn := mgRecordingTurn(t, w, attempt.purpose)
+		if got, err := attempt.run(turn); !errors.Is(err, ErrDisclosureDenied) || got != (mgRecordingAcceptance{}) {
+			t.Fatal(attempt.purpose, "foreign session acted on owner B", got, err)
+		}
+		if _, err := turn.transaction.rollback(nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var state string
+	var revision, enabled, recordings, dependencies int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT state,revision,(SELECT enabled FROM live_reservations WHERE id=?),(SELECT count(*) FROM dvr_recordings),(SELECT count(*) FROM live_source_dependencies WHERE id=?) FROM dvr_recordings WHERE id=?`, facts.row.id, facts.row.id, facts.row.id).Scan(&state, &revision, &enabled, &recordings, &dependencies); err != nil {
+		t.Fatal(err)
+	}
+	if state != "scheduled" || revision != 1 || enabled != 1 || recordings != 1 || dependencies != 1 {
+		t.Fatal("foreign session changed owner B", state, revision, enabled, recordings, dependencies)
+	}
+}
+
 // Keep is retention intent only. It is allowed after cancel and provider
 // removal, refuses a pending-delete/deleted occurrence, and never touches the
 // reservation, allocation, artifact or capture namespace.
@@ -391,6 +724,19 @@ func TestMGRecordingKeepRetentionAndTerminalRefusal(t *testing.T) {
 	turn = mgRecordingTurn(t, w, MGKeepRecording)
 	if got, err := acceptMGRecordingKeep(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingKeepReference(t, mgPersonalIdentity(6, 6), pending), pending); !errors.Is(err, ErrConflict) || got != (mgRecordingAcceptance{}) {
 		t.Fatal("pending-delete occurrence was kept", got, err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// A deleted occurrence refuses keep as well.
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE dvr_recordings SET state='deleted' WHERE id=?`, want.id); err != nil {
+		t.Fatal(err)
+	}
+	deleted := v.keep(saved.result.id, 5, true)
+	turn = mgRecordingTurn(t, w, MGKeepRecording)
+	if got, err := acceptMGRecordingKeep(t.Context(), turn, fake, v.proof, t.Context(), mgRecordingKeepReference(t, mgPersonalIdentity(7, 7), deleted), deleted); !errors.Is(err, ErrConflict) || got != (mgRecordingAcceptance{}) {
+		t.Fatal("deleted occurrence was kept", got, err)
 	}
 	if _, err := turn.transaction.rollback(nil); err != nil {
 		t.Fatal(err)
