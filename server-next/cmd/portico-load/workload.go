@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -123,7 +124,9 @@ func (w *workload) start(ctx context.Context, readers, writesPerSec int) func() 
 		var all []time.Duration
 		for class, samples := range w.reads {
 			out[class] = summarise(samples)
-			all = append(all, samples...)
+			if !strings.Contains(class, " (") {
+				all = append(all, samples...)
+			}
 		}
 		out["all"] = summarise(all)
 		if w.failures > 0 {
@@ -133,7 +136,9 @@ func (w *workload) start(ctx context.Context, readers, writesPerSec int) func() 
 	}
 }
 
-func (w *workload) record(class string, started time.Time, err error) {
+// record times one request under its class, and again under the class and the kind of
+// restricted profile that asked, if one did.
+func (w *workload) record(class, who string, started time.Time, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if err != nil && !errors.Is(err, db.ErrNotFound) && !errors.Is(err, context.Canceled) {
@@ -141,6 +146,9 @@ func (w *workload) record(class string, started time.Time, err error) {
 		println("request failed:", class, err.Error())
 	}
 	w.reads[class] = append(w.reads[class], time.Since(started))
+	if who != "" {
+		w.reads[class+who] = append(w.reads[class+who], time.Since(started))
+	}
 }
 
 func pick[T any](r *rand.Rand, from []T) T { return from[r.IntN(len(from))] }
@@ -150,14 +158,15 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 	yes, no := true, false
 	var next db.ItemQuery // the list this reader is paging down
 	var nextViewer db.Viewer
+	var nextWho string
 	for ctx.Err() == nil {
 		n := r.IntN(len(w.viewers))
 		v := w.viewers[n]
 		// The seeder restricts the last three profiles, by label, by library and by rating.
-		// Their first pages and totals are timed apart, because a restriction is checked row by row.
-		firstPage := "first-page"
-		if n >= len(w.viewers)-3 && len(w.viewers) > 3 {
-			firstPage = "first-page-restricted"
+		// Their requests are also timed apart, because a restriction is checked row by row.
+		who := ""
+		if at := n - (len(w.viewers) - 3); at >= 0 && len(w.viewers) > 3 {
+			who = []string{" (label)", " (library)", " (rating)"}[at]
 		}
 		// What a library's own screens list: mostly its titles, sometimes everything under them.
 		lib := pick(r, w.libs)
@@ -176,65 +185,68 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 		case n < 20: // open a library: the first page and its size
 			leaf.WithTotal = true
 			page, err := w.d.Items(ctx, v, leaf)
-			w.record(firstPage, started, err)
+			w.record("first-page", who, started, err)
 			leaf.WithTotal, leaf.Cursor = false, page.NextCursor
-			next, nextViewer = leaf, v
+			next, nextViewer, nextWho = leaf, v, who
 		case n < 50: // scroll on
 			if next.Cursor == "" {
 				continue
 			}
 			page, err := w.d.Items(ctx, nextViewer, next)
-			w.record("next-page", started, err)
+			w.record("next-page", nextWho, started, err)
 			next.Cursor = page.NextCursor
 		case n < 55:
 			leaf.Genre, leaf.WithTotal = pick(r, seed.Genres(lib.Kind)), true
 			_, err := w.d.Items(ctx, v, leaf)
-			w.record("genre", started, err)
+			w.record("genre", who, started, err)
 		case n < 60:
+			if lib.Kind == db.LibraryMusic { // music has no watched state to filter by
+				continue
+			}
 			leaf.Watched = pick(r, []*bool{&yes, &no})
 			_, err := w.d.Items(ctx, v, leaf)
-			w.record("watched", started, err)
+			w.record("watched", who, started, err)
 		case n < 63:
 			leaf.YearFrom, leaf.YearTo, leaf.WithTotal = 1990, 1999, true
 			_, err := w.d.Items(ctx, v, leaf)
-			w.record("decade", started, err)
+			w.record("decade", who, started, err)
 		case n < 65:
 			if !video { // only video libraries offer the resolution filter
 				continue
 			}
 			leaf.Resolution = pick(r, []string{"sd", "720p", "1080p", "4k"})
 			_, err := w.d.Items(ctx, v, leaf)
-			w.record("resolution", started, err)
+			w.record("resolution", who, started, err)
 		case n < 70:
 			q := db.ItemQuery{Favorite: &yes}
 			if r.IntN(2) == 0 {
 				q = db.ItemQuery{InList: &yes}
 			}
 			_, err := w.d.Items(ctx, v, q)
-			w.record("favourites", started, err)
+			w.record("favourites", who, started, err)
 		case n < 80:
 			_, err := w.d.Items(ctx, v, db.ItemQuery{Parent: pick(r, w.holders)})
-			w.record("children", started, err)
+			w.record("children", who, started, err)
 		case n < 85:
 			person := pick(r, w.people)
 			_, err := w.d.Person(ctx, v, person)
 			if err == nil {
 				_, err = w.d.Items(ctx, v, db.ItemQuery{Person: person})
 			}
-			w.record("person", started, err)
+			w.record("person", who, started, err)
 		case n < 90: // Home: both rows
 			_, err := w.d.ContinueWatching(ctx, v)
 			if err == nil {
 				_, err = w.d.RecentlyAdded(ctx, v)
 			}
-			w.record("home", started, err)
+			w.record("home", who, started, err)
 		case n < 93: // opening the genre filter of a library screen
 			leaf.Kinds = []db.ItemKind{seed.TitleKind(lib.Kind)}
 			_, err := w.d.Facets(ctx, v, leaf, db.FacetGenre)
-			w.record("facets", started, err)
+			w.record("facets", who, started, err)
 		default:
 			_, err := w.d.Item(ctx, v, pick(r, w.leaves))
-			w.record("detail", started, err)
+			w.record("detail", who, started, err)
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
@@ -254,7 +266,7 @@ func (w *workload) write(ctx context.Context, perSec int) {
 		case due := <-tick.C:
 			var edit db.StateEdit
 			switch r.IntN(4) {
-			case 0:
+			case 0: // refused for a track, as an app would be
 				edit.Watched = pick(r, []*bool{&yes, &no})
 			case 1:
 				edit.Favorite = pick(r, []*bool{&yes, &no})

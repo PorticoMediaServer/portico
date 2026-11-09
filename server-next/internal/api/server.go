@@ -43,6 +43,8 @@ type Server struct {
 	// setupCode is what creating the owner needs. It is made at start while there is no
 	// account, and written to the log and to setupFile, never sent to an app.
 	setupCode, setupFile string
+	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
+	feeds feeds
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.

@@ -8,6 +8,7 @@ package seed
 import (
 	"fmt"
 	"math/rand/v2"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
@@ -19,6 +20,12 @@ type Config struct {
 	Seed       uint64
 	Items      int
 	BatchFiles int // files per import batch; 0 means 40
+	// BatchTime, when set, sizes batches by time instead: each import transaction is aimed at
+	// this long, because a person's write waits behind the transaction in flight. BatchFiles
+	// is then only where the size starts.
+	BatchTime time.Duration
+
+	limit *int // the current batch size, shared with the import loop that adjusts it
 }
 
 // LibrarySpec is one of the libraries the seeder fills.
@@ -63,6 +70,9 @@ func Batches(cfg Config, lib db.Library, emit func(db.ImportBatch) error) error 
 	if cfg.BatchFiles <= 0 {
 		cfg.BatchFiles = 40
 	}
+	if cfg.limit == nil {
+		cfg.limit = &cfg.BatchFiles
+	}
 	b := &builder{cfg: cfg, lib: lib, emit: emit}
 	b.reset()
 	b.dir("")
@@ -89,7 +99,7 @@ func (b *builder) reset() {
 
 // flush hands the batch on if it is full, or if force is set and it holds anything.
 func (b *builder) flush(force bool) error {
-	if len(b.batch.Files) < b.cfg.BatchFiles && !force || len(b.batch.Files)+len(b.batch.Items)+len(b.batch.Dirs) == 0 {
+	if len(b.batch.Files) < *b.cfg.limit && !force || len(b.batch.Files)+len(b.batch.Items)+len(b.batch.Dirs) == 0 {
 		return nil
 	}
 	batch := b.batch

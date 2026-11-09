@@ -32,6 +32,7 @@ type access struct {
 	allLibraries bool    // no library limit on the account or the profile
 	libraries    []int64 // otherwise, the libraries both allow
 	maxAge       *int    // the profile's rating limit
+	allowUnrated bool    // with a limit: whether a title with no rating is shown
 	blockedTags  []int64 // labels the profile must never be shown
 }
 
@@ -55,8 +56,8 @@ func ids(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]int64, e
 func loadAccess(ctx context.Context, tx *sql.Tx, v Viewer) (access, error) {
 	var a access
 	var userAll, profileAll bool
-	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age FROM profiles p
-		JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).Scan(&userAll, &profileAll, &a.maxAge)
+	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age, p.allow_unrated FROM profiles p
+		JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).Scan(&userAll, &profileAll, &a.maxAge, &a.allowUnrated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return a, nil
 	}
@@ -109,16 +110,56 @@ func (a access) libraryVisible(library string) string {
 //
 // A profile with no restriction gets the condition "1", so its reads cost nothing extra.
 func (a access) visible(alias string) string {
-	cond := a.libraryVisible(alias + ".library_id")
-	if a.maxAge != nil {
-		cond += " AND " + alias + ".rating_age <= " + strconv.Itoa(*a.maxAge)
+	return "(" + a.libraryVisible(alias+".library_id") + a.rated(alias) + a.unblocked(alias) + ")"
+}
+
+// rated is the rating part of visible, as " AND ..." or nothing.
+func (a access) rated(alias string) string {
+	switch {
+	case a.maxAge == nil:
+		return ""
+	case a.allowUnrated:
+		return " AND ifnull(" + alias + ".rating_age, 0) <= " + strconv.Itoa(*a.maxAge)
 	}
-	if len(a.blockedTags) > 0 {
-		blocked := "(SELECT item_id FROM item_tags WHERE tag_id IN " + intList(a.blockedTags) + ")"
-		cond += " AND " + alias + ".id NOT IN " + blocked + " AND ifnull(" + alias + ".parent_id, 0) NOT IN " + blocked +
-			" AND ifnull(" + alias + ".root_id, 0) NOT IN " + blocked
+	return " AND " + alias + ".rating_age <= " + strconv.Itoa(*a.maxAge)
+}
+
+// unblocked is the label part of visible, as " AND ..." or nothing. It is checked row by row,
+// which suits a page: the list is read in order and stops when the page is full.
+func (a access) unblocked(alias string) string {
+	if len(a.blockedTags) == 0 {
+		return ""
 	}
-	return "(" + cond + ")"
+	blocked := "(SELECT item_id FROM item_tags WHERE tag_id IN " + intList(a.blockedTags) + ")"
+	return " AND " + alias + ".id NOT IN " + blocked + " AND ifnull(" + alias + ".parent_id, 0) NOT IN " + blocked +
+		" AND ifnull(" + alias + ".root_id, 0) NOT IN " + blocked
+}
+
+// blockedIDs is a query for the id of every item a blocked label hides: the items that carry
+// one, and everything under them. A total subtracts these instead of checking every row.
+func (a access) blockedIDs() string {
+	tags := intList(a.blockedTags)
+	return `SELECT item_id FROM item_tags WHERE tag_id IN ` + tags + `
+		UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN ` + tags + ` AND c.parent_id = h.item_id
+		UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN ` + tags + ` AND c.root_id = h.item_id`
+}
+
+// sparseRated is how few visible titles make a rating-limited list "sparse". See ratedIn.
+const sparseRated = 2000
+
+// ratedIn counts, up to sparseRated, the items of some kinds in a library that a profile with
+// a rating limit may see. A library of music or home video is mostly unrated, and reading
+// such a list in order to find the few rated titles would read all of it. So a caller reads a
+// sparse list from the rating index instead, and answers at once when the count is zero.
+// It reports dense (sparseRated) when the profile has no limit to apply this way.
+func (a access) ratedIn(ctx context.Context, tx *sql.Tx, library int64, kinds string) (int, error) {
+	if a.maxAge == nil || a.allowUnrated {
+		return sparseRated, nil
+	}
+	var n int
+	err := tx.QueryRowContext(ctx, `SELECT count(*) FROM (SELECT 1 FROM items WHERE library_id = ? AND kind IN `+kinds+`
+		AND rating_age <= ? LIMIT ?)`, library, *a.maxAge, sparseRated).Scan(&n)
+	return n, err
 }
 
 // query builds one statement with named values, so the visibility condition can appear in it
@@ -131,17 +172,27 @@ type query struct {
 	// and tagCount stand in for the "{tag}" mark in the condition. See ItemQuery.filters.
 	from, countFrom   string
 	tagPage, tagCount string
+	tagTotal          string // a whole statement for the total, when the tag allows a cheaper one
 	// pagePlus is "+" when the page should not be found through a filter's own index; it
 	// stands in for "{+}" in the page's condition, and nothing does in the total's.
 	pagePlus string
+	// labels is the viewer's blocked-label condition, standing in for "{labels}" on a page.
+	// A total leaves it out and subtracts what the labels hide. See access.blockedIDs.
+	labels string
 }
 
 func (q *query) pageWhere() string {
-	return strings.NewReplacer("{tag}", q.tagPage, "{+}", q.pagePlus).Replace(q.sql.String())
+	return strings.NewReplacer("{tag}", q.tagPage, "{+}", q.pagePlus, "{labels}", q.labels).Replace(q.sql.String())
 }
 
-func (q *query) countWhere() string {
-	return strings.NewReplacer("{tag}", q.tagCount, "{+}", "").Replace(q.sql.String())
+// countWhere is the condition for a total or a facet. With labels false the blocked-label
+// check is left out, for a caller that subtracts instead.
+func (q *query) countWhere(labels bool) string {
+	check := ""
+	if labels {
+		check = q.labels
+	}
+	return strings.NewReplacer("{tag}", q.tagCount, "{+}", "", "{labels}", check).Replace(q.sql.String())
 }
 
 func newQuery(v Viewer) *query { return &query{args: v.args(), from: "items i", countFrom: "items i"} }

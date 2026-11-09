@@ -58,8 +58,13 @@ type ItemEdit struct {
 	StateEdit
 }
 
-// UndoLifetime is how long a show, season or album mark can be taken back.
+// UndoLifetime is how long the server keeps what it needs to take back a show or season mark.
+// An app is offered half of it (see the state route), so an undo sent at the last moment
+// still finds its data.
 const UndoLifetime = time.Minute
+
+// MaxEditAge is the oldest queued edit the server applies. An app drops an unsent edit at 30 days.
+const MaxEditAge = 35 * 24 * time.Hour
 
 // maxUndoOffers bounds the memory undo offers can hold; the oldest goes first.
 const maxUndoOffers = 500
@@ -299,6 +304,12 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 func (e StateEdit) check(kind ItemKind, durationMS int64) error {
 	if e.Rating != nil && (*e.Rating < 0 || *e.Rating > 10) {
 		return invalid("a rating is a whole number from 0 to 10")
+	}
+	if e.Ago > MaxEditAge {
+		return invalid("an edit made more than 35 days ago is too old to apply")
+	}
+	if e.Watched != nil && (kind == KindTrack || kind == KindAlbum || kind == KindArtist) {
+		return invalid("music has play counts, not watched")
 	}
 	if e.PositionMS == nil && e.PositionText == nil {
 		return nil

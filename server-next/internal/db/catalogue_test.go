@@ -387,6 +387,14 @@ func TestStateLaterEditWinsFieldByField(t *testing.T) {
 		t.Fatalf("a repeated edit changed the state: %+v then %+v", first, second)
 	}
 
+	// Music has play counts, not watched; and an edit older than the server keeps is refused.
+	track := everything(t, l.d, v, db.ItemQuery{Library: l.libs[2].PublicID, Kinds: []db.ItemKind{db.KindTrack}, Limit: 1})[0].PublicID
+	if _, _, err := l.d.SetState(ctx, v, track, db.StateEdit{Watched: &yes}); !errors.Is(err, db.ErrInvalid) {
+		t.Fatalf("watched on a track: %v", err)
+	}
+	if _, _, err := l.d.SetState(ctx, v, film, db.StateEdit{Favorite: &yes, Ago: 36 * 24 * time.Hour}); !errors.Is(err, db.ErrInvalid) {
+		t.Fatalf("an edit made 36 days ago: %v", err)
+	}
 	rating := 11
 	if _, _, err := l.d.SetState(ctx, v, film, db.StateEdit{Rating: &rating}); !errors.Is(err, db.ErrInvalid) {
 		t.Fatalf("a rating of 11: %v", err)
@@ -456,15 +464,20 @@ func TestStateOnAShowSetsItsEpisodesAndUndoes(t *testing.T) {
 func TestUndoPutsBackWhatWasThere(t *testing.T) {
 	l := newLibrary(t, 600)
 	v, yes := l.all, true
-	albums := everything(t, l.d, v, db.ItemQuery{Library: l.libs[2].PublicID, Kinds: []db.ItemKind{db.KindAlbum}})
-	album := albums[0].PublicID
-	tracks := everything(t, l.d, v, db.ItemQuery{Parent: album})
+	var album string // a season with at least four episodes
+	var tracks []db.Item
+	for _, season := range everything(t, l.d, v, db.ItemQuery{Library: l.libs[1].PublicID, Kinds: []db.ItemKind{db.KindSeason}}) {
+		if tracks = everything(t, l.d, v, db.ItemQuery{Parent: season.PublicID}); len(tracks) >= 4 {
+			album = season.PublicID
+			break
+		}
+	}
 	state(t, l.d, v, tracks[0].PublicID, db.StateEdit{Watched: &yes})
 	state(t, l.d, v, tracks[1].PublicID, db.StateEdit{PositionMS: position(30_000)})
 
 	_, undo, err := l.d.SetState(ctx, v, album, db.StateEdit{Watched: &yes})
 	if err != nil || undo == "" {
-		t.Fatalf("marking the album: undo %q, %v", undo, err)
+		t.Fatalf("marking the season: undo %q, %v", undo, err)
 	}
 	time.Sleep(2 * time.Millisecond)
 	state(t, l.d, v, tracks[2].PublicID, db.StateEdit{Watched: &yes}) // played again after the mark
