@@ -57,6 +57,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 	switch v := result.(type) {
 	case mpStartPrepValue:
 		return preflightMPStartPrepValue(v)
+	case mpStartAcceptValue:
+		return preflightMPStartAcceptValue(v)
 	case mpQueueRepeatValue:
 		return preflightMPRepeatValue(v)
 	case evidenceSealResult:
@@ -144,6 +146,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 	switch v := result.(type) {
 	case mpStartPrepValue:
 		return writeMPStartPrepValue(e, identity, request, v)
+	case mpStartAcceptValue:
+		return writeMPStartAcceptValue(e, identity, request, v)
 	case mpQueueRepeatValue:
 		return writeMPRepeatValue(e, identity, request, v)
 	case evidenceSealResult:

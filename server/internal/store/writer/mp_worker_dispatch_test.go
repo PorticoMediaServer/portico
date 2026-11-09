@@ -742,7 +742,6 @@ type mpWorkerFamilyGate struct {
 }
 
 var mpWorkerFamilyGates = []mpWorkerFamilyGate{
-	{"MP-08", []CommandID{703, 704, 705}, "preparation accept/retire/timeout needs MP-07 and the MP-05 physical seam"},
 	{"MP-09", []CommandID{710, 711}, "logical/physical session birth and ready need MP-04, MP-07 and UO birth"},
 	{"MP-20", []CommandID{740, 741, 742, 743, 747, 748}, "prepared job birth/claim/renew/cancel/deadline/retry needs MP-04, MP-05, MP-10 and UO birth"},
 	{"MP-21", []CommandID{744, 746}, "prepared version publication and encode cleanup need MP-20"},

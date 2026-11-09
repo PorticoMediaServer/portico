@@ -7,4 +7,7 @@ var mpWorkerCommandPurposes = commandPurposeRegistration{owner: "mp-worker", pur
 	{id: MPStartPrepBegin, plan: true, memory: mpWorkerPartition, clock: clockWithoutLease},
 	{id: MPStartPrepClaim, plan: true, memory: mpWorkerPartition, clock: clockWithoutLease},
 	{id: MPStartPrepSeal, plan: true, memory: mpWorkerPartition, clock: clockWithoutLease},
+	{id: MPStartPrepAccept, plan: true, memory: mpWorkerPartition, clock: clockWithoutLease},
+	{id: MPStartPrepRetire, plan: true, memory: mpWorkerPartition, clock: clockWithoutLease},
+	{id: MPStartPrepTimeout, plan: true, memory: mpWorkerPartition, clock: clockWithoutLease},
 }}

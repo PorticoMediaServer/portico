@@ -106,6 +106,8 @@ func (r *effectiveRuntime) currentCommandDisclosure(w *Writer, cap *EnrichmentDi
 		return checkMPWorkerDisclosure(w, wc)
 	case *mpStartPrepInvocation:
 		return checkMPStartPrepDisclosure(w, wc)
+	case *mpStartAcceptInvocation:
+		return checkMPStartAcceptDisclosure(w, wc)
 	case *enrichmentInvocation:
 		return validateEnrichmentInvocation(r, w, wc)
 	case *wcProgressInvocation:
