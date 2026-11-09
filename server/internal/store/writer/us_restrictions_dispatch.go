@@ -78,8 +78,9 @@ func (usRestrictionsDispatchResult) Format(f fmt.State, _ rune) {
 }
 
 type usRestrictionsCompletion struct {
-	out   usRestrictionsDispatchResult
-	floor AckResult
+	out        usRestrictionsDispatchResult
+	floor      AckResult
+	historical bool
 }
 
 func (usRestrictionsCompletion) String() string   { return "usRestrictionsCompletion{redacted}" }
@@ -190,8 +191,8 @@ func usRestrictionsQuotaAdmit(owner usRestrictionsOwnerFacts, charge int64) erro
 // physical terminal may declare Applied.
 func executeUSRestrictionsInvocation(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, inv *usRestrictionsInvocation) (out usRestrictionsDispatchResult, floor AckResult, historical bool, err error) {
 	defer func() {
-		v, e := finishCommand(ctx, commandLifetime(turn), usRestrictionsCompletion{out, floor}, err)
-		out, floor, err = v.out, v.floor, e
+		v, e := finishCommand(ctx, commandLifetime(turn), usRestrictionsCompletion{out, floor, historical}, err)
+		out, floor, historical, err = v.out, v.floor, v.historical, e
 	}()
 	if turn == nil || turn.transaction == nil || a == nil || inv == nil {
 		return out, floor, false, ErrInvalid
@@ -326,7 +327,12 @@ func executeUSRestrictionsInvocation(ctx context.Context, turn *commandTurn, a *
 // current disclosure and the FULL physical terminal; the caller supplies only
 // the already admitted turn.
 func runUSRestrictionsDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, inv *usRestrictionsInvocation) (out usRestrictionsDispatchResult, floor AckResult, err error) {
-	out, floor, historical, err := executeUSRestrictionsInvocation(ctx, turn, a, inv)
+	var historical bool
+	defer func() {
+		v, e := finishCommand(ctx, ctx, usRestrictionsCompletion{out, floor, historical}, err)
+		out, floor, err = v.out, v.floor, e
+	}()
+	out, floor, historical, err = executeUSRestrictionsInvocation(ctx, turn, a, inv)
 	if err != nil {
 		return withdrawUSRestrictions(turn, err)
 	}
@@ -339,9 +345,10 @@ func runUSRestrictionsDispatch(ctx context.Context, turn *commandTurn, a *usOwne
 		return withdrawUSRestrictions(turn, ctxErr)
 	}
 	// The release rule runs BEFORE the terminal: the transaction cancels its
-	// own lifetime at commit/rollback, so a deferred finish afterwards would
-	// misreport a committed command as canceled.
-	release, releaseErr := finishCommand(ctx, commandLifetime(turn), usRestrictionsCompletion{out, floor}, nil)
+	// own lifetime at commit/rollback, so this release uses the live frame
+	// lifetime. The deferred final publication rechecks the CALLER's context
+	// after physical return, exactly like the shared dispatcher.
+	release, releaseErr := finishCommand(ctx, commandLifetime(turn), usRestrictionsCompletion{out, floor, historical}, nil)
 	if releaseErr != nil {
 		return withdrawUSRestrictions(turn, releaseErr)
 	}
