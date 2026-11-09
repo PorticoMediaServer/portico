@@ -544,7 +544,7 @@ def main():
         # see their changed input, including a source missing from this checkout.
         paths=command(['git','diff','--no-renames','--name-only','-z',base,head]).split('\0'); paths=[p for p in paths if p]
     plan=make_plan(paths,a.full,'merge' if a.full and a.tier=='short' else a.tier); plan.update(base=base,head=head)
-    plan['server_next'] = (ROOT/'server-next/go.mod').is_file() and (a.full or os.environ.get('GITHUB_EVENT_NAME') == 'merge_group' or any(p.startswith('server-next/') or p == '.github/workflows/merge.yml' for p in paths))
+    if a.tier != 'nightly': plan['server_next'] = (ROOT/'server-next/go.mod').is_file() and (a.full or os.environ.get('GITHUB_EVENT_NAME') == 'merge_group' or any(p.startswith('server-next/') or p == '.github/workflows/merge.yml' for p in paths))
     Path(a.output).write_text(json.dumps(plan,indent=2)+'\n')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         from explain import render_summary
