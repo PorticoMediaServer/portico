@@ -3,6 +3,8 @@ package writer
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
@@ -10,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/apievents"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
@@ -235,10 +238,60 @@ func usCredentialCount(t *testing.T, w *executor, query string, args ...any) int
 	return n
 }
 
+// usCredentialTableRow is a byte-identical oracle for one exact source row.
+// Names are test constants only; every value is rendered with its Go type so a
+// rollback cannot hide a changed column.
+func usCredentialTableRow(t *testing.T, w *executor, table, idColumn, id string) string {
+	t.Helper()
+	rows, err := w.db.QueryContext(t.Context(), `SELECT * FROM `+table+` WHERE `+idColumn+`=?`, id)
+	if err != nil {
+		t.Fatal(table, err)
+	}
+	defer rows.Close()
+	columns, err := rows.Columns()
+	if err != nil {
+		t.Fatal(table, err)
+	}
+	var out []string
+	for rows.Next() {
+		values := make([]any, len(columns))
+		ptrs := make([]any, len(columns))
+		for i := range values {
+			ptrs[i] = &values[i]
+		}
+		if err = rows.Scan(ptrs...); err != nil {
+			t.Fatal(table, err)
+		}
+		var b strings.Builder
+		for i, value := range values {
+			switch v := value.(type) {
+			case nil:
+				fmt.Fprintf(&b, "%s=NULL;", columns[i])
+			case []byte:
+				fmt.Fprintf(&b, "%s=%x;", columns[i], v)
+			default:
+				fmt.Fprintf(&b, "%s=%v;", columns[i], v)
+			}
+		}
+		out = append(out, b.String())
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatal(table, err)
+	}
+	return strings.Join(out, "\n")
+}
+
+func usCredentialRevokeRows(t *testing.T, w *executor) (credential, family, device string) {
+	t.Helper()
+	return usCredentialTableRow(t, w, "api_credentials", "family_id", usCredentialFamilyID),
+		usCredentialTableRow(t, w, "authorization_session_families", "id", usCredentialFamilyID),
+		usCredentialTableRow(t, w, "identity_devices", "id", usCredentialDeviceID)
+}
+
 // The statement inventory stays closed, hot and plan-captured.
 func TestUSCredentialStatementCapture(t *testing.T) {
 	defs := append(append([]stmt.Definition(nil), usCredentialDefinitions()...), usCredentialReceiptDefinitions()...)
-	if len(usCredentialDefinitions()) != 7 || len(usCredentialReceiptDefinitions()) != 13 {
+	if len(usCredentialDefinitions()) != 13 || len(usCredentialReceiptDefinitions()) != 13 {
 		t.Fatal("credential statement inventory changed", len(usCredentialDefinitions()), len(usCredentialReceiptDefinitions()))
 	}
 	for _, d := range defs {
@@ -838,7 +891,7 @@ func usCredentialAssertRevokeRefused(t *testing.T, w *executor, r *stmt.Registry
 	t.Helper()
 	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
 	out, floor, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, command))
-	if !errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+	if err == nil || (!errors.Is(err, ErrConflict) && !errors.Is(err, ErrDisclosureDenied)) || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
 		t.Fatal("revoke authority refusal", out, floor, err)
 	}
 	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 1 {
@@ -922,8 +975,282 @@ func TestUSCredentialRevokeRefusesForeignChildAndStaleWitness(t *testing.T) {
 	})
 }
 
-// A credential-born family never mints ordinary US-01 authority, even after its
-// revoked source marker is drained. The security_kind=1 marker is independent.
+// One 522 original writes the source marker, the credential's OWN
+// security_kind=1 family denial with its durable teardown obligation, the OWN
+// API device's logical retirement and exactly ONE devices hint. Its replay is
+// the saved original and writes none of them again.
+func TestUSCredentialRevokeOwnFamilyAndDevice(t *testing.T) {
+	w, proof := usCredentialAuthorityFixture(t, false)
+	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+	r := usCredentialRegistry(t)
+	issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+	issuerFamilyBefore := usCredentialTableRow(t, w, "authorization_session_families", "id", "issuer-family")
+	issuerDeviceBefore := usCredentialTableRow(t, w, "identity_devices", "id", "issuer-device")
+
+	revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+	revoked, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms := revoked.Value.revokedMS
+	if revoked.Outcome.State != Applied || revoked.Outcome.Replayed || ms <= 0 || revoked.Value.state != "revoked" {
+		t.Fatal("revoke result", revoked)
+	}
+
+	// (1) Source marker.
+	if n := usCredentialCount(t, w, `SELECT revoked_ms FROM api_credentials WHERE id=?`, issue.issue.prepared.id); n != ms {
+		t.Fatal("credential marker", n, ms)
+	}
+	// (2) Own family denial + durable teardown obligation, no family command.
+	var flag, kind, due, last int64
+	var reason, at string
+	var noReceipt bool
+	if err = w.db.QueryRowContext(t.Context(), `SELECT revoked,revoked_reason,revoked_at,teardown_due_ms,security_kind,command_last_sequence,revoke_operation_id IS NULL FROM authorization_session_families WHERE id=?`, usCredentialFamilyID).Scan(&flag, &reason, &at, &due, &kind, &last, &noReceipt); err != nil {
+		t.Fatal(err)
+	}
+	if flag != 1 || reason != "admin_revoke" || at != time.UnixMilli(ms).UTC().Format(time.RFC3339) || due != ms || kind != 1 || last != 0 || !noReceipt {
+		t.Fatal("own family denial", flag, reason, at, due, kind, last, noReceipt)
+	}
+	if n := usCredentialCount(t, w, `SELECT command_last_sequence FROM authorization_session_families WHERE id=?`, usCredentialFamilyID); n != 0 {
+		t.Fatal("family command was invented", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM authorization_session_families WHERE id=? AND revoke_operation_id IS NULL`, usCredentialFamilyID); n != 1 {
+		t.Fatal("family revoke receipt was invented", n)
+	}
+	// (3) Own API device logical retirement with one revision bump.
+	var retired, revision int64
+	if err = w.db.QueryRowContext(t.Context(), `SELECT retired_ms,revision FROM identity_devices WHERE id=?`, usCredentialDeviceID).Scan(&retired, &revision); err != nil {
+		t.Fatal(err)
+	}
+	if retired != ms || revision != 2 {
+		t.Fatal("own device retirement", retired, revision)
+	}
+	// (4) Exactly ONE 522 hint and the original receipt.
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events WHERE audience=? AND type='list.changed' AND resource_kind='list' AND resource_id='devices'`, apievents.AdminAudience); n != 1 {
+		t.Fatal("522 hint count", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 1 {
+		t.Fatal("522 receipt count", n)
+	}
+	// Issuer session/device are not this operation's target.
+	if got := usCredentialTableRow(t, w, "authorization_session_families", "id", "issuer-family"); got != issuerFamilyBefore {
+		t.Fatal("issuer family changed")
+	}
+	if got := usCredentialTableRow(t, w, "identity_devices", "id", "issuer-device"); got != issuerDeviceBefore {
+		t.Fatal("issuer device changed")
+	}
+
+	// Replay: saved original, no second effect, no second event, no revision
+	// bump and no second teardown mark.
+	credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+	replay, _, err := runUSCredentialDispatch(t.Context(), turn, a, &usCredentialInvocation{request: usCredentialInput(t, revoke).request})
+	if err != nil || replay.Outcome.State != Applied || !replay.Outcome.Replayed || !reflect.DeepEqual(replay.Value, revoked.Value) {
+		t.Fatal("revoke replay", replay, err)
+	}
+	credentialAgain, familyAgain, deviceAgain := usCredentialRevokeRows(t, w)
+	if credentialAgain != credentialAfter || familyAgain != familyAfter || deviceAgain != deviceAfter {
+		t.Fatal("replay wrote a source/family/device effect")
+	}
+	if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 1 {
+		t.Fatal("replay appended an event", n)
+	}
+	if n := usCredentialCount(t, w, `SELECT revision FROM identity_devices WHERE id=?`, usCredentialDeviceID); n != 2 {
+		t.Fatal("replay bumped the device revision", n)
+	}
+
+	// The issuer's OWN session still authorizes after the commit.
+	turn, b := usOwnerAuthorityTurn(t, w, r)
+	if _, err = authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), b); err != nil {
+		t.Fatal("issuer session stopped authorizing", err)
+	}
+	_, _ = turn.transaction.rollback(nil)
+}
+
+// Every prefix step fails closed: marker, family, device and hint each roll the
+// whole frame back, so no marker-only or family-only response can commit.
+func TestUSCredentialRevokePrefixRollback(t *testing.T) {
+	for _, step := range []struct{ name, trigger string }{
+		{"marker", `CREATE TRIGGER us_credential_fail_marker BEFORE UPDATE ON api_credentials WHEN OLD.revoked_ms=0 AND NEW.revoked_ms>0 BEGIN SELECT RAISE(ABORT,'fault'); END`},
+		{"family", `CREATE TRIGGER us_credential_fail_family BEFORE UPDATE ON authorization_session_families WHEN OLD.revoked=0 AND NEW.revoked=1 BEGIN SELECT RAISE(ABORT,'fault'); END`},
+		{"device", `CREATE TRIGGER us_credential_fail_device BEFORE UPDATE ON identity_devices WHEN OLD.retired_ms=0 AND NEW.retired_ms>0 BEGIN SELECT RAISE(ABORT,'fault'); END`},
+		{"hint", `CREATE TRIGGER us_credential_fail_hint BEFORE INSERT ON api_events BEGIN SELECT RAISE(ABORT,'fault'); END`},
+	} {
+		t.Run(step.name, func(t *testing.T) {
+			w, proof := usCredentialAuthorityFixture(t, false)
+			usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+			r := usCredentialRegistry(t)
+			issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+			credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+			wc008NativeExec(t, w, step.trigger)
+			revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
+			turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+			out, floor, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke))
+			if err == nil || !reflect.DeepEqual(out, usCredentialDispatchResult{}) || floor.AcknowledgedThrough != 0 {
+				t.Fatal("faulted prefix carried output", out, floor, err)
+			}
+			credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+			if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+				t.Fatal("faulted prefix changed a source/family/device row")
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 0 {
+				t.Fatal("faulted prefix left an event", n)
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts WHERE command_kind=?`, int64(usAPICredentialRevoke)); n != 0 {
+				t.Fatal("faulted prefix left a 522 receipt", n)
+			}
+		})
+	}
+}
+
+// Even a parent that ignores applyUSCredentialRevoke's error cannot COMMIT the
+// marker/family/device prefix.
+func TestUSCredentialRevokeIgnoredErrorCannotCommit(t *testing.T) {
+	for _, missing := range []struct {
+		name string
+		id   stmt.ID
+	}{{"marker", usCredentialRevokeWrite}, {"family", usCredentialFamilyRevoke}, {"device", usCredentialDeviceRetire}} {
+		t.Run(missing.name, func(t *testing.T) {
+			w, proof := usCredentialAuthorityFixture(t, false)
+			usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+			r := usCredentialRegistry(t)
+			issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+			revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
+			credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+			turn, _, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+			delete(turn.steps, missing.id)
+			out, err := applyUSCredentialRevoke(t.Context(), turn, revoke.revoke, w.now().UnixMilli())
+			if err == nil || !reflect.DeepEqual(out, usCredentialRevokeEffect{}) {
+				t.Fatal("missing step produced an effect", out, err)
+			}
+			// The parent ignores err and asks for COMMIT anyway.
+			if _, err = turn.transaction.commit(); err == nil {
+				t.Fatal("ignored prefix error committed")
+			}
+			credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+			if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+				t.Fatal("ignored prefix error changed a row")
+			}
+			if n := usCredentialCount(t, w, `SELECT count(*) FROM api_events`); n != 0 {
+				t.Fatal("ignored prefix error left an event", n)
+			}
+		})
+	}
+}
+
+// Foreign / ordinary-family / mismatched-device / platform-mismatch sources are
+// refused with zero output and byte-identical source rows.
+func TestUSCredentialRevokeRefusesForeignFamilyAndDevice(t *testing.T) {
+	revokeIdentity := CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{7}, Sequence: 2}
+
+	t.Run("ordinary_family", func(t *testing.T) {
+		w, proof := usCredentialAuthorityFixture(t, false)
+		usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+		r := usCredentialRegistry(t)
+		issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+		wc008NativeExec(t, w, `UPDATE authorization_session_families SET security_kind=0 WHERE id=?`, usCredentialFamilyID)
+		credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+		command := usCredentialRevokeCommandFixture(t, w, proof, issue, revokeIdentity)
+		usCredentialAssertRevokeRefused(t, w, r, proof, command)
+		credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+		if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+			t.Fatal("ordinary family refusal changed a row")
+		}
+	})
+
+	t.Run("device_of_another_account", func(t *testing.T) {
+		w, proof := usCredentialAuthorityFixture(t, false)
+		usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+		r := usCredentialRegistry(t)
+		issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+		wc008NativeExec(t, w, `UPDATE identity_devices SET account_id='foreign-account' WHERE id=?`, usCredentialDeviceID)
+		credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+		command := usCredentialRevokeCommandFixture(t, w, proof, issue, revokeIdentity)
+		usCredentialAssertRevokeRefused(t, w, r, proof, command)
+		credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+		if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+			t.Fatal("foreign device refusal changed a row")
+		}
+	})
+
+	t.Run("platform_mismatch", func(t *testing.T) {
+		w, proof := usCredentialAuthorityFixture(t, false)
+		usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+		r := usCredentialRegistry(t)
+		issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+		wc008NativeExec(t, w, `UPDATE identity_devices SET platform='ios' WHERE id=?`, usCredentialDeviceID)
+		credentialBefore, familyBefore, deviceBefore := usCredentialRevokeRows(t, w)
+		command := usCredentialRevokeCommandFixture(t, w, proof, issue, revokeIdentity)
+		usCredentialAssertRevokeRefused(t, w, r, proof, command)
+		credentialAfter, familyAfter, deviceAfter := usCredentialRevokeRows(t, w)
+		if credentialAfter != credentialBefore || familyAfter != familyBefore || deviceAfter != deviceBefore {
+			t.Fatal("platform mismatch refusal changed a row")
+		}
+	})
+}
+
+// Direct-family control: a session minted for the credential's OWN family is
+// denied after commit. The fixture clears the independent security_kind/
+// credential-presence/API-installation fences so the ONLY remaining denial is
+// the committed revoked bit; clearing that bit makes the same session mint.
+func TestUSCredentialRevokedFamilyDirectAuthDenied(t *testing.T) {
+	w, proof := usCredentialAuthorityFixture(t, false)
+	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
+	r := usCredentialRegistry(t)
+	issue := usCredentialIssuedAcknowledged(t, w, proof, r)
+	revoke := usCredentialRevokeCommandFixture(t, w, proof, issue, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
+	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
+	if _, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Otherwise fully matching ordinary session for the credential family.
+	witness := proof.witness
+	const installationID = "credential-session-installation-000001"
+	witness.device = usCredentialDeviceID
+	witness.installationID = installationID
+	witness.issuer.family = usCredentialFamilyID
+	witness.issuer.familyGeneration = 1
+	witness.issuer.installation = strings.Repeat("d", 32)
+	witness.issuer.tokenDigest = usCredentialFixtureHash("credential-family-token")
+	credentialProof, err := prepareUSOwnerAuthority(witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(installationID))
+	wc008NativeExec(t, w, `UPDATE identity_devices SET installation_id=? WHERE id=?`, installationID, usCredentialDeviceID)
+	wc008NativeExec(t, w, `INSERT INTO identity_installations(installation_hash,incarnation) VALUES(?,?)`, hex.EncodeToString(sum[:]), witness.issuer.installation)
+	wc008NativeExec(t, w, `INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES(?,?,1,?)`, witness.issuer.tokenDigest, usCredentialFamilyID, witness.tokenExpiry)
+	wc008NativeExec(t, w, `DELETE FROM api_credentials WHERE family_id=?`, usCredentialFamilyID)
+	wc008NativeExec(t, w, `UPDATE authorization_session_families SET security_kind=0 WHERE id=?`, usCredentialFamilyID)
+	// The committed device retirement is an independent fence too; restore it
+	// for this control so the only difference between the two attempts is the
+	// family's committed revoked bit.
+	wc008NativeExec(t, w, `UPDATE identity_devices SET retired_ms=0,revision=1 WHERE id=?`, usCredentialDeviceID)
+
+	turn, b := usOwnerAuthorityTurn(t, w, r)
+	if got, err := authorizeUSOwnerPolicy(t.Context(), turn, credentialProof, t.Context(), b); got != nil || !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal("revoked credential family authorized", got, err)
+	}
+	_, _ = turn.transaction.rollback(nil)
+
+	// Only the revoked bit differs: the same session now mints.
+	wc008NativeExec(t, w, `UPDATE authorization_session_families SET revoked=0,revoked_reason='',revoked_at='',teardown_due_ms=NULL WHERE id=?`, usCredentialFamilyID)
+	turn, b = usOwnerAuthorityTurn(t, w, r)
+	if _, err = authorizeUSOwnerPolicy(t.Context(), turn, credentialProof, t.Context(), b); err != nil {
+		t.Fatal("cleared revoked bit still denied", err)
+	}
+	_, _ = turn.transaction.rollback(nil)
+
+	// The issuer's own session and device remain untouched by 522.
+	turn, b = usOwnerAuthorityTurn(t, w, r)
+	if _, err = authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), b); err != nil {
+		t.Fatal("issuer session denied", err)
+	}
+	_, _ = turn.transaction.rollback(nil)
+}
+
 func TestUSCredentialRevokedMarkerDrainNeverOrdinaryAuthority(t *testing.T) {
 	w, proof := usCredentialAuthorityFixture(t, false)
 	usCredentialOwnerFixture(t, w, proof, [16]byte{1})
