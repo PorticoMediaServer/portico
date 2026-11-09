@@ -119,6 +119,11 @@ func TestRBDirectoryAuthorizedLibrariesAndPivots(t *testing.T) {
 	if page.Pending || !page.Exhausted || page.Next != nil || len(page.CrossPivots) != 3 {
 		t.Fatalf("directory envelope: %+v", page)
 	}
+	// The mapped scope also holds a retired and an unshared mapping; the raw
+	// evidence counts the four authorized libraries only.
+	if page.RawRows != 4 || page.RawPositions != 4 {
+		t.Fatalf("authorized raw evidence: rows=%d positions=%d", page.RawRows, page.RawPositions)
+	}
 	if cost.LookupStatements == 0 || page.Statements != cost.LookupStatements+cost.PublicationStatements {
 		t.Fatal("statement accounting", page.Statements, cost)
 	}
@@ -162,6 +167,42 @@ func TestRBDirectoryAuthorizedLibrariesAndPivots(t *testing.T) {
 	if got := rbDirectoryIDs(page); !slices.Equal(got, []string{"other"}) {
 		t.Fatalf("other principal saw %v", got)
 	}
+	if page.RawRows != 1 || page.RawPositions != 1 {
+		t.Fatalf("other principal raw evidence: rows=%d positions=%d", page.RawRows, page.RawPositions)
+	}
+}
+
+// TestRBDirectoryCapacityBoundary holds the real 192-row complete-scope ceiling:
+// exactly the documented capacity is a complete list, one more mapped row is
+// explicit pending preparation rather than a truncated page.
+func TestRBDirectoryCapacityBoundary(t *testing.T) {
+	f := newRBDirectoryFixture(t)
+	bulk := func(t *testing.T, first, last int64) {
+		t.Helper()
+		f.exec(t, `INSERT INTO libraries(id,name,kind,root,position) SELECT 'bulk'||x,'Bulk '||x,'movie','/bulk/'||x,x FROM (WITH RECURSIVE c(x) AS (SELECT ? UNION ALL SELECT x+1 FROM c WHERE x<?) SELECT x FROM c)`, first, last)
+		f.exec(t, `INSERT INTO catalog_libraries(id,library_id,root) SELECT x,'bulk'||x,'/bulk/'||x FROM (WITH RECURSIVE c(x) AS (SELECT ? UNION ALL SELECT x+1 FROM c WHERE x<?) SELECT x FROM c)`, first, last)
+	}
+	if rbDirectoryCapacity != 192 {
+		t.Fatalf("capacity contract moved: %d", rbDirectoryCapacity)
+	}
+	// Existing non-retired mappings are ids 1,2,4,5,6 (five rows), so ids
+	// 7..193 reach the 192 ceiling and one more crosses it.
+	bulk(t, 7, 6+rbDirectoryCapacity-5)
+	page, _, err := f.directory(t, RBDirectoryInput{View: f.input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Pending || !page.Exhausted || len(page.Libraries) != 4 {
+		t.Fatalf("capacity page: %+v", page)
+	}
+	bulk(t, 194, 194)
+	page, _, err = f.directory(t, RBDirectoryInput{View: f.input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !page.Pending || page.PendingSource != RBGapDirectoryScope || page.Exhausted || len(page.Libraries) != 0 {
+		t.Fatalf("over-capacity page: %+v", page)
+	}
 }
 
 func TestRBDirectoryNoLibraryViewer(t *testing.T) {
@@ -173,6 +214,11 @@ func TestRBDirectoryNoLibraryViewer(t *testing.T) {
 	}
 	if len(page.Libraries) != 0 || !page.Exhausted || page.Pending || page.Next != nil {
 		t.Fatalf("no-library viewer: %+v", page)
+	}
+	// Raw evidence counts only authorized mapping rows, never the wider mapped
+	// scope used to prove the share.
+	if page.RawRows != 0 || page.RawPositions != 0 {
+		t.Fatalf("no-library viewer raw evidence: rows=%d positions=%d", page.RawRows, page.RawPositions)
 	}
 }
 

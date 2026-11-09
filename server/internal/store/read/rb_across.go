@@ -21,8 +21,11 @@ import (
 //
 // The shared call budget leaves four stream reads in the first window (after
 // the principal/permission fence and the same-snapshot scope proof) and eight
-// in the second. At most twelve authorized libraries therefore fit one bounded
-// page; a larger scope is explicit pending preparation, never a partial page.
+// in the second, so a FIRST page over twelve authorized libraries fits exactly
+// two windows. A CONTINUATION walks cursor positions two at a time in the first
+// window and four per later window, so twelve libraries take four windows
+// (2+4+4+2), not two. A larger scope is explicit pending preparation, never a
+// partial page.
 const (
 	rbAcrossPolicy         readPolicyID = 32511
 	rbAcrossFirstLibraries              = 4
@@ -180,7 +183,9 @@ func (r *BrowseReader) acrossWindow(ctx context.Context, request governor.Reques
 // page has unstarted sub-cursors (one call each): four in the first window and
 // eight in the second. A continuation uses the equality-tail/next-key/null
 // recipe (two calls each): two in the first window and four per later window.
-// The cap is explicit pending preparation, never a partial merge.
+// A continuation over twelve libraries therefore takes four windows
+// (2+4+4+2), not the two windows a first page takes. The cap is explicit
+// pending preparation, never a partial merge.
 func rbAcrossSteps(in RBAcrossInput, spec rbAcrossSpec) []readStep[rbAcrossDraft] {
 	chunks := [][2]int{{0, 4}, {4, 12}}
 	if in.After != nil {
@@ -440,6 +445,20 @@ func rbAcrossRow(row []any, spec rbAcrossSpec) error {
 
 // rbAcrossMerge is the exact disjoint stream merge. Equal keys across libraries
 // fall back to the global entity identity, matching the source order's id tie.
+//
+// INVARIANT: every published page is an exact prefix of the global merged
+// order, even though it may be shorter than the requested limit. A library that
+// is not exhausted but whose buffer is now empty has an unknown next key: that
+// key may sort before any remaining buffered head, so the next global row cannot
+// be chosen. The merge therefore stops immediately and publishes Next; the
+// continuation refetches from every per-library cursor (buffered but unpublished
+// rows are simply read again, never skipped or duplicated).
+//
+// FORWARD PROGRESS: a non-exhausted library always buffers exactly d.per >= 1
+// rows after a fetch, and an exhausted library is safe to drain to EOF. So if
+// the first fetch of every library returned at least one row, at least one row
+// is emitted before any stop. A page only returns zero rows when no data
+// remains.
 func rbAcrossMerge(ctx context.Context, f browseFence, in RBAcrossInput, d *rbAcrossDraft) error {
 	page := RBAcrossPage{Pending: d.pending, PendingSource: d.page.PendingSource}
 	if d.pending {
@@ -454,16 +473,23 @@ func rbAcrossMerge(ctx context.Context, f browseFence, in RBAcrossInput, d *rbAc
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		best := -1
+		best, stopped := -1, false
 		for i := range d.fetched {
 			if index[i] >= len(d.fetched[i]) {
+				if !d.exhausted[i] {
+					// A non-exhausted library with an empty buffer means the
+					// next global row is unknown: its unfetched key may sort
+					// before every buffered head. Stop and continue from the
+					// cursors rather than emit out-of-order rows.
+					stopped = true
+				}
 				continue
 			}
 			if best < 0 || rbAcrossBefore(d.fetched[i][index[i]], d.fetched[best][index[best]], in.Sort, in.View.Descending) {
 				best = i
 			}
 		}
-		if best < 0 {
+		if stopped || best < 0 {
 			break
 		}
 		row := d.fetched[best][index[best]]
