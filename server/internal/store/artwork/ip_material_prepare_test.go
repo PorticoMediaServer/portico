@@ -5,7 +5,11 @@ import (
 	"testing"
 )
 
-func materialDigestFor(n byte) string { return strings.Repeat(string("0123456789abcdef"[n%16]), 64) }
+// materialDigestFor returns a lowercase 64-hex digest. The trailing letter keeps
+// every fixture non-vacuous for the uppercase-rejection case.
+func materialDigestFor(n byte) string {
+	return strings.Repeat(string("0123456789abcdef"[n%16]), 63) + "a"
+}
 
 func materialSpec(expected int64) MaterialSpec {
 	return MaterialSpec{

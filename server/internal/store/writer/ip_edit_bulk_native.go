@@ -446,7 +446,7 @@ func ipEditBulkWriteFresh(ctx context.Context, turn *commandTurn, c *ipEditBulkC
 	}
 	if err = ipBulkExpectOne(ctx, turn, ipBulkReceiptWrite, r.Operation, c.identity.Incarnation[:],
 		c.identity.Sequence, c.identity.OperationID[:], c.digest[:], appliedMS, digest[:],
-		revision, r.ExpectedCount, r.ExpectedCount, 0, 0, ipEditBulkManifest, r.Manifest[:]); err != nil {
+		revision, r.ExpectedCount, r.ExpectedCount, int64(0), int64(0), ipEditBulkManifest, r.Manifest[:]); err != nil {
 		return out, err
 	}
 	saved, err := ipEditBulkReadSaved(ctx, turn, c)

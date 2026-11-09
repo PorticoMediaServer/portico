@@ -143,7 +143,10 @@ func ipArtworkMaterialApply(t *testing.T, w *executor, r *ipPolicyRegistry, p *u
 
 func ipArtworkMaterialAck(t *testing.T, w *executor, sequence int64) {
 	t.Helper()
-	ipPolicyExec(t, w, `UPDATE artwork_subject_jobs SET acknowledged_command_sequence=? WHERE id IN(901,902)`, sequence)
+	// Acknowledging a sequence also publishes it as the latest observed command;
+	// the job CHECK requires receipt_reclaim_after_sequence <= acknowledged <=
+	// last_command_sequence.
+	ipArtworkDiscoveryAck(t, w, sequence)
 }
 
 // Custody is durable with no source, blob, selection or history fanout: those
@@ -466,10 +469,16 @@ func TestIPArtworkMaterialInstalledFences(t *testing.T) {
 				t.Fatal("stale installed handoff admitted", out, err)
 			}
 			ipPolicyRollbackTurn(t, turn, tx)
+			// intent_not_prepared seeds an already-installed intent row, so the
+			// refusal must leave that row intact rather than remove it.
+			wantInstalled := int64(0)
+			if tc.name == "intent_not_prepared" {
+				wantInstalled = 1
+			}
 			for query, want := range map[string]int64{
 				`SELECT count(*) FROM artwork_material_slots`:                                         0,
 				`SELECT count(*) FROM artwork_command_receipts WHERE command_kind='material_publish'`: 0,
-				`SELECT count(*) FROM artwork_material_intents WHERE state='installed'`:               0,
+				`SELECT count(*) FROM artwork_material_intents WHERE state='installed'`:               wantInstalled,
 				`SELECT last_command_sequence FROM artwork_subject_jobs WHERE id=901`:                 1,
 			} {
 				if got := ipPolicyQueryInt(t, w, query); got != want {
@@ -523,10 +532,16 @@ func TestIPArtworkMaterialStaleIntentAndJob(t *testing.T) {
 				t.Fatal("stale intent admitted", out, err)
 			}
 			ipPolicyRollbackTurn(t, turn, tx)
+			// The setup mutation runs outside the refused turn, so only a
+			// completed_job setup leaves the job non-pending.
+			wantPending := int64(1)
+			if tc.name == "completed_job" {
+				wantPending = 0
+			}
 			for query, want := range map[string]int64{
 				`SELECT count(*) FROM artwork_material_intents`:                          0,
 				`SELECT count(*) FROM artwork_command_receipts`:                          0,
-				`SELECT status='pending' FROM artwork_jobs WHERE id='job-entity-poster'`: 1,
+				`SELECT status='pending' FROM artwork_jobs WHERE id='job-entity-poster'`: wantPending,
 				`SELECT last_command_sequence FROM artwork_subject_jobs WHERE id=901`:    0,
 			} {
 				if got := ipPolicyQueryInt(t, w, query); got != want {
@@ -838,7 +853,7 @@ func TestIPArtworkMaterialBoundsAndDescriptors(t *testing.T) {
 	if _, err := newIPArtworkMaterialCommand(IPArtworkMaterialInstalled, identity, maxInstalled); err != nil {
 		t.Fatal("bounded maximum manifest refused", err)
 	}
-	maxSlots[0].bytes = ipArtworkMaterialMaxBytes/3 + 1
+	maxSlots[0].bytes = ipArtworkMaterialMaxSlot
 	if _, err := newIPArtworkMaterialCommand(IPArtworkMaterialInstalled, identity, maxInstalled); !errors.Is(err, ErrInvalid) {
 		t.Fatal("oversize manifest admitted", err)
 	}

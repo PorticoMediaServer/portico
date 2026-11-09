@@ -57,19 +57,20 @@ func ipBulkApplyFixture(t *testing.T) (*executor, *ipEntryRegistry, *usOwnerAuth
 		publicIDs[0][:], publicIDs[1][:], publicIDs[2][:], publicIDs[3][:])
 	for _, row := range []struct {
 		id       int64
+		publicID []byte
 		library  int64
 		kind     int64
 		title    string
 		revision int64
 		inc      [16]byte
 	}{
-		{778, 777, 1, "Item", 3, [16]byte{4}},
-		{779, 777, 1, "Second", 5, [16]byte{5}},
-		{780, 777, 8, "Book", 1, [16]byte{6}},
-		{781, 778, 1, "Foreign", 1, [16]byte{7}},
+		{778, publicIDs[0][:], 777, 1, "Item", 3, [16]byte{4}},
+		{779, publicIDs[1][:], 777, 1, "Second", 5, [16]byte{5}},
+		{780, publicIDs[2][:], 777, 8, "Book", 1, [16]byte{6}},
+		{781, publicIDs[3][:], 778, 1, "Foreign", 1, [16]byte{7}},
 	} {
 		ipBulkExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,source_revision,identity_revision,metadata_revision,revision) VALUES(?,?,?,?,?,?,?,?,?,0,?,?,1,1,1,?)`,
-			row.id, row.inc[:], row.library, row.kind, row.title, strings.ToLower(row.title), strings.ToLower(row.title)[:1],
+			row.id, row.publicID, row.library, row.kind, row.title, strings.ToLower(row.title), strings.ToLower(row.title)[:1],
 			strings.ToLower(row.title), strings.ToLower(row.title)[:1], row.inc[:], row.inc[:], row.revision)
 	}
 	r, err := stmttest.New(t, ipBulkApplyDefinitions())
@@ -175,7 +176,7 @@ func TestIPEditBulkPageFreshReplayRetired(t *testing.T) {
 	}
 	ipTextCommit(t, turn, tx)
 	for query, want := range map[string]int64{
-		`SELECT count(*) FROM metadata_repair_cascades WHERE id='` + id + `' AND job_revision=2 AND last_command_sequence=2 AND acknowledged_command_sequence=0 AND after_item='2' AND processed=2 AND failed=0 AND status='running'`: 1,
+		`SELECT count(*) FROM metadata_repair_cascades WHERE id='` + id + `' AND job_revision=2 AND last_command_sequence=2 AND acknowledged_command_sequence=1 AND after_item='2' AND processed=2 AND failed=0 AND status='running'`: 1,
 		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND state='applied' AND edit_owner_id IS NOT NULL AND result_revision IS NOT NULL`:                                                          2,
 		`SELECT count(*) FROM metadata_edit_batch_targets WHERE operation_id='` + id + `' AND edit_command_incarnation=X'01000000000000000000000000000000' AND edit_command_sequence=2`:                                               2,
 		`SELECT count(*) FROM metadata_owner_fields WHERE field='country' AND value='US' AND value_present=1`:                                                                                                                         2,
@@ -648,8 +649,8 @@ func TestIPEditBulkPageBounds(t *testing.T) {
 	if c, err := newIPEditBulkPageCommand(identity, ipBulkPageRequestFor(birth, 1, 3, nil)); c != nil || !errors.Is(err, ErrInvalid) {
 		t.Fatal("page cursor beyond the declared count admitted", c, err)
 	}
-	if c, err := newIPEditBulkPageCommand(identity, ipBulkPageRequestFor(birth, 1, base.Root.ExpectedCount, nil)); c == nil || !c.valid {
-		t.Fatal("truthful no-next page refused", c)
+	if c, err := newIPEditBulkPageCommand(identity, ipBulkPageRequestFor(birth, 1, base.Root.ExpectedCount, nil)); c == nil || !c.valid || err != nil {
+		t.Fatal("truthful no-next page refused", c, err)
 	}
 	// The terminal must declare the exact captured end.
 	if c, err := newIPEditBulkFinishCommand(ipBulkIdentity(3, 4), ipEditBulkFinishRequest{Kind: IPEditBulkFinish, Root: base.Root, Revision: 1, AfterOrdinal: 1}); c != nil || !errors.Is(err, ErrInvalid) {

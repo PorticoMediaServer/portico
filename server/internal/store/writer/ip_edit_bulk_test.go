@@ -44,19 +44,20 @@ func ipBulkFixture(t *testing.T) (*executor, *ipEntryRegistry, *usOwnerAuthority
 		ipBulkPublic(8), ipBulkPublic(9), ipBulkPublic(10), ipBulkPublic(11))
 	for _, row := range []struct {
 		id       int64
+		publicID []byte
 		library  int64
 		kind     int64
 		title    string
 		revision int64
 		inc      [16]byte
 	}{
-		{778, 777, 1, "Item", 3, [16]byte{4}},
-		{779, 777, 1, "Second", 5, [16]byte{5}},
-		{780, 777, 8, "Book", 1, [16]byte{6}},
-		{781, 778, 1, "Foreign", 1, [16]byte{7}},
+		{778, ipBulkPublic(8), 777, 1, "Item", 3, [16]byte{4}},
+		{779, ipBulkPublic(9), 777, 1, "Second", 5, [16]byte{5}},
+		{780, ipBulkPublic(10), 777, 8, "Book", 1, [16]byte{6}},
+		{781, ipBulkPublic(11), 778, 1, "Foreign", 1, [16]byte{7}},
 	} {
 		ipBulkExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,source_revision,identity_revision,metadata_revision,revision) VALUES(?,?,?,?,?,?,?,?,?,0,?,?,1,1,1,?)`,
-			row.id, row.inc[:], row.library, row.kind, row.title, strings.ToLower(row.title), strings.ToLower(row.title)[:1],
+			row.id, row.publicID, row.library, row.kind, row.title, strings.ToLower(row.title), strings.ToLower(row.title)[:1],
 			strings.ToLower(row.title), strings.ToLower(row.title)[:1], row.inc[:], row.inc[:], row.revision)
 	}
 	r, err := stmttest.New(t, ipEditBulkDefinitions())
