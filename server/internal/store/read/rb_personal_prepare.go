@@ -115,6 +115,7 @@ type RBPersonalPreparation struct {
 	// the requested direction.
 	valuedExhausted, restExhausted bool
 	valuedAfter                    *rbPersonalValuedPosition
+	valuedLeg                      int
 	restAfter                      *rbPersonalRestPosition
 	staged                         []rbPersonalValuedKey
 	stagedBytes, stagedCap         int64
@@ -124,6 +125,16 @@ type RBPersonalPreparation struct {
 	// lease: the governor funds each window and the cache funds retained values.
 	copied, copyLimit, nativeLimit int64
 }
+
+// The valued source does not admit an OR keyset: the closed SQL grammar and
+// plan model carry only conjunctive predicates. A complete order therefore
+// walks consecutive bounded legs from the private cursor.
+const (
+	rbValuedLegFirst = iota
+	rbValuedLegTail
+	rbValuedLegTailEqual
+	rbValuedLegNext
+)
 
 // rbPersonalValuedPosition is the private valued-source cursor. It always points
 // at the last RAW row, including rejected rows, so retirement cannot stall it.
@@ -287,6 +298,7 @@ func (p *RBPersonalPreparation) Advance(ctx context.Context, request governor.Re
 func (p *RBPersonalPreparation) restartAttempt() {
 	p.valuedExhausted, p.restExhausted = false, false
 	p.valuedAfter, p.restAfter = nil, nil
+	p.valuedLeg = rbValuedLegFirst
 	p.staged = p.staged[:0]
 	p.stagedBytes = 0
 	p.complete = false
@@ -418,17 +430,33 @@ func (p *RBPersonalPreparation) nextPhase() (valued bool, done bool) {
 
 func (p *RBPersonalPreparation) readValuedRows(query browseQuery, in BrowseInput, profile string) ([][]any, error) {
 	base := "rb.personal_prepare." + rbPersonalPrepareValueRecipe(p.order)
+	limit := int64(rbPersonalPrepareRaw + 1)
 	if p.valuedAfter == nil {
 		name := base + ".first"
 		if p.order == PersonalPlayedOrder {
 			return p.readRecentRows(query, in, profile, name)
 		}
-		return query(name, profile, in.Library, in.Kind, int64(rbPersonalPrepareRaw+1))
+		return query(name, profile, in.Library, in.Kind, limit)
+	}
+	// A full first window leaves the leg at First; its continuation is the
+	// equal-value run, never the later-values leg.
+	leg := p.valuedLeg
+	if leg == rbValuedLegFirst {
+		leg = rbValuedLegTail
 	}
 	if p.order == PersonalPlayedOrder {
-		return p.readRecentRows(query, in, profile, base+".tail")
+		name := base + ".next"
+		if leg == rbValuedLegTail {
+			name = base + ".tail"
+		} else if leg == rbValuedLegTailEqual {
+			name = base + ".tail_equal"
+		}
+		return p.readRecentRows(query, in, profile, name)
 	}
-	return query(base+".tail", profile, in.Library, in.Kind, p.valuedAfter.number, p.valuedAfter.public, int64(rbPersonalPrepareRaw+1))
+	if leg == rbValuedLegTail {
+		return query(base+".tail", profile, p.valuedAfter.number, p.valuedAfter.public[:], in.Library, in.Kind, limit)
+	}
+	return query(base+".next", profile, p.valuedAfter.number, in.Library, in.Kind, limit)
 }
 
 func rbPersonalPrepareValueRecipe(order PersonalOrder) string {
@@ -444,12 +472,16 @@ func rbPersonalPrepareValueRecipe(order PersonalOrder) string {
 // readRecentRows preflights the exact last-played octets in this same snapshot,
 // then requires the payload to match every measured identity and length.
 func (p *RBPersonalPreparation) readRecentRows(query browseQuery, in BrowseInput, profile, name string) ([][]any, error) {
-	first := p.valuedAfter == nil
 	var args []any
-	if first {
+	switch {
+	case p.valuedAfter == nil:
 		args = []any{profile, in.Library, in.Kind, int64(rbPersonalPrepareRaw + 1)}
-	} else {
-		args = []any{profile, in.Library, in.Kind, p.valuedAfter.activity, p.valuedAfter.text, p.valuedAfter.public, int64(rbPersonalPrepareRaw + 1)}
+	case p.valuedLeg == rbValuedLegTail:
+		args = []any{profile, in.Library, in.Kind, p.valuedAfter.activity, p.valuedAfter.text, int64(rbPersonalPrepareRaw + 1)}
+	case p.valuedLeg == rbValuedLegTailEqual:
+		args = []any{profile, in.Library, in.Kind, p.valuedAfter.activity, p.valuedAfter.text, p.valuedAfter.public[:], int64(rbPersonalPrepareRaw + 1)}
+	default:
+		args = []any{profile, in.Library, in.Kind, p.valuedAfter.activity, int64(rbPersonalPrepareRaw + 1)}
 	}
 	sizes, err := query(name+".bytes", args...)
 	if err != nil {
@@ -532,7 +564,7 @@ func (p *RBPersonalPreparation) readRestRows(query browseQuery, in BrowseInput, 
 		if 8192+int64(len(sizes))*1024+2*total > p.copyLimit-p.copied {
 			return nil, governor.ErrSnapshotBudget
 		}
-		rows, err := query(payloadName+"."+part, payloadArgs...)
+		rows, err := query(payloadName+part, payloadArgs...)
 		if err != nil {
 			return nil, err
 		}
@@ -606,13 +638,47 @@ func (p *RBPersonalPreparation) reduceValuedWindow(scope *governor.ReadScope, ra
 	if len(raw) > 0 {
 		p.valuedAfter = next
 	}
+	if !exhausted {
+		// A full window ends inside the value (or activity/last pair) it was
+		// ordered by, so the continuation must finish that equal run first.
+		if p.order == PersonalPlayedOrder {
+			p.valuedLeg = rbValuedLegTailEqual
+		} else {
+			p.valuedLeg = rbValuedLegTail
+		}
+	}
 	if exhausted {
-		p.valuedExhausted = true
-		if err := p.retainStaged(); err != nil {
-			return err
+		p.advanceValuedLeg()
+		if p.valuedExhausted {
+			if err := p.retainStaged(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+// advanceValuedLeg moves to the next bounded, conjunctive keyset leg once the
+// current one is short. Rating/play-count orders have the equal-value run then
+// later values; last-played also has the same-value later-public run.
+func (p *RBPersonalPreparation) advanceValuedLeg() {
+	switch p.valuedLeg {
+	case rbValuedLegFirst:
+		// The first statement starts at the beginning of the order, so a short
+		// answer means the whole valued set fits this one window.
+		p.valuedExhausted = true
+	case rbValuedLegTail:
+		if p.order == PersonalPlayedOrder {
+			p.valuedLeg = rbValuedLegNext
+			return
+		}
+		p.valuedLeg = rbValuedLegNext
+		return
+	case rbValuedLegTailEqual:
+		p.valuedLeg = rbValuedLegTail
+		return
+	}
+	p.valuedExhausted = true
 }
 
 func (p *RBPersonalPreparation) reduceValuedRow(row []any) (rbPersonalValuedKey, *rbPersonalValuedPosition, bool, error) {

@@ -79,7 +79,7 @@ func rbContainerMetricApplies(kind int64, metric RBContainerMetric) bool {
 	case RBContainerCriticRating, RBContainerResolution:
 		return kind == 2 || kind == 3 || kind == 10
 	case RBContainerLatestAired:
-		return kind == 2
+		return kind == 2 || kind == 3 || kind == 10
 	case RBContainerEpisodeCount:
 		return kind == 2 || kind == 3
 	}
@@ -362,6 +362,11 @@ func (p *RBContainerMetricsPreparation) window(ctx context.Context, request gove
 		if !rbContainerMetricsPinnedFenceEqual(p.entry.fence, fence) {
 			return p.fail(ErrDenied)
 		}
+		// Only reversible revision/age fields moved: re-capture the exact fence
+		// so the restarted walk and its delivery use this generation.
+		if e := p.entry.capture(fence); e != nil {
+			return e
+		}
 		return errRBContainerMetricsContent
 	}
 	if p.requested&RBContainerFileSize != 0 && fence.role != "owner" {
@@ -370,7 +375,9 @@ func (p *RBContainerMetricsPreparation) window(ctx context.Context, request gove
 	legs := p.windowLegs()
 	args := make([][]any, len(legs))
 	for i, leg := range legs {
-		one := append([]any{fence.profile}, p.spec.binds...)
+		// The first source bind is the requested container, never the cohort's
+		// compilation example.
+		one := append([]any{fence.profile, p.view.policy.subject}, p.spec.binds[1:]...)
 		one = append(one, leg.keys...)
 		args[i] = append(one, int64(rbContainerMetricsRaw+1))
 	}
@@ -526,15 +533,15 @@ func rbContainerMetricsMask(m RBContainerMetrics, requested RBContainerMetric) R
 func (p *RBContainerMetricsPreparation) windowLegs() []rbContainerMetricsLeg {
 	if p.cursor == nil {
 		if p.spec.textFirst {
-			return []rbContainerMetricsLeg{{bytes: "children." + p.spec.name + ".first.bytes", payload: "children." + p.spec.name + ".first"}}
+			return []rbContainerMetricsLeg{{bytes: "rb.container_metrics.children." + p.spec.name + ".first.bytes", payload: "rb.container_metrics.children." + p.spec.name + ".first"}}
 		}
-		return []rbContainerMetricsLeg{{bytes: "children." + p.spec.name + ".tail0.bytes", payload: "children." + p.spec.name + ".tail0", keys: []any{int64(0)}}}
+		return []rbContainerMetricsLeg{{bytes: "rb.container_metrics.children." + p.spec.name + ".tail0.bytes", payload: "rb.container_metrics.children." + p.spec.name + ".tail0", keys: []any{int64(0)}}}
 	}
 	legs := make([]rbContainerMetricsLeg, 0, len(p.spec.keys))
 	for level := len(p.spec.keys) - 1; level >= 0; level-- {
 		legs = append(legs, rbContainerMetricsLeg{
-			bytes:   "children." + p.spec.name + ".tail" + fmt.Sprint(level) + ".bytes",
-			payload: "children." + p.spec.name + ".tail" + fmt.Sprint(level),
+			bytes:   "rb.container_metrics.children." + p.spec.name + ".tail" + fmt.Sprint(level) + ".bytes",
+			payload: "rb.container_metrics.children." + p.spec.name + ".tail" + fmt.Sprint(level),
 			keys:    append([]any(nil), p.cursor.keys[:level+1]...),
 		})
 	}
@@ -580,8 +587,14 @@ func rbContainerMetricsReduce(spec rbContainerMetricsChildSpec, view BrowseInput
 		if retired != 0 {
 			return false, nil
 		}
-		// A nested container has no complete child proof here; refusing is
-		// safer than flattening it into a plausible but false aggregate.
+		if spec.name != "collection" {
+			// A show/season/album/book hierarchy walk also passes intermediate
+			// containers; they are never folded into the aggregate.
+			return false, nil
+		}
+		// An authored collection may only hold leaf media. A nested container has
+		// no complete child proof here; refusing is safer than flattening it into
+		// a plausible but false aggregate.
 		return false, ErrUnqualified
 	}
 	if retired != 0 {
@@ -827,12 +840,12 @@ func rbContainerMetricsPinnedFenceEqual(pinned, fresh browseFence) bool {
 }
 
 func (e *rbContainerMetricsEntry) capture(f browseFence) error {
-	if e == nil || e.captured {
+	if e == nil {
 		return ErrInput
 	}
 	stringsBytes := rbPreparedFenceBytes(f)
 	budget := e.lease.PayloadBytes() - 2*stringsBytes - 8192
-	if budget <= 0 {
+	if budget <= 0 || budget < e.retained {
 		return errRBContainerMetricsCapacity
 	}
 	for _, field := range []*string{&f.database, &f.token, &f.account, &f.profile, &f.membership, &f.lifetime, &f.library, &f.role, &f.memberLibraries, &f.profileLibraries, &f.profileLabels, &f.expiresAt, &f.horizon, &f.root, &f.bridgeRoot, &f.policyWitness} {

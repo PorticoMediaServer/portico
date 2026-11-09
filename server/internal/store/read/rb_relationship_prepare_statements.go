@@ -27,6 +27,13 @@ func rbRelationshipPrepareDefinitions() []stmt.Definition {
 		out = append(out, stmt.Definition{ID: statementID("rb.relationship_prepare." + name), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/rb_relationship_prepare.go:RBRelationshipPreparation.window"}, Kind: stmt.Read, Params: params, Cohorts: []stmt.Cohort{{Name: "present", Bindings: args}, {Name: "empty", Bindings: empty}}, Plan: plan})
 	}
 	limit := int64(rbRelationshipPrepareRaw + 1)
+	// The song index is an expression index, so its bounded keyset EQP names
+	// <expr>; waive that exact reviewed detail while pinning index and seek.
+	songPlan := func(name, match string) stmt.Plan {
+		return stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_album"}, Seeks: []string{"album_id=?"},
+			Waivers: []stmt.Waiver{{StatementID: readStatementID("rb.relationship_prepare." + name), Stage: "eqp", Form: "UNRECOGNIZED EQP", Match: match,
+				Reason: "reviewed expression-index keyset for the authored album song order"}}}
+	}
 
 	for _, keep := range []bool{false, true} {
 		key, index, variant := "sort_key", "catalog_entities_title", "ignore."
@@ -65,25 +72,33 @@ func rbRelationshipPrepareDefinitions() []stmt.Definition {
 
 	child := "SELECT e.id,e.retired,e.revision,e.admission_own_age,e.library_id,e.kind"
 	add("albums.first",
-		child+" FROM catalog_entities AS e INDEXED BY catalog_entities_artist WHERE e.artist_id IS NOT NULL AND e.artist_id=? AND e.kind=6 AND e.library_id=? ORDER BY e.id ASC LIMIT ?",
+		child+" FROM catalog_entities AS e INDEXED BY catalog_entities_artist WHERE artist_id IS NOT NULL AND e.artist_id=? AND e.kind=6 AND e.library_id=? ORDER BY e.id ASC LIMIT ?",
 		[]stmt.Param{i("artist"), i("library"), i("limit")}, []any{int64(100000), int64(1), limit}, []any{int64(-1), int64(1), limit},
 		stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_artist"}, Seeks: []string{"artist_id=?"}})
 	add("albums.tail",
-		child+" FROM catalog_entities AS e INDEXED BY catalog_entities_artist WHERE e.artist_id IS NOT NULL AND e.artist_id=? AND e.kind=6 AND e.library_id=? AND e.id>? ORDER BY e.id ASC LIMIT ?",
+		child+" FROM catalog_entities AS e INDEXED BY catalog_entities_artist WHERE artist_id IS NOT NULL AND e.artist_id=? AND e.kind=6 AND e.library_id=? AND e.id>? ORDER BY e.id ASC LIMIT ?",
 		[]stmt.Param{i("artist"), i("library"), i("after"), i("limit")}, []any{int64(100000), int64(1), int64(0), limit}, []any{int64(-1), int64(1), int64(0), limit},
 		stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_artist"}, Seeks: []string{"artist_id=? AND id>?"}})
 
-	song := child + ",COALESCE(e.disc_number,1),COALESCE(e.track_number,0)"
-	songsOrder := " ORDER BY COALESCE(e.disc_number,1) ASC,COALESCE(e.track_number,0) ASC,e.id ASC LIMIT ?"
-	songsWhere := " FROM catalog_entities AS e INDEXED BY catalog_entities_album WHERE e.album_id IS NOT NULL AND e.album_id=? AND e.kind=7 AND e.library_id=?"
+	song := child + ",COALESCE(e.disc_number,1) AS k0,COALESCE(e.track_number,0) AS k1"
+	songsOrder := " ORDER BY k0 ASC,k1 ASC,e.id ASC LIMIT ?"
+	songsWhere := " FROM catalog_entities AS e INDEXED BY catalog_entities_album WHERE album_id IS NOT NULL AND e.album_id=? AND e.kind=7 AND e.library_id=?"
 	add("songs.first",
 		song+songsWhere+songsOrder,
 		[]stmt.Param{i("album"), i("library"), i("limit")}, []any{int64(200000), int64(1), limit}, []any{int64(-1), int64(1), limit},
-		stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_album"}, Seeks: []string{"album_id=?"}})
+		songPlan("songs.first", "SEARCH e USING INDEX catalog_entities_album (album_id=?)"))
 	add("songs.tail",
-		song+songsWhere+" AND (COALESCE(e.disc_number,1),COALESCE(e.track_number,0),e.id)>(?,?,?)"+songsOrder,
+		song+songsWhere+" AND COALESCE(e.disc_number,1)=? AND COALESCE(e.track_number,0)=? AND e.id>? ORDER BY e.id ASC LIMIT ?",
 		[]stmt.Param{i("album"), i("library"), i("disc"), i("track"), i("after"), i("limit")}, []any{int64(200000), int64(1), int64(1), int64(0), int64(0), limit}, []any{int64(-1), int64(1), int64(1), int64(0), int64(0), limit},
-		stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_album"}, Seeks: []string{"album_id=? AND (COALESCE(disc_number,1),COALESCE(track_number,0),id)>(?,?,?)"}})
+		songPlan("songs.tail", "SEARCH e USING INDEX catalog_entities_album (album_id=? AND <expr>=? AND <expr>=? AND id>?)"))
+	add("songs.next_track",
+		song+songsWhere+" AND COALESCE(e.disc_number,1)=? AND COALESCE(e.track_number,0)>? ORDER BY k1 ASC,e.id ASC LIMIT ?",
+		[]stmt.Param{i("album"), i("library"), i("disc"), i("track"), i("limit")}, []any{int64(200000), int64(1), int64(1), int64(0), limit}, []any{int64(-1), int64(1), int64(1), int64(0), limit},
+		songPlan("songs.next_track", "SEARCH e USING INDEX catalog_entities_album (album_id=? AND <expr>=? AND <expr>>?)"))
+	add("songs.next",
+		song+songsWhere+" AND COALESCE(e.disc_number,1)>?"+songsOrder,
+		[]stmt.Param{i("album"), i("library"), i("disc"), i("limit")}, []any{int64(200000), int64(1), int64(1), limit}, []any{int64(-1), int64(1), int64(1), limit},
+		songPlan("songs.next", "SEARCH e USING INDEX catalog_entities_album (album_id=? AND <expr>>?)"))
 
 	return out
 }

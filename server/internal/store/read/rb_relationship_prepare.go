@@ -56,8 +56,9 @@ const (
 	// The original 12s preparation deadline still bounds the whole job.
 	rbRelationshipPrepareQuantaPerAdvance = 8
 	// rbRelationshipPrepareMaxQueries is the finite proof recipe for one window:
-	// the common fence, bounded title byte/payload pairs and the child legs.
-	rbRelationshipPrepareMaxQueries = 32
+	// the common fence, bounded title byte/payload pairs and the conjunctive
+	// child legs (album, equal-track, later-track and later-disc).
+	rbRelationshipPrepareMaxQueries = 48
 	// rbRelationshipPrepareOuterBatch bounds how many title parents one window
 	// may fetch. Half of the raw window stays available for their children.
 	rbRelationshipPrepareOuterBatch = 8
@@ -67,6 +68,8 @@ const (
 // After must be nil; continuation is a private preparation cursor, never a
 // caller anchor.
 type RBRelationshipPrepareInput struct {
+	// View carries the current library/kind/viewer anchor. After must be nil;
+	// continuation is a private preparation cursor, never a caller anchor.
 	View BrowseInput
 	Sort RBRelationshipSort
 }
@@ -127,6 +130,9 @@ type rbRelationshipOuterPosition struct {
 type rbRelationshipChildCursor struct {
 	disc, track, id int64
 	started         bool
+	// leg is the current conjunctive keyset leg: the equal (disc,track) tail,
+	// the later same-disc tracks, then the later discs.
+	leg int
 }
 
 // RBRelationshipPreparation is one opaque preparation job. Polls retain and
@@ -182,7 +188,7 @@ func NewRBRelationshipPrepareReader(pool *governor.Snapshots, a *governor.Author
 	return &RBRelationshipPrepareReader{pool: pool, a: a, cache: cache}, nil
 }
 
-func rbRelationshipPrepareSort(in RBRelationshipInput) bool {
+func rbRelationshipPrepareSort(in RBRelationshipPrepareInput) bool {
 	if in.Sort != RBRelationshipAlbum && in.Sort != RBRelationshipArtist {
 		return false
 	}
@@ -198,7 +204,7 @@ func rbRelationshipPrepareSort(in RBRelationshipInput) bool {
 // BeginRBRelationshipPrepare is an EXPLICIT preparation start. Polls retain the
 // returned job; they must not Begin again with a fresh deadline. in.View.Now is
 // trusted server request-entry time and the immutable query anchor.
-func (r *RBRelationshipPrepareReader) BeginRBRelationshipPrepare(ctx context.Context, owner governor.OwnerID, bytes int64, in RBRelationshipInput) (*RBRelationshipPreparation, error) {
+func (r *RBRelationshipPrepareReader) BeginRBRelationshipPrepare(ctx context.Context, owner governor.OwnerID, bytes int64, in RBRelationshipPrepareInput) (*RBRelationshipPreparation, error) {
 	if r == nil || ctx == nil || owner == 0 || in.View.Now.IsZero() || in.View.Database == "" || len(in.View.Database) > 256 || in.View.TokenHash == "" || len(in.View.TokenHash) > 256 || in.View.Library <= 0 || in.View.After != nil || in.View.policy != (readPolicyBinding{}) || !rbRelationshipPrepareSort(in) {
 		return nil, ErrInput
 	}
@@ -822,10 +828,16 @@ func (p *RBRelationshipPreparation) readSongs(query browseQuery, f browseFence, 
 	bound := int64(cap + 1)
 	var rows [][]any
 	var err error
-	if !cursor.started {
+	first := !cursor.started
+	switch {
+	case first:
 		rows, err = query("rb.relationship_prepare.songs.first", album, p.view.Library, bound)
-	} else {
+	case cursor.leg == 0:
 		rows, err = query("rb.relationship_prepare.songs.tail", album, p.view.Library, cursor.disc, cursor.track, cursor.id, bound)
+	case cursor.leg == 1:
+		rows, err = query("rb.relationship_prepare.songs.next_track", album, p.view.Library, cursor.disc, cursor.track, bound)
+	default:
+		rows, err = query("rb.relationship_prepare.songs.next", album, p.view.Library, cursor.disc, bound)
 	}
 	if err != nil {
 		return nil, false, err
@@ -837,7 +849,20 @@ func (p *RBRelationshipPreparation) readSongs(query browseQuery, f browseFence, 
 	if err := p.reserveRows(len(out)); err != nil {
 		return nil, false, err
 	}
-	return out, exhausted, nil
+	if !exhausted {
+		// A full window can end inside an equal (disc,track) run; finish it
+		// before the later-track or later-disc legs.
+		cursor.leg = 0
+		return out, false, nil
+	}
+	if first {
+		return out, true, nil
+	}
+	if cursor.leg < 2 {
+		cursor.leg++
+		return out, false, nil
+	}
+	return out, true, nil
 }
 
 func (p *RBRelationshipPreparation) reserveRows(n int) error {

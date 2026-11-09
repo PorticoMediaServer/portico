@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 )
 
 // BEGIN_RB_DIRECTORY_JOURNAL
@@ -83,9 +84,7 @@ func rbDirectoryFixtureHash(t *testing.T) string {
 }
 
 func rbDirectoryConfig() governor.Config {
-	cfg := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	cfg.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
-	return cfg
+	return readfixture.LiveConfig(time.Now)
 }
 
 func newRBDirectoryFixture(t *testing.T) *browseFixture {
@@ -141,7 +140,11 @@ func TestRBDirectoryAuthorizedLibrariesAndPivots(t *testing.T) {
 		t.Fatal("categories pivot does not name its gap", states["categories"])
 	}
 	books := page.Libraries[2]
-	if books.Kind != "audiobook" || len(books.Pivots) == 0 || books.Pivots[0].State != RBDirectorySupported {
+	audiobook := map[string]RBDirectoryPivot{}
+	for _, pivot := range books.Pivots {
+		audiobook[pivot.ID] = pivot
+	}
+	if books.Kind != "audiobook" || audiobook["authors"].State != RBDirectorySupported || audiobook["books"].State != RBDirectorySupported {
 		t.Fatal("audiobook pivots are not supported", books)
 	}
 	reading := page.Libraries[3]

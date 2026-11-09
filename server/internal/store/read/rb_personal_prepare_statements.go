@@ -28,9 +28,11 @@ func rbPersonalPrepareDefinitions() []stmt.Definition {
 	}
 	entity := "e.retired,e.revision,e.admission_own_age"
 	join := " FROM personal_items AS p INDEXED BY "
-	entityJoin := " JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id=? AND "
+	entityJoin := " INNER JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id=? AND "
 	scope := " AND e.library_id=? AND e.kind=? ORDER BY "
 	limit := " LIMIT ?"
+	// The closed grammar has no parenthesised boolean groups, so a keyset tail
+	// is written as OR over fully guarded AND terms instead.
 
 	// personalRating: current rating index (profile,rating,item_public_id).
 	add("rating.first",
@@ -40,10 +42,16 @@ func rbPersonalPrepareDefinitions() []stmt.Definition {
 		[]any{"missing", int64(999999), int64(1), int64(rbPersonalPrepareRaw + 1)},
 		[]string{"personal_current_rating"}, []string{"e"}, []string{"profile_id=? AND rating>?", "rowid=?"})
 	add("rating.tail",
-		"SELECT e.id,p.rating,p.item_public_id,"+entity+join+"personal_current_rating"+entityJoin+"p.rating>0 AND (p.rating>? OR (p.rating=? AND p.item_public_id>?))"+scope+"p.rating ASC,p.item_public_id ASC"+limit,
-		[]stmt.Param{s("profile"), i("library"), i("kind"), i("after"), b("public_id"), i("limit")},
-		[]any{"p", int64(1), int64(1), int64(0), rbPersonalPrepareZeroPublic, int64(rbPersonalPrepareRaw + 1)},
-		[]any{"missing", int64(999999), int64(1), int64(0), rbPersonalPrepareZeroPublic, int64(rbPersonalPrepareRaw + 1)},
+		"SELECT e.id,p.rating,p.item_public_id,"+entity+join+"personal_current_rating"+entityJoin+"p.rating>0 AND p.rating=? AND p.item_public_id>?"+scope+"p.rating ASC,p.item_public_id ASC"+limit,
+		[]stmt.Param{s("profile"), i("after"), b("public_id"), i("library"), i("kind"), i("limit")},
+		[]any{"p", int64(0), rbPersonalPrepareZeroPublic, int64(1), int64(1), int64(rbPersonalPrepareRaw + 1)},
+		[]any{"missing", int64(0), rbPersonalPrepareZeroPublic, int64(999999), int64(1), int64(rbPersonalPrepareRaw + 1)},
+		[]string{"personal_current_rating"}, []string{"e"}, []string{"profile_id=? AND rating=?", "rowid=?"})
+	add("rating.next",
+		"SELECT e.id,p.rating,p.item_public_id,"+entity+join+"personal_current_rating"+entityJoin+"p.rating>0 AND p.rating>?"+scope+"p.rating ASC,p.item_public_id ASC"+limit,
+		[]stmt.Param{s("profile"), i("after"), i("library"), i("kind"), i("limit")},
+		[]any{"p", int64(0), int64(1), int64(1), int64(rbPersonalPrepareRaw + 1)},
+		[]any{"missing", int64(0), int64(999999), int64(1), int64(rbPersonalPrepareRaw + 1)},
 		[]string{"personal_current_rating"}, []string{"e"}, []string{"profile_id=? AND rating>?", "rowid=?"})
 
 	// playCount: current plays index (profile,play_count DESC,item_public_id).
@@ -54,17 +62,25 @@ func rbPersonalPrepareDefinitions() []stmt.Definition {
 		[]any{"missing", int64(999999), int64(1), int64(rbPersonalPrepareRaw + 1)},
 		[]string{"personal_current_plays"}, []string{"e"}, []string{"profile_id=? AND play_count>?", "rowid=?"})
 	add("plays.tail",
-		"SELECT e.id,p.play_count,p.item_public_id,"+entity+join+"personal_current_plays"+entityJoin+"p.play_count>0 AND (p.play_count<? OR (p.play_count=? AND p.item_public_id>?))"+scope+"p.play_count DESC,p.item_public_id ASC"+limit,
-		[]stmt.Param{s("profile"), i("library"), i("kind"), i("after"), b("public_id"), i("limit")},
-		[]any{"p", int64(1), int64(1), int64(0), rbPersonalPrepareZeroPublic, int64(rbPersonalPrepareRaw + 1)},
-		[]any{"missing", int64(999999), int64(1), int64(0), rbPersonalPrepareZeroPublic, int64(rbPersonalPrepareRaw + 1)},
+		"SELECT e.id,p.play_count,p.item_public_id,"+entity+join+"personal_current_plays"+entityJoin+"p.play_count>0 AND p.play_count=? AND p.item_public_id>?"+scope+"p.play_count DESC,p.item_public_id ASC"+limit,
+		[]stmt.Param{s("profile"), i("after"), b("public_id"), i("library"), i("kind"), i("limit")},
+		[]any{"p", int64(0), rbPersonalPrepareZeroPublic, int64(1), int64(1), int64(rbPersonalPrepareRaw + 1)},
+		[]any{"missing", int64(0), rbPersonalPrepareZeroPublic, int64(999999), int64(1), int64(rbPersonalPrepareRaw + 1)},
+		[]string{"personal_current_plays"}, []string{"e"}, []string{"profile_id=? AND play_count=?", "rowid=?"})
+	add("plays.next",
+		"SELECT e.id,p.play_count,p.item_public_id,"+entity+join+"personal_current_plays"+entityJoin+"p.play_count>0 AND p.play_count<?"+scope+"p.play_count DESC,p.item_public_id ASC"+limit,
+		[]stmt.Param{s("profile"), i("after"), i("library"), i("kind"), i("limit")},
+		[]any{"p", int64(0), int64(1), int64(1), int64(rbPersonalPrepareRaw + 1)},
+		[]any{"missing", int64(0), int64(999999), int64(1), int64(rbPersonalPrepareRaw + 1)},
 		[]string{"personal_current_plays"}, []string{"e"}, []string{"profile_id=? AND play_count>?", "rowid=?"})
 
 	// lastPlayed: current recent index (profile,activity_visible,last_played_at
 	// DESC,item_public_id). Hidden activity rows keep their last-played value;
 	// the public order never reads activity_visible. The .bytes pairs preflight
-	// the exact variable key bytes before hydration.
-	recentFrom := " FROM personal_items AS p INDEXED BY personal_current_recent JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id=? AND p.last_played_at>'' AND e.library_id=? AND e.kind=?"
+	// the exact variable key bytes before hydration. The composite keyset is
+	// three conjunctive legs: earlier text in the same activity, later public
+	// identity at the same activity/text, then the next activity.
+	recentFrom := " FROM personal_items AS p INDEXED BY personal_current_recent INNER JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id=? AND p.last_played_at>'' AND e.library_id=? AND e.kind=?"
 	recentOrder := " ORDER BY p.activity_visible ASC,p.last_played_at DESC,p.item_public_id ASC LIMIT ?"
 	add("recent.first",
 		"SELECT e.id,p.last_played_at,p.activity_visible,p.item_public_id,"+entity+recentFrom+recentOrder,
@@ -73,10 +89,22 @@ func rbPersonalPrepareDefinitions() []stmt.Definition {
 		[]any{"missing", int64(999999), int64(1), int64(rbPersonalPrepareRaw + 1)},
 		[]string{"personal_current_recent"}, []string{"e"}, []string{"profile_id=?", "rowid=?"})
 	add("recent.tail",
-		"SELECT e.id,p.last_played_at,p.activity_visible,p.item_public_id,"+entity+recentFrom+" AND (p.activity_visible>? OR (p.activity_visible=? AND (p.last_played_at<? OR (p.last_played_at=? AND p.item_public_id>?))))"+recentOrder,
+		"SELECT e.id,p.last_played_at,p.activity_visible,p.item_public_id,"+entity+recentFrom+" AND p.activity_visible=? AND p.last_played_at<?"+recentOrder,
+		[]stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), s("after_text"), i("limit")},
+		[]any{"p", int64(1), int64(1), int64(0), "2026-01-01T00:00:00Z", int64(rbPersonalPrepareRaw + 1)},
+		[]any{"missing", int64(999999), int64(1), int64(0), "2026-01-01T00:00:00Z", int64(rbPersonalPrepareRaw + 1)},
+		[]string{"personal_current_recent"}, []string{"e"}, []string{"profile_id=?", "rowid=?"})
+	add("recent.tail_equal",
+		"SELECT e.id,p.last_played_at,p.activity_visible,p.item_public_id,"+entity+recentFrom+" AND p.activity_visible=? AND p.last_played_at=? AND p.item_public_id>?"+recentOrder,
 		[]stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), s("after_text"), b("public_id"), i("limit")},
 		[]any{"p", int64(1), int64(1), int64(0), "2026-01-01T00:00:00Z", rbPersonalPrepareZeroPublic, int64(rbPersonalPrepareRaw + 1)},
 		[]any{"missing", int64(999999), int64(1), int64(0), "2026-01-01T00:00:00Z", rbPersonalPrepareZeroPublic, int64(rbPersonalPrepareRaw + 1)},
+		[]string{"personal_current_recent"}, []string{"e"}, []string{"profile_id=?", "rowid=?"})
+	add("recent.next",
+		"SELECT e.id,p.last_played_at,p.activity_visible,p.item_public_id,"+entity+recentFrom+" AND p.activity_visible>?"+recentOrder,
+		[]stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), i("limit")},
+		[]any{"p", int64(1), int64(1), int64(0), int64(rbPersonalPrepareRaw + 1)},
+		[]any{"missing", int64(999999), int64(1), int64(0), int64(rbPersonalPrepareRaw + 1)},
 		[]string{"personal_current_recent"}, []string{"e"}, []string{"profile_id=?", "rowid=?"})
 	add("recent.first.bytes",
 		"SELECT e.id,octet_length(p.last_played_at)"+recentFrom+recentOrder,
@@ -85,10 +113,22 @@ func rbPersonalPrepareDefinitions() []stmt.Definition {
 		[]any{"missing", int64(999999), int64(1), int64(rbPersonalPrepareRaw + 1)},
 		[]string{"personal_current_recent"}, nil, []string{"profile_id=?", "rowid=?"})
 	add("recent.tail.bytes",
-		"SELECT e.id,octet_length(p.last_played_at)"+recentFrom+" AND (p.activity_visible>? OR (p.activity_visible=? AND (p.last_played_at<? OR (p.last_played_at=? AND p.item_public_id>?))))"+recentOrder,
+		"SELECT e.id,octet_length(p.last_played_at)"+recentFrom+" AND p.activity_visible=? AND p.last_played_at<?"+recentOrder,
+		[]stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), s("after_text"), i("limit")},
+		[]any{"p", int64(1), int64(1), int64(0), "2026-01-01T00:00:00Z", int64(rbPersonalPrepareRaw + 1)},
+		[]any{"missing", int64(999999), int64(1), int64(0), "2026-01-01T00:00:00Z", int64(rbPersonalPrepareRaw + 1)},
+		[]string{"personal_current_recent"}, nil, []string{"profile_id=?", "rowid=?"})
+	add("recent.tail_equal.bytes",
+		"SELECT e.id,octet_length(p.last_played_at)"+recentFrom+" AND p.activity_visible=? AND p.last_played_at=? AND p.item_public_id>?"+recentOrder,
 		[]stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), s("after_text"), b("public_id"), i("limit")},
 		[]any{"p", int64(1), int64(1), int64(0), "2026-01-01T00:00:00Z", rbPersonalPrepareZeroPublic, int64(rbPersonalPrepareRaw + 1)},
 		[]any{"missing", int64(999999), int64(1), int64(0), "2026-01-01T00:00:00Z", rbPersonalPrepareZeroPublic, int64(rbPersonalPrepareRaw + 1)},
+		[]string{"personal_current_recent"}, nil, []string{"profile_id=?", "rowid=?"})
+	add("recent.next.bytes",
+		"SELECT e.id,octet_length(p.last_played_at)"+recentFrom+" AND p.activity_visible>?"+recentOrder,
+		[]stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), i("limit")},
+		[]any{"p", int64(1), int64(1), int64(0), int64(rbPersonalPrepareRaw + 1)},
+		[]any{"missing", int64(999999), int64(1), int64(0), int64(rbPersonalPrepareRaw + 1)},
 		[]string{"personal_current_recent"}, nil, []string{"profile_id=?", "rowid=?"})
 
 	// The title-default remainder: complete library/kind title order with the
@@ -102,9 +142,9 @@ func rbPersonalPrepareDefinitions() []stmt.Definition {
 		columns := "e.id,e." + key + ",e.public_id,e.title,e.retired,e.revision,e.admission_own_age,p.rating,p.play_count,p.last_played_at"
 		from := " FROM catalog_entities AS e INDEXED BY " + index + " LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id AND p.item_public_id=e.public_id WHERE e.library_id=? AND e.kind=?"
 		order := " ORDER BY e." + key + " COLLATE NOCASE ASC,e.id ASC LIMIT ?"
-		seek := "library_id=? AND kind=?"
 		for _, part := range []string{"first", "tail", "next"} {
-			where, params, present, empty := from, []stmt.Param{s("profile"), i("library"), i("kind")}, []any{"p", int64(1), int64(1)}, []any{"missing", int64(999999), int64(1)}
+			where, seek := from, "library_id=? AND kind=?"
+			params, present, empty := []stmt.Param{s("profile"), i("library"), i("kind")}, []any{"p", int64(1), int64(1)}, []any{"missing", int64(999999), int64(1)}
 			if part == "tail" {
 				where += " AND e." + key + " COLLATE NOCASE=? AND e.id>?"
 				params = append(params, s("key"), i("after"))
@@ -122,8 +162,10 @@ func rbPersonalPrepareDefinitions() []stmt.Definition {
 			params = append(params, i("limit"))
 			present = append(present, int64(rbPersonalPrepareRaw+1))
 			empty = append(empty, int64(rbPersonalPrepareRaw+1))
+			// The title index drives e; p is the current-personal point join, so
+			// no primary-key seek is available or required on e.
 			add("title."+variant+part, "SELECT "+columns+where+order, params, present, empty,
-				[]string{index, "personal_current_live"}, []string{"e"}, []string{seek, "profile_id=? AND item_id=?"})
+				[]string{index, "personal_current_live"}, nil, []string{seek, "profile_id=? AND item_id=?"})
 		}
 	}
 	return out
