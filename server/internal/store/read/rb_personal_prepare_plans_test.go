@@ -106,7 +106,7 @@ func TestRBPersonalPreparePlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capture := range captures {
-		if len(capture.Golden.Manifest) != 14 || len(capture.Golden.Plans) != 28 {
+		if len(capture.Golden.Manifest) != 20 || len(capture.Golden.Plans) != 40 {
 			t.Fatal("incomplete statement/cohort Capture coverage")
 		}
 	}
