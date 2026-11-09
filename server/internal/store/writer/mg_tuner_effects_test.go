@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
@@ -44,8 +45,31 @@ func TestMGTunerNativeAcquireExactAndRenew(t *testing.T) {
 	}
 }
 
+// The parent stamps created from an earlier clock read. A millisecond tick
+// between that read and the native check must not turn a legitimate acquire
+// into a conflict: created is this turn's observation, taken from the single
+// clock read that already gates the lease.
+func TestMGTunerNativeAcquireTurnClockTick(t *testing.T) {
+	e, p := mgTunerExecutor(t, mgActorOwner)
+	turn, a := mgTunerSession(t, e, p, MGAcquireAllocation)
+	r := mgTunerRequestAt(t, e)
+	base := e.now()
+	e.now = func() time.Time { return base.Add(time.Millisecond) }
+
+	want := r.allocation
+	want.created = base.Add(time.Millisecond).UnixMilli()
+	got, err := acquireMGTuner(t.Context(), a, r)
+	if err != nil || got != want {
+		t.Fatal(got, err)
+	}
+	mgTunerCommit(t, turn)
+	if native := mgTunerNativeRow(t, e, "alloc"); native != want {
+		t.Fatal("created stamp", native)
+	}
+}
+
 func TestMGTunerNativeAcquireRefusals(t *testing.T) {
-	for _, cell := range []string{"purpose", "guide", "channel", "foreign-account", "authority", "generation", "created", "state", "zero-length-lease", "lease-window", "reservation-forged", "preempt-unbacked", "boundary-short", "cancelled"} {
+	for _, cell := range []string{"purpose", "guide", "channel", "foreign-account", "authority", "generation", "state", "zero-length-lease", "lease-window", "reservation-forged", "preempt-unbacked", "boundary-short", "cancelled"} {
 		t.Run(cell, func(t *testing.T) {
 			purpose := MGAcquireAllocation
 			if cell == "purpose" {
@@ -65,8 +89,6 @@ func TestMGTunerNativeAcquireRefusals(t *testing.T) {
 				r.allocation.authority = "remote"
 			case "generation":
 				r.allocation.generation = 2
-			case "created":
-				r.allocation.created--
 			case "state":
 				r.allocation.state = "preempting"
 			case "lease-window":
@@ -405,6 +427,27 @@ func TestMGTunerNativeRenewCAS(t *testing.T) {
 				t.Fatal("stale renewal accepted", out, err)
 			}
 		})
+	}
+}
+
+// A preempting allocation is already ending at preempt. Renew may move its
+// lease up to that boundary but never past it.
+func TestMGTunerNativeRenewPreemptingBoundary(t *testing.T) {
+	e, p := mgTunerExecutor(t, mgActorOwner)
+	now := e.now().UnixMilli()
+	before := mgTunerAllocation{id: "recording", source: "source", channel: "channel", resource: "recording-resource", kind: "recording", authority: "local", account: "issuer", profile: "issuer-profile", token: "recording-token", generation: 1, state: "preempting", lease: now + 5000, created: now, preempt: now + 8000}
+	mgTunerInsertCommitted(t, e, before)
+
+	_, renew := mgTunerSession(t, e, p, MGRenewAllocation)
+	request := mgTunerRequest{allocation: before, guide: "old"}
+	request.allocation.lease = before.preempt + 1
+	if out, err := renewMGTuner(t.Context(), renew, before, request); !errors.Is(err, ErrConflict) || out != (mgTunerAllocation{}) {
+		t.Fatal("lease outlived the preemption boundary", out, err)
+	}
+	request.allocation.lease = before.preempt
+	want := request.allocation
+	if out, err := renewMGTuner(t.Context(), renew, before, request); err != nil || out != want {
+		t.Fatal(out, err)
 	}
 }
 

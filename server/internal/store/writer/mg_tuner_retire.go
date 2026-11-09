@@ -24,6 +24,7 @@ func mgTunerRetireDescriptors() []Descriptor {
 const (
 	mgTunerRetire         stmt.ID = "writer.mg.tuner.retire"
 	mgTunerReconcileNext  stmt.ID = "writer.mg.tuner.reconcile-next"
+	mgTunerReconcileTail  stmt.ID = "writer.mg.tuner.reconcile-tail"
 	mgTunerReconcileLimit int64   = 8
 )
 
@@ -92,11 +93,16 @@ func mgTunerRetireDefinitions() []stmt.Definition {
 		{ID: mgTunerRetire, Kind: stmt.Write, SQL: `UPDATE live_allocations INDEXED BY sqlite_autoindex_live_allocations_1 SET state='released' WHERE id=? AND source_id=? AND channel_id=? AND resource_id=? AND kind=? AND authority=? AND account_id=? AND profile_id=? AND token=? AND generation=? AND state=? AND lease_until_ms=? AND created_ms=? AND preempt_at_ms=? RETURNING ` + mgTunerColumns,
 			Params: []stmt.Param{text("id"), text("source"), text("channel"), text("resource"), text("kind"), text("authority"), text("account"), text("profile"), text("token"), integer("generation"), text("state"), integer("lease"), integer("created"), integer("preempt")},
 			Plan:   stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_live_allocations_1"}, AutoIndexes: []stmt.AutoIndexBinding{pk}}},
-		// One state stream of the existing (source,state,channel,id) index. The
-		// caller merges the two held states and stops at the bounded page; the
-		// ORDER BY is the index suffix, never a temporary B-tree.
-		{ID: mgTunerReconcileNext, Kind: stmt.Read, SQL: `SELECT id,channel_id,state,lease_until_ms,token,generation,account_id,profile_id FROM live_allocations INDEXED BY live_allocations_source_state_channel WHERE source_id=? AND state=? AND channel_id>=? AND (channel_id>? OR id>?) ORDER BY channel_id,id LIMIT 1`,
-			Params: []stmt.Param{text("source"), text("state"), text("after_channel"), text("after_channel_floor"), text("after_id")},
+		// The (channel,id) cursor is one keyset in two closed steps, because a
+		// parenthesised OR is outside the statement grammar. Both are suffix
+		// searches of the existing (source,state,channel,id) index: the tail
+		// stays in the cursor's channel, then the next statement crosses to the
+		// following channel. Neither needs a temporary B-tree.
+		{ID: mgTunerReconcileTail, Kind: stmt.Read, SQL: `SELECT id,channel_id,state,lease_until_ms,token,generation,account_id,profile_id FROM live_allocations INDEXED BY live_allocations_source_state_channel WHERE source_id=? AND state=? AND channel_id=? AND id>? ORDER BY id LIMIT 1`,
+			Params: []stmt.Param{text("source"), text("state"), text("channel"), text("after_id")},
+			Plan:   stmt.Plan{Hot: true, Indexes: []string{"live_allocations_source_state_channel"}}},
+		{ID: mgTunerReconcileNext, Kind: stmt.Read, SQL: `SELECT id,channel_id,state,lease_until_ms,token,generation,account_id,profile_id FROM live_allocations INDEXED BY live_allocations_source_state_channel WHERE source_id=? AND state=? AND channel_id>? ORDER BY channel_id,id LIMIT 1`,
+			Params: []stmt.Param{text("source"), text("state"), text("after_channel")},
 			Plan:   stmt.Plan{Hot: true, Indexes: []string{"live_allocations_source_state_channel"}}},
 	}
 	for i := range defs {
@@ -289,12 +295,23 @@ func freezeMGTunerReconcile(r mgTunerReconcileRequest) (mgTunerReconcileRequest,
 // so it refuses instead of silently hiding debt.
 func nextMGTunerDebt(ctx context.Context, t *commandTurn, source, state, channel, id string) (out mgTunerDebt, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
-	row, err := mgTunerRow(ctx, t, mgTunerReconcileNext, source, state, channel, channel, id)
+	// Continue inside the cursor's channel first; only when that tail is empty
+	// does the cursor cross to the following channel. Together the two steps are
+	// exactly the (channel,id) successor, with the same ordering and bound.
+	row, err := mgTunerRow(ctx, t, mgTunerReconcileTail, source, state, channel, id)
 	if err != nil {
 		return out, err
 	}
-	if err = row.Scan(&out.id, &out.channel, &out.state, &out.lease, &out.token, &out.generation, &out.account, &out.profile); err != nil {
-		return out, err
+	err = row.Scan(&out.id, &out.channel, &out.state, &out.lease, &out.token, &out.generation, &out.account, &out.profile)
+	if errors.Is(err, sql.ErrNoRows) {
+		row, err = mgTunerRow(ctx, t, mgTunerReconcileNext, source, state, channel)
+		if err != nil {
+			return mgTunerDebt{}, err
+		}
+		err = row.Scan(&out.id, &out.channel, &out.state, &out.lease, &out.token, &out.generation, &out.account, &out.profile)
+	}
+	if err != nil {
+		return mgTunerDebt{}, err
 	}
 	if !mgSourceText(out.id, true, 256) || !mgSourceText(out.channel, true, 256) || out.state != state || out.state == "" ||
 		!mgSourceText(out.token, true, 256) || !mgSourceText(out.account, true, 256) || !mgSourceText(out.profile, true, 256) ||

@@ -262,6 +262,41 @@ func TestMGTunerRetireRefusals(t *testing.T) {
 	}
 }
 
+// A valid joined exit for a different stream must never retire or refund this
+// allocation: the captured resource/token is part of the physical identity.
+func TestMGTunerRetireRefusesAnotherStreamObservation(t *testing.T) {
+	for _, cell := range []string{"foreign-media", "foreign-execution"} {
+		t.Run(cell, func(t *testing.T) {
+			e, _, p := mgTunerRetireExecutor(t, mgActorOwner)
+			media, execution := "mg-media", "mg-execution"
+			switch cell {
+			case "foreign-media":
+				media = "mg-other-media"
+			case "foreign-execution":
+				execution = "mg-other-execution"
+			}
+			s, o, key := mgTunerRetirePhysical(t, e, media, execution)
+			a := mgTunerRetireAllocationAt(e, "mg-media", "mg-execution")
+			mgTunerInsertCommitted(t, e, a)
+			turn, m, err := mgTunerRetireSession(t, e, p, MGTunerRetireAllocation, "source", t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := mgTunerTurnChanges(t, turn)
+			if out, err := retireMGTuner(t.Context(), m, s, mgTunerRetireRequest{allocation: a, key: key, observation: o}); !errors.Is(err, ErrInvalid) || out != (mgTunerRetireResult{}) {
+				t.Fatal("foreign stream observation retired", out, err)
+			}
+			if after := mgTunerTurnChanges(t, turn); after != before {
+				t.Fatal("refusal performed SQL effects", before, after)
+			}
+			mgTunerRetireTurnDone(t, turn)
+			if state := mgTunerNativeRow(t, e, "alloc").state; state != "active" {
+				t.Fatal("foreign stream retired the row", state)
+			}
+		})
+	}
+}
+
 // A lease deadline is not an exit. The physical owner is still running, so no
 // observation exists, capacity stays held and a second claimant is refused.
 func TestMGTunerRetireRequiresJoinedPhysicalExit(t *testing.T) {

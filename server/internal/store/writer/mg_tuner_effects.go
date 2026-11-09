@@ -25,7 +25,7 @@ func mgTunerRow(ctx context.Context, t *commandTurn, id stmt.ID, args ...any) (c
 		return commandRow{}, ErrInvalid
 	}
 	switch id {
-	case mgTunerRead, mgTunerResource, mgTunerChannel, mgTunerShared, mgTunerNext, mgTunerReservation, mgTunerInsert, mgTunerRenew, mgTunerRetire, mgTunerReconcileNext:
+	case mgTunerRead, mgTunerResource, mgTunerChannel, mgTunerShared, mgTunerNext, mgTunerReservation, mgTunerInsert, mgTunerRenew, mgTunerRetire, mgTunerReconcileNext, mgTunerReconcileTail:
 	default:
 		return commandRow{}, ErrInvalid
 	}
@@ -285,9 +285,14 @@ func acquireMGTuner(ctx context.Context, a *mgSourceAcquisition, r mgTunerReques
 		return out, err
 	}
 	alloc := r.allocation
-	if alloc.state != "active" || alloc.generation != 1 || alloc.created != now || alloc.lease <= now || alloc.lease-now > mgTunerLeaseMS {
+	if alloc.state != "active" || alloc.generation != 1 || alloc.lease <= now || alloc.lease-now > mgTunerLeaseMS {
 		return out, ErrConflict
 	}
+	// created is this turn's observation, not a caller fact captured from an
+	// earlier clock read. The parent's read may be a millisecond behind this
+	// one, so stamp the single turn clock used below instead of comparing two
+	// reads of it.
+	alloc.created = now
 	if !mgTunerOwner(a, alloc) {
 		return out, ErrDisclosureDenied
 	}
@@ -340,7 +345,8 @@ func acquireMGTuner(ctx context.Context, a *mgSourceAcquisition, r mgTunerReques
 
 // Renew advances exactly the lease of the same token/generation tuple and
 // nothing else. It never resurrects a released/expired lease, never changes the
-// channel, resource or owner, and never extends beyond the protected boundary.
+// channel, resource or owner, and never extends a preempting lease past the
+// boundary that is already ending it.
 func renewMGTuner(ctx context.Context, a *mgSourceAcquisition, before mgTunerAllocation, r mgTunerRequest) (out mgTunerAllocation, err error) {
 	t := mgTunerTurn(a)
 	defer func() { out, err = finishCommand(ctx, commandLifetime(t), out, err) }()
@@ -372,6 +378,11 @@ func renewMGTuner(ctx context.Context, a *mgSourceAcquisition, before mgTunerAll
 		return out, err
 	}
 	if before.lease <= now || want.lease <= before.lease || want.lease-now > mgTunerLeaseMS {
+		return out, ErrConflict
+	}
+	// A preempting allocation is already ending at preempt; its lease may reach
+	// that boundary but never outlive it. preempt 0 carries no boundary.
+	if before.state == "preempting" && before.preempt > 0 && want.lease > before.preempt {
 		return out, ErrConflict
 	}
 	if _, err = mgTunerSourceChannel(ctx, t, r.guide, want.source, want.channel); err != nil {

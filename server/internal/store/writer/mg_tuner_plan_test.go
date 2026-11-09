@@ -113,8 +113,9 @@ func TestMGTunerNativeStatementCapture(t *testing.T) {
 	}
 }
 
-// Every family member is SEARCH-only with no temporary B-tree before and after
-// ANALYZE. This is component evidence, not the Capture receipt above.
+// Every acquire/renew and retire/reconcile family member is SEARCH-only with no
+// temporary B-tree before and after ANALYZE. This is component evidence, not the
+// Capture receipt above.
 func TestMGTunerNativePlans(t *testing.T) {
 	w := mgTunerCaptureExecutor(t)
 	conn, err := w.db.Conn(t.Context())
@@ -128,7 +129,8 @@ func TestMGTunerNativePlans(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		for _, d := range mgTunerDefinitions() {
+		defs := append(mgTunerDefinitions(), mgTunerRetireDefinitions()...)
+		for _, d := range defs {
 			if issues := plan.LintSQLOn(t.Context(), conn, d.SQL); len(issues) > 0 {
 				t.Fatal(d.ID, issues)
 			}
