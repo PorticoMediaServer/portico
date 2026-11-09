@@ -457,6 +457,9 @@ func TestUSCredentialDeferredDenialReplacesOutcome(t *testing.T) {
 	if !errors.Is(err, ErrDisclosureDenied) || charged != 0 {
 		t.Fatal("deferred store denial joined or leaked", charged, err)
 	}
+	// The open frame holds the writer's only connection, so release it before the
+	// direct oracle query.
+	_, _ = turn.transaction.rollback(nil)
 	if n := usCredentialCount(t, w, `SELECT count(*) FROM security_command_receipts`); n != 0 {
 		t.Fatal("denied store wrote a receipt", n)
 	}
