@@ -523,7 +523,7 @@ func TestIPArtworkUploadMalformedReceiptRefused(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			w, r, p := ipArtworkUploadFixture(t)
+			w, r, _ := ipArtworkUploadFixture(t)
 			spec, slots := ipArtworkUploadSpec(), ipArtworkUploadSlots()
 			tc.mutate(t, w, spec, slots)
 			ipPolicyExec(t, w, `UPDATE artwork_subject_jobs SET last_command_sequence=1 WHERE id=901`)

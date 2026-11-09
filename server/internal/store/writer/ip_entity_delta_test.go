@@ -426,19 +426,19 @@ func TestIPEntityDeltaWrongPreviousHeadRefused(t *testing.T) {
 		sql    []string
 		want   error
 	}{
-		{"wrong_publication_id", func(q *ipEntityDeltaRequest) { q.previousPublicationID = "publication-x" }, nil},
-		{"wrong_previous_evidence", func(q *ipEntityDeltaRequest) { q.previousEvidenceID = "evidence-x" }, nil},
-		{"stale_selection_revision", func(q *ipEntityDeltaRequest) { q.observation.selectionRevision = 1 }, nil},
-		{"selection_revision_advanced", nil, []string{`UPDATE metadata_subject_providers SET revision=3 WHERE entity_id=1`}},
-		{"selection_evidence_moved", nil, []string{`UPDATE metadata_subject_providers SET accepted_evidence_id='evidence-two' WHERE entity_id=1`}},
-		{"prior_superseded", nil, []string{`UPDATE metadata_publications SET decision='superseded' WHERE id='publication-one'`}},
-		{"prior_selection_revision", nil, []string{`UPDATE metadata_publications SET selection_revision=0 WHERE id='publication-one'`}},
-		{"prior_evidence_mismatch", nil, []string{`UPDATE metadata_publications SET evidence_id=NULL WHERE id='publication-one'`}},
-		{"prior_evidence_unsealed", nil, []string{`UPDATE metadata_evidence SET sealed=0 WHERE id='evidence-one'`}},
-		{"prior_evidence_foreign", nil, []string{`UPDATE metadata_evidence SET region='CA' WHERE id='evidence-one'`}},
-		{"prior_pin_drained", nil, []string{`UPDATE metadata_ip_receipts SET proof_pin_count=0 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}},
-		{"prior_seal_not_terminal", nil, []string{`UPDATE metadata_ip_receipts SET terminal=0 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}},
-		{"prior_seal_sequence_moved", nil, []string{`UPDATE metadata_ip_receipts SET command_sequence=999 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}},
+		{"wrong_publication_id", func(q *ipEntityDeltaRequest) { q.previousPublicationID = "publication-x" }, nil, ErrConflict},
+		{"wrong_previous_evidence", func(q *ipEntityDeltaRequest) { q.previousEvidenceID = "evidence-x" }, nil, ErrConflict},
+		{"stale_selection_revision", func(q *ipEntityDeltaRequest) { q.observation.selectionRevision = 1 }, nil, ErrConflict},
+		{"selection_revision_advanced", nil, []string{`UPDATE metadata_subject_providers SET revision=3 WHERE entity_id=1`}, ErrConflict},
+		{"selection_evidence_moved", nil, []string{`UPDATE metadata_subject_providers SET accepted_evidence_id='evidence-two' WHERE entity_id=1`}, ErrConflict},
+		{"prior_superseded", nil, []string{`UPDATE metadata_publications SET decision='superseded' WHERE id='publication-one'`}, ErrConflict},
+		{"prior_selection_revision", nil, []string{`UPDATE metadata_publications SET selection_revision=0 WHERE id='publication-one'`}, ErrConflict},
+		{"prior_evidence_mismatch", nil, []string{`UPDATE metadata_publications SET evidence_id=NULL WHERE id='publication-one'`}, ErrConflict},
+		{"prior_evidence_unsealed", nil, []string{`UPDATE metadata_evidence SET sealed=0 WHERE id='evidence-one'`}, ErrConflict},
+		{"prior_evidence_foreign", nil, []string{`UPDATE metadata_evidence SET region='CA' WHERE id='evidence-one'`}, ErrConflict},
+		{"prior_pin_drained", nil, []string{`UPDATE metadata_ip_receipts SET proof_pin_count=0 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, ErrConflict},
+		{"prior_seal_not_terminal", nil, []string{`UPDATE metadata_ip_receipts SET terminal=0 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, ErrConflict},
+		{"prior_seal_sequence_moved", nil, []string{`UPDATE metadata_ip_receipts SET command_sequence=999 WHERE command_kind='evidence_seal' AND owner_id=(SELECT operation_id FROM metadata_publications WHERE id='publication-one')`}, ErrConflict},
 		{"search_intent_missing", nil, []string{`DELETE FROM search_publish_jobs WHERE id=1`}, ErrResolveRequired},
 	}
 	for _, tc := range cases {
