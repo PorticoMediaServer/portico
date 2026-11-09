@@ -208,7 +208,7 @@ func TestUOReadingCustodyTitleMergePreservesSources(t *testing.T) {
 	turn := uoReadingCustodyTurn(t, w)
 	for n := 0; n < 3; n++ {
 		e, err := mergeUOReadingResume(t.Context(), turn, from, to)
-		if err != nil || e.removed != 1 || e.variableBytes != 0 || e.hasMore != (n < 2) {
+		if err != nil || e.removed != 1 || (n < 2 && e.variableBytes <= 0) || (n == 2 && e.variableBytes != 0) || e.hasMore != (n < 2) {
 			t.Fatal(e, err)
 		}
 	}
@@ -345,4 +345,205 @@ func TestUSReadingErasureResumeParticipant(t *testing.T) {
 		t.Fatal(err)
 	}
 	uoFlagsCommit(t, turn)
+}
+
+func TestUOReadingCustodyEligibleForeignBoundaryAndCharges(t *testing.T) {
+	for _, kind := range []uoReadingPruneKind{uoReadingPruneAccount, uoReadingPruneFamily, uoReadingPruneOrphan, uoReadingPruneGlobal} {
+		t.Run(fmt.Sprint(kind), func(t *testing.T) {
+			w, q := uoReadingReceiptFixture(t, kind)
+			wc008NativeExec(t, w, `DELETE FROM user_mutation_reading_results`)
+			wc008NativeExec(t, w, `DELETE FROM user_mutation_receipts`)
+			type sample struct {
+				issued, scope int
+				family        string
+				stop, child   bool
+			}
+			data := []sample{{1, 2, "family", false, true}, {2, 1, "foreign-family", false, true}, {5, 1, "family", false, false}, {6, 1, "family", true, true}, {10, 1, "family", false, true}, {20, 1, "family", false, true}, {36, 1, "family", false, true}}
+			for _, s := range data {
+				key := fmt.Sprintf("p251_%013d_%032x", s.issued, s.issued)
+				wc008NativeExec(t, w, `INSERT INTO user_mutation_receipts(key,scope_id,profile_id,profile_incarnation,family_id,operation,digest,is_stop,issued_ms,status) VALUES(?,?,'profile',?,?,'reading',?,?,?,'applied')`, key, s.scope, strings.Repeat("b", 32), s.family, strings.Repeat("a", 64), s.stop, s.issued)
+				if s.child {
+					wc008NativeExec(t, w, `INSERT INTO user_mutation_reading_results(receipt_key,command_kind,result_version,item_public_id,reading_revision,personal_revision,observed_ms,accepted,stale,cleared,reason) VALUES(?,771,1,?,1,1,1,1,0,1,'original')`, key, []byte("1234567890123456"))
+				}
+			}
+			want := map[uoReadingPruneKind][]int{uoReadingPruneAccount: {1, 2, 3, 4, 5}, uoReadingPruneFamily: {2, 3, 4, 5}, uoReadingPruneOrphan: {1, 2, 3, 4, 5, 6}, uoReadingPruneGlobal: {0, 1, 2, 3, 4, 5}}[kind]
+			turn := uoReadingCustodyTurn(t, w)
+			e, err := pruneUOReadingReceipts(t.Context(), turn, q)
+			if err != nil || e.receipts != int64(len(want)) {
+				t.Fatal(e, err)
+			}
+			var children, bytes int64
+			for n, index := range want {
+				s := data[index]
+				var size int64
+				if s.child {
+					size = 75
+					children++
+					bytes += size
+				}
+				if e.charges[n] != (uoReadingPrunedCharge{scopeID: int64(s.scope), readingBytes: size, stop: s.stop}) {
+					t.Fatal("wrong charged scope/partition/octets", n, e.charges[n], s)
+				}
+			}
+			if e.readingResults != children || e.variableBytes != bytes || e.stops != 1 || e.ordinary != e.receipts-1 {
+				t.Fatal(e)
+			}
+			for _, charge := range e.charges[len(want):] {
+				if charge != (uoReadingPrunedCharge{}) {
+					t.Fatal("charge outside selected batch", charge)
+				}
+			}
+			uoFlagsCommit(t, turn)
+			for index, s := range data {
+				deleted := false
+				for _, v := range want {
+					deleted = deleted || v == index
+				}
+				key := fmt.Sprintf("p251_%013d_%032x", s.issued, s.issued)
+				n := uoReadingCount(t, w, `SELECT count(*) FROM user_mutation_receipts WHERE key=?`, key)
+				if (n == 0) != deleted {
+					t.Fatal("foreign/boundary key selection", index, n, deleted)
+				}
+			}
+		})
+	}
+}
+
+func TestUOReadingCustodyMissingAndOrphanRefusal(t *testing.T) {
+	for _, mode := range []string{"account", "family", "bootstrap", "not-orphan"} {
+		t.Run(mode, func(t *testing.T) {
+			w, q := uoReadingReceiptFixture(t, uoReadingPruneAccount)
+			switch mode {
+			case "account":
+				q.scopeID = 999
+			case "family":
+				q.kind = uoReadingPruneFamily
+				q.account = "missing"
+			case "bootstrap":
+				q.kind = uoReadingPruneGlobal
+				wc008NativeExec(t, w, `DELETE FROM user_mutation_global`)
+			case "not-orphan":
+				q.kind = uoReadingPruneOrphan
+			}
+			turn := uoReadingCustodyTurn(t, w)
+			e, err := pruneUOReadingReceipts(t.Context(), turn, q)
+			if mode == "bootstrap" {
+				if err != nil || e != (uoReadingPruneEffect{}) {
+					t.Fatal(e, err)
+				}
+			} else if !errors.Is(err, ErrConflict) || e != (uoReadingPruneEffect{}) {
+				t.Fatal(e, err)
+			}
+			_, _ = turn.transaction.rollback(nil)
+			if n := uoReadingCount(t, w, `SELECT count(*) FROM user_mutation_receipts`); n != 37 {
+				t.Fatal(n)
+			}
+		})
+	}
+}
+
+func TestUOReadingCustodyPublicBindingGrammar(t *testing.T) {
+	w, q := uoReadingReceiptFixture(t, uoReadingPruneFamily)
+	q.authority = "hosted"
+	q.account = "person+name@example.test/hosted"
+	q.family = "family with spaces / @"
+	q.profile = "profile/name@example"
+	q.lifetime = strings.Repeat("z", 32)
+	wc008NativeExec(t, w, `UPDATE user_mutation_accounts SET authority='hosted',account_id=? WHERE id=1`, q.account)
+	wc008NativeExec(t, w, `UPDATE user_mutation_receipts SET family_id=?,profile_id=?,profile_incarnation=? WHERE scope_id=1`, q.family, q.profile, q.lifetime)
+	turn := uoReadingCustodyTurn(t, w)
+	e, err := pruneUOReadingReceipts(t.Context(), turn, q)
+	if err != nil || e.receipts != 32 {
+		t.Fatal(e, err)
+	}
+	uoFlagsCommit(t, turn)
+	q.kind = uoReadingPruneProfile
+	turn = wc008NativeTurn(t, w, USMemberLibraries, uoReadingCustodyDefinitions())
+	turn.transaction.descriptor.ID = 539
+	e, err = pruneUSReadingProfileReceipts(t.Context(), turn, q)
+	if err != nil || e.receipts != 4 {
+		t.Fatal(e, err)
+	}
+	uoFlagsCommit(t, turn)
+}
+
+func TestUOReadingCustodyMergeBindingRefusesValidForeignParent(t *testing.T) {
+	for _, mode := range []string{"profile", "library", "same-parent"} {
+		t.Run(mode, func(t *testing.T) {
+			w, from, to := uoReadingPersonalFixture(t)
+			uoReadingAddResume(t, w, 1, 21, 1, 1)
+			switch mode {
+			case "profile":
+				to.profileKey = "foreign-profile"
+				wc008NativeExec(t, w, `UPDATE personal_items SET profile_id=? WHERE id=2`, to.profileKey)
+			case "library":
+				wc008NativeExec(t, w, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(8,'other-library','/other')`)
+				to.libraryID = 8
+				wc008NativeExec(t, w, `UPDATE personal_items SET library_id=8 WHERE id=2`)
+			case "same-parent":
+				to = from
+			}
+			turn := uoReadingCustodyTurn(t, w)
+			e, err := mergeUOReadingResume(t.Context(), turn, from, to)
+			if err == nil || e != (uoReadingResumeDrainEffect{}) {
+				t.Fatal(e, err)
+			}
+			_, _ = turn.transaction.rollback(nil)
+			if n := uoReadingCount(t, w, `SELECT count(*) FROM personal_reading_resumes WHERE personal_item_id=1`); n != 1 {
+				t.Fatal(n)
+			}
+		})
+	}
+}
+
+func TestUSReadingErasureClosedPurposeAndIgnoredError(t *testing.T) {
+	w, from, _ := uoReadingPersonalFixture(t)
+	uoReadingAddResume(t, w, 1, 21, 1, 1)
+	turn := wc008NativeTurn(t, w, USMemberLibraries, uoReadingCustodyDefinitions()) // FULL540 is deliberately not539/582
+	if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE search_revision SET revision=2`); err != nil {
+		t.Fatal(err)
+	}
+	e, err := drainUSReadingPersonal(t.Context(), turn, from)
+	if !errors.Is(err, ErrInvalid) || e != (uoReadingResumeDrainEffect{}) {
+		t.Fatal(e, err)
+	}
+	if _, err = turn.transaction.commit(); err == nil {
+		t.Fatal("ignored erasure refusal committed")
+	}
+	if n := uoReadingCount(t, w, `SELECT revision FROM search_revision`); n != 1 {
+		t.Fatal(n)
+	}
+	turn = wc008NativeTurn(t, w, USMemberLibraries, uoReadingCustodyDefinitions())
+	turn.transaction.descriptor.ID = 582
+	e, err = drainUSReadingPersonal(t.Context(), turn, from)
+	if err != nil || e.removed != 1 {
+		t.Fatal(e, err)
+	}
+	uoFlagsCommit(t, turn)
+}
+
+func TestUOReadingCustodyMergeActualLoserBytesAndRowRevision(t *testing.T) {
+	for _, sourceWins := range []bool{true, false} {
+		t.Run(fmt.Sprint(sourceWins), func(t *testing.T) {
+			w, from, to := uoReadingPersonalFixture(t)
+			uoReadingAddResume(t, w, 1, 21, 20, 2)
+			uoReadingAddResume(t, w, 2, 21, 20, 1)
+			loser := int64(2)
+			if !sourceWins {
+				loser = 1
+				wc008NativeExec(t, w, `UPDATE personal_reading_resumes SET revision=3 WHERE personal_item_id=2`)
+			}
+			wc008NativeExec(t, w, `UPDATE personal_reading_resumes SET source_token=? WHERE personal_item_id=?`, strings.Repeat("l", 300), loser)
+			bytes := uoReadingCount(t, w, `SELECT variable_bytes FROM personal_reading_resumes WHERE personal_item_id=?`, loser)
+			turn := uoReadingCustodyTurn(t, w)
+			e, err := mergeUOReadingResume(t.Context(), turn, from, to)
+			if err != nil || e.removed != 1 || e.variableBytes != bytes || e.hasMore {
+				t.Fatal(e, bytes, err)
+			}
+			uoFlagsCommit(t, turn)
+			if n := uoReadingCount(t, w, `SELECT revision FROM personal_reading_resumes WHERE personal_item_id=2`); sourceWins && n != 2 || !sourceWins && n != 3 {
+				t.Fatal("wrong row-revision tie-break", n)
+			}
+		})
+	}
 }

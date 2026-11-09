@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -42,7 +43,11 @@ type uoReadingPruneEffect struct {
 // The four public-receipt pruners select ONCE, before any child deletion.
 // Never rerun a LIMIT selection after deleting children or choose children by
 // age/profile independently. The bounded keys survive only inside this turn.
+// No pagination/hasMore claim: after COMMIT the outer owner reselects pending
+// work (a full 32-row batch may have exhausted it). The array guard below only
+// detects a corrupted compiled registry step; LIMIT 32 already bounds the SQL.
 func pruneUOReadingReceipts(ctx context.Context, turn *commandTurn, q uoReadingPruneScope) (out uoReadingPruneEffect, err error) {
+	defer func() { uoReadingCustodyFailure(turn, err) }()
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if err = turn.checkLifetimes(ctx); err != nil {
 		return out, err
@@ -60,7 +65,7 @@ func pruneUOReadingReceipts(ctx context.Context, turn *commandTurn, q uoReadingP
 		}
 		id, args = uoReadingSelectAccount, []any{q.scopeID, cut}
 	case uoReadingPruneFamily:
-		if (q.authority != "local" && q.authority != "hosted") || !usIdentifier(q.account) || !usIdentifier(q.family) {
+		if (q.authority != "local" && q.authority != "hosted") || !uoReadingPublicID(q.account) || !uoReadingPublicID(q.family) {
 			return out, ErrInvalid
 		}
 		row, e := wc008DraftQuery(ctx, turn, uoReadingFamilyCut, q.authority, q.account)
@@ -69,9 +74,12 @@ func pruneUOReadingReceipts(ctx context.Context, turn *commandTurn, q uoReadingP
 		}
 		var scope, cut int64
 		if e = row.Scan(&scope, &cut); e != nil {
+			if errors.Is(e, sql.ErrNoRows) {
+				e = ErrConflict
+			}
 			return out, e
 		}
-		global, e := wc008DraftInteger(ctx, turn, uoReadingGlobalCut)
+		global, e := uoReadingPruneGlobalCut(ctx, turn)
 		if e != nil {
 			return out, e
 		}
@@ -85,13 +93,13 @@ func pruneUOReadingReceipts(ctx context.Context, turn *commandTurn, q uoReadingP
 		}
 		id, args = uoReadingSelectOrphan, []any{q.scopeID}
 	case uoReadingPruneGlobal:
-		cut, e := wc008DraftInteger(ctx, turn, uoReadingGlobalCut)
+		cut, e := uoReadingPruneGlobalCut(ctx, turn)
 		if e != nil {
 			return out, e
 		}
 		id, args = uoReadingSelectGlobal, []any{cut}
 	case uoReadingPruneProfile:
-		if q.scopeID <= 0 || !usIdentifier(q.profile) || !usHex(q.lifetime, 32) {
+		if q.scopeID <= 0 || !uoReadingPublicID(q.profile) || !uoReadingPublicID(q.lifetime) {
 			return out, ErrInvalid
 		}
 		id, args = uoReadingSelectProfile, []any{q.scopeID, q.profile, q.lifetime}
@@ -208,6 +216,7 @@ func checkUOReadingPersonal(ctx context.Context, turn *commandTurn, s uoReadingP
 // No asset lookup/FK: stale source positions remain until their actual personal
 // parent is erased. hasMore must be false before the owning parent may delete.
 func drainUOReadingResume(ctx context.Context, turn *commandTurn, s uoReadingPersonalScope) (out uoReadingResumeDrainEffect, err error) {
+	defer func() { uoReadingCustodyFailure(turn, err) }()
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if err = turn.checkLifetimes(ctx); err != nil {
 		return out, err
@@ -243,11 +252,12 @@ func drainUOReadingResume(ctx context.Context, turn *commandTurn, s uoReadingPer
 }
 
 // One-source title-merge participant. Preserve every source position; for the
-// same asset the latest observation wins, then the higher source revision,
+// same asset the latest observation wins, then the higher resume row revision,
 // with exact ties retaining the destination. The parent must co-commit its
 // personal/reading revision CAS and remaining title state before deleting from.
 // This does NOT erase either parent or grant title-merge authority.
 func mergeUOReadingResume(ctx context.Context, turn *commandTurn, from, to uoReadingPersonalScope) (out uoReadingResumeDrainEffect, err error) {
+	defer func() { uoReadingCustodyFailure(turn, err) }()
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if from.personalID == to.personalID || from.profileKey != to.profileKey || from.libraryID != to.libraryID {
 		return out, ErrInvalid
@@ -283,18 +293,31 @@ func mergeUOReadingResume(ctx context.Context, turn *commandTurn, from, to uoRea
 		return out, err
 	}
 	sourceWins := absent || observed > targetObserved || (observed == targetObserved && revision > targetRevision)
+	var freed int64
 	if sourceWins {
 		if !absent {
-			if _, err = wc008DraftInteger(ctx, turn, uoReadingResumeDelete, to.personalID, asset, targetBytes); err != nil {
+			freed, err = wc008DraftInteger(ctx, turn, uoReadingResumeDelete, to.personalID, asset, targetBytes)
+			if err != nil {
 				return out, err
 			}
+			if freed != targetBytes {
+				return out, ErrConflict
+			}
 		}
-		if _, err = wc008DraftInteger(ctx, turn, uoReadingResumeMerge, to.personalID, from.personalID, asset, size); err != nil {
-			return out, err
+		moved, e := wc008DraftInteger(ctx, turn, uoReadingResumeMerge, to.personalID, from.personalID, asset, size)
+		if e != nil {
+			return out, e
+		}
+		if moved != to.personalID {
+			return out, ErrConflict
 		}
 	} else {
-		if _, err = wc008DraftInteger(ctx, turn, uoReadingResumeDelete, from.personalID, asset, size); err != nil {
+		freed, err = wc008DraftInteger(ctx, turn, uoReadingResumeDelete, from.personalID, asset, size)
+		if err != nil {
 			return out, err
+		}
+		if freed != size {
+			return out, ErrConflict
 		}
 	}
 
@@ -302,8 +325,9 @@ func mergeUOReadingResume(ctx context.Context, turn *commandTurn, from, to uoRea
 	if err != nil {
 		return out, err
 	}
-	// Merge relocation is not a quota refund; target delta belongs to its parent.
-	out = uoReadingResumeDrainEffect{removed: 1, hasMore: more}
+	// Only the actually deleted duplicate loser frees variable octets; moving a
+	// sole source to an absent target frees zero. Parent owns ledger application.
+	out = uoReadingResumeDrainEffect{removed: 1, variableBytes: freed, hasMore: more}
 	return out, turn.checkLifetimes(ctx)
 }
 
@@ -318,4 +342,27 @@ func uoReadingResumeHasMore(ctx context.Context, turn *commandTurn, personal int
 		return false, nil
 	}
 	return yes == 1, err
+}
+
+// Match public receipt/legacy Binding grammar, including Hosted IDs; these are
+// bounded equality bindings, never SQL identifiers or authorization evidence.
+func uoReadingPublicID(s string) bool {
+	return len(s) > 0 && len(s) <= 128 && strings.IndexByte(s, 0) < 0
+}
+func uoReadingPruneGlobalCut(ctx context.Context, turn *commandTurn) (int64, error) {
+	row, err := wc008DraftQuery(ctx, turn, uoReadingGlobalCut)
+	if err != nil {
+		return 0, err
+	}
+	var cut int64
+	err = row.Scan(&cut)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return cut, err
+}
+func uoReadingCustodyFailure(turn *commandTurn, err error) {
+	if err != nil && turn != nil && turn.transaction != nil && turn.transaction.begun && !turn.transaction.done && turn.transaction.cancel != nil {
+		turn.transaction.cancel()
+	}
 }
