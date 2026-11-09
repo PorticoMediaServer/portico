@@ -318,7 +318,8 @@ def components(paths, full=False):
     for path in paths:
         # Go metadata must distinguish documentation from fixtures/embedded
         # inputs before their suffix can suppress package discovery.
-        if path.startswith(('server/', 'apikit/')): go=True
+        if path.startswith('server-next/'): continue
+        elif path.startswith(('server/', 'apikit/')): go=True
         elif path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico')) and (ROOT/path).is_file(): continue
         elif path.startswith('packages/'):
             if path.startswith('packages/contracts/'): go=True
@@ -394,7 +395,7 @@ def make_plan(paths, full=False, tier="short"):
     selected, go = components(paths,full); go_fallbacks=[]; inventory=[]; exemptions=[]; packages=[]; modules=[]
     # Go-owned means the change itself reaches Go (server/ or apikit/, contracts, the root). A change that
     # only reaches a test reading its files (packages/i18n, web/public) selects just those tests.
-    go_owned=go; readers={} if full else source_readers.select(paths); reader_tests={}; go=go or bool(readers)
+    go_owned=go; readers={} if full else source_readers.select([p for p in paths if not p.startswith('server-next/')]); reader_tests={}; go=go or bool(readers)
     full_packages=set()
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
@@ -543,6 +544,7 @@ def main():
         # see their changed input, including a source missing from this checkout.
         paths=command(['git','diff','--no-renames','--name-only','-z',base,head]).split('\0'); paths=[p for p in paths if p]
     plan=make_plan(paths,a.full,'merge' if a.full and a.tier=='short' else a.tier); plan.update(base=base,head=head)
+    plan['server_next'] = (ROOT/'server-next/go.mod').is_file() and (a.full or os.environ.get('GITHUB_EVENT_NAME') == 'merge_group' or any(p.startswith('server-next/') or p == '.github/workflows/merge.yml' for p in paths))
     Path(a.output).write_text(json.dumps(plan,indent=2)+'\n')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         from explain import render_summary
@@ -550,6 +552,7 @@ def main():
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as f:
             f.write('go_matrix='+json.dumps(go_matrix(plan))+'\n')
+            f.write('server_next='+str(plan['server_next']).lower()+'\n')
             f.write('android='+str(plan['android']).lower()+'\n')
             f.write('go='+str(bool(plan['packages'])).lower()+'\n')
             f.write('js='+str(any(x['shards'] for x in plan['js'])).lower()+'\n')

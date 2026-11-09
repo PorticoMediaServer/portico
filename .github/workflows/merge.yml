@@ -88,6 +88,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     outputs:
+      server_next: ${{ steps.plan.outputs.server_next }}
       go_matrix: ${{ steps.plan.outputs.go_matrix }}
       go: ${{ steps.plan.outputs.go }}
       js: ${{ steps.plan.outputs.js }}
@@ -127,6 +128,26 @@ jobs:
         with:
           name: selection
           path: ci-plan.json
+  server_next:
+    needs: planner
+    if: needs.planner.outputs.server_next == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server-next
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server-next/go.mod
+          cache: true
+          cache-dependency-path: server-next/go.sum
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./...
   go_build:
     needs: planner
     if: needs.planner.outputs.go == 'true'
@@ -342,7 +363,7 @@ jobs:
   merge:
     name: ci/required
     if: ${{ !cancelled() }}
-    needs: [planner, hygiene, go_build, go_vet_cross, go_tests, decoder_sandbox, js, js_static, android]
+    needs: [planner, hygiene, server_next, go_build, go_vet_cross, go_tests, decoder_sandbox, js, js_static, android]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
