@@ -171,7 +171,10 @@ func TestMPPreparedJobReservesActualBytes(t *testing.T) {
 // A selection larger than the snapshot's native row ceiling is refused by the
 // narrow point, so the wide payload never opens and no partial value escapes.
 func TestMPHeadsRefuseOversizedSelection(t *testing.T) {
-	oversized := strings.Repeat("x", (8<<20)+1)
+	// C129's native row ceiling is 8 MiB + 64 KiB. Stay one byte beyond
+	// that actual bound; 8 MiB + 1 is no longer an oversized selection.
+	limits := readfixture.ReaderConfig().ReadLimits
+	oversized := strings.Repeat("x", int(limits.Columns)*int(limits.LengthBytes)+1)
 	t.Run("queue", func(t *testing.T) {
 		f, r := mpQueueFixture(t)
 		f.exec(t, `UPDATE queues_v1 SET current_entry_id=? WHERE id='mp-queue'`, oversized)
