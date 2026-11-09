@@ -18,6 +18,15 @@ import (
 // same-commandTurn proof UO-01 defines before any retained owner/slot/child read
 // and re-proves the frame, identity and root before release. The proof's
 // current-authority mint is still pending from Sol, so 654 is not product-wired.
+//
+// SOL-USERS ruling 1 maintenance exception: because ACK can still advance the
+// floor of a draining root, this closed reclaim path (and this path only) may
+// run a Fresh 654 on an active OR draining root. It removes at most the selected
+// ACK-floor-eligible child, refunds only its actual deleted bytes, writes only
+// the fixed <=4096 slot/cursor/protocol metadata and never advances ACK. It
+// widens no domain Fresh rule: every other purpose still treats draining as
+// replay-only. If the principal/root can no longer be authenticated there is no
+// sweeper authority; the due-root probe below is never that authority.
 
 // uoRootProofCurrent validates the closed private current proof for this frame
 // and returns the identity-bound root reader. It mints nothing: the proof has no
@@ -40,9 +49,19 @@ func uoRootProofCurrent(proof *uoRootCurrentProof, turn *commandTurn) (*uoRootBi
 	return binding, nil
 }
 
+// uoRootReclaimFreshState is the SOL-USERS ruling 1 maintenance exception,
+// scoped to this closed 654 reclaim path only: a Fresh cleanup may run while the
+// root is active OR draining. It grants no new root, identity, lifetime or
+// incarnation; the caller has already re-proved all of those. Every ordinary
+// domain purpose keeps UO-01's generic rule (draining = replay only).
+func uoRootReclaimFreshState(state string) bool {
+	return state == "active" || state == "draining"
+}
+
 // uoRootReclaimRelease re-proves current authority and the exact native root
-// identity/state immediately before release. A fresh cleanup must end on an
-// active root; an authorized original replay may end draining.
+// identity/state immediately before release. A fresh cleanup may end on an
+// active or draining root (the closed 654 maintenance exception); an authorized
+// original replay may end draining. A missing/foreign root still ends Gone.
 func uoRootReclaimRelease(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, rootID string, decision receiptDecision) error {
 	binding, err := uoRootProofCurrent(proof, turn)
 	if err != nil {
@@ -52,7 +71,7 @@ func uoRootReclaimRelease(ctx context.Context, turn *commandTurn, proof *uoRootC
 	if err != nil {
 		return err
 	}
-	if decision == receiptFresh && state != "active" {
+	if decision == receiptFresh && !uoRootReclaimFreshState(state) {
 		return ErrUORootGone
 	}
 	return turn.checkLifetimes(ctx)
@@ -119,7 +138,11 @@ func lookupUORootReclaim(ctx context.Context, turn *commandTurn, proof *uoRootCu
 	if err != nil {
 		return out, err
 	}
-	if decision == receiptFresh && rootState != "active" {
+	// 654 is the only purpose that may run Fresh on a draining root: the closed
+	// bounded-maintenance path below removes at most one ACK-floor-eligible child
+	// and refunds only its actual bytes. This does not widen UO-01's generic
+	// domain Fresh rule, which this function never applies.
+	if decision == receiptFresh && !uoRootReclaimFreshState(rootState) {
 		return out, ErrUORootGone
 	}
 	// A constructor-time read cannot outlive a revocation or root change.

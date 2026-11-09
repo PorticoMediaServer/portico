@@ -471,35 +471,77 @@ func TestUORootReclaimCurrentProofSameTurn(t *testing.T) {
 	}
 }
 
-// TestUORootReclaimReleaseDenialReplacesBody proves a release-time authority
-// denial replaces the completed body and rolls the whole prefix back.
+// TestUORootReclaimReleaseDenialReplacesBody proves a release-time identity
+// denial replaces the completed body and rolls the whole prefix back. A
+// draining state alone is not a denial on the 654 maintenance path; these
+// changed/missing roots still are.
 func TestUORootReclaimReleaseDenialReplacesBody(t *testing.T) {
-	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
-	childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
-	uoRootReclaimOwner(t, w, root, 1, 1, 1, childBytes, 100)
-	ref := uoRootReclaimRef(root, 2, 9, 19)
-	turn := uoRootReclaimTurn(t, w)
-	proof := uoRootReclaimProof(t, turn, identity)
-	lookup, err := lookupUORootReclaim(t.Context(), turn, proof, ref)
-	if err != nil {
-		t.Fatal(err)
+	changes := map[string]func(t *testing.T, turn *commandTurn, root string){
+		"account": func(t *testing.T, turn *commandTurn, root string) {
+			t.Helper()
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET account_id='other-account' WHERE id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"lifetime": func(t *testing.T, turn *commandTurn, root string) {
+			t.Helper()
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET profile_incarnation='dddddddddddddddddddddddddddddddd' WHERE id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"membership": func(t *testing.T, turn *commandTurn, root string) {
+			t.Helper()
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET account_incarnation='other-membership' WHERE id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"installation": func(t *testing.T, turn *commandTurn, root string) {
+			t.Helper()
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET installation_incarnation='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' WHERE id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"missing": func(t *testing.T, turn *commandTurn, root string) {
+			t.Helper()
+			// The cleanup already removed the only child, so the owner and root
+			// rows can be removed to model a root that is no longer there.
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `DELETE FROM user_mutation_command_owners WHERE root_id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `DELETE FROM user_mutation_roots WHERE id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
-	if _, err := reclaimUORootReceipt(t.Context(), turn, proof, lookup, 300); err != nil {
-		t.Fatal(err)
-	}
-	// The root starts draining after the effect but before release. The same
-	// helper the dispatcher calls must deny and the caller must withdraw.
-	if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET state='draining' WHERE id=?`, root); err != nil {
-		t.Fatal(err)
-	}
-	if err := uoRootReclaimRelease(t.Context(), turn, proof, root, receiptFresh); !errors.Is(err, ErrUORootGone) {
-		t.Fatal("release denial missed", err)
-	}
-	if _, err := turn.transaction.rollback(nil); err != nil {
-		t.Fatal(err)
-	}
-	if sequence, _, _, receipts, rows, _ := uoRootReclaimSlotResult(t, w, root); sequence != 0 || receipts != 1 || rows != 1 {
-		t.Fatal("release denial left a prefix", sequence, receipts, rows)
+	for name, change := range changes {
+		t.Run(name, func(t *testing.T) {
+			w, _, root, identity, incarnation := uoRootReclaimFixture(t)
+			childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
+			uoRootReclaimOwner(t, w, root, 1, 1, 1, childBytes, 100)
+			ref := uoRootReclaimRef(root, 2, 9, 19)
+			turn := uoRootReclaimTurn(t, w)
+			proof := uoRootReclaimProof(t, turn, identity)
+			lookup, err := lookupUORootReclaim(t.Context(), turn, proof, ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := reclaimUORootReceipt(t.Context(), turn, proof, lookup, 300); err != nil {
+				t.Fatal(err)
+			}
+			// The root identity disappears after the effect but before release.
+			// The same helper the dispatcher calls must deny and the caller must
+			// withdraw.
+			change(t, turn, root)
+			if err := uoRootReclaimRelease(t.Context(), turn, proof, root, receiptFresh); !errors.Is(err, ErrUORootGone) {
+				t.Fatal("release denial missed", err)
+			}
+			if _, err := turn.transaction.rollback(nil); err != nil {
+				t.Fatal(err)
+			}
+			if sequence, _, _, receipts, rows, _ := uoRootReclaimSlotResult(t, w, root); sequence != 0 || receipts != 1 || rows != 1 {
+				t.Fatal("release denial left a prefix", sequence, receipts, rows)
+			}
+		})
 	}
 }
 
@@ -676,29 +718,59 @@ func TestUORootReclaimStaleIncarnationNeedsResolve(t *testing.T) {
 	}
 }
 
-// TestUORootReclaimDispatchReleaseDenialReplacesBody proves a release-time
-// authority/root denial that happens after the cleanup prefix replaced the body:
-// the dispatcher returns zero output and the whole prefix is rolled back.
-func TestUORootReclaimDispatchReleaseDenialReplacesBody(t *testing.T) {
+// TestUORootReclaimDrainingTransitionFinishes proves the SOL-USERS ruling 1
+// transition rule: a root that becomes draining after prepare but before final
+// release still finishes the cleanup when identity/lifetime/incarnation are
+// unchanged. Draining does not cancel an already-authorized 654 maintenance
+// quantum.
+func TestUORootReclaimDrainingTransitionFinishes(t *testing.T) {
 	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
 	childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
 	uoRootReclaimOwner(t, w, root, 1, 1, 1, childBytes, 100)
 	ref := uoRootReclaimRef(root, 2, 9, 19)
-	// The reclaim's own save starts draining the root mid-effect, so the final
-	// fresh release must deny and the dispatcher must withdraw the body.
+	// The reclaim's own save starts draining the root mid-effect. The final
+	// fresh release admits it because the exact root identity is unchanged.
 	wc008NativeExec(t, w, `CREATE TRIGGER uo_root_reclaim_late_drain AFTER UPDATE ON user_mutation_command_owners WHEN NEW.reclaim_command_sequence IS NOT NULL BEGIN UPDATE user_mutation_roots SET state='draining' WHERE id=NEW.root_id; END`)
 	turn := uoRootReclaimTurn(t, w)
 	proof := uoRootReclaimProof(t, turn, identity)
 	out, floor, err := runUORootReclaimDispatch(t.Context(), turn, proof, uoRootReclaimInvocation{reference: ref, nowMS: 300})
-	if !errors.Is(err, ErrUORootGone) || out != (uoRootReclaimResult{}) || floor != 0 {
-		t.Fatal("release denial published a body", out, floor, err)
+	if err != nil || floor != 0 || out.removedCount != 1 || out.removedSequence != 1 || out.removedBytes != childBytes || out.remainingRows != 0 || !out.noNext {
+		t.Fatal("active->draining transition did not finish", out, floor, err)
 	}
-	// The drained root itself is a rolled-back fact, as is every cleanup byte.
+	if sequence, payload, _, receipts, rows, _ := uoRootReclaimSlotResult(t, w, root); sequence != 2 || payload < 1 || receipts != 0 || rows != 0 {
+		t.Fatal("transition cleanup was not durable", sequence, payload, receipts, rows)
+	}
+	var state string
+	if err := w.db.QueryRowContext(t.Context(), `SELECT state FROM user_mutation_roots WHERE id=?`, root).Scan(&state); err != nil || state != "draining" {
+		t.Fatal("root state", state, err)
+	}
+	// ACK was not advanced by the cleanup itself.
+	if got := uoRootReclaimScalar(t, w, `SELECT acknowledged_command_sequence FROM user_mutation_command_owners WHERE root_id=?`, root); got != 1 {
+		t.Fatal("transition cleanup advanced the floor", got)
+	}
+}
+
+// TestUORootReclaimDispatchIdentityChangeReplacesBody proves a release-time
+// root identity change (not a drain) still replaces the body: the dispatcher
+// returns zero output and the whole cleanup prefix is rolled back.
+func TestUORootReclaimDispatchIdentityChangeReplacesBody(t *testing.T) {
+	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
+	childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
+	uoRootReclaimOwner(t, w, root, 1, 1, 1, childBytes, 100)
+	ref := uoRootReclaimRef(root, 2, 9, 19)
+	wc008NativeExec(t, w, `CREATE TRIGGER uo_root_reclaim_late_foreign AFTER UPDATE ON user_mutation_command_owners WHEN NEW.reclaim_command_sequence IS NOT NULL BEGIN UPDATE user_mutation_roots SET account_id='other-account' WHERE id=NEW.root_id; END`)
+	turn := uoRootReclaimTurn(t, w)
+	proof := uoRootReclaimProof(t, turn, identity)
+	out, floor, err := runUORootReclaimDispatch(t.Context(), turn, proof, uoRootReclaimInvocation{reference: ref, nowMS: 300})
+	if !errors.Is(err, ErrUORootGone) || out != (uoRootReclaimResult{}) || floor != 0 {
+		t.Fatal("identity change published a body", out, floor, err)
+	}
+	// The identity change itself is a rolled-back fact, as is every cleanup byte.
 	if sequence, payload, _, receipts, rows, _ := uoRootReclaimSlotResult(t, w, root); sequence != 0 || payload != 0 || receipts != 1 || rows != 1 {
-		t.Fatal("release denial left a prefix", sequence, payload, receipts, rows)
+		t.Fatal("identity change left a prefix", sequence, payload, receipts, rows)
 	}
 	if got := uoRootReclaimScalar(t, w, `SELECT acknowledged_command_sequence FROM user_mutation_command_owners WHERE root_id=?`, root); got != 1 {
-		t.Fatal("release denial moved the floor", got)
+		t.Fatal("identity change moved the floor", got)
 	}
 }
 
@@ -743,8 +815,9 @@ func TestUORootReclaimDispatchAckMovesFloor(t *testing.T) {
 }
 
 // TestUORootReclaimDrainingReplayAndAck proves a draining root still returns an
-// authorized original and lets ACK move the floor, while a Fresh 654 remains
-// refused there. This behaviour is intentionally unchanged.
+// authorized original and lets ACK move the floor. Under SOL-USERS ruling 1 the
+// closed 654 path also classifies a Fresh retry as Fresh there; it is the due
+// debt, not the drain, that still refuses when no eligible child remains.
 func TestUORootReclaimDrainingReplayAndAck(t *testing.T) {
 	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
 	childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
@@ -778,15 +851,293 @@ func TestUORootReclaimDrainingReplayAndAck(t *testing.T) {
 		t.Fatal("draining ACK kept a due row", got)
 	}
 
-	// Fresh is still refused on the draining root, even with the floor closed.
+	// The drain itself no longer refuses a Fresh retry: classification admits
+	// it, and the absent due debt is the named refusal.
 	next := uoRootReclaimRef(root, 3, 10, 20)
 	turn = uoRootReclaimTurn(t, w)
 	proof = uoRootReclaimProof(t, turn, identity)
-	if _, err := lookupUORootReclaim(t.Context(), turn, proof, next); !errors.Is(err, ErrUORootGone) {
-		t.Fatal("draining root admitted Fresh", err)
+	lookup, err := lookupUORootReclaim(t.Context(), turn, proof, next)
+	if err != nil || lookup.decision != receiptFresh {
+		t.Fatal("draining root did not classify the retry", lookup.decision, err)
+	}
+	if _, err := reclaimUORootReceipt(t.Context(), turn, proof, lookup, 500); !errors.Is(err, ErrConflict) {
+		t.Fatal("draining root without due debt did not refuse", err)
 	}
 	if _, err := turn.transaction.rollback(nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// uoRootReclaimDrain moves the fixture root to the draining state. ACK still
+// advances a draining root's floor; the 654 reclaim maintenance path is the one
+// purpose allowed to run Fresh there.
+func uoRootReclaimDrain(t *testing.T, w *executor, root string) {
+	t.Helper()
+	wc008NativeExec(t, w, `UPDATE user_mutation_roots SET state='draining' WHERE id=?`, root)
+}
+
+// TestUORootReclaimDrainingTwoCycles is the Tier A ruling control: ACK plus two
+// complete reclaim cycles on a DRAINING root, with a byte-exact fixed-slot
+// replay of each cycle's original (replay reads only the slot and leaves
+// total_changes unchanged).
+func TestUORootReclaimDrainingTwoCycles(t *testing.T) {
+	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
+	uoRootReclaimDrain(t, w, root)
+	for cycle := int64(0); cycle < 2; cycle++ {
+		source := 1 + 2*cycle
+		childBytes := uoRootReclaimChild(t, w, root, incarnation, source, 64)
+		uoRootReclaimOwner(t, w, root, source, source, 1, childBytes, 100)
+		ref := uoRootReclaimRef(root, source+1, byte(source+10), byte(source+20))
+		turn := uoRootReclaimTurn(t, w)
+		proof := uoRootReclaimProof(t, turn, identity)
+		lookup, err := lookupUORootReclaim(t.Context(), turn, proof, ref)
+		if err != nil || lookup.decision != receiptFresh {
+			t.Fatal("draining fresh cycle", cycle, lookup.decision, err)
+		}
+		want, err := reclaimUORootReceipt(t.Context(), turn, proof, lookup, 300)
+		if err != nil || want.removedCount != 1 || want.removedSequence != source || want.removedBytes != childBytes || want.remainingRows != 0 || want.remainingBytes != 0 || !want.noNext {
+			t.Fatal("draining child refund", cycle, want, err)
+		}
+		uoRootReclaimCommit(t, turn)
+
+		// Byte-exact original replay on the draining root: only the fixed slot
+		// is read and no fact changes.
+		turn = uoRootReclaimTurn(t, w)
+		proof = uoRootReclaimProof(t, turn, identity)
+		replay, err := lookupUORootReclaim(t.Context(), turn, proof, ref)
+		if err != nil || replay.decision != receiptReplay {
+			t.Fatal("draining replay lookup", cycle, replay.decision, err)
+		}
+		var before, after int64
+		if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes()`).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		got, err := restoreUORootReclaim(t.Context(), turn, proof, replay)
+		if err != nil || got != want {
+			t.Fatal("draining original replay", cycle, got, want, err)
+		}
+		if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes()`).Scan(&after); err != nil || before != after {
+			t.Fatal("draining replay changed facts", cycle, before, after, err)
+		}
+		if _, err := turn.transaction.rollback(nil); err != nil {
+			t.Fatal(err)
+		}
+
+		// ACK moves only the floor; the tombstone slot stays retained.
+		turn = uoRootReclaimTurn(t, w)
+		proof = uoRootReclaimProof(t, turn, identity)
+		lookup, err = lookupUORootReclaim(t.Context(), turn, proof, ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		floor, err := acknowledgeUORootReclaim(t.Context(), turn, proof, lookup, 400)
+		if err != nil || floor != source+1 {
+			t.Fatal("draining ACK floor", cycle, floor, err)
+		}
+		uoRootReclaimCommit(t, turn)
+		if sequence, payload, _, receipts, rows, bytes := uoRootReclaimSlotResult(t, w, root); sequence != source+1 || payload < 1 || receipts != 0 || rows != 0 || bytes != 0 {
+			t.Fatal("draining fixed slot after ACK", cycle, sequence, payload, receipts, rows, bytes)
+		}
+	}
+}
+
+// TestUORootReclaimDrainingUnackedSurvivor proves the exception changes only
+// the root state gate: an unACKed successor still refuses cleanup on a draining
+// root and survives.
+func TestUORootReclaimDrainingUnackedSurvivor(t *testing.T) {
+	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
+	uoRootReclaimDrain(t, w, root)
+	first := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
+	second := uoRootReclaimChild(t, w, root, incarnation, 2, 16)
+	uoRootReclaimOwner(t, w, root, 2, 1, 2, first+second, 100)
+	turn := uoRootReclaimTurn(t, w)
+	proof := uoRootReclaimProof(t, turn, identity)
+	if _, err := lookupUORootReclaim(t.Context(), turn, proof, uoRootReclaimRef(root, 3, 9, 19)); !errors.Is(err, ErrResolveRequired) {
+		t.Fatal("draining cleanup passed an unACKed successor", err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := uoRootReclaimScalar(t, w, `SELECT count(*) FROM user_mutation_command_receipts WHERE root_id=?`, root); got != 2 {
+		t.Fatal("draining refusal deleted a child", got)
+	}
+}
+
+// TestUORootReclaimDrainingNoIdleDebt proves no table growth or idle debt is
+// left after the last eligible child on a draining root: the due time is NULL
+// and the next reclaim refuses with the named refusal.
+func TestUORootReclaimDrainingNoIdleDebt(t *testing.T) {
+	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
+	uoRootReclaimDrain(t, w, root)
+	childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
+	uoRootReclaimOwner(t, w, root, 1, 1, 1, childBytes, 100)
+	ref := uoRootReclaimRef(root, 2, 9, 19)
+	turn := uoRootReclaimTurn(t, w)
+	proof := uoRootReclaimProof(t, turn, identity)
+	out, floor, err := runUORootReclaimDispatch(t.Context(), turn, proof, uoRootReclaimInvocation{reference: ref, nowMS: 300})
+	if err != nil || floor != 0 || out.removedCount != 1 || out.remainingRows != 0 {
+		t.Fatal("draining cleanup", out, floor, err)
+	}
+	turn = uoRootReclaimTurn(t, w)
+	proof = uoRootReclaimProof(t, turn, identity)
+	if out, floor, err = runUORootReclaimDispatch(t.Context(), turn, proof, uoRootReclaimInvocation{reference: ref, nowMS: 400, ack: true}); err != nil || floor != 2 || out != (uoRootReclaimResult{}) {
+		t.Fatal("draining ACK", out, floor, err)
+	}
+	if got := uoRootReclaimScalar(t, w, `SELECT receipt_reclaim_due_ms IS NULL FROM user_mutation_command_owners WHERE root_id=?`, root); got != 1 {
+		t.Fatal("draining idle root kept a due row", got)
+	}
+	before := uoRootReclaimScalar(t, w, `SELECT total_changes()`)
+	turn = uoRootReclaimTurn(t, w)
+	proof = uoRootReclaimProof(t, turn, identity)
+	if out, floor, err = runUORootReclaimDispatch(t.Context(), turn, proof, uoRootReclaimInvocation{reference: uoRootReclaimRef(root, 3, 10, 20), nowMS: 500}); !errors.Is(err, ErrConflict) || out != (uoRootReclaimResult{}) || floor != 0 {
+		t.Fatal("draining reclaim without debt did not refuse", out, floor, err)
+	}
+	if after := uoRootReclaimScalar(t, w, `SELECT total_changes()`); before != after {
+		t.Fatal("refused draining reclaim changed facts", before, after)
+	}
+	if sequence, payload, control, receipts, rows, bytes := uoRootReclaimSlotResult(t, w, root); sequence != 2 || payload < 1 || control != uoRootSlotEnvelope+payload || receipts != 0 || rows != 0 || bytes != 0 {
+		t.Fatal("draining no-debt state", sequence, payload, control, receipts, rows, bytes)
+	}
+}
+
+// TestUORootReclaimDrainingCurrentDenied proves the maintenance exception does
+// not weaken the current proof: a proof from a finished frame is refused before
+// custody with zero output and no deletion on a draining root.
+func TestUORootReclaimDrainingCurrentDenied(t *testing.T) {
+	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
+	uoRootReclaimDrain(t, w, root)
+	childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
+	uoRootReclaimOwner(t, w, root, 1, 1, 1, childBytes, 100)
+	prior := uoRootReclaimTurn(t, w)
+	priorProof := uoRootReclaimProof(t, prior, identity)
+	if _, err := prior.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	before := uoRootReclaimScalar(t, w, `SELECT total_changes()`)
+	current := uoRootReclaimTurn(t, w)
+	if _, err := lookupUORootReclaim(t.Context(), current, priorProof, uoRootReclaimRef(root, 2, 9, 19)); !errors.Is(err, ErrUORootCurrentFenceUnavailable) {
+		t.Fatal("stale proof reached draining custody", err)
+	}
+	var after int64
+	if err := current.transaction.conn.QueryRowContext(t.Context(), `SELECT total_changes()`).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if before != after {
+		t.Fatal("stale proof changed facts", before, after)
+	}
+	if _, err := current.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	if sequence, payload, _, receipts, rows, _ := uoRootReclaimSlotResult(t, w, root); sequence != 0 || payload != 0 || receipts != 1 || rows != 1 {
+		t.Fatal("stale proof touched the draining root", sequence, payload, receipts, rows)
+	}
+}
+
+// TestUORootReclaimPrefixRollbackAfterChildDelete proves a fault after the
+// child delete but before the slot save rolls the whole turn back: the child
+// survives, the slot stays empty and no refund/cursor is applied.
+func TestUORootReclaimPrefixRollbackAfterChildDelete(t *testing.T) {
+	w, _, root, identity, incarnation := uoRootReclaimFixture(t)
+	uoRootReclaimDrain(t, w, root)
+	childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
+	uoRootReclaimOwner(t, w, root, 1, 1, 1, childBytes, 100)
+	// The child DELETE succeeds; the owner slot UPDATE is the next effect and
+	// fails, so the prefix must not survive.
+	wc008NativeExec(t, w, `CREATE TRIGGER uo_root_reclaim_fail_slot AFTER UPDATE ON user_mutation_command_owners WHEN NEW.reclaim_command_sequence IS NOT NULL BEGIN SELECT RAISE(ABORT,'injected slot failure'); END`)
+	turn := uoRootReclaimTurn(t, w)
+	proof := uoRootReclaimProof(t, turn, identity)
+	out, floor, err := runUORootReclaimDispatch(t.Context(), turn, proof, uoRootReclaimInvocation{reference: uoRootReclaimRef(root, 2, 9, 19), nowMS: 300})
+	if err == nil || out != (uoRootReclaimResult{}) || floor != 0 {
+		t.Fatal("injected slot fault published a body", out, floor, err)
+	}
+	sequence, payload, _, receipts, rows, bytes := uoRootReclaimSlotResult(t, w, root)
+	if sequence != 0 || payload != 0 || receipts != 1 || rows != 1 || bytes != childBytes {
+		t.Fatal("prefix survived the slot fault", sequence, payload, receipts, rows, bytes)
+	}
+	var child int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT variable_bytes FROM user_mutation_command_receipts WHERE root_id=? AND command_sequence=1`, root).Scan(&child); err != nil || child != childBytes {
+		t.Fatal("deleted child was not restored", child, err)
+	}
+	if got := uoRootReclaimScalar(t, w, `SELECT acknowledged_command_sequence FROM user_mutation_command_owners WHERE root_id=?`, root); got != 1 {
+		t.Fatal("refund path moved the floor", got)
+	}
+}
+
+// TestUORootReclaimDrainingDomainFreshStillRefused is the negative control for
+// the SOL-USERS exception: UO-01's generic domain command still treats a
+// draining root as replay-only for Fresh.
+func TestUORootReclaimDrainingDomainFreshStillRefused(t *testing.T) {
+	w, proof, root, q := uoRootPersisted(t)
+	uoRootReclaimDrain(t, w, root)
+	wc008NativeExec(t, w, `UPDATE user_mutation_command_owners SET acknowledged_command_sequence=1 WHERE root_id=?`, root)
+	next := q
+	next.identity.Sequence = 2
+	turn, binding := uoRootSecurityTurn(t, w, proof)
+	if _, err := lookupUORootCommand(t.Context(), turn, binding, next); !errors.Is(err, ErrUORootGone) {
+		t.Fatal("draining domain root admitted Fresh", err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestUORootReclaimDueProbeIsNotAuthority proves the due-root probe is a
+// candidate observation only. A due root whose current proof is absent gets no
+// sweeper path, and the reclaim entries never call the unproved probe.
+func TestUORootReclaimDueProbeIsNotAuthority(t *testing.T) {
+	w, _, root, _, incarnation := uoRootReclaimFixture(t)
+	childBytes := uoRootReclaimChild(t, w, root, incarnation, 1, 16)
+	uoRootReclaimOwner(t, w, root, 1, 1, 1, childBytes, 100)
+	turn := uoRootReclaimTurn(t, w)
+	got, dueMS, found, err := uoRootReclaimDueRoot(t.Context(), turn, 300)
+	if err != nil || !found || got != root || dueMS != 100 {
+		t.Fatal("due candidate not observable", got, dueMS, found, err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	before := uoRootReclaimScalar(t, w, `SELECT total_changes()`)
+	turn = uoRootReclaimTurn(t, w)
+	out, floor, err := runUORootReclaimDispatch(t.Context(), turn, nil, uoRootReclaimInvocation{reference: uoRootReclaimRef(root, 2, 9, 19), nowMS: 300})
+	if !errors.Is(err, ErrUORootCurrentFenceUnavailable) || out != (uoRootReclaimResult{}) || floor != 0 {
+		t.Fatal("due probe supplied sweeper authority", out, floor, err)
+	}
+	if after := uoRootReclaimScalar(t, w, `SELECT total_changes()`); before != after {
+		t.Fatal("unauthenticated due root changed facts", before, after)
+	}
+	if sequence, payload, _, receipts, rows, _ := uoRootReclaimSlotResult(t, w, root); sequence != 0 || payload != 0 || receipts != 1 || rows != 1 {
+		t.Fatal("unauthenticated due root was cleaned", sequence, payload, receipts, rows)
+	}
+
+	// Structural: the dispatch/reclaim entry points do not consume the probe as
+	// authority or as a way to select a root.
+	f, err := parser.ParseFile(token.NewFileSet(), "uo_root_reclaim.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := map[string]bool{"lookupUORootReclaim": true, "reclaimUORootReceipt": true, "runUORootReclaimDispatch": true}
+	seen := map[string]bool{}
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || !checked[fn.Name.Name] {
+			continue
+		}
+		seen[fn.Name.Name] = true
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			if ident, ok := call.Fun.(*ast.Ident); ok && ident.Name == "uoRootReclaimDueRoot" {
+				t.Fatalf("%s consumes the unproved due probe", fn.Name.Name)
+			}
+			return true
+		})
+	}
+	for name := range checked {
+		if !seen[name] {
+			t.Fatal("missing reclaim entry", name)
+		}
 	}
 }
 

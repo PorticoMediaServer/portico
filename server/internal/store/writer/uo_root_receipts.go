@@ -120,7 +120,8 @@ func lookupUORootCommand(ctx context.Context, turn *commandTurn, binding *uoRoot
 		return out, err
 	}
 	// A draining root keeps an authorized ORIGINAL replay but admits no Fresh
-	// effect. This is not a "newest installation root" comparison.
+	// domain effect. The only exception is the closed 654 reclaim maintenance
+	// path (UO-02), which owns its own Fresh decision instead of this one.
 	if decision == receiptFresh && rootState != "active" {
 		return out, ErrUORootGone
 	}
@@ -205,8 +206,10 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 	if err = lookup.binding.check(ctx, turn); err != nil {
 		return out, err
 	}
-	// B3: a draining root never admits a Fresh effect; persistence rechecks the
-	// root's state at the moment of the effect.
+	// B3: a draining root never admits a Fresh domain effect; persistence
+	// rechecks the root's state at the moment of the effect. The closed 654
+	// reclaim maintenance path (UO-02) is the sole exception and does not route
+	// through this domain persistence arm.
 	rootState, err := lookup.binding.root(ctx, turn, q.root)
 	if err != nil {
 		return out, err

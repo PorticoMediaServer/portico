@@ -149,7 +149,10 @@ func (b *uoRootBinding) check(ctx context.Context, turn *commandTurn) error {
 
 // root reads the native root PK before any command-owner/header/payload access
 // and proves it is the live owner for this binding's validated identity. A miss
-// and every identity mismatch return the same ErrUORootGone class.
+// and every identity mismatch return the same ErrUORootGone class. Draining is
+// still a live owner identity: active permits Fresh, and draining permits
+// replay only, except the closed 654 reclaim maintenance path (UO-02), which
+// alone may run Fresh on either state.
 func (b *uoRootBinding) root(ctx context.Context, turn *commandTurn, rootID string) (state string, err error) {
 	if b == nil || turn == nil || !b.identity.complete() || len(rootID) != 22 {
 		return "", ErrUORootGone
