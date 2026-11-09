@@ -188,7 +188,7 @@ func TestUOBirthSession(t *testing.T) {
 				case "physical-generation":
 					exec(`UPDATE playback_sessions SET generation=2`)
 				case "physical-incarnation":
-					exec(`UPDATE playback_sessions SET mp_command_incarnation=?`, []byte{11})
+					exec(`UPDATE playback_sessions SET mp_command_incarnation=zeroblob(16)`)
 				case "logical-link":
 					exec(`UPDATE playback_v1_sessions SET media_generation=2`)
 				case "logical-counter":
