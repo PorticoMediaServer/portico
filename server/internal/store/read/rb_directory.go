@@ -220,7 +220,11 @@ func readRBDirectoryPage(ctx context.Context, q browseQuery, f browseFence, in R
 	if in.After != nil && (in.After.fence != f || in.After.scope != digest || in.After.limit != in.View.Limit) {
 		return ErrStale
 	}
-	page := RBDirectoryPage{RawRows: len(scope), RawPositions: len(scope)}
+	// RawRows/RawPositions count only AUTHORIZED mapping rows this window
+	// examined. The scope read itself is wider than the viewer's share (it also
+	// proves the mapped inventory), but an unauthorized or unshared row is not
+	// a navigation position and must not surface as transport cost evidence.
+	page := RBDirectoryPage{}
 	if pending {
 		if in.After != nil {
 			return ErrStale
@@ -244,7 +248,12 @@ func readRBDirectoryPage(ctx context.Context, q browseQuery, f browseFence, in R
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if !(allowed == nil || allowed[lib.id]) || lib.catalogID <= after {
+		if !(allowed == nil || allowed[lib.id]) {
+			continue
+		}
+		page.RawRows++
+		page.RawPositions++
+		if lib.catalogID <= after {
 			continue
 		}
 		if len(page.Libraries) == in.View.Limit {
@@ -457,8 +466,10 @@ func rbDirectoryAllowed(f browseFence) (map[string]bool, error) {
 }
 
 // readRBDirectoryScope streams the complete mapped-library inventory by exact
-// integer mapping key. Every window binds page+1 and checks len > page; a short
-// window is the only EOF. The principal's share check happens against the
+// integer mapping key. Every window binds one lookahead row beyond the 64-row
+// proof quantum; a short window is the only EOF. The proof ceiling is explicit:
+// more than rbDirectoryCapacity mapped rows is pending preparation, never a
+// truncated complete scope. The principal's share check happens against the
 // returned actual mapping in the caller.
 func readRBDirectoryScope(q browseQuery, profile string, maxPages int) ([]rbDirectoryLibraryScope, [32]byte, bool, error) {
 	var all []rbDirectoryLibraryScope
@@ -477,6 +488,9 @@ func readRBDirectoryScope(q browseQuery, profile string, maxPages int) ([]rbDire
 				return nil, [32]byte{}, false, err
 			}
 			all = append(all, lib)
+		}
+		if len(all) > rbDirectoryCapacity {
+			return all, rbDirectoryScopeDigest(all), true, nil
 		}
 		if len(rows) < rbDirectoryScopePage {
 			return all, rbDirectoryScopeDigest(all), false, nil
