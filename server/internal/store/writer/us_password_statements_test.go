@@ -218,8 +218,10 @@ func TestUSPasswordPreparationStaysOutside(t *testing.T) {
 func TestUSPasswordSourceEpochAndNoFamilyTeardown(t *testing.T) {
 	w, proof, command := usPasswordFixture(t)
 	r := usPasswordRegistry(t, w)
-	turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
+	// The independent count oracle reads the executor pool, which the open turn
+	// owns (one connection). Sample it BEFORE the frame or it waits forever.
 	before := usPasswordCounts(t, w)
+	turn, a, _ := usPasswordTurn(t, w, r, proof, 0)
 	out, _, err := runUSPasswordDispatch(t.Context(), turn, a, usPasswordInput(t, command))
 	if err != nil {
 		t.Fatal(err)
