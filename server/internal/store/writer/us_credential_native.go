@@ -51,6 +51,9 @@ const (
 	// variable receipt bytes. A fresh result that would pass either bound is
 	// refused with RefusalCapacity BEFORE any source effect. These are exact
 	// counters, not a product user cap; US-26 reclaim refunds actual bytes.
+	// The legacy product caps (MaxAPIKeys/MaxAccessTokens) are deliberately
+	// ABSENT here: they are not receipt/quota authority and remain the parent's
+	// policy concern.
 	usCredentialOwnerReceipts     int64 = 64
 	usCredentialOwnerReceiptBytes int64 = 1 << 20
 
@@ -498,8 +501,11 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 	if e != nil {
 		return out, e
 	}
+	// A zero-row revoke read/write (foreign id, a descendant row, or a stale
+	// witness) is the same absent exact source as the target read, so it is
+	// ErrConflict rather than a raw driver sql.ErrNoRows.
 	if e = scanUSCredentialSource(row, &out.row); e != nil {
-		return out, e
+		return out, usCredentialSourceError(e)
 	}
 	if out.row != want {
 		return out, ErrResolveRequired
@@ -814,6 +820,10 @@ func lookupUSCredential(ctx context.Context, turn *commandTurn, a *usOwnerAuthor
 	if err != nil || out.digest != ResultDigest(binding.resultDigest) {
 		return out, errors.Join(ErrResolveRequired, err)
 	}
+	// The sealed artifact is FIRST-RESPONSE-ONLY. Replay reads the retained
+	// columns only to re-prove the saved digest; the returned value must never
+	// carry a key id, nonce, body or AAD. The database copy stays sealed.
+	v.secret = usCredentialResultSecret{}
 	out.result = v
 	return out, turn.checkLifetimes(ctx)
 }
@@ -1417,6 +1427,12 @@ func executeUSCredentialInvocation(ctx context.Context, turn *commandTurn, a *us
 	if err != nil || charged != charge {
 		return out, floor, false, errors.Join(ErrResolveRequired, err)
 	}
+	// The sealed artifact is FIRST-RESPONSE-ONLY: the immutable Value carries
+	// only public fields, and out.Secret below is its ONLY projection. A
+	// UNIQUE collision while storing (credential id/family, receipt key or
+	// owner CAS) surfaces as the raw driver error here and rolls the whole
+	// source prefix back; it is deliberately not remapped to ErrConflict.
+	v.secret = usCredentialResultSecret{}
 	out.Value, out.ChargedBytes = v, charged
 	out.OwnerCount, out.OwnerBytes = lookup.owner.count+1, lookup.owner.bytes+charged
 	if q.kind == usAPICredentialIssue {
@@ -1429,6 +1445,11 @@ func executeUSCredentialInvocation(ctx context.Context, turn *commandTurn, a *us
 }
 
 func usCredentialCommandDigest(c *usCredentialNativeCommand) (RequestDigest, error) {
+	// The frozen request digest binds the WHOLE sealed job: the prepared target
+	// and source witness, the family-birth input and (for 521) the sealed
+	// artifact. Re-preparing the same operation from a re-read source produces
+	// a different digest and is refused with ErrConflict below; the parent must
+	// therefore keep and replay the ORIGINAL frozen digest for retries.
 	if c == nil {
 		return RequestDigest{}, ErrInvalid
 	}
