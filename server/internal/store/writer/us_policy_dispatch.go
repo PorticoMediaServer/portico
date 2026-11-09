@@ -192,9 +192,10 @@ func usPolicyDispatchDefinitions() []stmt.Definition {
 			usPolicyPoint("authorization_session_families", "sqlite_autoindex_authorization_session_families_1", "pk", "id"),
 			usPolicyPoint("direct_profiles", "sqlite_autoindex_direct_profiles_2", "u", "account_id", "id"),
 		}}
-	policyPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"identity_sign_in_policy", "identity_state"}, Seeks: []string{"rowid=?"}}
-	hostedPlan := stmt.Plan{Hot: true, Seeks: []string{"account_id=?"}}
-	custodianPlan := stmt.Plan{Hot: true, Seeks: []string{"rowid=?"}}
+	policyPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"p", "s"}, Seeks: []string{"rowid=?"}}
+	hostedPlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_account_portico_links_1"}, Seeks: []string{"account_id=?"},
+		AutoIndexes: []stmt.AutoIndexBinding{usPolicyPoint("account_portico_links", "sqlite_autoindex_account_portico_links_1", "pk", "account_id")}}
+	custodianPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"hosted_membership_sync"}, Seeks: []string{"rowid=?"}}
 	profilesPlan := stmt.Plan{Hot: true, Indexes: []string{"direct_profiles_account"}, Seeks: []string{"account_id=? AND deleted=?"}}
 	defs := []stmt.Definition{
 		{ID: usPolicyOwnerQuota, SQL: `SELECT command_incarnation,original_family_id,last_sequence,acknowledged_sequence,reclaimed_sequence,retained_count,retained_variable_bytes,retired_ms
@@ -220,7 +221,7 @@ CROSS JOIN identity_state AS s ON s.singleton=1
 WHERE p.singleton=1`,
 			Params:  []stmt.Param{},
 			Cohorts: []stmt.Cohort{{Name: "single", Bindings: []any{}}}, Plan: policyPlan},
-		{ID: usPolicyImageHostedOctets, SQL: `SELECT octet_length(hosted_account_id) FROM account_portico_links WHERE account_id=?`,
+		{ID: usPolicyImageHostedOctets, SQL: `SELECT octet_length(hosted_account_id) FROM account_portico_links INDEXED BY sqlite_autoindex_account_portico_links_1 WHERE account_id=?`,
 			Params:  []stmt.Param{text("account")},
 			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer"}}}, Plan: hostedPlan},
 		{ID: usPolicyImageCustodianOctets, SQL: `SELECT octet_length(custodian) FROM hosted_membership_sync WHERE singleton=1`,
@@ -252,7 +253,7 @@ WHERE p.singleton=1`,
 		{ID: usPolicyImageFactor, SQL: `SELECT 1 FROM identity_account_factors WHERE account_id=? AND confirmed=1`,
 			Params:  []stmt.Param{text("account")},
 			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer"}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_identity_account_factors_1"}, Seeks: []string{"account_id=?"}}},
-		{ID: usPolicyImageHosted, SQL: `SELECT hosted_account_id FROM account_portico_links WHERE account_id=?`,
+		{ID: usPolicyImageHosted, SQL: `SELECT hosted_account_id FROM account_portico_links INDEXED BY sqlite_autoindex_account_portico_links_1 WHERE account_id=?`,
 			Params:  []stmt.Param{text("account")},
 			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer"}}}, Plan: hostedPlan},
 		{ID: usPolicyImageCustodian, SQL: `SELECT custodian FROM hosted_membership_sync WHERE singleton=1`,
