@@ -31,6 +31,9 @@ type uoRootOperationResult struct {
 // dispatcher. The caller's own parent purpose supplies the concrete kind; no
 // domain number range, caller bool or foreign root chooses it.
 func preflightUORootOperation(v uoRootOperationResult) error {
+	if isUOUserBirthPurpose(v.kind) {
+		return ErrInvalid
+	} // births require their complete concrete original, never the generic scalar operation
 	if len(v.root) != 22 || !utf8.ValidString(v.root) || v.result.status < 1 || v.result.status > 4 || v.result.revision < 0 || v.result.cursor < 0 || v.result.done < 0 || v.result.failed < 0 || v.result.appliedMS <= 0 || v.result.target == "" || len(v.result.target) > 128 || !utf8.ValidString(v.result.target) || strings.ContainsRune(v.result.target, 0) {
 		return ErrInvalid
 	}

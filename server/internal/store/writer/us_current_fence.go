@@ -13,7 +13,8 @@ import (
 )
 
 // This closed NORMAL recipe proves only a current ordinary LOCAL interactive
-// session for personal flags 600 and public reading 770/771. It grants no item/library/reading command,
+// session for personal flags600, preparation birth700 and public reading770/771.
+// It grants no item/library/reading/media-creation command,
 // owner/admin power, MP source proof, worker/Hosted/reset/recovery authority.
 // Those remain independent parent conditions. Prepared US-01 witnesses contain
 // comparisons only; no US-01 owner stamp or FULL gate is widened here.
@@ -73,12 +74,19 @@ func authorizeUSCurrentSession(ctx context.Context, turn *commandTurn, p *usOwne
 	if turn == nil || turn.transaction == nil || p == nil || lifetime == nil {
 		return nil, ErrDisclosureDenied
 	}
+	// Revalidate comparison preparation: parsed times/hash cannot be replaced
+	// independently of the raw values compared to native rows.
+	verified, e := prepareUSOwnerAuthority(p.witness)
+	if e != nil {
+		return nil, e
+	}
+	p = verified
 	tx := turn.transaction
 	if !tx.begun || tx.done || !tx.policyVerified || tx.writer == nil || tx.descriptor.Durability != Normal || tx.settings.Synchronous != int(sqliteconn.Normal) {
 		return nil, ErrDisclosureDenied
 	}
 	switch tx.descriptor.ID {
-	case SetPersonalFlags, 770, 771:
+	case SetPersonalFlags, 700, 770, 771:
 	default:
 		return nil, ErrDisclosureDenied
 	}

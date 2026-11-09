@@ -14,14 +14,14 @@ import (
 // apply nor replay, and missing and mismatched roots are indistinguishable.
 var ErrUORootGone = errors.New("writer UO root is gone")
 
-// ErrUORootCurrentFenceUnavailable is the typed NORMAL seam until SOL-USERS's
-// writer/us_current_fence.go supplies its only mint. It is not a retry signal
+// ErrUORootCurrentFenceUnavailable refuses a missing or unsupported NORMAL
+// current-session proof. It is not a retry signal
 // and never means the root is gone.
 var ErrUORootCurrentFenceUnavailable = errors.New("writer UO root current fence unavailable")
 
 // uoRootIdentity is the exact validated scope a retained root original must
-// still match. It is filled only from a validated US-01 stamp (FULL) or, once
-// the mint lands, from its opaque NORMAL proof. A caller string never fills it.
+// still match. It is filled only from a validated US-01 stamp (FULL) or its
+// opaque NORMAL proof. A caller string never fills it.
 type uoRootIdentity struct {
 	account, memberIncarnation, profile, profileLifetime, installation, family string
 }
@@ -36,12 +36,13 @@ func (i uoRootIdentity) complete() bool {
 }
 
 // uoRootCurrentProof is the opaque NORMAL current-session proof seam. Its only
-// future producer is Sol's writer/us_current_fence.go mint; this file defines no
-// constructor and no exported field, so no caller bool, string or cached issuer
-// can stand in for it. Until that mint lands every NORMAL root command refuses
-// with ErrUORootCurrentFenceUnavailable. The frame, purpose, lifetime, deadline
-// and identity fields are what the mint will bind and what a reuse must fail.
+// producer is Sol's writer/us_current_fence.go bridge below; callers have no
+// public constructor or exported field, so no caller bool, string or cached issuer
+// can stand in for it. Unsupported NORMAL purposes refuse with
+// ErrUORootCurrentFenceUnavailable. The frame, purpose, lifetime, deadline
+// and identity fields bind this mint and make reuse fail.
 type uoRootCurrentProof struct {
+	session  *usCurrentSessionAuthorization
 	turn     *commandTurn
 	purpose  CommandID
 	lifetime context.Context
@@ -57,7 +58,32 @@ func (p *uoRootCurrentProof) current(turn *commandTurn) error {
 	if !ok || !p.deadline.Equal(deadline) {
 		return ErrUORootCurrentFenceUnavailable
 	}
-	return nil
+	if p.session == nil || p.session.turn != turn || p.identity != uoRootSessionIdentity(p.session) {
+		return ErrUORootCurrentFenceUnavailable
+	}
+	return p.session.recheck(turn.transaction.ctx, turn)
+}
+
+func uoRootSessionIdentity(a *usCurrentSessionAuthorization) uoRootIdentity {
+	i := a.proof.witness.issuer
+	return uoRootIdentity{account: i.account, memberIncarnation: i.memberIncarnation, profile: i.profile, profileLifetime: i.profileLifetime, installation: i.installation, family: i.family}
+}
+
+// Sole NORMAL bridge: a current source-checked US proof, never a caller scope.
+// Root matching remains independent and is repeated by every root operation.
+func bindUSCurrentUORoot(ctx context.Context, turn *commandTurn, a *usCurrentSessionAuthorization) (out *uoRootCurrentProof, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if a == nil || a.turn != turn {
+		return nil, ErrUORootCurrentFenceUnavailable
+	}
+	if err = a.recheck(ctx, turn); err != nil {
+		return nil, err
+	}
+	deadline, ok := turn.transaction.ctx.Deadline()
+	if !ok {
+		return nil, ErrUORootCurrentFenceUnavailable
+	}
+	return &uoRootCurrentProof{session: a, turn: turn, purpose: turn.transaction.descriptor.ID, lifetime: a.lifetime, deadline: deadline, identity: uoRootSessionIdentity(a)}, nil
 }
 
 // uoRootBinding is the only door from a domain command into the shared lifetime
@@ -71,6 +97,7 @@ func (p *uoRootCurrentProof) current(turn *commandTurn) error {
 // string or frozen issuer for the proof.
 type uoRootBinding struct {
 	security *usOwnerAuthorization
+	current  *uoRootCurrentProof
 	identity uoRootIdentity
 }
 
@@ -97,9 +124,7 @@ func bindUORoot(turn *commandTurn, security *usOwnerAuthorization, current *uoRo
 		if err := current.current(turn); err != nil {
 			return out, err
 		}
-		// The proof shape is closed, but its authorized mint is not available
-		// yet. Refusing here is the seam; do not invent a second mint.
-		return out, ErrUORootCurrentFenceUnavailable
+		return uoRootBinding{current: current, identity: current.identity}, nil
 	case Full:
 		if current != nil {
 			return out, ErrInvalid
@@ -136,9 +161,13 @@ func (b *uoRootBinding) check(ctx context.Context, turn *commandTurn) error {
 		// US-01 re-runs every independent current source check on this turn.
 		return b.security.recheck(ctx, turn)
 	case Normal:
-		// No us_current_fence mint exists yet, so no Normal binding can be
-		// trusted even if one was somehow retained.
-		return ErrUORootCurrentFenceUnavailable
+		if b.current == nil || b.security != nil || b.identity != b.current.identity {
+			return ErrUORootCurrentFenceUnavailable
+		}
+		if err := b.current.current(turn); err != nil {
+			return err
+		}
+		return turn.checkLifetimes(ctx) // native current.current above already re-proved every source
 	default:
 		return ErrDisclosureDenied
 	}
