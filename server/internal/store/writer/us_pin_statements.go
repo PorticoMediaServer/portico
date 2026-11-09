@@ -88,6 +88,12 @@ func applyUSPIN(ctx context.Context, turn *commandTurn, prepared *usPINPrepared)
 		return out, ErrInvalid
 	}
 	in := prepared.request
+	// Clearing retires the profile's PIN, but NOT the product's full
+	// retireProfilePINGrantsTx fan-out: that product path also cancels approved
+	// Quick Connect grants (status='cancelled', grant_cipher=NULL,
+	// user_hash=NULL) and deletes direct_profile_pin_attempts, while US-09 does
+	// neither. A later task must fence Quick Connect redemption against a
+	// cleared PIN.
 	id := usPINClearWrite
 	// Only this closed effect supplies the clear binding: SQL NULL, never an
 	// empty BLOB. Named RETURNING columns keep HN's native DML grammar intact.
