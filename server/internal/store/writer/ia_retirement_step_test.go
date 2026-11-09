@@ -11,7 +11,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
-// Canonical sqliteconn/bootstrap with the complete adopted F018 schema. The
+// Canonical sqliteconn/bootstrap with the complete adopted C019 schema. The
 // security producers are reused from the censused IA05 fixture, never legacy
 // persistence.Open. No CREATE/ALTER overlay or substitute parent is installed.
 func iaRetirementUnitFixture(t *testing.T, folder bool) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof, iaRetirementUnitScope, iaRetirementMediaVictim) {
@@ -43,7 +43,13 @@ func iaRetirementUnitFixture(t *testing.T, folder bool) (*executor, *iaEntryRegi
 		s.sourceGeneration = 2
 		s.rootIdentity = "root:1"
 	}
-	wc008NativeExec(t, w, `INSERT INTO catalog_removal_progress(kind,target,phase,job_revision,job_lease_owner,job_lease_generation,job_lease_expires_ms) VALUES(?,?,2,1,1,1,?)`, s.kind, s.target, s.leaseExpiresMS)
+	// The retained original scope is the same admitted scope as this unit's
+	// current lease. Library retirement has no folder-source witnesses.
+	var sourceIncarnation, sourceGeneration, rootIdentity any
+	if folder {
+		sourceIncarnation, sourceGeneration, rootIdentity = s.sourceIncarnation, s.sourceGeneration, s.rootIdentity
+	}
+	wc008NativeExec(t, w, `INSERT INTO catalog_removal_progress(kind,target,phase,job_revision,job_lease_owner,job_lease_generation,job_lease_expires_ms,original_operation_id,original_request_digest,command_incarnation,original_library_id,original_library_key,original_resolved_root,original_source_incarnation,original_source_generation,original_root_identity) VALUES(?,?,2,1,1,1,?,zeroblob(16),zeroblob(32),zeroblob(16),?,?,?,?,?,?)`, s.kind, s.target, s.leaseExpiresMS, s.libraryID, s.libraryKey, s.resolvedRoot, sourceIncarnation, sourceGeneration, rootIdentity)
 	r, err := stmttest.New(t, iaRetirementUnitDefinitions())
 	if err != nil {
 		t.Fatal(err)
