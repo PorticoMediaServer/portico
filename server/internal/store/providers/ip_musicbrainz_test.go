@@ -369,6 +369,12 @@ func TestIPMBArtistAndRecordingEvidence(t *testing.T) {
 			`"end": ""`, `"end": "1980"`), ErrMBEvidence)
 	mbAssertRefused(t, mbConsent(), o,
 		mbMutate(t, body, `"country": "GB"`, `"country": "GBR"`), ErrMBEvidence)
+	mbAssertRefused(t, mbConsent(), o,
+		mbMutate(t, body, `"name": "Massive Attack",`, `"name": "",`), ErrMBEvidence)
+	mbAssertRefused(t, mbConsent(), o,
+		mbMutate(t, body, `"type": "Group"`, `"type": "`+strings.Repeat("T", maxMBShortText+1)+`"`), ErrMBEvidence)
+	mbAssertRefused(t, mbConsent(), o,
+		mbMutate(t, body, `"sort-name": "Massive Attack",`, `"sort-name": "`+strings.Repeat("S", maxMBNameText+1)+`",`), ErrMBEvidence)
 
 	recording := mbFixture(t, "musicbrainz_recording.json")
 	ro := mbObservation(enrich.Recording, mbRecordingOneID)
@@ -534,6 +540,18 @@ func TestIPMBReleaseBounds(t *testing.T) {
 		mbGeneratedRelease(oneCredit, mbGeneratedMedium(1, []string{
 			mbGeneratedTrack(1, "["+badTrackCredit+"]"),
 		})), ErrMBEvidence)
+	// A release must declare at least one artist credit.
+	mbAssertRefused(t, mbConsent(), o,
+		mbGeneratedRelease("", mbGeneratedMedium(1, []string{mbGeneratedTrack(1, "[]")})), ErrMBEvidence)
+	// A single credit name and the joined display are separately bounded.
+	mbAssertRefused(t, mbConsent(), o,
+		mbGeneratedRelease(mbCreditJSON(strings.Repeat("N", maxMBNameText+1)),
+			mbGeneratedMedium(1, []string{mbGeneratedTrack(1, "[]")})), ErrMBEvidence)
+	longJoin := strings.Replace(mbCreditJSON(strings.Repeat("N", maxMBNameText)),
+		`"joinphrase":""`, `"joinphrase":"`+strings.Repeat("J", maxMBShortText)+`"`, 1)
+	mbAssertRefused(t, mbConsent(), o,
+		mbGeneratedRelease(longJoin+","+mbCreditJSON(strings.Repeat("N", maxMBNameText)),
+			mbGeneratedMedium(1, []string{mbGeneratedTrack(1, "[]")})), ErrMBEvidence)
 }
 
 func TestIPMBEvidenceCopiesCallerInputs(t *testing.T) {
