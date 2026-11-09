@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
@@ -39,6 +40,26 @@ import (
 // window; a short window is the only EOF. Rejected rows still advance the raw
 // cursor. A set that does not fit the admitted payload refuses instead of
 // publishing a truncated order.
+//
+// MEMORY SPLIT. The cache kind is rbPreparedPersonalOrder, whose fixed split is
+// decided once when the first fence is captured and is never resized:
+//
+//	P = lease.PayloadBytes()
+//	W = ceil(P/2)                      // staged valued workspace
+//	cap_ids = (P - W - 2*fenceBytes)/8 // retained ID vector
+//
+// The staged region W holds the fixed key-header array, the text appended to
+// those keys and the reusable batch of IDs handed back to the cache. Both
+// allocations happen once; the remainder phase appends into cap_ids, the valued
+// phase appends into W, and a content restart only resets both lengths to zero
+// inside the same allocations. The physical peak is therefore
+// ids(cap_ids*8) + staged(W) + fences <= P at every point, with no shrink copy,
+// capacity restore or retain-time growth copy. Refusals keep the existing named
+// errors: IDs above cap_ids are errRBPreparationCapacity, a valued run above W
+// is errRBPersonalPrepareWorkspace, and neither publishes a truncated order.
+// For the default 16 MiB grant cap_ids is roughly 1.0 million IDs minus fences.
+// The shared rbPreparedOrder kind used by every other producer keeps its previous
+// grow-to-need behaviour.
 const (
 	// rbPersonalPrepareRaw bounds one raw source window exactly like the common
 	// browse window. Rejected rows and lookahead count against it.
@@ -49,6 +70,15 @@ const (
 	// rbPersonalPrepareMaxQueries is the finite proof recipe for one window: the
 	// common fence plus at most one byte preflight and its payload leg.
 	rbPersonalPrepareMaxQueries = 16
+
+	// rbPersonalValuedKeyBytes is the inline cost of one staged key (number,
+	// string header, public identity and entity ID).
+	rbPersonalValuedKeyBytes = int64(unsafe.Sizeof(rbPersonalValuedKey{}))
+	// rbPersonalStagedTextProvision is the per-slot text allowance used to
+	// preallocate the fixed key-header array out of the workspace W. Actual text
+	// is charged separately before each append; a value with longer text simply
+	// fits fewer keys, never more bytes than W.
+	rbPersonalStagedTextProvision = 32
 )
 
 type RBPersonalPrepareInput struct {
@@ -216,7 +246,9 @@ func (r *RBPersonalPrepareReader) BeginRBPersonalPrepare(ctx context.Context, ow
 		return nil, governor.ErrBusy
 	}
 	defer r.mu.Unlock()
-	entry, err := r.cache.begin(ctx, key, rbPreparedOrder, deadline, bytes, governor.PublicationFootprint{{Library: in.View.Library}})
+	// The opt-in personal kind gets the fixed ID/staged split at capture; the
+	// shared cache default used by every other producer is unchanged.
+	entry, err := r.cache.begin(ctx, key, rbPreparedPersonalOrder, deadline, bytes, governor.PublicationFootprint{{Library: in.View.Library}})
 	if err != nil {
 		return nil, err
 	}
@@ -263,6 +295,9 @@ func (p *RBPersonalPreparation) Advance(ctx context.Context, request governor.Re
 		p.entry.cache.mu.Lock()
 		err = p.entry.checkLocked()
 		p.entry.cache.mu.Unlock()
+		if err != nil {
+			p.retireClosed()
+		}
 		result.Ready = err == nil
 		return result, err
 	}
@@ -287,6 +322,7 @@ func (p *RBPersonalPreparation) Advance(ctx context.Context, request governor.Re
 		return p.walk(ctx, request, budget, &result)
 	})
 	if err != nil {
+		p.retireClosed()
 		return result, err
 	}
 	result.Ready = p.complete
@@ -294,14 +330,21 @@ func (p *RBPersonalPreparation) Advance(ctx context.Context, request governor.Re
 }
 
 // restartAttempt discards every reduced value and source cursor while keeping
-// the retained vector capacity, original lease and physical grant.
+// the fixed allocations, original lease and physical grant. Both lengths - the
+// staged keys and the retained IDs - are reset inside the SAME cap_ids and W
+// allocations, so attempt two cannot inherit attempt one's sizing.
 func (p *RBPersonalPreparation) restartAttempt() {
 	p.valuedExhausted, p.restExhausted = false, false
 	p.valuedAfter, p.restAfter = nil, nil
 	p.valuedLeg = rbValuedLegFirst
 	p.staged = p.staged[:0]
-	p.stagedBytes = 0
+	p.stagedBytes = p.stagedFixedBytes()
 	p.complete = false
+	if p.entry.cache != nil {
+		p.entry.cache.mu.Lock()
+		p.entry.resetRetainedIDsLocked()
+		p.entry.cache.mu.Unlock()
+	}
 }
 
 func (p *RBPersonalPreparation) walk(ctx context.Context, request governor.Request, budget time.Duration, result *RBPersonalPrepareAdvance) (browseFence, error) {
@@ -409,7 +452,10 @@ func (p *RBPersonalPreparation) window(ctx context.Context, request governor.Req
 	if err != nil {
 		// Denial/stale/invalidated work cannot keep a ready-poll lease alive.
 		if errors.Is(err, ErrDenied) || errors.Is(err, ErrStale) || errors.Is(err, ErrUnqualified) || errors.Is(err, governor.ErrSnapshotBudget) || errors.Is(err, errRBPersonalPrepareWorkspace) {
-			_ = p.entry.close()
+			p.discard()
+		} else {
+			// checkLocked may already have retired the lease (expiry/cancel).
+			p.retireClosed()
 		}
 		return fresh, err
 	}
@@ -635,7 +681,7 @@ func (p *RBPersonalPreparation) reduceValuedWindow(ctx context.Context, raw [][]
 			return
 		}
 		for _, key := range p.staged[stagedStart:] {
-			p.stagedBytes -= 64 + int64(len(key.text))
+			p.stagedBytes -= int64(len(key.text))
 		}
 		p.staged = p.staged[:stagedStart]
 	}()
@@ -828,8 +874,8 @@ func rbPersonalPreparePublic(v any) ([16]byte, bool) {
 	return public, true
 }
 
-// initStaged allocates the complete valued workspace once, from the admitted
-// payload left after the retained-ID vector. It is charged before growth.
+// initStaged allocates the complete valued workspace once out of the fixed
+// split's W. It never shrinks or restores the ID vector.
 func (p *RBPersonalPreparation) initStaged() error {
 	if p.staged != nil {
 		return nil
@@ -839,43 +885,45 @@ func (p *RBPersonalPreparation) initStaged() error {
 		p.entry.cache.mu.Unlock()
 		return err
 	}
-	// capture sizes the ID vector for the WHOLE payload before any value is
-	// known. Keep exactly the IDs already retained and shrink that capacity to
-	// the used count, so the staged keys and the eventual ID growth share one
-	// payload instead of stacking a second workspace over a full vector (the
-	// old path reached ~1.75x the grant for a descending valued-first walk).
-	if cap(p.entry.ids) > len(p.entry.ids) {
-		kept := make([]int64, len(p.entry.ids))
-		copy(kept, p.entry.ids)
-		p.entry.ids = kept
-	}
-	retained := int64(cap(p.entry.ids))
-	fence := 2 * rbPreparedFenceBytes(p.entry.fence)
-	payload := p.entry.lease.PayloadBytes()
+	workspace := p.entry.workspace
 	p.entry.cache.mu.Unlock()
-
-	// A charged 64-byte key includes 8 bytes for its eventual retained ID plus
-	// allocator slack. The batch ID vector is charged separately. Everything,
-	// including fence clones and the batch cursor, must fit the same payload.
-	room := payload - retained*8 - fence - rbPersonalPrepareRaw*8
-	if room < 64*128 {
+	if p.entry.purpose != rbPreparedPersonalOrder || workspace <= 0 {
 		return errRBPersonalPrepareWorkspace
 	}
-	p.staged = make([]rbPersonalValuedKey, 0, int(room/64))
-	p.stagedCap = room
+	// W covers the fixed key-header array, the text appended to those keys and
+	// the reusable batch of IDs handed to the cache. The header array is sized
+	// once from a small per-key text provision; every append then charges its
+	// actual text before writing, and refuses if that would cross W.
+	batchBytes := int64(rbPersonalPrepareRaw) * 8
+	keyCap := int((workspace - batchBytes) / (rbPersonalValuedKeyBytes + rbPersonalStagedTextProvision))
+	if keyCap < 1 {
+		return errRBPersonalPrepareWorkspace
+	}
 	p.stageIDs = make([]int64, 0, rbPersonalPrepareRaw)
+	p.staged = make([]rbPersonalValuedKey, 0, keyCap)
+	p.stagedCap = workspace
+	p.stagedBytes = p.stagedFixedBytes()
 	return nil
+}
+
+// stagedFixedBytes is the already-committed part of W: the preallocated key
+// headers plus the reusable batch. Text bytes are added per append.
+func (p *RBPersonalPreparation) stagedFixedBytes() int64 {
+	if p.staged == nil {
+		return 0
+	}
+	return int64(cap(p.staged))*rbPersonalValuedKeyBytes + int64(cap(p.stageIDs))*8
 }
 
 func (p *RBPersonalPreparation) appendStaged(key rbPersonalValuedKey) error {
 	if err := p.initStaged(); err != nil {
 		return err
 	}
-	n := 64 + int64(len(key.text))
-	if n > p.stagedCap-p.stagedBytes || len(p.staged) >= cap(p.staged) {
+	textBytes := int64(len(key.text))
+	if len(p.staged) >= cap(p.staged) || textBytes > p.stagedCap-p.stagedBytes {
 		return errRBPersonalPrepareWorkspace
 	}
-	p.stagedBytes += n
+	p.stagedBytes += textBytes
 	p.staged = append(p.staged, key)
 	return nil
 }
@@ -887,6 +935,9 @@ func (p *RBPersonalPreparation) retainStaged() error {
 	slices.SortFunc(p.staged, func(a, b rbPersonalValuedKey) int {
 		return rbComparePersonalPrepareValued(a, b, p.order, p.view.Descending)
 	})
+	// IDs are appended into the cap_ids vector allocated at capture. The batch
+	// is the fixed rbPersonalPrepareRaw buffer already inside W, so this loop
+	// never allocates or grows a second vector.
 	for start := 0; start < len(p.staged); start += rbPersonalPrepareRaw {
 		end := min(len(p.staged), start+rbPersonalPrepareRaw)
 		p.stageIDs = p.stageIDs[:0]
@@ -898,14 +949,20 @@ func (p *RBPersonalPreparation) retainStaged() error {
 		}
 	}
 	// The staged workspace must not survive readiness (a parked Ready job would
-	// hold it for the whole lease). Restore the complete retained-ID capacity
-	// only after the staged keys are gone, so the two never share live bytes.
+	// hold it for the whole lease). The ID vector keeps its fixed cap_ids; only
+	// the W region is dropped.
+	p.dropWorkspace()
+	return nil
+}
+
+// dropWorkspace releases the fixed staged region. It is used after a
+// successful retain, on readiness, on every close/denial/workspace error and on
+// a content restart that has no more work, so a retired lease never keeps W.
+func (p *RBPersonalPreparation) dropWorkspace() {
 	p.staged = nil
 	p.stagedBytes = 0
 	p.stagedCap = 0
 	p.stageIDs = nil
-	p.entry.restoreIDCapacity()
-	return nil
 }
 
 func rbComparePersonalPrepareValued(a, b rbPersonalValuedKey, order PersonalOrder, descending bool) int {
@@ -927,32 +984,38 @@ func rbComparePersonalPrepareValued(a, b rbPersonalValuedKey, order PersonalOrde
 // finishPersonal publishes readiness through the SAME preparation lease. The
 // IDs were retained in final order, so no reversal is needed after a restart.
 func (p *RBPersonalPreparation) finishPersonal() error {
-	// A parked Ready job must not keep the temporary sort workspace.
-	p.staged = nil
-	p.stagedBytes = 0
-	p.stagedCap = 0
-	p.stageIDs = nil
+	// A parked Ready job must not keep the temporary sort workspace. Only the
+	// fixed cap_ids vector remains retained after readiness.
+	p.dropWorkspace()
 	p.entry.cache.mu.Lock()
-	defer p.entry.cache.mu.Unlock()
-	if err := p.entry.checkLocked(); err != nil {
-		return err
+	err := p.entry.checkLocked()
+	if err == nil && (!p.entry.captured || p.entry.complete) {
+		err = ErrInput
 	}
-	if !p.entry.captured || p.entry.complete {
-		return ErrInput
+	if err == nil {
+		if err = p.entry.cache.a.ReadyPreparation(p.entry.lease); err != nil {
+			_ = p.entry.closeLocked()
+		} else {
+			p.entry.complete = true
+			p.complete = true
+		}
 	}
-	if err := p.entry.cache.a.ReadyPreparation(p.entry.lease); err != nil {
-		_ = p.entry.closeLocked()
-		return err
+	p.entry.cache.mu.Unlock()
+	if err != nil {
+		p.releaseSlot()
 	}
-	p.entry.complete = true
-	p.complete = true
-	return nil
+	return err
 }
 
 // Page copies one page of the complete ordered IDs inside a fresh authorized
 // response snapshot. The exact whole fence must match before any copy, and the
 // first delivery linearizes with the governor exactly like every other prepared
 // cache purpose. A later page with a drifted fence is denied, never replayed.
+//
+// Non-blocking review note kept as documentation: once a job is Ready, a Page
+// that observes a viewer_revision drift returns ErrStale (the cache handoff
+// compares the whole fence) rather than ErrDenied. Preparation-time drift still
+// denies before readiness; the difference is only which fence comparison sees it.
 func (p *RBPersonalPreparation) Page(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, current BrowseInput, after *RBPersonalPrepareCursor, limit int) (RBPersonalPreparePage, BrowseReadResult, error) {
 	if p == nil || p.reader == nil || p.entry == nil {
 		return RBPersonalPreparePage{}, BrowseReadResult{}, ErrInput
@@ -1032,7 +1095,9 @@ func (p *RBPersonalPreparation) page(ctx context.Context, request governor.Reque
 	}
 	if err != nil {
 		if errors.Is(err, ErrDenied) || errors.Is(err, ErrStale) || errors.Is(err, ErrUnqualified) {
-			_ = p.entry.close()
+			p.discard()
+		} else {
+			p.retireClosed()
 		}
 		return RBPersonalPreparePage{}, result, err
 	}
@@ -1045,7 +1110,7 @@ func (p *RBPersonalPreparation) page(ctx context.Context, request governor.Reque
 	expires, e1 := time.Parse(time.RFC3339Nano, fresh.expiresAt)
 	horizon, e2 := time.Parse(time.RFC3339Nano, fresh.horizon)
 	if e1 != nil || e2 != nil || !at.Before(expires) || !at.Before(horizon) {
-		_ = p.entry.close()
+		p.discard()
 		return RBPersonalPreparePage{}, result, ErrDenied
 	}
 	if !time.Now().Before(deadline) {
@@ -1067,5 +1132,50 @@ func (p *RBPersonalPreparation) Close() error {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.entry.close()
+	p.dropWorkspace()
+	err := p.entry.close()
+	p.releaseSlot()
+	return err
+}
+
+// discard retires a job after a denial, stale fence, workspace refusal or
+// publication error: the fixed W region, the job's staged fields and the
+// reader's slot reference all go before the physical lease is attested.
+func (p *RBPersonalPreparation) discard() {
+	p.dropWorkspace()
+	_ = p.entry.close()
+	p.releaseSlot()
+}
+
+// retireClosed releases the job's staged region and reader slot when a lease was
+// already retired elsewhere (expiry, cancellation, pinned-fence denial or the
+// restart limit). It never closes anything twice and never runs under cache.mu.
+func (p *RBPersonalPreparation) retireClosed() {
+	if p == nil || p.entry == nil {
+		return
+	}
+	p.entry.cache.mu.Lock()
+	closed := p.entry.closed
+	p.entry.cache.mu.Unlock()
+	if closed {
+		p.dropWorkspace()
+		p.releaseSlot()
+	}
+}
+
+// releaseSlot drops the reader's reference to this job once its lease retires.
+// It never runs while the cache mutex is held, so it cannot invert Begin's
+// reader-then-cache order.
+func (p *RBPersonalPreparation) releaseSlot() {
+	r := p.reader
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	for i, job := range r.jobs {
+		if job == p {
+			r.jobs[i] = nil
+		}
+	}
+	r.mu.Unlock()
 }
